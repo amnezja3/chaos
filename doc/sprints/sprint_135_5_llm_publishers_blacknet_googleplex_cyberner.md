@@ -2,6 +2,18 @@
 
 Status: `SPRINT 135.5 — FINAL SERVER VALIDATION`.
 
+## Follow-up: Sprint 135.5.1
+
+Walidacja produkcyjna potwierdziła, że transport działa, lecz okresowy
+`world_digest` pozostawia modelowi wybór tematu i może publikować semantycznie
+identyczne treści dla niezmienionego świata. Naprawa została wydzielona jako
+[Sprint 135.5.1 — Deterministic Editorial Queue and Slot-Owned LLM Copy](sprint_135_5_1_deterministic_editorial_queue_slot_copy.md).
+
+135.5.1 wprowadza single-source assignments, jawne ownership slotów Googleplex,
+promocyjny copywriting produktów z canonical nazwą/ceną/linkiem, deterministyczną
+rotację boxów i novelty guard. Do jego zakończenia 135.5 pozostaje otwarty
+semantycznie, mimo poprawnego transportu i exactly-once.
+
 ## Final server validation — 2026-08-30
 
 Implementacja, transport, publication receipts, exactly-once oraz code-owned

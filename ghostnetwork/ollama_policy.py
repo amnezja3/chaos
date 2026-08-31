@@ -504,6 +504,14 @@ def build_ollama_task_package(task, policy=None):
         "fact_count": len(facts),
         "source_facts": tuple(copy.deepcopy(source_facts)),
         "allowed_asset_refs": tuple(allowed_asset_refs),
+        "selected_source_ref": str(
+            task.get("selected_source_ref")
+            or (task.get("validation") or {}).get("selected_source_ref") or ""
+        ).strip(),
+        "fixed_action": copy.deepcopy(
+            task.get("fixed_action")
+            or (task.get("validation") or {}).get("fixed_action") or {}
+        ),
     }
 
 
@@ -566,6 +574,9 @@ def parse_and_validate_ollama_content(content, task_package):
         errors.append("invalid_fact_refs")
     elif not set(refs).issubset(set(task_package.get("fact_refs") or [])):
         security_errors.append("unknown_fact_ref")
+    selected_source_ref = str(task_package.get("selected_source_ref") or "").strip()
+    if selected_source_ref and refs != [selected_source_ref]:
+        security_errors.append("selected_fact_mismatch")
     if cta_ref is not None:
         if not isinstance(cta_ref, str) or cta_ref not in (task_package.get("cta_map") or {}):
             security_errors.append("unknown_cta_ref")
@@ -623,7 +634,10 @@ def parse_and_validate_ollama_content(content, task_package):
             "cta_ref": cta_ref,
             **({"asset_ref": asset_ref} if allows_asset else {}),
         },
-        "resolved_cta": copy.deepcopy((task_package.get("cta_map") or {}).get(cta_ref)),
+        "resolved_cta": copy.deepcopy(
+            task_package.get("fixed_action")
+            or (task_package.get("cta_map") or {}).get(cta_ref)
+        ),
         "resolved_asset_ref": asset_ref if allows_asset and asset_ref else "",
         "normalizations": [
             *(["canonical_identifier_to_safe_label"] if identifier_normalized else []),

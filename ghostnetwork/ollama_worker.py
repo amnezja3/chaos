@@ -126,7 +126,16 @@ class OllamaNarrativeWorker:
         self.config = config or OllamaWorkerConfig.from_env()
         nonce = uuid.uuid4().hex[:10]
         self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{nonce}"
-        self.policies = registered_ollama_policies()
+        # Sprint 135.5.1 cutover: keep legacy policy definitions readable for
+        # historical audit/tests, but never claim the old multi-fact world
+        # digest queue. New work is single-source only.
+        self.policies = tuple(
+            policy for policy in registered_ollama_policies()
+            if not (
+                policy.source_scope == "blacknet_world"
+                and policy.task_variant == "world_digest"
+            )
+        )
         self._preflight_result = None
         self._preflight_expires_at = 0.0
 

@@ -132,9 +132,33 @@ class NarrativePublicationService:
                 receipt["lease_until"], reason,
             )
             return {"ok": False, "result": "rejected", "reason": reason, "receipt": rejected}
+        if self.repository.has_recent_narrative_content(
+            candidate.get("target_medium"), candidate.get("title"), candidate.get("body"),
+            audience_scope=candidate.get("audience_scope"),
+            audience_clan=candidate.get("audience_clan"),
+            audience_owner=candidate.get("audience_owner"),
+            limit=100,
+        ):
+            rejected = self.repository.reject_claimed_narrative_publication(
+                receipt["publication_receipt_id"], self.worker_id,
+                receipt["lease_until"], "duplicate_content",
+            )
+            return {
+                "ok": False, "result": "rejected",
+                "reason": "duplicate_content", "receipt": rejected,
+            }
         published = self.repository.publish_claimed_narrative_candidate(
             receipt["publication_receipt_id"], self.worker_id, receipt["lease_until"]
         )
+        if published and published.get("slot_superseded"):
+            rejected = self.repository.reject_claimed_narrative_publication(
+                receipt["publication_receipt_id"], self.worker_id,
+                receipt["lease_until"], "slot_assignment_superseded",
+            )
+            return {
+                "ok": False, "result": "rejected",
+                "reason": "slot_assignment_superseded", "receipt": rejected,
+            }
         if not published:
             return {"ok": False, "result": "ownership_lost"}
         return {"ok": True, "result": "published", **published}

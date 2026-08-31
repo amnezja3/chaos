@@ -180,6 +180,105 @@ class LlmEventProducerTest(unittest.TestCase):
             )
         self.assertEqual(safe["diagnostics"]["profile_reads"], 0)
 
+    def test_stage_one_editorial_task_has_one_backend_selected_source(self):
+        snapshot = {
+            "version": "world-v1",
+            "world_facts_version": "facts-v1",
+        }
+        signal = {
+            "id": "conflict-one",
+            "fact_id": "bnf:conflicts:conflict_target_alert:one",
+            "signal_type": "conflict_target_alert",
+            "category": "conflict",
+            "title": "CONFLICT / POI-788AEF",
+            "label": "TARGET SPORNY",
+            "stat": "contested",
+            "importance": 75,
+            "cta_action": "focus_map_target",
+            "cta_target_id": "legacy:canonical-target",
+            "metadata": {"lat": 35.6766, "lng": 139.653286},
+        }
+        producer = BlackNetNarrativeProducer(self.repo)
+
+        blacknet = producer.enqueue_signal(snapshot, signal, target_medium="blacknet")
+        replay = producer.enqueue_signal(snapshot, signal, target_medium="blacknet")
+        news = producer.enqueue_signal(
+            snapshot, signal, target_medium="googleplex_news"
+        )
+
+        self.assertEqual(blacknet["status"], "created")
+        self.assertEqual(replay["status"], "deduplicated")
+        self.assertEqual(len(blacknet["task"]["facts"]), 1)
+        self.assertEqual(blacknet["task"]["allowed_actions"], [])
+        self.assertEqual(
+            blacknet["task"]["task_variant"], "blacknet_signal_narration"
+        )
+        self.assertEqual(
+            news["task"]["task_variant"], "googleplex_world_dispatch"
+        )
+        self.assertEqual(
+            news["task"]["validation"]["presentation_slot"],
+            "gp-home-world-grid",
+        )
+        self.assertEqual(news["task"]["presentation_slot"], "gp-home-world-grid")
+        self.assertEqual(
+            news["task"]["selected_source_ref"],
+            news["task"]["facts"][0]["fact_id"],
+        )
+        self.assertEqual(news["task"]["expected_slot_version"], 0)
+        package = build_ollama_task_package(news["task"])
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(package["fact_count"], 1)
+        self.assertNotIn("ctas", model_input)
+        self.assertEqual(
+            package["selected_source_ref"], news["task"]["facts"][0]["fact_id"]
+        )
+        self.assertEqual(
+            package["fixed_action"]["payload"]["target_id"],
+            "legacy:canonical-target",
+        )
+
+    def test_stage_one_scheduler_advances_blacknet_and_serializes_hero(self):
+        signals = {
+            "version": "signals-v1",
+            "world_facts_version": "facts-v1",
+            "signals": [
+                {
+                    "id": f"signal-{index}", "fact_id": f"fact-{index}",
+                    "signal_type": "incident_hotspot", "category": "incident",
+                    "title": f"INCYDENT / L{index}", "label": "ACTIVE",
+                    "importance": 100 - index,
+                }
+                for index in (1, 2)
+            ],
+        }
+        with patch.object(
+            run, "get_ghostnetwork_service", return_value=self.service
+        ), patch.object(
+            run, "build_blacknet_narrative_source_snapshot",
+            return_value={"version": "facts-v1"},
+        ), patch.object(
+            run, "build_blacknet_world_signals", return_value=signals
+        ), patch.object(
+            run.user_store, "get_profile",
+            side_effect=AssertionError("full profile read"),
+        ) as profile_read, patch.object(
+            run.user_store, "list_profiles",
+            side_effect=AssertionError("profile scan"),
+        ) as profile_scan:
+            first = run.enqueue_blacknet_world_narrative_digest()
+            second = run.enqueue_blacknet_world_narrative_digest()
+
+        self.assertFalse(profile_read.called)
+        self.assertFalse(profile_scan.called)
+        self.assertEqual(first["status"], "created")
+        self.assertEqual(first["googleplex_news"]["status"], "created")
+        self.assertEqual(second["status"], "created")
+        self.assertEqual(second["googleplex_news"]["status"], "slot_busy")
+        tasks = self.repo.list_narrative_outbox(limit=20)
+        self.assertEqual(len(tasks), 3)
+        self.assertTrue(all(len(task["facts"]) == 1 for task in tasks))
+
     def test_googleplex_news_excludes_catalog_product_signals(self):
         snapshot = {
             "version": "signals-product-routing-v1",

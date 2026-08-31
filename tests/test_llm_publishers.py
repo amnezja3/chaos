@@ -29,6 +29,7 @@ def publication(record_id="medium-one", medium="googleplex_news", **overrides):
         "cta_ref": "cta:one",
         "cta_action": "open_map",
         "cta_payload": {"target_id": "world"},
+        "presentation_slot": "gp-home-world-grid",
         "published_at": "2026-08-29T12:00:00+00:00",
     }
     record.update(overrides)
@@ -57,7 +58,7 @@ class LlmPublisherAdapterTest(unittest.TestCase):
             item for item in merged["entries"]
             if item["content"]["source"] == "ollama_enriched"
         ]
-        self.assertEqual(len(published), 6)
+        self.assertEqual(len(published), 1)
         self.assertEqual(len(merged["entries"]), len(snapshot["entries"]))
         self.assertEqual(
             {item["content"]["news_id"] for item in merged["entries"]},
@@ -70,6 +71,29 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         self.assertEqual(merged["entries"][0]["content"]["news_id"], "gp-home-world-grid")
         self.assertTrue(merged["protocol_status"]["publication_enabled"])
         self.assertTrue(merged["protocol_status"]["ollama_used"])
+
+        for slot_id in foundation_ids - {"gp-home-world-grid"}:
+            before = next(
+                item for item in snapshot["entries"]
+                if item["content"]["news_id"] == slot_id
+            )
+            after = next(
+                item for item in merged["entries"]
+                if item["content"]["news_id"] == slot_id
+            )
+            self.assertEqual(after, before)
+
+    def test_googleplex_news_ignores_publication_without_explicit_slot(self):
+        snapshot = build_googleplex_news_snapshot(
+            catalog=[], viewer_key="alice", session_generation="one", limit=20,
+        )
+        merged = merge_googleplex_news_publications(
+            snapshot, [publication(presentation_slot="")], limit=20
+        )
+        self.assertFalse(any(
+            item["content"]["source"] == "ollama_enriched"
+            for item in merged["entries"]
+        ))
 
     def test_googleplex_news_drops_unapproved_cta_without_dropping_content(self):
         snapshot = build_googleplex_news_snapshot(

@@ -733,6 +733,12 @@ class GhostNetworkRepository:
                     model_policy_version TEXT NOT NULL DEFAULT 'unassigned',
                     truth_class_policy TEXT NOT NULL DEFAULT '',
                     task_variant TEXT NOT NULL DEFAULT 'default',
+                    content_kind TEXT NOT NULL DEFAULT '',
+                    presentation_slot TEXT NOT NULL DEFAULT '',
+                    selected_source_ref TEXT NOT NULL DEFAULT '',
+                    selected_source_version TEXT NOT NULL DEFAULT '',
+                    expected_slot_version INTEGER NOT NULL DEFAULT 0,
+                    fixed_action_json TEXT NOT NULL DEFAULT '{}',
                     priority INTEGER NOT NULL DEFAULT 0,
                     attempt_count INTEGER NOT NULL DEFAULT 0,
                     max_attempts INTEGER NOT NULL DEFAULT 5,
@@ -790,6 +796,12 @@ class GhostNetworkRepository:
                 ("model_policy_version", "model_policy_version TEXT NOT NULL DEFAULT 'unassigned'"),
                 ("truth_class_policy", "truth_class_policy TEXT NOT NULL DEFAULT ''"),
                 ("task_variant", "task_variant TEXT NOT NULL DEFAULT 'default'"),
+                ("content_kind", "content_kind TEXT NOT NULL DEFAULT ''"),
+                ("presentation_slot", "presentation_slot TEXT NOT NULL DEFAULT ''"),
+                ("selected_source_ref", "selected_source_ref TEXT NOT NULL DEFAULT ''"),
+                ("selected_source_version", "selected_source_version TEXT NOT NULL DEFAULT ''"),
+                ("expected_slot_version", "expected_slot_version INTEGER NOT NULL DEFAULT 0"),
+                ("fixed_action_json", "fixed_action_json TEXT NOT NULL DEFAULT '{}'"),
                 ("priority", "priority INTEGER NOT NULL DEFAULT 0"),
                 ("attempt_count", "attempt_count INTEGER NOT NULL DEFAULT 0"),
                 ("max_attempts", "max_attempts INTEGER NOT NULL DEFAULT 5"),
@@ -987,6 +999,15 @@ class GhostNetworkRepository:
                 """
                 CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_status_updated
                 ON ghost_narrative_outbox(status, updated_at, outbox_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_assignment
+                ON ghost_narrative_outbox(
+                    target_medium, presentation_slot, selected_source_ref,
+                    selected_source_version, status
+                )
                 """
             )
             conn.execute(
@@ -1201,6 +1222,10 @@ class GhostNetworkRepository:
                     cta_action TEXT NOT NULL DEFAULT '',
                     cta_payload_json TEXT NOT NULL DEFAULT '{}',
                     asset_ref TEXT NOT NULL DEFAULT '',
+                    presentation_slot TEXT NOT NULL DEFAULT '',
+                    content_kind TEXT NOT NULL DEFAULT '',
+                    selected_source_ref TEXT NOT NULL DEFAULT '',
+                    selected_source_version TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL,
                     published_at TEXT NOT NULL
                 )
@@ -1210,12 +1235,47 @@ class GhostNetworkRepository:
                 conn, "ghost_narrative_medium_records", "asset_ref",
                 "asset_ref TEXT NOT NULL DEFAULT ''",
             )
+            self._ensure_column(
+                conn, "ghost_narrative_medium_records", "presentation_slot",
+                "presentation_slot TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn, "ghost_narrative_medium_records", "content_kind",
+                "content_kind TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn, "ghost_narrative_medium_records", "selected_source_ref",
+                "selected_source_ref TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn, "ghost_narrative_medium_records", "selected_source_version",
+                "selected_source_version TEXT NOT NULL DEFAULT ''",
+            )
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_ghost_narrative_medium_audience
                 ON ghost_narrative_medium_records(
                     target_medium, audience_scope, audience_clan,
                     audience_owner, published_at DESC, medium_record_id DESC
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_slot_state (
+                    target_medium TEXT NOT NULL,
+                    slot_id TEXT NOT NULL,
+                    content_kind TEXT NOT NULL DEFAULT '',
+                    active_medium_record_id TEXT NOT NULL DEFAULT '',
+                    active_source_ref TEXT NOT NULL DEFAULT '',
+                    active_source_version TEXT NOT NULL DEFAULT '',
+                    active_content_hash TEXT NOT NULL DEFAULT '',
+                    creative_epoch INTEGER NOT NULL DEFAULT 0,
+                    last_refreshed_at TEXT NOT NULL DEFAULT '',
+                    next_refresh_at TEXT NOT NULL DEFAULT '',
+                    version INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(target_medium, slot_id)
                 )
                 """
             )
@@ -1445,6 +1505,9 @@ class GhostNetworkRepository:
         validation = loads_json(row["validation_json"], {}) if "validation_json" in keys else {}
         if not isinstance(validation, dict):
             validation = {}
+        fixed_action = loads_json(row["fixed_action_json"], {}) if "fixed_action_json" in keys else {}
+        if not isinstance(fixed_action, dict):
+            fixed_action = {}
         return {
             "outbox_id": row["outbox_id"],
             "task_id": row["outbox_id"],
@@ -1473,6 +1536,15 @@ class GhostNetworkRepository:
             "output_schema_version": row["output_schema_version"] if "output_schema_version" in keys else "unassigned",
             "model_policy_version": row["model_policy_version"] if "model_policy_version" in keys else "unassigned",
             "task_variant": row["task_variant"] if "task_variant" in keys else "default",
+            "content_kind": row["content_kind"] if "content_kind" in keys else "",
+            "presentation_slot": row["presentation_slot"] if "presentation_slot" in keys else "",
+            "content_kind": row["content_kind"] if "content_kind" in keys else "",
+            "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
+            "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
+            "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
+            "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
+            "expected_slot_version": int(row["expected_slot_version"] or 0) if "expected_slot_version" in keys else 0,
+            "fixed_action": fixed_action,
             "priority": int(row["priority"] or 0) if "priority" in keys else 0,
             "status": row["status"],
             "attempt_count": int(row["attempt_count"] or 0) if "attempt_count" in keys else 0,
@@ -1626,6 +1698,7 @@ class GhostNetworkRepository:
             "cta_action": row["cta_action"],
             "cta_payload": cta_payload if isinstance(cta_payload, dict) else {},
             "asset_ref": row["asset_ref"] if "asset_ref" in keys else "",
+            "presentation_slot": row["presentation_slot"] if "presentation_slot" in keys else "",
             "created_at": row["created_at"],
             "published_at": row["published_at"],
         }
@@ -3791,6 +3864,14 @@ class GhostNetworkRepository:
             "model_policy_version": _clean(item.get("model_policy_version"), "unassigned"),
             "truth_class_policy": _clean(item.get("truth_class_policy")),
             "task_variant": _clean(item.get("task_variant"), "default"),
+            "content_kind": _clean(item.get("content_kind")),
+            "presentation_slot": _clean(item.get("presentation_slot")),
+            "selected_source_ref": _clean(item.get("selected_source_ref")),
+            "selected_source_version": _clean(item.get("selected_source_version")),
+            "expected_slot_version": max(0, int(item.get("expected_slot_version") or 0)),
+            "fixed_action_json": dumps_json(
+                item.get("fixed_action") if isinstance(item.get("fixed_action"), dict) else {}
+            ),
             "priority": int(item.get("priority") or 0),
             "attempt_count": attempt_count,
             "max_attempts": max_attempts,
@@ -3817,6 +3898,8 @@ class GhostNetworkRepository:
                     source_receipt_id, source_app_id, processor, target_medium,
                     world_state_version, prompt_version, output_schema_version,
                     model_policy_version, truth_class_policy, task_variant,
+                    content_kind, presentation_slot, selected_source_ref,
+                    selected_source_version, expected_slot_version, fixed_action_json,
                     priority, attempt_count, max_attempts, claimed_by, claimed_at,
                     lease_until, next_attempt_at, last_error_code, last_error_at,
                     updated_at, completed_at, dead_lettered_at
@@ -3831,6 +3914,8 @@ class GhostNetworkRepository:
                     :source_receipt_id, :source_app_id, :processor, :target_medium,
                     :world_state_version, :prompt_version, :output_schema_version,
                     :model_policy_version, :truth_class_policy, :task_variant,
+                    :content_kind, :presentation_slot, :selected_source_ref,
+                    :selected_source_version, :expected_slot_version, :fixed_action_json,
                     :priority, :attempt_count, :max_attempts, :claimed_by, :claimed_at,
                     :lease_until, :next_attempt_at, :last_error_code, :last_error_at,
                     :updated_at, :completed_at, :dead_lettered_at
@@ -4849,13 +4934,17 @@ class GhostNetworkRepository:
                 SELECT r.*, c.validation_status, c.source_scope, c.source_event_id,
                        c.source_receipt_id, c.truth_class, c.title, c.body, c.tone,
                        c.fact_refs_json, c.cta_ref, c.cta_action, c.cta_payload_json,
-                       c.asset_ref,
+                       c.asset_ref, o.validation_json AS task_validation_json,
+                       o.content_kind, o.presentation_slot,
+                       o.selected_source_ref, o.selected_source_version,
+                       o.expected_slot_version,
                        c.target_medium AS candidate_medium,
                        c.audience_scope AS candidate_audience_scope,
                        c.audience_clan AS candidate_audience_clan,
                        c.audience_owner AS candidate_audience_owner
                 FROM ghost_narrative_publication_receipts r
                 JOIN ghost_narrative_inbox_candidates c ON c.candidate_id = r.candidate_id
+                JOIN ghost_narrative_outbox o ON o.outbox_id = r.task_id
                 WHERE r.publication_receipt_id = ? LIMIT 1
                 """,
                 (_clean(publication_receipt_id),),
@@ -4885,15 +4974,78 @@ class GhostNetworkRepository:
                 != (_clean(row["candidate_audience_scope"]), _clean(row["candidate_audience_clan"]), _clean(row["candidate_audience_owner"]))
             ):
                 return None
+            assignment = loads_json(row["task_validation_json"], {}) or {}
+            explicit_assignment = bool(_clean(row["presentation_slot"]))
+            presentation_slot = _clean(
+                row["presentation_slot"] or assignment.get("presentation_slot")
+            )
+            if presentation_slot:
+                try:
+                    expected_slot_version = int(
+                        row["expected_slot_version"]
+                        if explicit_assignment
+                        else assignment.get("expected_slot_version") or 0
+                    )
+                except (TypeError, ValueError):
+                    expected_slot_version = -1
+                source_ref = _clean(
+                    row["selected_source_ref"] or assignment.get("selected_source_ref")
+                )
+                source_version = _clean(
+                    row["selected_source_version"] or assignment.get("selected_source_version")
+                )
+                content_hash = hashlib.sha256(
+                    (str(row["title"]) + "\n" + str(row["body"])).encode("utf-8")
+                ).hexdigest()
+                if expected_slot_version == 0:
+                    slot_cursor = conn.execute(
+                        """
+                        INSERT OR IGNORE INTO ghost_narrative_slot_state (
+                            target_medium, slot_id, content_kind,
+                            active_medium_record_id, active_source_ref,
+                            active_source_version, active_content_hash,
+                            creative_epoch, last_refreshed_at, next_refresh_at,
+                            version, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, '', 1, ?)
+                        """,
+                        (
+                            row["target_medium"], presentation_slot,
+                            _clean(row["content_kind"] or assignment.get("content_kind")),
+                            row["medium_record_id"], source_ref, source_version,
+                            content_hash, now_iso, now_iso,
+                        ),
+                    )
+                else:
+                    slot_cursor = conn.execute(
+                        """
+                        UPDATE ghost_narrative_slot_state
+                        SET content_kind = ?, active_medium_record_id = ?,
+                            active_source_ref = ?, active_source_version = ?,
+                            active_content_hash = ?, last_refreshed_at = ?,
+                            version = version + 1, updated_at = ?
+                        WHERE target_medium = ? AND slot_id = ? AND version = ?
+                        """,
+                        (
+                            _clean(row["content_kind"] or assignment.get("content_kind")),
+                            row["medium_record_id"], source_ref, source_version,
+                            content_hash, now_iso, now_iso, row["target_medium"],
+                            presentation_slot, expected_slot_version,
+                        ),
+                    )
+                if expected_slot_version < 0 or slot_cursor.rowcount != 1:
+                    return {"slot_superseded": True}
             conn.execute(
+                # Slot assignment is code-owned task metadata. The model never
+                # sees or chooses it.
                 """
                 INSERT INTO ghost_narrative_medium_records (
                     medium_record_id, publication_receipt_id, candidate_id, task_id,
                     target_medium, audience_scope, audience_clan, audience_owner,
                     source_scope, source_event_id, source_receipt_id, truth_class,
                     title, body, tone, fact_refs_json, cta_ref, cta_action,
-                    cta_payload_json, asset_ref, created_at, published_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cta_payload_json, asset_ref, presentation_slot, content_kind,
+                    selected_source_ref, selected_source_version, created_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(publication_receipt_id) DO NOTHING
                 """,
                 (
@@ -4903,7 +5055,12 @@ class GhostNetworkRepository:
                     row["source_scope"], row["source_event_id"], row["source_receipt_id"],
                     row["truth_class"], row["title"], row["body"], row["tone"],
                     row["fact_refs_json"], row["cta_ref"], row["cta_action"],
-                    row["cta_payload_json"], row["asset_ref"], row["created_at"], now_iso,
+                    row["cta_payload_json"], row["asset_ref"],
+                    presentation_slot,
+                    _clean(row["content_kind"] or assignment.get("content_kind")),
+                    _clean(row["selected_source_ref"] or assignment.get("selected_source_ref")),
+                    _clean(row["selected_source_version"] or assignment.get("selected_source_version")),
+                    row["created_at"], now_iso,
                 ),
             )
             cursor = conn.execute(
@@ -4983,6 +5140,108 @@ class GhostNetworkRepository:
                 tuple(params),
             ).fetchall()
             return [self._narrative_medium_record(row) for row in rows]
+
+    def has_recent_narrative_content(
+        self, target_medium, title, body, *, audience_scope="public",
+        audience_clan="", audience_owner="", limit=100
+    ):
+        """Bounded duplicate guard over the publication read model."""
+        normalize = lambda value: " ".join(str(value or "").split()).casefold()
+        wanted = (normalize(title), normalize(body))
+        if not all(wanted):
+            return False
+        records = self.list_narrative_medium_records(
+            target_medium,
+            audience_scope=audience_scope,
+            audience_clan=audience_clan,
+            audience_owner=audience_owner,
+            limit=max(1, min(int(limit or 100), 100)),
+        )
+        return any(
+            (normalize(record.get("title")), normalize(record.get("body"))) == wanted
+            for record in records
+        )
+
+    def get_narrative_slot_state(self, target_medium, slot_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM ghost_narrative_slot_state
+                WHERE target_medium = ? AND slot_id = ? LIMIT 1
+                """,
+                (_clean(target_medium), _clean(slot_id)),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "target_medium": row["target_medium"],
+            "slot_id": row["slot_id"],
+            "content_kind": row["content_kind"],
+            "active_medium_record_id": row["active_medium_record_id"],
+            "active_source_ref": row["active_source_ref"],
+            "active_source_version": row["active_source_version"],
+            "active_content_hash": row["active_content_hash"],
+            "creative_epoch": int(row["creative_epoch"] or 0),
+            "last_refreshed_at": row["last_refreshed_at"],
+            "next_refresh_at": row["next_refresh_at"],
+            "version": int(row["version"] or 0),
+            "updated_at": row["updated_at"],
+        }
+
+    def has_open_narrative_slot_assignment(self, target_medium, slot_id):
+        """True while a slot assignment can still produce a publication."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT 1
+                FROM ghost_narrative_outbox o
+                WHERE o.target_medium = ?
+                  AND o.presentation_slot = ?
+                  AND (
+                    o.status IN ('ready', 'retry_wait', 'claimed', 'processing')
+                    OR (
+                        o.status = 'completed'
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM ghost_narrative_publication_receipts r
+                            WHERE r.task_id = o.outbox_id
+                              AND r.status IN ('published', 'dead_letter')
+                        )
+                    )
+                  )
+                LIMIT 1
+                """,
+                (_clean(target_medium), _clean(slot_id)),
+            ).fetchone()
+        return bool(row)
+
+    def list_active_narrative_slot_records_for_viewer(
+        self, target_medium, owner="", clan="", limit=20
+    ):
+        owner = _clean(owner)
+        clan = _clean(clan)
+        audience = ["m.audience_scope = 'public'"]
+        params = [_clean(target_medium)]
+        if owner:
+            audience.append("(m.audience_scope = 'owner' AND m.audience_owner = ?)")
+            params.append(owner)
+        if clan:
+            audience.append("(m.audience_scope = 'clan' AND m.audience_clan = ?)")
+            params.append(clan)
+        params.append(max(1, min(int(limit or 20), 50)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT m.rowid AS publication_ordinal, m.*
+                FROM ghost_narrative_slot_state s
+                JOIN ghost_narrative_medium_records m
+                  ON m.medium_record_id = s.active_medium_record_id
+                WHERE s.target_medium = ? AND ({' OR '.join(audience)})
+                ORDER BY s.slot_id ASC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._narrative_medium_record(row) for row in rows]
 
     def list_narrative_medium_records_for_viewer(
         self, target_medium, owner="", clan="", limit=100

@@ -365,14 +365,7 @@ def merge_googleplex_news_publications(
     except (TypeError, ValueError):
         bounded_limit = DEFAULT_LIMIT
     registry = load_asset_registry(registry_path)
-    slot_ids = (
-        "gp-home-world-grid",
-        "gp-home-blacknet",
-        "gp-home-exchange",
-        "gp-home-map",
-        "gp-home-cyberner",
-        "gp-home-featured",
-    )
+    allowed_publication_slots = {"gp-home-world-grid"}
     existing = list(result.get("entries") or [])
     slots = {
         str(item.get("content", {}).get("news_id") or ""): item
@@ -383,6 +376,9 @@ def merge_googleplex_news_publications(
     content_keys = set()
     for record in records or []:
         if not isinstance(record, dict) or record.get("target_medium") != "googleplex_news":
+            continue
+        presentation_slot = str(record.get("presentation_slot") or "")
+        if presentation_slot not in allowed_publication_slots:
             continue
         # The featured Googleplex product is a canonical catalog projection:
         # name, description, downloads and product link are code-owned.  Do
@@ -406,12 +402,12 @@ def merge_googleplex_news_publications(
         semantic_keys.add(semantic_key)
         content_keys.add(content_key)
         safe_records.append(record)
-        if len(safe_records) >= len(slot_ids):
+        if len(safe_records) >= len(allowed_publication_slots):
             break
 
     replacements = {}
-    for index, record in enumerate(safe_records):
-        slot_id = slot_ids[index]
+    for record in safe_records:
+        slot_id = str(record.get("presentation_slot") or "")
         fallback = slots.get(slot_id)
         if not fallback:
             continue

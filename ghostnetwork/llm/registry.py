@@ -80,6 +80,15 @@ def _build_registry():
         "googleplex-news-assets-prompt-v8", Path("googleplex") / "news-digest-assets-v8.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
+    policies.append(_policy(
+        "blacknet_world", "blacknet_signal_narration", "blacknet",
+        "blacknet-signal-prompt-v3", Path("blacknet") / "signal-v3.md",
+    ))
+    policies.append(_policy(
+        "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
+        "googleplex-world-hero-prompt-v9", Path("googleplex") / "world-hero-v9.md",
+        ASSET_OUTPUT_SCHEMA_VERSION,
+    ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
         is_signal = variant == "signal_sent"
         policies.append(_policy(

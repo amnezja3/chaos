@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 from datetime import datetime, timedelta, timezone
@@ -125,6 +126,146 @@ class BlackNetNarrativeProducer:
 
     def __init__(self, repository):
         self.repository = repository
+
+    @staticmethod
+    def _single_signal_fact(signal):
+        signal = signal if isinstance(signal, dict) else {}
+        signal_id = _safe_text(signal.get("id"), 96)
+        fact_id = _safe_text(signal.get("fact_id") or signal_id, 120)
+        if not signal_id or not fact_id:
+            return None, None
+        metadata = signal.get("metadata") if isinstance(signal.get("metadata"), dict) else {}
+        lat = _safe_coordinate(metadata.get("lat", signal.get("lat")), -90.0, 90.0)
+        lng = _safe_coordinate(
+            metadata.get("lng", metadata.get("lon", signal.get("lng", signal.get("lon")))),
+            -180.0, 180.0,
+        )
+        fact_ref = f"blacknet_fact:{fact_id}"
+        fact = {
+            "fact_id": fact_ref,
+            "truth_class": "canonical",
+            "signal_id": signal_id,
+            "signal_type": _safe_text(signal.get("signal_type"), 48),
+            "category": _safe_text(signal.get("category"), 48),
+            "region_id": _safe_text(signal.get("region_id"), 96),
+            "title": _safe_text(signal.get("title"), 96),
+            "label": _safe_text(signal.get("label"), 64),
+            "value": _safe_text(signal.get("value"), 48),
+            "stat": _safe_text(signal.get("stat"), 120),
+            "lat": lat,
+            "lng": lng,
+            "importance": _safe_int(signal.get("importance")),
+            "observed_at": _safe_text(signal.get("observed_at"), 64),
+            "valid_until": _safe_text(signal.get("valid_until"), 64),
+        }
+        action_name = _clean(signal.get("cta_action"))
+        if action_name == "teleport_to_hotspot" and (lat is None or lng is None):
+            action_name = "focus_map_target"
+        action = None
+        if action_name in BLACKNET_ALLOWED_ACTIONS and action_name != "none":
+            action = {
+                "cta_action": action_name,
+                "fact_ref": fact_ref,
+                "payload": {
+                    "target_id": _safe_text(signal.get("cta_target_id"), 120),
+                    "query": _safe_text(signal.get("cta_query"), 120),
+                    "lat": lat,
+                    "lng": lng,
+                    "label": _safe_text(
+                        metadata.get("location_label")
+                        or metadata.get("target_label")
+                        or signal.get("title"),
+                        120,
+                    ),
+                },
+            }
+        return fact, action
+
+    def enqueue_signal(self, snapshot, signal, *, target_medium="blacknet"):
+        """Enqueue one backend-selected source; the model never selects a topic."""
+        snapshot = snapshot if isinstance(snapshot, dict) else {}
+        target_medium = _clean(target_medium, "blacknet")
+        if target_medium not in {"blacknet", "googleplex_news"}:
+            return {"ok": False, "status": "rejected", "reason_code": "unsupported_target_medium", "task": None}
+        if target_medium == "googleplex_news" and (
+            signal.get("signal_type") == "googleplex_product_signal"
+            or "googleplex_product_signal" in str(signal.get("fact_id") or "")
+        ):
+            return {"ok": True, "status": "ineligible", "reason_code": "product_slot_owned_by_catalog", "task": None}
+        fact, fixed_action = self._single_signal_fact(signal)
+        if not fact:
+            return {"ok": True, "status": "empty", "task": None}
+        source_version_payload = {
+            key: fact.get(key) for key in (
+                "fact_id", "signal_type", "category", "region_id", "title", "label",
+                "value", "stat", "lat", "lng", "valid_until",
+            )
+        }
+        source_version_payload["action"] = fixed_action or {}
+        source_version = hashlib.sha1(json.dumps(
+            source_version_payload, ensure_ascii=True, sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")).hexdigest()[:16]
+        presentation_slot = "gp-home-world-grid" if target_medium == "googleplex_news" else ""
+        source_receipt_id = _hash_id(
+            "editorial_source", target_medium, presentation_slot,
+            fact["fact_id"], source_version,
+        )
+        variant = (
+            "googleplex_world_dispatch"
+            if target_medium == "googleplex_news"
+            else "blacknet_signal_narration"
+        )
+        slot_state = (
+            self.repository.get_narrative_slot_state(target_medium, presentation_slot)
+            if presentation_slot else None
+        )
+        expected_slot_version = int((slot_state or {}).get("version") or 0)
+        task = self.repository.enqueue_narrative_task(assign_ollama_task_policy({
+            "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
+            "source_scope": BLACKNET_SOURCE_SCOPE,
+            "source_receipt_id": source_receipt_id,
+            "processor": NARRATIVE_TASK_PROCESSOR,
+            "target_medium": target_medium,
+            "audience_scope": "public",
+            "truth_class": "canonical",
+            "truth_class_policy": "canonical",
+            "facts": [fact],
+            # Navigation is resolved deterministically after generation. It is
+            # deliberately absent from model_input.
+            "allowed_actions": [],
+            "canon_version": "blacknet-editorial-queue-v1",
+            "world_state_version": _clean(
+                snapshot.get("world_facts_version") or snapshot.get("version")
+            ),
+            "task_variant": variant,
+            "content_kind": "world_dispatch" if presentation_slot else "world_signal",
+            "presentation_slot": presentation_slot,
+            "selected_source_ref": fact["fact_id"],
+            "selected_source_version": source_version,
+            "expected_slot_version": expected_slot_version,
+            "fixed_action": fixed_action or {},
+            "priority": _safe_int(signal.get("importance")),
+            "validation": {
+                "ok": True,
+                "producer": "deterministic_editorial_queue",
+                "selected_source_ref": fact["fact_id"],
+                "selected_source_version": source_version,
+                "presentation_slot": presentation_slot,
+                "content_kind": "world_dispatch" if presentation_slot else "world_signal",
+                "expected_slot_version": expected_slot_version,
+                "fixed_action": fixed_action or {},
+                "profile_full_read": 0,
+                "profile_full_write": 0,
+                "profile_bytes": 0,
+            },
+        }))
+        return {
+            "ok": True,
+            "status": "deduplicated" if task.get("idempotent") else "created",
+            "receipt_id": source_receipt_id,
+            "task": task,
+        }
 
     def enqueue_digest(self, snapshot, *, window_id=None, target_medium="blacknet"):
         snapshot = snapshot if isinstance(snapshot, dict) else {}

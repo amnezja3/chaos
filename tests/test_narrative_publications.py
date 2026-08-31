@@ -54,6 +54,31 @@ class AcceptedClient:
         )
 
 
+class SequencedAcceptedClient(AcceptedClient):
+    def __init__(self):
+        self.sequence = 0
+
+    def generate(self, package, policy):
+        self.sequence += 1
+        generated = super().generate(package, policy)
+        output = json.loads(generated.content)
+        output["title"] = f"Canonical title {self.sequence}"
+        output["body"] = f"Canonical body {self.sequence}"
+        return OllamaGenerationResult(
+            model=generated.model,
+            model_digest=generated.model_digest,
+            runtime_version=generated.runtime_version,
+            content=json.dumps(output),
+            done=generated.done,
+            done_reason=generated.done_reason,
+            total_duration_ns=generated.total_duration_ns,
+            load_duration_ns=generated.load_duration_ns,
+            prompt_eval_count=generated.prompt_eval_count,
+            eval_count=generated.eval_count,
+            raw_response_hash=generated.raw_response_hash,
+        )
+
+
 class NarrativePublicationTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -69,7 +94,8 @@ class NarrativePublicationTest(unittest.TestCase):
     def accepted_candidate(
         self, event_id="publication-one", *, audience_scope="public",
         audience_clan="", audience_owner="", source_scope="ghostnetwork",
-        task_variant="part_activated", target_medium="blacknet",
+        task_variant="part_activated", target_medium="blacknet", validation=None,
+        client=None,
     ):
         task = assign_ollama_task_policy({
             "event_id": event_id,
@@ -90,11 +116,12 @@ class NarrativePublicationTest(unittest.TestCase):
             "allowed_actions": [],
             "canon_version": "test-v1",
             "task_variant": task_variant,
+            "validation": validation or {},
         })
         item = self.repo.enqueue_narrative_task(task)
         worker = OllamaNarrativeWorker(
             repository=self.repo,
-            client=AcceptedClient(),
+            client=client or AcceptedClient(),
             config=OllamaWorkerConfig(
                 enabled=True, poll_seconds=0.1, poll_jitter_seconds=0,
                 lease_seconds=60, heartbeat_seconds=30,
@@ -129,7 +156,11 @@ class NarrativePublicationTest(unittest.TestCase):
     def test_googleplex_asset_ref_survives_candidate_and_medium_projection(self):
         candidate = self.accepted_candidate(
             "googleplex-asset", source_scope="blacknet_world",
-            task_variant="world_digest", target_medium="googleplex_news",
+            task_variant="googleplex_world_dispatch", target_medium="googleplex_news",
+            validation={
+                "selected_source_ref": "fact:one",
+                "presentation_slot": "gp-home-world-grid",
+            },
         )
         self.assertEqual(candidate["asset_ref"], "gp_scene_world_neutral_01")
         publisher = NarrativePublicationService(
@@ -139,6 +170,71 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(published["result"], "published")
         self.assertEqual(
             published["record"]["asset_ref"], "gp_scene_world_neutral_01"
+        )
+        self.assertEqual(
+            published["record"]["presentation_slot"], "gp-home-world-grid"
+        )
+        slot = self.repo.get_narrative_slot_state(
+            "googleplex_news", "gp-home-world-grid"
+        )
+        self.assertEqual(slot["version"], 1)
+        self.assertEqual(
+            slot["active_medium_record_id"], published["record"]["medium_record_id"]
+        )
+        active = self.repo.list_active_narrative_slot_records_for_viewer(
+            "googleplex_news", owner="alice", limit=6
+        )
+        self.assertEqual([item["medium_record_id"] for item in active], [
+            published["record"]["medium_record_id"]
+        ])
+
+    def test_googleplex_slot_cas_rejects_stale_assignment(self):
+        client = SequencedAcceptedClient()
+        assignment = {
+            "selected_source_ref": "fact:one",
+            "selected_source_version": "source-v1",
+            "presentation_slot": "gp-home-world-grid",
+            "content_kind": "world_dispatch",
+            "expected_slot_version": 0,
+        }
+        first = self.accepted_candidate(
+            "slot-cas-one", source_scope="blacknet_world",
+            task_variant="googleplex_world_dispatch",
+            target_medium="googleplex_news", validation=assignment,
+            client=client,
+        )
+        second = self.accepted_candidate(
+            "slot-cas-two", source_scope="blacknet_world",
+            task_variant="googleplex_world_dispatch",
+            target_medium="googleplex_news", validation={
+                **assignment, "selected_source_version": "source-v2",
+            }, client=client,
+        )
+
+        first_receipt = self.repo.ensure_narrative_publication(first["candidate_id"])
+        first_claim = self.repo.claim_next_narrative_publication(
+            "slot-publisher", lease_seconds=60
+        )
+        first_result = self.repo.publish_claimed_narrative_candidate(
+            first_receipt["publication_receipt_id"], "slot-publisher",
+            first_claim["lease_until"],
+        )
+        self.assertFalse(first_result.get("slot_superseded", False))
+
+        second_receipt = self.repo.ensure_narrative_publication(second["candidate_id"])
+        second_claim = self.repo.claim_next_narrative_publication(
+            "slot-publisher", lease_seconds=60
+        )
+        stale = self.repo.publish_claimed_narrative_candidate(
+            second_receipt["publication_receipt_id"], "slot-publisher",
+            second_claim["lease_until"],
+        )
+        self.assertEqual(stale, {"slot_superseded": True})
+        self.assertEqual(
+            self.repo.get_narrative_slot_state(
+                "googleplex_news", "gp-home-world-grid"
+            )["active_medium_record_id"],
+            first_result["record"]["medium_record_id"],
         )
 
     def test_googleplex_candidate_without_asset_is_not_publishable(self):

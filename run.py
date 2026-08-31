@@ -2234,6 +2234,12 @@ def build_blacknet_narrative_source_snapshot(now=None):
 
 
 def enqueue_blacknet_world_narrative_digest(now=None):
+    """Schedule one deterministic source per medium.
+
+    The function name is retained for the territory worker contract, but this
+    is no longer a multi-fact digest. Replays of an unchanged source are
+    idempotent, so the scheduler advances to the next eligible signal.
+    """
     facts_snapshot = build_blacknet_narrative_source_snapshot(now=now)
     signal_snapshot = build_blacknet_world_signals(
         snapshot=facts_snapshot,
@@ -2241,10 +2247,41 @@ def enqueue_blacknet_world_narrative_digest(now=None):
         limit=20,
     )
     producer = BlackNetNarrativeProducer(get_ghostnetwork_service().repository)
-    blacknet = producer.enqueue_digest(signal_snapshot, target_medium="blacknet")
-    googleplex_news = producer.enqueue_digest(
-        signal_snapshot, target_medium="googleplex_news"
-    )
+
+    def enqueue_next(target_medium):
+        if (
+            target_medium == "googleplex_news"
+            and producer.repository.has_open_narrative_slot_assignment(
+                "googleplex_news", "gp-home-world-grid"
+            )
+        ):
+            return {"ok": True, "status": "slot_busy", "task": None}
+        eligible = [
+            item for item in (signal_snapshot.get("signals") or [])
+            if isinstance(item, dict)
+            and item.get("signal_type") != "out_of_signal"
+            and not (
+                target_medium == "googleplex_news"
+                and (
+                    item.get("signal_type") == "googleplex_product_signal"
+                    or "googleplex_product_signal" in str(item.get("fact_id") or "")
+                )
+            )
+        ]
+        last = {"ok": True, "status": "empty", "task": None}
+        for signal in eligible:
+            result = producer.enqueue_signal(
+                signal_snapshot, signal, target_medium=target_medium
+            )
+            last = result
+            if result.get("status") == "created":
+                return result
+        if eligible and last.get("status") == "deduplicated":
+            return {**last, "status": "no_change"}
+        return last
+
+    blacknet = enqueue_next("blacknet")
+    googleplex_news = enqueue_next("googleplex_news")
     return {**blacknet, "googleplex_news": googleplex_news}
 
 
@@ -26169,7 +26206,7 @@ def api_googleplex_news():
             limit=request.args.get("limit", 20),
         )
         identity = identity_projection_store.get_identity(username) or {}
-        published = get_ghostnetwork_service().repository.list_narrative_medium_records_for_viewer(
+        published = get_ghostnetwork_service().repository.list_active_narrative_slot_records_for_viewer(
             "googleplex_news",
             owner=username,
             clan=get_profile_clan(identity),

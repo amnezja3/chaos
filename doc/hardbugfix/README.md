@@ -6,6 +6,7 @@ Dokumenty te są niezależne od `project_journal.md`.
 
 ## Artefakty
 
+- [Sprint 135.5 — heavy profile na ścieżce operacje, pliki i Ghost Exchange](heavy_profile_operation_files_gx_regression_sprint_135_5_2026-08-30.md)
 - [Sprint 135.5 — regresje kontraktu publikacji LLM](llm_publication_contract_regressions_sprint_135_5_2026-08-30.md)
 
 Dziennik projektu zapisuje chronologię prac, natomiast `hardbugfix/` ma zachować pełny kontekst problemu: objawy, diagnozę, root cause, wykonane próby naprawy, finalne rozwiązanie oraz wnioski istotne dla przyszłych sprintów.
