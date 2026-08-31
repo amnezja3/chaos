@@ -76,6 +76,9 @@ COMPACT_FACT_FIELDS = (
     ("outcome", "outcome", 40),
 )
 GOOGLEPLEX_PRESENTATION_FACT_FIELDS = (
+    ("product_name", "product_name", 72),
+    ("description", "description", 180),
+    ("public_text", "text", 160),
     ("title", "title", 72),
     ("lat", "lat", 0),
     ("lng", "lng", 0),
@@ -377,18 +380,23 @@ def _try_add_top_level_field(model_input, field, value):
     return False
 
 
-def _generation_output_schema(policy, allowed_asset_refs=()):
+def _generation_output_schema(policy, allowed_asset_refs=(), allowed_asset_roles=(), editorial_contract=None):
     """Return a policy-scoped generation constraint within the canonical schema."""
     schema = load_output_schema(policy.output_schema_version)
     limits = GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
     if not limits:
         return schema
     properties = schema.get("properties") or {}
+    editorial_contract = editorial_contract if isinstance(editorial_contract, dict) else {}
+    title_contract_limit = int(editorial_contract.get("title_chars") or 0)
+    body_contract_limit = int(editorial_contract.get("body_chars") or 0)
     properties["title"]["maxLength"] = min(
-        int(properties["title"].get("maxLength") or limits["title"]), limits["title"]
+        int(properties["title"].get("maxLength") or limits["title"]),
+        title_contract_limit or limits["title"], limits["title"],
     )
     properties["body"]["maxLength"] = min(
-        int(properties["body"].get("maxLength") or limits["body"]), limits["body"]
+        int(properties["body"].get("maxLength") or limits["body"]),
+        body_contract_limit or limits["body"], limits["body"],
     )
     properties["fact_refs"]["maxItems"] = min(
         int(properties["fact_refs"].get("maxItems") or limits["refs"]), limits["refs"]
@@ -402,6 +410,8 @@ def _generation_output_schema(policy, allowed_asset_refs=()):
         properties["asset_ref"]["enum"] = [
             *([None] if nullable_asset else []), *allowed_asset_refs
         ]
+    if "asset_role" in properties:
+        properties["asset_role"]["enum"] = [None, *allowed_asset_roles]
     return schema
 
 
@@ -503,6 +513,25 @@ def build_ollama_task_package(task, policy=None):
         "fact_columns": fact_columns,
         "facts": facts,
     }
+    editorial_contract = task.get("editorial_contract")
+    if not isinstance(editorial_contract, dict):
+        editorial_contract = (task.get("validation") or {}).get("editorial_contract") or {}
+    allowed_asset_roles = task.get("allowed_asset_roles")
+    if not isinstance(allowed_asset_roles, list):
+        allowed_asset_roles = (task.get("validation") or {}).get("allowed_asset_roles") or []
+    allowed_asset_roles = tuple(
+        dict.fromkeys(str(item or "").strip() for item in allowed_asset_roles if str(item or "").strip())
+    )[:8]
+    if editorial_contract:
+        model_input["presentation_slot"] = str(task.get("presentation_slot") or "")[:64]
+        model_input["content_kind"] = str(task.get("content_kind") or "")[:48]
+        model_input["copy_contract"] = {
+            key: editorial_contract.get(key) for key in (
+                "presentation_weight", "title_owner", "title_chars",
+                "body_chars", "body_words", "estimated_lines", "canonical_title",
+            ) if editorial_contract.get(key) not in (None, "")
+        }
+        model_input["allowed_asset_roles"] = list(allowed_asset_roles)
     generation_limits = GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
     if generation_limits:
         # This bounded hint is part of the mandatory package for constrained
@@ -562,7 +591,9 @@ def build_ollama_task_package(task, policy=None):
             {"role": "system", "content": system_prompt + "\n\n" + domain_prompt},
             {"role": "user", "content": encoded},
         ],
-        "format": _generation_output_schema(policy, allowed_asset_refs),
+        "format": _generation_output_schema(
+            policy, allowed_asset_refs, allowed_asset_roles, editorial_contract
+        ),
         "fact_refs": frozenset(fact_refs),
         "cta_map": cta_map,
         "request_hash": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
@@ -571,6 +602,8 @@ def build_ollama_task_package(task, policy=None):
         "fact_count": len(facts),
         "source_facts": tuple(copy.deepcopy(source_facts)),
         "allowed_asset_refs": tuple(allowed_asset_refs),
+        "allowed_asset_roles": allowed_asset_roles,
+        "editorial_contract": copy.deepcopy(editorial_contract),
         "selected_source_ref": str(
             task.get("selected_source_ref")
             or (task.get("validation") or {}).get("selected_source_ref") or ""
@@ -597,10 +630,14 @@ def parse_and_validate_ollama_content(content, task_package):
 
     errors = []
     security_errors = []
-    allows_asset = "asset_ref" in ((task_package.get("format") or {}).get("properties") or {})
+    format_properties = ((task_package.get("format") or {}).get("properties") or {})
+    allows_asset = "asset_ref" in format_properties
+    allows_asset_role = "asset_role" in format_properties
     expected_keys = {"title", "body", "tone", "fact_refs", "cta_ref"}
     if allows_asset:
         expected_keys.add("asset_ref")
+    if allows_asset_role:
+        expected_keys.add("asset_role")
     if set(output) != expected_keys:
         errors.append("schema_fields_mismatch")
     title = output.get("title")
@@ -609,12 +646,21 @@ def parse_and_validate_ollama_content(content, task_package):
     refs = output.get("fact_refs")
     cta_ref = output.get("cta_ref")
     asset_ref = output.get("asset_ref")
+    asset_role = output.get("asset_role")
+    editorial_contract = task_package.get("editorial_contract") or {}
+    canonical_title = str(editorial_contract.get("canonical_title") or "").strip()
+    if editorial_contract.get("title_owner") == "backend" and canonical_title:
+        title = canonical_title
     title, body, identifier_normalized = normalize_canonical_identifier_leaks(
         title, body, task_package.get("source_facts") or ()
     )
-    format_properties = ((task_package.get("format") or {}).get("properties") or {})
     title_limit = int((format_properties.get("title") or {}).get("maxLength") or 96)
     body_limit = int((format_properties.get("body") or {}).get("maxLength") or 800)
+    if editorial_contract:
+        if not isinstance(title, str) or len(title) > title_limit:
+            errors.append("slot_copy_budget_exceeded")
+        if not isinstance(body, str) or len(body) > body_limit:
+            errors.append("slot_copy_budget_exceeded")
     title, title_bounded = bound_presentation_text(title, title_limit)
     body, body_bounded = bound_presentation_text(body, body_limit)
     if identifier_normalized:
@@ -629,6 +675,9 @@ def parse_and_validate_ollama_content(content, task_package):
         errors.append("invalid_title")
     if not isinstance(body, str) or not body.strip() or len(body) > body_limit:
         errors.append("invalid_body")
+    if editorial_contract:
+        if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):
+            errors.append("slot_copy_budget_exceeded")
     if tone not in ALLOWED_TONES:
         errors.append("invalid_tone")
     if (
@@ -667,6 +716,21 @@ def parse_and_validate_ollama_content(content, task_package):
             security_errors.append("missing_asset_ref")
         elif not isinstance(asset_ref, str) or asset_ref not in (task_package.get("allowed_asset_refs") or ()):
             security_errors.append("unknown_asset_ref")
+    resolved_asset_ref = asset_ref if allows_asset and asset_ref else ""
+    if allows_asset_role:
+        allowed_roles = task_package.get("allowed_asset_roles") or ()
+        if asset_role is not None and (
+            not isinstance(asset_role, str) or asset_role not in allowed_roles
+        ):
+            security_errors.append("unknown_asset_role")
+        role_map = editorial_contract.get("asset_role_map") if isinstance(editorial_contract.get("asset_role_map"), dict) else {}
+        resolved_asset_ref = str(
+            role_map.get(asset_role)
+            or editorial_contract.get("fallback_asset_ref")
+            or ""
+        ).strip()
+        if not resolved_asset_ref:
+            security_errors.append("missing_asset_ref")
     security_errors.extend(presentation_safety_errors(title, body))
     security_errors.extend(source_metadata_leak_errors(
         title, body, task_package.get("source_facts") or ()
@@ -702,13 +766,13 @@ def parse_and_validate_ollama_content(content, task_package):
             "tone": tone,
             "fact_refs": list(refs),
             "cta_ref": cta_ref,
-            **({"asset_ref": asset_ref} if allows_asset else {}),
+            **({"asset_ref": resolved_asset_ref} if allows_asset or allows_asset_role else {}),
         },
         "resolved_cta": copy.deepcopy(
             task_package.get("fixed_action")
             or (task_package.get("cta_map") or {}).get(cta_ref)
         ),
-        "resolved_asset_ref": asset_ref if allows_asset and asset_ref else "",
+        "resolved_asset_ref": resolved_asset_ref,
         "normalizations": [
             *(["canonical_identifier_to_safe_label"] if identifier_normalized else []),
             *(["schema_length_bounded"] if title_bounded or body_bounded else []),

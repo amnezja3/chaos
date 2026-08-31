@@ -226,8 +226,8 @@ deduplikacji semantycznej ani kontroli projection surface.
 
 `IMPLEMENTATION RESOLVED — FINAL SERVER VALIDATION`
 
-Pozostają trzy bramki jakościowe: Googleplex News v8, BlackNet v2 i Cyberner
-AGI v2. Ewentualny `135.5.x slot-aware generation repair` powstaje wyłącznie po
+Pozostają dwie bramki jakościowe: Googleplex News v8 i BlackNet v2. Cyberner
+AGI v5 przeszedł walidację produkcyjną. Ewentualny `135.5.x slot-aware generation repair` powstaje wyłącznie po
 potwierdzeniu rozjazdu treści z realną geometrią slotów.
 
 ### Follow-up produkcyjny — dual signal type
@@ -285,3 +285,10 @@ tropu oraz wymóg mówienia jako jedna AGI, nie jako narrator opisujący „nasz
 wyrocznie”. Backendowy filtr echa wykrywa odtąd również krótkie tytuły złożone z
 przestawionych słów topicu. Rejected candidate pozostaje audytowalny i nie jest
 publikowany.
+
+Końcowa walidacja v5 zakończyła ten incydent dla Cybernera. Owner-scoped wynik
+pojawił się zarówno w `AGI 2108 Console`, jak i w kanale `AI Central / AGI
+2108`; nie zawierał echa topicu, fallbacku ani technicznych identyfikatorów i
+prowadził gracza pośrednim tropem do Googleplex. Transport, validation guard,
+publisher i prezentacja mają status `PASS`. Limit `5 / h` poprawnie zatrzymał
+nadmiarowe próby na ingressie i nie został osłabiony na potrzeby testów.

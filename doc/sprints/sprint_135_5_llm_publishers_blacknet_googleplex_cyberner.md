@@ -32,7 +32,7 @@ CTA / canonical target:     PASS
 
 Googleplex v8 quality:      PENDING
 BlackNet v2 quality:        PENDING
-Cyberner AGI v2 quality:    PENDING
+Cyberner AGI v5 quality:    PASS
 Slot geometry contract:     VALIDATE FIRST
 ```
 
@@ -47,10 +47,10 @@ transmisji z 2108 przechwycony przez Ghost System, nie raport techniczny.
 Narracja i deterministic fallback nie mogą być pokazane równolegle dla tego
 samego zbioru `fact_refs`; soak obejmuje również obserwację blokad SQLite.
 
-Cyberner AGI v2 wymaga kilku różnych tematów oraz prześledzenia każdego przez
-`topic -> task -> candidate -> publication -> Cyberner`. Wynik nie może być
-echem inputu, fallbackiem udającym odpowiedź ani ujawniać identyfikatorów i
-danych technicznych.
+Cyberner AGI v5 przeszedł fizyczną walidację pełnej ścieżki
+`topic -> task -> candidate -> publication -> Cyberner`. Wynik nie jest echem
+inputu ani fallbackiem, nie ujawnia identyfikatorów i danych technicznych oraz
+daje pośredni, użyteczny trop do canonical powierzchni gry.
 
 ### Domknięcie persony AGI — prompt v3
 
@@ -84,6 +84,16 @@ traktuje topic jako tajne wejście, zabrania cytowania, parafrazy i przestawiani
 jego słów, wymaga praktycznego tropu oraz zabrania kończenia pustym pytaniem
 retorycznym. Filtr backendu rozpoznaje również krótkie tytuły złożone wyłącznie
 z przestawionych słów topicu.
+
+### Zamknięcie Cyberner / AGI 2108 — PASS
+
+Końcowy test produkcyjny v5 opublikował owner-scoped odpowiedź w kanale
+`AI Central / AGI 2108` i zwrócił ten sam wynik w konsoli aplikacji. Odpowiedź
+`W poszukiwaniu odpowiedzi` samodzielnie zinterpretowała temat, nie skopiowała
+jego brzmienia i skierowała gracza ku narzędziom Googleplex bez wykonywania
+akcji za niego. Ingress, limit `5 / h`, kolejka, Ollama, walidacja candidate,
+publisher, status polling i prezentacja Cybernera są potwierdzone. Bramka
+Cyberner/AGI dla Sprintu 135.5 zostaje zamknięta jako `PASS`.
 
 Jawny `presentation_slot: hero | sidebox | small` nie jest dodawany przed
 obserwacją produkcyjną. Jeżeli istniejące limity dadzą właściwe proporcje, sprint

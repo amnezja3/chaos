@@ -17,10 +17,12 @@ SYSTEM_PROMPT_VERSION = "chaos-narrator-system-v1"
 OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-v1"
 ASSET_OUTPUT_SCHEMA_V1_VERSION = "chaos-narrative-output-assets-v1"
 ASSET_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-assets-v2"
+ROLE_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-role-v1"
 SYSTEM_PROMPT_PATH = ROOT / "prompts" / "system" / "chaos-narrator-v1.md"
 SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-v1.json"
 ASSET_SCHEMA_V1_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v1.json"
 ASSET_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v2.json"
+ROLE_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-role-v1.json"
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,23 @@ def _build_registry():
         "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
         "googleplex-world-hero-prompt-v10", Path("googleplex") / "world-hero-v10.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
+    ))
+    policies.extend((
+        _policy(
+            "googleplex_editorial", "googleplex_product_promo", "googleplex_news",
+            "googleplex-product-promo-v1", Path("googleplex") / "product-promo-v1.md",
+            ROLE_OUTPUT_SCHEMA_VERSION,
+        ),
+        _policy(
+            "googleplex_editorial", "googleplex_navigation_promo", "googleplex_news",
+            "googleplex-navigation-promo-v1", Path("googleplex") / "navigation-promo-v1.md",
+            ROLE_OUTPUT_SCHEMA_VERSION,
+        ),
+        _policy(
+            "googleplex_editorial", "googleplex_capability_card_refresh", "googleplex_news",
+            "googleplex-capability-card-v1", Path("googleplex") / "capability-card-v1.md",
+            ROLE_OUTPUT_SCHEMA_VERSION,
+        ),
     ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
         is_signal = variant == "signal_sent"
@@ -157,6 +176,7 @@ def load_output_schema(version=OUTPUT_SCHEMA_VERSION):
         OUTPUT_SCHEMA_VERSION: SCHEMA_PATH,
         ASSET_OUTPUT_SCHEMA_V1_VERSION: ASSET_SCHEMA_V1_PATH,
         ASSET_OUTPUT_SCHEMA_VERSION: ASSET_SCHEMA_PATH,
+        ROLE_OUTPUT_SCHEMA_VERSION: ROLE_SCHEMA_PATH,
     }
     if version not in paths:
         raise ValueError(f"schema_version_not_registered:{version}")

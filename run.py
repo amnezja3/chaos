@@ -75,6 +75,7 @@ from ghostnetwork import (
     normalize_snapshot_view,
 )
 from ghostnetwork.llm.registry import resolve_ollama_task_policy
+from ghostnetwork.editorial import GoogleplexEditorialProducer
 from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
@@ -2286,7 +2287,20 @@ def enqueue_blacknet_world_narrative_digest(now=None):
 
     blacknet = enqueue_next("blacknet")
     googleplex_news = enqueue_next("googleplex_news")
-    return {**blacknet, "googleplex_news": googleplex_news}
+    stage_two = {"ok": True, "status": "not_due", "task": None}
+    if googleplex_news.get("status") not in {"created", "slot_busy"}:
+        # Bounded public catalog only. Never replace this with account_catalog
+        # or a profile-backed availability projection.
+        stage_two = GoogleplexEditorialProducer(producer.repository).enqueue_next(
+            get_app_catalog(), now=now if isinstance(now, datetime) else None
+        )
+        if stage_two.get("status") == "created":
+            googleplex_news = stage_two
+    return {
+        **blacknet,
+        "googleplex_news": googleplex_news,
+        "googleplex_stage_two": stage_two,
+    }
 
 
 def blacknet_fact_number(fact):

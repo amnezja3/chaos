@@ -1,8 +1,8 @@
 # Sprint 135.5.1 — Deterministic Editorial Queue and Slot-Owned LLM Copy
 
-Status: `IN PROGRESS — ETAP I IMPLEMENTED LOCALLY / SERVER VALIDATION PENDING`
+Status: `IN PROGRESS — ETAP I SERVER VALIDATED / ETAP II IMPLEMENTED LOCALLY / ETAP II SERVER VALIDATION PENDING`
 
-## Stan implementacji — Etap I
+## Stan implementacji — Etap I i II
 
 Zaimplementowano lokalnie:
 
@@ -33,17 +33,38 @@ Zaimplementowano lokalnie:
 - worker nie claimuje historycznej polityki wielofaktowego `world_digest`;
 - testy wymuszają brak pełnego profilu na schedulerze i endpointach.
 
-Pozostaje przed uznaniem Etapu I za zwalidowany:
+Etap I został następnie potwierdzony na serwerze: single-signal BlackNet,
+przypisany HERO Googleplex, slot state, canonical CTA oraz brak podwójnego HERO
+działają w fizycznym pipeline.
 
-- deploy i migracja SQLite na serwerze;
-- fizyczny przebieg `signal -> task -> candidate -> receipt -> BlackNet/HERO`;
-- potwierdzenie jednego rekordu na BlackNet i zmiany wyłącznie HERO;
-- ponowny tick bez zmiany źródła oraz test stale-slot na danych serwerowych;
-- krótki soak writer contention i pomiar hot paths z
+Etap II zaimplementowano lokalnie:
+
+- code-owned registry włącza osobne kontrakty dla product promo, boxu BlackNet
+  na Home oraz rotowanych kart Operations, Data, Storage i Clans;
+- scheduler tworzy najwyżej jeden due assignment na tick i nie konkuruje z
+  priorytetowym world/HERO;
+- produkt jest wybierany deterministycznie z publicznego canonical katalogu;
+  nazwa, cena, dostępność, pobrania i link pozostają backend-owned;
+- Ollama pisze wyłącznie body/copy i opcjonalnie wybiera `asset_role` z bounded
+  allowlisty; backend rozwiązuje rolę do konkretnego `asset_ref`;
+- per-slot copy contract ogranicza długość tytułu i body oraz fail-closed odrzuca
+  tekst przekraczający geometrię karty;
+- publisher zapisuje `creative_epoch`, wylicza `next_refresh_at` z cooldownu i
+  aktualizuje wyłącznie jawnie przypisany slot przez optimistic CAS;
+- projekcja News zachowuje foundation wszystkich pozostałych kart, stałe CTA i
+  canonical dane produktu;
+- testy producenta wymuszają brak importu/odczytu pełnego profilu, a pełny test
+  `task -> Ollama -> candidate -> publisher -> slot state -> News` przechodzi.
+
+Pozostaje przed uznaniem Etapu II za zwalidowany:
+
+- deploy i migracja nowych pól assignmentu na serwerze;
+- fizyczny product promo z canonical nazwą, ceną i linkiem;
+- fizyczne odświeżenie boxu BlackNet oraz jednej karty small bez zmiany innych
+  slotów;
+- potwierdzenie cooldownu, rotacji produktu i stale-slot CAS na danych serwera;
+- krótki soak SQLite oraz pomiar z
   `profile_full_read/profile_full_write/profile_bytes = 0`.
-
-Etap II pozostaje poza tym wdrożeniem: product promo, box BlackNet na Home,
-rotacja small slots i role assetów.
 
 ## Cel sprintu
 

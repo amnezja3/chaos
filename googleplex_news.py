@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ghostnetwork.ollama_policy import presentation_safety_errors
+from ghostnetwork.editorial import GOOGLEPLEX_HOME_SLOT_REGISTRY
 
 
 SCHEMA_VERSION = "googleplex-news-home-v1"
@@ -365,7 +366,10 @@ def merge_googleplex_news_publications(
     except (TypeError, ValueError):
         bounded_limit = DEFAULT_LIMIT
     registry = load_asset_registry(registry_path)
-    allowed_publication_slots = {"gp-home-world-grid"}
+    allowed_publication_slots = {
+        slot_id for slot_id, contract in GOOGLEPLEX_HOME_SLOT_REGISTRY.items()
+        if isinstance(contract, dict) and contract.get("llm_refresh_enabled") is True
+    }
     existing = list(result.get("entries") or [])
     slots = {
         str(item.get("content", {}).get("news_id") or ""): item
@@ -380,20 +384,24 @@ def merge_googleplex_news_publications(
         presentation_slot = str(record.get("presentation_slot") or "")
         if presentation_slot not in allowed_publication_slots:
             continue
-        # The featured Googleplex product is a canonical catalog projection:
-        # name, description, downloads and product link are code-owned.  Do
-        # not let current or historical LLM product publications replace any
-        # editorial slot, especially gp-home-featured.
+        # Historical product signals never own an editorial slot. Stage II
+        # product_promo is legal only with its explicit gp-home-featured
+        # assignment; canonical title/stat/action are reconstructed below.
         fact_refs = [str(item) for item in record.get("fact_refs") or []]
-        if any("googleplex_product_signal" in item for item in fact_refs):
+        if (
+            record.get("content_kind") != "product_promo"
+            and any("googleplex_product_signal" in item for item in fact_refs)
+        ):
             continue
         if presentation_safety_errors(record.get("title"), record.get("body")):
             continue
-        semantic_key = tuple(sorted(fact_refs))
-        semantic_key = semantic_key or (str(record.get("source_receipt_id") or ""),)
+        semantic_key = (presentation_slot, *(tuple(sorted(fact_refs)) or (
+            str(record.get("source_receipt_id") or ""),
+        )))
         if semantic_key in semantic_keys:
             continue
         content_key = (
+            presentation_slot,
             " ".join(str(record.get("title") or "").split()).casefold(),
             " ".join(str(record.get("body") or "").split()).casefold(),
         )
@@ -412,7 +420,7 @@ def merge_googleplex_news_publications(
         if not fallback:
             continue
         presentation = fallback.get("presentation") or {}
-        asset = fallback.get("asset") or {}
+        asset = presentation
         payload = record.get("cta_payload") if isinstance(record.get("cta_payload"), dict) else {}
         action = str(record.get("cta_action") or "")
         target = str(
@@ -431,11 +439,31 @@ def merge_googleplex_news_publications(
         else:
             asset_id = str(asset.get("asset_id") or "gp_fallback_network")
             asset_family = str(asset.get("asset_family") or "network")
+        content_kind = str(record.get("content_kind") or "")
+        fallback_content = fallback.get("content") or {}
+        product_id = str(payload.get("product_id") or payload.get("target_id") or "")
+        product_name = str(payload.get("product_name") or record.get("title") or "")
+        if content_kind == "product_promo":
+            try:
+                price_hc = max(0, int(payload.get("price_hc") or 0))
+            except (TypeError, ValueError):
+                price_hc = 0
+            try:
+                downloads = max(0, int(payload.get("downloads") or 0))
+            except (TypeError, ValueError):
+                downloads = 0
+            primary_stat = f"{price_hc} HC" if price_hc else f"{downloads} DL"
+            action = "open_googleplex_search"
+            target = product_name
+            action_payload_ref = product_id
+        else:
+            primary_stat = str(presentation.get("primary_stat") or "")
+            action_payload_ref = str(record.get("cta_ref") or "")
         replacements[slot_id] = _entry(
             news_id=slot_id,
             source="ollama_enriched",
             source_ref=str(record.get("publication_receipt_id") or ""),
-            category="WORLD INTELLIGENCE",
+            category=str(fallback_content.get("category") or "GOOGLEPLEX"),
             weight=str(presentation.get("weight") or "small"),
             title=str(record.get("title") or ""),
             summary=str(record.get("body") or ""),
@@ -446,10 +474,10 @@ def merge_googleplex_news_publications(
             asset_id=asset_id,
             asset_family=asset_family,
             registry=registry,
-            primary_stat="OLLAMA ENRICHED",
+            primary_stat=primary_stat or "OLLAMA ENRICHED",
             action_type=action,
             action_target=target,
-            action_payload_ref=str(record.get("cta_ref") or ""),
+            action_payload_ref=action_payload_ref,
             published_at=str(record.get("published_at") or result.get("generated_at") or ""),
         )
     result["entries"] = [

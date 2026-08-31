@@ -95,6 +95,53 @@ class LlmPublisherAdapterTest(unittest.TestCase):
             for item in merged["entries"]
         ))
 
+    def test_stage_two_navigation_and_small_copy_update_only_assigned_slots(self):
+        snapshot = build_googleplex_news_snapshot(
+            catalog=[], viewer_key="alice", session_generation="one", limit=20,
+        )
+        before = {
+            item["content"]["news_id"]: copy.deepcopy(item)
+            for item in snapshot["entries"]
+        }
+        records = [
+            publication(
+                "blacknet-promo", presentation_slot="gp-home-blacknet",
+                content_kind="navigation_promo", title="Przechwyc szum swiata",
+                body="Wejdz w strumien sygnalow, zanim zaklocenia zmienia ich rytm.",
+                asset_ref="gp_fallback_network", cta_action="open_blacknet",
+                cta_payload={"target_id": "world"},
+            ),
+            publication(
+                "operations-copy", presentation_slot="gp-home-operations",
+                content_kind="capability_card", title="Rytm operacji",
+                body="Sprawdz aktywne i zakonczone dzialania.",
+                asset_ref="gp_fallback_system", cta_action="open_operation",
+                cta_payload={"target_id": "operation-center"},
+            ),
+            publication(
+                "disabled-slot", presentation_slot="gp-home-integrity",
+                content_kind="capability_card", title="Nielegalna podmiana",
+                body="Ten systemowy slot pozostaje statyczny.",
+                asset_ref="gp_fallback_system",
+            ),
+        ]
+
+        merged = merge_googleplex_news_publications(snapshot, records, limit=20)
+        after = {
+            item["content"]["news_id"]: item for item in merged["entries"]
+        }
+
+        self.assertEqual(after["gp-home-blacknet"]["content"]["title"], "Przechwyc szum swiata")
+        self.assertEqual(after["gp-home-blacknet"]["action"]["action_type"], "open_blacknet")
+        self.assertEqual(after["gp-home-operations"]["content"]["title"], "Rytm operacji")
+        self.assertEqual(after["gp-home-operations"]["action"]["action_type"], "open_operation")
+        self.assertEqual(after["gp-home-integrity"], before["gp-home-integrity"])
+        for slot_id in set(before) - {"gp-home-blacknet", "gp-home-operations"}:
+            self.assertEqual(after[slot_id], before[slot_id])
+        self.assertEqual(set(merged["diagnostics"]["publication_slot_ids"]), {
+            "gp-home-blacknet", "gp-home-operations",
+        })
+
     def test_googleplex_news_drops_unapproved_cta_without_dropping_content(self):
         snapshot = build_googleplex_news_snapshot(
             catalog=[], viewer_key="alice", session_generation="one", limit=20,

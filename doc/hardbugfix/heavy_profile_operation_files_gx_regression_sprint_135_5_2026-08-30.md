@@ -211,3 +211,20 @@ ciężki profil ponownie wszedł na gorącą ścieżkę podczas naprawy transpor
 namieszał w kilku systemach naraz. Każda przyszła zmiana tego łańcucha musi
 utrzymać canonical/bounded granicę i nie może przywracać pełnej hydracji jako
 skrótu implementacyjnego.
+
+## Follow-up — Sprint 135.5.1 Etap II
+
+Rozszerzenie editorial schedulera o product promo, box BlackNet Home i rotację
+small slots zostało celowo zbudowane bez profilu gracza. Producent korzysta tylko
+z publicznego katalogu Googleplex, statycznych bounded capability contracts oraz
+`ghost_narrative_slot_state`. Task package, walidator, publisher i projekcja News
+nie otrzymują `users.profile_json`.
+
+Obowiązuje twarda zasada: brak produktu lub danych capability kończy assignment
+jako niedostępny/pominięty. Nie wolno ratować takiej sytuacji przez
+`get_profile()`, skan `profile_json.files/operations`, account catalog ani
+hydrację walletu. Test źródłowy producenta blokuje import `run`, wywołania
+`get_profile/list_profiles` oraz odwołania do `profile_json`; test wykonawczy
+podstawia odczyt profilu wyjątkiem. Jest to świadoma ochrona przed ponownym
+wprowadzeniem 30 MB profilu na ścieżkę mapy, hackowania, operacji, plików,
+File Managera, GX i walletu.

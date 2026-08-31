@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 import run
@@ -22,6 +23,8 @@ from ghostnetwork import (
     GoogleplexLlmTaskIngress,
 )
 from ghostnetwork.ollama_policy import build_ollama_task_package
+from ghostnetwork.ollama_policy import parse_and_validate_ollama_content
+from ghostnetwork.editorial import GoogleplexEditorialProducer
 
 
 class LlmEventProducerTest(unittest.TestCase):
@@ -239,6 +242,145 @@ class LlmEventProducerTest(unittest.TestCase):
             package["fixed_action"]["payload"]["target_id"],
             "legacy:canonical-target",
         )
+
+    def test_stage_two_product_assignment_keeps_catalog_data_code_owned(self):
+        producer = GoogleplexEditorialProducer(self.repo)
+        catalog = [{
+            "id": "v_map", "name": "V-MAP",
+            "description": "Skanuje otwarte porty i luki w zabezpieczeniach.",
+            "published": True, "available": True, "downloads": 15,
+            "price": 955, "category": "scanner_recon",
+        }]
+
+        result = producer.enqueue_next(
+            catalog, now=datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+        )
+        task = result["task"]
+
+        self.assertEqual(result["status"], "created")
+        self.assertEqual(task["task_variant"], "googleplex_product_promo")
+        self.assertEqual(task["presentation_slot"], "gp-home-featured")
+        self.assertEqual(task["content_kind"], "product_promo")
+        self.assertEqual(task["creative_epoch"], 1)
+        self.assertEqual(task["editorial_contract"]["canonical_title"], "V-MAP")
+        self.assertEqual(task["fixed_action"]["payload"]["price_hc"], 955)
+        self.assertEqual(task["fixed_action"]["payload"]["product_id"], "v_map")
+        self.assertNotIn("price_hc", task["allowed_actions"])
+
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(package["fact_count"], 1)
+        self.assertEqual(model_input["presentation_slot"], "gp-home-featured")
+        self.assertEqual(model_input["copy_contract"]["title_owner"], "backend")
+        self.assertEqual(model_input["copy_contract"]["body_chars"], 90)
+        self.assertEqual(model_input["allowed_asset_roles"], [
+            "scanner", "security", "network", "market",
+        ])
+        self.assertNotIn("ctas", model_input)
+
+        validation = parse_and_validate_ollama_content(json.dumps({
+            "title": "Model nie jest wlascicielem nazwy",
+            "body": "Otworz droge przez porty, zanim oslony zmienia rytm.",
+            "tone": "mystery",
+            "fact_refs": ["googleplex_product:v_map"],
+            "cta_ref": None,
+            "asset_role": "scanner",
+        }), package)
+        self.assertEqual(validation["status"], "accepted", validation)
+        self.assertEqual(validation["output"]["title"], "V-MAP")
+        self.assertEqual(validation["resolved_asset_ref"], "gp_fallback_tool")
+        self.assertEqual(
+            validation["resolved_cta"]["payload"]["product_id"], "v_map"
+        )
+
+    def test_stage_two_rotates_to_blacknet_then_small_and_never_reads_profile(self):
+        producer = GoogleplexEditorialProducer(self.repo)
+        now = datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+        catalog = [{"id": "tool", "name": "Tool", "published": True}]
+        with patch.object(
+            run.user_store, "get_profile", side_effect=AssertionError("full profile read")
+        ) as profile_read, patch.object(
+            run.user_store, "list_profiles", side_effect=AssertionError("profile scan")
+        ) as profile_scan:
+            product = producer.enqueue_next(catalog, now=now)
+            blacknet = producer.enqueue_next(catalog, now=now)
+            operations = producer.enqueue_next(catalog, now=now)
+
+        self.assertFalse(profile_read.called)
+        self.assertFalse(profile_scan.called)
+        self.assertEqual(product["task"]["presentation_slot"], "gp-home-featured")
+        self.assertEqual(blacknet["task"]["presentation_slot"], "gp-home-blacknet")
+        self.assertEqual(blacknet["task"]["task_variant"], "googleplex_navigation_promo")
+        self.assertEqual(blacknet["task"]["fixed_action"]["cta_action"], "open_blacknet")
+        self.assertEqual(operations["task"]["presentation_slot"], "gp-home-operations")
+        self.assertEqual(
+            operations["task"]["task_variant"],
+            "googleplex_capability_card_refresh",
+        )
+
+    def test_world_scheduler_uses_one_stage_two_assignment_when_no_world_signal_is_due(self):
+        empty_signals = {
+            "version": "signals-empty", "world_facts_version": "facts-empty",
+            "signals": [],
+        }
+        with patch.object(
+            run, "get_ghostnetwork_service", return_value=self.service
+        ), patch.object(
+            run, "build_blacknet_narrative_source_snapshot",
+            return_value={"version": "facts-empty"},
+        ), patch.object(
+            run, "build_blacknet_world_signals", return_value=empty_signals
+        ), patch.object(
+            run, "get_app_catalog", return_value=[{
+                "id": "v_map", "name": "V-MAP", "published": True,
+                "description": "Skanuje porty.", "downloads": 15, "price": 955,
+            }]
+        ), patch.object(
+            run.user_store, "get_profile", side_effect=AssertionError("full profile read")
+        ) as profile_read:
+            result = run.enqueue_blacknet_world_narrative_digest(
+                now=datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+            )
+
+        self.assertFalse(profile_read.called)
+        self.assertEqual(result["googleplex_news"]["status"], "created")
+        self.assertEqual(
+            result["googleplex_news"]["task"]["presentation_slot"],
+            "gp-home-featured",
+        )
+        self.assertEqual(result["googleplex_stage_two"]["status"], "created")
+        self.assertEqual(len(self.repo.list_narrative_outbox(limit=20)), 1)
+
+    def test_stage_two_unknown_asset_role_and_oversized_copy_fail_closed(self):
+        task = GoogleplexEditorialProducer(self.repo).enqueue_next(
+            [{"id": "tool", "name": "Tool", "published": True}],
+            now=datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc),
+        )["task"]
+        package = build_ollama_task_package(task)
+        invalid_role = parse_and_validate_ollama_content(json.dumps({
+            "title": "Tool", "body": "Krotki sygnal.", "tone": "mystery",
+            "fact_refs": ["googleplex_product:tool"], "cta_ref": None,
+            "asset_role": "arbitrary-file-path",
+        }), package)
+        oversized = parse_and_validate_ollama_content(json.dumps({
+            "title": "Tool", "body": "x" * 140, "tone": "mystery",
+            "fact_refs": ["googleplex_product:tool"], "cta_ref": None,
+            "asset_role": "scanner",
+        }), package)
+        self.assertEqual(invalid_role["status"], "quarantined")
+        self.assertIn("unknown_asset_role", invalid_role["errors"])
+        self.assertEqual(oversized["status"], "rejected")
+        self.assertIn("slot_copy_budget_exceeded", oversized["errors"])
+
+    def test_stage_two_module_has_no_web_or_heavy_profile_dependency(self):
+        source = Path(run.__file__).with_name("ghostnetwork").joinpath(
+            "editorial.py"
+        ).read_text(encoding="utf-8")
+        for forbidden in (
+            "import run", "from run import", "get_profile(", "list_profiles(",
+            "profile_json", "load_profile", "account_catalog",
+        ):
+            self.assertNotIn(forbidden, source)
 
     def test_single_source_version_ignores_rolling_runtime_ttl(self):
         producer = BlackNetNarrativeProducer(self.repo)

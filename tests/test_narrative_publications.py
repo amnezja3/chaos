@@ -11,6 +11,8 @@ from ghostnetwork.ollama_policy import assign_ollama_task_policy
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.publication import NarrativePublicationService
 from ghostnetwork.repository import GhostNetworkRepository
+from ghostnetwork.editorial import GoogleplexEditorialProducer
+from googleplex_news import build_googleplex_news_snapshot, merge_googleplex_news_publications
 from scripts.narrative_publication_worker import is_database_contention
 
 
@@ -76,6 +78,24 @@ class SequencedAcceptedClient(AcceptedClient):
             prompt_eval_count=generated.prompt_eval_count,
             eval_count=generated.eval_count,
             raw_response_hash=generated.raw_response_hash,
+        )
+
+
+class RoleAcceptedClient(AcceptedClient):
+    def generate(self, package, policy):
+        output = {
+            "title": "Modelowa nazwa jest ignorowana",
+            "body": "Znajdz szczeline w osloniemym wezle i otworz droge dla sygnalu.",
+            "tone": "mystery",
+            "fact_refs": [next(iter(package["fact_refs"]))],
+            "cta_ref": None,
+            "asset_role": next(iter(package.get("allowed_asset_roles") or ()), None),
+        }
+        return OllamaGenerationResult(
+            model=policy.model_name, model_digest=policy.model_digest,
+            runtime_version="test", content=json.dumps(output), done=True,
+            done_reason="stop", total_duration_ns=1, load_duration_ns=0,
+            prompt_eval_count=1, eval_count=1, raw_response_hash="role-hash",
         )
 
 
@@ -186,6 +206,66 @@ class NarrativePublicationTest(unittest.TestCase):
         )
         self.assertEqual([item["medium_record_id"] for item in active], [
             published["record"]["medium_record_id"]
+        ])
+
+    def test_stage_two_product_publishes_one_slot_with_canonical_commerce_data(self):
+        catalog = [{
+            "id": "v_map", "name": "V-MAP",
+            "description": "Skanuje otwarte porty i luki w zabezpieczeniach.",
+            "published": True, "available": True, "downloads": 15,
+            "price": 955, "category": "scanner_recon",
+        }]
+        assignment = GoogleplexEditorialProducer(self.repo).enqueue_next(
+            catalog, now=self.clock.value
+        )
+        worker = OllamaNarrativeWorker(
+            repository=self.repo, client=RoleAcceptedClient(),
+            config=OllamaWorkerConfig(
+                enabled=True, poll_seconds=0.1, poll_jitter_seconds=0,
+                lease_seconds=60, heartbeat_seconds=30,
+            ), worker_id="stage-two-ollama",
+        )
+        completed = worker.process_once()
+        candidate = self.repo.get_narrative_candidate_for_task(
+            assignment["task"]["outbox_id"]
+        )
+
+        self.assertEqual(completed["validation_status"], "accepted")
+        self.assertEqual(candidate["title"], "V-MAP")
+        self.assertEqual(candidate["asset_ref"], "gp_fallback_tool")
+        self.assertEqual(candidate["cta_action"], "open_googleplex_search")
+        self.assertEqual(candidate["cta_payload"]["price_hc"], 955)
+
+        published = NarrativePublicationService(
+            repository=self.repo, worker_id="stage-two-publisher"
+        ).process_once()
+        self.assertEqual(published["result"], "published", published)
+        slot = self.repo.get_narrative_slot_state(
+            "googleplex_news", "gp-home-featured"
+        )
+        self.assertEqual(slot["version"], 1)
+        self.assertEqual(slot["creative_epoch"], 1)
+        self.assertEqual(slot["next_refresh_at"], "2026-08-29T18:00:00+00:00")
+
+        snapshot = build_googleplex_news_snapshot(
+            catalog=catalog, viewer_key="alice", session_generation="one", limit=20,
+            now=self.clock.value,
+        )
+        active = self.repo.list_active_narrative_slot_records_for_viewer(
+            "googleplex_news", owner="alice", limit=12
+        )
+        merged = merge_googleplex_news_publications(snapshot, active, limit=20)
+        featured = next(
+            item for item in merged["entries"]
+            if item["content"]["news_id"] == "gp-home-featured"
+        )
+        self.assertEqual(featured["content"]["title"], "V-MAP")
+        self.assertEqual(featured["presentation"]["primary_stat"], "955 HC")
+        self.assertEqual(featured["action"]["action_type"], "open_googleplex_search")
+        self.assertEqual(featured["action"]["action_target"], "V-MAP")
+        self.assertEqual(featured["action"]["action_payload_ref"], "v_map")
+        self.assertEqual(merged["diagnostics"]["publication_slot_ids"], [
+            "gp-home-featured"
         ])
 
     def test_googleplex_slot_cas_rejects_stale_assignment(self):

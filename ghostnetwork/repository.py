@@ -739,6 +739,9 @@ class GhostNetworkRepository:
                     selected_source_version TEXT NOT NULL DEFAULT '',
                     expected_slot_version INTEGER NOT NULL DEFAULT 0,
                     fixed_action_json TEXT NOT NULL DEFAULT '{}',
+                    creative_epoch INTEGER NOT NULL DEFAULT 0,
+                    editorial_contract_json TEXT NOT NULL DEFAULT '{}',
+                    allowed_asset_roles_json TEXT NOT NULL DEFAULT '[]',
                     priority INTEGER NOT NULL DEFAULT 0,
                     attempt_count INTEGER NOT NULL DEFAULT 0,
                     max_attempts INTEGER NOT NULL DEFAULT 5,
@@ -802,6 +805,9 @@ class GhostNetworkRepository:
                 ("selected_source_version", "selected_source_version TEXT NOT NULL DEFAULT ''"),
                 ("expected_slot_version", "expected_slot_version INTEGER NOT NULL DEFAULT 0"),
                 ("fixed_action_json", "fixed_action_json TEXT NOT NULL DEFAULT '{}'"),
+                ("creative_epoch", "creative_epoch INTEGER NOT NULL DEFAULT 0"),
+                ("editorial_contract_json", "editorial_contract_json TEXT NOT NULL DEFAULT '{}'"),
+                ("allowed_asset_roles_json", "allowed_asset_roles_json TEXT NOT NULL DEFAULT '[]'"),
                 ("priority", "priority INTEGER NOT NULL DEFAULT 0"),
                 ("attempt_count", "attempt_count INTEGER NOT NULL DEFAULT 0"),
                 ("max_attempts", "max_attempts INTEGER NOT NULL DEFAULT 5"),
@@ -1508,6 +1514,12 @@ class GhostNetworkRepository:
         fixed_action = loads_json(row["fixed_action_json"], {}) if "fixed_action_json" in keys else {}
         if not isinstance(fixed_action, dict):
             fixed_action = {}
+        editorial_contract = loads_json(row["editorial_contract_json"], {}) if "editorial_contract_json" in keys else {}
+        if not isinstance(editorial_contract, dict):
+            editorial_contract = {}
+        allowed_asset_roles = loads_json(row["allowed_asset_roles_json"], []) if "allowed_asset_roles_json" in keys else []
+        if not isinstance(allowed_asset_roles, list):
+            allowed_asset_roles = []
         return {
             "outbox_id": row["outbox_id"],
             "task_id": row["outbox_id"],
@@ -1536,15 +1548,15 @@ class GhostNetworkRepository:
             "output_schema_version": row["output_schema_version"] if "output_schema_version" in keys else "unassigned",
             "model_policy_version": row["model_policy_version"] if "model_policy_version" in keys else "unassigned",
             "task_variant": row["task_variant"] if "task_variant" in keys else "default",
-            "content_kind": row["content_kind"] if "content_kind" in keys else "",
             "presentation_slot": row["presentation_slot"] if "presentation_slot" in keys else "",
             "content_kind": row["content_kind"] if "content_kind" in keys else "",
             "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
             "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
-            "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
-            "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
             "expected_slot_version": int(row["expected_slot_version"] or 0) if "expected_slot_version" in keys else 0,
             "fixed_action": fixed_action,
+            "creative_epoch": int(row["creative_epoch"] or 0) if "creative_epoch" in keys else 0,
+            "editorial_contract": editorial_contract,
+            "allowed_asset_roles": allowed_asset_roles,
             "priority": int(row["priority"] or 0) if "priority" in keys else 0,
             "status": row["status"],
             "attempt_count": int(row["attempt_count"] or 0) if "attempt_count" in keys else 0,
@@ -1699,6 +1711,9 @@ class GhostNetworkRepository:
             "cta_payload": cta_payload if isinstance(cta_payload, dict) else {},
             "asset_ref": row["asset_ref"] if "asset_ref" in keys else "",
             "presentation_slot": row["presentation_slot"] if "presentation_slot" in keys else "",
+            "content_kind": row["content_kind"] if "content_kind" in keys else "",
+            "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
+            "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
             "created_at": row["created_at"],
             "published_at": row["published_at"],
         }
@@ -3872,6 +3887,13 @@ class GhostNetworkRepository:
             "fixed_action_json": dumps_json(
                 item.get("fixed_action") if isinstance(item.get("fixed_action"), dict) else {}
             ),
+            "creative_epoch": max(0, int(item.get("creative_epoch") or 0)),
+            "editorial_contract_json": dumps_json(
+                item.get("editorial_contract") if isinstance(item.get("editorial_contract"), dict) else {}
+            ),
+            "allowed_asset_roles_json": dumps_json(
+                item.get("allowed_asset_roles") if isinstance(item.get("allowed_asset_roles"), list) else []
+            ),
             "priority": int(item.get("priority") or 0),
             "attempt_count": attempt_count,
             "max_attempts": max_attempts,
@@ -3900,6 +3922,7 @@ class GhostNetworkRepository:
                     model_policy_version, truth_class_policy, task_variant,
                     content_kind, presentation_slot, selected_source_ref,
                     selected_source_version, expected_slot_version, fixed_action_json,
+                    creative_epoch, editorial_contract_json, allowed_asset_roles_json,
                     priority, attempt_count, max_attempts, claimed_by, claimed_at,
                     lease_until, next_attempt_at, last_error_code, last_error_at,
                     updated_at, completed_at, dead_lettered_at
@@ -3916,6 +3939,7 @@ class GhostNetworkRepository:
                     :model_policy_version, :truth_class_policy, :task_variant,
                     :content_kind, :presentation_slot, :selected_source_ref,
                     :selected_source_version, :expected_slot_version, :fixed_action_json,
+                    :creative_epoch, :editorial_contract_json, :allowed_asset_roles_json,
                     :priority, :attempt_count, :max_attempts, :claimed_by, :claimed_at,
                     :lease_until, :next_attempt_at, :last_error_code, :last_error_at,
                     :updated_at, :completed_at, :dead_lettered_at
@@ -4937,7 +4961,8 @@ class GhostNetworkRepository:
                        c.asset_ref, o.validation_json AS task_validation_json,
                        o.content_kind, o.presentation_slot,
                        o.selected_source_ref, o.selected_source_version,
-                       o.expected_slot_version,
+                       o.expected_slot_version, o.creative_epoch,
+                       o.editorial_contract_json,
                        c.target_medium AS candidate_medium,
                        c.audience_scope AS candidate_audience_scope,
                        c.audience_clan AS candidate_audience_clan,
@@ -4975,6 +5000,11 @@ class GhostNetworkRepository:
             ):
                 return None
             assignment = loads_json(row["task_validation_json"], {}) or {}
+            editorial_contract = loads_json(row["editorial_contract_json"], {}) or {}
+            if not isinstance(editorial_contract, dict):
+                editorial_contract = {}
+            if not editorial_contract and isinstance(assignment.get("editorial_contract"), dict):
+                editorial_contract = assignment.get("editorial_contract")
             explicit_assignment = bool(_clean(row["presentation_slot"]))
             presentation_slot = _clean(
                 row["presentation_slot"] or assignment.get("presentation_slot")
@@ -4997,6 +5027,15 @@ class GhostNetworkRepository:
                 content_hash = hashlib.sha256(
                     (str(row["title"]) + "\n" + str(row["body"])).encode("utf-8")
                 ).hexdigest()
+                creative_epoch = max(0, int(row["creative_epoch"] or assignment.get("creative_epoch") or 0))
+                refresh_seconds = max(0, min(
+                    int(editorial_contract.get("minimum_refresh_seconds") or 0),
+                    31 * 86400,
+                ))
+                next_refresh_at = _iso(
+                    datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
+                    + timedelta(seconds=refresh_seconds)
+                ) if refresh_seconds else ""
                 if expected_slot_version == 0:
                     slot_cursor = conn.execute(
                         """
@@ -5006,13 +5045,13 @@ class GhostNetworkRepository:
                             active_source_version, active_content_hash,
                             creative_epoch, last_refreshed_at, next_refresh_at,
                             version, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, '', 1, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                         """,
                         (
                             row["target_medium"], presentation_slot,
                             _clean(row["content_kind"] or assignment.get("content_kind")),
                             row["medium_record_id"], source_ref, source_version,
-                            content_hash, now_iso, now_iso,
+                            content_hash, creative_epoch, now_iso, next_refresh_at, now_iso,
                         ),
                     )
                 else:
@@ -5022,13 +5061,15 @@ class GhostNetworkRepository:
                         SET content_kind = ?, active_medium_record_id = ?,
                             active_source_ref = ?, active_source_version = ?,
                             active_content_hash = ?, last_refreshed_at = ?,
+                            creative_epoch = ?, next_refresh_at = ?,
                             version = version + 1, updated_at = ?
                         WHERE target_medium = ? AND slot_id = ? AND version = ?
                         """,
                         (
                             _clean(row["content_kind"] or assignment.get("content_kind")),
                             row["medium_record_id"], source_ref, source_version,
-                            content_hash, now_iso, now_iso, row["target_medium"],
+                            content_hash, now_iso, creative_epoch, next_refresh_at,
+                            now_iso, row["target_medium"],
                             presentation_slot, expected_slot_version,
                         ),
                     )
