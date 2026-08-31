@@ -58,7 +58,7 @@ class NarrativePublicationService:
         )
         if metadata_errors:
             return False, metadata_errors[0]
-        if candidate.get("target_medium") == "googleplex_news":
+        if candidate.get("target_medium") in {"googleplex_news", "cyberner"}:
             current_policy = resolve_ollama_task_policy(
                 candidate.get("source_scope"), task.get("task_variant"),
                 candidate.get("target_medium"),

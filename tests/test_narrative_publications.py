@@ -267,6 +267,24 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertFalse(valid)
         self.assertEqual(reason, "candidate_policy_superseded")
 
+    def test_superseded_cyberner_candidate_is_not_publishable(self):
+        valid, reason = NarrativePublicationService.validate_candidate({
+            "validation_status": "accepted",
+            "source_scope": "googleplex_app",
+            "target_medium": "cyberner",
+            "audience_scope": "owner",
+            "audience_owner": "alice",
+            "title": "Stary wynik AGI",
+            "body": "Odpowiedz pochodzi z poprzedniej polityki.",
+        }, {
+            "task_variant": "owner-analysis",
+            "prompt_version": "cyberner-agi-2108-prompt-v2",
+            "output_schema_version": "chaos-narrative-output-v1",
+            "facts": [],
+        })
+        self.assertFalse(valid)
+        self.assertEqual(reason, "candidate_policy_superseded")
+
     def test_only_one_worker_owns_publication_lease(self):
         candidate = self.accepted_candidate("two-publishers")
         self.repo.ensure_narrative_publication(candidate["candidate_id"])

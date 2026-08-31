@@ -74,6 +74,7 @@ from ghostnetwork import (
     normalize_ghostnetwork_profile_identity,
     normalize_snapshot_view,
 )
+from ghostnetwork.llm.registry import resolve_ollama_task_policy
 from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
@@ -20497,11 +20498,20 @@ def api_googleplex_llm_task_status(receipt_id):
         "failed": "failed",
     }.get(raw_status, "accepted")
     candidate = repository.get_narrative_candidate_for_task(task.get("outbox_id"))
+    current_policy = resolve_ollama_task_policy(
+        task.get("source_scope"), task.get("task_variant"), task.get("target_medium")
+    )
+    policy_superseded = bool(current_policy and (
+        task.get("prompt_version") != current_policy.prompt_version
+        or task.get("output_schema_version") != current_policy.output_schema_version
+    ))
     if (
         raw_status == "completed"
         and candidate
         and candidate.get("validation_status") in {"rejected", "quarantined"}
     ):
+        public_status = "failed"
+    if policy_superseded:
         public_status = "failed"
     user_message = {
         "accepted": "Task zostal przyjety do canonical transportu.",
@@ -20510,6 +20520,11 @@ def api_googleplex_llm_task_status(receipt_id):
         "completed": "Task zostal przetworzony i oczekuje na bezpieczna publikacje.",
         "failed": "Wynik AGI jest niedostepny. Task zakonczyl sie kontrolowanym bledem.",
     }[public_status]
+    if policy_superseded:
+        user_message = (
+            "Wynik AGI jest niedostepny. Task uzywa nieaktualnej polityki promptu; "
+            "wyslij nowe zlecenie."
+        )
     response_payload = {
         "success": True,
         "receipt": {
