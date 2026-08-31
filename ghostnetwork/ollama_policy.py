@@ -281,6 +281,17 @@ def owner_analysis_echoes_input(title, body, source_facts):
         for output in normalized_outputs
     ):
         return True
+    # Reordering the topic words in a short title is still an echo. This
+    # catches outputs such as "Stracony Krakow" for "Krakow stracony" while
+    # allowing a single canonical place or object name to remain usable.
+    if any(
+        2 <= len(output.split()) <= 6
+        and set(output.split()).issubset(set(source.split()))
+        for source in normalized_sources
+        if len(source.split()) >= 2
+        for output in normalized_outputs
+    ):
+        return True
     reporting_prefixes = (
         "gracz poprosil", "gracz prosi", "uzytkownik poprosil",
         "uzytkownik chce", "pytanie dotyczy", "tematem jest",

@@ -76,7 +76,7 @@ class Agi2108ConsoleContractTest(unittest.TestCase):
         self.assertEqual(ingress["usage_cost_hc"], 0)
         self.assertEqual(ingress["rate_limit"], {"max_tasks": 5, "window_seconds": 3600})
         self.assertEqual(template["id"], "owner-analysis")
-        self.assertEqual(template["prompt_version"], "cyberner-agi-2108-prompt-v4")
+        self.assertEqual(template["prompt_version"], "cyberner-agi-2108-prompt-v5")
         self.assertEqual(template["priority"], 1000)
         self.assertEqual(template["target_medium"], "cyberner")
         self.assertEqual(template["input_fields"]["topic"]["max_length"], 120)
@@ -86,7 +86,7 @@ class Agi2108ConsoleContractTest(unittest.TestCase):
             "googleplex_app", "owner-analysis", "cyberner"
         )
         self.assertIsNotNone(policy)
-        self.assertEqual(policy.prompt_version, "cyberner-agi-2108-prompt-v4")
+        self.assertEqual(policy.prompt_version, "cyberner-agi-2108-prompt-v5")
         self.assertEqual(policy.output_schema_version, "chaos-narrative-output-v1")
         self.assertEqual(policy.model_policy_version, "chaos-local-narrator-v1")
 

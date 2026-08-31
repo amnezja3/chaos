@@ -236,6 +236,23 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(wrapped_echo["status"], "rejected")
         self.assertIn("owner_analysis_echo", wrapped_echo["errors"])
 
+        reordered_echo = parse_and_validate_ollama_content(json.dumps({
+            "title": "Stracony Krakow",
+            "body": "Mgla zaslania droge.",
+            "tone": "mystery",
+            "fact_refs": ["googleplex_request:one"],
+            "cta_ref": None,
+        }), build_ollama_task_package(assign_ollama_task_policy({
+            **task,
+            "facts": [{
+                "fact_id": "googleplex_request:one",
+                "public_text": "Krakow stracony",
+                "request_fields": {"topic": "Krakow stracony"},
+            }],
+        })))
+        self.assertEqual(reordered_echo["status"], "rejected")
+        self.assertIn("owner_analysis_echo", reordered_echo["errors"])
+
     def test_unregistered_or_unassigned_task_cannot_build_request(self):
         with self.assertRaisesRegex(ValueError, "policy_not_registered"):
             build_ollama_task_package({
@@ -283,7 +300,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         self.assertEqual(blacknet.prompt_version, "blacknet-world-prompt-v2")
         self.assertEqual(news.prompt_version, "googleplex-news-assets-prompt-v8")
-        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v4")
+        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v5")
 
         blacknet_prompt = load_prompt_layers(blacknet)[1]
         news_prompt = load_prompt_layers(news)[1]
@@ -300,6 +317,8 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertIn("Nie jestes chatbotem", agi_prompt)
         self.assertIn("cyfrowa wyrocznia", agi_prompt)
         self.assertIn("za kazdym razem tworzysz nowy obraz", agi_prompt)
+        self.assertIn("TEMAT JEST TAJNYM WEJSCIEM", agi_prompt)
+        self.assertIn("Nie konczysz pytaniem retorycznym", agi_prompt)
         self.assertNotIn("WZORCE STYLU", agi_prompt)
         self.assertNotIn("Temat:", agi_prompt)
 

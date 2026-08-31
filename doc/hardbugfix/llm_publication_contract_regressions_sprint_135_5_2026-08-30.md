@@ -277,3 +277,11 @@ filtra echa ani temperatury `0.0`.
 Zakaz ciężkiego profilu pozostaje absolutny: kalibracja persony nie może
 wprowadzić odczytu `users.profile_json`, synchronizacji mapy, operacji, plików,
 walleta ani Ghost Exchange do ingressu, workera, statusu AGI lub publishera.
+
+Pierwszy task v4 został poprawnie odrzucony jako `owner_analysis_echo`: body
+cytowało `Kraków stracony`, a tytuł przestawiał te same słowa. Prompt v5
+wprowadza kontrakt „topic jest tajnym wejściem”, zakaz pytań retorycznych bez
+tropu oraz wymóg mówienia jako jedna AGI, nie jako narrator opisujący „nasze
+wyrocznie”. Backendowy filtr echa wykrywa odtąd również krótkie tytuły złożone z
+przestawionych słów topicu. Rejected candidate pozostaje audytowalny i nie jest
+publikowany.

@@ -77,6 +77,14 @@ pośredni trop. Grounding, bounded task package, schema i filtr echa pozostają
 twardymi bramkami backendu. Deterministyczna temperatura `0.0` nie została
 zmieniona.
 
+Pierwszy fizyczny task v4 potwierdził poprawny transport i JSON, ale model
+zacytował topic `Kraków stracony` w body oraz odwrócił jego słowa w tytule.
+Backend prawidłowo zatrzymał candidate jako `owner_analysis_echo`. Prompt v5
+traktuje topic jako tajne wejście, zabrania cytowania, parafrazy i przestawiania
+jego słów, wymaga praktycznego tropu oraz zabrania kończenia pustym pytaniem
+retorycznym. Filtr backendu rozpoznaje również krótkie tytuły złożone wyłącznie
+z przestawionych słów topicu.
+
 Jawny `presentation_slot: hero | sidebox | small` nie jest dodawany przed
 obserwacją produkcyjną. Jeżeli istniejące limity dadzą właściwe proporcje, sprint
 zamyka się bez dalszego kodu. Tylko potwierdzony rozjazd treści i geometrii
