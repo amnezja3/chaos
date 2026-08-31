@@ -805,8 +805,9 @@ append-only audit -> preserved
 - brak aktywnego copy zachowuje foundation;
 - pełny profil nie jest czytany przez żadną ścieżkę sprintu.
 - coordinate-backed CTA BlackNet daje pierwszeństwo canonical `lat/lng` przed
-  legacy `hotspot_id`; `label` jest wyłącznie tekstem prezentacyjnym, a mapa
-  oznacza punkt faktu osobnym markerem również po wykonaniu teleportu.
+  legacy `hotspot_id`; `label` jest wyłącznie tekstem prezentacyjnym. Incydent
+  otwiera mapę w trybie `focus_map_target` i oznacza punkt faktu bez
+  automatycznego przesuwania gracza; teleport pozostaje osobną decyzją mapy.
 
 ### Heavy-profile regression
 
@@ -836,8 +837,8 @@ append-only audit -> preserved
 10. Zasymulować spóźniony candidate: slot pozostaje przy nowszej wersji.
 11. Obserwować SQLite writer contention i czasy endpointu News w soak.
 12. Dla CTA incydentu potwierdzić, że etykieta w rodzaju `INCYDENT <lat,lng>`
-    nie jest rozwiązywana jako hotspot: zapis pozycji i fokus mapy używają
-    współrzędnych z canonical payloadu, a mapa pokazuje marker celu.
+    nie jest rozwiązywana jako hotspot: mapa używa współrzędnych z canonical
+    payloadu, pokazuje marker celu i nie zmienia pozycji gracza.
 
 ## Definition of Done
 

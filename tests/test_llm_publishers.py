@@ -208,6 +208,19 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         self.assertEqual(coordinate_teleport["metadata"]["hotspot_id"], "")
         self.assertNotIn("52.2297", coordinate_teleport["metadata"]["target_label"])
 
+        incident_preview = run.blacknet_signal_from_publication(publication(
+            medium="blacknet", cta_action="teleport_to_hotspot",
+            fact_refs=["blacknet_fact:bnf:incidents:incident_hotspot_reaction:one"],
+            cta_payload={
+                "target_id": "incident_one", "lat": 52.23,
+                "lng": 21.01, "label": "Strefa incydentu L4",
+            },
+        ))
+        self.assertEqual(incident_preview["cta_action"], "focus_map_target")
+        self.assertEqual(incident_preview["cta"], "POKAZ NA MAPIE")
+        self.assertEqual(incident_preview["metadata"]["lat"], 52.23)
+        self.assertEqual(incident_preview["metadata"]["lng"], 21.01)
+
     def test_blacknet_endpoint_caps_narratives_and_keeps_deterministic_signal(self):
         heavy_profile_fixture = {"payload": "x" * (35 * 1024 * 1024)}
         self.assertGreaterEqual(len(heavy_profile_fixture["payload"]), 35 * 1024 * 1024)

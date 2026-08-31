@@ -81,7 +81,7 @@ class BlackNetIncidentBridgeTest(unittest.TestCase):
             if os.path.exists(db_path):
                 os.remove(db_path)
 
-    def test_incident_fact_converts_to_stable_blacknet_teleport_signal(self):
+    def test_incident_fact_converts_to_stable_blacknet_focus_signal(self):
         db_path, store = self.make_store()
         try:
             self.seed_incident(store)
@@ -95,7 +95,8 @@ class BlackNetIncidentBridgeTest(unittest.TestCase):
             self.assertEqual(len(signals), 1)
             signal = signals[0]
             self.assertEqual(signal["signal_type"], "incident_hotspot")
-            self.assertEqual(signal["cta_action"], "teleport_to_hotspot")
+            self.assertEqual(signal["cta_action"], "focus_map_target")
+            self.assertEqual(signal["cta"], "POKAZ INCYDENT")
             self.assertEqual(signal["cta_target"], "incident")
             self.assertEqual(signal["cta_target_id"], "incident_bridge")
             self.assertEqual(signal["entity_id"], "incident_bridge")

@@ -1015,8 +1015,8 @@ BLACKNET_SIGNAL_RULES = {
         "value_prefix": "L",
         "value_suffix": "",
         "stat_template": "{public_state} / {trend}",
-        "cta": "TELEPORT W OKOLICE",
-        "cta_action": "teleport_to_hotspot",
+        "cta": "POKAZ INCYDENT",
+        "cta_action": "focus_map_target",
         "cta_target": "incident",
         "tone": "red",
         "layout": 2,
@@ -2681,6 +2681,15 @@ def blacknet_signal_from_publication(record):
         payload_lat = None
         payload_lng = None
         has_payload_position = False
+    fact_refs = list(record.get("fact_refs") or [])[:20]
+    is_incident_focus = any(
+        "incident_hotspot_reaction" in str(fact_ref or "")
+        for fact_ref in fact_refs
+    )
+    # Incident CTA is a preview/decision surface. It may reveal the canonical
+    # point, but must not move the player before an explicit map-side decision.
+    if action == "teleport_to_hotspot" and is_incident_focus:
+        action = "focus_map_target"
     if (
         action == "teleport_to_hotspot"
         and target_id not in BLACKNET_HOTSPOTS
@@ -2700,7 +2709,11 @@ def blacknet_signal_from_publication(record):
         "timer": "LIVE",
         "tone": "cyan",
         "layout": 2,
-        "cta": "OTWÓRZ" if action != "none" else "READ ONLY",
+        "cta": (
+            "POKAZ NA MAPIE"
+            if action == "focus_map_target"
+            else ("OTWORZ" if action != "none" else "READ ONLY")
+        ),
         "cta_action": action,
         "cta_target_id": target_id,
         "cta_query": query,
@@ -2713,7 +2726,7 @@ def blacknet_signal_from_publication(record):
         "metadata": {
             "publication_receipt_id": record.get("publication_receipt_id"),
             "truth_class": record.get("truth_class"),
-            "fact_refs": list(record.get("fact_refs") or [])[:20],
+            "fact_refs": fact_refs,
             "audience_scope": record.get("audience_scope"),
             # Coordinate-backed narrative actions are canonical coordinate
             # targets, not legacy named hotspots. Keep target_id separately for
