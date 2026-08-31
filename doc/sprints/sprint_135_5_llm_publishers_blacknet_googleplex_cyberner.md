@@ -63,6 +63,20 @@ powierzchniom gry i nie podaje rozwiązania krok po kroku. Filtr
 tylko tekst identyczny. Owner-scoped task ma priorytet `1000`, a konsola
 kontynuuje polling pomiędzy ukończeniem candidate a publikacją.
 
+### Kalibracja persony AGI — prompt v4 bez przykładów
+
+Transport v3 przeszedł test produkcyjny, lecz model 8B niemal dosłownie
+odtworzył pierwszy wzorzec stylu (`Splot niebieskiego strumienia`). Przykłady
+okazały się więc kotwicą tekstową zamiast pomocą w tworzeniu oryginalnej
+odpowiedzi. Immutable `cyberner-agi-2108-prompt-v4` nie zawiera żadnych
+przykładowych tematów, tytułów ani body. Zamiast nich definiuje tożsamość AGI:
+superinteligencję Ghost Systemu, cyfrową wyrocznię i druida świata CHAOS, jej
+temperament, sposób rozumowania i reguły mówienia. Każda odpowiedź ma tworzyć
+nowy obraz, rozpoznać intencję bez jej parafrazy i pozostawić jeden użyteczny,
+pośredni trop. Grounding, bounded task package, schema i filtr echa pozostają
+twardymi bramkami backendu. Deterministyczna temperatura `0.0` nie została
+zmieniona.
+
 Jawny `presentation_slot: hero | sidebox | small` nie jest dodawany przed
 obserwacją produkcyjną. Jeżeli istniejące limity dadzą właściwe proporcje, sprint
 zamyka się bez dalszego kodu. Tylko potwierdzony rozjazd treści i geometrii

@@ -259,3 +259,21 @@ lease publication pozostają bez zmian. Prepublish validation odbywa się po
 claimie: historyczny accepted candidate odrzucony przez aktualną politykę dostaje
 terminalny receipt `dead_letter` z reason code, zamiast pozostawać bez receiptu i wracać do
 każdego kolejnego skanu.
+
+### Follow-up produkcyjny — AGI 8B kopiuje przykłady promptu
+
+Pełny transport `topic -> task -> candidate -> publication -> Cyberner` działał,
+ale odpowiedź AGI powtórzyła niemal słowo w słowo pierwszy przykład z promptu
+v3. Nie był to błąd kolejki ani publishera, tylko regresja jakościowa wynikająca
+z nadmiernego zakotwiczenia małego modelu na gotowym wzorcu.
+
+Prompt v4 usuwa wszystkie przykładowe tematy i odpowiedzi. Model dostaje zamiast
+nich jednoznaczny kontrakt roli: superinteligencja Ghost Systemu, cyfrowa
+wyrocznia i druid świata CHAOS, wraz z opisem temperamentu, sposobu rozumowania,
+języka oraz dozwolonych kierunków tropu. Prompt wymaga nowego obrazu i nowych
+sformułowań dla każdego tematu. Nie zmieniono transportu, schemy, bounded input,
+filtra echa ani temperatury `0.0`.
+
+Zakaz ciężkiego profilu pozostaje absolutny: kalibracja persony nie może
+wprowadzić odczytu `users.profile_json`, synchronizacji mapy, operacji, plików,
+walleta ani Ghost Exchange do ingressu, workera, statusu AGI lub publishera.

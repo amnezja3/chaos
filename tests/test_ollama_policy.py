@@ -283,7 +283,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         self.assertEqual(blacknet.prompt_version, "blacknet-world-prompt-v2")
         self.assertEqual(news.prompt_version, "googleplex-news-assets-prompt-v8")
-        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v3")
+        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v4")
 
         blacknet_prompt = load_prompt_layers(blacknet)[1]
         news_prompt = load_prompt_layers(news)[1]
@@ -296,10 +296,12 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertIn("fragment transmisji z roku 2108", blacknet_prompt)
         self.assertIn("przechwycony", blacknet_prompt)
         self.assertIn("PRZECHWYT //", blacknet_prompt)
-        self.assertIn("Glos AGI 2108", agi_prompt)
-        self.assertIn("WZORCE STYLU", agi_prompt)
+        self.assertIn("WCZUJ SIE W ROLE AGI 2108", agi_prompt)
+        self.assertIn("Nie jestes chatbotem", agi_prompt)
         self.assertIn("cyfrowa wyrocznia", agi_prompt)
-        self.assertIn("escape roomie", agi_prompt)
+        self.assertIn("za kazdym razem tworzysz nowy obraz", agi_prompt)
+        self.assertNotIn("WZORCE STYLU", agi_prompt)
+        self.assertNotIn("Temat:", agi_prompt)
 
     def test_task_cannot_override_prompt_model_schema_and_injection_is_data(self):
         task = self.task()
