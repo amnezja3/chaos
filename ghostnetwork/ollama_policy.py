@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from difflib import SequenceMatcher
 import hashlib
 import json
 import math
@@ -303,6 +304,31 @@ def owner_analysis_echoes_input(title, body, source_facts):
         any(prefix in output for prefix in reporting_prefixes)
         for output in normalized_outputs
     )
+
+
+def product_promo_echoes_description(body, source_facts):
+    """Reject catalog-description copies while preserving canonical product data."""
+    folded_body = re.sub(r"[^\w]+", " ", str(body or "").casefold()).strip()
+    if not folded_body:
+        return False
+    for fact in source_facts or ():
+        if not isinstance(fact, dict):
+            continue
+        description = re.sub(
+            r"[^\w]+", " ", str(fact.get("description") or "").casefold()
+        ).strip()
+        if not description:
+            continue
+        if folded_body == description:
+            return True
+        shorter, longer = sorted((folded_body, description), key=len)
+        if len(shorter.split()) >= 5 and shorter in longer and len(shorter) / max(1, len(longer)) >= 0.8:
+            return True
+        if min(len(folded_body.split()), len(description.split())) >= 5 and SequenceMatcher(
+            None, folded_body, description
+        ).ratio() >= 0.88:
+            return True
+    return False
 
 
 def googleplex_allowed_asset_refs(source_facts):
@@ -752,6 +778,16 @@ def parse_and_validate_ollama_content(content, task_package):
             title, body, task_package.get("source_facts") or ()
         ):
             errors.append("owner_analysis_echo")
+    if (
+        policy
+        and policy.source_scope == "googleplex_editorial"
+        and policy.task_variant == "googleplex_product_promo"
+        and isinstance(body, str)
+        and product_promo_echoes_description(
+            body, task_package.get("source_facts") or ()
+        )
+    ):
+        errors.append("product_promo_source_echo")
 
     all_errors = sorted(set(errors + security_errors))
     status = "quarantined" if security_errors else ("rejected" if errors else "accepted")

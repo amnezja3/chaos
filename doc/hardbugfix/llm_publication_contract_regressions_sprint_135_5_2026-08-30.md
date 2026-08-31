@@ -292,3 +292,17 @@ pojawił się zarówno w `AGI 2108 Console`, jak i w kanale `AI Central / AGI
 prowadził gracza pośrednim tropem do Googleplex. Transport, validation guard,
 publisher i prezentacja mają status `PASS`. Limit `5 / h` poprawnie zatrzymał
 nadmiarowe próby na ingressie i nie został osłabiony na potrzeby testów.
+
+### Follow-up produkcyjny — product promo kopiował opis katalogowy
+
+Pierwszy fizyczny task Etapu II przeszedł poprawnie przez
+`task -> candidate -> publisher -> gp-home-featured`, zachowując canonical
+`V-MAP`, cenę `955 HC`, pobrania i link. Body było jednak dokładną kopią opisu
+katalogowego, więc transport miał status PASS, ale copywriting nie.
+
+Prompt `googleplex-product-promo-v2` definiuje model jako copywritera Googleplex
+roku 2108 i wymaga nowego sloganu opartego na korzyści, bez gotowych przykładów.
+Backendowy guard `product_promo_source_echo` odrzuca identyczny, zawarty lub
+niemal identyczny opis źródłowy. Nazwa, cena, dostępność, link, CTA i asset
+resolution nadal pozostają code-owned. Historyczny rekord v1 pozostaje w
+audycie; nowa polityka nie zmienia go w miejscu.

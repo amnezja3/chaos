@@ -259,6 +259,7 @@ class LlmEventProducerTest(unittest.TestCase):
 
         self.assertEqual(result["status"], "created")
         self.assertEqual(task["task_variant"], "googleplex_product_promo")
+        self.assertEqual(task["prompt_version"], "googleplex-product-promo-v2")
         self.assertEqual(task["presentation_slot"], "gp-home-featured")
         self.assertEqual(task["content_kind"], "product_promo")
         self.assertEqual(task["creative_epoch"], 1)
@@ -292,6 +293,17 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(
             validation["resolved_cta"]["payload"]["product_id"], "v_map"
         )
+
+        source_echo = parse_and_validate_ollama_content(json.dumps({
+            "title": "V-MAP",
+            "body": "Skanuje otwarte porty i luki w zabezpieczeniach.",
+            "tone": "info",
+            "fact_refs": ["googleplex_product:v_map"],
+            "cta_ref": None,
+            "asset_role": "scanner",
+        }), package)
+        self.assertEqual(source_echo["status"], "rejected", source_echo)
+        self.assertIn("product_promo_source_echo", source_echo["errors"])
 
     def test_stage_two_rotates_to_blacknet_then_small_and_never_reads_profile(self):
         producer = GoogleplexEditorialProducer(self.repo)

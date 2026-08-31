@@ -94,7 +94,7 @@ def _build_registry():
     policies.extend((
         _policy(
             "googleplex_editorial", "googleplex_product_promo", "googleplex_news",
-            "googleplex-product-promo-v1", Path("googleplex") / "product-promo-v1.md",
+            "googleplex-product-promo-v2", Path("googleplex") / "product-promo-v2.md",
             ROLE_OUTPUT_SCHEMA_VERSION,
         ),
         _policy(
