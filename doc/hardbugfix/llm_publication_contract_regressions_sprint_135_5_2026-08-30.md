@@ -153,6 +153,9 @@ odpowiedzi. Echo topicu mogło przejść jako pozorny rezultat AGI.
 - immutable prompty `blacknet-world-prompt-v2`,
   `googleplex-news-assets-prompt-v8` oraz `cyberner-agi-2108-prompt-v2` rozdzielają
   ton trzech mediów bez rozszerzania uprawnień modelu.
+- po fizycznym wykryciu opakowanego echa Cyberner otrzymał immutable prompt v3:
+  personę cyfrowej wyroczni, przykłady zagadek z pośrednią wskazówką oraz
+  rozszerzony guard odrzucający frazy typu `Gracz poprosił...`;
 
 ## Testy i weryfikacja
 

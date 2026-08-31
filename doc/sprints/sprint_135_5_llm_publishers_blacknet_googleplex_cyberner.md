@@ -18,8 +18,9 @@ semantycznie, mimo poprawnego transportu i exactly-once.
 
 Implementacja, transport, publication receipts, exactly-once oraz code-owned
 CTA/canonical target są zakończone. Po wdrożeniu wersji
-`blacknet-world-prompt-v2`, `googleplex-news-assets-prompt-v8` i
-`cyberner-agi-2108-prompt-v2` sprint nie otrzymuje kolejnych zmian na zapas.
+`blacknet-world-prompt-v2`, `googleplex-news-assets-prompt-v8` i pierwotnej
+wersji `cyberner-agi-2108-prompt-v2` sprint nie otrzymuje kolejnych zmian na
+zapas.
 Do zamknięcia pozostaje fizyczna walidacja jakości trzech mediów:
 
 ```text
@@ -50,6 +51,17 @@ Cyberner AGI v2 wymaga kilku różnych tematów oraz prześledzenia każdego prz
 `topic -> task -> candidate -> publication -> Cyberner`. Wynik nie może być
 echem inputu, fallbackiem udającym odpowiedź ani ujawniać identyfikatorów i
 danych technicznych.
+
+### Domknięcie persony AGI — prompt v3
+
+Walidacja fizyczna wykazała poprawny transport, ale odpowiedź
+`Gracz poprosił o zorganizowanie ekipy` była jedynie opakowanym echem inputu.
+Wprowadzono immutable `cyberner-agi-2108-prompt-v3`: AGI działa jako cyfrowa
+wyrocznia 2108, daje krótki metaforyczny trop prowadzący ku canonical
+powierzchniom gry i nie podaje rozwiązania krok po kroku. Filtr
+`owner_analysis_echo` odrzuca również input zawarty w zdaniu raportowym, nie
+tylko tekst identyczny. Owner-scoped task ma priorytet `1000`, a konsola
+kontynuuje polling pomiędzy ukończeniem candidate a publikacją.
 
 Jawny `presentation_slot: hero | sidebox | small` nie jest dodawany przed
 obserwacją produkcyjną. Jeżeli istniejące limity dadzą właściwe proporcje, sprint

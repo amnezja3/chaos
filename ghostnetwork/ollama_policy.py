@@ -261,10 +261,34 @@ def owner_analysis_echoes_input(title, body, source_facts):
             source_texts.append(str(request_fields["topic"]))
 
     def normalized(value):
-        return re.sub(r"[^\w]+", " ", str(value or "").casefold()).strip()
+        folded = str(value or "").casefold().translate(str.maketrans({
+            "ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n",
+            "ó": "o", "ś": "s", "ź": "z", "ż": "z",
+        }))
+        return re.sub(r"[^\w]+", " ", folded).strip()
 
     normalized_sources = {normalized(item) for item in source_texts if normalized(item)}
-    return normalized(title) in normalized_sources or normalized(body) in normalized_sources
+    normalized_outputs = tuple(
+        item for item in (normalized(title), normalized(body)) if item
+    )
+    if any(output in normalized_sources for output in normalized_outputs):
+        return True
+    # Owner analysis must transform the topic into guidance. Wrapping the input
+    # in a reporting phrase ("Gracz poprosil o...") is still an echo.
+    if any(
+        len(source.split()) >= 2 and source in output
+        for source in normalized_sources
+        for output in normalized_outputs
+    ):
+        return True
+    reporting_prefixes = (
+        "gracz poprosil", "gracz prosi", "uzytkownik poprosil",
+        "uzytkownik chce", "pytanie dotyczy", "tematem jest",
+    )
+    return any(
+        any(prefix in output for prefix in reporting_prefixes)
+        for output in normalized_outputs
+    )
 
 
 def googleplex_allowed_asset_refs(source_facts):

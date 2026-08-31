@@ -111,7 +111,7 @@ def _build_registry():
     ))
     policies.append(_policy(
         "googleplex_app", "owner-analysis", "cyberner",
-        "cyberner-agi-2108-prompt-v2", Path("cyberner") / "agi-2108-v2.md",
+        "cyberner-agi-2108-prompt-v3", Path("cyberner") / "agi-2108-v3.md",
     ))
     return {(p.source_scope, p.task_variant, p.target_medium): p for p in policies}
 

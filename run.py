@@ -4660,7 +4660,7 @@ PRO_SYSTEM_TOOLS = [
                 "label": "Analiza operatorska",
                 "description": "Bounded interpretacja wskazanego tematu dla wlasciciela aplikacji.",
                 "target_medium": "cyberner",
-                "prompt_version": "cyberner-agi-2108-prompt-v2",
+                "prompt_version": "cyberner-agi-2108-prompt-v3",
                 "output_schema_version": "chaos-narrative-output-v1",
                 "model_policy_version": "chaos-local-narrator-v1",
                 # Direct, rate-limited owner requests must not be starved by

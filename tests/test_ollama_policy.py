@@ -219,6 +219,23 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(result["status"], "rejected")
         self.assertIn("owner_analysis_echo", result["errors"])
 
+        wrapped_echo = parse_and_validate_ollama_content(json.dumps({
+            "title": "Wynik interpretacji",
+            "body": "Gracz poprosił o zorganizowanie ekipy.",
+            "tone": "system",
+            "fact_refs": ["googleplex_request:one"],
+            "cta_ref": None,
+        }), build_ollama_task_package(assign_ollama_task_policy({
+            **task,
+            "facts": [{
+                "fact_id": "googleplex_request:one",
+                "public_text": "Zorganizowanie ekipy",
+                "request_fields": {"topic": "Zorganizowanie ekipy"},
+            }],
+        })))
+        self.assertEqual(wrapped_echo["status"], "rejected")
+        self.assertIn("owner_analysis_echo", wrapped_echo["errors"])
+
     def test_unregistered_or_unassigned_task_cannot_build_request(self):
         with self.assertRaisesRegex(ValueError, "policy_not_registered"):
             build_ollama_task_package({
@@ -266,7 +283,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         self.assertEqual(blacknet.prompt_version, "blacknet-world-prompt-v2")
         self.assertEqual(news.prompt_version, "googleplex-news-assets-prompt-v8")
-        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v2")
+        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v3")
 
         blacknet_prompt = load_prompt_layers(blacknet)[1]
         news_prompt = load_prompt_layers(news)[1]
@@ -281,6 +298,8 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertIn("PRZECHWYT //", blacknet_prompt)
         self.assertIn("Glos AGI 2108", agi_prompt)
         self.assertIn("WZORCE STYLU", agi_prompt)
+        self.assertIn("cyfrowa wyrocznia", agi_prompt)
+        self.assertIn("escape roomie", agi_prompt)
 
     def test_task_cannot_override_prompt_model_schema_and_injection_is_data(self):
         task = self.task()
