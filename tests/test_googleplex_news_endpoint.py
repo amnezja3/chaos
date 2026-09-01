@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from flask import g, session
 
@@ -56,6 +56,29 @@ class GoogleplexNewsEndpointTest(unittest.TestCase):
             response, status = run.api_googleplex_news()
         self.assertEqual(status, 400)
         self.assertEqual(response.get_json()["error"], "unsupported_news_view")
+
+    def test_endpoint_reads_every_refreshable_publication_slot(self):
+        repository = Mock()
+        repository.list_active_narrative_slot_records_for_viewer.return_value = []
+        service = Mock(repository=repository)
+        expected_limit = sum(
+            1 for contract in run.GOOGLEPLEX_HOME_SLOT_REGISTRY.values()
+            if isinstance(contract, dict)
+            and contract.get("llm_refresh_enabled") is True
+        )
+        self.assertGreater(expected_limit, 6)
+        with run.app.test_request_context("/api/googleplex/news?view=home&limit=20"):
+            session["user"] = "main"
+            g.session_generation = "generation-a"
+            with patch.object(run, "get_app_catalog", return_value=[]), patch.object(
+                run.identity_projection_store, "get_identity", return_value={}
+            ), patch.object(run, "get_ghostnetwork_service", return_value=service):
+                response = run.api_googleplex_news()
+
+        self.assertEqual(response.status_code, 200)
+        repository.list_active_narrative_slot_records_for_viewer.assert_called_once_with(
+            "googleplex_news", owner="main", clan="", limit=expected_limit
+        )
 
     def test_endpoint_requires_login(self):
         with run.app.test_request_context("/api/googleplex/news"):

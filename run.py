@@ -75,7 +75,10 @@ from ghostnetwork import (
     normalize_snapshot_view,
 )
 from ghostnetwork.llm.registry import resolve_ollama_task_policy
-from ghostnetwork.editorial import GoogleplexEditorialProducer
+from ghostnetwork.editorial import (
+    GOOGLEPLEX_HOME_SLOT_REGISTRY,
+    GoogleplexEditorialProducer,
+)
 from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
@@ -26267,11 +26270,16 @@ def api_googleplex_news():
             limit=request.args.get("limit", 20),
         )
         identity = identity_projection_store.get_identity(username) or {}
+        active_publication_slot_limit = sum(
+            1 for contract in GOOGLEPLEX_HOME_SLOT_REGISTRY.values()
+            if isinstance(contract, dict)
+            and contract.get("llm_refresh_enabled") is True
+        )
         published = get_ghostnetwork_service().repository.list_active_narrative_slot_records_for_viewer(
             "googleplex_news",
             owner=username,
             clan=get_profile_clan(identity),
-            limit=6,
+            limit=active_publication_slot_limit,
         )
         snapshot = merge_googleplex_news_publications(
             snapshot, published, limit=request.args.get("limit", 20)

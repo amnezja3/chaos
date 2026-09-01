@@ -337,3 +337,10 @@ renderowalo ten sam obiekt bez nowego requestu.
 Wejscie na Googleplex Home wymusza teraz bounded odczyt endpointu News i po
 odpowiedzi podmienia snapshot. Nie dodano pollingu, odczytu profilu ani zapisu do
 bazy. BlackNet, Ghost Exchange i wyszukiwanie katalogu pozostaja niezalezne.
+
+Po usunieciu stale snapshotu ujawnila sie druga, niezalezna granica: endpoint
+pobieral `limit=6` aktywnych publication slots, podczas gdy registry mialo juz
+ponad szesc slotow z `llm_refresh_enabled`. Zapytanie sortuje po `slot_id`, przez
+co `gp-home-world-grid` bylo ucinane jako ostatnie, mimo poprawnego receipt i
+aktywnego slot state. Limit jest teraz wyliczany z code-owned slot registry;
+nie zalezy od profilu ani liczby rekordow w bazie.
