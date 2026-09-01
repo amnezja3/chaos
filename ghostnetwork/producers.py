@@ -74,6 +74,7 @@ BLACKNET_NARRATIVE_INTENTS = {
     "fallback": "intercepted_world_signal",
 }
 SIGNAL_NARRATIVE_CONTRACT_VERSION = "signal-aware-v2"
+PRODUCT_NARRATIVE_CONTRACT_VERSION = "product-signal-v3"
 
 
 def _safe_int(value, default=0):
@@ -239,7 +240,12 @@ class BlackNetNarrativeProducer:
             )
         }
         source_version_payload["narrative_intent"] = narrative_intent
-        source_version_payload["narrative_contract"] = SIGNAL_NARRATIVE_CONTRACT_VERSION
+        narrative_contract = (
+            PRODUCT_NARRATIVE_CONTRACT_VERSION
+            if narrative_intent == BLACKNET_NARRATIVE_INTENTS["product"]
+            else SIGNAL_NARRATIVE_CONTRACT_VERSION
+        )
+        source_version_payload["narrative_contract"] = narrative_contract
         source_version_payload["action"] = fixed_action or {}
         source_version = hashlib.sha1(json.dumps(
             source_version_payload, ensure_ascii=True, sort_keys=True,
@@ -273,7 +279,7 @@ class BlackNetNarrativeProducer:
             # Navigation is resolved deterministically after generation. It is
             # deliberately absent from model_input.
             "allowed_actions": [],
-            "canon_version": SIGNAL_NARRATIVE_CONTRACT_VERSION,
+            "canon_version": narrative_contract,
             "world_state_version": _clean(
                 snapshot.get("world_facts_version") or snapshot.get("version")
             ),

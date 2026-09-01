@@ -12,7 +12,7 @@ Zaimplementowano lokalnie:
   nowy legalny task zamiast reinterpretować historyczny candidate;
 - bounded task package przekazuje intent modelowi, ale nie daje mu możliwości
   wyboru lub zmiany tego pola;
-- immutable prompty `blacknet-signal-prompt-v7` oraz
+- immutable prompty `blacknet-signal-prompt-v8` oraz
   `googleplex-world-hero-prompt-v12`, opisujące role bez przykładów odpowiedzi;
 - `signal_source_echo` dla body kopiującego presentation-safe pole źródła;
 - `narrative_filler_phrase` dla pustych konstrukcji potwierdzonych w gameplayu;
@@ -27,9 +27,15 @@ ujawniła dwie kolejne granice jakości. Product transmission użył nieistotneg
 `signal-aware-v2` usuwa `stat` z bounded faktu produktu, pozostawiając nazwę i
 cenę, a validator odrzuca `TEMP/pobrania` jako
 `product_transmission_metric_leak`. Composite source-echo rozpoznaje teraz body
-złożone wyłącznie z kilku pól canonical. Prompty v7/v12 opisują oba wymagania;
-zmiana wersji kontraktu źródła tworzy jeden nowy legalny task zamiast replayować
-zakończone v6/v11.
+złożone wyłącznie z kilku pól canonical. Prompt HERO v12 opisuje transformację
+sygnału radiowego.
+
+Walidacja v7 potwierdziła, że sama canonical cena produktu, np. `520 HC`, jest
+potrzebna i legalna. Nie wolno traktować konstrukcji `CENA to` jako błędu
+faktograficznego; o jakości kolejności decyduje prompt. BlackNet v8 każe zacząć
+od potrzeby operatora lub korzyści i dopiero naturalnie zakończyć ceną. Osobny
+kontrakt źródła `product-signal-v3` regeneruje wyłącznie transmisję produktową;
+odrzucone radio v12 nie jest przez tę kalibrację replayowane.
 
 Nie zmieniono kwalifikacji sygnałów do HERO; to pozostaje Etapem II.
 
@@ -190,7 +196,7 @@ polityka.
 SELECT outbox_id,target_medium,status,task_variant,narrative_intent,
        prompt_version,attempt_count,last_error_code,created_at
 FROM ghost_narrative_outbox
-WHERE prompt_version IN ('blacknet-signal-prompt-v7',
+WHERE prompt_version IN ('blacknet-signal-prompt-v8',
                          'googleplex-world-hero-prompt-v12')
 ORDER BY created_at DESC
 LIMIT 20;
@@ -200,7 +206,8 @@ Po publikacji `ghost_narrative_medium_records.narrative_intent` musi być zgodny
 z taskiem. W outputach nie mogą wystąpić `w roku 2108`, `w rejonie celu`,
 `w globalnym zasięgu`, raportowe `odnotowano produktową szansę` ani body będące
 kopią lub sklejeniem `title/label/value/stat`. Dla intentu produktowego model
-nie otrzymuje `stat` i nie może publikować `TEMP` ani liczby pobrań.
+nie otrzymuje `stat` i nie może publikować `TEMP` ani liczby pobrań. Canonical
+cena z `value` pozostaje dozwolona i powinna pojawić się po komunikacie korzyści.
 
 ## Powiązane dokumenty
 

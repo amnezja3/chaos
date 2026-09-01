@@ -358,7 +358,6 @@ def signal_narrative_quality_errors(title, body, source_facts, narrative_intent=
         "w rejonie celu",
         "w globalnym zasiegu",
         "odnotowano produktowa szanse",
-        "cena to",
     )
     errors = []
     if any(phrase in combined for phrase in filler_phrases):

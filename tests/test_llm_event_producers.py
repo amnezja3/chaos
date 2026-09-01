@@ -283,8 +283,8 @@ class LlmEventProducerTest(unittest.TestCase):
             {"world_facts_version": "facts-v2"}, signal, target_medium="blacknet"
         )
         task = result["task"]
-        self.assertEqual(task["prompt_version"], "blacknet-signal-prompt-v7")
-        self.assertEqual(task["canon_version"], "signal-aware-v2")
+        self.assertEqual(task["prompt_version"], "blacknet-signal-prompt-v8")
+        self.assertEqual(task["canon_version"], "product-signal-v3")
         self.assertEqual(task["narrative_intent"], "intercepted_product_transmission")
         self.assertEqual(task["facts"][0]["value"], "520 HC")
         self.assertEqual(task["facts"][0]["stat"], "")
@@ -302,8 +302,16 @@ class LlmEventProducerTest(unittest.TestCase):
             "cta_ref": None,
         }), package)
         self.assertEqual(metrics["status"], "rejected", metrics)
-        self.assertIn("narrative_filler_phrase", metrics["errors"])
         self.assertIn("product_transmission_metric_leak", metrics["errors"])
+
+        canonical_price = parse_and_validate_ollama_content(json.dumps({
+            "title": "GOOGLEPLEX / Bilet: Tokio",
+            "body": "CENA to 520 HC. Bilet na podroz do Tokio.",
+            "tone": "mystery",
+            "fact_refs": [task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+        }), package)
+        self.assertEqual(canonical_price["status"], "accepted", canonical_price)
 
     def test_stage_two_product_assignment_keeps_catalog_data_code_owned(self):
         producer = GoogleplexEditorialProducer(self.repo)
