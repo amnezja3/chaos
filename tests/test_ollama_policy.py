@@ -303,6 +303,35 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(reordered_echo["status"], "rejected")
         self.assertIn("owner_analysis_echo", reordered_echo["errors"])
 
+    def test_model_cta_is_removed_when_backend_exposes_no_action(self):
+        task = assign_ollama_task_policy({
+            "source_scope": "googleplex_app",
+            "task_variant": "owner-analysis",
+            "target_medium": "cyberner",
+            "audience_scope": "owner",
+            "audience_owner": "alice",
+            "truth_class_policy": "owner_requested_interpretation",
+            "facts": [{
+                "fact_id": "googleplex_request:no-cta",
+                "public_text": "Jak znalezc czesc?",
+                "request_fields": {"topic": "Jak znalezc czesc?"},
+            }],
+            "allowed_actions": [],
+        })
+        package = build_ollama_task_package(task)
+        result = parse_and_validate_ollama_content(json.dumps({
+            "title": "Ślad w martwym węźle",
+            "body": "Zacznij od mapy, potem porównaj rytm portów z ciszą terminala.",
+            "tone": "mystery",
+            "fact_refs": ["googleplex_request:no-cta"],
+            "cta_ref": "c01",
+        }), package)
+
+        self.assertEqual(result["status"], "accepted")
+        self.assertIsNone(result["output"]["cta_ref"])
+        self.assertIsNone(result["resolved_cta"])
+        self.assertIn("unsupported_cta_removed", result["normalizations"])
+
     def test_unregistered_or_unassigned_task_cannot_build_request(self):
         with self.assertRaisesRegex(ValueError, "policy_not_registered"):
             build_ollama_task_package({

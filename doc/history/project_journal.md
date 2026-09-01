@@ -1882,3 +1882,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `storage_used=89`, poza ścieżką narracyjną i bez zmian w tym sprincie.
 - Status: `ETAP I IMPLEMENTED LOCALLY / SERVER AUDIT PENDING`; bez deployu,
   restartu PM2, commita i pushu.
+
+### 135.6 — wynik canonical server gate
+
+- Wykonano online backup `game.pre-1356-cutover-20260901T1153Z.sqlite3`.
+- Audit wykrył 49 wyłącznie historycznych `world_digest` w `ready/retry_wait`;
+  wszystkie terminalnie wycofano jako `policy_superseded_cutover`.
+- Powtórzony audit `--strict` zwrócił `ok=true`, bez błędów i ostrzeżeń.
+- Canonical queue, worker, publisher, prompt registry i pokrycie BlackNet,
+  Googleplex News oraz Cyberner mają `SERVER PASS`.
+- Heavy profile, account scan, expired task leases, expired publication claims
+  i unstaged accepted candidates: zero.
+- Pozostaje fizyczny smoke trzech mediów oraz gameplay/SQLite soak przed
+  oznaczeniem całego Sprintu 135.6 jako COMPLETE.
+- Pierwszy smoke AGI przeszedł transport i retry po timeout, lecz output został
+  poprawnie zatrzymany za echo topicu oraz wymyślone CTA. Validator zachowuje
+  filtr echa, a przy pustej allowliście bezpiecznie usuwa modelowe CTA do null;
+  54 testy policy/workera/cutoveru/publishera przechodzą.

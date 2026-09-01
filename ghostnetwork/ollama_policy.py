@@ -782,6 +782,7 @@ def parse_and_validate_ollama_content(content, task_package):
     cta_ref = output.get("cta_ref")
     asset_ref = output.get("asset_ref")
     asset_role = output.get("asset_role")
+    policy = task_package.get("policy")
     editorial_contract = task_package.get("editorial_contract") or {}
     narrative_intent = task_package.get("narrative_intent") or ""
     canonical_title = str(editorial_contract.get("canonical_title") or "").strip()
@@ -832,12 +833,22 @@ def parse_and_validate_ollama_content(content, task_package):
     selected_source_ref = str(task_package.get("selected_source_ref") or "").strip()
     if selected_source_ref and refs != [selected_source_ref]:
         security_errors.append("selected_fact_mismatch")
-    if cta_ref is not None:
-        if not isinstance(cta_ref, str) or cta_ref not in (task_package.get("cta_map") or {}):
+    cta_ref_removed = False
+    cta_map = task_package.get("cta_map") or {}
+    if cta_ref is not None and not cta_map:
+        # A model cannot create a capability when the backend exposed no CTA
+        # choices. Removing the unsupported reference is fail-closed: content
+        # may survive, but no model-selected action can reach publication.
+        cta_ref = None
+        cta_ref_removed = True
+        output = dict(output)
+        output["cta_ref"] = None
+    elif cta_ref is not None:
+        if not isinstance(cta_ref, str) or cta_ref not in cta_map:
             security_errors.append("unknown_cta_ref")
         else:
             cta_fact_ref = str(
-                ((task_package.get("cta_map") or {}).get(cta_ref) or {}).get("fact_ref")
+                (cta_map.get(cta_ref) or {}).get("fact_ref")
                 or ""
             ).strip()
             if cta_fact_ref and (
@@ -879,7 +890,6 @@ def parse_and_validate_ollama_content(content, task_package):
     ):
         security_errors.append("unknown_canonical_poi_name")
 
-    policy = task_package.get("policy")
     if (
         policy
         and policy.source_scope == "googleplex_app"
@@ -935,5 +945,6 @@ def parse_and_validate_ollama_content(content, task_package):
             *(["canonical_identifier_to_safe_label"] if identifier_normalized else []),
             *(["product_filler_prefix_removed"] if product_prefix_normalized else []),
             *(["schema_length_bounded"] if title_bounded or body_bounded else []),
+            *(["unsupported_cta_removed"] if cta_ref_removed else []),
         ],
     }

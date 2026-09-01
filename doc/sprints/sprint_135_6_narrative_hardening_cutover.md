@@ -1,6 +1,6 @@
 # Sprint 135.6 — Narrative Hardening and Controlled Cutover
 
-Status: `IN PROGRESS — ETAP I IMPLEMENTED LOCALLY`
+Status: `IN PROGRESS — ETAP I SERVER PASS / SMOKE AND SOAK PENDING`
 
 ## Cel
 
@@ -92,17 +92,37 @@ odzyskują wygasłe lease’y i kontynuują backlog.
 ## Definition of Done
 
 ```text
-canonical queue is sole runtime queue:       PENDING SERVER
-legacy file outbox diagnostic only:          LOCAL PASS
-prompt registry:                             LOCAL PASS
+canonical queue is sole runtime queue:       SERVER PASS
+legacy file outbox diagnostic only:          SERVER PASS
+prompt registry:                             SERVER PASS
 replay/crash/exactly-once tests:              LOCAL PASS
 audience isolation:                          LOCAL PASS
 bounded backpressure observability:          LOCAL PASS
-worker and publisher enabled:                PENDING SERVER
-ineligible queued tasks:                     PENDING SERVER AUDIT
-expired leases/claims:                       PENDING SERVER AUDIT
-BlackNet/GGPL News/Cyberner coverage:         PENDING SERVER AUDIT
-heavy-profile metrics:                       0 LOCALLY
+worker and publisher enabled:                SERVER PASS
+ineligible queued tasks:                     0 / SERVER PASS
+expired leases/claims:                       0 / SERVER PASS
+BlackNet/GGPL News/Cyberner coverage:         SERVER PASS
+heavy-profile metrics:                       0 / SERVER PASS
 gameplay and SQLite soak:                    PENDING SERVER
 ```
 
+## Wynik pierwszego cutoveru serwerowego
+
+Audit wykrył `49` nieclaimowalnych tasków `world_digest` z historycznych prompt
+epochs. Wszystkie były w `ready/retry_wait`; żaden nie miał aktywnego lease’u.
+Po online backupie SQLite bounded retirement oznaczył dokładnie 49 rekordów jako
+`dead_letter / policy_superseded_cutover`. Nie zmieniono legalnych tasków,
+candidates, receipts ani medium records.
+
+Ponowna bramka `--strict` zakończyła się `ok=true`: `ineligible_ready=0`,
+`expired_leases=0`, `expired_claims=0`, `unstaged_accepted=0`, wszystkie trzy
+media mają publikacje, prompt registry ma 31 legalnych polityk, legacy file
+queue jest wyłączona, a wszystkie metryki heavy profile są równe zero.
+
+Pierwszy smoke AGI potwierdził retry po `ollama_timeout`, a następnie
+kontrolowaną kwarantannę odpowiedzi zawierającej echo topicu i wymyślone
+`cta_ref`. Echo nadal blokuje publikację. Gdy backend nie udostępnia żadnego
+CTA, modelowy ref jest teraz redukowany do `null` z audytem
+`unsupported_cta_removed`; nieznany ref przy istniejącej allowliście nadal
+kończy się kwarantanną. Redukcja usuwa capability i nie rozszerza uprawnień
+modelu.
