@@ -176,7 +176,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         echo = parse_and_validate_ollama_content(json.dumps({
             "title": "Radio nadal nadaje",
-            "body": "114 TRACKOW W ETERZE",
+            "body": "114 TRACKOW W ETERZE. KANALY ONLINE.",
             "tone": "mystery",
             "fact_refs": ["blacknet_fact:radio:one"],
             "cta_ref": None,

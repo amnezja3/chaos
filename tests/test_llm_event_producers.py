@@ -267,6 +267,44 @@ class LlmEventProducerTest(unittest.TestCase):
             with self.subTest(signal=signal):
                 self.assertEqual(narrative_intent_for_signal(signal), expected)
 
+    def test_blacknet_product_intent_omits_heat_and_download_metrics(self):
+        signal = {
+            "id": "product-one",
+            "fact_id": "bnf:googleplex:googleplex_product_signal:one",
+            "signal_type": "product_opportunity",
+            "category": "googleplex",
+            "title": "GOOGLEPLEX / Bilet: Tokio",
+            "label": "CENA",
+            "value": "520 HC",
+            "stat": "45 TEMP / 0 POBRAN",
+            "importance": 50,
+        }
+        result = BlackNetNarrativeProducer(self.repo).enqueue_signal(
+            {"world_facts_version": "facts-v2"}, signal, target_medium="blacknet"
+        )
+        task = result["task"]
+        self.assertEqual(task["prompt_version"], "blacknet-signal-prompt-v7")
+        self.assertEqual(task["canon_version"], "signal-aware-v2")
+        self.assertEqual(task["narrative_intent"], "intercepted_product_transmission")
+        self.assertEqual(task["facts"][0]["value"], "520 HC")
+        self.assertEqual(task["facts"][0]["stat"], "")
+
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertNotIn("stat", model_input["fact_columns"])
+        self.assertIn("value", model_input["fact_columns"])
+
+        metrics = parse_and_validate_ollama_content(json.dumps({
+            "title": "GOOGLEPLEX / Bilet: Tokio",
+            "body": "CENA to 520 HC, a czas oczekiwania wynosi 45 TEMP / 0 POBRAN.",
+            "tone": "mystery",
+            "fact_refs": [task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+        }), package)
+        self.assertEqual(metrics["status"], "rejected", metrics)
+        self.assertIn("narrative_filler_phrase", metrics["errors"])
+        self.assertIn("product_transmission_metric_leak", metrics["errors"])
+
     def test_stage_two_product_assignment_keeps_catalog_data_code_owned(self):
         producer = GoogleplexEditorialProducer(self.repo)
         catalog = [{

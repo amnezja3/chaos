@@ -73,6 +73,7 @@ BLACKNET_NARRATIVE_INTENTS = {
     "product": "intercepted_product_transmission",
     "fallback": "intercepted_world_signal",
 }
+SIGNAL_NARRATIVE_CONTRACT_VERSION = "signal-aware-v2"
 
 
 def _safe_int(value, default=0):
@@ -222,10 +223,15 @@ class BlackNetNarrativeProducer:
             or "googleplex_product_signal" in str(signal.get("fact_id") or "")
         ):
             return {"ok": True, "status": "ineligible", "reason_code": "product_slot_owned_by_catalog", "task": None}
+        narrative_intent = narrative_intent_for_signal(signal)
         fact, fixed_action = self._single_signal_fact(signal)
         if not fact:
             return {"ok": True, "status": "empty", "task": None}
-        narrative_intent = narrative_intent_for_signal(signal)
+        if narrative_intent == BLACKNET_NARRATIVE_INTENTS["product"]:
+            # BlackNet needs the product identity and canonical price/value,
+            # not catalog heat/download counters. Do not send irrelevant data
+            # to the model and then ask it to ignore it.
+            fact["stat"] = ""
         source_version_payload = {
             key: fact.get(key) for key in (
                 "fact_id", "signal_type", "category", "region_id", "title", "label",
@@ -233,6 +239,7 @@ class BlackNetNarrativeProducer:
             )
         }
         source_version_payload["narrative_intent"] = narrative_intent
+        source_version_payload["narrative_contract"] = SIGNAL_NARRATIVE_CONTRACT_VERSION
         source_version_payload["action"] = fixed_action or {}
         source_version = hashlib.sha1(json.dumps(
             source_version_payload, ensure_ascii=True, sort_keys=True,
@@ -266,7 +273,7 @@ class BlackNetNarrativeProducer:
             # Navigation is resolved deterministically after generation. It is
             # deliberately absent from model_input.
             "allowed_actions": [],
-            "canon_version": "blacknet-editorial-queue-v1",
+            "canon_version": SIGNAL_NARRATIVE_CONTRACT_VERSION,
             "world_state_version": _clean(
                 snapshot.get("world_facts_version") or snapshot.get("version")
             ),

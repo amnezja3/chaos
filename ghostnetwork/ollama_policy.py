@@ -350,7 +350,7 @@ def _normalized_narrative_text(value):
     return re.sub(r"[^\w]+", " ", folded).strip()
 
 
-def signal_narrative_quality_errors(title, body, source_facts):
+def signal_narrative_quality_errors(title, body, source_facts, narrative_intent=""):
     """Fail closed on database-like source copies and known empty fillers."""
     combined = _normalized_narrative_text(f"{title or ''} {body or ''}")
     filler_phrases = (
@@ -363,6 +363,10 @@ def signal_narrative_quality_errors(title, body, source_facts):
     errors = []
     if any(phrase in combined for phrase in filler_phrases):
         errors.append("narrative_filler_phrase")
+    if narrative_intent == "intercepted_product_transmission" and re.search(
+        r"\b(?:temp|pobran\w*)\b", combined
+    ):
+        errors.append("product_transmission_metric_leak")
 
     normalized_body = _normalized_narrative_text(body)
     source_values = []
@@ -374,14 +378,24 @@ def signal_narrative_quality_errors(title, body, source_facts):
             for field in ("title", "label", "value", "stat", "description", "public_text")
         )
     source_values = [value for value in source_values if value]
-    if normalized_body and any(
+    exact_or_near_echo = normalized_body and any(
         normalized_body == source
         or (
             min(len(normalized_body.split()), len(source.split())) >= 5
             and SequenceMatcher(None, normalized_body, source).ratio() >= 0.9
         )
         for source in source_values
-    ):
+    )
+    source_tokens = {
+        token for source in source_values for token in source.split() if token
+    }
+    body_tokens = normalized_body.split()
+    composite_echo = (
+        len(body_tokens) >= 2
+        and bool(source_tokens)
+        and set(body_tokens).issubset(source_tokens)
+    )
+    if exact_or_near_echo or composite_echo:
         errors.append("signal_source_echo")
     return errors
 
@@ -874,7 +888,8 @@ def parse_and_validate_ollama_content(content, task_package):
         and policy.task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
     ):
         errors.extend(signal_narrative_quality_errors(
-            title, body, task_package.get("source_facts") or ()
+            title, body, task_package.get("source_facts") or (),
+            task_package.get("narrative_intent") or "",
         ))
 
     all_errors = sorted(set(errors + security_errors))
