@@ -258,6 +258,12 @@ z intentem `intercepted_broadcast_fragment` ani
 `intercepted_product_transmission`. Brak legalnego źródła pozostawia poprzedni
 HERO bez zmian.
 
+Pierwsza walidacja gate'u ujawniła historyczny poison slotu: ukończony task z
+`rejected` candidate'em i bez publication receipt był traktowany jako otwarty
+assignment bezterminowo. `has_open_narrative_slot_assignment` wymaga teraz dla
+statusu `completed` istnienia candidate'a `accepted`; rejected, quarantined
+lub brak candidate'a nie blokują następnego legalnego HERO.
+
 ## Powiązane dokumenty
 
 - `doc/sprints/sprint_135_5_1_deterministic_editorial_queue_slot_copy.md`

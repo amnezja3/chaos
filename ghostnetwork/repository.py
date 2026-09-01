@@ -5263,6 +5263,12 @@ class GhostNetworkRepository:
                     o.status IN ('ready', 'retry_wait', 'claimed', 'processing')
                     OR (
                         o.status = 'completed'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM ghost_narrative_inbox_candidates c
+                            WHERE c.task_id = o.outbox_id
+                              AND c.validation_status = 'accepted'
+                        )
                         AND NOT EXISTS (
                             SELECT 1
                             FROM ghost_narrative_publication_receipts r

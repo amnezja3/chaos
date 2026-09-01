@@ -306,3 +306,21 @@ Backendowy guard `product_promo_source_echo` odrzuca identyczny, zawarty lub
 niemal identyczny opis źródłowy. Nazwa, cena, dostępność, link, CTA i asset
 resolution nadal pozostają code-owned. Historyczny rekord v1 pozostaje w
 audycie; nowa polityka nie zmienia go w miejscu.
+
+### Follow-up produkcyjny — rejected candidate zatruwał slot HERO
+
+Walidacja `hero-sufficiency-v1` została początkowo zatrzymana przez
+`slot_busy`, mimo że nie istniał legalny candidate oczekujący na publikację.
+Root cause znajdował się w
+`has_open_narrative_slot_assignment`: każdy task `completed` bez terminalnego
+receiptu był uznawany za nadal publikowalny. Obejmowało to również historyczne
+`rejected` i `quarantined` candidates, dla których publisher słusznie nie
+tworzył receiptu. Jeden odrzucony HERO mógł więc blokować slot bezterminowo.
+
+Ukończony task blokuje teraz slot wyłącznie wtedy, gdy istnieje dla niego
+candidate o statusie `accepted` i nie istnieje jeszcze receipt `published`
+albo `dead_letter`. Taski `ready/retry_wait/claimed/processing` zachowują
+dotychczasową ochronę serializacji. Test regresyjny potwierdza oba stany:
+accepted candidate trzyma slot, a zmiana jego statusu na rejected natychmiast
+zwalnia assignment. Poprawka nie odczytuje profilu i nie zmienia slot CAS ani
+exactly-once publishera.

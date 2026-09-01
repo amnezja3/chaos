@@ -217,6 +217,46 @@ class NarrativePublicationTest(unittest.TestCase):
             published["record"]["medium_record_id"]
         ])
 
+    def test_rejected_completed_candidate_does_not_hold_slot_busy(self):
+        candidate = self.accepted_candidate(
+            "rejected-slot-holder",
+            source_scope="blacknet_world",
+            task_variant="googleplex_world_dispatch",
+            target_medium="googleplex_news",
+            validation={
+                "selected_source_ref": "fact:one",
+                "presentation_slot": "gp-home-world-grid",
+            },
+        )
+        self.assertEqual(candidate["validation_status"], "accepted")
+        with self.repo._conn() as conn:
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET presentation_slot = 'gp-home-world-grid'
+                WHERE outbox_id = ?
+                """,
+                (candidate["task_id"],),
+            )
+        self.assertTrue(self.repo.has_open_narrative_slot_assignment(
+            "googleplex_news", "gp-home-world-grid"
+        ))
+
+        with self.repo._conn() as conn:
+            conn.execute(
+                """
+                UPDATE ghost_narrative_inbox_candidates
+                SET validation_status = 'rejected',
+                    validation_errors_json = '["signal_source_echo"]'
+                WHERE candidate_id = ?
+                """,
+                (candidate["candidate_id"],),
+            )
+
+        self.assertFalse(self.repo.has_open_narrative_slot_assignment(
+            "googleplex_news", "gp-home-world-grid"
+        ))
+
     def test_stage_two_product_publishes_one_slot_with_canonical_commerce_data(self):
         catalog = [{
             "id": "v_map", "name": "V-MAP",
