@@ -119,6 +119,17 @@ class LeaseHeartbeat:
                 self._lease_until = renewed["lease_until"]
 
 
+def active_ollama_worker_policies():
+    """Policies claimable after the deterministic single-source cutover."""
+    return tuple(
+        policy for policy in registered_ollama_policies()
+        if not (
+            policy.source_scope == "blacknet_world"
+            and policy.task_variant == "world_digest"
+        )
+    )
+
+
 class OllamaNarrativeWorker:
     def __init__(self, repository=None, client=None, config=None, worker_id=None):
         self.repository = repository or GhostNetworkRepository()
@@ -129,13 +140,7 @@ class OllamaNarrativeWorker:
         # Sprint 135.5.1 cutover: keep legacy policy definitions readable for
         # historical audit/tests, but never claim the old multi-fact world
         # digest queue. New work is single-source only.
-        self.policies = tuple(
-            policy for policy in registered_ollama_policies()
-            if not (
-                policy.source_scope == "blacknet_world"
-                and policy.task_variant == "world_digest"
-            )
-        )
+        self.policies = active_ollama_worker_policies()
         self._preflight_result = None
         self._preflight_expires_at = 0.0
 

@@ -44,7 +44,9 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
   [`135.4.1 — Googleplex Home i News foundation`](sprints/sprint_135_4_1_googleplex_home_news_foundation.md),
   [`135.4.1.1 — Googleplex Search Presentation Repair`](sprints/sprint_135_4_1_1_googleplex_search_presentation_repair.md),
   [`135.4.2 — kupowane narzędzie Googleplex`](sprints/sprint_135_4_2_googleplex_purchasable_llm_tool.md),
-  [`135.5 — publishery BlackNet/Googleplex News/Cyberner`](sprints/sprint_135_5_llm_publishers_blacknet_googleplex_cyberner.md).
+  [`135.5 — publishery BlackNet/Googleplex News/Cyberner`](sprints/sprint_135_5_llm_publishers_blacknet_googleplex_cyberner.md),
+  [`135.5.2 — signal-aware narrative quality`](sprints/sprint_135_5_2_signal_aware_narrative_quality.md),
+  [`135.6 — hardening i controlled cutover`](sprints/sprint_135_6_narrative_hardening_cutover.md).
 - Sprint 135.2 rozszerza SQLite `ghost_narrative_outbox` do jednej kolejki z
   canonical dedupe, claim/lease/CAS, retry/dead-letter i crash recovery. Legacy
   BlackNet JSON jest tylko eksportem diagnostycznym; Ollama, Inbox, producenci i

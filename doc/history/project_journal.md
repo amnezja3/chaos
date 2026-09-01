@@ -1864,3 +1864,21 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   brak przycinania i brak requestów per karta; 23/23 testów JS przechodzi.
 - Sprint pozostaje otwarty do manualnej akceptacji fullscreen, start-size i
   mobile.
+
+## 2026-09-01 — start Sprintu 135.6 Narrative Hardening and Cutover
+
+- Sprint 135.5.2 zamknięto po fizycznym potwierdzeniu publikacji HERO w
+  Googleplex News; dalsza kalibracja stylistyczna nie blokuje transportu.
+- Legacy BlackNet JSON/file outbox jest już wyłącznie adminowym eksportem
+  diagnostycznym. Canonical DB pozostaje jedynym źródłem task status, lease,
+  retry, candidate i publication receipt.
+- Dodano bounded cutover report, observability task/publication backlogu,
+  expired lease/claim, unstaged accepted candidates i pokrycia trzech mediów.
+- Dodano jawną, limitowaną operację terminalnego retirement wyłącznie queued
+  tasków, których nie może claimować żadna aktywna prompt policy.
+- Bramka nadal bezwzględnie zabrania ciężkiego profilu i skanu kont.
+- 46 testów cutoveru, kolejki, workera i publishera przechodzi lokalnie. Szerszy
+  pakiet ujawnił niezależny istniejący failure Ghost Exchange
+  `storage_used=89`, poza ścieżką narracyjną i bez zmian w tym sprincie.
+- Status: `ETAP I IMPLEMENTED LOCALLY / SERVER AUDIT PENDING`; bez deployu,
+  restartu PM2, commita i pushu.

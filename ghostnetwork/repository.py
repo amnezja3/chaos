@@ -4110,6 +4110,20 @@ class GhostNetworkRepository:
                     + [now_iso, NARRATIVE_TASK_PROCESSOR]
                 ),
             ).fetchone()
+            runtime = conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN status IN ('claimed', 'processing')
+                        AND lease_until != '' AND lease_until <= ?
+                        THEN 1 ELSE 0 END) AS expired_leases,
+                    SUM(CASE WHEN medium = 'ollama_outbox'
+                        AND status NOT IN ('completed', 'dead_letter')
+                        THEN 1 ELSE 0 END) AS active_legacy_file_tasks
+                FROM ghost_narrative_outbox
+                WHERE processor = ?
+                """,
+                (now_iso, NARRATIVE_TASK_PROCESSOR),
+            ).fetchone()
         return {
             "statuses": counts,
             "eligible_ready": int((eligibility or {})["eligible"] or 0),
@@ -4117,7 +4131,58 @@ class GhostNetworkRepository:
             "oldest_eligible_ready": (
                 str((eligibility or {})["oldest_eligible_ready"] or "")
             ),
+            "expired_leases": int((runtime or {})["expired_leases"] or 0),
+            "active_legacy_file_tasks": int(
+                (runtime or {})["active_legacy_file_tasks"] or 0
+            ),
         }
+
+    def retire_ineligible_narrative_tasks(
+        self, eligible_policies, *, reason_code="policy_superseded_cutover",
+        limit=500, now=None,
+    ):
+        """Terminally retire bounded queued work no active worker can claim."""
+        policy_clause, policy_params = _narrative_policy_sql(eligible_policies)
+        if not policy_params:
+            raise ValueError("Narrative cutover requires at least one eligible policy")
+        bounded_limit = max(1, min(int(limit or 500), 500))
+        now_iso = _iso(now if now is not None else self.now())
+        valid_audience = (
+            "((audience_scope = 'public' AND audience_clan = '' AND audience_owner = '') "
+            "OR (audience_scope = 'clan' AND audience_clan != '' AND audience_owner = '') "
+            "OR (audience_scope = 'owner' AND audience_owner != ''))"
+        )
+        with self.transaction():
+            conn = self._transaction_conn
+            rows = conn.execute(
+                f"""
+                SELECT outbox_id
+                FROM ghost_narrative_outbox
+                WHERE processor = ? AND status IN ('ready', 'retry_wait')
+                  AND (NOT ({policy_clause}) OR NOT ({valid_audience}))
+                ORDER BY created_at ASC, outbox_id ASC
+                LIMIT ?
+                """,
+                tuple([NARRATIVE_TASK_PROCESSOR] + policy_params + [bounded_limit]),
+            ).fetchall()
+            task_ids = [str(row["outbox_id"]) for row in rows]
+            if not task_ids:
+                return []
+            placeholders = ",".join("?" for _item in task_ids)
+            conn.execute(
+                f"""
+                UPDATE ghost_narrative_outbox
+                SET status = 'dead_letter', last_error_code = ?,
+                    dead_lettered_at = ?, processed_at = ?, updated_at = ?,
+                    claimed_by = '', claimed_at = '', lease_until = '',
+                    next_attempt_at = ''
+                WHERE outbox_id IN ({placeholders})
+                  AND status IN ('ready', 'retry_wait')
+                """,
+                tuple([_clean(reason_code, "policy_superseded_cutover"), now_iso,
+                       now_iso, now_iso] + task_ids),
+            )
+            return task_ids
 
     def get_latest_narrative_task(
         self,
@@ -4887,8 +4952,9 @@ class GhostNetworkRepository:
                 (row["candidate_id"], target_medium, *audience),
             ).fetchone())
 
-    def narrative_publication_queue_counts(self):
+    def narrative_publication_queue_counts(self, now=None):
         """Return bounded operational counts without loading candidates or profiles."""
+        now_iso = _iso(now if now is not None else self.now())
         with self._conn() as conn:
             rows = conn.execute(
                 """
@@ -4904,12 +4970,45 @@ class GhostNetworkRepository:
                 GROUP BY target_medium
                 """
             ).fetchall()
+            runtime = conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN status IN ('ready', 'retry_wait')
+                        AND (next_attempt_at = '' OR next_attempt_at <= ?)
+                        THEN 1 ELSE 0 END) AS ready_now,
+                    MIN(CASE WHEN status IN ('ready', 'retry_wait')
+                        AND (next_attempt_at = '' OR next_attempt_at <= ?)
+                        THEN created_at ELSE NULL END) AS oldest_ready,
+                    SUM(CASE WHEN status = 'claimed' AND lease_until != ''
+                        AND lease_until <= ? THEN 1 ELSE 0 END) AS expired_claims
+                FROM ghost_narrative_publication_receipts
+                """,
+                (now_iso, now_iso, now_iso),
+            ).fetchone()
+            unstaged = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM ghost_narrative_inbox_candidates c
+                LEFT JOIN ghost_narrative_publication_receipts r
+                  ON r.candidate_id = c.candidate_id
+                 AND r.target_medium = c.target_medium
+                 AND r.audience_scope = c.audience_scope
+                 AND r.audience_clan = c.audience_clan
+                 AND r.audience_owner = c.audience_owner
+                WHERE c.validation_status = 'accepted'
+                  AND r.publication_receipt_id IS NULL
+                """
+            ).fetchone()
         return {
             "statuses": {str(row["status"]): int(row["count"] or 0) for row in rows},
             "published_by_medium": {
                 str(row["target_medium"]): int(row["count"] or 0)
                 for row in medium_rows
             },
+            "ready_now": int((runtime or {})["ready_now"] or 0),
+            "oldest_ready": str((runtime or {})["oldest_ready"] or ""),
+            "expired_claims": int((runtime or {})["expired_claims"] or 0),
+            "unstaged_accepted": int((unstaged or {})["count"] or 0),
         }
 
     def claim_next_narrative_publication(self, worker_id, lease_seconds=60, now=None):

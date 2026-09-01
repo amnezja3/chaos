@@ -1,6 +1,6 @@
 # Sprint 135.5.2 — Signal-Aware Narrative Quality
 
-Status: `IN PROGRESS — ETAP I SERVER PASS / ETAP II IMPLEMENTED LOCALLY`
+Status: `COMPLETE — SERVER AND GAMEPLAY PASS`
 
 ## Stan implementacji — Etap I
 
@@ -203,13 +203,24 @@ backend-owned narrative_intent:       SERVER PASS
 one source / one task:                PASS
 product description echo rejected:   SERVER PASS
 BlackNet voice per signal type:       SERVER PASS
-HERO content sufficiency gate:        LOCAL PASS / SERVER PENDING
+HERO content sufficiency gate:        SERVER PASS
 no filler year/region phrases:        SERVER PASS
 canonical data and CTA ownership:     PASS
 profile reads/writes:                 0
-physical multi-intent validation:     PENDING
-gameplay performance soak:            PENDING
+physical multi-intent validation:     PASS
+gameplay performance soak:            PASS
 ```
+
+## Zamknięcie produkcyjne
+
+Sprint zamknięto po fizycznym potwierdzeniu publikacji HERO w Googleplex News.
+Aktywny rekord `gp-home-world-grid` przechodzi pełną ścieżkę
+`source -> task -> candidate -> receipt -> slot state -> gameplay`. Ostatnia
+regresja projekcji wynikała z magicznego limitu sześciu aktywnych publikacji
+przy siedmiu odświeżalnych slotach; limit jest teraz wyliczany z code-owned
+registry. Odświeżenie widoku pozostaje bounded i nie odczytuje ciężkiego
+profilu. Dalsza stylistyczna kalibracja zdań jest nieblokującą obserwacją
+gameplayową, a nie otwartym błędem transportu.
 
 ## Walidacja serwerowa Etapu I
 
