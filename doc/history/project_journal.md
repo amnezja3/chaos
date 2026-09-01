@@ -1899,3 +1899,65 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   poprawnie zatrzymany za echo topicu oraz wymyślone CTA. Validator zachowuje
   filtr echa, a przy pustej allowliście bezpiecznie usuwa modelowe CTA do null;
   54 testy policy/workera/cutoveru/publishera przechodzą.
+- Powtórzony owner-scoped task AGI został zaakceptowany i opublikowany w
+  Cybernerze. Post-cutover Cyberner smoke ma status PASS.
+- Nowy incydent został opublikowany w BlackNet oraz Googleplex News. Oba
+  post-cutover smoke tests mają PASS; ucięte zakończenie copy GGPL zapisano jako
+  nieblokującą kalibrację jakości.
+- Końcowy audit po wielogodzinnym soaku zwrócił `ok=true`: 392 publikacje,
+  aktywne drenowanie nowych tasków, zero expired leases/claims, zero ineligible
+  ready, zero unstaged accepted i zero heavy-profile I/O. Sprint 135.6 oraz
+  canonical narrative cutover mają status COMPLETE.
+
+## 2026-09-01 — przygotowanie Sprintu 136 GhostNetwork Domain Narrative Bridge
+
+- Historyczny zakres 136 uzgodniono ze stanem po canonical cutoverze 135.6.
+  Nie będzie drugiego outboxa, workera, publishera ani legacy runtime queue.
+- Potwierdzono istniejący fundament: `GhostNarrativePublisher`, enqueue po
+  zdarzeniu domenowym, canonical dedupe, fail-open, publiczny identyfikator,
+  identity projection oraz pełny task/candidate/receipt/medium pipeline.
+- Lokalny baseline `test_ghostnetwork_narrative`,
+  `test_ghostnetwork_delta_audience_bridge` i `test_llm_event_producers`
+  przeszedł: 31 testów PASS.
+- Pozostały zakres to jawna polityka eventów i significance, projekcja przez
+  visibility service, routing high/critical do istniejącego GGPL News slotu,
+  precyzyjne CTA, audience fan-out oraz agregacja low events.
+- Wykryto realną rozbieżność nazwy: domena zapisuje
+  `ghost.connection_created`, a obecny generic narrative branch oczekuje
+  `connection_completed`. `ghost.cycle_activated` również nie jest jeszcze
+  obsługiwany narracyjnie.
+- Sprint podzielono na dwa etapy. Etap I: bezpieczny public bridge BlackNet i
+  Googleplex News. Etap II: clan/owner projection, narrative threads, cooldown
+  i agregacja.
+- Bezwzględny zakaz ciężkiego profilu pozostaje wiążący dla producerów,
+  audience resolvera, tasków, logów i testów. Status: `READY FOR
+  IMPLEMENTATION — ETAP I NEXT`.
+- Przygotowanie było wyłącznie dokumentacyjne; bez zmian runtime, bazy,
+  deployu, restartu PM2, commita i pushu.
+
+### 137–138 — rewizja po canonical workerze i publisherze
+
+- Historyczny Sprint 137 nie tworzy już workera, Inboxa, claim/lease, retry ani
+  generic walidatora. Dostarczyły je Sprinty 135.4–135.6. Nowy zakres 137 to
+  GhostNetwork-specific registry, prompty, task package i semantic validation.
+- Potwierdzono rozbieżność registry: zawiera `connection_completed`, podczas
+  gdy domena emituje `ghost.connection_created`; brakuje również
+  `cycle_activated` oraz polityk `source_scope=ghostnetwork` dla Googleplex News.
+- Historyczny Sprint 138 nie tworzy już publishera ani drugiego feedu.
+  Istniejący pipeline ma receipts, exactly-once records, audience filtering,
+  BlackNet merge, fact-ref suppression i Googleplex slot CAS.
+- Nowy zakres 138 to publication lifecycle: TTL, active/inactive, supersession,
+  invalidation, thread continuity, significance-aware mix oraz fizyczne
+  dispatchery CTA GhostNetwork.
+- Granicę CTA doprecyzowano: 136 zapisuje backend-owned action/payload w tasku,
+  137 zachowuje je podczas walidacji, a 138 dodaje allowlistę, dispatcher i
+  manualny test UI.
+- Rejected/dead-letter nie tworzy automatycznie drugiego postu. Ewentualny
+  critical fallback musi dzielić publication identity i nigdy nie dotyczy
+  owner-analysis AGI.
+- Baseline `test_ollama_policy`, `test_ollama_worker`,
+  `test_narrative_publications` i `test_llm_publishers`: 59 testów PASS.
+- Oba sprinty zachowują bezwzględny zakaz ciężkiego profilu. Statusy:
+  `137 READY — AFTER 136`, `138 READY — AFTER 137`.
+- Rewizja była dokumentacyjna; bez zmian runtime, bazy, deployu, restartu PM2,
+  commita i pushu.

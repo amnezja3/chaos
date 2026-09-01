@@ -1,6 +1,6 @@
 # Sprint 135.6 — Narrative Hardening and Controlled Cutover
 
-Status: `IN PROGRESS — ETAP I SERVER PASS / SMOKE AND SOAK PENDING`
+Status: `COMPLETE — CANONICAL CUTOVER SERVER PASS`
 
 ## Cel
 
@@ -103,7 +103,10 @@ ineligible queued tasks:                     0 / SERVER PASS
 expired leases/claims:                       0 / SERVER PASS
 BlackNet/GGPL News/Cyberner coverage:         SERVER PASS
 heavy-profile metrics:                       0 / SERVER PASS
-gameplay and SQLite soak:                    PENDING SERVER
+Cyberner AGI post-cutover smoke:             SERVER PASS
+BlackNet post-cutover smoke:                 SERVER PASS
+Googleplex News post-cutover smoke:          SERVER PASS
+gameplay and SQLite soak:                    SERVER PASS
 ```
 
 ## Wynik pierwszego cutoveru serwerowego
@@ -126,3 +129,22 @@ CTA, modelowy ref jest teraz redukowany do `null` z audytem
 `unsupported_cta_removed`; nieznany ref przy istniejącej allowliście nadal
 kończy się kwarantanną. Redukcja usuwa capability i nie rozszerza uprawnień
 modelu.
+
+Powtórzony smoke po hardeningu przeszedł pełną owner-scoped ścieżkę
+`topic -> task -> candidate -> receipt -> Cyberner` i opublikował odpowiedź
+AGI. Cyberner ma status `SMOKE PASS`; ogólność copy pozostaje nieblokującą
+kalibracją jakości.
+
+Nowy sygnał incydentu przeszedł również do BlackNet i przypisanego slotu
+Googleplex News. Oba publiczne media mają `SMOKE PASS`. Googleplex copy miało
+niezgrabne, ucięte zakończenie `jest teraz \`; jest to obserwacja jakości
+generacji/presentation bounding, nie błąd kolejki, CTA, publishera ani slotu.
+
+## Zamknięcie
+
+Końcowy audit po wielogodzinnym soaku zwrócił `ok=true`. System opublikował
+392 rekordy łącznie, a kolejka nadal aktywnie drenowała nowe taski. Stan
+końcowy: `expired_leases=0`, `expired_claims=0`, `ineligible_ready=0`,
+`unstaged_accepted=0`, pełne pokrycie BlackNet/Googleplex News/Cyberner oraz
+wszystkie metryki heavy profile równe zero. Legacy file outbox pozostaje
+diagnostic-only. Sprint 135.6 jest COMPLETE.
