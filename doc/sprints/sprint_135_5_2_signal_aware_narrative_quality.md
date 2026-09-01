@@ -13,7 +13,7 @@ Zaimplementowano lokalnie:
 - bounded task package przekazuje intent modelowi, ale nie daje mu możliwości
   wyboru lub zmiany tego pola;
 - immutable prompty `blacknet-signal-prompt-v9` oraz
-  `googleplex-world-hero-prompt-v13`, opisujące role bez przykładów odpowiedzi;
+  `googleplex-world-hero-prompt-v14`, opisujące role bez przykładów odpowiedzi;
 - `signal_source_echo` dla body kopiującego presentation-safe pole źródła;
 - `narrative_filler_phrase` dla pustych konstrukcji potwierdzonych w gameplayu;
 - product promo v2 zachowuje osobny `product_benefit_promo`;
@@ -222,7 +222,7 @@ SELECT outbox_id,target_medium,status,task_variant,narrative_intent,
        prompt_version,attempt_count,last_error_code,created_at
 FROM ghost_narrative_outbox
 WHERE prompt_version IN ('blacknet-signal-prompt-v9',
-                         'googleplex-world-hero-prompt-v13')
+                         'googleplex-world-hero-prompt-v14')
 ORDER BY created_at DESC
 LIMIT 20;
 ```
@@ -271,6 +271,11 @@ Prompt v13 przywraca właściwy kontrakt: model zamienia współrzędne na
 przybliżoną polską nazwę miasta, aglomeracji, regionu albo kraju, ale nie
 publikuje surowych cyfr. Dokładny canonical target i focus pozostają
 backend-owned, więc przybliżenie geograficzne nie zmienia nawigacji.
+Candidate v13 przeszedł walidację z tekstem `W okolicach Nowego Jorku`, lecz
+publisher działający nadal na registry v12 oznaczył receipt jako
+`candidate_policy_superseded`. Terminalnego audytu nie reaktywujemy. V14 jest
+identycznym kontraktem geograficznym i nowym legalnym policy epoch; deploy
+promptu wymaga restartu producenta, Ollama workera oraz publishera.
 
 ## Powiązane dokumenty
 

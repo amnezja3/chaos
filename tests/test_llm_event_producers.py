@@ -314,7 +314,7 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(incident["status"], "created")
         self.assertTrue(incident["content_sufficiency"]["eligible"])
         self.assertEqual(
-            incident["task"]["prompt_version"], "googleplex-world-hero-prompt-v13"
+            incident["task"]["prompt_version"], "googleplex-world-hero-prompt-v14"
         )
         package = build_ollama_task_package(incident["task"])
         model_input = json.loads(package["messages"][1]["content"])
