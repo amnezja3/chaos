@@ -1,6 +1,6 @@
 # Sprint 135.5.2 — Signal-Aware Narrative Quality
 
-Status: `IN PROGRESS — ETAP I IMPLEMENTED LOCALLY / SERVER VALIDATION PENDING`
+Status: `IN PROGRESS — ETAP I SERVER PASS / ETAP II IMPLEMENTED LOCALLY`
 
 ## Stan implementacji — Etap I
 
@@ -45,7 +45,8 @@ usuwa wyłącznie znany pusty prefiks z początku transmisji produktu i zapisuje
 normalizację `product_filler_prefix_removed`; filler w środku, echo źródła oraz
 wyciek `TEMP/pobrania` nadal kończą się odrzuceniem.
 
-Nie zmieniono kwalifikacji sygnałów do HERO; to pozostaje Etapem II.
+Fizyczna walidacja v9 potwierdziła poprawne transmisje produktu i radia. Etap I
+ma status SERVER PASS.
 
 ## Cel
 
@@ -112,6 +113,22 @@ jeżeli brakuje canonical obiektu, miejsca albo znaczącej zmiany stanu.
 
 Brak legalnego HERO assignmentu zachowuje aktywny slot/foundation. Nie tworzy
 fallbackowego taska tylko po to, aby zapełnić harmonogram.
+
+### Implementacja Etapu II
+
+Backend stosuje kontrakt `hero-sufficiency-v1` przed utworzeniem taska
+Googleplex. Kandydat HERO musi jednocześnie:
+
+- mieć intent konfliktu albo incydentu;
+- mieć importance co najmniej 50;
+- zawierać canonical stan lub wartość;
+- zawierać bounded kontekst: target ID, współrzędne albo konkretny region.
+
+Radio i produkt nie są powierzchniami HERO niezależnie od priority. Odrzucony
+sygnał zwraca `status=ineligible` oraz dokładny `reason_code`, nie tworzy
+outboxu i nie claimuje slotu. Scheduler przechodzi do następnego sygnału.
+`content_sufficiency` trafia do validation JSON legalnego taska i raportuje
+zerowe odczyty, zapisy i bajty profilu.
 
 ## Source-echo guards
 
@@ -182,12 +199,12 @@ Nie wolno omijać tego pełnym odczytem profilu.
 ## Definition of Done
 
 ```text
-backend-owned narrative_intent:       LOCAL PASS / SERVER PENDING
+backend-owned narrative_intent:       SERVER PASS
 one source / one task:                PASS
-product description echo rejected:   LOCAL PASS / SERVER PENDING
-BlackNet voice per signal type:       LOCAL PASS / SERVER PENDING
-HERO content sufficiency gate:        PENDING
-no filler year/region phrases:        LOCAL PASS / SERVER PENDING
+product description echo rejected:   SERVER PASS
+BlackNet voice per signal type:       SERVER PASS
+HERO content sufficiency gate:        LOCAL PASS / SERVER PENDING
+no filler year/region phrases:        SERVER PASS
 canonical data and CTA ownership:     PASS
 profile reads/writes:                 0
 physical multi-intent validation:     PENDING
@@ -196,8 +213,8 @@ gameplay performance soak:            PENDING
 
 ## Walidacja serwerowa Etapu I
 
-Po deployu nowy single-signal task powinien mieć prompt v6 albo v11 i jawny
-intent. Historyczne v5/v10 pozostają audytem i nie są claimowane jako nowa
+Po deployu nowy single-signal task powinien mieć prompt v9 albo v12 i jawny
+intent. Historyczne wersje pozostają audytem i nie są claimowane jako nowa
 polityka.
 
 ```sql
@@ -216,6 +233,30 @@ z taskiem. W outputach nie mogą wystąpić `w roku 2108`, `w rejonie celu`,
 kopią lub sklejeniem `title/label/value/stat`. Dla intentu produktowego model
 nie otrzymuje `stat` i nie może publikować `TEMP` ani liczby pobrań. Canonical
 cena z `value` pozostaje dozwolona i powinna pojawić się po komunikacie korzyści.
+
+## Walidacja serwerowa Etapu II
+
+Nowy task HERO musi zawierać pełny audyt kwalifikacji:
+
+```sql
+SELECT outbox_id,status,narrative_intent,selected_source_ref,
+       json_extract(validation_json,'$.content_sufficiency.contract_version'),
+       json_extract(validation_json,'$.content_sufficiency.eligible'),
+       json_extract(validation_json,'$.content_sufficiency.reason_code'),
+       json_extract(validation_json,'$.content_sufficiency.score'),
+       json_extract(validation_json,'$.content_sufficiency.profile_full_read')
+FROM ghost_narrative_outbox
+WHERE target_medium='googleplex_news'
+  AND task_variant='googleplex_world_dispatch'
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+Oczekiwany kontrakt to `hero-sufficiency-v1`, `eligible=1`, wynik `4/4`
+i `profile_full_read=0`. Po czasie deployu nie może powstać task Googleplex
+z intentem `intercepted_broadcast_fragment` ani
+`intercepted_product_transmission`. Brak legalnego źródła pozostawia poprzedni
+HERO bez zmian.
 
 ## Powiązane dokumenty
 

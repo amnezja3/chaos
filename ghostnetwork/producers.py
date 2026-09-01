@@ -75,6 +75,11 @@ BLACKNET_NARRATIVE_INTENTS = {
 }
 SIGNAL_NARRATIVE_CONTRACT_VERSION = "signal-aware-v2"
 PRODUCT_NARRATIVE_CONTRACT_VERSION = "product-signal-v4"
+HERO_ELIGIBILITY_CONTRACT_VERSION = "hero-sufficiency-v1"
+HERO_ELIGIBLE_INTENTS = {
+    BLACKNET_NARRATIVE_INTENTS["conflict"],
+    BLACKNET_NARRATIVE_INTENTS["incident"],
+}
 
 
 def _safe_int(value, default=0):
@@ -116,6 +121,61 @@ def narrative_intent_for_signal(signal):
     if "googleplex_product_signal" in identity or "product_opportunity" in identity or "bnf:googleplex:" in identity:
         return BLACKNET_NARRATIVE_INTENTS["product"]
     return BLACKNET_NARRATIVE_INTENTS["fallback"]
+
+
+def hero_content_sufficiency(signal, fact, fixed_action, narrative_intent):
+    """Score one bounded public signal for the Googleplex HERO surface."""
+    signal = signal if isinstance(signal, dict) else {}
+    fact = fact if isinstance(fact, dict) else {}
+    fixed_action = fixed_action if isinstance(fixed_action, dict) else {}
+    payload = (
+        fixed_action.get("payload")
+        if isinstance(fixed_action.get("payload"), dict)
+        else {}
+    )
+    importance = _safe_int(signal.get("importance"))
+    supported_intent = narrative_intent in HERO_ELIGIBLE_INTENTS
+    state_detail = bool(_clean(fact.get("value")) or _clean(fact.get("stat")))
+    coordinates = fact.get("lat") is not None and fact.get("lng") is not None
+    target_id = bool(_clean(payload.get("target_id")))
+    region_id = _clean(fact.get("region_id"))
+    regional_context = bool(
+        region_id and region_id.casefold() not in {"global", "world", "unknown"}
+    )
+    canonical_context = bool(coordinates or target_id or regional_context)
+    importance_sufficient = importance >= 50
+    checks = {
+        "supported_intent": supported_intent,
+        "importance_sufficient": importance_sufficient,
+        "state_detail": state_detail,
+        "canonical_context": canonical_context,
+    }
+    eligible = all(checks.values())
+    if not supported_intent:
+        reason_code = (
+            "radio_not_hero_eligible"
+            if narrative_intent == BLACKNET_NARRATIVE_INTENTS["radio"]
+            else "narrative_intent_not_hero_eligible"
+        )
+    elif not importance_sufficient:
+        reason_code = "hero_importance_insufficient"
+    elif not canonical_context:
+        reason_code = "hero_context_insufficient"
+    elif not state_detail:
+        reason_code = "hero_state_insufficient"
+    else:
+        reason_code = "eligible"
+    return {
+        "contract_version": HERO_ELIGIBILITY_CONTRACT_VERSION,
+        "eligible": eligible,
+        "reason_code": reason_code,
+        "score": sum(1 for passed in checks.values() if passed),
+        "required_score": len(checks),
+        "checks": checks,
+        "profile_full_read": 0,
+        "profile_full_write": 0,
+        "profile_bytes": 0,
+    }
 
 
 def _digest_window(snapshot, minutes=15):
@@ -216,6 +276,7 @@ class BlackNetNarrativeProducer:
     def enqueue_signal(self, snapshot, signal, *, target_medium="blacknet"):
         """Enqueue one backend-selected source; the model never selects a topic."""
         snapshot = snapshot if isinstance(snapshot, dict) else {}
+        signal = signal if isinstance(signal, dict) else {}
         target_medium = _clean(target_medium, "blacknet")
         if target_medium not in {"blacknet", "googleplex_news"}:
             return {"ok": False, "status": "rejected", "reason_code": "unsupported_target_medium", "task": None}
@@ -233,6 +294,19 @@ class BlackNetNarrativeProducer:
             # not catalog heat/download counters. Do not send irrelevant data
             # to the model and then ask it to ignore it.
             fact["stat"] = ""
+        content_sufficiency = None
+        if target_medium == "googleplex_news":
+            content_sufficiency = hero_content_sufficiency(
+                signal, fact, fixed_action, narrative_intent
+            )
+            if not content_sufficiency["eligible"]:
+                return {
+                    "ok": True,
+                    "status": "ineligible",
+                    "reason_code": content_sufficiency["reason_code"],
+                    "content_sufficiency": content_sufficiency,
+                    "task": None,
+                }
         source_version_payload = {
             key: fact.get(key) for key in (
                 "fact_id", "signal_type", "category", "region_id", "title", "label",
@@ -246,6 +320,10 @@ class BlackNetNarrativeProducer:
             else SIGNAL_NARRATIVE_CONTRACT_VERSION
         )
         source_version_payload["narrative_contract"] = narrative_contract
+        if target_medium == "googleplex_news":
+            source_version_payload["hero_eligibility_contract"] = (
+                HERO_ELIGIBILITY_CONTRACT_VERSION
+            )
         source_version_payload["action"] = fixed_action or {}
         source_version = hashlib.sha1(json.dumps(
             source_version_payload, ensure_ascii=True, sort_keys=True,
@@ -302,6 +380,7 @@ class BlackNetNarrativeProducer:
                 "content_kind": "world_dispatch" if presentation_slot else "world_signal",
                 "expected_slot_version": expected_slot_version,
                 "fixed_action": fixed_action or {},
+                "content_sufficiency": content_sufficiency or {},
                 "profile_full_read": 0,
                 "profile_full_write": 0,
                 "profile_bytes": 0,
@@ -311,6 +390,7 @@ class BlackNetNarrativeProducer:
             "ok": True,
             "status": "deduplicated" if task.get("idempotent") else "created",
             "receipt_id": source_receipt_id,
+            "content_sufficiency": content_sufficiency,
             "task": task,
         }
 

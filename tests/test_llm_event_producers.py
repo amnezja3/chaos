@@ -267,6 +267,58 @@ class LlmEventProducerTest(unittest.TestCase):
             with self.subTest(signal=signal):
                 self.assertEqual(narrative_intent_for_signal(signal), expected)
 
+    def test_stage_two_hero_gate_rejects_radio_and_requires_bounded_context(self):
+        producer = BlackNetNarrativeProducer(self.repo)
+        snapshot = {"world_facts_version": "hero-gate-v1"}
+        radio = producer.enqueue_signal(snapshot, {
+            "id": "radio-one",
+            "fact_id": "bnf:radio:radio_channels_available:one",
+            "signal_type": "radio_promotion",
+            "category": "radio",
+            "title": "GHOST HACK RADIO",
+            "label": "KANALY ONLINE",
+            "value": "8",
+            "stat": "114 TRACKOW W ETERZE",
+            "importance": 100,
+        }, target_medium="googleplex_news")
+        weak_incident = producer.enqueue_signal(snapshot, {
+            "id": "incident-weak",
+            "fact_id": "bnf:incidents:incident_hotspot_reaction:weak",
+            "signal_type": "incident_hotspot",
+            "category": "incident",
+            "title": "INCYDENT / L4",
+            "label": "POZIOM REAKCJI",
+            "importance": 75,
+            "metadata": {"lat": 51.5, "lng": -0.05},
+        }, target_medium="googleplex_news")
+        incident = producer.enqueue_signal(snapshot, {
+            "id": "incident-strong",
+            "fact_id": "bnf:incidents:incident_hotspot_reaction:strong",
+            "signal_type": "incident_hotspot",
+            "category": "incident",
+            "title": "INCYDENT / L4",
+            "label": "POZIOM REAKCJI",
+            "value": "L4",
+            "stat": "ACTIVE / ESCALATING",
+            "importance": 75,
+            "cta_action": "focus_map_target",
+            "cta_target_id": "incident:strong",
+            "metadata": {"lat": 51.5, "lng": -0.05},
+        }, target_medium="googleplex_news")
+
+        self.assertEqual(radio["status"], "ineligible")
+        self.assertEqual(radio["reason_code"], "radio_not_hero_eligible")
+        self.assertEqual(radio["content_sufficiency"]["score"], 2)
+        self.assertEqual(weak_incident["status"], "ineligible")
+        self.assertEqual(weak_incident["reason_code"], "hero_state_insufficient")
+        self.assertEqual(incident["status"], "created")
+        self.assertTrue(incident["content_sufficiency"]["eligible"])
+        self.assertEqual(
+            incident["task"]["validation"]["content_sufficiency"],
+            incident["content_sufficiency"],
+        )
+        self.assertEqual(len(self.repo.list_narrative_outbox(limit=20)), 1)
+
     def test_blacknet_product_intent_omits_heat_and_download_metrics(self):
         signal = {
             "id": "product-one",
@@ -524,7 +576,11 @@ class LlmEventProducerTest(unittest.TestCase):
                     "id": f"signal-{index}", "fact_id": f"fact-{index}",
                     "signal_type": "incident_hotspot", "category": "incident",
                     "title": f"INCYDENT / L{index}", "label": "ACTIVE",
+                    "value": f"L{index}", "stat": "ACTIVE / ESCALATING",
                     "importance": 100 - index,
+                    "cta_action": "focus_map_target",
+                    "cta_target_id": f"incident:{index}",
+                    "metadata": {"lat": 51.5 + index, "lng": -0.05},
                 }
                 for index in (1, 2)
             ],
@@ -555,6 +611,65 @@ class LlmEventProducerTest(unittest.TestCase):
         tasks = self.repo.list_narrative_outbox(limit=20)
         self.assertEqual(len(tasks), 3)
         self.assertTrue(all(len(task["facts"]) == 1 for task in tasks))
+
+    def test_stage_two_scheduler_skips_radio_for_hero_and_advances(self):
+        signals = {
+            "version": "signals-hero-gate-v1",
+            "world_facts_version": "facts-hero-gate-v1",
+            "signals": [
+                {
+                    "id": "radio-one",
+                    "fact_id": "bnf:radio:radio_channels_available:one",
+                    "signal_type": "radio_promotion",
+                    "category": "radio",
+                    "title": "GHOST HACK RADIO",
+                    "label": "KANALY ONLINE",
+                    "value": "8",
+                    "stat": "114 TRACKOW W ETERZE",
+                    "importance": 100,
+                },
+                {
+                    "id": "conflict-one",
+                    "fact_id": "bnf:conflicts:conflict_target_alert:one",
+                    "signal_type": "conflict_target_alert",
+                    "category": "conflict",
+                    "title": "CONFLICT / POI-788AEF",
+                    "label": "TARGET SPORNY",
+                    "value": "1x",
+                    "stat": "POI-788AEF",
+                    "importance": 75,
+                    "cta_action": "focus_map_target",
+                    "cta_target_id": "legacy:target-one",
+                },
+            ],
+        }
+        with patch.object(
+            run, "get_ghostnetwork_service", return_value=self.service
+        ), patch.object(
+            run, "build_blacknet_narrative_source_snapshot",
+            return_value={"version": "facts-hero-gate-v1"},
+        ), patch.object(
+            run, "build_blacknet_world_signals", return_value=signals
+        ), patch.object(
+            run.user_store, "get_profile",
+            side_effect=AssertionError("full profile read"),
+        ) as profile_read:
+            result = run.enqueue_blacknet_world_narrative_digest()
+
+        self.assertFalse(profile_read.called)
+        self.assertEqual(result["status"], "created")
+        self.assertEqual(
+            result["task"]["narrative_intent"], "intercepted_broadcast_fragment"
+        )
+        self.assertEqual(result["googleplex_news"]["status"], "created")
+        self.assertEqual(
+            result["googleplex_news"]["task"]["narrative_intent"],
+            "intercepted_conflict_warning",
+        )
+        self.assertEqual(
+            result["googleplex_news"]["content_sufficiency"]["reason_code"],
+            "eligible",
+        )
 
     def test_googleplex_news_excludes_catalog_product_signals(self):
         snapshot = {
