@@ -350,6 +350,22 @@ def _normalized_narrative_text(value):
     return re.sub(r"[^\w]+", " ", folded).strip()
 
 
+_PRODUCT_FILLER_PREFIX_RE = re.compile(
+    r"^\s*(?:(?:w\s+roku\s+2108|w\s+globalnym\s+zasi(?:e|ę)gu)\s*,?\s*)+",
+    re.IGNORECASE,
+)
+
+
+def normalize_product_filler_prefix(body, narrative_intent=""):
+    """Remove only known empty lead-ins before validating product copy."""
+    if narrative_intent != "intercepted_product_transmission" or not isinstance(body, str):
+        return body, False
+    cleaned = _PRODUCT_FILLER_PREFIX_RE.sub("", body).lstrip(" ,;:-")
+    if cleaned == body or not cleaned:
+        return body, False
+    return cleaned[:1].upper() + cleaned[1:], True
+
+
 def signal_narrative_quality_errors(title, body, source_facts, narrative_intent=""):
     """Fail closed on database-like source copies and known empty fillers."""
     combined = _normalized_narrative_text(f"{title or ''} {body or ''}")
@@ -767,11 +783,15 @@ def parse_and_validate_ollama_content(content, task_package):
     asset_ref = output.get("asset_ref")
     asset_role = output.get("asset_role")
     editorial_contract = task_package.get("editorial_contract") or {}
+    narrative_intent = task_package.get("narrative_intent") or ""
     canonical_title = str(editorial_contract.get("canonical_title") or "").strip()
     if editorial_contract.get("title_owner") == "backend" and canonical_title:
         title = canonical_title
     title, body, identifier_normalized = normalize_canonical_identifier_leaks(
         title, body, task_package.get("source_facts") or ()
+    )
+    body, product_prefix_normalized = normalize_product_filler_prefix(
+        body, narrative_intent
     )
     title_limit = int((format_properties.get("title") or {}).get("maxLength") or 96)
     body_limit = int((format_properties.get("body") or {}).get("maxLength") or 800)
@@ -782,7 +802,7 @@ def parse_and_validate_ollama_content(content, task_package):
             errors.append("slot_copy_budget_exceeded")
     title, title_bounded = bound_presentation_text(title, title_limit)
     body, body_bounded = bound_presentation_text(body, body_limit)
-    if identifier_normalized:
+    if identifier_normalized or product_prefix_normalized:
         output = dict(output)
         output["title"] = title
         output["body"] = body
@@ -888,7 +908,7 @@ def parse_and_validate_ollama_content(content, task_package):
     ):
         errors.extend(signal_narrative_quality_errors(
             title, body, task_package.get("source_facts") or (),
-            task_package.get("narrative_intent") or "",
+            narrative_intent,
         ))
 
     all_errors = sorted(set(errors + security_errors))
@@ -913,6 +933,7 @@ def parse_and_validate_ollama_content(content, task_package):
         "resolved_asset_ref": resolved_asset_ref,
         "normalizations": [
             *(["canonical_identifier_to_safe_label"] if identifier_normalized else []),
+            *(["product_filler_prefix_removed"] if product_prefix_normalized else []),
             *(["schema_length_bounded"] if title_bounded or body_bounded else []),
         ],
     }

@@ -12,7 +12,7 @@ Zaimplementowano lokalnie:
   nowy legalny task zamiast reinterpretować historyczny candidate;
 - bounded task package przekazuje intent modelowi, ale nie daje mu możliwości
   wyboru lub zmiany tego pola;
-- immutable prompty `blacknet-signal-prompt-v8` oraz
+- immutable prompty `blacknet-signal-prompt-v9` oraz
   `googleplex-world-hero-prompt-v12`, opisujące role bez przykładów odpowiedzi;
 - `signal_source_echo` dla body kopiującego presentation-safe pole źródła;
 - `narrative_filler_phrase` dla pustych konstrukcji potwierdzonych w gameplayu;
@@ -36,6 +36,14 @@ faktograficznego; o jakości kolejności decyduje prompt. BlackNet v8 każe zacz
 od potrzeby operatora lub korzyści i dopiero naturalnie zakończyć ceną. Osobny
 kontrakt źródła `product-signal-v3` regeneruje wyłącznie transmisję produktową;
 odrzucone radio v12 nie jest przez tę kalibrację replayowane.
+
+Walidacja v8 pokazała, że model 8B potrafi jednocześnie zignorować dwa literalne
+zakazy i rozpocząć produkt od `w roku 2108, w globalnym zasięgu`. Prompt v9
+skraca kontrakt i przenosi zakazy do osobnej sekcji. Kontrakt
+`product-signal-v4` uruchamia jeden nowy task produktowy. Validator dodatkowo
+usuwa wyłącznie znany pusty prefiks z początku transmisji produktu i zapisuje
+normalizację `product_filler_prefix_removed`; filler w środku, echo źródła oraz
+wyciek `TEMP/pobrania` nadal kończą się odrzuceniem.
 
 Nie zmieniono kwalifikacji sygnałów do HERO; to pozostaje Etapem II.
 
@@ -196,7 +204,7 @@ polityka.
 SELECT outbox_id,target_medium,status,task_variant,narrative_intent,
        prompt_version,attempt_count,last_error_code,created_at
 FROM ghost_narrative_outbox
-WHERE prompt_version IN ('blacknet-signal-prompt-v8',
+WHERE prompt_version IN ('blacknet-signal-prompt-v9',
                          'googleplex-world-hero-prompt-v12')
 ORDER BY created_at DESC
 LIMIT 20;

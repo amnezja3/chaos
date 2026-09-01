@@ -74,7 +74,7 @@ BLACKNET_NARRATIVE_INTENTS = {
     "fallback": "intercepted_world_signal",
 }
 SIGNAL_NARRATIVE_CONTRACT_VERSION = "signal-aware-v2"
-PRODUCT_NARRATIVE_CONTRACT_VERSION = "product-signal-v3"
+PRODUCT_NARRATIVE_CONTRACT_VERSION = "product-signal-v4"
 
 
 def _safe_int(value, default=0):

@@ -84,7 +84,7 @@ def _build_registry():
     ))
     policies.append(_policy(
         "blacknet_world", "blacknet_signal_narration", "blacknet",
-        "blacknet-signal-prompt-v8", Path("blacknet") / "signal-v8.md",
+        "blacknet-signal-prompt-v9", Path("blacknet") / "signal-v9.md",
     ))
     policies.append(_policy(
         "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
