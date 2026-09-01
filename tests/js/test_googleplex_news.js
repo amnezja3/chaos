@@ -61,6 +61,10 @@ assert.strictEqual(unsafe.entries[0].action.action_type, "");
 const terminalSource = fs.readFileSync("static/js/terminal.js", "utf8");
 const newsCss = fs.readFileSync("static/css/googleplex_news.css", "utf8");
 assert.ok(terminalSource.includes("loadGoogleplexHome().catch(() => {});"), "browser boot must load Home");
+assert.ok(
+    terminalSource.includes("loadGoogleplexHome({ force: true }).catch(() => {});"),
+    "entering Googleplex Home must refresh a stale in-window snapshot"
+);
 assert.ok(terminalSource.includes("if (!catalogLoaded)"), "catalog must be lazy");
 assert.ok(source.includes("dataset.inFlight"), "action dispatch must be single-flight");
 assert.ok(terminalSource.includes("browser-maximize-btn"), "WebDragons must expose a maximize control");

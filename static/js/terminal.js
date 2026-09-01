@@ -10689,6 +10689,9 @@ function createBrowser() {
             renderBrowserWallet();
             search.placeholder = "Szukaj aplikacji...  /all - pokaz wszystkie";
             renderCatalog();
+            if (!search.value.trim()) {
+                loadGoogleplexHome({ force: true }).catch(() => {});
+            }
         }
     }
 

@@ -324,3 +324,16 @@ dotychczasową ochronę serializacji. Test regresyjny potwierdza oba stany:
 accepted candidate trzyma slot, a zmiana jego statusu na rejected natychmiast
 zwalnia assignment. Poprawka nie odczytuje profilu i nie zmienia slot CAS ani
 exactly-once publishera.
+
+### Follow-up produkcyjny - stale Googleplex Home snapshot
+
+Publication receipt oraz `ghost_narrative_slot_state` wskazywaly nowy aktywny
+HERO, ale otwarte okno WebDragons nadal wyswietlalo poprzednia wersje strony.
+Endpoint `/api/googleplex/news` mial poprawne `Cache-Control: private, no-store`;
+cache znajdowal sie po stronie klienta. `googleplexHomeSnapshot` pozostawal w
+RAM przez caly czas zycia okna, a ponowne wejscie na zakladke Googleplex tylko
+renderowalo ten sam obiekt bez nowego requestu.
+
+Wejscie na Googleplex Home wymusza teraz bounded odczyt endpointu News i po
+odpowiedzi podmienia snapshot. Nie dodano pollingu, odczytu profilu ani zapisu do
+bazy. BlackNet, Ghost Exchange i wyszukiwanie katalogu pozostaja niezalezne.
