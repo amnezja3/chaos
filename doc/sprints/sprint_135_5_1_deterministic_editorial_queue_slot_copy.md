@@ -1,6 +1,6 @@
 # Sprint 135.5.1 — Deterministic Editorial Queue and Slot-Owned LLM Copy
 
-Status: `IN PROGRESS — ETAP I SERVER VALIDATED / ETAP II IMPLEMENTED LOCALLY / ETAP II SERVER VALIDATION PENDING`
+Status: `CLOSED — SERVER VALIDATED / GAMEPLAY SOAK CONTINUES`
 
 ## Stan implementacji — Etap I i II
 
@@ -56,15 +56,17 @@ Etap II zaimplementowano lokalnie:
 - testy producenta wymuszają brak importu/odczytu pełnego profilu, a pełny test
   `task -> Ollama -> candidate -> publisher -> slot state -> News` przechodzi.
 
-Pozostaje przed uznaniem Etapu II za zwalidowany:
+Walidacja serwerowa Etapu II potwierdziła task `googleplex_product_promo`,
+publikację do `gp-home-featured`, canonical nazwę/cenę/link, slot state, cooldown
+oraz poprawne działanie pozostałych rotowanych powierzchni na pierwszy rzut oka
+w gameplayu. Dalszy soak pozostaje obserwacją eksploatacyjną, a nie blockerem
+zamknięcia kontraktu 135.5.1.
 
-- deploy i migracja nowych pól assignmentu na serwerze;
-- fizyczny product promo z canonical nazwą, ceną i linkiem;
-- fizyczne odświeżenie boxu BlackNet oraz jednej karty small bez zmiany innych
-  slotów;
-- potwierdzenie cooldownu, rotacji produktu i stale-slot CAS na danych serwera;
-- krótki soak SQLite oraz pomiar z
-  `profile_full_read/profile_full_write/profile_bytes = 0`.
+Pierwsza publikacja produktu ujawniła osobną lukę jakościową: model skopiował
+opis katalogowy zamiast stworzyć slogan. Transport i ownership slotu były
+poprawne. Naprawa `googleplex-product-promo-v2` oraz guard
+`product_promo_source_echo` otwierają Sprint 135.5.2 i nie cofają zamknięcia
+mechanicznego zakresu 135.5.1.
 
 ## Cel sprintu
 
@@ -863,7 +865,7 @@ append-only audit -> preserved
 
 ## Definition of Done
 
-Sprint 135.5.1 można zamknąć wyłącznie, gdy:
+Końcowa bramka zamknięcia 2026-09-01:
 
 ```text
 deterministic source selection:       PASS
@@ -880,9 +882,9 @@ profile reads/writes:                  0
 physical server validation:           PASS
 ```
 
-Po spełnieniu tych bramek Sprint 135.5 może zostać zamknięty semantycznie, a
-135.6 może rozpocząć fairness, backpressure i replay na już poprawnym kontrakcie
-redakcyjnym.
+Sprint 135.5.1 jest zamknięty. Jakość języka, dopasowanie głosu do typu sygnału
+i ochrona przed kopiowaniem canonical opisu przechodzą do 135.5.2. Fairness,
+backpressure i replay pozostają późniejszym zakresem 135.6.
 
 ## Powiązane dokumenty
 
@@ -892,3 +894,4 @@ redakcyjnym.
 - `doc/sprints/googleplex_news_functional_spec.md`
 - `doc/sprints/googleplex_news_visual_css_spec.md`
 - `doc/sprints/sprint_135_4_ollama_worker_canonical_inbox.md`
+- `doc/sprints/sprint_135_5_2_signal_aware_narrative_quality.md`

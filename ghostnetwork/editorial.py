@@ -213,6 +213,11 @@ class GoogleplexEditorialProducer:
         }
         editorial_contract["asset_role_map"] = role_map
         canonical_title = _clean(fact.get("product_name")) if contract.get("title_owner") == "backend" else ""
+        narrative_intent = (
+            "product_benefit_promo"
+            if content_kind == "product_promo"
+            else "capability_invitation"
+        )
         task = self.repository.enqueue_narrative_task(assign_ollama_task_policy({
             "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
             "source_scope": GOOGLEPLEX_EDITORIAL_SOURCE_SCOPE,
@@ -225,6 +230,7 @@ class GoogleplexEditorialProducer:
             "facts": [fact], "allowed_actions": [],
             "canon_version": "googleplex-editorial-stage-two-v1",
             "task_variant": variant, "content_kind": content_kind,
+            "narrative_intent": narrative_intent,
             "presentation_slot": slot_id,
             "selected_source_ref": source_ref,
             "selected_source_version": source_version,
@@ -236,6 +242,7 @@ class GoogleplexEditorialProducer:
             "priority": 40 if content_kind == "product_promo" else 20,
             "validation": {
                 "ok": True, "producer": "googleplex_editorial_stage_two",
+                "narrative_intent": narrative_intent,
                 "selected_source_ref": source_ref, "selected_source_version": source_version,
                 "presentation_slot": slot_id, "content_kind": content_kind,
                 "creative_epoch": creative_epoch, "expected_slot_version": expected_version,

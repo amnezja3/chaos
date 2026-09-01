@@ -84,11 +84,11 @@ def _build_registry():
     ))
     policies.append(_policy(
         "blacknet_world", "blacknet_signal_narration", "blacknet",
-        "blacknet-signal-prompt-v5", Path("blacknet") / "signal-v5.md",
+        "blacknet-signal-prompt-v6", Path("blacknet") / "signal-v6.md",
     ))
     policies.append(_policy(
         "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
-        "googleplex-world-hero-prompt-v10", Path("googleplex") / "world-hero-v10.md",
+        "googleplex-world-hero-prompt-v11", Path("googleplex") / "world-hero-v11.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     policies.extend((

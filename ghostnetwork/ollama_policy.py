@@ -44,6 +44,17 @@ ALLOWED_TONES = (
     "system",
     "clan",
 )
+SIGNAL_NARRATIVE_INTENTS = frozenset({
+    "intercepted_conflict_warning",
+    "intercepted_incident_alert",
+    "intercepted_broadcast_fragment",
+    "intercepted_product_transmission",
+    "intercepted_world_signal",
+})
+EDITORIAL_NARRATIVE_INTENTS = frozenset({
+    "product_benefit_promo",
+    "capability_invitation",
+})
 URL_PATTERN = re.compile(r"(?:https?://|www\.|ftp://)", re.IGNORECASE)
 INTERNAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:\b(?:narrative|receipt|candidate|task|event|signal)_[a-z0-9_:-]{6,}\b|\b[0-9a-f]{10,}\b)",
@@ -331,6 +342,50 @@ def product_promo_echoes_description(body, source_facts):
     return False
 
 
+def _normalized_narrative_text(value):
+    folded = str(value or "").casefold().translate(str.maketrans({
+        "ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n",
+        "ó": "o", "ś": "s", "ź": "z", "ż": "z",
+    }))
+    return re.sub(r"[^\w]+", " ", folded).strip()
+
+
+def signal_narrative_quality_errors(title, body, source_facts):
+    """Fail closed on database-like source copies and known empty fillers."""
+    combined = _normalized_narrative_text(f"{title or ''} {body or ''}")
+    filler_phrases = (
+        "w roku 2108",
+        "w rejonie celu",
+        "w globalnym zasiegu",
+        "odnotowano produktowa szanse",
+        "cena to",
+    )
+    errors = []
+    if any(phrase in combined for phrase in filler_phrases):
+        errors.append("narrative_filler_phrase")
+
+    normalized_body = _normalized_narrative_text(body)
+    source_values = []
+    for fact in source_facts or ():
+        if not isinstance(fact, dict):
+            continue
+        source_values.extend(
+            _normalized_narrative_text(fact.get(field))
+            for field in ("title", "label", "value", "stat", "description", "public_text")
+        )
+    source_values = [value for value in source_values if value]
+    if normalized_body and any(
+        normalized_body == source
+        or (
+            min(len(normalized_body.split()), len(source.split())) >= 5
+            and SequenceMatcher(None, normalized_body, source).ratio() >= 0.9
+        )
+        for source in source_values
+    ):
+        errors.append("signal_source_echo")
+    return errors
+
+
 def googleplex_allowed_asset_refs(source_facts):
     """Derive asset state from canonical fields, never from generated tone/text."""
     values = " ".join(
@@ -539,6 +594,30 @@ def build_ollama_task_package(task, policy=None):
         "fact_columns": fact_columns,
         "facts": facts,
     }
+    narrative_intent = str(
+        task.get("narrative_intent")
+        or (task.get("validation") or {}).get("narrative_intent")
+        or ""
+    ).strip()
+    if not narrative_intent and policy.source_scope == "googleplex_editorial":
+        # Compatibility for already queued Stage II assignments created before
+        # the explicit column. The backend task variant still owns this choice.
+        narrative_intent = (
+            "product_benefit_promo"
+            if policy.task_variant == "googleplex_product_promo"
+            else "capability_invitation"
+        )
+    if (
+        policy.source_scope == "blacknet_world"
+        and policy.task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
+    ):
+        if narrative_intent not in SIGNAL_NARRATIVE_INTENTS:
+            raise ValueError("ollama_task_narrative_intent_invalid")
+        model_input["narrative_intent"] = narrative_intent
+    elif policy.source_scope == "googleplex_editorial":
+        if narrative_intent not in EDITORIAL_NARRATIVE_INTENTS:
+            raise ValueError("ollama_task_narrative_intent_invalid")
+        model_input["narrative_intent"] = narrative_intent
     editorial_contract = task.get("editorial_contract")
     if not isinstance(editorial_contract, dict):
         editorial_contract = (task.get("validation") or {}).get("editorial_contract") or {}
@@ -634,6 +713,7 @@ def build_ollama_task_package(task, policy=None):
             task.get("selected_source_ref")
             or (task.get("validation") or {}).get("selected_source_ref") or ""
         ).strip(),
+        "narrative_intent": narrative_intent,
         "fixed_action": copy.deepcopy(
             task.get("fixed_action")
             or (task.get("validation") or {}).get("fixed_action") or {}
@@ -788,6 +868,14 @@ def parse_and_validate_ollama_content(content, task_package):
         )
     ):
         errors.append("product_promo_source_echo")
+    if (
+        policy
+        and policy.source_scope == "blacknet_world"
+        and policy.task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
+    ):
+        errors.extend(signal_narrative_quality_errors(
+            title, body, task_package.get("source_facts") or ()
+        ))
 
     all_errors = sorted(set(errors + security_errors))
     status = "quarantined" if security_errors else ("rejected" if errors else "accepted")

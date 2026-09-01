@@ -66,6 +66,14 @@ ALLOWED_APP_REQUEST_KEYS = {
 }
 URL_PATTERN = re.compile(r"(?:https?://|www\.)", re.IGNORECASE)
 
+BLACKNET_NARRATIVE_INTENTS = {
+    "conflict": "intercepted_conflict_warning",
+    "incident": "intercepted_incident_alert",
+    "radio": "intercepted_broadcast_fragment",
+    "product": "intercepted_product_transmission",
+    "fallback": "intercepted_world_signal",
+}
+
 
 def _safe_int(value, default=0):
     try:
@@ -87,6 +95,25 @@ def _safe_coordinate(value, minimum, maximum):
     if not math.isfinite(number) or number < minimum or number > maximum:
         return None
     return round(number, 6)
+
+
+def narrative_intent_for_signal(signal):
+    """Return the code-owned voice contract for one bounded world signal."""
+    signal = signal if isinstance(signal, dict) else {}
+    identity = " ".join((
+        _clean(signal.get("signal_type")),
+        _clean(signal.get("fact_id")),
+        _clean(signal.get("category")),
+    )).casefold()
+    if "conflict_target_alert" in identity or "bnf:conflicts:" in identity:
+        return BLACKNET_NARRATIVE_INTENTS["conflict"]
+    if "incident_hotspot" in identity or "bnf:incidents:" in identity:
+        return BLACKNET_NARRATIVE_INTENTS["incident"]
+    if "radio_promotion" in identity or "radio_channels_available" in identity or "bnf:radio:" in identity:
+        return BLACKNET_NARRATIVE_INTENTS["radio"]
+    if "googleplex_product_signal" in identity or "product_opportunity" in identity or "bnf:googleplex:" in identity:
+        return BLACKNET_NARRATIVE_INTENTS["product"]
+    return BLACKNET_NARRATIVE_INTENTS["fallback"]
 
 
 def _digest_window(snapshot, minutes=15):
@@ -198,12 +225,14 @@ class BlackNetNarrativeProducer:
         fact, fixed_action = self._single_signal_fact(signal)
         if not fact:
             return {"ok": True, "status": "empty", "task": None}
+        narrative_intent = narrative_intent_for_signal(signal)
         source_version_payload = {
             key: fact.get(key) for key in (
                 "fact_id", "signal_type", "category", "region_id", "title", "label",
                 "value", "stat", "lat", "lng",
             )
         }
+        source_version_payload["narrative_intent"] = narrative_intent
         source_version_payload["action"] = fixed_action or {}
         source_version = hashlib.sha1(json.dumps(
             source_version_payload, ensure_ascii=True, sort_keys=True,
@@ -242,6 +271,7 @@ class BlackNetNarrativeProducer:
                 snapshot.get("world_facts_version") or snapshot.get("version")
             ),
             "task_variant": variant,
+            "narrative_intent": narrative_intent,
             "content_kind": "world_dispatch" if presentation_slot else "world_signal",
             "presentation_slot": presentation_slot,
             "selected_source_ref": fact["fact_id"],
@@ -252,6 +282,7 @@ class BlackNetNarrativeProducer:
             "validation": {
                 "ok": True,
                 "producer": "deterministic_editorial_queue",
+                "narrative_intent": narrative_intent,
                 "selected_source_ref": fact["fact_id"],
                 "selected_source_version": source_version,
                 "presentation_slot": presentation_slot,

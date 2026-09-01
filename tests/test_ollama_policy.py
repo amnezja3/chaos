@@ -80,6 +80,7 @@ class OllamaPolicyTest(unittest.TestCase):
     def test_single_source_policies_reject_runtime_year_and_raw_coordinates(self):
         common = {
             "source_scope": "blacknet_world",
+            "narrative_intent": "intercepted_incident_alert",
             "audience_scope": "public",
             "truth_class_policy": "canonical",
             "facts": [{
@@ -133,6 +134,55 @@ class OllamaPolicyTest(unittest.TestCase):
         }), build_ollama_task_package(news))
         self.assertEqual(news_result["status"], "quarantined")
         self.assertIn("raw_coordinate_leak", news_result["errors"])
+
+    def test_signal_intent_is_mandatory_and_quality_fillers_fail_closed(self):
+        base = {
+            "source_scope": "blacknet_world",
+            "task_variant": "blacknet_signal_narration",
+            "target_medium": "blacknet",
+            "audience_scope": "public",
+            "truth_class_policy": "canonical",
+            "facts": [{
+                "fact_id": "blacknet_fact:radio:one",
+                "title": "GHOST HACK RADIO",
+                "label": "KANALY ONLINE",
+                "stat": "114 TRACKOW W ETERZE",
+            }],
+            "allowed_actions": [],
+            "selected_source_ref": "blacknet_fact:radio:one",
+        }
+        missing = assign_ollama_task_policy(base)
+        with self.assertRaisesRegex(ValueError, "narrative_intent_invalid"):
+            build_ollama_task_package(missing)
+
+        task = assign_ollama_task_policy({
+            **base, "narrative_intent": "intercepted_broadcast_fragment",
+        })
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(
+            model_input["narrative_intent"], "intercepted_broadcast_fragment"
+        )
+
+        filler = parse_and_validate_ollama_content(json.dumps({
+            "title": "Radio nadal nadaje",
+            "body": "W roku 2108, w rejonie celu odnotowano 114 kanalow.",
+            "tone": "mystery",
+            "fact_refs": ["blacknet_fact:radio:one"],
+            "cta_ref": None,
+        }), package)
+        self.assertEqual(filler["status"], "rejected", filler)
+        self.assertIn("narrative_filler_phrase", filler["errors"])
+
+        echo = parse_and_validate_ollama_content(json.dumps({
+            "title": "Radio nadal nadaje",
+            "body": "114 TRACKOW W ETERZE",
+            "tone": "mystery",
+            "fact_refs": ["blacknet_fact:radio:one"],
+            "cta_ref": None,
+        }), package)
+        self.assertEqual(echo["status"], "rejected", echo)
+        self.assertIn("signal_source_echo", echo["errors"])
 
     def test_googleplex_cta_must_belong_to_selected_fact(self):
         task = assign_ollama_task_policy({

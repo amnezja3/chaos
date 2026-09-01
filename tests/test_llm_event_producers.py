@@ -25,6 +25,7 @@ from ghostnetwork import (
 from ghostnetwork.ollama_policy import build_ollama_task_package
 from ghostnetwork.ollama_policy import parse_and_validate_ollama_content
 from ghostnetwork.editorial import GoogleplexEditorialProducer
+from ghostnetwork.producers import narrative_intent_for_signal
 
 
 class LlmEventProducerTest(unittest.TestCase):
@@ -219,6 +220,10 @@ class LlmEventProducerTest(unittest.TestCase):
             blacknet["task"]["task_variant"], "blacknet_signal_narration"
         )
         self.assertEqual(
+            blacknet["task"]["narrative_intent"],
+            "intercepted_conflict_warning",
+        )
+        self.assertEqual(
             news["task"]["task_variant"], "googleplex_world_dispatch"
         )
         self.assertEqual(
@@ -233,8 +238,13 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(news["task"]["expected_slot_version"], 0)
         package = build_ollama_task_package(news["task"])
         model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(
+            model_input["narrative_intent"], "intercepted_conflict_warning"
+        )
         self.assertEqual(package["fact_count"], 1)
         self.assertNotIn("ctas", model_input)
+        self.assertIn("title", model_input["fact_columns"])
+        self.assertIn("stat", model_input["fact_columns"])
         self.assertEqual(
             package["selected_source_ref"], news["task"]["facts"][0]["fact_id"]
         )
@@ -242,6 +252,20 @@ class LlmEventProducerTest(unittest.TestCase):
             package["fixed_action"]["payload"]["target_id"],
             "legacy:canonical-target",
         )
+
+    def test_signal_narrative_intent_mapping_is_code_owned(self):
+        cases = (
+            ({"signal_type": "conflict_target_alert"}, "intercepted_conflict_warning"),
+            ({"signal_type": "incident_hotspot"}, "intercepted_incident_alert"),
+            ({"signal_type": "radio_promotion"}, "intercepted_broadcast_fragment"),
+            ({
+                "signal_type": "product_opportunity",
+                "fact_id": "bnf:googleplex:googleplex_product_signal:one",
+            }, "intercepted_product_transmission"),
+        )
+        for signal, expected in cases:
+            with self.subTest(signal=signal):
+                self.assertEqual(narrative_intent_for_signal(signal), expected)
 
     def test_stage_two_product_assignment_keeps_catalog_data_code_owned(self):
         producer = GoogleplexEditorialProducer(self.repo)
@@ -262,6 +286,7 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(task["prompt_version"], "googleplex-product-promo-v2")
         self.assertEqual(task["presentation_slot"], "gp-home-featured")
         self.assertEqual(task["content_kind"], "product_promo")
+        self.assertEqual(task["narrative_intent"], "product_benefit_promo")
         self.assertEqual(task["creative_epoch"], 1)
         self.assertEqual(task["editorial_contract"]["canonical_title"], "V-MAP")
         self.assertEqual(task["fixed_action"]["payload"]["price_hc"], 955)
@@ -272,6 +297,7 @@ class LlmEventProducerTest(unittest.TestCase):
         model_input = json.loads(package["messages"][1]["content"])
         self.assertEqual(package["fact_count"], 1)
         self.assertEqual(model_input["presentation_slot"], "gp-home-featured")
+        self.assertEqual(model_input["narrative_intent"], "product_benefit_promo")
         self.assertEqual(model_input["copy_contract"]["title_owner"], "backend")
         self.assertEqual(model_input["copy_contract"]["body_chars"], 90)
         self.assertEqual(model_input["allowed_asset_roles"], [

@@ -733,6 +733,7 @@ class GhostNetworkRepository:
                     model_policy_version TEXT NOT NULL DEFAULT 'unassigned',
                     truth_class_policy TEXT NOT NULL DEFAULT '',
                     task_variant TEXT NOT NULL DEFAULT 'default',
+                    narrative_intent TEXT NOT NULL DEFAULT '',
                     content_kind TEXT NOT NULL DEFAULT '',
                     presentation_slot TEXT NOT NULL DEFAULT '',
                     selected_source_ref TEXT NOT NULL DEFAULT '',
@@ -799,6 +800,7 @@ class GhostNetworkRepository:
                 ("model_policy_version", "model_policy_version TEXT NOT NULL DEFAULT 'unassigned'"),
                 ("truth_class_policy", "truth_class_policy TEXT NOT NULL DEFAULT ''"),
                 ("task_variant", "task_variant TEXT NOT NULL DEFAULT 'default'"),
+                ("narrative_intent", "narrative_intent TEXT NOT NULL DEFAULT ''"),
                 ("content_kind", "content_kind TEXT NOT NULL DEFAULT ''"),
                 ("presentation_slot", "presentation_slot TEXT NOT NULL DEFAULT ''"),
                 ("selected_source_ref", "selected_source_ref TEXT NOT NULL DEFAULT ''"),
@@ -1230,6 +1232,7 @@ class GhostNetworkRepository:
                     asset_ref TEXT NOT NULL DEFAULT '',
                     presentation_slot TEXT NOT NULL DEFAULT '',
                     content_kind TEXT NOT NULL DEFAULT '',
+                    narrative_intent TEXT NOT NULL DEFAULT '',
                     selected_source_ref TEXT NOT NULL DEFAULT '',
                     selected_source_version TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL,
@@ -1248,6 +1251,10 @@ class GhostNetworkRepository:
             self._ensure_column(
                 conn, "ghost_narrative_medium_records", "content_kind",
                 "content_kind TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn, "ghost_narrative_medium_records", "narrative_intent",
+                "narrative_intent TEXT NOT NULL DEFAULT ''",
             )
             self._ensure_column(
                 conn, "ghost_narrative_medium_records", "selected_source_ref",
@@ -1548,6 +1555,7 @@ class GhostNetworkRepository:
             "output_schema_version": row["output_schema_version"] if "output_schema_version" in keys else "unassigned",
             "model_policy_version": row["model_policy_version"] if "model_policy_version" in keys else "unassigned",
             "task_variant": row["task_variant"] if "task_variant" in keys else "default",
+            "narrative_intent": row["narrative_intent"] if "narrative_intent" in keys else "",
             "presentation_slot": row["presentation_slot"] if "presentation_slot" in keys else "",
             "content_kind": row["content_kind"] if "content_kind" in keys else "",
             "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
@@ -1712,6 +1720,7 @@ class GhostNetworkRepository:
             "asset_ref": row["asset_ref"] if "asset_ref" in keys else "",
             "presentation_slot": row["presentation_slot"] if "presentation_slot" in keys else "",
             "content_kind": row["content_kind"] if "content_kind" in keys else "",
+            "narrative_intent": row["narrative_intent"] if "narrative_intent" in keys else "",
             "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
             "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
             "created_at": row["created_at"],
@@ -3879,6 +3888,7 @@ class GhostNetworkRepository:
             "model_policy_version": _clean(item.get("model_policy_version"), "unassigned"),
             "truth_class_policy": _clean(item.get("truth_class_policy")),
             "task_variant": _clean(item.get("task_variant"), "default"),
+            "narrative_intent": _clean(item.get("narrative_intent")),
             "content_kind": _clean(item.get("content_kind")),
             "presentation_slot": _clean(item.get("presentation_slot")),
             "selected_source_ref": _clean(item.get("selected_source_ref")),
@@ -3920,7 +3930,7 @@ class GhostNetworkRepository:
                     source_receipt_id, source_app_id, processor, target_medium,
                     world_state_version, prompt_version, output_schema_version,
                     model_policy_version, truth_class_policy, task_variant,
-                    content_kind, presentation_slot, selected_source_ref,
+                    narrative_intent, content_kind, presentation_slot, selected_source_ref,
                     selected_source_version, expected_slot_version, fixed_action_json,
                     creative_epoch, editorial_contract_json, allowed_asset_roles_json,
                     priority, attempt_count, max_attempts, claimed_by, claimed_at,
@@ -3937,7 +3947,7 @@ class GhostNetworkRepository:
                     :source_receipt_id, :source_app_id, :processor, :target_medium,
                     :world_state_version, :prompt_version, :output_schema_version,
                     :model_policy_version, :truth_class_policy, :task_variant,
-                    :content_kind, :presentation_slot, :selected_source_ref,
+                    :narrative_intent, :content_kind, :presentation_slot, :selected_source_ref,
                     :selected_source_version, :expected_slot_version, :fixed_action_json,
                     :creative_epoch, :editorial_contract_json, :allowed_asset_roles_json,
                     :priority, :attempt_count, :max_attempts, :claimed_by, :claimed_at,
@@ -4959,7 +4969,7 @@ class GhostNetworkRepository:
                        c.source_receipt_id, c.truth_class, c.title, c.body, c.tone,
                        c.fact_refs_json, c.cta_ref, c.cta_action, c.cta_payload_json,
                        c.asset_ref, o.validation_json AS task_validation_json,
-                       o.content_kind, o.presentation_slot,
+                       o.content_kind, o.presentation_slot, o.narrative_intent,
                        o.selected_source_ref, o.selected_source_version,
                        o.expected_slot_version, o.creative_epoch,
                        o.editorial_contract_json,
@@ -5005,6 +5015,15 @@ class GhostNetworkRepository:
                 editorial_contract = {}
             if not editorial_contract and isinstance(assignment.get("editorial_contract"), dict):
                 editorial_contract = assignment.get("editorial_contract")
+            narrative_intent = _clean(
+                row["narrative_intent"] or assignment.get("narrative_intent")
+            )
+            if not narrative_intent and row["source_scope"] == "googleplex_editorial":
+                narrative_intent = (
+                    "product_benefit_promo"
+                    if _clean(row["content_kind"] or assignment.get("content_kind")) == "product_promo"
+                    else "capability_invitation"
+                )
             explicit_assignment = bool(_clean(row["presentation_slot"]))
             presentation_slot = _clean(
                 row["presentation_slot"] or assignment.get("presentation_slot")
@@ -5085,8 +5104,9 @@ class GhostNetworkRepository:
                     source_scope, source_event_id, source_receipt_id, truth_class,
                     title, body, tone, fact_refs_json, cta_ref, cta_action,
                     cta_payload_json, asset_ref, presentation_slot, content_kind,
-                    selected_source_ref, selected_source_version, created_at, published_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    narrative_intent, selected_source_ref, selected_source_version,
+                    created_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(publication_receipt_id) DO NOTHING
                 """,
                 (
@@ -5099,6 +5119,7 @@ class GhostNetworkRepository:
                     row["cta_payload_json"], row["asset_ref"],
                     presentation_slot,
                     _clean(row["content_kind"] or assignment.get("content_kind")),
+                    narrative_intent,
                     _clean(row["selected_source_ref"] or assignment.get("selected_source_ref")),
                     _clean(row["selected_source_version"] or assignment.get("selected_source_version")),
                     row["created_at"], now_iso,

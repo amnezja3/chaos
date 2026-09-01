@@ -34,7 +34,7 @@ class AcceptedClient:
     def generate(self, package, policy):
         output = {
             "title": "Canonical title",
-            "body": "Canonical body",
+            "body": "The canonical signal remains active.",
             "tone": "info",
             "fact_refs": ["fact:one"],
             "cta_ref": None,
@@ -65,7 +65,7 @@ class SequencedAcceptedClient(AcceptedClient):
         generated = super().generate(package, policy)
         output = json.loads(generated.content)
         output["title"] = f"Canonical title {self.sequence}"
-        output["body"] = f"Canonical body {self.sequence}"
+        output["body"] = f"The canonical signal remains active: {self.sequence}."
         return OllamaGenerationResult(
             model=generated.model,
             model_digest=generated.model_digest,
@@ -136,6 +136,12 @@ class NarrativePublicationTest(unittest.TestCase):
             "allowed_actions": [],
             "canon_version": "test-v1",
             "task_variant": task_variant,
+            "narrative_intent": (
+                "intercepted_world_signal"
+                if source_scope == "blacknet_world"
+                and task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
+                else ""
+            ),
             "validation": validation or {},
         })
         item = self.repo.enqueue_narrative_task(task)
@@ -194,6 +200,9 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(
             published["record"]["presentation_slot"], "gp-home-world-grid"
         )
+        self.assertEqual(
+            published["record"]["narrative_intent"], "intercepted_world_signal"
+        )
         slot = self.repo.get_narrative_slot_state(
             "googleplex_news", "gp-home-world-grid"
         )
@@ -240,6 +249,9 @@ class NarrativePublicationTest(unittest.TestCase):
             repository=self.repo, worker_id="stage-two-publisher"
         ).process_once()
         self.assertEqual(published["result"], "published", published)
+        self.assertEqual(
+            published["record"]["narrative_intent"], "product_benefit_promo"
+        )
         slot = self.repo.get_narrative_slot_state(
             "googleplex_news", "gp-home-featured"
         )
