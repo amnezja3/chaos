@@ -314,6 +314,14 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(incident["status"], "created")
         self.assertTrue(incident["content_sufficiency"]["eligible"])
         self.assertEqual(
+            incident["task"]["prompt_version"], "googleplex-world-hero-prompt-v13"
+        )
+        package = build_ollama_task_package(incident["task"])
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertIn("lat", model_input["fact_columns"])
+        self.assertIn("lng", model_input["fact_columns"])
+        self.assertNotIn("incident:strong", package["messages"][1]["content"])
+        self.assertEqual(
             incident["task"]["validation"]["content_sufficiency"],
             incident["content_sufficiency"],
         )

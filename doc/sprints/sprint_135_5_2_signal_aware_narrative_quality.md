@@ -13,7 +13,7 @@ Zaimplementowano lokalnie:
 - bounded task package przekazuje intent modelowi, ale nie daje mu możliwości
   wyboru lub zmiany tego pola;
 - immutable prompty `blacknet-signal-prompt-v9` oraz
-  `googleplex-world-hero-prompt-v12`, opisujące role bez przykładów odpowiedzi;
+  `googleplex-world-hero-prompt-v13`, opisujące role bez przykładów odpowiedzi;
 - `signal_source_echo` dla body kopiującego presentation-safe pole źródła;
 - `narrative_filler_phrase` dla pustych konstrukcji potwierdzonych w gameplayu;
 - product promo v2 zachowuje osobny `product_benefit_promo`;
@@ -222,7 +222,7 @@ SELECT outbox_id,target_medium,status,task_variant,narrative_intent,
        prompt_version,attempt_count,last_error_code,created_at
 FROM ghost_narrative_outbox
 WHERE prompt_version IN ('blacknet-signal-prompt-v9',
-                         'googleplex-world-hero-prompt-v12')
+                         'googleplex-world-hero-prompt-v13')
 ORDER BY created_at DESC
 LIMIT 20;
 ```
@@ -263,6 +263,14 @@ Pierwsza walidacja gate'u ujawniła historyczny poison slotu: ukończony task z
 assignment bezterminowo. `has_open_narrative_slot_assignment` wymaga teraz dla
 statusu `completed` istnienia candidate'a `accepted`; rejected, quarantined
 lub brak candidate'a nie blokują następnego legalnego HERO.
+
+Pierwszy fizyczny assignment przeszedł gate `4/4`, ale v12 został odrzucony za
+`w rejonie celu`. Model otrzymywał bounded `lat/lng`, natomiast prompt
+jednocześnie zabraniał ich interpretacji i nakazywał pominąć lokalizację.
+Prompt v13 przywraca właściwy kontrakt: model zamienia współrzędne na
+przybliżoną polską nazwę miasta, aglomeracji, regionu albo kraju, ale nie
+publikuje surowych cyfr. Dokładny canonical target i focus pozostają
+backend-owned, więc przybliżenie geograficzne nie zmienia nawigacji.
 
 ## Powiązane dokumenty
 

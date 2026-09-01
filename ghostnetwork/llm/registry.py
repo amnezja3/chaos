@@ -88,7 +88,7 @@ def _build_registry():
     ))
     policies.append(_policy(
         "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
-        "googleplex-world-hero-prompt-v12", Path("googleplex") / "world-hero-v12.md",
+        "googleplex-world-hero-prompt-v13", Path("googleplex") / "world-hero-v13.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     policies.extend((
