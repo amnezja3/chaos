@@ -1,6 +1,6 @@
 # Sprint 136 — GhostNetwork Domain Narrative Bridge
 
-Status: `136.1 SERVER PASS / 136.2 FUNCTIONAL SERVER PASS — RECONCILER REMEDIATION REDEPLOY REQUIRED`
+Status: `COMPLETE — 136.1 + 136.2 SERVER PASS`
 
 ## Sprint 136.2 — audience projection i kontrola szumu
 
@@ -55,9 +55,20 @@ ciężkiego profilu przed oznaczeniem 136.2 jako `COMPLETE`.
   source links, i publikuje tylko eventy z niepełnym lineage. Drugi przebieg po
   naprawie ma `processed=0`, `incomplete=0`, pomija wszystkie kompletne eventy
   i nie zmienia telemetryki.
-- Remediacja wymaga ponownego deployu. Po nim trzeba potwierdzić stabilne
-  liczniki na bezczynności i końcowy strict audit; sam rzeczywisty aggregate
-  oraz zgodność source links są już potwierdzone.
+- Remediację skierowano do ponownego deployu z wymaganiem potwierdzenia
+  stabilnych liczników na bezczynności i końcowego strict audytu; rzeczywisty
+  aggregate oraz zgodność source links były już wtedy potwierdzone.
+
+### Zamknięcie 136.2 — SERVER PASS
+
+- Serwer został zaktualizowany do commita `5d883ab`, a procesy aplikacji,
+  territory workera, Ollama workera i narrative publishera wróciły `online`.
+- Reconciler zeskanował 13 eligible eventów i poprawnie zwrócił
+  `processed=0`, `incomplete=0`, `skipped_complete=13`.
+- Końcowy strict cutover zakończył się z `errors=[]` i `ok=true`.
+- Fan-out, audience isolation, aggregate source lineage, kontrola szumu,
+  heavy-profile guard i recovery mają lokalny oraz serwerowy dowód. Sprint
+  136.2 jest `COMPLETE — SERVER PASS`.
 
 ## Remediacja 136.1 — 2026-09-02
 

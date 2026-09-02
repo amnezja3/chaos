@@ -2052,3 +2052,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Fan-out, strict lineage, heavy-profile guard i funkcjonalny merge mają
   serwerowy PASS. Pełne zamknięcie 136.2 czeka wyłącznie na redeploy korekty
   reconciler-a, stabilność telemetryki na bezczynności i końcowy strict audit.
+
+## 2026-09-02 — Sprint 136.2: COMPLETE — SERVER PASS
+
+- Serwer zaktualizowano do `5d883ab`; wszystkie cztery procesy runtime wróciły
+  do stanu `online`.
+- Reconciler potwierdził stan stabilny: `scanned=13`, `processed=0`,
+  `incomplete=0`, `skipped_complete=13`. Kompletne eventy nie są ponownie
+  publikowane ani doliczane do telemetryki.
+- Końcowy strict audit zwrócił `errors=[]` oraz `ok=true`.
+- Sprint 136.2 jest zamknięty z lokalnym i serwerowym dowodem; Sprint 137
+  został odblokowany.

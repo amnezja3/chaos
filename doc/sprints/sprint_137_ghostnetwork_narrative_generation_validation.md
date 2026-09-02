@@ -1,6 +1,13 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `BLOCKED — SPRINT 136.2 SERVER VALIDATION REQUIRED`
+Status: `READY — SPRINT 136.2 SERVER PASS`
+
+## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
+
+Sprint 136.2 ma pełny server pass: fan-out `public/clan/owner`, rzeczywisty
+low-event aggregate z kompletnymi source links, reconciler pomijający pełne
+lineage oraz końcowy strict audit `errors=[]`, `ok=true`. Blokada wejściowa
+Sprintu 137 została usunięta.
 
 ## Korekta po audycie Sprintu 136 — 2026-09-02
 
