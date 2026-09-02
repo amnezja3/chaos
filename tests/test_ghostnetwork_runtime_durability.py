@@ -65,7 +65,7 @@ class GhostNetworkRuntimeDurabilityTest(unittest.TestCase):
             {task["target_medium"] for task in narrative_tasks},
             {"blacknet", "googleplex_news"},
         )
-        self.assertTrue(all(task["audience_scope"] == "public" for task in narrative_tasks))
+        self.assertTrue(any(task["audience_scope"] == "public" for task in narrative_tasks))
 
         second = coordinator.drain()
         self.assertTrue(second["ok"], second)

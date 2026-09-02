@@ -9,6 +9,7 @@ from .ollama_worker import active_ollama_worker_policies
 from .narrative import (
     GHOST_EVENT_LINEAGE_EPOCH,
     GHOST_EVENT_POLICY,
+    GhostNarrativePublisher,
 )
 from .repository import GhostNetworkRepository
 
@@ -48,19 +49,44 @@ def build_ghost_event_lineage_report(
     wrong_audience = 0
     eligible_without_task = 0
     samples = []
+    publisher = GhostNarrativePublisher(repository=repository)
 
     for event in events:
         event_id = str(event.get("event_id") or "")
-        expected = set(GHOST_EVENT_POLICY[event["event_type"]]["target_media"])
+        expected = {
+            (
+                audience["scope"], audience.get("clan") or "",
+                audience.get("owner") or "", medium,
+            )
+            for audience in publisher.resolve_event_audiences(event)
+            for medium in publisher.target_media_for_audience(
+                GHOST_EVENT_POLICY[event["event_type"]], audience,
+            )
+        }
         tasks = repository.list_narrative_outbox(
             source_scope="ghostnetwork", source_event_id=event_id, limit=25,
         )
-        actual = {str(task.get("target_medium") or "") for task in tasks}
+        actual = {
+            (
+                str(task.get("audience_scope") or ""),
+                str(task.get("audience_clan") or ""),
+                str(task.get("audience_owner") or ""),
+                str(task.get("target_medium") or ""),
+            )
+            for task in tasks
+        }
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
         wrong = sorted(
             str(task.get("outbox_id") or "") for task in tasks
-            if str(task.get("audience_scope") or "") != "public"
+            if not (
+                task.get("audience_scope") == "public"
+                and not task.get("audience_clan") and not task.get("audience_owner")
+                or task.get("audience_scope") == "clan"
+                and bool(task.get("audience_clan")) and not task.get("audience_owner")
+                or task.get("audience_scope") == "owner"
+                and bool(task.get("audience_owner")) and not task.get("audience_clan")
+            )
         )
         expected_tasks += len(expected)
         missing_expected_tasks += len(missing)
@@ -72,8 +98,8 @@ def build_ghost_event_lineage_report(
             samples.append({
                 "event_id": event_id,
                 "event_type": event.get("event_type"),
-                "missing_media": missing,
-                "unexpected_media": unexpected,
+                "missing_identities": missing,
+                "unexpected_identities": unexpected,
                 "wrong_audience_task_ids": wrong[:5],
             })
 
@@ -162,6 +188,10 @@ def build_narrative_cutover_report(
     task_queue = repository.narrative_task_queue_counts(policies, now=now)
     publication_queue = repository.narrative_publication_queue_counts(now=now)
     ghost_event_lineage = build_ghost_event_lineage_report(repository)
+    ghost_event_bridge = (
+        repository.narrative_bridge_metrics()
+        if hasattr(repository, "narrative_bridge_metrics") else {}
+    )
     published_by_medium = publication_queue.get("published_by_medium") or {}
 
     errors = []
@@ -218,6 +248,7 @@ def build_narrative_cutover_report(
         "task_queue": task_queue,
         "publication_queue": publication_queue,
         "ghost_event_lineage": ghost_event_lineage,
+        "ghost_event_bridge": ghost_event_bridge,
         "required_publication_media": list(REQUIRED_PUBLICATION_MEDIA),
         "missing_publication_media": missing_media,
         "legacy_file_outbox": {

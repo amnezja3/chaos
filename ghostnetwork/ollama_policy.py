@@ -83,6 +83,7 @@ COMPACT_FACT_FIELDS = (
     ("part_count", "part_count", 0),
     ("connection_count", "connection_count", 0),
     ("machine_count", "machine_count", 0),
+    ("event_count", "event_count", 0),
     ("restart_required", "restart_required", 0),
     ("confirmation_status", "confirmation_status", 40),
     ("outcome", "outcome", 40),

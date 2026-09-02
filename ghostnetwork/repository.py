@@ -886,12 +886,68 @@ class GhostNetworkRepository:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_task_sources (
+                    outbox_id TEXT NOT NULL,
+                    source_event_id TEXT NOT NULL,
+                    linked_at TEXT NOT NULL,
+                    PRIMARY KEY(outbox_id, source_event_id),
+                    FOREIGN KEY(outbox_id) REFERENCES ghost_narrative_outbox(outbox_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_source_event
+                ON ghost_narrative_task_sources(source_event_id, outbox_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_bridge_telemetry (
+                    cycle_id TEXT NOT NULL DEFAULT '',
+                    metric_key TEXT NOT NULL,
+                    metric_count INTEGER NOT NULL DEFAULT 0,
+                    value_total REAL NOT NULL DEFAULT 0,
+                    value_max REAL NOT NULL DEFAULT 0,
+                    last_seen_at TEXT NOT NULL,
+                    PRIMARY KEY(cycle_id, metric_key)
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ghost_repository_migrations (
                     migration_id TEXT PRIMARY KEY,
                     applied_at TEXT NOT NULL
                 )
                 """
             )
+            source_link_migration_id = "narrative_task_sources_v1"
+            source_links_migrated = conn.execute(
+                """
+                SELECT migration_id FROM ghost_repository_migrations
+                WHERE migration_id = ? LIMIT 1
+                """,
+                (source_link_migration_id,),
+            ).fetchone()
+            if not source_links_migrated:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ghost_narrative_task_sources(
+                        outbox_id, source_event_id, linked_at
+                    )
+                    SELECT outbox_id, source_event_id, created_at
+                    FROM ghost_narrative_outbox
+                    WHERE source_scope = 'ghostnetwork' AND source_event_id != ''
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO ghost_repository_migrations(migration_id, applied_at)
+                    VALUES (?, ?)
+                    """,
+                    (source_link_migration_id, self.now()),
+                )
             dedupe_migration_id = "narrative_task_canonical_dedupe_v1"
             dedupe_migrated = conn.execute(
                 """
@@ -3700,6 +3756,84 @@ class GhostNetworkRepository:
             "total": sum(int(row["count"] or 0) for row in rows),
         }
 
+    def record_narrative_bridge_metric(self, metric_key, cycle_id="", value=0):
+        metric_key = _clean(metric_key)
+        if not metric_key or len(metric_key) > 180:
+            raise ValueError("Invalid narrative bridge metric key.")
+        numeric = max(0.0, float(value or 0))
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO ghost_narrative_bridge_telemetry(
+                    cycle_id, metric_key, metric_count, value_total, value_max,
+                    last_seen_at
+                ) VALUES (?, ?, 1, ?, ?, ?)
+                ON CONFLICT(cycle_id, metric_key) DO UPDATE SET
+                    metric_count = metric_count + 1,
+                    value_total = value_total + excluded.value_total,
+                    value_max = MAX(value_max, excluded.value_max),
+                    last_seen_at = excluded.last_seen_at
+                """,
+                (_clean(cycle_id), metric_key, numeric, numeric, self.now()),
+            )
+
+    def narrative_bridge_metrics(self, cycle_id=None):
+        where = ""
+        params = []
+        if cycle_id is not None:
+            where = "WHERE cycle_id = ?"
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT metric_key, SUM(metric_count) AS metric_count,
+                       SUM(value_total) AS value_total, MAX(value_max) AS value_max
+                FROM ghost_narrative_bridge_telemetry
+                {where}
+                GROUP BY metric_key ORDER BY metric_key
+                """,
+                tuple(params),
+            ).fetchall()
+        metrics = {}
+        for row in rows:
+            count = int(row["metric_count"] or 0)
+            metrics[row["metric_key"]] = {
+                "count": count,
+                "value_total": round(float(row["value_total"] or 0), 3),
+                "value_max": round(float(row["value_max"] or 0), 3),
+                "value_avg": round(float(row["value_total"] or 0) / count, 3) if count else 0,
+            }
+        count_of = lambda key: int((metrics.get(key) or {}).get("count") or 0)
+        latency = metrics.get("bridge_latency_ms") or {}
+        return {
+            "events_seen": count_of("events_seen"),
+            "events_eligible": count_of("events_eligible"),
+            "events_ignored_by_reason": {
+                key.split(":", 1)[1]: value["count"]
+                for key, value in metrics.items() if key.startswith("events_ignored:")
+            },
+            "tasks_by_event_type_audience_medium": {
+                key.split(":", 1)[1]: value["count"]
+                for key, value in metrics.items() if key.startswith("tasks:")
+            },
+            "aggregation_input": {
+                key.split(":", 1)[1]: value["count"]
+                for key, value in metrics.items() if key.startswith("aggregation_input:")
+            },
+            "aggregation_output": {
+                key.split(":", 1)[1]: value["count"]
+                for key, value in metrics.items() if key.startswith("aggregation_output:")
+            },
+            "deduplicated_tasks": count_of("deduplicated_tasks"),
+            "task_errors": count_of("task_errors"),
+            "bridge_latency_ms": {
+                "samples": int(latency.get("count") or 0),
+                "average": float(latency.get("value_avg") or 0),
+                "maximum": float(latency.get("value_max") or 0),
+            },
+            "raw": metrics,
+        }
+
     @staticmethod
     def _capture_effect(row):
         if not row:
@@ -4001,14 +4135,104 @@ class GhostNetworkRepository:
                 if existing:
                     result = self._narrative_outbox(existing)
                     result["idempotent"] = True
+                    if source_scope == "ghostnetwork" and source_event_id:
+                        conn.execute(
+                            """
+                            INSERT OR IGNORE INTO ghost_narrative_task_sources(
+                                outbox_id, source_event_id, linked_at
+                            ) VALUES (?, ?, ?)
+                            """,
+                            (result["outbox_id"], source_event_id, now),
+                        )
                     return result
                 raise RepositoryIntegrityError("Narrative task identity conflict")
-            return self._narrative_outbox(
+            result = self._narrative_outbox(
                 conn.execute(
                     "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
                     (outbox_id,),
                 ).fetchone()
             )
+            if source_scope == "ghostnetwork" and source_event_id:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ghost_narrative_task_sources(
+                        outbox_id, source_event_id, linked_at
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (outbox_id, source_event_id, now),
+                )
+            return result
+
+    def find_open_narrative_aggregate(
+        self, *, cycle_id, task_variant, narrative_thread_id, target_medium,
+        audience_scope, audience_clan="", audience_owner="", created_after="",
+    ):
+        with self._conn() as conn:
+            return self._narrative_outbox(conn.execute(
+                """
+                SELECT * FROM ghost_narrative_outbox
+                WHERE source_scope = 'ghostnetwork'
+                  AND cycle_id = ? AND task_variant = ?
+                  AND narrative_thread_id = ? AND target_medium = ?
+                  AND audience_scope = ? AND audience_clan = ? AND audience_owner = ?
+                  AND status IN ('ready', 'retry_wait')
+                  AND attempt_count = 0 AND claimed_by = ''
+                  AND created_at >= ?
+                ORDER BY created_at DESC, outbox_id DESC
+                LIMIT 1
+                """,
+                (
+                    _clean(cycle_id), _clean(task_variant), _clean(narrative_thread_id),
+                    _clean(target_medium), _clean(audience_scope), _clean(audience_clan),
+                    _clean(audience_owner), _clean(created_after),
+                ),
+            ).fetchone())
+
+    def merge_narrative_aggregate(
+        self, outbox_id, source_event_id, *, facts, validation,
+        world_state_version="", selected_source_version="",
+    ):
+        now = self.now()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET facts_json = ?, validation_json = ?, world_state_version = ?,
+                    selected_source_version = ?, updated_at = ?
+                WHERE outbox_id = ? AND status IN ('ready', 'retry_wait')
+                  AND attempt_count = 0 AND claimed_by = ''
+                """,
+                (
+                    dumps_json(facts if isinstance(facts, list) else []),
+                    dumps_json(validation if isinstance(validation, dict) else {}),
+                    _clean(world_state_version), _clean(selected_source_version), now,
+                    _clean(outbox_id),
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO ghost_narrative_task_sources(
+                    outbox_id, source_event_id, linked_at
+                ) VALUES (?, ?, ?)
+                """,
+                (_clean(outbox_id), _clean(source_event_id), now),
+            )
+            return self._narrative_outbox(conn.execute(
+                "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                (_clean(outbox_id),),
+            ).fetchone())
+
+    def list_narrative_task_sources(self, outbox_id):
+        with self._conn() as conn:
+            return [row["source_event_id"] for row in conn.execute(
+                """
+                SELECT source_event_id FROM ghost_narrative_task_sources
+                WHERE outbox_id = ? ORDER BY linked_at, source_event_id
+                """,
+                (_clean(outbox_id),),
+            ).fetchall()]
 
     def insert_narrative_outbox(self, item):
         """Compatibility alias for Sprint 129 callers."""
@@ -4050,8 +4274,11 @@ class GhostNetworkRepository:
             clauses.append("source_scope = ?")
             params.append(_clean(source_scope))
         if source_event_id:
-            clauses.append("source_event_id = ?")
-            params.append(_clean(source_event_id))
+            clauses.append(
+                "(source_event_id = ? OR outbox_id IN ("
+                "SELECT outbox_id FROM ghost_narrative_task_sources WHERE source_event_id = ?))"
+            )
+            params.extend([_clean(source_event_id), _clean(source_event_id)])
         if source_receipt_id:
             clauses.append("source_receipt_id = ?")
             params.append(_clean(source_receipt_id))

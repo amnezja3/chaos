@@ -238,6 +238,130 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
             )
             self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
 
+    def test_stage_136_2_persisted_event_fans_out_safe_audience_projections(self):
+        cycle = self.cycles.ensure_active_cycle()["cycle"]
+        part = self.repo.list_parts(cycle["cycle_id"])[0]
+        event = self.repo.append_event(
+            "ghost.part_activated", cycle_id=cycle["cycle_id"],
+            part_id=part["part_id"], player_id="alice",
+            clan_code=part["clan_code"], audience_scope="clan",
+            audience_clan=part["clan_code"],
+            dedupe_key="test:136.2:audience",
+            payload={"status": "active", "player_id": "alice", "territory_clan": part["clan_code"]},
+        )
+
+        heavy_profile = {"username": "heavy", "blob": "x" * (35 * 1024 * 1024)}
+        with patch("database.UserStore.get_profile", return_value=heavy_profile) as read, \
+                patch("database.UserStore.list_profiles", return_value=[heavy_profile]) as scan:
+            first = self.service.narrative.publish_persisted_event(event["event_id"])
+        read.assert_not_called()
+        scan.assert_not_called()
+        identities = {
+            (task["audience_scope"], task["audience_clan"], task["audience_owner"])
+            for task in first["outbox"]
+        }
+        self.assertEqual(identities, {
+            ("public", "", ""),
+            ("clan", part["clan_code"], ""),
+            ("owner", "", "alice"),
+        })
+        self.assertEqual(
+            {task["target_medium"] for task in first["outbox"] if task["audience_scope"] == "public"},
+            {"blacknet", "googleplex_news"},
+        )
+        self.assertTrue(all(
+            task["target_medium"] == "blacknet"
+            for task in first["outbox"] if task["audience_scope"] != "public"
+        ))
+        public = next(task for task in first["outbox"] if task["audience_scope"] == "public")
+        clan = next(task for task in first["outbox"] if task["audience_scope"] == "clan")
+        owner = next(task for task in first["outbox"] if task["audience_scope"] == "owner")
+        self.assertNotIn(part["part_code"], dumps_json(public["facts"]))
+        self.assertNotIn("alice", dumps_json(public["facts"]))
+        self.assertEqual(clan["facts"][0]["target_clan"], part["clan_code"])
+        self.assertEqual(owner["facts"][0]["part_code"], part["part_code"])
+        self.assertEqual(len({public["narrative_thread_id"], clan["narrative_thread_id"], owner["narrative_thread_id"]}), 3)
+        self.assertEqual(public["next_attempt_at"], public["created_at"])
+
+        second = self.service.narrative.publish_persisted_event(event["event_id"])
+        self.assertEqual(
+            {task["outbox_id"] for task in first["outbox"]},
+            {task["outbox_id"] for task in second["outbox"]},
+        )
+        self.assertTrue(all(task.get("idempotent") for task in second["outbox"]))
+
+    def test_stage_136_2_low_events_share_one_delayed_aggregate(self):
+        created = self.service.ensure_active_cycle()
+        cycle_id = created["cycle"]["cycle_id"]
+        connection_events = [
+            event for event in self.repo.list_events(cycle_id, limit=1000)
+            if event["event_type"] == "ghost.connection_created"
+        ]
+        aggregates = [
+            task for task in self.repo.list_narrative_outbox(cycle_id=cycle_id, limit=1000)
+            if task["task_variant"] == "connection_created"
+        ]
+
+        self.assertEqual(len(connection_events), 20)
+        self.assertEqual(len(aggregates), 1)
+        aggregate = aggregates[0]
+        self.assertEqual(aggregate["facts"][0]["fact_type"], "connection_created_aggregate")
+        self.assertEqual(aggregate["facts"][0]["event_count"], 20)
+        self.assertEqual(len(self.repo.list_narrative_task_sources(aggregate["outbox_id"])), 20)
+        self.assertGreater(aggregate["next_attempt_at"], aggregate["created_at"])
+        for event in connection_events:
+            linked = self.repo.list_narrative_outbox(
+                source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+            )
+            self.assertEqual([task["outbox_id"] for task in linked], [aggregate["outbox_id"]])
+        metrics = self.repo.narrative_bridge_metrics(cycle_id)
+        self.assertEqual(metrics["aggregation_input"]["connection_created"], 20)
+        self.assertEqual(metrics["aggregation_output"]["connection_created"], 1)
+        self.assertGreater(metrics["bridge_latency_ms"]["samples"], 0)
+
+    def test_stage_136_2_thread_identity_contract(self):
+        publisher = self.service.narrative
+        cycle_id = "cycle-136-2"
+        self.assertEqual(
+            publisher._narrative_thread_id_for_audience(
+                {"event_type": "ghost.cycle_activated", "cycle_id": cycle_id},
+                {"scope": "public"},
+            ),
+            f"ghost-cycle:{cycle_id}",
+        )
+        self.assertEqual(
+            publisher._narrative_thread_id_for_audience(
+                {
+                    "event_type": "ghost.machine_progress_changed", "cycle_id": cycle_id,
+                    "entity_id": f"ghost-machine:{cycle_id}:virex_oracle",
+                    "payload": {"machine_code": "virex_oracle"},
+                },
+                {"scope": "clan", "clan": "virex"},
+            ),
+            f"ghost-machine:{cycle_id}:virex_oracle",
+        )
+        self.assertEqual(
+            publisher._narrative_thread_id_for_audience(
+                {
+                    "event_type": "ghost.part_conflict_resolved", "cycle_id": cycle_id,
+                    "part_id": "part-private", "payload": {"conflict_id": "conflict-136-2"},
+                },
+                {"scope": "owner", "owner": "alice"},
+            ),
+            "ghost-conflict:conflict-136-2",
+        )
+        public_part = publisher._narrative_thread_id_for_audience(
+            {"event_type": "ghost.part_activated", "cycle_id": cycle_id, "part_id": "part-private"},
+            {"scope": "public"},
+        )
+        owner_part = publisher._narrative_thread_id_for_audience(
+            {"event_type": "ghost.part_activated", "cycle_id": cycle_id, "part_id": "part-private"},
+            {"scope": "owner", "owner": "alice"},
+        )
+        self.assertNotEqual(public_part, owner_part)
+        self.assertNotIn("alice", owner_part)
+        self.assertNotIn("part-private", owner_part)
+
     def test_stage_136_does_not_touch_heavy_profiles(self):
         event = {"event_id": "event-heavy", "event_type": "ghost.cycle_activated",
                  "cycle_id": "cycle-heavy", "audience_scope": "public", "payload": {}}

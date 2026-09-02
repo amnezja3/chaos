@@ -2014,3 +2014,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Sprint 136.1 oraz Etap I mają status `COMPLETE — SERVER PASS`. Sprint 137 jest
   gotowy do rozpoczęcia; 138 pozostaje zależny od producer-backed candidates
   Sprintu 137.
+
+## 2026-09-02 — Sprint 136.2: audience projection i low-event aggregation
+
+- Wdrożono niezależne projekcje `public`, `clan` i `owner` rozwiązywane z
+  bounded canonical event data, bez profili i bez skanu kont.
+- Prywatne taski trafiają wyłącznie do audience-filtered BlackNetu; publiczne
+  zachowują pełny routing policy, w tym globalny slot Googleplex News.
+- Dodano stabilne thread identity dla cyklu, części, maszyny, konfliktu i
+  sygnału; prywatne identyfikatory części są hashowane.
+- Low-eventy `connection_created` i `machine_progress_changed` otrzymały
+  15-sekundowe okno agregacji w istniejącym outboxie. Nowe lekkie mapowanie
+  task-source zachowuje lineage wielu eventów do jednego taska.
+- Dodano bounded telemetry bridge'a i rozszerzono strict audit o oczekiwane
+  audience identities oraz aggregate source links.
+- Lokalnie: `253 GhostNetwork tests / PASS`, `59 downstream tests / PASS`,
+  heavy-profile guard bez odczytu. Status: `IMPLEMENTED LOCALLY — SERVER
+  VALIDATION REQUIRED`; bez commita, pushu, deployu i restartu PM2.

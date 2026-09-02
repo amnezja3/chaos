@@ -96,7 +96,7 @@ class GhostNetworkStrategicConflictTest(unittest.TestCase):
             {task["target_medium"] for task in tasks},
             set(GHOST_EVENT_POLICY["ghost.part_defended"]["target_media"]),
         )
-        self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
+        self.assertTrue(any(task["audience_scope"] == "public" for task in tasks))
 
     def test_minor_attack_is_audited_without_full_defense_reward(self):
         conflict = self._start_conflict(started_at="2026-07-19T11:00:00+00:00")

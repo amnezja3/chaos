@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `READY — SPRINT 136.1 SERVER PASS`
+Status: `BLOCKED — SPRINT 136.2 SERVER VALIDATION REQUIRED`
 
 ## Korekta po audycie Sprintu 136 — 2026-09-02
 
@@ -20,6 +20,10 @@ Remediacja 136.1 przeszła rewalidację serwerową. Historyczny osierocony event
 został naprawiony przez bounded recovery, nowy realny drop utworzył oba
 oczekiwane publiczne taski bezpośrednio w post-commit ingressie, a strict
 lineage audit zwrócił `ok=true`. Bramka wejściowa Sprintu 137 jest otwarta.
+
+Po rozpoczęciu 136.2 bramka została ponownie zamknięta wyłącznie na czas
+walidacji nowego audience fan-outu i agregacji low-eventów. 136.1 pozostaje
+`SERVER PASS`; 137 może ruszyć po serwerowym potwierdzeniu 136.2.
 
 ### Bramka wejściowa 136 -> 137
 

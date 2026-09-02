@@ -381,6 +381,12 @@ class GhostVisibilityService:
         event = event if isinstance(event, dict) else {}
         context = self.build_viewer_context(audience or {"audience_scope": "public"})
         owner_scope = context["audience_scope"] in {"internal", "owner"} or context["is_admin"]
+        target_clan = _clean(event.get("target_clan") or event.get("clan_code"))
+        clan_scope = (
+            context["audience_scope"] == "clan"
+            and bool(context.get("viewer_clan"))
+            and context["viewer_clan"] == target_clan
+        )
         fact = {
             "event_type": _clean(event.get("event_type") or event.get("type")),
             "territory_contains_part": bool(event.get("territory_contains_part")),
@@ -396,6 +402,13 @@ class GhostVisibilityService:
                 "part_code": _clean(event.get("part_code")) or None,
                 "part_name": _clean(event.get("part_name") or event.get("name")) or None,
                 "target_clan": _clean(event.get("target_clan") or event.get("clan_code")) or None,
+            })
+        elif clan_scope:
+            fact.update({
+                "part_identity": None,
+                "part_code": None,
+                "part_name": None,
+                "target_clan": target_clan or None,
             })
         else:
             fact.update({

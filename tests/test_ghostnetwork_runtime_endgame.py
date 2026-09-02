@@ -49,7 +49,7 @@ class GhostNetworkRuntimeEndgameTest(unittest.TestCase):
                     set(GHOST_EVENT_POLICY[event_type]["target_media"]),
                     event_type,
                 )
-                self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
+                self.assertTrue(any(task["audience_scope"] == "public" for task in tasks))
 
             second = run.maybe_finalize_ghostnetwork_cycle(service)
             self.assertEqual(second["status"], "not_ready")

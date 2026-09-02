@@ -1,6 +1,39 @@
 # Sprint 136 — GhostNetwork Domain Narrative Bridge
 
-Status: `ETAP I / 136.1 COMPLETE — SERVER PASS`
+Status: `136.1 SERVER PASS / 136.2 IMPLEMENTED LOCALLY — SERVER VALIDATION REQUIRED`
+
+## Sprint 136.2 — audience projection i kontrola szumu
+
+Etap II został wdrożony lokalnie bez zmiany mechaniki gry i bez tworzenia
+drugiej kolejki, workera lub publishera.
+
+- Persisted event rozwiązuje stabilny, bounded zestaw odbiorców wyłącznie z
+  canonical event fields i snapshotu payloadu: zawsze `public`, a gdy istnieją
+  uprawnione identyfikatory również `clan` i `owner`.
+- Publiczne facts pozostają zredagowane. Clan otrzymuje wyłącznie dozwolony
+  kontekst własnego klanu, a owner prywatną projekcję części. Resolver nie czyta
+  profili ani listy kont; test z profilem 35 MB potwierdza zero wywołań.
+- Public audience zachowuje media z event policy. Prywatne projekcje trafiają
+  wyłącznie do audience-filtered BlackNetu i nie konkurują z publicznym
+  contentem o globalny slot Googleplex News.
+- Thread identity jest stabilne dla cyklu, publicznej/prywatnej projekcji
+  części, maszyny, konfliktu i sygnału. Prywatny thread używa hasha i nie
+  ujawnia ownera ani surowego `part_id`.
+- `connection_created` oraz `machine_progress_changed` używają 15-sekundowego
+  okna. Pierwszy task jest opóźniony, kolejne eventy aktualizują ten sam ready
+  task; high/critical nadal mają `next_attempt_at=created_at`.
+- Lekka tabela `ghost_narrative_task_sources` mapuje wiele source eventów do
+  jednego canonical taska. Dzięki temu agregacja zachowuje pełny strict lineage
+  i exactly-once przy retry.
+- Bounded telemetry raportuje events seen/eligible/ignored, taski według
+  event/audience/medium, wejścia i wyjścia agregacji, dedupe, błędy oraz średnią
+  i maksymalną latencję bridge'a. Strict audit rozumie fan-out oraz agregaty.
+- Test agregacji składa 20 realnych `connection_created` w jeden task z 20
+  linkami source. Regresja: `253 GhostNetwork tests / PASS` oraz `59 downstream
+  worker/publication tests / PASS`.
+
+Wymagana jest walidacja serwerowa fan-outu, agregatu, strict audytu i braku
+ciężkiego profilu przed oznaczeniem 136.2 jako `COMPLETE`.
 
 ## Remediacja 136.1 — 2026-09-02
 

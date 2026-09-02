@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import time
 
 from .repository import (
     GhostNetworkRepository,
@@ -19,8 +21,9 @@ from .visibility import GhostVisibilityService, _public_entity_id
 CANON_VERSION = "ghostnetwork-narrative-v1"
 TRUTH_CLASSES = {"canonical", "interpretation", "rumor", "propaganda", "narrative_deception"}
 NARRATIVE_MEDIA = {"blacknet", "cyberner", "radio", "googleplex_news"}
-EVENT_POLICY_VERSION = "ghostnetwork-event-policy-v1"
+EVENT_POLICY_VERSION = "ghostnetwork-event-policy-v2"
 GHOST_EVENT_LINEAGE_EPOCH = "2026-09-02T00:00:00+00:00"
+LOW_EVENT_AGGREGATION_WINDOW_SECONDS = 15
 TECHNICAL_EVENT_TYPES = frozenset({
     "ghost.part_reserved", "ghost.part_reservation_attached",
     "ghost.part_reservation_released", "ghost.part_reservation_expired",
@@ -61,6 +64,11 @@ GHOST_EVENT_POLICY = {
     "ghost.stabilization_started": _event_policy("normal", 60, "ghost_cycle_state", "suite"),
     "ghost.cycle_activated": _event_policy("high", 85, "ghost_cycle_state", "suite"),
 }
+for _low_event_type in ("ghost.connection_created", "ghost.machine_progress_changed"):
+    GHOST_EVENT_POLICY[_low_event_type].update({
+        "aggregation_family": _low_event_type[6:],
+        "aggregation_window_seconds": LOW_EVENT_AGGREGATION_WINDOW_SECONDS,
+    })
 
 
 def resolve_ghost_event_policy(event_type):
@@ -157,23 +165,27 @@ class GhostNarrativePublisher:
         return self.publish_domain_event(event)
 
     def publish_domain_event(self, event):
+        started = time.perf_counter()
         event = event if isinstance(event, dict) else {}
         event_type = _clean(event.get("event_type"))
         if not event_type:
             return {"ok": False, "reason": "missing_event_type", "outbox": []}
 
+        self._metric(event, "events_seen")
         policy = resolve_ghost_event_policy(event_type)
         if not policy["eligible"]:
+            self._metric(event, f"events_ignored:{policy['reason']}")
             return {"ok": True, "reason": policy["reason"], "event_id": _clean(event.get("event_id")),
                     "event_type": event_type, "policy_version": policy["version"], "outbox": [], "errors": []}
-        audiences = self._audiences_for_event(event)
+        self._metric(event, "events_eligible")
+        audiences = self.resolve_event_audiences(event)
         outbox = []
         errors = []
         for audience in audiences:
             facts = self.build_facts(event, audience)
             if not facts:
                 continue
-            for medium in policy["target_media"]:
+            for medium in self.target_media_for_audience(policy, audience):
                 try:
                     if medium == "blacknet":
                         item = self.enqueue_blacknet(event, audience, facts)
@@ -186,8 +198,16 @@ class GhostNarrativePublisher:
                     else:
                         continue
                     outbox.append(item)
+                    self._metric(
+                        event,
+                        f"tasks:{event_type}:{audience['scope']}:{medium}",
+                    )
+                    if item.get("idempotent"):
+                        self._metric(event, "deduplicated_tasks")
                 except Exception as exc:  # narrative failures cannot rollback mechanics
                     errors.append({"medium": medium, "error": str(exc)})
+                    self._metric(event, "task_errors")
+        self._metric(event, "bridge_latency_ms", (time.perf_counter() - started) * 1000)
         return {
             "ok": not errors,
             "event_id": _clean(event.get("event_id")),
@@ -404,11 +424,11 @@ class GhostNarrativePublisher:
                  "fixed_action": fixed_action,
                  "allowed_asset_roles": ["neutral", "network"] if is_googleplex else [],
                  "priority": policy["priority"],
-                 "narrative_thread_id": self._narrative_thread_id(event),
+                 "narrative_thread_id": self._narrative_thread_id_for_audience(event, audience),
                  "status": status,
                  "validation": {**validation, "event_policy_version": policy["version"],
                                 "significance": policy["significance"],
-                                "narrative_thread_id": self._narrative_thread_id(event),
+                                "narrative_thread_id": self._narrative_thread_id_for_audience(event, audience),
                                 "profile_full_read": 0, "profile_full_write": 0,
                                 "profile_bytes": 0, "account_scan": 0,
                                 "all_user_profile_scan": 0, "per_recipient_profile_read": 0},
@@ -416,7 +436,95 @@ class GhostNarrativePublisher:
         task = assign_ollama_task_policy(task)
         task["dedupe_key"] = canonical_narrative_task_dedupe_key(task)
         task["outbox_id"] = _hash_id("narrative_task", task["dedupe_key"])
+        if policy.get("aggregation_family"):
+            return self._enqueue_low_event_aggregate(task, event)
         return self.repository.enqueue_narrative_task(task)
+
+    def _enqueue_low_event_aggregate(self, task, event):
+        policy = resolve_ghost_event_policy(event.get("event_type"))
+        family = _clean(policy.get("aggregation_family"))
+        window = max(1, int(policy.get("aggregation_window_seconds") or 15))
+        now = datetime.fromisoformat(self.repository.now().replace("Z", "+00:00"))
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        threshold = (now - timedelta(seconds=window)).astimezone(timezone.utc).isoformat()
+        release_at = (now + timedelta(seconds=window)).astimezone(timezone.utc).isoformat()
+        task["next_attempt_at"] = release_at
+        task["content_kind"] = "ghostnetwork_event_aggregate"
+        task["facts"] = self._aggregate_fact(task.get("facts"), family, 1)
+        task["validation"] = {
+            **(task.get("validation") or {}),
+            "aggregation_family": family,
+            "aggregation_input": 1,
+            "aggregation_output": 1,
+            "aggregation_window_seconds": window,
+        }
+        task["selected_source_version"] = self._facts_version(task["facts"])
+        self._metric(event, f"aggregation_input:{family}")
+
+        with self.repository.transaction():
+            existing_for_source = [
+                item for item in self.repository.list_narrative_outbox(
+                    source_scope="ghostnetwork",
+                    source_event_id=event.get("event_id"),
+                    limit=25,
+                )
+                if item.get("target_medium") == task.get("target_medium")
+                and item.get("audience_scope") == task.get("audience_scope")
+                and item.get("audience_clan") == task.get("audience_clan")
+                and item.get("audience_owner") == task.get("audience_owner")
+            ]
+            if existing_for_source:
+                result = existing_for_source[0]
+                result["idempotent"] = True
+                return result
+            aggregate = self.repository.find_open_narrative_aggregate(
+                cycle_id=task.get("cycle_id"), task_variant=task.get("task_variant"),
+                narrative_thread_id=task.get("narrative_thread_id"),
+                target_medium=task.get("target_medium"),
+                audience_scope=task.get("audience_scope"),
+                audience_clan=task.get("audience_clan"),
+                audience_owner=task.get("audience_owner"),
+                created_after=threshold,
+            )
+            if aggregate:
+                count = int((aggregate.get("validation") or {}).get("aggregation_input") or 1) + 1
+                facts = self._aggregate_fact(aggregate.get("facts"), family, count, event=event)
+                validation = {
+                    **(aggregate.get("validation") or {}),
+                    "aggregation_input": count,
+                    "aggregation_output": 1,
+                }
+                merged = self.repository.merge_narrative_aggregate(
+                    aggregate["outbox_id"], event.get("event_id"),
+                    facts=facts, validation=validation,
+                    world_state_version=str(_safe_int(event.get("state_version"))),
+                    selected_source_version=self._facts_version(facts),
+                )
+                if merged:
+                    merged["aggregated"] = True
+                    return merged
+            self._metric(event, f"aggregation_output:{family}")
+            return self.repository.enqueue_narrative_task(task)
+
+    @staticmethod
+    def _aggregate_fact(facts, family, count, event=None):
+        fact = deepcopy((facts or [{}])[0])
+        fact["fact_type"] = f"{family}_aggregate"
+        fact["aggregation_family"] = family
+        fact["event_count"] = max(1, int(count or 1))
+        fact.setdefault("first_state_version", _safe_int(fact.get("state_version")))
+        if event:
+            fact["last_state_version"] = _safe_int(event.get("state_version"))
+        else:
+            fact["last_state_version"] = _safe_int(fact.get("state_version"))
+        return [fact]
+
+    @staticmethod
+    def _facts_version(facts):
+        return hashlib.sha1(json.dumps(
+            facts or [], ensure_ascii=True, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()[:16]
 
     def _validate_publication(self, event, audience, facts, medium):
         errors = []
@@ -504,13 +612,22 @@ class GhostNarrativePublisher:
         public_entity_id = _clean(event.get("public_entity_id"))
         if not public_entity_id and part_id:
             public_entity_id = _public_entity_id(event.get("cycle_id"), part_id)
+        part = self.repository.get_part(part_id) if part_id else None
         projected = self.visibility.project_event_fact_for_audience({
             "event_type": event.get("event_type"), "public_entity_id": public_entity_id,
             "territory_contains_part": payload.get("territory_contains_part"),
             "previous_status": payload.get("previous_status"), "status": payload.get("status"),
             "previous_conflict_state": payload.get("previous_conflict_state"),
             "conflict_state": payload.get("conflict_state"),
-        }, {"audience_scope": _clean(audience.get("scope"), "public")})
+            "owner_clan": (part or {}).get("clan_code") or payload.get("territory_clan"),
+            "part_code": (part or {}).get("part_code"),
+            "part_name": (part or {}).get("part_name"),
+            "target_clan": payload.get("territory_clan") or event.get("clan_code"),
+        }, {
+            "audience_scope": _clean(audience.get("scope"), "public"),
+            "viewer_id": _clean(audience.get("owner")),
+            "viewer_clan": _clean(audience.get("clan")),
+        })
         fact = {
             "fact_id": f"ghost_fact:{event_id}:{kind}:{_clean(audience.get('scope'), 'public')}",
             "event_id": event_id,
@@ -549,15 +666,33 @@ class GhostNarrativePublisher:
         return actions
 
     def _narrative_thread_id(self, event):
+        return self._narrative_thread_id_for_audience(event, {"scope": "public"})
+
+    def _narrative_thread_id_for_audience(self, event, audience):
         kind = _event_kind(event.get("event_type"))
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        conflict_id = _clean(payload.get("conflict_id"))
+        if conflict_id and kind in {
+            "part_contested", "part_conflict_resolved", "part_defended", "part_recovered",
+        }:
+            return f"ghost-conflict:{conflict_id}"
         if kind == "signal_sent":
             return f"ghost-signal:{self._resolve_signal_id(event)}"
         if kind.startswith("part_"):
             public_id = _clean(event.get("public_entity_id")) or _public_entity_id(event.get("cycle_id"), event.get("part_id"))
-            return f"ghost-part:{public_id}"
+            scope = _clean(audience.get("scope"), "public")
+            if scope == "public":
+                return f"ghost-part:{public_id}"
+            private_id = _hash_id(
+                "ghost-part-projection", event.get("cycle_id"), event.get("part_id"),
+                scope, audience.get("clan"), audience.get("owner"),
+            )
+            return f"ghost-part:{private_id}"
         if kind.startswith("machine_"):
-            machine_ref = _hash_id("machine", event.get("cycle_id"), event.get("entity_id"))
-            return f"ghost-machine:{_clean(event.get('cycle_id'))}:{machine_ref}"
+            machine_code = _clean(payload.get("machine_code"))
+            if not machine_code:
+                machine_code = _clean(event.get("entity_id")).split(":")[-1]
+            return f"ghost-machine:{_clean(event.get('cycle_id'))}:{machine_code}"
         return f"ghost-cycle:{_clean(event.get('cycle_id'))}"
 
     def _truth_class_for_facts(self, facts):
@@ -579,8 +714,46 @@ class GhostNarrativePublisher:
         return _clean(payload.get("signal_id") or event.get("signal_id") or event.get("entity_id"))
 
     def _audiences_for_event(self, event):
-        # Sprint 136 Etap I is a public narrative bridge. The domain event's
-        # audience describes its gameplay/delta transport and may legitimately
-        # be player, owner, clan or system. Narrative publication independently
-        # builds a redacted public visibility projection for allowlisted events.
-        return [{"scope": "public", "clan": "", "owner": ""}]
+        audiences = [{"scope": "public", "clan": "", "owner": ""}]
+        canonical = self.repository.get_event(event.get("event_id"))
+        if not canonical:
+            return audiences
+        payload = canonical.get("payload") if isinstance(canonical.get("payload"), dict) else {}
+        clans = {
+            _clean(value) for value in (
+                canonical.get("audience_clan"), canonical.get("clan_code"),
+                payload.get("player_clan"), payload.get("territory_clan"),
+                payload.get("previous_clan"), payload.get("new_clan"),
+            ) if _clean(value)
+        }
+        owners = {
+            _clean(value) for value in (
+                canonical.get("player_id"), payload.get("player_id"),
+                payload.get("territory_owner_id"), payload.get("previous_owner"),
+                payload.get("new_owner"),
+            ) if _clean(value)
+        }
+        audiences.extend({"scope": "clan", "clan": clan, "owner": ""} for clan in sorted(clans)[:3])
+        audiences.extend({"scope": "owner", "clan": "", "owner": owner} for owner in sorted(owners)[:3])
+        return audiences
+
+    def resolve_event_audiences(self, event):
+        return self._audiences_for_event(event)
+
+    @staticmethod
+    def target_media_for_audience(policy, audience):
+        media = tuple((policy or {}).get("target_media") or ())
+        if _clean((audience or {}).get("scope"), "public") == "public":
+            return media
+        # Private projections stay in the audience-filtered BlackNet surface.
+        # They must never compete with public content for the global GGPL slot.
+        return tuple(item for item in media if item == "blacknet")
+
+    def _metric(self, event, metric_key, value=0):
+        try:
+            self.repository.record_narrative_bridge_metric(
+                metric_key, _clean((event or {}).get("cycle_id")), value,
+            )
+        except Exception:
+            return False
+        return True
