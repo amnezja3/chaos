@@ -384,11 +384,15 @@ class GhostVisibilityService:
         fact = {
             "event_type": _clean(event.get("event_type") or event.get("type")),
             "territory_contains_part": bool(event.get("territory_contains_part")),
-            "owner_clan": _clean(event.get("owner_clan") or event.get("territory_clan")) or None,
             "public_entity_id": _clean(event.get("public_entity_id")) or None,
+            "previous_status": _clean(event.get("previous_status")) or None,
+            "status": _clean(event.get("status")) or None,
+            "previous_conflict_state": _clean(event.get("previous_conflict_state")) or None,
+            "conflict_state": _clean(event.get("conflict_state")) or None,
         }
         if owner_scope:
             fact.update({
+                "owner_clan": _clean(event.get("owner_clan") or event.get("territory_clan")) or None,
                 "part_code": _clean(event.get("part_code")) or None,
                 "part_name": _clean(event.get("part_name") or event.get("name")) or None,
                 "target_clan": _clean(event.get("target_clan") or event.get("clan_code")) or None,

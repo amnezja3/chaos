@@ -92,9 +92,9 @@ class LlmEventProducerTest(unittest.TestCase):
         first = self.service.publish_narrative_event(event)
         second = self.service.publish_narrative_event(event)
         self.assertTrue(first["ok"])
-        self.assertEqual(len(first["outbox"]), 1)
-        self.assertTrue(second["outbox"][0]["idempotent"])
-        task = first["outbox"][0]
+        self.assertEqual(len(first["outbox"]), 2)
+        self.assertTrue(all(item["idempotent"] for item in second["outbox"]))
+        task = next(item for item in first["outbox"] if item["target_medium"] == "blacknet")
         encoded = json.dumps(task["facts"])
         self.assertNotIn("internal-secret-part-id", encoded)
         self.assertIn("ghost-node:", encoded)

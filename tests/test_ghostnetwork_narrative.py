@@ -1,10 +1,15 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from database import dumps_json
 from ghostnetwork import GhostCycleService, GhostNetworkRepository, GhostNetworkService
 from ghostnetwork.closure import GhostNetworkClosureService
+from ghostnetwork.narrative import (
+    EVENT_POLICY_VERSION, GHOST_EVENT_POLICY, TECHNICAL_EVENT_TYPES,
+    resolve_ghost_event_policy,
+)
 
 
 class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
@@ -77,12 +82,12 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
 
         signal_id = result["signal"]["signal_id"]
         outbox = self.repo.list_narrative_outbox(signal_id=signal_id, limit=20)
-        self.assertEqual({item["target_medium"] for item in outbox}, {"blacknet", "cyberner", "radio"})
+        self.assertEqual({item["target_medium"] for item in outbox}, {"blacknet", "cyberner", "radio", "googleplex_news"})
         self.assertTrue(all(item["status"] == "ready" for item in outbox))
         self.assertTrue(all(item["truth_class"] == "canonical" for item in outbox))
         self.assertTrue(all(item["processor"] == "ollama" for item in outbox))
         self.assertTrue(all(item["schema_version"] == "ghost-narrative-task-v1" for item in outbox))
-        self.assertEqual(len({item["dedupe_key"] for item in outbox}), 3)
+        self.assertEqual(len({item["dedupe_key"] for item in outbox}), 4)
 
         for item in outbox:
             self.assertEqual(item["cycle_id"], cycle["cycle_id"])
@@ -146,6 +151,82 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
         self.assertFalse(invalid["ok"])
         self.assertIn("unknown_fact_ref", invalid["errors"])
         self.assertIn("cta_not_allowed", invalid["errors"])
+
+    def test_stage_136_event_policy_is_explicit_and_versioned(self):
+        expected = {
+            "ghost.part_discovered", "ghost.part_contained", "ghost.part_revealed",
+            "ghost.part_activated", "ghost.part_deactivated", "ghost.part_defended",
+            "ghost.part_recovered", "ghost.part_contested", "ghost.part_conflict_resolved",
+            "ghost.connection_created", "ghost.machine_progress_changed", "ghost.machine_online",
+            "ghost.machine_offline", "ghost.cycle_locked", "ghost.signal_sent",
+            "ghost.version_changed", "ghost.stabilization_started", "ghost.cycle_activated",
+        }
+        self.assertEqual(set(GHOST_EVENT_POLICY), expected)
+        for event_type in expected:
+            policy = resolve_ghost_event_policy(event_type)
+            self.assertTrue(policy["eligible"])
+            self.assertEqual(policy["version"], EVENT_POLICY_VERSION)
+            self.assertIn("blacknet", policy["target_media"])
+            self.assertTrue(policy["narrative_intent"])
+            self.assertGreater(policy["priority"], 0)
+        self.assertFalse(resolve_ghost_event_policy("ghost.connection_completed")["eligible"])
+        self.assertFalse(resolve_ghost_event_policy("ghost.unknown")["eligible"])
+        for event_type in TECHNICAL_EVENT_TYPES:
+            self.assertEqual(resolve_ghost_event_policy(event_type)["reason"], "technical")
+
+    def test_stage_136_public_projection_routing_cta_and_metadata(self):
+        event = {
+            "event_id": "event-stage-136", "event_type": "ghost.part_recovered",
+            "cycle_id": "cycle-136", "part_id": "raw-part-secret",
+            "entity_id": "raw-entity-secret", "player_id": "private-owner",
+            "audience_scope": "public", "state_version": 12,
+            "payload": {"status": "active", "profession": "forbidden",
+                        "ability": "forbidden", "territory_owner_id": "private-owner"},
+        }
+        result = self.service.publish_narrative_event(event)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual({item["target_medium"] for item in result["outbox"]},
+                         {"blacknet", "googleplex_news"})
+        encoded = dumps_json(result["outbox"])
+        for secret in ("raw-part-secret", "raw-entity-secret", "private-owner", "profession", "ability"):
+            self.assertNotIn(secret, encoded)
+        for task in result["outbox"]:
+            self.assertEqual(task["narrative_intent"], "ghost_part_recovery")
+            self.assertEqual(task["priority"], 85)
+            self.assertTrue(task["selected_source_ref"])
+            self.assertTrue(task["selected_source_version"])
+            self.assertTrue(task["narrative_thread_id"].startswith("ghost-part:ghost-node:"))
+            self.assertEqual(task["fixed_action"]["cta_action"], "show_ghostnetwork_part")
+            self.assertTrue(all(task["validation"][key] == 0 for key in (
+                "profile_full_read", "profile_full_write", "profile_bytes", "account_scan",
+                "all_user_profile_scan", "per_recipient_profile_read")))
+        news = next(item for item in result["outbox"] if item["target_medium"] == "googleplex_news")
+        self.assertEqual(news["presentation_slot"], "gp-home-world-grid")
+        self.assertEqual(news["task_variant"], "googleplex_world_dispatch")
+
+    def test_stage_136_connection_cycle_and_ignored_events(self):
+        base = {"cycle_id": "cycle-136", "audience_scope": "public", "payload": {}}
+        for index, event_type in enumerate(("ghost.connection_created", "ghost.cycle_activated")):
+            result = self.service.publish_narrative_event({
+                **base, "event_id": f"event-{index}", "event_type": event_type,
+            })
+            self.assertTrue(result["outbox"])
+        for index, event_type in enumerate(("ghost.connection_completed", "ghost.part_updated", "ghost.unknown")):
+            result = self.service.publish_narrative_event({
+                **base, "event_id": f"ignored-{index}", "event_type": event_type,
+            })
+            self.assertEqual(result["outbox"], [])
+
+    def test_stage_136_does_not_touch_heavy_profiles(self):
+        event = {"event_id": "event-heavy", "event_type": "ghost.cycle_activated",
+                 "cycle_id": "cycle-heavy", "audience_scope": "public", "payload": {}}
+        heavy_profile = {"username": "heavy", "blob": "x" * (35 * 1024 * 1024)}
+        with patch("database.UserStore.get_profile", return_value=heavy_profile) as read, \
+                patch("database.UserStore.list_profiles", return_value=[heavy_profile]) as scan:
+            result = self.service.publish_narrative_event(event)
+        self.assertTrue(result["outbox"])
+        read.assert_not_called()
+        scan.assert_not_called()
 
 
 if __name__ == "__main__":

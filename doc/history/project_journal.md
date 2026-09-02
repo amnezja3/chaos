@@ -1961,3 +1961,21 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `137 READY — AFTER 136`, `138 READY — AFTER 137`.
 - Rewizja była dokumentacyjna; bez zmian runtime, bazy, deployu, restartu PM2,
   commita i pushu.
+
+## 2026-09-02 — Sprint 136 Etap I: public event bridge
+
+- W istniejącym `GhostNarrativePublisher` wdrożono wersjonowaną, code-owned
+  politykę 18 publicznych eventów wraz z significance, priority, intentem,
+  routingiem i CTA. Eventy techniczne, nieznane oraz błędny historyczny alias
+  `connection_completed` kończą się jako ignored bez taska.
+- Zastąpiono bezpośrednie składanie generic fact bounded projekcją visibility.
+  Test regresyjny wykrył i zamknął przeciek `entity_id` przez pole `signal_id`.
+- Eligible eventy trafiają do BlackNetu, a high/critical także do istniejącego
+  slotu Googleplex `gp-home-world-grid` z CAS i istniejącym promptem; bez nowej
+  powierzchni, kolejki, workera lub publishera.
+- Canonical task przechowuje backend-owned CTA, intent, priority, content kind,
+  selected source ref/version oraz stabilny narrative thread ID. Migracja jest
+  addytywna i nie czyta ani nie zapisuje profili graczy.
+- Baseline po zmianie: 35 testów PASS. Commit, push, deploy i restart PM2 nie
+  zostały wykonane. Etap I oczekuje na pełną regresję lokalną i walidację
+  serwerową.

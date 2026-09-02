@@ -1,6 +1,26 @@
 # Sprint 136 — GhostNetwork Domain Narrative Bridge
 
-Status: `READY FOR IMPLEMENTATION — ETAP I NEXT`
+Status: `ETAP I IMPLEMENTED LOCALLY — SERVER VALIDATION PENDING`
+
+## Implementacja Etapu I — 2026-09-02
+
+- Dodano jedną wersjonowaną `ghostnetwork-event-policy-v1` z jawną allowlistą,
+  listą eventów technicznych, significance, priority, narrative intent, mediami
+  i rodziną CTA. Nieznane eventy oraz historyczny `connection_completed` są
+  kontrolowanie ignorowane.
+- Publiczne facts przechodzą przez bounded `GhostVisibilityService`; surowe
+  `part_id`, `entity_id`, profesja, ability i prywatny owner nie trafiają do
+  taska. Naprawiono również helper `signal_id`, aby dla eventów części nie
+  kopiował `entity_id` do metadanych outboxa.
+- Każdy eligible event trafia do BlackNetu. High/critical otrzymuje drugi task
+  dla istniejącego `gp-home-world-grid` z CAS `expected_slot_version`, jednym
+  backend-selected source i istniejącą polityką `googleplex_world_dispatch`.
+- Task zapisuje backend-owned CTA/fixed action, priority, intent, content kind,
+  source ref/version oraz stabilny `narrative_thread_id`. Dodano lekką kolumnę
+  thread ID do canonical outboxa; bez nowej tabeli, kolejki lub procesu.
+- Lokalny baseline rozszerzony z 31 do 35 testów przechodzi. Walidacja
+  produkcyjna, strict cutover audit i heavy-profile soak pozostają wymagane
+  przed uznaniem Etapu I za potwierdzony produkcyjnie.
 
 ## Kontekst po Sprincie 135.6
 

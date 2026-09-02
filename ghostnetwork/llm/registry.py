@@ -52,11 +52,11 @@ GHOSTNETWORK_BLACKNET_VARIANTS = frozenset({
     "part_discovered", "part_contained", "part_activated", "part_contested",
     "part_conflict_resolved", "part_deactivated", "part_revealed",
     "part_recovered", "part_defended", "machine_online", "machine_offline",
-    "machine_progress_changed", "connection_completed", "cycle_locked",
-    "version_changed", "stabilization_started", "signal_sent",
+    "machine_progress_changed", "connection_created", "cycle_locked",
+    "version_changed", "stabilization_started", "cycle_activated", "signal_sent",
 })
 GHOSTNETWORK_CYBERNER_VARIANTS = frozenset({
-    "part_discovered", "machine_online", "connection_completed", "cycle_locked",
+    "part_discovered", "machine_online", "connection_created", "cycle_locked",
     "signal_sent",
 })
 
@@ -88,6 +88,11 @@ def _build_registry():
     ))
     policies.append(_policy(
         "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
+        "googleplex-world-hero-prompt-v14", Path("googleplex") / "world-hero-v14.md",
+        ASSET_OUTPUT_SCHEMA_VERSION,
+    ))
+    policies.append(_policy(
+        "ghostnetwork", "googleplex_world_dispatch", "googleplex_news",
         "googleplex-world-hero-prompt-v14", Path("googleplex") / "world-hero-v14.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))

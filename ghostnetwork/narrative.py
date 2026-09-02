@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
+import json
 
 from .repository import (
     GhostNetworkRepository,
@@ -11,12 +13,63 @@ from .repository import (
     canonical_narrative_task_dedupe_key,
 )
 from .ollama_policy import assign_ollama_task_policy
-from .visibility import _public_entity_id
+from .visibility import GhostVisibilityService, _public_entity_id
 
 
 CANON_VERSION = "ghostnetwork-narrative-v1"
 TRUTH_CLASSES = {"canonical", "interpretation", "rumor", "propaganda", "narrative_deception"}
-NARRATIVE_MEDIA = {"blacknet", "cyberner", "radio"}
+NARRATIVE_MEDIA = {"blacknet", "cyberner", "radio", "googleplex_news"}
+EVENT_POLICY_VERSION = "ghostnetwork-event-policy-v1"
+TECHNICAL_EVENT_TYPES = frozenset({
+    "ghost.part_reserved", "ghost.part_reservation_attached",
+    "ghost.part_reservation_released", "ghost.part_reservation_expired",
+    "ghost.part_updated", "ghost.part_consumed", "ghost.reward_pending",
+    "ghost.delta_published", "ghost.health_check_completed",
+    "ghost.cycle_status_changed",
+})
+
+
+def _event_policy(significance, priority, intent, cta_family, *extra_media):
+    media = ("blacknet", *extra_media)
+    if significance in {"high", "critical"}:
+        media = (*media, "googleplex_news")
+    return {
+        "eligible": True, "significance": significance, "priority": priority,
+        "narrative_intent": intent, "target_media": media,
+        "cta_family": cta_family, "content_kind": "ghostnetwork_event",
+    }
+
+
+GHOST_EVENT_POLICY = {
+    "ghost.part_discovered": _event_policy("high", 80, "ghost_part_discovery", "part"),
+    "ghost.part_contained": _event_policy("normal", 50, "ghost_part_containment", "territory"),
+    "ghost.part_revealed": _event_policy("normal", 55, "ghost_part_discovery", "part"),
+    "ghost.part_activated": _event_policy("high", 80, "ghost_part_activation", "part"),
+    "ghost.part_deactivated": _event_policy("normal", 50, "ghost_part_activation", "territory"),
+    "ghost.part_defended": _event_policy("high", 75, "ghost_part_conflict", "part"),
+    "ghost.part_recovered": _event_policy("high", 85, "ghost_part_recovery", "part"),
+    "ghost.part_contested": _event_policy("high", 85, "ghost_part_conflict", "part"),
+    "ghost.part_conflict_resolved": _event_policy("high", 90, "ghost_part_conflict", "part"),
+    "ghost.connection_created": _event_policy("low", 20, "ghost_machine_progress", "suite"),
+    "ghost.machine_progress_changed": _event_policy("low", 20, "ghost_machine_progress", "suite"),
+    "ghost.machine_online": _event_policy("high", 85, "ghost_machine_state", "suite", "cyberner"),
+    "ghost.machine_offline": _event_policy("normal", 55, "ghost_machine_state", "suite"),
+    "ghost.cycle_locked": _event_policy("critical", 100, "ghost_cycle_state", "suite", "cyberner"),
+    "ghost.signal_sent": _event_policy("critical", 100, "ghost_signal_transmission", "signal", "cyberner", "radio"),
+    "ghost.version_changed": _event_policy("critical", 100, "ghost_system_transition", "suite"),
+    "ghost.stabilization_started": _event_policy("normal", 60, "ghost_cycle_state", "suite"),
+    "ghost.cycle_activated": _event_policy("high", 85, "ghost_cycle_state", "suite"),
+}
+
+
+def resolve_ghost_event_policy(event_type):
+    event_type = _clean(event_type)
+    policy = GHOST_EVENT_POLICY.get(event_type)
+    if policy:
+        return {"version": EVENT_POLICY_VERSION, "event_type": event_type, **policy}
+    reason = "technical" if event_type in TECHNICAL_EVENT_TYPES else "unsupported"
+    return {"version": EVENT_POLICY_VERSION, "event_type": event_type,
+            "eligible": False, "reason": reason, "target_media": ()}
 ALLOWED_CTA_ACTIONS = {
     "show_ghostnetwork_part",
     "show_ghostnetwork_node",
@@ -76,6 +129,7 @@ class GhostNarrativePublisher:
     def __init__(self, repository=None, canon_version=CANON_VERSION):
         self.repository = repository or GhostNetworkRepository()
         self.canon_version = canon_version
+        self.visibility = GhostVisibilityService(repository=self.repository)
 
     def publish_signal_transmission(self, signal_id):
         signal = self.repository.get_signal(signal_id)
@@ -107,6 +161,10 @@ class GhostNarrativePublisher:
         if not event_type:
             return {"ok": False, "reason": "missing_event_type", "outbox": []}
 
+        policy = resolve_ghost_event_policy(event_type)
+        if not policy["eligible"]:
+            return {"ok": True, "reason": policy["reason"], "event_id": _clean(event.get("event_id")),
+                    "event_type": event_type, "policy_version": policy["version"], "outbox": [], "errors": []}
         audiences = self._audiences_for_event(event)
         outbox = []
         errors = []
@@ -114,7 +172,7 @@ class GhostNarrativePublisher:
             facts = self.build_facts(event, audience)
             if not facts:
                 continue
-            for medium in self._media_for_event(event, audience):
+            for medium in policy["target_media"]:
                 try:
                     if medium == "blacknet":
                         item = self.enqueue_blacknet(event, audience, facts)
@@ -122,6 +180,8 @@ class GhostNarrativePublisher:
                         item = self.enqueue_cyberner(event, audience, facts)
                     elif medium == "radio":
                         item = self.enqueue_radio(event, audience, facts)
+                    elif medium == "googleplex_news":
+                        item = self._enqueue(event, audience, facts, medium)
                     else:
                         continue
                     outbox.append(item)
@@ -131,6 +191,7 @@ class GhostNarrativePublisher:
             "ok": not errors,
             "event_id": _clean(event.get("event_id")),
             "event_type": event_type,
+            "policy_version": policy["version"],
             "outbox": outbox,
             "errors": errors,
         }
@@ -139,6 +200,9 @@ class GhostNarrativePublisher:
         event = event if isinstance(event, dict) else {}
         audience = audience if isinstance(audience, dict) else {}
         event_type = _clean(event.get("event_type"))
+        policy = resolve_ghost_event_policy(event_type)
+        if not policy["eligible"]:
+            return []
         kind = _event_kind(event_type)
         if kind == "signal_sent":
             return self._signal_sent_facts(event, audience)
@@ -155,10 +219,11 @@ class GhostNarrativePublisher:
             "machine_online",
             "machine_offline",
             "machine_progress_changed",
-            "connection_completed",
+            "connection_created",
             "cycle_locked",
             "version_changed",
             "stabilization_started",
+            "cycle_activated",
         }:
             return [self._generic_domain_fact(event, audience)]
         return []
@@ -248,6 +313,14 @@ class GhostNarrativePublisher:
         signal_id = self._resolve_signal_id(event)
         audience_scope = _clean(audience.get("scope"), "public")
         audience_clan = _clean(audience.get("clan"))
+        policy = resolve_ghost_event_policy(event.get("event_type"))
+        source_ref = _clean(facts[0].get("fact_id")) if facts else ""
+        source_version = hashlib.sha1(json.dumps(
+            facts, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()[:16]
+        fixed_action = self._allowed_actions_for_event(event, medium)[0]
+        is_googleplex = medium == "googleplex_news"
+        slot_state = self.repository.get_narrative_slot_state(medium, "gp-home-world-grid") if is_googleplex else None
         task = {
                 "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
                 "event_id": event_id,
@@ -263,16 +336,31 @@ class GhostNarrativePublisher:
                 "truth_class": self._truth_class_for_facts(facts),
                 "truth_class_policy": self._truth_class_for_facts(facts),
                 "facts": facts,
-                "allowed_actions": self._allowed_actions_for_event(event, medium),
+                 "allowed_actions": [fixed_action],
                 "canon_version": self.canon_version,
                 "ghostsystem_version": self._ghostsystem_version_for_event(event),
                 "world_state_version": str(_safe_int(event.get("state_version"))),
                 "prompt_version": "unassigned",
                 "output_schema_version": "unassigned",
                 "model_policy_version": "unassigned",
-                "task_variant": _event_kind(event.get("event_type")) or "default",
-                "status": status,
-                "validation": validation,
+                 "task_variant": "googleplex_world_dispatch" if is_googleplex else (_event_kind(event.get("event_type")) or "default"),
+                 "narrative_intent": policy["narrative_intent"],
+                 "content_kind": "world_dispatch" if is_googleplex else policy["content_kind"],
+                 "presentation_slot": "gp-home-world-grid" if is_googleplex else "",
+                 "selected_source_ref": source_ref,
+                 "selected_source_version": source_version,
+                 "expected_slot_version": int((slot_state or {}).get("version") or 0),
+                 "fixed_action": fixed_action,
+                 "allowed_asset_roles": ["neutral", "network"] if is_googleplex else [],
+                 "priority": policy["priority"],
+                 "narrative_thread_id": self._narrative_thread_id(event),
+                 "status": status,
+                 "validation": {**validation, "event_policy_version": policy["version"],
+                                "significance": policy["significance"],
+                                "narrative_thread_id": self._narrative_thread_id(event),
+                                "profile_full_read": 0, "profile_full_write": 0,
+                                "profile_bytes": 0, "account_scan": 0,
+                                "all_user_profile_scan": 0, "per_recipient_profile_read": 0},
             }
         task = assign_ollama_task_policy(task)
         task["dedupe_key"] = canonical_narrative_task_dedupe_key(task)
@@ -365,6 +453,13 @@ class GhostNarrativePublisher:
         public_entity_id = _clean(event.get("public_entity_id"))
         if not public_entity_id and part_id:
             public_entity_id = _public_entity_id(event.get("cycle_id"), part_id)
+        projected = self.visibility.project_event_fact_for_audience({
+            "event_type": event.get("event_type"), "public_entity_id": public_entity_id,
+            "territory_contains_part": payload.get("territory_contains_part"),
+            "previous_status": payload.get("previous_status"), "status": payload.get("status"),
+            "previous_conflict_state": payload.get("previous_conflict_state"),
+            "conflict_state": payload.get("conflict_state"),
+        }, {"audience_scope": _clean(audience.get("scope"), "public")})
         fact = {
             "fact_id": f"ghost_fact:{event_id}:{kind}:{_clean(audience.get('scope'), 'public')}",
             "event_id": event_id,
@@ -372,26 +467,25 @@ class GhostNarrativePublisher:
             "audience_scope": _clean(audience.get("scope"), "public"),
             "truth_class": "canonical",
             "fact_type": kind,
-            "public_entity_id": public_entity_id or None,
             "state_version": _safe_int(event.get("state_version")),
-            "previous_status": _clean(payload.get("previous_status")) or None,
-            "status": _clean(payload.get("status")) or None,
-            "previous_conflict_state": _clean(payload.get("previous_conflict_state")) or None,
-            "conflict_state": _clean(payload.get("conflict_state")) or None,
+            **projected,
         }
         return fact
 
     def _allowed_actions_for_event(self, event, medium):
         kind = _event_kind(event.get("event_type"))
+        policy = resolve_ghost_event_policy(event.get("event_type"))
+        family = policy.get("cta_family")
+        public_id = _clean(event.get("public_entity_id")) or (
+            _public_entity_id(event.get("cycle_id"), event.get("part_id")) if event.get("part_id") else ""
+        )
+        if family == "part" and public_id:
+            return [{"cta_action": "show_ghostnetwork_part", "payload": {"public_entity_id": public_id}}]
+        if family == "territory":
+            return [{"cta_action": "show_ghostnetwork_territory", "payload": {"public_entity_id": public_id}}]
         actions = []
         if kind == "signal_sent":
-            actions.extend(
-                [
-                    {"cta_action": "open_ghostnetwork_suite", "payload": {"cycle_id": _clean(event.get("cycle_id"))}},
-                    {"cta_action": "open_ghostsignal_archive", "payload": {"signal_id": self._resolve_signal_id(event)}},
-                    {"cta_action": "open_cyberner_channel", "payload": {"channel": "world"}},
-                ]
-            )
+            actions.append({"cta_action": "open_ghostsignal_archive", "payload": {"signal_id": self._resolve_signal_id(event)}})
             if medium == "radio":
                 actions.append(
                     {
@@ -402,6 +496,18 @@ class GhostNarrativePublisher:
         else:
             actions.append({"cta_action": "open_ghostnetwork_suite", "payload": {"cycle_id": _clean(event.get("cycle_id"))}})
         return actions
+
+    def _narrative_thread_id(self, event):
+        kind = _event_kind(event.get("event_type"))
+        if kind == "signal_sent":
+            return f"ghost-signal:{self._resolve_signal_id(event)}"
+        if kind.startswith("part_"):
+            public_id = _clean(event.get("public_entity_id")) or _public_entity_id(event.get("cycle_id"), event.get("part_id"))
+            return f"ghost-part:{public_id}"
+        if kind.startswith("machine_"):
+            machine_ref = _hash_id("machine", event.get("cycle_id"), event.get("entity_id"))
+            return f"ghost-machine:{_clean(event.get('cycle_id'))}:{machine_ref}"
+        return f"ghost-cycle:{_clean(event.get('cycle_id'))}"
 
     def _truth_class_for_facts(self, facts):
         classes = [_clean(fact.get("truth_class")) for fact in facts if isinstance(fact, dict)]
@@ -416,6 +522,8 @@ class GhostNarrativePublisher:
         return str(_safe_int((cycle or {}).get("ghostsystem_version")))
 
     def _resolve_signal_id(self, event):
+        if _event_kind(event.get("event_type")) != "signal_sent":
+            return ""
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         return _clean(payload.get("signal_id") or event.get("signal_id") or event.get("entity_id"))
 
@@ -443,11 +551,3 @@ class GhostNarrativePublisher:
             )
             return [{"scope": "owner", "clan": "", "owner": owner}] if owner else []
         return []
-
-    def _media_for_event(self, event, audience):
-        kind = _event_kind(event.get("event_type"))
-        if kind == "signal_sent":
-            return ["blacknet", "cyberner", "radio"]
-        if kind in {"cycle_locked", "connection_completed", "part_discovered", "machine_online"}:
-            return ["blacknet", "cyberner"]
-        return ["blacknet"]
