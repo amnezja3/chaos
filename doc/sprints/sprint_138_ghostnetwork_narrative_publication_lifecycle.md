@@ -1,6 +1,53 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `READY — AFTER SPRINT 137`
+Status: `BLOCKED — AWAITING SERVER 136.1 PROOF AND 137 CANDIDATES`
+
+## Korekta po audycie Sprintu 136 — 2026-09-02
+
+Publication lifecycle nie może być zatwierdzony na podstawie candidate
+wstawionego ręcznie do środka pipeline'u. Incydent z realnym dropem pokazał,
+że downstream może być zdrowy, gdy upstream nie tworzy żadnego taska.
+
+Remediacja 136.1 jest wdrożona i pokryta lokalnie, ale 138 pozostaje
+zablokowany do serwerowego dowodu lineage 136 oraz producer-backed candidates
+ze Sprintu 137.
+
+Pełny test Sprintu 138 musi zaczynać się od produkcyjnego entrypointu domeny:
+
+```text
+runtime action
+  -> committed mechanic/capture effect
+  -> persisted GhostNetwork event
+  -> expected task identities
+  -> model attempt
+  -> accepted candidate
+  -> publication receipt
+  -> medium record
+  -> audience-filtered read model
+  -> CTA dispatcher
+```
+
+Wstrzyknięcie taska, candidate albo receipt jest dozwolone w testach
+jednostkowych danego komponentu, lecz nie spełnia E2E ani Definition of Done.
+
+### Bramka kompletności linii pochodzenia
+
+Strict audit przed i po publication soak raportuje bounded liczniki:
+
+```text
+eligible_events_without_expected_task
+tasks_without_source_event
+completed_tasks_without_candidate
+accepted_candidates_without_receipt
+published_receipts_without_medium_record
+medium_records_without_receipt
+records_with_wrong_source_or_audience
+duplicate_records_by_publication_identity
+```
+
+Każdy licznik wynosi zero poza jasno zdefiniowanym grace period dla aktywnie
+przetwarzanego elementu. Globalne historyczne sumy publikacji według medium
+nie są dowodem kompletności nowego eventu.
 
 ## Kontekst po Sprintach 135.5–135.6
 
@@ -237,7 +284,8 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w Etapie II.
 
 ## Etap II — E2E, failure i soak
 
-1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E.
+1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E, rozpoczynając
+   od realnego gameplay/runtime entrypointu, nie od taska lub candidate.
 2. Sprawdzić public/clan/owner na kilku kontach.
 3. Potwierdzić invalidation poprzedniej karty po zmianie stanu.
 4. Sprawdzić mix przy burst low events i critical bypass.
@@ -265,6 +313,13 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 
 ## Testy
 
+- każdy family E2E zachowuje i asercyjnie łączy wszystkie ID od persisted
+  eventu do medium recordu;
+- osobne testy realnych entrypointów obejmują capture/drop, territory
+  reconciliation, strategic conflict outcome, cycle creation/lock oraz
+  transmission/recovery;
+- pipeline nie może zaliczyć publication testu, jeśli oczekiwany task nigdy
+  nie powstał;
 - accepted candidate publikuje się exactly once;
 - crash po insert record nie tworzy drugiego wpisu;
 - public/clan/owner nie przeciekają między kontami;
@@ -285,12 +340,16 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 
 1. Deploy addytywny bez czyszczenia tasków, candidates, receipts i records.
 2. Restart wyłącznie procesów dotkniętych kodem.
-3. Wygenerować realne przejścia stanów, nie sztuczne same taski.
-4. Prześledzić event -> task -> candidate -> receipt -> active record.
+3. Wygenerować realne przejścia przez produkcyjne entrypointy, nie sztuczne
+   eventy, taski ani candidates.
+4. Prześledzić i zapisać wszystkie identyfikatory:
+   `runtime action/effect -> event -> task -> candidate -> receipt -> active record`.
 5. Potwierdzić poprzedni record jako inactive/invalidated po następnym evencie.
 6. Kliknąć wszystkie CTA w UI na public/clan/owner.
 7. Sprawdzić BlackNet mix i jeden GGPL HERO.
 8. Strict cutover audit, heavy-profile audit i soak SQLite muszą przejść.
+9. Audit lineage musi przejść zarówno dla nowo utworzonego eventu, jak i po
+   retry/crash recovery; globalne `published_by_medium > 0` nie wystarcza.
 
 ## Definition of Ready
 
@@ -301,8 +360,9 @@ audience-filtered medium records:           COMPLETE
 BlackNet merge and fact suppression:        COMPLETE
 Googleplex slot CAS:                        COMPLETE
 baseline worker/publisher tests:            59 / PASS
-Sprint 136 event/audience contract:         REQUIRED
-Sprint 137 accepted candidates:             REQUIRED
+Sprint 136 event/audience component:        PRESENT
+Sprint 136 runtime ingress/lineage:          LOCAL PASS / SERVER CHECK REQUIRED
+Sprint 137 producer-backed candidates:      BLOCKED
 publication lifecycle scope:                FROZEN
 ```
 
@@ -313,6 +373,9 @@ do aktywnych audience-safe wpisów, kolejne stany deterministycznie wygaszają
 poprzednie, mix nie zalewa feedu, CTA otwierają poprawne surface'y, publikacja
 pozostaje exactly-once, a awarie modelu/publishera i ciężki profil nie wpływają
 na gameplay.
+Żaden family nie jest zaliczony na podstawie sztucznego insertu w środku
+pipeline'u; wymagany jest dowód kompletnej linii od realnej akcji runtime do
+odczytu medium i CTA.
 
 ## Poza zakresem
 

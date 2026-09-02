@@ -17,6 +17,7 @@ from .ollama_policy import (
     verify_prompt_registry,
 )
 from .repository import GhostNetworkRepository
+from .narrative import GhostNarrativePublisher
 
 
 def _env_bool(name, default=False):
@@ -143,6 +144,8 @@ class OllamaNarrativeWorker:
         self.policies = active_ollama_worker_policies()
         self._preflight_result = None
         self._preflight_expires_at = 0.0
+        self._event_reconcile_expires_at = 0.0
+        self._event_reconcile_result = None
 
     def status(self):
         return {
@@ -184,6 +187,24 @@ class OllamaNarrativeWorker:
         self._preflight_expires_at = now + ttl
         return result
 
+    def _reconcile_persisted_events(self):
+        now = time.monotonic()
+        if self._event_reconcile_result is not None and now < self._event_reconcile_expires_at:
+            return self._event_reconcile_result
+        try:
+            result = GhostNarrativePublisher(
+                repository=self.repository
+            ).reconcile_persisted_events(limit=500)
+        except Exception as exc:
+            result = {
+                "ok": False,
+                "processed": 0,
+                "errors": [{"reason": "event_reconcile_failed", "error": str(exc)[:160]}],
+            }
+        self._event_reconcile_result = result
+        self._event_reconcile_expires_at = now + self.config.preflight_interval_seconds
+        return result
+
     def _finish_attempt(self, attempt, **kwargs):
         if attempt:
             self.repository.finish_narrative_attempt(attempt["attempt_id"], **kwargs)
@@ -207,6 +228,9 @@ class OllamaNarrativeWorker:
         registry_status = verify_prompt_registry()
         if not registry_status["ok"]:
             return {"result": "invalid_prompt_registry", "errors": registry_status["errors"]}
+        # Event-to-task repair is local SQLite work and must not depend on the
+        # current availability of Ollama. Generation preflight comes after it.
+        self._reconcile_persisted_events()
         preflight = self._ensure_preflight()
         if not preflight.get("ok"):
             return {"result": "preflight_failed", "errors": preflight.get("errors") or []}

@@ -217,6 +217,27 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
             })
             self.assertEqual(result["outbox"], [])
 
+    def test_service_cycle_creation_dispatches_every_eligible_persisted_event(self):
+        created = self.service.ensure_active_cycle()
+        cycle_id = created["cycle"]["cycle_id"]
+        eligible = [
+            event for event in self.repo.list_events(cycle_id, limit=1000)
+            if event["event_type"] in GHOST_EVENT_POLICY
+        ]
+
+        self.assertTrue(created["created"])
+        self.assertTrue(eligible)
+        for event in eligible:
+            tasks = self.repo.list_narrative_outbox(
+                source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+            )
+            self.assertEqual(
+                {task["target_medium"] for task in tasks},
+                set(GHOST_EVENT_POLICY[event["event_type"]]["target_media"]),
+                event,
+            )
+            self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
+
     def test_stage_136_does_not_touch_heavy_profiles(self):
         event = {"event_id": "event-heavy", "event_type": "ghost.cycle_activated",
                  "cycle_id": "cycle-heavy", "audience_scope": "public", "payload": {}}

@@ -6,11 +6,105 @@ from datetime import datetime, timezone
 
 from .ollama_policy import verify_prompt_registry
 from .ollama_worker import active_ollama_worker_policies
+from .narrative import (
+    GHOST_EVENT_LINEAGE_EPOCH,
+    GHOST_EVENT_POLICY,
+)
 from .repository import GhostNetworkRepository
 
 
 CUTOVER_CONTRACT_VERSION = "canonical-narrative-cutover-v1"
 REQUIRED_PUBLICATION_MEDIA = ("blacknet", "googleplex_news", "cyberner")
+
+
+def build_ghost_event_lineage_report(
+    repository, *, since=GHOST_EVENT_LINEAGE_EPOCH, limit=500,
+):
+    """Bounded event-to-task completeness audit for Sprint 136 ingress."""
+    if not hasattr(repository, "list_events") or not hasattr(repository, "list_narrative_outbox"):
+        return {
+            "since": since,
+            "limit": limit,
+            "eligible_events": 0,
+            "expected_tasks": 0,
+            "eligible_without_task": 0,
+            "missing_expected_tasks": 0,
+            "tasks_with_missing_event": 0,
+            "unexpected_medium": 0,
+            "wrong_audience": 0,
+            "samples": [],
+        }
+
+    limit = max(1, min(int(limit or 500), 1000))
+    events = [
+        event for event in repository.list_events(limit=limit)
+        if str(event.get("created_at") or "") >= str(since or "")
+        and event.get("event_type") in GHOST_EVENT_POLICY
+    ]
+    event_ids = {str(event.get("event_id") or "") for event in events}
+    expected_tasks = 0
+    missing_expected_tasks = 0
+    unexpected_medium = 0
+    wrong_audience = 0
+    eligible_without_task = 0
+    samples = []
+
+    for event in events:
+        event_id = str(event.get("event_id") or "")
+        expected = set(GHOST_EVENT_POLICY[event["event_type"]]["target_media"])
+        tasks = repository.list_narrative_outbox(
+            source_scope="ghostnetwork", source_event_id=event_id, limit=25,
+        )
+        actual = {str(task.get("target_medium") or "") for task in tasks}
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        wrong = sorted(
+            str(task.get("outbox_id") or "") for task in tasks
+            if str(task.get("audience_scope") or "") != "public"
+        )
+        expected_tasks += len(expected)
+        missing_expected_tasks += len(missing)
+        unexpected_medium += len(unexpected)
+        wrong_audience += len(wrong)
+        if missing:
+            eligible_without_task += 1
+        if (missing or unexpected or wrong) and len(samples) < 25:
+            samples.append({
+                "event_id": event_id,
+                "event_type": event.get("event_type"),
+                "missing_media": missing,
+                "unexpected_media": unexpected,
+                "wrong_audience_task_ids": wrong[:5],
+            })
+
+    tasks_with_missing_event = 0
+    for task in repository.list_narrative_outbox(
+        source_scope="ghostnetwork", limit=1000,
+    ):
+        if str(task.get("created_at") or "") < str(since or ""):
+            continue
+        source_event_id = str(task.get("source_event_id") or "")
+        if source_event_id not in event_ids and not repository.get_event(source_event_id):
+            tasks_with_missing_event += 1
+            if len(samples) < 25:
+                samples.append({
+                    "outbox_id": task.get("outbox_id"),
+                    "source_event_id": source_event_id,
+                    "reason": "task_source_event_missing",
+                })
+
+    return {
+        "since": since,
+        "limit": limit,
+        "eligible_events": len(events),
+        "expected_tasks": expected_tasks,
+        "eligible_without_task": eligible_without_task,
+        "missing_expected_tasks": missing_expected_tasks,
+        "tasks_with_missing_event": tasks_with_missing_event,
+        "unexpected_medium": unexpected_medium,
+        "wrong_audience": wrong_audience,
+        "samples": samples,
+    }
 
 
 def _bool_value(value, default=False):
@@ -67,6 +161,7 @@ def build_narrative_cutover_report(
     prompt_registry = verify_prompt_registry()
     task_queue = repository.narrative_task_queue_counts(policies, now=now)
     publication_queue = repository.narrative_publication_queue_counts(now=now)
+    ghost_event_lineage = build_ghost_event_lineage_report(repository)
     published_by_medium = publication_queue.get("published_by_medium") or {}
 
     errors = []
@@ -99,6 +194,14 @@ def build_narrative_cutover_report(
         errors.append("publication_medium_coverage_missing")
     if publication_queue.get("unstaged_accepted"):
         warnings.append("unstaged_accepted_candidates")
+    if ghost_event_lineage.get("eligible_without_task"):
+        errors.append("ghost_eligible_events_without_tasks")
+    if ghost_event_lineage.get("tasks_with_missing_event"):
+        errors.append("ghost_tasks_without_source_event")
+    if ghost_event_lineage.get("unexpected_medium"):
+        errors.append("ghost_tasks_with_unexpected_medium")
+    if ghost_event_lineage.get("wrong_audience"):
+        errors.append("ghost_tasks_with_wrong_audience")
 
     return {
         "ok": not errors,
@@ -114,6 +217,7 @@ def build_narrative_cutover_report(
         "prompt_registry": prompt_registry,
         "task_queue": task_queue,
         "publication_queue": publication_queue,
+        "ghost_event_lineage": ghost_event_lineage,
         "required_publication_media": list(REQUIRED_PUBLICATION_MEDIA),
         "missing_publication_media": missing_media,
         "legacy_file_outbox": {

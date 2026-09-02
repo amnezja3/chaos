@@ -90,6 +90,75 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         self.assertEqual(len(collected), 1)
         self.assertEqual(collected[0]["event_id"], "event-one")
 
+    def test_real_capture_effect_dispatches_discovery_to_public_outbox(self):
+        discovered_event = next(
+            event for event in self.repo.list_events(limit=1000)
+            if event.get("event_type") == "ghost.part_discovered"
+            and event.get("part_id") == self.part.get("part_id")
+        )
+        tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork",
+            source_event_id=discovered_event["event_id"],
+            limit=10,
+        )
+
+        self.assertEqual(
+            {task["target_medium"] for task in tasks},
+            {"blacknet", "googleplex_news"},
+        )
+        self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
+        before = {task["outbox_id"] for task in tasks}
+        retry = self.service.on_target_hacked(
+            self.player, self.target, result={"target_captured": True},
+        )
+        after = {
+            task["outbox_id"] for task in self.repo.list_narrative_outbox(
+                source_scope="ghostnetwork",
+                source_event_id=discovered_event["event_id"],
+                limit=10,
+            )
+        }
+        self.assertEqual(retry["status"], "already_discovered")
+        self.assertEqual(after, before)
+
+    def test_capture_narrative_failure_does_not_rollback_discovery(self):
+        repo = GhostNetworkRepository(db_path=self.db_path)
+        service = GhostNetworkService(
+            repository=repo,
+            drop_policy=GhostDropPolicy(enabled=True, chance=1.0),
+        )
+        target = {
+            "target_id": "map:53.1:22.1:fail-open",
+            "lat": 53.1,
+            "lng": 22.1,
+            "label": "Fail Open",
+            "source_type": "shop",
+            "target_mode": "standard",
+            "hackable": True,
+        }
+        player = {
+            "player_id": "bob", "username": "bob", "clan_code": "echo_freedom",
+        }
+        aimed = service.on_target_aimed(player, target)
+        with patch.object(
+            service.narrative,
+            "publish_persisted_events",
+            side_effect=RuntimeError("fault-injected narrative failure"),
+        ):
+            result = service.on_target_hacked(
+                player,
+                target,
+                result={"target_captured": True},
+            )
+
+        self.assertEqual(aimed["status"], "reserved")
+        self.assertEqual(result["status"], "discovered")
+        self.assertFalse(result["narrative_dispatch"]["ok"])
+        self.assertEqual(
+            repo.find_part_by_target(repo.get_active_cycle()["cycle_id"], target["target_id"])["status"],
+            "public",
+        )
+
     @staticmethod
     def area(owner, version=1):
         return {
@@ -188,6 +257,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         )
         self.assertEqual(len(narrative), 1)
         self.assertEqual(narrative[0]["source_scope"], "ghostnetwork")
+        self.assertEqual(narrative[0]["audience_scope"], "public")
 
     def test_pies1_warsaw_part_does_not_reactivate_after_tokyo_rebuild(self):
         warsaw = [
@@ -605,6 +675,22 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             resolved = self.repo.get_part(self.part["part_id"])
             self.assertEqual(resolved["conflict_state"], "none")
             self.assertEqual(resolved["status"], "active")
+
+        resolved_event = next(
+            event for event in self.repo.list_events(limit=1000)
+            if event["event_type"] == "ghost.part_conflict_resolved"
+            and event["part_id"] == self.part["part_id"]
+        )
+        tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork",
+            source_event_id=resolved_event["event_id"],
+            limit=10,
+        )
+        self.assertEqual(
+            {task["target_medium"] for task in tasks},
+            {"blacknet", "googleplex_news"},
+        )
+        self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
 
 
 if __name__ == "__main__":

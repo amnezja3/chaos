@@ -1,6 +1,50 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `READY — AFTER SPRINT 136`
+Status: `BLOCKED — AWAITING SERVER REVALIDATION OF SPRINT 136.1`
+
+## Korekta po audycie Sprintu 136 — 2026-09-02
+
+Sprint 137 nie może rozpocząć odbioru produkcyjnego, dopóki Sprint 136 nie
+udowodni kompletnego `persisted event -> task`. Produkcyjny
+`ghost.part_discovered` został zapisany po poprawnym durable capture effect,
+ale nie otrzymał żadnego taska. Registry, worker i validator nie mogą wykryć
+braku danych, których nigdy nie przekazano do outboxa.
+
+Od tej chwili test utworzony przez ręczne `enqueue_narrative_task()` albo
+bezpośrednie `publish_narrative_event()` jest testem komponentowym, nie E2E
+Sprintu 137. Każda rodzina generation/validation musi użyć przynajmniej
+jednego taska wytworzonego przez realny producer i runtime entrypoint ze
+Sprintu 136.
+
+Remediacja 136.1 jest wdrożona lokalnie: runtime ingress, public projection,
+bounded recovery i strict lineage audit mają testy producer-level. Nie zmienia
+to bramki produkcyjnej — 137 zostaje zablokowany do czasu rewalidacji na
+serwerze i potwierdzenia naprawy istniejącego osieroconego eventu.
+
+### Bramka wejściowa 136 -> 137
+
+Przed claimem workera musi przejść automatyczne złączenie kontraktów:
+
+```text
+GHOST_EVENT_POLICY.target_media
+  == rzeczywiste taski dla persisted source_event_id
+  == aktywne kombinacje registry (source_scope, task_variant, medium)
+```
+
+Bramka odrzuca:
+
+- eligible event bez wszystkich oczekiwanych tasków;
+- task bez istniejącego source eventu;
+- task z medium niezgodnym z event policy;
+- task z `audience_scope != public` w Etapie I;
+- task variant bez aktywnej polityki workera;
+- source event przetworzony tylko przez syntetyczny test publishera;
+- dwa source scopes reprezentujące ten sam canonical event bez wspólnej
+  publication identity.
+
+Dozwolony jest krótki, jawny grace period między zapisem eventu a enqueue.
+Po jego upływie `eligible_without_task` jest błędem strict, a nie ostrzeżeniem.
+Raport ma być bounded i profile-free.
 
 ## Kontekst po Sprintach 135.4–135.6
 
@@ -227,6 +271,13 @@ tej samej publication identity; nie jest drugim postem.
 
 ## Testy
 
+- dla każdego wariantu test zaczyna się od realnego producenta 136 i pobiera
+  task po jego `source_event_id`; ręcznie skonstruowany task pozostaje osobnym
+  testem jednostkowym;
+- macierz policy -> outbox -> registry jest kompletna dla wszystkich
+  docelowych mediów, a nie tylko dla nazw obecnych w setach registry;
+- worker preflight nie może być uznany za zdrowy, gdy
+  `ghost_event_lineage.eligible_without_task > 0`;
 - wszystkie allowlisted warianty 136 mają zarejestrowaną politykę;
 - nieznany wariant i stary alias są fail-closed;
 - BlackNet/GGPL/Cyberner otrzymują właściwy prompt/schema;
@@ -242,13 +293,18 @@ tej samej publication identity; nie jest drugim postem.
 
 ## Walidacja serwerowa
 
-1. `verify` registry/model przed claimem.
-2. Po jednym realnym tasku: part, conflict, machine, cycle i signal.
+1. Uruchomić strict lineage audit 136 przed `verify` registry/model i przed
+   claimem; oba muszą przejść.
+2. Po jednym tasku part, conflict, machine, cycle i signal, utworzonym przez
+   realny runtime entrypoint i powiązanym z istniejącym persisted eventem.
 3. Dla każdego sprawdzić task/attempt/candidate i rejection report.
 4. Osobno sprawdzić public/clan/owner bez konta spoza audience.
 5. Wymusić jeden timeout i potwierdzić recovery.
 6. Sprawdzić brak nowych ineligible ready tasks.
 7. Strict cutover audit oraz heavy-profile audit muszą być `ok=true`.
+8. Dla każdego taska zachować jeden łańcuch identyfikatorów:
+   `event_id -> outbox_id -> attempt_id -> candidate_id`; brak dowolnego
+   wcześniejszego ogniwa blokuje zaliczenie późniejszego.
 
 ## Definition of Ready
 
@@ -258,7 +314,9 @@ claim/lease/heartbeat/retry:               COMPLETE
 generic schema and validator:              COMPLETE
 publication handoff:                       COMPLETE
 baseline worker/publisher tests:           59 / PASS
-Sprint 136 task contract:                  REQUIRED
+Sprint 136 component task contract:        PRESENT
+Sprint 136 runtime ingress:                LOCAL PASS / SERVER CHECK REQUIRED
+Sprint 136 strict lineage audit:           IMPLEMENTED / SERVER CHECK REQUIRED
 GhostNetwork specialization scope:         FROZEN
 ```
 
@@ -268,6 +326,9 @@ Sprint 137 jest zakończony, gdy każdy eligible task GhostNetwork z 136 ma
 wersjonowaną politykę, bounded audience-safe package i candidate przechodzący
 semantic validation, a timeout, crash, invalid output i privacy violation są
 obsługiwane bez wpływu na gameplay i bez ciężkiego profilu.
+Dodatkowo każdy testowany task musi pochodzić z osiągalnego producenta 136, a
+strict lineage audit nie może wykazywać eligible eventów bez taska ani tasków
+bez eventu.
 
 ## Poza zakresem
 

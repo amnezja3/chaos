@@ -90,16 +90,31 @@ class GhostRuntimeCoordinator:
             return {"ok": False, "status": "failed", "effect": saved, "error": str(exc)}
 
     def _handle_result_rewards(self, outcome, effect):
-        events = []
+        event_ids = []
+        seen = set()
         stack = [outcome]
         while stack:
             value = stack.pop()
             if isinstance(value, dict):
                 if value.get("event_id") and value.get("event_type"):
-                    events.append(value)
-                stack.extend(value.values())
+                    event_id = str(value.get("event_id") or "").strip()
+                    if event_id and event_id not in seen:
+                        seen.add(event_id)
+                        event_ids.append(event_id)
+                stack.extend(
+                    child for key, child in value.items()
+                    if key not in {"narrative", "narrative_dispatch"}
+                )
             elif isinstance(value, (list, tuple)):
                 stack.extend(value)
+        # Rewards consume only canonical persisted domain events. Returned
+        # narrative tasks intentionally repeat source event identity and must
+        # never become additional reward inputs.
+        events = [
+            event for event_id in event_ids
+            for event in [self.repository.get_event(event_id)]
+            if event
+        ]
         if not events and outcome.get("status") == "already_discovered":
             active = self.repository.get_active_cycle()
             part = self.repository.find_part_by_target(

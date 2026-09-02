@@ -3603,6 +3603,34 @@ class GhostNetworkRepository:
             ).fetchall()
             return [self._event(row) for row in rows]
 
+    def get_event(self, event_id):
+        event_id = _clean(event_id)
+        if not event_id:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_part_events WHERE event_id = ?",
+                (event_id,),
+            ).fetchone()
+            return self._event(row)
+
+    def list_events_after(self, cycle_id, state_version=0, limit=250):
+        cycle_id = _clean(cycle_id)
+        if not cycle_id:
+            return []
+        limit = max(1, min(int(limit or 250), 1000))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_part_events
+                WHERE cycle_id = ? AND state_version > ?
+                ORDER BY state_version ASC, created_at ASC, event_id ASC
+                LIMIT ?
+                """,
+                (cycle_id, max(0, int(state_version or 0)), limit),
+            ).fetchall()
+            return [self._event(row) for row in rows]
+
     def get_last_event(self, cycle_id):
         with self._conn() as conn:
             return self._event(

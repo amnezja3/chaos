@@ -53,6 +53,19 @@ class GhostNetworkRuntimeDurabilityTest(unittest.TestCase):
         self.assertGreater(profiles["alice"]["respect"], 0)
         contributions = self.repo.list_player_contributions("alice", cycle_id=self.repo.get_active_cycle()["cycle_id"])
         self.assertEqual(len(contributions), 1)
+        discovery = next(
+            event for event in self.repo.list_events(limit=1000)
+            if event["event_type"] == "ghost.part_discovered"
+            and event["part_id"] == part["part_id"]
+        )
+        narrative_tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork", source_event_id=discovery["event_id"], limit=10,
+        )
+        self.assertEqual(
+            {task["target_medium"] for task in narrative_tasks},
+            {"blacknet", "googleplex_news"},
+        )
+        self.assertTrue(all(task["audience_scope"] == "public" for task in narrative_tasks))
 
         second = coordinator.drain()
         self.assertTrue(second["ok"], second)
@@ -60,6 +73,12 @@ class GhostNetworkRuntimeDurabilityTest(unittest.TestCase):
         self.assertEqual(second["processed"], 0)
         self.assertEqual(len(self.repo.list_player_contributions("alice", cycle_id=self.repo.get_active_cycle()["cycle_id"])), 1)
         self.assertEqual(profiles["alice"]["ghostnetwork_reward_history"].__len__(), 1)
+        self.assertEqual(
+            len(self.repo.list_narrative_outbox(
+                source_scope="ghostnetwork", source_event_id=discovery["event_id"], limit=10,
+            )),
+            len(narrative_tasks),
+        )
 
     def test_capture_without_reservation_does_not_create_failed_effect(self):
         coordinator = GhostRuntimeCoordinator(

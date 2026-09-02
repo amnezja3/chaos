@@ -3,6 +3,7 @@ import tempfile
 import unittest
 
 from ghostnetwork import GhostCycleService, GhostNetworkRepository, GhostNetworkService
+from ghostnetwork.narrative import GHOST_EVENT_POLICY
 
 
 class GhostNetworkStrategicConflictTest(unittest.TestCase):
@@ -88,6 +89,14 @@ class GhostNetworkStrategicConflictTest(unittest.TestCase):
         self.assertNotIn("part_code", event["payload"])
         self.assertNotIn("machine_code", event["payload"])
         self.assertNotIn("profession_code", event["payload"])
+        tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+        )
+        self.assertEqual(
+            {task["target_medium"] for task in tasks},
+            set(GHOST_EVENT_POLICY["ghost.part_defended"]["target_media"]),
+        )
+        self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
 
     def test_minor_attack_is_audited_without_full_defense_reward(self):
         conflict = self._start_conflict(started_at="2026-07-19T11:00:00+00:00")
@@ -177,6 +186,17 @@ class GhostNetworkStrategicConflictTest(unittest.TestCase):
         self.assertEqual(result["recovery"]["status"], "full_reward")
         self.assertEqual(summary["by_type"]["part_recovered"]["count"], 1)
         self.assertEqual(transfer["reward_status"], "full_reward")
+        event = next(
+            item for item in self.repo.list_events(self.cycle["cycle_id"], limit=200)
+            if item["event_type"] == "ghost.part_recovered"
+        )
+        tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+        )
+        self.assertEqual(
+            {task["target_medium"] for task in tasks},
+            set(GHOST_EVENT_POLICY["ghost.part_recovered"]["target_media"]),
+        )
 
     def test_fast_same_pair_transfer_enters_cooldown_without_blocking_resolution(self):
         self.repo.insert_transfer_history({

@@ -1979,3 +1979,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Baseline po zmianie: 35 testów PASS. Commit, push, deploy i restart PM2 nie
   zostały wykonane. Etap I oczekuje na pełną regresję lokalną i walidację
   serwerową.
+
+## 2026-09-02 — Sprint 136.1: remediacja runtime ingress i lineage
+
+- Po produkcyjnym dropie zapisanym jako `event_d695f50fdafa44fa` bez tasków
+  potwierdzono, że komponentowy publisher nie był osiągalny ze wszystkich
+  realnych producentów.
+- Dodano jedną fail-open granicę post-commit opartą o canonical persisted
+  `event_id` i bounded zakres `state_version`. Podłączono capture effect,
+  territory lifecycle, strategic conflicts, cycle creation/lock i transmission.
+- Etap I zawsze tworzy redagowaną projekcję `public`, niezależnie od domenowego
+  source audience. Dedupe canonical outboxa zachowuje exactly-once przy retry.
+- Worker wykonuje bounded recovery event-to-task przed preflightem Ollamy, a
+  strict cutover raportuje brakujące media, osierocone taski i zły audience.
+- Naprawiono wykryty regresyjnie dubel wejścia do rewardów: konsument nagród
+  pobiera wyłącznie persisted domain events i deduplikuje `event_id`.
+- Regresja obejmująca ingress 136.1 oraz downstream 137–138: `87 tests / PASS`;
+  pełna regresja 36 modułów GhostNetwork: `250 tests / PASS`.
+- Bez commita, pushu, deployu, restartu PM2 i bez czyszczenia danych. Status:
+  `LOCAL PASS — SERVER REVALIDATION REQUIRED`.

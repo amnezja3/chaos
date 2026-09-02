@@ -5,6 +5,7 @@ import unittest
 import run
 from database import dumps_json
 from ghostnetwork import GhostCycleService, GhostNetworkRepository, GhostNetworkService
+from ghostnetwork.narrative import GHOST_EVENT_POLICY
 
 
 class GhostNetworkRuntimeEndgameTest(unittest.TestCase):
@@ -34,6 +35,21 @@ class GhostNetworkRuntimeEndgameTest(unittest.TestCase):
             self.assertTrue(first["ok"], first)
             self.assertEqual(len(repo.list_signals_for_cycle(cycle["cycle_id"])), 1, first)
             self.assertEqual(repo.get_cycle(cycle["cycle_id"])["status"], "stabilizing")
+            events = repo.list_events(cycle["cycle_id"], limit=1000)
+            for event_type in (
+                "ghost.cycle_locked", "ghost.signal_sent",
+                "ghost.version_changed", "ghost.stabilization_started",
+            ):
+                event = next(item for item in events if item["event_type"] == event_type)
+                tasks = repo.list_narrative_outbox(
+                    source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+                )
+                self.assertEqual(
+                    {task["target_medium"] for task in tasks},
+                    set(GHOST_EVENT_POLICY[event_type]["target_media"]),
+                    event_type,
+                )
+                self.assertTrue(all(task["audience_scope"] == "public" for task in tasks))
 
             second = run.maybe_finalize_ghostnetwork_cycle(service)
             self.assertEqual(second["status"], "not_ready")

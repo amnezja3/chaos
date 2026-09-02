@@ -70,6 +70,53 @@ class GhostNetworkService:
         self.narrative = GhostNarrativePublisher(repository=self.repository)
         self.archive = GhostArchiveService(repository=self.repository)
 
+    def _event_cursor(self, cycle_id=""):
+        cycle_id = str(cycle_id or "").strip()
+        if not cycle_id:
+            cycle_id = str((self.repository.get_active_cycle() or {}).get("cycle_id") or "")
+        return cycle_id, (
+            self.repository.get_state_version(cycle_id) if cycle_id else 0
+        )
+
+    @staticmethod
+    def _collect_returned_events(value, seen=None):
+        seen = seen if isinstance(seen, set) else set()
+        events = []
+        if isinstance(value, dict):
+            if value.get("event_id") and value.get("event_type"):
+                event_id = str(value.get("event_id") or "").strip()
+                if event_id and event_id not in seen:
+                    seen.add(event_id)
+                    events.append(value)
+            for item in value.values():
+                events.extend(GhostNetworkService._collect_returned_events(item, seen))
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                events.extend(GhostNetworkService._collect_returned_events(item, seen))
+        return events
+
+    def _dispatch_persisted_events(self, result=None, *, cycle_id="", after_state_version=None):
+        """Fail-open post-commit dispatch from canonical persisted event rows."""
+        try:
+            candidates = self._collect_returned_events(result)
+            if cycle_id and after_state_version is not None:
+                candidates.extend(
+                    self.repository.list_events_after(
+                        cycle_id, after_state_version, limit=250,
+                    )
+                )
+            dispatch = self.narrative.publish_persisted_events(candidates)
+        except Exception as exc:
+            dispatch = {
+                "ok": False,
+                "processed": 0,
+                "results": [],
+                "errors": [{"reason": "narrative_dispatch_failed", "error": str(exc)[:160]}],
+            }
+        if isinstance(result, dict):
+            result["narrative_dispatch"] = dispatch
+        return dispatch
+
     def get_active_cycle(self):
         return self.repository.get_active_cycle()
 
@@ -205,7 +252,13 @@ class GhostNetworkService:
         return get_catalog_diagnostics()
 
     def ensure_active_cycle(self):
-        return self.cycles.ensure_active_cycle()
+        result = self.cycles.ensure_active_cycle()
+        if result.get("created"):
+            cycle_id = str((result.get("cycle") or {}).get("cycle_id") or "")
+            self._dispatch_persisted_events(
+                result, cycle_id=cycle_id, after_state_version=0,
+            )
+        return result
 
     def get_cycle_diagnostics(self, cycle_id=None):
         return self.cycles.get_cycle_diagnostics(cycle_id)
@@ -221,7 +274,12 @@ class GhostNetworkService:
         return self.closure.evaluate_network_readiness(cycle_id)
 
     def attempt_cycle_lock(self, cycle_id, trigger_event_id=""):
-        return self.closure.attempt_cycle_lock(cycle_id, trigger_event_id=trigger_event_id)
+        cycle_id, cursor = self._event_cursor(cycle_id)
+        result = self.closure.attempt_cycle_lock(cycle_id, trigger_event_id=trigger_event_id)
+        self._dispatch_persisted_events(
+            result, cycle_id=cycle_id, after_state_version=cursor,
+        )
+        return result
 
     def build_lock_snapshot(self, cycle_id, trigger_event_id=""):
         return self.closure.build_lock_snapshot(cycle_id, trigger_event_id=trigger_event_id)
@@ -233,17 +291,23 @@ class GhostNetworkService:
         return self.closure.validate_locked_snapshot(cycle_id)
 
     def start_transmission(self, cycle_id):
+        cycle_id, cursor = self._event_cursor(cycle_id)
         result = self.transmission.start_transmission(cycle_id)
-        return self._with_transmission_narrative(result)
+        return self._with_transmission_narrative(result, after_state_version=cursor)
 
     def resume_interrupted_transmission(self, cycle_id):
+        cycle_id, cursor = self._event_cursor(cycle_id)
         result = self.transmission.resume_interrupted_transmission(cycle_id)
-        return self._with_transmission_narrative(result)
+        # Replay only the bounded transmission tail; canonical task identity
+        # makes this safe while avoiding a full-cycle narrative backfill.
+        return self._with_transmission_narrative(
+            result, after_state_version=max(0, cursor - 50),
+        )
 
     def validate_transmission(self, cycle_id):
         return self.transmission.validate_transmission(cycle_id)
 
-    def _with_transmission_narrative(self, result):
+    def _with_transmission_narrative(self, result, after_state_version=None):
         result = result if isinstance(result, dict) else {}
         signal = result.get("signal") if isinstance(result.get("signal"), dict) else {}
         signal_id = signal.get("signal_id")
@@ -259,6 +323,11 @@ class GhostNetworkService:
             narrative = {"ok": False, "errors": [{"medium": "narrative", "error": str(exc)}], "outbox": []}
         result["archive"] = archive
         result["narrative"] = narrative
+        self._dispatch_persisted_events(
+            result,
+            cycle_id=str(result.get("cycle_id") or signal.get("cycle_id") or ""),
+            after_state_version=after_state_version,
+        )
         return result
 
     def publish_narrative_event(self, event):
@@ -430,21 +499,38 @@ class GhostNetworkService:
         return self.reservations.get_reservation_status()
 
     def on_territory_stabilized(self, event):
-        return self._with_module_progress(self.territory.on_territory_stabilized(event))
+        cycle_id, cursor = self._event_cursor()
+        result = self._with_module_progress(self.territory.on_territory_stabilized(event))
+        self._dispatch_persisted_events(result, cycle_id=cycle_id, after_state_version=cursor)
+        return result
 
     def on_territory_contested(self, event):
-        return self._with_module_progress(self.territory.on_territory_contested(event))
+        cycle_id, cursor = self._event_cursor()
+        result = self._with_module_progress(self.territory.on_territory_contested(event))
+        self._dispatch_persisted_events(result, cycle_id=cycle_id, after_state_version=cursor)
+        return result
 
     def on_territory_released(self, event):
-        return self._with_module_progress(self.territory.on_territory_released(event))
+        cycle_id, cursor = self._event_cursor()
+        result = self._with_module_progress(self.territory.on_territory_released(event))
+        self._dispatch_persisted_events(result, cycle_id=cycle_id, after_state_version=cursor)
+        return result
 
     def on_territory_owner_changed(self, event):
-        return self._with_module_progress(self.territory.on_territory_owner_changed(event))
+        cycle_id, cursor = self._event_cursor()
+        result = self._with_module_progress(self.territory.on_territory_owner_changed(event))
+        self._dispatch_persisted_events(result, cycle_id=cycle_id, after_state_version=cursor)
+        return result
 
     def reconcile_parts_with_territories(self, cycle_id=None, territories=None, apply=False):
+        selected_cycle_id, cursor = self._event_cursor(cycle_id)
         report = self.territory.reconcile_parts_with_territories(cycle_id=cycle_id, territories=territories, apply=apply)
         if apply:
-            return self._with_module_progress(report, changed_key="changes")
+            report = self._with_module_progress(report, changed_key="changes")
+            self._dispatch_persisted_events(
+                report, cycle_id=selected_cycle_id, after_state_version=cursor,
+            )
+            return report
         return report
 
     def _with_module_progress(self, report, changed_key="changed"):
@@ -491,10 +577,22 @@ class GhostNetworkService:
         )
 
     def on_target_hacked(self, player, target, operation=None, result=None, context=None):
+        cycle_id, cursor = self._event_cursor()
         outcome = self._on_target_hacked(
             player, target, operation=operation, result=result, context=context
         )
         self._record_pipeline_outcome("capture", outcome)
+        if outcome.get("status") == "already_discovered":
+            part = outcome.get("part") if isinstance(outcome.get("part"), dict) else {}
+            discovered = [
+                event for event in self.repository.list_events(cycle_id, limit=1000)
+                if event.get("event_type") == "ghost.part_discovered"
+                and event.get("part_id") == part.get("part_id")
+            ][-1:]
+            outcome["recovered_events"] = discovered
+        self._dispatch_persisted_events(
+            outcome, cycle_id=cycle_id, after_state_version=cursor,
+        )
         return outcome
 
     def _on_target_hacked(self, player, target, operation=None, result=None, context=None):
@@ -678,12 +776,18 @@ class GhostNetworkService:
         )
 
     def resolve_ghost_conflict_outcome(self, conflict_id, final_state=None, context=None, apply_rewards=False):
-        return self.conflicts.resolve_conflict_outcome(
+        conflict = self.repository.get_strategic_conflict(conflict_id) or {}
+        cycle_id, cursor = self._event_cursor(conflict.get("cycle_id"))
+        result = self.conflicts.resolve_conflict_outcome(
             conflict_id,
             final_state=final_state,
             context=context,
             apply_rewards=apply_rewards,
         )
+        self._dispatch_persisted_events(
+            result, cycle_id=cycle_id, after_state_version=cursor,
+        )
+        return result
 
     def reconcile_ghost_conflict_outcomes(self, conflict_id=None, dry_run=True):
         return self.conflicts.reconcile_ghost_conflict_outcomes(conflict_id=conflict_id, dry_run=dry_run)

@@ -10,6 +10,7 @@ from database import db_connect
 from ghostnetwork.ollama_client import OllamaClientError, OllamaGenerationResult
 from ghostnetwork.ollama_policy import assign_ollama_task_policy, registered_ollama_policies
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
+from ghostnetwork.cycles import GhostCycleService
 from ghostnetwork.repository import GhostNetworkRepository
 
 
@@ -269,6 +270,28 @@ class OllamaWorkerTest(unittest.TestCase):
         current = self.repo.get_narrative_outbox(item["outbox_id"])
         self.assertEqual(current["status"], "ready")
         self.assertEqual(current["attempt_count"], 0)
+
+    def test_event_reconciliation_runs_even_when_ollama_preflight_fails(self):
+        self.clock.value = datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc)
+        cycle = GhostCycleService(repository=self.repo).ensure_active_cycle()["cycle"]
+        event = next(
+            item for item in self.repo.list_events(cycle["cycle_id"], limit=1000)
+            if item["event_type"] == "ghost.cycle_activated"
+        )
+        client = FakeClient([])
+        client.verify_result = {"ok": False, "errors": ["ollama_unavailable"]}
+
+        result = self.worker(client).process_once()
+        tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+        )
+
+        self.assertEqual(result["result"], "preflight_failed")
+        self.assertEqual(
+            {task["target_medium"] for task in tasks},
+            {"blacknet", "googleplex_news"},
+        )
+        self.assertEqual(client.calls, 0)
 
     def test_crash_after_candidate_does_not_call_model_again(self):
         item = self.repo.enqueue_narrative_task(self.task(event_id="candidate-crash"))

@@ -8,6 +8,7 @@ from unittest.mock import patch
 from ghostnetwork.narrative_cutover import (
     CUTOVER_CONTRACT_VERSION,
     NarrativeCutoverConfig,
+    build_ghost_event_lineage_report,
     build_narrative_cutover_report,
     retire_cutover_ineligible_tasks,
 )
@@ -198,6 +199,34 @@ class NarrativeCutoverTest(unittest.TestCase):
             "list_profiles", "sync_session_profile", "user_store",
         ):
             self.assertNotIn(forbidden, source)
+
+    def test_lineage_audit_detects_and_then_closes_persisted_event_gap(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repository = GhostNetworkRepository(
+                db_path=os.path.join(tmpdir, "lineage.sqlite3"),
+                clock=lambda: datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc),
+            )
+            service = __import__(
+                "ghostnetwork.service", fromlist=["GhostNetworkService"]
+            ).GhostNetworkService(repository=repository)
+            created = service.cycles.ensure_active_cycle()
+            cycle_id = created["cycle"]["cycle_id"]
+            event = next(
+                item for item in repository.list_events(cycle_id, limit=1000)
+                if item["event_type"] == "ghost.cycle_activated"
+            )
+
+            missing = build_ghost_event_lineage_report(repository)
+            self.assertGreater(missing["eligible_without_task"], 0)
+            self.assertTrue(any(
+                sample.get("event_id") == event["event_id"]
+                for sample in missing["samples"]
+            ))
+
+            service.narrative.reconcile_persisted_events()
+            closed = build_ghost_event_lineage_report(repository)
+            self.assertEqual(closed["eligible_without_task"], 0)
+            self.assertEqual(closed["wrong_audience"], 0)
 
 
 if __name__ == "__main__":

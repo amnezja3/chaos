@@ -100,12 +100,18 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertIn("ghost-node:", encoded)
         self.assertEqual(task["audience_scope"], "public")
 
-        internal = self.service.publish_narrative_event({
+        system_source = self.service.publish_narrative_event({
             **event,
             "event_id": "event-internal",
-            "audience_scope": "internal",
+            "audience_scope": "system",
         })
-        self.assertEqual(internal["outbox"], [])
+        self.assertEqual(len(system_source["outbox"]), 2)
+        self.assertTrue(all(
+            task["audience_scope"] == "public"
+            and not task.get("audience_clan")
+            and not task.get("audience_owner")
+            for task in system_source["outbox"]
+        ))
 
     def test_blacknet_digest_is_bounded_deduplicated_and_profile_free(self):
         snapshot = {

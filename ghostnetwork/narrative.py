@@ -20,6 +20,7 @@ CANON_VERSION = "ghostnetwork-narrative-v1"
 TRUTH_CLASSES = {"canonical", "interpretation", "rumor", "propaganda", "narrative_deception"}
 NARRATIVE_MEDIA = {"blacknet", "cyberner", "radio", "googleplex_news"}
 EVENT_POLICY_VERSION = "ghostnetwork-event-policy-v1"
+GHOST_EVENT_LINEAGE_EPOCH = "2026-09-02T00:00:00+00:00"
 TECHNICAL_EVENT_TYPES = frozenset({
     "ghost.part_reserved", "ghost.part_reservation_attached",
     "ghost.part_reservation_released", "ghost.part_reservation_expired",
@@ -195,6 +196,56 @@ class GhostNarrativePublisher:
             "outbox": outbox,
             "errors": errors,
         }
+
+    def publish_persisted_event(self, event_id):
+        event = self.repository.get_event(event_id)
+        if not event:
+            return {
+                "ok": False,
+                "reason": "persisted_event_not_found",
+                "event_id": _clean(event_id),
+                "outbox": [],
+                "errors": [],
+            }
+        return self.publish_domain_event(event)
+
+    def publish_persisted_events(self, events):
+        results = []
+        seen = set()
+        for item in events or []:
+            event_id = _clean(item.get("event_id") if isinstance(item, dict) else item)
+            if not event_id or event_id in seen:
+                continue
+            seen.add(event_id)
+            try:
+                results.append(self.publish_persisted_event(event_id))
+            except Exception as exc:
+                results.append({
+                    "ok": False,
+                    "reason": "producer_failed",
+                    "event_id": event_id,
+                    "outbox": [],
+                    "errors": [{"reason": "producer_failed", "error": str(exc)[:160]}],
+                })
+        return {
+            "ok": all(item.get("ok") for item in results),
+            "processed": len(results),
+            "results": results,
+        }
+
+    def reconcile_persisted_events(self, *, since=GHOST_EVENT_LINEAGE_EPOCH, limit=500):
+        limit = max(1, min(int(limit or 500), 1000))
+        events = [
+            event for event in self.repository.list_events(limit=limit)
+            if _clean(event.get("created_at")) >= _clean(since)
+            and resolve_ghost_event_policy(event.get("event_type"))["eligible"]
+        ]
+        result = self.publish_persisted_events(reversed(events))
+        result.update({
+            "since": _clean(since),
+            "scanned": len(events),
+        })
+        return result
 
     def build_facts(self, event, audience):
         event = event if isinstance(event, dict) else {}
@@ -528,26 +579,8 @@ class GhostNarrativePublisher:
         return _clean(payload.get("signal_id") or event.get("signal_id") or event.get("entity_id"))
 
     def _audiences_for_event(self, event):
-        event = event if isinstance(event, dict) else {}
-        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
-        scope = _clean(event.get("audience_scope"), "internal").lower()
-        if scope in {"internal", "system"}:
-            return []
-        if scope == "public":
-            return [{"scope": "public", "clan": "", "owner": ""}]
-        if scope == "clan":
-            clan = _clean(
-                event.get("audience_clan")
-                or event.get("clan_code")
-                or payload.get("territory_clan")
-                or payload.get("clan_code")
-            )
-            return [{"scope": "clan", "clan": clan, "owner": ""}] if clan else []
-        if scope in {"owner", "player"}:
-            owner = _clean(
-                event.get("player_id")
-                or payload.get("player_id")
-                or payload.get("territory_owner_id")
-            )
-            return [{"scope": "owner", "clan": "", "owner": owner}] if owner else []
-        return []
+        # Sprint 136 Etap I is a public narrative bridge. The domain event's
+        # audience describes its gameplay/delta transport and may legitimately
+        # be player, owner, clan or system. Narrative publication independently
+        # builds a redacted public visibility projection for allowlisted events.
+        return [{"scope": "public", "clan": "", "owner": ""}]
