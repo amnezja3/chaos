@@ -2037,8 +2037,10 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Po deployu strict audit osiągnął `ok=true`, kompletne lineage `8/8`, pełny
   fan-out `public/clan/owner`, zero błędów audience/medium i zero odczytów
   ciężkiego profilu.
-- Server probe low-eventów pokazał osobne taski `event_count=1`, więc merge w
-  jednym oknie nie został jeszcze dowiedziony.
+- Pierwszy server probe low-eventów pokazał osobne taski `event_count=1`.
+  Następnie kontrolowana aktywacja P2/P4 tej samej maszyny `phantom_veil`
+  utworzyła eventy oddalone o `5.306 s` i poprawne agregaty `public/blacknet`
+  oraz `clan/blacknet`; oba mają `event_count=2` i dwa source links.
 - Jednocześnie telemetryka ujawniła ponowne przetwarzanie kompletnych eventów
   przez okresowy reconciler. Dedupe zapobiegał duplikatom, lecz zawyżał
   liczniki i zwiększał presję zapisu na SQLite.
@@ -2047,3 +2049,6 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   wykonał zero publikacji i pozostawił telemetrykę bez zmian.
 - Targeted regression: `19 tests / PASS`; remediacja nie została jeszcze
   zacommitowana, wypchnięta ani ponownie wdrożona.
+- Fan-out, strict lineage, heavy-profile guard i funkcjonalny merge mają
+  serwerowy PASS. Pełne zamknięcie 136.2 czeka wyłącznie na redeploy korekty
+  reconciler-a, stabilność telemetryki na bezczynności i końcowy strict audit.

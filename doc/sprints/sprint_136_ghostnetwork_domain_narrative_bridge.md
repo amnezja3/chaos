@@ -1,6 +1,6 @@
 # Sprint 136 — GhostNetwork Domain Narrative Bridge
 
-Status: `136.1 SERVER PASS / 136.2 SERVER PARTIAL PASS — RECONCILER REMEDIATION REDEPLOY REQUIRED`
+Status: `136.1 SERVER PASS / 136.2 FUNCTIONAL SERVER PASS — RECONCILER REMEDIATION REDEPLOY REQUIRED`
 
 ## Sprint 136.2 — audience projection i kontrola szumu
 
@@ -41,8 +41,12 @@ ciężkiego profilu przed oznaczeniem 136.2 jako `COMPLETE`.
   lineage `8/8`, zero brakujących audience/medium oraz zerowe heavy-profile
   counters. Fan-out `public`, `clan` i `owner` jest potwierdzony na canonical
   danych serwera.
-- Próba low-eventów utworzyła osobne taski `event_count=1`; nie stanowi jeszcze
-  dowodu merge w jednym 15-sekundowym oknie.
+- Pierwsza próba low-eventów utworzyła osobne taski `event_count=1`, ponieważ
+  zdarzenia nie należały do tego samego okna/threadu. Kontrolowana próba P2/P4
+  dla `phantom_mesh/phantom_veil` zapisała dwa `machine_progress_changed`
+  oddalone o `5.306 s` (`active_parts 3 -> 4`). Powstały dwa poprawne agregaty:
+  `public/blacknet` i `clan/blacknet`, oba z `event_count=2` oraz dwoma source
+  links. Funkcjonalny kontrakt agregacji ma serwerowy PASS.
 - Telemetria ujawniła, że okresowy reconciler ponownie przechodził przez
   kompletne eventy. Dedupe chronił outbox, ale zawyżał `events_seen`,
   `aggregation_input` i `deduplicated_tasks` oraz generował zbędną konkurencję
@@ -52,8 +56,8 @@ ciężkiego profilu przed oznaczeniem 136.2 jako `COMPLETE`.
   naprawie ma `processed=0`, `incomplete=0`, pomija wszystkie kompletne eventy
   i nie zmienia telemetryki.
 - Remediacja wymaga ponownego deployu. Po nim trzeba potwierdzić stabilne
-  liczniki na bezczynności i rzeczywisty aggregate z `event_count >= 2` oraz
-  zgodną liczbą source links.
+  liczniki na bezczynności i końcowy strict audit; sam rzeczywisty aggregate
+  oraz zgodność source links są już potwierdzone.
 
 ## Remediacja 136.1 — 2026-09-02
 
