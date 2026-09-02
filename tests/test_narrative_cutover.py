@@ -228,6 +228,14 @@ class NarrativeCutoverTest(unittest.TestCase):
             self.assertEqual(closed["eligible_without_task"], 0)
             self.assertEqual(closed["wrong_audience"], 0)
 
+            metrics_before = repository.narrative_bridge_metrics(cycle_id)
+            second = service.narrative.reconcile_persisted_events()
+            metrics_after = repository.narrative_bridge_metrics(cycle_id)
+            self.assertEqual(second["processed"], 0)
+            self.assertEqual(second["incomplete"], 0)
+            self.assertEqual(second["skipped_complete"], second["scanned"])
+            self.assertEqual(metrics_after, metrics_before)
+
 
 if __name__ == "__main__":
     unittest.main()

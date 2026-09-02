@@ -1,6 +1,6 @@
 # Sprint 136 — GhostNetwork Domain Narrative Bridge
 
-Status: `136.1 SERVER PASS / 136.2 IMPLEMENTED LOCALLY — SERVER VALIDATION REQUIRED`
+Status: `136.1 SERVER PASS / 136.2 SERVER PARTIAL PASS — RECONCILER REMEDIATION REDEPLOY REQUIRED`
 
 ## Sprint 136.2 — audience projection i kontrola szumu
 
@@ -34,6 +34,26 @@ drugiej kolejki, workera lub publishera.
 
 Wymagana jest walidacja serwerowa fan-outu, agregatu, strict audytu i braku
 ciężkiego profilu przed oznaczeniem 136.2 jako `COMPLETE`.
+
+### Walidacja serwerowa 136.2 — partial pass i remediacja
+
+- Strict audit po zakończeniu startup reconciliation zwrócił `ok=true`, pełne
+  lineage `8/8`, zero brakujących audience/medium oraz zerowe heavy-profile
+  counters. Fan-out `public`, `clan` i `owner` jest potwierdzony na canonical
+  danych serwera.
+- Próba low-eventów utworzyła osobne taski `event_count=1`; nie stanowi jeszcze
+  dowodu merge w jednym 15-sekundowym oknie.
+- Telemetria ujawniła, że okresowy reconciler ponownie przechodził przez
+  kompletne eventy. Dedupe chronił outbox, ale zawyżał `events_seen`,
+  `aggregation_input` i `deduplicated_tasks` oraz generował zbędną konkurencję
+  o zapis SQLite.
+- Remediacja lokalna porównuje oczekiwany fan-out z taskami, w tym aggregate
+  source links, i publikuje tylko eventy z niepełnym lineage. Drugi przebieg po
+  naprawie ma `processed=0`, `incomplete=0`, pomija wszystkie kompletne eventy
+  i nie zmienia telemetryki.
+- Remediacja wymaga ponownego deployu. Po nim trzeba potwierdzić stabilne
+  liczniki na bezczynności i rzeczywisty aggregate z `event_count >= 2` oraz
+  zgodną liczbą source links.
 
 ## Remediacja 136.1 — 2026-09-02
 

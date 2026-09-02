@@ -260,12 +260,55 @@ class GhostNarrativePublisher:
             if _clean(event.get("created_at")) >= _clean(since)
             and resolve_ghost_event_policy(event.get("event_type"))["eligible"]
         ]
-        result = self.publish_persisted_events(reversed(events))
+        incomplete = [
+            event for event in reversed(events)
+            if not self._has_complete_event_lineage(event)
+        ]
+        result = self.publish_persisted_events(incomplete)
         result.update({
             "since": _clean(since),
             "scanned": len(events),
+            "incomplete": len(incomplete),
+            "skipped_complete": len(events) - len(incomplete),
         })
         return result
+
+    def _has_complete_event_lineage(self, event):
+        """Return true when every audience/medium projection already exists.
+
+        Reconciliation runs periodically, so it must not republish the entire
+        bounded history on every preflight.  Source lookups include aggregate
+        source links, which makes this check valid for both direct and merged
+        narrative tasks.
+        """
+        event = event if isinstance(event, dict) else {}
+        policy = resolve_ghost_event_policy(event.get("event_type"))
+        if not policy.get("eligible"):
+            return True
+        expected = {
+            (
+                _clean(audience.get("scope"), "public"),
+                _clean(audience.get("clan")),
+                _clean(audience.get("owner")),
+                _clean(medium),
+            )
+            for audience in self.resolve_event_audiences(event)
+            for medium in self.target_media_for_audience(policy, audience)
+        }
+        actual = {
+            (
+                _clean(task.get("audience_scope"), "public"),
+                _clean(task.get("audience_clan")),
+                _clean(task.get("audience_owner")),
+                _clean(task.get("target_medium")),
+            )
+            for task in self.repository.list_narrative_outbox(
+                source_scope="ghostnetwork",
+                source_event_id=event.get("event_id"),
+                limit=25,
+            )
+        }
+        return expected.issubset(actual)
 
     def build_facts(self, event, audience):
         event = event if isinstance(event, dict) else {}

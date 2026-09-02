@@ -2031,3 +2031,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Lokalnie: `253 GhostNetwork tests / PASS`, `59 downstream tests / PASS`,
   heavy-profile guard bez odczytu. Status: `IMPLEMENTED LOCALLY — SERVER
   VALIDATION REQUIRED`; bez commita, pushu, deployu i restartu PM2.
+
+## 2026-09-02 — Sprint 136.2: server partial pass i korekta reconciler-a
+
+- Po deployu strict audit osiągnął `ok=true`, kompletne lineage `8/8`, pełny
+  fan-out `public/clan/owner`, zero błędów audience/medium i zero odczytów
+  ciężkiego profilu.
+- Server probe low-eventów pokazał osobne taski `event_count=1`, więc merge w
+  jednym oknie nie został jeszcze dowiedziony.
+- Jednocześnie telemetryka ujawniła ponowne przetwarzanie kompletnych eventów
+  przez okresowy reconciler. Dedupe zapobiegał duplikatom, lecz zawyżał
+  liczniki i zwiększał presję zapisu na SQLite.
+- Reconciler filtruje teraz eventy według kompletności oczekiwanego lineage,
+  z uwzględnieniem aggregate source links. Regresja wymaga, aby drugi przebieg
+  wykonał zero publikacji i pozostawił telemetrykę bez zmian.
+- Targeted regression: `19 tests / PASS`; remediacja nie została jeszcze
+  zacommitowana, wypchnięta ani ponownie wdrożona.
