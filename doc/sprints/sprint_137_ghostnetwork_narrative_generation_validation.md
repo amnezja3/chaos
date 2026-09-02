@@ -1,6 +1,64 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `READY — SPRINT 136.2 SERVER PASS`
+Status: `137.1 LOCAL PASS — SERVER VALIDATION REQUIRED / 137.2 PENDING`
+
+## Sprint 137.1 — CO model dostaje i JAK ma mówić
+
+Etap 137.1 specjalizuje istniejący canonical worker bez dodawania kolejki,
+workera ani modelu. Nowe taski GhostNetwork otrzymują aktywne, wersjonowane
+polityki v2:
+
+```text
+BlackNet / Cyberner: ghostnetwork-event-prompt-v2
+Googleplex News:     ghostnetwork-googleplex-prompt-v2
+GhostSignal / radio: ghostsignal-prompt-v2
+```
+
+Model package dla v2 zawiera wyłącznie backend-owned kontrakt:
+
+```text
+source scope
+medium
+audience scope (bez surowego owner/clan identity)
+narrative_intent
+event_family
+significance
+tone_hint
+bounded thread_context
+projected facts i fact_refs
+referencje do dozwolonego CTA/assetu
+wersje oraz limity outputu
+```
+
+Surowe `outbox_id`, `source_event_id`, `audience_owner` i `audience_clan` nie są
+przekazywane modelowi v2. Bounded thread context rozróżnia pojedynczy event od
+agregatu i podaje tylko liczbę eventów, bez historii wątku ani jego prywatnego ID.
+
+Backend ustala również limity zależne od medium. Googleplex zachowuje krótki
+HERO (`48/120`, jeden fact ref), BlackNet i Cyberner `72/420`, a radio
+`72/520`; schema generacji egzekwuje te same granice.
+
+Cutover jest addytywny. Nowe taski dostają v2, ale już zapisane taski v1 nadal
+są claimowalne i publikowalne po swoim pełnym tuple wersji. Worker nie
+przypisuje staremu taskowi nowego promptu, a publisher nie odrzuca
+zarejestrowanego candidate v1 jako superseded. Status kolejki raportuje
+`ready_by_prompt_version`, a registry osobno liczbę active i legacy-compatible
+policies.
+
+Lokalne dowody:
+
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v2 policy`;
+- producer-backed `cycle_activated` buduje package v2 dla BlackNet i
+  Googleplex z poprawnym intent/family/significance;
+- historyczny task v1 jest claimowany i kończy się jednym candidate;
+- package owner nie zawiera raw owner/task/event identity;
+- aggregate przekazuje bounded `event_count`;
+- pełna regresja GhostNetwork po core cutover: `253 tests / PASS`;
+- końcowa regresja policy/worker/publication po limitach: `66 tests / PASS`.
+
+Commit, push, deploy i restart PM2 nie zostały wykonane. Przed rozpoczęciem
+137.2 wymagany jest server verify registry, kontrola kolejki v1/v2 oraz jeden
+nowy producer-backed task i candidate v2.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
@@ -93,7 +151,7 @@ tests.test_llm_publishers
 59 tests / PASS
 ```
 
-## Rzeczywista luka Sprintu 137
+## Rzeczywista luka Sprintu 137 przed etapem 137.1
 
 - registry zawiera stary wariant `connection_completed`, podczas gdy domena
   emituje `ghost.connection_created`;

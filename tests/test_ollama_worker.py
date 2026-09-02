@@ -8,7 +8,11 @@ from pathlib import Path
 
 from database import db_connect
 from ghostnetwork.ollama_client import OllamaClientError, OllamaGenerationResult
-from ghostnetwork.ollama_policy import assign_ollama_task_policy, registered_ollama_policies
+from ghostnetwork.ollama_policy import (
+    assign_ollama_task_policy,
+    build_ollama_task_package,
+    registered_ollama_policies,
+)
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.cycles import GhostCycleService
 from ghostnetwork.repository import GhostNetworkRepository
@@ -88,6 +92,12 @@ class OllamaWorkerTest(unittest.TestCase):
             "allowed_actions": [],
             "canon_version": "test-v1",
             "task_variant": "part_activated",
+            "narrative_intent": "ghost_part_activation",
+            "narrative_thread_id": "ghost-part:public:test",
+            "validation": {
+                "event_family": "part_activated",
+                "significance": "high",
+            },
             "status": "ready",
         })
         task.update(overrides)
@@ -123,7 +133,24 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(result["result"], "idle")
         self.assertEqual(counts["eligible_ready"], 0)
         self.assertEqual(counts["ineligible_ready"], 1)
+        self.assertEqual(counts["ready_by_prompt_version"], {"unassigned": 1})
         self.assertEqual(self.repo.list_narrative_outbox(limit=10)[0]["status"], "ready")
+
+    def test_legacy_ghostnetwork_v1_task_is_claimed_during_v2_cutover(self):
+        legacy = self.task(
+            event_id="legacy-v1",
+            prompt_version="ghostnetwork-event-prompt-v1",
+        )
+        item = self.repo.enqueue_narrative_task(legacy)
+        client = FakeClient([self.accepted("legacy-v1")])
+
+        result = self.worker(client).process_once()
+
+        self.assertEqual(result["result"], "completed", result)
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(
+            self.repo.get_narrative_outbox(item["outbox_id"])["status"], "completed"
+        )
 
     def test_thousands_of_historical_unassigned_tasks_do_not_block_eligible_claim(self):
         with self.repo.transaction():
@@ -291,6 +318,28 @@ class OllamaWorkerTest(unittest.TestCase):
             {task["target_medium"] for task in tasks},
             {"blacknet", "googleplex_news"},
         )
+        packages = {
+            task["target_medium"]: (
+                task,
+                json.loads(build_ollama_task_package(task)["messages"][1]["content"]),
+            )
+            for task in tasks
+        }
+        self.assertEqual(
+            packages["blacknet"][0]["prompt_version"],
+            "ghostnetwork-event-prompt-v2",
+        )
+        self.assertEqual(
+            packages["googleplex_news"][0]["prompt_version"],
+            "ghostnetwork-googleplex-prompt-v2",
+        )
+        for _task, model_input in packages.values():
+            self.assertEqual(model_input["narrative_intent"], "ghost_cycle_state")
+            self.assertEqual(model_input["event_family"], "cycle_activated")
+            self.assertEqual(model_input["significance"], "high")
+            self.assertEqual(model_input["tone_hint"], "warning")
+            self.assertEqual(model_input["source"], {"scope": "ghostnetwork"})
+            self.assertEqual(model_input["audience"], {"scope": "public"})
         self.assertEqual(client.calls, 0)
 
     def test_crash_after_candidate_does_not_call_model_again(self):

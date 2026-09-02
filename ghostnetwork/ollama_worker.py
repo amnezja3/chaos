@@ -248,7 +248,9 @@ class OllamaNarrativeWorker:
             return recovered
 
         policy = resolve_ollama_task_policy(
-            task.get("source_scope"), task.get("task_variant"), task.get("target_medium")
+            task.get("source_scope"), task.get("task_variant"), task.get("target_medium"),
+            task.get("prompt_version"), task.get("output_schema_version"),
+            task.get("model_policy_version"),
         )
         if not policy:
             dead = self.repository.dead_letter_narrative_task(

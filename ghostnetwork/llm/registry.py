@@ -59,6 +59,9 @@ GHOSTNETWORK_CYBERNER_VARIANTS = frozenset({
     "part_discovered", "machine_online", "connection_created", "cycle_locked",
     "signal_sent",
 })
+GHOSTNETWORK_EVENT_PROMPT_VERSION = "ghostnetwork-event-prompt-v2"
+GHOSTNETWORK_SIGNAL_PROMPT_VERSION = "ghostsignal-prompt-v2"
+GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION = "ghostnetwork-googleplex-prompt-v2"
 
 
 def _policy(source, variant, medium, version, relative_path, output_schema_version=OUTPUT_SCHEMA_VERSION):
@@ -93,7 +96,8 @@ def _build_registry():
     ))
     policies.append(_policy(
         "ghostnetwork", "googleplex_world_dispatch", "googleplex_news",
-        "googleplex-world-hero-prompt-v14", Path("googleplex") / "world-hero-v14.md",
+        GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+        Path("ghostnetwork") / "googleplex-v2.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     policies.extend((
@@ -117,6 +121,38 @@ def _build_registry():
         is_signal = variant == "signal_sent"
         policies.append(_policy(
             "ghostnetwork", variant, "blacknet",
+            GHOSTNETWORK_SIGNAL_PROMPT_VERSION if is_signal else GHOSTNETWORK_EVENT_PROMPT_VERSION,
+            (Path("ghostsignal") / "signal-v2.md") if is_signal
+            else (Path("ghostnetwork") / "event-v2.md"),
+        ))
+    for variant in sorted(GHOSTNETWORK_CYBERNER_VARIANTS):
+        is_signal = variant == "signal_sent"
+        policies.append(_policy(
+            "ghostnetwork", variant, "cyberner",
+            GHOSTNETWORK_SIGNAL_PROMPT_VERSION if is_signal else GHOSTNETWORK_EVENT_PROMPT_VERSION,
+            (Path("ghostsignal") / "signal-v2.md") if is_signal
+            else (Path("ghostnetwork") / "event-v2.md"),
+        ))
+    policies.append(_policy(
+        "ghostnetwork", "signal_sent", "radio", GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+        Path("ghostsignal") / "signal-v2.md",
+    ))
+    policies.append(_policy(
+        "googleplex_app", "owner-analysis", "cyberner",
+        "cyberner-agi-2108-prompt-v5", Path("cyberner") / "agi-2108-v5.md",
+    ))
+    return {(p.source_scope, p.task_variant, p.target_medium): p for p in policies}
+
+
+OLLAMA_TASK_POLICY_REGISTRY = _build_registry()
+
+
+def _build_legacy_ghostnetwork_policies():
+    policies = []
+    for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
+        is_signal = variant == "signal_sent"
+        policies.append(_policy(
+            "ghostnetwork", variant, "blacknet",
             "ghostsignal-prompt-v1" if is_signal else "ghostnetwork-event-prompt-v1",
             (Path("ghostsignal") / "signal-v1.md") if is_signal
             else (Path("ghostnetwork") / "event-v1.md"),
@@ -129,30 +165,48 @@ def _build_registry():
             (Path("ghostsignal") / "signal-v1.md") if is_signal
             else (Path("ghostnetwork") / "event-v1.md"),
         ))
-    policies.append(_policy(
-        "ghostnetwork", "signal_sent", "radio", "ghostsignal-prompt-v1",
-        Path("ghostsignal") / "signal-v1.md",
+    policies.extend((
+        _policy(
+            "ghostnetwork", "signal_sent", "radio", "ghostsignal-prompt-v1",
+            Path("ghostsignal") / "signal-v1.md",
+        ),
+        _policy(
+            "ghostnetwork", "googleplex_world_dispatch", "googleplex_news",
+            "googleplex-world-hero-prompt-v14", Path("googleplex") / "world-hero-v14.md",
+            ASSET_OUTPUT_SCHEMA_VERSION,
+        ),
     ))
-    policies.append(_policy(
-        "googleplex_app", "owner-analysis", "cyberner",
-        "cyberner-agi-2108-prompt-v5", Path("cyberner") / "agi-2108-v5.md",
-    ))
-    return {(p.source_scope, p.task_variant, p.target_medium): p for p in policies}
+    return tuple(policies)
 
 
-OLLAMA_TASK_POLICY_REGISTRY = _build_registry()
+OLLAMA_LEGACY_TASK_POLICIES = _build_legacy_ghostnetwork_policies()
 
 
 def registered_ollama_policies():
-    return tuple(OLLAMA_TASK_POLICY_REGISTRY.values())
+    return tuple(OLLAMA_TASK_POLICY_REGISTRY.values()) + OLLAMA_LEGACY_TASK_POLICIES
 
 
-def resolve_ollama_task_policy(source_scope, task_variant, target_medium):
-    return OLLAMA_TASK_POLICY_REGISTRY.get((
+def resolve_ollama_task_policy(
+    source_scope, task_variant, target_medium, prompt_version="",
+    output_schema_version="", model_policy_version="",
+):
+    key = (
         str(source_scope or "").strip(),
         str(task_variant or "").strip(),
         str(target_medium or "").strip(),
-    ))
+    )
+    active = OLLAMA_TASK_POLICY_REGISTRY.get(key)
+    versions = (
+        str(prompt_version or "").strip(),
+        str(output_schema_version or "").strip(),
+        str(model_policy_version or "").strip(),
+    )
+    if not any(versions):
+        return active
+    for policy in (active, *OLLAMA_LEGACY_TASK_POLICIES):
+        if policy and policy.eligibility_tuple() == (*key, *versions):
+            return policy
+    return None
 
 
 def _read_versioned_prompt(path, expected_version):
@@ -197,13 +251,20 @@ def load_output_schema(version=OUTPUT_SCHEMA_VERSION):
 def verify_prompt_registry():
     errors = []
     seen = set()
-    for key, policy in OLLAMA_TASK_POLICY_REGISTRY.items():
-        if key in seen:
-            errors.append(f"duplicate_policy:{key}")
-        seen.add(key)
+    for policy in registered_ollama_policies():
+        identity = policy.eligibility_tuple()
+        if identity in seen:
+            errors.append(f"duplicate_policy:{identity}")
+        seen.add(identity)
         try:
             load_prompt_layers(policy)
             load_output_schema(policy.output_schema_version)
         except ValueError as exc:
             errors.append(str(exc))
-    return {"ok": not errors, "errors": sorted(set(errors)), "policies": len(seen)}
+    return {
+        "ok": not errors,
+        "errors": sorted(set(errors)),
+        "policies": len(seen),
+        "active_policies": len(OLLAMA_TASK_POLICY_REGISTRY),
+        "legacy_compatible_policies": len(OLLAMA_LEGACY_TASK_POLICIES),
+    }

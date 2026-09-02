@@ -17,6 +17,7 @@ from ghostnetwork.llm.registry import (
     registered_ollama_policies,
     verify_prompt_registry,
 )
+from ghostnetwork.narrative import GHOST_EVENT_POLICY
 
 
 class OllamaPolicyTest(unittest.TestCase):
@@ -27,6 +28,12 @@ class OllamaPolicyTest(unittest.TestCase):
             "target_medium": "blacknet",
             "audience_scope": "public",
             "truth_class_policy": "canonical_facts_only",
+            "narrative_intent": "ghost_part_activation",
+            "narrative_thread_id": "ghost-part:public:test",
+            "validation": {
+                "event_family": "part_activated",
+                "significance": "high",
+            },
             "facts": [{"fact_id": "fact-1", "fact_type": "part_status", "status": "active"}],
             "allowed_actions": [{
                 "cta_action": "focus_part",
@@ -47,6 +54,102 @@ class OllamaPolicyTest(unittest.TestCase):
         ])
         self.assertNotIn("public-part-1", package["messages"][1]["content"])
         self.assertEqual(package["fact_refs"], frozenset({"fact-1"}))
+
+    def test_ghostnetwork_v2_package_exposes_backend_narrative_contract_only(self):
+        task = self.task()
+        task.update({
+            "outbox_id": "narrative_task_private_raw",
+            "source_event_id": "event_private_raw",
+            "audience_scope": "owner",
+            "audience_owner": "alice-private",
+        })
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+
+        self.assertEqual(task["prompt_version"], "ghostnetwork-event-prompt-v2")
+        self.assertEqual(model_input["source"], {"scope": "ghostnetwork"})
+        self.assertEqual(model_input["audience"], {"scope": "owner"})
+        self.assertEqual(model_input["narrative_intent"], "ghost_part_activation")
+        self.assertEqual(model_input["event_family"], "part_activated")
+        self.assertEqual(model_input["significance"], "high")
+        self.assertEqual(model_input["tone_hint"], "warning")
+        self.assertEqual(model_input["output_limits"], {
+            "title_chars": 72,
+            "body_chars": 420,
+            "fact_refs": 4,
+            "json_only": True,
+        })
+        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 72)
+        self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 420)
+        self.assertEqual(model_input["thread_context"], {
+            "mode": "event", "continuity": "thread_update",
+        })
+        encoded = package["messages"][1]["content"]
+        self.assertNotIn("alice-private", encoded)
+        self.assertNotIn("narrative_task_private_raw", encoded)
+        self.assertNotIn("event_private_raw", encoded)
+        self.assertLessEqual(package["input_bytes"], MAX_TASK_PACKAGE_BYTES)
+
+    def test_ghostnetwork_v2_aggregate_context_is_bounded(self):
+        task = self.task()
+        task["validation"].update({"aggregation_input": 20})
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(model_input["thread_context"], {
+            "mode": "aggregate", "continuity": "thread_update", "event_count": 20,
+        })
+
+    def test_ghostnetwork_v2_requires_intent_family_and_significance(self):
+        missing_intent = self.task()
+        missing_intent["narrative_intent"] = ""
+        with self.assertRaisesRegex(ValueError, "narrative_intent_invalid"):
+            build_ollama_task_package(missing_intent)
+
+        missing_family = self.task()
+        missing_family["validation"]["event_family"] = ""
+        missing_family["facts"] = [{"fact_id": "fact-1"}]
+        with self.assertRaisesRegex(ValueError, "event_family_missing"):
+            build_ollama_task_package(missing_family)
+
+        missing_significance = self.task()
+        missing_significance["validation"]["significance"] = ""
+        with self.assertRaisesRegex(ValueError, "significance_invalid"):
+            build_ollama_task_package(missing_significance)
+
+    def test_ghostnetwork_v1_policy_remains_resolvable_during_v2_cutover(self):
+        task = self.task()
+        task["prompt_version"] = "ghostnetwork-event-prompt-v1"
+        policy = resolve_ollama_task_policy(
+            task["source_scope"], task["task_variant"], task["target_medium"],
+            task["prompt_version"], task["output_schema_version"],
+            task["model_policy_version"],
+        )
+        self.assertIsNotNone(policy)
+        self.assertEqual(policy.prompt_version, "ghostnetwork-event-prompt-v1")
+        self.assertIn(policy.eligibility_tuple(), {
+            item.eligibility_tuple() for item in registered_ollama_policies()
+        })
+        package = build_ollama_task_package(task)
+        self.assertIn("ghostnetwork-event-prompt-v1", package["messages"][1]["content"])
+
+    def test_every_ghostnetwork_event_policy_medium_has_active_v2_generation_policy(self):
+        for event_type, event_policy in GHOST_EVENT_POLICY.items():
+            event_variant = event_type.removeprefix("ghost.")
+            for medium in event_policy["target_media"]:
+                task_variant = (
+                    "googleplex_world_dispatch"
+                    if medium == "googleplex_news"
+                    else event_variant
+                )
+                policy = resolve_ollama_task_policy(
+                    "ghostnetwork", task_variant, medium
+                )
+                self.assertIsNotNone(policy, (event_type, medium))
+                self.assertIn(policy.prompt_version, {
+                    "ghostnetwork-event-prompt-v2",
+                    "ghostnetwork-googleplex-prompt-v2",
+                    "ghostsignal-prompt-v2",
+                })
 
     def test_validator_accepts_known_references_and_resolves_backend_cta(self):
         task = self.task()
@@ -344,9 +447,13 @@ class OllamaPolicyTest(unittest.TestCase):
         status = verify_prompt_registry()
         self.assertTrue(status["ok"], status["errors"])
         self.assertEqual(status["policies"], len(registered_ollama_policies()))
+        self.assertGreater(status["active_policies"], 0)
+        self.assertGreater(status["legacy_compatible_policies"], 0)
         for policy in registered_ollama_policies():
             resolved = resolve_ollama_task_policy(
-                policy.source_scope, policy.task_variant, policy.target_medium
+                policy.source_scope, policy.task_variant, policy.target_medium,
+                policy.prompt_version, policy.output_schema_version,
+                policy.model_policy_version,
             )
             self.assertEqual(resolved.eligibility_tuple(), policy.eligibility_tuple())
 

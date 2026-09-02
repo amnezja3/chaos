@@ -2063,3 +2063,25 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Końcowy strict audit zwrócił `errors=[]` oraz `ok=true`.
 - Sprint 136.2 jest zamknięty z lokalnym i serwerowym dowodem; Sprint 137
   został odblokowany.
+
+## 2026-09-02 — Sprint 137.1: model input i voice contract
+
+- Dodano aktywne prompty v2 dla GhostNetwork eventów BlackNet/Cyberner,
+  Googleplex world dispatch oraz GhostSignal/radio. Registry przypisuje v2
+  wyłącznie nowym taskom.
+- Package v2 przekazuje backend-owned `narrative_intent`, `event_family`,
+  `significance`, `tone_hint`, bounded thread context, projected facts oraz
+  limity medium. Nie przekazuje raw owner/clan identity, outbox ID ani source
+  event ID.
+- Dodano addytywną zgodność pełnych tuple polityk v1. Stare taski pozostają
+  claimowalne i publikowalne do naturalnego opróżnienia bez zmiany promptu i
+  bez masowej regeneracji.
+- Registry verification raportuje active/legacy-compatible policies, a status
+  kolejki `ready_by_prompt_version` dla bezpiecznego server cutoveru.
+- Testy obejmują pełną macierz event/medium, package z realnego producenta,
+  brak raw identity, agregat, fail-closed brak intent/family/significance oraz
+  udany claim historycznego v1.
+- Regresja: `253 GhostNetwork tests / PASS` po core cutover oraz `66 targeted
+  policy/worker/publication tests / PASS` po finalnych limitach medium.
+- Status: `137.1 LOCAL PASS — SERVER VALIDATION REQUIRED`; bez commita, pushu,
+  deployu i restartu PM2. Sprint 137.2 nie został rozpoczęty.

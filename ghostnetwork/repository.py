@@ -4341,6 +4341,20 @@ class GhostNetworkRepository:
                 (NARRATIVE_TASK_PROCESSOR,),
             ).fetchall()
             counts = {str(row["status"]): int(row["count"] or 0) for row in rows}
+            version_rows = conn.execute(
+                """
+                SELECT prompt_version, COUNT(*) AS count
+                FROM ghost_narrative_outbox
+                WHERE processor = ? AND status IN ('ready', 'retry_wait')
+                GROUP BY prompt_version
+                ORDER BY prompt_version
+                """,
+                (NARRATIVE_TASK_PROCESSOR,),
+            ).fetchall()
+            ready_by_prompt_version = {
+                str(row["prompt_version"]): int(row["count"] or 0)
+                for row in version_rows
+            }
             policy_clause, policy_params = _narrative_policy_sql(eligible_policies)
             eligibility = conn.execute(
                 f"""
@@ -4387,6 +4401,7 @@ class GhostNetworkRepository:
             "statuses": counts,
             "eligible_ready": int((eligibility or {})["eligible"] or 0),
             "ineligible_ready": int((eligibility or {})["ineligible"] or 0),
+            "ready_by_prompt_version": ready_by_prompt_version,
             "oldest_eligible_ready": (
                 str((eligibility or {})["oldest_eligible_ready"] or "")
             ),

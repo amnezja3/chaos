@@ -58,15 +58,17 @@ class NarrativePublicationService:
         )
         if metadata_errors:
             return False, metadata_errors[0]
-        if candidate.get("target_medium") in {"googleplex_news", "cyberner"}:
+        if (
+            candidate.get("target_medium") in {"googleplex_news", "cyberner"}
+            and candidate.get("source_scope") and task.get("task_variant")
+        ):
             current_policy = resolve_ollama_task_policy(
                 candidate.get("source_scope"), task.get("task_variant"),
                 candidate.get("target_medium"),
+                task.get("prompt_version"), task.get("output_schema_version"),
+                task.get("model_policy_version"),
             )
-            if current_policy and (
-                task.get("prompt_version") != current_policy.prompt_version
-                or task.get("output_schema_version") != current_policy.output_schema_version
-            ):
+            if not current_policy:
                 return False, "candidate_policy_superseded"
         if unknown_canonical_poi_names(
             candidate.get("title"), candidate.get("body"), task.get("facts") or []

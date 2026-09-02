@@ -13,6 +13,9 @@ from .llm.policies.chaos_local_narrator_v1 import (
     MODEL_POLICY_VERSION,
 )
 from .llm.registry import (
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
     OUTPUT_SCHEMA_VERSION,
     load_output_schema,
     load_prompt_layers,
@@ -55,6 +58,35 @@ EDITORIAL_NARRATIVE_INTENTS = frozenset({
     "product_benefit_promo",
     "capability_invitation",
 })
+GHOSTNETWORK_NARRATIVE_INTENTS = frozenset({
+    "ghost_part_discovery",
+    "ghost_part_containment",
+    "ghost_part_activation",
+    "ghost_part_conflict",
+    "ghost_part_recovery",
+    "ghost_machine_progress",
+    "ghost_machine_state",
+    "ghost_cycle_state",
+    "ghost_signal_transmission",
+    "ghost_system_transition",
+})
+GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+})
+GHOSTNETWORK_TONE_HINTS = {
+    "low": "info",
+    "normal": "info",
+    "high": "warning",
+    "critical": "critical",
+}
+GHOSTNETWORK_OUTPUT_LIMITS = {
+    "blacknet": {"title": 72, "body": 420, "refs": 4},
+    "cyberner": {"title": 72, "body": 420, "refs": 4},
+    "radio": {"title": 72, "body": 520, "refs": 4},
+    "googleplex_news": {"title": 48, "body": 120, "refs": 1},
+}
 URL_PATTERN = re.compile(r"(?:https?://|www\.|ftp://)", re.IGNORECASE)
 INTERNAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:\b(?:narrative|receipt|candidate|task|event|signal)_[a-z0-9_:-]{6,}\b|\b[0-9a-f]{10,}\b)",
@@ -491,10 +523,24 @@ def _try_add_top_level_field(model_input, field, value):
     return False
 
 
+def _is_ghostnetwork_v2_policy(policy):
+    return bool(
+        policy
+        and policy.source_scope == "ghostnetwork"
+        and policy.prompt_version in GHOSTNETWORK_V2_PROMPT_VERSIONS
+    )
+
+
+def _generation_limits_for_policy(policy):
+    if _is_ghostnetwork_v2_policy(policy):
+        return GHOSTNETWORK_OUTPUT_LIMITS.get(policy.target_medium)
+    return GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
+
+
 def _generation_output_schema(policy, allowed_asset_refs=(), allowed_asset_roles=(), editorial_contract=None):
     """Return a policy-scoped generation constraint within the canonical schema."""
     schema = load_output_schema(policy.output_schema_version)
-    limits = GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
+    limits = _generation_limits_for_policy(policy)
     if not limits:
         return schema
     properties = schema.get("properties") or {}
@@ -548,6 +594,9 @@ def build_ollama_task_package(task, policy=None):
         task.get("source_scope"),
         task.get("task_variant"),
         task.get("target_medium") or task.get("medium"),
+        task.get("prompt_version"),
+        task.get("output_schema_version"),
+        task.get("model_policy_version"),
     )
     if not policy:
         raise ValueError("ollama_task_policy_not_registered")
@@ -588,12 +637,15 @@ def build_ollama_task_package(task, policy=None):
         cta_candidates.append((ref, action_name, action))
 
     fact_columns = ["fact_ref"]
+    is_ghostnetwork_v2 = _is_ghostnetwork_v2_policy(policy)
     source = {
         "scope": policy.source_scope,
         "task": str(task.get("outbox_id") or task.get("task_id") or "")[:128],
         "event": str(task.get("source_event_id") or "")[:128],
         "receipt": str(task.get("source_receipt_id") or "")[:128],
     }
+    if is_ghostnetwork_v2:
+        source = {"scope": policy.source_scope}
     versions = {
         "prompt": policy.prompt_version,
         "output_schema": policy.output_schema_version,
@@ -612,6 +664,8 @@ def build_ollama_task_package(task, policy=None):
         "clan": str(task.get("audience_clan") or "")[:96],
         "owner": str(task.get("audience_owner") or "")[:96],
     }
+    if is_ghostnetwork_v2:
+        audience = {"scope": audience["scope"]}
 
     model_input = {
         "source": source,
@@ -629,6 +683,32 @@ def build_ollama_task_package(task, policy=None):
         or (task.get("validation") or {}).get("narrative_intent")
         or ""
     ).strip()
+    if is_ghostnetwork_v2:
+        validation = task.get("validation") if isinstance(task.get("validation"), dict) else {}
+        event_family = str(
+            validation.get("event_family")
+            or ((source_facts[0] if source_facts else {}).get("fact_type"))
+            or ""
+        ).strip()[:64]
+        significance = str(validation.get("significance") or "").strip()
+        if narrative_intent not in GHOSTNETWORK_NARRATIVE_INTENTS:
+            raise ValueError("ollama_task_narrative_intent_invalid")
+        if not event_family:
+            raise ValueError("ollama_task_event_family_missing")
+        if significance not in GHOSTNETWORK_TONE_HINTS:
+            raise ValueError("ollama_task_significance_invalid")
+        aggregate_count = max(1, int(validation.get("aggregation_input") or 1))
+        model_input.update({
+            "narrative_intent": narrative_intent,
+            "event_family": event_family,
+            "significance": significance,
+            "tone_hint": GHOSTNETWORK_TONE_HINTS[significance],
+            "thread_context": {
+                "mode": "aggregate" if aggregate_count > 1 else "event",
+                "continuity": "thread_update" if task.get("narrative_thread_id") else "standalone",
+                **({"event_count": aggregate_count} if aggregate_count > 1 else {}),
+            },
+        })
     if not narrative_intent and policy.source_scope == "googleplex_editorial":
         # Compatibility for already queued Stage II assignments created before
         # the explicit column. The backend task variant still owns this choice.
@@ -667,7 +747,7 @@ def build_ollama_task_package(task, policy=None):
             ) if editorial_contract.get(key) not in (None, "")
         }
         model_input["allowed_asset_roles"] = list(allowed_asset_roles)
-    generation_limits = GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
+    generation_limits = _generation_limits_for_policy(policy)
     if generation_limits:
         # This bounded hint is part of the mandatory package for constrained
         # media. Optional CTA/fact columns must not displace output safety.
@@ -711,9 +791,10 @@ def build_ollama_task_package(task, policy=None):
     _try_add_top_level_field(
         model_input, "context", str(task.get("narrative_context") or "")[:256]
     )
-    _try_add_top_level_field(
-        model_input, "limits", {"title": 96, "body": 480, "refs": 16}
-    )
+    if not is_ghostnetwork_v2:
+        _try_add_top_level_field(
+            model_input, "limits", {"title": 96, "body": 480, "refs": 16}
+        )
 
     encoded = _encoded_package(model_input)
     input_bytes = len(encoded.encode("utf-8"))

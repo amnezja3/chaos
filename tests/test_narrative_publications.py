@@ -117,6 +117,10 @@ class NarrativePublicationTest(unittest.TestCase):
         task_variant="part_activated", target_medium="blacknet", validation=None,
         client=None,
     ):
+        task_validation = dict(validation or {})
+        if source_scope == "ghostnetwork":
+            task_validation.setdefault("event_family", "part_activated")
+            task_validation.setdefault("significance", "high")
         task = assign_ollama_task_policy({
             "event_id": event_id,
             "source_scope": source_scope,
@@ -140,9 +144,9 @@ class NarrativePublicationTest(unittest.TestCase):
                 "intercepted_world_signal"
                 if source_scope == "blacknet_world"
                 and task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
-                else ""
+                else "ghost_part_activation" if source_scope == "ghostnetwork" else ""
             ),
-            "validation": validation or {},
+            "validation": task_validation,
         })
         item = self.repo.enqueue_narrative_task(task)
         worker = OllamaNarrativeWorker(
