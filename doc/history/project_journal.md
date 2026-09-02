@@ -1998,3 +1998,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   pełna regresja 36 modułów GhostNetwork: `250 tests / PASS`.
 - Bez commita, pushu, deployu, restartu PM2 i bez czyszczenia danych. Status:
   `LOCAL PASS — SERVER REVALIDATION REQUIRED`.
+
+## 2026-09-02 — Sprint 136.1: rewalidacja serwerowa PASS
+
+- Po deployu i restarcie procesów `chaos`, `chaos-territory-worker`,
+  `chaos-ollama-worker` oraz `chaos-narrative-publisher` wszystkie procesy
+  wróciły do stanu `online`.
+- Bounded recovery utworzył dla historycznego `event_d695f50fdafa44fa`
+  dokładnie dwa taski `public`: BlackNet i Googleplex News.
+- Strict cutover zwrócił `ok=true`; kompletność lineage, source event, media,
+  audience i heavy-profile counters mają wartości zerowe dla błędów.
+- Nowy realny drop zapisał `event_5b6d395c4b340577` i bezpośrednio utworzył
+  task BlackNet po około 137 ms oraz Googleplex News po około 227 ms. Oba taski
+  mają `audience_scope=public`.
+- Sprint 136.1 oraz Etap I mają status `COMPLETE — SERVER PASS`. Sprint 137 jest
+  gotowy do rozpoczęcia; 138 pozostaje zależny od producer-backed candidates
+  Sprintu 137.

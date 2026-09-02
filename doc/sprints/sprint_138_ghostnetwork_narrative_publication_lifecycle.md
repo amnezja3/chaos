@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `BLOCKED — AWAITING SERVER 136.1 PROOF AND 137 CANDIDATES`
+Status: `BLOCKED — REQUIRES SPRINT 137 PRODUCER-BACKED CANDIDATES`
 
 ## Korekta po audycie Sprintu 136 — 2026-09-02
 
@@ -8,8 +8,9 @@ Publication lifecycle nie może być zatwierdzony na podstawie candidate
 wstawionego ręcznie do środka pipeline'u. Incydent z realnym dropem pokazał,
 że downstream może być zdrowy, gdy upstream nie tworzy żadnego taska.
 
-Remediacja 136.1 jest wdrożona i pokryta lokalnie, ale 138 pozostaje
-zablokowany do serwerowego dowodu lineage 136 oraz producer-backed candidates
+Remediacja 136.1 ma lokalny i serwerowy PASS: historyczny event odzyskał taski,
+nowy realny drop utworzył je bezpośrednio, a strict lineage audit jest zielony.
+Sprint 138 pozostaje zablokowany wyłącznie do czasu producer-backed candidates
 ze Sprintu 137.
 
 Pełny test Sprintu 138 musi zaczynać się od produkcyjnego entrypointu domeny:
@@ -361,7 +362,7 @@ BlackNet merge and fact suppression:        COMPLETE
 Googleplex slot CAS:                        COMPLETE
 baseline worker/publisher tests:            59 / PASS
 Sprint 136 event/audience component:        PRESENT
-Sprint 136 runtime ingress/lineage:          LOCAL PASS / SERVER CHECK REQUIRED
+Sprint 136 runtime ingress/lineage:          SERVER PASS
 Sprint 137 producer-backed candidates:      BLOCKED
 publication lifecycle scope:                FROZEN
 ```

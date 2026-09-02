@@ -1,6 +1,6 @@
 # Sprint 136 — GhostNetwork Domain Narrative Bridge
 
-Status: `ETAP I REMEDIATION IMPLEMENTED LOCALLY — SERVER REVALIDATION REQUIRED`
+Status: `ETAP I / 136.1 COMPLETE — SERVER PASS`
 
 ## Remediacja 136.1 — 2026-09-02
 
@@ -28,9 +28,23 @@ w istniejącym `ghost_narrative_outbox`.
 - Lokalna regresja ingress + worker + publication: `87 tests / PASS`.
   Pełna regresja 36 modułów GhostNetwork: `250 tests / PASS`.
 
-Rewalidacja serwerowa musi potwierdzić naprawę realnego
-`event_d695f50fdafa44fa` przez reconciler oraz nowy drop od capture effect do
-tasków BlackNet i Googleplex News. Do tego czasu status nie jest `COMPLETE`.
+### Rewalidacja serwerowa — PASS
+
+- Reconciler naprawił historyczny osierocony `event_d695f50fdafa44fa`, tworząc
+  dokładnie dwa publiczne taski: `blacknet` i `googleplex_news`.
+- Strict cutover zwrócił `ok=true`, `eligible_without_task=0`,
+  `missing_expected_tasks=0`, `tasks_with_missing_event=0`,
+  `unexpected_medium=0`, `wrong_audience=0` oraz wszystkie liczniki heavy
+  profile równe zero.
+- Nowy rzeczywisty drop utworzył `event_5b6d395c4b340577` o
+  `2026-09-02T12:29:43.039428+00:00`. Bezpośredni post-commit ingress zapisał
+  task BlackNet o `12:29:43.176418+00:00` i Googleplex News o
+  `12:29:43.266762+00:00`, oba z `audience_scope=public`.
+- Statusy `processing/ready` w chwili odczytu potwierdzają przekazanie do
+  istniejącego downstreamu; ukończenie generowania i publikacji należy do
+  zakresu Sprintów 137–138.
+
+Remediacja 136.1 ma lokalny i serwerowy dowód. Etap I jest `COMPLETE`.
 
 ## Audit integracyjny po walidacji serwerowej — 2026-09-02
 
@@ -568,13 +582,13 @@ eligible_without_task = 0
 canonical pipeline 135.6:                 COMPLETE
 historical 136 reconciled with code:       DONE
 existing foundation tests:                31 / PASS
-runtime ingress remediation:               LOCAL PASS
-eligible-event lineage audit:              IMPLEMENTED / LOCAL PASS
+runtime ingress remediation:               SERVER PASS
+eligible-event lineage audit:              SERVER PASS
 remaining gaps identified:                 DONE
 two-stage implementation boundary:        FROZEN
 heavy-profile gate:                       FROZEN
 no new queue/worker/publisher:             FROZEN
-Etap I remediation:                        DONE LOCALLY / SERVER REVALIDATION REQUIRED
+Etap I remediation:                        COMPLETE
 ```
 
 ## Definition of Done

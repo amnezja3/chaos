@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `BLOCKED — AWAITING SERVER REVALIDATION OF SPRINT 136.1`
+Status: `READY — SPRINT 136.1 SERVER PASS`
 
 ## Korekta po audycie Sprintu 136 — 2026-09-02
 
@@ -16,10 +16,10 @@ Sprintu 137. Każda rodzina generation/validation musi użyć przynajmniej
 jednego taska wytworzonego przez realny producer i runtime entrypoint ze
 Sprintu 136.
 
-Remediacja 136.1 jest wdrożona lokalnie: runtime ingress, public projection,
-bounded recovery i strict lineage audit mają testy producer-level. Nie zmienia
-to bramki produkcyjnej — 137 zostaje zablokowany do czasu rewalidacji na
-serwerze i potwierdzenia naprawy istniejącego osieroconego eventu.
+Remediacja 136.1 przeszła rewalidację serwerową. Historyczny osierocony event
+został naprawiony przez bounded recovery, nowy realny drop utworzył oba
+oczekiwane publiczne taski bezpośrednio w post-commit ingressie, a strict
+lineage audit zwrócił `ok=true`. Bramka wejściowa Sprintu 137 jest otwarta.
 
 ### Bramka wejściowa 136 -> 137
 
@@ -315,8 +315,8 @@ generic schema and validator:              COMPLETE
 publication handoff:                       COMPLETE
 baseline worker/publisher tests:           59 / PASS
 Sprint 136 component task contract:        PRESENT
-Sprint 136 runtime ingress:                LOCAL PASS / SERVER CHECK REQUIRED
-Sprint 136 strict lineage audit:           IMPLEMENTED / SERVER CHECK REQUIRED
+Sprint 136 runtime ingress:                SERVER PASS
+Sprint 136 strict lineage audit:           SERVER PASS
 GhostNetwork specialization scope:         FROZEN
 ```
 
