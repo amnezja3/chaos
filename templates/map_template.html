@@ -2583,10 +2583,14 @@
                     );
                     if (!transientBoundsFailure) throw err;
                     this._parts = [];
-                    console.warn('[map renderer] transient polyline bounds race skipped', {
-                        layer: 'polyline',
-                        error: String(err && err.message || 'invalid_bounds')
-                    });
+                    const now = Date.now();
+                    if (!this._chaosLastBoundsWarningAt || now - this._chaosLastBoundsWarningAt >= 5000) {
+                        this._chaosLastBoundsWarningAt = now;
+                        console.warn('[map renderer] transient polyline bounds race skipped', {
+                            layer: 'polyline',
+                            error: String(err && err.message || 'invalid_bounds')
+                        });
+                    }
                 }
             };
             proto._chaosBoundsGuardInstalled = true;

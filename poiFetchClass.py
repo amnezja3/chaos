@@ -34,20 +34,20 @@ class POIFetcher:
         for tag in self.tag_filters:
             if "=" in tag:
                 key, value = tag.split("=", 1)
-                tag_queries.append(f'  node(around:{self.radius},{lat},{lon})["{key}"="{value}"];')
+                tag_queries.append(f'  nwr(around:{self.radius},{lat},{lon})["{key}"="{value}"];')
             else:
                 key_filters.append(tag)
 
         if key_filters:
             key_regex = "|".join(re.escape(key) for key in key_filters)
-            tag_queries.insert(0, f'  node(around:{self.radius},{lat},{lon})[~"^({key_regex})$"~"."];')
+            tag_queries.insert(0, f'  nwr(around:{self.radius},{lat},{lon})[~"^({key_regex})$"~"."];')
 
         tag_query_str = "\n".join(tag_queries)
         return f"""[out:json][timeout:15];
 (
 {tag_query_str}
 );
-out body;
+out center;
 """
 
     def _fetch(self, lat: float, lon: float, result_limit: int = 0) -> overpy.Result:
@@ -99,25 +99,38 @@ out body;
         self.data_by_category = {tag: [] for tag in self.tag_filters}
         self.data_by_category["other"] = []
 
-        for node in result.nodes:
+        elements = [
+            *(("node", item) for item in getattr(result, "nodes", []) or []),
+            *(("way", item) for item in getattr(result, "ways", []) or []),
+            *(("relation", item) for item in getattr(result, "relations", []) or []),
+        ]
+        for element_type, element in elements:
+            lat = getattr(element, "lat", None)
+            lon = getattr(element, "lon", None)
+            if lat is None or lon is None:
+                lat = getattr(element, "center_lat", None)
+                lon = getattr(element, "center_lon", None)
+            if lat is None or lon is None:
+                continue
             entry = {
-                "name": node.tags.get("name", ""),
-                "osm_id": getattr(node, "id", None),
-                "node_id": getattr(node, "id", None),
-                "lat": float(node.lat),
-                "lon": float(node.lon),
-                "tags": node.tags,
+                "name": element.tags.get("name", ""),
+                "osm_id": getattr(element, "id", None),
+                "node_id": getattr(element, "id", None) if element_type == "node" else None,
+                "osm_type": element_type,
+                "lat": float(lat),
+                "lon": float(lon),
+                "tags": element.tags,
             }
 
             matched = False
             for tag in self.tag_filters:
                 if "=" in tag:
                     key, value = tag.split("=", 1)
-                    if node.tags.get(key) == value:
+                    if element.tags.get(key) == value:
                         self.data_by_category[tag].append(entry)
                         matched = True
                         break
-                elif tag in node.tags:
+                elif tag in element.tags:
                     self.data_by_category[tag].append(entry)
                     matched = True
                     break

@@ -114,6 +114,7 @@ function testLeafletPolylineBoundsGuard() {
     racingLine._parts = ["stale"];
     assert.doesNotThrow(() => racingLine._clipPoints());
     assert.deepStrictEqual(Array.from(racingLine._parts), []);
+    assert.ok(racingLine._chaosLastBoundsWarningAt, "transient warning must be rate limited per layer");
 
     clipBehavior = function unrelatedFailure() {
         throw new Error("unrelated renderer defect");
