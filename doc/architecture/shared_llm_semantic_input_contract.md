@@ -165,7 +165,7 @@ opcjonalnej location nie jest błędem.
 
 - v1 i v2 zachowują dotychczasowe prompty, package builder i resolution tuple;
 - GhostNetwork v3 było pierwszym `chaos-llm-semantic-input-v1` consumerem;
-- świeże GhostNetwork taski dostają v7, a v3–v6 pozostają semantic-compatible;
+- świeże GhostNetwork taski dostają v8, a v3–v7 pozostają semantic-compatible;
 - już zapisane READY/RETRY_WAIT/CLAIMED v1/v2 pozostają claimowalne;
 - alias jest mapowany do canonical fact ID przed candidate, więc publication i
   fact lineage nie zmieniają kontraktu;

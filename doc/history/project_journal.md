@@ -2277,3 +2277,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Lokalna regresja policy/worker/semantic/audit/publication/producer v7:
   `73 tests / PASS`. Wymagany jest ostatni producer-backed server probe oraz
   ręczny PASS wszystkich czterech wariantów przed zamknięciem 137.1.
+
+## 2026-09-03 — Sprint 137.1: techniczny PASS v7, canonical sentence v8
+
+- Produkcyjny event `event_ed93067dc1c2fb2b` wygenerował cztery taski v7.
+  Wszystkie zakończyły się w pierwszym attempt, a strict generation audit
+  zwrócił `ok=true`, `errors=[]` i pełne lineage.
+- Public, clan i owner BlackNet były krótkie, polskie, bez identyfikatorów oraz
+  nieudowodnionych skutków. Googleplex nie przeszedł ręcznej bramki: model
+  zmienił miejsce `Barnard Stamp Company` we właściciela elementu. Owner nie
+  użył dostępnej nazwy części `Influence Relay`.
+- V8 składa dla `part_discovered` jedno audience-safe zdanie canonical po
+  stronie backendu. Model nie widzi już osobnych encji i location wymagających
+  interpretacji. Owner dostaje w tym zdaniu nazwę części, public/clan wyłącznie
+  dozwolony kontekst miejsca.
+- Backend wymaga nazwy części w body ownera i odrzuca nieudowodnione formy
+  własności przez `voice_unsupported_relation`. Taski v1–v7 pozostają
+  addytywnie zarejestrowane, a v3–v7 zachowują semantic package.
+- Lokalna regresja v8: `74 tests / PASS`. Do zamknięcia 137.1 pozostaje nowy
+  producer-backed server probe oraz ręczna ocena czterech kandydatów v8.

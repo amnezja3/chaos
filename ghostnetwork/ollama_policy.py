@@ -91,6 +91,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v6",
     "ghostnetwork-googleplex-prompt-v6",
     "ghostsignal-prompt-v6",
+    "ghostnetwork-event-prompt-v7",
+    "ghostnetwork-googleplex-prompt-v7",
+    "ghostsignal-prompt-v7",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -111,6 +114,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v6",
     "ghostnetwork-googleplex-prompt-v6",
     "ghostsignal-prompt-v6",
+    "ghostnetwork-event-prompt-v7",
+    "ghostnetwork-googleplex-prompt-v7",
+    "ghostsignal-prompt-v7",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -592,6 +598,52 @@ def _generation_limits_for_policy(policy):
     return GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
 
 
+def _semantic_entity_label(semantic, kind):
+    for entity in semantic.get("entities") or ():
+        if isinstance(entity, dict) and str(entity.get("kind") or "").strip() == kind:
+            return str(entity.get("label") or "").strip()
+    return ""
+
+
+def _part_discovered_model_fact(visible_fact, audience_scope):
+    """Collapse ambiguous entity rows into one backend-authored canonical sentence."""
+    statement = str(visible_fact.get("statement") or "").strip()
+    target = _semantic_entity_label(visible_fact, "target")
+    part = _semantic_entity_label(visible_fact, "part")
+    location = visible_fact.get("location") if isinstance(visible_fact.get("location"), dict) else {}
+    city = str(location.get("city") or "").strip()
+
+    prefix = ""
+    if target:
+        prefix = f"Przy obiekcie {target}"
+        if city and audience_scope != "owner":
+            prefix += f" w mieście {city}"
+    elif city:
+        prefix = f"W mieście {city}"
+    if prefix and statement:
+        statement = f"{prefix} {statement[:1].lower()}{statement[1:]}"
+    if audience_scope == "owner" and part:
+        statement = f"{statement.rstrip('.: ')}: {part}."
+    return {"fact_ref": visible_fact.get("fact_ref"), "statement": statement}
+
+
+def _part_discovered_required_details(source_facts, audience_scope):
+    semantic = (
+        (source_facts[0] or {}).get("semantic")
+        if source_facts and isinstance(source_facts[0], dict)
+        else {}
+    )
+    semantic = semantic if isinstance(semantic, dict) else {}
+    if audience_scope == "owner":
+        part = _semantic_entity_label(semantic, "part")
+        if part:
+            return (part,)
+    values = [_semantic_entity_label(semantic, "target")]
+    location = semantic.get("location") if isinstance(semantic.get("location"), dict) else {}
+    values.extend(str(value or "").strip() for value in location.values())
+    return tuple(dict.fromkeys(value for value in values if value))[:12]
+
+
 def _generation_output_schema(
     policy, allowed_fact_refs=(), allowed_cta_refs=(), allowed_asset_refs=(),
     allowed_asset_roles=(), editorial_contract=None,
@@ -689,7 +741,19 @@ def build_ollama_task_package(task, policy=None):
         model_fact_ref = f"f{len(source_facts):02d}" if is_ghostnetwork_minimal else fact_id
         fact_ref_map[model_fact_ref] = fact_id
         if is_ghostnetwork_minimal:
-            semantic_facts.append(model_visible_semantic_fact(item, model_fact_ref))
+            visible_fact = model_visible_semantic_fact(item, model_fact_ref)
+            if (
+                policy.prompt_version in {
+                    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+                    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+                }
+                and policy.task_variant in {"part_discovered", "googleplex_world_dispatch"}
+                and str(item.get("fact_type") or "").strip() == "part_discovered"
+            ):
+                visible_fact = _part_discovered_model_fact(
+                    visible_fact, str(task.get("audience_scope") or "").strip()
+                )
+            semantic_facts.append(visible_fact)
         else:
             facts.append([model_fact_ref])
     if not source_facts:
@@ -887,17 +951,32 @@ def build_ollama_task_package(task, policy=None):
         }
     )
     if active_ghost_prompt:
-        detail_values = []
-        for semantic_fact in model_input.get("semantic_facts") or ():
-            detail_values.extend(
-                str(entity.get("label") or "").strip()
-                for entity in semantic_fact.get("entities") or ()
-                if isinstance(entity, dict)
+        is_part_discovered = (
+            str((source_facts[0] or {}).get("fact_type") or "").strip()
+            == "part_discovered"
+        )
+        if is_part_discovered:
+            detail_values = list(_part_discovered_required_details(
+                source_facts, str(task.get("audience_scope") or "").strip()
+            ))
+            voice_contract["forbidden_relation_phrases"] = (
+                "należy do", "nalezy do", "należący do", "należąca do",
+                "należące do", "nalezacy do", "nalezaca do", "nalezace do",
+                "jest własnością", "jest wlasnoscia", "właścicielem jest",
+                "wlascicielem jest",
             )
-            detail_values.extend(
-                str(value or "").strip()
-                for value in (semantic_fact.get("location") or {}).values()
-            )
+        else:
+            detail_values = []
+            for semantic_fact in model_input.get("semantic_facts") or ():
+                detail_values.extend(
+                    str(entity.get("label") or "").strip()
+                    for entity in semantic_fact.get("entities") or ()
+                    if isinstance(entity, dict)
+                )
+                detail_values.extend(
+                    str(value or "").strip()
+                    for value in (semantic_fact.get("location") or {}).values()
+                )
         detail_values = tuple(dict.fromkeys(
             value for value in detail_values if value
         ))[:12]
@@ -1020,6 +1099,14 @@ def parse_and_validate_ollama_content(content, task_package):
     if detail_values and isinstance(title, str) and isinstance(body, str):
         if not any(str(value).casefold() in body.casefold() for value in detail_values):
             errors.append("voice_semantic_detail_missing")
+    forbidden_relation_phrases = tuple(
+        voice_contract.get("forbidden_relation_phrases") or ()
+    )
+    if isinstance(body, str) and any(
+        str(phrase).casefold() in body.casefold()
+        for phrase in forbidden_relation_phrases
+    ):
+        errors.append("voice_unsupported_relation")
     if editorial_contract:
         if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):
             errors.append("slot_copy_budget_exceeded")

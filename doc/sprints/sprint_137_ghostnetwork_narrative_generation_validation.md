@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1 v7 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
+Status: `137 ACTIVE — 137.1 v8 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -126,7 +126,7 @@ CTA GhostNetwork pozostaje backend-owned. Model nie otrzymuje akcji ani jej
 payloadu i schema wymusza `cta_ref=null`; fixed action jest dołączana po stronie
 backendu. Schema ogranicza `fact_refs` bezpośrednio do aliasów danego taska.
 
-Backend ustala również limity zależne od medium. Googleplex v7 ma krótki HERO
+Backend ustala również limity zależne od medium. Googleplex v8 ma krótki HERO
 (`36/120`, jeden fact ref; historyczne wersje zachowują swój kontrakt), aktywny
 BlackNet `48/220`, Cyberner `72/420`, a radio `72/520`; schema generacji
 egzekwuje te same granice.
@@ -180,10 +180,23 @@ BlackNet ma budżet `48/220`, jedno zdanie oraz obowiązkowy pełny szczegół w
 body. Frontendowa nazwa obiektu świata, np. `POI-18D194`, jest dozwolona także
 w tytule i nie stanowi wycieku; nie wolno jej jednak skracać.
 
-Cutover jest addytywny. Nowe taski dostają v7, ale już zapisane taski v1–v6
-nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3–v6
+Produkcyjny v7 przeszedł technicznie `4/4` w pierwszych attemptach. Trzy
+BlackNety przeszły również ręczną ocenę, ale Googleplex dopisał fałszywą
+własność: ukryty element miał „należeć do Barnard Stamp Company”, mimo że była
+to wyłącznie nazwa miejsca. Owner pominął ponadto widoczną tylko dla niego
+nazwę `Influence Relay`, wybierając ogólną lokalizację.
+
+V8 usuwa ostatnie zadanie interpretacyjne. Dla `part_discovered` model nie
+dostaje osobnych `entities` i `location`, lecz jedno kompletne, audience-safe
+zdanie canonical z relacjami ułożonymi przez backend. Wariant owner musi użyć
+pełnej nazwy części w body. Backend odrzuca też konkretne zwroty relacyjne,
+m.in. `należy do`, `należący do` i `jest własnością`, gdy canonical fact nie
+zawiera relacji własności. Nie blokuje przez to nazw obiektów o podobnym rdzeniu.
+
+Cutover jest addytywny. Nowe taski dostają v8, ale już zapisane taski v1–v7
+nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3–v7
 zachowują semantic system prompt oraz minimalny semantic package; nie zostają
-przypadkiem cofnięty do technicznego formatu v2. Worker nie przypisuje staremu
+przypadkiem cofnięte do technicznego formatu v2. Worker nie przypisuje staremu
 taskowi nowego promptu, a publisher nie odrzuca zarejestrowanego starszego
 candidate jako superseded. Status kolejki raportuje
 `ready_by_prompt_version`, a registry osobno liczbę active i legacy-compatible
@@ -191,10 +204,10 @@ policies.
 
 Dowody lokalne i produkcyjne:
 
-- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v7 policy`;
-- producer-backed `cycle_activated` buduje package v7 dla BlackNet i
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v8 policy`;
+- producer-backed `cycle_activated` buduje package v8 dla BlackNet i
   Googleplex z poprawnym intent/family/significance;
-- historyczne taski v1–v6 pozostają rozwiązywalne, a v3–v6 zachowują semantic
+- historyczne taski v1–v7 pozostają rozwiązywalne, a v3–v7 zachowują semantic
   package;
 - production-shaped package nie zawiera canonical fact/event/cycle/entity ID;
 - alias `f01` wraca do candidate jako pełny canonical fact ID;
@@ -209,8 +222,8 @@ Dowody lokalne i produkcyjne:
 
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1–v7 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v7 korzystający z semantic input. Musi on
+verify registry, kontrola kolejki v1–v8 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v8 korzystający z semantic input. Musi on
 przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
 technicznego nie wystarcza.
 
@@ -235,7 +248,7 @@ BlackNetem tylko dlatego, że przeszedł schema validator.
 
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
-`73 tests / PASS` dla policy/worker/semantic/audit/publication/producer v7.
+`74 tests / PASS` dla policy/worker/semantic/audit/publication/producer v8.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 

@@ -162,22 +162,16 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         }
         public = json.loads(packages[("public", "blacknet")]["messages"][1]["content"])
         semantic = public["semantic_facts"][0]
-        self.assertIn("Ujawniono wcześniej ukryty element", semantic["statement"])
-        self.assertEqual(semantic["location"], {
-            "city": "Warszawa", "country": "Polska", "country_code": "PL",
-        })
-        self.assertIn(
-            {
-                "role": "lokalizacja zakotwiczenia zdarzenia",
-                "kind": "target",
-                "label": "Bridge",
-            },
-            semantic["entities"],
-        )
+        self.assertIn("ujawniono wcześniej ukryty element", semantic["statement"])
+        self.assertIn("Przy obiekcie Bridge", semantic["statement"])
+        self.assertIn("w mieście Warszawa", semantic["statement"])
+        self.assertEqual(set(semantic), {"fact_ref", "statement"})
 
         owner = json.loads(packages[("owner", "blacknet")]["messages"][1]["content"])
-        owner_kinds = {entity["kind"] for entity in owner["semantic_facts"][0]["entities"]}
-        self.assertEqual(owner_kinds, {"target", "part"})
+        owner_statement = owner["semantic_facts"][0]["statement"]
+        self.assertIn("Przy obiekcie Bridge", owner_statement)
+        self.assertRegex(owner_statement, r"GhostNetwork: .+\.$")
+        self.assertEqual(set(owner["semantic_facts"][0]), {"fact_ref", "statement"})
 
         for package in packages.values():
             encoded = package["messages"][1]["content"]
