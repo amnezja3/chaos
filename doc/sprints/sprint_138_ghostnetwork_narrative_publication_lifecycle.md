@@ -1,10 +1,10 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `BLOCKED — REQUIRES SPRINT 137.1.1 NARRATIVE SUPPORT SERVER PASS`
+Status: `BLOCKED — 137.1 SERVER PASS; REQUIRES 137.2 AND 137.3`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
-treści: model dopisał relacje własności i sprawstwa, BlackNet brzmiał raportowo,
-a Googleplex urwał nazwę własną. Sprint 138 nie może utrwalać ani publikować
+treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
+Sprint 138 nie może utrwalać ani publikować
 takich accepted-structurally candidates. V8 przekazał dla odkrycia jedno
 audience-safe zdanie canonical i poprawnie odrzucił trzy BlackNety, które
 pominęły wymagane nazwy. Aktywny v9 dodaje jedną audience-safe
@@ -12,8 +12,9 @@ pominęły wymagane nazwy. Aktywny v9 dodaje jedną audience-safe
 identyfikatorów. Produkcyjny v9 przeszedł walidację techniczną, lecz nie ręczną
 ocenę języka. Aktywny v10 upraszcza prompt, a Narrative Support Layer renderuje
 deterministyczny, audience-safe fallback z YAML tylko po odrzuceniu modelu.
-Blokada zostanie zdjęta dopiero po nowym producer-backed candidate v10 oraz
-potwierdzeniu ścieżek model-pass i support-fallback.
+Producer-backed v10 oraz read-only replay ostatniego eventu potwierdziły
+ścieżki model-pass i support-fallback. 138 pozostaje zamrożony do ukończenia
+zakresów 137.2 (zakazane treści) i 137.3 (runtime oraz awarie).
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 
@@ -438,7 +439,9 @@ Sprint 136 event/audience component:        PRESENT
 Sprint 136 runtime ingress/lineage:          SERVER PASS
 Shared Semantic Input Layer:                SERVER PASS
 semantic input technical-ID firewall:       SERVER PASS
-Sprint 137 accepted producer candidates:    BLOCKED
+Sprint 137.1 producer/support server gate:  PASS
+Sprint 137.2 forbidden-content gate:        BLOCKED
+Sprint 137.3 runtime/failure gate:           BLOCKED
 publication lifecycle scope:                FROZEN
 ```
 

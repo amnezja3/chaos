@@ -2351,3 +2351,16 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   zapisanym raw output. Pozwala potwierdzić deterministyczny fallback dla
   ostatniego eventu bez zmiany bazy, ponownej publikacji i kolejnego dropu.
 - Regresja narracyjnego pipeline’u po korekcie: `78/78 tests / PASS`.
+
+## 2026-09-03 — Sprint 137.1/137.1.1: SERVER PASS
+
+- Na serwerze wdrożono `60f4029` i wykonano read-only replay produkcyjnego
+  eventu `event_5daafeb6395a4290`.
+- Public i clan BlackNet otrzymały `model_status=rejected`, dokładnie jeden
+  błąd `voice_canonical_echo`, `support_applied=true` i `support_mode=full`.
+  Oba fallbacki zachowały `Geek Central` oraz właściwy canonical fact ref.
+- Owner BlackNet z nazwą `Deep Sensor` i Googleplex z polskim określeniem
+  `sieci Ghost` pozostały `model_status=accepted`; support nie zmienił ich
+  treści. Replay nie zmienił historycznych kandydatów ani publikacji.
+- Status: `137.1/137.1.1 SERVER PASS — READY FOR 137.2`. Sprint 138 czeka nadal
+  na 137.2 i 137.3.

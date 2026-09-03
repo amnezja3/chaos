@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1.1 NARRATIVE SUPPORT LOCAL PASS; SERVER GATE REQUIRED`
+Status: `137 ACTIVE — 137.1/137.1.1 SERVER PASS; READY FOR 137.2`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -277,11 +277,12 @@ Lokalne bramki 137.1.1:
 - razem: `149 tests / PASS`.
 
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
-audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1–v10 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v10 korzystający z semantic input. Musi on
-przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
-technicznego nie wystarcza.
+audit zaliczył exit gate. Produkcyjny event `event_5daafeb6395a4290` potwierdził
+pełny fan-out v10, zgodne request hashes, cztery ukończone próby i canonical
+lineage. Ręczna ocena zaakceptowała wariant owner BlackNet oraz Googleplex. Read-only
+replay po wdrożeniu `60f4029` odrzucił wyłącznie niemal dosłowne canonical echo
+w public/clan BlackNet i dla obu deterministycznie zbudował poprawny full
+fallback. Bramka 137.1/137.1.1 ma `SERVER PASS`; można rozpocząć 137.2.
 
 ### Bramka końcowa 137.1
 
@@ -293,14 +294,15 @@ persisted event
   -> dokładny semantic model input i request_hash
   -> ostatni attempt
   -> candidate oraz canonical fact lineage
+  -> read-only rewalidacja raw output i podgląd Narrative Support Layer
 ```
 
 Tryb `--strict` zwraca błąd dla brakującego fan-outu, taska bez attemptu,
 niezgodnego request hash, taska/attemptu poza stanem completed, brakującego
 candidate, kwarantanny/rejection, złego medium/audience/promptu oraz uszkodzonego
 fact lineage. Raport pokazuje title/body/tone i semantic facts dla ręcznej oceny
-języka oraz głosu medium. Automat nie może sam ogłosić, że tekst jest dobrym
-BlackNetem tylko dlatego, że przeszedł schema validator.
+języka oraz głosu medium. Sekcja `support_replay` nie modyfikuje bazy ani
+publikacji; pokazuje wynik obecnego validatora oraz deterministyczny fallback.
 
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
