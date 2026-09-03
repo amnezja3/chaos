@@ -44,7 +44,7 @@ Nowa polityka modelu otrzymuje control metadata oraz listę `semantic_facts`:
       "fact_ref": "f01",
       "statement": "Ujawniono wcześniej ukryty element sieci GhostNetwork.",
       "entities": [
-        {"role": "miejsce zdarzenia", "kind": "target", "label": "Alior Bank"}
+        {"role": "lokalizacja zakotwiczenia zdarzenia", "kind": "target", "label": "Alior Bank"}
       ],
       "location": {
         "city": "Warszawa",
@@ -164,8 +164,8 @@ opcjonalnej location nie jest błędem.
 ## Compatibility i cutover
 
 - v1 i v2 zachowują dotychczasowe prompty, package builder i resolution tuple;
-- niewdrożone v3 staje się pierwszym `chaos-llm-semantic-input-v1` consumerem;
-- świeże GhostNetwork taski dostają v3;
+- GhostNetwork v3 było pierwszym `chaos-llm-semantic-input-v1` consumerem;
+- świeże GhostNetwork taski dostają v4, a v3 pozostaje semantic-compatible;
 - już zapisane READY/RETRY_WAIT/CLAIMED v1/v2 pozostają claimowalne;
 - alias jest mapowany do canonical fact ID przed candidate, więc publication i
   fact lineage nie zmieniają kontraktu;

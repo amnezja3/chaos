@@ -12,8 +12,20 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ghostnetwork.llm.semantic_input import contains_opaque_identifier
+from ghostnetwork.llm.registry import (
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+)
 from ghostnetwork.ollama_policy import build_ollama_task_package
 from ghostnetwork.repository import GhostNetworkRepository
+
+
+ACTIVE_GHOSTNETWORK_PROMPTS = frozenset({
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+})
 
 
 def _select_tasks(repository, task_id=""):
@@ -32,7 +44,7 @@ def _select_tasks(repository, task_id=""):
             source_event_id=latest_event.get("event_id"),
             limit=25,
         )
-        if str(task.get("prompt_version") or "").endswith("-v3")
+        if str(task.get("prompt_version") or "") in ACTIVE_GHOSTNETWORK_PROMPTS
     ]
     return sorted(selected, key=lambda item: (
         item.get("audience_scope") or "", item.get("target_medium") or "",

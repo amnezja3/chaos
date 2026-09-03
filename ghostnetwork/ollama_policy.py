@@ -79,6 +79,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     GHOSTNETWORK_EVENT_PROMPT_VERSION,
     GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
     GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+    "ghostnetwork-event-prompt-v3",
+    "ghostnetwork-googleplex-prompt-v3",
+    "ghostsignal-prompt-v3",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -87,6 +90,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     GHOSTNETWORK_EVENT_PROMPT_VERSION,
     GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
     GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+    "ghostnetwork-event-prompt-v3",
+    "ghostnetwork-googleplex-prompt-v3",
+    "ghostsignal-prompt-v3",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -554,6 +560,8 @@ def _is_ghostnetwork_minimal_policy(policy):
 
 def _generation_limits_for_policy(policy):
     if _is_ghostnetwork_v2_policy(policy):
+        if policy.prompt_version == GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION:
+            return {"title": 36, "body": 120, "refs": 1}
         return GHOSTNETWORK_OUTPUT_LIMITS.get(policy.target_medium)
     return GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
 

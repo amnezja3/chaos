@@ -154,7 +154,7 @@ class NarrativeGenerationAuditTest(unittest.TestCase):
         report = build_report(self.repo, event_id=self.event["event_id"])
 
         self.assertFalse(report["ok"])
-        self.assertIn("generation_v3_tasks_missing", report["errors"])
+        self.assertIn("generation_active_tasks_missing", report["errors"])
         self.assertIn("expected_generation_tasks_missing", report["errors"])
         self.assertEqual(report["expected_task_count"], 2)
         self.assertEqual(

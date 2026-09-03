@@ -12,6 +12,9 @@ from ghostnetwork.ollama_policy import (
     resolve_ollama_task_policy,
 )
 from ghostnetwork.llm.registry import (
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
     OLLAMA_TASK_POLICY_REGISTRY,
     load_prompt_layers,
     registered_ollama_policies,
@@ -75,7 +78,7 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(package["fact_ref_map"], {"f01": "fact-1"})
         self.assertEqual(package["canonical_fact_refs"], frozenset({"fact-1"}))
 
-    def test_ghostnetwork_v3_package_exposes_minimal_narrative_contract_only(self):
+    def test_active_ghostnetwork_package_exposes_minimal_narrative_contract_only(self):
         task = self.task()
         task.update({
             "outbox_id": "narrative_task_private_raw",
@@ -86,7 +89,7 @@ class OllamaPolicyTest(unittest.TestCase):
         package = build_ollama_task_package(task)
         model_input = json.loads(package["messages"][1]["content"])
 
-        self.assertEqual(task["prompt_version"], "ghostnetwork-event-prompt-v3")
+        self.assertEqual(task["prompt_version"], GHOSTNETWORK_EVENT_PROMPT_VERSION)
         self.assertNotIn("source", model_input)
         self.assertNotIn("versions", model_input)
         self.assertNotIn("truth", model_input)
@@ -118,8 +121,9 @@ class OllamaPolicyTest(unittest.TestCase):
             "statement": "Czesc GhostNetwork zostala aktywowana.",
             "attributes": [{"name": "status", "value": "aktywna"}],
         }])
-        self.assertIn("Pisz wylacznie po polsku", package["messages"][0]["content"])
-        self.assertIn("pelna wartosc znak w znak", package["messages"][0]["content"])
+        self.assertIn("Pisz wyłącznie po polsku", package["messages"][0]["content"])
+        self.assertIn("maszyna nie odkrywa", package["messages"][0]["content"])
+        self.assertIn("bez mechanicznego powtórzenia statement", package["messages"][0]["content"])
         self.assertEqual(
             package["format"]["properties"]["fact_refs"]["items"]["enum"],
             ["f01"],
@@ -235,7 +239,25 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(model_input["facts"][0][0], "fact-1")
         self.assertEqual(package["fact_refs"], frozenset({"fact-1"}))
 
-    def test_every_ghostnetwork_event_policy_medium_has_active_v3_generation_policy(self):
+    def test_ghostnetwork_v3_policy_remains_semantic_during_v4_cutover(self):
+        task = self.task()
+        task["prompt_version"] = "ghostnetwork-event-prompt-v3"
+        policy = resolve_ollama_task_policy(
+            task["source_scope"], task["task_variant"], task["target_medium"],
+            task["prompt_version"], task["output_schema_version"],
+            task["model_policy_version"],
+        )
+
+        self.assertIsNotNone(policy)
+        self.assertEqual(policy.system_prompt_version, "chaos-semantic-narrator-system-v1")
+        package = build_ollama_task_package(task, policy)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertIn("semantic_facts", model_input)
+        self.assertNotIn("facts", model_input)
+        self.assertEqual(model_input["semantic_facts"][0]["fact_ref"], "f01")
+        self.assertEqual(package["fact_ref_map"], {"f01": "fact-1"})
+
+    def test_every_ghostnetwork_event_policy_medium_has_active_generation_policy(self):
         for event_type, event_policy in GHOST_EVENT_POLICY.items():
             event_variant = event_type.removeprefix("ghost.")
             for medium in event_policy["target_media"]:
@@ -249,9 +271,9 @@ class OllamaPolicyTest(unittest.TestCase):
                 )
                 self.assertIsNotNone(policy, (event_type, medium))
                 self.assertIn(policy.prompt_version, {
-                    "ghostnetwork-event-prompt-v3",
-                    "ghostnetwork-googleplex-prompt-v3",
-                    "ghostsignal-prompt-v3",
+                    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+                    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+                    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
                 })
 
     def test_validator_accepts_known_references_and_resolves_backend_cta(self):

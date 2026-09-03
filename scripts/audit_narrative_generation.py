@@ -15,6 +15,11 @@ from ghostnetwork.narrative import (
     GhostNarrativePublisher,
     resolve_ghost_event_policy,
 )
+from ghostnetwork.llm.registry import (
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+)
 from ghostnetwork.ollama_policy import (
     build_ollama_task_package,
     presentation_safety_errors,
@@ -25,10 +30,17 @@ from ghostnetwork.repository import GhostNetworkRepository
 AUDIT_CONTRACT_VERSION = "ghostnetwork-generation-validation-audit-v1"
 
 
-def _is_v3_task(task):
+ACTIVE_GHOSTNETWORK_PROMPTS = frozenset({
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+})
+
+
+def _is_active_task(task):
     return (
         str((task or {}).get("source_scope") or "") == "ghostnetwork"
-        and str((task or {}).get("prompt_version") or "").endswith("-v3")
+        and str((task or {}).get("prompt_version") or "") in ACTIVE_GHOSTNETWORK_PROMPTS
     )
 
 
@@ -53,7 +65,7 @@ def _select(repository, *, event_id="", task_id=""):
             source_event_id=event.get("event_id"),
             limit=100,
         )
-        if _is_v3_task(task)
+        if _is_active_task(task)
     ]
     return event, sorted(tasks, key=lambda item: (
         item.get("target_medium") or "",
@@ -108,8 +120,8 @@ def _task_report(repository, task):
             "task": {"task_id": task_id},
         }
 
-    if not _is_v3_task(task):
-        errors.append("task_not_active_v3")
+    if not _is_active_task(task):
+        errors.append("task_not_active_prompt")
     if task.get("status") != "completed":
         errors.append(f"task_not_completed:{task.get('status') or 'missing'}")
 
@@ -220,7 +232,7 @@ def build_report(repository, *, event_id="", task_id=""):
     elif not event:
         errors.append("generation_source_event_missing")
     elif not tasks:
-        errors.append("generation_v3_tasks_missing")
+        errors.append("generation_active_tasks_missing")
 
     expected = set() if task_id else _expected_identities(repository, event)
     actual = {_identity(task) for task in tasks}
@@ -253,6 +265,8 @@ def build_report(repository, *, event_id="", task_id=""):
                 "title_and_body_are_polish",
                 "voice_matches_target_medium",
                 "copy_describes_only_semantic_facts",
+                "entity_roles_do_not_gain_ownership_causality_or_agency",
+                "proper_names_are_complete_and_not_truncated",
                 "copy_does_not_echo_control_metadata_or_identifiers",
             ],
         },
@@ -265,7 +279,7 @@ def main(argv=None):
     )
     parser.add_argument("--db", default="", help="Optional SQLite database path")
     selector = parser.add_mutually_exclusive_group()
-    selector.add_argument("--event-id", default="", help="Audit every v3 task for one event")
+    selector.add_argument("--event-id", default="", help="Audit every active-prompt task for one event")
     selector.add_argument("--task-id", default="", help="Audit one narrative outbox task")
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args(argv)

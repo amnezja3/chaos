@@ -110,7 +110,8 @@ class GhostNetworkSemanticConverter:
 
         if target_label and (scope in {"owner", "clan"} or kind in PUBLIC_TARGET_LABEL_FAMILIES):
             entities.append({
-                "role": "miejsce zdarzenia", "kind": "target", "label": target_label,
+                "role": "lokalizacja zakotwiczenia zdarzenia",
+                "kind": "target", "label": target_label,
             })
             provenance.append({
                 "semantic_path": "entities[target].label",
@@ -121,7 +122,7 @@ class GhostNetworkSemanticConverter:
         if scope == "owner":
             for role, entity_kind, label, source_path in (
                 ("element sieci", "part", labels["part"], "ghost_parts.part_code->catalog.parts.name"),
-                ("maszyna", "machine", labels["machine"], "ghost_parts.machine_code->catalog.machines.name"),
+                ("maszyna powiązana z elementem", "machine", labels["machine"], "ghost_parts.machine_code->catalog.machines.name"),
                 ("klan elementu", "clan", labels["clan"], "ghost_parts.clan_code->catalog.clans.name"),
             ):
                 if label:
@@ -137,7 +138,7 @@ class GhostNetworkSemanticConverter:
                 clan_label = _clean((self.clans.get(visible_clan_code) or {}).get("name"))
                 if clan_label:
                     entities.append({
-                        "role": "własny klan", "kind": "clan", "label": clan_label,
+                        "role": "klan odbiorcy", "kind": "clan", "label": clan_label,
                     })
                     provenance.append({
                         "semantic_path": "entities[clan].label",

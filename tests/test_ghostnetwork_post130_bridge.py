@@ -167,7 +167,11 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             "city": "Warszawa", "country": "Polska", "country_code": "PL",
         })
         self.assertIn(
-            {"role": "miejsce zdarzenia", "kind": "target", "label": "Bridge"},
+            {
+                "role": "lokalizacja zakotwiczenia zdarzenia",
+                "kind": "target",
+                "label": "Bridge",
+            },
             semantic["entities"],
         )
 

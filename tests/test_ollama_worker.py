@@ -16,6 +16,10 @@ from ghostnetwork.ollama_policy import (
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.cycles import GhostCycleService
 from ghostnetwork.llm.semantic_input import attach_semantic_content
+from ghostnetwork.llm.registry import (
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+)
 from ghostnetwork.repository import GhostNetworkRepository
 
 
@@ -332,11 +336,14 @@ class OllamaWorkerTest(unittest.TestCase):
         }
         self.assertEqual(
             packages["blacknet"][0]["prompt_version"],
-            "ghostnetwork-event-prompt-v3",
+            GHOSTNETWORK_EVENT_PROMPT_VERSION,
         )
         self.assertEqual(
             packages["googleplex_news"][0]["prompt_version"],
-            "ghostnetwork-googleplex-prompt-v3",
+            GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+        )
+        self.assertEqual(
+            packages["googleplex_news"][1]["output_limits"]["title_chars"], 36,
         )
         for _task, model_input in packages.values():
             self.assertEqual(model_input["narrative_intent"], "ghost_cycle_state")

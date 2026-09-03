@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1 LOCAL PASS, SERVER GENERATION GATE REQUIRED`
+Status: `137 ACTIVE — 137.1 v4 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -78,15 +78,27 @@ model otrzymywał canonical `event_id`, `cycle_id`, `public_entity_id` i pełny
 został zaakceptowany, dwa pomyliły event ID z fact ref, a jeden ujawnił fragment
 public entity ID w treści. Validator prawidłowo poddał trzy wyniki kwarantannie.
 
-Remediacja wprowadza aktywne, wersjonowane polityki v3:
+Pierwsza remediacja wprowadziła polityki v3 i minimalny semantic package.
+Produkcyjny strict generation audit przeszedł technicznie dla pełnego fan-outu
+`part_discovered`: cztery taski zostały ukończone, request hashes były zgodne,
+lineage był pełny, a candidates zaakceptowane. Ręczna bramka głosu nie przeszła:
+
+- wariant clan dopowiedział, że miejsce zdarzenia należy do klanu odbiorcy;
+- wariant owner zrobił z powiązanej maszyny sprawcę odkrycia;
+- publiczny BlackNet mechanicznie powtarzał statement i brzmiał raportowo;
+- Googleplex skrócił nazwę miasta do urwanego `Zakopn` w tytule.
+
+To nie był błąd kolejki ani validatora strukturalnego. Wejściowe role były zbyt
+ogólne, a prompt nie blokował jednoznacznie fałszywych relacji. Aktywne,
+addytywne polityki zostały więc podniesione do v4:
 
 ```text
-BlackNet / Cyberner: ghostnetwork-event-prompt-v3
-Googleplex News:     ghostnetwork-googleplex-prompt-v3
-GhostSignal / radio: ghostsignal-prompt-v3
+BlackNet / Cyberner: ghostnetwork-event-prompt-v4
+Googleplex News:     ghostnetwork-googleplex-prompt-v4
+GhostSignal / radio: ghostsignal-prompt-v4
 ```
 
-Model package dla v3 zawiera wyłącznie minimalny kontrakt narracyjny:
+Model package dla v3 i v4 zawiera wyłącznie minimalny kontrakt narracyjny:
 
 ```text
 medium
@@ -104,7 +116,7 @@ referencje do dozwolonego assetu tylko dla Googleplex
 
 Surowe `outbox_id`, `source_event_id`, `event_id`, `cycle_id`,
 `public_entity_id`, `audience_owner`, `audience_clan`, canonical `fact_id`,
-wersje i puste pola kontekstowe nie są przekazywane modelowi v3. Model zwraca
+wersje i puste pola kontekstowe nie są przekazywane modelowi v3/v4. Model zwraca
 alias `f01`, a backend mapuje go z powrotem do canonical fact ID przed zapisem
 candidate. To zachowuje lineage bez wystawiania identyfikatorów modelowi.
 Model nie widzi `semantic_provenance`; audyt wiąże każdą wartość semanticzną z
@@ -114,23 +126,35 @@ CTA GhostNetwork pozostaje backend-owned. Model nie otrzymuje akcji ani jej
 payloadu i schema wymusza `cta_ref=null`; fixed action jest dołączana po stronie
 backendu. Schema ogranicza `fact_refs` bezpośrednio do aliasów danego taska.
 
-Backend ustala również limity zależne od medium. Googleplex zachowuje krótki
-HERO (`48/120`, jeden fact ref), BlackNet i Cyberner `72/420`, a radio
-`72/520`; schema generacji egzekwuje te same granice.
+Backend ustala również limity zależne od medium. Googleplex v4 ma krótki HERO
+(`36/120`, jeden fact ref; historyczne wersje zachowują swój kontrakt), BlackNet
+i Cyberner `72/420`, a radio `72/520`; schema generacji egzekwuje te same
+granice.
 
-Cutover jest addytywny. Nowe taski dostają v3, ale już zapisane taski v1 i v2
-nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. Worker nie
-przypisuje staremu taskowi nowego promptu, a publisher nie odrzuca
-zarejestrowanego candidate v1/v2 jako superseded. Status kolejki raportuje
+W v4 role są wiążące i precyzyjne: target to `lokalizacja zakotwiczenia
+zdarzenia`, clan audience to `klan odbiorcy`, a machine to `maszyna powiązana z
+elementem`. Prompt zabrania tworzenia pomiędzy nimi relacji własności,
+przyczynowości lub działania bez jawnego statement/attribute. BlackNet ma być
+przechwytem z 2108, najwyżej dwoma krótkimi zdaniami, bez raportowego
+wypełniacza i mechanicznego echa statement. Googleplex nie umieszcza nazw
+własnych w tytule, ogranicza go do 36 znaków i przenosi pełne nazwy do leadu.
+
+Cutover jest addytywny. Nowe taski dostają v4, ale już zapisane taski v1, v2 i
+v3 nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3
+zachowuje semantic system prompt oraz minimalny semantic package; nie zostaje
+przypadkiem cofnięty do technicznego formatu v2. Worker nie przypisuje staremu
+taskowi nowego promptu, a publisher nie odrzuca zarejestrowanego starszego
+candidate jako superseded. Status kolejki raportuje
 `ready_by_prompt_version`, a registry osobno liczbę active i legacy-compatible
 policies.
 
 Dowody lokalne i produkcyjne:
 
-- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v3 policy`;
-- producer-backed `cycle_activated` buduje package v3 dla BlackNet i
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v4 policy`;
+- producer-backed `cycle_activated` buduje package v4 dla BlackNet i
   Googleplex z poprawnym intent/family/significance;
-- historyczne taski v1 i v2 pozostają rozwiązywalne;
+- historyczne taski v1, v2 i v3 pozostają rozwiązywalne, a v3 zachowuje semantic
+  package;
 - production-shaped package nie zawiera canonical fact/event/cycle/entity ID;
 - alias `f01` wraca do candidate jako pełny canonical fact ID;
 - schema ogranicza fact refs do task-local aliases, a CTA do null;
@@ -144,9 +168,10 @@ Dowody lokalne i produkcyjne:
 
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1/v2/v3 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v3 korzystający z semantic input. Sam PASS
-read-only packera nie zastępuje walidacji odpowiedzi modelu.
+verify registry, kontrola kolejki v1/v2/v3/v4 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v4 korzystający z semantic input. Musi on
+przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
+technicznego nie wystarcza.
 
 ### Bramka końcowa 137.1
 
@@ -154,7 +179,7 @@ Read-only `scripts/audit_narrative_generation.py` automatycznie łączy:
 
 ```text
 persisted event
-  -> komplet oczekiwanych audience/medium tasków v3
+  -> komplet oczekiwanych audience/medium tasków aktywnego promptu
   -> dokładny semantic model input i request_hash
   -> ostatni attempt
   -> candidate oraz canonical fact lineage
@@ -169,7 +194,7 @@ BlackNetem tylko dlatego, że przeszedł schema validator.
 
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
-`51 tests / PASS`.
+`52 tests / PASS` dla lokalnego zestawu v4 przed pełną regresją.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
@@ -531,7 +556,7 @@ semantic validation, a timeout, crash, invalid output i privacy violation są
 obsługiwane bez wpływu na gameplay i bez ciężkiego profilu.
 Dodatkowo każdy testowany task musi pochodzić z osiągalnego producenta 136, a
 strict lineage audit nie może wykazywać eligible eventów bez taska ani tasków
-bez eventu. Każdy aktywny v3 package musi mieć domenowo utworzoną semantykę,
+bez eventu. Każdy aktywny package musi mieć domenowo utworzoną semantykę,
 backend-only provenance, audience projection i zero technical identifier
 leaks; sam `fact_ref` bez statement nie spełnia Definition of Done.
 

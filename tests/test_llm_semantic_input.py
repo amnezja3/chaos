@@ -102,11 +102,17 @@ class SharedSemanticInputTest(unittest.TestCase):
         owner = converter.enrich(fact, event, {"scope": "owner"}, part, {})
 
         public_kinds = {item["kind"] for item in public["semantic"].get("entities", [])}
+        public_roles = {item["role"] for item in public["semantic"].get("entities", [])}
         clan_labels = {item["label"] for item in clan["semantic"].get("entities", [])}
+        clan_roles = {item["role"] for item in clan["semantic"].get("entities", [])}
         owner_labels = {item["label"] for item in owner["semantic"].get("entities", [])}
+        owner_roles = {item["role"] for item in owner["semantic"].get("entities", [])}
         self.assertEqual(public_kinds, {"target"})
+        self.assertEqual(public_roles, {"lokalizacja zakotwiczenia zdarzenia"})
         self.assertIn("Siatka Widmo", clan_labels)
+        self.assertIn("klan odbiorcy", clan_roles)
         self.assertTrue({"Mirage Projector", "PHANTOM VEIL", "Siatka Widmo"}.issubset(owner_labels))
+        self.assertIn("maszyna powiązana z elementem", owner_roles)
         self.assertEqual(public["semantic"]["location"]["city"], "Warszawa")
 
     def test_frontend_contract_forwards_location_from_scan_to_mark(self):

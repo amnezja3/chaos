@@ -2193,3 +2193,23 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   policy/worker/semantic/audit: `51 tests / PASS`.
 - Status: `137.1 LOCAL PASS — SERVER GENERATION GATE REQUIRED`. 137.2 nie jest
   rozpoczęty, a 138 pozostaje zablokowany do accepted producer candidates.
+
+## 2026-09-03 — Sprint 137.1: techniczny PASS v3, korekta głosu v4
+
+- Produkcyjny generation audit v3 potwierdził pełny fan-out czterech tasków
+  `part_discovered`, completed attempts, zgodne request hashes, accepted
+  candidates i kompletne lineage (`ok=true`, `errors=[]`).
+- Ręczna ocena odrzuciła wynik: clan dopisał własność lokalizacji, owner zrobił
+  z powiązanej maszyny sprawcę odkrycia, BlackNet brzmiał raportowo, a tytuł
+  Googleplex urwał nazwę `Zakopane` do `Zakopn`.
+- Wprowadzono addytywne prompty v4. Semantic converter nadaje wiążące role:
+  `lokalizacja zakotwiczenia zdarzenia`, `klan odbiorcy` i `maszyna powiązana z
+  elementem`. Prompt zabrania dopowiadania własności, sprawstwa i działania.
+- BlackNet ma najwyżej dwa krótkie zdania przechwytu z 2108 bez mechanicznego
+  echa statement. Googleplex ma krótki tytuł bez nazw własnych i pełne nazwy
+  wyłącznie w leadzie.
+- Cutover zachowuje v1/v2/v3. Historyczne v3 nadal używa semantic system prompt
+  i minimalnego package; nowe taski dostają v4. Audyty wybierają wyłącznie
+  aktywną rodzinę promptów, aby stary v3 nie mógł zaliczyć bramki v4.
+- Lokalny targeted gate v4: `52 tests / PASS`; wymagany jest nowy
+  producer-backed server probe i ręczny voice PASS przed rozpoczęciem 137.2.
