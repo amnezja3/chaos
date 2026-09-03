@@ -33,9 +33,16 @@ class AcceptedClient:
         return {"ok": True, "errors": []}
 
     def generate(self, package, policy):
+        format_properties = package.get("format", {}).get("properties") or {}
+        intercepted = bool((format_properties.get("title") or {}).get("pattern"))
         output = {
-            "title": "Canonical title",
-            "body": "The canonical signal remains active.",
+            "title": (
+                "PRZECHWYT // AKTYWNY SYGNAL" if intercepted else "Canonical title"
+            ),
+            "body": (
+                "...the canonical signal remains active." if intercepted
+                else "The canonical signal remains active."
+            ),
             "tone": "info",
             "fact_refs": [next(iter(package["fact_refs"]))],
             "cta_ref": None,
@@ -65,8 +72,16 @@ class SequencedAcceptedClient(AcceptedClient):
         self.sequence += 1
         generated = super().generate(package, policy)
         output = json.loads(generated.content)
-        output["title"] = f"Canonical title {self.sequence}"
-        output["body"] = f"The canonical signal remains active: {self.sequence}."
+        format_properties = package.get("format", {}).get("properties") or {}
+        intercepted = bool((format_properties.get("title") or {}).get("pattern"))
+        output["title"] = (
+            f"PRZECHWYT // AKTYWNY SYGNAL {self.sequence}"
+            if intercepted else f"Canonical title {self.sequence}"
+        )
+        output["body"] = (
+            f"...the canonical signal remains active: {self.sequence}."
+            if intercepted else f"The canonical signal remains active: {self.sequence}."
+        )
         return OllamaGenerationResult(
             model=generated.model,
             model_digest=generated.model_digest,

@@ -82,6 +82,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v3",
     "ghostnetwork-googleplex-prompt-v3",
     "ghostsignal-prompt-v3",
+    "ghostnetwork-event-prompt-v4",
+    "ghostnetwork-googleplex-prompt-v4",
+    "ghostsignal-prompt-v4",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -93,6 +96,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v3",
     "ghostnetwork-googleplex-prompt-v3",
     "ghostsignal-prompt-v3",
+    "ghostnetwork-event-prompt-v4",
+    "ghostnetwork-googleplex-prompt-v4",
+    "ghostsignal-prompt-v4",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -587,6 +593,16 @@ def _generation_output_schema(
         int(properties["body"].get("maxLength") or limits["body"]),
         body_contract_limit or limits["body"], limits["body"],
     )
+    if (
+        policy.source_scope == "ghostnetwork"
+        and policy.target_medium == "blacknet"
+        and policy.prompt_version in {
+            GHOSTNETWORK_EVENT_PROMPT_VERSION,
+            GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+        }
+    ):
+        properties["title"]["pattern"] = r"^PRZECHWYT // .+"
+        properties["body"]["pattern"] = r"^(?:\.\.\.|…)"
     properties["fact_refs"]["maxItems"] = min(
         int(properties["fact_refs"].get("maxItems") or limits["refs"]), limits["refs"]
     )
@@ -953,6 +969,13 @@ def parse_and_validate_ollama_content(content, task_package):
         errors.append("invalid_title")
     if not isinstance(body, str) or not body.strip() or len(body) > body_limit:
         errors.append("invalid_body")
+    for field_name, value in (("title", title), ("body", body)):
+        pattern = str((format_properties.get(field_name) or {}).get("pattern") or "")
+        if pattern and (
+            not isinstance(value, str)
+            or re.search(pattern, value) is None
+        ):
+            errors.append(f"schema_{field_name}_pattern_mismatch")
     if editorial_contract:
         if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):
             errors.append("slot_copy_budget_exceeded")

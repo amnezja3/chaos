@@ -104,8 +104,8 @@ class NarrativeGenerationAuditTest(unittest.TestCase):
     def test_strict_chain_passes_for_accepted_v3_candidate(self):
         item = self._task("accepted")
         self._run(item, json.dumps({
-            "title": "Przebudzenie w sieci",
-            "body": "Ukryty element GhostNetwork został aktywowany.",
+            "title": "PRZECHWYT // AKTYWNY ELEMENT",
+            "body": "...element GhostNetwork jest aktywny. Sygnał zanika.",
             "tone": "warning",
             "fact_refs": ["f01"],
             "cta_ref": None,
@@ -127,8 +127,8 @@ class NarrativeGenerationAuditTest(unittest.TestCase):
     def test_strict_chain_fails_and_exposes_quarantine_reason(self):
         item = self._task("quarantined")
         self._run(item, json.dumps({
-            "title": "Identyfikator",
-            "body": "Aktywowano event_deadbeef123456.",
+            "title": "PRZECHWYT // OBCY IDENTYFIKATOR",
+            "body": "...aktywowano event_deadbeef123456. Sygnał zanika.",
             "tone": "warning",
             "fact_refs": ["f01"],
             "cta_ref": None,

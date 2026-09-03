@@ -114,8 +114,8 @@ class OllamaWorkerTest(unittest.TestCase):
 
     def accepted(self, event_id="event-1"):
         return json.dumps({
-            "title": "Potwierdzenie",
-            "body": "Zdarzenie zostalo przetworzone.",
+            "title": "PRZECHWYT // AKTYWNY ELEMENT",
+            "body": "...element sieci jest aktywny. Sygnal zanika.",
             "tone": "info",
             "fact_refs": ["f01"],
             "cta_ref": None,

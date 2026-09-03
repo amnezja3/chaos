@@ -1,13 +1,13 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `BLOCKED — 137.pre.1 SERVER PASS; REQUIRES SPRINT 137.1 v4 VOICE PASS`
+Status: `BLOCKED — 137.pre.1 SERVER PASS; REQUIRES SPRINT 137.1 v5 VOICE PASS`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, BlackNet brzmiał raportowo,
 a Googleplex urwał nazwę własną. Sprint 138 nie może utrwalać ani publikować
-takich accepted-structurally candidates. Aktywny v4 wiąże role encji, zabrania
+takich accepted-structurally candidates. Aktywny v5 wiąże role encji, zabrania
 nieudowodnionych relacji i rozdziela reguły głosu BlackNet/Googleplex. Blokada
-zostanie zdjęta dopiero po nowym producer-backed candidate v4 z technicznym i
+zostanie zdjęta dopiero po nowym producer-backed candidate v5 z technicznym i
 ręcznym PASS.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03

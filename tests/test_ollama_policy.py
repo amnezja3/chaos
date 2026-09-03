@@ -122,8 +122,16 @@ class OllamaPolicyTest(unittest.TestCase):
             "attributes": [{"name": "status", "value": "aktywna"}],
         }])
         self.assertIn("Pisz wyłącznie po polsku", package["messages"][0]["content"])
-        self.assertIn("maszyna nie odkrywa", package["messages"][0]["content"])
-        self.assertIn("bez mechanicznego powtórzenia statement", package["messages"][0]["content"])
+        self.assertIn("maszyna lub klan coś odkryły", package["messages"][0]["content"])
+        self.assertIn("title zaczyna się od `PRZECHWYT //`", package["messages"][0]["content"])
+        self.assertEqual(
+            package["format"]["properties"]["title"]["pattern"],
+            r"^PRZECHWYT // .+",
+        )
+        self.assertEqual(
+            package["format"]["properties"]["body"]["pattern"],
+            r"^(?:\.\.\.|…)",
+        )
         self.assertEqual(
             package["format"]["properties"]["fact_refs"]["items"]["enum"],
             ["f01"],
@@ -183,8 +191,8 @@ class OllamaPolicyTest(unittest.TestCase):
         ):
             self.assertNotIn(hidden, encoded)
         accepted = parse_and_validate_ollama_content(json.dumps({
-            "title": "Odkryto fragment sieci",
-            "body": "Przechwycony sygnal potwierdza obecnosc nowej czesci GhostNetwork.",
+            "title": "PRZECHWYT // FRAGMENT SIECI",
+            "body": "...nowa czesc GhostNetwork wyszla z ukrycia. Sygnal zanika.",
             "tone": "warning",
             "fact_refs": ["f01"],
             "cta_ref": None,
@@ -239,23 +247,44 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(model_input["facts"][0][0], "fact-1")
         self.assertEqual(package["fact_refs"], frozenset({"fact-1"}))
 
-    def test_ghostnetwork_v3_policy_remains_semantic_during_v4_cutover(self):
-        task = self.task()
-        task["prompt_version"] = "ghostnetwork-event-prompt-v3"
-        policy = resolve_ollama_task_policy(
-            task["source_scope"], task["task_variant"], task["target_medium"],
-            task["prompt_version"], task["output_schema_version"],
-            task["model_policy_version"],
-        )
+    def test_ghostnetwork_v3_and_v4_remain_semantic_during_v5_cutover(self):
+        for prompt_version in (
+            "ghostnetwork-event-prompt-v3", "ghostnetwork-event-prompt-v4",
+        ):
+            with self.subTest(prompt_version=prompt_version):
+                task = self.task()
+                task["prompt_version"] = prompt_version
+                policy = resolve_ollama_task_policy(
+                    task["source_scope"], task["task_variant"], task["target_medium"],
+                    task["prompt_version"], task["output_schema_version"],
+                    task["model_policy_version"],
+                )
 
-        self.assertIsNotNone(policy)
-        self.assertEqual(policy.system_prompt_version, "chaos-semantic-narrator-system-v1")
-        package = build_ollama_task_package(task, policy)
-        model_input = json.loads(package["messages"][1]["content"])
-        self.assertIn("semantic_facts", model_input)
-        self.assertNotIn("facts", model_input)
-        self.assertEqual(model_input["semantic_facts"][0]["fact_ref"], "f01")
-        self.assertEqual(package["fact_ref_map"], {"f01": "fact-1"})
+                self.assertIsNotNone(policy)
+                self.assertEqual(
+                    policy.system_prompt_version, "chaos-semantic-narrator-system-v1",
+                )
+                package = build_ollama_task_package(task, policy)
+                model_input = json.loads(package["messages"][1]["content"])
+                self.assertIn("semantic_facts", model_input)
+                self.assertNotIn("facts", model_input)
+                self.assertEqual(model_input["semantic_facts"][0]["fact_ref"], "f01")
+                self.assertEqual(package["fact_ref_map"], {"f01": "fact-1"})
+
+    def test_active_blacknet_schema_rejects_neutral_report_shape(self):
+        package = build_ollama_task_package(self.task())
+        result = parse_and_validate_ollama_content(json.dumps({
+            "title": "Odkryto ukryty element sieci",
+            "body": "W mieście ujawniono element GhostNetwork.",
+            "tone": "warning",
+            "fact_refs": ["f01"],
+            "cta_ref": None,
+        }), package)
+
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(set(result["errors"]), {
+            "schema_body_pattern_mismatch", "schema_title_pattern_mismatch",
+        })
 
     def test_every_ghostnetwork_event_policy_medium_has_active_generation_policy(self):
         for event_type, event_policy in GHOST_EVENT_POLICY.items():
@@ -280,8 +309,8 @@ class OllamaPolicyTest(unittest.TestCase):
         task = self.task()
         package = build_ollama_task_package(task)
         result = parse_and_validate_ollama_content(json.dumps({
-            "title": "Aktywny wezel",
-            "body": "Ghost System potwierdzil aktywacje.",
+            "title": "PRZECHWYT // AKTYWNY WEZEL",
+            "body": "...element sieci jest aktywny. Sygnal zanika.",
             "tone": "info",
             "fact_refs": ["f01"],
             "cta_ref": None,
@@ -294,8 +323,8 @@ class OllamaPolicyTest(unittest.TestCase):
     def test_validator_quarantines_unknown_fact_cta_and_external_url(self):
         package = build_ollama_task_package(self.task())
         result = parse_and_validate_ollama_content(json.dumps({
-            "title": "Czytaj https://example.test",
-            "body": "Niezweryfikowana tresc",
+            "title": "PRZECHWYT // https://example.test",
+            "body": "...niezweryfikowana tresc zanika.",
             "tone": "info",
             "fact_refs": ["invented"],
             "cta_ref": "cta_root",

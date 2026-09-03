@@ -2213,3 +2213,23 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   aktywną rodzinę promptów, aby stary v3 nie mógł zaliczyć bramki v4.
 - Lokalny targeted gate v4: `52 tests / PASS`; wymagany jest nowy
   producer-backed server probe i ręczny voice PASS przed rozpoczęciem 137.2.
+
+## 2026-09-03 — Sprint 137.1: produkcyjny fail głosu v4 i kontrakt v5
+
+- Deploy `e852f8d` oraz semantic audit nowego `part_discovered` przeszły:
+  cztery taski v4, pełny public/clan/owner fan-out, poprawne role, Washington,
+  zero technical identifier leaks.
+- Pierwszy ukończony public/BlackNet candidate był poprawny faktograficznie i
+  accepted, ale nadal stanowił neutralny raport niemal kopiujący statement:
+  `Odkryto ukryty element sieci GhostNetwork`. Ręczna bramka v4 została
+  odrzucona bez czekania na pozostałe warianty.
+- V5 wymusza dla BlackNet tytuł `PRZECHWYT // ...` oraz body zaczynające się od
+  `...`. Patterny trafiają do schema Ollamy i są niezależnie egzekwowane przez
+  backend validator, więc neutralny raport nie może uzyskać accepted.
+- V1–v4 pozostają addytywnie zarejestrowane; v3/v4 zachowują semantic package.
+  Audyty śledzą tylko aktywną rodzinę v5.
+- Log produkcyjny ujawnił restarty workera po `database is locked` na `BEGIN
+  IMMEDIATE`. PM2 odzyskuje proces i taski postępują, ale przypadek przeniesiono
+  jawnie do failure/recovery gate 137.3.
+- Lokalna bramka policy/worker/semantic/audit v5: `53 tests / PASS`. Wymagany
+  nowy producer-backed server probe v5 przed zamknięciem 137.1.

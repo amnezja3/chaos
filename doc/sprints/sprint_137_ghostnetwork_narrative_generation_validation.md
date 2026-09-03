@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1 v4 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
+Status: `137 ACTIVE — 137.1 v5 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -126,7 +126,7 @@ CTA GhostNetwork pozostaje backend-owned. Model nie otrzymuje akcji ani jej
 payloadu i schema wymusza `cta_ref=null`; fixed action jest dołączana po stronie
 backendu. Schema ogranicza `fact_refs` bezpośrednio do aliasów danego taska.
 
-Backend ustala również limity zależne od medium. Googleplex v4 ma krótki HERO
+Backend ustala również limity zależne od medium. Googleplex v5 ma krótki HERO
 (`36/120`, jeden fact ref; historyczne wersje zachowują swój kontrakt), BlackNet
 i Cyberner `72/420`, a radio `72/520`; schema generacji egzekwuje te same
 granice.
@@ -139,8 +139,19 @@ przechwytem z 2108, najwyżej dwoma krótkimi zdaniami, bez raportowego
 wypełniacza i mechanicznego echa statement. Googleplex nie umieszcza nazw
 własnych w tytule, ogranicza go do 36 znaków i przenosi pełne nazwy do leadu.
 
-Cutover jest addytywny. Nowe taski dostają v4, ale już zapisane taski v1, v2 i
-v3 nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3
+Pierwszy production candidate v4 potwierdził poprawną semantykę, lecz ponownie
+nie przeszedł ręcznej bramki głosu. Publiczny BlackNet zwrócił neutralne
+`Odkryto ukryty element sieci GhostNetwork` oraz niemal literalną parafrazę
+statement. Samo polecenie stylu okazało się za słabe dla modelu 8B.
+
+V5 przenosi minimalny wyróżnik BlackNet do egzekwowalnego kontraktu outputu:
+tytuł musi zaczynać się od `PRZECHWYT //`, a body od `...`. Prompt daje jeden
+krótki wzorzec struktury bez danych świata. Backend sprawdza oba patterny po
+odpowiedzi; neutralny raport zostaje `rejected`, nawet jeśli Ollama zignoruje
+pattern przekazany w JSON Schema. Reguły faktów i ról pozostają bez zmian.
+
+Cutover jest addytywny. Nowe taski dostają v5, ale już zapisane taski v1–v4
+nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3/v4
 zachowuje semantic system prompt oraz minimalny semantic package; nie zostaje
 przypadkiem cofnięty do technicznego formatu v2. Worker nie przypisuje staremu
 taskowi nowego promptu, a publisher nie odrzuca zarejestrowanego starszego
@@ -150,10 +161,10 @@ policies.
 
 Dowody lokalne i produkcyjne:
 
-- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v4 policy`;
-- producer-backed `cycle_activated` buduje package v4 dla BlackNet i
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v5 policy`;
+- producer-backed `cycle_activated` buduje package v5 dla BlackNet i
   Googleplex z poprawnym intent/family/significance;
-- historyczne taski v1, v2 i v3 pozostają rozwiązywalne, a v3 zachowuje semantic
+- historyczne taski v1–v4 pozostają rozwiązywalne, a v3/v4 zachowują semantic
   package;
 - production-shaped package nie zawiera canonical fact/event/cycle/entity ID;
 - alias `f01` wraca do candidate jako pełny canonical fact ID;
@@ -168,8 +179,8 @@ Dowody lokalne i produkcyjne:
 
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1/v2/v3/v4 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v4 korzystający z semantic input. Musi on
+verify registry, kontrola kolejki v1–v5 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v5 korzystający z semantic input. Musi on
 przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
 technicznego nie wystarcza.
 
@@ -194,7 +205,7 @@ BlackNetem tylko dlatego, że przeszedł schema validator.
 
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
-`52 tests / PASS` dla lokalnego zestawu v4 przed pełną regresją.
+`53 tests / PASS` dla lokalnego zestawu v5 przed pełną regresją.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
@@ -462,6 +473,12 @@ terminalne. Timeout, HTTP failure i pierwszy invalid JSON pozostają retryable.
 8. Rozszerzyć registry verification oraz cutover audit.
 
 ## Etap II — jakość i failure validation
+
+Produkcyjny probe v4 ujawnił również powtarzalne `sqlite3.OperationalError:
+database is locked` podczas `BEGIN IMMEDIATE` w claimie workera. PM2 odzyskał
+proces i kolejka ruszyła dalej, więc nie jest to przyczyna złego tekstu, ale
+jest konkretnym przypadkiem failure/recovery do zamknięcia w 137.3. Sam restart
+przez PM2 nie stanowi jeszcze zaliczenia polityki retry/backoff.
 
 1. Uruchomić model zastępczy dla każdej rodziny eventu.
 2. Uruchomić serię realnych generacji dla public/clan/owner.
