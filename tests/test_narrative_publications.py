@@ -33,8 +33,7 @@ class AcceptedClient:
         return {"ok": True, "errors": []}
 
     def generate(self, package, policy):
-        format_properties = package.get("format", {}).get("properties") or {}
-        intercepted = bool((format_properties.get("title") or {}).get("pattern"))
+        intercepted = bool(package.get("voice_contract"))
         output = {
             "title": (
                 "PRZECHWYT // AKTYWNY SYGNAL" if intercepted else "Canonical title"
@@ -72,8 +71,7 @@ class SequencedAcceptedClient(AcceptedClient):
         self.sequence += 1
         generated = super().generate(package, policy)
         output = json.loads(generated.content)
-        format_properties = package.get("format", {}).get("properties") or {}
-        intercepted = bool((format_properties.get("title") or {}).get("pattern"))
+        intercepted = bool(package.get("voice_contract"))
         output["title"] = (
             f"PRZECHWYT // AKTYWNY SYGNAL {self.sequence}"
             if intercepted else f"Canonical title {self.sequence}"

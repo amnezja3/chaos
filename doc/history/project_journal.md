@@ -2224,12 +2224,15 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `Odkryto ukryty element sieci GhostNetwork`. Ręczna bramka v4 została
   odrzucona bez czekania na pozostałe warianty.
 - V5 wymusza dla BlackNet tytuł `PRZECHWYT // ...` oraz body zaczynające się od
-  `...`. Patterny trafiają do schema Ollamy i są niezależnie egzekwowane przez
-  backend validator, więc neutralny raport nie może uzyskać accepted.
+  `...`. Pierwszy request z regexami JSON Schema dostał produkcyjne
+  `ollama_http_500`; Googleplex bez regexów wszedł w processing.
+- Regexy usunięto z transportowego schema Ollamy. Ten sam kontrakt jest
+  egzekwowany backend-only przez `voice_contract`, więc neutralny raport nadal
+  nie może uzyskać accepted, a task w `retry_wait` może zostać wznowiony.
 - V1–v4 pozostają addytywnie zarejestrowane; v3/v4 zachowują semantic package.
   Audyty śledzą tylko aktywną rodzinę v5.
 - Log produkcyjny ujawnił restarty workera po `database is locked` na `BEGIN
   IMMEDIATE`. PM2 odzyskuje proces i taski postępują, ale przypadek przeniesiono
   jawnie do failure/recovery gate 137.3.
-- Lokalna bramka policy/worker/semantic/audit v5: `53 tests / PASS`. Wymagany
-  nowy producer-backed server probe v5 przed zamknięciem 137.1.
+- Lokalna bramka policy/worker/semantic/audit/publication v5: `72 tests / PASS`.
+  Wymagany jest ponowny audit istniejącego producer-backed eventu po retry.

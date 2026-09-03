@@ -124,14 +124,11 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertIn("Pisz wyłącznie po polsku", package["messages"][0]["content"])
         self.assertIn("maszyna lub klan coś odkryły", package["messages"][0]["content"])
         self.assertIn("title zaczyna się od `PRZECHWYT //`", package["messages"][0]["content"])
-        self.assertEqual(
-            package["format"]["properties"]["title"]["pattern"],
-            r"^PRZECHWYT // .+",
-        )
-        self.assertEqual(
-            package["format"]["properties"]["body"]["pattern"],
-            r"^(?:\.\.\.|…)",
-        )
+        self.assertNotIn("pattern", package["format"]["properties"]["title"])
+        self.assertNotIn("pattern", package["format"]["properties"]["body"])
+        self.assertEqual(package["voice_contract"], {
+            "title_prefix": "PRZECHWYT // ", "body_prefix": "...",
+        })
         self.assertEqual(
             package["format"]["properties"]["fact_refs"]["items"]["enum"],
             ["f01"],
@@ -283,7 +280,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         self.assertEqual(result["status"], "rejected")
         self.assertEqual(set(result["errors"]), {
-            "schema_body_pattern_mismatch", "schema_title_pattern_mismatch",
+            "voice_body_prefix_mismatch", "voice_title_prefix_mismatch",
         })
 
     def test_every_ghostnetwork_event_policy_medium_has_active_generation_policy(self):

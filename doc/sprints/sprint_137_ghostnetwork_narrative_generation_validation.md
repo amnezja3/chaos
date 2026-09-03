@@ -146,9 +146,16 @@ statement. Samo polecenie stylu okazało się za słabe dla modelu 8B.
 
 V5 przenosi minimalny wyróżnik BlackNet do egzekwowalnego kontraktu outputu:
 tytuł musi zaczynać się od `PRZECHWYT //`, a body od `...`. Prompt daje jeden
-krótki wzorzec struktury bez danych świata. Backend sprawdza oba patterny po
-odpowiedzi; neutralny raport zostaje `rejected`, nawet jeśli Ollama zignoruje
-pattern przekazany w JSON Schema. Reguły faktów i ról pozostają bez zmian.
+krótki wzorzec struktury bez danych świata. Backend sprawdza oba prefiksy po
+odpowiedzi; neutralny raport zostaje `rejected`.
+
+Pierwszy request v5 z regexami `pattern` w JSON Schema dostał produkcyjne
+`ollama_http_500`. Googleplex bez regexów rozpoczął generację, co odizolowało
+problem do reprezentacji schema, a nie semantic input. Regexy usunięto z
+payloadu Ollamy; twardy kontrakt pozostał backend-only jako `voice_contract`.
+Prompt nadal przekazuje modelowi format naturalnym językiem. Istniejący task w
+`retry_wait` może zostać wznowiony bez nowego eventu. Reguły faktów i ról nie
+uległy zmianie.
 
 Cutover jest addytywny. Nowe taski dostają v5, ale już zapisane taski v1–v4
 nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3/v4
@@ -205,7 +212,7 @@ BlackNetem tylko dlatego, że przeszedł schema validator.
 
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
-`53 tests / PASS` dla lokalnego zestawu v5 przed pełną regresją.
+`72 tests / PASS` dla policy/worker/semantic/audit/publication v5.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
