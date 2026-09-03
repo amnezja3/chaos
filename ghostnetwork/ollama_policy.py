@@ -88,6 +88,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v5",
     "ghostnetwork-googleplex-prompt-v5",
     "ghostsignal-prompt-v5",
+    "ghostnetwork-event-prompt-v6",
+    "ghostnetwork-googleplex-prompt-v6",
+    "ghostsignal-prompt-v6",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -105,6 +108,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v5",
     "ghostnetwork-googleplex-prompt-v5",
     "ghostsignal-prompt-v5",
+    "ghostnetwork-event-prompt-v6",
+    "ghostnetwork-googleplex-prompt-v6",
+    "ghostsignal-prompt-v6",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -574,6 +580,14 @@ def _generation_limits_for_policy(policy):
     if _is_ghostnetwork_v2_policy(policy):
         if policy.prompt_version == GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION:
             return {"title": 36, "body": 120, "refs": 1}
+        if (
+            policy.prompt_version in {
+                GHOSTNETWORK_EVENT_PROMPT_VERSION,
+                GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+            }
+            and policy.target_medium == "blacknet"
+        ):
+            return {"title": 48, "body": 220, "refs": 4}
         return GHOSTNETWORK_OUTPUT_LIMITS.get(policy.target_medium)
     return GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
 
@@ -1004,8 +1018,7 @@ def parse_and_validate_ollama_content(content, task_package):
             errors.append(f"voice_{field_name}_prefix_mismatch")
     detail_values = tuple(voice_contract.get("detail_values") or ())
     if detail_values and isinstance(title, str) and isinstance(body, str):
-        combined = f"{title} {body}".casefold()
-        if not any(str(value).casefold() in combined for value in detail_values):
+        if not any(str(value).casefold() in body.casefold() for value in detail_values):
             errors.append("voice_semantic_detail_missing")
     if editorial_contract:
         if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):

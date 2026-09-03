@@ -177,7 +177,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
 
         owner = json.loads(packages[("owner", "blacknet")]["messages"][1]["content"])
         owner_kinds = {entity["kind"] for entity in owner["semantic_facts"][0]["entities"]}
-        self.assertTrue({"target", "part", "machine", "clan"}.issubset(owner_kinds))
+        self.assertEqual(owner_kinds, {"target", "part"})
 
         for package in packages.values():
             encoded = package["messages"][1]["content"]

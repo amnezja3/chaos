@@ -120,18 +120,21 @@ class GhostNetworkSemanticConverter:
 
         labels = self._catalog_labels(part)
         if scope == "owner":
-            for role, entity_kind, label, source_path in (
+            owner_entities = (
                 ("element sieci", "part", labels["part"], "ghost_parts.part_code->catalog.parts.name"),
                 ("maszyna powiązana z elementem", "machine", labels["machine"], "ghost_parts.machine_code->catalog.machines.name"),
                 ("klan elementu", "clan", labels["clan"], "ghost_parts.clan_code->catalog.clans.name"),
-            ):
+            )
+            if kind == "part_discovered":
+                owner_entities = owner_entities[:1]
+            for role, entity_kind, label, source_path in owner_entities:
                 if label:
                     entities.append({"role": role, "kind": entity_kind, "label": label})
                     provenance.append({
                         "semantic_path": f"entities[{entity_kind}].label",
                         "source_path": source_path,
                     })
-        elif scope == "clan":
+        elif scope == "clan" and kind != "part_discovered":
             visible_clan_code = _clean(projected.get("target_clan"))
             audience_clan = _clean(audience.get("clan"))
             if visible_clan_code and visible_clan_code == audience_clan:

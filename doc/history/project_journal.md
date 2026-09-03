@@ -2255,3 +2255,25 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - V1–v5 zachowują pełną zgodność registry, a v3–v5 semantic package. Targeted
   policy/worker/semantic/audit/publication: `72 tests / PASS`. Wymagany jest nowy
   producer-backed event v6 do końcowej oceny wszystkich czterech wariantów.
+
+## 2026-09-03 — Sprint 137.1: techniczny PASS v6, minimalny kontekst v7
+
+- Produkcyjny event v6 przeszedł pełny fan-out czterech tasków, attempt numer 1
+  oraz strict audit (`ok=true`, `errors=[]`). Transport, lineage i walidacja
+  techniczna są poprawne.
+- Ręczna bramka głosu odrzuciła trzy warianty BlackNet. Model kopiował nazwę
+  roli semantycznej, powtarzał lokalizację, skrócił nazwę `Acquisition Drive` i
+  dopowiedział niewynikające z faktów znaczenie dla bezpieczeństwa. Googleplex
+  przeszedł ręczną ocenę.
+- V7 minimalizuje input `part_discovered` per audience: public widzi cel, clan
+  nie dostaje nazwy klanu odbiorcy, a owner dostaje tylko cel i nazwę części —
+  bez powiązanej maszyny oraz klanu.
+- `POI-18D194` jest prawidłową frontendową nazwą obiektu świata i może wystąpić
+  w body albo title. Nie jest traktowane jak techniczny identyfikator i nie
+  może być skracane. Obowiązkowy konkret w body zapobiega nadal pustej depeszy.
+- BlackNet v7 ma budżet `48/220`, jedną krótką wypowiedź po prefiksie `...` i
+  backendową kontrolę obecności szczegółu w body. Registry zachowuje taski
+  v1–v6, w tym semantic package v3–v6.
+- Lokalna regresja policy/worker/semantic/audit/publication/producer v7:
+  `73 tests / PASS`. Wymagany jest ostatni producer-backed server probe oraz
+  ręczny PASS wszystkich czterech wariantów przed zamknięciem 137.1.

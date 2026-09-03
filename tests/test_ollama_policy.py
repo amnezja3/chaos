@@ -104,11 +104,11 @@ class OllamaPolicyTest(unittest.TestCase):
             "narrative_intent", "significance", "tone_hint",
         })
         self.assertEqual(model_input["output_limits"], {
-            "title_chars": 72, "body_chars": 420,
+            "title_chars": 48, "body_chars": 220,
             "fact_refs": 4, "json_only": True,
         })
-        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 72)
-        self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 420)
+        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 48)
+        self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 220)
         self.assertNotIn("thread_context", model_input)
         encoded = package["messages"][1]["content"]
         self.assertNotIn("alice-private", encoded)
@@ -122,8 +122,8 @@ class OllamaPolicyTest(unittest.TestCase):
             "attributes": [{"name": "status", "value": "aktywna"}],
         }])
         self.assertIn("Pisz wyłącznie po polsku", package["messages"][0]["content"])
-        self.assertIn("maszyna lub klan coś odkryły", package["messages"][0]["content"])
-        self.assertIn("title zaczyna się od `PRZECHWYT //`", package["messages"][0]["content"])
+        self.assertIn("Nie kopiuj nazw ról do tekstu", package["messages"][0]["content"])
+        self.assertIn("title ma format `PRZECHWYT //`", package["messages"][0]["content"])
         self.assertNotIn("pattern", package["format"]["properties"]["title"])
         self.assertNotIn("pattern", package["format"]["properties"]["body"])
         self.assertEqual(package["voice_contract"], {
@@ -163,10 +163,12 @@ class OllamaPolicyTest(unittest.TestCase):
             "semantic_contract": SEMANTIC_INPUT_CONTRACT_VERSION,
             "semantic": {
                 "statement": "Wykryto nowa czesc GhostNetwork.",
+                "entities": [{"role": "miejsce zdarzenia", "kind": "target", "label": "POI-18D194"}],
                 "location": {"city": "Warszawa", "country": "Polska"},
             },
             "semantic_provenance": [
                 {"semantic_path": "statement", "source_path": "event.event_type"},
+                {"semantic_path": "entities[target].label", "source_path": "target_anchor.display_name"},
                 {"semantic_path": "location.city", "source_path": "target_anchor.location.city"},
                 {"semantic_path": "location.country", "source_path": "target_anchor.location.country"},
             ],
@@ -180,6 +182,7 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(model_input["semantic_facts"], [{
             "fact_ref": "f01",
             "statement": "Wykryto nowa czesc GhostNetwork.",
+            "entities": [{"role": "miejsce zdarzenia", "kind": "target", "label": "POI-18D194"}],
             "location": {"city": "Warszawa", "country": "Polska"},
         }])
         for hidden in (
@@ -197,8 +200,8 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(missing_detail["status"], "rejected", missing_detail)
         self.assertIn("voice_semantic_detail_missing", missing_detail["errors"])
         accepted = parse_and_validate_ollama_content(json.dumps({
-            "title": "PRZECHWYT // FRAGMENT SIECI",
-            "body": "...w Warszawa nowa czesc GhostNetwork wyszla z ukrycia.",
+            "title": "PRZECHWYT // POI-18D194",
+            "body": "...przy POI-18D194 nowa czesc GhostNetwork wyszla z ukrycia.",
             "tone": "warning",
             "fact_refs": ["f01"],
             "cta_ref": None,
@@ -253,10 +256,11 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(model_input["facts"][0][0], "fact-1")
         self.assertEqual(package["fact_refs"], frozenset({"fact-1"}))
 
-    def test_ghostnetwork_v3_to_v5_remain_semantic_during_v6_cutover(self):
+    def test_ghostnetwork_v3_to_v6_remain_semantic_during_v7_cutover(self):
         for prompt_version in (
             "ghostnetwork-event-prompt-v3", "ghostnetwork-event-prompt-v4",
             "ghostnetwork-event-prompt-v5",
+            "ghostnetwork-event-prompt-v6",
         ):
             with self.subTest(prompt_version=prompt_version):
                 task = self.task()

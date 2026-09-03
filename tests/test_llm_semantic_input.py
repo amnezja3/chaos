@@ -109,10 +109,10 @@ class SharedSemanticInputTest(unittest.TestCase):
         owner_roles = {item["role"] for item in owner["semantic"].get("entities", [])}
         self.assertEqual(public_kinds, {"target"})
         self.assertEqual(public_roles, {"lokalizacja zakotwiczenia zdarzenia"})
-        self.assertIn("Siatka Widmo", clan_labels)
-        self.assertIn("klan odbiorcy", clan_roles)
-        self.assertTrue({"Mirage Projector", "PHANTOM VEIL", "Siatka Widmo"}.issubset(owner_labels))
-        self.assertIn("maszyna powiązana z elementem", owner_roles)
+        self.assertEqual(clan_labels, {"Biblioteka Główna"})
+        self.assertNotIn("klan odbiorcy", clan_roles)
+        self.assertEqual(owner_labels, {"Biblioteka Główna", "Mirage Projector"})
+        self.assertNotIn("maszyna powiązana z elementem", owner_roles)
         self.assertEqual(public["semantic"]["location"]["city"], "Warszawa")
 
     def test_frontend_contract_forwards_location_from_scan_to_mark(self):
