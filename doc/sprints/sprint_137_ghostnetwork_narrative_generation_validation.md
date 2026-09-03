@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.2 OUTPUT FIREWALL SERVER PASS; READY FOR 137.3`
+Status: `137 ACTIVE — 137.3 RUNTIME/FAILURE LOCAL PASS; SERVER GATE REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -380,6 +380,61 @@ Końcowy strict cutover zwrócił `ok=true`, `errors=[]` i `warnings=[]`, w tym
 poprawny stan output safety contractu.
 
 Status: `137.2 OUTPUT FIREWALL SERVER PASS — READY FOR 137.3`.
+
+## Sprint 137.3 — produkcyjny runtime, retry i recovery
+
+137.3 zamyka zachowanie procesu podczas awarii bez zmiany semantic input,
+promptów, audience routingu ani publication identity. Kontrakt
+`ghostnetwork-ollama-runtime-v1` utrwala pięć domyślnych prób i operacyjny
+backoff `5/10/20/40/80 s`. Timeout, chwilowa niedostępność Ollamy i retryable
+HTTP pozostawiają task w `retry_wait`; po wyczerpaniu prób task przechodzi do
+`dead_letter` i nie blokuje kolejnych elementów kolejki.
+
+Transient SQLite `database is locked`, `database table is locked` i
+`database is busy` są teraz przechwytywane na granicy jednego cyklu workera.
+Proces zwraca `database_contention`, `error_code=sqlite_busy`,
+`retryable=true` oraz bounded jitter `0.25–2.0 s`, po czym kontynuuje pracę bez
+restartu PM2. Inne błędy SQL, np. brak tabeli, pozostają fail-fast i nie są
+maskowane jako contention.
+
+Dotychczasowe gwarancje pozostają wiążące:
+
+- heartbeat odnawia lease podczas generacji dłuższej od bazowego interwału;
+- każdy zapis zmieniający task wymaga właściciela i aktualnego lease przez CAS;
+- expired lease jest atomowo odzyskiwany przez następny claim;
+- candidate zapisany przed crashem domyka task bez drugiego model call, a jego
+  historyczny attempt zostaje oznaczony `candidate_recovered`;
+- nieudany preflight Ollamy nie claimuje taska ani nie zwiększa attempt count;
+- gameplay, bridge 136 i publikacja działają niezależnie od awarii modelu.
+
+Read-only `scripts/audit_narrative_runtime.py` raportuje wersję runtime
+contractu, stan kolejki, expired leases, aktywne taski bez lease, wyczerpane
+taski pozostawione poza dead-letter, odchylenia harmonogramu retry, rozkład
+attemptów i przyczyny retry. Historyczne poprawnie zakończone dead-lettery nie
+są błędem. Niedomknięty historyczny attempt jest ostrzeżeniem diagnostycznym;
+aktywny task lub złamany invariant kolejki jest błędem strict gate.
+
+Lokalna bramka: `31/31` testów komponentowych oraz `70/70` szerokiej regresji
+worker/runtime/publication/support/output-safety/cutover. `py_compile`,
+`git diff --check` i lokalny runtime audit: PASS.
+
+Status: `137.3 RUNTIME/FAILURE LOCAL PASS — SERVER GATE REQUIRED`.
+
+### Produkcyjna bramka 137.3
+
+1. Wdrożyć commit i zrestartować wyłącznie proces Ollama worker (`PM2 17`);
+   aplikacja i publisher nie wymagają restartu dla tej zmiany runtime.
+2. `ollama_narrative_worker.py verify` musi pokazać
+   `runtime_safety.ok=true`, właściwą wersję kontraktu i harmonogram retry.
+3. `audit_narrative_runtime.py --strict` musi zwrócić `ok=true`, zero expired
+   leases, zero invalid active tasks i zero retry schedule violations.
+4. Uruchomić testy failure/recovery na serwerowym interpreterze i tymczasowych
+   bazach; muszą potwierdzić contention survival, timeout/backoff/dead-letter,
+   heartbeat i candidate recovery bez drugiego model call.
+5. Potwierdzić w PM2, że worker pozostaje `online` i licznik restartów nie rośnie
+   podczas prawidłowo obsłużonego scenariusza retry.
+6. Końcowy strict cutover musi zawierać `runtime_safety.ok=true` i nie może
+   wprowadzić nowych błędów ani ostrzeżeń runtime.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 

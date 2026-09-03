@@ -2400,3 +2400,25 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   poprawny blok `output_safety`. Status: `137.2 SERVER PASS — READY FOR 137.3`.
 - Sprint 138 pozostaje zamrożony już tylko do zaliczenia 137.3: produkcyjnego
   runtime, retry/backoff i kontrolowanych scenariuszy awarii/odzyskania.
+
+## 2026-09-03 — Sprint 137.3: runtime/failure hardening LOCAL PASS
+
+- Dodano `ghostnetwork-ollama-runtime-v1`: domyślne pięć prób, kanoniczny
+  backoff `5/10/20/40/80 s`, bounded SQLite contention backoff `0.25–2.0 s`
+  oraz jawne rozróżnienie retryable lock/busy od fail-fast błędów SQL.
+- `OllamaNarrativeWorker.process_once()` zatrzymuje transient SQLite contention
+  na granicy cyklu i zwraca bezpieczny wynik diagnostyczny zamiast kończyć
+  proces. In-memory metryki pokazują łączną i kolejną liczbę contention.
+- Candidate pozostały po crashu domyka task bez drugiego model call oraz
+  finalizuje pierwotny attempt wynikiem `candidate_recovered`.
+- Dodano bounded, profile-free i read-only
+  `scripts/audit_narrative_runtime.py`. Strict gate wykrywa expired lease,
+  active task bez lease, wyczerpany task poza dead-letter, ineligible ready task
+  oraz odchylenie harmonogramu retry; historyczne incomplete attempts są
+  ostrzeżeniem, a poprawne dead-lettery wyłącznie telemetrią.
+- Cutover raportuje i egzekwuje nowy `runtime_safety` contract. Testy:
+  `31/31` komponentowe i `70/70` szerokiej regresji; `py_compile`, diff check i
+  lokalny runtime audit: PASS.
+- Status: `137.3 RUNTIME/FAILURE LOCAL PASS — SERVER GATE REQUIRED`. Sprint 138
+  pozostaje zamrożony do produkcyjnego verify/audit, failure tests i
+  potwierdzenia stabilnego procesu PM2.

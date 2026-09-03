@@ -33,6 +33,11 @@ from .errors import (
 from .llm.semantic_input import normalize_location
 
 
+def narrative_task_retry_backoff_seconds(attempt_count):
+    attempt = max(1, int(attempt_count or 1))
+    return min(300, 5 * (2 ** (attempt - 1)))
+
+
 def _utc_now():
     return datetime.now(timezone.utc)
 
@@ -4416,6 +4421,112 @@ class GhostNetworkRepository:
             ),
         }
 
+    def narrative_runtime_health(self, eligible_policies=None, now=None, sample_limit=25):
+        """Bounded operational invariants for the canonical Ollama queue."""
+        now_iso = _iso(now if now is not None else self.now())
+        sample_limit = max(1, min(int(sample_limit or 25), 100))
+        queue = self.narrative_task_queue_counts(eligible_policies, now=now_iso)
+        with self._conn() as conn:
+            active_invalid = conn.execute(
+                """
+                SELECT outbox_id FROM ghost_narrative_outbox
+                WHERE processor = ? AND status IN ('claimed', 'processing')
+                  AND (claimed_by = '' OR lease_until = '')
+                ORDER BY updated_at ASC LIMIT ?
+                """,
+                (NARRATIVE_TASK_PROCESSOR, sample_limit),
+            ).fetchall()
+            exhausted = conn.execute(
+                """
+                SELECT outbox_id FROM ghost_narrative_outbox
+                WHERE processor = ? AND status IN ('ready', 'retry_wait')
+                  AND attempt_count >= max_attempts
+                ORDER BY updated_at ASC LIMIT ?
+                """,
+                (NARRATIVE_TASK_PROCESSOR, sample_limit),
+            ).fetchall()
+            retry_rows = conn.execute(
+                """
+                SELECT outbox_id, attempt_count, next_attempt_at, last_error_at
+                FROM ghost_narrative_outbox
+                WHERE processor = ? AND status = 'retry_wait'
+                ORDER BY updated_at DESC LIMIT 1000
+                """,
+                (NARRATIVE_TASK_PROCESSOR,),
+            ).fetchall()
+            incomplete_attempts = conn.execute(
+                """
+                SELECT a.attempt_id
+                FROM ghost_narrative_inbox_attempts a
+                LEFT JOIN ghost_narrative_outbox o ON o.outbox_id = a.task_id
+                WHERE a.status = 'started'
+                  AND (
+                    o.outbox_id IS NULL
+                    OR o.status NOT IN ('claimed', 'processing')
+                    OR o.lease_until = ''
+                    OR o.lease_until <= ?
+                  )
+                ORDER BY a.created_at DESC LIMIT ?
+                """,
+                (now_iso, sample_limit),
+            ).fetchall()
+            attempt_status_rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM ghost_narrative_inbox_attempts
+                GROUP BY status ORDER BY status
+                """
+            ).fetchall()
+            retry_error_rows = conn.execute(
+                """
+                SELECT error_code, COUNT(*) AS count
+                FROM ghost_narrative_inbox_attempts
+                WHERE retryable = 1 AND error_code != ''
+                GROUP BY error_code ORDER BY count DESC, error_code
+                LIMIT 25
+                """
+            ).fetchall()
+            recovered = conn.execute(
+                """
+                SELECT COUNT(*) AS count FROM ghost_narrative_inbox_attempts
+                WHERE result = 'candidate_recovered'
+                """
+            ).fetchone()
+
+        schedule_violations = []
+        for row in retry_rows:
+            try:
+                expected = _utc_datetime(row["last_error_at"]) + timedelta(
+                    seconds=narrative_task_retry_backoff_seconds(row["attempt_count"])
+                )
+                actual = _utc_datetime(row["next_attempt_at"])
+            except (TypeError, ValueError):
+                schedule_violations.append(str(row["outbox_id"]))
+                continue
+            if abs((actual - expected).total_seconds()) > 1:
+                schedule_violations.append(str(row["outbox_id"]))
+            if len(schedule_violations) >= sample_limit:
+                break
+
+        return {
+            "queue": queue,
+            "active_without_lease": len(active_invalid),
+            "active_without_lease_samples": [str(row["outbox_id"]) for row in active_invalid],
+            "exhausted_nonterminal": len(exhausted),
+            "exhausted_nonterminal_samples": [str(row["outbox_id"]) for row in exhausted],
+            "retry_schedule_violations": len(schedule_violations),
+            "retry_schedule_violation_samples": schedule_violations,
+            "incomplete_attempts": len(incomplete_attempts),
+            "incomplete_attempt_samples": [str(row["attempt_id"]) for row in incomplete_attempts],
+            "attempt_statuses": {
+                str(row["status"]): int(row["count"] or 0) for row in attempt_status_rows
+            },
+            "retryable_errors": {
+                str(row["error_code"]): int(row["count"] or 0) for row in retry_error_rows
+            },
+            "candidate_recoveries": int((recovered or {})["count"] or 0),
+        }
+
     def retire_ineligible_narrative_tasks(
         self, eligible_policies, *, reason_code="policy_superseded_cutover",
         limit=500, now=None,
@@ -4769,7 +4880,7 @@ class GhostNetworkRepository:
             exhausted = current["attempt_count"] >= current["max_attempts"]
             next_status = "dead_letter" if exhausted else "retry_wait"
             if backoff_seconds is None:
-                backoff_seconds = min(300, 5 * (2 ** max(0, current["attempt_count"] - 1)))
+                backoff_seconds = narrative_task_retry_backoff_seconds(current["attempt_count"])
             backoff_seconds = max(0, min(int(backoff_seconds or 0), 86400))
             next_attempt_at = "" if exhausted else _iso(
                 _utc_datetime(now_iso) + timedelta(seconds=backoff_seconds)

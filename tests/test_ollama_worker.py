@@ -1,6 +1,8 @@
 import json
 import os
+import sqlite3
 import tempfile
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -13,14 +15,23 @@ from ghostnetwork.ollama_policy import (
     build_ollama_task_package,
     registered_ollama_policies,
 )
-from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
+from ghostnetwork.ollama_worker import (
+    OLLAMA_RUNTIME_CONTRACT_VERSION,
+    OllamaNarrativeWorker,
+    OllamaWorkerConfig,
+    is_database_contention,
+    verify_ollama_runtime_policy,
+)
 from ghostnetwork.cycles import GhostCycleService
 from ghostnetwork.llm.semantic_input import attach_semantic_content
 from ghostnetwork.llm.registry import (
     GHOSTNETWORK_EVENT_PROMPT_VERSION,
     GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
 )
-from ghostnetwork.repository import GhostNetworkRepository
+from ghostnetwork.repository import (
+    GhostNetworkRepository,
+    narrative_task_retry_backoff_seconds,
+)
 
 
 class MutableClock:
@@ -305,6 +316,108 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(current["status"], "retry_wait")
         self.assertEqual(current["last_error_code"], "ollama_timeout")
 
+    def test_runtime_policy_exposes_canonical_retry_schedule(self):
+        result = verify_ollama_runtime_policy(self.config)
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["contract_version"], OLLAMA_RUNTIME_CONTRACT_VERSION)
+        self.assertEqual(result["task_retry_backoff_seconds"], [5, 10, 20, 40, 80])
+        self.assertEqual(
+            [narrative_task_retry_backoff_seconds(index) for index in range(1, 7)],
+            [5, 10, 20, 40, 80, 160],
+        )
+
+    def test_database_contention_is_returned_as_retryable_runtime_result(self):
+        worker = self.worker(FakeClient([]))
+        worker._reconcile_persisted_events = lambda: {"ok": True}
+        worker._ensure_preflight = lambda: {"ok": True}
+
+        def contended(*_args, **_kwargs):
+            raise sqlite3.OperationalError("database is locked")
+
+        self.repo.claim_next_narrative_task = contended
+        first = worker.process_once()
+        second = worker.process_once()
+
+        self.assertEqual(first["result"], "database_contention")
+        self.assertEqual(first["error_code"], "sqlite_busy")
+        self.assertTrue(first["retryable"])
+        self.assertGreaterEqual(first["retry_after_seconds"], 0.25)
+        self.assertLessEqual(first["retry_after_seconds"], 2.0)
+        self.assertEqual(second["result"], "database_contention")
+        self.assertEqual(worker._runtime_metrics["database_contention_total"], 2)
+        self.assertEqual(worker._runtime_metrics["database_contention_consecutive"], 2)
+        self.assertTrue(is_database_contention(sqlite3.OperationalError("database is busy")))
+        self.assertFalse(is_database_contention(sqlite3.OperationalError("no such table")))
+
+    def test_non_contention_database_error_remains_fail_fast(self):
+        worker = self.worker(FakeClient([]))
+        worker._reconcile_persisted_events = lambda: {"ok": True}
+        worker._ensure_preflight = lambda: {"ok": True}
+
+        def broken(*_args, **_kwargs):
+            raise sqlite3.OperationalError("no such table")
+
+        self.repo.claim_next_narrative_task = broken
+        with self.assertRaises(sqlite3.OperationalError):
+            worker.process_once()
+
+    def test_retry_backoff_reaches_dead_letter_at_max_attempts(self):
+        item = self.repo.enqueue_narrative_task(self.task(event_id="retry-exhausted"))
+        worker = self.worker(FakeClient(error=OllamaClientError(
+            "ollama_timeout", retryable=True,
+        )))
+
+        expected_delays = [5, 10, 20, 40]
+        for attempt, expected_delay in enumerate(expected_delays, start=1):
+            result = worker.process_once()
+            current = self.repo.get_narrative_outbox(item["outbox_id"])
+            self.assertEqual(result["result"], "retry_wait")
+            self.assertEqual(current["attempt_count"], attempt)
+            expected_at = self.clock.value + timedelta(seconds=expected_delay)
+            self.assertEqual(datetime.fromisoformat(current["next_attempt_at"]), expected_at)
+            self.clock.advance(expected_delay + 1)
+
+        result = worker.process_once()
+        current = self.repo.get_narrative_outbox(item["outbox_id"])
+        self.assertEqual(result["result"], "dead_letter")
+        self.assertEqual(current["status"], "dead_letter")
+        self.assertEqual(current["attempt_count"], 5)
+        self.assertEqual(current["next_attempt_at"], "")
+        self.assertEqual(len(self.repo.list_narrative_attempts(
+            task_id=item["outbox_id"], limit=10,
+        )), 5)
+
+    def test_heartbeat_renews_lease_during_slow_generation(self):
+        item = self.repo.enqueue_narrative_task(self.task(event_id="slow-generation"))
+
+        class SlowClient(FakeClient):
+            def generate(client_self, package, policy):
+                time.sleep(0.08)
+                self.clock.advance(3)
+                time.sleep(0.06)
+                return super(SlowClient, client_self).generate(package, policy)
+
+        config = OllamaWorkerConfig(
+            enabled=True,
+            poll_seconds=0.1,
+            poll_jitter_seconds=0,
+            lease_seconds=2,
+            heartbeat_seconds=0.05,
+        )
+        worker = OllamaNarrativeWorker(
+            repository=self.repo,
+            client=SlowClient([self.accepted("slow-generation")]),
+            config=config,
+            worker_id="heartbeat-worker",
+        )
+
+        result = worker.process_once()
+        attempt = self.repo.list_narrative_attempts(task_id=item["outbox_id"], limit=1)[0]
+
+        self.assertEqual(result["result"], "completed", result)
+        self.assertEqual(attempt["status"], "completed")
+
     def test_controlled_run_once_can_claim_one_selected_medium(self):
         blacknet = self.repo.enqueue_narrative_task(self.task(event_id="medium-blacknet"))
         cyberner_task = assign_ollama_task_policy({
@@ -434,6 +547,11 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(result["result"], "candidate_recovered")
         self.assertEqual(next_client.calls, 0)
         self.assertEqual(self.repo.get_narrative_outbox(item["outbox_id"])["status"], "completed")
+        recovered_attempt = self.repo.list_narrative_attempts(
+            task_id=item["outbox_id"], limit=1,
+        )[0]
+        self.assertEqual(recovered_attempt["status"], "completed")
+        self.assertEqual(recovered_attempt["result"], "candidate_recovered")
 
     def test_worker_modules_have_no_profile_or_web_app_dependency_and_do_not_log_prompts(self):
         root = os.path.dirname(os.path.dirname(__file__))

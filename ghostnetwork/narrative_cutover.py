@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from .ollama_policy import verify_prompt_registry
-from .ollama_worker import active_ollama_worker_policies
+from .ollama_worker import active_ollama_worker_policies, verify_ollama_runtime_policy
 from .narrative import (
     GHOST_EVENT_LINEAGE_EPOCH,
     GHOST_EVENT_POLICY,
@@ -189,6 +189,7 @@ def build_narrative_cutover_report(
     prompt_registry = verify_prompt_registry()
     narrative_support = NarrativeSupportLayer().verify()
     output_safety = verify_ghost_output_safety()
+    runtime_safety = verify_ollama_runtime_policy()
     task_queue = repository.narrative_task_queue_counts(policies, now=now)
     publication_queue = repository.narrative_publication_queue_counts(now=now)
     ghost_event_lineage = build_ghost_event_lineage_report(repository)
@@ -212,6 +213,8 @@ def build_narrative_cutover_report(
         errors.append("narrative_support_invalid")
     if not output_safety.get("ok"):
         errors.append("ghost_output_safety_invalid")
+    if not runtime_safety.get("ok"):
+        errors.append("ollama_runtime_safety_invalid")
     if task_queue.get("active_legacy_file_tasks"):
         errors.append("active_legacy_file_tasks")
     if task_queue.get("ineligible_ready"):
@@ -255,6 +258,7 @@ def build_narrative_cutover_report(
         "prompt_registry": prompt_registry,
         "narrative_support": narrative_support,
         "output_safety": output_safety,
+        "runtime_safety": runtime_safety,
         "task_queue": task_queue,
         "publication_queue": publication_queue,
         "ghost_event_lineage": ghost_event_lineage,

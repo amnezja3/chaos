@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import random
 import socket
+import sqlite3
 import threading
 import time
 import uuid
@@ -16,10 +17,21 @@ from .ollama_policy import (
     resolve_ollama_task_policy,
     verify_prompt_registry,
 )
-from .repository import GhostNetworkRepository
+from .repository import GhostNetworkRepository, narrative_task_retry_backoff_seconds
 from .narrative import GhostNarrativePublisher
 from .narrative_support import NarrativeSupportLayer
 from .llm.output_safety import verify_ghost_output_safety
+
+
+OLLAMA_RUNTIME_CONTRACT_VERSION = "ghostnetwork-ollama-runtime-v1"
+OLLAMA_TASK_RETRY_BACKOFF_SECONDS = (5, 10, 20, 40, 80)
+
+
+def is_database_contention(error):
+    return isinstance(error, sqlite3.OperationalError) and any(
+        marker in str(error).lower()
+        for marker in ("database is locked", "database table is locked", "database is busy")
+    )
 
 
 def _env_bool(name, default=False):
@@ -38,6 +50,8 @@ class OllamaWorkerConfig:
     heartbeat_seconds: int = 30
     preflight_interval_seconds: int = 300
     preflight_retry_seconds: int = 30
+    database_contention_min_seconds: float = 0.25
+    database_contention_max_seconds: float = 2.0
 
     @classmethod
     def from_env(cls):
@@ -57,6 +71,14 @@ class OllamaWorkerConfig:
             preflight_retry_seconds=max(
                 5, int(os.environ.get("CHAOS_OLLAMA_PREFLIGHT_RETRY_SECONDS", "30"))
             ),
+            database_contention_min_seconds=max(
+                0.05,
+                float(os.environ.get("CHAOS_OLLAMA_DB_CONTENTION_MIN_SECONDS", "0.25")),
+            ),
+            database_contention_max_seconds=max(
+                0.05,
+                float(os.environ.get("CHAOS_OLLAMA_DB_CONTENTION_MAX_SECONDS", "2.0")),
+            ),
         )
 
     def validate(self):
@@ -65,7 +87,31 @@ class OllamaWorkerConfig:
             errors.append("heartbeat_must_be_shorter_than_lease")
         if self.poll_seconds > 60:
             errors.append("poll_interval_out_of_policy")
+        if self.database_contention_min_seconds > self.database_contention_max_seconds:
+            errors.append("database_contention_backoff_invalid")
+        if self.database_contention_max_seconds > 10:
+            errors.append("database_contention_backoff_out_of_policy")
         return errors
+
+
+def verify_ollama_runtime_policy(config=None):
+    config = config or OllamaWorkerConfig.from_env()
+    errors = list(config.validate())
+    observed = tuple(narrative_task_retry_backoff_seconds(index) for index in range(1, 6))
+    if observed != OLLAMA_TASK_RETRY_BACKOFF_SECONDS:
+        errors.append("task_retry_backoff_contract_mismatch")
+    return {
+        "ok": not errors,
+        "contract_version": OLLAMA_RUNTIME_CONTRACT_VERSION,
+        "errors": errors,
+        "task_retry_backoff_seconds": list(observed),
+        "task_max_attempts": 5,
+        "database_contention_backoff_seconds": {
+            "minimum": config.database_contention_min_seconds,
+            "maximum": config.database_contention_max_seconds,
+        },
+        "database_contention_is_retryable": True,
+    }
 
 
 class LeaseHeartbeat:
@@ -152,6 +198,11 @@ class OllamaNarrativeWorker:
         self._preflight_expires_at = 0.0
         self._event_reconcile_expires_at = 0.0
         self._event_reconcile_result = None
+        self._runtime_metrics = {
+            "database_contention_total": 0,
+            "database_contention_consecutive": 0,
+            "last_runtime_error_code": "",
+        }
 
     def status(self):
         return {
@@ -159,6 +210,8 @@ class OllamaNarrativeWorker:
             "worker_id": self.worker_id,
             "config_errors": self.config.validate(),
             "queue": self.repository.narrative_task_queue_counts(self.policies),
+            "runtime_safety": verify_ollama_runtime_policy(self.config),
+            "runtime_metrics": dict(self._runtime_metrics),
             "profiles_loaded": False,
         }
 
@@ -170,6 +223,7 @@ class OllamaNarrativeWorker:
         result["prompt_registry"] = verify_prompt_registry()
         result["narrative_support"] = self.narrative_support.verify()
         result["output_safety"] = verify_ghost_output_safety()
+        result["runtime_safety"] = verify_ollama_runtime_policy(self.config)
         result["queue"] = self.repository.narrative_task_queue_counts(self.policies)
         result["database_ok"] = True
         result["worker_config_errors"] = self.config.validate()
@@ -178,6 +232,7 @@ class OllamaNarrativeWorker:
             and result["prompt_registry"]["ok"]
             and result["narrative_support"]["ok"]
             and result["output_safety"]["ok"]
+            and result["runtime_safety"]["ok"]
             and result["database_ok"]
             and not result["worker_config_errors"]
         )
@@ -226,6 +281,13 @@ class OllamaNarrativeWorker:
         completed = self.repository.complete_narrative_task(
             task["outbox_id"], self.worker_id, task["lease_until"]
         )
+        if completed and candidate.get("attempt_id"):
+            self.repository.finish_narrative_attempt(
+                candidate["attempt_id"],
+                status="completed",
+                result="candidate_recovered",
+                retryable=False,
+            )
         return {
             "result": "candidate_recovered" if completed else "lease_lost",
             "task_id": task["outbox_id"],
@@ -233,6 +295,30 @@ class OllamaNarrativeWorker:
         }
 
     def process_once(self, target_medium=None):
+        try:
+            result = self._process_once(target_medium=target_medium)
+        except sqlite3.OperationalError as exc:
+            if not is_database_contention(exc):
+                raise
+            self._runtime_metrics["database_contention_total"] += 1
+            self._runtime_metrics["database_contention_consecutive"] += 1
+            self._runtime_metrics["last_runtime_error_code"] = "sqlite_busy"
+            retry_after = random.uniform(
+                self.config.database_contention_min_seconds,
+                self.config.database_contention_max_seconds,
+            )
+            return {
+                "result": "database_contention",
+                "error_code": "sqlite_busy",
+                "retryable": True,
+                "retry_after_seconds": round(retry_after, 3),
+            }
+        if result.get("result") != "database_contention":
+            self._runtime_metrics["database_contention_consecutive"] = 0
+            self._runtime_metrics["last_runtime_error_code"] = ""
+        return result
+
+    def _process_once(self, target_medium=None):
         if self.config.validate():
             return {"result": "invalid_worker_config", "errors": self.config.validate()}
         registry_status = verify_prompt_registry()
@@ -421,7 +507,11 @@ class OllamaNarrativeWorker:
                 result = self.process_once()
                 if callable(on_result) and result.get("result") != "idle":
                     on_result(result)
-            delay = self.config.poll_seconds + random.uniform(
-                0.0, self.config.poll_jitter_seconds
+            delay = (
+                float(result.get("retry_after_seconds") or 0)
+                if self.config.enabled and result.get("result") == "database_contention"
+                else self.config.poll_seconds + random.uniform(
+                    0.0, self.config.poll_jitter_seconds
+                )
             )
             stop_event.wait(delay)
