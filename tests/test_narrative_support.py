@@ -50,13 +50,17 @@ class NarrativeSupportLayerTest(unittest.TestCase):
         task = self.task()
         package = build_ollama_task_package(task)
         rejected = parse_and_validate_ollama_content(json.dumps({
-            "title": "PRZECHWYT // ELEMENT",
-            "body": "...ukryty element sieci został ujawniony.",
+            "title": "PRZECHWYT // Ukryty element sieci GhostNetwork",
+            "body": (
+                "...ujawniono wcześniej ukryty element sieci GhostNetwork "
+                "przy obiekcie Zara."
+            ),
             "tone": "warning",
             "fact_refs": ["f01"],
             "cta_ref": None,
         }), package)
         self.assertEqual(rejected["status"], "rejected")
+        self.assertIn("voice_canonical_echo", rejected["errors"])
 
         layer = NarrativeSupportLayer()
         first = layer.apply(task, package, rejected, parse_and_validate_ollama_content)
@@ -89,6 +93,23 @@ class NarrativeSupportLayerTest(unittest.TestCase):
         self.assertEqual(result["mode"], "title")
         self.assertEqual(result["validation"]["status"], "accepted")
         self.assertEqual(result["validation"]["output"]["body"], good_body)
+
+    def test_googleplex_polish_ghost_name_is_valid_not_truncated(self):
+        task = self.task(medium="googleplex_news")
+        package = build_ollama_task_package(task)
+        validation = parse_and_validate_ollama_content(json.dumps({
+            "title": "Ujawniono ukryty element sieci Ghost",
+            "body": "Przy obiekcie Zara ujawniono ukryty element sieci GhostNetwork.",
+            "tone": "warning",
+            "fact_refs": ["f01"],
+            "cta_ref": None,
+            "asset_ref": package["allowed_asset_refs"][0],
+        }), package)
+
+        self.assertEqual(validation["status"], "accepted", validation)
+        self.assertIsNone(NarrativeSupportLayer().apply(
+            task, package, validation, parse_and_validate_ollama_content
+        ))
 
     def test_missing_owner_part_fails_closed_without_inventing_value(self):
         task = self.task(audience="owner", include_part=False)

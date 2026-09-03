@@ -232,6 +232,18 @@ class OllamaPolicyTest(unittest.TestCase):
         }), package)
         self.assertEqual(unsupported_relation["status"], "rejected", unsupported_relation)
         self.assertIn("voice_unsupported_relation", unsupported_relation["errors"])
+        canonical_echo = parse_and_validate_ollama_content(json.dumps({
+            "title": "PRZECHWYT // POI-18D194",
+            "body": (
+                "...wykryto nowa czesc GhostNetwork przy obiekcie "
+                "POI-18D194 w mieście Warszawa."
+            ),
+            "tone": "warning",
+            "fact_refs": ["f01"],
+            "cta_ref": None,
+        }), package)
+        self.assertEqual(canonical_echo["status"], "rejected", canonical_echo)
+        self.assertIn("voice_canonical_echo", canonical_echo["errors"])
 
     def test_part_discovered_owner_gets_one_sentence_and_must_name_the_part(self):
         task = self.task()

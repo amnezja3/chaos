@@ -239,9 +239,8 @@ Lokalna regresja policy/worker/publication/audit po cutoverze: `64 tests / PASS`
 
 Produkcyjny v9 przeszedł wszystkie bramki techniczne (`4/4 accepted`, zgodne
 hashes i lineage), ale nie ręczną ocenę języka. BlackNet mechanicznie kopiował
-canonical statement, a Googleplex zwrócił niegramatyczne `Zara ujawniono` oraz
-urwany tytuł `... Ghost`. Dalsze dokładanie instrukcji do promptu zostało
-zatrzymane.
+canonical statement, a Googleplex zwrócił niegramatyczne `Zara ujawniono`.
+Dalsze dokładanie instrukcji do promptu zostało zatrzymane.
 
 Aktywne prompty v10 są krótsze i pozostawiają modelowi swobodę językową, nadal
 ograniczoną do audience-safe `semantic_facts`. `required_phrase` nie jest już
@@ -273,9 +272,9 @@ strict cutover blokują start przy brakującym lub błędnym YAML.
 
 Lokalne bramki 137.1.1:
 
-- worker/policy/support/publication/cutover/audit: `77 tests / PASS`;
+- worker/policy/support/publication/cutover/audit: `78 tests / PASS`;
 - semantic input/producers 136/narrative/runtime durability: `71 tests / PASS`;
-- razem: `148 tests / PASS`.
+- razem: `149 tests / PASS`.
 
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server

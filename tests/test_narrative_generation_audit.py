@@ -119,6 +119,12 @@ class NarrativeGenerationAuditTest(unittest.TestCase):
         self.assertTrue(sample["ok"], sample)
         self.assertEqual(sample["candidate"]["validation_status"], "accepted")
         self.assertEqual(sample["attempt"]["request_hash"], sample["package"]["request_hash"])
+        self.assertTrue(sample["support_replay"]["available"])
+        self.assertTrue(sample["support_replay"]["read_only"])
+        self.assertEqual(
+            sample["support_replay"]["model_validation"]["status"], "accepted"
+        )
+        self.assertFalse(sample["support_replay"]["support_applied"])
         self.assertEqual(
             sample["model_input"]["semantic_facts"][0]["statement"],
             "Element GhostNetwork został aktywowany.",

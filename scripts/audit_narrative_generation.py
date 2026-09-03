@@ -22,8 +22,10 @@ from ghostnetwork.llm.registry import (
 )
 from ghostnetwork.ollama_policy import (
     build_ollama_task_package,
+    parse_and_validate_ollama_content,
     presentation_safety_errors,
 )
+from ghostnetwork.narrative_support import NarrativeSupportLayer
 from ghostnetwork.repository import GhostNetworkRepository
 
 
@@ -142,6 +144,14 @@ def _task_report(repository, task):
             errors.append("attempt_prompt_version_mismatch")
 
     candidate = repository.get_narrative_candidate_for_task(task_id)
+    support_replay = {
+        "available": False,
+        "read_only": True,
+        "model_validation": None,
+        "support_applied": False,
+        "support_mode": "",
+        "support_output": None,
+    }
     if not candidate:
         errors.append("candidate_missing")
     else:
@@ -169,6 +179,30 @@ def _task_report(repository, task):
         errors.extend(presentation_safety_errors(
             candidate.get("title"), candidate.get("body")
         ))
+        raw_output = str(candidate.get("bounded_raw_output") or "").strip()
+        if raw_output:
+            replay_validation = parse_and_validate_ollama_content(raw_output, package)
+            support = NarrativeSupportLayer().apply(
+                task,
+                package,
+                replay_validation,
+                parse_and_validate_ollama_content,
+            )
+            support_replay = {
+                "available": True,
+                "read_only": True,
+                "model_validation": {
+                    "status": replay_validation.get("status"),
+                    "errors": replay_validation.get("errors") or [],
+                    "output": replay_validation.get("output"),
+                },
+                "support_applied": bool(support),
+                "support_mode": (support or {}).get("mode") or "",
+                "support_output": (
+                    ((support or {}).get("validation") or {}).get("output")
+                    if support else None
+                ),
+            }
 
     return {
         "ok": not errors,
@@ -221,6 +255,7 @@ def _task_report(repository, task):
             "cta_action": candidate.get("cta_action") or "",
             "asset_ref": candidate.get("asset_ref") or "",
         } if candidate else None),
+        "support_replay": support_replay,
     }
 
 

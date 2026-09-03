@@ -438,6 +438,26 @@ def _normalized_narrative_text(value):
     return re.sub(r"[^\w]+", " ", folded).strip()
 
 
+def _canonical_voice_quality_errors(body, voice_contract):
+    """Reject high-confidence copies of a canonical source sentence."""
+    errors = []
+    normalized_body = _normalized_narrative_text(body)
+    body_tokens = set(normalized_body.split())
+    if voice_contract.get("reject_canonical_echo") and body_tokens:
+        for statement in voice_contract.get("canonical_statements") or ():
+            source_tokens = set(_normalized_narrative_text(statement).split())
+            if len(source_tokens) < 6:
+                continue
+            overlap = len(body_tokens & source_tokens) / max(
+                1, len(body_tokens | source_tokens)
+            )
+            if overlap >= 0.85:
+                errors.append("voice_canonical_echo")
+                break
+
+    return errors
+
+
 _PRODUCT_FILLER_PREFIX_RE = re.compile(
     r"^\s*(?:(?:w\s+roku\s+2108|w\s+globalnym\s+zasi(?:e|ę)gu)\s*,?\s*)+",
     re.IGNORECASE,
@@ -993,6 +1013,13 @@ def build_ollama_task_package(task, policy=None):
                 "jest własnością", "jest wlasnoscia", "właścicielem jest",
                 "wlascicielem jest",
             )
+            if policy.target_medium == "blacknet":
+                voice_contract["reject_canonical_echo"] = True
+                voice_contract["canonical_statements"] = tuple(
+                    str(item.get("statement") or "").strip()
+                    for item in model_input.get("semantic_facts") or ()
+                    if str(item.get("statement") or "").strip()
+                )
         else:
             detail_values = []
             for semantic_fact in model_input.get("semantic_facts") or ():
@@ -1135,6 +1162,7 @@ def parse_and_validate_ollama_content(content, task_package):
         for phrase in forbidden_relation_phrases
     ):
         errors.append("voice_unsupported_relation")
+    errors.extend(_canonical_voice_quality_errors(body, voice_contract))
     if editorial_contract:
         if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):
             errors.append("slot_copy_budget_exceeded")

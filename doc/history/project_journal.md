@@ -2334,3 +2334,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `71/71` semantic input/producers/runtime — łącznie `148 tests / PASS`.
 - Status: `137.1.1 LOCAL PASS — SERVER GATE REQUIRED`; ostatnia część cyklu nie
   została zużyta.
+
+## 2026-09-03 — Sprint 137.1.1: produkcyjny v10 i precyzyjny support trigger
+
+- Produkcyjny event `event_5daafeb6395a4290` utworzył pełny fan-out czterech
+  tasków v10. Wszystkie zakończyły pierwszy attempt jako accepted, a strict
+  generation audit zwrócił `ok=true` i pełne lineage.
+- Googleplex z tytułem `Ujawniono ukryty element sieci Ghost` jest poprawnym
+  polskim sformułowaniem, nie ucięciem nazwy. Owner BlackNet poprawnie zachował
+  nazwę części `Deep Sensor`. Te wyniki pozostają model-pass bez ingerencji.
+- Public i clan BlackNet niemal dosłownie powtórzyły canonical statement ze
+  zmienionym szykiem. Validator v10 odrzuca odtąd wyłącznie takie
+  wysokopodobne echo jako `voice_canonical_echo`; nie stosuje heurystyki dla
+  słowa `Ghost` ani ogólnej, subiektywnej oceny stylu.
+- `scripts/audit_narrative_generation.py` pokazuje read-only support replay na
+  zapisanym raw output. Pozwala potwierdzić deterministyczny fallback dla
+  ostatniego eventu bez zmiany bazy, ponownej publikacji i kolejnego dropu.
+- Regresja narracyjnego pipeline’u po korekcie: `78/78 tests / PASS`.
