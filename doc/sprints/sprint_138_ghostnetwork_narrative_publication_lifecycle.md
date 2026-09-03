@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `BLOCKED — 137.2 OUTPUT FIREWALL LOCAL PASS; REQUIRES SERVER GATE AND 137.3`
+Status: `BLOCKED — 137.1/137.2 SERVER PASS; REQUIRES 137.3`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -13,9 +13,11 @@ identyfikatorów. Produkcyjny v9 przeszedł walidację techniczną, lecz nie rę
 ocenę języka. Aktywny v10 upraszcza prompt, a Narrative Support Layer renderuje
 deterministyczny, audience-safe fallback z YAML tylko po odrzuceniu modelu.
 Producer-backed v10 oraz read-only replay ostatniego eventu potwierdziły
-ścieżki model-pass i support-fallback. 137.2 ma lokalny output firewall oparty
-na dozwolonej wiedzy per audience, ale 138 pozostaje zamrożony do jego server
-gate oraz ukończenia 137.3 (runtime i awarie).
+ścieżki model-pass i support-fallback. Produkcyjna bramka 137.2 potwierdziła
+output firewall oparty na dozwolonej wiedzy per audience: worker verify,
+adversarial audit czterech rzeczywistych tasków i strict cutover zakończyły się
+PASS. Sprint 138 pozostaje zamrożony wyłącznie do ukończenia 137.3 (runtime i
+awarie).
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 
@@ -441,7 +443,7 @@ Sprint 136 runtime ingress/lineage:          SERVER PASS
 Shared Semantic Input Layer:                SERVER PASS
 semantic input technical-ID firewall:       SERVER PASS
 Sprint 137.1 producer/support server gate:  PASS
-Sprint 137.2 forbidden-knowledge gate:      LOCAL PASS / SERVER REQUIRED
+Sprint 137.2 forbidden-knowledge gate:      SERVER PASS
 Sprint 137.3 runtime/failure gate:           BLOCKED
 publication lifecycle scope:                FROZEN
 ```

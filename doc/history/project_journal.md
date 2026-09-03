@@ -2386,3 +2386,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   verify, strict cutover i generation audit.
 - Regresja: `69/69` komponentów 137.2 oraz `120/120` szerokiego pipeline’u.
   Status: `137.2 LOCAL PASS — SERVER GATE REQUIRED`.
+
+## 2026-09-03 — Sprint 137.2: produkcyjny output-safety SERVER PASS
+
+- Wdrożono `61c06fe`; po restarcie procesów PM2 `13`, `17` i `18` worker verify
+  potwierdził `ghostnetwork-output-safety-v1`, `catalog_value_count=116`,
+  `ok=true` i brak błędów kontraktu.
+- Read-only adversarial audit eventu `event_5daafeb6395a4290` objął cztery
+  rzeczywiste taski: BlackNet public/clan/owner i Googleplex public. Wszystkie
+  techniczne oraz audience-hidden próby wycieku zostały wykryte, natomiast
+  `free_narrative_language` pozostał bez błędów we wszystkich próbkach.
+- Końcowy strict cutover zwrócił `ok=true`, `errors=[]`, `warnings=[]` oraz
+  poprawny blok `output_safety`. Status: `137.2 SERVER PASS — READY FOR 137.3`.
+- Sprint 138 pozostaje zamrożony już tylko do zaliczenia 137.3: produkcyjnego
+  runtime, retry/backoff i kontrolowanych scenariuszy awarii/odzyskania.

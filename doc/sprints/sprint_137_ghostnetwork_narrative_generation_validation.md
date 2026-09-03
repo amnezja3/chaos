@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.2 OUTPUT FIREWALL LOCAL PASS; SERVER GATE REQUIRED`
+Status: `137 ACTIVE — 137.2 OUTPUT FIREWALL SERVER PASS; READY FOR 137.3`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -367,7 +367,19 @@ cutover raportują wersję i stan output safety contractu. Lokalna regresja
 komponentów 137.2: `69 tests / PASS`; szersza regresja producer/runtime:
 `120 tests / PASS`.
 
-Status: `137.2 OUTPUT FIREWALL LOCAL PASS — SERVER GATE REQUIRED`.
+### Produkcyjna bramka 137.2 — 2026-09-03
+
+Wdrożono commit `61c06fe` i zrestartowano procesy `chaos`,
+`chaos-ollama-worker` oraz `chaos-narrative-publisher`. Worker verify potwierdził
+`ghostnetwork-output-safety-v1`, `catalog_value_count=116`, `ok=true` i pustą
+listę błędów. Read-only adversarial audit rzeczywistego eventu
+`event_5daafeb6395a4290` zaliczył wszystkie cztery taski (BlackNet
+public/clan/owner oraz Googleplex public): techniczne i audience-hidden dane
+zostały zatrzymane, a swobodny język narracyjny nie został błędnie odrzucony.
+Końcowy strict cutover zwrócił `ok=true`, `errors=[]` i `warnings=[]`, w tym
+poprawny stan output safety contractu.
+
+Status: `137.2 OUTPUT FIREWALL SERVER PASS — READY FOR 137.3`.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
