@@ -94,6 +94,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v7",
     "ghostnetwork-googleplex-prompt-v7",
     "ghostsignal-prompt-v7",
+    "ghostnetwork-event-prompt-v8",
+    "ghostnetwork-googleplex-prompt-v8",
+    "ghostsignal-prompt-v8",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -117,6 +120,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v7",
     "ghostnetwork-googleplex-prompt-v7",
     "ghostsignal-prompt-v7",
+    "ghostnetwork-event-prompt-v8",
+    "ghostnetwork-googleplex-prompt-v8",
+    "ghostsignal-prompt-v8",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -605,7 +611,9 @@ def _semantic_entity_label(semantic, kind):
     return ""
 
 
-def _part_discovered_model_fact(visible_fact, audience_scope):
+def _part_discovered_model_fact(
+    visible_fact, audience_scope, *, expose_required_phrase=False,
+):
     """Collapse ambiguous entity rows into one backend-authored canonical sentence."""
     statement = str(visible_fact.get("statement") or "").strip()
     target = _semantic_entity_label(visible_fact, "target")
@@ -624,7 +632,12 @@ def _part_discovered_model_fact(visible_fact, audience_scope):
         statement = f"{prefix} {statement[:1].lower()}{statement[1:]}"
     if audience_scope == "owner" and part:
         statement = f"{statement.rstrip('.: ')}: {part}."
-    return {"fact_ref": visible_fact.get("fact_ref"), "statement": statement}
+    model_fact = {"fact_ref": visible_fact.get("fact_ref"), "statement": statement}
+    if expose_required_phrase:
+        required_phrase = part if audience_scope == "owner" and part else target or city
+        if required_phrase:
+            model_fact["required_phrase"] = required_phrase
+    return model_fact
 
 
 def _part_discovered_required_details(source_facts, audience_scope):
@@ -746,12 +759,19 @@ def build_ollama_task_package(task, policy=None):
                 policy.prompt_version in {
                     GHOSTNETWORK_EVENT_PROMPT_VERSION,
                     GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+                    "ghostnetwork-event-prompt-v8",
+                    "ghostnetwork-googleplex-prompt-v8",
                 }
                 and policy.task_variant in {"part_discovered", "googleplex_world_dispatch"}
                 and str(item.get("fact_type") or "").strip() == "part_discovered"
             ):
                 visible_fact = _part_discovered_model_fact(
-                    visible_fact, str(task.get("audience_scope") or "").strip()
+                    visible_fact,
+                    str(task.get("audience_scope") or "").strip(),
+                    expose_required_phrase=policy.prompt_version in {
+                        GHOSTNETWORK_EVENT_PROMPT_VERSION,
+                        GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+                    },
                 )
             semantic_facts.append(visible_fact)
         else:

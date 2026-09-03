@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1 v8 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
+Status: `137 ACTIVE — 137.1 v9 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -126,7 +126,7 @@ CTA GhostNetwork pozostaje backend-owned. Model nie otrzymuje akcji ani jej
 payloadu i schema wymusza `cta_ref=null`; fixed action jest dołączana po stronie
 backendu. Schema ogranicza `fact_refs` bezpośrednio do aliasów danego taska.
 
-Backend ustala również limity zależne od medium. Googleplex v8 ma krótki HERO
+Backend ustala również limity zależne od medium. Googleplex v9 ma krótki HERO
 (`36/120`, jeden fact ref; historyczne wersje zachowują swój kontrakt), aktywny
 BlackNet `48/220`, Cyberner `72/420`, a radio `72/520`; schema generacji
 egzekwuje te same granice.
@@ -193,7 +193,7 @@ pełnej nazwy części w body. Backend odrzuca też konkretne zwroty relacyjne,
 m.in. `należy do`, `należący do` i `jest własnością`, gdy canonical fact nie
 zawiera relacji własności. Nie blokuje przez to nazw obiektów o podobnym rdzeniu.
 
-Cutover jest addytywny. Nowe taski dostają v8, ale już zapisane taski v1–v7
+Cutover jest addytywny. Nowe taski dostają v9, ale już zapisane taski v1–v8
 nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3–v7
 zachowują semantic system prompt oraz minimalny semantic package; nie zostają
 przypadkiem cofnięte do technicznego formatu v2. Worker nie przypisuje staremu
@@ -204,8 +204,8 @@ policies.
 
 Dowody lokalne i produkcyjne:
 
-- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v8 policy`;
-- producer-backed `cycle_activated` buduje package v8 dla BlackNet i
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v9 policy`;
+- producer-backed `cycle_activated` buduje package v9 dla BlackNet i
   Googleplex z poprawnym intent/family/significance;
 - historyczne taski v1–v7 pozostają rozwiązywalne, a v3–v7 zachowują semantic
   package;
@@ -220,10 +220,25 @@ Dowody lokalne i produkcyjne:
 - core policy/worker/publication/cutover: `64 tests / PASS`;
 - producer/runtime/publisher regression: `64 tests / PASS`.
 
+Produkcyjny event v8 `event_e3b8955692670276` potwierdził pełny fan-out i
+ukończenie czterech tasków w pierwszym attempt, ale końcowa bramka generacji
+zwróciła `ok=false`. Wszystkie trzy warianty BlackNet pominęły `Chez Marlene`,
+a owner pominął również `Restoration Engine`; validator poprawnie odrzucił je
+przez `voice_semantic_detail_missing`. Googleplex przeszedł technicznie i
+ręcznie. Nie jest to awaria transportu ani canonical sentence, lecz brak jawnej
+instrukcji, że pełny konkret ma obowiązkowo znaleźć się w body.
+
+Aktywny v9 zachowuje pojedynczy canonical statement i dodaje do niego dokładnie
+jedną audience-safe `required_phrase`: nazwę miejsca dla public/clan albo nazwę
+części dla ownera. Prompt wymaga jej dosłownego użycia w body, a istniejący
+backendowy validator egzekwuje tę samą wartość. V8 pozostaje addytywnie
+zarejestrowany i zachowuje swój wcześniejszy package; nowe taski dostają v9.
+Lokalna regresja policy/worker/publication/audit po cutoverze: `64 tests / PASS`.
+
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1–v8 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v8 korzystający z semantic input. Musi on
+verify registry, kontrola kolejki v1–v9 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v9 korzystający z semantic input. Musi on
 przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
 technicznego nie wystarcza.
 

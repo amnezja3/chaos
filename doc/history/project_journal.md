@@ -2296,3 +2296,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   addytywnie zarejestrowane, a v3–v7 zachowują semantic package.
 - Lokalna regresja v8: `74 tests / PASS`. Do zamknięcia 137.1 pozostaje nowy
   producer-backed server probe oraz ręczna ocena czterech kandydatów v8.
+
+## 2026-09-03 — Sprint 137.1: produkcyjny fail konkretu v8 i kontrakt v9
+
+- Produkcyjny event `event_e3b8955692670276` utworzył pełny fan-out czterech
+  tasków v8; wszystkie zakończyły pierwszy attempt. Googleplex został accepted
+  i przeszedł ręczną ocenę.
+- Clan, owner i public BlackNet zwróciły ten sam ogólny tekst bez `Chez Marlene`;
+  owner pominął również `Restoration Engine`. Validator poprawnie ustawił
+  `rejected` z `voice_semantic_detail_missing`, a strict generation audit
+  zakończył się `ok=false`.
+- V9 zachowuje jedno canonical zdanie i dodaje tylko jedną jawną
+  `required_phrase`: miejsce dla public/clan albo nazwę części dla ownera.
+  Prompt wymaga dokładnego użycia jej w body; backend nadal egzekwuje ten sam
+  warunek i nie przepuszcza tekstu ogólnego.
+- V8 pozostaje kompatybilną polityką legacy z niezmienionym model input. Nowe
+  taski GhostNetwork używają v9. Lokalna regresja policy/worker/publication/audit:
+  `64 tests / PASS`; wymagany jest nowy producer-backed server probe v9.
