@@ -227,6 +227,28 @@ class MarkedTargetFrontendContractTests(unittest.TestCase):
         self.assertIn("showPendingMarkedTarget", clear_helper)
         self.assertIn("LINKING TARGET...", clear_helper)
 
+    def test_scan_clear_is_resilient_to_one_stale_leaflet_marker(self):
+        clear_start = self.source.index("function clearScanResultLayers()")
+        clear_end = self.source.index("window.pendingMarkedTargetLayers", clear_start)
+        clear_helper = self.source[clear_start:clear_end]
+        self.assertIn("const layersToRemove = scanResultLayers", clear_helper)
+        self.assertIn("scanResultLayers = []", clear_helper)
+        self.assertIn("try {", clear_helper)
+        self.assertIn("scanResultLayers.push(layer)", clear_helper)
+        self.assertIn("[map scan] Nie udalo sie usunac markera skanu", clear_helper)
+
+    def test_leaflet_marker_removal_is_guarded_and_layer_removed_first(self):
+        helper_start = self.source.index("function removeMapLayerSafe(layer)")
+        helper_end = self.source.index("function installLeafletCircleMarkerBoundsGuard", helper_start)
+        helpers = self.source[helper_start:helper_end]
+        self.assertIn("function installLeafletMarkerRemovalGuard()", helpers)
+        self.assertIn("if (this._icon)", helpers)
+        self.assertIn("stale marker DOM cleanup skipped", helpers)
+        self.assertLess(
+            helpers.index("if (wasAttached) map.removeLayer(layer)"),
+            helpers.index("layer.unbindTooltip()"),
+        )
+
     def test_mark_response_settles_pending_and_installs_interactive_marker(self):
         start = self.source.index("async function mapAction(")
         end = self.source.index("const bikeDirectionIcons", start)

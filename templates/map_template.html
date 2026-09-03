@@ -1932,6 +1932,7 @@
         }
 
         installMapTileSchemeFallback();
+        installLeafletMarkerRemovalGuard();
         installLeafletCircleMarkerBoundsGuard();
         installLeafletPolylineBoundsGuard();
         let lastContextWasMarker = false;
@@ -2510,13 +2511,41 @@
         }
 
         function removeMapLayerSafe(layer) {
-            if (!layer) return;
-            if (typeof layer.closePopup === 'function') layer.closePopup();
+            if (!layer) return false;
+
+            // Let Leaflet own teardown of the live DOM element before clearing
+            // application listeners and overlay references. A stale Marker can
+            // otherwise reach Marker._removeIcon without an _icon, which makes
+            // Leaflet 1.9.3 call DomEvent.off(undefined).
+            const wasAttached = Boolean(map && typeof map.hasLayer === 'function' && map.hasLayer(layer));
+            if (wasAttached) map.removeLayer(layer);
+
             if (typeof layer.unbindPopup === 'function') layer.unbindPopup();
-            if (typeof layer.closeTooltip === 'function') layer.closeTooltip();
             if (typeof layer.unbindTooltip === 'function') layer.unbindTooltip();
             if (typeof layer.off === 'function') layer.off();
-            if (map.hasLayer(layer)) map.removeLayer(layer);
+            return wasAttached;
+        }
+
+        function installLeafletMarkerRemovalGuard() {
+            if (!window.L || !L.Marker || !L.Marker.prototype) return;
+            const proto = L.Marker.prototype;
+            if (proto._chaosRemovalGuardInstalled || typeof proto._removeIcon !== 'function') return;
+            const originalRemoveIcon = proto._removeIcon;
+            proto._removeIcon = function() {
+                if (this._icon) {
+                    return originalRemoveIcon.apply(this, arguments);
+                }
+                const now = Date.now();
+                if (!this._chaosLastRemovalWarningAt || now - this._chaosLastRemovalWarningAt >= 5000) {
+                    this._chaosLastRemovalWarningAt = now;
+                    console.warn('[map marker] stale marker DOM cleanup skipped', {
+                        layer_id: this._leaflet_id || null,
+                        scan_target: Boolean(this._scanTarget)
+                    });
+                }
+                return undefined;
+            };
+            proto._chaosRemovalGuardInstalled = true;
         }
 
         function installLeafletCircleMarkerBoundsGuard() {
@@ -3472,13 +3501,23 @@
         }
 
         function clearScanResultLayers() {
-            scanResultLayers.forEach(layer => {
-                if (layer && layer._scanTarget) {
-                    unregisterTargetMarker(layer._scanTarget);
-                }
-                removeMapLayerSafe(layer);
-            });
+            const layersToRemove = scanResultLayers;
             scanResultLayers = [];
+            layersToRemove.forEach(layer => {
+                try {
+                    removeMapLayerSafe(layer);
+                    if (layer && layer._scanTarget) {
+                        unregisterTargetMarker(layer._scanTarget);
+                        delete layer._scanTarget;
+                    }
+                } catch (err) {
+                    // One corrupt/stale Leaflet layer must not make the clear
+                    // button inert or prevent the remaining markers from being
+                    // removed. Keep only failed layers available for a retry.
+                    scanResultLayers.push(layer);
+                    console.warn('[map scan] Nie udalo sie usunac markera skanu', err);
+                }
+            });
         }
 
         window.pendingMarkedTargetLayers = window.pendingMarkedTargetLayers || new Map();

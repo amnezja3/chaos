@@ -2142,3 +2142,21 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Commit, push, deploy i restart PM2 nie zostały wykonane. Status:
   `137.pre.1 LOCAL PASS — SERVER EXIT GATE REQUIRED`; Sprint 137 pozostaje
   zatrzymany do strict audytu nowego rzeczywistego `part_discovered`.
+
+## 2026-09-03 — 137.pre.1: server exit gate i naprawa czyszczenia skanu
+
+- Produkcyjny `scripts/audit_semantic_input.py --strict` przeszedł dla czterech
+  tasków `part_discovered`: `ok=true`, `errors=[]`, lokalizacja Zakopane,
+  rozdzielone projekcje public/clan/owner oraz zero technical identifier leaks.
+- Wydruk audytu w kanale kopiowania pokazuje mojibake polskich znaków; przed
+  uznaniem tego za dane wejściowe modelu trzeba rozróżnić zawartość UTF-8 od
+  kodowania terminala lub kanału kopiowania.
+- Odtworzono frontendową regresję po `scan -> Wyczyść scan`: Leaflet 1.9.3
+  wchodził w `DomEvent.off(undefined)` dla markera bez `_icon`, przerywając
+  pętlę i pozostawiając kolejne markery na mapie.
+- `removeMapLayerSafe` oddaje Leafletowi usunięcie aktywnej warstwy przed
+  czyszczeniem listenerów, a wąski guard kończy usuwanie już niekompletnego
+  markera. Pętla czyszczenia izoluje awarię pojedynczej warstwy i zachowuje ją
+  do ponowienia bez blokowania pozostałych.
+- Kontrakt hot-path: `10 tests / PASS`. Szerszy plik map-loader nadal zawiera
+  niezależną, wcześniej zidentyfikowaną regresję kontraktu animacji motocykla.
