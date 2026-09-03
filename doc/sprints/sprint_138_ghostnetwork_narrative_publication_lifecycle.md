@@ -396,17 +396,20 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 3. Przed generacją uruchomić `scripts/audit_semantic_input.py --strict` i
    potwierdzić statements, audience projection, location/provenance oraz zero
    technical identifier leaks.
-4. Wygenerować realne przejścia przez produkcyjne entrypointy, nie sztuczne
+4. Przed wejściem do 138 uruchomić
+   `scripts/audit_narrative_generation.py --strict`; każdy wymagany task musi
+   mieć zgodny request hash i accepted candidate po ręcznej ocenie głosu.
+5. Wygenerować realne przejścia przez produkcyjne entrypointy, nie sztuczne
    eventy, taski ani candidates.
-5. Prześledzić i zapisać wszystkie identyfikatory:
+6. Prześledzić i zapisać wszystkie identyfikatory:
    `runtime action/effect -> event -> task -> candidate -> receipt -> active record`.
-6. Potwierdzić, że model/read model widzą tylko audience-safe semantic content,
+7. Potwierdzić, że model/read model widzą tylko audience-safe semantic content,
    podczas gdy canonical IDs i provenance pozostają w audycie backendowym.
-7. Potwierdzić poprzedni record jako inactive/invalidated po następnym evencie.
-8. Kliknąć wszystkie CTA w UI na public/clan/owner.
-9. Sprawdzić BlackNet mix i jeden GGPL HERO.
-10. Strict cutover audit, heavy-profile audit i soak SQLite muszą przejść.
-11. Audit lineage musi przejść zarówno dla nowo utworzonego eventu, jak i po
+8. Potwierdzić poprzedni record jako inactive/invalidated po następnym evencie.
+9. Kliknąć wszystkie CTA w UI na public/clan/owner.
+10. Sprawdzić BlackNet mix i jeden GGPL HERO.
+11. Strict cutover audit, heavy-profile audit i soak SQLite muszą przejść.
+12. Audit lineage musi przejść zarówno dla nowo utworzonego eventu, jak i po
    retry/crash recovery; globalne `published_by_medium > 0` nie wystarcza.
 
 ## Definition of Ready

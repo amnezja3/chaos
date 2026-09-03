@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.pre.1 SERVER PASS, 137.1 RESUMED`
+Status: `137 ACTIVE — 137.1 LOCAL PASS, SERVER GENERATION GATE REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -147,6 +147,29 @@ audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
 verify registry, kontrola kolejki v1/v2/v3 oraz nowy producer-backed task,
 attempt i zaakceptowany candidate v3 korzystający z semantic input. Sam PASS
 read-only packera nie zastępuje walidacji odpowiedzi modelu.
+
+### Bramka końcowa 137.1
+
+Read-only `scripts/audit_narrative_generation.py` automatycznie łączy:
+
+```text
+persisted event
+  -> komplet oczekiwanych audience/medium tasków v3
+  -> dokładny semantic model input i request_hash
+  -> ostatni attempt
+  -> candidate oraz canonical fact lineage
+```
+
+Tryb `--strict` zwraca błąd dla brakującego fan-outu, taska bez attemptu,
+niezgodnego request hash, taska/attemptu poza stanem completed, brakującego
+candidate, kwarantanny/rejection, złego medium/audience/promptu oraz uszkodzonego
+fact lineage. Raport pokazuje title/body/tone i semantic facts dla ręcznej oceny
+języka oraz głosu medium. Automat nie może sam ogłosić, że tekst jest dobrym
+BlackNetem tylko dlatego, że przeszedł schema validator.
+
+Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
+przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
+`51 tests / PASS`.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
@@ -480,6 +503,9 @@ tej samej publication identity; nie jest drugim postem.
 9. Dla każdego taska zachować jeden łańcuch identyfikatorów:
    `event_id -> outbox_id -> attempt_id -> candidate_id`; brak dowolnego
    wcześniejszego ogniwa blokuje zaliczenie późniejszego.
+10. Uruchomić `scripts/audit_narrative_generation.py --strict` dla nowego
+    producer-backed eventu. Wszystkie taski muszą być accepted, request hashes
+    zgodne, a title/body zatwierdzone ręcznie pod kątem języka i głosu medium.
 
 ## Definition of Ready
 

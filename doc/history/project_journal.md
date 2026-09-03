@@ -2177,3 +2177,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   CTA mogą ujawnić wyłącznie audience-safe projekcję.
 - Sprint 138 pozostaje zablokowany na zaakceptowanych producer-backed
   candidates ze Sprintu 137, nie na budowie semantic input.
+
+## 2026-09-03 — Sprint 137.1: zamknięta lokalna bramka generacji
+
+- Dodano read-only `scripts/audit_narrative_generation.py`, który dla eventu
+  albo taska łączy task package i request hash z ostatnim attemptem oraz
+  candidate. Raport pokazuje semantic facts i finalne title/body/tone.
+- Strict gate odrzuca brak kompletnego producer fan-outu, brak attemptu lub
+  candidate, niezgodny hash/prompt/audience/medium, stan inny niż completed,
+  quarantine/rejection oraz uszkodzone canonical fact lineage.
+- Bramka celowo wymaga ręcznej oceny języka i głosu medium; accepted schema nie
+  jest automatycznie dowodem jakości BlackNet/Googleplex/Cyberner.
+- Testy pokrywają accepted PASS, quarantine z rzeczywistym powodem, ready bez
+  generacji i event bez oczekiwanych tasków. Łączna regresja
+  policy/worker/semantic/audit: `51 tests / PASS`.
+- Status: `137.1 LOCAL PASS — SERVER GENERATION GATE REQUIRED`. 137.2 nie jest
+  rozpoczęty, a 138 pozostaje zablokowany do accepted producer candidates.
