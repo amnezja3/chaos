@@ -12,6 +12,7 @@ from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.publication import NarrativePublicationService
 from ghostnetwork.repository import GhostNetworkRepository
 from ghostnetwork.editorial import GoogleplexEditorialProducer
+from ghostnetwork.llm.semantic_input import attach_semantic_content
 from googleplex_news import build_googleplex_news_snapshot, merge_googleplex_news_publications
 from scripts.narrative_publication_worker import is_database_contention
 
@@ -36,7 +37,7 @@ class AcceptedClient:
             "title": "Canonical title",
             "body": "The canonical signal remains active.",
             "tone": "info",
-            "fact_refs": ["fact:one"],
+            "fact_refs": [next(iter(package["fact_refs"]))],
             "cta_ref": None,
         }
         if "asset_ref" in (package.get("format", {}).get("properties") or {}):
@@ -121,6 +122,14 @@ class NarrativePublicationTest(unittest.TestCase):
         if source_scope == "ghostnetwork":
             task_validation.setdefault("event_family", "part_activated")
             task_validation.setdefault("significance", "high")
+        fact = {
+            "fact_id": "fact:one", "fact_type": "test",
+            "title": "Canonical body",
+        }
+        if source_scope == "ghostnetwork":
+            fact = attach_semantic_content(
+                fact, {"statement": "Czesc GhostNetwork zostala aktywowana."},
+            )
         task = assign_ollama_task_policy({
             "event_id": event_id,
             "source_scope": source_scope,
@@ -133,10 +142,7 @@ class NarrativePublicationTest(unittest.TestCase):
             "audience_owner": audience_owner,
             "truth_class": "canonical",
             "truth_class_policy": "canonical_facts_only",
-            "facts": [{
-                "fact_id": "fact:one", "fact_type": "test",
-                "title": "Canonical body",
-            }],
+            "facts": [fact],
             "allowed_actions": [],
             "canon_version": "test-v1",
             "task_variant": task_variant,

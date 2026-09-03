@@ -2085,3 +2085,60 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   policy/worker/publication tests / PASS` po finalnych limitach medium.
 - Status: `137.1 LOCAL PASS — SERVER VALIDATION REQUIRED`; bez commita, pushu,
   deployu i restartu PM2. Sprint 137.2 nie został rozpoczęty.
+
+## 2026-09-02 — Sprint 137.1: produkcyjny probe v2 i minimalny package v3
+
+- Server verify i strict cutover dla commita `36b8dab` przeszły: registry
+  `33 active + 25 legacy-compatible`, kompletne lineage i zero ineligible.
+- Realny `ghost.part_discovered` utworzył cztery pełne łańcuchy v2. Tylko
+  `clan/blacknet` został zaakceptowany; owner i Googleplex użyły event ID jako
+  fact ref, a public BlackNet ujawnił fragment public entity ID. Wszystkie trzy
+  niebezpieczne wyniki zatrzymał validator.
+- Rekonstrukcja requestu była zgodna z attempt hash i potwierdziła, że model
+  otrzymywał `event_id`, `cycle_id`, `public_entity_id` oraz canonical fact ID,
+  mimo braku narracyjnej potrzeby.
+- Aktywne prompty podniesiono do v3. Model dostaje task-local aliases `f01`,
+  minimalne narrative-safe facts oraz wyłącznie pola sterujące narracją.
+  Canonical identity i fixed CTA pozostają w backendzie.
+- Validator mapuje zaakceptowane aliasy z powrotem na canonical fact IDs przed
+  zapisem candidate. Schema ogranicza refs do aliasów taska i wymusza null CTA.
+- Kompatybilność jest addytywna: taski v1 oraz v2 pozostają rozwiązywalne,
+  claimowalne i publikowalne przez pełne tuple wersji.
+- Regresje: `64 policy/worker/publication/cutover tests / PASS` oraz
+  `64 producer/runtime/publisher tests / PASS`. Status v3: lokalny PASS,
+  wymagany commit, deploy i ponowny producer-backed server probe.
+
+## 2026-09-03 — 137.pre.1: Shared Semantic Input Layer
+
+- Audyt minimalnego v3 wykazał, że firewall identyfikatorów działał, ale model
+  dostawał tylko alias `f01` bez treści canonical fact. Cofnięto zgodę na
+  kontynuowanie tuningu 137 i ustanowiono bramkę 137.pre.1.
+- Dodano wspólny, bounded kontrakt `chaos-llm-semantic-input-v1`: oddzielne
+  `semantic_facts` i control metadata, deterministic domain converter,
+  backendową provenance oraz fail-closed technical-ID firewall.
+- GhostNetwork jako pierwszy pełny consumer tworzy proste statements dla
+  wszystkich aktywnych event families. Audience projection następuje przed
+  LLM: public nie dostaje części/maszyny, clan wyłącznie canonical label
+  własnego klanu, owner dozwolone labels części, maszyny i klanu.
+- Packer v3 serializuje domain-authored semantics oraz lokalne aliasy lineage;
+  nie rekonstruuje już Ghost semantics z globalnej listy pól. V1/v2 pozostają
+  rozwiązywalne i claimowalne według historycznego kontraktu.
+- Dodano konserwatywną inferencję `city/country/country_code` z OSM tags oraz
+  bounded retention przez scan response, frontend target, `mark_target`,
+  canonical target/capture anchor i finalny semantic package. Konflikt albo
+  brak dowodu oznacza brak pola; koordynaty nigdy nie służą do geocodingu.
+- Read-only `scripts/audit_semantic_input.py` pokazuje ścieżki
+  canonical→semantic→dokładny model input bez wywoływania Ollamy i bez mutacji.
+- Producer-backed lokalny test `part_discovered` potwierdza lokalizację,
+  canonical labels, rozdział public/clan/owner, brak technicznych ID, bounded
+  package, zachowane fact lineage oraz heavy-profile counters równe zero.
+- Targeted gate: `86 tests / PASS`; osobna regresja BlackNet/Googleplex/AGI
+  producers i endpoints: `38 tests / PASS`; map aim/hot-path retention:
+  `19 tests / PASS`. Pełne discovery wykonało `1281` testów i ujawniło `11`
+  istniejących/order-dependent problemów poza zakresem 137.pre.1; pięć z nich
+  przeszło po izolacji, sześć pozostaje odtwarzalnych w niezmienianych
+  kontraktach map animation, operation cancel, profile snapshot, catalog JS i
+  Ghost Exchange.
+- Commit, push, deploy i restart PM2 nie zostały wykonane. Status:
+  `137.pre.1 LOCAL PASS — SERVER EXIT GATE REQUIRED`; Sprint 137 pozostaje
+  zatrzymany do strict audytu nowego rzeczywistego `part_discovered`.

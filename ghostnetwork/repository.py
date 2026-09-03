@@ -30,6 +30,7 @@ from .errors import (
     ReservationExpired,
     SpatialSeparationConflict,
 )
+from .llm.semantic_input import normalize_location
 
 
 def _utc_now():
@@ -2947,7 +2948,7 @@ class GhostNetworkRepository:
             or target.get("id")
             or "unknown"
         )
-        return {
+        anchor = {
             "target_id": _clean(target.get("target_id") or target.get("id")),
             "label": _clean(label, "unknown"),
             "target_type": _clean(target.get("target_type") or target.get("type") or target.get("target_mode") or "standard"),
@@ -2960,6 +2961,10 @@ class GhostNetworkRepository:
             "procedural_seed": _clean(target.get("procedural_seed") or target.get("seed")),
             "original_source": _clean(target.get("original_source") or target.get("source") or "map_target"),
         }
+        location = normalize_location(target.get("location"))
+        if location:
+            anchor["location"] = location
+        return anchor
 
     def discover_reserved_part(
         self,

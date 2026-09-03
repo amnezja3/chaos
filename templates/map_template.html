@@ -2400,6 +2400,10 @@
                         icon: normalized.icon,
                         source_type: normalized.source_type,
                         generated: Boolean(normalized.generated),
+                        target_type: normalized.target_type,
+                        osm_id: normalized.osm_id,
+                        node_id: normalized.node_id,
+                        location: normalized.location || null,
                         target_mode: normalized.target_mode,
                         target_id: normalized.target_id,
                         vulnerability_id: normalized.vulnerability_id,
@@ -4402,7 +4406,8 @@
                         menuObj.icon || iconEmoji,
                         menuObj.source_type || "manual",
                         menuObj.name || label,
-                        Boolean(menuObj.generated)
+                        Boolean(menuObj.generated),
+                        menuObj
                     );
                 });
                 menu.appendChild(row);
@@ -4527,7 +4532,8 @@
                         menuTarget.target_username || null,
                         row,
                         menuTarget.target_id || null,
-                        menuTarget.stable_conflict_id || menuTarget.conflict_id || null
+                        menuTarget.stable_conflict_id || menuTarget.conflict_id || null,
+                        menuTarget
                     );
                 });
                 menu.appendChild(row);
@@ -4892,7 +4898,7 @@
         }
 
 
-        function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null, triggerEl = null, target_id = null, conflict_id = null) {
+        function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null, triggerEl = null, target_id = null, conflict_id = null, targetContext = {}) {
             if (guardMapGameplayAction()) {
                 mapActionDebug(null, 'blocked_by_map_guard', { action, lat, lng, label });
                 if (triggerEl) triggerEl.dataset.busy = "0";
@@ -4994,6 +5000,10 @@
                     target_username,
                     target_id,
                     conflict_id,
+                    target_type: targetContext?.target_type || null,
+                    osm_id: targetContext?.osm_id || null,
+                    node_id: targetContext?.node_id || null,
+                    location: targetContext?.location || null,
                     _flow_id: hackFlowId,
                     _client_action_key: hackActionKey
                 })
@@ -5344,10 +5354,10 @@
         }
 
 
-        async function markerMenuAction(action, lat, lng, label, icon, sourceType = "manual", name = label, generated = false) {
+        async function markerMenuAction(action, lat, lng, label, icon, sourceType = "manual", name = label, generated = false, targetContext = {}) {
             if (guardMapGameplayAction()) return;
             closeMenus();
-            await mapAction(action, lat, lng, label, icon, sourceType, name, generated);
+            await mapAction(action, lat, lng, label, icon, sourceType, name, generated, targetContext);
 
             // ✅ Odśwież iframe (czyli całą mapę)
             // location.reload();
@@ -5543,7 +5553,7 @@
             };
         }
 
-        async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false) {
+        async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false, targetContext = {}) {
             const finishScanEffect = action === 'scan'
                 ? beginMapScanEffect('Skanowanie mapy')
                 : null;
@@ -5596,7 +5606,11 @@
                         icon,
                         source_type: sourceType,
                         name,
-                        generated
+                        generated,
+                        target_type: targetContext?.target_type || null,
+                        osm_id: targetContext?.osm_id || null,
+                        node_id: targetContext?.node_id || null,
+                        location: targetContext?.location || null
                     })
                 });
                 const data = await res.json();
@@ -5653,6 +5667,7 @@
                             target_type: obj.target_type || "poi",
                             osm_id: obj.osm_id || null,
                             node_id: obj.node_id || null,
+                            location: obj.location || data.scan_context?.location || null,
                             generated: Boolean(obj.generated)
                         };
 

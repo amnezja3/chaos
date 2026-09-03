@@ -15,6 +15,7 @@ from .repository import (
     canonical_narrative_task_dedupe_key,
 )
 from .ollama_policy import assign_ollama_task_policy
+from .semantic import GhostNetworkSemanticConverter
 from .visibility import GhostVisibilityService, _public_entity_id
 
 
@@ -139,6 +140,7 @@ class GhostNarrativePublisher:
         self.repository = repository or GhostNetworkRepository()
         self.canon_version = canon_version
         self.visibility = GhostVisibilityService(repository=self.repository)
+        self.semantic = GhostNetworkSemanticConverter()
 
     def publish_signal_transmission(self, signal_id):
         signal = self.repository.get_signal(signal_id)
@@ -623,7 +625,7 @@ class GhostNarrativePublisher:
             "lock_snapshot_id": _clean(signal.get("lock_snapshot_id")),
             "lock_snapshot_checksum": _clean((lock or {}).get("snapshot_checksum")),
         }
-        return [
+        facts = [
             {
                 **base,
                 "fact_id": f"ghost_fact:{event_id}:signal_sent:{audience_scope}",
@@ -648,6 +650,7 @@ class GhostNarrativePublisher:
                 "confirmation_status": "no_confirmation",
             },
         ]
+        return [self.semantic.enrich(fact, event, audience) for fact in facts]
 
     def _generic_domain_fact(self, event, audience):
         kind = _event_kind(event.get("event_type"))
@@ -683,7 +686,9 @@ class GhostNarrativePublisher:
             "state_version": _safe_int(event.get("state_version")),
             **projected,
         }
-        return fact
+        return self.semantic.enrich(
+            fact, event, audience, part=part, projected=projected,
+        )
 
     def _allowed_actions_for_event(self, event, medium):
         kind = _event_kind(event.get("event_type"))

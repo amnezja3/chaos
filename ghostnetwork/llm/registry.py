@@ -14,11 +14,13 @@ from .policies.chaos_local_narrator_v1 import (
 
 ROOT = Path(__file__).resolve().parent
 SYSTEM_PROMPT_VERSION = "chaos-narrator-system-v1"
+SEMANTIC_SYSTEM_PROMPT_VERSION = "chaos-semantic-narrator-system-v1"
 OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-v1"
 ASSET_OUTPUT_SCHEMA_V1_VERSION = "chaos-narrative-output-assets-v1"
 ASSET_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-assets-v2"
 ROLE_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-role-v1"
 SYSTEM_PROMPT_PATH = ROOT / "prompts" / "system" / "chaos-narrator-v1.md"
+SEMANTIC_SYSTEM_PROMPT_PATH = ROOT / "prompts" / "system" / "chaos-semantic-narrator-v1.md"
 SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-v1.json"
 ASSET_SCHEMA_V1_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v1.json"
 ASSET_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v2.json"
@@ -32,6 +34,8 @@ class OllamaTaskPolicy:
     target_medium: str
     prompt_version: str
     prompt_path: Path
+    system_prompt_version: str = SYSTEM_PROMPT_VERSION
+    system_prompt_path: Path = SYSTEM_PROMPT_PATH
     output_schema_version: str = OUTPUT_SCHEMA_VERSION
     model_policy_version: str = MODEL_POLICY_VERSION
     model_name: str = MODEL_NAME
@@ -59,18 +63,27 @@ GHOSTNETWORK_CYBERNER_VARIANTS = frozenset({
     "part_discovered", "machine_online", "connection_created", "cycle_locked",
     "signal_sent",
 })
-GHOSTNETWORK_EVENT_PROMPT_VERSION = "ghostnetwork-event-prompt-v2"
-GHOSTNETWORK_SIGNAL_PROMPT_VERSION = "ghostsignal-prompt-v2"
-GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION = "ghostnetwork-googleplex-prompt-v2"
+GHOSTNETWORK_EVENT_PROMPT_VERSION = "ghostnetwork-event-prompt-v3"
+GHOSTNETWORK_SIGNAL_PROMPT_VERSION = "ghostsignal-prompt-v3"
+GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION = "ghostnetwork-googleplex-prompt-v3"
 
 
-def _policy(source, variant, medium, version, relative_path, output_schema_version=OUTPUT_SCHEMA_VERSION):
+def _policy(
+    source, variant, medium, version, relative_path,
+    output_schema_version=OUTPUT_SCHEMA_VERSION, semantic_input=False,
+):
     return OllamaTaskPolicy(
         source_scope=source,
         task_variant=variant,
         target_medium=medium,
         prompt_version=version,
         prompt_path=ROOT / "prompts" / relative_path,
+        system_prompt_version=(
+            SEMANTIC_SYSTEM_PROMPT_VERSION if semantic_input else SYSTEM_PROMPT_VERSION
+        ),
+        system_prompt_path=(
+            SEMANTIC_SYSTEM_PROMPT_PATH if semantic_input else SYSTEM_PROMPT_PATH
+        ),
         output_schema_version=output_schema_version,
     )
 
@@ -97,8 +110,9 @@ def _build_registry():
     policies.append(_policy(
         "ghostnetwork", "googleplex_world_dispatch", "googleplex_news",
         GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
-        Path("ghostnetwork") / "googleplex-v2.md",
+        Path("ghostnetwork") / "googleplex-v3.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
+        semantic_input=True,
     ))
     policies.extend((
         _policy(
@@ -122,20 +136,23 @@ def _build_registry():
         policies.append(_policy(
             "ghostnetwork", variant, "blacknet",
             GHOSTNETWORK_SIGNAL_PROMPT_VERSION if is_signal else GHOSTNETWORK_EVENT_PROMPT_VERSION,
-            (Path("ghostsignal") / "signal-v2.md") if is_signal
-            else (Path("ghostnetwork") / "event-v2.md"),
+            (Path("ghostsignal") / "signal-v3.md") if is_signal
+            else (Path("ghostnetwork") / "event-v3.md"),
+            semantic_input=True,
         ))
     for variant in sorted(GHOSTNETWORK_CYBERNER_VARIANTS):
         is_signal = variant == "signal_sent"
         policies.append(_policy(
             "ghostnetwork", variant, "cyberner",
             GHOSTNETWORK_SIGNAL_PROMPT_VERSION if is_signal else GHOSTNETWORK_EVENT_PROMPT_VERSION,
-            (Path("ghostsignal") / "signal-v2.md") if is_signal
-            else (Path("ghostnetwork") / "event-v2.md"),
+            (Path("ghostsignal") / "signal-v3.md") if is_signal
+            else (Path("ghostnetwork") / "event-v3.md"),
+            semantic_input=True,
         ))
     policies.append(_policy(
         "ghostnetwork", "signal_sent", "radio", GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
-        Path("ghostsignal") / "signal-v2.md",
+        Path("ghostsignal") / "signal-v3.md",
+        semantic_input=True,
     ))
     policies.append(_policy(
         "googleplex_app", "owner-analysis", "cyberner",
@@ -147,39 +164,50 @@ def _build_registry():
 OLLAMA_TASK_POLICY_REGISTRY = _build_registry()
 
 
-def _build_legacy_ghostnetwork_policies():
+def _build_legacy_ghostnetwork_policies(
+    event_version, event_path, signal_version, signal_path,
+    googleplex_version, googleplex_path,
+):
     policies = []
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
         is_signal = variant == "signal_sent"
         policies.append(_policy(
             "ghostnetwork", variant, "blacknet",
-            "ghostsignal-prompt-v1" if is_signal else "ghostnetwork-event-prompt-v1",
-            (Path("ghostsignal") / "signal-v1.md") if is_signal
-            else (Path("ghostnetwork") / "event-v1.md"),
+            signal_version if is_signal else event_version,
+            signal_path if is_signal else event_path,
         ))
     for variant in sorted(GHOSTNETWORK_CYBERNER_VARIANTS):
         is_signal = variant == "signal_sent"
         policies.append(_policy(
             "ghostnetwork", variant, "cyberner",
-            "ghostsignal-prompt-v1" if is_signal else "ghostnetwork-event-prompt-v1",
-            (Path("ghostsignal") / "signal-v1.md") if is_signal
-            else (Path("ghostnetwork") / "event-v1.md"),
+            signal_version if is_signal else event_version,
+            signal_path if is_signal else event_path,
         ))
     policies.extend((
         _policy(
-            "ghostnetwork", "signal_sent", "radio", "ghostsignal-prompt-v1",
-            Path("ghostsignal") / "signal-v1.md",
+            "ghostnetwork", "signal_sent", "radio", signal_version, signal_path,
         ),
         _policy(
             "ghostnetwork", "googleplex_world_dispatch", "googleplex_news",
-            "googleplex-world-hero-prompt-v14", Path("googleplex") / "world-hero-v14.md",
+            googleplex_version, googleplex_path,
             ASSET_OUTPUT_SCHEMA_VERSION,
         ),
     ))
     return tuple(policies)
 
 
-OLLAMA_LEGACY_TASK_POLICIES = _build_legacy_ghostnetwork_policies()
+OLLAMA_LEGACY_TASK_POLICIES = (
+    _build_legacy_ghostnetwork_policies(
+        "ghostnetwork-event-prompt-v1", Path("ghostnetwork") / "event-v1.md",
+        "ghostsignal-prompt-v1", Path("ghostsignal") / "signal-v1.md",
+        "googleplex-world-hero-prompt-v14", Path("googleplex") / "world-hero-v14.md",
+    )
+    + _build_legacy_ghostnetwork_policies(
+        "ghostnetwork-event-prompt-v2", Path("ghostnetwork") / "event-v2.md",
+        "ghostsignal-prompt-v2", Path("ghostsignal") / "signal-v2.md",
+        "ghostnetwork-googleplex-prompt-v2", Path("ghostnetwork") / "googleplex-v2.md",
+    )
+)
 
 
 def registered_ollama_policies():
@@ -225,7 +253,9 @@ def _read_versioned_prompt(path, expected_version):
 
 def load_prompt_layers(policy):
     return (
-        _read_versioned_prompt(SYSTEM_PROMPT_PATH, SYSTEM_PROMPT_VERSION),
+        _read_versioned_prompt(
+            policy.system_prompt_path, policy.system_prompt_version,
+        ),
         _read_versioned_prompt(policy.prompt_path, policy.prompt_version),
     )
 

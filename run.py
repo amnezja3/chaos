@@ -75,6 +75,11 @@ from ghostnetwork import (
     normalize_snapshot_view,
 )
 from ghostnetwork.llm.registry import resolve_ollama_task_policy
+from ghostnetwork.llm.semantic_input import (
+    infer_scan_location,
+    normalize_location,
+    project_poi_location,
+)
 from ghostnetwork.editorial import (
     GOOGLEPLEX_HOME_SLOT_REGISTRY,
     GoogleplexEditorialProducer,
@@ -19299,6 +19304,9 @@ def map_target_client_snapshot(target, captured=False):
         "node_id", "actions_allowed", "security", "captured_at",
     )
     payload = {key: copy.deepcopy(target.get(key)) for key in allowed if key in target}
+    location = normalize_location(target.get("location"))
+    if location:
+        payload["location"] = location
     if payload.get("lng") is None and payload.get("lon") is not None:
         payload["lng"] = payload["lon"]
     payload["target_id"] = str(payload.get("target_id") or build_operation_target_id(target))
@@ -21737,6 +21745,9 @@ def map_aim_target():
         "icon": str(data.get("icon") or "🎯"),
         "source_type": str(data.get("source_type") or "manual"),
         "generated": bool(data.get("generated", False)),
+        "target_type": str(data.get("target_type") or "").strip() or None,
+        "osm_id": str(data.get("osm_id") or "").strip()[:120] or None,
+        "node_id": str(data.get("node_id") or "").strip()[:120] or None,
         "target_mode": str(data.get("target_mode") or "standard"),
         "target_id": str(data.get("target_id") or "").strip() or None,
         "vulnerability_id": data.get("vulnerability_id"),
@@ -21747,6 +21758,9 @@ def map_aim_target():
         "actions_allowed": {"scan_ports": False, "exploit": False, "sniff": False, "trace": False},
         "security": {},
     }
+    location = normalize_location(data.get("location"))
+    if location:
+        requested["location"] = location
     same_position = False
     if previous:
         try:
@@ -21945,6 +21959,13 @@ def map_action():
             "source_type": str(data.get("source_type") or "manual"),
             "generated": bool(data.get("generated", False)),
         }
+        location = normalize_location(data.get("location"))
+        if location:
+            target["location"] = location
+        for key in ("osm_id", "node_id", "target_type"):
+            value = str(data.get(key) or "").strip()[:120]
+            if value:
+                target[key] = value
         stored = player_marked_target_store.upsert(
             username,
             target,
@@ -22074,6 +22095,8 @@ def map_action():
                 "status": f"Nie udało się pobrać danych mapy: {e}",
                 "markers": []
             })
+        scan_location_context = infer_scan_location(fetched_results)
+        scan_location = scan_location_context.get("location") or {}
 
         for fetched in [fetched_results]:
             for obj in fetched:
@@ -22203,7 +22226,11 @@ def map_action():
 
                 all_results.extend(extra)
 
-
+        for marker in all_results:
+            direct_location = project_poi_location(marker.get("tags"))
+            location = direct_location or scan_location
+            if location:
+                marker["location"] = location
 
         # for category in tag_filters:
         #     fetched = fetcher.get_category(category, lat=lat, lon=lng, result_limit=20)
@@ -22214,7 +22241,11 @@ def map_action():
 
         return jsonify({
             "status": f"🔍 Zeskanowano {len(all_results)} nowych obiektów.",
-            "markers": all_results
+            "markers": all_results,
+            "scan_context": {
+                **scan_location_context,
+                "radius_m": int(fetcher.radius),
+            },
         })
     
     if action == "travel":
@@ -22391,6 +22422,9 @@ def hack_action():
             "label": label,
             "name": data.get("name", label),
             "source_type": data.get("source_type", "manual"),
+            "target_type": data.get("target_type"),
+            "osm_id": str(data.get("osm_id") or "").strip()[:120] or None,
+            "node_id": str(data.get("node_id") or "").strip()[:120] or None,
             "target_mode": requested_target_mode or (
                 "vulnerability" if preflight_vulnerability_report
                 else ("territory_contest" if preflight_contested_target else "standard")
@@ -22406,6 +22440,9 @@ def hack_action():
             "target_username": preflight_player_target_username if requested_target_mode == "player" else None,
             **contested_target_identity_fields(data, preflight_contested_target),
         }
+        preflight_location = normalize_location(data.get("location"))
+        if preflight_location:
+            preflight_target_snapshot["location"] = preflight_location
         if requested_target_mode != "player":
             preflight_already_captured = find_owned_captured_target_for_runtime_target(
                 session.get("user"),
@@ -23008,12 +23045,18 @@ def hack_action():
         "label": label,
         "name": data.get("name", label),
         "source_type": data.get("source_type", "manual"),
+        "target_type": data.get("target_type"),
+        "osm_id": str(data.get("osm_id") or "").strip()[:120] or None,
+        "node_id": str(data.get("node_id") or "").strip()[:120] or None,
         "target_mode": requested_target_mode or ("vulnerability" if vulnerability_report else ("territory_contest" if contested_target else "standard")),
         "vulnerability_id": vulnerability_report.get("id") if vulnerability_report else vulnerability_id,
         "foreign_area_id": contested_target.get("foreign_area_id") if contested_target else data.get("foreign_area_id"),
         "target_username": player_target_username if requested_target_mode == "player" else None,
         **contested_target_identity_fields(data, contested_target),
     }
+    requested_location = normalize_location(data.get("location"))
+    if requested_location:
+        requested_target_snapshot["location"] = requested_location
     already_captured_target = None
     if requested_target_mode != "player":
         step_started_at = time.perf_counter()
@@ -23214,6 +23257,9 @@ def hack_action():
             "name": data.get("name", label),
             "icon": data.get("icon", "📶"),
             "source_type": data.get("source_type", "manual"),
+            "target_type": data.get("target_type"),
+            "osm_id": str(data.get("osm_id") or "").strip()[:120] or None,
+            "node_id": str(data.get("node_id") or "").strip()[:120] or None,
             "generated": data.get("generated", False),
             "target_mode": "player" if requested_target_mode == "player" else ("vulnerability" if vulnerability_report else ("territory_contest" if contested_target else "standard")),
             "target_username": player_target_username if requested_target_mode == "player" else None,
@@ -23233,6 +23279,9 @@ def hack_action():
                 "trace": False
             }
         }
+        aimed_location = normalize_location(data.get("location"))
+        if aimed_location:
+            aimed_target["location"] = aimed_location
         build_started_at = time.perf_counter()
         apply_target_display_label(aimed_target)
 

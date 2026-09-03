@@ -1,5 +1,6 @@
 import os
 import copy
+import json
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -8,9 +9,13 @@ import run
 from database import (
     GhostNetworkDeltaDeliveryJobStore,
     GhostNetworkTerritoryJobStore,
+    PlayerMarkedTargetStore,
     ProfileWriteConflict,
 )
 from ghostnetwork import GhostCycleService, GhostDropPolicy, GhostNetworkRepository, GhostNetworkService
+from ghostnetwork.ollama_policy import build_ollama_task_package
+from ghostnetwork.llm.semantic_input import infer_scan_location
+from scripts.audit_semantic_input import build_report as build_semantic_input_report
 
 
 class FakeIdentityProjection:
@@ -63,6 +68,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         self.target = {
             "target_id": "map:52.1:21.1:bridge", "lat": 52.1, "lng": 21.1,
             "label": "Bridge", "source_type": "shop", "target_mode": "standard", "hackable": True,
+            "location": {"city": "Warszawa", "country": "Polska", "country_code": "pl"},
         }
         self.service.on_target_aimed(self.player, self.target)
         discovered = self.service.on_target_hacked(self.player, self.target, result={"target_captured": True})
@@ -124,6 +130,71 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         }
         self.assertEqual(retry["status"], "already_discovered")
         self.assertEqual(after, before)
+
+    def test_part_discovered_package_contains_audience_safe_semantics_and_location(self):
+        scan_context = infer_scan_location([{
+            "lat": 52.1, "lon": 21.1,
+            "tags": {
+                "name": "Bridge", "addr:city": "Warszawa",
+                "addr:country": "Polska", "addr:country_code": "pl",
+            },
+        }])
+        marked = PlayerMarkedTargetStore.normalize_target({
+            **self.target, "location": scan_context["location"],
+        })
+        self.assertEqual(
+            run.map_target_client_snapshot(marked)["location"],
+            scan_context["location"],
+        )
+        event = next(
+            item for item in self.repo.list_events(limit=1000)
+            if item.get("event_type") == "ghost.part_discovered"
+            and item.get("part_id") == self.part.get("part_id")
+        )
+        tasks = self.repo.list_narrative_outbox(
+            source_scope="ghostnetwork", source_event_id=event["event_id"], limit=10,
+        )
+        self.assertEqual({task["audience_scope"] for task in tasks}, {"public", "clan", "owner"})
+
+        packages = {
+            (task["audience_scope"], task["target_medium"]): build_ollama_task_package(task)
+            for task in tasks
+        }
+        public = json.loads(packages[("public", "blacknet")]["messages"][1]["content"])
+        semantic = public["semantic_facts"][0]
+        self.assertIn("Ujawniono wcześniej ukryty element", semantic["statement"])
+        self.assertEqual(semantic["location"], {
+            "city": "Warszawa", "country": "Polska", "country_code": "PL",
+        })
+        self.assertIn(
+            {"role": "miejsce zdarzenia", "kind": "target", "label": "Bridge"},
+            semantic["entities"],
+        )
+
+        owner = json.loads(packages[("owner", "blacknet")]["messages"][1]["content"])
+        owner_kinds = {entity["kind"] for entity in owner["semantic_facts"][0]["entities"]}
+        self.assertTrue({"target", "part", "machine", "clan"}.issubset(owner_kinds))
+
+        for package in packages.values():
+            encoded = package["messages"][1]["content"]
+            for hidden in (
+                event["event_id"], event["cycle_id"], self.part["part_id"],
+                self.target["target_id"], self.player["player_id"],
+            ):
+                self.assertNotIn(hidden, encoded)
+            self.assertLessEqual(package["input_bytes"], 2400)
+        for task in tasks:
+            self.assertTrue(all(task["validation"][key] == 0 for key in (
+                "profile_full_read", "profile_full_write", "profile_bytes",
+                "account_scan", "all_user_profile_scan", "per_recipient_profile_read",
+            )))
+
+        audit = build_semantic_input_report(self.repo)
+        self.assertTrue(audit["ok"], audit)
+        self.assertEqual(audit["sample_count"], 4)
+        self.assertTrue(all(
+            sample["canonical_to_semantic"] for sample in audit["samples"]
+        ))
 
     def test_capture_narrative_failure_does_not_rollback_discovery(self):
         repo = GhostNetworkRepository(db_path=self.db_path)

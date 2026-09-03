@@ -5936,7 +5936,11 @@ function renderVictimPickerScanResults(app, state) {
                         icon: scan.icon,
                         source_type: scan.source_type,
                         name: scan.name || scan.label,
-                        generated: Boolean(scan.generated)
+                        generated: Boolean(scan.generated),
+                        target_type: scan.target_type || "poi",
+                        osm_id: scan.osm_id || null,
+                        node_id: scan.node_id || null,
+                        location: scan.location || null
                     })
                 });
                 const data = await response.json().catch(() => ({}));

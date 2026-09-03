@@ -199,6 +199,16 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
 
 ### Sprint 137
 
+Aktualizacja roadmapy 2026-09-03: Sprint 137 jest `STOPPED` na bramce
+`137.pre.1 — Shared Semantic Input Layer`. Istniejący worker/outbox/publisher z
+135.x pozostaje canonical; przed dalszym tuningiem promptów GhostNetwork musi
+przejść nowy kontrakt `chaos-llm-semantic-input-v1`, audience isolation,
+location retention, technical-ID firewall i server strict audit rzeczywistego
+`part_discovered`. Wiążący bieżący opis znajduje się w
+`doc/sprints/sprint_137_ghostnetwork_narrative_generation_validation.md` oraz
+`doc/architecture/shared_llm_semantic_input_contract.md`. Poniższe punkty są
+historycznym planem sprzed implementacji 135.4–135.6.
+
 - Nie istnieje worker Ollamy do „rozszerzenia”. Sprint tworzy pierwszy worker
   runtime, ale nie drugi source of truth.
 - Źródłem zadań GN są rekordy `ghost_narrative_outbox` z

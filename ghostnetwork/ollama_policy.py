@@ -23,6 +23,11 @@ from .llm.registry import (
     resolve_ollama_task_policy,
     verify_prompt_registry,
 )
+from .llm.semantic_input import (
+    SEMANTIC_INPUT_CONTRACT_VERSION,
+    model_visible_semantic_fact,
+    semantic_audit_projection,
+)
 
 
 MAX_TASK_PACKAGE_BYTES = 2400
@@ -74,6 +79,14 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     GHOSTNETWORK_EVENT_PROMPT_VERSION,
     GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
     GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+    "ghostnetwork-event-prompt-v2",
+    "ghostnetwork-googleplex-prompt-v2",
+    "ghostsignal-prompt-v2",
+})
+GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
+    GHOSTNETWORK_EVENT_PROMPT_VERSION,
+    GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+    GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -89,7 +102,9 @@ GHOSTNETWORK_OUTPUT_LIMITS = {
 }
 URL_PATTERN = re.compile(r"(?:https?://|www\.|ftp://)", re.IGNORECASE)
 INTERNAL_IDENTIFIER_PATTERN = re.compile(
-    r"(?:\b(?:narrative|receipt|candidate|task|event|signal)_[a-z0-9_:-]{6,}\b|\b[0-9a-f]{10,}\b)",
+    r"(?:\b(?:narrative|receipt|candidate|task|event|signal|cycle)_[a-z0-9_:-]{6,}\b|"
+    r"\b(?:ghostnetwork|ghostcycle|ghostpart|ghostmachine)_[a-z0-9_.:-]{3,}\b|"
+    r"\b(?:ghost_fact|fact):[a-z0-9_.:-]{4,}\b|\b[0-9a-f]{10,}\b)",
     re.IGNORECASE,
 )
 OPAQUE_HEX_PATTERN = re.compile(r"\b[0-9a-f]{10,}\b", re.IGNORECASE)
@@ -146,8 +161,6 @@ CANONICAL_FACT_REF_FIELDS = (
     ("lock_snapshot_id", "lock_snapshot_id", 96),
     ("lock_snapshot_checksum", "lock_snapshot_checksum", 96),
 )
-
-
 def _compact_value(value, limit):
     if value is None or value == "":
         return None
@@ -531,13 +544,24 @@ def _is_ghostnetwork_v2_policy(policy):
     )
 
 
+def _is_ghostnetwork_minimal_policy(policy):
+    return bool(
+        policy
+        and policy.source_scope == "ghostnetwork"
+        and policy.prompt_version in GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS
+    )
+
+
 def _generation_limits_for_policy(policy):
     if _is_ghostnetwork_v2_policy(policy):
         return GHOSTNETWORK_OUTPUT_LIMITS.get(policy.target_medium)
     return GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
 
 
-def _generation_output_schema(policy, allowed_asset_refs=(), allowed_asset_roles=(), editorial_contract=None):
+def _generation_output_schema(
+    policy, allowed_fact_refs=(), allowed_cta_refs=(), allowed_asset_refs=(),
+    allowed_asset_roles=(), editorial_contract=None,
+):
     """Return a policy-scoped generation constraint within the canonical schema."""
     schema = load_output_schema(policy.output_schema_version)
     limits = _generation_limits_for_policy(policy)
@@ -558,6 +582,9 @@ def _generation_output_schema(policy, allowed_asset_refs=(), allowed_asset_roles
     properties["fact_refs"]["maxItems"] = min(
         int(properties["fact_refs"].get("maxItems") or limits["refs"]), limits["refs"]
     )
+    if _is_ghostnetwork_minimal_policy(policy):
+        properties["fact_refs"]["items"]["enum"] = list(allowed_fact_refs)
+        properties["cta_ref"]["enum"] = [None, *allowed_cta_refs]
     if "asset_ref" in properties:
         asset_types = properties["asset_ref"].get("type")
         nullable_asset = (
@@ -610,9 +637,13 @@ def build_ollama_task_package(task, policy=None):
     ):
         raise ValueError("ollama_task_policy_version_mismatch")
 
+    is_ghostnetwork_v2 = _is_ghostnetwork_v2_policy(policy)
+    is_ghostnetwork_minimal = _is_ghostnetwork_minimal_policy(policy)
     source_facts = []
     facts = []
+    semantic_facts = []
     fact_refs = set()
+    fact_ref_map = {}
     for item in (task.get("facts") or []):
         if not isinstance(item, dict):
             continue
@@ -621,8 +652,13 @@ def build_ollama_task_package(task, policy=None):
             continue
         fact_refs.add(fact_id)
         source_facts.append(item)
-        facts.append([fact_id])
-    if not facts:
+        model_fact_ref = f"f{len(source_facts):02d}" if is_ghostnetwork_minimal else fact_id
+        fact_ref_map[model_fact_ref] = fact_id
+        if is_ghostnetwork_minimal:
+            semantic_facts.append(model_visible_semantic_fact(item, model_fact_ref))
+        else:
+            facts.append([model_fact_ref])
+    if not source_facts:
         raise ValueError("ollama_task_has_no_facts")
 
     cta_map = {}
@@ -637,7 +673,6 @@ def build_ollama_task_package(task, policy=None):
         cta_candidates.append((ref, action_name, action))
 
     fact_columns = ["fact_ref"]
-    is_ghostnetwork_v2 = _is_ghostnetwork_v2_policy(policy)
     source = {
         "scope": policy.source_scope,
         "task": str(task.get("outbox_id") or task.get("task_id") or "")[:128],
@@ -667,17 +702,23 @@ def build_ollama_task_package(task, policy=None):
     if is_ghostnetwork_v2:
         audience = {"scope": audience["scope"]}
 
-    model_input = {
-        "source": source,
-        "versions": versions,
-        "medium": policy.target_medium,
-        "audience": {
-            **audience,
-        },
-        "truth": str(task.get("truth_class_policy") or "").strip(),
-        "fact_columns": fact_columns,
-        "facts": facts,
-    }
+    if is_ghostnetwork_minimal:
+        model_input = {
+            "semantic_contract": SEMANTIC_INPUT_CONTRACT_VERSION,
+            "medium": policy.target_medium,
+            "audience": {**audience},
+            "semantic_facts": semantic_facts,
+        }
+    else:
+        model_input = {
+            "source": source,
+            "versions": versions,
+            "medium": policy.target_medium,
+            "audience": {**audience},
+            "truth": str(task.get("truth_class_policy") or "").strip(),
+            "fact_columns": fact_columns,
+            "facts": facts,
+        }
     narrative_intent = str(
         task.get("narrative_intent")
         or (task.get("validation") or {}).get("narrative_intent")
@@ -703,12 +744,11 @@ def build_ollama_task_package(task, policy=None):
             "event_family": event_family,
             "significance": significance,
             "tone_hint": GHOSTNETWORK_TONE_HINTS[significance],
-            "thread_context": {
-                "mode": "aggregate" if aggregate_count > 1 else "event",
-                "continuity": "thread_update" if task.get("narrative_thread_id") else "standalone",
-                **({"event_count": aggregate_count} if aggregate_count > 1 else {}),
-            },
         })
+        if aggregate_count > 1:
+            model_input["thread_context"] = {
+                "mode": "aggregate", "event_count": aggregate_count,
+            }
     if not narrative_intent and policy.source_scope == "googleplex_editorial":
         # Compatibility for already queued Stage II assignments created before
         # the explicit column. The backend task variant still owns this choice.
@@ -768,29 +808,31 @@ def build_ollama_task_package(task, policy=None):
 
     # CTA visibility is optional: the model may always return cta_ref=null.
     # Only complete rows that fit become valid backend-resolvable references.
-    for ref, action_name, action in cta_candidates:
-        _try_add_cta_row(model_input, cta_map, ref, action_name, action)
+    if not is_ghostnetwork_minimal:
+        for ref, action_name, action in cta_candidates:
+            _try_add_cta_row(model_input, cta_map, ref, action_name, action)
 
-    # Googleplex is a presentation surface: human-readable fact columns must
-    # be admitted before optional internal reference columns. All fact IDs and
-    # top-level identity remain mandatory in either ordering.
-    field_groups = (
-        (GOOGLEPLEX_PRESENTATION_FACT_FIELDS,)
-        if policy.target_medium == "googleplex_news"
-        else (CANONICAL_FACT_REF_FIELDS, COMPACT_FACT_FIELDS)
-    )
+    # Active GhostNetwork packages already contain the complete audience-safe
+    # semantic projection. Technical fact tables remain a legacy-only contract.
+    if is_ghostnetwork_minimal:
+        field_groups = ()
+    elif policy.target_medium == "googleplex_news":
+        field_groups = (GOOGLEPLEX_PRESENTATION_FACT_FIELDS,)
+    else:
+        field_groups = (CANONICAL_FACT_REF_FIELDS, COMPACT_FACT_FIELDS)
     for field_group in field_groups:
         for field_spec in field_group:
             _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_spec)
 
     # These bounded narrative hints are useful but not canonical identity.
     # They never displace facts, CTA rows, or source/version/audience refs.
-    _try_add_top_level_field(
-        model_input, "editorial", str(task.get("editorial_profile") or "")[:96]
-    )
-    _try_add_top_level_field(
-        model_input, "context", str(task.get("narrative_context") or "")[:256]
-    )
+    if not is_ghostnetwork_minimal:
+        _try_add_top_level_field(
+            model_input, "editorial", str(task.get("editorial_profile") or "")[:96]
+        )
+        _try_add_top_level_field(
+            model_input, "context", str(task.get("narrative_context") or "")[:256]
+        )
     if not is_ghostnetwork_v2:
         _try_add_top_level_field(
             model_input, "limits", {"title": 96, "body": 480, "refs": 16}
@@ -808,15 +850,21 @@ def build_ollama_task_package(task, policy=None):
             {"role": "user", "content": encoded},
         ],
         "format": _generation_output_schema(
-            policy, allowed_asset_refs, allowed_asset_roles, editorial_contract
+            policy, sorted(fact_ref_map), sorted(cta_map), allowed_asset_refs,
+            allowed_asset_roles, editorial_contract,
         ),
-        "fact_refs": frozenset(fact_refs),
+        "fact_refs": frozenset(fact_ref_map),
+        "fact_ref_map": copy.deepcopy(fact_ref_map),
+        "canonical_fact_refs": frozenset(fact_refs),
         "cta_map": cta_map,
         "request_hash": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
         "input_bytes": input_bytes,
         "estimated_input_tokens": int(math.ceil(len(encoded) / ESTIMATED_TOKEN_CHARS)),
-        "fact_count": len(facts),
+        "fact_count": len(source_facts),
         "source_facts": tuple(copy.deepcopy(source_facts)),
+        "semantic_audit": tuple(
+            semantic_audit_projection(item) for item in source_facts
+        ) if is_ghostnetwork_minimal else (),
         "allowed_asset_refs": tuple(allowed_asset_refs),
         "allowed_asset_roles": allowed_asset_roles,
         "editorial_contract": copy.deepcopy(editorial_contract),
@@ -912,8 +960,14 @@ def parse_and_validate_ollama_content(content, task_package):
         errors.append("invalid_fact_refs")
     elif not set(refs).issubset(set(task_package.get("fact_refs") or [])):
         security_errors.append("unknown_fact_ref")
+    fact_ref_map = task_package.get("fact_ref_map") or {}
+    canonical_refs = (
+        [fact_ref_map.get(ref, ref) for ref in refs]
+        if isinstance(refs, list)
+        else []
+    )
     selected_source_ref = str(task_package.get("selected_source_ref") or "").strip()
-    if selected_source_ref and refs != [selected_source_ref]:
+    if selected_source_ref and canonical_refs != [selected_source_ref]:
         security_errors.append("selected_fact_mismatch")
     cta_ref_removed = False
     cta_map = task_package.get("cta_map") or {}
@@ -934,7 +988,7 @@ def parse_and_validate_ollama_content(content, task_package):
                 or ""
             ).strip()
             if cta_fact_ref and (
-                not isinstance(refs, list) or cta_fact_ref not in refs
+                not isinstance(refs, list) or cta_fact_ref not in canonical_refs
             ):
                 security_errors.append("cta_fact_mismatch")
     asset_schema = format_properties.get("asset_ref") or {}
@@ -1014,7 +1068,7 @@ def parse_and_validate_ollama_content(content, task_package):
             "title": title.strip(),
             "body": body.strip(),
             "tone": tone,
-            "fact_refs": list(refs),
+            "fact_refs": canonical_refs,
             "cta_ref": cta_ref,
             **({"asset_ref": resolved_asset_ref} if allows_asset or allows_asset_role else {}),
         },

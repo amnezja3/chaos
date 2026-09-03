@@ -15,6 +15,7 @@ from ghostnetwork.ollama_policy import (
 )
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.cycles import GhostCycleService
+from ghostnetwork.llm.semantic_input import attach_semantic_content
 from ghostnetwork.repository import GhostNetworkRepository
 
 
@@ -77,6 +78,10 @@ class OllamaWorkerTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def task(self, event_id="event-1", **overrides):
+        fact = attach_semantic_content(
+            {"fact_id": f"fact:{event_id}", "fact_type": "test"},
+            {"statement": "Czesc GhostNetwork zostala aktywowana."},
+        )
         task = assign_ollama_task_policy({
             "event_id": event_id,
             "source_scope": "ghostnetwork",
@@ -88,7 +93,7 @@ class OllamaWorkerTest(unittest.TestCase):
             "audience_owner": "",
             "truth_class": "canonical",
             "truth_class_policy": "canonical_facts_only",
-            "facts": [{"fact_id": f"fact:{event_id}", "fact_type": "test"}],
+            "facts": [fact],
             "allowed_actions": [],
             "canon_version": "test-v1",
             "task_variant": "part_activated",
@@ -108,7 +113,7 @@ class OllamaWorkerTest(unittest.TestCase):
             "title": "Potwierdzenie",
             "body": "Zdarzenie zostalo przetworzone.",
             "tone": "info",
-            "fact_refs": [f"fact:{event_id}"],
+            "fact_refs": ["f01"],
             "cta_ref": None,
         })
 
@@ -327,19 +332,27 @@ class OllamaWorkerTest(unittest.TestCase):
         }
         self.assertEqual(
             packages["blacknet"][0]["prompt_version"],
-            "ghostnetwork-event-prompt-v2",
+            "ghostnetwork-event-prompt-v3",
         )
         self.assertEqual(
             packages["googleplex_news"][0]["prompt_version"],
-            "ghostnetwork-googleplex-prompt-v2",
+            "ghostnetwork-googleplex-prompt-v3",
         )
         for _task, model_input in packages.values():
             self.assertEqual(model_input["narrative_intent"], "ghost_cycle_state")
             self.assertEqual(model_input["event_family"], "cycle_activated")
             self.assertEqual(model_input["significance"], "high")
             self.assertEqual(model_input["tone_hint"], "warning")
-            self.assertEqual(model_input["source"], {"scope": "ghostnetwork"})
+            self.assertNotIn("source", model_input)
+            self.assertNotIn("versions", model_input)
+            self.assertNotIn("truth", model_input)
             self.assertEqual(model_input["audience"], {"scope": "public"})
+            self.assertNotIn(event["event_id"], json.dumps(model_input))
+            self.assertNotIn(event["cycle_id"], json.dumps(model_input))
+            self.assertTrue(all(
+                row["fact_ref"].startswith("f")
+                for row in model_input["semantic_facts"]
+            ))
         self.assertEqual(client.calls, 0)
 
     def test_crash_after_candidate_does_not_call_model_again(self):
