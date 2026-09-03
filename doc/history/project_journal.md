@@ -2422,3 +2422,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Status: `137.3 RUNTIME/FAILURE LOCAL PASS — SERVER GATE REQUIRED`. Sprint 138
   pozostaje zamrożony do produkcyjnego verify/audit, failure tests i
   potwierdzenia stabilnego procesu PM2.
+
+## 2026-09-03 — Sprint 137.3: produkcyjny SERVER PASS i zamknięcie Sprintu 137
+
+- Serwer wdrożył `f241448`; worker verify zwrócił `ok=true`, pustą listę błędów
+  i poprawny `ghostnetwork-ollama-runtime-v1` z retry `5/10/20/40/80 s` oraz
+  contention backoff `0.25–2.0 s`.
+- Read-only runtime audit zwrócił `ok=true`: zero expired leases, active tasks
+  bez lease, exhausted nonterminal tasks, retry schedule violations oraz
+  eligible/ineligible ready. Strict cutover również zwrócił `ok=true`,
+  `errors=[]`, `warnings=[]`; serwerowe testy failure/recovery: `31/31 PASS`.
+- Sklasyfikowano 13 historycznych attemptów `started`: wszystkie mają terminalny
+  task (9 `completed`, 4 `dead_letter` po `policy_superseded_cutover`), żaden
+  nie jest aktywny i żaden nie ma candidate z porzuconego attemptu. Warning jest
+  zaakceptowanym historycznym śladem, nie zaległą pracą.
+- PM2 po wdrożeniu: worker `online`, uptime co najmniej 8 minut,
+  `restarts=59` bez wzrostu, `unstable restarts=0`. Widoczne stack trace
+  `database is locked` mają stare numery linii i pochodzą sprzed `f241448`.
+- Status: `SPRINT 137 COMPLETE — SERVER PASS`. Sprint 138 publication lifecycle
+  został odblokowany i jest gotowy do rozpoczęcia.

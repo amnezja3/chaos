@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.3 RUNTIME/FAILURE LOCAL PASS; SERVER GATE REQUIRED`
+Status: `SPRINT 137 COMPLETE — 137.1/137.2/137.3 SERVER PASS`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -418,7 +418,28 @@ Lokalna bramka: `31/31` testów komponentowych oraz `70/70` szerokiej regresji
 worker/runtime/publication/support/output-safety/cutover. `py_compile`,
 `git diff --check` i lokalny runtime audit: PASS.
 
-Status: `137.3 RUNTIME/FAILURE LOCAL PASS — SERVER GATE REQUIRED`.
+### Wynik produkcyjnej bramki — 2026-09-03
+
+Serwer wdrożył `f241448`. Worker verify potwierdził
+`ghostnetwork-ollama-runtime-v1`, harmonogram `5/10/20/40/80 s`, bounded
+contention backoff `0.25–2.0 s`, `errors=[]` i `ok=true`. Read-only runtime
+audit oraz strict cutover zakończyły się `ok=true`; kolejka miała zero
+eligible/ineligible ready, expired leases, active tasks bez lease, wyczerpanych
+tasków poza dead-letter oraz odchyleń retry schedule. Serwerowa regresja
+failure/recovery zakończyła się `31/31 PASS`.
+
+Audit wykazał 13 historycznych attemptów `started`. Dodatkowe zapytanie
+potwierdziło, że wszystkie należą do terminalnych tasków: 9 `completed` oraz
+4 `dead_letter` z `policy_superseded_cutover`; żaden nie jest aktywny i żaden
+nie posiada candidate zapisanego pod porzuconą próbą. Jest to zaakceptowany
+ślad dawnych crashy, a nie bieżąca praca ani luka recovery.
+
+Po wdrożeniu PM2 utrzymał worker `online` przez co najmniej 8 minut przy
+`restarts=59` bez wzrostu oraz `unstable restarts=0`. Stosy `database is locked`
+w error logu pochodziły sprzed wdrożenia, co potwierdzają historyczne numery
+linii. Nowy proces nie zarejestrował crashu.
+
+Status: `137.3 RUNTIME/FAILURE SERVER PASS — SPRINT 137 COMPLETE`.
 
 ### Produkcyjna bramka 137.3
 
