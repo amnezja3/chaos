@@ -28,6 +28,10 @@ from .llm.semantic_input import (
     model_visible_semantic_fact,
     semantic_audit_projection,
 )
+from .llm.output_safety import (
+    GHOST_OUTPUT_SAFETY_CONTRACT_VERSION,
+    validate_ghost_output_safety,
+)
 
 
 MAX_TASK_PACKAGE_BYTES = 2400
@@ -683,6 +687,24 @@ def _part_discovered_required_details(source_facts, audience_scope):
     return tuple(dict.fromkeys(value for value in values if value))[:12]
 
 
+def _ghost_output_forbidden_values(task, source_facts):
+    """Backend-known audience values that were not automatically public facts."""
+    fields = (
+        "audience_owner", "audience_clan", "owner", "owner_id", "player_id",
+        "username", "discovered_by", "owner_clan", "target_clan", "clan_code",
+        "part_code", "part_name", "machine_code", "machine_name",
+        "profession_code", "profession_name", "ability_code", "ability_name",
+    )
+    values = [task.get(field) for field in fields]
+    for fact in source_facts or ():
+        if isinstance(fact, dict):
+            values.extend(fact.get(field) for field in fields)
+    return tuple(dict.fromkeys(
+        str(value).strip() for value in values
+        if value not in (None, "") and not isinstance(value, (dict, list, tuple, set))
+    ))[:64]
+
+
 def _generation_output_schema(
     policy, allowed_fact_refs=(), allowed_cta_refs=(), allowed_asset_refs=(),
     allowed_asset_roles=(), editorial_contract=None,
@@ -1068,6 +1090,14 @@ def build_ollama_task_package(task, policy=None):
         "allowed_asset_roles": allowed_asset_roles,
         "editorial_contract": copy.deepcopy(editorial_contract),
         "voice_contract": voice_contract,
+        "output_safety_contract_version": (
+            GHOST_OUTPUT_SAFETY_CONTRACT_VERSION if active_ghost_prompt else ""
+        ),
+        "output_safety_forbidden_values": (
+            _ghost_output_forbidden_values(task, source_facts)
+            if active_ghost_prompt else ()
+        ),
+        "model_input": copy.deepcopy(model_input),
         "selected_source_ref": str(
             task.get("selected_source_ref")
             or (task.get("validation") or {}).get("selected_source_ref") or ""
@@ -1244,6 +1274,22 @@ def parse_and_validate_ollama_content(content, task_package):
     ):
         security_errors.append("unknown_canonical_poi_name")
 
+    output_safety_contract_version = str(
+        task_package.get("output_safety_contract_version") or ""
+    )
+    if output_safety_contract_version:
+        safety = validate_ghost_output_safety(
+            title,
+            body,
+            model_input=task_package.get("model_input") or {},
+            fact_aliases=(task_package.get("fact_ref_map") or {}).keys(),
+            cta_aliases=(task_package.get("cta_map") or {}).keys(),
+            asset_refs=task_package.get("allowed_asset_refs") or (),
+            forbidden_values=task_package.get("output_safety_forbidden_values") or (),
+        )
+        security_errors.extend(safety["security_errors"])
+        errors.extend(safety["grounding_errors"])
+
     if (
         policy
         and policy.source_scope == "googleplex_app"
@@ -1278,7 +1324,13 @@ def parse_and_validate_ollama_content(content, task_package):
     all_errors = sorted(set(errors + security_errors))
     status = "quarantined" if security_errors else ("rejected" if errors else "accepted")
     if all_errors:
-        return {"status": status, "errors": all_errors, "output": output}
+        return {
+            "status": status,
+            "errors": all_errors,
+            "output": output,
+            **({"output_safety_contract_version": output_safety_contract_version}
+               if output_safety_contract_version else {}),
+        }
     return {
         "status": "accepted",
         "errors": [],
@@ -1301,4 +1353,6 @@ def parse_and_validate_ollama_content(content, task_package):
             *(["schema_length_bounded"] if title_bounded or body_bounded else []),
             *(["unsupported_cta_removed"] if cta_ref_removed else []),
         ],
+        **({"output_safety_contract_version": output_safety_contract_version}
+           if output_safety_contract_version else {}),
     }

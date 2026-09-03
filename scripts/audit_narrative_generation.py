@@ -231,6 +231,12 @@ def _task_report(repository, task):
             "request_hash": package.get("request_hash"),
             "input_bytes": package.get("input_bytes"),
             "fact_count": package.get("fact_count"),
+            "output_safety_contract_version": package.get(
+                "output_safety_contract_version"
+            ) or "",
+            "output_safety_forbidden_value_count": len(
+                package.get("output_safety_forbidden_values") or ()
+            ),
         },
         "attempt": ({
             "attempt_id": latest_attempt.get("attempt_id"),

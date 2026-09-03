@@ -2364,3 +2364,25 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   treści. Replay nie zmienił historycznych kandydatów ani publikacji.
 - Status: `137.1/137.1.1 SERVER PASS — READY FOR 137.2`. Sprint 138 czeka nadal
   na 137.2 i 137.3.
+
+## 2026-09-03 — Sprint 137.2: allowed/forbidden knowledge firewall
+
+- Rozpoczęto 137.2 jako backendowy kontrakt wiedzy, bez kolejnego strojenia
+  promptów i bez klasyfikowania stylu lub „prawdziwości narracyjnej”.
+- `ghostnetwork-output-safety-v1` blokuje control metadata, task-local aliases,
+  techniczne ID, URL, e-mail/credential-like dane, IP, ścieżki, współrzędne,
+  aktywny markup oraz nazwy i kody katalogu GhostNetwork niewidoczne w
+  semantic facts danego taska.
+- Backend przekazuje do firewalla, ale nie do modelu, bounded wartości audience
+  takie jak login ownera albo kod klanu. Ich pojawienie się w narracji jest
+  `audience_hidden_value_leak`. Dozwolone nazwy wynikają wyłącznie z modelowego
+  semantic input, więc public -> clan -> owner zachowuje monotoniczny zakres.
+- Wycofano regułę nieudowodnionych liczb oraz automatyczną ocenę prognoz,
+  skutków, tonu i swobodnego języka. Test potwierdza, że `drugi sygnał`, liczba
+  `2` i narracyjna metafora nie są naruszeniem 137.2.
+- Naruszenie ma status quarantined i może uruchomić Narrative Support Layer;
+  fallback przechodzi ponownie ten sam firewall. Dodano read-only
+  `scripts/audit_narrative_output_safety.py`, widoczność kontraktu w worker
+  verify, strict cutover i generation audit.
+- Regresja: `69/69` komponentów 137.2 oraz `120/120` szerokiego pipeline’u.
+  Status: `137.2 LOCAL PASS — SERVER GATE REQUIRED`.

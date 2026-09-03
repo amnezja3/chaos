@@ -19,6 +19,7 @@ from .ollama_policy import (
 from .repository import GhostNetworkRepository
 from .narrative import GhostNarrativePublisher
 from .narrative_support import NarrativeSupportLayer
+from .llm.output_safety import verify_ghost_output_safety
 
 
 def _env_bool(name, default=False):
@@ -168,6 +169,7 @@ class OllamaNarrativeWorker:
             result = {"ok": False, "errors": [exc.code]}
         result["prompt_registry"] = verify_prompt_registry()
         result["narrative_support"] = self.narrative_support.verify()
+        result["output_safety"] = verify_ghost_output_safety()
         result["queue"] = self.repository.narrative_task_queue_counts(self.policies)
         result["database_ok"] = True
         result["worker_config_errors"] = self.config.validate()
@@ -175,6 +177,7 @@ class OllamaNarrativeWorker:
             bool(result.get("ok"))
             and result["prompt_registry"]["ok"]
             and result["narrative_support"]["ok"]
+            and result["output_safety"]["ok"]
             and result["database_ok"]
             and not result["worker_config_errors"]
         )

@@ -13,6 +13,7 @@ from .narrative import (
 )
 from .repository import GhostNetworkRepository
 from .narrative_support import NarrativeSupportLayer
+from .llm.output_safety import verify_ghost_output_safety
 
 
 CUTOVER_CONTRACT_VERSION = "canonical-narrative-cutover-v1"
@@ -187,6 +188,7 @@ def build_narrative_cutover_report(
     policies = active_ollama_worker_policies()
     prompt_registry = verify_prompt_registry()
     narrative_support = NarrativeSupportLayer().verify()
+    output_safety = verify_ghost_output_safety()
     task_queue = repository.narrative_task_queue_counts(policies, now=now)
     publication_queue = repository.narrative_publication_queue_counts(now=now)
     ghost_event_lineage = build_ghost_event_lineage_report(repository)
@@ -208,6 +210,8 @@ def build_narrative_cutover_report(
         errors.append("prompt_registry_invalid")
     if not narrative_support.get("ok"):
         errors.append("narrative_support_invalid")
+    if not output_safety.get("ok"):
+        errors.append("ghost_output_safety_invalid")
     if task_queue.get("active_legacy_file_tasks"):
         errors.append("active_legacy_file_tasks")
     if task_queue.get("ineligible_ready"):
@@ -250,6 +254,7 @@ def build_narrative_cutover_report(
         },
         "prompt_registry": prompt_registry,
         "narrative_support": narrative_support,
+        "output_safety": output_safety,
         "task_queue": task_queue,
         "publication_queue": publication_queue,
         "ghost_event_lineage": ghost_event_lineage,

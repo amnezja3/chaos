@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1/137.1.1 SERVER PASS; READY FOR 137.2`
+Status: `137 ACTIVE — 137.2 OUTPUT FIREWALL LOCAL PASS; SERVER GATE REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -307,6 +307,67 @@ publikacji; pokazuje wynik obecnego validatora oraz deterministyczny fallback.
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
 `74 tests / PASS` dla policy/worker/semantic/audit/publication/producer v8.
+
+## Sprint 137.2 — CZEGO modelowi nie wolno powiedzieć
+
+137.2 jest kontraktem `allowed knowledge / forbidden knowledge`, a nie drugim
+validatorem stylu ani próbą automatycznego rozstrzygania jakości narracji.
+Firewall działa po odpowiedzi modelu i przed utworzeniem accepted candidate.
+Model nie widzi reguł, wartości zakazanych ani danych wyższej warstwy audience.
+
+Hierarchia wiedzy jest monotoniczna:
+
+```text
+public = tylko publiczne semantic_facts
+clan   = public + wartości jawnie przekazane wariantowi clan
+owner  = clan/public + wartości jawnie przekazane wariantowi owner
+```
+
+Samo występowanie wartości w bazie, canonical fact, katalogu albo task metadata
+nie czyni jej dozwoloną. Nazwa jest publikowalna tylko wtedy, gdy znajduje się
+w `semantic_facts` konkretnego task package. Dotyczy to nazw i kodów klanów,
+maszyn, części, profesji oraz zdolności. Login ownera i identyfikator klanu
+audience pozostają backend-only nawet w wariancie owner/clan, jeżeli nie zostały
+jawnie umieszczone w semantic facts.
+
+Kontrakt `ghostnetwork-output-safety-v1` blokuje:
+
+- techniczne identyfikatory i task-local aliases użyte w title/body;
+- nazwy pól kontraktu, promptu, schema lub control metadata;
+- URL-e, adresy e-mail, credential-like wartości, adresy sieciowe, ścieżki
+  systemowe, surowe współrzędne oraz aktywny markup/script;
+- canonical nazwy lub kody GhostNetwork niewidoczne dla danego audience;
+- backend-known audience values, których model nie otrzymał.
+
+Firewall świadomie nie blokuje:
+
+- liczb tylko dlatego, że nie wystąpiły w semantic facts;
+- zwrotów takich jak `jeden ślad`, `drugi sygnał` albo swobodnych metafor;
+- prognoz, skutków, tonu ani subiektywnej jakości tekstu;
+- legalnej nazwy świata, jeżeli została przekazana w semantic facts.
+
+Reguły głosu, wymagany konkret i canonical echo pozostają oddzielnym kontraktem
+137.1. Rozdzielenie zapobiega oznaczaniu błędu stylistycznego jako wycieku
+audience. Naruszenia 137.2 mają status `quarantined`. Istniejący
+`NarrativeSupportLayer` może zbudować fallback, ale każdy fallback przechodzi
+ponownie ten sam output firewall; brak bezpiecznego wyniku kończy się fail-closed.
+
+Read-only audyt produkcyjny:
+
+```bash
+.venv/bin/python scripts/audit_narrative_output_safety.py \
+  --db data/game.sqlite3 \
+  --event-id EVENT_ID \
+  --strict
+```
+
+Audyt uruchamia dla rzeczywistych aktywnych task packages bounded adversarial
+matrix i nie zapisuje kandydatów ani publikacji. `worker verify` oraz strict
+cutover raportują wersję i stan output safety contractu. Lokalna regresja
+komponentów 137.2: `69 tests / PASS`; szersza regresja producer/runtime:
+`120 tests / PASS`.
+
+Status: `137.2 OUTPUT FIREWALL LOCAL PASS — SERVER GATE REQUIRED`.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 

@@ -66,6 +66,11 @@ class NarrativeCutoverTest(unittest.TestCase):
 
         self.assertTrue(report["ok"])
         self.assertEqual(report["contract_version"], CUTOVER_CONTRACT_VERSION)
+        self.assertTrue(report["output_safety"]["ok"])
+        self.assertEqual(
+            report["output_safety"]["contract_version"],
+            "ghostnetwork-output-safety-v1",
+        )
         self.assertTrue(repository.policies)
         self.assertEqual(report["heavy_profile"], {
             "profile_full_read": 0,
@@ -117,6 +122,22 @@ class NarrativeCutoverTest(unittest.TestCase):
 
         self.assertFalse(report["ok"])
         self.assertIn("narrative_support_invalid", report["errors"])
+
+    def test_cutover_fails_closed_on_invalid_output_safety_contract(self):
+        repository = CutoverRepositoryFixture()
+        with patch(
+            "ghostnetwork.narrative_cutover.verify_prompt_registry",
+            return_value={"ok": True, "errors": []},
+        ), patch(
+            "ghostnetwork.narrative_cutover.verify_ghost_output_safety",
+            return_value={"ok": False, "errors": ["catalog_empty"]},
+        ):
+            report = build_narrative_cutover_report(
+                repository, config=self.enabled, now=self.now
+            )
+
+        self.assertFalse(report["ok"])
+        self.assertIn("ghost_output_safety_invalid", report["errors"])
 
     def test_cutover_fails_closed_on_bounded_backpressure(self):
         repository = CutoverRepositoryFixture()
