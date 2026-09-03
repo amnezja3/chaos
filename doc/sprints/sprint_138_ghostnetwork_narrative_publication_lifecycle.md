@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `BLOCKED — 137.pre.1 SERVER PASS; REQUIRES SPRINT 137.1 v9 VOICE PASS`
+Status: `BLOCKED — REQUIRES SPRINT 137.1.1 NARRATIVE SUPPORT SERVER PASS`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, BlackNet brzmiał raportowo,
@@ -9,8 +9,11 @@ takich accepted-structurally candidates. V8 przekazał dla odkrycia jedno
 audience-safe zdanie canonical i poprawnie odrzucił trzy BlackNety, które
 pominęły wymagane nazwy. Aktywny v9 dodaje jedną audience-safe
 `required_phrase`, obowiązkową w body, bez ponownego wystawiania technicznych
-identyfikatorów. Blokada zostanie zdjęta dopiero po nowym producer-backed
-candidate v9 z technicznym i ręcznym PASS.
+identyfikatorów. Produkcyjny v9 przeszedł walidację techniczną, lecz nie ręczną
+ocenę języka. Aktywny v10 upraszcza prompt, a Narrative Support Layer renderuje
+deterministyczny, audience-safe fallback z YAML tylko po odrzuceniu modelu.
+Blokada zostanie zdjęta dopiero po nowym producer-backed candidate v10 oraz
+potwierdzeniu ścieżek model-pass i support-fallback.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 

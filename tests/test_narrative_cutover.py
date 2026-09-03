@@ -102,6 +102,22 @@ class NarrativeCutoverTest(unittest.TestCase):
             self.assertIn(error, report["errors"])
         self.assertIn("unstaged_accepted_candidates", report["warnings"])
 
+    def test_cutover_fails_closed_on_invalid_narrative_support(self):
+        repository = CutoverRepositoryFixture()
+        with patch(
+            "ghostnetwork.narrative_cutover.verify_prompt_registry",
+            return_value={"ok": True, "errors": []},
+        ), patch(
+            "ghostnetwork.narrative_cutover.NarrativeSupportLayer.verify",
+            return_value={"ok": False, "errors": ["config_invalid"]},
+        ):
+            report = build_narrative_cutover_report(
+                repository, config=self.enabled, now=self.now
+            )
+
+        self.assertFalse(report["ok"])
+        self.assertIn("narrative_support_invalid", report["errors"])
+
     def test_cutover_fails_closed_on_bounded_backpressure(self):
         repository = CutoverRepositoryFixture()
         repository.task_counts["eligible_ready"] = 6

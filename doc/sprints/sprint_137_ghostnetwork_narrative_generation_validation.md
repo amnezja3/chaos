@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1 v9 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
+Status: `137 ACTIVE — 137.1.1 NARRATIVE SUPPORT LOCAL PASS; SERVER GATE REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -193,7 +193,7 @@ pełnej nazwy części w body. Backend odrzuca też konkretne zwroty relacyjne,
 m.in. `należy do`, `należący do` i `jest własnością`, gdy canonical fact nie
 zawiera relacji własności. Nie blokuje przez to nazw obiektów o podobnym rdzeniu.
 
-Cutover jest addytywny. Nowe taski dostają v9, ale już zapisane taski v1–v8
+Cutover jest addytywny. Nowe taski dostają v10, ale już zapisane taski v1–v9
 nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3–v7
 zachowują semantic system prompt oraz minimalny semantic package; nie zostają
 przypadkiem cofnięte do technicznego formatu v2. Worker nie przypisuje staremu
@@ -204,8 +204,8 @@ policies.
 
 Dowody lokalne i produkcyjne:
 
-- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v9 policy`;
-- producer-backed `cycle_activated` buduje package v9 dla BlackNet i
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v10 policy`;
+- producer-backed `cycle_activated` buduje package v10 dla BlackNet i
   Googleplex z poprawnym intent/family/significance;
 - historyczne taski v1–v7 pozostają rozwiązywalne, a v3–v7 zachowują semantic
   package;
@@ -235,10 +235,52 @@ backendowy validator egzekwuje tę samą wartość. V8 pozostaje addytywnie
 zarejestrowany i zachowuje swój wcześniejszy package; nowe taski dostają v9.
 Lokalna regresja policy/worker/publication/audit po cutoverze: `64 tests / PASS`.
 
+### Sprint 137.1.1 — Narrative Support Layer
+
+Produkcyjny v9 przeszedł wszystkie bramki techniczne (`4/4 accepted`, zgodne
+hashes i lineage), ale nie ręczną ocenę języka. BlackNet mechanicznie kopiował
+canonical statement, a Googleplex zwrócił niegramatyczne `Zara ujawniono` oraz
+urwany tytuł `... Ghost`. Dalsze dokładanie instrukcji do promptu zostało
+zatrzymane.
+
+Aktywne prompty v10 są krótsze i pozostawiają modelowi swobodę językową, nadal
+ograniczoną do audience-safe `semantic_facts`. `required_phrase` nie jest już
+wysyłane modelowi v10; backend zachowuje dotychczasową kontrolę wymaganych
+szczegółów. V9 pozostaje w registry i zachowuje dokładny wcześniejszy package.
+
+Za istniejącym validatorem działa `NarrativeSupportLayer`:
+
+```text
+model accepted -> istniejący candidate bez zmian
+model rejected/quarantined -> deterministic YAML render -> ten sam validator
+support accepted -> canonical candidate -> istniejący publisher
+support invalid/unavailable -> dotychczasowy rejected candidate
+```
+
+Konfiguracja `ghostnetwork/llm/narrative_support.v1.yaml` rozdziela medium,
+event family, audience oraz warianty title/body. Renderer używa wyłącznie
+audience-projected semantic values (`location`, `part_name`, region i
+statement). Dobór wariantu jest deterministycznym hashem
+`event_id + medium + family + audience + field`, więc replay nie zmienia copy.
+Brak wymaganej wartości kończy się fail-closed bez fabrykowania danych.
+
+Googleplex może zachować poprawne body i naprawić tylko title albo odwrotnie.
+Każdy partial i full fallback jest ponownie przepuszczany przez pełny validator,
+który odtwarza canonical fact refs, fixed CTA i dozwolony asset. Attempt zapisuje
+`accepted_support_title`, `accepted_support_body` albo
+`accepted_support_full`, dzięki czemu ścieżka jest audytowalna. Worker verify i
+strict cutover blokują start przy brakującym lub błędnym YAML.
+
+Lokalne bramki 137.1.1:
+
+- worker/policy/support/publication/cutover/audit: `77 tests / PASS`;
+- semantic input/producers 136/narrative/runtime durability: `71 tests / PASS`;
+- razem: `148 tests / PASS`.
+
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1–v9 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v9 korzystający z semantic input. Musi on
+verify registry, kontrola kolejki v1–v10 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v10 korzystający z semantic input. Musi on
 przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
 technicznego nie wystarcza.
 

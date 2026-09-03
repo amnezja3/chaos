@@ -18,6 +18,7 @@ from .ollama_policy import (
 )
 from .repository import GhostNetworkRepository
 from .narrative import GhostNarrativePublisher
+from .narrative_support import NarrativeSupportLayer
 
 
 def _env_bool(name, default=False):
@@ -132,12 +133,16 @@ def active_ollama_worker_policies():
 
 
 class OllamaNarrativeWorker:
-    def __init__(self, repository=None, client=None, config=None, worker_id=None):
+    def __init__(
+        self, repository=None, client=None, config=None, worker_id=None,
+        narrative_support=None,
+    ):
         self.repository = repository or GhostNetworkRepository()
         self.client = client or ChaosOllamaClient()
         self.config = config or OllamaWorkerConfig.from_env()
         nonce = uuid.uuid4().hex[:10]
         self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{nonce}"
+        self.narrative_support = narrative_support or NarrativeSupportLayer()
         # Sprint 135.5.1 cutover: keep legacy policy definitions readable for
         # historical audit/tests, but never claim the old multi-fact world
         # digest queue. New work is single-source only.
@@ -162,12 +167,14 @@ class OllamaNarrativeWorker:
         except OllamaClientError as exc:
             result = {"ok": False, "errors": [exc.code]}
         result["prompt_registry"] = verify_prompt_registry()
+        result["narrative_support"] = self.narrative_support.verify()
         result["queue"] = self.repository.narrative_task_queue_counts(self.policies)
         result["database_ok"] = True
         result["worker_config_errors"] = self.config.validate()
         result["ok"] = (
             bool(result.get("ok"))
             and result["prompt_registry"]["ok"]
+            and result["narrative_support"]["ok"]
             and result["database_ok"]
             and not result["worker_config_errors"]
         )
@@ -359,13 +366,19 @@ class OllamaNarrativeWorker:
         if validation["status"] == "invalid_json":
             validation = {"status": "rejected", "errors": ["invalid_json"], "output": None}
 
+        support = self.narrative_support.apply(
+            task, package, validation, parse_and_validate_ollama_content
+        )
+        if support:
+            validation = support["validation"]
+
         candidate = self.repository.record_narrative_candidate(
             task,
             attempt["attempt_id"],
             self.worker_id,
             lease_until,
             validation,
-            generation.content,
+            support["content"] if support else generation.content,
             generation_data,
         )
         if not candidate:
@@ -380,7 +393,10 @@ class OllamaNarrativeWorker:
         self._finish_attempt(
             attempt,
             status="completed" if completed else "lease_lost",
-            result=validation["status"],
+            result=(
+                f"accepted_support_{support['mode']}"
+                if support else validation["status"]
+            ),
             error_code="" if completed else "lease_lost",
             retryable=False,
             generation=generation_data,
@@ -390,6 +406,7 @@ class OllamaNarrativeWorker:
             "task_id": task["outbox_id"],
             "candidate_id": candidate["candidate_id"],
             "validation_status": candidate["validation_status"],
+            "narrative_support_mode": support["mode"] if support else "",
             "input_bytes": package["input_bytes"],
             "fact_count": package["fact_count"],
         }

@@ -1,0 +1,45 @@
+contract_version: chaos-narrative-support-v1
+
+enabled_prompt_versions:
+  - ghostnetwork-event-prompt-v10
+  - ghostnetwork-googleplex-prompt-v10
+  - ghostsignal-prompt-v10
+
+fallbacks:
+  blacknet:
+    part_discovered:
+      public:
+        tone: warning
+        title:
+          - "PRZECHWYT // ŚLAD SIECI"
+          - "PRZECHWYT // UKRYTY ELEMENT"
+        body:
+          - "...przy obiekcie {location} ujawniono ukryty element GhostNetwork."
+          - "...przy obiekcie {location} ukryty element GhostNetwork wyszedł na jaw."
+      clan:
+        tone: warning
+        title:
+          - "PRZECHWYT // ŚLAD SIECI"
+          - "PRZECHWYT // UKRYTY ELEMENT"
+        body:
+          - "...przy obiekcie {location} ujawniono ukryty element GhostNetwork."
+          - "...przy obiekcie {location} ukryty element GhostNetwork wyszedł na jaw."
+      owner:
+        tone: warning
+        title:
+          - "PRZECHWYT // ODNALEZIONY ELEMENT"
+          - "PRZECHWYT // ELEMENT SIECI"
+        body:
+          - "...przy obiekcie {location} ujawniono ukryty element GhostNetwork — {part_name}."
+          - "...przy obiekcie {location} element GhostNetwork wyszedł na jaw: {part_name}."
+
+  googleplex_news:
+    part_discovered:
+      public:
+        tone: warning
+        title:
+          - "Ujawniono element GhostNetwork"
+          - "Odkrycie w sieci GhostNetwork"
+        body:
+          - "Przy obiekcie {location} ujawniono wcześniej ukryty element sieci GhostNetwork."
+          - "W pobliżu obiektu {location} odkryto ukryty element sieci GhostNetwork."

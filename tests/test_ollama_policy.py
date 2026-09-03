@@ -121,9 +121,9 @@ class OllamaPolicyTest(unittest.TestCase):
             "statement": "Czesc GhostNetwork zostala aktywowana.",
             "attributes": [{"name": "status", "value": "aktywna"}],
         }])
-        self.assertIn("Pisz wyłącznie po polsku", package["messages"][0]["content"])
-        self.assertIn("gotowe, audience-safe zdanie canonical", package["messages"][0]["content"])
-        self.assertIn("title zaczyna się od `PRZECHWYT //`", package["messages"][0]["content"])
+        self.assertIn("naturalny komunikat po polsku", package["messages"][0]["content"])
+        self.assertIn("wyłącznie informacji z", package["messages"][0]["content"])
+        self.assertIn("Tytuł zaczyna się", package["messages"][0]["content"])
         self.assertNotIn("pattern", package["format"]["properties"]["title"])
         self.assertNotIn("pattern", package["format"]["properties"]["body"])
         self.assertEqual(package["voice_contract"], {
@@ -185,7 +185,6 @@ class OllamaPolicyTest(unittest.TestCase):
                 "Przy obiekcie POI-18D194 w mieście Warszawa "
                 "wykryto nowa czesc GhostNetwork."
             ),
-            "required_phrase": "POI-18D194",
         }])
         for hidden in (
             canonical_ref, "event_4154994d2b082352", "ghostnetwork_0001",
@@ -200,6 +199,12 @@ class OllamaPolicyTest(unittest.TestCase):
         )["semantic_facts"][0]
         self.assertEqual(legacy_fact["statement"], model_input["semantic_facts"][0]["statement"])
         self.assertNotIn("required_phrase", legacy_fact)
+        legacy_v9_task = dict(task)
+        legacy_v9_task["prompt_version"] = "ghostnetwork-event-prompt-v9"
+        legacy_v9_fact = json.loads(
+            build_ollama_task_package(legacy_v9_task)["messages"][1]["content"]
+        )["semantic_facts"][0]
+        self.assertEqual(legacy_v9_fact["required_phrase"], "POI-18D194")
         missing_detail = parse_and_validate_ollama_content(json.dumps({
             "title": "PRZECHWYT // FRAGMENT SIECI",
             "body": "...nowa czesc GhostNetwork wyszla z ukrycia. Sygnal zanika.",
@@ -255,7 +260,6 @@ class OllamaPolicyTest(unittest.TestCase):
                 "Przy obiekcie Barnard Stamp Company ujawniono wcześniej ukryty "
                 "element sieci GhostNetwork: Influence Relay."
             ),
-            "required_phrase": "Influence Relay",
         }])
         self.assertEqual(package["voice_contract"]["detail_values"], ("Influence Relay",))
         missing_part = parse_and_validate_ollama_content(json.dumps({
@@ -313,13 +317,14 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(model_input["facts"][0][0], "fact-1")
         self.assertEqual(package["fact_refs"], frozenset({"fact-1"}))
 
-    def test_ghostnetwork_v3_to_v8_remain_semantic_during_v9_cutover(self):
+    def test_ghostnetwork_v3_to_v9_remain_semantic_during_v10_cutover(self):
         for prompt_version in (
             "ghostnetwork-event-prompt-v3", "ghostnetwork-event-prompt-v4",
             "ghostnetwork-event-prompt-v5",
             "ghostnetwork-event-prompt-v6",
             "ghostnetwork-event-prompt-v7",
             "ghostnetwork-event-prompt-v8",
+            "ghostnetwork-event-prompt-v9",
         ):
             with self.subTest(prompt_version=prompt_version):
                 task = self.task()

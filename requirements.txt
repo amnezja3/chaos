@@ -5,3 +5,4 @@ MarkupSafe>=2.1,<4
 overpy>=0.7,<1
 requests>=2.31,<3
 pytest>=8,<9
+PyYAML>=6.0,<7

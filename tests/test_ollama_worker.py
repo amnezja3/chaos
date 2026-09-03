@@ -256,6 +256,45 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(candidate["validation_status"], "rejected")
         self.assertEqual(client.calls, 2)
 
+    def test_rejected_discovery_uses_support_fallback_before_completion(self):
+        fact = attach_semantic_content(
+            {"fact_id": "fact:support-drop", "fact_type": "part_discovered"},
+            {
+                "statement": "Ujawniono wcześniej ukryty element sieci GhostNetwork.",
+                "entities": [
+                    {"role": "miejsce", "kind": "target", "label": "Zara"},
+                ],
+            },
+        )
+        task = assign_ollama_task_policy({
+            **self.task(event_id="support-drop"),
+            "task_variant": "part_discovered",
+            "narrative_intent": "ghost_part_discovery",
+            "facts": [fact],
+            "validation": {
+                "event_family": "part_discovered", "significance": "high",
+            },
+        })
+        item = self.repo.enqueue_narrative_task(task)
+        client = FakeClient([json.dumps({
+            "title": "PRZECHWYT // ELEMENT",
+            "body": "...ujawniono ukryty element sieci.",
+            "tone": "warning",
+            "fact_refs": ["f01"],
+            "cta_ref": None,
+        })])
+
+        result = self.worker(client).process_once()
+
+        candidate = self.repo.get_narrative_candidate_for_task(item["outbox_id"])
+        attempt = self.repo.list_narrative_attempts(
+            task_id=item["outbox_id"], limit=1
+        )[0]
+        self.assertEqual(result["narrative_support_mode"], "full")
+        self.assertEqual(candidate["validation_status"], "accepted")
+        self.assertIn("Zara", candidate["body"])
+        self.assertEqual(attempt["result"], "accepted_support_full")
+
     def test_retryable_transport_error_preserves_task(self):
         item = self.repo.enqueue_narrative_task(self.task(event_id="timeout"))
         client = FakeClient(error=OllamaClientError("ollama_timeout", retryable=True))

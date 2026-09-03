@@ -97,6 +97,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v8",
     "ghostnetwork-googleplex-prompt-v8",
     "ghostsignal-prompt-v8",
+    "ghostnetwork-event-prompt-v9",
+    "ghostnetwork-googleplex-prompt-v9",
+    "ghostsignal-prompt-v9",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -123,6 +126,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v8",
     "ghostnetwork-googleplex-prompt-v8",
     "ghostsignal-prompt-v8",
+    "ghostnetwork-event-prompt-v9",
+    "ghostnetwork-googleplex-prompt-v9",
+    "ghostsignal-prompt-v9",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -761,6 +767,8 @@ def build_ollama_task_package(task, policy=None):
                     GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
                     "ghostnetwork-event-prompt-v8",
                     "ghostnetwork-googleplex-prompt-v8",
+                    "ghostnetwork-event-prompt-v9",
+                    "ghostnetwork-googleplex-prompt-v9",
                 }
                 and policy.task_variant in {"part_discovered", "googleplex_world_dispatch"}
                 and str(item.get("fact_type") or "").strip() == "part_discovered"
@@ -769,8 +777,8 @@ def build_ollama_task_package(task, policy=None):
                     visible_fact,
                     str(task.get("audience_scope") or "").strip(),
                     expose_required_phrase=policy.prompt_version in {
-                        GHOSTNETWORK_EVENT_PROMPT_VERSION,
-                        GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+                        "ghostnetwork-event-prompt-v9",
+                        "ghostnetwork-googleplex-prompt-v9",
                     },
                 )
             semantic_facts.append(visible_fact)

@@ -2313,3 +2313,24 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - V8 pozostaje kompatybilną polityką legacy z niezmienionym model input. Nowe
   taski GhostNetwork używają v9. Lokalna regresja policy/worker/publication/audit:
   `64 tests / PASS`; wymagany jest nowy producer-backed server probe v9.
+
+## 2026-09-03 — Sprint 137.1.1: Narrative Support Layer
+
+- Produkcyjny v9 osiągnął `4/4 accepted`, ale ręczna ocena odrzuciła wynik:
+  BlackNet kopiował canonical statement, a Googleplex zwrócił niegramatyczne
+  `Zara ujawniono` i urwany tytuł. Zakończono dalsze strojenie promptu 8B.
+- V10 upraszcza prompty GhostNetwork/Googleplex/GhostSignal. Model nadal widzi
+  wyłącznie audience-safe semantic facts, lecz nie dostaje technicznej
+  `required_phrase`; backend nadal egzekwuje obecność dozwolonego konkretu.
+- Dodano `NarrativeSupportLayer` za validatorem i czytelną konfigurację YAML.
+  Odrzucony wynik może otrzymać deterministic full fallback, a Googleplex także
+  naprawę tylko title albo body. Każdy wynik supportu przechodzi ponownie ten sam
+  validator oraz zachowuje canonical lineage, fixed CTA i asset allowlist.
+- Brak konfiguracji, placeholdera albo audience-safe wartości jest fail-closed.
+  Worker verify oraz strict cutover raportują stan support layer. Attempt jawnie
+  zapisuje `accepted_support_full/title/body`; wynik modelu accepted pozostaje
+  nienaruszony.
+- Regresja lokalna: `77/77` worker/policy/support/publication/cutover/audit oraz
+  `71/71` semantic input/producers/runtime — łącznie `148 tests / PASS`.
+- Status: `137.1.1 LOCAL PASS — SERVER GATE REQUIRED`; ostatnia część cyklu nie
+  została zużyta.
