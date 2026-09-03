@@ -2160,3 +2160,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   do ponowienia bez blokowania pozostałych.
 - Kontrakt hot-path: `10 tests / PASS`. Szerszy plik map-loader nadal zawiera
   niezależną, wcześniej zidentyfikowaną regresję kontraktu animacji motocykla.
+
+## 2026-09-03 — odmrożenie Sprintu 137 po 137.pre.1
+
+- Produkcyjny strict semantic audit został przyjęty jako exit gate 137.pre.1:
+  cztery rzeczywiste taski `part_discovered`, kompletne statements i location,
+  poprawne projekcje public/clan/owner, `errors=[]` oraz zero technical ID.
+- Sprint 137 otrzymał status `ACTIVE`; prace wracają do 137.1, czyli generacji
+  i walidacji rzeczywistego outputu modelu. PASS packera nie został błędnie
+  uznany za PASS candidate.
+- Plan 137 traktuje odtąd `chaos-llm-semantic-input-v1`, domain converter,
+  audience projection, backend provenance, local aliases i technical-ID
+  firewall jako obowiązkowy fundament wszystkich aktywnych rodzin.
+- Plan 138 dziedziczy ten kontrakt: publisher nie rekonstruuje semantyki ani
+  location z tekstu, canonical lineage pozostaje backend-only, a read model i
+  CTA mogą ujawnić wyłącznie audience-safe projekcję.
+- Sprint 138 pozostaje zablokowany na zaakceptowanych producer-backed
+  candidates ze Sprintu 137, nie na budowie semantic input.

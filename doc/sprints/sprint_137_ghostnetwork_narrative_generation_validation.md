@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 STOPPED — 137.pre.1 LOCAL PASS, SERVER EXIT GATE REQUIRED`
+Status: `137 ACTIVE — 137.pre.1 SERVER PASS, 137.1 RESUMED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -48,8 +48,26 @@ canonical source paths → semantic projection → dokładny model input.
 Lokalna bramka obejmuje prawdziwy producer-backed `part_discovered`, wszystkie
 aktywne event families, public/clan/owner, brak/missing/conflict location,
 canonical labels, alias lineage, size budget, legacy v1/v2 i heavy-profile
-zero. Sprint 137 pozostaje zatrzymany do przejścia serwerowego strict audytu
-na nowym rzeczywistym `part_discovered`.
+zero.
+
+Produkcyjny exit gate przeszedł 2026-09-03 na czterech rzeczywistych taskach
+`part_discovered` (`public/blacknet`, `clan/blacknet`, `owner/blacknet`,
+`public/googleplex_news`):
+
+```text
+audit_semantic_input --strict:       ok=true, errors=[]
+sample_count:                        4
+semantic contract:                   chaos-llm-semantic-input-v1
+canonical location retained:         Zakopane
+technical_identifier_leaks:          0 dla każdego package
+audience projection:                 public/clan/owner rozdzielone
+```
+
+Wynik potwierdza kompletność i bezpieczeństwo rzeczywistego wejścia do modelu,
+nie jakość wygenerowanego candidate. 137 zostaje odmrożony, a 137.1 wraca do
+generacji oraz oceny outputu. Mojibake widoczne w kanale kopiowania wyniku
+trzeba odróżnić od faktycznych bajtów UTF-8 osobnym probe; nie jest samo w sobie
+dowodem uszkodzenia model input.
 
 ## Sprint 137.1 — CO model dostaje i JAK ma mówić
 
@@ -78,7 +96,9 @@ event_family
 significance
 tone_hint
 bounded aggregate context tylko gdy event_count > 1
-krótkie aliasy faktów f01/f02 i narrative-safe wartości
+semantic_contract=chaos-llm-semantic-input-v1
+semantic_facts z krótkimi aliasami f01/f02, canonical statement,
+  audience-safe labels oraz opcjonalną canonical location/attributes
 referencje do dozwolonego assetu tylko dla Googleplex
 ```
 
@@ -87,6 +107,8 @@ Surowe `outbox_id`, `source_event_id`, `event_id`, `cycle_id`,
 wersje i puste pola kontekstowe nie są przekazywane modelowi v3. Model zwraca
 alias `f01`, a backend mapuje go z powrotem do canonical fact ID przed zapisem
 candidate. To zachowuje lineage bez wystawiania identyfikatorów modelowi.
+Model nie widzi `semantic_provenance`; audyt wiąże każdą wartość semanticzną z
+canonical source path wyłącznie po stronie backendu.
 
 CTA GhostNetwork pozostaje backend-owned. Model nie otrzymuje akcji ani jej
 payloadu i schema wymusza `cta_ref=null`; fixed action jest dołączana po stronie
@@ -103,7 +125,7 @@ zarejestrowanego candidate v1/v2 jako superseded. Status kolejki raportuje
 `ready_by_prompt_version`, a registry osobno liczbę active i legacy-compatible
 policies.
 
-Lokalne dowody:
+Dowody lokalne i produkcyjne:
 
 - kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v3 policy`;
 - producer-backed `cycle_activated` buduje package v3 dla BlackNet i
@@ -113,12 +135,18 @@ Lokalne dowody:
 - alias `f01` wraca do candidate jako pełny canonical fact ID;
 - schema ogranicza fact refs do task-local aliases, a CTA do null;
 - aggregate przekazuje bounded `event_count`;
+- każdy fact przekazuje modelowi treść w `statement`, a nie sam alias;
+- labels i location przechodzą audience projection przed serializacją;
+- strict semantic audit na produkcyjnych taskach: `4 samples / PASS`, zero
+  technical identifier leaks;
 - core policy/worker/publication/cutover: `64 tests / PASS`;
 - producer/runtime/publisher regression: `64 tests / PASS`.
 
-Commit, push, deploy i restart PM2 nie zostały wykonane. Przed rozpoczęciem
-137.2 wymagany jest server verify registry, kontrola kolejki v1/v2/v3 oraz jeden
-nowy producer-backed task, attempt i zaakceptowany candidate v3.
+Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
+audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
+verify registry, kontrola kolejki v1/v2/v3 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v3 korzystający z semantic input. Sam PASS
+read-only packera nie zastępuje walidacji odpowiedzi modelu.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 
@@ -270,10 +298,11 @@ audience scope
 narrative_intent
 event family
 significance / tone hint
-projected canonical facts
-fact refs
+`semantic_facts[].statement`
+task-local fact aliases
+audience-safe canonical labels
+opcjonalną canonical city/country i bounded attributes
 bounded thread context prepared by backend
-fixed CTA capability reference
 allowed asset roles
 output schema
 title/body budgets
@@ -282,6 +311,9 @@ title/body budgets
 Model nie otrzymuje:
 
 - `part_id`, jeżeli audience nie ma prawa go znać;
+- `event_id`, `cycle_id`, `public_entity_id`, canonical `fact_id` ani inne
+  techniczne identyfikatory niezależnie od audience;
+- backendowego `semantic_provenance` i canonical source paths;
 - pełnej topologii, rewardów, profilu lub listy graczy;
 - dowolnych URL i endpointów;
 - listy możliwych odbiorców;
@@ -296,8 +328,8 @@ Zachowujemy mały canonical schema z 135.4:
   "title": "...",
   "body": "...",
   "tone": "warning",
-  "fact_refs": ["ghost_fact:..."],
-  "cta_ref": "c01",
+  "fact_refs": ["f01"],
+  "cta_ref": null,
   "asset_ref": null
 }
 ```
@@ -306,6 +338,8 @@ Model nie zwraca `task_id`, `source_scope`, `audience`, `truth_class`,
 `priority`, `thread_id`, `expires_at`, `cta_action` ani `cta_payload`. Te pola
 są kopiowane z taska przez backend. Nie rozszerzamy modelowi uprawnień tylko
 dlatego, że historyczny plan przewidywał większy JSON.
+Po walidacji backend mapuje `f01` na canonical fact ID i dołącza fixed CTA bez
+udziału modelu.
 
 ## Prompt policy
 
@@ -352,7 +386,8 @@ Oprócz generic schema/safety validator sprawdza:
 
 - wszystkie `fact_refs` należą do taska i co najmniej jeden jest użyty;
 - candidate zachowuje task audience i truth class;
-- CTA ref wskazuje wyłącznie fixed backend action;
+- schema wymusza modelowe `cta_ref=null`, a backend dołącza wyłącznie fixed
+  action zapisane w tasku;
 - output nie zawiera raw `part_id`, `entity_id`, `cycle_id`, hashy i nazw
   technicznych niewidocznych w projected facts;
 - public output nie nazywa ukrytej części, maszyny, profesji, ability ani
@@ -371,10 +406,12 @@ terminalne. Timeout, HTTP failure i pierwszy invalid JSON pozostają retryable.
 1. Wymienić `connection_completed` na realny `connection_created`.
 2. Dodać `cycle_activated` oraz polityki Googleplex News wymagane przez 136.
 3. Wersjonować nowy prompt contract bez nadpisywania historycznego v1.
-4. Dodać `narrative_intent`, significance i bounded thread context do package.
-5. Rozszerzyć validator o kontrakt GhostNetwork.
-6. Zachować jeden generic worker i jeden canonical Inbox.
-7. Rozszerzyć registry verification oraz cutover audit.
+4. Używać zaliczonego Shared Semantic Input Layer dla statement, labels,
+   location, attributes i task-local lineage aliases.
+5. Dodać `narrative_intent`, significance i bounded thread context do package.
+6. Rozszerzyć validator o kontrakt GhostNetwork i technical-ID firewall.
+7. Zachować jeden generic worker i jeden canonical Inbox.
+8. Rozszerzyć registry verification oraz cutover audit.
 
 ## Etap II — jakość i failure validation
 
@@ -411,6 +448,12 @@ tej samej publication identity; nie jest drugim postem.
 - nieznany wariant i stary alias są fail-closed;
 - BlackNet/GGPL/Cyberner otrzymują właściwy prompt/schema;
 - package pozostaje bounded i profile-free;
+- każdy semantic fact ma niepusty canonical statement; sam alias jest
+  niewystarczający i blokuje claim fail-closed;
+- `semantic_contract`, statement, labels, location i attributes przechodzą
+  technical-ID firewall oraz budget przed wywołaniem Ollamy;
+- provenance pozostaje backend-only i pozwala audytować canonical source path
+  bez ujawnienia go modelowi;
 - public/clan/owner packages nie przeciekają między audience;
 - unknown fact ref i brak fact ref są odrzucone;
 - hidden identity, invented outcome i CTA escalation są terminalne;
@@ -422,16 +465,19 @@ tej samej publication identity; nie jest drugim postem.
 
 ## Walidacja serwerowa
 
-1. Uruchomić strict lineage audit 136 przed `verify` registry/model i przed
-   claimem; oba muszą przejść.
-2. Po jednym tasku part, conflict, machine, cycle i signal, utworzonym przez
+1. Uruchomić strict lineage audit 136 oraz
+   `scripts/audit_semantic_input.py --strict` przed `verify` registry/model i
+   przed claimem; wszystkie muszą przejść.
+2. Semantic audit musi pokazać niepuste statements, oczekiwane audience-safe
+   labels/location, backend provenance i zero technical identifier leaks.
+3. Po jednym tasku part, conflict, machine, cycle i signal, utworzonym przez
    realny runtime entrypoint i powiązanym z istniejącym persisted eventem.
-3. Dla każdego sprawdzić task/attempt/candidate i rejection report.
-4. Osobno sprawdzić public/clan/owner bez konta spoza audience.
-5. Wymusić jeden timeout i potwierdzić recovery.
-6. Sprawdzić brak nowych ineligible ready tasks.
-7. Strict cutover audit oraz heavy-profile audit muszą być `ok=true`.
-8. Dla każdego taska zachować jeden łańcuch identyfikatorów:
+4. Dla każdego sprawdzić task/attempt/candidate i rejection report.
+5. Osobno sprawdzić public/clan/owner bez konta spoza audience.
+6. Wymusić jeden timeout i potwierdzić recovery.
+7. Sprawdzić brak nowych ineligible ready tasks.
+8. Strict cutover audit oraz heavy-profile audit muszą być `ok=true`.
+9. Dla każdego taska zachować jeden łańcuch identyfikatorów:
    `event_id -> outbox_id -> attempt_id -> candidate_id`; brak dowolnego
    wcześniejszego ogniwa blokuje zaliczenie późniejszego.
 
@@ -446,6 +492,8 @@ baseline worker/publisher tests:           59 / PASS
 Sprint 136 component task contract:        PRESENT
 Sprint 136 runtime ingress:                SERVER PASS
 Sprint 136 strict lineage audit:           SERVER PASS
+Shared Semantic Input Layer:               SERVER PASS
+semantic input technical-ID firewall:      SERVER PASS
 GhostNetwork specialization scope:         FROZEN
 ```
 
@@ -457,7 +505,9 @@ semantic validation, a timeout, crash, invalid output i privacy violation są
 obsługiwane bez wpływu na gameplay i bez ciężkiego profilu.
 Dodatkowo każdy testowany task musi pochodzić z osiągalnego producenta 136, a
 strict lineage audit nie może wykazywać eligible eventów bez taska ani tasków
-bez eventu.
+bez eventu. Każdy aktywny v3 package musi mieć domenowo utworzoną semantykę,
+backend-only provenance, audience projection i zero technical identifier
+leaks; sam `fact_ref` bez statement nie spełnia Definition of Done.
 
 ## Poza zakresem
 

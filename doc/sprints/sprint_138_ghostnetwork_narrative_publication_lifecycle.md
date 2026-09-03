@@ -1,6 +1,34 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `BLOCKED — REQUIRES SPRINT 137 PRODUCER-BACKED CANDIDATES`
+Status: `BLOCKED — 137.pre.1 SERVER PASS; REQUIRES SPRINT 137 ACCEPTED PRODUCER-BACKED CANDIDATES`
+
+## Fundament odziedziczony z 137.pre.1 — 2026-09-03
+
+Sprint 138 nie publikuje surowego canonical eventu ani tekstu zbudowanego z
+technicznych identyfikatorów. Obowiązującym wejściem generation pipeline jest
+`chaos-llm-semantic-input-v1`, zaliczony na produkcji dla czterech tasków
+`part_discovered` (`ok=true`, `errors=[]`, zero technical identifier leaks).
+
+```text
+canonical event
+  -> deterministic domain converter
+  -> audience projection
+  -> semantic facts: statement + allowed labels/location/attributes
+  -> bounded model package z task-local aliases
+  -> validated candidate z canonical lineage odtworzonym przez backend
+  -> publication lifecycle 138
+```
+
+`semantic_provenance`, canonical IDs oraz mapowanie `f01 -> canonical fact_id`
+pozostają backend-only. Medium record może zachować canonical lineage potrzebne
+do dedupe, invalidation i exactly-once, ale read model nie może wystawić tych
+identyfikatorów tylko dlatego, że są dostępne publisherowi.
+
+Location z 137.pre.1 pochodzi wyłącznie z zachowanego canonical kontekstu
+OSM/target/capture. Sprint 138 może opublikować dozwolone `city/country`, lecz
+nie wykonuje geocodingu, nie publikuje surowych współrzędnych i nie odtwarza
+lokalizacji z tekstu modelu. Konflikt lub brak canonical dowodu pozostaje
+UNKNOWN.
 
 ## Korekta po audycie Sprintu 136 — 2026-09-02
 
@@ -10,8 +38,10 @@ wstawionego ręcznie do środka pipeline'u. Incydent z realnym dropem pokazał,
 
 Remediacja 136.1 ma lokalny i serwerowy PASS: historyczny event odzyskał taski,
 nowy realny drop utworzył je bezpośrednio, a strict lineage audit jest zielony.
-Sprint 138 pozostaje zablokowany wyłącznie do czasu producer-backed candidates
-ze Sprintu 137.
+Sprint 138 pozostaje zablokowany wyłącznie do czasu zaakceptowanych
+producer-backed candidates ze Sprintu 137. Bramka semantic input jest już
+zaliczona; aktualnym blockerem jest zaakceptowany output modelu i jego
+walidacja, nie budowa package.
 
 Pełny test Sprintu 138 musi zaczynać się od produkcyjnego entrypointu domeny:
 
@@ -20,6 +50,7 @@ runtime action
   -> committed mechanic/capture effect
   -> persisted GhostNetwork event
   -> expected task identities
+  -> audience-safe semantic package
   -> model attempt
   -> accepted candidate
   -> publication receipt
@@ -44,6 +75,8 @@ published_receipts_without_medium_record
 medium_records_without_receipt
 records_with_wrong_source_or_audience
 duplicate_records_by_publication_identity
+records_exposing_technical_identifiers
+records_with_location_beyond_semantic_projection
 ```
 
 Każdy licznik wynosi zero poza jasno zdefiniowanym grace period dla aktywnie
@@ -82,7 +115,11 @@ Obecny system zapewnia:
   narracyjnie;
 - generic duplicate-content guard;
 - Googleplex News slot CAS i `slot_assignment_superseded`;
-- brak profilu w publisherze i bounded identity projection w endpointach.
+- brak profilu w publisherze i bounded identity projection w endpointach;
+- produkcyjnie zweryfikowany Shared Semantic Input Layer, audience projection,
+  canonical label/location retention oraz technical-ID firewall przed modelem;
+- backendowe mapowanie task-local fact aliases do canonical lineage przed
+  stagingiem candidate.
 
 Wspólny baseline Sprintów 137–138: `59 tests / PASS`.
 
@@ -133,6 +170,9 @@ per_recipient_profile_read:  0
 Audience i CTA pochodzą z taska/candidate/medium record albo bounded canonical
 lookup. Frontend nie otrzymuje pełnego wpisu z poleceniem samodzielnego
 odfiltrowania. Publisher nie odświeża mapy, operacji, plików, GX ani walleta.
+Publisher nie doczytuje również surowego event payloadu w celu „ulepszenia”
+tekstu lub lokalizacji; korzysta z zatwierdzonego candidate i backend-owned
+lineage/lifecycle metadata.
 
 ## Canonical publication lifecycle
 
@@ -150,6 +190,7 @@ valid_until
 supersedes_medium_record_id
 invalidated_by_event_id
 invalidation_reason
+semantic_contract_version
 ```
 
 Nie przepisujemy historycznych publications i nie usuwamy receipts. Stary
@@ -247,7 +288,11 @@ Zasady:
 - CTA nie teleportuje bez decyzji gracza;
 - nieznana, wygasła lub niewidoczna capability kończy się read-only;
 - frontend nie konstruuje targetu z tytułu ani tekstu modelu;
-- payload pochodzi wyłącznie z medium record.
+- payload pochodzi wyłącznie z medium record;
+- label i location w CTA pochodzą z canonical target/capability zapisanych
+  przed LLM, nigdy z `candidate.body` ani swobodnej interpretacji modelu;
+- task-local alias `f01` nie może trafić do payloadu UI — publisher korzysta z
+  canonical fact ID odtworzonego przez backend po walidacji.
 
 ## Googleplex News i Cyberner
 
@@ -282,6 +327,8 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w Etapie II.
 5. Rozszerzyć BlackNet mix policy bez drugiego feedu.
 6. Dodać GhostNetwork presentation families.
 7. Podłączyć canonical CTA do allowlisty i dispatcherów.
+8. Zachować `semantic_contract_version` i audytowalne canonical lineage bez
+   ujawnienia provenance ani technicznych ID w read modelu.
 
 ## Etap II — E2E, failure i soak
 
@@ -316,6 +363,11 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 
 - każdy family E2E zachowuje i asercyjnie łączy wszystkie ID od persisted
   eventu do medium recordu;
+- każdy E2E potwierdza canonical event -> semantic projection -> attempt przed
+  candidate; task z aliasem bez statement nie może wejść do publikacji;
+- read model nie zawiera event/cycle/entity IDs, provenance source paths ani
+  task-local aliases; dopuszczone labels/location są podzbiorem semantic
+  projection dla danego audience;
 - osobne testy realnych entrypointów obejmują capture/drop, territory
   reconciliation, strategic conflict outcome, cycle creation/lock oraz
   transmission/recovery;
@@ -341,15 +393,20 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 
 1. Deploy addytywny bez czyszczenia tasków, candidates, receipts i records.
 2. Restart wyłącznie procesów dotkniętych kodem.
-3. Wygenerować realne przejścia przez produkcyjne entrypointy, nie sztuczne
+3. Przed generacją uruchomić `scripts/audit_semantic_input.py --strict` i
+   potwierdzić statements, audience projection, location/provenance oraz zero
+   technical identifier leaks.
+4. Wygenerować realne przejścia przez produkcyjne entrypointy, nie sztuczne
    eventy, taski ani candidates.
-4. Prześledzić i zapisać wszystkie identyfikatory:
+5. Prześledzić i zapisać wszystkie identyfikatory:
    `runtime action/effect -> event -> task -> candidate -> receipt -> active record`.
-5. Potwierdzić poprzedni record jako inactive/invalidated po następnym evencie.
-6. Kliknąć wszystkie CTA w UI na public/clan/owner.
-7. Sprawdzić BlackNet mix i jeden GGPL HERO.
-8. Strict cutover audit, heavy-profile audit i soak SQLite muszą przejść.
-9. Audit lineage musi przejść zarówno dla nowo utworzonego eventu, jak i po
+6. Potwierdzić, że model/read model widzą tylko audience-safe semantic content,
+   podczas gdy canonical IDs i provenance pozostają w audycie backendowym.
+7. Potwierdzić poprzedni record jako inactive/invalidated po następnym evencie.
+8. Kliknąć wszystkie CTA w UI na public/clan/owner.
+9. Sprawdzić BlackNet mix i jeden GGPL HERO.
+10. Strict cutover audit, heavy-profile audit i soak SQLite muszą przejść.
+11. Audit lineage musi przejść zarówno dla nowo utworzonego eventu, jak i po
    retry/crash recovery; globalne `published_by_medium > 0` nie wystarcza.
 
 ## Definition of Ready
@@ -363,7 +420,9 @@ Googleplex slot CAS:                        COMPLETE
 baseline worker/publisher tests:            59 / PASS
 Sprint 136 event/audience component:        PRESENT
 Sprint 136 runtime ingress/lineage:          SERVER PASS
-Sprint 137 producer-backed candidates:      BLOCKED
+Shared Semantic Input Layer:                SERVER PASS
+semantic input technical-ID firewall:       SERVER PASS
+Sprint 137 accepted producer candidates:    BLOCKED
 publication lifecycle scope:                FROZEN
 ```
 
@@ -376,7 +435,9 @@ pozostaje exactly-once, a awarie modelu/publishera i ciężki profil nie wpływa
 na gameplay.
 Żaden family nie jest zaliczony na podstawie sztucznego insertu w środku
 pipeline'u; wymagany jest dowód kompletnej linii od realnej akcji runtime do
-odczytu medium i CTA.
+odczytu medium i CTA. Linia musi również zawierać audience-safe semantic
+projection; publication nie może naprawiać brakującej semantyki przez analizę
+tekstu candidate ani przez ponowne wczytanie surowego payloadu.
 
 ## Poza zakresem
 
