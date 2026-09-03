@@ -1,6 +1,6 @@
 # Sprint 137 — GhostNetwork Narrative Generation and Validation
 
-Status: `137 ACTIVE — 137.1 v5 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
+Status: `137 ACTIVE — 137.1 v6 LOCAL PASS, SERVER VOICE REVALIDATION REQUIRED`
 
 ## 137.pre.1 — Shared Semantic Input Layer
 
@@ -126,7 +126,7 @@ CTA GhostNetwork pozostaje backend-owned. Model nie otrzymuje akcji ani jej
 payloadu i schema wymusza `cta_ref=null`; fixed action jest dołączana po stronie
 backendu. Schema ogranicza `fact_refs` bezpośrednio do aliasów danego taska.
 
-Backend ustala również limity zależne od medium. Googleplex v5 ma krótki HERO
+Backend ustala również limity zależne od medium. Googleplex v6 ma krótki HERO
 (`36/120`, jeden fact ref; historyczne wersje zachowują swój kontrakt), BlackNet
 i Cyberner `72/420`, a radio `72/520`; schema generacji egzekwuje te same
 granice.
@@ -157,8 +157,20 @@ Prompt nadal przekazuje modelowi format naturalnym językiem. Istniejący task w
 `retry_wait` może zostać wznowiony bez nowego eventu. Reguły faktów i ról nie
 uległy zmianie.
 
-Cutover jest addytywny. Nowe taski dostają v5, ale już zapisane taski v1–v4
-nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3/v4
+Read-only probe po naprawie transportu dostał HTTP 200 i backend `accepted`, ale
+model skopiował dosłownie jedyny przykład stylu: `PRZECHWYT // UKRYTY WĘZEŁ` /
+`...struktura wyszła z cienia`. Nie użył żadnego szczegółu zdarzenia mimo
+dostępnych `University Medical Center` i `Las Vegas`. V5 zaliczył więc transport
+i podstawowy kształt, lecz nie ręczną bramkę konkretności.
+
+Aktywny v6 usuwa gotowy tekst przykładowy. Gdy semantic facts zawierają entity
+labels lub location, prompt wymaga co najmniej jednej pełnej wartości, a
+backendowy `voice_contract` odrzuca odpowiedź z
+`voice_semantic_detail_missing`. Dzięki temu uniwersalny tekst nie może zostać
+zaakceptowany dla wielu różnych eventów.
+
+Cutover jest addytywny. Nowe taski dostają v6, ale już zapisane taski v1–v5
+nadal są claimowalne i publikowalne po swoim pełnym tuple wersji. V3–v5
 zachowuje semantic system prompt oraz minimalny semantic package; nie zostaje
 przypadkiem cofnięty do technicznego formatu v2. Worker nie przypisuje staremu
 taskowi nowego promptu, a publisher nie odrzuca zarejestrowanego starszego
@@ -168,10 +180,10 @@ policies.
 
 Dowody lokalne i produkcyjne:
 
-- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v5 policy`;
-- producer-backed `cycle_activated` buduje package v5 dla BlackNet i
+- kompletna macierz `GHOST_EVENT_POLICY -> medium -> active v6 policy`;
+- producer-backed `cycle_activated` buduje package v6 dla BlackNet i
   Googleplex z poprawnym intent/family/significance;
-- historyczne taski v1–v4 pozostają rozwiązywalne, a v3/v4 zachowują semantic
+- historyczne taski v1–v5 pozostają rozwiązywalne, a v3–v5 zachowują semantic
   package;
 - production-shaped package nie zawiera canonical fact/event/cycle/entity ID;
 - alias `f01` wraca do candidate jako pełny canonical fact ID;
@@ -186,8 +198,8 @@ Dowody lokalne i produkcyjne:
 
 Implementacja 137.pre.1 została wdrożona jako `a7fb8db`, a produkcyjny strict
 audit zaliczył exit gate. Przed rozpoczęciem 137.2 nadal wymagane są server
-verify registry, kontrola kolejki v1–v5 oraz nowy producer-backed task,
-attempt i zaakceptowany candidate v5 korzystający z semantic input. Musi on
+verify registry, kontrola kolejki v1–v6 oraz nowy producer-backed task,
+attempt i zaakceptowany candidate v6 korzystający z semantic input. Musi on
 przejść również ręczną ocenę relacji oraz głosu medium; sam `ok=true` audytu
 technicznego nie wystarcza.
 
@@ -212,7 +224,7 @@ BlackNetem tylko dlatego, że przeszedł schema validator.
 
 Lokalna bramka auditowa obejmuje PASS, quarantine i brak generacji oraz ochronę
 przed niepełnym producer fan-outem. Regresja policy/worker/semantic/audit:
-`72 tests / PASS` dla policy/worker/semantic/audit/publication v5.
+`72 tests / PASS` dla policy/worker/semantic/audit/publication v6.
 
 ## Odblokowanie po zamknięciu Sprintu 136.2 — 2026-09-02
 

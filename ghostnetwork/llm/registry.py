@@ -63,9 +63,9 @@ GHOSTNETWORK_CYBERNER_VARIANTS = frozenset({
     "part_discovered", "machine_online", "connection_created", "cycle_locked",
     "signal_sent",
 })
-GHOSTNETWORK_EVENT_PROMPT_VERSION = "ghostnetwork-event-prompt-v5"
-GHOSTNETWORK_SIGNAL_PROMPT_VERSION = "ghostsignal-prompt-v5"
-GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION = "ghostnetwork-googleplex-prompt-v5"
+GHOSTNETWORK_EVENT_PROMPT_VERSION = "ghostnetwork-event-prompt-v6"
+GHOSTNETWORK_SIGNAL_PROMPT_VERSION = "ghostsignal-prompt-v6"
+GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION = "ghostnetwork-googleplex-prompt-v6"
 
 
 def _policy(
@@ -110,7 +110,7 @@ def _build_registry():
     policies.append(_policy(
         "ghostnetwork", "googleplex_world_dispatch", "googleplex_news",
         GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
-        Path("ghostnetwork") / "googleplex-v5.md",
+        Path("ghostnetwork") / "googleplex-v6.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
         semantic_input=True,
     ))
@@ -136,8 +136,8 @@ def _build_registry():
         policies.append(_policy(
             "ghostnetwork", variant, "blacknet",
             GHOSTNETWORK_SIGNAL_PROMPT_VERSION if is_signal else GHOSTNETWORK_EVENT_PROMPT_VERSION,
-            (Path("ghostsignal") / "signal-v5.md") if is_signal
-            else (Path("ghostnetwork") / "event-v5.md"),
+            (Path("ghostsignal") / "signal-v6.md") if is_signal
+            else (Path("ghostnetwork") / "event-v6.md"),
             semantic_input=True,
         ))
     for variant in sorted(GHOSTNETWORK_CYBERNER_VARIANTS):
@@ -145,13 +145,13 @@ def _build_registry():
         policies.append(_policy(
             "ghostnetwork", variant, "cyberner",
             GHOSTNETWORK_SIGNAL_PROMPT_VERSION if is_signal else GHOSTNETWORK_EVENT_PROMPT_VERSION,
-            (Path("ghostsignal") / "signal-v5.md") if is_signal
-            else (Path("ghostnetwork") / "event-v5.md"),
+            (Path("ghostsignal") / "signal-v6.md") if is_signal
+            else (Path("ghostnetwork") / "event-v6.md"),
             semantic_input=True,
         ))
     policies.append(_policy(
         "ghostnetwork", "signal_sent", "radio", GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
-        Path("ghostsignal") / "signal-v5.md",
+        Path("ghostsignal") / "signal-v6.md",
         semantic_input=True,
     ))
     policies.append(_policy(
@@ -221,6 +221,12 @@ OLLAMA_LEGACY_TASK_POLICIES = (
         "ghostnetwork-event-prompt-v4", Path("ghostnetwork") / "event-v4.md",
         "ghostsignal-prompt-v4", Path("ghostsignal") / "signal-v4.md",
         "ghostnetwork-googleplex-prompt-v4", Path("ghostnetwork") / "googleplex-v4.md",
+        semantic_input=True,
+    )
+    + _build_legacy_ghostnetwork_policies(
+        "ghostnetwork-event-prompt-v5", Path("ghostnetwork") / "event-v5.md",
+        "ghostsignal-prompt-v5", Path("ghostsignal") / "signal-v5.md",
+        "ghostnetwork-googleplex-prompt-v5", Path("ghostnetwork") / "googleplex-v5.md",
         semantic_input=True,
     )
 )

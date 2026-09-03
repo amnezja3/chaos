@@ -187,9 +187,18 @@ class OllamaPolicyTest(unittest.TestCase):
             "ghost-node:52d34cac474c",
         ):
             self.assertNotIn(hidden, encoded)
-        accepted = parse_and_validate_ollama_content(json.dumps({
+        missing_detail = parse_and_validate_ollama_content(json.dumps({
             "title": "PRZECHWYT // FRAGMENT SIECI",
             "body": "...nowa czesc GhostNetwork wyszla z ukrycia. Sygnal zanika.",
+            "tone": "warning",
+            "fact_refs": ["f01"],
+            "cta_ref": None,
+        }), package)
+        self.assertEqual(missing_detail["status"], "rejected", missing_detail)
+        self.assertIn("voice_semantic_detail_missing", missing_detail["errors"])
+        accepted = parse_and_validate_ollama_content(json.dumps({
+            "title": "PRZECHWYT // FRAGMENT SIECI",
+            "body": "...w Warszawa nowa czesc GhostNetwork wyszla z ukrycia.",
             "tone": "warning",
             "fact_refs": ["f01"],
             "cta_ref": None,
@@ -244,9 +253,10 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(model_input["facts"][0][0], "fact-1")
         self.assertEqual(package["fact_refs"], frozenset({"fact-1"}))
 
-    def test_ghostnetwork_v3_and_v4_remain_semantic_during_v5_cutover(self):
+    def test_ghostnetwork_v3_to_v5_remain_semantic_during_v6_cutover(self):
         for prompt_version in (
             "ghostnetwork-event-prompt-v3", "ghostnetwork-event-prompt-v4",
+            "ghostnetwork-event-prompt-v5",
         ):
             with self.subTest(prompt_version=prompt_version):
                 task = self.task()

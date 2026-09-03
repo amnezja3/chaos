@@ -85,6 +85,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v4",
     "ghostnetwork-googleplex-prompt-v4",
     "ghostsignal-prompt-v4",
+    "ghostnetwork-event-prompt-v5",
+    "ghostnetwork-googleplex-prompt-v5",
+    "ghostsignal-prompt-v5",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -99,6 +102,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v4",
     "ghostnetwork-googleplex-prompt-v4",
     "ghostsignal-prompt-v4",
+    "ghostnetwork-event-prompt-v5",
+    "ghostnetwork-googleplex-prompt-v5",
+    "ghostsignal-prompt-v5",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -858,18 +864,36 @@ def build_ollama_task_package(task, policy=None):
         raise ValueError("ollama_task_package_too_large")
     system_prompt, domain_prompt = load_prompt_layers(policy)
     voice_contract = {}
-    if (
+    active_ghost_prompt = (
         policy.source_scope == "ghostnetwork"
-        and policy.target_medium == "blacknet"
         and policy.prompt_version in {
             GHOSTNETWORK_EVENT_PROMPT_VERSION,
             GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+            GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
         }
-    ):
-        voice_contract = {
+    )
+    if active_ghost_prompt:
+        detail_values = []
+        for semantic_fact in model_input.get("semantic_facts") or ():
+            detail_values.extend(
+                str(entity.get("label") or "").strip()
+                for entity in semantic_fact.get("entities") or ()
+                if isinstance(entity, dict)
+            )
+            detail_values.extend(
+                str(value or "").strip()
+                for value in (semantic_fact.get("location") or {}).values()
+            )
+        detail_values = tuple(dict.fromkeys(
+            value for value in detail_values if value
+        ))[:12]
+        if detail_values:
+            voice_contract["detail_values"] = detail_values
+    if active_ghost_prompt and policy.target_medium == "blacknet":
+        voice_contract.update({
             "title_prefix": "PRZECHWYT // ",
             "body_prefix": "...",
-        }
+        })
     return {
         "policy": policy,
         "messages": [
@@ -978,6 +1002,11 @@ def parse_and_validate_ollama_content(content, task_package):
         prefix = str(voice_contract.get(f"{field_name}_prefix") or "")
         if prefix and (not isinstance(value, str) or not value.startswith(prefix)):
             errors.append(f"voice_{field_name}_prefix_mismatch")
+    detail_values = tuple(voice_contract.get("detail_values") or ())
+    if detail_values and isinstance(title, str) and isinstance(body, str):
+        combined = f"{title} {body}".casefold()
+        if not any(str(value).casefold() in combined for value in detail_values):
+            errors.append("voice_semantic_detail_missing")
     if editorial_contract:
         if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):
             errors.append("slot_copy_budget_exceeded")

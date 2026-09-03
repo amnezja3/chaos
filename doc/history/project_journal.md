@@ -2236,3 +2236,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   jawnie do failure/recovery gate 137.3.
 - Lokalna bramka policy/worker/semantic/audit/publication v5: `72 tests / PASS`.
   Wymagany jest ponowny audit istniejącego producer-backed eventu po retry.
+
+## 2026-09-03 — Sprint 137.1: transport v5 PASS, konkretność v6
+
+- Wszystkie trzy BlackNet taski v5 wyczerpały retry i przeszły do dead letter z
+  `ollama_http_500: invalid JSON schema in format` przed aktywacją hotfixu.
+  Googleplex v5 przeszedł i zwrócił poprawną, pełną depeszę dla Las Vegas.
+- Read-only probe tego samego BlackNet taska na `be1bdf3` potwierdził naprawę:
+  Ollama przyjęła schema, a backend zwrócił `accepted` z poprawnym canonical
+  lineage i fixed CTA.
+- Model skopiował jednak dosłownie przykład z promptu (`PRZECHWYT // UKRYTY
+  WĘZEŁ`, `...struktura wyszła z cienia`) i pominął dostępne wyróżniki
+  `University Medical Center` oraz `Las Vegas`. V5 nie przeszedł ręcznej bramki
+  konkretności.
+- V6 usuwa gotowy przykład. Jeżeli model widzi entity labels/location, musi użyć
+  co najmniej jednej pełnej wartości. Backend-only `voice_contract` egzekwuje to
+  błędem `voice_semantic_detail_missing`; prefixy BlackNet pozostają wymagane.
+- V1–v5 zachowują pełną zgodność registry, a v3–v5 semantic package. Targeted
+  policy/worker/semantic/audit/publication: `72 tests / PASS`. Wymagany jest nowy
+  producer-backed event v6 do końcowej oceny wszystkich czterech wariantów.
