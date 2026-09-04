@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 CTA/REPAIR LOCAL PASS — DEPLOY REQUIRED`
+Status: `138.1 LIFECYCLE SERVER PASS — CTA NEGATIVE GATE REQUIRED`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -176,6 +176,16 @@ wdrożeniu lifecycle. Dodano również samonaprawę: idempotentny replay istniej
 taska ponawia teraz canonical invalidation. Dzięki temu restart i kontrolowany
 replay naprawią rekord bez ręcznej edycji SQLite. Dedykowany test stale-producer
 oraz pełna regresja lifecycle/CTA: 78 testów Python i test Node — PASS.
+
+Poprawkę wdrożono jako `e8666ec` i zrestartowano PM2 13/14/17/18. Kontrolowany
+replay `event_7e26b277b1015367` zwrócił cztery istniejące taski jako idempotentne,
+bez błędów. Rekord `part_activated` w wersji 951 przeszedł do `invalidated`, ze
+źródłem `event_7e26b277b1015367`, powodem `canonical_state_observed` i bez
+ręcznej zmiany bazy. Strict lifecycle audit: `ok=true`, zero active-expired,
+missing-contract, duplicate-head i broken-lineage; 13 active, 2 expired,
+1 invalidated oraz 500 oczekiwanych legacy records. Lifecycle/supersession ma
+produkcyjny SERVER PASS. Do pełnego zamknięcia 138.1 pozostaje ręczna próba CTA
+na koncie bez zainstalowanego GhostNetwork Suite.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 

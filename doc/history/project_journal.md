@@ -2526,3 +2526,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   invalidation, aby kontrolowane ponowienie eventu samonaprawiało taki stan bez
   ręcznej modyfikacji bazy. Regresja lifecycle/CTA: 78 testów Python oraz test
   Node PASS; wymagany deploy, restart PM2 13/14/17/18 i replay eventu.
+
+## 2026-09-04 — Sprint 138.1: lifecycle/supersession SERVER PASS
+
+- Wdrożono `e8666ec`, zrestartowano PM2 13/14/17/18 i wykonano kontrolowany
+  replay `event_7e26b277b1015367`. Wszystkie cztery taski były idempotentne;
+  replay nie utworzył duplikatów ani nie zwrócił błędów.
+- Poprzedni rekord `part_activated` (state version 951) został poprawnie
+  unieważniony przez `part_contained` (state version 963) z reason
+  `canonical_state_observed`. Stary komunikat nie pozostaje w active read modelu
+  nawet przed publikacją następcy.
+- Strict lifecycle audit zwrócił `ok=true`: 13 active, 2 expired, 1 invalidated,
+  500 historycznych legacy; zero active-expired, missing-contract,
+  duplicate-active-head i invalidated-missing-lineage. Heavy profile pozostał
+  wyłączony (`profiles_loaded=false`).
+- Lifecycle i supersession otrzymują `SERVER PASS`. 138.1 pozostaje otwarty
+  wyłącznie do ręcznego potwierdzenia komunikatu CTA na koncie bez instalacji
+  GhostNetwork Suite.
