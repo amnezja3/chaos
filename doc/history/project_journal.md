@@ -2464,3 +2464,34 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   soak. 138.2 pozostaje zablokowany do ukończenia 138.1.
 - Regresja publication/read-model/cutover: `56/56 tests / PASS`.
 - Status: `SPRINT 138 AUDITED — 138.1 READY TO START`.
+
+## 2026-09-04 — Sprint 138.1: publication lifecycle LOCAL PASS
+
+- Dodano addytywny `ghostnetwork-publication-lifecycle-v1`. Nowe medium records
+  zachowują thread, event family, significance, priority, source state version,
+  TTL, active state, supersession/invalidation lineage, semantic contract,
+  presentation family i publication mode. Historyczne rekordy pozostają
+  `legacy` i nie są automatycznie reaktywowane.
+- Nowy canonical stan atomowo unieważnia poprzedni active head tego samego
+  thread/medium/audience już przy enqueue lub merge taska, przed wywołaniem
+  modelu. Awaria Ollamy albo publishera nie pozostawia więc starej karty jako
+  aktualnej. Późniejszy następca zachowuje `supersedes` lineage, a oczekujący
+  starszy candidate jest terminalnie odrzucany jako
+  `lifecycle_state_superseded`. Bounded expiry materializuje stan `expired`, a
+  read modele niezależnie filtrują przekroczony TTL.
+- BlackNet wybiera active heads według significance/priority/freshness,
+  ogranicza jeden thread do jednej karty i używa code-owned GhostNetwork
+  presentation families. Istniejące ograniczenie udziału narracji i semantic
+  suppression pozostają aktywne.
+- Podłączono pięć CTA GhostNetwork do backendu, BlackNetu, Googleplex i
+  frontendowych dispatcherów. Dodano mały read-only GhostSignal Archive UI.
+  Endpointy archiwum przestały czytać pełny profil i nie pozwalają wymusić
+  private projection parametrem query.
+- Dodano read-only `scripts/audit_narrative_publication_lifecycle.py`; lifecycle
+  health jest także egzekwowany przez strict cutover. Historyczne `legacy`
+  records dają warning, naruszenia aktywnego kontraktu failują bramkę.
+- Walidacja: Python/JavaScript syntax PASS, `119/119` testów publication,
+  lifecycle, read models, CTA, producentów i frontend contracts PASS oraz
+  `git diff --check` PASS.
+- Status: `138.1 LOCAL PASS — SERVER GATE REQUIRED`. Nie wykonano commita ani
+  push zgodnie z decyzją operatora; 138.2 czeka na bramkę serwerową 138.1.

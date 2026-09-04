@@ -37,6 +37,69 @@ def publication(record_id="medium-one", medium="googleplex_news", **overrides):
 
 
 class LlmPublisherAdapterTest(unittest.TestCase):
+    def test_blacknet_mix_prefers_significance_and_one_head_per_thread(self):
+        records = [
+            publication(
+                "low-new", medium="blacknet", significance="low", priority=20,
+                published_at="2026-09-04T12:03:00+00:00",
+                narrative_thread_id="ghost-machine:one",
+            ),
+            publication(
+                "critical-old", medium="blacknet", significance="critical", priority=100,
+                published_at="2026-09-04T12:01:00+00:00",
+                narrative_thread_id="ghost-cycle:one", fact_refs=["fact:critical"],
+            ),
+            publication(
+                "high-head", medium="blacknet", significance="high", priority=85,
+                published_at="2026-09-04T12:02:00+00:00",
+                narrative_thread_id="ghost-part:one", fact_refs=["fact:high"],
+            ),
+            publication(
+                "high-same-thread", medium="blacknet", significance="high", priority=80,
+                published_at="2026-09-04T12:00:00+00:00",
+                narrative_thread_id="ghost-part:one", fact_refs=["fact:other"],
+            ),
+        ]
+
+        selected = run.select_blacknet_narrative_records(records, 3)
+
+        self.assertEqual(
+            [item["medium_record_id"] for item in selected],
+            ["critical-old", "high-head", "low-new"],
+        )
+
+    def test_blacknet_uses_code_owned_ghost_presentation(self):
+        signal = run.blacknet_signal_from_publication(publication(
+            medium="blacknet", presentation_family="ghost_signal",
+            significance="critical", priority=100,
+            cta_action="open_ghostsignal_archive",
+            cta_payload={"signal_id": "signal-public"},
+        ))
+        self.assertEqual(signal["signal_type"], "ghost_signal")
+        self.assertEqual(signal["importance"], 100)
+        self.assertEqual(signal["layout"], 3)
+        self.assertEqual(signal["tone"], "red")
+        self.assertEqual(signal["cta_action"], "open_ghostsignal_archive")
+        self.assertEqual(signal["cta_target_id"], "signal-public")
+
+    def test_ghostnetwork_ctas_are_allowlisted_end_to_end(self):
+        expected = {
+            "show_ghostnetwork_part", "show_ghostnetwork_territory",
+            "open_ghostnetwork_suite", "open_ghostsignal_archive",
+            "open_cyberner_channel",
+        }
+        self.assertTrue(expected.issubset(run.BLACKNET_ALLOWED_CTA_ACTIONS))
+        with open("googleplex_news.py", encoding="utf-8") as source:
+            backend = source.read()
+        with open("static/js/googleplex_news.js", encoding="utf-8") as source:
+            frontend = source.read()
+        with open("static/js/terminal.js", encoding="utf-8") as source:
+            dispatcher = source.read()
+        for action in expected:
+            self.assertIn(f'"{action}"', backend)
+            self.assertIn(action, frontend)
+            self.assertIn(f"{action}:", dispatcher)
+
     def test_googleplex_news_replaces_stable_slots_without_growing_feed(self):
         snapshot = build_googleplex_news_snapshot(
             catalog=[{"id": "tool", "name": "Tool", "published": True}],
@@ -335,7 +398,8 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]["sender"], "AI Central / AGI 2108")
         repository.list_narrative_medium_records.assert_called_once_with(
-            "cyberner", audience_scope="owner", audience_owner="alice", limit=10
+            "cyberner", audience_scope="owner", audience_owner="alice", limit=10,
+            active_only=True,
         )
         with self.assertRaisesRegex(ValueError, "tylko do odczytu"):
             run.cyberner_store_message("alice", {"username": "alice"}, route, "hello")

@@ -31,6 +31,7 @@ from .errors import (
     SpatialSeparationConflict,
 )
 from .llm.semantic_input import normalize_location
+from .publication_lifecycle import build_publication_lifecycle
 
 
 def narrative_task_retry_backoff_seconds(attempt_count):
@@ -1299,6 +1300,21 @@ class GhostNetworkRepository:
                     narrative_intent TEXT NOT NULL DEFAULT '',
                     selected_source_ref TEXT NOT NULL DEFAULT '',
                     selected_source_version TEXT NOT NULL DEFAULT '',
+                    narrative_thread_id TEXT NOT NULL DEFAULT '',
+                    event_family TEXT NOT NULL DEFAULT '',
+                    significance TEXT NOT NULL DEFAULT '',
+                    priority INTEGER NOT NULL DEFAULT 0,
+                    active_state TEXT NOT NULL DEFAULT 'legacy',
+                    valid_from TEXT NOT NULL DEFAULT '',
+                    valid_until TEXT NOT NULL DEFAULT '',
+                    supersedes_medium_record_id TEXT NOT NULL DEFAULT '',
+                    invalidated_by_event_id TEXT NOT NULL DEFAULT '',
+                    invalidation_reason TEXT NOT NULL DEFAULT '',
+                    semantic_contract_version TEXT NOT NULL DEFAULT '',
+                    lifecycle_contract_version TEXT NOT NULL DEFAULT '',
+                    source_state_version INTEGER NOT NULL DEFAULT 0,
+                    presentation_family TEXT NOT NULL DEFAULT '',
+                    publication_mode TEXT NOT NULL DEFAULT 'model',
                     created_at TEXT NOT NULL,
                     published_at TEXT NOT NULL
                 )
@@ -1328,12 +1344,40 @@ class GhostNetworkRepository:
                 conn, "ghost_narrative_medium_records", "selected_source_version",
                 "selected_source_version TEXT NOT NULL DEFAULT ''",
             )
+            for column, ddl in (
+                ("narrative_thread_id", "narrative_thread_id TEXT NOT NULL DEFAULT ''"),
+                ("event_family", "event_family TEXT NOT NULL DEFAULT ''"),
+                ("significance", "significance TEXT NOT NULL DEFAULT ''"),
+                ("priority", "priority INTEGER NOT NULL DEFAULT 0"),
+                ("active_state", "active_state TEXT NOT NULL DEFAULT 'legacy'"),
+                ("valid_from", "valid_from TEXT NOT NULL DEFAULT ''"),
+                ("valid_until", "valid_until TEXT NOT NULL DEFAULT ''"),
+                ("supersedes_medium_record_id", "supersedes_medium_record_id TEXT NOT NULL DEFAULT ''"),
+                ("invalidated_by_event_id", "invalidated_by_event_id TEXT NOT NULL DEFAULT ''"),
+                ("invalidation_reason", "invalidation_reason TEXT NOT NULL DEFAULT ''"),
+                ("semantic_contract_version", "semantic_contract_version TEXT NOT NULL DEFAULT ''"),
+                ("lifecycle_contract_version", "lifecycle_contract_version TEXT NOT NULL DEFAULT ''"),
+                ("source_state_version", "source_state_version INTEGER NOT NULL DEFAULT 0"),
+                ("presentation_family", "presentation_family TEXT NOT NULL DEFAULT ''"),
+                ("publication_mode", "publication_mode TEXT NOT NULL DEFAULT 'model'"),
+            ):
+                self._ensure_column(conn, "ghost_narrative_medium_records", column, ddl)
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_ghost_narrative_medium_audience
                 ON ghost_narrative_medium_records(
                     target_medium, audience_scope, audience_clan,
                     audience_owner, published_at DESC, medium_record_id DESC
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_medium_active_thread
+                ON ghost_narrative_medium_records(
+                    target_medium, audience_scope, audience_clan, audience_owner,
+                    narrative_thread_id, active_state, source_state_version DESC,
+                    published_at DESC
                 )
                 """
             )
@@ -1788,6 +1832,21 @@ class GhostNetworkRepository:
             "narrative_intent": row["narrative_intent"] if "narrative_intent" in keys else "",
             "selected_source_ref": row["selected_source_ref"] if "selected_source_ref" in keys else "",
             "selected_source_version": row["selected_source_version"] if "selected_source_version" in keys else "",
+            "narrative_thread_id": row["narrative_thread_id"] if "narrative_thread_id" in keys else "",
+            "event_family": row["event_family"] if "event_family" in keys else "",
+            "significance": row["significance"] if "significance" in keys else "",
+            "priority": int(row["priority"] or 0) if "priority" in keys else 0,
+            "active_state": row["active_state"] if "active_state" in keys else "legacy",
+            "valid_from": row["valid_from"] if "valid_from" in keys else "",
+            "valid_until": row["valid_until"] if "valid_until" in keys else "",
+            "supersedes_medium_record_id": row["supersedes_medium_record_id"] if "supersedes_medium_record_id" in keys else "",
+            "invalidated_by_event_id": row["invalidated_by_event_id"] if "invalidated_by_event_id" in keys else "",
+            "invalidation_reason": row["invalidation_reason"] if "invalidation_reason" in keys else "",
+            "semantic_contract_version": row["semantic_contract_version"] if "semantic_contract_version" in keys else "",
+            "lifecycle_contract_version": row["lifecycle_contract_version"] if "lifecycle_contract_version" in keys else "",
+            "source_state_version": int(row["source_state_version"] or 0) if "source_state_version" in keys else 0,
+            "presentation_family": row["presentation_family"] if "presentation_family" in keys else "",
+            "publication_mode": row["publication_mode"] if "publication_mode" in keys else "model",
             "created_at": row["created_at"],
             "published_at": row["published_at"],
         }
@@ -4171,7 +4230,45 @@ class GhostNetworkRepository:
                     """,
                     (outbox_id, source_event_id, now),
                 )
+                self._invalidate_active_narrative_thread_for_task(
+                    conn, result, invalidating_event_id=source_event_id
+                )
             return result
+
+    @staticmethod
+    def _invalidate_active_narrative_thread_for_task(
+        conn, task, *, invalidating_event_id
+    ):
+        """Hide a stale publication as soon as newer canonical state is observed."""
+        task = task if isinstance(task, dict) else {}
+        lifecycle = build_publication_lifecycle(task)
+        thread_id = _clean(lifecycle.get("narrative_thread_id"))
+        state_version = int(lifecycle.get("source_state_version") or 0)
+        if (
+            _clean(task.get("source_scope")) != "ghostnetwork"
+            or not thread_id
+            or state_version <= 0
+            or not _clean(invalidating_event_id)
+        ):
+            return 0
+        cursor = conn.execute(
+            """
+            UPDATE ghost_narrative_medium_records
+            SET active_state = 'invalidated', invalidated_by_event_id = ?,
+                invalidation_reason = 'canonical_state_observed'
+            WHERE target_medium = ? AND audience_scope = ?
+              AND audience_clan = ? AND audience_owner = ?
+              AND narrative_thread_id = ? AND active_state = 'active'
+              AND source_event_id != ? AND source_state_version <= ?
+            """,
+            (
+                _clean(invalidating_event_id), _clean(task.get("target_medium")),
+                _clean(task.get("audience_scope")), _clean(task.get("audience_clan")),
+                _clean(task.get("audience_owner")), thread_id,
+                _clean(invalidating_event_id), state_version,
+            ),
+        )
+        return cursor.rowcount
 
     def find_open_narrative_aggregate(
         self, *, cycle_id, task_variant, narrative_thread_id, target_medium,
@@ -4229,10 +4326,14 @@ class GhostNetworkRepository:
                 """,
                 (_clean(outbox_id), _clean(source_event_id), now),
             )
-            return self._narrative_outbox(conn.execute(
+            result = self._narrative_outbox(conn.execute(
                 "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
                 (_clean(outbox_id),),
             ).fetchone())
+            self._invalidate_active_narrative_thread_for_task(
+                conn, result, invalidating_event_id=source_event_id
+            )
+            return result
 
     def list_narrative_task_sources(self, outbox_id):
         with self._conn() as conn:
@@ -5459,6 +5560,8 @@ class GhostNetworkRepository:
                        c.fact_refs_json, c.cta_ref, c.cta_action, c.cta_payload_json,
                        c.asset_ref, o.validation_json AS task_validation_json,
                        o.content_kind, o.presentation_slot, o.narrative_intent,
+                       o.narrative_thread_id, o.priority, o.world_state_version,
+                       o.created_at AS task_created_at,
                        o.selected_source_ref, o.selected_source_version,
                        o.expected_slot_version, o.creative_epoch,
                        o.editorial_contract_json,
@@ -5513,6 +5616,95 @@ class GhostNetworkRepository:
                     if _clean(row["content_kind"] or assignment.get("content_kind")) == "product_promo"
                     else "capability_invitation"
                 )
+            lifecycle = build_publication_lifecycle({
+                "source_scope": row["source_scope"],
+                "narrative_thread_id": row["narrative_thread_id"],
+                "task_variant": row["content_kind"],
+                "priority": row["priority"],
+                "world_state_version": row["world_state_version"],
+                "validation": assignment,
+            }, now=datetime.fromisoformat(now_iso.replace("Z", "+00:00")))
+            thread_id = _clean(lifecycle.get("narrative_thread_id"))
+            if thread_id and lifecycle.get("lifecycle_contract_version"):
+                newer_task = conn.execute(
+                    """
+                    SELECT outbox_id
+                    FROM ghost_narrative_outbox
+                    WHERE source_scope = 'ghostnetwork' AND outbox_id != ?
+                      AND target_medium = ? AND audience_scope = ?
+                      AND audience_clan = ? AND audience_owner = ?
+                      AND narrative_thread_id = ?
+                      AND (
+                        CAST(world_state_version AS INTEGER) > ?
+                        OR (
+                          CAST(world_state_version AS INTEGER) = ?
+                          AND created_at > ?
+                        )
+                      )
+                    ORDER BY CAST(world_state_version AS INTEGER) DESC, created_at DESC
+                    LIMIT 1
+                    """,
+                    (
+                        row["task_id"], row["target_medium"], row["audience_scope"],
+                        row["audience_clan"], row["audience_owner"], thread_id,
+                        int(lifecycle.get("source_state_version") or 0),
+                        int(lifecycle.get("source_state_version") or 0),
+                        row["task_created_at"],
+                    ),
+                ).fetchone()
+                if newer_task:
+                    return {
+                        "lifecycle_superseded": True,
+                        "newer_task_id": newer_task["outbox_id"],
+                    }
+                newer = conn.execute(
+                    """
+                    SELECT medium_record_id, source_state_version
+                    FROM ghost_narrative_medium_records
+                    WHERE target_medium = ? AND audience_scope = ?
+                      AND audience_clan = ? AND audience_owner = ?
+                      AND narrative_thread_id = ? AND active_state = 'active'
+                      AND (
+                        source_state_version > ?
+                        OR (source_state_version = ? AND created_at >= ?)
+                      )
+                    ORDER BY source_state_version DESC, published_at DESC
+                    LIMIT 1
+                    """,
+                    (
+                        row["target_medium"], row["audience_scope"],
+                        row["audience_clan"], row["audience_owner"], thread_id,
+                        int(lifecycle.get("source_state_version") or 0),
+                        int(lifecycle.get("source_state_version") or 0),
+                        row["created_at"],
+                    ),
+                ).fetchone()
+                if newer:
+                    return {
+                        "lifecycle_superseded": True,
+                        "active_medium_record_id": newer["medium_record_id"],
+                    }
+                previous = conn.execute(
+                    """
+                    SELECT medium_record_id
+                    FROM ghost_narrative_medium_records
+                    WHERE target_medium = ? AND audience_scope = ?
+                      AND audience_clan = ? AND audience_owner = ?
+                      AND narrative_thread_id = ?
+                      AND active_state IN ('active', 'invalidated')
+                      AND source_event_id != ? AND source_state_version <= ?
+                    ORDER BY source_state_version DESC, published_at DESC
+                    LIMIT 1
+                    """,
+                    (
+                        row["target_medium"], row["audience_scope"],
+                        row["audience_clan"], row["audience_owner"], thread_id,
+                        row["source_event_id"],
+                        int(lifecycle.get("source_state_version") or 0),
+                    ),
+                ).fetchone()
+                if previous:
+                    lifecycle["supersedes_medium_record_id"] = previous["medium_record_id"]
             explicit_assignment = bool(_clean(row["presentation_slot"]))
             presentation_slot = _clean(
                 row["presentation_slot"] or assignment.get("presentation_slot")
@@ -5594,8 +5786,13 @@ class GhostNetworkRepository:
                     title, body, tone, fact_refs_json, cta_ref, cta_action,
                     cta_payload_json, asset_ref, presentation_slot, content_kind,
                     narrative_intent, selected_source_ref, selected_source_version,
-                    created_at, published_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    narrative_thread_id, event_family, significance, priority,
+                    active_state, valid_from, valid_until,
+                    supersedes_medium_record_id, invalidated_by_event_id,
+                    invalidation_reason, semantic_contract_version,
+                    lifecycle_contract_version, source_state_version,
+                    presentation_family, publication_mode, created_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(publication_receipt_id) DO NOTHING
                 """,
                 (
@@ -5611,9 +5808,35 @@ class GhostNetworkRepository:
                     narrative_intent,
                     _clean(row["selected_source_ref"] or assignment.get("selected_source_ref")),
                     _clean(row["selected_source_version"] or assignment.get("selected_source_version")),
+                    lifecycle["narrative_thread_id"], lifecycle["event_family"],
+                    lifecycle["significance"], lifecycle["priority"],
+                    lifecycle["active_state"], lifecycle["valid_from"],
+                    lifecycle["valid_until"], lifecycle["supersedes_medium_record_id"],
+                    lifecycle["invalidated_by_event_id"], lifecycle["invalidation_reason"],
+                    lifecycle["semantic_contract_version"], lifecycle["lifecycle_contract_version"],
+                    lifecycle["source_state_version"], lifecycle["presentation_family"],
+                    lifecycle["publication_mode"],
                     row["created_at"], now_iso,
                 ),
             )
+            if lifecycle["supersedes_medium_record_id"]:
+                conn.execute(
+                    """
+                    UPDATE ghost_narrative_medium_records
+                    SET active_state = 'invalidated', invalidated_by_event_id = ?,
+                        invalidation_reason = 'canonical_thread_advanced'
+                    WHERE target_medium = ? AND audience_scope = ?
+                      AND audience_clan = ? AND audience_owner = ?
+                      AND narrative_thread_id = ? AND active_state = 'active'
+                      AND medium_record_id != ? AND source_state_version <= ?
+                    """,
+                    (
+                        row["source_event_id"], row["target_medium"],
+                        row["audience_scope"], row["audience_clan"],
+                        row["audience_owner"], thread_id, row["medium_record_id"],
+                        lifecycle["source_state_version"],
+                    ),
+                )
             cursor = conn.execute(
                 """
                 UPDATE ghost_narrative_publication_receipts
@@ -5637,6 +5860,71 @@ class GhostNetworkRepository:
                 ).fetchone()),
                 "duplicate": False,
             }
+
+    def narrative_publication_lifecycle_health(self, now=None, limit=50):
+        """Return bounded lifecycle integrity diagnostics without loading profiles."""
+        now_iso = _iso(now if now is not None else self.now())
+        bounded_limit = max(1, min(int(limit or 50), 100))
+        with self._conn() as conn:
+            states = {
+                row["active_state"]: int(row["count"] or 0)
+                for row in conn.execute(
+                    """
+                    SELECT active_state, COUNT(*) AS count
+                    FROM ghost_narrative_medium_records GROUP BY active_state
+                    """
+                ).fetchall()
+            }
+            active_expired = int(conn.execute(
+                """
+                SELECT COUNT(*) AS count FROM ghost_narrative_medium_records
+                WHERE active_state = 'active' AND valid_until != '' AND valid_until <= ?
+                """,
+                (now_iso,),
+            ).fetchone()["count"] or 0)
+            active_missing_contract = int(conn.execute(
+                """
+                SELECT COUNT(*) AS count FROM ghost_narrative_medium_records
+                WHERE source_scope = 'ghostnetwork' AND active_state = 'active'
+                  AND (narrative_thread_id = '' OR event_family = ''
+                    OR significance NOT IN ('low', 'normal', 'high', 'critical')
+                    OR valid_from = '' OR valid_until = ''
+                    OR semantic_contract_version = ''
+                    OR lifecycle_contract_version = '')
+                """
+            ).fetchone()["count"] or 0)
+            invalidated_missing_lineage = int(conn.execute(
+                """
+                SELECT COUNT(*) AS count FROM ghost_narrative_medium_records
+                WHERE active_state = 'invalidated'
+                  AND (invalidated_by_event_id = '' OR invalidation_reason = '')
+                """
+            ).fetchone()["count"] or 0)
+            duplicate_rows = conn.execute(
+                """
+                SELECT target_medium, audience_scope, audience_clan, audience_owner,
+                       narrative_thread_id, COUNT(*) AS count
+                FROM ghost_narrative_medium_records
+                WHERE active_state = 'active' AND narrative_thread_id != ''
+                  AND (valid_until = '' OR valid_until > ?)
+                GROUP BY target_medium, audience_scope, audience_clan,
+                         audience_owner, narrative_thread_id
+                HAVING COUNT(*) > 1
+                ORDER BY count DESC, narrative_thread_id ASC LIMIT ?
+                """,
+                (now_iso, bounded_limit),
+            ).fetchall()
+        return {
+            "contract_version": "ghostnetwork-publication-lifecycle-v1",
+            "states": states,
+            "active_expired": active_expired,
+            "active_missing_contract": active_missing_contract,
+            "invalidated_missing_lineage": invalidated_missing_lineage,
+            "duplicate_active_heads": len(duplicate_rows),
+            "duplicate_active_head_samples": [dict(row) for row in duplicate_rows],
+            "checked_at": now_iso,
+            "limit": bounded_limit,
+        }
 
     def reject_claimed_narrative_publication(
         self, publication_receipt_id, worker_id, expected_lease_until,
@@ -5666,12 +5954,48 @@ class GhostNetworkRepository:
                 (_clean(publication_receipt_id),),
             ).fetchone())
 
+    def expire_narrative_medium_records(self, now=None, limit=100):
+        """Materialize bounded TTL expiry; legacy/history rows are untouched."""
+        now_iso = _iso(now if now is not None else self.now())
+        bounded_limit = max(1, min(int(limit or 100), 500))
+        with self.transaction():
+            conn = self._transaction_conn
+            rows = conn.execute(
+                """
+                SELECT medium_record_id
+                FROM ghost_narrative_medium_records
+                WHERE active_state = 'active' AND valid_until != ''
+                  AND valid_until <= ?
+                ORDER BY valid_until ASC, medium_record_id ASC LIMIT ?
+                """,
+                (now_iso, bounded_limit),
+            ).fetchall()
+            ids = [row["medium_record_id"] for row in rows]
+            if not ids:
+                return 0
+            placeholders = ",".join("?" for _ in ids)
+            cursor = conn.execute(
+                f"""
+                UPDATE ghost_narrative_medium_records
+                SET active_state = 'expired', invalidation_reason = 'ttl_expired'
+                WHERE active_state = 'active' AND medium_record_id IN ({placeholders})
+                """,
+                tuple(ids),
+            )
+            return int(cursor.rowcount or 0)
+
     def list_narrative_medium_records(
         self, target_medium, audience_scope=None, audience_clan=None,
-        audience_owner=None, limit=100
+        audience_owner=None, limit=100, active_only=False
     ):
         clauses = ["target_medium = ?"]
         params = [_clean(target_medium)]
+        if active_only:
+            clauses.extend([
+                "active_state = 'active'",
+                "(valid_until = '' OR valid_until > ?)",
+            ])
+            params.append(_iso(self.now()))
         for column, value in (
             ("audience_scope", audience_scope),
             ("audience_clan", audience_clan),
@@ -5706,7 +6030,7 @@ class GhostNetworkRepository:
             audience_scope=audience_scope,
             audience_clan=audience_clan,
             audience_owner=audience_owner,
-            limit=max(1, min(int(limit or 100), 100)),
+            limit=max(1, min(int(limit or 100), 100)), active_only=True,
         )
         return any(
             (normalize(record.get("title")), normalize(record.get("body"))) == wanted
@@ -5793,10 +6117,12 @@ class GhostNetworkRepository:
                 FROM ghost_narrative_slot_state s
                 JOIN ghost_narrative_medium_records m
                   ON m.medium_record_id = s.active_medium_record_id
-                WHERE s.target_medium = ? AND ({' OR '.join(audience)})
+                WHERE s.target_medium = ? AND m.active_state = 'active'
+                  AND (m.valid_until = '' OR m.valid_until > ?)
+                  AND ({' OR '.join(audience)})
                 ORDER BY s.slot_id ASC LIMIT ?
                 """,
-                tuple(params),
+                tuple([params[0], _iso(self.now()), *params[1:]]),
             ).fetchall()
         return [self._narrative_medium_record(row) for row in rows]
 
@@ -5813,13 +6139,16 @@ class GhostNetworkRepository:
         if clan:
             audience.append("(audience_scope = 'clan' AND audience_clan = ?)")
             params.append(clan)
+        params.insert(1, _iso(self.now()))
         params.append(max(1, min(int(limit or 100), 500)))
         with self._conn() as conn:
             rows = conn.execute(
                 f"""
                 SELECT rowid AS publication_ordinal, * FROM ghost_narrative_medium_records
-                WHERE target_medium = ? AND ({' OR '.join(audience)})
-                ORDER BY published_at DESC, medium_record_id DESC LIMIT ?
+                WHERE target_medium = ? AND active_state = 'active'
+                  AND (valid_until = '' OR valid_until > ?)
+                  AND ({' OR '.join(audience)})
+                ORDER BY priority DESC, published_at DESC, medium_record_id DESC LIMIT ?
                 """,
                 tuple(params),
             ).fetchall()
@@ -5833,7 +6162,10 @@ class GhostNetworkRepository:
         owner = _clean(owner)
         clan = _clean(clan)
         audience_scope = _clean(audience_scope)
-        params = [_clean(target_medium), max(0, int(after_ordinal or 0))]
+        params = [
+            _clean(target_medium), max(0, int(after_ordinal or 0)),
+            _iso(self.now()),
+        ]
         if audience_scope == "owner":
             audience = ["(audience_scope = 'owner' AND audience_owner = ?)"]
             params.append(owner)
@@ -5856,6 +6188,8 @@ class GhostNetworkRepository:
                 SELECT COUNT(*) AS count
                 FROM ghost_narrative_medium_records
                 WHERE target_medium = ? AND rowid > ?
+                  AND active_state = 'active'
+                  AND (valid_until = '' OR valid_until > ?)
                   AND ({' OR '.join(audience)})
                 """,
                 tuple(params),
@@ -5863,8 +6197,11 @@ class GhostNetworkRepository:
         return int(row["count"] or 0) if row else 0
 
     def get_narrative_publication_for_source_receipt(self, source_receipt_id, owner=""):
-        clauses = ["m.source_receipt_id = ?"]
-        params = [_clean(source_receipt_id)]
+        clauses = [
+            "m.source_receipt_id = ?", "m.active_state = 'active'",
+            "(m.valid_until = '' OR m.valid_until > ?)",
+        ]
+        params = [_clean(source_receipt_id), _iso(self.now())]
         if owner:
             clauses.extend(["m.audience_scope = 'owner'", "m.audience_owner = ?"])
             params.append(_clean(owner))

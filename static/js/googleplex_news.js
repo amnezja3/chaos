@@ -5,14 +5,19 @@
     const ENTRY_STATES = new Set(["normal", "trending", "hot", "warning", "critical", "new", "verified", "stale", "disabled"]);
     const ASSET_FAMILIES = new Set(["scene", "character", "tool", "map", "clan", "package", "storage", "market", "network", "system", "stamp"]);
     const ASSET_STATES = new Set(["neutral", "danger", "victory", "defence"]);
-    const ACTIONS = new Set(["open_googleplex_search", "open_blacknet", "open_ghost_exchange", "open_map", "open_cyberner", "open_operation"]);
+    const ACTIONS = new Set(["open_googleplex_search", "open_blacknet", "open_ghost_exchange", "open_map", "open_cyberner", "open_operation", "show_ghostnetwork_part", "show_ghostnetwork_territory", "open_ghostnetwork_suite", "open_ghostsignal_archive", "open_cyberner_channel"]);
     const ACTION_LABELS = Object.freeze({
         open_googleplex_search: "ZOBACZ NARZĘDZIE",
         open_blacknet: "OTWÓRZ BLACKNET",
         open_ghost_exchange: "ZOBACZ EXCHANGE",
         open_map: "OTWÓRZ MAPĘ",
         open_cyberner: "OTWÓRZ KANAŁ",
-        open_operation: "OPERACJE"
+        open_operation: "OPERACJE",
+        show_ghostnetwork_part: "POKAŻ ELEMENT",
+        show_ghostnetwork_territory: "POKAŻ TERYTORIUM",
+        open_ghostnetwork_suite: "OTWÓRZ GHOSTNETWORK",
+        open_ghostsignal_archive: "OTWÓRZ ARCHIWUM",
+        open_cyberner_channel: "OTWÓRZ KANAŁ"
     });
     const ASSET_PREFIX = "/static/images/googleplx/";
 

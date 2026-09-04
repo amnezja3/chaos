@@ -47,6 +47,11 @@ ACTION_ALLOWLIST = frozenset({
     "open_map",
     "open_cyberner",
     "open_operation",
+    "show_ghostnetwork_part",
+    "show_ghostnetwork_territory",
+    "open_ghostnetwork_suite",
+    "open_ghostsignal_archive",
+    "open_cyberner_channel",
 })
 
 
@@ -424,8 +429,9 @@ def merge_googleplex_news_publications(
         payload = record.get("cta_payload") if isinstance(record.get("cta_payload"), dict) else {}
         action = str(record.get("cta_action") or "")
         target = str(
-            payload.get("target_id") or payload.get("channel")
-            or payload.get("query") or ""
+            payload.get("target_id") or payload.get("public_entity_id")
+            or payload.get("territory_id") or payload.get("signal_id")
+            or payload.get("channel") or payload.get("query") or ""
         )
         requested_asset = str(record.get("asset_ref") or "")
         registry_asset = registry.get(requested_asset)

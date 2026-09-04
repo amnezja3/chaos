@@ -72,6 +72,51 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
         self.assertEqual(FakeGhostNetworkService.viewer["viewer_clan"], "VIREX")
         self.assertEqual(FakeGhostNetworkService.viewer["audience_scope"], "player")
 
+    def test_signal_archive_list_uses_lightweight_identity_projection(self):
+        client, headers = self._client()
+        service = type("Service", (), {
+            "list_signal_archive": lambda _self, limit=50: [{
+                "signal_id": "signal-public", "signal_number": 1,
+            }]
+        })()
+        with patch.object(
+            run.identity_projection_store, "get_identity",
+            return_value={"username": "alice", "ghost_clan_code": "VIREX"},
+        ) as identity, patch.object(
+            run, "load_profile_readonly",
+            side_effect=AssertionError("full profile read not expected"),
+        ), patch.object(run, "GhostNetworkService", return_value=service):
+            response = client.get(
+                "/api/ghostnetwork/archive/signals", headers=headers
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["signals"][0]["signal_id"], "signal-public")
+        identity.assert_called_once_with("alice")
+
+    def test_signal_archive_detail_cannot_elevate_private_projection(self):
+        client, headers = self._client()
+
+        class Service:
+            include_private = None
+
+            def get_signal_archive_detail(self, signal_id, include_private=False):
+                Service.include_private = include_private
+                return {"ok": True, "signal": {"signal_id": signal_id}}
+
+        with patch.object(
+            run.identity_projection_store, "get_identity",
+            return_value={"username": "alice", "ghost_clan_code": "VIREX"},
+        ), patch.object(run, "GhostNetworkService", return_value=Service()):
+            response = client.get(
+                "/api/ghostnetwork/archive/signals/signal-public?private=1",
+                headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Service.include_private)
+        self.assertNotIn("private", response.get_json())
+
     def test_suite_view_omits_connection_geometry(self):
         client, headers = self._client()
 

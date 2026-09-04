@@ -80,6 +80,7 @@ from ghostnetwork.llm.semantic_input import (
     normalize_location,
     project_poi_location,
 )
+from ghostnetwork.publication_lifecycle import publication_selection_key
 from ghostnetwork.editorial import (
     GOOGLEPLEX_HOME_SLOT_REGISTRY,
     GoogleplexEditorialProducer,
@@ -603,7 +604,7 @@ def cyberner_list_route_messages(username, route, limit=100, after_id=None, befo
     if channel == "agi2108":
         records = get_ghostnetwork_service().repository.list_narrative_medium_records(
             "cyberner", audience_scope="owner", audience_owner=username,
-            limit=max(1, min(int(limit or 100), 100)),
+            limit=max(1, min(int(limit or 100), 100)), active_only=True,
         )
         records = [record for record in records if record.get("source_scope") == "googleplex_app"]
         messages = [{
@@ -1047,11 +1048,16 @@ BLACKNET_ALLOWED_CTA_ACTIONS = {
     "open_operation",
     "open_map",
     "open_ghost_exchange",
+    "open_ghostnetwork_suite",
+    "open_ghostsignal_archive",
+    "open_cyberner_channel",
     "open_googleplex",
     "open_cyberner",
     "open_radio",
     "play_radio_podcast",
     "show_hotspot",
+    "show_ghostnetwork_part",
+    "show_ghostnetwork_territory",
     "start_operation",
     "teleport_to_hotspot",
 }
@@ -2691,7 +2697,11 @@ def blacknet_signal_from_publication(record):
     action = str(record.get("cta_action") or "").strip()
     if action not in BLACKNET_ALLOWED_CTA_ACTIONS:
         action = "none"
-    target_id = str(payload.get("target_id") or payload.get("channel") or "")[:120]
+    target_id = str(
+        payload.get("target_id") or payload.get("public_entity_id")
+        or payload.get("territory_id") or payload.get("signal_id")
+        or payload.get("cycle_id") or payload.get("channel") or ""
+    )[:120]
     query = str(payload.get("query") or "")[:120]
     try:
         payload_lat = float(payload.get("lat"))
@@ -2719,10 +2729,18 @@ def blacknet_signal_from_publication(record):
         and not has_payload_position
     ):
         action = "focus_map_target" if target_id else "none"
+    presentation_family = str(record.get("presentation_family") or "narrative_publication")
+    significance = str(record.get("significance") or "normal").lower()
+    layout = {"critical": 3, "high": 2, "normal": 2, "low": 1}.get(significance, 2)
+    signal_tone = {"critical": "red", "high": "cyan", "normal": "lime", "low": "lime"}.get(significance, "cyan")
+    try:
+        importance = max(1, min(100, int(record.get("priority") or 1)))
+    except (TypeError, ValueError):
+        importance = 1
     return {
         "id": str(record.get("medium_record_id") or ""),
         "source": "ollama_enriched",
-        "signal_type": "narrative_publication",
+        "signal_type": presentation_family,
         "fact_id": (record.get("fact_refs") or [""])[0] if record.get("fact_refs") else "",
         "channel": "BLACKNET // OLLAMA ENRICHED",
         "title": str(record.get("title") or "WORLD NARRATIVE")[:72],
@@ -2730,8 +2748,8 @@ def blacknet_signal_from_publication(record):
         "value": "AI 2108",
         "stat": str(record.get("body") or "")[:240],
         "timer": "LIVE",
-        "tone": "cyan",
-        "layout": 2,
+        "tone": signal_tone,
+        "layout": layout,
         "cta": (
             "POKAZ NA MAPIE"
             if action == "focus_map_target"
@@ -2741,7 +2759,7 @@ def blacknet_signal_from_publication(record):
         "cta_target_id": target_id,
         "cta_query": query,
         "radar": blacknet_radar_from_seed(record.get("medium_record_id"), sides=2),
-        "importance": 1,
+        "importance": importance,
         "generated_at": record.get("published_at"),
         "observed_at": record.get("published_at"),
         "category": "ollama_enriched",
@@ -2751,6 +2769,12 @@ def blacknet_signal_from_publication(record):
             "truth_class": record.get("truth_class"),
             "fact_refs": fact_refs,
             "audience_scope": record.get("audience_scope"),
+            "event_family": record.get("event_family"),
+            "significance": significance,
+            "public_entity_id": str(payload.get("public_entity_id") or "")[:120],
+            "territory_id": str(payload.get("territory_id") or "")[:120],
+            "signal_id": str(payload.get("signal_id") or "")[:120],
+            "channel": str(payload.get("channel") or "")[:120],
             # Coordinate-backed narrative actions are canonical coordinate
             # targets, not legacy named hotspots. Keep target_id separately for
             # audit, but never let it override lat/lng in the map bridge.
@@ -2779,7 +2803,12 @@ def select_blacknet_narrative_records(records, limit):
     """Keep the newest record for one semantic set of canonical facts."""
     selected = []
     semantic_keys = set()
-    for record in records or []:
+    ordered = sorted(
+        (record for record in (records or []) if isinstance(record, dict)),
+        key=publication_selection_key,
+    )
+    thread_keys = set()
+    for record in ordered:
         if not isinstance(record, dict):
             continue
         refs = tuple(sorted({
@@ -2790,7 +2819,12 @@ def select_blacknet_narrative_records(records, limit):
         key = refs or (str(record.get("source_receipt_id") or ""),)
         if key in semantic_keys:
             continue
+        thread_key = str(record.get("narrative_thread_id") or "").strip()
+        if thread_key and thread_key in thread_keys:
+            continue
         semantic_keys.add(key)
+        if thread_key:
+            thread_keys.add(thread_key)
         selected.append(record)
         if len(selected) >= limit:
             break
@@ -20062,17 +20096,14 @@ def _ghostnetwork_archive_viewer():
     username = session.get("user")
     if not username:
         return None, None, (jsonify({"ok": False, "error": "not_logged_in", "scope": "ghostnetwork_archive"}), 401)
-    profile = load_profile_readonly(
-        username,
-        strip_sensitive=True,
-        normalize_apps=False,
-        normalize_files=False,
-    )
-    if not profile:
+    identity = identity_projection_store.get_identity(username) or {}
+    if not identity:
         invalidate_authenticated_session("profile_not_found")
         return None, None, (jsonify({"ok": False, "error": "profile_not_found", "scope": "ghostnetwork_archive"}), 401)
-    viewer = ghostnetwork_player_payload(username, profile)
-    viewer["viewer_id"] = username
+    viewer = {
+        "viewer_id": username,
+        "clan_code": get_profile_clan(identity),
+    }
     return username, viewer, None
 
 
@@ -20097,8 +20128,11 @@ def api_ghostnetwork_archive_signal_detail(signal_id):
     _username, viewer, error_response = _ghostnetwork_archive_viewer()
     if error_response:
         return error_response
-    include_private = str(request.args.get("private") or "").strip() in {"1", "true", "yes"}
-    detail = GhostNetworkService().get_signal_archive_detail(signal_id, include_private=include_private)
+    # The public archive route is audience-safe by construction. A query
+    # parameter must never elevate it into the private operator projection.
+    detail = GhostNetworkService().get_signal_archive_detail(
+        signal_id, include_private=False
+    )
     if not detail.get("ok"):
         return jsonify(detail), 404
     detail["viewer"] = {

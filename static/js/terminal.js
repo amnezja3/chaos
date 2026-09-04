@@ -7738,6 +7738,16 @@ function renderGhostNetworkSuite(app, state) {
         const details = card.querySelector("details");
         if (details && expanded.has(card.dataset.partRef || "")) details.open = true;
     });
+    if (state.focusPartId) {
+        const focused = Array.from(shell.querySelectorAll("[data-part-ref]")).find(
+            card => card.dataset.partRef === state.focusPartId
+        );
+        if (focused) {
+            focused.querySelector("details")?.setAttribute("open", "");
+            focused.scrollIntoView({ block: "center", behavior: "smooth" });
+            state.focusPartId = "";
+        }
+    }
     shell.scrollTop = previousScrollTop;
     if (searchWasFocused) {
         const input = shell.querySelector("[data-suite-search]");
@@ -7894,7 +7904,9 @@ function createGhostNetworkSuiteApp() {
         actionPending: false, error: "", snapshot: null, closed: false,
         restartRequired: false, recoveryPending: false, recoveryAttempt: 0,
         recoveryTimer: null, deltaAdapterName: "", expandedPartIds: new Set(),
+        focusPartId: "",
     };
+    app._ghostNetworkSuiteState = state;
     app.querySelector(".close-btn")?.addEventListener("click", () => {
         disconnectGhostNetworkSuiteDelta(app, state);
         app.remove();
@@ -7907,6 +7919,82 @@ function createGhostNetworkSuiteApp() {
 
 window.createGhostNetworkSuiteApp = createGhostNetworkSuiteApp;
 window.ghostnetwork_suite = createGhostNetworkSuiteApp;
+
+async function loadGhostSignalArchive(app, signalId = "") {
+    const shell = app?.querySelector(".ghostsignal-archive-shell");
+    if (!shell) return false;
+    shell.innerHTML = '<div class="ghostnetwork-suite-status">SYNCHRONIZACJA ARCHIWUM GHOSTSIGNAL...</div>';
+    try {
+        const listResponse = await fetch("/api/ghostnetwork/archive/signals?limit=50", {
+            credentials: "same-origin", cache: "no-store", headers: {"Accept": "application/json"}
+        });
+        const listPayload = await listResponse.json().catch(() => ({}));
+        if (!listResponse.ok || listPayload.ok !== true) throw new Error(listPayload.error || "archive_unavailable");
+        const signals = Array.isArray(listPayload.signals) ? listPayload.signals : [];
+        let detail = null;
+        const selectedId = String(signalId || app.dataset.signalId || "").trim();
+        if (selectedId) {
+            const detailResponse = await fetch(`/api/ghostnetwork/archive/signals/${encodeURIComponent(selectedId)}`, {
+                credentials: "same-origin", cache: "no-store", headers: {"Accept": "application/json"}
+            });
+            const detailPayload = await detailResponse.json().catch(() => ({}));
+            if (detailResponse.ok && detailPayload.ok === true) detail = detailPayload;
+        }
+        const selectedSignal = detail?.signal || signals.find(item => String(item?.signal_id || "") === selectedId) || null;
+        const rows = signals.map(item => {
+            const id = String(item?.signal_id || "");
+            const label = item?.signal_number ? `GHOSTSIGNAL ${String(item.signal_number).padStart(4, "0")}` : "GHOSTSIGNAL";
+            return `<button type="button" data-ghostsignal-id="${escapeHTML(id)}"><strong>${escapeHTML(label)}</strong><span>${escapeHTML(item?.sent_at || item?.created_at || "")}</span></button>`;
+        }).join("");
+        const detailMarkup = selectedSignal ? `
+            <article class="ghostnetwork-suite-card">
+                <div class="ghostnetwork-suite-card-main"><strong>${escapeHTML(selectedSignal.title || selectedSignal.signal_id || "GHOSTSIGNAL")}</strong>
+                <p>${escapeHTML(selectedSignal.summary || selectedSignal.status || "Zarchiwizowany sygnał GhostNetwork.")}</p>
+                <small>${escapeHTML(selectedSignal.sent_at || selectedSignal.created_at || "")}</small></div>
+            </article>` : '<div class="ghostnetwork-suite-empty">Wybierz zarchiwizowany sygnał.</div>';
+        shell.innerHTML = `
+            <header class="ghostnetwork-suite-header"><div><strong>GHOSTSIGNAL // ARCHIWUM</strong><span>READ ONLY</span></div></header>
+            <div class="ghostnetwork-suite-toolbar"><button type="button" data-ghostsignal-refresh>ODŚWIEŻ</button></div>
+            <section class="ghostnetwork-suite-list">${rows || '<div class="ghostnetwork-suite-empty">Brak zarchiwizowanych sygnałów.</div>'}</section>
+            <section class="ghostnetwork-suite-list">${detailMarkup}</section>`;
+        shell.querySelector("[data-ghostsignal-refresh]")?.addEventListener("click", () => loadGhostSignalArchive(app, app.dataset.signalId || ""));
+        shell.querySelectorAll("[data-ghostsignal-id]").forEach(button => button.addEventListener("click", () => {
+            app.dataset.signalId = button.dataset.ghostsignalId || "";
+            loadGhostSignalArchive(app, app.dataset.signalId);
+        }));
+        return true;
+    } catch (error) {
+        shell.innerHTML = `<div class="ghostnetwork-suite-status is-error">ARCHIWUM NIEDOSTĘPNE // ${escapeHTML(error?.message || "read_failed")}</div>`;
+        return false;
+    }
+}
+
+function createGhostSignalArchiveApp(signalId = "") {
+    const existing = document.querySelector('.app-window[data-app="ghostsignal-archive"]');
+    if (existing) {
+        existing.dataset.signalId = String(signalId || existing.dataset.signalId || "");
+        bringWindowToFront(existing);
+        loadGhostSignalArchive(existing, existing.dataset.signalId);
+        return existing;
+    }
+    const app = document.createElement("div");
+    app.className = "app-window ghostnetwork-suite-window";
+    app.dataset.app = "ghostsignal-archive";
+    app.dataset.signalId = String(signalId || "");
+    app.dataset.appIcon = "◉";
+    app.dataset.appTitle = "GhostSignal Archive";
+    const position = findAvailablePosition(760, 560);
+    Object.assign(app.style, {top: `${position.top}px`, left: `${position.left}px`, width: "760px", height: "560px"});
+    app.innerHTML = '<div class="title-bar">GhostSignal Archive <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div><div class="ghostnetwork-suite-shell ghostsignal-archive-shell"></div>';
+    document.body.appendChild(app);
+    makeDraggable(app);
+    bringWindowToFront(app);
+    app.querySelector(".close-btn")?.addEventListener("click", () => app.remove());
+    loadGhostSignalArchive(app, app.dataset.signalId);
+    return app;
+}
+
+window.createGhostSignalArchiveApp = createGhostSignalArchiveApp;
 
 function createAgi2108ConsoleApp() {
     const existing = document.querySelector('.app-window[data-app="agi2108-console"]');
@@ -9405,7 +9493,7 @@ function createBrowser() {
         const opened = openSystemAppFromTerminal("cyberner");
         const metadata = signal?.metadata || {};
         const scope = String(metadata.thread_scope || signal?.thread_scope || "").trim();
-        const channel = String(metadata.thread_channel || signal?.thread_channel || "").trim();
+        const channel = String(metadata.thread_channel || metadata.channel || signal?.thread_channel || "").trim();
         const peer = String(signal?.thread_peer || metadata.thread_peer || signal?.cta_target || "").trim();
         const isWorld = channel === "world" || peer === "global" || signal?.cta_target === "world";
         if (isWorld && typeof window.openCybernerThread === "function") {
@@ -9430,6 +9518,17 @@ function createBrowser() {
             }), 0);
             return blacknetCtaResult(true);
         }
+        if (channel && typeof window.openCybernerThread === "function") {
+            setTimeout(() => window.openCybernerThread({
+                scope: "channel",
+                peer: peer || channel,
+                channel,
+                source: metadata.source || channel,
+                title: metadata.thread_title || signal?.title || channel,
+                subtitle: metadata.thread_subtitle || ""
+            }), 0);
+            return blacknetCtaResult(true);
+        }
         if (peer && typeof window.openEmailChatWith === "function") {
             setTimeout(() => window.openEmailChatWith(peer), 0);
             return blacknetCtaResult(true);
@@ -9438,6 +9537,43 @@ function createBrowser() {
             return blacknetCtaResult(false, `Cyberner nie znalazl aktywnego threadu: ${escapeHTML(peer)}.`);
         }
         return blacknetCtaResult(opened);
+    };
+
+    const blacknetOpenGhostNetworkSuite = (signal, focusPart = false) => {
+        if (typeof window.createGhostNetworkSuiteApp !== "function") {
+            return blacknetCtaResult(false, "GhostNetwork Suite nie jest dostępny.");
+        }
+        const app = window.createGhostNetworkSuiteApp();
+        if (!app) return blacknetCtaResult(false, "Nie udało się otworzyć GhostNetwork Suite.");
+        bringWindowToFront(app);
+        const state = app._ghostNetworkSuiteState;
+        const partId = String(
+            signal?.metadata?.public_entity_id || signal?.cta_target_id || ""
+        ).trim();
+        if (focusPart && state && partId) {
+            state.filter = "all";
+            state.query = "";
+            state.focusPartId = partId;
+            state.expandedPartIds?.add?.(partId);
+            if (state.snapshot) renderGhostNetworkSuite(app, state);
+        }
+        addSystemMessage(
+            "info", "BlackNet",
+            focusPart && partId
+                ? "GhostNetwork Suite otwarty na wskazanym elemencie."
+                : "GhostNetwork Suite otwarty przez BlackNet."
+        );
+        return blacknetCtaResult(true);
+    };
+
+    const blacknetOpenGhostSignalArchive = signal => {
+        if (typeof window.createGhostSignalArchiveApp !== "function") {
+            return blacknetCtaResult(false, "Archiwum GhostSignal nie jest dostępne.");
+        }
+        const signalId = String(
+            signal?.metadata?.signal_id || signal?.cta_target_id || ""
+        ).trim();
+        return blacknetCtaResult(Boolean(window.createGhostSignalArchiveApp(signalId)));
     };
 
     const blacknetOpenRadio = async signal => {
@@ -9620,14 +9756,19 @@ function createBrowser() {
         open_googleplex: signal => blacknetOpenGoogleplex(signal),
         open_googleplex_search: signal => blacknetOpenGoogleplex(signal),
         open_ghost_exchange: signal => blacknetOpenExchange(signal),
+        open_ghostnetwork_suite: signal => blacknetOpenGhostNetworkSuite(signal),
+        open_ghostsignal_archive: signal => blacknetOpenGhostSignalArchive(signal),
         open_exchange_market: signal => blacknetOpenExchange(signal),
         open_exchange_category: signal => blacknetOpenExchange(signal),
         open_map: signal => blacknetOpenMap(signal),
         open_map_region: signal => blacknetOpenMap(signal, "region"),
         focus_map_target: signal => blacknetOpenMap(signal, "target"),
         show_hotspot: signal => blacknetOpenMap(signal, "hotspot"),
+        show_ghostnetwork_part: signal => blacknetOpenGhostNetworkSuite(signal, true),
+        show_ghostnetwork_territory: signal => blacknetOpenGhostNetworkSuite(signal, true),
         open_cyberner: signal => blacknetOpenCybernerThread(signal),
         open_cyberner_thread: signal => blacknetOpenCybernerThread(signal),
+        open_cyberner_channel: signal => blacknetOpenCybernerThread(signal),
         open_radio: signal => blacknetOpenRadio(signal),
         play_radio_podcast: signal => blacknetPlayPodcast(signal),
         open_operation: signal => blacknetOpenOperation(signal, "open"),
@@ -9921,6 +10062,38 @@ function createBrowser() {
                 cta_target_id: "",
                 metadata: {}
             }, "open").ok;
+        }
+        if (["show_ghostnetwork_part", "show_ghostnetwork_territory"].includes(actionType)) {
+            return blacknetOpenGhostNetworkSuite({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target_id: target,
+                metadata: {public_entity_id: target}
+            }, true).ok;
+        }
+        if (actionType === "open_ghostnetwork_suite") {
+            return blacknetOpenGhostNetworkSuite({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target_id: target,
+                metadata: {}
+            }).ok;
+        }
+        if (actionType === "open_ghostsignal_archive") {
+            return blacknetOpenGhostSignalArchive({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target_id: target,
+                metadata: {signal_id: target}
+            }).ok;
+        }
+        if (actionType === "open_cyberner_channel") {
+            return blacknetOpenCybernerThread({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target: target || "world",
+                metadata: {thread_scope: "group", thread_channel: target || "world", thread_peer: "global"}
+            }).ok;
         }
         addSystemMessage("warning", "Googleplex News", "Nieznany lub niedozwolony most akcji.");
         return false;

@@ -129,7 +129,7 @@ class NarrativePublicationTest(unittest.TestCase):
         self, event_id="publication-one", *, audience_scope="public",
         audience_clan="", audience_owner="", source_scope="ghostnetwork",
         task_variant="part_activated", target_medium="blacknet", validation=None,
-        client=None,
+        client=None, narrative_thread_id="", world_state_version="1", priority=80,
     ):
         task_validation = dict(validation or {})
         if source_scope == "ghostnetwork":
@@ -165,6 +165,12 @@ class NarrativePublicationTest(unittest.TestCase):
                 and task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
                 else "ghost_part_activation" if source_scope == "ghostnetwork" else ""
             ),
+            "narrative_thread_id": (
+                narrative_thread_id
+                or (f"ghost-part:{audience_scope}:test" if source_scope == "ghostnetwork" else "")
+            ),
+            "world_state_version": world_state_version,
+            "priority": priority,
             "validation": task_validation,
         })
         item = self.repo.enqueue_narrative_task(task)
@@ -239,6 +245,166 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual([item["medium_record_id"] for item in active], [
             published["record"]["medium_record_id"]
         ])
+
+    def test_ghostnetwork_publication_carries_code_owned_lifecycle(self):
+        self.accepted_candidate(
+            "lifecycle-one", narrative_thread_id="ghost-part:public:one",
+            world_state_version="41", priority=85,
+            validation={"event_family": "part_activated", "significance": "high"},
+        )
+        published = NarrativePublicationService(
+            repository=self.repo, worker_id="lifecycle-publisher"
+        ).process_once()
+        record = published["record"]
+
+        self.assertEqual(record["active_state"], "active")
+        self.assertEqual(record["narrative_thread_id"], "ghost-part:public:one")
+        self.assertEqual(record["event_family"], "part_activated")
+        self.assertEqual(record["significance"], "high")
+        self.assertEqual(record["priority"], 85)
+        self.assertEqual(record["source_state_version"], 41)
+        self.assertEqual(record["presentation_family"], "ghost_activation")
+        self.assertEqual(
+            record["semantic_contract_version"], "chaos-llm-semantic-input-v1"
+        )
+        self.assertEqual(
+            record["lifecycle_contract_version"],
+            "ghostnetwork-publication-lifecycle-v1",
+        )
+        self.assertTrue(record["valid_until"] > record["valid_from"])
+
+    def test_newer_thread_state_invalidates_previous_head(self):
+        client = SequencedAcceptedClient()
+        self.accepted_candidate(
+            "thread-state-one", client=client,
+            narrative_thread_id="ghost-part:public:shared", world_state_version="10",
+        )
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="thread-publisher"
+        )
+        first = publisher.process_once()
+        self.clock.advance(1)
+        self.accepted_candidate(
+            "thread-state-two", client=client,
+            narrative_thread_id="ghost-part:public:shared", world_state_version="11",
+        )
+        second = publisher.process_once()
+
+        records = self.repo.list_narrative_medium_records("blacknet", limit=10)
+        old = next(item for item in records if item["medium_record_id"] == first["record"]["medium_record_id"])
+        new = next(item for item in records if item["medium_record_id"] == second["record"]["medium_record_id"])
+        self.assertEqual(old["active_state"], "invalidated")
+        self.assertEqual(old["invalidated_by_event_id"], "thread-state-two")
+        self.assertEqual(old["invalidation_reason"], "canonical_state_observed")
+        self.assertEqual(new["active_state"], "active")
+        self.assertEqual(new["supersedes_medium_record_id"], old["medium_record_id"])
+        visible = self.repo.list_narrative_medium_records_for_viewer("blacknet", limit=10)
+        self.assertEqual([item["medium_record_id"] for item in visible], [new["medium_record_id"]])
+
+    def test_new_canonical_task_hides_old_head_before_model_generation(self):
+        self.accepted_candidate(
+            "observed-state-one",
+            narrative_thread_id="ghost-part:public:observed", world_state_version="30",
+        )
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="observed-state-publisher"
+        )
+        old = publisher.process_once()["record"]
+        base_task = self.repo.list_narrative_outbox(limit=1)[0]
+        next_task = dict(base_task)
+        for key in ("outbox_id", "dedupe_key"):
+            next_task.pop(key, None)
+        next_task.update({
+            "event_id": "observed-state-two",
+            "source_event_id": "observed-state-two",
+            "world_state_version": "31",
+            "status": "ready",
+        })
+
+        queued = self.repo.enqueue_narrative_task(next_task)
+
+        self.assertEqual(queued["status"], "ready")
+        self.assertEqual(
+            self.repo.list_narrative_medium_records_for_viewer("blacknet", limit=10),
+            [],
+        )
+        historical = self.repo.list_narrative_medium_records("blacknet", limit=10)
+        stale = next(
+            item for item in historical
+            if item["medium_record_id"] == old["medium_record_id"]
+        )
+        self.assertEqual(stale["active_state"], "invalidated")
+        self.assertEqual(stale["invalidated_by_event_id"], "observed-state-two")
+        self.assertEqual(stale["invalidation_reason"], "canonical_state_observed")
+
+    def test_pending_old_candidate_cannot_publish_after_new_state_is_observed(self):
+        self.accepted_candidate(
+            "pending-old-state",
+            narrative_thread_id="ghost-part:public:pending", world_state_version="40",
+        )
+        base_task = self.repo.list_narrative_outbox(limit=1)[0]
+        next_task = dict(base_task)
+        for key in ("outbox_id", "dedupe_key"):
+            next_task.pop(key, None)
+        next_task.update({
+            "event_id": "observed-new-state",
+            "source_event_id": "observed-new-state",
+            "world_state_version": "41",
+            "status": "ready",
+        })
+        newer = self.repo.enqueue_narrative_task(next_task)
+
+        result = NarrativePublicationService(
+            repository=self.repo, worker_id="pending-old-publisher"
+        ).process_once()
+
+        self.assertEqual(result["result"], "rejected")
+        self.assertEqual(result["reason"], "lifecycle_state_superseded")
+        self.assertEqual(result["newer_task_id"], newer["outbox_id"])
+        self.assertEqual(
+            self.repo.list_narrative_medium_records_for_viewer("blacknet", limit=10),
+            [],
+        )
+
+    def test_late_older_state_cannot_replace_active_head(self):
+        client = SequencedAcceptedClient()
+        self.accepted_candidate(
+            "newer-first", client=client,
+            narrative_thread_id="ghost-part:public:late", world_state_version="20",
+        )
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="late-state-publisher"
+        )
+        active = publisher.process_once()["record"]
+        self.clock.advance(1)
+        self.accepted_candidate(
+            "older-late", client=client,
+            narrative_thread_id="ghost-part:public:late", world_state_version="19",
+        )
+        rejected = publisher.process_once()
+
+        self.assertEqual(rejected["result"], "rejected")
+        self.assertEqual(rejected["reason"], "lifecycle_state_superseded")
+        visible = self.repo.list_narrative_medium_records_for_viewer("blacknet", limit=10)
+        self.assertEqual([item["medium_record_id"] for item in visible], [active["medium_record_id"]])
+
+    def test_ttl_expiry_removes_record_from_active_read_model(self):
+        self.accepted_candidate("expiring-publication")
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="expiry-publisher"
+        )
+        record = publisher.process_once()["record"]
+        self.clock.advance(24 * 60 * 60 + 1)
+
+        self.assertEqual(self.repo.expire_narrative_medium_records(), 1)
+        self.assertEqual(
+            self.repo.list_narrative_medium_records_for_viewer("blacknet", limit=10),
+            [],
+        )
+        historical = self.repo.list_narrative_medium_records("blacknet", limit=10)
+        self.assertEqual(historical[0]["medium_record_id"], record["medium_record_id"])
+        self.assertEqual(historical[0]["active_state"], "expired")
+        self.assertEqual(historical[0]["invalidation_reason"], "ttl_expired")
 
     def test_rejected_completed_candidate_does_not_hold_slot_busy(self):
         candidate = self.accepted_candidate(

@@ -36,6 +36,14 @@ class CutoverRepositoryFixture:
             "expired_claims": 0,
             "unstaged_accepted": unstaged,
         }
+        self.lifecycle_health = {
+            "contract_version": "ghostnetwork-publication-lifecycle-v1",
+            "states": {"active": 3}, "active_expired": 0,
+            "active_missing_contract": 0,
+            "invalidated_missing_lineage": 0,
+            "duplicate_active_heads": 0,
+            "duplicate_active_head_samples": [],
+        }
 
     def narrative_task_queue_counts(self, policies, now=None):
         self.policies = policies
@@ -43,6 +51,9 @@ class CutoverRepositoryFixture:
 
     def narrative_publication_queue_counts(self, now=None):
         return dict(self.publication_counts)
+
+    def narrative_publication_lifecycle_health(self, now=None):
+        return dict(self.lifecycle_health)
 
 
 class NarrativeCutoverTest(unittest.TestCase):
@@ -68,6 +79,10 @@ class NarrativeCutoverTest(unittest.TestCase):
         self.assertEqual(report["contract_version"], CUTOVER_CONTRACT_VERSION)
         self.assertTrue(report["output_safety"]["ok"])
         self.assertTrue(report["runtime_safety"]["ok"])
+        self.assertEqual(
+            report["publication_lifecycle"]["contract_version"],
+            "ghostnetwork-publication-lifecycle-v1",
+        )
         self.assertEqual(
             report["output_safety"]["contract_version"],
             "ghostnetwork-output-safety-v1",
@@ -180,6 +195,22 @@ class NarrativeCutoverTest(unittest.TestCase):
         self.assertIn(
             "publication_backpressure_limit_exceeded", report["errors"]
         )
+
+    def test_cutover_fails_closed_on_publication_lifecycle_regression(self):
+        repository = CutoverRepositoryFixture()
+        repository.lifecycle_health["duplicate_active_heads"] = 1
+        repository.lifecycle_health["active_expired"] = 1
+        with patch(
+            "ghostnetwork.narrative_cutover.verify_prompt_registry",
+            return_value={"ok": True, "errors": []},
+        ):
+            report = build_narrative_cutover_report(
+                repository, config=self.enabled, now=self.now
+            )
+
+        self.assertFalse(report["ok"])
+        self.assertIn("duplicate_active_narrative_thread_heads", report["errors"])
+        self.assertIn("expired_narrative_records_still_active", report["errors"])
 
     def test_cutover_retires_only_queued_ineligible_tasks(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -125,6 +125,7 @@ class NarrativePublicationService:
         # Keep writer pressure bounded: stage only a small number of genuinely
         # unstaged candidates per loop, then publish one receipt.  Historical
         # accepted candidates that already have receipts are never rewritten.
+        expired = self.repository.expire_narrative_medium_records(limit=100)
         self.stage_accepted(limit=4, scan_limit=500)
         receipt = self.repository.claim_next_narrative_publication(
             self.worker_id, lease_seconds=lease_seconds
@@ -167,6 +168,17 @@ class NarrativePublicationService:
                 "ok": False, "result": "rejected",
                 "reason": "slot_assignment_superseded", "receipt": rejected,
             }
+        if published and published.get("lifecycle_superseded"):
+            rejected = self.repository.reject_claimed_narrative_publication(
+                receipt["publication_receipt_id"], self.worker_id,
+                receipt["lease_until"], "lifecycle_state_superseded",
+            )
+            return {
+                "ok": False, "result": "rejected",
+                "reason": "lifecycle_state_superseded", "receipt": rejected,
+                "active_medium_record_id": published.get("active_medium_record_id"),
+                "newer_task_id": published.get("newer_task_id"),
+            }
         if not published:
             return {"ok": False, "result": "ownership_lost"}
-        return {"ok": True, "result": "published", **published}
+        return {"ok": True, "result": "published", "expired": expired, **published}

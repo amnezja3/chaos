@@ -9,6 +9,16 @@ def projection(part, cycle_status="active"):
 
 
 class GhostNetworkSuiteNavigationTests(unittest.TestCase):
+    def test_narrative_cta_surfaces_exist_in_frontend(self):
+        with open("static/js/terminal.js", encoding="utf-8") as source:
+            script = source.read()
+        for marker in (
+            "createGhostSignalArchiveApp", "open_ghostsignal_archive:",
+            "open_ghostnetwork_suite:", "show_ghostnetwork_part:",
+            "show_ghostnetwork_territory:", "open_cyberner_channel:",
+        ):
+            self.assertIn(marker, script)
+
     def _resolve(self, part, payload, cycle_status="active"):
         service = type("Service", (), {
             "get_snapshot_for_viewer": lambda _self, _viewer: projection(part, cycle_status)

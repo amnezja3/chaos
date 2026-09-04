@@ -192,6 +192,17 @@ def build_narrative_cutover_report(
     runtime_safety = verify_ollama_runtime_policy()
     task_queue = repository.narrative_task_queue_counts(policies, now=now)
     publication_queue = repository.narrative_publication_queue_counts(now=now)
+    publication_lifecycle = (
+        repository.narrative_publication_lifecycle_health(now=now)
+        if hasattr(repository, "narrative_publication_lifecycle_health") else {
+            "contract_version": "ghostnetwork-publication-lifecycle-v1",
+            "states": {}, "active_expired": 0,
+            "active_missing_contract": 0,
+            "invalidated_missing_lineage": 0,
+            "duplicate_active_heads": 0,
+            "duplicate_active_head_samples": [],
+        }
+    )
     ghost_event_lineage = build_ghost_event_lineage_report(repository)
     ghost_event_bridge = (
         repository.narrative_bridge_metrics()
@@ -223,6 +234,14 @@ def build_narrative_cutover_report(
         errors.append("expired_task_leases")
     if publication_queue.get("expired_claims"):
         errors.append("expired_publication_claims")
+    if publication_lifecycle.get("active_expired"):
+        errors.append("expired_narrative_records_still_active")
+    if publication_lifecycle.get("active_missing_contract"):
+        errors.append("active_narrative_records_missing_lifecycle")
+    if publication_lifecycle.get("invalidated_missing_lineage"):
+        errors.append("invalidated_narrative_records_missing_lineage")
+    if publication_lifecycle.get("duplicate_active_heads"):
+        errors.append("duplicate_active_narrative_thread_heads")
     if int(task_queue.get("eligible_ready") or 0) > config.max_ready_tasks:
         errors.append("task_backpressure_limit_exceeded")
     if int(publication_queue.get("ready_now") or 0) > config.max_ready_publications:
@@ -235,6 +254,8 @@ def build_narrative_cutover_report(
         errors.append("publication_medium_coverage_missing")
     if publication_queue.get("unstaged_accepted"):
         warnings.append("unstaged_accepted_candidates")
+    if publication_lifecycle.get("states", {}).get("legacy"):
+        warnings.append("historical_legacy_narrative_records")
     if ghost_event_lineage.get("eligible_without_task"):
         errors.append("ghost_eligible_events_without_tasks")
     if ghost_event_lineage.get("tasks_with_missing_event"):
@@ -261,6 +282,7 @@ def build_narrative_cutover_report(
         "runtime_safety": runtime_safety,
         "task_queue": task_queue,
         "publication_queue": publication_queue,
+        "publication_lifecycle": publication_lifecycle,
         "ghost_event_lineage": ghost_event_lineage,
         "ghost_event_bridge": ghost_event_bridge,
         "required_publication_media": list(REQUIRED_PUBLICATION_MEDIA),

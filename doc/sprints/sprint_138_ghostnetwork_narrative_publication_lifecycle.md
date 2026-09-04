@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `AUDITED / READY — SPRINT 137 SERVER PASS; 138.1 MAY START`
+Status: `138.1 LOCAL PASS — SERVER GATE REQUIRED`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -20,7 +20,7 @@ PASS. Produkcyjna bramka 137.3 potwierdziła runtime contract, obsługę SQLite
 contention bez restartu procesu, retry/dead-letter/heartbeat/candidate recovery,
 czystą aktywną kolejkę i stabilny proces PM2. Sprint 138 jest odblokowany.
 
-## Audyt aktualnego stanu CHAOS — 2026-09-04
+## Audyt stanu wejściowego CHAOS — 2026-09-04
 
 Audyt objął rzeczywisty schemat SQLite, repository, publisher, read modele
 BlackNet/Googleplex/Cyberner, backendowe i frontendowe allowlisty CTA oraz testy
@@ -69,6 +69,76 @@ head, invalidation, mix/presentation i CTA na obecnym publisherze. Dopiero
 `138.2` zamyka producer-backed E2E, failure injection i soak. Historyczne
 medium records pozostają historią; audyt nie autoryzuje ich automatycznego
 backfillu lub reaktywacji.
+
+## Realizacja 138.1 — 2026-09-04
+
+Dodano `ghostnetwork-publication-lifecycle-v1` jako backend-owned, addytywny
+kontrakt nowych medium records. Publisher przenosi z taska, a nie z tekstu
+modelu:
+
+```text
+narrative_thread_id / event_family / significance / priority
+source_state_version / semantic_contract_version
+active_state / valid_from / valid_until
+supersedes_medium_record_id / invalidated_by_event_id / invalidation_reason
+presentation_family / publication_mode
+```
+
+Już enqueue lub merge nowszego canonical taska tego samego threadu, medium i
+audience atomowo oznacza poprzedni active head jako `invalidated`. Dzięki temu
+stara karta znika z read modelu także wtedy, gdy Ollama, validator albo publisher
+ulegną awarii przed utworzeniem następcy. Późniejsza publikacja nowej wersji
+wiąże ją z poprzednikiem przez `supersedes_medium_record_id`.
+
+Spóźniony task o niższym `world_state_version` kończy się
+`lifecycle_state_superseded` i nie może zastąpić nowszego stanu. Dotyczy to także
+kandydata oczekującego na publikację w chwili pojawienia się nowszego taska;
+backend porównuje canonical task watermark, a nie dostępność wyniku modelu.
+Równa wersja jest rozstrzygana przez trwały czas utworzenia taska. Bounded expiry
+zmienia dojrzałe rekordy `active -> expired`; active read modele dodatkowo
+filtrują TTL, więc nawet przed materializacją expiry nie pokażą przeterminowanej
+treści.
+
+Historyczne rekordy po addytywnej migracji otrzymują stan `legacy`. Są dostępne
+w zapytaniu historycznym/audytowym, ale nie wracają automatycznie do aktywnego
+feedu. Googleplex nadal ma jeden head wskazany przez istniejący slot CAS.
+Cyberner AGI czyta wyłącznie aktywne owner records.
+
+BlackNet zachowuje istniejący limit udziału narracji, ale wybiera je według
+`critical -> high -> normal -> low`, następnie priority i świeżości. Jeden
+thread może zajmować najwyżej jedną kartę. Code-owned `presentation_family`
+zastępuje generic `narrative_publication`; significance wyznacza importance,
+layout i techniczny tone karty.
+
+Pięć CTA GhostNetwork jest spiętych przez backend allowlist, BlackNet,
+Googleplex i frontend dispatcher. Part/territory otwierają GhostNetwork Suite
+na canonical `public_entity_id`, suite otwiera istniejącą projekcję, Cyberner
+używa istniejącego kanału, a GhostSignal otrzymał mały read-only surface oparty
+na istniejących endpointach archiwum. Endpoint archiwum używa lightweight
+identity projection i ignoruje próbę podniesienia prywatności przez
+`?private=1`.
+
+Dodano read-only audit:
+
+```text
+scripts/audit_narrative_publication_lifecycle.py --db data/game.sqlite3 --strict
+```
+
+Audit wykrywa aktywny rekord po TTL, brak lifecycle metadata, incomplete
+invalidation lineage oraz więcej niż jeden aktywny head threadu. Rekordy
+`legacy` są ostrzeżeniem, nie błędem. Ten sam blok jest częścią strict cutover.
+
+Lokalna bramka po implementacji:
+
+```text
+Python/JavaScript syntax: PASS
+publication/lifecycle/read-model/CTA/producers regression: 119 tests / PASS
+git diff --check: PASS
+```
+
+138.1 wymaga teraz wdrożenia i testu serwerowego. 138.2 pozostaje zamrożony do
+potwierdzenia migracji, dwóch następujących po sobie stanów jednego threadu,
+TTL/read-model audit oraz ręcznego kliknięcia CTA.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 
@@ -466,6 +536,7 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 
 1. Deploy addytywny bez czyszczenia tasków, candidates, receipts i records.
 2. Restart wyłącznie procesów dotkniętych kodem.
+   Dla 138.1: `pm2 restart 13 17 18 --update-env`.
 3. Przed generacją uruchomić `scripts/audit_semantic_input.py --strict` i
    potwierdzić statements, audience projection, location/provenance oraz zero
    technical identifier leaks.
@@ -484,6 +555,10 @@ Status i audit są bounded. Nie skanują całej historii przy każdym requestcie
 11. Strict cutover audit, heavy-profile audit i soak SQLite muszą przejść.
 12. Audit lineage musi przejść zarówno dla nowo utworzonego eventu, jak i po
    retry/crash recovery; globalne `published_by_medium > 0` nie wystarcza.
+13. Uruchomić
+   `scripts/audit_narrative_publication_lifecycle.py --db data/game.sqlite3 --strict`;
+   `legacy` może być warningiem, ale wszystkie cztery liczniki naruszeń muszą
+   wynosić zero.
 
 ## Definition of Ready
 
@@ -494,7 +569,7 @@ audience-filtered medium records:           COMPLETE
 BlackNet merge and fact suppression:        COMPLETE
 Googleplex slot CAS:                        COMPLETE
 baseline worker/publisher tests:            59 / PASS
-current publication audit regression:       56 / PASS
+current 138.1 regression:                    117 / PASS
 Sprint 136 event/audience component:        PRESENT
 Sprint 136 runtime ingress/lineage:          SERVER PASS
 Shared Semantic Input Layer:                SERVER PASS
@@ -503,8 +578,8 @@ Sprint 137.1 producer/support server gate:  PASS
 Sprint 137.2 forbidden-knowledge gate:      SERVER PASS
 Sprint 137.3 runtime/failure gate:           SERVER PASS
 publication baseline audit:                 COMPLETE
-138.1 lifecycle implementation:             READY TO START
-138.2 producer-backed E2E/failure/soak:      BLOCKED BY 138.1
+138.1 lifecycle implementation:             LOCAL PASS / SERVER GATE REQUIRED
+138.2 producer-backed E2E/failure/soak:      BLOCKED BY 138.1 SERVER GATE
 ```
 
 ## Definition of Done
