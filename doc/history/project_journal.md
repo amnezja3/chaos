@@ -2575,3 +2575,21 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Support Layer renderuje bezpieczny fallback. Fałszywy alarm dla poprawnej
   nazwy `Ghost` został wyeliminowany. Regresja policy/worker/support/output
   safety/E2E/publication/cutover: `107 tests / PASS`.
+
+## 2026-09-04 — Sprint 138.2: pierwszy production E2E v11
+
+- Produkcyjny `part_activated` (`event_c4b7268da64ca7e9`) potwierdził korektę
+  uciętych tekstów: wszystkie cztery candidates są accepted, kompletne i
+  audience-safe; trzy trasy BlackNet mają aktywne medium records.
+- Googleplex poprawnie przegrał CAS pojedynczego slotu HERO z nowszą publikacją
+  i zakończył receipt jako `dead_letter/slot_assignment_superseded`. Nie jest to
+  błąd generacji ani utrata publikacji: nowszy active head chroni slot przed
+  nadpisaniem starszym eventem.
+- Audit E2E rozszerzono o dowód kontrolowanego supersession. Wynik jest poprawny
+  tylko przy istniejącym aktywnym rekordzie następcy wskazanym przez aktualny
+  slot; brak slotu, rekordu albo active state nadal zamyka strict gate błędem.
+  Zmieniony kontrakt raportu ma wersję `ghostnetwork-narrative-e2e-audit-v2`.
+- Produkcyjna latencja opublikowanych tras wyniosła 534–761 s, średnio 665 s.
+  Zapisano ją jako problem wydajnościowy do dalszych failure/soak gates 138.2.
+- Lokalna regresja po korekcie audytu: `48 tests / PASS`; zmiany pozostają bez
+  commita i pushu zgodnie z trybem pracy operatora.

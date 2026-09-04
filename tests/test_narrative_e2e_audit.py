@@ -11,7 +11,7 @@ from ghostnetwork.ollama_policy import assign_ollama_task_policy
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.publication import NarrativePublicationService
 from ghostnetwork.repository import GhostNetworkRepository
-from scripts.audit_narrative_e2e import build_report
+from scripts.audit_narrative_e2e import _lineage_report, build_report
 
 
 class AcceptedClient:
@@ -168,6 +168,70 @@ class NarrativeE2EAuditTest(unittest.TestCase):
 
         self.assertFalse(report["ok"])
         self.assertIn("record_source_event_mismatch", report["chains"][0]["errors"])
+
+    def test_controlled_slot_supersession_with_active_successor_passes(self):
+        sample = {
+            "task": {
+                "task_id": "task-old",
+                "target_medium": "googleplex_news",
+                "audience_scope": "public",
+                "source_event_id": "event-old",
+            },
+            "candidate": {"candidate_id": "candidate-old", "fact_refs": ["f01"]},
+            "source_event": {"created_at": "2026-09-04T08:00:00+00:00"},
+        }
+        rows = [{
+            "task_id": "task-old",
+            "candidate_id": "candidate-old",
+            "target_medium": "googleplex_news",
+            "audience_scope": "public",
+            "publication_receipt_id": "receipt-old",
+            "receipt_status": "dead_letter",
+            "last_error_code": "slot_assignment_superseded",
+            "presentation_slot": "gp-home-world-grid",
+            "slot_active_medium_record_id": "record-new",
+            "slot_active_source_event_id": "event-new",
+            "slot_active_state": "active",
+            "slot_active_source_state_version": 120,
+        }]
+
+        chain = _lineage_report(self.repo, sample, rows)
+
+        self.assertTrue(chain["ok"], chain)
+        self.assertEqual(chain["outcome"], "controlled_slot_supersession")
+        self.assertIsNone(chain["record"])
+        self.assertEqual(
+            chain["superseding_record"]["medium_record_id"], "record-new",
+        )
+
+    def test_slot_supersession_without_active_successor_fails(self):
+        sample = {
+            "task": {
+                "task_id": "task-old",
+                "target_medium": "googleplex_news",
+                "audience_scope": "public",
+                "source_event_id": "event-old",
+            },
+            "candidate": {"candidate_id": "candidate-old", "fact_refs": ["f01"]},
+        }
+        rows = [{
+            "task_id": "task-old",
+            "candidate_id": "candidate-old",
+            "target_medium": "googleplex_news",
+            "audience_scope": "public",
+            "publication_receipt_id": "receipt-old",
+            "receipt_status": "dead_letter",
+            "last_error_code": "slot_assignment_superseded",
+            "presentation_slot": "gp-home-world-grid",
+            "slot_active_medium_record_id": "",
+            "slot_active_state": "",
+        }]
+
+        chain = _lineage_report(self.repo, sample, rows)
+
+        self.assertFalse(chain["ok"])
+        self.assertIn("superseding_slot_record_missing", chain["errors"])
+        self.assertIn("superseding_slot_record_not_active", chain["errors"])
 
 
 if __name__ == "__main__":

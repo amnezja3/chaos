@@ -546,6 +546,22 @@ Narrative Support Layer; nie zmienia semantic facts ani audience safety. V10
 pozostaje immutable i legacy-compatible, aby retry historycznych tasków nie
 zmieniał request hash pod tą samą wersją.
 
+Produkcyjna bramka v11 potwierdziła kompletne i poprawne językowo candidate dla
+czterech tras `part_activated`. Trzy rekordy BlackNet zostały opublikowane.
+Googleplex zakończył się kontrolowanym `slot_assignment_superseded`: podczas
+długiego oczekiwania w kolejce nowsza publikacja zajęła pojedynczy slot HERO, a
+starszy task zgodnie z CAS nie nadpisał nowej treści. Audit E2E traktuje taki
+wynik jako poprawne terminalne zakończenie wyłącznie wtedy, gdy potrafi połączyć
+slot z istniejącym, aktywnym rekordem następcy. Sam `dead_letter` lub sam kod
+błędu bez tego dowodu nadal failuje strict gate.
+Ta semantyka oraz jawne pole `outcome` podnoszą kontrakt raportu do
+`ghostnetwork-narrative-e2e-audit-v2`.
+
+Zaobserwowane czasy event-to-publication dla trzech opublikowanych tras wyniosły
+534–761 sekund (średnio 665 sekund). Nie naruszyło to lineage, ale stanowi
+baseline wydajnościowy do failure/soak i nie może zostać uznane za docelową
+latencję runtime.
+
 1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E, rozpoczynając
    od realnego gameplay/runtime entrypointu, nie od taska lub candidate.
 2. Sprawdzić public/clan/owner na kilku kontach.

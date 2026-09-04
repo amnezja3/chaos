@@ -19,7 +19,7 @@ from ghostnetwork.repository import GhostNetworkRepository  # noqa: E402
 from scripts.audit_narrative_generation import build_report as build_generation_report  # noqa: E402
 
 
-NARRATIVE_E2E_AUDIT_VERSION = "ghostnetwork-narrative-e2e-audit-v1"
+NARRATIVE_E2E_AUDIT_VERSION = "ghostnetwork-narrative-e2e-audit-v2"
 TERMINAL_RECORD_STATES = frozenset({"active", "expired", "invalidated"})
 
 
@@ -56,16 +56,48 @@ def _lineage_report(repository, sample, rows):
     row = matching[0]
     if row.get("candidate_id") != candidate_id:
         errors.append("receipt_candidate_mismatch")
-    if row.get("receipt_status") != "published":
-        errors.append(f"receipt_not_published:{row.get('receipt_status') or 'missing'}")
-    if not row.get("medium_record_id"):
-        errors.append("medium_record_missing")
     expected_identity = (
         str(task.get("target_medium") or ""),
         str(task.get("audience_scope") or ""),
     )
     if (row.get("target_medium"), row.get("audience_scope")) != expected_identity:
         errors.append("receipt_task_identity_mismatch")
+    controlled_slot_supersession = (
+        row.get("receipt_status") == "dead_letter"
+        and row.get("last_error_code") == "slot_assignment_superseded"
+    )
+    if controlled_slot_supersession:
+        if not row.get("presentation_slot"):
+            errors.append("superseding_presentation_slot_missing")
+        if not row.get("slot_active_medium_record_id"):
+            errors.append("superseding_slot_record_missing")
+        if row.get("slot_active_state") != "active":
+            errors.append("superseding_slot_record_not_active")
+        return {
+            "ok": not errors,
+            "errors": sorted(set(errors)),
+            "outcome": "controlled_slot_supersession",
+            "task_id": task_id,
+            "candidate_id": candidate_id,
+            "receipt": {
+                "publication_receipt_id": row.get("publication_receipt_id"),
+                "status": row.get("receipt_status"),
+                "last_error_code": row.get("last_error_code") or "",
+            },
+            "record": None,
+            "superseding_record": {
+                "medium_record_id": row.get("slot_active_medium_record_id") or "",
+                "source_event_id": row.get("slot_active_source_event_id") or "",
+                "active_state": row.get("slot_active_state") or "",
+                "source_state_version": row.get("slot_active_source_state_version") or 0,
+                "presentation_slot": row.get("presentation_slot") or "",
+            },
+            "event_to_publication_ms": None,
+        }
+    if row.get("receipt_status") != "published":
+        errors.append(f"receipt_not_published:{row.get('receipt_status') or 'missing'}")
+    if not row.get("medium_record_id"):
+        errors.append("medium_record_missing")
     if (row.get("record_medium"), row.get("record_audience_scope")) != expected_identity:
         errors.append("record_task_identity_mismatch")
     if row.get("source_event_id") != task.get("source_event_id"):
@@ -88,6 +120,7 @@ def _lineage_report(repository, sample, rows):
     return {
         "ok": not errors,
         "errors": sorted(set(errors)),
+        "outcome": "published",
         "task_id": task_id,
         "candidate_id": candidate_id,
         "receipt": {
@@ -103,6 +136,7 @@ def _lineage_report(repository, sample, rows):
             "source_state_version": row.get("source_state_version"),
             "publication_mode": row.get("publication_mode"),
         },
+        "superseding_record": None,
         "event_to_publication_ms": latency_ms,
     }
 

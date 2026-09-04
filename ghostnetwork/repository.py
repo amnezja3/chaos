@@ -6260,6 +6260,7 @@ class GhostNetworkRepository:
                     r.status AS receipt_status, r.last_error_code,
                     r.created_at AS receipt_created_at,
                     r.published_at AS receipt_published_at,
+                    o.presentation_slot,
                     m.medium_record_id, m.source_event_id,
                     m.target_medium AS record_medium,
                     m.audience_scope AS record_audience_scope,
@@ -6269,10 +6270,21 @@ class GhostNetworkRepository:
                     m.narrative_thread_id, m.event_family,
                     m.active_state, m.lifecycle_contract_version,
                     m.semantic_contract_version, m.source_state_version,
-                    m.publication_mode, m.published_at AS record_published_at
+                    m.publication_mode, m.published_at AS record_published_at,
+                    s.active_medium_record_id AS slot_active_medium_record_id,
+                    sm.source_event_id AS slot_active_source_event_id,
+                    sm.active_state AS slot_active_state,
+                    sm.source_state_version AS slot_active_source_state_version
                 FROM ghost_narrative_publication_receipts r
+                JOIN ghost_narrative_outbox o
+                  ON o.outbox_id = r.task_id
                 LEFT JOIN ghost_narrative_medium_records m
                   ON m.publication_receipt_id = r.publication_receipt_id
+                LEFT JOIN ghost_narrative_slot_state s
+                  ON s.target_medium = r.target_medium
+                 AND s.slot_id = o.presentation_slot
+                LEFT JOIN ghost_narrative_medium_records sm
+                  ON sm.medium_record_id = s.active_medium_record_id
                 WHERE r.task_id IN ({placeholders})
                 ORDER BY r.created_at, r.publication_receipt_id
                 LIMIT ?
@@ -6291,6 +6303,7 @@ class GhostNetworkRepository:
             "last_error_code": row["last_error_code"],
             "receipt_created_at": row["receipt_created_at"],
             "receipt_published_at": row["receipt_published_at"],
+            "presentation_slot": row["presentation_slot"] or "",
             "medium_record_id": row["medium_record_id"] or "",
             "source_event_id": row["source_event_id"] or "",
             "record_medium": row["record_medium"] or "",
@@ -6306,6 +6319,12 @@ class GhostNetworkRepository:
             "source_state_version": int(row["source_state_version"] or 0),
             "publication_mode": row["publication_mode"] or "",
             "record_published_at": row["record_published_at"] or "",
+            "slot_active_medium_record_id": row["slot_active_medium_record_id"] or "",
+            "slot_active_source_event_id": row["slot_active_source_event_id"] or "",
+            "slot_active_state": row["slot_active_state"] or "",
+            "slot_active_source_state_version": int(
+                row["slot_active_source_state_version"] or 0
+            ),
         } for row in rows]
 
     def requeue_narrative_task(self, outbox_id, now=None, validation=None):
