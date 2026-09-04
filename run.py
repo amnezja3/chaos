@@ -72,6 +72,7 @@ from ghostnetwork import (
     GhostNetworkService,
     GhostRuntimeCoordinator,
     GhostVisibilityService,
+    get_catalog,
     normalize_ghostnetwork_profile_identity,
     normalize_snapshot_view,
 )
@@ -24197,6 +24198,18 @@ def api_profile():
         if isinstance(operation, dict)
     ]
     profile["desktop_settings"] = normalize_desktop_settings(profile.get("desktop_settings"))
+    ghost_identity = normalize_ghostnetwork_profile_identity(profile)
+    profession_code = str(ghost_identity.get("profession_code") or "").strip()
+    profession_names = {
+        str(item.get("code") or ""): str(item.get("name") or "")
+        for item in get_catalog().get("professions", [])
+        if isinstance(item, dict)
+    }
+    profile["ghost_profession"] = profession_code
+    profile["ghost_profession_name"] = (
+        profession_names.get(profession_code)
+        or str(get_profile_profession(profile) or profession_code).strip()
+    )
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION
     attach_profile_snapshot_meta(profile, snapshot_started_at, blacknet_utc_now())

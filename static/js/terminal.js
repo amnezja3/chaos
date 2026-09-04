@@ -11886,6 +11886,14 @@ async function createProfile() {
     const rawPlayerClan = profileData.clan || (profileData.fraction && profileData.fraction.name) || "brak";
     const playerClan = factionNames[String(rawPlayerClan)] || rawPlayerClan;
     profileData.clan = playerClan;
+    const playerProfession = profileData.ghost_profession_name
+        || profileData.profession_name
+        || profileData.ghost_profession
+        || profileData.profession
+        || profileData.role
+        || (profileData.fraction && profileData.fraction.role)
+        || (profileData.operator && profileData.operator.profession)
+        || "brak";
     const appsCount = Array.isArray(profileData.apps)
         ? profileData.apps.length
         : (Array.isArray(profileData.inventory) ? profileData.inventory.length : 0);
@@ -11913,6 +11921,7 @@ async function createProfile() {
             <p>💰 HackCoiny: <b>${profileData.hackcoins}</b></p>
             <p>🔥 Respect: <b>${profileData.respect}</b> pkt</p>
             <p>👥 Klan: <b>${escapeHTML(profileData.clan)}</b></p>
+            <p>🧩 Profesja: <b>${escapeHTML(playerProfession)}</b></p>
 
             <hr>
             <h4>Terytorium:</h4>

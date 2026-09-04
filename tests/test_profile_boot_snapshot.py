@@ -17,8 +17,27 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertIn("cache_in_session=False", endpoint)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", endpoint)
         self.assertNotIn("refresh_and_persist_operations", endpoint)
-        self.assertIn("player_operation_store.list_operations", endpoint)
+        self.assertIn("bounded_operations_from_store", endpoint)
         self.assertIn("refresh_operation_runtime", endpoint)
+
+    def test_api_profile_exposes_canonical_profession_name_without_another_profile_read(self):
+        start = self.source.index('@app.route("/api/profile")')
+        end = self.source.index('@app.route("/api/dev/bug-reports")', start)
+        endpoint = self.source[start:end]
+
+        self.assertIn("normalize_ghostnetwork_profile_identity(profile)", endpoint)
+        self.assertIn('profile["ghost_profession_name"]', endpoint)
+        self.assertEqual(endpoint.count("sync_session_profile("), 1)
+
+    def test_profile_window_renders_profession_under_clan(self):
+        terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        start = terminal.index("async function createProfile()")
+        end = terminal.index("async function getUserProfile()", start)
+        renderer = terminal[start:end]
+
+        self.assertIn("profileData.ghost_profession_name", renderer)
+        self.assertIn("Profesja:", renderer)
+        self.assertLess(renderer.index("Klan:"), renderer.index("Profesja:"))
 
     def test_desktop_boot_does_not_rebuild_territory(self):
         start = self.source.index('@app.route("/desktop")')
