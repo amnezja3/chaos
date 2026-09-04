@@ -4213,6 +4213,9 @@ class GhostNetworkRepository:
                             """,
                             (result["outbox_id"], source_event_id, now),
                         )
+                        self._invalidate_active_narrative_thread_for_task(
+                            conn, result, invalidating_event_id=source_event_id
+                        )
                     return result
                 raise RepositoryIntegrityError("Narrative task identity conflict")
             result = self._narrative_outbox(

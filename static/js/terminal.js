@@ -9539,7 +9539,28 @@ function createBrowser() {
         return blacknetCtaResult(opened);
     };
 
-    const blacknetOpenGhostNetworkSuite = (signal, focusPart = false) => {
+    function ghostNetworkSuiteInstalledInProfile(profile = {}) {
+        return (Array.isArray(profile?.apps) ? profile.apps : []).some(app => {
+            if (!app || typeof app !== "object") return false;
+            const appId = String(app.id || "").trim().toLowerCase();
+            const launcher = String(app.system_launcher || "").trim();
+            return appId === "ghostnetworksuite"
+                || launcher === "createGhostNetworkSuiteApp";
+        });
+    }
+
+    const blacknetOpenGhostNetworkSuite = async (signal, focusPart = false) => {
+        const profile = toolbarProfile || await getUserProfile().catch(() => null);
+        if (!profile) {
+            const message = "Nie udało się potwierdzić instalacji GhostNetwork Suite.";
+            addSystemMessage("warning", "GhostNetwork Suite", message);
+            return blacknetCtaResult(false, message, { messageShown: true });
+        }
+        if (!ghostNetworkSuiteInstalledInProfile(profile)) {
+            const message = "GhostNetwork Suite nie jest zainstalowany. Zainstaluj aplikację w Googleplex.";
+            addSystemMessage("warning", "GhostNetwork Suite", message);
+            return blacknetCtaResult(false, message, { messageShown: true });
+        }
         if (typeof window.createGhostNetworkSuiteApp !== "function") {
             return blacknetCtaResult(false, "GhostNetwork Suite nie jest dostępny.");
         }
@@ -9920,9 +9941,9 @@ function createBrowser() {
                 if (activeBrowserTab === "blacknet") renderBlackNet();
             } else {
                 button.disabled = false;
-                if (result?.message) {
+                if (result?.message && !result?.messageShown) {
                     addSystemMessage(result.cancelled || result.noCapture ? "info" : "warning", "BlackNet", result.message);
-                } else {
+                } else if (!result?.messageShown) {
                     addSystemMessage("warning", "BlackNet", "Ten sygnal nie ma jeszcze aktywnego mostu.");
                 }
             }
@@ -10064,20 +10085,20 @@ function createBrowser() {
             }, "open").ok;
         }
         if (["show_ghostnetwork_part", "show_ghostnetwork_territory"].includes(actionType)) {
-            return blacknetOpenGhostNetworkSuite({
+            return (await blacknetOpenGhostNetworkSuite({
                 id: entry?.content?.news_id || "googleplex-news",
                 title: entry?.content?.title || "Googleplex News",
                 cta_target_id: target,
                 metadata: {public_entity_id: target}
-            }, true).ok;
+            }, true)).ok;
         }
         if (actionType === "open_ghostnetwork_suite") {
-            return blacknetOpenGhostNetworkSuite({
+            return (await blacknetOpenGhostNetworkSuite({
                 id: entry?.content?.news_id || "googleplex-news",
                 title: entry?.content?.title || "Googleplex News",
                 cta_target_id: target,
                 metadata: {}
-            }).ok;
+            })).ok;
         }
         if (actionType === "open_ghostsignal_archive") {
             return blacknetOpenGhostSignalArchive({

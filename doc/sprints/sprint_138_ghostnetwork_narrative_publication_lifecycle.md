@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 SUPPORT PATCH LOCAL PASS — SERVER REPLAY REQUIRED`
+Status: `138.1 CTA/REPAIR LOCAL PASS — DEPLOY REQUIRED`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -159,6 +159,23 @@ Lokalna walidacja poprawki: 76 testów Support Layer, workera, output safety,
 cutover, generation audit i policy — PASS; `git diff --check` — PASS. Historyczny
 event może zostać sprawdzony read-only przez support replay, bez ponownej
 aktywacji części. Bramka serwerowa pozostaje otwarta do wdrożenia poprawki.
+
+Ręczna próba CTA ujawniła dodatkową granicę: konstruktor GhostNetwork Suite jest
+zawsze obecny w głównym bundle, więc samo sprawdzenie funkcji nie dowodzi
+instalacji aplikacji. CTA sprawdza teraz canonical `toolbarProfile.apps` (z
+fallbackiem do `/api/profile`) przed otwarciem Suite. Brak instalacji kończy się
+kontrolowanym blokiem i pojedynczym system message kierującym do Googleplex;
+zainstalowana aplikacja zachowuje dotychczasowy fokus części. Regresja CTA,
+Googleplex, BlackNet i frontend contracts: 40 testów oraz dedykowany test Node —
+PASS.
+
+Produkcyjny test `active -> contained` potwierdził zgodny event, wersję i thread,
+ale stary head pozostał aktywny. Przyczyną był proces `chaos-territory-worker`
+(PM2 14), który tworzy event i taski, lecz nie został zrestartowany przy
+wdrożeniu lifecycle. Dodano również samonaprawę: idempotentny replay istniejącego
+taska ponawia teraz canonical invalidation. Dzięki temu restart i kontrolowany
+replay naprawią rekord bez ręcznej edycji SQLite. Dedykowany test stale-producer
+oraz pełna regresja lifecycle/CTA: 78 testów Python i test Node — PASS.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 

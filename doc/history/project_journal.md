@@ -2511,3 +2511,18 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Walidacja poprawki: 76 testów Support/worker/output-safety/cutover/audit/policy
   PASS oraz `git diff --check` PASS. Zmiany pozostają bez commita i pushu;
   wymagany jest server replay eventu `event_b8269b29bb9c70b8`.
+- Produkcyjny replay potwierdził support dla trzech odrzuconych tras: BlackNet
+  clan/public otrzymały pełny fallback, Googleplex zachował poprawny title i
+  asset oraz wymienił tylko body; każdy wynik użył canonical lokalizacji `Zara`.
+- CTA GhostNetwork Suite zostało domknięte kontrolą instalacji. Sama obecność
+  konstruktora w bundle nie otwiera już aplikacji: canonical brak w
+  `toolbarProfile.apps` blokuje akcję i emituje pojedynczy system message z
+  instrukcją instalacji w Googleplex. Regresja: 40 testów Python i dedykowany
+  test Node PASS. Zmiana pozostaje lokalna, bez commita i pushu.
+- Test `active -> contained` zachował stary active head mimo zgodnego ownera,
+  threadu i wzrostu state version `951 -> 963`. Event/task utworzył PM2 14,
+  który nie został zrestartowany przy pierwszym wdrożeniu lifecycle i nadal miał
+  starą wersję repository w pamięci. Idempotentny enqueue rozszerzono o replay
+  invalidation, aby kontrolowane ponowienie eventu samonaprawiało taki stan bez
+  ręcznej modyfikacji bazy. Regresja lifecycle/CTA: 78 testów Python oraz test
+  Node PASS; wymagany deploy, restart PM2 13/14/17/18 i replay eventu.

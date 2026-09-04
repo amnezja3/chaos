@@ -13,6 +13,20 @@ const actionSandbox = { String };
 vm.createContext(actionSandbox);
 vm.runInContext(terminal.slice(actionStart, actionEnd), actionSandbox);
 
+const installGuardStart = terminal.indexOf("function ghostNetworkSuiteInstalledInProfile");
+const installGuardEnd = terminal.indexOf("const blacknetOpenGhostNetworkSuite", installGuardStart);
+assert.ok(installGuardStart >= 0 && installGuardEnd > installGuardStart);
+const installGuardSandbox = { Array, String };
+vm.createContext(installGuardSandbox);
+vm.runInContext(terminal.slice(installGuardStart, installGuardEnd), installGuardSandbox);
+assert.strictEqual(installGuardSandbox.ghostNetworkSuiteInstalledInProfile({ apps: [] }), false);
+assert.strictEqual(installGuardSandbox.ghostNetworkSuiteInstalledInProfile({
+    apps: [{ id: "ghostnetworkSuite" }],
+}), true);
+assert.strictEqual(installGuardSandbox.ghostNetworkSuiteInstalledInProfile({
+    apps: [{ id: "different", system_launcher: "createGhostNetworkSuiteApp" }],
+}), true);
+
 const exact = actionSandbox.ghostnetworkSuiteOpaqueAction({ actions: {
     map_target_type: "ghostnetwork_part", map_target_id: "ghost-node:opaque",
     teleport_target_type: "ghostnetwork_part", teleport_target_id: "ghost-node:opaque",

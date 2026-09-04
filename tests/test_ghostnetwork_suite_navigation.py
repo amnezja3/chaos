@@ -16,6 +16,9 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
             "createGhostSignalArchiveApp", "open_ghostsignal_archive:",
             "open_ghostnetwork_suite:", "show_ghostnetwork_part:",
             "show_ghostnetwork_territory:", "open_cyberner_channel:",
+            "ghostNetworkSuiteInstalledInProfile",
+            "GhostNetwork Suite nie jest zainstalowany",
+            "messageShown: true",
         ):
             self.assertIn(marker, script)
 

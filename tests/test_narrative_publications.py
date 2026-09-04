@@ -366,6 +366,45 @@ class NarrativePublicationTest(unittest.TestCase):
             [],
         )
 
+    def test_idempotent_task_replay_repairs_stale_active_head(self):
+        self.accepted_candidate(
+            "repair-state-one",
+            narrative_thread_id="ghost-part:owner:repair", world_state_version="50",
+        )
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="repair-state-publisher"
+        )
+        old = publisher.process_once()["record"]
+        base_task = self.repo.list_narrative_outbox(limit=1)[0]
+        next_task = dict(base_task)
+        for key in ("outbox_id", "dedupe_key"):
+            next_task.pop(key, None)
+        next_task.update({
+            "event_id": "repair-state-two",
+            "source_event_id": "repair-state-two",
+            "world_state_version": "51",
+            "status": "ready",
+        })
+        self.repo.enqueue_narrative_task(next_task)
+        with self.repo._conn() as conn:
+            conn.execute(
+                """
+                UPDATE ghost_narrative_medium_records
+                SET active_state = 'active', invalidated_by_event_id = '',
+                    invalidation_reason = ''
+                WHERE medium_record_id = ?
+                """,
+                (old["medium_record_id"],),
+            )
+
+        replay = self.repo.enqueue_narrative_task(next_task)
+
+        self.assertTrue(replay["idempotent"])
+        repaired = self.repo.list_narrative_medium_records("blacknet", limit=10)[0]
+        self.assertEqual(repaired["active_state"], "invalidated")
+        self.assertEqual(repaired["invalidated_by_event_id"], "repair-state-two")
+        self.assertEqual(repaired["invalidation_reason"], "canonical_state_observed")
+
     def test_late_older_state_cannot_replace_active_head(self):
         client = SequencedAcceptedClient()
         self.accepted_candidate(
