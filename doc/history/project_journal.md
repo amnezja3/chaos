@@ -2441,3 +2441,26 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `database is locked` mają stare numery linii i pochodzą sprzed `f241448`.
 - Status: `SPRINT 137 COMPLETE — SERVER PASS`. Sprint 138 publication lifecycle
   został odblokowany i jest gotowy do rozpoczęcia.
+
+## 2026-09-04 — Sprint 138: audyt stanu wejściowego
+
+- Wykonano read-only audyt schematu i kodu publication pipeline: repository,
+  publishera, BlackNet/Googleplex/Cyberner read models, CTA oraz testów. Nie
+  zmieniono runtime ani danych.
+- Potwierdzono działający baseline: bounded staging accepted candidates,
+  receipt/lease/CAS, exactly-once medium record, backendową izolację
+  public/clan/owner, BlackNet merge z semantic dedupe, Googleplex slot CAS oraz
+  wąski owner-scoped odczyt Cybernera.
+- Ustalono właściwą granicę 138.1: `narrative_thread_id` i `priority` istnieją
+  już w outboxie, ale nie są projektowane do medium recordu. Sam rekord nie ma
+  active state, TTL, supersession, invalidation, significance ani
+  `semantic_contract_version`, a feed czyta rekordy newest-first bez filtra
+  lifecycle.
+- BlackNet nadal mapuje każdą publikację do generic
+  `narrative_publication/importance=1/layout=2`. Planowane CTA GhostNetwork nie
+  są spięte end-to-end przez backend allowlist i frontendowe dispatchery.
+- Rozdzielono realizację: 138.1 dostarcza lifecycle/mix/presentation/CTA na
+  obecnym publisherze; 138.2 wykonuje producer-backed E2E, failure injection i
+  soak. 138.2 pozostaje zablokowany do ukończenia 138.1.
+- Regresja publication/read-model/cutover: `56/56 tests / PASS`.
+- Status: `SPRINT 138 AUDITED — 138.1 READY TO START`.

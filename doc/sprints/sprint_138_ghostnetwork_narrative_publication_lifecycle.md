@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `READY — SPRINT 137 SERVER PASS; PUBLICATION LIFECYCLE MAY START`
+Status: `AUDITED / READY — SPRINT 137 SERVER PASS; 138.1 MAY START`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -19,6 +19,56 @@ adversarial audit czterech rzeczywistych tasków i strict cutover zakończyły s
 PASS. Produkcyjna bramka 137.3 potwierdziła runtime contract, obsługę SQLite
 contention bez restartu procesu, retry/dead-letter/heartbeat/candidate recovery,
 czystą aktywną kolejkę i stabilny proces PM2. Sprint 138 jest odblokowany.
+
+## Audyt aktualnego stanu CHAOS — 2026-09-04
+
+Audyt objął rzeczywisty schemat SQLite, repository, publisher, read modele
+BlackNet/Googleplex/Cyberner, backendowe i frontendowe allowlisty CTA oraz testy
+regresyjne. Nie zmieniał runtime ani danych. Wynik: obecny pipeline kończy się
+poprawnym, trwałym i audience-filtered medium recordem, ale po publikacji nie ma
+jeszcze ogólnego lifecycle GhostNetwork. Sprint 138 nie buduje publishera od
+zera — rozszerza istniejący read model o aktywność, wygaszanie, ciągłość stanu,
+selekcję i działające CTA.
+
+| Obszar | Stan | Dowód / rzeczywista luka |
+|---|---|---|
+| Candidate -> publication receipt | `COMPLETE` | bounded staging accepted candidates i trwała identity receipt |
+| Claim/lease/recovery publishera | `COMPLETE` | CAS lease, odzyskanie expired claim i terminalne odrzucenie |
+| Exactly-once medium record | `COMPLETE` | unique `publication_receipt_id`, atomowy insert i acknowledgement |
+| Audience isolation | `COMPLETE` | backendowe zapytania public + zgodny clan/owner; brak filtrowania prywatności w UI |
+| BlackNet publication bridge | `COMPLETE / BASIC` | narracje są scalane z istniejącym feedem, bounded i deduplikowane po canonical fact refs |
+| Googleplex publication bridge | `COMPLETE / SLOT-BASED` | `ghost_narrative_slot_state` wskazuje aktywny medium record, a slot assignment używa CAS |
+| Cyberner owner publication | `COMPLETE / NARROW` | owner-scoped rekord jest zwracany wyłącznie dla zgodnego ownera i source receipt |
+| Lifecycle medium record | `MISSING` | brak `active_state`, `valid_from/until`, supersession i invalidation metadata |
+| Thread head/history | `PARTIAL` | `narrative_thread_id` istnieje w outboxie, lecz nie przechodzi do medium recordu ani zapytań feedu |
+| Significance/priority | `PARTIAL` | `priority` i significance metadata istnieją przed publikacją, lecz read model ich nie zachowuje i nie selekcjonuje po nich |
+| BlackNet mix/presentation | `MISSING` | każda narracja ma generic `signal_type=narrative_publication`, `importance=1`, `layout=2`; wybór jest newest-first |
+| Expiry/state invalidation | `MISSING` | read query nie filtruje aktywności ani TTL; canonical transition nie unieważnia poprzedniego recordu |
+| GhostNetwork CTA | `MISSING` | pięć planowanych akcji nie występuje równocześnie w backend allowlist, BlackNet dispatcher i Googleplex action allowlist |
+| Failure coverage 138 | `PARTIAL` | istnieją testy lease/crash/idempotency/SQLite classification; brak failure testów nowego lifecycle i invalidation |
+| Producer-backed E2E do UI | `MISSING` | nie ma dowodu pełnej linii dla rodzin part/conflict/machine/cycle/signal aż do aktywnej karty i klikniętego CTA |
+| Heavy profile | `BASELINE PASS` | publisher/read modele używają bounded projection; 138 musi utrzymać wszystkie liczniki równe zero |
+
+Lokalna regresja audytowa:
+
+```text
+python -m unittest \
+  tests.test_narrative_publications \
+  tests.test_llm_publishers \
+  tests.test_blacknet_incident_bridge \
+  tests.test_googleplex_news \
+  tests.test_googleplex_news_endpoint \
+  tests.test_narrative_cutover -q
+
+Ran 56 tests in 47.668s
+OK
+```
+
+Wniosek wykonawczy: najpierw `138.1` implementuje lifecycle projection, active
+head, invalidation, mix/presentation i CTA na obecnym publisherze. Dopiero
+`138.2` zamyka producer-backed E2E, failure injection i soak. Historyczne
+medium records pozostają historią; audyt nie autoryzuje ich automatycznego
+backfillu lub reaktywacji.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 
@@ -56,10 +106,10 @@ wstawionego ręcznie do środka pipeline'u. Incydent z realnym dropem pokazał,
 
 Remediacja 136.1 ma lokalny i serwerowy PASS: historyczny event odzyskał taski,
 nowy realny drop utworzył je bezpośrednio, a strict lineage audit jest zielony.
-Sprint 138 pozostaje zablokowany wyłącznie do czasu zaakceptowanych
-producer-backed candidates ze Sprintu 137. Bramka semantic input jest już
-zaliczona; aktualnym blockerem jest zaakceptowany output modelu i jego
-walidacja, nie budowa package.
+Historyczny blocker zaakceptowanych producer-backed candidates został usunięty
+w 137.1/137.1.1, a 137.2 i 137.3 zaliczyły swoje bramki serwerowe. Na dzień
+2026-09-04 Sprint 138 jest odblokowany; bieżącą luką jest lifecycle publikacji,
+nie semantic package ani walidacja outputu.
 
 Pełny test Sprintu 138 musi zaczynać się od produkcyjnego entrypointu domeny:
 
@@ -139,7 +189,9 @@ Obecny system zapewnia:
 - backendowe mapowanie task-local fact aliases do canonical lineage przed
   stagingiem candidate.
 
-Wspólny baseline Sprintów 137–138: `59 tests / PASS`.
+Historyczny wspólny baseline Sprintów 137–138: `59 tests / PASS`. Bieżący audyt
+138 potwierdził dodatkowo właściwy zestaw publication/read-model/cutover:
+`56 tests / PASS`.
 
 ## Rzeczywista luka Sprintu 138
 
@@ -155,7 +207,10 @@ Wspólny baseline Sprintów 137–138: `59 tests / PASS`.
 - brak state-transition invalidation, np. contested -> resolved lub
   machine_online -> machine_offline;
 - brak pełnego E2E dla eventów 136 i candidates 137;
-- polityka terminalnego fallbacku dla critical eventów nie jest rozstrzygnięta.
+- Narrative Support Layer obsługuje odrzucony output modelu przed candidate;
+  osobna polityka publikacji critical eventu po niedostępności modelu albo
+  wyczerpaniu retry pozostaje nierozstrzygnięta i nie może być mylona z tym
+  działającym fallbackiem walidacyjnym.
 
 ## Cel
 
@@ -334,9 +389,9 @@ wyłącznie gdy:
 - późniejsza narracja nie publikuje drugiego wpisu dla tego samego stanu.
 
 Fallback nie dotyczy owner-analysis AGI i nie może udawać odpowiedzi
-Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w Etapie II.
+Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w 138.2.
 
-## Etap I — lifecycle, mix i CTA
+## 138.1 — lifecycle, mix i CTA
 
 1. Dodać addytywny lifecycle contract i bounded indeksy.
 2. Przenieść thread/significance/priority z taska do medium record.
@@ -348,7 +403,7 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w Etapie II.
 8. Zachować `semantic_contract_version` i audytowalne canonical lineage bez
    ujawnienia provenance ani technicznych ID w read modelu.
 
-## Etap II — E2E, failure i soak
+## 138.2 — E2E, failure i soak
 
 1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E, rozpoczynając
    od realnego gameplay/runtime entrypointu, nie od taska lub candidate.
@@ -439,6 +494,7 @@ audience-filtered medium records:           COMPLETE
 BlackNet merge and fact suppression:        COMPLETE
 Googleplex slot CAS:                        COMPLETE
 baseline worker/publisher tests:            59 / PASS
+current publication audit regression:       56 / PASS
 Sprint 136 event/audience component:        PRESENT
 Sprint 136 runtime ingress/lineage:          SERVER PASS
 Shared Semantic Input Layer:                SERVER PASS
@@ -446,7 +502,9 @@ semantic input technical-ID firewall:       SERVER PASS
 Sprint 137.1 producer/support server gate:  PASS
 Sprint 137.2 forbidden-knowledge gate:      SERVER PASS
 Sprint 137.3 runtime/failure gate:           SERVER PASS
-publication lifecycle scope:                READY TO START
+publication baseline audit:                 COMPLETE
+138.1 lifecycle implementation:             READY TO START
+138.2 producer-backed E2E/failure/soak:      BLOCKED BY 138.1
 ```
 
 ## Definition of Done
