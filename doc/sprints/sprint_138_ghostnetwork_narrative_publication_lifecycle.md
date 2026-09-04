@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 COMPLETE — 138.2.pre-endgame REQUIRED / BLOCKING`
+Status: `138.1 COMPLETE — 138.2.pre-endgame + 138.getway.0–5 REQUIRED / BLOCKING`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -876,6 +876,7 @@ final reward projection exactly-once:        PASS
 stabilization rollover + next cycle:          PASS
 signal media contract including radio:       PASS / EXPLICITLY DEFERRED
 critical narrative support fallbacks:        PASS
+superpowers gateway 138.getway.0-5:           REQUIRED / BLOCKING
 preflight strict on production state:         PASS
 failure matrix local/integration:             PASS
 operator backup and runbook rehearsal:        PASS
@@ -884,9 +885,57 @@ operator backup and runbook rehearsal:        PASS
 Każdy nie-PASS powyżej blokuje aktywację ostatniej części. Wyjątkiem jest radio
 wyłącznie po jawnej decyzji o jego usunięciu z kontraktu pierwszego debiutu.
 
+## Bramka supermocy 138.getway.0–5
+
+Audyt stanu faktycznego wykazał, że 20/20 mocy posiada katalog i działające
+eligibility, ale 0/20 posiada realny efekt gameplay. Przed jednorazowym testem
+pełnego GhostSignalu obowiązuje sześć dodatkowych etapów:
+
+1. `138.getway.0` — wspólna powłoka, pilot V1 i certyfikacja 12/12 realizerów;
+2. `138.getway.1` — pięć mocy VIREX na zamrożonym schemacie pilota;
+3. `138.getway.2` — pięć mocy Echo Wolności;
+4. `138.getway.3` — pięć mocy Siatki Widmo;
+5. `138.getway.4` — pięć mocy Strażników Ładu i cross-clan closure;
+6. `138.getway.5` — polish, balans, UX, failure i soak bez nowych mechanik.
+
+Etap `.0` najpierw przeprowadza wszystkie 12 zamkniętych gameplay realizerów
+przez jeden operatorski pilot VIREX V1 / `Insider Feed`. Override realizera jest
+wyłącznie serwerowy i testowy; produkcyjny V1 zostaje związany tylko z
+`operation_speed`. Dzięki temu późniejsze etapy wybierają sprawdzony realizer,
+presentation profile i parametry zamiast ponownie projektować integrację.
+
+Etapy `.1–.4` są realizowane jako podsprinty profesja po profesji (`.1.1–.1.5`,
+`.2.1–.2.5`, `.3.1–.3.5`, `.4.1–.4.5`). Obecne efekty katalogowe są hipotezą
+wejściową. Wspólny UX to: przycisk mocy w menu mapy, 4–6 sekund overlayu z
+assetem/CSS/SFX, a następnie serwerowy licznik 15 minut i lekki modyfikator
+istniejącego parametru gameplay. Kandydat cooldownu to 1 godzina od aktywacji.
+Overlay, efekt CSS i badge timera używają wspólnej palety właściwego klanu, a
+miniatura assetu aktywnej części pozostaje przy odliczaniu do końca wpływu.
+
+Dla każdej profesji najpierw powstaje prototyp i pierwszy test frontendowy,
+następnie jawna decyzja `KEEP / ADJUST / REPLACE / DEFER`, a dopiero później
+mały hook w istniejącym call-site oraz E2E. Nie powstaje osobny executor,
+worker, kolejka, event bus ani drugi runtime supermocy. `.5` wykonuje polish
+każdej z 20 profesji i nie wprowadza nowych mechanik.
+
+Każdy podsprint zachowuje bazowe granice CHAOS: zero pełnych odczytów/zapisów
+ciężkiego profilu, zero `list_profiles()` i account scan, bounded fan-out,
+canonical narrow stores, krótkie transakcje SQLite, istniejące CAS/owner checks,
+session generation i backendową autoryzację. Naruszenie dowolnej z tych zasad
+blokuje `SERVER PASS` niezależnie od wyniku frontendowego.
+
+Pakiet parametrów obejmuje również istniejące `operation_risk` oraz
+`data_quality/completeness`; dają one dodatkowe warianty dla 20 profesji bez
+tworzenia nowych systemów. Moc nie ustawia bezpośrednio ceny, detekcji ani
+incydentu — modyfikuje bounded wejście istniejącego kalkulatora.
+
+Pełny kontrakt, Definition of Done i macierz testowa znajdują się w
+`doc/sprints/sprint_138_getway_ghostnetwork_superpowers.md`. Dopóki wszystkie
+sześć etapów nie ma `SERVER PASS`, obowiązuje `DO NOT TRIGGER 20/20`.
+
 ## 138.2 — E2E, failure i soak
 
-Status: `BLOCKED BY 138.2.pre-endgame`
+Status: `BLOCKED BY 138.2.pre-endgame AND 138.getway.0–5`
 
 Pierwsza bramka implementacyjna dodaje bounded, read-only audit pełnego lineage:
 

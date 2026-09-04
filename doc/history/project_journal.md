@@ -2719,3 +2719,62 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   archiwum pozostaje viewer-safe.
 - P0.5 ma `IMPLEMENTED — LOCAL PASS`. Zmiany pozostają lokalne bez commita i
   pushu; `SERVER PASS` wymaga obserwacji prawdziwego finału.
+
+## 2026-09-04 — audyt supermocy i bramka 138.getway
+
+- Audyt stanu faktycznego potwierdził kompletny katalog oraz działające
+  eligibility 20/20, lecz zero realnych efektów gameplay. Sześć nazwanych
+  adapterów dziedziczy no-op, a runtime nie ma produkcyjnych consumerów,
+  komend, instancji ani cooldownów.
+- Wykryto rozbieżność statusów: katalog mówi `catalog_only`, natomiast registry
+  nazywa tryb interakcji `passive_active`, `active_command` lub
+  `event_reaction`, mimo braku implementacji. Dokumentowana flaga abilities
+  również nie jest konsumowana przez kod.
+- Dodano blokujący plan `138.getway.0–5`: etap zerowy foundation/pilot, cztery
+  pionowe sprinty wdrażające po pięć mocy dla VIREX, Echo Wolności, Siatki Widmo
+  i Strażników Ładu oraz piąty sprint polish bez nowych mechanik.
+- Każdy sprint klanowy został podzielony na podsprinty profesja po profesji.
+  Aktualny efekt katalogowy jest hipotezą: najpierw powstaje niemutujący
+  frontend prototype i pierwszy test gracza, potem decyzja
+  `KEEP / ADJUST / REPLACE / DEFER`, a dopiero następnie contract lock, backend
+  i E2E. Polish przechodzi osobno wszystkie 20 profesji.
+- Pełny GhostSignal E2E `138.2` pozostaje zablokowany do `SERVER PASS` wszystkich
+  pięciu etapów i aktualnego audytu 20/20.
+
+## 2026-09-04 — korekta kierunku 138.getway: Secret Path zamiast drugiego systemu
+
+- Plan supermocy został uproszczony do wzorca już działającego na mapie:
+  przycisk z nazwą mocy, show 4–6 s wykorzystujące overlay Secret Path, asset
+  części, CSS i wspólny SFX, a następnie licznik aktywnego okna na mapie.
+- Hipoteza startowa to 15 minut działania i cooldown 1 godziny od aktywacji.
+  Jedynym wspólnym nowym stanem ma być mały rekord
+  `player/ability/activated_at/expires_at/cooldown_until`; bez workera,
+  schedulera, kolejki, LLM i osobnego executora efektów.
+- Audyt istniejącego runtime wskazał gotowe grupy parametrów: czas operacji,
+  finalizację i wartość plików, action dots i security celu, zasięg/zoom,
+  snapshot aktorów oraz istniejący runtime incydentów i kapsuł NPC.
+- `Insider Feed` zaczyna jako przyspieszenie operacji z kandydatem
+  `clamp(0.1 × LVL, 1.5, 8.0)` (`7.1×` na poziomie 71), `Wejście Serwisowe`
+  pozostawia tylko zabezpieczenia oznaczonego celu, a `Fałszywy Obraz` korzysta
+  z istniejących syntetycznych incydentów i służb na obrzeżach klastrów.
+- Pozostałe moce są nadal rozstrzygane profesja po profesji po pierwszym teście
+  frontendowym. Opis fabularny prowadzi prezentację, ale mechanika ma być małym,
+  widocznym modyfikatorem już istniejącego świata.
+- Do bramki dopisano nienaruszalne reguły bazowe: brak pełnego odczytu/zapisu
+  ciężkiego profilu i `list_profiles()`, brak account scan i nieograniczonego
+  fan-out, narrow canonical stores, krótkie transakcje SQLite, zachowanie CAS,
+  owner checks, session generation i idempotency. Audit przed `SERVER PASS` ma
+  wykazać `profile_full_read=0`, `profile_full_write=0`, `account_scan=0`.
+- Kontrakt wizualny wymaga koloru klanu w overlayu, aktywnym CSS i badge'u:
+  VIREX czerwony, Echo żółty, Siatka Widmo turkusowy, Strażnicy niebieski.
+  Miniatura assetu aktywnej części pozostaje przy zegarze przez całe 15 minut.
+- Audyt rozszerzył pakiet o dwie istniejące rodziny: `operation_risk`
+  (heat/progi warning i incident) oraz `data_quality` (quality/completeness i
+  obecny wpływ na cenę plików). Pakiet ma teraz 12 rodzin, które można łączyć z
+  20 profesjami bez budowania 20 osobnych runtime'ów.
+- Dodano `138.getway.0`: wszystkie 12 gameplay realizerów najpierw przechodzi
+  przez jeden operatorski pilot VIREX V1 / `Insider Feed`. Testowy wybór
+  realizera jest wyłącznie serwerowy i nie trafia do publicznego API. Po
+  certyfikacji finalny V1 pozostaje związany z `operation_speed`, a kolejne
+  profesje składają się z wyboru sprawdzonego realizera, wariantu wizualnego,
+  parametrów balansu i indywidualnego E2E.
