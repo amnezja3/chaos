@@ -2593,3 +2593,32 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Zapisano ją jako problem wydajnościowy do dalszych failure/soak gates 138.2.
 - Lokalna regresja po korekcie audytu: `48 tests / PASS`; zmiany pozostają bez
   commita i pushu zgodnie z trybem pracy operatora.
+- Produkcyjny rerun strict audytu v2 zakończył się `ok=true`, `errors=[]`.
+  Wszystkie cztery chainy są poprawne: trzy `published` oraz Googleplex jako
+  `controlled_slot_supersession` z aktywnym rekordem następcy w slocie HERO.
+  `part_activated` otrzymuje pierwszy family `SERVER PASS` Sprintu 138.2.
+
+## 2026-09-04 — Audyt gotowości 138.2.pre-endgame
+
+- Przed pierwszym produkcyjnym `cycle_locked` i `signal_sent` wykonano ponowny
+  przekrojowy audyt closure, transmission, runtime worker, rewards, deltas/UI,
+  snapshot recovery, narrative media, archiwum i rollover. Regresje 53 testów
+  domenowych oraz 63 testów delta/audience/reward/readiness/publication/CTA/SFX
+  zakończyły się PASS; frontend Suite live-delta Node również PASS.
+- Dodatkowy crash-window występuje po commitcie sygnału: archive i narrative
+  dispatch są celowo fail-open, ale bez cyklicznego sweepera nie naprawią się
+  same. Bramka wymaga, aby faza `stabilizing` rekoncyliowała również te
+  post-commit efekty przed rolloverem.
+- Potwierdzono solidny baseline: fail-closed readiness, immutable lock snapshot,
+  atomową i idempotentną transmisję, jednoznaczny signal identity, archive oraz
+  istniejące ręczne `resume_interrupted_transmission`.
+- Produkcyjny trigger został zablokowany pięcioma klasami P0: brak automatycznego
+  resume cyklu `transmitting`, brak durable projekcji final rewards, brak pełnej
+  delivery eventów finału i trwałego restart state w snapshotach, brak rollover
+  po `stabilization_until` oraz niepełny kontrakt publikacji/fallbacków (w tym
+  nieobsługiwane medium `radio`).
+- W sprincie 138 zapisano formalną bramkę `138.2.pre-endgame`, crash matrix,
+  wymagania read-only preflightu, production runbook, procedurę awaryjną i
+  Definition of Ready. Do jej zaliczenia obowiązuje `DO NOT TRIGGER 20/20`.
+- Audyt nie zmienił runtime ani danych produkcyjnych. Nie wykonano commita,
+  pushu, deployu ani restartu.

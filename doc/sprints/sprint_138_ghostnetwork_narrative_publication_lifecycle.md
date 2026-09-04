@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 COMPLETE — 138.2 IN PROGRESS`
+Status: `138.1 COMPLETE — 138.2.pre-endgame REQUIRED / BLOCKING`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -520,9 +520,272 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w 138.2.
 8. Zachować `semantic_contract_version` i audytowalne canonical lineage bez
    ujawnienia provenance ani technicznych ID w read modelu.
 
+## 138.2.pre-endgame — wymagana bramka debiutu cyklu i GhostSignalu
+
+Status: `REQUIRED / BLOCKING — DO NOT TRIGGER 20/20`
+
+### Powód bramki
+
+Cykl i GhostSignal nie miały jeszcze produkcyjnego debiutu. Zebranie następnych
+20 części będzie kosztowne, dlatego bieżącego stanu nie wolno zużyć jako testu
+integracyjnego, dopóki cały finał nie ma automatycznego recovery i jednoznacznego
+runbooka. Istniejące usługi domenowe poprawnie realizują lock, immutable snapshot,
+transmisję i idempotencję, ale produkcyjna orkiestracja nie domyka wszystkich
+skutków ubocznych.
+
+Bramka obejmuje dokładnie przejście:
+
+```text
+ostatnia aktywacja części
+  -> machine_progress_changed + machine_online
+  -> readiness 20/20, 20 connections, 4/4 machines
+  -> cycle_locked + immutable lock snapshot
+  -> GhostSignal transmission
+  -> rewards / archive / consumed parts / closed connections
+  -> signal_sent + version_changed + restart_required
+  -> stabilization_started
+  -> stabilizing deadline
+  -> closed old cycle
+  -> new active cycle with 20 pooled parts and valid topology
+```
+
+### Ponownie potwierdzony baseline
+
+- readiness jest fail-closed: wymaga dokładnie 20 części, 20 połączeń, czterech
+  maszyn po 5/5, poprawnego topology checksum, prawidłowych anchors i territory
+  clans oraz braku nierozstrzygniętych konfliktów;
+- lock zapisuje atomowy, immutable snapshot i deduplikuje `cycle_locked`;
+- transmisja korzysta wyłącznie z lock snapshotu, tworzy jeden signal per cycle,
+  jest idempotentna i wewnątrz jednej transakcji tworzy rewards, historical nodes,
+  zużywa części, usuwa połączenia, zmienia wersję oraz rozpoczyna stabilizację;
+- istnieje jawne `resume_interrupted_transmission(cycle_id)`;
+- archive i canonical narrative producers istnieją dla `cycle_locked`,
+  `signal_sent`, `version_changed` i `stabilization_started`;
+- lokalna regresja closure/transmission/archive/runtime/narrative/module/cycle:
+  `53 tests / PASS`;
+- rozszerzona regresja delta/audience/reward CAS/readiness/publication/CTA/SFX:
+  `63 tests / PASS` oraz frontend Suite live-delta Node `PASS`.
+
+Baseline komponentów nie jest zgodą na produkcyjny trigger. Obecny test runtime
+kończy się świadomie na `stabilizing` i asercyjnie nie tworzy następnego cyklu.
+
+### Luki P0 blokujące 20/20
+
+#### P0.1 — trwały endgame reconciler
+
+`maybe_finalize_ghostnetwork_cycle()` obsługuje wyłącznie cykl `active`. Jeżeli
+proces zakończy się po commitcie locka, kolejny tick zobaczy `transmitting` i nie
+wywoła istniejącego recovery. Job terytorialny może wtedy zakończyć się sukcesem,
+chociaż transmisja nie została wznowiona.
+
+Wymagane:
+
+- jeden bounded `advance_ghostnetwork_endgame_once()` uruchamiany z PM2 14 na
+  stałej kadencji, niezależnie od pojawienia się kolejnego territory joba;
+- `active + ready` wykonuje lock, następnie transmission;
+- `transmitting + valid lock` wykonuje `resume_interrupted_transmission`;
+- `transmitting` bez poprawnego lock snapshotu zatrzymuje się fail-closed i
+  emituje alarm, bez tworzenia sygnału;
+- `stabilizing` przed deadline naprawia brakujące post-commit efekty: archive,
+  persisted-event narrative/delta enqueue oraz uruchomienie reward projectora;
+- `stabilizing + deadline due` atomowo zamyka stary cykl i inicjuje kolejny;
+- CAS/lease gwarantuje jednego wykonawcę, a każdy etap może być bezpiecznie
+  ponowiony po restarcie procesu lub SQLite contention;
+- stan oraz ostatni błąd są widoczne w bounded diagnostyce.
+
+#### P0.2 — durable final rewards projection
+
+Transmisja tworzy w ledgerze nagrody holderów oraz closera, lecz produkcyjny
+endgame nie projektuje ich automatycznie do profili. Nie wolno pozostawić ich
+bezterminowo jako `pending` ani zapisywać profili w szerokiej transakcji sygnału.
+
+Wymagane:
+
+- bounded kolejka/projektor korzystający z istniejącego guarded profile CAS;
+- retry pending reward po awarii przed zapisem i po zapisie profilu;
+- dokładnie jeden przyrost RSP per `reward_key`;
+- finalizacja ledgera dopiero po trwałym zapisie profilu;
+- brak pełnego account scan i brak utrzymywania wielu profili w transakcji
+  GhostSignalu;
+- diagnostyka pending/applied/rejected oraz oldest pending.
+
+#### P0.3 — delivery eventów finału i trwały restart state
+
+Serwis domenowy dispatchuje narrację, lecz endgame tworzony po normalnym
+`apply_ghostnetwork_runtime_result()` nie przechodzi obecnie przez ten sam durable
+delta delivery. Otwarty klient może więc nie otrzymać finału. Dodatkowo Suite
+ustawia `restartRequired` po live delta, ale viewer snapshot nie utrwala pełnych
+pól restartu; odświeżenie strony może zgubić komunikat.
+
+Wymagane:
+
+- enqueue każdego persisted endgame eventu do istniejącej durable delta queue;
+- dedupe po canonical event identity oraz snapshot recovery po utracie delty;
+- dostarczenie do wszystkich kwalifikujących się odbiorców bez cichego ucięcia
+  na obecnym limicie pierwszych 500 kont; batching pozostaje bounded;
+- viewer-safe cycle projection zawierająca `restart_required`, wersję source/to,
+  `restart_signal_id` lub bezpieczny public alias oraz `stabilization_until`;
+- po świeżym wejściu i po reloadzie ten sam stan `RESTART GHOSTSYSTEMU WYMAGANY`;
+- pojedynczy system message na signal/version, bez toast stormu;
+- wszystkie akcje GhostNetwork wyłączone po locku, również po snapshot recovery;
+- test public/clan/owner oraz klienta, który był offline podczas transmisji.
+
+#### P0.4 — rollover po stabilizacji
+
+Po transmisji istnieje `stabilization_until`, lecz nie ma produkcyjnego call-site
+dla `stabilizing -> closed -> create_next_cycle`. Bez niego GhostNetwork pozostaje
+trwale bez dropów po wykorzystaniu bieżących 20 części.
+
+Wymagane:
+
+- deadline oparty na czasie backendu, nie timerze przeglądarki;
+- przed rolloverem hard settlement potwierdza poprawny signal, consumed parts,
+  zamknięte connections, historical nodes i utworzone reward rows; awaria Ollamy
+  nie blokuje mechaniki następnego cyklu, lecz pozostaje retryable i audytowalna;
+- idempotentne zamknięcie starego cyklu;
+- dokładnie jeden nowy cykl, 20 pooled parts, rozkład 5/klan i poprawny ring 20;
+- nowy `ghost.cycle_activated` oraz durable delty/narracje;
+- brak dziedziczenia consumed parts, reservations i aktywnych connections;
+- zachowanie terytoriów i archiwum starego cyklu;
+- recovery po crashu pomiędzy `closed` i utworzeniem/aktywacją nowego cyklu;
+- dropy pozostają wyłączone przed deadline i wracają dopiero dla nowego `active`.
+
+#### P0.5 — publikacja i fallback jednorazowych komunikatów
+
+`signal_sent` kieruje treść do BlackNet, Googleplex News, Cybernera i `radio`, ale
+canonical publisher obsługuje tylko trzy pierwsze media. Narrative Support Layer
+ma warianty wyłącznie dla `part_discovered` i `part_activated`. Pojedynczy słaby
+output modelu może więc odebrać debiutowi kluczową publikację.
+
+Wymagane:
+
+- jawna decyzja kontraktowa: wdrożyć canonical radio publication albo usunąć
+  `radio` z targetów pierwszego debiutu; task skazany na
+  `unsupported_target_medium` jest niedopuszczalny;
+- audience-safe fallbacki YAML dla gwarantowanych komunikatów BlackNet/GGPL:
+  `machine_online`, `cycle_locked`, `signal_sent`, `version_changed`,
+  `stabilization_started` i nowego `cycle_activated`;
+- fallback nie wymyśla odpowiedzi z 2108 ani outcome sygnału;
+- Cyberner zachowuje zasadę braku udawanej odpowiedzi AGI: retry ma bounded
+  terminal, a brak poprawnej odpowiedzi jest raportowany jako jawny kontrolowany
+  outcome i nie blokuje mechaniki ani gwarantowanych komunikatów;
+- radio ma canonical, obsługiwany publication/player contract albo zostaje jawnie
+  wyłączone z fan-out pierwszego debiutu; nie korzysta z nieistniejącego CTA;
+- CTA `open_ghostsignal_archive` działa po publikacji i po reloadzie;
+- radio CTA używa rzeczywiście obsługiwanej nazwy akcji i istniejącego playera;
+- E2E każdej oczekiwanej trasy kończy się `published` albo udowodnionym,
+  kontrolowanym slot supersession — nigdy przypadkowym dead letterem.
+
+### Crash windows wymagające testu
+
+| Punkt awarii | Oczekiwane recovery |
+|---|---|
+| przed lockiem | cykl pozostaje `active`; następny tick ponawia readiness |
+| po lock commit, przed signal | reconciler rozpoznaje `transmitting` i wznawia |
+| w środku transakcji signal | rollback mechaniki; lock pozostaje; retry tworzy jeden signal |
+| po signal commit, przed delta/narrative | persisted-event sweep uzupełnia delivery bez powtórzenia mechaniki |
+| podczas reward profile save | ledger pozostaje retryable; RSP nie nalicza się podwójnie |
+| po profile save, przed ledger finalize | receipt/reward key rozpoznaje zapis i finalizuje bez drugiego RSP |
+| podczas SQLite busy/locked | bounded backoff, PM2 pozostaje online, brak tight loop |
+| restart PM2 14 w `transmitting` | automatyczny resume bez komendy operatora |
+| restart PM2 14 w `stabilizing` | zachowany deadline i późniejszy dokładnie jeden rollover |
+| dwóch wykonawców równocześnie | CAS/lease: jeden lock, signal, archive i next cycle |
+| Ollama/publisher offline | gameplay kończy się; taski retry/support odzyskują publikację |
+
+### Read-only preflight przed ostatnią aktywacją
+
+Musi powstać jeden skrypt `scripts/audit_ghostnetwork_endgame_preflight.py`, który
+nie mutuje bazy i w `--strict` failuje przed 20/20, jeżeli nie potwierdzi:
+
+- dokładnie jednego cyklu `active`, bez lock snapshotu i bez istniejącego signal;
+- 20 części, 20 połączeń, poprawnego checksumu i czterech maszyn;
+- dla stanu 19/20: dokładnie jednej nieaktywnej części oraz wszystkich pozostałych
+  anchors/territories/state versions poprawnych;
+- zero unresolved strategic conflicts i zero active reservations niezwiązanych
+  z planowaną ostatnią częścią;
+- brak zaległych endgame jobs oraz brak starych pending final rewards;
+- PM2 14, 17 i 18 online, poprawne env i brak crash loop;
+- Ollama verify, prompt registry, output safety, narrative cutover i publication
+  lifecycle audit `ok=true`;
+- obsługę każdego medium/CTA z finalnego fan-out;
+- wolne miejsce, poprawny SQLite health i wykonaną bezpieczną kopię `.backup`.
+
+Preflight raportuje również dokładne `cycle_id`, ostatnią część, maszynę,
+oczekiwany next version, liczbę przyszłych rewards oraz listę oczekiwanych eventów
+i mediów. Nie wolno opierać zgody na ręcznym zestawie luźnych SELECT-ów.
+
+### Zbiorczy postflight
+
+Musi powstać jeden read-only `scripts/audit_ghostnetwork_endgame.py --cycle-id ...
+--strict`, który łączy i asercyjnie sprawdza:
+
+- jeden lock snapshot i zgodny checksum;
+- jeden signal, właściwy source/next version i immutable payload;
+- dokładnie po jednym canonical evencie każdego wymaganego typu;
+- 20 consumed parts, zero aktywnych reservations i zero live connections;
+- 20 historical nodes oraz komplet archive/achievement finalization;
+- oczekiwaną liczbę final rewards, dokładnie jeden reward key, zero osieroconych
+  pending po zakończeniu reward projectora;
+- durable delta jobs/delivery dla wszystkich endgame events;
+- komplet task -> attempt -> candidate -> receipt -> lifecycle record lub jawny
+  dozwolony terminal per medium;
+- poprawne supersession starych kart cycle/machine oraz brak audience leaks;
+- status `stabilizing` przed deadline, a po deadline stary `closed` i dokładnie
+  jeden nowy `active` cycle z poprawnym katalogiem/topologią.
+
+Postflight musi dać sensowny wynik również w połowie procesu: `in_progress` z
+listą brakujących etapów, a nie fałszywy PASS ani lawinę wtórnych błędów.
+
+### Kontrolowany production runbook
+
+1. Zatrzymać zmiany wdrożeniowe; zapisać HEAD, PM2 status/env i timestamp.
+2. Wykonać SQLite online backup bez zatrzymywania aplikacji.
+3. Uruchomić strict preflight; wymagane `ok=true`, `ready_after_last_part=true`.
+4. Otworzyć równolegle logi PM2 14, 17 i 18 oraz bounded watch kolejki/eventów.
+5. Aktywować ostatnią część wyłącznie realnym gameplay entrypointem.
+6. Nie wykonywać ręcznych UPDATE/INSERT ani drugiego triggera.
+7. Obserwować dokładnie jeden lock, signal i przejście do `stabilizing`.
+8. Uruchomić postflight dla machine/cycle/signal oraz narrative E2E wszystkich
+   tasków; zapisać identyfikatory całej linii.
+9. Sprawdzić system message/restart po live delta i po świeżym logowaniu.
+10. Potwierdzić nagrody holderów i closera na kilku profilach oraz zero pending.
+11. Po deadline potwierdzić dokładnie jeden nowy `active` cycle i ponowne dropy.
+12. Dopiero wtedy oznaczyć cycle/signal family gates 138.2 jako SERVER PASS.
+
+### Procedura awaryjna
+
+- `active` bez locka: nie zmieniać bazy; usunąć przyczynę readiness i pozwolić
+  reconcilerowi ponowić;
+- `transmitting` z poprawnym lockiem: oczekiwać automatycznego resume; komenda
+  serwisowa jest wyłącznie narzędziem break-glass po zapisaniu diagnostyki;
+- `transmitting` bez locka lub z błędnym checksumem: stop/fail-closed, backup i
+  analiza; zakaz ręcznego tworzenia signal;
+- `stabilizing`: nie reaktywować consumed parts i nie tworzyć cyklu ręcznym SQL;
+- brak publikacji nie cofa gameplayu; naprawia się event/task replay, nie signal;
+- brak nagrody naprawia durable reward projector, nigdy ręczne dodanie RSP.
+
+### Definition of Ready dla produkcyjnego 20/20
+
+```text
+durable endgame reconciler:                  PASS
+transmitting crash auto-resume:              PASS
+endgame delta + offline snapshot recovery:   PASS
+persistent restart system message:           PASS
+final reward projection exactly-once:        PASS
+stabilization rollover + next cycle:          PASS
+signal media contract including radio:       PASS / EXPLICITLY DEFERRED
+critical narrative support fallbacks:        PASS
+preflight strict on production state:         PASS
+failure matrix local/integration:             PASS
+operator backup and runbook rehearsal:        PASS
+```
+
+Każdy nie-PASS powyżej blokuje aktywację ostatniej części. Wyjątkiem jest radio
+wyłącznie po jawnej decyzji o jego usunięciu z kontraktu pierwszego debiutu.
+
 ## 138.2 — E2E, failure i soak
 
-Status: `IN PROGRESS`
+Status: `BLOCKED BY 138.2.pre-endgame`
 
 Pierwsza bramka implementacyjna dodaje bounded, read-only audit pełnego lineage:
 
@@ -561,6 +824,12 @@ Zaobserwowane czasy event-to-publication dla trzech opublikowanych tras wyniosł
 534–761 sekund (średnio 665 sekund). Nie naruszyło to lineage, ale stanowi
 baseline wydajnościowy do failure/soak i nie może zostać uznane za docelową
 latencję runtime.
+
+Powtórzony na produkcji strict audit v2 zwrócił `ok=true`, `errors=[]` i cztery
+poprawne chainy: trzy `published` oraz jeden `controlled_slot_supersession` z
+potwierdzonym aktywnym rekordem slotu `gp-home-world-grid`. Family gate
+`part_activated` otrzymuje `SERVER PASS`; pozostałe rodziny oraz failure/soak
+pozostają otwarte w 138.2.
 
 1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E, rozpoczynając
    od realnego gameplay/runtime entrypointu, nie od taska lub candidate.
@@ -666,7 +935,8 @@ Sprint 137.2 forbidden-knowledge gate:      SERVER PASS
 Sprint 137.3 runtime/failure gate:           SERVER PASS
 publication baseline audit:                 COMPLETE
 138.1 lifecycle implementation:             COMPLETE / SERVER PASS
-138.2 producer-backed E2E/failure/soak:      IN PROGRESS
+138.2.pre-endgame production gate:           REQUIRED / BLOCKING
+138.2 producer-backed E2E/failure/soak:      BLOCKED BY PRE-ENDGAME
 ```
 
 ## Definition of Done
