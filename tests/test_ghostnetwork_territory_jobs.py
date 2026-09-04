@@ -5,7 +5,12 @@ from unittest.mock import Mock, patch
 
 import run
 import database
-from database import GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, TerritoryStore
+from database import (
+    GhostNetworkDeltaDeliveryJobStore,
+    GhostNetworkTerritoryJobStore,
+    SystemMessageStore,
+    TerritoryStore,
+)
 from tools.ghostnetwork_runtime import build_parser, enqueue_territory_reconcile
 
 
@@ -235,6 +240,95 @@ class GhostNetworkTerritoryJobStoreTest(unittest.TestCase):
         self.assertTrue(result["complete"])
         publisher.assert_not_called()
         record.assert_not_called()
+
+    def test_public_delivery_pages_past_500_without_silent_truncation(self):
+        event = {
+            "event_id": "event-public-503", "cycle_id": "cycle-1",
+            "event_type": "ghost.signal_sent", "audience_scope": "public",
+        }
+        self.delivery_store.enqueue(event, recipient_route={"scope": "public"})
+        identities = [
+            {"username": f"player-{index:04d}", "clan_code": "virex"}
+            for index in range(503)
+        ]
+
+        class PagedIdentities:
+            def list_recipient_ids(self, scope, *, clan_code=None, after_username="", limit=500):
+                names = [item["username"] for item in identities if item["username"] > after_username]
+                return names[:limit]
+
+            def get_identities(self, usernames, max_items=500):
+                wanted = set(usernames)
+                return [item for item in identities if item["username"] in wanted]
+
+        publisher = Mock()
+        publisher.repository.build_internal_snapshot.return_value = {"cycle": {"cycle_id": "cycle-1"}}
+        publisher._viewer_username.side_effect = lambda viewer: viewer["viewer_id"]
+        publisher.build_delta_for_viewer.side_effect = lambda _event, viewer, snapshot=None: {
+            "scope": "ghostnetwork", "type": "ghost.signal_sent",
+            "entity_id": "cycle-1", "payload": {},
+            "dedupe_key": "event-public-503", "created_at": None,
+        }
+        bus = Mock()
+        results = []
+        with patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
+                patch.object(run, "identity_projection_store", PagedIdentities()), \
+                patch.object(run, "GhostNetworkDeltaPublisher", return_value=publisher), \
+                patch.object(run, "delta_bus", bus):
+            for _ in range(10):
+                result = run.process_ghostnetwork_delta_delivery_job("worker", batch_size=100)
+                results.append(result)
+                if result and result["complete"]:
+                    break
+
+        self.assertTrue(results[-1]["complete"])
+        self.assertEqual(bus.record_change.call_count, 503)
+        self.assertEqual(self.delivery_store.diagnostics()["published"], 503)
+        self.assertGreater(len(results), 5)
+
+    def test_reconciliation_upgrades_a_legacy_empty_delivery_receipt(self):
+        event = {
+            "event_id": "event-legacy-empty", "cycle_id": "cycle-1",
+            "event_type": "ghost.restart_required", "audience_scope": "system",
+        }
+        self.delivery_store.enqueue(event, [])
+        upgraded = self.delivery_store.enqueue(
+            event, recipient_route={"scope": "public"},
+        )
+        claim = self.delivery_store.claim("worker")
+
+        self.assertTrue(upgraded["enqueued"])
+        self.assertEqual(claim["recipient_scope"], "public")
+        self.assertEqual(claim["recipient_cursor"], "")
+
+    def test_restart_message_is_deduplicated_per_signal_version(self):
+        event = {
+            "event_id": "event-restart", "cycle_id": "cycle-1",
+            "event_type": "ghost.restart_required", "audience_scope": "system",
+            "payload": {"from_version": "7.09", "to_version": "8.00"},
+        }
+        snapshot = {"cycle": {"cycle_id": "cycle-1", "signal_number": 1}}
+        message_store = SystemMessageStore(self.db_path)
+        self.delivery_store.enqueue(event, [{"viewer_id": "alice"}])
+        publisher = Mock()
+        publisher.repository.build_internal_snapshot.return_value = snapshot
+        publisher._viewer_username.return_value = "alice"
+        publisher.build_delta_for_viewer.return_value = {
+            "scope": "ghostnetwork", "type": "ghost.restart_required",
+            "entity_id": "cycle-1", "payload": {"cycle": {"restart_required": True}},
+            "dedupe_key": "event-restart", "created_at": None,
+        }
+        with patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
+                patch.object(run, "GhostNetworkDeltaPublisher", return_value=publisher), \
+                patch.object(run, "system_message_store", message_store), \
+                patch.object(run.delta_bus, "record_change"):
+            result = run.process_ghostnetwork_delta_delivery_job("worker")
+            self.assertTrue(result["complete"])
+            self.assertFalse(run._enqueue_ghostnetwork_restart_message("alice", event, snapshot))
+        messages = message_store.consume_pending("alice")
+        self.assertEqual(len(messages), 1)
+        self.assertIn("7.09", messages[0]["text"])
+        self.assertIn("8.00", messages[0]["text"])
 
 
 if __name__ == "__main__":

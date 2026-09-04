@@ -19,6 +19,7 @@ from .abilities import GhostAbilityRegistry
 from .archive import GhostArchiveService
 from .closure import GhostNetworkClosureService
 from .cycles import GhostCycleService, ensure_active_ghostnetwork_cycle
+from .errors import RepositoryIntegrityError
 from .conflicts import GhostDefenseRewardPolicy, GhostStrategicConflictService
 from .lifecycle import GhostPartLifecycleService
 from .module_state import GhostModuleStateService
@@ -306,6 +307,266 @@ class GhostNetworkService:
 
     def validate_transmission(self, cycle_id):
         return self.transmission.validate_transmission(cycle_id)
+
+    def reconcile_transmission_postcommit(self, cycle_id):
+        """Repair idempotent archive/narrative effects after signal commit.
+
+        The durable marker is deliberately narrower than the complete endgame
+        settlement contract. Delta fan-out and reward profile projection get
+        their own markers in P0.3 and P0.2, respectively.
+        """
+        cycle_id = str(cycle_id or "").strip()
+        marker_key = f"ghost:endgame_postcommit_reconciled:{cycle_id}:archive_narrative:v1"
+        existing = self.repository.get_event_by_dedupe_key(marker_key)
+        if existing:
+            return {
+                "ok": True,
+                "status": "complete",
+                "cycle_id": cycle_id,
+                "idempotent": True,
+                "marker_event": existing,
+            }
+
+        cycle = self.repository.get_cycle(cycle_id)
+        signal = self.repository.get_signal_for_cycle(cycle_id)
+        lock_snapshot = self.repository.get_cycle_lock_snapshot(cycle_id)
+        reasons = []
+        if not cycle or cycle.get("status") != "stabilizing":
+            reasons.append("cycle_not_stabilizing")
+        if not signal:
+            reasons.append("signal_missing")
+        if not lock_snapshot:
+            reasons.append("lock_snapshot_missing")
+        if reasons:
+            return {
+                "ok": False,
+                "status": "blocked",
+                "cycle_id": cycle_id,
+                "reasons": reasons,
+            }
+
+        try:
+            archive = self.archive.finalize_signal_archive(signal["signal_id"])
+        except Exception as exc:
+            archive = {"ok": False, "error": str(exc)[:160]}
+        if not archive.get("ok"):
+            return {
+                "ok": False,
+                "status": "retry",
+                "cycle_id": cycle_id,
+                "reasons": ["archive_reconciliation_failed"],
+                "archive": archive,
+            }
+
+        first_version = max(0, int(lock_snapshot.get("state_version") or 0) - 1)
+        events = self.repository.list_events_after(
+            cycle_id, state_version=first_version, limit=100,
+        )
+        event_types = {str(event.get("event_type") or "") for event in events}
+        required_event_types = {
+            "ghost.cycle_locked",
+            "ghost.signal_sent",
+            "ghost.version_changed",
+            "ghost.restart_required",
+            "ghost.stabilization_started",
+        }
+        missing_event_types = sorted(required_event_types - event_types)
+        current_version = int(self.repository.get_state_version(cycle_id) or 0)
+        maximum_event_version = max(
+            (int(event.get("state_version") or 0) for event in events),
+            default=first_version,
+        )
+        if missing_event_types or maximum_event_version < current_version:
+            reasons = []
+            if missing_event_types:
+                reasons.append("postcommit_events_missing")
+            if maximum_event_version < current_version:
+                reasons.append("postcommit_event_window_exceeded")
+            return {
+                "ok": False,
+                "status": "blocked",
+                "cycle_id": cycle_id,
+                "reasons": reasons,
+                "missing_event_types": missing_event_types,
+                "events_checked": len(events),
+                "current_state_version": current_version,
+                "maximum_event_version": maximum_event_version,
+                "archive": archive,
+            }
+        try:
+            narrative = self.narrative.publish_persisted_events(events)
+        except Exception as exc:
+            narrative = {
+                "ok": False,
+                "processed": 0,
+                "results": [],
+                "errors": [{"reason": "narrative_dispatch_failed", "error": str(exc)[:160]}],
+            }
+        if not narrative.get("ok"):
+            return {
+                "ok": False,
+                "status": "retry",
+                "cycle_id": cycle_id,
+                "reasons": ["narrative_reconciliation_failed"],
+                "archive": archive,
+                "narrative": narrative,
+            }
+
+        try:
+            marker = self.repository.append_event(
+                "ghost.endgame_postcommit_reconciled",
+                cycle_id=cycle_id,
+                entity_id=signal["signal_id"],
+                audience_scope="system",
+                dedupe_key=marker_key,
+                payload={
+                    "signal_id": signal["signal_id"],
+                    "effects": ["archive", "narrative"],
+                    "events_checked": len(events),
+                    "contract_version": "ghostnetwork-endgame-postcommit-v1",
+                },
+            )
+        except RepositoryIntegrityError:
+            marker = self.repository.get_event_by_dedupe_key(marker_key)
+        return {
+            "ok": True,
+            "status": "complete",
+            "cycle_id": cycle_id,
+            "idempotent": False,
+            "archive": archive,
+            "narrative": narrative,
+            "marker_event": marker,
+        }
+
+    def validate_rollover_settlement(self, cycle_id):
+        """Validate the mechanical endgame ledger before creating a new cycle."""
+        cycle_id = str(cycle_id or "").strip()
+        cycle = self.repository.get_cycle(cycle_id)
+        signal = self.repository.get_signal_for_cycle(cycle_id)
+        lock_snapshot = self.repository.get_cycle_lock_snapshot(cycle_id)
+        parts = self.repository.list_parts(cycle_id) if cycle else []
+        connections = self.repository.list_connections(cycle_id) if cycle else []
+        history = (
+            self.repository.list_historical_nodes_for_signal(signal["signal_id"])
+            if signal else []
+        )
+        rewards = (
+            self.repository.list_rewards(signal_id=signal["signal_id"], limit=5000)
+            if signal else []
+        )
+        reasons = []
+        if not cycle:
+            reasons.append("cycle_missing")
+        elif cycle.get("status") not in {"stabilizing", "closed"}:
+            reasons.append("cycle_not_stabilizing_or_closed")
+        if not signal or signal.get("status") != "sent":
+            reasons.append("sent_signal_missing")
+        if not lock_snapshot:
+            reasons.append("lock_snapshot_missing")
+        elif signal and signal.get("lock_snapshot_id") != lock_snapshot.get("lock_snapshot_id"):
+            reasons.append("signal_lock_snapshot_mismatch")
+        if lock_snapshot:
+            lock_validation = self.closure.validate_locked_snapshot(cycle_id)
+            if not lock_validation.get("valid"):
+                reasons.append("lock_snapshot_invalid")
+        signal_id = str((signal or {}).get("signal_id") or "")
+        if len(parts) != 20 or any(
+            part.get("status") != "consumed"
+            or part.get("consumed_signal_id") != signal_id
+            for part in parts
+        ):
+            reasons.append("parts_not_fully_consumed")
+        if connections:
+            reasons.append("connections_not_closed")
+        if len(history) != 20 or any(node.get("signal_id") != signal_id for node in history):
+            reasons.append("historical_nodes_incomplete")
+
+        snapshot = (lock_snapshot or {}).get("snapshot") or {}
+        closing = snapshot.get("closing") or {}
+        expected_reward_keys = {
+            f"ghost-signal:{signal_id}:node:{part.get('part_id')}:{owner_id}"
+            for part in snapshot.get("parts") or []
+            for owner_id in [str(part.get("territory_owner_id") or part.get("discovered_by") or "").strip()]
+            if owner_id
+        }
+        closer_id = str(closing.get("closing_player_id") or "").strip()
+        if closer_id:
+            expected_reward_keys.add(f"ghost-signal:{signal_id}:closer:{closer_id}")
+        actual_reward_keys = {str(reward.get("reward_key") or "") for reward in rewards}
+        if not expected_reward_keys or not expected_reward_keys.issubset(actual_reward_keys):
+            reasons.append("final_rewards_incomplete")
+        if not self.repository.get_event_by_dedupe_key(
+            f"ghost:endgame_postcommit_reconciled:{cycle_id}:archive_narrative:v1"
+        ):
+            reasons.append("archive_narrative_reconciliation_missing")
+        if not self.repository.get_event_by_dedupe_key(
+            f"ghost:endgame_delta_reconciled:{cycle_id}:v1"
+        ):
+            reasons.append("delta_reconciliation_missing")
+        return {
+            "ok": not reasons,
+            "cycle_id": cycle_id,
+            "reasons": sorted(set(reasons)),
+            "cycle": cycle,
+            "signal": signal,
+            "counts": {
+                "parts": len(parts),
+                "connections": len(connections),
+                "historical_nodes": len(history),
+                "expected_rewards": len(expected_reward_keys),
+                "rewards": len(rewards),
+            },
+        }
+
+    def rollover_stabilized_cycle(self, cycle_id):
+        """Atomically close one settled cycle and activate exactly one successor."""
+        cycle_id = str(cycle_id or "").strip()
+        with self.repository.transaction():
+            cycle = self.repository.get_cycle(cycle_id)
+            if not cycle:
+                return {"ok": False, "status": "blocked", "reasons": ["cycle_missing"]}
+            expected_signal_number = int(cycle.get("signal_number") or 0) + 1
+            active = self.repository.get_active_cycle()
+            if cycle.get("status") == "closed":
+                if active and int(active.get("signal_number") or 0) == expected_signal_number:
+                    return {
+                        "ok": True, "status": "rolled_over", "idempotent": True,
+                        "closed_cycle": cycle, "next_cycle": active,
+                    }
+                if active:
+                    return {
+                        "ok": False, "status": "blocked",
+                        "reasons": ["unexpected_active_cycle_after_close"],
+                        "closed_cycle": cycle, "active_cycle": active,
+                    }
+            elif cycle.get("status") != "stabilizing":
+                return {
+                    "ok": False, "status": "blocked",
+                    "reasons": ["cycle_not_stabilizing_or_closed"], "cycle": cycle,
+                }
+
+            settlement = self.validate_rollover_settlement(cycle_id)
+            if not settlement.get("ok"):
+                return {
+                    "ok": False, "status": "settlement_blocked",
+                    "reasons": settlement.get("reasons") or [], "settlement": settlement,
+                }
+            closed = cycle
+            if cycle.get("status") == "stabilizing":
+                closed = self.cycles.close_cycle(cycle_id)
+            created = self.cycles.create_cycle(
+                signal_number=expected_signal_number,
+                ghostsystem_version=int(closed.get("ghostsystem_version") or expected_signal_number),
+            )
+            return {
+                "ok": True,
+                "status": "rolled_over",
+                "idempotent": False,
+                "closed_cycle": closed,
+                "next_cycle": created.get("cycle"),
+                "created": created,
+                "settlement": settlement,
+            }
 
     def _with_transmission_narrative(self, result, after_state_version=None):
         result = result if isinstance(result, dict) else {}

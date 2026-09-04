@@ -82,12 +82,15 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
 
         signal_id = result["signal"]["signal_id"]
         outbox = self.repo.list_narrative_outbox(signal_id=signal_id, limit=20)
-        self.assertEqual({item["target_medium"] for item in outbox}, {"blacknet", "cyberner", "radio", "googleplex_news"})
+        self.assertEqual(
+            {item["target_medium"] for item in outbox},
+            {"blacknet", "cyberner", "googleplex_news"},
+        )
         self.assertTrue(all(item["status"] == "ready" for item in outbox))
         self.assertTrue(all(item["truth_class"] == "canonical" for item in outbox))
         self.assertTrue(all(item["processor"] == "ollama" for item in outbox))
         self.assertTrue(all(item["schema_version"] == "ghost-narrative-task-v1" for item in outbox))
-        self.assertEqual(len({item["dedupe_key"] for item in outbox}), 4)
+        self.assertEqual(len({item["dedupe_key"] for item in outbox}), 3)
 
         for item in outbox:
             self.assertEqual(item["cycle_id"], cycle["cycle_id"])

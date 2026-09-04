@@ -165,6 +165,24 @@ class GhostNetworkDeltaAudienceBridgeTest(unittest.TestCase):
             }
             self.assertEqual(recipients, expected[event["event_type"]])
 
+    def test_durable_routes_preserve_public_clan_owner_boundaries(self):
+        public = self.event("public", "ghost.part_activated")
+        clan = self.event(
+            "clan", "ghost.machine_progress_changed", audience_clan="virex",
+        )
+        owner = self.event(
+            "owner", "ghost.part_contained", payload={"territory_owner_id": "owner"},
+        )
+        restart = self.event("system", "ghost.restart_required")
+
+        self.assertEqual(run.ghostnetwork_event_recipient_route(public), {"scope": "public"})
+        self.assertEqual(
+            run.ghostnetwork_event_recipient_route(clan),
+            {"scope": "clan", "clan_code": "virex"},
+        )
+        self.assertIsNone(run.ghostnetwork_event_recipient_route(owner))
+        self.assertEqual(run.ghostnetwork_event_recipient_route(restart), {"scope": "public"})
+
 
 if __name__ == "__main__":
     unittest.main()

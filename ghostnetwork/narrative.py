@@ -31,6 +31,9 @@ TECHNICAL_EVENT_TYPES = frozenset({
     "ghost.part_updated", "ghost.part_consumed", "ghost.reward_pending",
     "ghost.delta_published", "ghost.health_check_completed",
     "ghost.cycle_status_changed",
+    "ghost.endgame_postcommit_reconciled",
+    "ghost.endgame_delta_reconciled",
+    "ghost.rollover_postcommit_reconciled",
 })
 
 
@@ -60,7 +63,9 @@ GHOST_EVENT_POLICY = {
     "ghost.machine_online": _event_policy("high", 85, "ghost_machine_state", "suite", "cyberner"),
     "ghost.machine_offline": _event_policy("normal", 55, "ghost_machine_state", "suite"),
     "ghost.cycle_locked": _event_policy("critical", 100, "ghost_cycle_state", "suite", "cyberner"),
-    "ghost.signal_sent": _event_policy("critical", 100, "ghost_signal_transmission", "signal", "cyberner", "radio"),
+    # Radio is an audio player, not a canonical narrative publication surface.
+    # The first endgame debut deliberately routes through supported media only.
+    "ghost.signal_sent": _event_policy("critical", 100, "ghost_signal_transmission", "signal", "cyberner"),
     "ghost.version_changed": _event_policy("critical", 100, "ghost_system_transition", "suite"),
     "ghost.stabilization_started": _event_policy("normal", 60, "ghost_cycle_state", "suite"),
     "ghost.cycle_activated": _event_policy("high", 85, "ghost_cycle_state", "suite"),

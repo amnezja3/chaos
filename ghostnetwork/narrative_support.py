@@ -14,6 +14,15 @@ from .llm.semantic_input import model_visible_semantic_fact
 
 
 SUPPORT_CONTRACT_VERSION = "chaos-narrative-support-v1"
+REQUIRED_ENDGAME_FALLBACK_FAMILIES = (
+    "machine_online",
+    "cycle_locked",
+    "signal_sent",
+    "version_changed",
+    "stabilization_started",
+    "cycle_activated",
+)
+REQUIRED_ENDGAME_FALLBACK_MEDIA = ("blacknet", "googleplex_news")
 DEFAULT_SUPPORT_PATH = (
     Path(__file__).resolve().parent / "llm" / "narrative_support.v1.yaml"
 )
@@ -69,11 +78,33 @@ class NarrativeSupportLayer:
                             for field in ("title", "body")
                             if isinstance(definition.get(field), list)
                         )
+        missing_required_endgame_routes = []
+        for medium in REQUIRED_ENDGAME_FALLBACK_MEDIA:
+            for event_family in REQUIRED_ENDGAME_FALLBACK_FAMILIES:
+                definition = self._definition(medium, event_family, "public")
+                if not isinstance(definition, dict) or any(
+                    not isinstance(definition.get(field), list)
+                    or not definition.get(field)
+                    for field in ("title", "body")
+                ):
+                    missing_required_endgame_routes.append(
+                        f"{medium}:{event_family}:public"
+                    )
+        errors = list(self.errors)
+        errors.extend(
+            f"narrative_support_required_endgame_fallback_missing:{route}"
+            for route in missing_required_endgame_routes
+        )
         return {
-            "ok": not self.errors,
+            "ok": not errors,
             "contract_version": self.config.get("contract_version") or "",
-            "errors": list(self.errors),
+            "errors": errors,
             "variants": variants,
+            "required_endgame_routes": (
+                len(REQUIRED_ENDGAME_FALLBACK_MEDIA)
+                * len(REQUIRED_ENDGAME_FALLBACK_FAMILIES)
+            ),
+            "missing_required_endgame_routes": missing_required_endgame_routes,
         }
 
     @staticmethod
@@ -133,11 +164,15 @@ class NarrativeSupportLayer:
         return template.format_map(context)
 
     def _definition(self, medium, event_family, audience):
-        return (
+        audiences = (
             ((self.config.get("fallbacks") or {}).get(medium) or {})
             .get(event_family, {})
-            .get(audience)
         )
+        if not isinstance(audiences, dict):
+            return None
+        # A public template contains the least audience knowledge and is safe
+        # to reuse for clan/owner when no richer scoped variant exists.
+        return audiences.get(audience) or audiences.get("public")
 
     @staticmethod
     def _payload(package, definition, title, body):

@@ -7301,11 +7301,11 @@ const GHOSTNETWORK_SUITE_CYCLE_DELTA_TYPES = new Set([
     "ghost.cycle_created", "ghost.cycle_activated", "ghost.cycle_status_changed",
     "ghost.cycle_state_changed",
     "ghost.cycle_locked", "ghost.version_changed", "ghost.restart_required",
-    "ghost.signal_sent",
+    "ghost.signal_sent", "ghost.stabilization_started",
 ]);
 const GHOSTNETWORK_SUITE_RECOVERY_DELTA_TYPES = new Set([
     "ghost.parts_created", "ghost.parts_consumed", "ghost.connections_closed",
-    "ghost.topology_created", "ghost.stabilization_started", "ghost.abilities_disabled",
+    "ghost.topology_created", "ghost.abilities_disabled",
 ]);
 
 function ghostnetworkSuiteIndex(snapshot = {}) {
@@ -7475,6 +7475,21 @@ function ghostnetworkSuiteDisableActions(snapshot = {}) {
     return snapshot;
 }
 
+function ghostnetworkSuiteRestartMessage(snapshot = {}) {
+    const cycle = snapshot.cycle && typeof snapshot.cycle === "object" ? snapshot.cycle : {};
+    const fromVersion = String(snapshot.restart_from_version || cycle.restart_from_version || "").trim();
+    const toVersion = String(snapshot.restart_to_version || cycle.restart_to_version || "").trim();
+    const transition = fromVersion && toVersion ? ` · ${fromVersion} → ${toVersion}` : "";
+    return `RESTART GHOSTSYSTEMU WYMAGANY${transition} · AKCJE ZABLOKOWANE`;
+}
+
+function ghostnetworkSuiteRestartRequired(snapshot = {}) {
+    const cycle = snapshot.cycle && typeof snapshot.cycle === "object" ? snapshot.cycle : {};
+    return snapshot.restart_required === true
+        || cycle.restart_required === true
+        || String(cycle.status || "").toLowerCase() === "restart_required";
+}
+
 function ghostnetworkSuiteApplyDelta(app, state, event = {}) {
     if (!app?.isConnected || state.closed || !state.snapshot) return false;
     const type = String(event.type || "");
@@ -7543,10 +7558,12 @@ function ghostnetworkSuiteApplyDelta(app, state, event = {}) {
             state.snapshot.progress = { ...(state.snapshot.progress || {}), ...payload.progress };
         }
         if (type === "ghost.restart_required" || type === "ghost.cycle_locked") {
-            state.restartRequired = true;
+            state.restartRequired = type === "ghost.cycle_locked"
+                ? true
+                : payload.cycle?.restart_required !== false;
             ghostnetworkSuiteDisableActions(state.snapshot);
         }
-        if (["ghost.cycle_activated", "ghost.version_changed"].includes(type)
+        if (type === "ghost.cycle_activated"
                 || (["ghost.cycle_status_changed", "ghost.cycle_state_changed"].includes(type)
                     && String(state.snapshot.cycle?.status || "").toLowerCase() === "active")) {
             state.restartRequired = false;
@@ -7732,7 +7749,7 @@ function renderGhostNetworkSuite(app, state) {
     shell.innerHTML = `
         <header class="ghostnetwork-suite-header"><div><strong>GHOSTNETWORK // CYKL ${escapeHTML(cycle.cycle_id || "-")}</strong><span>${escapeHTML(snapshot.system_version || cycle.system_version || "GHOSTSYSTEM")}</span></div><div class="ghostnetwork-suite-counters"><b>ODKRYTE ${Number(summary.parts_discovered || 0)} / 20</b><b>AKTYWNE ${Number(summary.parts_active || 0)} / 20</b><b>BLOKOWANE ${Number(summary.parts_blocked || 0)}</b><b>PUBLICZNE ${Number(summary.parts_public || 0)}</b></div></header>
         <div class="ghostnetwork-suite-toolbar"><nav>${GHOSTNETWORK_SUITE_SECTIONS.map(section => `<button type="button" data-suite-filter="${section.id}" class="${state.filter === section.id ? "is-active" : ""}">${section.label}</button>`).join("")}</nav><input type="search" data-suite-search value="${escapeHTML(state.query || "")}" placeholder="Szukaj w widocznych danych" aria-label="Szukaj czesci GhostNetwork"><select data-suite-sort aria-label="Sortowanie czesci"><option value="strategic" ${state.sort === "strategic" ? "selected" : ""}>STRATEGICZNE</option><option value="distance" ${state.sort === "distance" ? "selected" : ""}>ODLEGLOSC</option><option value="state" ${state.sort === "state" ? "selected" : ""}>STAN</option><option value="clan" ${state.sort === "clan" ? "selected" : ""}>KLAN</option><option value="owner" ${state.sort === "owner" ? "selected" : ""}>WLASCICIEL</option><option value="updated" ${state.sort === "updated" ? "selected" : ""}>OSTATNIA ZMIANA</option></select><button type="button" data-suite-refresh>ODSWIEZ</button></div>
-        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? "SYNCHRONIZACJA GHOSTNETWORK · ODCZYT PROJEKCJI WEZLOW" : state.restartRequired ? "RESTART GHOSTSYSTEMU WYMAGANY · AKCJE ZABLOKOWANE" : stale ? `DANE STALE · ${escapeHTML(state.error)}` : state.error ? escapeHTML(state.error) : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
+        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? "SYNCHRONIZACJA GHOSTNETWORK · ODCZYT PROJEKCJI WEZLOW" : state.restartRequired ? escapeHTML(ghostnetworkSuiteRestartMessage(snapshot)) : stale ? `DANE STALE · ${escapeHTML(state.error)}` : state.error ? escapeHTML(state.error) : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
         <section class="ghostnetwork-suite-list">${selected.length ? selected.map(ghostnetworkSuiteCard).join("") : `<div class="ghostnetwork-suite-empty">${state.loading ? "Synchronizacja GhostNetwork..." : "Brak czesci dla wybranego filtra."}</div>`}</section>`;
     shell.querySelectorAll("[data-part-ref]").forEach(card => {
         const details = card.querySelector("details");
@@ -7822,8 +7839,8 @@ async function loadGhostNetworkSuite(app, state, options = {}) {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.suite_health?.ok === false) throw new Error(payload?.message || payload?.error || "Snapshot GhostNetwork jest niedostepny.");
         state.snapshot = payload;
-        state.restartRequired = payload.restart_required === true
-            || String(payload.cycle?.status || "").toLowerCase() === "restart_required";
+        state.restartRequired = ghostnetworkSuiteRestartRequired(payload);
+        if (state.restartRequired) ghostnetworkSuiteDisableActions(state.snapshot);
         state.recoveryAttempt = 0;
         ghostnetworkSuiteSetBaseline(payload);
         loaded = true;

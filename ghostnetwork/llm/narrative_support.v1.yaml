@@ -62,6 +62,66 @@ fallbacks:
           - "...{part_name} został aktywowany przy obiekcie {location}."
           - "...przy obiekcie {location} aktywowano element GhostNetwork: {part_name}."
 
+    machine_online:
+      public:
+        tone: critical
+        title:
+          - "PRZECHWYT // MASZYNA ONLINE"
+          - "PRZECHWYT // MODUŁ URUCHOMIONY"
+        body:
+          - "...jedna z maszyn GhostNetwork osiągnęła stan online."
+          - "...pełna sekwencja maszyny GhostNetwork została uruchomiona."
+
+    cycle_locked:
+      public:
+        tone: critical
+        title:
+          - "PRZECHWYT // CYKL ZAMKNIĘTY"
+          - "PRZECHWYT // OBWÓD DOMKNIĘTY"
+        body:
+          - "...obwód GhostNetwork został domknięty i zablokowany."
+          - "...bieżący cykl GhostNetwork osiągnął nieodwracalne zamknięcie."
+
+    signal_sent:
+      public:
+        tone: critical
+        title:
+          - "PRZECHWYT // GHOSTSIGNAL"
+          - "PRZECHWYT // TRANSMISJA WYSŁANA"
+        body:
+          - "...zamknięta sieć wysłała GhostSignal. Transmisja została zapisana."
+          - "...GhostSignal opuścił domknięty obwód GhostNetwork."
+
+    version_changed:
+      public:
+        tone: critical
+        title:
+          - "PRZECHWYT // ZMIANA WERSJI"
+          - "PRZECHWYT // GHOST SYSTEM"
+        body:
+          - "...Ghost System przeszedł do kolejnej wersji."
+          - "...potwierdzono zmianę wersji Ghost Systemu."
+
+    stabilization_started:
+      public:
+        tone: warning
+        title:
+          - "PRZECHWYT // STABILIZACJA"
+          - "PRZECHWYT // SIEĆ STABILIZUJE SIĘ"
+        body:
+          - "...zamknięta sieć GhostNetwork weszła w fazę stabilizacji."
+          - "...rozpoczęła się stabilizacja domkniętego obwodu GhostNetwork."
+
+    cycle_activated:
+      public:
+        tone: warning
+        title:
+          - "PRZECHWYT // NOWY CYKL"
+          - "PRZECHWYT // CYKL AKTYWNY"
+        body:
+          - "...nowy cykl GhostNetwork został aktywowany."
+          - "...GhostNetwork uruchomił nowy aktywny cykl."
+
   googleplex_news:
     part_discovered:
       public:
@@ -82,3 +142,63 @@ fallbacks:
         body:
           - "Przy obiekcie {location} aktywowano element sieci GhostNetwork."
           - "Element sieci GhostNetwork przy obiekcie {location} osiągnął stan aktywny."
+
+    machine_online:
+      public:
+        tone: info
+        title:
+          - "Maszyna GhostNetwork online"
+          - "Uruchomiono maszynę GhostNetwork"
+        body:
+          - "Jedna z maszyn GhostNetwork osiągnęła stan online."
+          - "Potwierdzono uruchomienie kompletnej maszyny GhostNetwork."
+
+    cycle_locked:
+      public:
+        tone: critical
+        title:
+          - "Cykl GhostNetwork zamknięty"
+          - "Domknięto obwód GhostNetwork"
+        body:
+          - "Bieżący cykl GhostNetwork został nieodwracalnie zamknięty."
+          - "Potwierdzono domknięcie i blokadę cyklu GhostNetwork."
+
+    signal_sent:
+      public:
+        tone: critical
+        title:
+          - "GhostSignal wysłany"
+          - "Transmisja GhostNetwork zakończona"
+        body:
+          - "Zamknięta sieć GhostNetwork wysłała GhostSignal."
+          - "Potwierdzono transmisję GhostSignalu z domkniętej sieci."
+
+    version_changed:
+      public:
+        tone: critical
+        title:
+          - "Nowa wersja Ghost Systemu"
+          - "Ghost System zmienił wersję"
+        body:
+          - "Ghost System przeszedł do kolejnej wersji."
+          - "Potwierdzono zmianę wersji Ghost Systemu."
+
+    stabilization_started:
+      public:
+        tone: info
+        title:
+          - "Stabilizacja GhostNetwork"
+          - "Rozpoczęto stabilizację sieci"
+        body:
+          - "Zamknięta sieć GhostNetwork weszła w fazę stabilizacji."
+          - "Rozpoczęła się stabilizacja domkniętego obwodu GhostNetwork."
+
+    cycle_activated:
+      public:
+        tone: info
+        title:
+          - "Nowy cykl GhostNetwork"
+          - "Cykl GhostNetwork aktywny"
+        body:
+          - "Nowy cykl GhostNetwork został aktywowany."
+          - "Potwierdzono uruchomienie nowego cyklu GhostNetwork."

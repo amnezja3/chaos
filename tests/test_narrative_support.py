@@ -1,5 +1,7 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from ghostnetwork.llm.semantic_input import attach_semantic_content
 from ghostnetwork.ollama_policy import (
@@ -11,6 +13,15 @@ from ghostnetwork.narrative_support import NarrativeSupportLayer
 
 
 class NarrativeSupportLayerTest(unittest.TestCase):
+    ENDGAME_FAMILIES = {
+        "machine_online": ("ghost_machine_state", "high", "Maszyna GhostNetwork osiągnęła stan online."),
+        "cycle_locked": ("ghost_cycle_state", "critical", "Bieżący cykl GhostNetwork został nieodwracalnie zamknięty."),
+        "signal_sent": ("ghost_signal_transmission", "critical", "GhostSignal został wysłany z zamkniętej sieci."),
+        "version_changed": ("ghost_system_transition", "critical", "Ghost System przeszedł do kolejnej wersji."),
+        "stabilization_started": ("ghost_cycle_state", "normal", "Rozpoczęła się stabilizacja zamkniętej sieci GhostNetwork."),
+        "cycle_activated": ("ghost_cycle_state", "high", "Nowy cykl GhostNetwork został aktywowany."),
+    }
+
     def task(self, medium="blacknet", audience="public", include_part=False):
         entities = [{"role": "miejsce", "kind": "target", "label": "Zara"}]
         if include_part:
@@ -260,6 +271,95 @@ class NarrativeSupportLayerTest(unittest.TestCase):
         self.assertEqual(supported["mode"], "full")
         self.assertEqual(supported["validation"]["status"], "accepted")
         self.assertIn("POI-18D194", supported["validation"]["output"]["body"])
+
+    def test_endgame_fallbacks_cover_guaranteed_blacknet_and_googleplex_routes(self):
+        layer = NarrativeSupportLayer()
+        for family, (intent, significance, statement) in self.ENDGAME_FAMILIES.items():
+            routes = [
+                ("blacknet", "public"),
+                ("blacknet", "clan"),
+                ("blacknet", "owner"),
+                ("googleplex_news", "public"),
+            ]
+            for medium, audience in routes:
+                with self.subTest(family=family, medium=medium, audience=audience):
+                    fixed_action = {
+                        "cta_action": (
+                            "open_ghostsignal_archive"
+                            if family == "signal_sent"
+                            else "open_ghostnetwork_suite"
+                        ),
+                        "payload": {"signal_id": "signal-one"}
+                        if family == "signal_sent" else {},
+                    }
+                    task = assign_ollama_task_policy({
+                        "source_scope": "ghostnetwork",
+                        "source_event_id": f"event-{family}-{medium}-{audience}",
+                        "target_medium": medium,
+                        "audience_scope": audience,
+                        "truth_class": "canonical",
+                        "truth_class_policy": "canonical_facts_only",
+                        "facts": [attach_semantic_content(
+                            {"fact_id": f"fact:{family}", "fact_type": family},
+                            {"statement": statement},
+                        )],
+                        "allowed_actions": [fixed_action],
+                        "fixed_action": fixed_action,
+                        "task_variant": (
+                            "googleplex_world_dispatch"
+                            if medium == "googleplex_news" else family
+                        ),
+                        "narrative_intent": intent,
+                        "narrative_thread_id": f"ghost-endgame:{family}",
+                        "validation": {
+                            "event_family": family,
+                            "significance": significance,
+                        },
+                    })
+                    package = build_ollama_task_package(task)
+                    result = layer.apply(
+                        task,
+                        package,
+                        {"status": "rejected", "errors": ["invalid_body"], "output": None},
+                        parse_and_validate_ollama_content,
+                    )
+
+                    self.assertIsNotNone(result)
+                    self.assertEqual(result["validation"]["status"], "accepted", result)
+                    self.assertEqual(
+                        result["validation"]["resolved_cta"]["cta_action"],
+                        fixed_action["cta_action"],
+                    )
+
+    def test_private_endgame_route_can_only_inherit_public_safe_template(self):
+        layer = NarrativeSupportLayer()
+        public = layer._definition("blacknet", "signal_sent", "public")
+        self.assertIs(layer._definition("blacknet", "signal_sent", "clan"), public)
+        self.assertIs(layer._definition("blacknet", "signal_sent", "owner"), public)
+
+    def test_verify_fails_closed_when_required_endgame_fallback_is_missing(self):
+        source = Path("ghostnetwork/llm/narrative_support.v1.yaml").read_text(
+            encoding="utf-8"
+        )
+        source = source.replace("    cycle_activated:\n", "    omitted_cycle_activated:\n", 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "support.yaml"
+            path.write_text(source, encoding="utf-8")
+            result = NarrativeSupportLayer(path).verify()
+
+        self.assertFalse(result["ok"], result)
+        self.assertEqual(result["required_endgame_routes"], 12)
+        self.assertEqual(
+            result["missing_required_endgame_routes"],
+            ["blacknet:cycle_activated:public"],
+        )
+
+    def test_verify_confirms_all_required_endgame_fallbacks(self):
+        result = NarrativeSupportLayer().verify()
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["required_endgame_routes"], 12)
+        self.assertEqual(result["missing_required_endgame_routes"], [])
 
 
 if __name__ == "__main__":

@@ -3436,20 +3436,10 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
     # never become the input of a full UserStore.save_profile() write.
     profile_cache = {}
     profile_records = {}
-    broad_profiles = None
-    if any(str(event.get("audience_scope") or "internal").lower() in {"public", "clan"} for event in events):
-        phase_started = time.perf_counter()
-        recipient_ids = identity_projection_store.list_recipient_ids(
-            "public", limit=500
-        )
-        broad_profiles = [
-            (identity["username"], identity)
-            for identity in identity_projection_store.get_identities(
-                recipient_ids, max_items=500
-            )
-        ]
-        if timings is not None:
-            timings["audience_profiles"] = int((time.perf_counter() - phase_started) * 1000)
+    if timings is not None:
+        # Broad audiences are resolved durably by the delta delivery worker.
+        # The request path must never materialize or truncate the account set.
+        timings["audience_profiles"] = 0
     dirty_profiles = set()
     rewards_to_finalize = []
     pipeline_ms = reward_ms = narrative_ms = delta_ms = finalization_ms = 0.0
@@ -3530,10 +3520,7 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
         result["narrative_tasks"] = narrative_results
     for event in events:
         phase_started = time.perf_counter()
-        recipients = ghostnetwork_event_recipient_profiles(
-            event, profile_entries=broad_profiles, profile_cache=profile_cache
-        )
-        enqueue_ghostnetwork_event_delta(event, recipients=recipients)
+        enqueue_ghostnetwork_event_delta(event)
         delta_ms += time.perf_counter() - phase_started
     phase_started = time.perf_counter()
     for player_id in sorted(dirty_profiles):
@@ -3568,19 +3555,476 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
     return reward_results
 
 
+def process_ghostnetwork_pending_reward_projection(
+    service=None, profile_loader=None, profile_saver=None, worker_id=None,
+    lease_seconds=60, now=None, failure_backoff_seconds=None,
+):
+    """Project one pending GhostNetwork reward through the guarded profile CAS.
+
+    The reward key embedded in ``ghostnetwork_reward_history`` is the durable
+    receipt. A crash after profile save but before ledger finalization is healed
+    by the next call without adding RSP twice.
+    """
+    service = service or GhostNetworkService()
+    worker_id = str(
+        worker_id or f"ghost-reward:{os.getpid()}:{threading.get_ident()}"
+    ).strip()
+    reward = service.repository.claim_pending_reward_projection(
+        worker_id, lease_seconds=lease_seconds, now=now,
+    )
+    if not reward:
+        return {"ok": True, "status": "empty", "processed": 0}
+    expected_lease_until = reward.get("projection_lease_until") or ""
+
+    def release(reason):
+        service.repository.retry_reward_projection(
+            reward.get("reward_id"), worker_id, expected_lease_until,
+            error=reason, now=now, backoff_seconds=failure_backoff_seconds,
+        )
+
+    player_id = str(reward.get("player_id") or "").strip()
+    if not player_id:
+        release("reward_player_missing")
+        return {
+            "ok": False,
+            "status": "blocked",
+            "processed": 0,
+            "reward_id": reward.get("reward_id") or "",
+            "reason": "reward_player_missing",
+        }
+
+    loader = profile_loader or load_profile_write_record
+    saver = profile_saver or save_profile_write_record
+    try:
+        record = loader(player_id)
+    except Exception as exc:
+        release(str(exc)[:500] or exc.__class__.__name__)
+        raise
+    if not record or not isinstance(record.get("profile"), dict):
+        release("reward_profile_missing_or_invalid")
+        return {
+            "ok": False,
+            "status": "blocked",
+            "processed": 0,
+            "reward_id": reward.get("reward_id") or "",
+            "player_id": player_id,
+            "reason": "reward_profile_missing_or_invalid",
+        }
+    try:
+        profile = copy.deepcopy(record["profile"])
+        projection = service.project_reward_to_profile(
+            profile, reward_id=reward.get("reward_id"),
+        )
+        if not projection.get("ok"):
+            current = service.repository.get_reward(reward.get("reward_id"))
+            if current and current.get("status") == "applied":
+                return {
+                    "ok": True,
+                    "status": "already_applied",
+                    "processed": 1,
+                    "reward": current,
+                    "projection": projection,
+                }
+            reason = projection.get("status") or "reward_projection_failed"
+            release(reason)
+            return {
+                "ok": False,
+                "status": "blocked",
+                "processed": 0,
+                "reward_id": reward.get("reward_id") or "",
+                "player_id": player_id,
+                "reason": reason,
+                "projection": projection,
+            }
+        if projection.get("profile_changed"):
+            saver(record, profile, "ghostnetwork.pending_reward_projection")
+        finalized = None
+        if projection.get("requires_finalize"):
+            finalized = service.finalize_projected_reward(
+                profile, reward_id=reward.get("reward_id"),
+            )
+            if not finalized.get("ok"):
+                raise ProfileRecoveryRequired(
+                    "GhostNetwork pending reward finalization was rejected: "
+                    + str(finalized.get("status") or "unknown")
+                )
+    except Exception as exc:
+        release(str(exc)[:500] or exc.__class__.__name__)
+        raise
+    return {
+        "ok": True,
+        "status": (finalized or {}).get("status") or projection.get("status"),
+        "processed": 1,
+        "reward_id": reward.get("reward_id") or "",
+        "reward_key": reward.get("reward_key") or "",
+        "player_id": player_id,
+        "profile_changed": bool(projection.get("profile_changed")),
+        "projection": projection,
+        "finalization": finalized,
+        "attempt_count": int(reward.get("projection_attempt_count") or 0),
+    }
+
+
 def maybe_finalize_ghostnetwork_cycle(service, trigger_result=None):
+    """Compatibility entry point used by the territory publication bridge.
+
+    The periodic worker uses ``advance_ghostnetwork_endgame_once`` directly so
+    a committed lock can be recovered even when no later territory job exists.
+    """
+    result = advance_ghostnetwork_endgame_once(
+        service=service,
+        trigger_result=trigger_result,
+    )
+    if result.get("status") in {"no_cycle", "preparing", "stabilizing"}:
+        return {"ok": True, "status": "not_ready", "cycle": result.get("cycle")}
+    return result
+
+
+def _reconcile_stabilizing_ghostnetwork_cycle(service, cycle):
+    cycle = cycle if isinstance(cycle, dict) else {}
+    cycle_id = str(cycle.get("cycle_id") or "").strip()
+    postcommit = service.reconcile_transmission_postcommit(cycle_id)
+    if not postcommit.get("ok"):
+        return {
+            "ok": False,
+            "status": "postcommit_retry",
+            "phase": "stabilizing",
+            "cycle_id": cycle_id,
+            "reasons": postcommit.get("reasons") or ["postcommit_reconciliation_failed"],
+            "cycle": cycle,
+            "postcommit": postcommit,
+            "stabilization_until": cycle.get("stabilization_until") or "",
+        }
+    delivery = reconcile_ghostnetwork_endgame_delta_jobs(service, cycle_id)
+    if not delivery.get("ok"):
+        return {
+            "ok": False,
+            "status": "postcommit_retry",
+            "phase": "stabilizing",
+            "cycle_id": cycle_id,
+            "reasons": delivery.get("reasons") or ["delta_reconciliation_failed"],
+            "cycle": cycle,
+            "postcommit": postcommit,
+            "delta_delivery": delivery,
+            "stabilization_until": cycle.get("stabilization_until") or "",
+        }
+    if _ghostnetwork_stabilization_due(cycle, service.repository.now()):
+        rollover = service.rollover_stabilized_cycle(cycle_id)
+        if not rollover.get("ok"):
+            return {
+                **rollover,
+                "phase": "stabilizing",
+                "cycle_id": cycle_id,
+                "postcommit": postcommit,
+                "delta_delivery": delivery,
+                "stabilization_until": cycle.get("stabilization_until") or "",
+            }
+        rollover_postcommit = reconcile_ghostnetwork_rollover_postcommit(
+            service, rollover.get("closed_cycle"), rollover.get("next_cycle"),
+        )
+        return {
+            **rollover,
+            "ok": True,
+            "phase": "stabilizing",
+            "cycle_id": cycle_id,
+            "postcommit": postcommit,
+            "delta_delivery": delivery,
+            "rollover_postcommit": rollover_postcommit,
+            "postcommit_pending": not rollover_postcommit.get("ok"),
+            "stabilization_until": cycle.get("stabilization_until") or "",
+        }
+    return {
+        "ok": True,
+        "status": "stabilizing",
+        "cycle": cycle,
+        "cycle_id": cycle_id,
+        "postcommit": postcommit,
+        "delta_delivery": delivery,
+        "stabilization_until": cycle.get("stabilization_until") or "",
+    }
+
+
+def reconcile_ghostnetwork_endgame_delta_jobs(service, cycle_id):
+    """Persist one durable delta receipt for every canonical endgame event."""
+    cycle_id = str(cycle_id or "").strip()
+    marker_key = f"ghost:endgame_delta_reconciled:{cycle_id}:v1"
+    existing = service.repository.get_event_by_dedupe_key(marker_key)
+    if existing:
+        return {
+            "ok": True, "status": "complete", "idempotent": True,
+            "cycle_id": cycle_id, "marker_event": existing,
+        }
+    lock_snapshot = service.repository.get_cycle_lock_snapshot(cycle_id)
+    signal = service.repository.get_signal_for_cycle(cycle_id)
+    if not lock_snapshot or not signal:
+        reasons = []
+        if not lock_snapshot:
+            reasons.append("lock_snapshot_missing")
+        if not signal:
+            reasons.append("signal_missing")
+        return {"ok": False, "status": "blocked", "cycle_id": cycle_id, "reasons": reasons}
+
+    first_version = max(0, int(lock_snapshot.get("state_version") or 0) - 1)
+    events = service.repository.list_events_after(
+        cycle_id, state_version=first_version, limit=100,
+    )
+    store = GhostNetworkDeltaDeliveryJobStore(db_path=service.repository.db_path)
+    enqueued = []
+    try:
+        for event in events:
+            route = ghostnetwork_event_recipient_route(event)
+            result = store.enqueue(event, [], recipient_route=route)
+            enqueued.append(result)
+    except Exception as exc:
+        return {
+            "ok": False, "status": "retry", "cycle_id": cycle_id,
+            "reasons": ["delta_enqueue_failed"], "error": str(exc)[:200],
+            "events_seen": len(events), "jobs_seen": len(enqueued),
+        }
+    missing = [
+        str(event.get("event_id") or "") for event in events
+        if not store.has_event(event.get("event_id"))
+    ]
+    if missing:
+        return {
+            "ok": False, "status": "retry", "cycle_id": cycle_id,
+            "reasons": ["delta_receipt_missing"], "missing_event_ids": missing[:20],
+        }
+    try:
+        marker = service.repository.append_event(
+            "ghost.endgame_delta_reconciled",
+            cycle_id=cycle_id,
+            entity_id=signal.get("signal_id") or cycle_id,
+            audience_scope="system",
+            dedupe_key=marker_key,
+            payload={
+                "signal_id": signal.get("signal_id") or "",
+                "events_checked": len(events),
+                "contract_version": "ghostnetwork-endgame-delta-delivery-v1",
+            },
+        )
+    except Exception:
+        # A concurrent worker may have committed the same unique marker after
+        # our initial read. Only that proven convergence is safe to accept.
+        marker = service.repository.get_event_by_dedupe_key(marker_key)
+        if not marker:
+            raise
+    return {
+        "ok": True, "status": "complete", "idempotent": False,
+        "cycle_id": cycle_id, "events_checked": len(events),
+        "jobs_checked": len(enqueued), "marker_event": marker,
+    }
+
+
+def _ghostnetwork_stabilization_due(cycle, now_text=""):
+    value = str((cycle or {}).get("stabilization_until") or "").strip()
+    if not value:
+        return False
+    try:
+        deadline = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        now = datetime.fromisoformat(
+            str(now_text or datetime.now(timezone.utc).isoformat()).replace("Z", "+00:00")
+        )
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        return now >= deadline
+    except (TypeError, ValueError):
+        return False
+
+
+def reconcile_ghostnetwork_rollover_postcommit(service, closed_cycle, next_cycle):
+    """Recover durable deltas and narrative after the atomic rollover commit."""
+    closed_cycle = closed_cycle if isinstance(closed_cycle, dict) else {}
+    next_cycle = next_cycle if isinstance(next_cycle, dict) else {}
+    old_id = str(closed_cycle.get("cycle_id") or "").strip()
+    next_id = str(next_cycle.get("cycle_id") or "").strip()
+    marker_key = f"ghost:rollover_postcommit_reconciled:{old_id}:{next_id}:v1"
+    existing = service.repository.get_event_by_dedupe_key(marker_key)
+    if existing:
+        return {
+            "ok": True, "status": "complete", "idempotent": True,
+            "closed_cycle_id": old_id, "next_cycle_id": next_id,
+            "marker_event": existing,
+        }
+    if not old_id or not next_id or closed_cycle.get("status") != "closed" or next_cycle.get("status") != "active":
+        return {
+            "ok": False, "status": "blocked",
+            "reasons": ["rollover_cycle_pair_invalid"],
+            "closed_cycle_id": old_id, "next_cycle_id": next_id,
+        }
+    old_events = [
+        event for event in service.repository.list_events(old_id, limit=100)
+        if str((event.get("payload") or {}).get("status") or "") == "closed"
+        or event.get("event_type") == "ghost.cycle_closed"
+    ]
+    next_events = service.repository.list_events(next_id, limit=100)
+    events = old_events + next_events
+    try:
+        narrative = service.narrative.publish_persisted_events(events)
+    except Exception as exc:
+        narrative = {"ok": False, "error": str(exc)[:200]}
+    if not narrative.get("ok"):
+        return {
+            "ok": False, "status": "retry", "reasons": ["rollover_narrative_failed"],
+            "closed_cycle_id": old_id, "next_cycle_id": next_id, "narrative": narrative,
+        }
+    store = GhostNetworkDeltaDeliveryJobStore(db_path=service.repository.db_path)
+    try:
+        for event in events:
+            store.enqueue(
+                event, [], recipient_route=ghostnetwork_event_recipient_route(event),
+            )
+    except Exception as exc:
+        return {
+            "ok": False, "status": "retry", "reasons": ["rollover_delta_enqueue_failed"],
+            "closed_cycle_id": old_id, "next_cycle_id": next_id,
+            "error": str(exc)[:200],
+        }
+    missing = [
+        str(event.get("event_id") or "") for event in events
+        if not store.has_event(event.get("event_id"))
+    ]
+    if missing:
+        return {
+            "ok": False, "status": "retry", "reasons": ["rollover_delta_receipt_missing"],
+            "closed_cycle_id": old_id, "next_cycle_id": next_id,
+            "missing_event_ids": missing[:20],
+        }
+    try:
+        marker = service.repository.append_event(
+            "ghost.rollover_postcommit_reconciled",
+            cycle_id=old_id,
+            entity_id=next_id,
+            audience_scope="system",
+            dedupe_key=marker_key,
+            payload={
+                "next_cycle_id": next_id,
+                "events_checked": len(events),
+                "contract_version": "ghostnetwork-rollover-postcommit-v1",
+            },
+        )
+    except Exception:
+        marker = service.repository.get_event_by_dedupe_key(marker_key)
+        if not marker:
+            raise
+    return {
+        "ok": True, "status": "complete", "idempotent": False,
+        "closed_cycle_id": old_id, "next_cycle_id": next_id,
+        "events_checked": len(events), "narrative": narrative,
+        "marker_event": marker,
+    }
+
+
+def _recover_latest_ghostnetwork_rollover_postcommit(service, active_cycle=None):
+    cycles = service.repository.list_cycles(limit=3)
+    active_cycle = active_cycle if isinstance(active_cycle, dict) else service.get_active_cycle()
+    if not active_cycle:
+        return None
+    expected_previous_number = int(active_cycle.get("signal_number") or 0) - 1
+    closed = next(
+        (
+            cycle for cycle in cycles
+            if cycle.get("status") == "closed"
+            and int(cycle.get("signal_number") or 0) == expected_previous_number
+        ),
+        None,
+    )
+    if not closed:
+        return None
+    return reconcile_ghostnetwork_rollover_postcommit(service, closed, active_cycle)
+
+
+def advance_ghostnetwork_endgame_once(service=None, trigger_result=None):
+    """Advance at most one canonical GhostNetwork endgame state.
+
+    This function is intentionally bounded and safe to call on a fixed worker
+    cadence.  Domain transactions provide the serialization boundary while the
+    lock snapshot and signal identities make a retry idempotent.
+
+    Sprint 138.2.pre-endgame owns ``active -> transmitting -> stabilizing ->
+    closed`` recovery and the exactly-once activation of the next cycle.
+    """
+    service = service or GhostNetworkService()
     cycle = service.get_active_cycle()
-    if not cycle or cycle.get("status") != "active":
-        return {"ok": True, "status": "not_ready"}
+    if not cycle:
+        closed = next(
+            (
+                item for item in service.repository.list_cycles(limit=3)
+                if item.get("status") == "closed" and item.get("stabilization_until")
+            ),
+            None,
+        )
+        if not closed or not _ghostnetwork_stabilization_due(closed, service.repository.now()):
+            return {"ok": True, "status": "no_cycle", "cycle": None}
+        rollover = service.rollover_stabilized_cycle(closed["cycle_id"])
+        if not rollover.get("ok"):
+            return rollover
+        postcommit = reconcile_ghostnetwork_rollover_postcommit(
+            service, rollover.get("closed_cycle"), rollover.get("next_cycle"),
+        )
+        return {**rollover, "rollover_postcommit": postcommit, "recovered": True}
+
+    rollover_recovery = _recover_latest_ghostnetwork_rollover_postcommit(service, cycle)
+
+    cycle_id = str(cycle.get("cycle_id") or "").strip()
+    status = str(cycle.get("status") or "").strip().lower()
+
+    if status == "preparing":
+        return {"ok": True, "status": "preparing", "cycle": cycle,
+                "rollover_postcommit": rollover_recovery}
+
+    if status == "stabilizing":
+        return _reconcile_stabilizing_ghostnetwork_cycle(service, cycle)
+
+    if status == "transmitting":
+        validation = service.validate_transmission(cycle_id)
+        if not validation.get("ok"):
+            # Another worker may have completed the atomic transmission after
+            # our initial read. Treat that as convergence, not a corrupt lock.
+            current = service.repository.get_cycle(cycle_id)
+            if current and current.get("status") == "stabilizing":
+                return _reconcile_stabilizing_ghostnetwork_cycle(service, current)
+            return {
+                "ok": False,
+                "status": "blocked",
+                "phase": "transmitting",
+                "cycle_id": cycle_id,
+                "reasons": validation.get("reasons") or ["transmission_invalid"],
+                "validation": validation,
+            }
+        resumed = service.resume_interrupted_transmission(cycle_id)
+        if isinstance(resumed, dict):
+            resumed.setdefault("transmission_status", resumed.get("status") or "")
+            resumed["status"] = "resumed" if resumed.get("ok") else resumed.get("status")
+            resumed.setdefault("phase", "transmitting")
+            resumed.setdefault("recovered", True)
+        return resumed
+
+    if status != "active":
+        return {
+            "ok": False,
+            "status": "blocked",
+            "phase": status or "unknown",
+            "cycle_id": cycle_id,
+            "reasons": ["unsupported_cycle_status"],
+        }
+
     readiness = service.evaluate_network_readiness(cycle["cycle_id"])
     if not readiness.get("ready"):
-        return {"ok": True, "status": "not_ready", "readiness": readiness}
+        return {"ok": True, "status": "not_ready", "readiness": readiness,
+                "rollover_postcommit": rollover_recovery}
     events = collect_ghostnetwork_domain_events(trigger_result)
     trigger_event_id = (events[-1] if events else {}).get("event_id") or "runtime_20_of_20"
     locked = service.attempt_cycle_lock(cycle["cycle_id"], trigger_event_id=trigger_event_id)
     if not locked.get("ok"):
         return locked
-    return service.start_transmission(cycle["cycle_id"])
+    transmitted = service.start_transmission(cycle["cycle_id"])
+    if isinstance(transmitted, dict):
+        transmitted.setdefault("phase", "active")
+        transmitted.setdefault("recovered", False)
+    return transmitted
 
 
 def bridge_ghostnetwork_territory_publication(reason="territory_publication", service=None,
@@ -8251,8 +8695,48 @@ def publish_ghostnetwork_event_delta(event):
     return GhostNetworkDeltaPublisher(delta_bus=delta_bus).publish_event(event, viewers)
 
 
+GHOSTNETWORK_PUBLIC_CYCLE_DELTA_TYPES = {
+    "ghost.cycle_locked",
+    "ghost.signal_sent",
+    "ghost.version_changed",
+    "ghost.restart_required",
+    "ghost.stabilization_started",
+    "ghost.cycle_activated",
+    "ghost.parts_consumed",
+    "ghost.connections_closed",
+    "ghost.abilities_disabled",
+    "ghost.topology_created",
+}
+
+
+def ghostnetwork_event_recipient_route(event):
+    """Return a durable recipient query for broad, viewer-safe deliveries."""
+    event = event if isinstance(event, dict) else {}
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    event_type = str(event.get("event_type") or event.get("type") or "").strip()
+    scope = str(event.get("audience_scope") or "internal").strip().lower()
+    if event_type.startswith("ghost.cycle_") or event_type in GHOSTNETWORK_PUBLIC_CYCLE_DELTA_TYPES:
+        return {"scope": "public"}
+    if scope == "public":
+        return {"scope": "public"}
+    if scope == "clan":
+        clan_code = str(
+            event.get("audience_clan")
+            or event.get("clan_code")
+            or payload.get("player_clan")
+            or payload.get("territory_clan")
+            or payload.get("clan_code")
+            or ""
+        ).strip().lower()
+        return {"scope": "clan", "clan_code": clan_code} if clan_code else None
+    return None
+
+
 def enqueue_ghostnetwork_event_delta(event, recipients=None):
-    recipients = recipients if recipients is not None else ghostnetwork_event_recipient_profiles(event)
+    route = None
+    if recipients is None:
+        route = ghostnetwork_event_recipient_route(event)
+        recipients = [] if route else ghostnetwork_event_recipient_profiles(event)
     viewers = []
     for username, profile in recipients:
         viewer = ghostnetwork_player_payload(username, profile)
@@ -8264,7 +8748,49 @@ def enqueue_ghostnetwork_event_delta(event, recipients=None):
             "is_authenticated": True,
         })
         viewers.append(viewer)
-    return ghostnetwork_delta_delivery_job_store.enqueue(event, viewers)
+    return ghostnetwork_delta_delivery_job_store.enqueue(
+        event, viewers, recipient_route=route,
+    )
+
+
+def _ghostnetwork_delta_viewer(identity):
+    username = str((identity or {}).get("username") or "").strip()
+    viewer = ghostnetwork_player_payload(username, identity or {})
+    viewer.update({
+        "viewer_id": username,
+        "viewer_clan": viewer.get("clan_code") or "",
+        "viewer_profession": viewer.get("ghost_profession") or (identity or {}).get("profession") or "",
+        "audience_scope": "player",
+        "is_authenticated": True,
+    })
+    return viewer
+
+
+def _enqueue_ghostnetwork_restart_message(username, event, snapshot):
+    if str((event or {}).get("event_type") or "") != "ghost.restart_required":
+        return False
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    cycle = snapshot.get("cycle") if isinstance((snapshot or {}).get("cycle"), dict) else {}
+    from_version = str(payload.get("from_version") or cycle.get("restart_from_version") or "").strip()
+    to_version = str(payload.get("to_version") or cycle.get("restart_to_version") or "").strip()
+    signal_number = int(cycle.get("signal_number") or 0)
+    version_text = f" z wersji {from_version} do {to_version}" if from_version and to_version else ""
+    _, created = system_message_store.add_message(
+        username,
+        {
+            "type": "warning",
+            "title": "Restart GhostSystemu wymagany",
+            "text": (
+                f"Transmisja GhostSignal{version_text} została zakończona. "
+                "Uruchom ponownie GhostSystem; do tego czasu akcje GhostNetwork są zablokowane."
+            ),
+            "source": "ghostnetwork",
+            "dedupe_key": f"ghostsystem-restart:{signal_number}:{to_version or 'next'}",
+            "status": "new",
+        },
+        source="ghostnetwork_restart",
+    )
+    return bool(created)
 
 
 def process_ghostnetwork_delta_delivery_job(lease_owner, lease_seconds=300, batch_size=None):
@@ -8280,12 +8806,29 @@ def process_ghostnetwork_delta_delivery_job(lease_owner, lease_seconds=300, batc
         batch_size = max(1, min(100, int(
             batch_size or os.environ.get("CHAOS_GHOSTNETWORK_DELTA_BATCH_SIZE", "25")
         )))
-        batch = viewers[start_index:start_index + batch_size]
+        recipient_scope = str(claim.get("recipient_scope") or "").strip().lower()
+        recipient_cursor = str(claim.get("recipient_cursor") or "").strip()
+        dynamic_page = recipient_scope in {"public", "clan"}
+        recipient_ids = []
+        if dynamic_page:
+            recipient_ids = identity_projection_store.list_recipient_ids(
+                recipient_scope,
+                clan_code=str(claim.get("recipient_clan") or "").strip().lower() or None,
+                after_username=recipient_cursor,
+                limit=batch_size,
+            )
+            identities = identity_projection_store.get_identities(
+                recipient_ids, max_items=batch_size,
+            )
+            batch = [_ghostnetwork_delta_viewer(identity) for identity in identities]
+        else:
+            batch = viewers[start_index:start_index + batch_size]
         if not batch:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             ghostnetwork_delta_delivery_job_store.advance(
                 claim["job_id"], lease_owner, start_index, 0, 0,
                 processing_ms=elapsed_ms, complete=True,
+                recipient_cursor=recipient_cursor if dynamic_page else None,
             )
             return {
                 **claim, "ok": True, "complete": True,
@@ -8321,13 +8864,18 @@ def process_ghostnetwork_delta_delivery_job(lease_owner, lease_seconds=300, batc
                 dedupe_key=dedupe_key,
                 created_at=delta.get("created_at"),
             )
+            _enqueue_ghostnetwork_restart_message(
+                username, claim["event"], snapshot,
+            )
             published += 1
-        next_index = start_index + len(batch)
-        complete = next_index >= len(viewers)
+        next_index = start_index + (len(recipient_ids) if dynamic_page else len(batch))
+        next_cursor = recipient_ids[-1] if recipient_ids else recipient_cursor
+        complete = False if dynamic_page else next_index >= len(viewers)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         ghostnetwork_delta_delivery_job_store.advance(
             claim["job_id"], lease_owner, next_index, published, skipped,
             processing_ms=elapsed_ms, complete=complete,
+            recipient_cursor=next_cursor if dynamic_page else None,
         )
         return {
             **claim, "ok": True, "complete": complete,

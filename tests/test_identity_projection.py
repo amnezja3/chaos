@@ -92,6 +92,12 @@ class UserIdentityProjectionTests(unittest.TestCase):
             self.identities.list_recipient_ids("clan", clan_code="virex", limit=3),
         )
         self.assertEqual(
+            ["bob", "eve"],
+            self.identities.list_recipient_ids(
+                "public", after_username="alice", limit=3,
+            ),
+        )
+        self.assertEqual(
             ["eve", "alice"],
             self.identities.list_recipient_ids(
                 "owners", owner_ids=["eve", "alice"], limit=2

@@ -501,7 +501,10 @@ class GhostNetworkDeltaPublisher:
                 }
         elif event_type.startswith("ghost.machine_"):
             payload["machine_progress"] = copy.deepcopy(event.get("payload") or {})
-        elif event_type.startswith("ghost.cycle_") or event_type in {"ghost.version_changed", "ghost.restart_required", "ghost.signal_sent"}:
+        elif event_type.startswith("ghost.cycle_") or event_type in {
+            "ghost.version_changed", "ghost.restart_required", "ghost.signal_sent",
+            "ghost.stabilization_started",
+        }:
             payload["cycle"] = projection.get("cycle")
             payload["progress"] = projection.get("progress") or {}
         else:

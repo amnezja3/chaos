@@ -58,6 +58,41 @@ class GhostNetworkTopologyTest(unittest.TestCase):
         self.assertEqual(self.repo.get_cycle(cycle["cycle_id"])["topology_checksum"], validation["topology_checksum"])
         self.assertTrue(validation["checksum_match"])
 
+    def test_later_cycle_builds_valid_seeded_ring_with_required_anchor(self):
+        cycle = self.cycle_service.create_cycle(
+            signal_number=2,
+            ghostsystem_version=2,
+            topology_seed="ghostnetwork_0002",
+        )["cycle"]
+        validation = self.topology.validate_topology(cycle["cycle_id"])
+
+        self.assertTrue(validation["valid"], validation)
+        self.assertEqual(validation["nodes"], 20)
+        self.assertEqual(validation["connections"], 20)
+        self.assertEqual(validation["same_clan_edges"], [])
+        self.assertTrue(self.topology._codes_have_required_anchor(validation["ring_codes"]))
+
+    def test_seeded_ring_construction_is_valid_across_future_cycle_versions(self):
+        cycle = self.create_cycle()
+        parts = self.repo.list_parts(cycle["cycle_id"])
+        for version in range(2, 102):
+            candidate_cycle = {
+                **cycle,
+                "cycle_id": f"ghostnetwork_{version:04d}",
+                "topology_seed": f"ghostnetwork_{version:04d}",
+                "ghostsystem_version": version,
+            }
+            first = self.topology._build_ring_codes(candidate_cycle, parts)
+            second = self.topology._build_ring_codes(candidate_cycle, parts)
+            ring_parts = [
+                next(part for part in parts if part["part_code"] == code)
+                for code in first
+            ]
+            self.assertEqual(first, second, version)
+            self.assertEqual(len(first), 20, version)
+            self.assertTrue(self.topology._codes_have_required_anchor(first), version)
+            self.assertFalse(self.topology._ring_has_same_clan_neighbor(ring_parts), version)
+
     def test_each_node_has_two_neighbors_and_no_same_clan_edges(self):
         cycle = self.create_cycle()
         validation = self.topology.validate_topology(cycle["cycle_id"])

@@ -388,6 +388,93 @@ class OllamaWorkerTest(unittest.TestCase):
             task_id=item["outbox_id"], limit=10,
         )), 5)
 
+    def test_cyberner_signal_transport_failure_has_bounded_terminal(self):
+        fact = attach_semantic_content(
+            {"fact_id": "fact:signal-terminal", "fact_type": "signal_sent"},
+            {"statement": "GhostSignal został wysłany z zamkniętej sieci."},
+        )
+        task = assign_ollama_task_policy({
+            **self.task(event_id="signal-cyberner-terminal"),
+            "target_medium": "cyberner",
+            "task_variant": "signal_sent",
+            "narrative_intent": "ghost_signal_transmission",
+            "facts": [fact],
+            "validation": {
+                "event_family": "signal_sent",
+                "significance": "critical",
+            },
+        })
+        item = self.repo.enqueue_narrative_task(task)
+        worker = self.worker(FakeClient(error=OllamaClientError(
+            "ollama_unavailable", retryable=True,
+        )))
+
+        for delay in (5, 10, 20, 40):
+            result = worker.process_once(target_medium="cyberner")
+            self.assertEqual(result["result"], "retry_wait")
+            self.clock.advance(delay + 1)
+        terminal = worker.process_once(target_medium="cyberner")
+
+        current = self.repo.get_narrative_outbox(item["outbox_id"])
+        self.assertEqual(terminal["result"], "dead_letter")
+        self.assertEqual(current["status"], "dead_letter")
+        self.assertEqual(current["attempt_count"], 5)
+        self.assertEqual(current["last_error_code"], "ollama_unavailable")
+        self.assertIsNone(self.repo.get_narrative_candidate_for_task(item["outbox_id"]))
+
+    def test_guaranteed_signal_route_uses_support_after_transport_retries(self):
+        action = {
+            "cta_action": "open_ghostsignal_archive",
+            "payload": {"signal_id": "signal-guaranteed"},
+        }
+        fact = attach_semantic_content(
+            {"fact_id": "fact:signal-guaranteed", "fact_type": "signal_sent"},
+            {"statement": "GhostSignal został wysłany z zamkniętej sieci."},
+        )
+        task = assign_ollama_task_policy({
+            **self.task(event_id="signal-guaranteed"),
+            "target_medium": "blacknet",
+            "task_variant": "signal_sent",
+            "narrative_intent": "ghost_signal_transmission",
+            "facts": [fact],
+            "allowed_actions": [action],
+            "fixed_action": action,
+            "validation": {
+                "event_family": "signal_sent",
+                "significance": "critical",
+            },
+        })
+        item = self.repo.enqueue_narrative_task(task)
+        worker = self.worker(FakeClient(error=OllamaClientError(
+            "ollama_unavailable", retryable=True,
+        )))
+
+        for delay in (5, 10, 20, 40):
+            result = worker.process_once(target_medium="blacknet")
+            self.assertEqual(result["result"], "retry_wait")
+            self.clock.advance(delay + 1)
+        terminal = worker.process_once(target_medium="blacknet")
+
+        current = self.repo.get_narrative_outbox(item["outbox_id"])
+        candidate = self.repo.get_narrative_candidate_for_task(item["outbox_id"])
+        attempt = self.repo.list_narrative_attempts(
+            task_id=item["outbox_id"], limit=10
+        )[-1]
+        self.assertEqual(terminal["result"], "completed", terminal)
+        self.assertEqual(terminal["narrative_support_mode"], "full")
+        self.assertEqual(
+            terminal["recovered_from_error_code"], "ollama_unavailable"
+        )
+        self.assertEqual(current["status"], "completed")
+        self.assertEqual(current["attempt_count"], 5)
+        self.assertEqual(candidate["validation_status"], "accepted")
+        self.assertEqual(candidate["cta_action"], "open_ghostsignal_archive")
+        self.assertEqual(
+            candidate["cta_payload"], {"signal_id": "signal-guaranteed"}
+        )
+        self.assertEqual(attempt["result"], "accepted_support_full")
+        self.assertEqual(attempt["error_code"], "ollama_unavailable")
+
     def test_heartbeat_renews_lease_during_slow_generation(self):
         item = self.repo.enqueue_narrative_task(self.task(event_id="slow-generation"))
 

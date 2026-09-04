@@ -96,6 +96,32 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         connection = self.repo.list_connections(self.cycle["cycle_id"])[0]
         return parts_by_id[connection["part_a_id"]]["part_code"], parts_by_id[connection["part_b_id"]]["part_code"], connection
 
+    def test_restart_contract_survives_fresh_viewer_snapshot_without_internal_signal_id(self):
+        self.repo.update_cycle(
+            self.cycle["cycle_id"],
+            status="stabilizing",
+            restart_required=1,
+            restart_reason="ghostsignal_transmission",
+            restart_signal_id="internal-signal-secret",
+            restart_from_version="7.09",
+            restart_to_version="8.00",
+            restart_required_at=self.repo.now(),
+            stabilization_until=future_iso(30),
+        )
+        snapshot = self.repo.build_internal_snapshot(self.cycle["cycle_id"])
+        projected = self.visibility.build_snapshot_for_viewer(
+            snapshot,
+            {"viewer_id": "main", "viewer_clan": "virex", "audience_scope": "player"},
+        )
+
+        self.assertTrue(projected["restart_required"])
+        self.assertTrue(projected["cycle"]["restart_required"])
+        self.assertEqual(projected["restart_from_version"], "7.09")
+        self.assertEqual(projected["restart_to_version"], "8.00")
+        self.assertEqual(projected["restart_signal_ref"], "GHOSTSIGNAL-0001")
+        self.assertTrue(projected["stabilization_until"])
+        self.assertNotIn("internal-signal-secret", self.encoded(projected))
+
     def test_neutral_part_is_full_public(self):
         part = self.set_public("V1")
         projected = self.visibility.project_part_for_viewer(

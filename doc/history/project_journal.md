@@ -2622,3 +2622,100 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Definition of Ready. Do jej zaliczenia obowiązuje `DO NOT TRIGGER 20/20`.
 - Audyt nie zmienił runtime ani danych produkcyjnych. Nie wykonano commita,
   pushu, deployu ani restartu.
+
+## 2026-09-04 — 138.2.pre-endgame P0.1, recovery slice A
+
+- Dodano bounded `advance_ghostnetwork_endgame_once()` rozpoznający stany
+  `active`, `transmitting`, `stabilizing` i brak cyklu bez wykonywania rolloveru.
+- PM2 14 dostał niezależny, completion-based tick finału. Recovery nie zależy
+  już od nadejścia następnego territory joba: poprawny committed lock bez
+  sygnału jest automatycznie wznawiany przez istniejącą idempotentną transmisję.
+- `transmitting` bez poprawnego immutable lock snapshotu zatrzymuje się
+  fail-closed i nie tworzy GhostSignalu. Powtarzalne logi blokady są limitowane
+  do zmiany przyczyny albo jednego wpisu na minutę.
+- Testy celowane: 17/17 PASS. Szersza regresja post-130/territory jobs/LLM event
+  producers: 47/47 PASS. `py_compile` i `git diff --check`: PASS.
+- Dodano post-commit repair dla archive i narrative. Trwały marker powstaje
+  dopiero po sukcesie obu efektów; awaria albo brak canonical eventów pozostawia
+  cykl w retry bez powtarzania mechaniki GhostSignalu.
+- Świeża instancja serwisu symulująca restart PM2 oraz dwie równoległe instancje
+  zbiegają do jednego signal, 21 reward rows i 20 historical nodes.
+- Rozszerzona regresja recovery/narrative/archive/transmission/worker: 33/33 PASS.
+- Core P0.1 pozostaje lokalny. Integracje reward projection, pełnego delta fan-out
+  i rolloveru należą odpowiednio do P0.2, P0.3 i P0.4.
+
+## 2026-09-04 — 138.2.pre-endgame P0.2, projector slice A
+
+- Dodano bounded worker projektujący jeden pending GhostNetwork reward na tick.
+  Używa istniejącego guarded profile record/CAS i finalizuje ledger dopiero po
+  trwałym zapisie profilu.
+- `reward_key` w `ghostnetwork_reward_history` działa jako receipt pośredni.
+  Symulowany crash po profile save, ale przed ledger finalize, został odzyskany
+  bez ponownego zapisu profilu i bez podwójnego RSP.
+- Dodano durable claim z lease, przejęcie wygasłego claimu, wykładniczy backoff
+  i zwolnienie dzierżawy również po wyjątku loadera lub zapisu profilu. Jeden
+  uszkodzony profil nie jest już stale pierwszym gotowym elementem kolejki.
+- Diagnostyka raportuje statusy, pending/processing/ready/retry, expired claims,
+  oldest pending/ready, pending with error i maximum attempts.
+- P0.2 ma `IMPLEMENTED — LOCAL PASS`; produkcyjny `SERVER PASS` nastąpi dopiero
+  po obserwacji kompletnego zestawu final rewards bieżącego cyklu.
+
+## 2026-09-04 — 138.2.pre-endgame P0.3, durable delivery i restart recovery
+
+- Dodano post-commit sweep wszystkich persisted eventów finału od lock snapshotu.
+  Każdy event otrzymuje durable delta job, a deduplikowany marker reconciliation
+  powstaje dopiero po potwierdzeniu kompletu jobów.
+- Usunięto ciche ograniczenie fan-outu do pierwszych 500 kont. Public/clan są
+  rozwiązywane przez trwały route i kursor `after_username`, stronami o bounded
+  rozmiarze; request path nie ładuje szerokiej listy profili.
+- Viewer snapshot utrwala bezpieczny kontrakt restartu: wymaganie restartu,
+  wersje from/to, publiczny alias GhostSignalu i deadline stabilizacji. Internal
+  signal ID nie trafia do klienta.
+- GhostNetwork Suite odtwarza blokadę akcji po reloadzie i nie czyści jej na
+  `version_changed`. System Messaging emituje jeden trwały, deduplikowany toast
+  na signal/version, także dla gracza wracającego po transmisji.
+- Test fan-outu 503 odbiorców w batchach po 100, snapshot/reload, system-message
+  dedupe, post-commit marker i istniejące regresje endgame/delta zakończyły się
+  PASS. P0.3 pozostaje bez commita i pushu; następny checkpoint to P0.4 rollover.
+
+## 2026-09-04 — 138.2.pre-endgame P0.4, stabilization rollover
+
+- Dodano backendowy deadline rolloveru i hard settlement wymagający poprawnego
+  sygnału/locka, 20 consumed parts, zero live connections, 20 historical nodes,
+  kompletu final reward rows oraz markerów post-commit i delta delivery.
+- Zamknięcie starego cyklu i utworzenie aktywnego następcy jest atomowe oraz
+  idempotentne. Nowy cykl ma 20 czystych pooled parts po 5 na klan i własny
+  poprawny ring; stary stan historyczny i archiwum pozostają zachowane.
+- Post-commit narracji i delt jest retryable po restarcie i nie blokuje mechaniki
+  rolloveru. Przetestowano także crash po samym `closed`, awarię ścieżki
+  narracyjnej oraz wyścig dwóch workerów prowadzący do jednego następcy.
+- Naprawiono generator topologii kolejnych wersji: wymagany anchor jest budowany
+  konstrukcyjnie, zamiast zależeć od losowego trafienia w bounded pętli.
+- Celowane testy P0.4/topologii: 18/18 PASS. Szersze zestawy endgame, cycle,
+  lifecycle, transmission, closure, reservations, discovery, delta audience i
+  worker fairness: 79 uruchomionych testów PASS. `py_compile` przeszedł.
+- P0.4 ma `IMPLEMENTED — LOCAL PASS`. Bez commita i pushu; SERVER PASS wymaga
+  kontrolowanego produkcyjnego rolloveru po finale 20/20.
+
+## 2026-09-04 — 138.2.pre-endgame P0.5, publikacja finału
+
+- Radio zostało jawnie odroczone jako narrative publication surface pierwszego
+  debiutu. Nowy `ghost.signal_sent` tworzy tylko obsługiwane trasy BlackNet,
+  Googleplex News i Cyberner; nie powstaje task skazany na
+  `unsupported_target_medium`.
+- Dodano audience-safe fallbacki YAML dla BlackNet i GGPL dla `machine_online`,
+  `cycle_locked`, `signal_sent`, `version_changed`, `stabilization_started` i
+  `cycle_activated`. Clan/owner bez wariantu dokładnego dziedziczy wyłącznie
+  bezpieczny wariant publiczny.
+- Preflight Narrative Support wymaga kompletu 12 gwarantowanych tras. Test
+  ujemny potwierdza fail-closed po usunięciu jednej definicji.
+- Cyberner nie dostaje fałszywej odpowiedzi 2108: awaria transportu ma bounded
+  retry i po pięciu próbach jawny terminal bez kandydata, niezależny od mechaniki
+  finału i publikacji gwarantowanych. BlackNet/GGPL po wyczerpaniu transportowego
+  retry przechodzą do bezpiecznego fallbacku zamiast przypadkowego dead lettera.
+- E2E `signal_sent` potwierdza tor od odrzuconego outputu Ollamy przez Support
+  Layer do published medium record oraz zachowanie `open_ghostsignal_archive`
+  z canonical `signal_id`. Frontend zachowuje wybór przy reopen/reload, a API
+  archiwum pozostaje viewer-safe.
+- P0.5 ma `IMPLEMENTED — LOCAL PASS`. Zmiany pozostają lokalne bez commita i
+  pushu; `SERVER PASS` wymaga obserwacji prawdziwego finału.

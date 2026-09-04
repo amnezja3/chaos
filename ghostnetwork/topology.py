@@ -259,12 +259,18 @@ class GhostTopologyService:
                 str(cycle.get("ghostsystem_version") or ""),
             ]
         )
+        anchor_codes = list(TOPOLOGY_ANCHOR[:2])
+        anchored = (
+            len(anchor_codes) == 2
+            and all(code in available for code in anchor_codes)
+        )
+        if anchored:
+            return self._build_seeded_anchored_ring(parts, anchor_codes, seed)
         for attempt in range(self.MAX_GENERATION_ATTEMPTS):
             rng = random.Random(f"{seed}:{attempt}")
-            shuffled = list(parts)
-            rng.shuffle(shuffled)
-            codes = [part["part_code"] for part in shuffled]
-            part_by_code = {part["part_code"]: part for part in shuffled}
+            part_by_code = {part["part_code"]: part for part in parts}
+            codes = [part["part_code"] for part in parts]
+            rng.shuffle(codes)
             candidate = [part_by_code[code] for code in codes]
             if self._ring_has_same_clan_neighbor(candidate):
                 continue
@@ -272,6 +278,61 @@ class GhostTopologyService:
                 continue
             return codes
         raise TopologyGenerationError("Could not generate a valid GhostNetwork topology.")
+
+    def _build_seeded_anchored_ring(self, parts, anchor_codes, seed):
+        """Build a seeded ring without relying on a lucky random permutation."""
+        part_by_code = {part["part_code"]: part for part in parts}
+        first_clan = part_by_code[anchor_codes[0]]["clan_code"]
+        second_clan = part_by_code[anchor_codes[1]]["clan_code"]
+        if first_clan == second_clan:
+            raise TopologyGenerationError("Required topology anchor joins the same clan.")
+
+        rng = random.Random(f"{seed}:anchored")
+        by_clan = defaultdict(list)
+        for part in parts:
+            if part["part_code"] not in anchor_codes:
+                by_clan[part["clan_code"]].append(part["part_code"])
+        for codes in by_clan.values():
+            rng.shuffle(codes)
+        clan_order = sorted(by_clan)
+        rng.shuffle(clan_order)
+        clan_rank = {clan: index for index, clan in enumerate(clan_order)}
+        initial_counts = tuple(len(by_clan[clan]) for clan in clan_order)
+        memo = set()
+
+        def arrange(previous_clan, counts):
+            state = (previous_clan, counts)
+            if state in memo:
+                return None
+            remaining = sum(counts)
+            if not remaining:
+                return [] if previous_clan != first_clan else None
+            candidates = [
+                index for index, count in enumerate(counts)
+                if count and clan_order[index] != previous_clan
+            ]
+            candidates.sort(key=lambda index: (-counts[index], clan_rank[clan_order[index]]))
+            for index in candidates:
+                updated = list(counts)
+                updated[index] -= 1
+                suffix = arrange(clan_order[index], tuple(updated))
+                if suffix is not None:
+                    return [clan_order[index], *suffix]
+            memo.add(state)
+            return None
+
+        remaining_clans = arrange(second_clan, initial_counts)
+        if remaining_clans is None:
+            raise TopologyGenerationError("Could not construct a valid anchored GhostNetwork topology.")
+        positions = {clan: 0 for clan in clan_order}
+        codes = list(anchor_codes)
+        for clan in remaining_clans:
+            codes.append(by_clan[clan][positions[clan]])
+            positions[clan] += 1
+        candidate = [part_by_code[code] for code in codes]
+        if self._ring_has_same_clan_neighbor(candidate):
+            raise TopologyGenerationError("Constructed GhostNetwork topology joins the same clan.")
+        return codes
 
     def _validate_ring_candidates(self, ring_parts):
         if len(ring_parts) != self.REQUIRED_PARTS:

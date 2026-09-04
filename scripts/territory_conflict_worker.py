@@ -20,6 +20,9 @@ _ghostnetwork_delivery_turn = True
 _ghostnetwork_service = None
 _next_operation_runtime_tick_at = 0.0
 _next_blacknet_narrative_tick_at = 0.0
+_next_ghostnetwork_endgame_tick_at = 0.0
+_last_ghostnetwork_endgame_block_key = ""
+_next_ghostnetwork_endgame_block_log_at = 0.0
 
 
 def is_database_contention(error):
@@ -73,6 +76,59 @@ def process_blacknet_narrative_if_due():
         f"task_id={((result.get('task') or {}).get('outbox_id') or '-')}",
         flush=True,
     )
+    return result
+
+
+def process_ghostnetwork_endgame_if_due():
+    """Run one bounded endgame recovery step independently of queue traffic."""
+    global _ghostnetwork_service, _next_ghostnetwork_endgame_tick_at
+    global _last_ghostnetwork_endgame_block_key, _next_ghostnetwork_endgame_block_log_at
+    now = time.monotonic()
+    if now < _next_ghostnetwork_endgame_tick_at:
+        return None
+    interval = max(
+        1.0,
+        float(os.environ.get("CHAOS_GHOSTNETWORK_ENDGAME_TICK_SECONDS", "2")),
+    )
+    if _ghostnetwork_service is None:
+        _ghostnetwork_service = run.GhostNetworkService()
+    try:
+        result = run.advance_ghostnetwork_endgame_once(service=_ghostnetwork_service)
+    finally:
+        # Completion-based cadence prevents a slow SQLite or narrative tail
+        # from immediately retriggering and monopolizing PM2 14.
+        _next_ghostnetwork_endgame_tick_at = time.monotonic() + interval
+    status = str((result or {}).get("status") or "")
+    should_log = status in {"sent", "resumed", "rolled_over"}
+    if status in {"blocked", "postcommit_retry", "settlement_blocked"}:
+        block_key = json.dumps(
+            {
+                "cycle_id": (result or {}).get("cycle_id") or "",
+                "phase": (result or {}).get("phase") or "",
+                "reasons": (result or {}).get("reasons") or [],
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+        )
+        log_now = time.monotonic()
+        should_log = (
+            block_key != _last_ghostnetwork_endgame_block_key
+            or log_now >= _next_ghostnetwork_endgame_block_log_at
+        )
+        if should_log:
+            _last_ghostnetwork_endgame_block_key = block_key
+            _next_ghostnetwork_endgame_block_log_at = log_now + 60.0
+    if should_log:
+        print(
+            "[TERRITORY_WORKER] ghost_endgame "
+            f"status={status} ok={bool((result or {}).get('ok'))} "
+            f"cycle_id={(result or {}).get('cycle_id') or '-'} "
+            f"phase={(result or {}).get('phase') or '-'} "
+            f"recovered={bool((result or {}).get('recovered'))} "
+            f"postcommit_pending={bool((result or {}).get('postcommit_pending'))} "
+            f"reasons={(result or {}).get('reasons') or []}",
+            flush=True,
+        )
     return result
 
 
@@ -186,6 +242,31 @@ def process_once():
     global _consecutive_ghostnetwork_jobs
     process_operation_runtime_if_due()
     process_blacknet_narrative_if_due()
+    endgame = process_ghostnetwork_endgame_if_due()
+    if str((endgame or {}).get("status") or "") in {"sent", "resumed"}:
+        return True
+    reward_projection = run.process_ghostnetwork_pending_reward_projection(
+        service=_ghostnetwork_service,
+        worker_id=f"ghost-reward-worker:{os.getpid()}",
+        lease_seconds=60,
+    )
+    if int((reward_projection or {}).get("processed") or 0):
+        print(
+            "[TERRITORY_WORKER] ghost_reward_projection "
+            f"status={reward_projection.get('status')} "
+            f"reward_id={reward_projection.get('reward_id') or '-'} "
+            f"player_id={reward_projection.get('player_id') or '-'} "
+            f"profile_changed={bool(reward_projection.get('profile_changed'))}",
+            flush=True,
+        )
+    elif str((reward_projection or {}).get("status") or "") == "blocked":
+        print(
+            "[TERRITORY_WORKER] ghost_reward_projection "
+            f"status=blocked reward_id={reward_projection.get('reward_id') or '-'} "
+            f"player_id={reward_projection.get('player_id') or '-'} "
+            f"reason={reward_projection.get('reason') or 'unknown'}",
+            flush=True,
+        )
     strategic_rewards = run.retry_pending_strategic_progression(limit=1)
     if strategic_rewards:
         print(

@@ -10,6 +10,9 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
         worker._ghostnetwork_delivery_turn = True
         worker._ghostnetwork_service = None
         worker._next_operation_runtime_tick_at = 0.0
+        worker._next_ghostnetwork_endgame_tick_at = 0.0
+        worker._last_ghostnetwork_endgame_block_key = ""
+        worker._next_ghostnetwork_endgame_block_log_at = 0.0
 
     def test_sqlite_contention_is_classified_for_retry(self):
         import sqlite3
@@ -19,6 +22,11 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
     def common_patches(self):
         return (
             patch.object(worker.run, "process_operation_runtime_tick", return_value={"operations": 0}),
+            patch.object(worker, "process_ghostnetwork_endgame_if_due", return_value=None),
+            patch.object(
+                worker.run, "process_ghostnetwork_pending_reward_projection",
+                return_value={"ok": True, "status": "empty", "processed": 0},
+            ),
             patch.object(worker.run, "retry_pending_strategic_progression", return_value=[]),
             patch.object(worker.run, "process_territory_rebuild_job", return_value=None),
             patch.object(worker.run, "process_territory_reconciliation_set", return_value=None),
@@ -93,6 +101,32 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
         with patch.object(worker, "process_ghostnetwork_once", return_value=False), \
                 patch.object(worker.run.territory_conflict_store, "list_rebuild_candidates", return_value=[]):
             self.assertFalse(worker.process_once())
+
+    def test_endgame_tick_has_completion_based_cadence(self):
+        result = {"ok": True, "status": "not_ready"}
+        with patch.object(
+            worker.run, "advance_ghostnetwork_endgame_once", return_value=result
+        ) as advance, patch.object(
+            worker.time, "monotonic", side_effect=[100.0, 101.5, 102.0, 103.5, 103.6]
+        ):
+            self.assertEqual(worker.process_ghostnetwork_endgame_if_due(), result)
+            self.assertIsNone(worker.process_ghostnetwork_endgame_if_due())
+            self.assertEqual(worker.process_ghostnetwork_endgame_if_due(), result)
+        self.assertEqual(advance.call_count, 2)
+
+    def test_resumed_endgame_gets_priority_without_waiting_for_queue_idle(self):
+        patches = self.common_patches()
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        worker.process_ghostnetwork_endgame_if_due.return_value = {
+            "ok": True, "status": "resumed", "cycle_id": "ghostnetwork_0001",
+        }
+        with patch.object(worker.run, "retry_pending_strategic_progression") as rewards, \
+                patch.object(worker.run, "process_territory_rebuild_job") as rebuild:
+            self.assertTrue(worker.process_once())
+        rewards.assert_not_called()
+        rebuild.assert_not_called()
 
 
 if __name__ == "__main__":

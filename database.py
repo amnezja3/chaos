@@ -2355,6 +2355,10 @@ def init_db(db_path=DB_PATH):
                 cycle_id TEXT NOT NULL,
                 event_json TEXT NOT NULL,
                 viewers_json TEXT NOT NULL DEFAULT '[]',
+                recipient_scope TEXT NOT NULL DEFAULT '',
+                recipient_clan TEXT NOT NULL DEFAULT '',
+                recipient_owner_ids_json TEXT NOT NULL DEFAULT '[]',
+                recipient_cursor TEXT NOT NULL DEFAULT '',
                 snapshot_json TEXT NOT NULL DEFAULT '{}',
                 next_index INTEGER NOT NULL DEFAULT 0,
                 published_count INTEGER NOT NULL DEFAULT 0,
@@ -2387,6 +2391,16 @@ def init_db(db_path=DB_PATH):
                 "ALTER TABLE ghostnetwork_delta_delivery_jobs "
                 "ADD COLUMN snapshot_json TEXT NOT NULL DEFAULT '{}'"
             )
+        for column_name, definition in (
+            ("recipient_scope", "recipient_scope TEXT NOT NULL DEFAULT ''"),
+            ("recipient_clan", "recipient_clan TEXT NOT NULL DEFAULT ''"),
+            ("recipient_owner_ids_json", "recipient_owner_ids_json TEXT NOT NULL DEFAULT '[]'"),
+            ("recipient_cursor", "recipient_cursor TEXT NOT NULL DEFAULT ''"),
+        ):
+            if column_name not in ghost_delivery_columns:
+                conn.execute(
+                    "ALTER TABLE ghostnetwork_delta_delivery_jobs ADD COLUMN " + definition
+                )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS territory_reconciliation_snapshot_gates (
@@ -4377,6 +4391,7 @@ class UserIdentityProjectionStore:
         *,
         clan_code=None,
         owner_ids=None,
+        after_username="",
         limit=IDENTITY_PROJECTION_MAX_BATCH,
     ):
         limit = self._bounded_limit(limit)
@@ -4402,6 +4417,10 @@ class UserIdentityProjectionStore:
                 return []
             filters.append("p.clan_code = ?")
             params.append(normalized_clan)
+        cursor = str(after_username or "").strip()
+        if cursor:
+            filters.append("p.username > ?")
+            params.append(cursor)
         params.append(limit)
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
@@ -4900,13 +4919,23 @@ class GhostNetworkDeltaDeliveryJobStore:
         self.db_path = db_path
         init_db(self.db_path)
 
-    def enqueue(self, event, viewers):
+    def enqueue(self, event, viewers=None, recipient_route=None):
         event = event if isinstance(event, dict) else {}
         event_id = str(event.get("event_id") or "").strip()
         cycle_id = str(event.get("cycle_id") or "").strip()
         if not event_id or not cycle_id:
             raise ValueError("GhostNetwork delivery requires event_id and cycle_id")
         safe_viewers = [dict(item) for item in (viewers or []) if isinstance(item, dict)]
+        route = recipient_route if isinstance(recipient_route, dict) else {}
+        recipient_scope = str(route.get("scope") or "").strip().lower()
+        if recipient_scope not in {"", "public", "clan", "owners"}:
+            raise ValueError("GhostNetwork delivery recipient scope is invalid")
+        recipient_clan = str(route.get("clan_code") or "").strip().lower()
+        owner_ids = sorted({
+            str(value or "").strip()
+            for value in (route.get("owner_ids") or [])
+            if str(value or "").strip()
+        })
         job_id = "ghost-delta-" + hashlib.sha1(event_id.encode("utf-8")).hexdigest()[:24]
         now = utc_now()
         with db_connect(self.db_path) as conn:
@@ -4914,14 +4943,33 @@ class GhostNetworkDeltaDeliveryJobStore:
                 """
                 INSERT INTO ghostnetwork_delta_delivery_jobs
                     (job_id, event_id, cycle_id, event_json, viewers_json,
+                     recipient_scope, recipient_clan, recipient_owner_ids_json,
                      status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
-                ON CONFLICT(event_id) DO NOTHING
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                ON CONFLICT(event_id) DO UPDATE SET
+                    recipient_scope = excluded.recipient_scope,
+                    recipient_clan = excluded.recipient_clan,
+                    recipient_owner_ids_json = excluded.recipient_owner_ids_json,
+                    recipient_cursor = '',
+                    next_index = 0,
+                    status = 'pending',
+                    lease_owner = '',
+                    lease_until = 0,
+                    attempts = 0,
+                    next_attempt_at = 0,
+                    error = '',
+                    updated_at = excluded.updated_at,
+                    finished_at = NULL
+                WHERE ghostnetwork_delta_delivery_jobs.recipient_scope = ''
+                  AND excluded.recipient_scope <> ''
                 """,
-                (job_id, event_id, cycle_id, dumps_json(event), dumps_json(safe_viewers), now, now),
+                (
+                    job_id, event_id, cycle_id, dumps_json(event), dumps_json(safe_viewers),
+                    recipient_scope, recipient_clan, dumps_json(owner_ids), now, now,
+                ),
             )
         return {"job_id": job_id, "event_id": event_id, "enqueued": cursor.rowcount == 1,
-                "recipients": len(safe_viewers)}
+                "recipients": len(safe_viewers), "recipient_scope": recipient_scope}
 
     def claim(self, lease_owner, lease_seconds=300):
         now_ts = time.time()
@@ -4959,6 +5007,7 @@ class GhostNetworkDeltaDeliveryJobStore:
             "event": loads_json(claimed["event_json"], {}),
             "viewers": loads_json(claimed["viewers_json"], []),
             "snapshot": loads_json(claimed["snapshot_json"], {}),
+            "recipient_owner_ids": loads_json(claimed["recipient_owner_ids_json"], []),
         }
 
     def store_snapshot(self, job_id, lease_owner, snapshot):
@@ -4976,19 +5025,20 @@ class GhostNetworkDeltaDeliveryJobStore:
         return cursor.rowcount == 1
 
     def advance(self, job_id, lease_owner, next_index, published, skipped,
-                processing_ms=0, complete=False):
+                processing_ms=0, complete=False, recipient_cursor=None):
         now = utc_now()
         with db_connect(self.db_path) as conn:
             cursor = conn.execute(
                 """
                 UPDATE ghostnetwork_delta_delivery_jobs
-                SET next_index = ?, published_count = published_count + ?,
+                SET next_index = ?, recipient_cursor = COALESCE(?, recipient_cursor),
+                    published_count = published_count + ?,
                     skipped_count = skipped_count + ?, processing_ms = processing_ms + ?,
                     status = ?, lease_owner = '', lease_until = 0, attempts = 0,
                     next_attempt_at = 0, error = '', updated_at = ?, finished_at = ?
                 WHERE job_id = ? AND lease_owner = ? AND status = 'processing'
                 """,
-                (int(next_index), int(published), int(skipped), max(0, int(processing_ms or 0)),
+                (int(next_index), recipient_cursor, int(published), int(skipped), max(0, int(processing_ms or 0)),
                  'complete' if complete else 'pending', now, now if complete else None,
                  str(job_id), str(lease_owner)),
             )

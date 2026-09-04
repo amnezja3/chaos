@@ -136,10 +136,31 @@ assert.strictEqual(state.snapshot.parts.length, 1);
 
 assert.strictEqual(sandbox.ghostnetworkSuiteApplyDelta(app, state, {
     type: "ghost.restart_required",
-    payload: { cycle_id: "cycle-135", state_version: 14 },
+    payload: {
+        cycle_id: "cycle-135", state_version: 14,
+        cycle: { restart_required: true, restart_from_version: "7.09", restart_to_version: "8.00" },
+    },
 }), true);
 assert.strictEqual(state.restartRequired, true);
 assert.strictEqual(state.snapshot.parts[0].actions.can_show_on_map, false);
+assert.ok(sandbox.ghostnetworkSuiteRestartMessage(state.snapshot).includes("7.09 → 8.00"));
+const recoveredSnapshot = {
+    cycle: {
+        cycle_id: "cycle-135", status: "stabilizing", restart_required: true,
+        restart_from_version: "7.09", restart_to_version: "8.00",
+    },
+};
+assert.strictEqual(sandbox.ghostnetworkSuiteRestartRequired(recoveredSnapshot), true);
+assert.strictEqual(
+    sandbox.ghostnetworkSuiteRestartMessage(recoveredSnapshot),
+    sandbox.ghostnetworkSuiteRestartMessage(state.snapshot),
+    "live delta and fresh snapshot must render the same restart message",
+);
+assert.strictEqual(sandbox.ghostnetworkSuiteApplyDelta(app, state, {
+    type: "ghost.version_changed",
+    payload: { cycle_id: "cycle-135", state_version: 15, cycle: { restart_required: true } },
+}), true);
+assert.strictEqual(state.restartRequired, true, "version delta must not clear a pending restart");
 assert.ok(renders >= 4);
 
 console.log("ghostnetwork suite live delta tests: OK");

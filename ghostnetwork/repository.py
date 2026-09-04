@@ -568,6 +568,16 @@ class GhostNetworkRepository:
             self._ensure_column(conn, "ghost_reward_ledger", "final_rsp", "final_rsp INTEGER NOT NULL DEFAULT 0")
             self._ensure_column(conn, "ghost_reward_ledger", "failure_reason", "failure_reason TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "ghost_reward_ledger", "metadata_json", "metadata_json TEXT NOT NULL DEFAULT '{}'")
+            self._ensure_column(conn, "ghost_reward_ledger", "projection_attempt_count", "projection_attempt_count INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_reward_ledger", "projection_claimed_by", "projection_claimed_by TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "projection_claimed_at", "projection_claimed_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "projection_lease_until", "projection_lease_until TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "projection_next_attempt_at", "projection_next_attempt_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "projection_last_error_at", "projection_last_error_at TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ghost_reward_projection_ready "
+                "ON ghost_reward_ledger(status, projection_next_attempt_at, projection_lease_until, created_at)"
+            )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS ghost_clan_reputation (
@@ -1898,6 +1908,12 @@ class GhostNetworkRepository:
             "level_progress": int(row["level_progress"] or 0),
             "status": row["status"],
             "failure_reason": row["failure_reason"] if "failure_reason" in keys else "",
+            "projection_attempt_count": int(row["projection_attempt_count"] or 0) if "projection_attempt_count" in keys else 0,
+            "projection_claimed_by": row["projection_claimed_by"] if "projection_claimed_by" in keys else "",
+            "projection_claimed_at": row["projection_claimed_at"] if "projection_claimed_at" in keys else "",
+            "projection_lease_until": row["projection_lease_until"] if "projection_lease_until" in keys else "",
+            "projection_next_attempt_at": row["projection_next_attempt_at"] if "projection_next_attempt_at" in keys else "",
+            "projection_last_error_at": row["projection_last_error_at"] if "projection_last_error_at" in keys else "",
             "metadata": loads_json(row["metadata_json"], {}) if "metadata_json" in keys else {},
             "created_at": row["created_at"],
             "applied_at": row["applied_at"],
@@ -6735,6 +6751,121 @@ class GhostNetworkRepository:
             ).fetchall()
             return [self._reward(row) for row in rows]
 
+    def claim_pending_reward_projection(self, worker_id, lease_seconds=60, now=None):
+        worker_id = _clean(worker_id)
+        if not worker_id:
+            raise ValueError("reward projection worker_id is required")
+        now_iso = _iso(now)
+        lease_until = _iso(_utc_datetime(now_iso) + timedelta(seconds=max(10, int(lease_seconds or 60))))
+        with self.transaction():
+            conn = self._transaction_conn
+            row = conn.execute(
+                """
+                SELECT * FROM ghost_reward_ledger
+                WHERE status = 'pending'
+                  AND (projection_next_attempt_at = '' OR projection_next_attempt_at <= ?)
+                  AND (projection_claimed_by = '' OR projection_lease_until = '' OR projection_lease_until <= ?)
+                ORDER BY created_at ASC, reward_id ASC
+                LIMIT 1
+                """,
+                (now_iso, now_iso),
+            ).fetchone()
+            if not row:
+                return None
+            updated = conn.execute(
+                """
+                UPDATE ghost_reward_ledger
+                SET projection_claimed_by = ?, projection_claimed_at = ?,
+                    projection_lease_until = ?, projection_attempt_count = projection_attempt_count + 1,
+                    failure_reason = ''
+                WHERE reward_id = ? AND status = 'pending'
+                  AND (projection_claimed_by = '' OR projection_lease_until = '' OR projection_lease_until <= ?)
+                """,
+                (worker_id, now_iso, lease_until, row["reward_id"], now_iso),
+            )
+            if updated.rowcount != 1:
+                return None
+            return self._reward(conn.execute(
+                "SELECT * FROM ghost_reward_ledger WHERE reward_id = ?",
+                (row["reward_id"],),
+            ).fetchone())
+
+    def retry_reward_projection(self, reward_id, worker_id, expected_lease_until, error="", now=None,
+                                backoff_seconds=None):
+        now_iso = _iso(now)
+        with self.transaction():
+            conn = self._transaction_conn
+            row = conn.execute(
+                "SELECT projection_attempt_count FROM ghost_reward_ledger WHERE reward_id = ?",
+                (_clean(reward_id),),
+            ).fetchone()
+            attempts = int(row["projection_attempt_count"] or 1) if row else 1
+            delay = (
+                min(300, 2 ** min(attempts, 8))
+                if backoff_seconds is None else max(0, int(backoff_seconds))
+            )
+            next_attempt = _iso(_utc_datetime(now_iso) + timedelta(seconds=delay))
+            updated = conn.execute(
+                """
+                UPDATE ghost_reward_ledger
+                SET projection_claimed_by = '', projection_claimed_at = '',
+                    projection_lease_until = '', projection_next_attempt_at = ?,
+                    projection_last_error_at = ?, failure_reason = ?
+                WHERE reward_id = ? AND status = 'pending'
+                  AND projection_claimed_by = ? AND projection_lease_until = ?
+                """,
+                (next_attempt, now_iso, _clean(error)[:500], _clean(reward_id),
+                 _clean(worker_id), _clean(expected_lease_until)),
+            )
+            return updated.rowcount == 1
+
+    def reward_projection_diagnostics(self, now=None):
+        now_iso = _iso(now)
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN status = 'pending' AND projection_claimed_by != ''
+                        AND projection_lease_until > ? THEN 1 ELSE 0 END) AS processing,
+                    SUM(CASE WHEN status = 'pending' AND projection_claimed_by != ''
+                        AND projection_lease_until != '' AND projection_lease_until <= ? THEN 1 ELSE 0 END) AS expired_claims,
+                    SUM(CASE WHEN status = 'pending'
+                        AND (projection_next_attempt_at = '' OR projection_next_attempt_at <= ?)
+                        AND (projection_claimed_by = '' OR projection_lease_until = '' OR projection_lease_until <= ?)
+                        THEN 1 ELSE 0 END) AS ready_now,
+                    SUM(CASE WHEN status = 'pending' AND projection_next_attempt_at > ?
+                        THEN 1 ELSE 0 END) AS retry_wait,
+                    SUM(CASE WHEN status = 'pending' AND failure_reason != ''
+                        THEN 1 ELSE 0 END) AS pending_with_error,
+                    MIN(CASE WHEN status = 'pending' THEN created_at END) AS oldest_pending,
+                    MIN(CASE WHEN status = 'pending'
+                        AND (projection_next_attempt_at = '' OR projection_next_attempt_at <= ?)
+                        AND (projection_claimed_by = '' OR projection_lease_until = '' OR projection_lease_until <= ?)
+                        THEN created_at END) AS oldest_ready,
+                    MAX(projection_attempt_count) AS maximum_attempts
+                FROM ghost_reward_ledger
+                """,
+                (now_iso, now_iso, now_iso, now_iso, now_iso, now_iso, now_iso),
+            ).fetchone()
+            status_rows = conn.execute(
+                "SELECT status, COUNT(*) AS count FROM ghost_reward_ledger GROUP BY status"
+            ).fetchall()
+        return {
+            "pending": int(row["pending"] or 0),
+            "processing": int(row["processing"] or 0),
+            "expired_claims": int(row["expired_claims"] or 0),
+            "ready_now": int(row["ready_now"] or 0),
+            "retry_wait": int(row["retry_wait"] or 0),
+            "pending_with_error": int(row["pending_with_error"] or 0),
+            "oldest_pending": row["oldest_pending"] or "",
+            "oldest_ready": row["oldest_ready"] or "",
+            "maximum_attempts": int(row["maximum_attempts"] or 0),
+            "statuses": {
+                item["status"]: int(item["count"] or 0) for item in status_rows
+            },
+        }
+
     def list_rewards(self, signal_id=None, cycle_id=None, player_id=None, clan_code=None, status=None, limit=1000):
         limit = max(1, min(int(limit or 1000), 5000))
         clauses = []
@@ -6773,13 +6904,18 @@ class GhostNetworkRepository:
             conn.execute(
                 """
                 UPDATE ghost_reward_ledger
-                SET status = ?, failure_reason = ?, applied_at = ?
+                SET status = ?, failure_reason = ?, applied_at = ?,
+                    projection_claimed_by = CASE WHEN ? = 'applied' THEN '' ELSE projection_claimed_by END,
+                    projection_claimed_at = CASE WHEN ? = 'applied' THEN '' ELSE projection_claimed_at END,
+                    projection_lease_until = CASE WHEN ? = 'applied' THEN '' ELSE projection_lease_until END,
+                    projection_next_attempt_at = CASE WHEN ? = 'applied' THEN '' ELSE projection_next_attempt_at END
                 WHERE reward_id = ?
                 """,
                 (
                     _clean(status),
                     _clean(failure_reason),
                     _clean(applied_at if applied_at is not None else (self.now() if status == "applied" else "")),
+                    _clean(status), _clean(status), _clean(status), _clean(status),
                     _clean(reward_id),
                 ),
             )

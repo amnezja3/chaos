@@ -294,6 +294,54 @@ class OllamaNarrativeWorker:
             "candidate_id": candidate["candidate_id"],
         }
 
+    def _complete_with_support(
+        self, task, attempt, package, lease_until, model_validation,
+        *, error_code="", error_message="",
+    ):
+        support = self.narrative_support.apply(
+            task, package, model_validation, parse_and_validate_ollama_content
+        )
+        if not support:
+            return None
+        candidate = self.repository.record_narrative_candidate(
+            task,
+            attempt["attempt_id"],
+            self.worker_id,
+            lease_until,
+            support["validation"],
+            support["content"],
+            {},
+        )
+        if not candidate:
+            self._finish_attempt(
+                attempt, status="lease_lost", error_code="lease_lost", retryable=True
+            )
+            return {"result": "lease_lost", "task_id": task["outbox_id"]}
+        completed = self.repository.complete_narrative_task(
+            task["outbox_id"], self.worker_id, lease_until
+        )
+        self._finish_attempt(
+            attempt,
+            status="completed" if completed else "lease_lost",
+            result=(
+                f"accepted_support_{support['mode']}"
+                if completed else "lease_lost"
+            ),
+            error_code=error_code if completed else "lease_lost",
+            error_message=error_message if completed else "",
+            retryable=False,
+        )
+        return {
+            "result": "completed" if completed else "lease_lost",
+            "task_id": task["outbox_id"],
+            "candidate_id": candidate["candidate_id"],
+            "validation_status": candidate["validation_status"],
+            "narrative_support_mode": support["mode"],
+            "recovered_from_error_code": error_code,
+            "input_bytes": package["input_bytes"],
+            "fact_count": package["fact_count"],
+        }
+
     def process_once(self, target_medium=None):
         try:
             result = self._process_once(target_medium=target_medium)
@@ -393,6 +441,22 @@ class OllamaNarrativeWorker:
                 )
                 return {"result": "lease_lost", "task_id": task["outbox_id"]}
             lease_until = heartbeat.lease_until
+            if not exc.retryable or task["attempt_count"] >= task["max_attempts"]:
+                supported = self._complete_with_support(
+                    task,
+                    attempt,
+                    package,
+                    lease_until,
+                    {
+                        "status": "rejected",
+                        "errors": [f"model_transport_failure:{exc.code}"],
+                        "output": None,
+                    },
+                    error_code=exc.code,
+                    error_message=str(exc),
+                )
+                if supported:
+                    return supported
             self._finish_attempt(
                 attempt,
                 status="retry" if exc.retryable else "failed",

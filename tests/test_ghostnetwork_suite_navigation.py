@@ -25,6 +25,31 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
         ):
             self.assertIn(marker, script)
 
+    def test_signal_archive_cta_retains_selected_signal_across_reopen_and_reload(self):
+        with open("static/js/terminal.js", encoding="utf-8") as source:
+            script = source.read()
+
+        self.assertIn(
+            'signal?.metadata?.signal_id || signal?.cta_target_id || ""',
+            script,
+        )
+        self.assertIn(
+            "existing.dataset.signalId = String(signalId || existing.dataset.signalId || \"\")",
+            script,
+        )
+        self.assertIn(
+            "loadGhostSignalArchive(existing, existing.dataset.signalId)",
+            script,
+        )
+        self.assertIn(
+            'const selectedId = String(signalId || app.dataset.signalId || "").trim()',
+            script,
+        )
+        self.assertIn(
+            "`/api/ghostnetwork/archive/signals/${encodeURIComponent(selectedId)}`",
+            script,
+        )
+
     def _resolve(self, part, payload, cycle_status="active"):
         service = type("Service", (), {
             "get_snapshot_for_viewer": lambda _self, _viewer: projection(part, cycle_status)

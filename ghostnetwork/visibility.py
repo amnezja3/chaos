@@ -446,13 +446,19 @@ class GhostVisibilityService:
         progress = self._progress_from_parts(parts)
         progress.update(self._connection_progress(connections))
         machines = [self.project_machine_for_viewer(machine, context) for machine in progress["machines"]]
+        cycle = self._project_cycle(snapshot.get("cycle") or {})
         return {
             "projection": "viewer_visibility",
             "visibility_version": VISIBILITY_VERSION,
             "cache_key": self.projection_cache_key(snapshot, context),
             "state_version": int(snapshot.get("state_version") or 0),
             "viewer": context,
-            "cycle": self._project_cycle(snapshot.get("cycle") or {}),
+            "cycle": cycle,
+            "restart_required": bool(cycle.get("restart_required")),
+            "restart_from_version": cycle.get("restart_from_version"),
+            "restart_to_version": cycle.get("restart_to_version"),
+            "restart_signal_ref": cycle.get("restart_signal_ref"),
+            "stabilization_until": cycle.get("stabilization_until"),
             "progress": {key: value for key, value in progress.items() if key != "machines"},
             "machines": machines,
             "parts": parts,
@@ -497,6 +503,8 @@ class GhostVisibilityService:
 
     @staticmethod
     def _project_cycle(cycle):
+        restart_required = _as_bool(cycle.get("restart_required"))
+        signal_number = int(cycle.get("signal_number") or 0)
         return {
             "cycle_id": _clean(cycle.get("cycle_id")) or None,
             "signal_number": cycle.get("signal_number"),
@@ -506,6 +514,15 @@ class GhostVisibilityService:
             "state_version": int(cycle.get("state_version") or 0),
             "started_at": _clean(cycle.get("started_at")) or None,
             "updated_at": _clean(cycle.get("updated_at")) or None,
+            "restart_required": restart_required,
+            "restart_reason": _clean(cycle.get("restart_reason")) or None,
+            "restart_from_version": _clean(cycle.get("restart_from_version")) or None,
+            "restart_to_version": _clean(cycle.get("restart_to_version")) or None,
+            "restart_signal_ref": (
+                f"GHOSTSIGNAL-{signal_number:04d}" if restart_required and signal_number else None
+            ),
+            "restart_required_at": _clean(cycle.get("restart_required_at")) or None,
+            "stabilization_until": _clean(cycle.get("stabilization_until")) or None,
         }
 
     def _progress_from_parts(self, parts):

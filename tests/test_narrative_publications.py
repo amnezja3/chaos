@@ -113,6 +113,25 @@ class RoleAcceptedClient(AcceptedClient):
         )
 
 
+class RejectedSignalClient(AcceptedClient):
+    def generate(self, package, policy):
+        generated = super().generate(package, policy)
+        output = json.loads(generated.content)
+        output["title"] = ""
+        output["body"] = "GhostSignal."
+        return OllamaGenerationResult(
+            model=generated.model, model_digest=generated.model_digest,
+            runtime_version=generated.runtime_version,
+            content=json.dumps(output), done=generated.done,
+            done_reason=generated.done_reason,
+            total_duration_ns=generated.total_duration_ns,
+            load_duration_ns=generated.load_duration_ns,
+            prompt_eval_count=generated.prompt_eval_count,
+            eval_count=generated.eval_count,
+            raw_response_hash=generated.raw_response_hash,
+        )
+
+
 class NarrativePublicationTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -130,6 +149,7 @@ class NarrativePublicationTest(unittest.TestCase):
         audience_clan="", audience_owner="", source_scope="ghostnetwork",
         task_variant="part_activated", target_medium="blacknet", validation=None,
         client=None, narrative_thread_id="", world_state_version="1", priority=80,
+        narrative_intent="", allowed_actions=None, fixed_action=None,
     ):
         task_validation = dict(validation or {})
         if source_scope == "ghostnetwork":
@@ -156,10 +176,11 @@ class NarrativePublicationTest(unittest.TestCase):
             "truth_class": "canonical",
             "truth_class_policy": "canonical_facts_only",
             "facts": [fact],
-            "allowed_actions": [],
+            "allowed_actions": list(allowed_actions or []),
+            "fixed_action": dict(fixed_action or {}),
             "canon_version": "test-v1",
             "task_variant": task_variant,
-            "narrative_intent": (
+            "narrative_intent": narrative_intent or (
                 "intercepted_world_signal"
                 if source_scope == "blacknet_world"
                 and task_variant in {"blacknet_signal_narration", "googleplex_world_dispatch"}
@@ -185,6 +206,40 @@ class NarrativePublicationTest(unittest.TestCase):
         )
         self.assertEqual(worker.process_once()["result"], "completed")
         return self.repo.get_narrative_candidate_for_task(item["outbox_id"])
+
+    def test_signal_fallback_publishes_archive_cta_with_canonical_target(self):
+        action = {
+            "cta_action": "open_ghostsignal_archive",
+            "payload": {"signal_id": "signal-public-one"},
+        }
+        candidate = self.accepted_candidate(
+            "signal-publication-fallback",
+            task_variant="signal_sent",
+            narrative_intent="ghost_signal_transmission",
+            narrative_thread_id="ghost-signal:signal-public-one",
+            validation={"event_family": "signal_sent", "significance": "critical"},
+            allowed_actions=[action],
+            fixed_action=action,
+            client=RejectedSignalClient(),
+            priority=100,
+        )
+
+        self.assertEqual(candidate["validation_status"], "accepted")
+        self.assertEqual(candidate["cta_action"], "open_ghostsignal_archive")
+        self.assertEqual(candidate["cta_payload"], {"signal_id": "signal-public-one"})
+
+        published = NarrativePublicationService(
+            repository=self.repo, worker_id="signal-fallback-publisher"
+        ).process_once()
+
+        self.assertEqual(published["result"], "published", published)
+        self.assertEqual(
+            published["record"]["cta_action"], "open_ghostsignal_archive"
+        )
+        self.assertEqual(
+            published["record"]["cta_payload"],
+            {"signal_id": "signal-public-one"},
+        )
 
     def test_accepted_candidate_publishes_exactly_once(self):
         candidate = self.accepted_candidate()

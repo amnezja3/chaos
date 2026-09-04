@@ -593,6 +593,18 @@ Wymagane:
   ponowiony po restarcie procesu lub SQLite contention;
 - stan oraz ostatni błąd są widoczne w bounded diagnostyce.
 
+Stan implementacji: `CORE IMPLEMENTED — LOCAL PASS`. Dodano bounded
+`advance_ghostnetwork_endgame_once()` oraz niezależny, completion-based tick PM2
+14. Tick automatycznie wznawia poprawny stan `transmitting`, blokuje fail-closed
+brakujący lub błędny lock snapshot oraz naprawia archive i narrative po commitcie
+sygnału. Sukces naprawy ma trwały, deduplikowany marker; niepełny canonical zestaw
+eventów, przekroczenie bounded okna albo awaria narracji pozostawia retry. Dwie
+równoległe instancje oraz świeża instancja po restarcie zbiegają do jednego
+sygnału. Powtarzalny alarm blokady jest ograniczony do zmiany przyczyny lub
+jednego wpisu na minutę. Integracje reward projection, pełnego delta fan-outu
+i rolloveru zostały następnie domknięte odpowiednio w P0.2, P0.3 i P0.4;
+produkcyjny SERVER PASS całej bramki nadal wymaga kontrolowanego endgame 20/20.
+
 #### P0.2 — durable final rewards projection
 
 Transmisja tworzy w ledgerze nagrody holderów oraz closera, lecz produkcyjny
@@ -608,6 +620,17 @@ Wymagane:
 - brak pełnego account scan i brak utrzymywania wielu profili w transakcji
   GhostSignalu;
 - diagnostyka pending/applied/rejected oraz oldest pending.
+
+Stan implementacji: `IMPLEMENTED — LOCAL PASS`. PM2 14 claimuje i pobiera
+najwyżej jeden pending reward na przebieg pętli, ładuje wyłącznie wskazany profil,
+projektuje receipt przez `reward_key`, wykonuje guarded profile save i dopiero
+potem finalizuje ledger. Test crash window `profile saved / ledger pending`
+potwierdza recovery bez drugiego przyrostu RSP. Claim ma wygasającą dzierżawę,
+przejęcie po śmierci workera i wykładniczy backoff; błąd jednego profilu nie
+blokuje kolejnych wpisów. Bounded diagnostyka raportuje statusy, pending,
+processing, retry wait, expired claims, oldest pending/ready, wpisy z błędem oraz
+maksymalną liczbę prób. Produkcyjny `SERVER PASS` wymaga wdrożenia i obserwacji
+realnych 21 final rewards podczas kontrolowanego endgame.
 
 #### P0.3 — delivery eventów finału i trwały restart state
 
@@ -630,6 +653,32 @@ Wymagane:
 - wszystkie akcje GhostNetwork wyłączone po locku, również po snapshot recovery;
 - test public/clan/owner oraz klienta, który był offline podczas transmisji.
 
+Stan implementacji: `IMPLEMENTED — LOCAL PASS`. Faza `stabilizing` wykonuje
+idempotentny sweep persisted eventów od immutable lock snapshotu i tworzy dla
+każdego z nich durable delta receipt. Marker
+`ghost.endgame_delta_reconciled` powstaje dopiero po potwierdzeniu wszystkich
+jobów, więc crash po signal commit pozostawia bezpieczny retry zamiast cichej
+utraty finału.
+
+Publiczne i klanowe audience nie są już materializowane w request path ani
+ucinane do pierwszych 500 kont. Job przechowuje kontrakt odbiorców i trwały
+`recipient_cursor`; worker pobiera kolejne strony identity projection w bounded
+batchach. Retry nie przesuwa kursora, a dedupe delta bus chroni odbiorców już
+obsłużonych przed powtórzeniem.
+
+Viewer-safe `cycle` zawiera teraz `restart_required`, wersje from/to, publiczny
+alias sygnału i `stabilization_until`, bez internal `restart_signal_id`. Suite
+odtwarza z tego snapshotu ten sam stan restartu po świeżym wejściu/reloadzie,
+wyłącza akcje oraz nie kasuje blokady po pośrednim `version_changed`. Globalny
+System Messaging dostaje jeden trwały komunikat na signal/version, deduplikowany
+również po retry i dostępny dla klienta, który był offline podczas transmisji.
+
+Test graniczny dostarcza event do 503 kont w stronach po 100, bez utraty
+odbiorców. Testy obejmują ponadto cursor identity, restart snapshot bez wycieku
+internal signal ID, live delta/reload parity, pojedynczy system message oraz
+post-commit sweep z trwałym markerem. Produkcyjny `SERVER PASS` wymaga deployu i
+obserwacji prawdziwego finału; przed nim nadal obowiązują P0.4 i P0.5.
+
 #### P0.4 — rollover po stabilizacji
 
 Po transmisji istnieje `stabilization_until`, lecz nie ma produkcyjnego call-site
@@ -650,12 +699,37 @@ Wymagane:
 - recovery po crashu pomiędzy `closed` i utworzeniem/aktywacją nowego cyklu;
 - dropy pozostają wyłączone przed deadline i wracają dopiero dla nowego `active`.
 
+Stan implementacji: `IMPLEMENTED — LOCAL PASS`. Bounded tick PM2 14 używa
+backendowego `stabilization_until`, a przed zmianą cyklu wykonuje hard settlement
+sygnału, immutable lock snapshotu, 20 consumed parts, zamkniętych connections,
+20 historical nodes, final reward rows oraz markerów naprawy archive/narrative
+i durable delta delivery. Brak któregokolwiek dowodu pozostawia stary cykl w
+`stabilizing` jako `settlement_blocked`.
+
+Po poprawnym settlement zamknięcie starego cyklu oraz utworzenie i aktywacja
+dokładnie jednego następcy odbywają się w jednej transakcji. Następca ma nowy
+signal/version, 20 czystych `pooled` parts po 5 na klan i nowy poprawny ring 20;
+nie dziedziczy targetów, rezerwacji ani connections. Stare historical nodes,
+terytoria w snapshotach i archive pozostają zachowane. Osobny, idempotentny
+post-commit repair zapewnia narracje i durable delty dla zamknięcia oraz nowego
+`ghost.cycle_activated`. Awaria tej warstwy, w tym ścieżki Ollamy, nie cofa
+mechaniki i jest ponawiana przez następny tick.
+
+Recovery obejmuje zarówno restart po mechanicznym rolloverze przed dispatch,
+jak i historyczne okno crashu po `closed`, ale przed utworzeniem następcy. Dwa
+równoległe workery zbiegają do jednego aktywnego cyklu. Przy okazji usunięto
+ujawnioną przez test cyklu 2 probabilistyczną porażkę generatora: wymagany anchor
+jest teraz konstruowany jawnie, a pozostałe elementy są deterministycznie
+tasowane i walidowane. Produkcyjny `SERVER PASS` wymaga obserwacji deadline,
+nowego cyklu i ponownego dropu podczas kontrolowanego finału.
+
 #### P0.5 — publikacja i fallback jednorazowych komunikatów
 
-`signal_sent` kieruje treść do BlackNet, Googleplex News, Cybernera i `radio`, ale
-canonical publisher obsługuje tylko trzy pierwsze media. Narrative Support Layer
-ma warianty wyłącznie dla `part_discovered` i `part_activated`. Pojedynczy słaby
-output modelu może więc odebrać debiutowi kluczową publikację.
+Audyt wejściowy wykazał, że `signal_sent` kierował treść do BlackNet, Googleplex
+News, Cybernera i `radio`, podczas gdy canonical publisher obsługuje tylko trzy
+pierwsze media. Narrative Support Layer miał warianty wyłącznie dla
+`part_discovered` i `part_activated`. Pojedynczy słaby output modelu mógł więc
+odebrać debiutowi kluczową publikację.
 
 Wymagane:
 
@@ -675,6 +749,33 @@ Wymagane:
 - radio CTA używa rzeczywiście obsługiwanej nazwy akcji i istniejącego playera;
 - E2E każdej oczekiwanej trasy kończy się `published` albo udowodnionym,
   kontrolowanym slot supersession — nigdy przypadkowym dead letterem.
+
+Stan implementacji: `IMPLEMENTED — LOCAL PASS`. Radio zostało jawnie odroczone
+dla pierwszego debiutu: istniejąca aplikacja Radio pozostaje odtwarzaczem audio,
+nie canonical narrative publication surface, dlatego nowe `signal_sent` tworzy
+wyłącznie obsługiwane trasy BlackNet, Googleplex News i Cyberner. Historyczne
+polityki Radio pozostają czytelne na czas cutoveru, lecz nowe taski nie są
+produkowane i nie mogą kończyć jako `unsupported_target_medium`.
+
+Narrative Support YAML zawiera audience-safe warianty publiczne dla BlackNet i
+GGPL dla wszystkich sześciu rodzin endgame. Clan i owner mogą odziedziczyć tylko
+najmniej uprzywilejowany wariant publiczny, jeśli nie istnieje wariant dokładny.
+Runtime `verify()` wymaga kompletu 12 tras i zatrzymuje preflight po usunięciu
+którejkolwiek z nich. Fallbacki opisują wyłącznie zdarzenie canonical: nie
+tworzą odpowiedzi z 2108, statusu odbioru ani wyniku transmisji.
+
+Cyberner zachowuje brak sztucznej odpowiedzi AGI. Niedostępność transportu jest
+ponawiana według bounded backoff, po pięciu próbach kończy się jawnym,
+audytowalnym terminalem bez kandydata i nie blokuje mechaniki ani gwarantowanych
+publikacji BlackNet/GGPL. Na tych dwóch gwarantowanych mediach wyczerpanie retry
+transportu uruchamia bezpieczny fallback zamiast dead lettera. Test toru
+`signal_sent` potwierdza zarówno tę ścieżkę, jak i przypadek odrzuconej generacji:
+Support Layer tworzy accepted candidate, publikacja zachowuje backendowy
+`open_ghostsignal_archive` z canonical `signal_id`.
+Frontend zachowuje wybrany sygnał przy ponownym otwarciu aplikacji, pobiera go z
+archiwum po reloadzie, a endpoint archiwum nie pozwala klientowi podnieść zakresu
+do projekcji prywatnej. Produkcyjny `SERVER PASS` wymaga obserwacji tych tras na
+rzeczywistym finale.
 
 ### Crash windows wymagające testu
 
