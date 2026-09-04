@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+import run
+
 
 class ProfileBootSnapshotContractTest(unittest.TestCase):
     @classmethod
@@ -25,9 +27,23 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         end = self.source.index('@app.route("/api/dev/bug-reports")', start)
         endpoint = self.source[start:end]
 
-        self.assertIn("normalize_ghostnetwork_profile_identity(profile)", endpoint)
+        self.assertIn("get_profile_profession_display(profile)", endpoint)
         self.assertIn('profile["ghost_profession_name"]', endpoint)
         self.assertEqual(endpoint.count("sync_session_profile("), 1)
+
+    def test_legacy_profession_slot_is_mapped_within_virex_for_display_only(self):
+        profile = {
+            "clan": "VIREX",
+            "fraction": {"id": "3", "name": "VIREX", "role": "4"},
+        }
+
+        self.assertEqual("Egzekutor Zysku", run.get_profile_profession_display(profile))
+        self.assertNotIn("ghost_profession", profile)
+
+    def test_canonical_profession_code_uses_catalog_name(self):
+        profile = {"clan": "VIREX", "ghost_profession": "broker"}
+
+        self.assertEqual("Broker", run.get_profile_profession_display(profile))
 
     def test_profile_window_renders_profession_under_clan(self):
         terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")

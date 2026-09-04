@@ -16013,6 +16013,40 @@ def get_profile_profession(profile):
     )
 
 
+def get_profile_profession_display(profile):
+    """Resolve a profile profession label without repairing canonical identity."""
+    if not isinstance(profile, dict):
+        return ""
+    identity = normalize_ghostnetwork_profile_identity(profile)
+    profession_code = str(identity.get("profession_code") or "").strip()
+    professions = [
+        item for item in get_catalog().get("professions", [])
+        if isinstance(item, dict)
+    ]
+    profession_names = {
+        str(item.get("code") or ""): str(item.get("name") or "")
+        for item in professions
+    }
+    if profession_code:
+        return profession_names.get(profession_code) or profession_code
+
+    raw_profession = str(
+        get_profile_profession(profile)
+        or profile.get("ghost_profession")
+        or ""
+    ).strip()
+    clan_code = str(identity.get("clan_code") or "").strip()
+    if raw_profession.isdigit() and clan_code:
+        slot = int(raw_profession)
+        clan_professions = sorted(
+            (item for item in professions if item.get("clan_code") == clan_code),
+            key=lambda item: int(item.get("sort_order") or 0),
+        )
+        if 1 <= slot <= len(clan_professions):
+            return str(clan_professions[slot - 1].get("name") or raw_profession)
+    return raw_profession
+
+
 def get_pro_system_tool(tool_id):
     tool_id = str(tool_id or "").strip()
     return next((tool for tool in PRO_SYSTEM_TOOLS if tool["id"] == tool_id), None)
@@ -24198,18 +24232,7 @@ def api_profile():
         if isinstance(operation, dict)
     ]
     profile["desktop_settings"] = normalize_desktop_settings(profile.get("desktop_settings"))
-    ghost_identity = normalize_ghostnetwork_profile_identity(profile)
-    profession_code = str(ghost_identity.get("profession_code") or "").strip()
-    profession_names = {
-        str(item.get("code") or ""): str(item.get("name") or "")
-        for item in get_catalog().get("professions", [])
-        if isinstance(item, dict)
-    }
-    profile["ghost_profession"] = profession_code
-    profile["ghost_profession_name"] = (
-        profession_names.get(profession_code)
-        or str(get_profile_profession(profile) or profession_code).strip()
-    )
+    profile["ghost_profession_name"] = get_profile_profession_display(profile)
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION
     attach_profile_snapshot_meta(profile, snapshot_started_at, blacknet_utc_now())
