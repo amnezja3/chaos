@@ -69,6 +69,74 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
             "/api/blacknet/cta/teleport",
         }.issubset(PERF_LOG_ENDPOINTS))
 
+    def test_player_areas_uses_only_lightweight_identity_and_capability_stores(self):
+        source = inspect.getsource(run.map_player_areas)
+        for token in ("user_store.get_profile(", "user_store.list_profiles(", "sync_session_profile("):
+            self.assertNotIn(token, source)
+        self.assertIn("identity_projection_store.get_identities", source)
+        self.assertIn("capability_projection_store.get_capabilities", source)
+        self.assertIn("list_player_areas(limit=500)", source)
+        self.assertIn("list_recent_area_intruders(username, limit=100)", source)
+
+    def test_scan_foreign_area_gate_is_bounded_and_uses_identity_projection(self):
+        area_source = inspect.getsource(run.find_foreign_area_for_point)
+        relation_source = inspect.getsource(run._territory_relation_profile)
+        self.assertIn("list_player_areas(limit=1000)", area_source)
+        self.assertIn("identity_projection_store.get_identity", relation_source)
+        self.assertNotIn("user_store.get_profile", relation_source)
+
+    def test_scan_branch_uses_position_and_capability_projections(self):
+        source = inspect.getsource(run.map_action)
+        start = source.index("# Scan is a hot path")
+        scan_source = source[start:source.index("    else:", start)]
+        self.assertIn("player_position_store.get_position", scan_source)
+        self.assertIn("capability_projection_store.get_capabilities", scan_source)
+        self.assertNotIn("sync_session_profile", scan_source)
+
+    def test_ability_endpoint_never_hydrates_full_profile(self):
+        source = inspect.getsource(run.api_ghostnetwork_ability)
+        for token in (
+            "user_store.get_profile(", "user_store.list_profiles(",
+            "sync_session_profile(", "profile_json",
+        ):
+            self.assertNotIn(token, source)
+        self.assertIn("identity_projection_store.get_identity", source)
+        self.assertIn("capability_projection_store.get_capabilities", source)
+
+    def test_ability_endpoint_get_and_post_use_narrow_player_context(self):
+        client, headers = self._client()
+        service = Mock()
+        service.get_player_ability_window_snapshot.return_value = {
+            "ok": True, "available": True, "active": False, "cooldown": False,
+            "ability": {"ability_name": "Przeplywy rynku"},
+            "presentation": {"visual_asset_url": "/static/v1.png"},
+            "window": None,
+        }
+        service.activate_player_ability.return_value = {
+            "ok": True, "status": "activated", "window": {"window_id": "w1"},
+        }
+        identity = {"username": "alice", "clan": "virex", "profession": "broker"}
+        capabilities = {"username": "alice", "level": 71, "action_range": 2528, "map_zoom": 18}
+        with patch.object(run, "GHOSTNETWORK_ABILITIES_ENABLED", True), \
+                patch.object(run.identity_projection_store, "get_identity", return_value=identity), \
+                patch.object(run.capability_projection_store, "get_capabilities", return_value=capabilities), \
+                patch.object(run, "get_ghostnetwork_service", return_value=service), \
+                patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")), \
+                patch.object(run.user_store, "list_profiles", side_effect=AssertionError("account scan")):
+            get_response = client.get("/api/ghostnetwork/ability", headers=headers)
+            post_response = client.post(
+                "/api/ghostnetwork/ability",
+                headers={**headers, "Idempotency-Key": "request-1"},
+                json={"request_id": "request-1"},
+            )
+        self.assertEqual(200, get_response.status_code)
+        self.assertTrue(get_response.get_json()["available"])
+        self.assertEqual(200, post_response.status_code)
+        player_context = service.get_player_ability_window_snapshot.call_args.args[0]
+        self.assertEqual("broker", player_context["profession"])
+        self.assertEqual(71, player_context["level"])
+        service.activate_player_ability.assert_called_once_with(player_context, "request-1")
+
     def test_sprint_130_12_endpoints_have_no_full_profile_helpers(self):
         forbidden = (
             "load_profile_readonly",

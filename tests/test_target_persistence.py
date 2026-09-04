@@ -4075,10 +4075,10 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         ]
 
         class FakeTerritoryStoreForMap:
-            def list_player_areas(self):
+            def list_player_areas(self, *, limit=None):
                 return list(areas)
 
-            def list_recent_area_intruders(self, username):
+            def list_recent_area_intruders(self, username, *, limit=100):
                 return []
 
         client = run.app.test_client()
@@ -4097,6 +4097,9 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
                 patch.object(run.user_store, "list_profiles", return_value=[]), \
                 patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
                 patch.object(run.user_store, "get_profile_identity", side_effect=fake_profile), \
+                patch.object(run.identity_projection_store, "get_identity", side_effect=fake_profile), \
+                patch.object(run.identity_projection_store, "get_identities", side_effect=lambda names, **_: [fake_profile(name) for name in names if fake_profile(name)]), \
+                patch.object(run.capability_projection_store, "get_capabilities", return_value={"level": 3, "scan_range_bonus": 0, "map_zoom_bonus": 0, "action_range": 520, "map_zoom": 18}), \
                 patch.object(run, "refresh_stale_territory_polygons", return_value=False), \
                 patch.object(run, "is_territory_conflict_snapshot_read_enabled", return_value=False), \
                 patch.object(run, "detect_territory_conflicts", return_value=[]) as detect_mock, \

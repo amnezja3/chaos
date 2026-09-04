@@ -24,7 +24,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, UserIdentityProjectionStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, UserIdentityProjectionStore, UserCapabilityProjectionStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
 import requests
 from config import (
     APP_VERSION,
@@ -37,6 +37,7 @@ from config import (
     DEFAULT_CREATOR_POWER,
     DEFAULT_STORAGE_CAPACITY_MB,
     FLASK_SESSION_CONFIG,
+    GHOSTNETWORK_ABILITIES_ENABLED,
     OPERATION_FEEDBACK_FLAGS,
     PROVISIONAL_APP_LAUNCH_ENABLED,
     PERF_LOG_ENDPOINTS,
@@ -107,6 +108,7 @@ cyberner_clan_store = CybernerClanStore()
 cyberner_channel_cursor_store = CybernerChannelCursorStore()
 user_store = UserStore()
 identity_projection_store = UserIdentityProjectionStore()
+capability_projection_store = UserCapabilityProjectionStore()
 session_generation_store = SessionGenerationStore()
 territory_store = TerritoryStore()
 ghostnetwork_territory_job_store = GhostNetworkTerritoryJobStore()
@@ -6309,8 +6311,18 @@ def build_conflict_participant_payload(conflict):
     ]
     profiles = []
     names = []
+    bounded_usernames = usernames[:100]
+    try:
+        identities = identity_projection_store.get_identities(
+            bounded_usernames, max_items=max(1, len(bounded_usernames)),
+        ) if bounded_usernames else []
+    except Exception:
+        identities = []
+    identity_by_username = {
+        item.get("username"): item for item in identities if item.get("username")
+    }
     for participant_username in usernames:
-        participant_profile = user_store.get_profile(participant_username) or {}
+        participant_profile = identity_by_username.get(participant_username) or {}
         participant_nick = participant_profile.get("nick") or participant_username
         names.append(participant_nick)
         profiles.append({
@@ -7620,7 +7632,7 @@ def _territory_relation_profile(username, profile_cache=None):
     if profile_cache is not None and username in profile_cache:
         return profile_cache.get(username) or {}
     try:
-        profile = user_store.get_profile_identity(username) or {}
+        profile = identity_projection_store.get_identity(username) or {}
     except Exception:
         profile = {}
     if profile_cache is not None:
@@ -15205,7 +15217,7 @@ def save_owned_hacked_security(username, lat, lng, security):
 
 def find_foreign_area_for_point(username, lat, lng, profile_cache=None):
     profile_cache = profile_cache if isinstance(profile_cache, dict) else {}
-    for area in safe_player_areas(territory_store.list_player_areas()):
+    for area in safe_player_areas(territory_store.list_player_areas(limit=1000)):
         owner_username = str(area.get("owner_username") or "").strip()
         if not owner_username or owner_username == username:
             continue
@@ -20640,6 +20652,59 @@ def api_ghostnetwork_snapshot():
     })
 
 
+@app.route("/api/ghostnetwork/ability", methods=["GET", "POST"])
+def api_ghostnetwork_ability():
+    """Viewer-only ability/window contract without profile hydration."""
+    username = session.get("user")
+    if not username:
+        return jsonify({"ok": False, "error": "not_logged_in"}), 401
+    try:
+        identity = identity_projection_store.get_identity(username)
+        capabilities = capability_projection_store.get_capabilities(username)
+    except ProfileRecoveryRequired:
+        return jsonify({"ok": False, "error": "projection_recovery_required"}), 409
+    if not identity or not capabilities:
+        return jsonify({"ok": False, "error": "projection_unavailable"}), 409
+    player_context = {**identity, **capabilities, "player_id": username}
+    service = get_ghostnetwork_service()
+    if request.method == "GET":
+        snapshot = service.get_player_ability_window_snapshot(player_context)
+        snapshot.update({
+            "enabled": bool(GHOSTNETWORK_ABILITIES_ENABLED),
+            "player": {
+                "level": capabilities["level"],
+                "action_range": capabilities["action_range"],
+                "map_zoom": capabilities["map_zoom"],
+            },
+        })
+        if not GHOSTNETWORK_ABILITIES_ENABLED:
+            snapshot["available"] = False
+            snapshot["reason"] = "abilities_disabled"
+        return jsonify(snapshot)
+
+    if not GHOSTNETWORK_ABILITIES_ENABLED:
+        return jsonify({"ok": False, "status": "abilities_disabled"}), 503
+    data = request.get_json(silent=True) or {}
+    forbidden = sorted(set(data).intersection({
+        "ability_code", "realizer", "family", "multiplier", "parameters",
+        "duration_seconds", "cooldown_seconds", "level", "clan", "profession",
+    }))
+    if forbidden:
+        return jsonify({
+            "ok": False,
+            "status": "client_parameters_forbidden",
+            "fields": forbidden,
+        }), 400
+    request_key = str(
+        request.headers.get("Idempotency-Key") or data.get("request_id") or ""
+    ).strip()
+    result = service.activate_player_ability(player_context, request_key)
+    status_code = 200 if result.get("ok") else (
+        400 if result.get("status") == "invalid_request_key" else 409
+    )
+    return jsonify(result), status_code
+
+
 def _ghostnetwork_archive_viewer():
     username = session.get("user")
     if not username:
@@ -22573,16 +22638,35 @@ def map_action():
             "version": int(stored.get("version") or 1),
         })
     
-    # Map actions only need the current profile/runtime stores. A territory
-    # rebuild here used to delay travel and scanning before the frontend could
-    # react to the click.
-    profile = sync_session_profile(
-        rebuild_territory=False,
-        persist_normalization=False,
-    )
-    ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
-    ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
-    action_range = get_player_action_range(profile)
+    profile = None
+    if action == "scan":
+        # Scan is a hot path. Position and range come from integrity-gated
+        # narrow projections; never hydrate profile_json just to measure range.
+        position = player_position_store.get_position(session["user"])
+        try:
+            capabilities = capability_projection_store.get_capabilities(session["user"])
+        except ProfileRecoveryRequired:
+            capabilities = None
+        if not position or not capabilities:
+            return jsonify({
+                "success": False,
+                "error": "scan_projection_unavailable",
+                "status": "Skanowanie niedostępne: odśwież pozycję gracza.",
+                "markers": [],
+            }), 409
+        ava_lat = position["lat"]
+        ava_lng = position["lng"]
+        action_range = int(capabilities["action_range"])
+    else:
+        # Compatibility path for travel and legacy actions. It is deliberately
+        # outside the scan branch and will be reduced in later light-read work.
+        profile = sync_session_profile(
+            rebuild_territory=False,
+            persist_normalization=False,
+        )
+        ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
+        ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
+        action_range = get_player_action_range(profile)
 
     if action == "scan":
         foreign_area = foreign_territory_action_block(session["user"], lat, lng)
@@ -26263,10 +26347,28 @@ def map_player_areas():
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
     username = session["user"]
-    profile = user_store.get_profile(username) or {}
+    try:
+        viewer_identity = identity_projection_store.get_identity(username)
+        viewer_capabilities = capability_projection_store.get_capabilities(username)
+    except ProfileRecoveryRequired:
+        return jsonify({
+            "ok": False,
+            "error": "projection_recovery_required",
+            "areas": [],
+            "player_areas": [],
+        }), 409
+    viewer_identity = viewer_identity or {"username": username}
+    viewer_capabilities = viewer_capabilities or {
+        "level": 1,
+        "scan_range_bonus": 0,
+        "map_zoom_bonus": 0,
+        "action_range": 300,
+        "map_zoom": 18,
+    }
+    profile = {**viewer_identity, **viewer_capabilities}
     player_areas_warnings = []
     try:
-        all_areas = safe_player_areas(territory_store.list_player_areas())
+        all_areas = safe_player_areas(territory_store.list_player_areas(limit=500))
     except Exception as exc:
         print(f"[WARN] map player areas list failed: {exc}", flush=True)
         player_areas_warnings.append("areas_unavailable")
@@ -26356,14 +26458,21 @@ def map_player_areas():
             player_areas_warnings.append("contested_targets_unavailable")
     areas = []
     try:
+        owner_ids = sorted({
+            str(area.get("owner_username") or "").strip()
+            for area in all_areas
+            if str(area.get("owner_username") or "").strip()
+        })[:500]
         owner_profile_cache = {
             str(item.get("username") or ""): item
-            for item in user_store.list_profiles()
+            for item in identity_projection_store.get_identities(
+                owner_ids, max_items=max(1, len(owner_ids))
+            )
             if isinstance(item, dict) and item.get("username")
-        }
+        } if owner_ids else {}
     except Exception as exc:
-        print(f"[WARN] map player area profiles bulk read failed: {exc}", flush=True)
-        player_areas_warnings.append("owner_profiles_unavailable")
+        print(f"[WARN] map player area identities batch failed: {exc}", flush=True)
+        player_areas_warnings.append("owner_identities_unavailable")
         owner_profile_cache = {}
     owner_profile_cache[username] = profile
     for area in all_areas:
@@ -26372,12 +26481,6 @@ def map_player_areas():
             continue
         owner_username = clean_area.get("owner_username")
         owner_profile = owner_profile_cache.get(owner_username)
-        if owner_profile is None:
-            try:
-                owner_profile = user_store.get_profile(owner_username)
-            except Exception:
-                owner_profile = None
-            owner_profile_cache[owner_username] = owner_profile
         if not owner_profile and owner_username != username:
             continue
         if not owner_profile:
@@ -26412,18 +26515,30 @@ def map_player_areas():
 
     intruders = []
     try:
-        recent_intruders = territory_store.list_recent_area_intruders(username)
+        recent_intruders = territory_store.list_recent_area_intruders(username, limit=100)
     except Exception as exc:
         print(f"[WARN] map player areas intruders skipped: {exc}", flush=True)
         player_areas_warnings.append("intruders_unavailable")
         recent_intruders = []
+    intruder_ids = sorted({
+        str(intruder.get("username") or "").strip()
+        for intruder in recent_intruders
+        if str(intruder.get("username") or "").strip()
+    })[:100]
+    try:
+        intruder_identity_cache = {
+            item["username"]: item
+            for item in identity_projection_store.get_identities(
+                intruder_ids, max_items=max(1, len(intruder_ids)),
+            )
+        } if intruder_ids else {}
+    except Exception:
+        intruder_identity_cache = {}
+        player_areas_warnings.append("intruder_identities_unavailable")
     for intruder in recent_intruders:
         intruder_profile = owner_profile_cache.get(str(intruder.get("username") or ""))
         if intruder_profile is None:
-            try:
-                intruder_profile = user_store.get_profile(intruder.get("username"))
-            except Exception:
-                intruder_profile = None
+            intruder_profile = intruder_identity_cache.get(str(intruder.get("username") or ""))
         intruders.append({
             "area_id": intruder.get("area_id"),
             "username": intruder.get("username"),

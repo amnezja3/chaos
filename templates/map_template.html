@@ -412,6 +412,134 @@
       .chaos-secret-path-title { animation: none !important; }
     }
 
+    .ghost-ability-control {
+      --ability-accent: #E53935;
+      --ability-deep: #A91F24;
+      display: grid;
+      min-width: 190px;
+      border: 1px solid color-mix(in srgb, var(--ability-accent) 78%, white 12%);
+      border-radius: 4px;
+      overflow: hidden;
+      background: rgba(3, 8, 6, 0.92);
+      color: #effff1;
+      font-family: monospace;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.46), 0 0 22px color-mix(in srgb, var(--ability-accent) 24%, transparent);
+    }
+
+    .ghost-ability-control.is-hidden { display: none; }
+
+    .ghost-ability-control__button {
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 0;
+      background: linear-gradient(110deg, color-mix(in srgb, var(--ability-deep) 48%, #020604), rgba(2, 10, 6, 0.96));
+      color: #fff;
+      font: 800 12px/1.2 monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .ghost-ability-control__button:hover,
+    .ghost-ability-control__button:focus-visible {
+      color: var(--ability-accent);
+      outline: 1px solid var(--ability-accent);
+      outline-offset: -3px;
+    }
+
+    .ghost-ability-control__button[aria-busy="true"] { opacity: 0.58; cursor: wait; }
+
+    .ghost-ability-control__badge {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      border-left: 4px solid var(--ability-accent);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--ability-deep) 34%, transparent), transparent);
+    }
+
+    .ghost-ability-control__asset {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 7px var(--ability-accent));
+    }
+
+    .ghost-ability-control__name { font-weight: 900; font-size: 11px; text-transform: uppercase; }
+    .ghost-ability-control__state { margin-top: 2px; color: rgba(230,255,235,.64); font-size: 9px; }
+    .ghost-ability-control__timer { color: var(--ability-accent); font-weight: 900; font-size: 13px; }
+
+    .chaos-ghost-ability-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1190;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      opacity: 0;
+      pointer-events: none;
+      color: #fff;
+      background:
+        repeating-linear-gradient(0deg, transparent 0 4px, color-mix(in srgb, var(--ability-accent) 11%, transparent) 5px),
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--ability-accent) 25%, transparent), transparent 38%),
+        rgba(0, 3, 2, 0.94);
+      transition: opacity 180ms ease-out;
+    }
+
+    .chaos-ghost-ability-overlay.is-visible { opacity: 1; }
+
+    .chaos-ghost-ability-panel {
+      display: grid;
+      grid-template-columns: minmax(110px, 180px) minmax(190px, 1fr);
+      align-items: center;
+      gap: clamp(18px, 5vw, 52px);
+      width: min(720px, 92%);
+      padding: clamp(22px, 5vw, 46px);
+      border: 1px solid var(--ability-accent);
+      background: color-mix(in srgb, var(--ability-deep) 20%, rgba(0, 8, 4, 0.9));
+      box-shadow: 0 0 54px color-mix(in srgb, var(--ability-accent) 27%, transparent);
+      font-family: monospace;
+      animation: chaos-secret-path-enter 420ms cubic-bezier(.2,.9,.2,1) both;
+    }
+
+    .chaos-ghost-ability-asset {
+      width: min(180px, 100%);
+      aspect-ratio: 1;
+      object-fit: contain;
+      filter: drop-shadow(0 0 15px var(--ability-accent));
+      animation: chaos-secret-path-sigil 640ms steps(2, end) infinite;
+    }
+
+    .chaos-ghost-ability-eyebrow { color: var(--ability-accent); font: 800 11px/1.2 monospace; letter-spacing: .2em; }
+    .chaos-ghost-ability-title { margin: 8px 0 12px; font: 900 clamp(27px,5vw,54px)/.94 monospace; text-transform: uppercase; }
+    .chaos-ghost-ability-copy { max-width: 48ch; color: rgba(238,255,241,.86); font: 13px/1.45 monospace; }
+
+    .leaflet-container.has-ghost-ability-effect::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 840;
+      pointer-events: none;
+      border: 2px solid color-mix(in srgb, var(--ability-accent) 66%, transparent);
+      box-shadow: inset 0 0 42px color-mix(in srgb, var(--ability-accent) 13%, transparent);
+      animation: ghost-ability-map-pulse 2.8s ease-in-out infinite;
+    }
+
+    @keyframes ghost-ability-map-pulse { 50% { opacity: .42; } }
+
+    @media (max-width: 620px) {
+      .ghost-ability-control { min-width: 158px; }
+      .chaos-ghost-ability-panel { grid-template-columns: 82px minmax(0,1fr); width: 96%; padding: 18px; }
+      .chaos-ghost-ability-title { font-size: clamp(22px, 8vw, 34px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chaos-ghost-ability-panel,
+      .chaos-ghost-ability-asset,
+      .leaflet-container.has-ghost-ability-effect::after { animation: none !important; }
+    }
+
     .chaos-map-boot-overlay {
       position: fixed;
       inset: 0;
@@ -2365,6 +2493,270 @@
         }
 
         window.showSecretPathLore = showSecretPathLore;
+
+        window.ghostAbilityRuntime = window.ghostAbilityRuntime || {
+            snapshot: null,
+            control: null,
+            timer: null,
+            overlayTimer: null,
+            audioHandle: null
+        };
+
+        function ghostAbilityPalette(clanCode) {
+            const names = {
+                sentinel_order: 'straznicy ladu',
+                echo_freedom: 'echo wolnosci',
+                virex: 'virex',
+                phantom_mesh: 'siatka widmo'
+            };
+            return territoryClanPalette[names[String(clanCode || '').trim()] || '']
+                || { stroke: '#39ff7a', fill: '#087a3c' };
+        }
+
+        function applyGhostAbilityPalette(element, presentation = {}) {
+            if (!element) return;
+            const palette = ghostAbilityPalette(presentation.clan_code);
+            element.style.setProperty('--ability-accent', palette.stroke);
+            element.style.setProperty('--ability-deep', palette.fill);
+        }
+
+        function formatGhostAbilitySeconds(value) {
+            const total = Math.max(0, Math.ceil(Number(value) || 0));
+            const minutes = Math.floor(total / 60);
+            const seconds = total % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function ghostAbilityRemaining(isoValue) {
+            const timestamp = Date.parse(String(isoValue || ''));
+            return Number.isFinite(timestamp) ? Math.max(0, (timestamp - Date.now()) / 1000) : 0;
+        }
+
+        function ensureGhostAbilityControl() {
+            const runtime = window.ghostAbilityRuntime;
+            if (runtime.control && runtime.control.isConnected) return runtime.control;
+            const AbilityControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function() {
+                    const container = L.DomUtil.create('section', 'ghost-ability-control is-hidden');
+                    container.setAttribute('aria-live', 'polite');
+                    L.DomEvent.disableClickPropagation(container);
+                    L.DomEvent.disableScrollPropagation(container);
+                    runtime.control = container;
+                    return container;
+                }
+            });
+            map.addControl(new AbilityControl());
+            return runtime.control;
+        }
+
+        function ensureGhostAbilityOverlay() {
+            const container = map && typeof map.getContainer === 'function'
+                ? map.getContainer()
+                : document.querySelector('.leaflet-container');
+            if (!container) return null;
+            let overlay = container.querySelector('.chaos-ghost-ability-overlay');
+            if (overlay) return overlay;
+            overlay = document.createElement('section');
+            overlay.className = 'chaos-ghost-ability-overlay';
+            overlay.setAttribute('role', 'status');
+            overlay.setAttribute('aria-live', 'assertive');
+            overlay.innerHTML = `
+                <div class="chaos-ghost-ability-panel">
+                    <img class="chaos-ghost-ability-asset" alt="">
+                    <div>
+                        <div class="chaos-ghost-ability-eyebrow"></div>
+                        <div class="chaos-ghost-ability-title"></div>
+                        <div class="chaos-ghost-ability-copy"></div>
+                    </div>
+                </div>`;
+            container.appendChild(overlay);
+            return overlay;
+        }
+
+        function showGhostAbilityActivation(snapshot) {
+            const ability = snapshot && snapshot.ability || {};
+            const presentation = snapshot && snapshot.presentation || {};
+            const overlay = ensureGhostAbilityOverlay();
+            if (!overlay) return;
+            applyGhostAbilityPalette(overlay, presentation);
+            const asset = overlay.querySelector('.chaos-ghost-ability-asset');
+            asset.src = String(presentation.visual_asset_url || '');
+            asset.alt = String(ability.part_name || ability.ability_name || 'GhostNetwork');
+            asset.hidden = !asset.src;
+            asset.onerror = () => { asset.hidden = true; };
+            overlay.querySelector('.chaos-ghost-ability-eyebrow').textContent =
+                `GHOSTNETWORK // ${String(ability.source_part_code || ability.part_code || 'ACTIVE')}`;
+            overlay.querySelector('.chaos-ghost-ability-title').textContent =
+                String(presentation.display_name || ability.ability_name || 'Moc aktywna');
+            overlay.querySelector('.chaos-ghost-ability-copy').textContent =
+                String(presentation.semantic_description || ability.ability_description || 'Wpływ części został aktywowany.');
+            const runtime = window.ghostAbilityRuntime;
+            if (runtime.overlayTimer) window.clearTimeout(runtime.overlayTimer);
+            if (runtime.audioHandle && typeof runtime.audioHandle.stop === 'function') {
+                runtime.audioHandle.stop({ fade_ms: 60 });
+            }
+            const sfx = parentGameSfx();
+            if (sfx && typeof sfx.play === 'function') {
+                runtime.audioHandle = sfx.play(presentation.sound_event || 'secret_path.scene_04', {
+                    event_id: `ghost-ability:${snapshot.window && snapshot.window.window_id || Date.now()}`,
+                    source: 'map',
+                    scene_id: 'ghost_ability_activation'
+                });
+            }
+            overlay.classList.remove('is-visible');
+            void overlay.offsetWidth;
+            overlay.classList.add('is-visible');
+            runtime.overlayTimer = window.setTimeout(() => {
+                overlay.classList.remove('is-visible');
+                if (runtime.audioHandle && typeof runtime.audioHandle.stop === 'function') {
+                    runtime.audioHandle.stop({ fade_ms: 100 });
+                }
+                runtime.audioHandle = null;
+                runtime.overlayTimer = null;
+            }, Math.max(4000, Math.min(6000, Number(presentation.show_duration_ms) || 5000)));
+        }
+
+        function ghostAbilityExpiryMessageOnce(snapshot) {
+            const windowId = String(snapshot && snapshot.window && snapshot.window.window_id || '');
+            if (!windowId) return;
+            const key = `chaos:ghost-ability:expired:${windowId}`;
+            try {
+                if (sessionStorage.getItem(key)) return;
+                sessionStorage.setItem(key, '1');
+            } catch (err) {
+                if (window.ghostAbilityRuntime.expiredWindowId === windowId) return;
+                window.ghostAbilityRuntime.expiredWindowId = windowId;
+            }
+            addSystemMessage('info', 'GhostNetwork', 'Wpływ aktywnej części dobiegł końca.');
+        }
+
+        function renderGhostAbilityControl() {
+            const runtime = window.ghostAbilityRuntime;
+            const snapshot = runtime.snapshot || {};
+            const control = ensureGhostAbilityControl();
+            const mapContainer = map && map.getContainer ? map.getContainer() : null;
+            const ability = snapshot.ability || {};
+            const presentation = snapshot.presentation || {};
+            const windowState = snapshot.window || {};
+            const activeRemaining = ghostAbilityRemaining(windowState.expires_at);
+            const cooldownRemaining = ghostAbilityRemaining(windowState.cooldown_until);
+            const liveActive = Boolean(snapshot.active && activeRemaining > 0);
+            if (snapshot.active && !liveActive) ghostAbilityExpiryMessageOnce(snapshot);
+            if (mapContainer) {
+                applyGhostAbilityPalette(mapContainer, presentation);
+                mapContainer.classList.toggle('has-ghost-ability-effect', liveActive);
+            }
+            if (!snapshot.enabled || (!ability.ability_name && !liveActive && cooldownRemaining <= 0)) {
+                control.classList.add('is-hidden');
+                control.replaceChildren();
+                return;
+            }
+            applyGhostAbilityPalette(control, presentation);
+            control.classList.remove('is-hidden');
+            control.replaceChildren();
+            if (liveActive || cooldownRemaining > 0) {
+                const badge = document.createElement('div');
+                badge.className = 'ghost-ability-control__badge';
+                const asset = document.createElement('img');
+                asset.className = 'ghost-ability-control__asset';
+                asset.src = String(presentation.visual_asset_url || '');
+                asset.alt = '';
+                asset.hidden = !asset.src;
+                asset.onerror = () => { asset.hidden = true; };
+                const copy = document.createElement('div');
+                const name = document.createElement('div');
+                name.className = 'ghost-ability-control__name';
+                name.textContent = String(presentation.display_name || ability.ability_name || 'GhostNetwork');
+                const state = document.createElement('div');
+                state.className = 'ghost-ability-control__state';
+                state.textContent = liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN';
+                copy.append(name, state);
+                const timer = document.createElement('div');
+                timer.className = 'ghost-ability-control__timer';
+                timer.textContent = formatGhostAbilitySeconds(liveActive ? activeRemaining : cooldownRemaining);
+                badge.append(asset, copy, timer);
+                control.appendChild(badge);
+            } else if (snapshot.available) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'ghost-ability-control__button';
+                button.textContent = String(presentation.display_name || ability.ability_name || 'Aktywuj moc');
+                button.addEventListener('click', () => activateGhostAbility(button));
+                control.appendChild(button);
+            }
+        }
+
+        function scheduleGhostAbilityClock() {
+            const runtime = window.ghostAbilityRuntime;
+            if (runtime.timer) window.clearInterval(runtime.timer);
+            const snapshot = runtime.snapshot || {};
+            if (!snapshot.window || (!snapshot.active && !snapshot.cooldown)) return;
+            runtime.timer = window.setInterval(() => {
+                renderGhostAbilityControl();
+                const windowState = (runtime.snapshot || {}).window || {};
+                if (ghostAbilityRemaining(windowState.cooldown_until) <= 0) {
+                    window.clearInterval(runtime.timer);
+                    runtime.timer = null;
+                    refreshGhostAbilitySnapshot({ silent: true });
+                }
+            }, 1000);
+        }
+
+        async function refreshGhostAbilitySnapshot(options = {}) {
+            try {
+                const response = await fetch('/api/ghostnetwork/ability', { headers: { 'Accept': 'application/json' } });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error(data.error || data.status || 'ability_snapshot_failed');
+                window.ghostAbilityRuntime.snapshot = data;
+                renderGhostAbilityControl();
+                scheduleGhostAbilityClock();
+                return data;
+            } catch (err) {
+                if (!options.silent) console.warn('[ghost ability] snapshot unavailable', err);
+                const control = ensureGhostAbilityControl();
+                control.classList.add('is-hidden');
+                return null;
+            }
+        }
+
+        async function activateGhostAbility(button) {
+            if (button && button.getAttribute('aria-busy') === 'true') return;
+            armSecretPathAudio();
+            if (button) button.setAttribute('aria-busy', 'true');
+            const requestId = window.crypto && typeof window.crypto.randomUUID === 'function'
+                ? window.crypto.randomUUID()
+                : `ability-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            try {
+                const response = await fetch('/api/ghostnetwork/ability', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestId },
+                    body: JSON.stringify({ request_id: requestId })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.reason || result.status || 'Nie udało się aktywować mocy.');
+                }
+                const snapshot = await refreshGhostAbilitySnapshot({ silent: false });
+                if (snapshot && snapshot.active) {
+                    showGhostAbilityActivation(snapshot);
+                    const durationMinutes = Math.max(1, Math.round(
+                        (Date.parse(snapshot.window.expires_at) - Date.parse(snapshot.window.activated_at)) / 60000
+                    ));
+                    const displayName = snapshot.presentation.display_name || snapshot.ability.ability_name;
+                    addSystemMessage('success', 'GhostNetwork', `${displayName} — wpływ aktywny przez ${durationMinutes} min.`);
+                }
+            } catch (err) {
+                console.error('[ghost ability] activation failed', err);
+                addSystemMessage('warning', 'GhostNetwork', err.message || 'Nie udało się aktywować mocy.');
+                await refreshGhostAbilitySnapshot({ silent: true });
+            } finally {
+                if (button) button.setAttribute('aria-busy', 'false');
+            }
+        }
+
+        window.refreshGhostAbilitySnapshot = refreshGhostAbilitySnapshot;
+        window.showGhostAbilityActivation = showGhostAbilityActivation;
 
         function isForeignTerritoryProtectedResponse(response, data) {
             return response && response.status === 403 && (
@@ -7058,6 +7450,11 @@
                     })(),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
                     window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true }),
+                    (typeof window.refreshGhostAbilitySnapshot === 'function'
+                        ? window.bootStep('Moc GhostNetwork', 'ghost_ability', function() {
+                            return window.refreshGhostAbilitySnapshot({ silent: true });
+                        }, { total: 1, index: 0, silent: true })
+                        : Promise.resolve(false)),
                     (typeof window.loadGhostNetworkSnapshot === 'function'
                         ? window.bootStep('GhostNetwork', 'ghostnetwork', function() {
                             return window.loadGhostNetworkSnapshot({ boot: true });

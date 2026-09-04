@@ -5,6 +5,7 @@ from pathlib import Path
 
 from database import (
     ProfileRecoveryRequired,
+    UserCapabilityProjectionStore,
     UserIdentityProjectionStore,
     UserStore,
     db_connect,
@@ -48,6 +49,7 @@ class UserIdentityProjectionTests(unittest.TestCase):
             seed_path=str(self.tmpdir / "missing.json"),
         )
         self.identities = UserIdentityProjectionStore(self.db_path)
+        self.capabilities = UserCapabilityProjectionStore(self.db_path)
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -64,6 +66,10 @@ class UserIdentityProjectionTests(unittest.TestCase):
         self.assertEqual("virex", identity["clan_code"])
         self.assertEqual(created["profile_revision"], identity["source_profile_revision"])
         self.assertEqual(created["checksum"], identity["source_profile_checksum"])
+        capability = self.capabilities.get_capabilities("alice")
+        self.assertEqual(1, capability["level"])
+        self.assertEqual(300, capability["action_range"])
+        self.assertEqual(18, capability["map_zoom"])
 
         patched = self.users.patch_profile_guarded(
             "alice",
@@ -75,6 +81,18 @@ class UserIdentityProjectionTests(unittest.TestCase):
         self.assertEqual("Alicja", identity["display_alias"])
         self.assertEqual("echo_freedom", identity["clan_code"])
         self.assertEqual(patched["profile_revision"], identity["source_profile_revision"])
+
+        patched = self.users.patch_profile_guarded(
+            "alice",
+            {"level": 71, "scan_range_bonus": 300, "map_zoom_bonus": 2},
+            source="test.capability.patch",
+            expected_revision=patched["profile_revision"],
+        )
+        capability = self.capabilities.get_capabilities("alice")
+        self.assertEqual(71, capability["level"])
+        self.assertEqual(2828, capability["action_range"])
+        self.assertEqual(20, capability["map_zoom"])
+        self.assertEqual(patched["profile_revision"], capability["source_profile_revision"])
 
     def test_batch_and_recipient_reads_are_bounded_and_indexed(self):
         for username, clan in (("alice", "virex"), ("bob", "virex"), ("eve", "echo_freedom")):
@@ -121,6 +139,8 @@ class UserIdentityProjectionTests(unittest.TestCase):
 
         with self.assertRaises(ProfileRecoveryRequired):
             self.identities.get_identity("alice")
+        with self.assertRaises(ProfileRecoveryRequired):
+            self.capabilities.get_capabilities("alice")
         self.assertEqual([], self.identities.list_recipient_ids("public", limit=10))
 
     def test_backfill_is_explicit_and_skips_no_valid_rows(self):
@@ -152,6 +172,7 @@ class UserIdentityProjectionTests(unittest.TestCase):
         result = self.identities.backfill_page(limit=10)
         self.assertIn("legacy", result["projected"])
         self.assertEqual("legacy", self.identities.get_identity("legacy")["username"])
+        self.assertEqual("legacy", self.capabilities.get_capabilities("legacy")["username"])
         with db_connect(self.db_path) as conn:
             revision_before = conn.execute(
                 "SELECT profile_revision FROM users WHERE username = 'legacy'"

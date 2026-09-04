@@ -220,8 +220,8 @@ class TerritoryControlTest(unittest.TestCase):
 
         resolver = run.TerritoryEncirclementResolver(store=object(), conflict_store=object())
         with patch.object(
-            run.user_store,
-            "get_profile_identity",
+            run.identity_projection_store,
+            "get_identity",
             side_effect=lambda username: {"username": username, "clan": username},
         ) as get_profile, patch.object(
             run,
@@ -362,12 +362,12 @@ class TerritoryControlTest(unittest.TestCase):
             },
         ]
 
-        with patch.object(run.user_store, "get_profile_identity", side_effect=lambda username: {
+        with patch.object(run.identity_projection_store, "get_identity", side_effect=lambda username: {
             "username": username, "clan": "same-clan"
         }):
             self.assertEqual(run.build_territory_conflict_detection_plan(areas), [])
 
-        with patch.object(run.user_store, "get_profile_identity", side_effect=lambda username: {
+        with patch.object(run.identity_projection_store, "get_identity", side_effect=lambda username: {
             "username": username, "clan": "alpha" if username == "alice" else "beta"
         }), patch.object(run.mail_store, "is_accepted_contact", return_value=True):
             plans = run.build_territory_conflict_detection_plan(areas)
@@ -798,7 +798,7 @@ class TerritoryControlTest(unittest.TestCase):
             def fake_profile(username):
                 return {"username": username, "clan": "Siatka Widmo"}
 
-            with patch.object(run.user_store, "get_profile_identity", side_effect=fake_profile), \
+            with patch.object(run.identity_projection_store, "get_identity", side_effect=fake_profile), \
                     patch.object(run.mail_store, "is_accepted_contact", return_value=False), \
                     patch.object(run, "record_territory_areas_delta", return_value=[]), \
                     patch.object(run, "record_territory_encirclement_delta", return_value=[]):
@@ -842,10 +842,10 @@ class TerritoryControlTest(unittest.TestCase):
         ]
 
         class FakeTerritoryStoreForMap:
-            def list_player_areas(self):
+            def list_player_areas(self, *, limit=None):
                 return list(areas)
 
-            def list_recent_area_intruders(self, username):
+            def list_recent_area_intruders(self, username, *, limit=100):
                 return []
 
         def fake_profile(username):
@@ -861,6 +861,9 @@ class TerritoryControlTest(unittest.TestCase):
         with patch.object(run, "territory_store", FakeTerritoryStoreForMap()), \
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
+                patch.object(run.identity_projection_store, "get_identity", side_effect=fake_profile), \
+                patch.object(run.identity_projection_store, "get_identities", side_effect=lambda names, **_: [fake_profile(name) for name in names if fake_profile(name)]), \
+                patch.object(run.capability_projection_store, "get_capabilities", return_value={"level": 4, "scan_range_bonus": 0, "map_zoom_bonus": 0, "action_range": 600, "map_zoom": 18}), \
                 patch.object(run.mail_store, "is_accepted_contact", return_value=False), \
                 patch.object(run, "get_active_conflicts_for_player", return_value=[]), \
                 patch.object(run, "contested_targets_from_active_conflicts", return_value=[]):
@@ -890,16 +893,19 @@ class TerritoryControlTest(unittest.TestCase):
         }]
 
         class FragileTerritoryStoreForMap:
-            def list_player_areas(self):
+            def list_player_areas(self, *, limit=None):
                 return list(areas)
 
-            def list_recent_area_intruders(self, username):
+            def list_recent_area_intruders(self, username, *, limit=100):
                 raise RuntimeError("intruder store unavailable")
 
         client, headers = self._client_with_user("alice")
         with patch.object(run, "territory_store", FragileTerritoryStoreForMap()), \
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run.identity_projection_store, "get_identity", return_value=profile), \
+                patch.object(run.identity_projection_store, "get_identities", return_value=[profile]), \
+                patch.object(run.capability_projection_store, "get_capabilities", return_value={"level": 4, "scan_range_bonus": 0, "map_zoom_bonus": 0, "action_range": 600, "map_zoom": 18}), \
                 patch.object(run, "refresh_stale_territory_polygons", side_effect=AssertionError("read endpoint must not rebuild")), \
                 patch.object(
                     run.territory_conflict_store,

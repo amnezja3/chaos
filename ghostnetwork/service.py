@@ -4,6 +4,9 @@ from database import DB_PATH
 from config import (
     GHOSTNETWORK_DROP_CHANCE,
     GHOSTNETWORK_DROPS_ENABLED,
+    GHOSTNETWORK_ABILITY_ALLOWED_CODES,
+    GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS,
+    GHOSTNETWORK_ABILITY_DURATION_SECONDS,
     GHOSTNETWORK_MIN_PART_DISTANCE_KM,
     GHOSTNETWORK_RUNTIME_MODE,
     GHOSTNETWORK_TEST_MODE,
@@ -24,6 +27,7 @@ from .conflicts import GhostDefenseRewardPolicy, GhostStrategicConflictService
 from .lifecycle import GhostPartLifecycleService
 from .module_state import GhostModuleStateService
 from .narrative import GhostNarrativePublisher
+from .part_assets import part_visual_asset_contract
 from .repository import GhostNetworkRepository
 from .rewards import GhostContributionService, GhostRewardService
 from .reservations import GhostDropPolicy, GhostReservationService, is_ghostnetwork_eligible_target
@@ -948,6 +952,146 @@ class GhostNetworkService:
 
     def resolve_player_abilities(self, player_context):
         return self.abilities.resolve_player_abilities(player_context)
+
+    def _ability_presentation(self, ability):
+        ability = ability if isinstance(ability, dict) else {}
+        part_code = str(ability.get("part_code") or ability.get("source_part_code") or "").strip()
+        clan_code = str(ability.get("clan_code") or "").strip()
+        parts = {
+            str(item.get("part_code") or ""): item
+            for item in self.abilities.catalog.get("parts", [])
+            if isinstance(item, dict)
+        }
+        clans = {
+            str(item.get("code") or ""): item
+            for item in self.abilities.catalog.get("clans", [])
+            if isinstance(item, dict)
+        }
+        asset = part_visual_asset_contract(parts.get(part_code) or {})
+        clan = clans.get(clan_code) or {}
+        display_names = {
+            "insider_feed": "Insider Feed",
+        }
+        return {
+            "clan_code": clan_code,
+            "clan_color_token": clan.get("ui_color_token") or "",
+            "visual_asset_url": asset.get("visual_asset_url") or "",
+            "show_duration_ms": 5000,
+            "sound_event": "secret_path.scene_04",
+            "display_name": display_names.get(
+                str(ability.get("ability_code") or ""),
+                ability.get("ability_name") or "GhostNetwork",
+            ),
+            "semantic_description": ability.get("ability_description") or "",
+        }
+
+    def get_player_ability_window_snapshot(self, player_context, now=None):
+        player_context = player_context if isinstance(player_context, dict) else {}
+        player_id = str(
+            player_context.get("player_id") or player_context.get("username") or ""
+        ).strip()
+        resolved = self.resolve_player_abilities(player_context)
+        eligible_ability = next(iter(resolved.get("active_abilities") or []), None)
+        allowed_codes = set(GHOSTNETWORK_ABILITY_ALLOWED_CODES)
+        ability = eligible_ability if (
+            eligible_ability
+            and eligible_ability.get("ability_code") in allowed_codes
+        ) else None
+        window = self.repository.get_latest_ability_window(player_id) if player_id else None
+        now_dt = self.repository.now() if now is None else now
+        from .repository import _utc_datetime
+        current = _utc_datetime(now_dt)
+        active = bool(
+            window and ability
+            and window.get("ability_code") == ability.get("ability_code")
+            and window.get("source_part_id") == ability.get("source_part_id")
+            and current < _utc_datetime(window.get("expires_at"))
+        )
+        cooldown = bool(
+            window and current < _utc_datetime(window.get("cooldown_until"))
+        )
+        public_window = None
+        if window:
+            public_window = {
+                key: window.get(key) for key in (
+                    "window_id", "ability_code", "source_part_code",
+                    "activated_at", "expires_at", "cooldown_until",
+                    "level_snapshot",
+                )
+            }
+        public_ability = None
+        if ability:
+            public_ability = {
+                key: ability.get(key) for key in (
+                    "ability_code", "ability_name", "ability_description",
+                    "part_code", "part_name", "source_part_code",
+                )
+            }
+        return {
+            "ok": True,
+            "available": bool(ability and not cooldown),
+            "active": active,
+            "cooldown": cooldown and not active,
+            "ability": public_ability,
+            "presentation": self._ability_presentation(ability) if ability else None,
+            "window": public_window,
+            "reason": (
+                "realizer_unavailable" if eligible_ability and not ability
+                else "cooldown" if cooldown and not active
+                else "active" if active
+                else "available" if ability
+                else (resolved.get("ability") or {}).get("activation_reason") or "not_eligible"
+            ),
+        }
+
+    def activate_player_ability(self, player_context, request_key, now=None):
+        player_context = player_context if isinstance(player_context, dict) else {}
+        request_key = str(request_key or "").strip()
+        if not request_key or len(request_key) > 128:
+            return {"ok": False, "status": "invalid_request_key"}
+        player_id = str(
+            player_context.get("player_id") or player_context.get("username") or ""
+        ).strip()
+        replayed = self.repository.get_ability_window_by_request(
+            player_id, request_key,
+        )
+        if replayed:
+            return {"ok": True, "status": "replayed", "window": replayed}
+        resolved = self.resolve_player_abilities(player_context)
+        eligible_ability = next(iter(resolved.get("active_abilities") or []), None)
+        ability = eligible_ability if (
+            eligible_ability
+            and eligible_ability.get("ability_code") in set(GHOSTNETWORK_ABILITY_ALLOWED_CODES)
+        ) else None
+        if not ability:
+            return {
+                "ok": False,
+                "status": (
+                    "realizer_unavailable" if eligible_ability
+                    else "ability_unavailable"
+                ),
+                "reason": (
+                    "ability_not_enabled_for_runtime" if eligible_ability
+                    else (resolved.get("ability") or {}).get("activation_reason") or "not_eligible"
+                ),
+            }
+        result = self.repository.activate_ability_window(
+            player_id=resolved.get("player_id"),
+            ability_code=ability.get("ability_code"),
+            cycle_id=ability.get("cycle_id"),
+            source_part_id=ability.get("source_part_id"),
+            source_part_code=ability.get("source_part_code"),
+            level_snapshot=player_context.get("level") or 1,
+            source_state_version=ability.get("state_version") or 0,
+            request_key=request_key,
+            duration_seconds=GHOSTNETWORK_ABILITY_DURATION_SECONDS,
+            cooldown_seconds=GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS,
+            now=now,
+        )
+        return {
+            "ok": result.get("status") in {"activated", "replayed"},
+            **result,
+        }
 
     def is_ability_active(self, player_context, ability_code):
         return self.abilities.is_ability_active(player_context, ability_code)

@@ -29,6 +29,7 @@ PROFILE_INTEGRITY_UNINITIALIZED = "uninitialized"
 WALLET_CANONICAL_MIGRATION_ID = "wallet_canonical_v1"
 IDENTITY_PROJECTION_VERSION = 1
 IDENTITY_PROJECTION_MAX_BATCH = 500
+CAPABILITY_PROJECTION_VERSION = 1
 _PROFILE_PRECOMMIT_GUARD = ContextVar(
     "chaos_profile_precommit_guard",
     default=None,
@@ -1565,7 +1566,43 @@ def init_db(db_path=DB_PATH):
             ON user_identity_projection(clan_code, username)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_capability_projection (
+                username TEXT PRIMARY KEY,
+                player_level INTEGER NOT NULL DEFAULT 1,
+                scan_range_bonus INTEGER NOT NULL DEFAULT 0,
+                map_zoom_bonus INTEGER NOT NULL DEFAULT 0,
+                source_profile_revision INTEGER NOT NULL,
+                source_profile_checksum TEXT NOT NULL,
+                projection_version INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
         _bootstrap_profile_integrity_rows(conn)
+        capability_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM user_capability_projection"
+        ).fetchone()["count"]
+        if int(capability_count or 0) == 0:
+            # One-time projection bootstrap. Runtime reads never parse profile_json.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO user_capability_projection (
+                    username, player_level, scan_range_bonus, map_zoom_bonus,
+                    source_profile_revision, source_profile_checksum,
+                    projection_version, updated_at
+                )
+                SELECT username,
+                       MAX(1, CAST(COALESCE(json_extract(profile_json, '$.level'), 1) AS INTEGER)),
+                       MAX(0, CAST(COALESCE(json_extract(profile_json, '$.scan_range_bonus'), 0) AS INTEGER)),
+                       MAX(0, CAST(COALESCE(json_extract(profile_json, '$.map_zoom_bonus'), 0) AS INTEGER)),
+                       profile_revision, profile_checksum, ?, updated_at
+                FROM users
+                WHERE profile_integrity_status = ? AND json_valid(profile_json)
+                """,
+                (CAPABILITY_PROJECTION_VERSION, PROFILE_INTEGRITY_VALID),
+            )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS kv_store (
@@ -2549,6 +2586,10 @@ def init_db(db_path=DB_PATH):
             "CREATE INDEX IF NOT EXISTS idx_area_events_owner ON area_events(owner_username, created_at)"
         )
         conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_area_events_owner_type_time "
+            "ON area_events(owner_username, event_type, created_at DESC)"
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_territory_conflicts_players ON territory_conflicts(player_a_username, player_b_username, status)"
         )
         conn.execute(
@@ -2797,6 +2838,7 @@ _IDENTITY_ORPHAN_COLUMNS = {
     "ghost_contributions": ("player_id",),
     "ghost_reward_ledger": ("player_id",),
     "ghost_achievements": ("player_id",),
+    "ghost_ability_windows": ("player_id",),
 }
 
 
@@ -2908,6 +2950,64 @@ def _upsert_identity_projection_with_conn(
             revision,
             checksum,
             IDENTITY_PROJECTION_VERSION,
+            updated_at or utc_now(),
+        ),
+    )
+    _upsert_capability_projection_with_conn(
+        conn,
+        profile,
+        revision,
+        checksum,
+        updated_at=updated_at,
+    )
+
+
+def _upsert_capability_projection_with_conn(
+    conn,
+    profile,
+    source_profile_revision,
+    source_profile_checksum,
+    *,
+    updated_at=None,
+):
+    profile = profile if isinstance(profile, dict) else {}
+    username = str(profile.get("username") or "").strip()
+    revision = int(source_profile_revision or 0)
+    checksum = str(source_profile_checksum or "").strip()
+    if not username or revision <= 0 or not checksum:
+        raise ProfileValidationError(("capability_projection_source_invalid",))
+
+    def bounded_integer(value, default=0, minimum=0, maximum=100000):
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = int(default)
+        return max(minimum, min(maximum, parsed))
+
+    conn.execute(
+        """
+        INSERT INTO user_capability_projection (
+            username, player_level, scan_range_bonus, map_zoom_bonus,
+            source_profile_revision, source_profile_checksum,
+            projection_version, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(username) DO UPDATE SET
+            player_level = excluded.player_level,
+            scan_range_bonus = excluded.scan_range_bonus,
+            map_zoom_bonus = excluded.map_zoom_bonus,
+            source_profile_revision = excluded.source_profile_revision,
+            source_profile_checksum = excluded.source_profile_checksum,
+            projection_version = excluded.projection_version,
+            updated_at = excluded.updated_at
+        """,
+        (
+            username,
+            bounded_integer(profile.get("level"), default=1, minimum=1, maximum=999),
+            bounded_integer(profile.get("scan_range_bonus"), maximum=100000),
+            bounded_integer(profile.get("map_zoom_bonus"), maximum=20),
+            revision,
+            checksum,
+            CAPABILITY_PROJECTION_VERSION,
             updated_at or utc_now(),
         ),
     )
@@ -4267,6 +4367,7 @@ class UserStore:
             conn.execute("DELETE FROM player_marked_target_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM profile_last_known_good WHERE username = ?", (username,))
             conn.execute("DELETE FROM user_identity_projection WHERE username = ?", (username,))
+            conn.execute("DELETE FROM user_capability_projection WHERE username = ?", (username,))
             conn.execute(
                 "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
                 (username, username),
@@ -4485,6 +4586,61 @@ class UserIdentityProjectionStore:
             "projected": projected,
             "skipped": skipped,
             "done": len(rows) < limit,
+        }
+
+
+class UserCapabilityProjectionStore:
+    """Integrity-gated level/range/zoom reads without profile hydration."""
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    def get_capabilities(self, username):
+        username = str(username or "").strip()
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT p.*, u.profile_revision AS current_profile_revision,
+                       u.profile_checksum AS current_profile_checksum,
+                       u.profile_integrity_status AS current_profile_integrity_status
+                FROM user_capability_projection AS p
+                JOIN users AS u ON u.username = p.username
+                WHERE p.username = ?
+                LIMIT 1
+                """,
+                (username,),
+            ).fetchone()
+        if not row:
+            return None
+        if (
+            int(row["source_profile_revision"] or 0)
+            != int(row["current_profile_revision"] or 0)
+            or str(row["source_profile_checksum"] or "")
+            != str(row["current_profile_checksum"] or "")
+            or str(row["current_profile_integrity_status"] or "")
+            != PROFILE_INTEGRITY_VALID
+            or int(row["projection_version"] or 0)
+            != CAPABILITY_PROJECTION_VERSION
+        ):
+            raise ProfileRecoveryRequired(
+                f"Capability projection for '{username}' is stale or invalid."
+            )
+        level = max(1, int(row["player_level"] or 1))
+        scan_bonus = max(0, int(row["scan_range_bonus"] or 0))
+        zoom_bonus = max(0, int(row["map_zoom_bonus"] or 0))
+        return {
+            "username": username,
+            "level": level,
+            "scan_range_bonus": scan_bonus,
+            "map_zoom_bonus": zoom_bonus,
+            "action_range": min(4000, round(300 * math.sqrt(level)) + scan_bonus),
+            "map_zoom": max(1, min(20, 18 + zoom_bonus)),
+            "source_profile_revision": int(row["source_profile_revision"] or 0),
+            "projection_version": int(row["projection_version"] or 0),
+            "updated_at": row["updated_at"],
         }
 
 
@@ -5716,7 +5872,7 @@ class TerritoryStore:
             ).fetchone()
         return dict(row) if row else None
 
-    def list_player_areas(self, username=None):
+    def list_player_areas(self, username=None, *, limit=None):
         query = (
             "SELECT player_areas.*, "
             "COALESCE(territory_area_publications.publication_version, 0) AS publication_version "
@@ -5728,6 +5884,15 @@ class TerritoryStore:
             query += " WHERE player_areas.owner_username = ?"
             params.append(username)
         query += " ORDER BY player_areas.owner_username, player_areas.id"
+        if limit is not None:
+            try:
+                bounded_limit = int(limit)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("limit must be an integer") from exc
+            if bounded_limit < 1 or bounded_limit > 1000:
+                raise ValueError("limit must be between 1 and 1000")
+            query += " LIMIT ?"
+            params.append(bounded_limit)
         with db_connect(self.db_path) as conn:
             rows = conn.execute(query, params).fetchall()
             return [
@@ -5851,7 +6016,13 @@ class TerritoryStore:
                 return True
         return False
 
-    def list_recent_area_intruders(self, owner_username, seconds=120):
+    def list_recent_area_intruders(self, owner_username, seconds=120, *, limit=100):
+        try:
+            bounded_limit = int(limit)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be an integer") from exc
+        if bounded_limit < 1 or bounded_limit > 500:
+            raise ValueError("limit must be between 1 and 500")
         threshold = (datetime.utcnow() - timedelta(seconds=seconds)).isoformat(timespec="seconds")
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
@@ -5862,8 +6033,9 @@ class TerritoryStore:
                     AND event_type = 'intruder_enter'
                     AND created_at >= ?
                 ORDER BY id DESC
+                LIMIT ?
                 """,
-                (owner_username, threshold),
+                (owner_username, threshold, bounded_limit),
             ).fetchall()
 
         seen = set()

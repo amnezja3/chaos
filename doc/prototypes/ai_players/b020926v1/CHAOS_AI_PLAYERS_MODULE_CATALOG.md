@@ -100,12 +100,13 @@ Buduje canonical snapshot tego, co aktualnie może zaobserwować konkretny profi
 - Ghost Exchange,
 - Cyberner,
 - territory state,
-- GhostNetwork visibility
-- System Messages
+- GhostNetwork visibility.
 
 ## Wyjście
 
 `PlayerObservationSnapshot`.
+
+Snapshot jest wejściem do Knowledge Resolvera i nie powinien być bezpośrednio traktowany jako interfejs modelu. Bieżącą selekcję uwagi i kontekstu wykonuje `M29 — AI Perception Layer`.
 
 ## Nie robi
 
@@ -138,6 +139,8 @@ Przekształca obserwowalny stan w wiedzę, którą postać naprawdę posiada.
 
 Zbiór canonical knowledge facts.
 
+Knowledge Resolver odpowiada na pytanie **co postać może wiedzieć**. Nie odpowiada za to, **co z tej wiedzy powinno być właśnie teraz na pierwszym planie** — to odpowiedzialność `M29 — AI Perception Layer`.
+
 ## Integracja
 
 Powinien wykorzystywać zasady i możliwie wspólne komponenty `Shared Semantic Input Layer`.
@@ -152,7 +155,7 @@ Powinien wykorzystywać zasady i możliwie wspólne komponenty `Shared Semantic 
 
 ## Odpowiedzialność
 
-Buduje model-friendly, bounded semantic package.
+Buduje model-friendly, bounded semantic package z wiedzy i bieżącego `AIWorldPerceptionFrame`. Nie powinien samodzielnie ustalać focusu ani priorytetu zdarzeń.
 
 ## Przykład
 
@@ -244,6 +247,8 @@ a04 SEND_CYBERNER_MESSAGE player_ref=p02
 ## Odpowiedzialność
 
 Tworzy taski tylko wtedy, gdy świat wymaga nowej decyzji.
+
+Task Engine odpowiada za moment utworzenia decyzji. Po triggerze buduje lub pobiera aktualny `AIWorldPerceptionFrame` z M29 i zapisuje jego identyfikator/fingerprint razem z taskiem.
 
 ## Źródła triggerów
 
@@ -799,7 +804,103 @@ Replay nie może ponownie wykonywać gameplayowych side effects.
 
 ---
 
-# 30. Rekomendowany fizyczny podział kodu
+# 30. M29 — AI Perception Layer / AI World Interface
+
+## Odpowiedzialność
+
+Buduje canonical, bounded i wersjonowany **ekran rzeczywistości** konkretnego AI Playera dla konkretnego taska.
+
+Nie odpowiada za to, co istnieje w świecie ani co postać legalnie wie. Te granice pozostają odpowiednio w World/Observation i Knowledge Layer.
+
+M29 odpowiada za pytanie:
+
+> **Co z legalnie dostępnej wiedzy, zdarzeń i możliwości jest właśnie teraz przedstawione postaci jako jej bieżąca sytuacja?**
+
+## Główne sekcje frame'u
+
+```text
+NOW
+ATTENTION
+FOCUS
+ACTIVE
+BACKGROUND
+RECENT
+RESOURCES
+RELATIONSHIPS
+KNOWN_WORLD
+CAPABILITIES
+AVAILABLE_ACTIONS
+```
+
+## Łączy
+
+- M03 Player Observation Builder,
+- M04 Knowledge Resolver,
+- M06 Capability Resolver,
+- M07 Action Catalog,
+- M18 Intent Manager,
+- M20 Memory Resolver,
+- world events,
+- runtime focus state.
+
+## Wyjście
+
+`AIWorldPerceptionFrame` z własnym `perception_id` / fingerprintem i lineage do canonical źródeł.
+
+## Kluczowe reguły
+
+- percepcja nie może tworzyć nowych faktów,
+- zmiana focusu nie może rozszerzać wiedzy,
+- attention policy jest deterministyczna i testowalna,
+- krytyczne sygnały nie mogą zniknąć przez przypadkowe obcięcie kontekstu,
+- frame jest bounded,
+- ten sam canonical input powinien dawać semantycznie ten sam frame,
+- worker dostaje frame jako kontrakt, a nie samodzielnie skleja kontekst świata.
+
+## Przykład
+
+```text
+NOW
+activity: territory_build — Alaska
+
+ATTENTION
+territory_attack — Warszawa — HIGH
+cyberner_message — RUN — MEDIUM
+
+FOCUS
+Alaska
+
+AVAILABLE_ACTIONS
+a01 CONTINUE_CURRENT_ACTIVITY
+a02 INSPECT_TERRITORY territory_ref=tr02
+a03 CHANGE_FOCUS focus_ref=territory_warsaw
+a04 TELEPORT destination_ref=loc02
+a05 OPEN_CYBERNER_THREAD thread_ref=c01
+a06 WAIT
+```
+
+M29 nie wybiera za AI, czy Warszawa jest ważniejsza od Alaski. Przedstawia oba sygnały i ich canonical wagę interfejsową, a decyzję podejmuje model.
+
+## Diagnostyka
+
+M29 powinien wspierać:
+
+```text
+inspect-perception
+rebuild-perception
+compare-perception
+replay-decision
+```
+
+Replay nie może wykonywać gameplayowych side effects.
+
+## Priorytet
+
+**P0 — krytyczny przed oceną jakości pierwszego autonomicznego AI Playera.**
+
+---
+
+# 31. Rekomendowany fizyczny podział kodu
 
 Przykładowo:
 
@@ -810,6 +911,9 @@ chaos/
     lifecycle.py
     observation.py
     knowledge.py
+    perception.py
+    attention.py
+    focus.py
     semantic_facts.py
     capabilities.py
     action_catalog.py
@@ -846,7 +950,7 @@ To tylko rekomendowana granica logiczna; nazwy powinny zostać dopasowane do fak
 
 ---
 
-# 31. Minimalny zestaw MVP
+# 32. Minimalny zestaw MVP
 
 Do pierwszego prawdziwego vertical slice potrzebne są tylko:
 
@@ -858,6 +962,7 @@ M04 Knowledge
 M05 Semantic Facts
 M06 Capability Resolver
 M07 Action Catalog
+M29 AI Perception Layer
 M08 Task Engine
 M09 Outbox/Inbox
 M10 Worker
@@ -874,11 +979,15 @@ Memory, pełny Student, providerzy zewnętrzni, terytoria i GhostNetwork mogą w
 
 ---
 
-# 32. Najważniejsze granice odpowiedzialności
+# 33. Najważniejsze granice odpowiedzialności
 
 ### Świat mówi modelowi, co jest prawdą.
 
-Observation + Knowledge + Semantic Facts.
+Observation + Knowledge.
+
+### Perception mówi modelowi, co jest teraz na jego „ekranie”.
+
+AI Perception Layer + Semantic Facts + Attention + Focus.
 
 ### Świat mówi modelowi, co może wybrać.
 

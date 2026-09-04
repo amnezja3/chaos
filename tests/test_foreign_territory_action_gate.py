@@ -34,6 +34,8 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
             with self.subTest(action=action), \
                     patch.object(run, "sync_session_profile", return_value=dict(profile)), \
                     patch.object(run.user_store, "get_profile_identity", return_value={"username": "attacker"}), \
+                    patch.object(run.player_position_store, "get_position", return_value={"lat": 52.0, "lng": 21.0}), \
+                    patch.object(run.capability_projection_store, "get_capabilities", return_value={"level": 1, "action_range": 5000, "map_zoom": 18}), \
                     patch.object(run.player_marked_target_store, "upsert") as marked_upsert, \
                     patch.object(run, "foreign_territory_action_block", return_value=self.foreign_area()):
                 response = self.client.post("/map-action", headers=self.headers, json={
@@ -82,6 +84,8 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
 
         with patch.object(run, "sync_session_profile", return_value=dict(profile)), \
                 patch.object(run, "get_player_action_range", return_value=5000), \
+                patch.object(run.player_position_store, "get_position", return_value={"lat": scan_center[0], "lng": scan_center[1]}), \
+                patch.object(run.capability_projection_store, "get_capabilities", return_value={"level": 10, "action_range": 5000, "map_zoom": 18}), \
                 patch.object(run.fetcher, "get_all", return_value=[{
                     "lat": target_point[0], "lon": target_point[1],
                     "name": "Enemy object", "tags": {"amenity": "bench"},

@@ -293,6 +293,38 @@ class GhostNetworkRepository:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS ghost_ability_windows (
+                    window_id TEXT PRIMARY KEY,
+                    player_id TEXT NOT NULL,
+                    ability_code TEXT NOT NULL,
+                    cycle_id TEXT NOT NULL,
+                    source_part_id TEXT NOT NULL,
+                    source_part_code TEXT NOT NULL,
+                    target_id TEXT NOT NULL DEFAULT '',
+                    level_snapshot INTEGER NOT NULL DEFAULT 1,
+                    activated_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    cooldown_until TEXT NOT NULL,
+                    source_state_version INTEGER NOT NULL DEFAULT 0,
+                    dedupe_key TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_ability_windows_player_time
+                ON ghost_ability_windows(player_id, activated_at DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_ability_windows_expiry
+                ON ghost_ability_windows(expires_at, cooldown_until)
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ghost_part_reservations (
                     reservation_id TEXT PRIMARY KEY,
                     cycle_id TEXT NOT NULL,
@@ -2478,6 +2510,120 @@ class GhostNetworkRepository:
                     payload={"count": len(saved)},
                 )
         return saved
+
+    @staticmethod
+    def _ability_window(row):
+        if not row:
+            return None
+        return {
+            "window_id": row["window_id"],
+            "player_id": row["player_id"],
+            "ability_code": row["ability_code"],
+            "cycle_id": row["cycle_id"],
+            "source_part_id": row["source_part_id"],
+            "source_part_code": row["source_part_code"],
+            "target_id": row["target_id"],
+            "level_snapshot": int(row["level_snapshot"] or 1),
+            "activated_at": row["activated_at"],
+            "expires_at": row["expires_at"],
+            "cooldown_until": row["cooldown_until"],
+            "source_state_version": int(row["source_state_version"] or 0),
+            "dedupe_key": row["dedupe_key"],
+            "created_at": row["created_at"],
+        }
+
+    def get_latest_ability_window(self, player_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM ghost_ability_windows
+                WHERE player_id = ?
+                ORDER BY activated_at DESC, window_id DESC
+                LIMIT 1
+                """,
+                (_clean(player_id),),
+            ).fetchone()
+        return self._ability_window(row)
+
+    def get_ability_window_by_request(self, player_id, request_key):
+        player_id = _clean(player_id)
+        request_key = _clean(request_key)
+        if not player_id or not request_key:
+            return None
+        dedupe_key = _hash_id("ghost_ability_activation", player_id, request_key)
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM ghost_ability_windows
+                WHERE player_id = ? AND dedupe_key = ?
+                LIMIT 1
+                """,
+                (player_id, dedupe_key),
+            ).fetchone()
+        return self._ability_window(row)
+
+    def activate_ability_window(
+        self, *, player_id, ability_code, cycle_id, source_part_id,
+        source_part_code, level_snapshot, source_state_version,
+        request_key, duration_seconds, cooldown_seconds, target_id="", now=None,
+    ):
+        """Create one idempotent player window; no gameplay effect is applied."""
+        player_id = _clean(player_id)
+        request_key = _clean(request_key)
+        if not player_id or not request_key:
+            raise ValueError("ability activation requires player_id and request_key")
+        now_dt = _utc_datetime(now or self.now())
+        activated_at = _iso(now_dt)
+        expires_at = _iso(now_dt + timedelta(seconds=max(1, int(duration_seconds))))
+        cooldown_until = _iso(now_dt + timedelta(seconds=max(
+            int(duration_seconds), int(cooldown_seconds),
+        )))
+        dedupe_key = _hash_id("ghost_ability_activation", player_id, request_key)
+        window_id = _hash_id("ghost_ability_window", player_id, request_key)
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT * FROM ghost_ability_windows WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            if existing:
+                return {"status": "replayed", "window": self._ability_window(existing)}
+            latest = conn.execute(
+                """
+                SELECT * FROM ghost_ability_windows
+                WHERE player_id = ?
+                ORDER BY activated_at DESC, window_id DESC
+                LIMIT 1
+                """,
+                (player_id,),
+            ).fetchone()
+            latest_window = self._ability_window(latest)
+            if latest_window and now_dt < _utc_datetime(latest_window["expires_at"]):
+                return {"status": "already_active", "window": latest_window}
+            if latest_window and now_dt < _utc_datetime(latest_window["cooldown_until"]):
+                return {"status": "cooldown", "window": latest_window}
+            conn.execute(
+                """
+                INSERT INTO ghost_ability_windows (
+                    window_id, player_id, ability_code, cycle_id, source_part_id,
+                    source_part_code, target_id, level_snapshot, activated_at,
+                    expires_at, cooldown_until, source_state_version,
+                    dedupe_key, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    window_id, player_id, _clean(ability_code), _clean(cycle_id),
+                    _clean(source_part_id), _clean(source_part_code), _clean(target_id),
+                    max(1, int(level_snapshot or 1)), activated_at, expires_at,
+                    cooldown_until, max(0, int(source_state_version or 0)),
+                    dedupe_key, activated_at,
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM ghost_ability_windows WHERE window_id = ?",
+                (window_id,),
+            ).fetchone()
+        return {"status": "activated", "window": self._ability_window(row)}
 
     def get_part(self, part_id):
         with self._conn() as conn:

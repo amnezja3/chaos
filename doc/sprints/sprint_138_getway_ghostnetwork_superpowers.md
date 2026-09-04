@@ -258,18 +258,20 @@ ability_code
 | --- | --- | --- |
 | `operation_speed` | zegary rozpoczętych operacji wyraźnie przyspieszają | bounded korekta pozostałego czasu; znacznik chroni przed wielokrotnym użyciem |
 | `file_yield` | operacja tworzy więcej plików właściwego typu | bonus przy istniejącej finalizacji plików |
-| `file_value` | pliki dają większy wynik sprzedaży | mnożnik w istniejącym rozliczeniu Ghost Exchange |
+| `file_value` | **DEFERRED** — wymaga narrow settlementu Ghost Exchange | nie wchodzi do bieżącej bramki |
 | `data_quality` | rośnie kompletność/jakość konkretnych plików | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
 | `target_security` | mniej lub więcej aktywnych zabezpieczeń | ograniczona transformacja istniejącej security map z zachowaniem CAS |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większy promień lub skan niezależny od motocykla | istniejący action range albo jawny bypass tylko dla endpointu skanu |
 | `map_zoom` | szerszy widok | istniejący getter zoomu, bez trwałego zakupu w profilu |
-| `actor_visibility` | pojawiają się dozwoleni aktorzy | filtr istniejącego snapshotu player/NPC actors |
-| `incident_decoy` | fikcyjne incydenty i błąkające się służby | istniejący incident/NPC capsule runtime z `synthetic`, TTL i osobnym seedem |
+| `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
+| `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
 | `territory_defense` | cele zyskują/odzyskują zabezpieczenia | istniejący security store i owner/CAS checks |
 
-Łącznie daje to 12 rodzin technicznych. Nie muszą odpowiadać 1:1 dwudziestu
+Katalog zachowuje 12 rodzin technicznych, ale bieżąca bramka certyfikuje 9.
+`file_value`, `actor_visibility` i `incident_decoy` pozostają jawnie odłożone.
+Nie muszą odpowiadać 1:1 dwudziestu
 częściom. Dwie moce mogą używać tej samej rodziny, ale różnić się typem danych,
 target scope, formułą i obserwowalnym wynikiem. Przykład: Echo podnosi
 `data_quality` plików camera/audio, a VIREX tę samą rodzinę stosuje wyłącznie do
@@ -361,14 +363,14 @@ Obowiązkowy zapis decyzji:
 
 ## 9. 138.getway.0 — foundation i pilot wszystkich realizerów na V1
 
-Status początkowy: `PLANNED / BLOCKING 138.getway.1`
+Status: `IN PROGRESS — 138.getway.0.3 LOCAL PASS / VISUAL SERVER GATE PENDING`
 
 ### Cel
 
 Zanim zaczniemy wdrażać moce profesja po profesji, budujemy i certyfikujemy jeden
 powtarzalny model produkcyjny. Nośnikiem pilota jest VIREX V1 / `Insider Feed`,
 ale w kontrolowanym trybie operatorskim przez tę samą ścieżkę przechodzą kolejno
-wszystkie 12 rodzin gameplayowych.
+wszystkie 9 rodzin dopuszczonych do bieżącej bramki.
 
 Nie oznacza to, że produkcyjny `Insider Feed` dostaje dwanaście efektów. Override
 realizera istnieje wyłącznie w lokalnym/testowym trybie operatorskim, jest
@@ -380,10 +382,10 @@ menu gracza. Po zakończeniu certyfikacji V1 zostaje związany tylko z finalnym
 
 | Podsprint | Zakres | Wynik |
 | --- | --- | --- |
-| `138.getway.0.1` | audit 12 rodzin i ich realnych call-site | zamknięta macierz rodzina → funkcja/store → bounded wejście/wyjście |
-| `138.getway.0.2` | wspólne okno aktywacji | API, eligibility, `expires_at`, cooldown, dedupe i snapshot bez heavy profile |
-| `138.getway.0.3` | wspólna prezentacja | przycisk, Secret Path overlay, cztery palety klanów, asset, SFX, timer i fallback |
-| `138.getway.0.4` | certyfikacja realizerów 12/12 | każdy realizer przechodzi przez V1 pilot na fixture/testowej bazie |
+| `138.getway.0.1` | **COMPLETE** — audit 12 rodzin i redukcja ryzyka | 9 rodzin w bramce, 3 jawnie `DEFERRED` |
+| `138.getway.0.2` | **LOCAL PASS / SERVER GATE PENDING** — wspólne okno aktywacji + light-read restoration | API, narrow capability projection, lekki scan/zoom snapshot, eligibility, expiry, cooldown i dedupe |
+| `138.getway.0.3` | **LOCAL PASS / VISUAL SERVER GATE PENDING** — wspólna prezentacja | przycisk `Insider Feed`, Secret Path overlay, cztery palety klanów, asset V1, istniejący SFX, lokalny timer i tekstowy fallback |
+| `138.getway.0.4` | certyfikacja realizerów 9/9 | każdy dopuszczony realizer przechodzi przez V1 pilot na fixture/testowej bazie |
 | `138.getway.0.5` | finalny vertical slice V1 | prawdziwy `Insider Feed` z `operation_speed`, 15 min i cooldownem |
 | `138.getway.0.6` | kontrolowany SERVER PASS | reload, duplikat, expiry, metryki, korekta schematu i `CONTRACT LOCK` |
 
@@ -405,8 +407,12 @@ Testowy realizer może zostać wybrany wyłącznie przez jawny tryb operatorski,
 allowlistę i konfigurację procesu testowego. Endpoint aktywacji ignoruje albo
 odrzuca `realizer`, `family`, `multiplier` i `parameters` przesłane przez klienta.
 Production default nie zna override'u i zawsze używa mapowania katalogowego.
+W czasie foundation publiczny runtime ma dodatkowo allowlistę kodów mocy;
+domyślnie dopuszcza wyłącznie pilot `insider_feed`. Aktywna część z katalogu,
+której kod nie jest jeszcze dopuszczony, zwraca `realizer_unavailable` i nie
+tworzy okna. Nie istnieje ciężki ani generyczny fallback.
 
-### Macierz certyfikacji 12/12
+### Macierz certyfikacji 9/9
 
 Każdy wiersz ma fixture wejściowe, obserwowalny wynik, disabled/no-op, bounded
 limit, idempotency i test braku heavy profile:
@@ -415,15 +421,12 @@ limit, idempotency i test braku heavy profile:
 | --- | --- | --- |
 | `operation_speed` | kilka aktywnych operacji o różnych czasach | zegary skracają się dokładnie raz |
 | `file_yield` | operacja gotowa do finalizacji | powstaje bounded liczba dodatkowych plików |
-| `file_value` | pliki gotowe do sprzedaży | existing price calculator uwzględnia bonus wejściowy |
 | `data_quality` | camera/audio/credentials o znanej jakości | quality/completeness rośnie w granicach 0–100 |
 | `hack_actions` | oznaczony cel z niewykonanymi kropkami | właściwe action dots są wykonane, security pozostaje |
 | `target_security` | oznaczony cel z wersjonowaną security map | bounded redukcja/wzmocnienie zachowuje CAS |
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
 | `scan_range` | cel wewnątrz i poza bazowym zasięgiem | tylko dozwolony zakres/bypass zmienia wynik |
 | `map_zoom` | znany bazowy zoom | snapshot/UI pokazuje bounded rozszerzenie |
-| `actor_visibility` | zestaw dozwolonych i niedozwolonych aktorów | filtr ujawnia tylko audience-safe rekordy |
-| `incident_decoy` | dwa małe klastry terytoriów | syntetyczne incydenty/NPC mają TTL i nie dają kar/nagród |
 | `territory_defense` | własny cel z security preset | ochrona zmienia się przez istniejący owner/CAS store |
 
 Testy `.0.4` nie czekają na odpowiadające rodzinom części ani profesje. Ich celem
@@ -434,7 +437,8 @@ decyzji produktowej dla 20 mocy.
 
 - wspólna ścieżka aktywacji działa end-to-end na V1;
 - wszystkie cztery palety, assety i fallback prezentacji przechodzą test;
-- 12/12 realizerów ma lokalny/integracyjny PASS na tym samym pilot harness;
+- 9/9 dopuszczonych realizerów ma lokalny/integracyjny PASS na tym samym pilot harness;
+- trzy odłożone rodziny są nieosiągalne z endpointu i operator harness;
 - finalny `Insider Feed` używa wyłącznie `operation_speed`;
 - nie istnieje client-selectable realizer ani możliwość podania mnożnika;
 - zero pełnych profile reads/writes i account scan;
@@ -452,8 +456,8 @@ parametry i wykonuje indywidualny test produktowy/E2E.
 | --- | --- | --- |
 | `.1.1` | Broker / V1 | **Insider Feed** — promocja pilota `.0.5/.0.6`, finalny tuning `operation_speed` |
 | `.1.2` | Architekt / V2 | **Wejście Serwisowe** — `hack_actions`, wszystkie kropki oznaczonego celu wykonane |
-| `.1.3` | Manipulator / V3 | **Fałszywy Obraz** — `incident_decoy`, służby na obrzeżach klastrów |
-| `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — `file_value` dla danych przejętych w oknie |
+| `.1.3` | Manipulator / V3 | **Fałszywy Obraz** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
+| `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — `data_quality`/`file_yield` dla danych przejętych w oknie |
 | `.1.5` | Kurator Algorytmu / V5 | **Predykcja Operacyjna** — podgląd i bounded `operation_risk`/`operation_speed` |
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
@@ -476,11 +480,11 @@ informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
-| `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — `incident_decoy`/fałszywe markery |
+| `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
 | `.3.2` | Wirusolog / P2 | **Glitch Injection** — bounded `target_security` reduction |
 | `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — skan niezależny od pozycji motocykla |
 | `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — miks `scan_range` i zakłóceń markerów |
-| `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `actor_visibility`, wszyscy dozwoleni aktorzy na mapie |
+| `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `operation_risk`/`target_security`, bez skanu aktorów |
 
 Siatka Widmo może dawać szeroki i chaotyczny rezultat, ale wyłącznie przez
 istniejące typy danych, markery, aktorów, incydenty i zabezpieczenia.
@@ -489,7 +493,7 @@ istniejące typy danych, markery, aktorów, incydenty i zabezpieczenia.
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
-| `.4.1` | Analizator / S1 | **Skan Integralności** — `actor_visibility` i stan ochrony własnych klastrów |
+| `.4.1` | Analizator / S1 | **Skan Integralności** — `target_security` i stan ochrony własnych celów |
 | `.4.2` | Obrońca / S2 | **Bastion** — czasowe `territory_defense` |
 | `.4.3` | Rekonstruktor / S3 | **Odtworzenie** — przywrócenie zabezpieczeń istniejącym presetem |
 | `.4.4` | Mediator / S4 | **Korytarz Zaufania** — większy `scan_range`/action range na własnym obszarze |
@@ -548,7 +552,8 @@ sprawdzamy raz dla wspólnego okna, a każdy podsprint testuje tylko swój mały
 
 ```text
 Secret Path-style activation shell:             PASS
-V1 pilot and realizer certification:             12/12 PASS
+V1 pilot and realizer certification:               9/9 PASS
+deferred high-risk families reachable:              0/3
 server-only override removed/disabled in prod:   PASS
 timer 15 min + cooldown + reload:                PASS
 VIREX decisions and visible effects:             5/5 or accepted DEFER

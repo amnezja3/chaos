@@ -2772,9 +2772,85 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   (heat/progi warning i incident) oraz `data_quality` (quality/completeness i
   obecny wpływ na cenę plików). Pakiet ma teraz 12 rodzin, które można łączyć z
   20 profesjami bez budowania 20 osobnych runtime'ów.
-- Dodano `138.getway.0`: wszystkie 12 gameplay realizerów najpierw przechodzi
+- Dodano `138.getway.0`: wszystkie dopuszczone gameplay realizery najpierw przechodzą
   przez jeden operatorski pilot VIREX V1 / `Insider Feed`. Testowy wybór
   realizera jest wyłącznie serwerowy i nie trafia do publicznego API. Po
   certyfikacji finalny V1 pozostaje związany z `operation_speed`, a kolejne
   profesje składają się z wyboru sprawdzonego realizera, wariantu wizualnego,
   parametrów balansu i indywidualnego E2E.
+
+# 2026-09-05 — 138.getway.0.1: zamrożenie call-site realizerów
+
+- Zakończono read-only audyt 12 rodzin supermocy przed budową wspólnego runtime.
+- Potwierdzono, że obecne adaptery `GhostAbilityRegistry` są no-op; sam katalog
+  nie stanowi implementacji mechaniki.
+- Siedem rodzin ma narrow store i wymaga małego, typowanego hooka, a dwie
+  (`scan_range`, `map_zoom`) wymagają najpierw lekkiej projekcji capability.
+  Trzy ryzykowne rodziny zostały później jawnie odłożone poza bramkę.
+- Zamrożono kolejność prerekwizytów dla bieżącego zakresu: capability/progression
+  projection, bounded store methods oraz cut-over lekkich ścieżek scan/zoom.
+  Narrow Ghost Exchange settlement, actor snapshot i synthetic incident contract
+  nie blokują gatewaya i nie mogą dostać ciężkiego fallbacku.
+- Artefakt: `doc/audits/ghostnetwork_superpower_realizer_callsite_audit.md`.
+- Następny checkpoint: `138.getway.0.2` — okno aktywacji i backendowy snapshot,
+  bez gameplay realizera i bez frontendu.
+
+## 2026-09-05 — 138.getway: nadrzędny cel light runtime
+
+- Po przeglądzie audytu ograniczono certyfikację z 12 do 9 rodzin.
+- `file_value`, `actor_visibility` i `incident_decoy` są `DEFERRED`; gateway nie
+  będzie przebudowywał ryzykownych settlementów, globalnego actor scanu ani
+  incident/NPC runtime dla efektu wizualnego.
+- `.0.2` rozszerzono o przywrócenie lekkich odczytów: narrow capability projection,
+  osobny lekki scan/zoom read path i usunięcie `list_profiles()` z mapowego
+  odczytu owner identity.
+- Zasada nadrzędna: efekt supermocy może zostać odłożony; heavy profile na hot
+  path nie może zostać zaakceptowany jako skrót implementacyjny.
+
+## 2026-09-05 — 138.getway.0.2: lokalna implementacja lekkiego foundation
+
+- Dodano osobną `user_capability_projection` dla `level`, `scan_range_bonus` i
+  `map_zoom_bonus`. Jest aktualizowana atomowo z chronionym zapisem profilu,
+  lecz runtime czyta ją po `username` bez hydratacji `profile_json`.
+- Branch skanu korzysta z `PlayerPositionStore` i projekcji capability; nie
+  wywołuje już `sync_session_profile()` w celu sprawdzenia zasięgu.
+- `/api/map/player-areas` nie wykonuje już `list_profiles()` ani per-owner full
+  reads. Geometria ma SQL `LIMIT 500`, intruzi `LIMIT 100`, a identity są
+  pobierane batchowo z projekcji. Foreign-area gate skanu ma twardy limit 1000.
+- Dodano trwały, idempotentny rekord `ghost_ability_windows` oraz lekki
+  `GET/POST /api/ghostnetwork/ability`: eligibility, 15 min, cooldown 1 h,
+  utrata części, replay i zakaz parametrów realizera od klienta.
+- Runtime pozostaje domyślnie wyłączony. Serwerowa allowlista dopuszcza na etapie
+  pilota tylko `insider_feed`; inne katalogowe moce kończą się
+  `realizer_unavailable`, bez ciężkiego fallbacku.
+- Dodano testy kontraktu okna, projekcji capability oraz statyczne guardy hot
+  path. Focused foundation/regression: `29/29 PASS`; mapa, terytoria i foreign
+  gate: `59/59 PASS`; `py_compile` zmienionych modułów: PASS. Status:
+  `138.getway.0.2 LOCAL PASS / SERVER GATE PENDING`; nie wykonano commita, pushu
+  ani deployu.
+
+## 2026-09-05 — 138.getway.0.3: wspólna prezentacja pilota LOCAL PASS
+
+- Snapshot okna mocy otrzymał mały kontrakt `presentation`: publiczną nazwę
+  `Insider Feed`, token koloru klanu, istniejący asset aktywnej części V1,
+  semantyczny opis, czas sceny 5000 ms i istniejący event SFX
+  `secret_path.scene_04`. Dane pochodzą z katalogu i aktywnej części; klient nie
+  może podać assetu, realizera ani parametrów mechaniki.
+- Mapa pokazuje przycisk mocy tylko dla uprawnionego pilota. Po potwierdzonej
+  aktywacji odgrywa wspólny overlay 4–6 s, stosuje paletę klanu, pokazuje asset
+  części i uruchamia lokalne odliczanie 15 minut. W aktywnym oknie mapa zachowuje
+  kolorystyczny efekt, a badge pokazuje nazwę, miniaturę i pozostały czas.
+- Timer nie odpytuje serwera co sekundę: bazuje na serwerowych `expires_at` i
+  `cooldown_until`; sieć jest używana przy boot, aktywacji i po końcu cooldownu.
+  Brakujący asset ukrywa wyłącznie obraz — opis tekstowy i kontrolka pozostają.
+- Komunikaty aktywacji, wygaśnięcia i błędu korzystają z istniejącego System
+  Messaging. Nie dodano nowego assetu, audio, workera, kolejki ani odczytu
+  ciężkiego profilu.
+- Funkcjonalny test GET/POST potwierdza ścieżkę identity/capability projection i
+  brak `profile_full_read` oraz `account_scan`. Testy prezentacji, okna i lekkiego
+  read path: `19/19 PASS`; szersza regresja foundation/map/territory:
+  `74/74 PASS`; składnia JS oraz `py_compile`: PASS.
+- Status: `138.getway.0.3 LOCAL PASS / VISUAL SERVER GATE PENDING`. Przed `.0.4`
+  potrzebny jest krótki test przeglądarkowy: widoczność przycisku, overlay/SFX,
+  kolor VIREX, asset V1, timer, reload, expiry i brak błędów konsoli. Bez commita,
+  pushu i deployu.
