@@ -19,6 +19,9 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
             "ghostNetworkSuiteInstalledInProfile",
             "GhostNetwork Suite nie jest zainstalowany",
             "messageShown: true",
+            "function blacknetCtaPresentation",
+            'action !== "none"',
+            'label: enabled ? String(signal?.cta || "OTWORZ") : "READ ONLY"',
         ):
             self.assertIn(marker, script)
 

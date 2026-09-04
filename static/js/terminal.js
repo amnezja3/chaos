@@ -9838,6 +9838,16 @@ function createBrowser() {
         }
     };
 
+    function blacknetCtaPresentation(signal = {}) {
+        const action = String(signal?.cta_action || "").trim();
+        const enabled = Boolean(action && action !== "none");
+        return {
+            action,
+            enabled,
+            label: enabled ? String(signal?.cta || "OTWORZ") : "READ ONLY"
+        };
+    }
+
     const renderBlackNet = () => {
         if (activeBrowserTab !== "blacknet") return;
         updateBrowserNarrowMode();
@@ -9858,8 +9868,7 @@ function createBrowser() {
         if (featured?.id) {
             activeBlacknetSignalId = featured.id;
         }
-        const featuredCtaAction = String(featured?.cta_action || "").trim();
-        const featuredCtaEnabled = Boolean(featuredCtaAction);
+        const featuredCta = blacknetCtaPresentation(featured || {});
         results.innerHTML = `
             <main class="blacknet-stage tone-${escapeHTML(featured?.tone || "lime")}">
                 <div class="bn-noise"></div>
@@ -9890,8 +9899,8 @@ function createBrowser() {
                             </div>
                             <div class="bn-visual">${blacknetRadarSvg(featured)}</div>
                             <div class="bn-timer"><span class="bn-hourglass">⌛</span><small>SYGNAL WAZNY</small><strong>${escapeHTML(featured.timer)}</strong></div>
-                            <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}" data-blacknet-cta-action="${escapeHTML(featuredCtaAction)}" ${featuredCtaEnabled ? "" : "disabled"}>
-                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? "SYGNAL PRZECHWYCONY" : escapeHTML(featured.cta)}
+                            <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}" data-blacknet-cta-action="${escapeHTML(featuredCta.action)}" ${featuredCta.enabled ? "" : "disabled"}>
+                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? "SYGNAL PRZECHWYCONY" : escapeHTML(featuredCta.label)}
                             </button>
                         </div>
                     </section>

@@ -6,6 +6,24 @@ const vm = require("vm");
 
 const terminal = fs.readFileSync("static/js/terminal.js", "utf8");
 const styles = fs.readFileSync("static/css/style.css", "utf8");
+const ctaPresentationStart = terminal.indexOf("function blacknetCtaPresentation");
+const ctaPresentationEnd = terminal.indexOf("const renderBlackNet", ctaPresentationStart);
+assert.ok(ctaPresentationStart >= 0 && ctaPresentationEnd > ctaPresentationStart);
+const ctaPresentationSandbox = { Boolean, String };
+vm.createContext(ctaPresentationSandbox);
+vm.runInContext(terminal.slice(ctaPresentationStart, ctaPresentationEnd), ctaPresentationSandbox);
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(ctaPresentationSandbox.blacknetCtaPresentation({ cta: "OTWORZ", cta_action: "" }))),
+    { action: "", enabled: false, label: "READ ONLY" }
+);
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(ctaPresentationSandbox.blacknetCtaPresentation({ cta: "OTWORZ", cta_action: "none" }))),
+    { action: "none", enabled: false, label: "READ ONLY" }
+);
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(ctaPresentationSandbox.blacknetCtaPresentation({ cta: "OTWORZ", cta_action: "show_ghostnetwork_part" }))),
+    { action: "show_ghostnetwork_part", enabled: true, label: "OTWORZ" }
+);
 const actionStart = terminal.indexOf("function ghostnetworkSuiteOpaqueAction");
 const actionEnd = terminal.indexOf("function openGhostNetworkSuiteMap", actionStart);
 assert.ok(actionStart >= 0 && actionEnd > actionStart);
