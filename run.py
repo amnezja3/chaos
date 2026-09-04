@@ -16005,7 +16005,8 @@ def get_profile_profession(profile):
     operator = profile.get("operator")
     operator_profession = operator.get("profession") if isinstance(operator, dict) else ""
     return (
-        profile.get("profession")
+        profile.get("ghost_profession")
+        or profile.get("profession")
         or profile.get("role")
         or profile_fraction_mapping(profile).get("role")
         or operator_profession
@@ -16045,6 +16046,89 @@ def get_profile_profession_display(profile):
         if 1 <= slot <= len(clan_professions):
             return str(clan_professions[slot - 1].get("name") or raw_profession)
     return raw_profession
+
+
+def build_admin_profession_contract(profile, requested_code=""):
+    """Return clan-scoped profession choices and an optional guarded update."""
+    profile = profile if isinstance(profile, dict) else {}
+    identity = normalize_ghostnetwork_profile_identity(profile)
+    clan_code = str(identity.get("clan_code") or "").strip()
+    professions = sorted(
+        (
+            item for item in get_catalog().get("professions", [])
+            if isinstance(item, dict) and item.get("clan_code") == clan_code
+        ),
+        key=lambda item: int(item.get("sort_order") or 0),
+    )
+    if not clan_code or len(professions) != 5:
+        raise ValueError("player_clan_not_configured")
+
+    current_code = str(identity.get("profession_code") or "").strip()
+    raw_profession = str(
+        get_profile_profession(profile)
+        or profile.get("ghost_profession")
+        or ""
+    ).strip()
+    if not current_code and raw_profession.isdigit():
+        current_slot = int(raw_profession)
+        if 1 <= current_slot <= len(professions):
+            current_code = str(professions[current_slot - 1].get("code") or "")
+
+    choices = [
+        {
+            "code": str(item.get("code") or ""),
+            "name": str(item.get("name") or ""),
+            "slot": index,
+        }
+        for index, item in enumerate(professions, start=1)
+    ]
+    requested_code = str(requested_code or "").strip()
+    if not requested_code:
+        return {
+            "clan_code": clan_code,
+            "current_code": current_code,
+            "choices": choices,
+            "selected": next(
+                (item for item in choices if item["code"] == current_code), None
+            ),
+            "updates": None,
+        }
+
+    selected = next(
+        (item for item in choices if item["code"] == requested_code), None
+    )
+    if not selected:
+        raise ValueError("profession_not_available_for_player_clan")
+
+    fraction = dict(profile.get("fraction") or {})
+    fraction_id_by_clan = {
+        "sentinel_order": "1",
+        "echo_freedom": "2",
+        "virex": "3",
+        "phantom_mesh": "4",
+    }
+    fraction_id = str(
+        fraction.get("id") or fraction_id_by_clan.get(clan_code) or ""
+    ).strip()
+    fraction["id"] = fraction_id
+    fraction["name"] = get_profile_clan(profile)
+    fraction["role"] = str(selected["slot"])
+    updates = {
+        "ghost_profession": selected["code"],
+        "profession": selected["code"],
+        "fraction": fraction,
+    }
+    if fraction_id:
+        updates["avatar"] = (
+            f"/static/images/avatar-frakcja-{fraction_id}-player-{selected['slot']}.png"
+        )
+    return {
+        "clan_code": clan_code,
+        "current_code": current_code,
+        "choices": choices,
+        "selected": selected,
+        "updates": updates,
+    }
 
 
 def get_pro_system_tool(tool_id):
@@ -20441,6 +20525,12 @@ def build_admin_user_snapshot(profile):
     tools = list(files.get("tools", []) or [])
     project_files = list(files.get("projects", []) or [])
     aimed_target = profile.get("aimed_target", {}) or {}
+    try:
+        profession_contract = build_admin_profession_contract(profile)
+    except ValueError:
+        profession_contract = {
+            "clan_code": "", "current_code": "", "choices": [], "selected": None,
+        }
 
     return {
         "username": profile.get("username"),
@@ -20448,6 +20538,8 @@ def build_admin_user_snapshot(profile):
         "email": profile.get("email", ""),
         "clan": get_profile_clan(profile),
         "fraction": profile.get("fraction", {}),
+        "profession": profession_contract.get("selected"),
+        "profession_choices": profession_contract.get("choices", []),
         "level": profile.get("level"),
         "hackcoins": profile.get("hackcoins"),
         "respect": profile.get("respect"),
@@ -20508,6 +20600,29 @@ def render_admin_user_card(user):
     hacked_count = len(user.get("hacked_targets") or [])
     own_security_on = sum(1 for value in (user.get("own_security") or {}).values() if value is True)
     target_security_on = sum(1 for value in (user.get("aimed_target_security") or {}).values() if value is True)
+    profession = user.get("profession") or {}
+    profession_name = html.escape(str(profession.get("name") or "brak"))
+    profession_options = "".join(
+        '<option value="{code}"{selected}>{name}</option>'.format(
+            code=html.escape(str(item.get("code") or ""), quote=True),
+            name=html.escape(str(item.get("name") or "")),
+            selected=(" selected" if item.get("code") == profession.get("code") else ""),
+        )
+        for item in (user.get("profession_choices") or [])
+    )
+    profession_form = (
+        f"""
+        <form class="profession-form" method="post" action="/api/admin/users/profession">
+          <input type="hidden" name="username" value="{html.escape(str(user.get('username') or ''), quote=True)}">
+          <input type="hidden" name="_session_generation" value="{{session_generation}}">
+          <label>Profesja
+            <select name="profession_code">{profession_options}</select>
+          </label>
+          <button type="submit">Zmień profesję</button>
+        </form>
+        """
+        if profession_options else "<p><b>Profesja:</b> brak skonfigurowanego klanu</p>"
+    )
 
     return f"""
     <details class="user-card">
@@ -20515,10 +20630,17 @@ def render_admin_user_card(user):
         <span class="user-main">{username}</span>
         <span>{nick}</span>
         <span>{clan}</span>
+        <span>{profession_name}</span>
         <span>LVL {user.get("level")}</span>
         <span>HC {user.get("hackcoins")}</span>
       </summary>
       <div class="grid">
+        <section>
+          <h3>Tożsamość GhostNetwork</h3>
+          <p><b>Klan:</b> {clan}</p>
+          <p><b>Aktualna profesja:</b> {profession_name}</p>
+          {profession_form}
+        </section>
         <section>
           <h3>Celownik</h3>
           <p><b>Cel:</b> {aimed_label}</p>
@@ -21561,6 +21683,63 @@ def api_admin_dashboard():
     return jsonify({"success": True, "state": build_admin_dashboard_state()})
 
 
+@app.route("/api/admin/users/profession", methods=["POST"])
+def api_admin_user_profession():
+    if not require_dev_admin():
+        return jsonify({"success": False, "error": "admin_required"}), 403
+    payload = request.get_json(silent=True) if request.is_json else request.form
+    payload = payload or {}
+    username = str(payload.get("username") or "").strip()
+    profession_code = str(payload.get("profession_code") or "").strip()
+    if not username or not profession_code:
+        return jsonify({"success": False, "error": "missing_profession_selection"}), 400
+    record = user_store.get_profile_with_revision(username)
+    if not isinstance(record, dict):
+        return jsonify({"success": False, "error": "player_not_found"}), 404
+    if record.get("state") != "valid" or not isinstance(record.get("profile"), dict):
+        return jsonify({"success": False, "error": "player_profile_recovery_required"}), 409
+    profile = record["profile"]
+    try:
+        contract = build_admin_profession_contract(profile, profession_code)
+        candidate = dict(profile)
+        candidate.update(contract["updates"])
+        user_store.save_profile_guarded(
+            candidate,
+            expected_revision=int(record.get("profile_revision") or 0),
+            source="admin.profession_change",
+        )
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except (
+        ProfileWriteConflict,
+        ProfilePrecommitRejected,
+        ProfileRecoveryRequired,
+        ProfileValidationError,
+        ProfileDestructiveWriteRejected,
+    ) as exc:
+        return jsonify({
+            "success": False,
+            "error": "profession_update_rejected",
+            "reason": exc.__class__.__name__,
+        }), 409
+    selected = contract["selected"]
+    response = {
+        "success": True,
+        "username": username,
+        "profession_code": selected["code"],
+        "profession_name": selected["name"],
+        "message": f"Profesja gracza {username} została zmieniona na {selected['name']}.",
+    }
+    if request.is_json:
+        return jsonify(response)
+    generation = session_generation_client_context()
+    return redirect(url_for(
+        "dev_dashboard",
+        _session_generation=generation["query_token"],
+        profession_updated=username,
+    ))
+
+
 @app.route("/admin")
 @app.route("/dev")
 def dev_dashboard():
@@ -21570,7 +21749,12 @@ def dev_dashboard():
         return jsonify({"success": False, "message": "Dev dashboard wymaga konta admin."}), 403
 
     state = build_admin_dashboard_state()
-    user_cards = "\n".join(render_admin_user_card(user) for user in state["users"])
+    generation = session_generation_client_context()
+    form_generation = html.escape(generation["generation"], quote=True)
+    user_cards = "\n".join(
+        render_admin_user_card(user).replace("{session_generation}", form_generation)
+        for user in state["users"]
+    )
     areas_count = len(state.get("areas") or [])
     vulnerabilities_count = len(state.get("vulnerabilities") or [])
     return f"""
@@ -21592,10 +21776,14 @@ def dev_dashboard():
     .stats {{ display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }}
     .stat {{ border: 1px solid rgba(125,255,72,.5); background: rgba(29,185,84,.08); padding: 12px; }}
     .user-card {{ border: 1px solid rgba(125,255,72,.55); background: rgba(0,0,0,.35); margin: 12px 0; }}
-    .user-card > summary {{ cursor: pointer; display: grid; grid-template-columns: 1.2fr 1fr 1fr .6fr .7fr; gap: 10px; padding: 12px; background: rgba(29,185,84,.12); color: #eaffde; }}
+    .user-card > summary {{ cursor: pointer; display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr .6fr .7fr; gap: 10px; padding: 12px; background: rgba(29,185,84,.12); color: #eaffde; }}
     .user-main {{ color: #b8ff28; font-weight: 800; }}
     .grid {{ display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 12px; padding: 12px; }}
     section {{ border: 1px solid rgba(125,255,72,.28); padding: 12px; background: rgba(0,0,0,.25); }}
+    .profession-form {{ display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 12px; }}
+    .profession-form label {{ display: grid; gap: 5px; flex: 1 1 220px; }}
+    .profession-form select, .profession-form button {{ min-height: 36px; border: 1px solid #7dff48; background: #020402; color: #dfffcf; font: inherit; padding: 6px 9px; }}
+    .profession-form button {{ cursor: pointer; color: #b8ff28; }}
     details details {{ margin: 0 12px 12px; border-top: 1px solid rgba(125,255,72,.25); padding-top: 10px; }}
     @media (max-width: 900px) {{
       .stats, .grid, .user-card > summary {{ grid-template-columns: 1fr; }}
