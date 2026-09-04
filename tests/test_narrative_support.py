@@ -137,6 +137,85 @@ class NarrativeSupportLayerTest(unittest.TestCase):
             task, package, accepted, parse_and_validate_ollama_content
         ))
 
+    def test_part_activated_fallback_covers_every_production_route(self):
+        routes = (
+            ("blacknet", "public", False),
+            ("blacknet", "clan", False),
+            ("blacknet", "owner", True),
+            ("googleplex_news", "public", False),
+        )
+        layer = NarrativeSupportLayer()
+        for medium, audience, include_part in routes:
+            with self.subTest(medium=medium, audience=audience):
+                task = self.task(
+                    medium=medium, audience=audience, include_part=include_part
+                )
+                task.update({
+                    "source_event_id": f"event-activation-{medium}-{audience}",
+                    "task_variant": (
+                        "googleplex_world_dispatch"
+                        if medium == "googleplex_news" else "part_activated"
+                    ),
+                    "narrative_intent": "ghost_part_activation",
+                    "validation": {
+                        "event_family": "part_activated",
+                        "significance": "high",
+                    },
+                    "facts": [attach_semantic_content(
+                        {
+                            "fact_id": f"fact:activation:{medium}:{audience}",
+                            "fact_type": "part_activated",
+                        },
+                        {
+                            "statement": (
+                                "Element GhostNetwork został aktywowany przez "
+                                "prawidłowe otoczenie terytorium."
+                            ),
+                            "entities": (
+                                [{"role": "miejsce", "kind": "target", "label": "Zara"}]
+                                + ([{
+                                    "role": "element sieci", "kind": "part",
+                                    "label": "Accord Relay",
+                                }] if include_part else [])
+                            ),
+                        },
+                    )],
+                })
+                task = assign_ollama_task_policy(task)
+                package = build_ollama_task_package(task)
+                output = {
+                    "title": "Aktywacja GhostNetwork",
+                    "body": (
+                        "Element GhostNetwork został aktywowany przez prawidłowe "
+                        "otoczenie terytorium."
+                    ),
+                    "tone": "warning",
+                    "fact_refs": ["f01"],
+                    "cta_ref": None,
+                }
+                if medium == "googleplex_news":
+                    output["asset_ref"] = package["allowed_asset_refs"][0]
+                rejected = parse_and_validate_ollama_content(
+                    json.dumps(output, ensure_ascii=False), package
+                )
+                self.assertEqual(rejected["status"], "rejected", rejected)
+
+                first = layer.apply(
+                    task, package, rejected, parse_and_validate_ollama_content
+                )
+                second = layer.apply(
+                    task, package, rejected, parse_and_validate_ollama_content
+                )
+
+                self.assertIsNotNone(first)
+                self.assertEqual(first["content"], second["content"])
+                self.assertEqual(first["validation"]["status"], "accepted")
+                self.assertIn("Zara", first["validation"]["output"]["body"])
+                if audience == "owner":
+                    self.assertIn(
+                        "Accord Relay", first["validation"]["output"]["body"]
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

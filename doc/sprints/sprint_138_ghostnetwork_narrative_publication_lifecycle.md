@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 LOCAL PASS — SERVER GATE REQUIRED`
+Status: `138.1 SUPPORT PATCH LOCAL PASS — SERVER REPLAY REQUIRED`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -139,6 +139,26 @@ git diff --check: PASS
 138.1 wymaga teraz wdrożenia i testu serwerowego. 138.2 pozostaje zamrożony do
 potwierdzenia migracji, dwóch następujących po sobie stanów jednego threadu,
 TTL/read-model audit oraz ręcznego kliknięcia CTA.
+
+### Produkcyjna aktywacja i poprawka Support Layer — 2026-09-04
+
+Pierwszy event `part_activated` po wdrożeniu utworzył cztery taski v10. Rekord
+`blacknet/owner` przeszedł model validation i został opublikowany z poprawnym
+threadem, TTL, significance, priority, presentation family oraz canonical CTA.
+Pozostałe trasy (`blacknet/clan`, `blacknet/public`,
+`googleplex_news/public`) zakończyły się `voice_semantic_detail_missing`.
+
+Przyczyną nie był lifecycle ani output firewall. Model pominął nazwę obiektu,
+a konfiguracja Narrative Support Layer zawierała fallback wyłącznie dla
+`part_discovered`. Dodano audience-safe, deterministyczne warianty
+`part_activated` dla wszystkich czterech tras. Public/clan/Googleplex renderują
+wyłącznie canonical `{location}`, owner może dodatkowo użyć canonical
+`{part_name}`. Żadna wartość nie pochodzi z tekstu modelu.
+
+Lokalna walidacja poprawki: 76 testów Support Layer, workera, output safety,
+cutover, generation audit i policy — PASS; `git diff --check` — PASS. Historyczny
+event może zostać sprawdzony read-only przez support replay, bez ponownej
+aktywacji części. Bramka serwerowa pozostaje otwarta do wdrożenia poprawki.
 
 ## Fundament odziedziczony z 137.pre.1 — 2026-09-03
 

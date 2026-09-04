@@ -33,6 +33,32 @@ fallbacks:
           - "...przy obiekcie {location} ujawniono ukryty element GhostNetwork — {part_name}."
           - "...przy obiekcie {location} element GhostNetwork wyszedł na jaw: {part_name}."
 
+    part_activated:
+      public:
+        tone: warning
+        title:
+          - "PRZECHWYT // AKTYWNY ELEMENT"
+          - "PRZECHWYT // WĘZEŁ AKTYWNY"
+        body:
+          - "...przy obiekcie {location} element GhostNetwork przeszedł w stan aktywny."
+          - "...aktywacja elementu GhostNetwork przy obiekcie {location} została potwierdzona."
+      clan:
+        tone: clan
+        title:
+          - "PRZECHWYT // AKTYWNY ELEMENT"
+          - "PRZECHWYT // WĘZEŁ AKTYWNY"
+        body:
+          - "...przy obiekcie {location} element GhostNetwork przeszedł w stan aktywny."
+          - "...aktywacja elementu GhostNetwork przy obiekcie {location} została potwierdzona."
+      owner:
+        tone: warning
+        title:
+          - "PRZECHWYT // AKTYWACJA POTWIERDZONA"
+          - "PRZECHWYT // ELEMENT AKTYWNY"
+        body:
+          - "...{part_name} został aktywowany przy obiekcie {location}."
+          - "...przy obiekcie {location} aktywowano element GhostNetwork: {part_name}."
+
   googleplex_news:
     part_discovered:
       public:
@@ -43,3 +69,13 @@ fallbacks:
         body:
           - "Przy obiekcie {location} ujawniono wcześniej ukryty element sieci GhostNetwork."
           - "W pobliżu obiektu {location} odkryto ukryty element sieci GhostNetwork."
+
+    part_activated:
+      public:
+        tone: info
+        title:
+          - "Aktywowano element GhostNetwork"
+          - "Potwierdzono aktywację GhostNetwork"
+        body:
+          - "Przy obiekcie {location} aktywowano element sieci GhostNetwork."
+          - "Element sieci GhostNetwork przy obiekcie {location} osiągnął stan aktywny."

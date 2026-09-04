@@ -2495,3 +2495,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `git diff --check` PASS.
 - Status: `138.1 LOCAL PASS — SERVER GATE REQUIRED`. Nie wykonano commita ani
   push zgodnie z decyzją operatora; 138.2 czeka na bramkę serwerową 138.1.
+
+## 2026-09-04 — Sprint 138.1: produkcyjny lifecycle PASS, luka activation support
+
+- Produkcyjny `ghost.part_activated` utworzył komplet czterech tasków v10.
+  `blacknet/owner` został opublikowany jako active record z wersją stanu 951,
+  24-godzinnym TTL, `ghost_activation` i canonical CTA.
+- BlackNet clan/public oraz Googleplex public zostały odrzucone z
+  `voice_semantic_detail_missing`: model nie wykorzystał dostępnej nazwy obiektu.
+  Pipeline prawidłowo nie publikował zbyt ogólnej narracji.
+- Ustalono lukę konfiguracji: Narrative Support Layer obejmował tylko
+  `part_discovered`. Lokalnie dodano deterministyczne, audience-safe fallbacki
+  `part_activated` dla czterech produkcyjnych tras, korzystające wyłącznie z
+  canonical `location`, a dla ownera również `part_name`.
+- Walidacja poprawki: 76 testów Support/worker/output-safety/cutover/audit/policy
+  PASS oraz `git diff --check` PASS. Zmiany pozostają bez commita i pushu;
+  wymagany jest server replay eventu `event_b8269b29bb9c70b8`.
