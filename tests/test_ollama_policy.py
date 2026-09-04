@@ -104,10 +104,10 @@ class OllamaPolicyTest(unittest.TestCase):
             "narrative_intent", "significance", "tone_hint",
         })
         self.assertEqual(model_input["output_limits"], {
-            "title_chars": 48, "body_chars": 220,
+            "title_chars": 72, "body_chars": 220,
             "fact_refs": 4, "json_only": True,
         })
-        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 48)
+        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 72)
         self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 220)
         self.assertNotIn("thread_context", model_input)
         encoded = package["messages"][1]["content"]
@@ -372,6 +372,48 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(set(result["errors"]), {
             "voice_body_prefix_mismatch", "voice_title_prefix_mismatch",
         })
+
+    def test_active_ghostnetwork_rejects_high_confidence_text_fragments(self):
+        task = self.task()
+        task["facts"] = [attach_semantic_content(
+            {"fact_id": "fact-1", "fact_type": "part_activated"},
+            {
+                "statement": (
+                    "Element GhostNetwork został aktywowany przez prawidłowe "
+                    "otoczenie terytorium."
+                ),
+                "entities": [{
+                    "role": "miejsce", "kind": "target", "label": "POI-18D194",
+                }],
+                "location": {"city": "Hartford"},
+            },
+        )]
+        task = assign_ollama_task_policy(task)
+        package = build_ollama_task_package(task)
+        cases = (
+            ({
+                "title": "PRZECHWYT // Element GhostNetwork został aktywow",
+                "body": "...element GhostNetwork aktywowano w Hartford.",
+            }, "voice_title_trailing_fragment"),
+            ({
+                "title": "PRZECHWYT // Element GhostNetwork aktywowany w z",
+                "body": "...element GhostNetwork aktywowano w Hartford.",
+            }, "voice_title_trailing_fragment"),
+            ({
+                "title": "PRZECHWYT // AKTYWNY ELEMENT",
+                "body": "...wane przez prawidłowe otoczenie terytorium w Hartford.",
+            }, "voice_body_leading_fragment"),
+        )
+        for copy, expected_error in cases:
+            with self.subTest(expected_error=expected_error, copy=copy):
+                result = parse_and_validate_ollama_content(json.dumps({
+                    **copy,
+                    "tone": "warning",
+                    "fact_refs": ["f01"],
+                    "cta_ref": None,
+                }, ensure_ascii=False), package)
+                self.assertEqual(result["status"], "rejected", result)
+                self.assertIn(expected_error, result["errors"])
 
     def test_every_ghostnetwork_event_policy_medium_has_active_generation_policy(self):
         for event_type, event_policy in GHOST_EVENT_POLICY.items():

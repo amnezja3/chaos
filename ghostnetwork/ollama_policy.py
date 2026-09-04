@@ -104,6 +104,9 @@ GHOSTNETWORK_V2_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v9",
     "ghostnetwork-googleplex-prompt-v9",
     "ghostsignal-prompt-v9",
+    "ghostnetwork-event-prompt-v10",
+    "ghostnetwork-googleplex-prompt-v10",
+    "ghostsignal-prompt-v10",
     "ghostnetwork-event-prompt-v2",
     "ghostnetwork-googleplex-prompt-v2",
     "ghostsignal-prompt-v2",
@@ -133,6 +136,9 @@ GHOSTNETWORK_MINIMAL_PROMPT_VERSIONS = frozenset({
     "ghostnetwork-event-prompt-v9",
     "ghostnetwork-googleplex-prompt-v9",
     "ghostsignal-prompt-v9",
+    "ghostnetwork-event-prompt-v10",
+    "ghostnetwork-googleplex-prompt-v10",
+    "ghostsignal-prompt-v10",
 })
 GHOSTNETWORK_TONE_HINTS = {
     "low": "info",
@@ -462,6 +468,44 @@ def _canonical_voice_quality_errors(body, voice_contract):
     return errors
 
 
+_DANGLING_POLISH_WORDS = frozenset({
+    "a", "ale", "bez", "bo", "by", "czy", "dla", "do", "i", "jak",
+    "na", "nad", "od", "o", "oraz", "po", "pod", "przy", "przez",
+    "w", "we", "z", "za", "ze",
+})
+_ORPHANED_POLISH_SUFFIX_RE = re.compile(
+    r"^\.\.\.\s*(?:nego|nej|nym|nych|wana|wane|wani|wany|weni)\b",
+    re.IGNORECASE,
+)
+
+
+def _ghostnetwork_voice_integrity_errors(title, body, model_input):
+    """Reject high-confidence fragments left by constrained local generation."""
+    errors = []
+    visible = json.dumps(
+        (model_input or {}).get("semantic_facts") or [], ensure_ascii=False,
+    )
+    visible_tokens = set(_normalized_narrative_text(visible).split())
+    for field_name, value in (("title", title), ("body", body)):
+        normalized = _normalized_narrative_text(value)
+        tokens = normalized.split()
+        if not tokens:
+            continue
+        trailing = tokens[-1]
+        if trailing in _DANGLING_POLISH_WORDS:
+            errors.append(f"voice_{field_name}_trailing_fragment")
+            continue
+        if (
+            len(trailing) >= 6
+            and str(value or "").rstrip()[-1:].isalnum()
+            and any(token.startswith(trailing) and token != trailing for token in visible_tokens)
+        ):
+            errors.append(f"voice_{field_name}_trailing_fragment")
+    if isinstance(body, str) and _ORPHANED_POLISH_SUFFIX_RE.search(body):
+        errors.append("voice_body_leading_fragment")
+    return errors
+
+
 _PRODUCT_FILLER_PREFIX_RE = re.compile(
     r"^\s*(?:(?:w\s+roku\s+2108|w\s+globalnym\s+zasi(?:e|ę)gu)\s*,?\s*)+",
     re.IGNORECASE,
@@ -629,7 +673,7 @@ def _generation_limits_for_policy(policy):
             }
             and policy.target_medium == "blacknet"
         ):
-            return {"title": 48, "body": 220, "refs": 4}
+            return {"title": 72, "body": 220, "refs": 4}
         return GHOSTNETWORK_OUTPUT_LIMITS.get(policy.target_medium)
     return GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
 
@@ -1193,6 +1237,18 @@ def parse_and_validate_ollama_content(content, task_package):
     ):
         errors.append("voice_unsupported_relation")
     errors.extend(_canonical_voice_quality_errors(body, voice_contract))
+    if (
+        policy
+        and policy.source_scope == "ghostnetwork"
+        and policy.prompt_version in {
+            GHOSTNETWORK_EVENT_PROMPT_VERSION,
+            GHOSTNETWORK_GOOGLEPLEX_PROMPT_VERSION,
+            GHOSTNETWORK_SIGNAL_PROMPT_VERSION,
+        }
+    ):
+        errors.extend(_ghostnetwork_voice_integrity_errors(
+            title, body, task_package.get("model_input") or {},
+        ))
     if editorial_contract:
         if isinstance(body, str) and len(body.split()) > int(editorial_contract.get("body_words") or 9999):
             errors.append("slot_copy_budget_exceeded")

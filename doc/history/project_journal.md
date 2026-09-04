@@ -2565,3 +2565,13 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Lokalna regresja E2E/generation/lifecycle/publication/runtime/cutover:
   `49 tests / PASS`; Python syntax i `git diff --check` PASS. Status pierwszej
   bramki: `138.2 E2E AUDIT LOCAL PASS — SERVER FAMILY GATES REQUIRED`.
+- Produkcyjny `part_activated` przeszedł techniczne E2E 4/4, lecz ręczny voice
+  gate wykrył trzy niepełne teksty zaakceptowane przez v10. Dwa tytuły miały
+  dokładnie 48 znaków i kończyły się `aktywow` / `w z`; publiczne body zaczęło
+  się od osieroconego `...wane`.
+- Aktywne prompty GhostNetwork/Googleplex/GhostSignal podniesiono do v11, v10
+  zachowano jako legacy-compatible. BlackNet title budget wynosi teraz 72,
+  validator odrzuca wysokiej pewności trailing/leading fragments, a istniejący
+  Support Layer renderuje bezpieczny fallback. Fałszywy alarm dla poprawnej
+  nazwy `Ghost` został wyeliminowany. Regresja policy/worker/support/output
+  safety/E2E/publication/cutover: `107 tests / PASS`.

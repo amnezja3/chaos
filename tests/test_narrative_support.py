@@ -216,6 +216,51 @@ class NarrativeSupportLayerTest(unittest.TestCase):
                         "Accord Relay", first["validation"]["output"]["body"]
                     )
 
+    def test_truncated_activation_copy_uses_blacknet_full_fallback(self):
+        task = self.task(medium="blacknet", audience="public")
+        task.update({
+            "source_event_id": "event-activation-truncated",
+            "task_variant": "part_activated",
+            "narrative_intent": "ghost_part_activation",
+            "validation": {
+                "event_family": "part_activated",
+                "significance": "high",
+            },
+            "facts": [attach_semantic_content(
+                {"fact_id": "fact:activation:truncated", "fact_type": "part_activated"},
+                {
+                    "statement": (
+                        "Element GhostNetwork został aktywowany przez prawidłowe "
+                        "otoczenie terytorium."
+                    ),
+                    "entities": [{
+                        "role": "miejsce", "kind": "target", "label": "POI-18D194",
+                    }],
+                    "location": {"city": "Hartford"},
+                },
+            )],
+        })
+        task = assign_ollama_task_policy(task)
+        package = build_ollama_task_package(task)
+        rejected = parse_and_validate_ollama_content(json.dumps({
+            "title": "PRZECHWYT // Element GhostNetwork został aktywow",
+            "body": "...wane przez prawidłowe otoczenie terytorium w Hartford.",
+            "tone": "warning",
+            "fact_refs": ["f01"],
+            "cta_ref": None,
+        }, ensure_ascii=False), package)
+
+        self.assertEqual(rejected["status"], "rejected", rejected)
+        self.assertIn("voice_title_trailing_fragment", rejected["errors"])
+        self.assertIn("voice_body_leading_fragment", rejected["errors"])
+        supported = NarrativeSupportLayer().apply(
+            task, package, rejected, parse_and_validate_ollama_content
+        )
+        self.assertIsNotNone(supported)
+        self.assertEqual(supported["mode"], "full")
+        self.assertEqual(supported["validation"]["status"], "accepted")
+        self.assertIn("POI-18D194", supported["validation"]["output"]["body"])
+
 
 if __name__ == "__main__":
     unittest.main()

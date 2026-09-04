@@ -15,17 +15,24 @@ from scripts.audit_narrative_e2e import build_report
 
 
 class AcceptedClient:
+    def __init__(self):
+        self.sequence = 0
+
     def verify(self):
         return {"ok": True, "errors": []}
 
     def generate(self, package, policy):
+        self.sequence += 1
         return OllamaGenerationResult(
             model=policy.model_name,
             model_digest=policy.model_digest,
             runtime_version="test",
             content=json.dumps({
                 "title": "PRZECHWYT // AKTYWNY ELEMENT",
-                "body": "...element GhostNetwork jest aktywny. Sygnał zanika.",
+                "body": (
+                    "...element GhostNetwork jest aktywny. "
+                    f"Sygnał {self.sequence} zanika."
+                ),
                 "tone": "warning",
                 "fact_refs": [next(iter(package["fact_refs"]))],
                 "cta_ref": None,
@@ -110,12 +117,23 @@ class NarrativeE2EAuditTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def publish(self):
-        result = NarrativePublicationService(
+        publisher = NarrativePublicationService(
             repository=self.repo,
             worker_id="e2e-audit-publisher",
-        ).process_once()
-        self.assertEqual(result["result"], "published", result)
-        return result
+        )
+        processed = []
+        for _ in range(20):
+            result = publisher.process_once()
+            processed.append(result)
+            if (result.get("record") or {}).get("task_id") == self.task["outbox_id"]:
+                break
+        self.assertEqual(
+            (processed[-1].get("record") or {}).get("task_id"),
+            self.task["outbox_id"],
+            processed,
+        )
+        self.assertEqual(processed[-1]["result"], "published")
+        return processed[-1]
 
     def test_complete_task_to_medium_lineage_passes(self):
         self.publish()

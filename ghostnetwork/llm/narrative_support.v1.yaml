@@ -1,6 +1,9 @@
 contract_version: chaos-narrative-support-v1
 
 enabled_prompt_versions:
+  - ghostnetwork-event-prompt-v11
+  - ghostnetwork-googleplex-prompt-v11
+  - ghostsignal-prompt-v11
   - ghostnetwork-event-prompt-v10
   - ghostnetwork-googleplex-prompt-v10
   - ghostsignal-prompt-v10

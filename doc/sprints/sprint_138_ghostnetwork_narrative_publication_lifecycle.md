@@ -537,6 +537,15 @@ fact refs, semantic/lifecycle contract oraz raportuje `event_to_publication_ms`.
 Tryb `--task-id` służy do zawężonej diagnostyki; bramka family E2E wymaga
 `--event-id`, ponieważ tylko ona sprawdza kompletny producer fan-out.
 
+Pierwszy produkcyjny `part_activated` przeszedł techniczny audit 4/4, ale
+ręczna ocena wykryła trzy accepted fragmenty: dwa tytuły BlackNet zakończone w
+połowie słowa/frazy oraz body zaczynające się od osieroconej końcówki. Aktywny
+kontrakt v11 podnosi limit tytułu BlackNet z 48 do 72 znaków i odrzuca
+wysokiej pewności urwane fragmenty. Odrzucenie korzysta z istniejącego
+Narrative Support Layer; nie zmienia semantic facts ani audience safety. V10
+pozostaje immutable i legacy-compatible, aby retry historycznych tasków nie
+zmieniał request hash pod tą samą wersją.
+
 1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E, rozpoczynając
    od realnego gameplay/runtime entrypointu, nie od taska lub candidate.
 2. Sprawdzić public/clan/owner na kilku kontach.
