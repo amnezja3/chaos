@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 LIFECYCLE SERVER PASS — CTA NEGATIVE GATE REQUIRED`
+Status: `138.1 COMPLETE — 138.2 IN PROGRESS`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -136,9 +136,9 @@ publication/lifecycle/read-model/CTA/producers regression: 119 tests / PASS
 git diff --check: PASS
 ```
 
-138.1 wymaga teraz wdrożenia i testu serwerowego. 138.2 pozostaje zamrożony do
-potwierdzenia migracji, dwóch następujących po sobie stanów jednego threadu,
-TTL/read-model audit oraz ręcznego kliknięcia CTA.
+138.1 przeszedł wdrożenie i bramkę serwerową. Produkcyjny lifecycle audit,
+supersession po kolejnym stanie tego samego threadu oraz ręczne CTA zostały
+potwierdzone. 138.2 jest odblokowany.
 
 ### Produkcyjna aktywacja i poprawka Support Layer — 2026-09-04
 
@@ -522,6 +522,21 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w 138.2.
 
 ## 138.2 — E2E, failure i soak
 
+Status: `IN PROGRESS`
+
+Pierwsza bramka implementacyjna dodaje bounded, read-only audit pełnego lineage:
+
+```text
+scripts/audit_narrative_e2e.py --db data/game.sqlite3 --event-id EVENT_ID --strict
+```
+
+Audit nie uznaje samego `published_by_medium > 0` za dowód. Dla każdego taska
+łączy persisted event, aktywny package/attempt, accepted candidate, publication
+receipt i lifecycle medium record. Sprawdza tożsamość medium/audience, canonical
+fact refs, semantic/lifecycle contract oraz raportuje `event_to_publication_ms`.
+Tryb `--task-id` służy do zawężonej diagnostyki; bramka family E2E wymaga
+`--event-id`, ponieważ tylko ona sprawdza kompletny producer fan-out.
+
 1. Przeprowadzić pełne part/conflict/machine/cycle/signal E2E, rozpoczynając
    od realnego gameplay/runtime entrypointu, nie od taska lub candidate.
 2. Sprawdzić public/clan/owner na kilku kontach.
@@ -625,8 +640,8 @@ Sprint 137.1 producer/support server gate:  PASS
 Sprint 137.2 forbidden-knowledge gate:      SERVER PASS
 Sprint 137.3 runtime/failure gate:           SERVER PASS
 publication baseline audit:                 COMPLETE
-138.1 lifecycle implementation:             LOCAL PASS / SERVER GATE REQUIRED
-138.2 producer-backed E2E/failure/soak:      BLOCKED BY 138.1 SERVER GATE
+138.1 lifecycle implementation:             COMPLETE / SERVER PASS
+138.2 producer-backed E2E/failure/soak:      IN PROGRESS
 ```
 
 ## Definition of Done

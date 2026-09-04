@@ -2543,3 +2543,25 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Lifecycle i supersession otrzymują `SERVER PASS`. 138.1 pozostaje otwarty
   wyłącznie do ręcznego potwierdzenia komunikatu CTA na koncie bez instalacji
   GhostNetwork Suite.
+
+## 2026-09-04 — Sprint 138.1 COMPLETE, start 138.2
+
+- Na świeżo aktywowanej części ręcznie sprawdzono CTA BlackNet na koncie bez
+  GhostNetwork Suite. Kliknięcie `OTWÓRZ` nie uruchomiło nieistniejącej
+  aplikacji i wyświetliło system message: `GhostNetwork Suite nie jest
+  zainstalowany. Zainstaluj aplikację w Googleplex.`
+- Działające CTA innych sygnałów pozostały bez regresji. Dodatkowo prezentacja
+  BlackNet rozróżnia teraz akcję wykonywalną od pustego/`none`: karta bez mostu
+  pokazuje `READ ONLY`, zamiast niemego `OTWÓRZ`. Cache key `terminal.js` został
+  podniesiony, aby przeglądarka nie utrzymywała starego kontraktu UI.
+- Status: `138.1 COMPLETE — SERVER PASS`. Sprint 138.2 producer-backed
+  E2E/failure/soak został odblokowany i rozpoczęty.
+- Pierwsza bramka 138.2 dodaje read-only
+  `scripts/audit_narrative_e2e.py`. Audit łączy konkretny event/task z attempt,
+  accepted candidate, publication receipt i lifecycle medium record, sprawdza
+  identity oraz canonical fact lineage i raportuje event-to-publication latency.
+  Pełny event gate wymaga kompletnego producer fan-out; sam istniejący rekord
+  medium nie wystarcza do zaliczenia.
+- Lokalna regresja E2E/generation/lifecycle/publication/runtime/cutover:
+  `49 tests / PASS`; Python syntax i `git diff --check` PASS. Status pierwszej
+  bramki: `138.2 E2E AUDIT LOCAL PASS — SERVER FAMILY GATES REQUIRED`.

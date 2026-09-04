@@ -6240,6 +6240,74 @@ class GhostNetworkRepository:
                 ).fetchall()
             return [self._narrative_attempt(row) for row in rows]
 
+    def list_narrative_publication_lineage(self, task_ids, limit=500):
+        """Return bounded receipt/medium lineage for an explicit task set."""
+        task_ids = tuple(dict.fromkeys(
+            _clean(task_id) for task_id in (task_ids or ()) if _clean(task_id)
+        ))
+        if not task_ids:
+            return []
+        task_ids = task_ids[:500]
+        limit = max(1, min(int(limit or 500), 500))
+        placeholders = ",".join("?" for _ in task_ids)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    r.publication_receipt_id, r.candidate_id,
+                    r.task_id, r.target_medium, r.audience_scope,
+                    r.audience_clan, r.audience_owner,
+                    r.status AS receipt_status, r.last_error_code,
+                    r.created_at AS receipt_created_at,
+                    r.published_at AS receipt_published_at,
+                    m.medium_record_id, m.source_event_id,
+                    m.target_medium AS record_medium,
+                    m.audience_scope AS record_audience_scope,
+                    m.audience_clan AS record_audience_clan,
+                    m.audience_owner AS record_audience_owner,
+                    m.fact_refs_json AS record_fact_refs_json,
+                    m.narrative_thread_id, m.event_family,
+                    m.active_state, m.lifecycle_contract_version,
+                    m.semantic_contract_version, m.source_state_version,
+                    m.publication_mode, m.published_at AS record_published_at
+                FROM ghost_narrative_publication_receipts r
+                LEFT JOIN ghost_narrative_medium_records m
+                  ON m.publication_receipt_id = r.publication_receipt_id
+                WHERE r.task_id IN ({placeholders})
+                ORDER BY r.created_at, r.publication_receipt_id
+                LIMIT ?
+                """,
+                (*task_ids, limit),
+            ).fetchall()
+        return [{
+            "publication_receipt_id": row["publication_receipt_id"],
+            "candidate_id": row["candidate_id"],
+            "task_id": row["task_id"],
+            "target_medium": row["target_medium"],
+            "audience_scope": row["audience_scope"],
+            "audience_clan": row["audience_clan"],
+            "audience_owner": row["audience_owner"],
+            "receipt_status": row["receipt_status"],
+            "last_error_code": row["last_error_code"],
+            "receipt_created_at": row["receipt_created_at"],
+            "receipt_published_at": row["receipt_published_at"],
+            "medium_record_id": row["medium_record_id"] or "",
+            "source_event_id": row["source_event_id"] or "",
+            "record_medium": row["record_medium"] or "",
+            "record_audience_scope": row["record_audience_scope"] or "",
+            "record_audience_clan": row["record_audience_clan"] or "",
+            "record_audience_owner": row["record_audience_owner"] or "",
+            "record_fact_refs": loads_json(row["record_fact_refs_json"], []) or [],
+            "narrative_thread_id": row["narrative_thread_id"] or "",
+            "event_family": row["event_family"] or "",
+            "active_state": row["active_state"] or "",
+            "lifecycle_contract_version": row["lifecycle_contract_version"] or "",
+            "semantic_contract_version": row["semantic_contract_version"] or "",
+            "source_state_version": int(row["source_state_version"] or 0),
+            "publication_mode": row["publication_mode"] or "",
+            "record_published_at": row["record_published_at"] or "",
+        } for row in rows]
+
     def requeue_narrative_task(self, outbox_id, now=None, validation=None):
         now_iso = _iso(now if now is not None else self.now())
         validation = validation if isinstance(validation, dict) else None
