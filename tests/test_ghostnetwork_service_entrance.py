@@ -3,7 +3,7 @@ import inspect
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from database import (
     PlayerTargetRuntimeStore,
@@ -202,7 +202,7 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
         self.assertEqual("Wejście Serwisowe", snapshot["presentation"]["display_name"])
         self.assertEqual("BACKDOOR GOTOWY", snapshot["presentation"]["activation_tagline"])
         self.assertEqual(
-            "/static/images/ghostnetwork/superpower/v2_backdoor_forge.png",
+            "/static/images/ghostnetwork/superpower/v2_backdoor_forge.png?v=ghost-superpower-v2",
             snapshot["presentation"]["visual_asset_url"],
         )
         self.assertEqual(6000, snapshot["presentation"]["show_duration_ms"])
@@ -232,11 +232,51 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
             run.apply_active_ghostnetwork_ability_to_aimed_target
         )
         callsite_source = inspect.getsource(run.set_player_aimed_target)
+        gate_source = inspect.getsource(run.upsert_player_aimed_target_runtime)
         for forbidden in ("get_profile(", "list_profiles(", "sync_session_profile("):
             self.assertNotIn(forbidden, helper_source)
         self.assertIn(
-            "apply_active_ghostnetwork_ability_to_aimed_target",
+            "upsert_player_aimed_target_runtime",
             callsite_source,
+        )
+        self.assertIn("apply_active_ghostnetwork_ability_to_aimed_target", gate_source)
+        module_source = inspect.getsource(run)
+        self.assertEqual(
+            1,
+            module_source.count("player_target_runtime_store.upsert_aimed("),
+            "all production aimed-target writes must pass through the ability gate",
+        )
+
+        fake_service = Mock()
+        fake_service.apply_active_ability_to_aimed_target.return_value = {
+            "ok": True, "status": "applied", "target_applied": True,
+        }
+        canonical_target = {
+            "target_id": "payload-derived-id", "lat": 52.1, "lng": 21.1,
+        }
+        with patch.object(run, "GHOSTNETWORK_ABILITIES_ENABLED", True), patch.object(
+            run.player_target_runtime_store, "get",
+            return_value={
+                "target_key": "map:52.1:21.1:CANONICAL", "version": 44,
+                "status": "aimed", "target": canonical_target,
+            },
+        ), patch.object(
+            run.player_target_runtime_store, "get_active_target",
+            return_value=canonical_target,
+        ), patch.object(
+            run.identity_projection_store, "get_identity",
+            return_value={"username": "architect", "clan_code": "virex", "profession_code": "architect"},
+        ), patch.object(
+            run.capability_projection_store, "get_capabilities",
+            return_value={"username": "architect", "level": 71},
+        ), patch.object(run, "get_ghostnetwork_service", return_value=fake_service):
+            hooked = run.apply_active_ghostnetwork_ability_to_aimed_target(
+                "architect", {"target_id": "payload-derived-id"}, expected_version=44,
+            )
+        self.assertEqual(canonical_target, hooked)
+        self.assertEqual(
+            "map:52.1:21.1:CANONICAL",
+            fake_service.apply_active_ability_to_aimed_target.call_args.args[1],
         )
 
         token = reset_hot_path_metrics()

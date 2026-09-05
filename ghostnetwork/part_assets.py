@@ -8,6 +8,7 @@ RECOMMENDED_DIMENSIONS = "128x128"
 PRESENTATION_ASSET_MAX_PX = 560
 PRESENTATION_ASSET_PADDING_PX = 52
 PRESENTATION_ASSET_MOTION = "shake"
+ASSET_REVISION = "ghost-superpower-v2"
 CLASSIFIED_MARKER_ASSET_FILENAME = "classified_part.png"
 CLASSIFIED_MARKER_ASSET_URL = f"{PUBLIC_ASSET_ROOT}/{CLASSIFIED_MARKER_ASSET_FILENAME}"
 
@@ -23,7 +24,7 @@ def part_visual_asset_contract(part_definition):
         "visual_asset_key": f"ghostnetwork.part.{icon_key}",
         "visual_asset_filename": filename,
         "visual_asset_path": f"{ASSET_ROOT}/{filename}",
-        "visual_asset_url": f"{PUBLIC_ASSET_ROOT}/{filename}",
+        "visual_asset_url": f"{PUBLIC_ASSET_ROOT}/{filename}?v={ASSET_REVISION}",
         "presentation_asset_max_px": PRESENTATION_ASSET_MAX_PX,
         "presentation_asset_padding_px": PRESENTATION_ASSET_PADDING_PX,
         "presentation_asset_motion": PRESENTATION_ASSET_MOTION,
@@ -42,5 +43,5 @@ def part_superpower_asset_contract(part_definition):
             "ghostnetwork.part.", "ghostnetwork.superpower.", 1,
         ),
         "visual_asset_path": f"{SUPERPOWER_ASSET_ROOT}/{filename}",
-        "visual_asset_url": f"{PUBLIC_SUPERPOWER_ASSET_ROOT}/{filename}",
+        "visual_asset_url": f"{PUBLIC_SUPERPOWER_ASSET_ROOT}/{filename}?v={ASSET_REVISION}",
     }

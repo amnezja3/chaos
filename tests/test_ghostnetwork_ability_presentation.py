@@ -25,6 +25,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "presentation.activation_tagline",
             "presentation.sound_event",
             "presentation.show_duration_ms",
+            "cache: 'no-store'",
             "ghostAbilityRemaining(windowState.expires_at)",
             "ghostAbilityRemaining(windowState.cooldown_until)",
             "has-ghost-ability-effect",

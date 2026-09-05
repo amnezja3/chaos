@@ -54,11 +54,11 @@ class GhostAbilityWindowTest(unittest.TestCase):
         self.assertTrue(snapshot["active"])
         self.assertEqual("ghost-clan-virex", snapshot["presentation"]["clan_color_token"])
         self.assertEqual(
-            "/static/images/ghostnetwork/superpower/v1_ledger_nexus.png",
+            "/static/images/ghostnetwork/superpower/v1_ledger_nexus.png?v=ghost-superpower-v2",
             snapshot["presentation"]["visual_asset_url"],
         )
         self.assertEqual(
-            "/static/images/ghostnetwork/parts/v1_ledger_nexus.png",
+            "/static/images/ghostnetwork/parts/v1_ledger_nexus.png?v=ghost-superpower-v2",
             snapshot["presentation"]["timer_asset_url"],
         )
         self.assertEqual(6000, snapshot["presentation"]["show_duration_ms"])

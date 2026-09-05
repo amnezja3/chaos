@@ -8930,13 +8930,23 @@ def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_t
         return {"ok": False, "status": "hook_failed", "cycle_id": cycle_id}
 
 
-def apply_active_ghostnetwork_ability_to_aimed_target(username, target, now=None):
+def apply_active_ghostnetwork_ability_to_aimed_target(
+    username, target, expected_version=None, now=None,
+):
     """Narrow canonical hook; never hydrates the player profile."""
     target = target if isinstance(target, dict) else {}
-    target_id = str(target.get("target_id") or build_operation_target_id(target) or "").strip()
-    if not GHOSTNETWORK_ABILITIES_ENABLED or not username or not target_id:
+    if not GHOSTNETWORK_ABILITIES_ENABLED or not username or not target:
         return {}
     try:
+        canonical = player_target_runtime_store.get(username)
+        if not canonical or (
+            expected_version is not None
+            and int(canonical.get("version") or 0) != int(expected_version or 0)
+        ):
+            return {}
+        target_id = str(canonical.get("target_key") or "").strip()
+        if not target_id:
+            return {}
         identity = identity_projection_store.get_identity(username)
         capabilities = capability_projection_store.get_capabilities(username)
         if not identity or not capabilities:
@@ -8957,6 +8967,26 @@ def apply_active_ghostnetwork_ability_to_aimed_target(username, target, now=None
             flush=True,
         )
         return {}
+
+
+def upsert_player_aimed_target_runtime(username, target, **kwargs):
+    """The single canonical aimed-target write gate, including active abilities."""
+    result = player_target_runtime_store.upsert_aimed(username, target, **kwargs)
+    if str(result.get("status") or "") in {
+        "invalid", "captured", "selection_changed", "concurrent_change",
+    }:
+        return result
+    ability_target = apply_active_ghostnetwork_ability_to_aimed_target(
+        username,
+        result.get("target") or target,
+        expected_version=result.get("version"),
+    )
+    if ability_target:
+        result = dict(result)
+        result["target"] = dict(ability_target)
+        canonical = player_target_runtime_store.get(username) or {}
+        result["version"] = int(canonical.get("version") or result.get("version") or 0)
+    return result
 
 
 def find_canonical_ghostnetwork_capture(player_id, target_id):
@@ -9106,13 +9136,8 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
         aimed_target = {}
     elif aimed_target:
         try:
-            result = player_target_runtime_store.upsert_aimed(username, aimed_target, source=reason)
+            result = upsert_player_aimed_target_runtime(username, aimed_target, source=reason)
             aimed_target = dict(result.get("target") or aimed_target)
-            ability_target = apply_active_ghostnetwork_ability_to_aimed_target(
-                username, aimed_target,
-            )
-            if ability_target:
-                aimed_target = dict(ability_target)
         except Exception as exc:
             print(f"[target runtime] upsert failed user={username} reason={reason} error={exc}", flush=True)
     fields = dict(update_fields or {})
@@ -16811,7 +16836,7 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_
         profile["aimed_target"] = aimed_target
     if username:
         try:
-            runtime_result = player_target_runtime_store.upsert_aimed(
+            runtime_result = upsert_player_aimed_target_runtime(
                 username,
                 aimed_target,
                 status="in_progress",
@@ -16826,6 +16851,8 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_
                 profile["aimed_target"] = {}
                 profile["_target_runtime_conflict"] = "captured"
                 return False, []
+            if runtime_result.get("target"):
+                profile["aimed_target"] = dict(runtime_result["target"])
         except Exception as exc:
             print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
     return changed, marked
@@ -16857,11 +16884,12 @@ def merge_latest_aimed_target_runtime_state(profile, username):
         if find_owned_captured_target_for_runtime_target(username, stored_target):
             if current_target_is_valid and not targets_share_selection_identity(stored_target, aimed_target):
                 try:
-                    player_target_runtime_store.upsert_aimed(
+                    runtime_result = upsert_player_aimed_target_runtime(
                         username,
                         aimed_target,
                         source="runtime_merge_new_target_over_captured_stored",
                     )
+                    aimed_target = dict(runtime_result.get("target") or aimed_target)
                 except Exception as exc:
                     print(
                         f"[target runtime] new target over captured stored failed user={username} error={exc}",
@@ -16890,14 +16918,20 @@ def merge_latest_aimed_target_runtime_state(profile, username):
             if not aimed_target.get("target_id"):
                 aimed_target["target_id"] = stored_target.get("target_id") or build_operation_target_id(aimed_target)
             try:
-                player_target_runtime_store.upsert_aimed(username, aimed_target, source="runtime_merge")
+                runtime_result = upsert_player_aimed_target_runtime(
+                    username, aimed_target, source="runtime_merge",
+                )
+                aimed_target = dict(runtime_result.get("target") or aimed_target)
             except Exception:
                 pass
             profile["aimed_target"] = aimed_target
             return aimed_target
         if current_target_is_valid:
             try:
-                player_target_runtime_store.upsert_aimed(username, aimed_target, source="runtime_merge_new_target")
+                runtime_result = upsert_player_aimed_target_runtime(
+                    username, aimed_target, source="runtime_merge_new_target",
+                )
+                aimed_target = dict(runtime_result.get("target") or aimed_target)
             except Exception as exc:
                 print(f"[target runtime] new target merge failed user={username} error={exc}", flush=True)
             profile["aimed_target"] = aimed_target
@@ -20954,7 +20988,9 @@ def api_ghostnetwork_ability():
         if not GHOSTNETWORK_ABILITIES_ENABLED:
             snapshot["available"] = False
             snapshot["reason"] = "abilities_disabled"
-        return jsonify(snapshot)
+        response = jsonify(snapshot)
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        return response
 
     if not GHOSTNETWORK_ABILITIES_ENABLED:
         return jsonify({"ok": False, "status": "abilities_disabled"}), 503
@@ -20992,7 +21028,9 @@ def api_ghostnetwork_ability():
     status_code = 200 if result.get("ok") else (
         400 if result.get("status") == "invalid_request_key" else 409
     )
-    return jsonify(result), status_code
+    response = jsonify(result)
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    return response, status_code
 
 
 def _ghostnetwork_archive_viewer():
@@ -29669,7 +29707,7 @@ def gonna_win():
     if profile.get("aimed_target"):
         try:
             step_started_at = time.perf_counter()
-            runtime_result = player_target_runtime_store.upsert_aimed(
+            runtime_result = upsert_player_aimed_target_runtime(
                 session.get("user"),
                 profile.get("aimed_target") or {},
                 status="in_progress",

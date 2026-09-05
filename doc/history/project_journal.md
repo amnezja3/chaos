@@ -3105,3 +3105,15 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   cele, marker raz na cel, aktywację bez celu, expiry, part-loss oraz zero
   aktywności heavy-profile.
 - Status: `ADJUST IMPLEMENTED / SERVER MULTI-TARGET RETEST PENDING`.
+- Pierwszy retest ujawnił dwa problemy produkcyjne: tylko pierwszy target dostał
+  cztery kropki, a klient potrafił pokazać asset V1 przy V2. Audyt wykazał, że
+  poza głównym setterem istniały bezpośrednie zapisy canonical `upsert_aimed`
+  w merge sesji, ścieżce narzędzia i `gonna-win`, a hook używał payloadowego ID
+  zamiast zapisanego `target_key`.
+- Wszystkie produkcyjne zapisy `aimed` przechodzą teraz przez jedną bramkę, która
+  przekazuje canonical `target_key` wraz z oczekiwaną wersją. Wynik realizera
+  wraca do profilu/session, więc późniejszy merge nie może zastąpić czterech
+  kropek pustym stanem albo pojedynczą kropką narzędzia.
+- Snapshot ability otrzymał `Cache-Control: private, no-store`, fetch jawne
+  `cache: no-store`, a URL dużego i małego assetu wersjonowany suffixem. Eliminuje
+  to zachowanie starego snapshotu lub poprzedniej zawartości grafiki V1 przy V2.
