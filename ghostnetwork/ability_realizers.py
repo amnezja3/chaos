@@ -475,6 +475,7 @@ class GhostAbilityProductionRealizer:
     ABILITY_FAMILIES = {
         "insider_feed": "operation_speed",
         "service_entrance": "hack_actions",
+        "false_image": "operation_risk",
     }
 
     def __init__(self, operation_store, target_store=None):
@@ -612,6 +613,86 @@ class GhostAbilityProductionRealizer:
             "attempts": attempts, "cas_retries": max(0, attempts - 1),
         }
 
+    @staticmethod
+    def _apply_operation_risk_to_row(operation, window, now=None):
+        from response_network.operation_risk_meter import calculate_operation_risk
+
+        if not isinstance(operation, dict):
+            return False
+        marker = f"{window.get('window_id')}:operation_risk"
+        markers = operation.get("ability_application_keys")
+        markers = list(markers) if isinstance(markers, list) else []
+        first_application = marker not in markers
+        if first_application:
+            markers.append(marker)
+            operation["ability_application_keys"] = markers
+        operation["ability_provenance"] = {
+            "window_id": window.get("window_id"),
+            "ability_code": window.get("ability_code"),
+            "family": "operation_risk",
+            "modifier": -15,
+            "expires_at": window.get("expires_at"),
+        }
+        operation["operation_risk_meter"] = calculate_operation_risk(
+            operation,
+            rules={"ability_heat_modifier": -15},
+            now_ts=now or window.get("activated_at"),
+        )
+        return first_application
+
+    def _apply_operation_risk(self, player_id, window):
+        if self.operation_store is None:
+            return {"ok": False, "status": "realizer_unavailable"}
+        changed_ids = set()
+        persisted_ids = set()
+        attempts = 0
+        pending = []
+        for _attempt in range(2):
+            attempts += 1
+            operations = self.operation_store.list_active_operations(
+                player_id, limit=MAX_ACTIVE_OPERATIONS,
+            )
+            pending = []
+            for operation in operations:
+                previous_meter = operation.get("operation_risk_meter")
+                previous_meter = previous_meter if isinstance(previous_meter, dict) else {}
+                first_application = self._apply_operation_risk_to_row(operation, window)
+                operation_id = str(operation.get("operation_id") or "")
+                if operation_id and (
+                    first_application
+                    or int(previous_meter.get("ability_heat_modifier") or 0) != -15
+                ):
+                    changed_ids.add(operation_id)
+                    pending.append(operation)
+            if not pending:
+                break
+            accepted = self.operation_store.compare_and_swap_runtime(
+                player_id,
+                pending,
+                event_type="operation.ability_risk",
+                record_event=True,
+            )
+            persisted_ids.update(
+                str(item.get("operation_id") or "") for item in accepted
+            )
+            if len(accepted) == len(pending):
+                pending = []
+                break
+        return {
+            "ok": not pending,
+            "status": (
+                "applied" if persisted_ids
+                else "concurrent_change" if pending
+                else "no_active_operations"
+            ),
+            "family": "operation_risk",
+            "modifier": -15,
+            "changed": sorted(changed_ids),
+            "persisted": sorted(persisted_ids),
+            "attempts": attempts,
+            "cas_retries": max(0, attempts - 1),
+        }
+
     def apply_activation(self, player_id, window):
         player_id = str(player_id or "").strip()
         window = window if isinstance(window, dict) else {}
@@ -622,12 +703,17 @@ class GhostAbilityProductionRealizer:
             return self._apply_operation_speed(player_id, window)
         if family == "hack_actions":
             return self._apply_hack_actions(player_id, window)
+        if family == "operation_risk":
+            return self._apply_operation_risk(player_id, window)
         return {"ok": False, "status": "realizer_unavailable"}
 
     def apply_to_new_operation(self, operation, window):
-        if self.ABILITY_FAMILIES.get((window or {}).get("ability_code")) != "operation_speed":
-            return False
-        return apply_operation_speed_to_new_operation(operation, window)
+        family = self.ABILITY_FAMILIES.get((window or {}).get("ability_code"))
+        if family == "operation_speed":
+            return apply_operation_speed_to_new_operation(operation, window)
+        if family == "operation_risk":
+            return self._apply_operation_risk_to_row(operation, window)
+        return False
 
     def apply_to_aimed_target(self, player_id, target_id, window):
         """Apply an active V2 window once to the exact newly aimed target."""

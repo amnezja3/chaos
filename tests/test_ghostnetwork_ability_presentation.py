@@ -110,7 +110,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
 
     def test_target_realizer_has_persistent_toolbar_impact_feedback(self):
         self.assertIn("updateParentToolbarGhostAbility(data)", self.source)
-        self.assertIn("ghost-ability-impact-1", self.source)
+        self.assertIn("ghost-ability-impact-2", self.source)
         for token in (
             "window.updateToolbarGhostAbilityState",
             'impactUi === "target_action_dots"',

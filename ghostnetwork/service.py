@@ -995,14 +995,17 @@ class GhostNetworkService:
         display_names = {
             "insider_feed": "Insider Feed",
             "service_entrance": "Wejście Serwisowe",
+            "false_image": "Fałszywy Obraz",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
             "service_entrance": "BACKDOOR GOTOWY",
+            "false_image": "NIE WIERZ OCZOM",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
             "service_entrance": "target_action_dots",
+            "false_image": "operation_risk",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {
@@ -1256,6 +1259,14 @@ class GhostNetworkService:
         return self.ability_production_realizer.apply_to_new_operation(
             operation, snapshot.get("window") or {},
         )
+
+    def active_operation_risk_rules(self, player_context, now=None):
+        """Return one bounded rules input from an active eligible window."""
+        snapshot = self.get_player_ability_window_snapshot(player_context, now=now)
+        ability = snapshot.get("ability") or {}
+        if not snapshot.get("active") or ability.get("ability_code") != "false_image":
+            return {}
+        return {"ability_heat_modifier": -15}
 
     def apply_active_ability_to_aimed_target(self, player_context, target_id, now=None):
         """Apply an active target realizer at the canonical aimed-target call-site."""

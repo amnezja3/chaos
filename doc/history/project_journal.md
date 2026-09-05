@@ -3126,4 +3126,28 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Most mapy do pulpitu i timer są wyłącznie prezentacyjne: nie dodają requestów,
   nie ujawniają markerów canonical i nie używają ciężkiego profilu. Wzorzec
   `impact_ui` jest obowiązkowy dla kolejnych realizerów.
-- Status `.1.2`: `FUNCTIONAL SERVER PASS / UX IMPACT RETEST PENDING`.
+- Retest UX potwierdził ikonę markera celu oraz animowaną obwódkę/puls czterech
+  kropek podczas całego aktywnego okna.
+- Status `.1.2`: `COMPLETE / SERVER PASS`.
+
+## 2026-09-05 — 138.getway.1.3, Fałszywy Obraz
+
+- Rozpoczęto produkcyjny vertical slice V3/Manipulator. Statyczne mapowanie
+  `false_image → operation_risk` używa istniejącego risk metera i wyłącznie
+  bounded wejścia `ability_heat_modifier=-15` przed progami warning/incident.
+- Aktywacja obejmuje maksymalnie osiem istniejących operacji przez canonical
+  store i CAS. Nowe operacje uruchomione w oknie otrzymują ten sam efekt przez
+  istniejący hook budowy operacji.
+- Territory worker wykonuje jeden lekki odczyt okna na gracza/tick, nie per
+  operacja. Expiry albo utrata V3 usuwa modifier przy następnym przeliczeniu.
+- Nie ustawiamy bezpośrednio `risk_level`, warningu, detekcji ani incydentu.
+  `incident_decoy` pozostaje poza bramką; nie tworzymy syntetycznych NPC ani
+  rekordów świata.
+- Bezpieczna projekcja UI zawiera tylko `risk_masked`; Centrum Operacji pokazuje
+  VIREX-red/glitch kartę, etykietę `FAŁSZYWY OBRAZ` i puls ryzyka. Presentation
+  contract: `impact_ui=operation_risk`, tagline `NIE WIERZ OCZOM`, asset V3.
+- Brak nowego workera, pollingu i ciężkiego profilu. Status:
+  `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
+- Bramka punktowa V1–V3, presentation, canonical stores, okien i risk metera:
+  `65/65 PASS`. Pełna regresja GhostNetwork: `346/346 PASS`; `py_compile` oraz
+  `git diff --check`: PASS.

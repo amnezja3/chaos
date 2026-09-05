@@ -139,7 +139,7 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(projected["visual_asset_key"], "ghostnetwork.part.ledger_nexus")
         self.assertEqual(
             projected["visual_asset_url"],
-            "/static/images/ghostnetwork/parts/v1_ledger_nexus.png",
+            "/static/images/ghostnetwork/parts/v1_ledger_nexus.png?v=ghost-superpower-v2",
         )
 
     def test_blocked_part_is_full_only_for_territory_owner(self):
@@ -153,7 +153,7 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(owner["part_code"], "P3")
         self.assertEqual(owner["name"], "Paranoia Loop")
         self.assertEqual(owner["location_visibility"], "exact")
-        self.assertEqual(owner["marker_asset_url"], "/static/images/ghostnetwork/parts/p3_paranoia_loop.png")
+        self.assertEqual(owner["marker_asset_url"], "/static/images/ghostnetwork/parts/p3_paranoia_loop.png?v=ghost-superpower-v2")
 
         clanmate = self.visibility.project_part_for_viewer(
             part,
@@ -194,7 +194,7 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(clan_view["viewer_relation"], "clan_own_active")
         self.assertEqual(clan_view["part_code"], "E1")
         self.assertEqual(clan_view["ability_code"], "expose")
-        self.assertEqual(clan_view["marker_asset_url"], "/static/images/ghostnetwork/parts/e1_breach_voice.png")
+        self.assertEqual(clan_view["marker_asset_url"], "/static/images/ghostnetwork/parts/e1_breach_voice.png?v=ghost-superpower-v2")
 
         foreign = self.visibility.project_part_for_viewer(
             part,

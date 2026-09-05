@@ -329,10 +329,10 @@ przejmuje celu i nie wyłącza security automatycznie.
 
 ### Fałszywy Obraz
 
-Moc tworzy syntetyczne incydenty na obrzeżach wszystkich klastrów terytoriów
-gracza oraz uruchamia istniejące kapsuły poruszających się służb. Rekordy mają
-TTL zgodny z oknem mocy, jawne źródło `ghost_ability`, deterministyczny seed i
-nie są liczone jako prawdziwe incydenty do kar/nagród.
+Moc maskuje aktywność gracza przez certyfikowaną rodzinę `operation_risk`:
+istniejący kalkulator otrzymuje bounded wejście `heat -15` przez czas aktywnego
+okna. Nie tworzymy syntetycznych incydentów, kapsuł NPC ani rekordów świata;
+ryzykowna rodzina `incident_decoy` pozostaje poza bramką.
 
 ## 8. Model profesja po profesji
 
@@ -694,7 +694,7 @@ runtime.
 
 ### Implementacja `.1.2` — Architekt / V2
 
-Status: `FUNCTIONAL SERVER PASS / UX IMPACT RETEST PENDING`
+Status: `COMPLETE / SERVER PASS`
 
 Produkcyjne mapowanie rozszerzono statycznie o
 `service_entrance → hack_actions`. Pierwszy test serwerowy potwierdził prawidłową
@@ -746,6 +746,43 @@ Podczas aktywnego okna pulpit utrzymuje wokół czterech kropek klanową obwódk
 sekwencyjny puls, usuwany lokalnie przy `expires_at`. Jest to pierwszy wspólny
 wzorzec: każdy następny realizer musi wskazać własny istniejący element UI, na
 którym widać trwający wpływ, bez osobnego pollingu i bez heavy profile.
+
+Retest UX potwierdził ikonę aktualnego markera zamiast etykiety `CEL` oraz
+klanową obwódkę i puls czterech kropek przez całe aktywne okno. `.1.2` zostaje
+zamknięty jako `COMPLETE / SERVER PASS`.
+
+### Implementacja `.1.3` — Manipulator / V3
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+`Fałszywy Obraz` korzysta wyłącznie z certyfikowanej rodziny `operation_risk`.
+Podczas 15-minutowego okna każda istniejąca i nowa aktywna operacja gracza
+otrzymuje serwerowe wejście `ability_heat_modifier=-15`. Modyfikator wchodzi do
+istniejącego kalkulatora przed clampem i progami `warning=45` oraz `incident=60`;
+nie ustawia bezpośrednio poziomu ryzyka, wyniku detekcji ani statusu incydentu.
+
+Aktywacja przelicza maksymalnie osiem bieżących operacji przez canonical
+`PlayerOperationStore` i CAS. Nowa operacja dostaje ten sam modifier w istniejącym
+hooku budowy. Territory worker odczytuje aktywne okno dokładnie raz na gracza/tick
+i przekazuje jeden bounded rules input do wszystkich jego operacji. Po expiry
+albo utracie V3 następny tick przelicza heat bez modifiera. Nie powstał nowy
+worker, scheduler, poller ani ścieżka ciężkiego profilu.
+
+Centrum Operacji otrzymuje wyłącznie boolean `risk_masked`. Aktywne karty mają
+VIREX-red/glitch akcent, pulsujący wiersz ryzyka i etykietę `FAŁSZYWY OBRAZ`.
+Prywatny marker okna, provenance oraz wartość modifiera nie trafiają do klienta.
+Presentation contract deklaruje `impact_ui=operation_risk`, display name
+`Fałszywy Obraz` oraz krótkie hasło aktywacji `NIE WIERZ OCZOM`. Show i timer
+używają istniejących assetów V3 oraz wspólnego SFX.
+
+`incident_decoy` pozostaje jawnie poza bramką. Moc nie tworzy fałszywych rekordów
+incydentów ani NPC i nie wpływa na kary/nagrody inną drogą niż istniejący risk
+meter. Test serwerowy ma potwierdzić heat `H → max(0,H-15)` na operacji istniejącej
+i nowej, utrzymanie efektu po reloadzie, powrót do bazowego heat po expiry lub
+utracie V3, cooldown, pojedynczy marker oraz widoczny efekt kart.
+
+Lokalna bramka punktowa zakończyła się `65/65 PASS`, pełna regresja
+GhostNetwork `346/346 PASS`; `py_compile` oraz `git diff --check`: PASS.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

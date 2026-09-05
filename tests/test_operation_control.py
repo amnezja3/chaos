@@ -162,6 +162,23 @@ class OperationControlTest(unittest.TestCase):
         self.assertNotIn("ability_application_keys", items["op-fast"])
         self.assertNotIn("ability_provenance", items["op-fast"])
 
+    def test_snapshot_exposes_only_safe_risk_mask_flag(self):
+        profile = operation_control_profile()
+        masked = operation("op-mask")
+        masked["operation_risk_meter"] = {
+            "current_heat": 31,
+            "ability_heat_modifier": -15,
+        }
+
+        snapshot = run.build_operation_control_snapshot(
+            "alice", profile, operations=[masked],
+        )
+        item = snapshot["operations"][0]
+
+        self.assertTrue(item["risk_masked"])
+        self.assertNotIn("ability_application_keys", item)
+        self.assertNotIn("ability_provenance", item)
+
     def test_snapshot_endpoint_requires_operation_control_app_and_does_not_use_full_sync(self):
         client, headers = self._client_with_user()
         profile = operation_control_profile()

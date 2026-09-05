@@ -56,8 +56,8 @@ rodziny, ale nie przebudowy wspólnego runtime.
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
 | `.1.1` | V1 Ledger Nexus / `broker` | Insider Feed | `operation_speed` | istniejące i nowe operacje przyspieszone `0.1 × LVL`, cap `20×`, maks. 8 | `LOCKED / SERVER PASS` |
-| `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `ADJUST / SERVER RETEST` |
-| `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | aktywność gracza jest trudniejsza do odczytania: `heat -15` w aktywnych operacjach | `SAFE SUBSTITUTE` |
+| `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `LOCKED / SERVER PASS` |
+| `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; jeden lekki odczyt okna na gracza/tick, widoczny maskowany risk | `LOCAL PASS / SERVER TEST` |
 | `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | do 2 dodatkowych plików `credentials` z operacji zakończonej w oknie | `STRONG FIT` |
 | `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_risk` | niższe ryzyko dzięki przewidywaniu przebiegu operacji; wynik nadal liczy risk meter | `STRONG FIT` |
 

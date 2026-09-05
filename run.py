@@ -10082,6 +10082,45 @@ def apply_active_ghostnetwork_ability_to_new_operation(username, operation, now=
         return False
 
 
+def active_ghostnetwork_operation_risk_rules(username, now=None):
+    """One light ability lookup per player refresh/tick; never reads a profile."""
+    if not GHOSTNETWORK_ABILITIES_ENABLED or not username:
+        return {}
+    try:
+        identity = identity_projection_store.get_identity(username)
+        capabilities = capability_projection_store.get_capabilities(username)
+        if not identity or not capabilities:
+            return {}
+        context = {**identity, **capabilities, "player_id": username}
+        return get_ghostnetwork_service().active_operation_risk_rules(
+            context, now=now,
+        )
+    except ProfileRecoveryRequired:
+        return {}
+    except Exception as exc:
+        print(
+            f"[GHOST_ABILITY] operation risk hook skipped "
+            f"user={username} error_type={type(exc).__name__}",
+            flush=True,
+        )
+        return {}
+
+
+def embedded_ghostnetwork_operation_risk_rules(operation):
+    """Keep a just-created V3 operation masked until its first canonical tick."""
+    provenance = (
+        operation.get("ability_provenance")
+        if isinstance((operation or {}).get("ability_provenance"), dict)
+        else {}
+    )
+    if (
+        provenance.get("ability_code") == "false_image"
+        and provenance.get("family") == "operation_risk"
+    ):
+        return {"ability_heat_modifier": -15}
+    return {}
+
+
 def build_operation_instance(username, app, map_action_id, operation_type, target):
     now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
@@ -10128,7 +10167,10 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         "risk_state": initial_risk_state_for_operation(operation_type),
     }
     apply_active_ghostnetwork_ability_to_new_operation(username, operation, now=now)
-    update_operation_risk_meter(operation, tool=app or {}, target=target_snapshot, now_ts=now)
+    update_operation_risk_meter(
+        operation, tool=app or {}, target=target_snapshot,
+        rules=embedded_ghostnetwork_operation_risk_rules(operation), now_ts=now,
+    )
     return operation
 
 
@@ -10175,7 +10217,10 @@ def create_operations_for_app_action(profile, username, app, map_action_id, targ
             continue
 
         operation = build_operation_instance(username, normalized_app, map_action_id, operation_type, target)
-        update_operation_risk_meter(operation, tool=normalized_app, target=target)
+        update_operation_risk_meter(
+            operation, tool=normalized_app, target=target,
+            rules=embedded_ghostnetwork_operation_risk_rules(operation),
+        )
         try:
             accepted = player_operation_store.upsert_operations(
                 username,
@@ -10252,7 +10297,10 @@ def create_missing_operations_for_app_target(profile, username, app, target):
             continue
 
         operation = build_operation_instance(username, normalized_app, map_action_id, operation_type, target)
-        update_operation_risk_meter(operation, tool=normalized_app, target=target)
+        update_operation_risk_meter(
+            operation, tool=normalized_app, target=target,
+            rules=embedded_ghostnetwork_operation_risk_rules(operation),
+        )
         try:
             accepted = player_operation_store.upsert_operations(
                 username,
@@ -14464,7 +14512,7 @@ def mark_operation_cleanup_state(operation, now_iso=None):
     return changed
 
 
-def refresh_operation_runtime(operation, now_ts=None):
+def refresh_operation_runtime(operation, now_ts=None, risk_rules=None):
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     refreshed = dict(operation or {})
     movement_model = refreshed.get("movement_model") or movement_model_for_operation(
@@ -14493,7 +14541,7 @@ def refresh_operation_runtime(operation, now_ts=None):
     current_position = compute_operation_position(refreshed, now_ts)
     if current_position:
         refreshed["current_position"] = current_position
-    update_operation_risk_meter(refreshed, now_ts=now_ts)
+    update_operation_risk_meter(refreshed, rules=risk_rules, now_ts=now_ts)
     return refreshed
 
 
@@ -14581,9 +14629,12 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
     result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0, "files": 0}
     for username in usernames:
         operations = player_operation_store.list_operations(username, include_terminal=False)
+        risk_rules = active_ghostnetwork_operation_risk_rules(username, now=now_ts)
         refreshed = []
         for operation in operations:
-            projection = refresh_operation_runtime(operation, now_ts=now_ts)
+            projection = refresh_operation_runtime(
+                operation, now_ts=now_ts, risk_rules=risk_rules,
+            )
             if projection.get("status") in OPERATION_TERMINAL_STATUSES:
                 mark_operation_cleanup_state(
                     projection, now_iso=operation_iso_from_ts(now_ts)
@@ -14639,6 +14690,7 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, use
     operations = profile.get("operations") or []
     refreshed_operations = []
     changed = False
+    risk_rules = active_ghostnetwork_operation_risk_rules(username, now=now_ts) if username else {}
 
     for index, operation in enumerate(operations):
         if ensure_vehicle_tracking_checkpoints(operation, now_ts):
@@ -14647,7 +14699,9 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, use
             changed = True
         if ensure_camera_shutdown_state(operation, now_ts):
             changed = True
-        refreshed = refresh_operation_runtime(operation, now_ts=now_ts)
+        refreshed = refresh_operation_runtime(
+            operation, now_ts=now_ts, risk_rules=risk_rules,
+        )
         if operation.get("operation_risk_meter") != refreshed.get("operation_risk_meter"):
             operation["operation_risk_meter"] = refreshed.get("operation_risk_meter")
             changed = True
@@ -14832,6 +14886,7 @@ def summarize_operation_for_client(operation):
         ability_provenance.get("ability_code") == "insider_feed"
         or any(str(marker or "").endswith(":operation_speed") for marker in ability_markers)
     )
+    risk_masked = int(risk_meter.get("ability_heat_modifier") or 0) < 0
 
     return {
         "operation_id": operation.get("operation_id"),
@@ -14857,6 +14912,7 @@ def summarize_operation_for_client(operation):
         "remaining_seconds": operation.get("remaining_seconds"),
         "expired": operation.get("expired"),
         "accelerated": accelerated,
+        "risk_masked": risk_masked,
         "output_mb": operation_output_size_mb(operation),
         "current_position": {
             "lat": current_position.get("lat"),
