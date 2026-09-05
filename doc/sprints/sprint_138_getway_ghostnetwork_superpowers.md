@@ -694,7 +694,7 @@ runtime.
 
 ### Implementacja `.1.2` — Architekt / V2
 
-Status: `ADJUST IMPLEMENTED / SERVER MULTI-TARGET RETEST PENDING`
+Status: `FUNCTIONAL SERVER PASS / UX IMPACT RETEST PENDING`
 
 Produkcyjne mapowanie rozszerzono statycznie o
 `service_entrance → hack_actions`. Pierwszy test serwerowy potwierdził prawidłową
@@ -735,6 +735,17 @@ regresję GhostNetwork `339/339`; `py_compile`: PASS. Testy obejmują dwa kolejn
 cele w jednym oknie, idempotencję per cel, aktywację bez celu, expiry, part-loss
 i liczniki heavy-profile równe zero. Status pozostaje oczekujący wyłącznie na
 ponowny test serwerowy zachowania wielu celów.
+
+Retest produkcyjny potwierdził, że cel obecny przy aktywacji i kolejne cele
+oznaczane w tym samym oknie dostają cztery kropki, a V2 używa właściwego assetu.
+Funkcjonalny kontrakt multi-target ma SERVER PASS.
+
+Ostatni tuning UX zastępuje etykietę `CEL` ikoną niesioną przez aktualny marker
+mapy. Presentation contract wskazuje ponadto `impact_ui=target_action_dots`.
+Podczas aktywnego okna pulpit utrzymuje wokół czterech kropek klanową obwódkę i
+sekwencyjny puls, usuwany lokalnie przy `expires_at`. Jest to pierwszy wspólny
+wzorzec: każdy następny realizer musi wskazać własny istniejący element UI, na
+którym widać trwający wpływ, bez osobnego pollingu i bez heavy profile.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

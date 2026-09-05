@@ -6,6 +6,8 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = Path("templates/map_template.html").read_text(encoding="utf-8")
+        cls.terminal_source = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        cls.css_source = Path("static/css/style.css").read_text(encoding="utf-8")
 
     def test_map_uses_server_snapshot_and_not_client_realizer_parameters(self):
         self.assertIn("fetch('/api/ghostnetwork/ability'", self.source)
@@ -105,6 +107,25 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("if (result.target)", activation)
         self.assertIn("updateParentToolbarAimedTarget(result.target)", activation)
         self.assertIn("await window.refreshMapTargetSnapshot()", activation)
+
+    def test_target_realizer_has_persistent_toolbar_impact_feedback(self):
+        self.assertIn("updateParentToolbarGhostAbility(data)", self.source)
+        self.assertIn("ghost-ability-impact-1", self.source)
+        for token in (
+            "window.updateToolbarGhostAbilityState",
+            'impactUi === "target_action_dots"',
+            "has-ghost-ability-impact",
+            "target-status-icon",
+            'aimedTarget.icon || "🎯"',
+        ):
+            self.assertIn(token, self.terminal_source)
+        for token in (
+            "ghost-ability-target-ring",
+            "ghost-ability-target-dot",
+            "--ghost-ability-impact",
+            "prefers-reduced-motion: reduce",
+        ):
+            self.assertIn(token, self.css_source)
 
 
 if __name__ == "__main__":

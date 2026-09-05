@@ -1000,6 +1000,10 @@ class GhostNetworkService:
             "insider_feed": "MEGA HOSSA",
             "service_entrance": "BACKDOOR GOTOWY",
         }
+        impact_ui = {
+            "insider_feed": "operation_cards",
+            "service_entrance": "target_action_dots",
+        }
         ability_code = str(ability.get("ability_code") or "")
         return {
             "clan_code": clan_code,
@@ -1016,6 +1020,7 @@ class GhostNetworkService:
                 ability.get("ability_name") or "GhostNetwork",
             ),
             "activation_tagline": activation_taglines.get(ability_code) or "MOC AKTYWNA",
+            "impact_ui": impact_ui.get(ability_code) or "",
             "semantic_description": ability.get("ability_description") or "",
         }
 

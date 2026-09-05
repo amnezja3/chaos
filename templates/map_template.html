@@ -7,7 +7,7 @@
   <meta name="referrer" content="origin">
   <link rel="icon" href="/static/images/chaos_favicon.svg" type="image/svg+xml">
   {{ folium_css|safe }}
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-1">
   <link rel="stylesheet" href="/static/css/blacknet.css">
   <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=mobile-canvas-6">
   <style>
@@ -2484,6 +2484,16 @@
             }
         }
 
+        function updateParentToolbarGhostAbility(snapshot) {
+            try {
+                if (window.parent && window.parent !== window && typeof window.parent.updateToolbarGhostAbilityState === 'function') {
+                    window.parent.updateToolbarGhostAbilityState(snapshot);
+                }
+            } catch (err) {
+                // The toolbar enhancement is presentation-only.
+            }
+        }
+
         const secretPathLoreScenes = Object.freeze([
             { scene_id: 'target_repaired', sound_event: 'secret_path.scene_01', eyebrow: 'BACKDOOR // TARGET REPAIRED', title: 'Broken lock restored', copy: 'Naprawiles uszkodzony kanal celu. Aplikacje z pulpitu i terminala sa juz wpiete w ten sam tunel.' },
             { scene_id: 'route_open', sound_event: 'secret_path.scene_02', eyebrow: 'SECRET PATH // ROUTE OPEN', title: 'Short route unlocked', copy: 'Pominieto wybor narzedzia. Cel jest gotowy — mozesz od razu uruchamiac aplikacje z terminala.' },
@@ -2820,6 +2830,7 @@
                 const data = await response.json();
                 if (!response.ok || !data.ok) throw new Error(data.error || data.status || 'ability_snapshot_failed');
                 window.ghostAbilityRuntime.snapshot = data;
+                updateParentToolbarGhostAbility(data);
                 renderGhostAbilityControl();
                 scheduleGhostAbilityClock();
                 return data;

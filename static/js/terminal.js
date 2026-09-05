@@ -7,6 +7,8 @@ let desktopSettings = { wallpaper: "", icon_positions: {}, auto_fullscreen: fals
 let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
+let toolbarGhostAbilityState = { active: false, impactUi: "", clanCode: "", expiresAt: "" };
+let toolbarGhostAbilityExpiryTimer = null;
 let gonnaWinRequestQueue = Promise.resolve();
 const gonnaWinLifecycleStates = new Map();
 const GONNA_WIN_LIFECYCLE_LIMIT = 128;
@@ -1386,6 +1388,34 @@ function updateToolbarAimedTarget(aimedTarget) {
     renderToolbarStatus();
 }
 
+function updateToolbarGhostAbilityState(snapshot) {
+    const presentation = snapshot && typeof snapshot.presentation === "object"
+        ? snapshot.presentation
+        : {};
+    const windowState = snapshot && typeof snapshot.window === "object"
+        ? snapshot.window
+        : {};
+    const expiresAt = String(windowState.expires_at || "");
+    const remainingMs = Date.parse(expiresAt) - Date.now();
+    toolbarGhostAbilityState = {
+        active: Boolean(snapshot && snapshot.active && remainingMs > 0),
+        impactUi: String(presentation.impact_ui || ""),
+        clanCode: String(presentation.clan_code || "").toLowerCase(),
+        expiresAt
+    };
+    clearTimeout(toolbarGhostAbilityExpiryTimer);
+    toolbarGhostAbilityExpiryTimer = null;
+    if (toolbarGhostAbilityState.active) {
+        toolbarGhostAbilityExpiryTimer = setTimeout(() => {
+            toolbarGhostAbilityState.active = false;
+            renderToolbarStatus();
+        }, Math.min(remainingMs + 100, 2147483647));
+    }
+    renderToolbarStatus();
+}
+
+window.updateToolbarGhostAbilityState = updateToolbarGhostAbilityState;
+
 function renderToolbarStatus() {
     const strip = document.getElementById('system-status-strip');
     if (!strip) return;
@@ -1409,17 +1439,27 @@ function renderToolbarStatus() {
         ? toolbarTargetHackedEffect
         : null;
     const targetMarkup = hasTarget ? (() => {
+        const abilityImpactActive = Boolean(
+            toolbarGhostAbilityState.active
+            && toolbarGhostAbilityState.impactUi === "target_action_dots"
+            && Date.parse(toolbarGhostAbilityState.expiresAt) > Date.now()
+        );
+        const targetIcon = String(aimedTarget.icon || "🎯");
         const targetClasses = [
             "system-status-target",
             "is-aimed",
             toolbarTargetTruthRefreshing ? "is-refreshing" : "",
             targetFeedback ? "has-target-feedback" : "",
             targetFeedback?.changed ? "is-feedback-change" : "",
-            targetFeedback?.targetChanged ? "is-target-change" : ""
+            targetFeedback?.targetChanged ? "is-target-change" : "",
+            abilityImpactActive ? "has-ghost-ability-impact" : "",
+            abilityImpactActive && toolbarGhostAbilityState.clanCode
+                ? `ghost-ability-clan-${toolbarGhostAbilityState.clanCode.replace(/[^a-z0-9_-]/g, "")}`
+                : ""
         ].filter(Boolean).join(" ");
         const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
         const title = toolbarTargetTruthRefreshing ? "Sprawdzam zrodlo prawdy celu..." : `Cel na celowniku: ${escapeHTML(String(targetLabel))}. Kliknij, aby odswiezyc.`;
-        return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
+        return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b class="target-status-icon" aria-hidden="true">${escapeHTML(targetIcon)}</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
     })() : (hackedEffect
         ? `<span class="system-status-target is-hacked-clear" role="button" tabindex="0" title="Cel przejety. Belka zaraz wroci do stanu neutralnego."><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(hackedEffect.label))}</em></i></span>`
         : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`);

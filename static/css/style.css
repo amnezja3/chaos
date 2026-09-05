@@ -1193,6 +1193,14 @@ body {
   flex: 0 0 auto;
 }
 
+#system-status-strip .target-status-icon {
+  width: 18px;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 72, 98, 0.55));
+}
+
 #system-status-strip .target-status-body {
   display: flex;
   flex: 1 1 auto;
@@ -1305,6 +1313,58 @@ body {
   height: 6px;
   min-width: 0;
   font-style: normal;
+  position: relative;
+}
+
+#system-status-strip .system-status-target.has-ghost-ability-impact {
+  --ghost-ability-impact: #e53935;
+  border-color: color-mix(in srgb, var(--ghost-ability-impact) 78%, white 22%);
+  box-shadow:
+    inset 0 0 13px color-mix(in srgb, var(--ghost-ability-impact) 24%, transparent),
+    0 0 10px color-mix(in srgb, var(--ghost-ability-impact) 30%, transparent);
+}
+
+#system-status-strip .system-status-target.ghost-ability-clan-echo_freedom {
+  --ghost-ability-impact: #ffd43b;
+}
+
+#system-status-strip .system-status-target.ghost-ability-clan-phantom_mesh {
+  --ghost-ability-impact: #00cfa6;
+}
+
+#system-status-strip .system-status-target.ghost-ability-clan-sentinel_order {
+  --ghost-ability-impact: #238bff;
+}
+
+#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dots::before {
+  content: "";
+  position: absolute;
+  inset: -5px -7px;
+  border: 1px solid var(--ghost-ability-impact);
+  border-radius: 999px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ghost-ability-impact) 70%, transparent);
+  animation: ghost-ability-target-ring 1150ms ease-in-out infinite;
+}
+
+#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active {
+  background: #fff;
+  box-shadow:
+    0 0 4px #fff,
+    0 0 9px var(--ghost-ability-impact),
+    0 0 14px color-mix(in srgb, var(--ghost-ability-impact) 72%, transparent);
+  animation: ghost-ability-target-dot 900ms ease-in-out infinite alternate;
+}
+
+#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active:nth-child(2) {
+  animation-delay: 90ms;
+}
+
+#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active:nth-child(3) {
+  animation-delay: 180ms;
+}
+
+#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active:nth-child(4) {
+  animation-delay: 270ms;
 }
 
 #system-status-strip .target-action-dot {
@@ -1381,6 +1441,23 @@ body {
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes ghost-ability-target-ring {
+  0%, 100% { opacity: 0.42; transform: scaleX(0.94); }
+  50% { opacity: 1; transform: scaleX(1.06); }
+}
+
+@keyframes ghost-ability-target-dot {
+  from { transform: translateY(0) scale(0.92); }
+  to { transform: translateY(-1px) scale(1.22); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dots::before,
+  #system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active {
+    animation: none;
   }
 }
 

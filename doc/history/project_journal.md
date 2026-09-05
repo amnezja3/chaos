@@ -3117,3 +3117,13 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Snapshot ability otrzymał `Cache-Control: private, no-store`, fetch jawne
   `cache: no-store`, a URL dużego i małego assetu wersjonowany suffixem. Eliminuje
   to zachowanie starego snapshotu lub poprzedniej zawartości grafiki V1 przy V2.
+- Retest serwerowy potwierdził poprawny efekt na kolejnych celach oraz właściwy
+  asset V2. Funkcjonalny scope `Wejścia Serwisowego` otrzymał SERVER PASS.
+- Tuning UX zmienia prefix aktywnego celu z tekstu `CEL` na ikonę tego samego
+  markera, który przekazała mapa. V2 deklaruje `impact_ui=target_action_dots`;
+  aktywne okno przekazuje ten bezpieczny stan do pulpitu, gdzie klanowa obwódka
+  oraz sekwencyjny puls wyróżniają cztery kropki do czasu `expires_at`.
+- Most mapy do pulpitu i timer są wyłącznie prezentacyjne: nie dodają requestów,
+  nie ujawniają markerów canonical i nie używają ciężkiego profilu. Wzorzec
+  `impact_ui` jest obowiązkowy dla kolejnych realizerów.
+- Status `.1.2`: `FUNCTIONAL SERVER PASS / UX IMPACT RETEST PENDING`.

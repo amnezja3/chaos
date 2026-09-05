@@ -201,6 +201,7 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
         self.assertTrue(snapshot["available"])
         self.assertEqual("Wejście Serwisowe", snapshot["presentation"]["display_name"])
         self.assertEqual("BACKDOOR GOTOWY", snapshot["presentation"]["activation_tagline"])
+        self.assertEqual("target_action_dots", snapshot["presentation"]["impact_ui"])
         self.assertEqual(
             "/static/images/ghostnetwork/superpower/v2_backdoor_forge.png?v=ghost-superpower-v2",
             snapshot["presentation"]["visual_asset_url"],
