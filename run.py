@@ -20367,6 +20367,40 @@ def validate_registration_nick(nick):
     return nick, ""
 
 
+def build_registration_identity_contract(faction, role):
+    """Map registration slot IDs to canonical GhostNetwork identity."""
+    faction_id = str(faction or "").strip()
+    faction_name = FACTION_NAMES.get(faction_id)
+    try:
+        role_slot = int(role)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_registration_role") from exc
+    if not faction_name or role_slot < 1 or role_slot > 5:
+        raise ValueError("invalid_registration_identity")
+
+    clan_identity = normalize_ghostnetwork_profile_identity({"clan": faction_name})
+    clan_code = str(clan_identity.get("clan_code") or "").strip()
+    professions = sorted(
+        (
+            item for item in get_catalog().get("professions", [])
+            if isinstance(item, dict) and item.get("clan_code") == clan_code
+        ),
+        key=lambda item: int(item.get("sort_order") or 0),
+    )
+    if not clan_code or len(professions) != 5:
+        raise ValueError("invalid_registration_clan")
+    profession = professions[role_slot - 1]
+    return {
+        "faction_id": faction_id,
+        "faction_name": faction_name,
+        "clan_code": clan_code,
+        "role_slot": str(role_slot),
+        "profession_code": str(profession.get("code") or ""),
+        "profession_name": str(profession.get("name") or ""),
+        "avatar": f"/static/images/avatar-frakcja-{faction_id}-player-{role_slot}.png",
+    }
+
+
 @app.route("/api/register-check", methods=["POST"])
 def register_check_username():
     data = request.get_json(silent=True) or {}
@@ -20419,14 +20453,18 @@ def api_register_finalize():
     useremails = {str(u.get("email", "")).strip().lower() for u in user_store.list_profiles()}
     if email in useremails:
         return jsonify(success=False, error="Ten adres e-mail jest juz zarejestrowany."), 409
+    try:
+        identity = build_registration_identity_contract(faction, role)
+    except ValueError:
+        return jsonify(success=False, error="Nieprawidlowa frakcja lub rola."), 400
 
     ip = get_request_ip()
     start_location = get_start_location_by_ip(ip)
     city = start_location["city"]
     lat = start_location["lat"]
     lng = start_location["lng"]
-    avatar_path = f"/static/images/avatar-frakcja-{faction}-player-{role}.png"
-    faction_name = FACTION_NAMES.get(str(faction), str(faction))
+    avatar_path = identity["avatar"]
+    faction_name = identity["faction_name"]
 
     try:
         mgr = UserProfileManager("admin")
@@ -20441,7 +20479,15 @@ def api_register_finalize():
             "hackcoins": 1000,
             "curently_possition": {"lat": lat, "lng": lng},
             "clan": faction_name,
-            "fraction": {"id": str(faction), "name": faction_name, "role": role}
+            "ghost_clan": identity["clan_code"],
+            "ghost_clan_code": identity["clan_code"],
+            "ghost_profession": identity["profession_code"],
+            "profession": identity["profession_code"],
+            "fraction": {
+                "id": identity["faction_id"],
+                "name": faction_name,
+                "role": identity["role_slot"],
+            },
         })
 
         generation = begin_authenticated_session(username)

@@ -2950,3 +2950,13 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Wspólny `GameSfx.play()` obsługuje teraz opcjonalny, clampowany gain per voice i
   zachowuje go również po zmianie globalnej głośności. Cache key podniesiono do
   `sfx-ghostnetwork-7`.
+- Naprawiono lukę rejestracji ujawnioną przez test nowego konta: formularzowe
+  `faction=1–4` i `role=1–5` wyznaczały avatar oraz nazwę klanu, ale nie zapisywały
+  canonical profession. Backend mapuje teraz parę przez katalog GhostNetwork i
+  przed utworzeniem profilu waliduje dokładnie 20 dozwolonych kombinacji.
+- Pierwszy guarded zapis konta zawiera `ghost_clan`, `ghost_clan_code`,
+  `ghost_profession` i `profession`, zachowując zgodny `fraction.role` oraz avatar.
+  Identity projection powstaje w tym samym istniejącym mechanizmie zapisu; runtime
+  nie otrzymał recovery, skanu kont ani odczytu ciężkiego profilu.
+- Regresja admin profession, rejestracji, session generation, precommit i identity
+  projection: `60/60 PASS`.

@@ -89,6 +89,39 @@ class AdminProfessionChangeTest(unittest.TestCase):
 
         self.assertEqual(403, response.status_code)
 
+    def test_registration_slots_map_to_all_canonical_professions(self):
+        expected = {
+            "1": ("sentinel_order", [
+                "analyzer", "defender", "reconstructor", "mediator", "executor",
+            ]),
+            "2": ("echo_freedom", [
+                "hacktivist", "social_engineer", "revealer", "visionary", "igniter",
+            ]),
+            "3": ("virex", [
+                "broker", "architect", "manipulator", "profit_enforcer", "algorithm_curator",
+            ]),
+            "4": ("phantom_mesh", [
+                "illusionist", "virologist", "paranoid", "network_splitter", "mirror_judge",
+            ]),
+        }
+        for faction_id, (clan_code, professions) in expected.items():
+            for slot, profession_code in enumerate(professions, start=1):
+                with self.subTest(faction=faction_id, role=slot):
+                    identity = run.build_registration_identity_contract(faction_id, slot)
+                    self.assertEqual(clan_code, identity["clan_code"])
+                    self.assertEqual(profession_code, identity["profession_code"])
+                    self.assertEqual(str(slot), identity["role_slot"])
+                    self.assertEqual(
+                        f"/static/images/avatar-frakcja-{faction_id}-player-{slot}.png",
+                        identity["avatar"],
+                    )
+
+    def test_registration_rejects_unknown_faction_or_role_slot(self):
+        for faction, role in (("5", "1"), ("3", "0"), ("3", "6"), ("3", "broker")):
+            with self.subTest(faction=faction, role=role):
+                with self.assertRaises(ValueError):
+                    run.build_registration_identity_contract(faction, role)
+
 
 if __name__ == "__main__":
     unittest.main()

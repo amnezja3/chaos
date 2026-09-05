@@ -177,8 +177,8 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             response = self.client.post("/api/register-finalize", json={
                 "username": "new_player",
                 "password": "secret123",
-                "faction": "ghost",
-                "role": "runner",
+                "faction": "3",
+                "role": "1",
                 "nick": "New Player",
                 "email": "new@example.test",
             })
@@ -187,6 +187,11 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(state["user"], "new_player")
         self.assertTrue(state["generation"])
+        profile_update = manager_cls.return_value.update_profile.call_args.args[0]
+        self.assertEqual("virex", profile_update["ghost_clan_code"])
+        self.assertEqual("broker", profile_update["ghost_profession"])
+        self.assertEqual("broker", profile_update["profession"])
+        self.assertEqual("1", profile_update["fraction"]["role"])
         self.assert_desktop_generation(
             desktop,
             "new_player",

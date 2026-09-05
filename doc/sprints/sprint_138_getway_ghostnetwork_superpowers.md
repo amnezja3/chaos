@@ -505,6 +505,12 @@ warstwą na busie `gameplay` z gainem `1.0`. Oba uchwyty startują ze sceną i s
 wspólnie wygaszane po jej zakończeniu. Nie powstają nowe pliki audio ani osobny
 mikser supermocy.
 
+Eligibility nowego konta nie może zależeć od późniejszej korekty administratorskiej.
+Rejestracja mapuje serwerowo techniczne sloty `faction/role` na canonical
+`clan_code/profession_code` z tego samego katalogu, który definiuje części i
+avatary. Projekcja identity jest zapisywana razem z guarded profile write; nie
+istnieje runtime fallback do pełnego profilu.
+
 Testy celowane potwierdzają istniejące operacje, nowe operacje, replay recovery,
 idempotencję, expiry, utratę części, retry CAS, zamrożone mapowanie i zerowe
 liczniki heavy profile. Regresja kontraktów okien, canonical stores, risk,
