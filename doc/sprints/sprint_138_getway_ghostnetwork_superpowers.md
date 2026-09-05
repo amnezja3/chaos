@@ -486,6 +486,12 @@ projections oraz bieżące okno; utrata części albo expiry natychmiast wyłąc
 Odpowiedź endpointu ujawnia jedynie status realizera i liczbę zmienionych
 operacji — bez identyfikatorów operacji, wewnętrznej rodziny i mnożnika.
 
+Artwork aktywnej mocy ma osobny kontrakt `ghostnetwork/superpower`, zachowujący
+nazwy plików części. Ten URL zasila wyłącznie dużą scenę aktywacji. Mały asset
+przy odliczaniu oraz prezentacja części poza supermocą pozostają przy
+`ghostnetwork/parts`. Na wąskim ekranie kolejność warstw jest stała: atrybucja
+Leafleta pod panelem operacji, panel pod kontrolką mocy.
+
 Testy celowane potwierdzają istniejące operacje, nowe operacje, replay recovery,
 idempotencję, expiry, utratę części, retry CAS, zamrożone mapowanie i zerowe
 liczniki heavy profile. Regresja kontraktów okien, canonical stores, risk,

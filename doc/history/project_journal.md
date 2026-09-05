@@ -2930,3 +2930,11 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Status: `138.getway.0.5 SERVER FLOW PASS / MOBILE POLISH RETEST PENDING`.
   Po krótkim reteście warstw następna bramka to `138.getway.0.6` — metryki,
   korekta schematu i `CONTRACT LOCK`.
+- Kolejna korekta mobilna obniża również cały prawy dolny kontener atrybucji
+  Leafleta poniżej panelu operacji i kontrolek mapy. Stopka pozostaje widoczna na
+  spodzie, ale nie przechwytuje warstwy nad przyciskiem mocy.
+- Dodano oddzielny komplet 20 assetów `ghostnetwork/superpower`. Wyłącznie duża
+  scena aktywacji używa nowego katalogu; miniatura przy zegarze, markery, GN Suite
+  i zwykłe prezentacje części nadal korzystają z `ghostnetwork/parts`.
+- Testy okna, prezentacji, kompletności nowych PNG i audience visibility:
+  `29/29 PASS`; `git diff --check`: PASS.

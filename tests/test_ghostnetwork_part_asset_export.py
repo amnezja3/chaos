@@ -4,6 +4,11 @@ import struct
 import unittest
 
 from ghostnetwork.catalog import get_catalog
+from ghostnetwork.part_assets import (
+    SUPERPOWER_ASSET_ROOT,
+    part_superpower_asset_contract,
+    part_visual_asset_contract,
+)
 from tools.export_ghostnetwork_part_assets import ASSET_ROOT, build_asset_report
 
 
@@ -58,6 +63,28 @@ class GhostNetworkPartAssetExportTests(unittest.TestCase):
         by_code = {item["part_code"]: item for item in report["parts"]}
         self.assertEqual(by_code["V1"]["part_id"], "ghostnetwork_0001_v1")
         self.assertEqual(by_code["S5"]["part_id"], "ghostnetwork_0001_s5")
+
+    def test_superpower_artwork_is_complete_and_separate_from_part_artwork(self):
+        root = pathlib.Path(__file__).resolve().parents[1]
+        contracts = [
+            part_superpower_asset_contract(definition)
+            for definition in get_catalog()["parts"]
+        ]
+
+        self.assertEqual(20, len(contracts))
+        self.assertEqual(20, len({item["visual_asset_path"] for item in contracts}))
+        for definition, contract in zip(get_catalog()["parts"], contracts):
+            part_contract = part_visual_asset_contract(definition)
+            self.assertEqual(
+                part_contract["visual_asset_filename"],
+                contract["visual_asset_filename"],
+            )
+            self.assertTrue(
+                contract["visual_asset_path"].startswith(f"{SUPERPOWER_ASSET_ROOT}/")
+            )
+            path = root / contract["visual_asset_path"]
+            self.assertTrue(path.is_file(), contract["visual_asset_path"])
+            self.assertEqual(b"\x89PNG\r\n\x1a\n", path.read_bytes()[:8])
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ from .conflicts import GhostDefenseRewardPolicy, GhostStrategicConflictService
 from .lifecycle import GhostPartLifecycleService
 from .module_state import GhostModuleStateService
 from .narrative import GhostNarrativePublisher
-from .part_assets import part_visual_asset_contract
+from .part_assets import part_superpower_asset_contract, part_visual_asset_contract
 from .repository import GhostNetworkRepository
 from .rewards import GhostContributionService, GhostRewardService
 from .reservations import GhostDropPolicy, GhostReservationService, is_ghostnetwork_eligible_target
@@ -981,7 +981,9 @@ class GhostNetworkService:
             for item in self.abilities.catalog.get("clans", [])
             if isinstance(item, dict)
         }
-        asset = part_visual_asset_contract(parts.get(part_code) or {})
+        part_definition = parts.get(part_code) or {}
+        asset = part_superpower_asset_contract(part_definition)
+        timer_asset = part_visual_asset_contract(part_definition)
         clan = clans.get(clan_code) or {}
         display_names = {
             "insider_feed": "Insider Feed",
@@ -990,6 +992,7 @@ class GhostNetworkService:
             "clan_code": clan_code,
             "clan_color_token": clan.get("ui_color_token") or "",
             "visual_asset_url": asset.get("visual_asset_url") or "",
+            "timer_asset_url": timer_asset.get("visual_asset_url") or "",
             "visual_asset_max_px": asset.get("presentation_asset_max_px") or 560,
             "visual_asset_padding_px": asset.get("presentation_asset_padding_px") or 52,
             "visual_asset_motion": asset.get("presentation_asset_motion") or "shake",

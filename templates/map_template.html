@@ -1518,6 +1518,11 @@
       backdrop-filter: blur(3px);
     }
 
+    /* Attribution is map chrome, never the top interactive layer. */
+    .leaflet-bottom.leaflet-right {
+      z-index: 800;
+    }
+
     .active-operations-panel.is-minimized {
       max-height: 38px;
     }
@@ -2697,7 +2702,7 @@
                 badge.className = 'ghost-ability-control__badge';
                 const asset = document.createElement('img');
                 asset.className = 'ghost-ability-control__asset';
-                asset.src = String(presentation.visual_asset_url || '');
+                asset.src = String(presentation.timer_asset_url || presentation.visual_asset_url || '');
                 asset.alt = '';
                 asset.hidden = !asset.src;
                 asset.onerror = () => { asset.hidden = true; };

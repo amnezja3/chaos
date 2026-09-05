@@ -21,6 +21,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         for token in (
             "chaos-ghost-ability-overlay",
             "presentation.visual_asset_url",
+            "presentation.timer_asset_url",
             "presentation.sound_event",
             "presentation.show_duration_ms",
             "ghostAbilityRemaining(windowState.expires_at)",
@@ -36,6 +37,16 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("presentation.visual_asset_padding_px", self.source)
         self.assertIn("presentation.visual_asset_motion", self.source)
         self.assertIn("ghost-ability-asset-shake", self.source)
+        overlay = self.source[
+            self.source.index("function showGhostAbilityActivation"):
+            self.source.index("function ghostAbilityExpiryMessageOnce")
+        ]
+        clock = self.source[
+            self.source.index("function renderGhostAbilityControl"):
+            self.source.index("function scheduleGhostAbilityClock")
+        ]
+        self.assertNotIn("timer_asset_url", overlay)
+        self.assertIn("presentation.timer_asset_url || presentation.visual_asset_url", clock)
 
     def test_existing_territory_palette_is_reused_for_all_clans(self):
         palette = self.source[
@@ -65,6 +76,8 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ]
         self.assertIn("z-index: 850", operation_panel)
         self.assertIn("options: { position: 'bottomleft' }", self.source)
+        self.assertIn(".leaflet-bottom.leaflet-right", self.source)
+        self.assertIn("z-index: 800", self.source)
 
 
 if __name__ == "__main__":
