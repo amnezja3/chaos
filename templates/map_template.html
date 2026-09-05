@@ -490,13 +490,15 @@
     .chaos-ghost-ability-overlay.is-visible { opacity: 1; }
 
     .chaos-ghost-ability-panel {
+      --ability-asset-max-size: 560px;
+      --ability-asset-padding: 52px;
       position: relative;
       display: grid;
       place-items: center;
       width: min(820px, 94%);
       height: min(680px, 86%);
       min-height: 320px;
-      padding: clamp(18px, 4vw, 34px);
+      padding: var(--ability-asset-padding);
       overflow: hidden;
       border: 1px solid var(--ability-accent);
       background: color-mix(in srgb, var(--ability-deep) 20%, rgba(0, 8, 4, 0.9));
@@ -506,11 +508,17 @@
     }
 
     .chaos-ghost-ability-asset {
-      width: 100%;
-      height: 100%;
+      width: min(100%, var(--ability-asset-max-size));
+      height: auto;
+      max-height: 100%;
       object-fit: contain;
       filter: drop-shadow(0 0 24px var(--ability-accent));
-      animation: chaos-secret-path-sigil 640ms steps(2, end) infinite;
+      image-rendering: pixelated;
+      transform-origin: center;
+    }
+
+    .chaos-ghost-ability-asset[data-motion="shake"] {
+      animation: ghost-ability-asset-shake 180ms steps(2, end) infinite;
     }
 
     .chaos-ghost-ability-caption {
@@ -542,10 +550,16 @@
     }
 
     @keyframes ghost-ability-map-pulse { 50% { opacity: .42; } }
+    @keyframes ghost-ability-asset-shake {
+      0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+      25% { transform: translate(-2px, 1px) rotate(-.25deg) scale(1.006); }
+      50% { transform: translate(2px, -1px) rotate(.2deg) scale(1.01); }
+      75% { transform: translate(-1px, -2px) rotate(-.15deg) scale(1.004); }
+    }
 
     @media (max-width: 620px) {
       .ghost-ability-control { min-width: 158px; }
-      .chaos-ghost-ability-panel { width: 96%; height: min(620px, 90%); padding: 12px; }
+      .chaos-ghost-ability-panel { --ability-asset-padding: 24px; width: 96%; height: min(620px, 90%); }
       .chaos-ghost-ability-caption { left: 10px; right: 10px; bottom: 10px; padding: 13px; }
       .chaos-ghost-ability-title { font-size: clamp(22px, 8vw, 34px); }
     }
@@ -2534,6 +2548,10 @@
             const palette = ghostAbilityPalette(presentation.clan_code);
             element.style.setProperty('--ability-accent', palette.stroke);
             element.style.setProperty('--ability-deep', palette.fill);
+            const assetMax = Math.max(128, Math.min(720, Number(presentation.visual_asset_max_px) || 560));
+            const assetPadding = Math.max(12, Math.min(96, Number(presentation.visual_asset_padding_px) || 52));
+            element.style.setProperty('--ability-asset-max-size', `${assetMax}px`);
+            element.style.setProperty('--ability-asset-padding', `${assetPadding}px`);
         }
 
         function formatGhostAbilitySeconds(value) {
@@ -2600,6 +2618,7 @@
             asset.src = String(presentation.visual_asset_url || '');
             asset.alt = String(ability.part_name || ability.ability_name || 'GhostNetwork');
             asset.hidden = !asset.src;
+            asset.dataset.motion = String(presentation.visual_asset_motion || 'shake');
             asset.onerror = () => { asset.hidden = true; };
             overlay.querySelector('.chaos-ghost-ability-eyebrow').textContent =
                 `GHOSTNETWORK // ${String(ability.source_part_code || ability.part_code || 'ACTIVE')}`;

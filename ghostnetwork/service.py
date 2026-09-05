@@ -976,6 +976,9 @@ class GhostNetworkService:
             "clan_code": clan_code,
             "clan_color_token": clan.get("ui_color_token") or "",
             "visual_asset_url": asset.get("visual_asset_url") or "",
+            "visual_asset_max_px": asset.get("presentation_asset_max_px") or 560,
+            "visual_asset_padding_px": asset.get("presentation_asset_padding_px") or 52,
+            "visual_asset_motion": asset.get("presentation_asset_motion") or "shake",
             "show_duration_ms": 6000,
             "sound_event": "ghostnetwork.part_activated",
             "display_name": display_names.get(

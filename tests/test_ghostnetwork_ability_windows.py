@@ -62,6 +62,9 @@ class GhostAbilityWindowTest(unittest.TestCase):
             "ghostnetwork.part_activated",
             snapshot["presentation"]["sound_event"],
         )
+        self.assertEqual(560, snapshot["presentation"]["visual_asset_max_px"])
+        self.assertEqual(52, snapshot["presentation"]["visual_asset_padding_px"])
+        self.assertEqual("shake", snapshot["presentation"]["visual_asset_motion"])
         self.assertEqual("Insider Feed", snapshot["presentation"]["display_name"])
 
         self.now += timedelta(minutes=16)
