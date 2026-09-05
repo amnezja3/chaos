@@ -2938,3 +2938,8 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   i zwykłe prezentacje części nadal korzystają z `ghostnetwork/parts`.
 - Testy okna, prezentacji, kompletności nowych PNG i audience visibility:
   `29/29 PASS`; `git diff --check`: PASS.
+- Show V1 zastępuje mały tekst opisowy hasłem `MEGA HOSSA`. Backend zachowuje
+  pełny `semantic_description`, ale scena korzysta z osobnego
+  `activation_tagline`; jest to wzorzec 2–3-wyrazowy dla kolejnych mocy.
+- Eyebrow, tytuł i tagline otrzymały szybkie, rozdzielone drżenie quake/glitch.
+  `prefers-reduced-motion` wyłącza wszystkie trzy animacje tekstowe.

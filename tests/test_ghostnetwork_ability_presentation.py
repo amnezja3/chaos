@@ -22,6 +22,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "chaos-ghost-ability-overlay",
             "presentation.visual_asset_url",
             "presentation.timer_asset_url",
+            "presentation.activation_tagline",
             "presentation.sound_event",
             "presentation.show_duration_ms",
             "ghostAbilityRemaining(windowState.expires_at)",
@@ -37,6 +38,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("presentation.visual_asset_padding_px", self.source)
         self.assertIn("presentation.visual_asset_motion", self.source)
         self.assertIn("ghost-ability-asset-shake", self.source)
+        self.assertIn("ghost-ability-text-quake", self.source)
         overlay = self.source[
             self.source.index("function showGhostAbilityActivation"):
             self.source.index("function ghostAbilityExpiryMessageOnce")
@@ -46,6 +48,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             self.source.index("function scheduleGhostAbilityClock")
         ]
         self.assertNotIn("timer_asset_url", overlay)
+        self.assertNotIn("semantic_description", overlay)
         self.assertIn("presentation.timer_asset_url || presentation.visual_asset_url", clock)
 
     def test_existing_territory_palette_is_reused_for_all_clans(self):

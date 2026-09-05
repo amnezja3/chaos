@@ -492,6 +492,12 @@ przy odliczaniu oraz prezentacja części poza supermocą pozostają przy
 `ghostnetwork/parts`. Na wąskim ekranie kolejność warstw jest stała: atrybucja
 Leafleta pod panelem operacji, panel pod kontrolką mocy.
 
+Scena nie wyświetla pełnego opisu semantycznego. Każda moc otrzymuje osobne,
+czytelne w kilka sekund `activation_tagline` długości 2–3 wyrazów; dla V1 jest to
+`MEGA HOSSA`. Pełny opis pozostaje dostępny w kontrakcie informacyjnym. Sygnatura,
+tytuł i hasło mają krótki efekt quake/glitch przez cały show, z obowiązkowym
+wyłączeniem przy `prefers-reduced-motion`.
+
 Testy celowane potwierdzają istniejące operacje, nowe operacje, replay recovery,
 idempotencję, expiry, utratę części, retry CAS, zamrożone mapowanie i zerowe
 liczniki heavy profile. Regresja kontraktów okien, canonical stores, risk,

@@ -988,6 +988,10 @@ class GhostNetworkService:
         display_names = {
             "insider_feed": "Insider Feed",
         }
+        activation_taglines = {
+            "insider_feed": "MEGA HOSSA",
+        }
+        ability_code = str(ability.get("ability_code") or "")
         return {
             "clan_code": clan_code,
             "clan_color_token": clan.get("ui_color_token") or "",
@@ -999,9 +1003,10 @@ class GhostNetworkService:
             "show_duration_ms": 6000,
             "sound_event": "ghostnetwork.part_activated",
             "display_name": display_names.get(
-                str(ability.get("ability_code") or ""),
+                ability_code,
                 ability.get("ability_name") or "GhostNetwork",
             ),
+            "activation_tagline": activation_taglines.get(ability_code) or "MOC AKTYWNA",
             "semantic_description": ability.get("ability_description") or "",
         }
 

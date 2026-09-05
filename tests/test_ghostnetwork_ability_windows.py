@@ -70,6 +70,8 @@ class GhostAbilityWindowTest(unittest.TestCase):
         self.assertEqual(52, snapshot["presentation"]["visual_asset_padding_px"])
         self.assertEqual("shake", snapshot["presentation"]["visual_asset_motion"])
         self.assertEqual("Insider Feed", snapshot["presentation"]["display_name"])
+        self.assertEqual("MEGA HOSSA", snapshot["presentation"]["activation_tagline"])
+        self.assertTrue(snapshot["presentation"]["semantic_description"])
 
         self.now += timedelta(minutes=16)
         cooldown = self.service.activate_player_ability(self.player, "request-3")
