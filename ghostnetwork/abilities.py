@@ -262,7 +262,10 @@ class GhostAbilityRegistry:
         if part.get("module_state"):
             return part
         if self.modules:
-            return self.modules.resolve_part_module_state(part)
+            state = self.modules.resolve_part_module_state(part)
+            state["last_activated_at"] = _clean(part.get("last_activated_at"))
+            state["activated_at"] = _clean(part.get("activated_at"))
+            return state
         return part
 
     def _matching_part_state(self, snapshot, effect):
@@ -326,6 +329,10 @@ class GhostAbilityRegistry:
                 "state_version": int(snapshot.get("state_version") or (cycle or {}).get("state_version") or 0),
                 "source_part_id": _clean((state or {}).get("part_id")),
                 "source_part_code": _clean((state or {}).get("part_code") or effect.get("part_code")),
+                "source_part_last_activated_at": _clean(
+                    (state or {}).get("last_activated_at")
+                    or (state or {}).get("activated_at")
+                ),
                 "module_state": _clean((state or {}).get("module_state")),
                 "conflict_state": _clean((state or {}).get("conflict_state"), "none"),
             })
@@ -374,4 +381,3 @@ class GhostAbilityRegistry:
             adapter = self.adapters.get(effect.get("adapter_code")) or self.adapters.get("generic") or GhostAbilityAdapter()
             modified = adapter.apply_modifier(effect, context, modified)
         return modified
-

@@ -137,6 +137,68 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         self.assertEqual(71, player_context["level"])
         service.activate_player_ability.assert_called_once_with(player_context, "request-1")
 
+    def test_target_ability_response_uses_sanitized_current_target(self):
+        client, headers = self._client()
+        service = Mock()
+        service.activate_player_ability.return_value = {
+            "ok": True,
+            "status": "activated",
+            "window": {
+                "window_id": "w-v2",
+                "ability_code": "service_entrance",
+                "source_part_code": "V2",
+                "target_id": "map:52.1:21.1:TARGET",
+                "player_id": "alice",
+                "dedupe_key": "private-dedupe",
+            },
+            "realizer": {
+                "status": "applied",
+                "applied_targets": 1,
+                "applied_changes": 4,
+            },
+        }
+        canonical_target = {
+            "target_id": "map:52.1:21.1:TARGET",
+            "lat": 52.1,
+            "lng": 21.1,
+            "label": "TARGET",
+            "actions_allowed": {
+                "scan_ports": True, "exploit": True,
+                "sniff": True, "trace": True,
+            },
+            "security": {"firewall": True},
+            "ability_application_keys": ["private-window:actions"],
+        }
+        identity = {
+            "username": "alice", "clan": "virex", "profession": "architect",
+        }
+        capabilities = {
+            "username": "alice", "level": 71,
+            "action_range": 2528, "map_zoom": 18,
+        }
+        with patch.object(run, "GHOSTNETWORK_ABILITIES_ENABLED", True), \
+                patch.object(run.identity_projection_store, "get_identity", return_value=identity), \
+                patch.object(run.capability_projection_store, "get_capabilities", return_value=capabilities), \
+                patch.object(run.player_target_runtime_store, "get_active_target", return_value=canonical_target), \
+                patch.object(run, "get_ghostnetwork_service", return_value=service), \
+                patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")):
+            response = client.post(
+                "/api/ghostnetwork/ability",
+                headers={**headers, "Idempotency-Key": "request-v2"},
+                json={"request_id": "request-v2"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        target = payload["target"]
+        self.assertTrue(all(target["actions_allowed"].values()))
+        self.assertEqual({"firewall": True}, target["security"])
+        self.assertNotIn("ability_application_keys", target)
+        self.assertEqual("w-v2", payload["window"]["window_id"])
+        self.assertNotIn("target_id", payload["window"])
+        self.assertNotIn("player_id", payload["window"])
+        self.assertNotIn("dedupe_key", payload["window"])
+
     def test_sprint_130_12_endpoints_have_no_full_profile_helpers(self):
         forbidden = (
             "load_profile_readonly",

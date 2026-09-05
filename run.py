@@ -20939,6 +20939,22 @@ def api_ghostnetwork_ability():
         request.headers.get("Idempotency-Key") or data.get("request_id") or ""
     ).strip()
     result = service.activate_player_ability(player_context, request_key)
+    if (
+        result.get("ok")
+        and int(((result.get("realizer") or {}).get("applied_targets") or 0)) > 0
+    ):
+        target = player_target_runtime_store.get_active_target(username)
+        if target:
+            result["target"] = map_target_client_snapshot(target)
+    internal_window = result.get("window")
+    if isinstance(internal_window, dict):
+        result["window"] = {
+            key: internal_window.get(key) for key in (
+                "window_id", "ability_code", "source_part_code",
+                "activated_at", "expires_at", "cooldown_until",
+                "level_snapshot",
+            )
+        }
     status_code = 200 if result.get("ok") else (
         400 if result.get("status") == "invalid_request_key" else 409
     )

@@ -3048,3 +3048,37 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `py_compile` oraz `git diff --check`: PASS. Pełna klasa `operation_control`
   nadal reprodukuje dwa wcześniej zapisane 403 w cancel endpointach, niezależne
   od snapshotu i renderowania przyspieszonej karty.
+- Produkcyjny retest na koncie LVL 110 skrócił pozostały czas operacji z
+  `10716 s` do `967 s`, potwierdzając finalny mnożnik `11×` z tolerancją czasu
+  pomiędzy odczytami. Canonical `player_operations` potwierdził `marker_count=1`
+  i marker `ghost_ability_window_*:operation_speed`; panel Centrum Operacji
+  potwierdził jego bezpieczną projekcję przez wyróżnienie przyspieszonej karty.
+  Puste pola provenance/factor są zgodne z minimalnym kontraktem istniejącej
+  operacji, a efekt działał wyłącznie w aktywnym oknie.
+- Status: `138.getway.1.1 COMPLETE / SERVER PASS`. V1/Broker/`Insider Feed`
+  pozostaje finalnie związany wyłącznie z bounded `operation_speed`, z capem
+  `20×`, limitem ośmiu operacji i bez ciężkiego profilu w runtime. Następny etap:
+  `138.getway.1.2` — Architekt / V2 / `Wejście Serwisowe`.
+
+## 2026-09-05 — 138.getway.1.2, Wejście Serwisowe
+
+- Rozpoczęto produkcyjny vertical slice V2/Architekt. Statyczne mapowanie
+  `service_entrance → hack_actions` korzysta z istniejącego
+  `PlayerTargetRuntimeStore`, exact target key, expected version i CAS.
+- Aktywacja wymaga nieterminalnego oznaczonego celu. Brak celu nie tworzy okna i
+  nie zużywa cooldownu. Okno wiąże dokładny target; replay po zmianie celu nie
+  przenosi efektu na nowy obiekt.
+- Realizer ustawia cztery action dots jako wykonane, zapisuje jeden prywatny
+  marker `*:actions` i nie zmienia security. Odpowiedź frontendu zawiera jedynie
+  sanitizowany snapshot własnego celu, dzięki czemu toolbar oraz markery
+  odświeżają się bez ciężkiego profilu i bez ujawnienia markera. Publiczne okno
+  nie zawiera exact target binding, player ID ani dedupe key.
+- Prezentacja V2 korzysta ze wspólnego show/SFX/timera oraz assetu części;
+  display name `Wejście Serwisowe`, tagline `BACKDOOR GOTOWY`.
+- Part-loss gate został domknięty tokenem `last_activated_at`: ponowne zdobycie
+  tej samej części nie wznawia starego okna. Globalny `source_state_version` nie
+  jest bramką, więc niezwiązane zdarzenie świata nie wyłącza mocy.
+- Testy V2 i kontraktów sąsiednich: `53/53 PASS`; pełna regresja GhostNetwork:
+  `335/335 PASS`; `py_compile` i `git diff --check`: PASS.
+- Status: `138.getway.1.2 LOCAL PASS / SERVER GAMEPLAY TEST PENDING`. Nie
+  wykonano commita ani pushu.

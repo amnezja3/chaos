@@ -2843,7 +2843,15 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
-                    throw new Error(result.reason || result.status || 'Nie udało się aktywować mocy.');
+                    throw new Error(result.message || result.reason || result.status || 'Nie udało się aktywować mocy.');
+                }
+                if (result.target) {
+                    window.profileData = window.profileData || {};
+                    window.profileData.aimed_target = result.target;
+                    updateParentToolbarAimedTarget(result.target);
+                    if (typeof window.refreshMapTargetSnapshot === 'function') {
+                        await window.refreshMapTargetSnapshot();
+                    }
                 }
                 const snapshot = await refreshGhostAbilitySnapshot({ silent: false });
                 if (snapshot && snapshot.active) {

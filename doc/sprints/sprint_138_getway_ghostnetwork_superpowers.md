@@ -335,6 +335,12 @@ nie są liczone jako prawdziwe incydenty do kar/nagród.
 
 ## 8. Model profesja po profesji
 
+Szczegółowa propozycja przypisania wszystkich 20 profesji do certyfikowanych
+rodzin znajduje się w
+`doc/plans/138_getway_profession_realizer_mapping.md`. Jest artefaktem
+decyzyjnym: mapowanie każdego wiersza staje się produkcyjne dopiero po jego
+teście frontendowym i decyzji podsprintu.
+
 Każdy efekt katalogowy pozostaje hipotezą do pierwszego testu. W każdym
 podsprintcie wykonujemy tylko:
 
@@ -637,7 +643,7 @@ parametry i wykonuje indywidualny test produktowy/E2E.
 
 ### Decyzja `.1.1` — Broker / V1
 
-Status: `IN PROGRESS / LOCAL CONTRACT PASS — SERVER CAP RETEST PENDING`
+Status: `COMPLETE / SERVER PASS`
 
 Po trzygodzinnej sesji produkcyjnej przyjęto `KEEP + ADJUST`: zachowujemy
 `Insider Feed → operation_speed`, czas 15 minut, cooldown 1 godzinę i limit
@@ -674,6 +680,46 @@ Izolowana regresja snapshotu, bezpiecznej projekcji, prezentacji, realizera i
 light-read: `38/38 PASS`; `py_compile` oraz `git diff --check`: PASS. Pełne
 uruchomienie klasy `operation_control` nadal odtwarza dwa znane, niezależne 403
 w testach cancel; nie dotyczą one ścieżki renderu ani zmian `.1.1`.
+
+Produkcyjny test LVL 110 potwierdził skrócenie kontrolowanej operacji z
+`10716 s` do `967 s`, czyli oczekiwane `11×` po uwzględnieniu czasu pomiędzy
+pomiarami. Canonical rekord operacji potwierdził tablicę z dokładnie jednym
+markerem `ghost_ability_window_*:operation_speed`, a Centrum Operacji jego
+bezpieczną projekcję przez wyróżnienie karty i aktywny efekt `INSIDER FEED`.
+Brak dodatkowego `ability_provenance` dla operacji istniejącej jest zamierzonym
+minimalnym kontraktem; po wygaśnięciu okna tempo wróciło do normy.
+Kontrakt `.1.1` ma pełny SERVER PASS bez ciężkiego profilu i bez zmian wspólnego
+runtime.
+
+### Implementacja `.1.2` — Architekt / V2
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+Produkcyjne mapowanie rozszerzono statycznie o
+`service_entrance → hack_actions`. Aktywacja wymaga bieżącego, nieterminalnego
+celu i przed utworzeniem okna zapisuje jego dokładny `target_key`. Realizer przez
+istniejący `PlayerTargetRuntimeStore` oraz CAS ustawia cztery canonical action
+dots (`scan_ports`, `exploit`, `sniff`, `trace`) jako wykonane. Nie zmienia ani
+jednego zabezpieczenia. Brak celu zwraca `target_unavailable` i nie zużywa okna
+ani cooldownu; zmiana celu przed recovery/replay kończy się bez mutacji nowego
+obiektu.
+
+Frontend otrzymuje po udanej zmianie wyłącznie sanitizowany snapshot własnego
+celu i publiczne pola timera okna, natychmiast aktualizuje toolbar i odświeża
+markery. Exact target binding, dedupe, player ID i marker pozostają wyłącznie po
+stronie canonical runtime. V2 korzysta ze wspólnego 6-sekundowego
+show, assetu `v2_backdoor_forge.png`, SFX, timera i palety VIREX; display name to
+`Wejście Serwisowe`, a tagline `BACKDOOR GOTOWY`.
+
+Hardened part-loss gate porównuje `last_activated_at` części z czasem utworzenia
+okna. Utrata i ponowna aktywacja tej samej części nie wskrzesi starego efektu,
+ale niezwiązana zmiana wersji świata nie wyłącza mocy. Nie użyto globalnego
+`source_state_version`, ciężkiego profilu ani dodatkowego pollingu.
+
+Regresja kontraktu V2 i sąsiednich ścieżek: `53/53 PASS`. Pełna regresja
+GhostNetwork: `335/335 PASS`; `py_compile` i `git diff --check`: PASS. Test
+serwerowy ma potwierdzić cztery zapalone kropki, niezmienione security, jeden
+marker `*:actions`, target binding, reload i cooldown.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

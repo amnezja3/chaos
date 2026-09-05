@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from time import perf_counter
 
-from database import DB_PATH, PlayerOperationStore
+from database import DB_PATH, PlayerOperationStore, PlayerTargetRuntimeStore
 from config import (
     GHOSTNETWORK_DROP_CHANCE,
     GHOSTNETWORK_DROPS_ENABLED,
@@ -62,7 +62,8 @@ class GhostNetworkService:
         )
         if ability_production_realizer is None and ability_pilot_harness is None:
             self.ability_production_realizer = GhostAbilityProductionRealizer(
-                PlayerOperationStore(self.repository.db_path)
+                PlayerOperationStore(self.repository.db_path),
+                PlayerTargetRuntimeStore(self.repository.db_path),
             )
         self.contributions = GhostContributionService(repository=self.repository)
         self.rewards = GhostRewardService(
@@ -993,9 +994,11 @@ class GhostNetworkService:
         clan = clans.get(clan_code) or {}
         display_names = {
             "insider_feed": "Insider Feed",
+            "service_entrance": "Wejście Serwisowe",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
+            "service_entrance": "BACKDOOR GOTOWY",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {
@@ -1032,11 +1035,8 @@ class GhostNetworkService:
         now_dt = self.repository.now() if now is None else now
         from .repository import _utc_datetime
         current = _utc_datetime(now_dt)
-        active = bool(
-            window and ability
-            and window.get("ability_code") == ability.get("ability_code")
-            and window.get("source_part_id") == ability.get("source_part_id")
-            and current < _utc_datetime(window.get("expires_at"))
+        active = self._ability_window_matches(
+            window, ability, current=current, require_unexpired=True,
         )
         cooldown = bool(
             window and current < _utc_datetime(window.get("cooldown_until"))
@@ -1074,6 +1074,29 @@ class GhostNetworkService:
                 else (resolved.get("ability") or {}).get("activation_reason") or "not_eligible"
             ),
         }
+
+    @staticmethod
+    def _ability_window_matches(window, ability, *, current, require_unexpired):
+        """Match current eligibility and reject a window from an older part activation."""
+        if (
+            not window or not ability
+            or window.get("ability_code") != ability.get("ability_code")
+            or window.get("source_part_id") != ability.get("source_part_id")
+        ):
+            return False
+        from .repository import _utc_datetime
+        if require_unexpired and current >= _utc_datetime(window.get("expires_at")):
+            return False
+        part_activated_at = str(
+            ability.get("source_part_last_activated_at") or ""
+        ).strip()
+        if (
+            part_activated_at
+            and _utc_datetime(part_activated_at)
+            > _utc_datetime(window.get("activated_at"))
+        ):
+            return False
+        return True
 
     def activate_player_ability(self, player_context, request_key, now=None):
         activation_started = perf_counter()
@@ -1115,10 +1138,10 @@ class GhostNetworkService:
             from .repository import _utc_datetime
             replay_current = _utc_datetime(self.repository.now() if now is None else now)
             if (
-                ability
-                and replayed.get("ability_code") == ability.get("ability_code")
-                and replayed.get("source_part_id") == ability.get("source_part_id")
-                and replay_current < _utc_datetime(replayed.get("expires_at"))
+                self._ability_window_matches(
+                    replayed, ability, current=replay_current,
+                    require_unexpired=True,
+                )
                 and self.ability_production_realizer is not None
             ):
                 realizer_started = perf_counter()
@@ -1144,6 +1167,19 @@ class GhostNetworkService:
                     else (resolved.get("ability") or {}).get("activation_reason") or "not_eligible"
                 ),
             }, eligible_ability)
+        activation_target_id = ""
+        if self.ability_production_realizer is not None:
+            target_binding = self.ability_production_realizer.resolve_activation_target(
+                player_id, ability.get("ability_code"),
+            )
+            activation_target_id = str(target_binding.get("target_id") or "").strip()
+            if target_binding.get("required") and not activation_target_id:
+                return finish({
+                    "ok": False,
+                    "status": "target_unavailable",
+                    "reason": "select_target_before_activation",
+                    "message": "Najpierw oznacz cel na mapie.",
+                }, ability)
         result = self.repository.activate_ability_window(
             player_id=resolved.get("player_id"),
             ability_code=ability.get("ability_code"),
@@ -1155,6 +1191,7 @@ class GhostNetworkService:
             request_key=request_key,
             duration_seconds=GHOSTNETWORK_ABILITY_DURATION_SECONDS,
             cooldown_seconds=GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS,
+            target_id=activation_target_id,
             now=now,
         )
         pilot_evidence = None
@@ -1173,6 +1210,8 @@ class GhostNetworkService:
             realizer_result = {
                 "status": internal_realizer_result.get("status") or "",
                 "applied_operations": len(internal_realizer_result.get("persisted") or []),
+                "applied_targets": int(bool(internal_realizer_result.get("target_applied"))),
+                "applied_changes": len(internal_realizer_result.get("changed") or []),
             }
         return finish({
             "ok": result.get("status") in {"activated", "replayed"},

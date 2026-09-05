@@ -472,18 +472,36 @@ class GhostAbilityCanonicalPilotHarness:
 class GhostAbilityProductionRealizer:
     """Frozen production mapping for implemented GhostNetwork abilities."""
 
-    ABILITY_FAMILIES = {"insider_feed": "operation_speed"}
+    ABILITY_FAMILIES = {
+        "insider_feed": "operation_speed",
+        "service_entrance": "hack_actions",
+    }
 
-    def __init__(self, operation_store):
+    def __init__(self, operation_store, target_store=None):
         self.operation_store = operation_store
+        self.target_store = target_store
 
-    def apply_activation(self, player_id, window):
-        player_id = str(player_id or "").strip()
-        window = window if isinstance(window, dict) else {}
+    def resolve_activation_target(self, player_id, ability_code):
+        """Bind target-scoped abilities before their durable window is created."""
+        family = self.ABILITY_FAMILIES.get(str(ability_code or "").strip())
+        if family != "hack_actions":
+            return {"required": False, "target_id": ""}
+        if self.target_store is None:
+            return {"required": True, "target_id": ""}
+        row = self.target_store.get(str(player_id or "").strip())
         if (
-            not player_id
-            or self.ABILITY_FAMILIES.get(window.get("ability_code")) != "operation_speed"
+            not row
+            or str(row.get("status") or "").strip().lower()
+            in getattr(self.target_store, "TERMINAL_STATUSES", set())
         ):
+            return {"required": True, "target_id": ""}
+        return {
+            "required": True,
+            "target_id": str(row.get("target_key") or "").strip(),
+        }
+
+    def _apply_operation_speed(self, player_id, window):
+        if self.operation_store is None:
             return {"ok": False, "status": "realizer_unavailable"}
         changed_ids = set()
         persisted_ids = set()
@@ -531,6 +549,67 @@ class GhostAbilityProductionRealizer:
             "attempts": attempts,
             "cas_retries": max(0, attempts - 1),
         }
+
+    def _apply_hack_actions(self, player_id, window):
+        target_id = str(window.get("target_id") or "").strip()
+        if self.target_store is None or not target_id:
+            return {"ok": False, "status": "target_unavailable"}
+        attempts = 0
+        for _attempt in range(2):
+            attempts += 1
+            row = self.target_store.get(player_id)
+            if (
+                not row
+                or str(row.get("status") or "").strip().lower()
+                in getattr(self.target_store, "TERMINAL_STATUSES", set())
+            ):
+                return {
+                    "ok": False, "status": "target_unavailable",
+                    "attempts": attempts, "cas_retries": max(0, attempts - 1),
+                }
+            if str(row.get("target_key") or "") != target_id:
+                return {
+                    "ok": False, "status": "target_changed",
+                    "attempts": attempts, "cas_retries": max(0, attempts - 1),
+                }
+            result = self.target_store.apply_ability_actions(
+                player_id,
+                target_key=target_id,
+                expected_version=row.get("version") or 0,
+                activation_id=window.get("window_id") or "",
+            )
+            reason = str(result.get("reason") or "")
+            if result.get("ok"):
+                return {
+                    "ok": True,
+                    "status": "replayed" if reason == "replayed" else "applied",
+                    "family": "hack_actions",
+                    "changed": list(result.get("changed") or []),
+                    "target_applied": True,
+                    "attempts": attempts,
+                    "cas_retries": max(0, attempts - 1),
+                }
+            if reason != "stale_version":
+                return {
+                    "ok": False, "status": reason or "target_change_failed",
+                    "attempts": attempts, "cas_retries": max(0, attempts - 1),
+                }
+        return {
+            "ok": False, "status": "concurrent_change",
+            "attempts": attempts, "cas_retries": max(0, attempts - 1),
+        }
+
+    def apply_activation(self, player_id, window):
+        player_id = str(player_id or "").strip()
+        window = window if isinstance(window, dict) else {}
+        family = self.ABILITY_FAMILIES.get(window.get("ability_code"))
+        if not player_id or not family:
+            return {"ok": False, "status": "realizer_unavailable"}
+        if family == "operation_speed":
+            return self._apply_operation_speed(player_id, window)
+        if family == "hack_actions":
+            return self._apply_hack_actions(player_id, window)
+        return {"ok": False, "status": "realizer_unavailable"}
 
     def apply_to_new_operation(self, operation, window):
         if self.ABILITY_FAMILIES.get((window or {}).get("ability_code")) != "operation_speed":

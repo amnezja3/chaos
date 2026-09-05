@@ -94,6 +94,27 @@ class GhostAbilityWindowTest(unittest.TestCase):
         self.assertTrue(snapshot["cooldown"])
         self.assertEqual(activated["window"]["window_id"], snapshot["window"]["window_id"])
 
+        self.now += timedelta(seconds=1)
+        self.repo.update_part(
+            self.part["part_id"], status="active",
+            last_activated_at=self.now.isoformat(),
+        )
+        resurrected = self.service.get_player_ability_window_snapshot(self.player)
+        self.assertFalse(resurrected["active"])
+        self.assertTrue(resurrected["cooldown"])
+
+    def test_unrelated_world_version_does_not_terminate_active_window(self):
+        activated = self.service.activate_player_ability(self.player, "request-world")
+        other = next(
+            item for item in self.repo.list_parts(self.cycle["cycle_id"])
+            if item["part_code"] == "E1"
+        )
+        self.repo.update_part(other["part_id"], source_state="unrelated-change")
+
+        snapshot = self.service.get_player_ability_window_snapshot(self.player)
+        self.assertTrue(snapshot["active"])
+        self.assertEqual(activated["window"]["window_id"], snapshot["window"]["window_id"])
+
     def test_client_cannot_choose_realizer_contract(self):
         import inspect
         import run

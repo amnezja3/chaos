@@ -174,7 +174,10 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
 
     def test_production_mapping_is_frozen_and_runtime_hook_is_lightweight(self):
         self.assertEqual(
-            {"insider_feed": "operation_speed"},
+            {
+                "insider_feed": "operation_speed",
+                "service_entrance": "hack_actions",
+            },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,
         )
         import run

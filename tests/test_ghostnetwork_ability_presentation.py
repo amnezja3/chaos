@@ -96,6 +96,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ):
             self.assertIn(token, self.source)
 
+    def test_target_realizer_refreshes_toolbar_without_profile_reload(self):
+        activation = self.source[
+            self.source.index("async function activateGhostAbility"):
+            self.source.index("window.refreshGhostAbilitySnapshot =", self.source.index("async function activateGhostAbility"))
+        ]
+        self.assertIn("if (result.target)", activation)
+        self.assertIn("updateParentToolbarAimedTarget(result.target)", activation)
+        self.assertIn("await window.refreshMapTargetSnapshot()", activation)
+
 
 if __name__ == "__main__":
     unittest.main()
