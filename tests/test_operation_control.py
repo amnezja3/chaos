@@ -179,6 +179,21 @@ class OperationControlTest(unittest.TestCase):
         self.assertNotIn("ability_application_keys", item)
         self.assertNotIn("ability_provenance", item)
 
+    def test_snapshot_exposes_only_safe_file_yield_flag(self):
+        profile = operation_control_profile()
+        touched = operation("op-yield")
+        touched["ability_application_keys"] = ["private-window:file_yield"]
+        touched["file_yield_provenance"] = {"window_id": "private-window"}
+
+        snapshot = run.build_operation_control_snapshot(
+            "alice", profile, operations=[touched],
+        )
+        item = snapshot["operations"][0]
+
+        self.assertTrue(item["yield_boosted"])
+        self.assertNotIn("ability_application_keys", item)
+        self.assertNotIn("file_yield_provenance", item)
+
     def test_snapshot_endpoint_requires_operation_control_app_and_does_not_use_full_sync(self):
         client, headers = self._client_with_user()
         profile = operation_control_profile()

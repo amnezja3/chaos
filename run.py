@@ -87,6 +87,7 @@ from ghostnetwork.editorial import (
     GOOGLEPLEX_HOME_SLOT_REGISTRY,
     GoogleplexEditorialProducer,
 )
+from ghostnetwork.ability_realizers import replicate_file_yield_files
 from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
@@ -14605,6 +14606,7 @@ def finalize_operation_files_bounded(username, operation):
                 item["queued_at"] = item.get("queued_at") or runtime_file_now()
                 item["market_sector"] = market_sector_for_file(item)
             generated.append(item)
+    generated.extend(replicate_file_yield_files(operation, generated))
     if changed or generated:
         artifact_state["finalized_at"] = runtime_file_now()
         artifact_state["file_ids"] = [item.get("id") for item in generated]
@@ -14887,6 +14889,9 @@ def summarize_operation_for_client(operation):
         or any(str(marker or "").endswith(":operation_speed") for marker in ability_markers)
     )
     risk_masked = int(risk_meter.get("ability_heat_modifier") or 0) < 0
+    yield_boosted = any(
+        str(marker or "").endswith(":file_yield") for marker in ability_markers
+    )
 
     return {
         "operation_id": operation.get("operation_id"),
@@ -14913,6 +14918,7 @@ def summarize_operation_for_client(operation):
         "expired": operation.get("expired"),
         "accelerated": accelerated,
         "risk_masked": risk_masked,
+        "yield_boosted": yield_boosted,
         "output_mb": operation_output_size_mb(operation),
         "current_position": {
             "lat": current_position.get("lat"),

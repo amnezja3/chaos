@@ -30,7 +30,13 @@ def fixture_for(family, now):
                 {"operation_id": "op-2", "status": "active", "expires_at": (now + timedelta(minutes=20)).isoformat()},
             ],
         },
-        "file_yield": {"operation_id": "op-ready", "files": []},
+        "file_yield": {
+            "operation_id": "op-ready",
+            "files": [{
+                "file_id": "source-ready", "name": "source.json",
+                "file_category": "credentials", "sellable": True,
+            }],
+        },
         "data_quality": {
             "files": [
                 {"file_id": "camera-1", "file_category": "camera", "quality_score": 90, "completeness_percent": 70},

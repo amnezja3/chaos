@@ -257,7 +257,7 @@ ability_code
 | Rodzina | Widoczny efekt dla gracza | Sposób integracji |
 | --- | --- | --- |
 | `operation_speed` | zegary rozpoczętych operacji wyraźnie przyspieszają | bounded korekta pozostałego czasu; znacznik chroni przed wielokrotnym użyciem |
-| `file_yield` | operacja tworzy więcej plików właściwego typu | bonus przy istniejącej finalizacji plików |
+| `file_yield` | dotknięta operacja tworzy `oryginał + backup + fullbackup` każdego materiału GX | trwały marker operacji i replikacja przy istniejącej finalizacji plików |
 | `file_value` | **DEFERRED** — wymaga narrow settlementu Ghost Exchange | nie wchodzi do bieżącej bramki |
 | `data_quality` | rośnie kompletność/jakość konkretnych plików | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
@@ -428,7 +428,7 @@ limit, idempotency i test braku heavy profile:
 | Realizer | Fixture pilota | Dowód działania |
 | --- | --- | --- |
 | `operation_speed` | kilka aktywnych operacji o różnych czasach | zegary skracają się dokładnie raz |
-| `file_yield` | operacja gotowa do finalizacji | powstaje bounded liczba dodatkowych plików |
+| `file_yield` | operacja z trwałym markerem oraz bazowym materiałem GX | każdy materiał daje dwie osobne, deterministyczne kopie; GX sam buduje paczkę |
 | `data_quality` | camera/audio/credentials o znanej jakości | quality/completeness rośnie w granicach 0–100 |
 | `hack_actions` | oznaczony cel z niewykonanymi kropkami | właściwe action dots są wykonane, security pozostaje |
 | `target_security` | oznaczony cel z wersjonowaną security map | bounded redukcja/wzmocnienie zachowuje CAS |
@@ -639,7 +639,7 @@ parametry i wykonuje indywidualny test produktowy/E2E.
 | `.1.1` | Broker / V1 | **Insider Feed** — promocja pilota `.0.5/.0.6`, finalny tuning `operation_speed` |
 | `.1.2` | Architekt / V2 | **Wejście Serwisowe** — `hack_actions`, każdy cel oznaczony w aktywnym oknie natychmiast dostaje wszystkie kropki |
 | `.1.3` | Manipulator / V3 | **Fałszywy Obraz** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
-| `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — `data_quality`/`file_yield` dla danych przejętych w oknie |
+| `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — trwały `file_yield ×3` dla operacji dotkniętych w oknie |
 | `.1.5` | Kurator Algorytmu / V5 | **Predykcja Operacyjna** — podgląd i bounded `operation_risk`/`operation_speed` |
 
 ### Decyzja `.1.1` — Broker / V1
@@ -805,6 +805,46 @@ wyróżnione podczas działania maskowania i wracają do zwykłego stanu po usta
 wpływu na heat. Risk meter nadal sam wyznacza wynik; test nie wygenerował
 incydentów i moc nie utworzyła żadnych fałszywych rekordów świata. Decyzja:
 `KEEP / LOCKED` dla `false_image → operation_risk`.
+
+### Implementacja `.1.4` — Egzekutor Zysku / V4
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+`Wrogie Przejęcie` używa certyfikowanej rodziny `file_yield`, ale produkcyjny
+kontrakt nie jest stałym bonusem dwóch plików na operację. Aktywacja oznacza
+trwałym markerem bounded zestaw maksymalnie ośmiu istniejących aktywnych operacji
+gracza, a istniejący hook
+budowy operacji oznacza każdą nową operację rozpoczętą w 15-minutowym oknie.
+Expiry lub utrata V4 zatrzymuje oznaczanie kolejnych operacji, lecz nie odbiera
+bonusu operacjom już dotkniętym przez moc.
+
+Podczas finalizacji oznaczonej operacji każdy bazowy plik kwalifikujący się do
+Ghost Exchange tworzy dwie deterministyczne kopie: `backup` oraz `fullbackup`.
+Wynik to `oryginał + backup + fullbackup`, czyli `3×` liczby materiałów. Obie kopie
+są zwykłymi plikami tej samej kategorii, jakości, kompletności, wolumenu i sektora
+co źródło. Nie są gotową paczką `.pkg`; istniejący runtime Ghost Exchange sam
+grupuje i sprzedaje wszystkie trzy rekordy.
+
+ID kopii zależy wyłącznie od `source_file_id`, `ability_window_id` i wariantu.
+Finalizacja/replay tej samej operacji nie powiela materiałów, a kopie nigdy nie są
+ponownie kopiowane. Zapis nadal przechodzi atomowo przez canonical
+`player_data_files` oraz istniejące rozliczenie storage/GX. Nie powstał nowy
+worker, scheduler, poller ani odczyt ciężkiego profilu.
+
+Centrum Operacji otrzymuje tylko boolean `yield_boosted`. Oznaczona karta pozostaje
+podświetlona aż do statusu terminalnego, również po wygaśnięciu głównego timera
+mocy, i pokazuje `REPLIKACJA ×3`. Presentation contract: display name
+`Wrogie Przejęcie`, tagline `POTRÓJNY ZYSK`, `impact_ui=file_yield`, asset V4 i
+wspólny SFX.
+
+Test serwerowy ma potwierdzić: natychmiastowy przycisk po aktywacji V4; oznaczenie
+operacji istniejącej i nowej; utrzymanie wyróżnienia po expiry; brak oznaczenia
+operacji rozpoczętej po expiry; finalizację jednego materiału jako trzech osobnych
+plików; wejście kopii do zwykłej paczki GX; brak duplikatów po replayu.
+
+Lokalna bramka punktowa zakończyła się `41/41 PASS`, pełna regresja GhostNetwork
+`353/353 PASS`, a celowane testy istniejącej finalizacji i bundlera GX `4/4 PASS`.
+`py_compile` oraz `git diff --check`: PASS.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

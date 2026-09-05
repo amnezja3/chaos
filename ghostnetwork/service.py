@@ -996,16 +996,19 @@ class GhostNetworkService:
             "insider_feed": "Insider Feed",
             "service_entrance": "Wejście Serwisowe",
             "false_image": "Fałszywy Obraz",
+            "hostile_takeover": "Wrogie Przejęcie",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
             "service_entrance": "BACKDOOR GOTOWY",
             "false_image": "NIE WIERZ OCZOM",
+            "hostile_takeover": "POTRÓJNY ZYSK",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
             "service_entrance": "target_action_dots",
             "false_image": "operation_risk",
+            "hostile_takeover": "file_yield",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {

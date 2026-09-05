@@ -3171,3 +3171,28 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Status `.1.3`: `COMPLETE / SERVER PASS`; decyzja realizera:
   `false_image → operation_risk` = `KEEP / LOCKED`. Następny podsprint:
   `.1.4`, V4 / Egzekutor Zysku / `Wrogie Przejęcie`.
+
+## 2026-09-05 — 138.getway.1.4, Wrogie Przejęcie
+
+- Rozpoczęto produkcyjny vertical slice V4/Egzekutor Zysku. Odrzucono pierwotny
+  wariant `+2 credentials na operację` jako niewidoczny gameplayowo wobec plonów
+  4–6 plików z filara i około 20 z fragmentu terytorium.
+- Finalny kontrakt `file_yield`: każda operacja istniejąca przy aktywacji lub
+  rozpoczęta w aktywnym oknie otrzymuje trwały marker. Marker i podświetlenie
+  pozostają do finalizacji także po expiry; po expiry nie są oznaczane nowe
+  operacje.
+- Każdy bazowy, sprzedawalny plik finalizacji daje dwie kopie: `backup` i
+  `fullbackup`. Obie są osobnymi plikami materiału, nie gotową paczką; Ghost
+  Exchange grupuje je i sprzedaje swoim istniejącym pipeline'em.
+- Stabilne ID `source file + window + variant`, zakaz kopiowania kopii oraz
+  canonical zapis zapewniają idempotencję replayu. Nie dodano workera, pollingu
+  ani ciężkiego profilu.
+- Bezpieczna projekcja UI zawiera tylko `yield_boosted`; karta pokazuje
+  `REPLIKACJA ×3` i pozostaje wyróżniona aż do końca operacji. Presentation:
+  `Wrogie Przejęcie`, `POTRÓJNY ZYSK`, asset V4, wspólny SFX.
+- Aktywacja jest bounded do maksymalnie ośmiu istniejących aktywnych operacji;
+  nowe operacje w oknie korzystają z już istniejącego hooka konstrukcji.
+- Bramka punktowa: `41/41 PASS`; pełna regresja GhostNetwork: `353/353 PASS`;
+  istniejąca finalizacja i bundler Ghost Exchange: `4/4 PASS`; `py_compile` i
+  `git diff --check`: PASS.
+- Status `.1.4`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.

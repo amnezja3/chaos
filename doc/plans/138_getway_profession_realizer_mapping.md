@@ -36,7 +36,7 @@ niezwiązanym zdarzeniu świata.
 | Rodzina | Zamrożona granica techniczna |
 | --- | --- |
 | `operation_speed` | do 8 aktywnych operacji, jednorazowy marker, mnożnik `clamp(0.1 × LVL, 1, 20)` |
-| `file_yield` | maksymalnie 2 dodatkowe pliki na kwalifikującą się finalizację, stabilne ID |
+| `file_yield` | dokładnie 2 kopie każdego bazowego pliku GX (`backup`, `fullbackup`), stabilne ID; operacja oznaczona w oknie zachowuje bonus do finalizacji |
 | `data_quality` | maksymalnie 16 plików; `quality/completeness +20`, clamp `0–100` |
 | `hack_actions` | cztery action dots ustawione jako wykonane; security bez zmian |
 | `target_security` | maksymalnie 2 zabezpieczenia wyłączone, exact target i CAS |
@@ -58,13 +58,13 @@ rodziny, ale nie przebudowy wspólnego runtime.
 | `.1.1` | V1 Ledger Nexus / `broker` | Insider Feed | `operation_speed` | istniejące i nowe operacje przyspieszone `0.1 × LVL`, cap `20×`, maks. 8 | `LOCKED / SERVER PASS` |
 | `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `LOCKED / SERVER PASS` |
 | `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; jeden lekki odczyt okna na gracza/tick, widoczny maskowany risk | `LOCKED / SERVER PASS` |
-| `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | do 2 dodatkowych plików `credentials` z operacji zakończonej w oknie | `STRONG FIT` |
+| `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | każda operacja dotknięta w oknie zachowuje wyróżnienie i przy finalizacji tworzy `oryginał + backup + fullbackup` każdego bazowego pliku GX | `LOCAL PASS / SERVER TEST` |
 | `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_risk` | niższe ryzyko dzięki przewidywaniu przebiegu operacji; wynik nadal liczy risk meter | `STRONG FIT` |
 
 `false_image` nie używa `incident_decoy`: obraz zastępczy jest opowiedziany przez
-overlay i obniżenie heat, bez fałszywych globalnych rekordów. V4 zaczyna wyłącznie
-od certyfikowanej kategorii `credentials`; personal/financial wymaga osobnej
-allowlisty i recertyfikacji wariantu.
+overlay i obniżenie heat, bez fałszywych globalnych rekordów. V4 nie tworzy
+gotowych paczek. `backup` i `fullbackup` są osobnymi kopiami tego samego materiału,
+a istniejący Ghost Exchange sam składa je z oryginałem w paczki sprzedażowe.
 
 ### 3.2 ECHO LIBERTAS
 
@@ -121,7 +121,8 @@ cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
 | --- | --- |
 | ciągły odczyt: `operation_risk`, `scan_range`, `map_zoom` | znika przy następnym snapshotcie/call-site |
 | jednorazowa mutacja: `operation_speed`, `hack_actions`, `target_security`, `territory_defense` | wykonana zmiana zostaje; nie powstają dalsze zmiany |
-| hook finalizacji: `file_yield`, `data_quality` | ukończenia po utracie części nie dostają bonusu; wcześniej zapisane pliki zostają |
+| trwały marker + hook finalizacji: `file_yield` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane |
+| hook finalizacji: `data_quality` | ukończenia po utracie części nie dostają bonusu; wcześniej zapisane pliki zostają |
 
 Cooldown zawsze biegnie do pierwotnego `cooldown_until`. Utrata części nie usuwa
 okna i nie pozwala ominąć cooldownu.

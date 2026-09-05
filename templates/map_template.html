@@ -1678,12 +1678,36 @@
       animation: ghost-risk-mask-pulse 1.25s steps(2, end) infinite;
     }
 
+    .active-operation-card--yield-boosted {
+      border-color: rgba(255, 82, 72, 0.78);
+      background:
+        linear-gradient(105deg, rgba(229, 57, 53, 0.2), rgba(0, 0, 0, 0.5) 48%),
+        rgba(0, 0, 0, 0.54);
+      box-shadow:
+        inset 3px 0 0 rgba(255, 104, 82, 0.95),
+        0 0 12px rgba(229, 57, 53, 0.24);
+      animation: ghost-file-yield-pulse 1.8s ease-in-out infinite;
+    }
+
+    .active-operation-card--yield-boosted .active-operation-card__boost {
+      color: #ffb09c;
+      text-shadow: 0 0 8px rgba(255, 72, 60, 0.55);
+    }
+
+    @keyframes ghost-file-yield-pulse {
+      50% {
+        border-color: rgba(255, 160, 128, 0.96);
+        box-shadow: inset 3px 0 0 #ff6a52, 0 0 18px rgba(255, 72, 60, 0.38);
+      }
+    }
+
     @keyframes ghost-risk-mask-pulse {
       50% { opacity: 0.58; transform: translateX(1px); }
     }
 
     @media (prefers-reduced-motion: reduce) {
       .active-operation-card--risk-masked .active-operation-card__risk { animation: none; }
+      .active-operation-card--yield-boosted { animation: none; }
     }
 
     .active-operation-card__boost {
@@ -6954,19 +6978,20 @@
                     const operationId = window.escapeMapText(rawOperationId);
                     const accelerated = operation.accelerated === true;
                     const riskMasked = operation.risk_masked === true;
+                    const yieldBoosted = operation.yield_boosted === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
@@ -7054,19 +7079,20 @@
                     const operationId = window.escapeMapText(rawOperationId);
                     const accelerated = operation.accelerated === true;
                     const riskMasked = operation.risk_masked === true;
+                    const yieldBoosted = operation.yield_boosted === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>

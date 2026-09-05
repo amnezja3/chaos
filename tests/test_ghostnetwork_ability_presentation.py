@@ -115,6 +115,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("MASKOWANE · HEAT", self.source)
         self.assertIn("FAŁSZYWY OBRAZ", self.source)
 
+    def test_hostile_takeover_marks_touched_operations_until_completion(self):
+        for token in (
+            "operation.yield_boosted === true",
+            "active-operation-card--yield-boosted",
+            "REPLIKACJA ×3",
+            "ghost-file-yield-pulse",
+        ):
+            self.assertIn(token, self.source)
+
     def test_target_realizer_refreshes_toolbar_without_profile_reload(self):
         activation = self.source[
             self.source.index("async function activateGhostAbility"):

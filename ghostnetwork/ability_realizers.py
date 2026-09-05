@@ -27,7 +27,8 @@ ACTION_KEYS = ("scan_ports", "exploit", "sniff", "trace")
 QUALITY_CATEGORIES = {"audio", "camera", "credentials"}
 MAX_ACTIVE_OPERATIONS = 8
 MAX_OPERATION_SPEED_FACTOR = 20.0
-MAX_BONUS_FILES = 2
+FILE_YIELD_COPY_VARIANTS = ("backup", "fullbackup")
+MAX_BONUS_FILES_PER_SOURCE = len(FILE_YIELD_COPY_VARIANTS)
 MAX_QUALITY_FILES = 16
 MAX_SECURITY_CHANGES = 2
 
@@ -126,26 +127,101 @@ def apply_operation_speed_to_new_operation(operation, window):
     return True
 
 
+def _file_yield_window_id(operation):
+    provenance = (
+        operation.get("file_yield_provenance")
+        if isinstance((operation or {}).get("file_yield_provenance"), dict)
+        else {}
+    )
+    window_id = str(provenance.get("window_id") or "").strip()
+    if window_id:
+        return window_id
+    markers = operation.get("ability_application_keys")
+    markers = markers if isinstance(markers, list) else []
+    for marker in reversed(markers):
+        marker = str(marker or "")
+        if marker.endswith(":file_yield"):
+            return marker[:-len(":file_yield")]
+    return ""
+
+
+def _file_yield_copy_name(value, variant):
+    value = str(value or "").strip()
+    if not value:
+        return value
+    head, separator, tail = value.rpartition(".")
+    if not separator or not head:
+        return f"{value}.{variant}"
+    return f"{head}.{variant}.{tail}"
+
+
+def replicate_file_yield_files(operation, files):
+    """Return two sellable file copies per base artifact for a touched operation."""
+    operation = operation if isinstance(operation, dict) else {}
+    window_id = _file_yield_window_id(operation)
+    if not window_id:
+        return []
+    copies = []
+    existing_ids = {
+        str(item.get("id") or item.get("file_id") or "")
+        for item in files or [] if isinstance(item, dict)
+    }
+    for source in list(files or []):
+        if (
+            not isinstance(source, dict)
+            or source.get("copy_variant") in FILE_YIELD_COPY_VARIANTS
+            or source.get("sellable") is False
+        ):
+            continue
+        source_id = str(source.get("id") or source.get("file_id") or "").strip()
+        if not source_id:
+            continue
+        for variant in FILE_YIELD_COPY_VARIANTS:
+            copy_id = "ghost_copy_" + _stable_id(source_id, window_id, variant)
+            if copy_id in existing_ids:
+                continue
+            entry = copy.deepcopy(source)
+            entry["id"] = copy_id
+            entry["file_id"] = copy_id
+            entry["source_file_id"] = source_id
+            entry["copy_variant"] = variant
+            entry["ability_window_id"] = window_id
+            if entry.get("name"):
+                entry["name"] = _file_yield_copy_name(entry["name"], variant)
+            if entry.get("filename"):
+                entry["filename"] = _file_yield_copy_name(entry["filename"], variant)
+            metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+            metadata = copy.deepcopy(metadata)
+            metadata["source_file_id"] = source_id
+            metadata["copy_variant"] = variant
+            metadata["ability_window_id"] = window_id
+            entry["metadata"] = metadata
+            markers = entry.get("ability_application_keys")
+            markers = list(markers) if isinstance(markers, list) else []
+            marker = f"{window_id}:file_yield:{variant}"
+            if marker not in markers:
+                markers.append(marker)
+            entry["ability_application_keys"] = markers
+            for field in ("batch_id", "listed_at", "sold_at", "sale_id"):
+                entry.pop(field, None)
+            copies.append(entry)
+            existing_ids.add(copy_id)
+    return copies
+
+
 def _file_yield(state, window):
     files = state.setdefault("files", [])
-    operation_id = str(state.get("operation_id") or "")
-    existing = {str(item.get("file_id") or "") for item in files if isinstance(item, dict)}
-    added = []
-    for slot in range(MAX_BONUS_FILES):
-        file_id = "ghost_bonus_" + _stable_id(operation_id, window["window_id"], slot)
-        if file_id in existing:
-            continue
-        entry = {
-            "file_id": file_id,
-            "source_operation_id": operation_id,
-            "file_category": "credentials",
-            "quality_score": 50,
-            "completeness_percent": 50,
-            "ability_window_id": window["window_id"],
-        }
-        files.append(entry)
-        added.append(file_id)
-    return {"changed": added, "bounded_limit": MAX_BONUS_FILES}
+    operation = state.setdefault("operation", {
+        "operation_id": str(state.get("operation_id") or ""),
+        "ability_application_keys": [f'{window["window_id"]}:file_yield'],
+        "file_yield_provenance": {"window_id": window["window_id"]},
+    })
+    added = replicate_file_yield_files(operation, files)
+    files.extend(added)
+    return {
+        "changed": [item.get("id") for item in added],
+        "copies_per_source": MAX_BONUS_FILES_PER_SOURCE,
+    }
 
 
 def _data_quality(state, window):
@@ -350,10 +426,25 @@ class GhostAbilityCanonicalPilotHarness:
     def _apply_file_yield(self, window):
         operation = self._one_operation()
         operation_id = str(operation.get("operation_id") or "")
-        state = {"operation_id": operation_id, "files": []}
+        state = {
+            "operation_id": operation_id,
+            "files": [{
+                "file_id": f"pilot_source_{_stable_id(operation_id)}",
+                "source_operation_id": operation_id,
+                "file_category": "credentials",
+                "quality_score": 50,
+                "completeness_percent": 50,
+                "sellable": True,
+            }],
+        }
         evidence = _file_yield(state, window)
+        changed = set(evidence.get("changed") or [])
+        bonus_files = [
+            item for item in state["files"]
+            if str(item.get("id") or item.get("file_id") or "") in changed
+        ]
         persisted = self._store("inventory").append_data_files(
-            self.username, state["files"], operation_id=operation_id,
+            self.username, bonus_files, operation_id=operation_id,
         )
         evidence["persisted"] = [item.get("id") for item in persisted]
         return evidence
@@ -476,6 +567,7 @@ class GhostAbilityProductionRealizer:
         "insider_feed": "operation_speed",
         "service_entrance": "hack_actions",
         "false_image": "operation_risk",
+        "hostile_takeover": "file_yield",
     }
 
     def __init__(self, operation_store, target_store=None):
@@ -549,6 +641,77 @@ class GhostAbilityProductionRealizer:
             ),
             "family": "operation_speed",
             "factor": factor,
+            "changed": sorted(changed_ids),
+            "persisted": sorted(persisted_ids),
+            "attempts": attempts,
+            "cas_retries": max(0, attempts - 1),
+        }
+
+    @staticmethod
+    def _apply_file_yield_to_row(operation, window):
+        if not isinstance(operation, dict):
+            return False
+        window_id = str(window.get("window_id") or "").strip()
+        if not window_id:
+            return False
+        marker = f"{window_id}:file_yield"
+        markers = operation.get("ability_application_keys")
+        markers = list(markers) if isinstance(markers, list) else []
+        if marker in markers:
+            return False
+        markers.append(marker)
+        operation["ability_application_keys"] = markers
+        operation["file_yield_provenance"] = {
+            "window_id": window_id,
+            "ability_code": "hostile_takeover",
+            "family": "file_yield",
+            "copies_per_source": MAX_BONUS_FILES_PER_SOURCE,
+            "touched_at": window.get("activated_at"),
+        }
+        return True
+
+    def _apply_file_yield(self, player_id, window):
+        if self.operation_store is None:
+            return {"ok": False, "status": "realizer_unavailable"}
+        changed_ids = set()
+        persisted_ids = set()
+        attempts = 0
+        pending = []
+        for _attempt in range(2):
+            attempts += 1
+            operations = self.operation_store.list_active_operations(
+                player_id, limit=MAX_ACTIVE_OPERATIONS,
+            )
+            pending = []
+            for operation in operations:
+                if self._apply_file_yield_to_row(operation, window):
+                    operation_id = str(operation.get("operation_id") or "")
+                    if operation_id:
+                        changed_ids.add(operation_id)
+                        pending.append(operation)
+            if not pending:
+                break
+            accepted = self.operation_store.compare_and_swap_runtime(
+                player_id,
+                pending,
+                event_type="operation.ability_file_yield",
+                record_event=True,
+            )
+            persisted_ids.update(
+                str(item.get("operation_id") or "") for item in accepted
+            )
+            if len(accepted) == len(pending):
+                pending = []
+                break
+        return {
+            "ok": not pending,
+            "status": (
+                "applied" if persisted_ids
+                else "concurrent_change" if pending
+                else "no_active_operations"
+            ),
+            "family": "file_yield",
+            "copies_per_source": MAX_BONUS_FILES_PER_SOURCE,
             "changed": sorted(changed_ids),
             "persisted": sorted(persisted_ids),
             "attempts": attempts,
@@ -705,6 +868,8 @@ class GhostAbilityProductionRealizer:
             return self._apply_hack_actions(player_id, window)
         if family == "operation_risk":
             return self._apply_operation_risk(player_id, window)
+        if family == "file_yield":
+            return self._apply_file_yield(player_id, window)
         return {"ok": False, "status": "realizer_unavailable"}
 
     def apply_to_new_operation(self, operation, window):
@@ -713,6 +878,8 @@ class GhostAbilityProductionRealizer:
             return apply_operation_speed_to_new_operation(operation, window)
         if family == "operation_risk":
             return self._apply_operation_risk_to_row(operation, window)
+        if family == "file_yield":
+            return self._apply_file_yield_to_row(operation, window)
         return False
 
     def apply_to_aimed_target(self, player_id, target_id, window):

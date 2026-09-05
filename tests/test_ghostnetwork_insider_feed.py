@@ -178,6 +178,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "insider_feed": "operation_speed",
                 "service_entrance": "hack_actions",
                 "false_image": "operation_risk",
+                "hostile_takeover": "file_yield",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,
         )
