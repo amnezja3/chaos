@@ -1,4 +1,5 @@
 import os
+import inspect
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -69,17 +70,26 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
             },
         })
 
-    def test_activation_requires_selected_target_without_consuming_window(self):
+    def test_activation_without_selected_target_opens_window_for_future_targets(self):
         service = GhostNetworkService(repository=self.repo)
         result = service.activate_player_ability(
             self.player, "service-no-target", now=self.now,
         )
 
-        self.assertFalse(result["ok"])
-        self.assertEqual("target_unavailable", result["status"])
-        self.assertEqual("select_target_before_activation", result["reason"])
-        self.assertEqual("Najpierw oznacz cel na mapie.", result["message"])
-        self.assertIsNone(self.repo.get_latest_ability_window("architect"))
+        self.assertTrue(result["ok"])
+        self.assertEqual("activated", result["status"])
+        self.assertEqual("no_selected_target", result["realizer"]["status"])
+        self.assertEqual(0, result["realizer"]["applied_targets"])
+        self.assertEqual("", result["window"]["target_id"])
+        self.assertIsNotNone(self.repo.get_latest_ability_window("architect"))
+
+        aimed = self.aim("one")
+        applied = service.apply_active_ability_to_aimed_target(
+            self.player, aimed["target"]["target_id"], now=self.now,
+        )
+        after = self.targets.get("architect")
+        self.assertTrue(applied["target_applied"])
+        self.assertTrue(all(after["actions_allowed"].values()))
 
     def test_activation_completes_four_actions_and_preserves_security(self):
         aimed = self.aim()
@@ -133,6 +143,56 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
         self.assertFalse(any(second_after["actions_allowed"].values()))
         self.assertEqual([], second_after["target"].get("ability_application_keys") or [])
 
+    def test_each_target_aimed_during_window_gets_four_dots_once(self):
+        service = GhostNetworkService(repository=self.repo)
+        activated = service.activate_player_ability(
+            self.player, "service-window", now=self.now,
+        )
+        self.assertTrue(activated["ok"])
+
+        for suffix in ("one", "two"):
+            aimed = self.aim(suffix)
+            before = self.targets.get("architect")
+            security = dict(before["security"])
+            first = service.apply_active_ability_to_aimed_target(
+                self.player, aimed["target"]["target_id"], now=self.now,
+            )
+            after = self.targets.get("architect")
+            self.assertEqual("applied", first["status"])
+            self.assertTrue(all(after["actions_allowed"].values()))
+            self.assertEqual(security, after["security"])
+            self.assertEqual(1, len(after["target"].get("ability_application_keys") or []))
+
+            version = after["version"]
+            replay = service.apply_active_ability_to_aimed_target(
+                self.player, aimed["target"]["target_id"], now=self.now,
+            )
+            self.assertEqual("replayed", replay["status"])
+            self.assertEqual(version, self.targets.get("architect")["version"])
+
+    def test_aimed_target_hook_stops_after_window_expiry(self):
+        service = GhostNetworkService(repository=self.repo)
+        service.activate_player_ability(self.player, "service-expiry", now=self.now)
+        aimed = self.aim("one")
+        result = service.apply_active_ability_to_aimed_target(
+            self.player,
+            aimed["target"]["target_id"],
+            now=self.now + timedelta(minutes=16),
+        )
+        self.assertEqual("inactive", result["status"])
+        self.assertFalse(any(self.targets.get("architect")["actions_allowed"].values()))
+
+    def test_aimed_target_hook_stops_immediately_after_part_loss(self):
+        service = GhostNetworkService(repository=self.repo)
+        service.activate_player_ability(self.player, "service-part-loss", now=self.now)
+        self.repo.update_part(self.part["part_id"], status="public")
+        aimed = self.aim("one")
+        result = service.apply_active_ability_to_aimed_target(
+            self.player, aimed["target"]["target_id"], now=self.now,
+        )
+        self.assertEqual("inactive", result["status"])
+        self.assertFalse(any(self.targets.get("architect")["actions_allowed"].values()))
+
     def test_v2_presentation_uses_shared_superpower_contract(self):
         snapshot = GhostNetworkService(
             repository=self.repo,
@@ -159,6 +219,39 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
             restore_hot_path_metrics(token)
 
         self.assertTrue(result["ok"])
+        for key in (
+            "profile_full_read", "profile_full_write", "profile_bytes",
+            "all_user_profile_scan", "per_recipient_profile_read",
+        ):
+            self.assertEqual(0, metrics[key], key)
+
+    def test_aimed_target_runtime_callsite_is_lightweight(self):
+        import run
+
+        helper_source = inspect.getsource(
+            run.apply_active_ghostnetwork_ability_to_aimed_target
+        )
+        callsite_source = inspect.getsource(run.set_player_aimed_target)
+        for forbidden in ("get_profile(", "list_profiles(", "sync_session_profile("):
+            self.assertNotIn(forbidden, helper_source)
+        self.assertIn(
+            "apply_active_ghostnetwork_ability_to_aimed_target",
+            callsite_source,
+        )
+
+        token = reset_hot_path_metrics()
+        try:
+            service = GhostNetworkService(repository=self.repo)
+            service.activate_player_ability(self.player, "service-light-aim", now=self.now)
+            aimed = self.aim("one")
+            result = service.apply_active_ability_to_aimed_target(
+                self.player, aimed["target"]["target_id"], now=self.now,
+            )
+            metrics = get_hot_path_metrics()
+        finally:
+            restore_hot_path_metrics(token)
+
+        self.assertTrue(result["target_applied"])
         for key in (
             "profile_full_read", "profile_full_write", "profile_bytes",
             "all_user_profile_scan", "per_recipient_profile_read",

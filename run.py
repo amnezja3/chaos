@@ -8930,6 +8930,35 @@ def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_t
         return {"ok": False, "status": "hook_failed", "cycle_id": cycle_id}
 
 
+def apply_active_ghostnetwork_ability_to_aimed_target(username, target, now=None):
+    """Narrow canonical hook; never hydrates the player profile."""
+    target = target if isinstance(target, dict) else {}
+    target_id = str(target.get("target_id") or build_operation_target_id(target) or "").strip()
+    if not GHOSTNETWORK_ABILITIES_ENABLED or not username or not target_id:
+        return {}
+    try:
+        identity = identity_projection_store.get_identity(username)
+        capabilities = capability_projection_store.get_capabilities(username)
+        if not identity or not capabilities:
+            return {}
+        context = {**identity, **capabilities, "player_id": username}
+        result = get_ghostnetwork_service().apply_active_ability_to_aimed_target(
+            context, target_id, now=now,
+        )
+        if not result.get("target_applied"):
+            return {}
+        return player_target_runtime_store.get_active_target(username)
+    except ProfileRecoveryRequired:
+        return {}
+    except Exception as exc:
+        print(
+            f"[GHOST_ABILITY] aimed target hook skipped "
+            f"user={username} error_type={type(exc).__name__}",
+            flush=True,
+        )
+        return {}
+
+
 def find_canonical_ghostnetwork_capture(player_id, target_id):
     canonical = territory_target_ownership_store.get(target_id)
     if canonical and canonical.get("owner_username") == player_id:
@@ -9079,6 +9108,11 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
         try:
             result = player_target_runtime_store.upsert_aimed(username, aimed_target, source=reason)
             aimed_target = dict(result.get("target") or aimed_target)
+            ability_target = apply_active_ghostnetwork_ability_to_aimed_target(
+                username, aimed_target,
+            )
+            if ability_target:
+                aimed_target = dict(ability_target)
         except Exception as exc:
             print(f"[target runtime] upsert failed user={username} reason={reason} error={exc}", flush=True)
     fields = dict(update_fields or {})

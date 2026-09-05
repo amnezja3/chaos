@@ -482,21 +482,25 @@ class GhostAbilityProductionRealizer:
         self.target_store = target_store
 
     def resolve_activation_target(self, player_id, ability_code):
-        """Bind target-scoped abilities before their durable window is created."""
+        """Remember the target present at activation for replay recovery.
+
+        Hack-action abilities remain valid without a selected target: their
+        active window is also applied by the canonical aimed-target hook.
+        """
         family = self.ABILITY_FAMILIES.get(str(ability_code or "").strip())
         if family != "hack_actions":
             return {"required": False, "target_id": ""}
         if self.target_store is None:
-            return {"required": True, "target_id": ""}
+            return {"required": False, "target_id": ""}
         row = self.target_store.get(str(player_id or "").strip())
         if (
             not row
             or str(row.get("status") or "").strip().lower()
             in getattr(self.target_store, "TERMINAL_STATUSES", set())
         ):
-            return {"required": True, "target_id": ""}
+            return {"required": False, "target_id": ""}
         return {
-            "required": True,
+            "required": False,
             "target_id": str(row.get("target_key") or "").strip(),
         }
 
@@ -550,10 +554,18 @@ class GhostAbilityProductionRealizer:
             "cas_retries": max(0, attempts - 1),
         }
 
-    def _apply_hack_actions(self, player_id, window):
-        target_id = str(window.get("target_id") or "").strip()
-        if self.target_store is None or not target_id:
+    def _apply_hack_actions(self, player_id, window, target_id=None):
+        target_id = str(
+            window.get("target_id") if target_id is None else target_id
+        ).strip()
+        if self.target_store is None:
             return {"ok": False, "status": "target_unavailable"}
+        if not target_id:
+            return {
+                "ok": True, "status": "no_selected_target",
+                "family": "hack_actions", "changed": [],
+                "target_applied": False, "attempts": 0, "cas_retries": 0,
+            }
         attempts = 0
         for _attempt in range(2):
             attempts += 1
@@ -586,6 +598,7 @@ class GhostAbilityProductionRealizer:
                     "family": "hack_actions",
                     "changed": list(result.get("changed") or []),
                     "target_applied": True,
+                    "target": dict(result.get("target") or {}),
                     "attempts": attempts,
                     "cas_retries": max(0, attempts - 1),
                 }
@@ -615,3 +628,12 @@ class GhostAbilityProductionRealizer:
         if self.ABILITY_FAMILIES.get((window or {}).get("ability_code")) != "operation_speed":
             return False
         return apply_operation_speed_to_new_operation(operation, window)
+
+    def apply_to_aimed_target(self, player_id, target_id, window):
+        """Apply an active V2 window once to the exact newly aimed target."""
+        window = window if isinstance(window, dict) else {}
+        if self.ABILITY_FAMILIES.get(window.get("ability_code")) != "hack_actions":
+            return {"ok": True, "status": "not_applicable", "target_applied": False}
+        return self._apply_hack_actions(
+            str(player_id or "").strip(), window, target_id=target_id,
+        )

@@ -3082,3 +3082,26 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `335/335 PASS`; `py_compile` i `git diff --check`: PASS.
 - Status: `138.getway.1.2 LOCAL PASS / SERVER GAMEPLAY TEST PENDING`. Nie
   wykonano commita ani pushu.
+
+## 2026-09-05 — 138.getway.1.2, korekta scope po pierwszym teście produkcyjnym
+
+- Produkcja potwierdziła pierwszy slice V2: cel `aimed` zmienił cztery action
+  dots z `0` na `1`, security pozostało na poziomie 14 aktywnych zabezpieczeń,
+  a canonical target otrzymał jeden marker mocy.
+- Następny cel oznaczony w tym samym 15-minutowym oknie nie otrzymał efektu.
+  Decyzja produktowa: `ADJUST`; jednorazowy target binding był zbyt słaby dla
+  supermocy czasowej.
+- Nowy kontrakt obejmuje cel obecny przy aktywacji i każdy kolejny cel przechodzący
+  przez wspólny canonical call-site `aimed` w czasie okna. Każdy cel dostaje
+  cztery kropki dokładnie raz dla danego okna; security pozostaje bez zmian.
+- Aktywacja bez zaznaczonego celu jest dozwolona i tworzy trwałe okno dla
+  przyszłych celów. Target zapisany przy aktywacji służy wyłącznie recovery
+  idempotentnego replay, a nie ograniczeniu scope.
+- Implementacja korzysta z istniejącego `PlayerTargetRuntimeStore`, exact target
+  key, wersji/CAS i lekkich identity/capability projections. Nie dodano nowego
+  runtime, kolejki, pollingu ani ciężkiego profilu.
+- Testy korekty: `23/23 PASS` dla V2, okien i sąsiedniego V1 oraz pełna regresja
+  GhostNetwork `339/339 PASS`; `py_compile`: PASS. Macierz zawiera dwa kolejne
+  cele, marker raz na cel, aktywację bez celu, expiry, part-loss oraz zero
+  aktywności heavy-profile.
+- Status: `ADJUST IMPLEMENTED / SERVER MULTI-TARGET RETEST PENDING`.

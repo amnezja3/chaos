@@ -1252,6 +1252,26 @@ class GhostNetworkService:
             operation, snapshot.get("window") or {},
         )
 
+    def apply_active_ability_to_aimed_target(self, player_context, target_id, now=None):
+        """Apply an active target realizer at the canonical aimed-target call-site."""
+        if self.ability_production_realizer is None:
+            return {"ok": True, "status": "realizer_unavailable", "target_applied": False}
+        target_id = str(target_id or "").strip()
+        if not target_id:
+            return {"ok": True, "status": "target_unavailable", "target_applied": False}
+        snapshot = self.get_player_ability_window_snapshot(player_context, now=now)
+        if not snapshot.get("active"):
+            return {"ok": True, "status": "inactive", "target_applied": False}
+        window = snapshot.get("window") or {}
+        started_at = perf_counter()
+        result = self.ability_production_realizer.apply_to_aimed_target(
+            str(player_context.get("player_id") or player_context.get("username") or "").strip(),
+            target_id,
+            window,
+        )
+        self._record_ability_realizer_metrics(window, result, started_at)
+        return result
+
     def is_ability_active(self, player_context, ability_code):
         return self.abilities.is_ability_active(player_context, ability_code)
 

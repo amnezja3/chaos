@@ -322,9 +322,10 @@ pierwszego testu frontendowego, nie zamrożonym balansem.
 
 ### Wejście Serwisowe
 
-Moc korzysta z aktualnie oznaczonego celu. Na czas okna nowe wejście w hack tego
-celu ma wykonane wszystkie action dots; gracz nadal musi rozbroić istniejące
-zabezpieczenia. Moc nie przejmuje celu i nie wyłącza security automatycznie.
+Moc obejmuje cel obecny przy aktywacji oraz każdy kolejny cel oznaczony podczas
+15-minutowego okna. W chwili przejścia celu do `aimed` wszystkie jego action dots
+są wykonane; gracz nadal musi rozbroić istniejące zabezpieczenia. Moc nie
+przejmuje celu i nie wyłącza security automatycznie.
 
 ### Fałszywy Obraz
 
@@ -636,7 +637,7 @@ parametry i wykonuje indywidualny test produktowy/E2E.
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
 | `.1.1` | Broker / V1 | **Insider Feed** — promocja pilota `.0.5/.0.6`, finalny tuning `operation_speed` |
-| `.1.2` | Architekt / V2 | **Wejście Serwisowe** — `hack_actions`, wszystkie kropki oznaczonego celu wykonane |
+| `.1.2` | Architekt / V2 | **Wejście Serwisowe** — `hack_actions`, każdy cel oznaczony w aktywnym oknie natychmiast dostaje wszystkie kropki |
 | `.1.3` | Manipulator / V3 | **Fałszywy Obraz** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
 | `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — `data_quality`/`file_yield` dla danych przejętych w oknie |
 | `.1.5` | Kurator Algorytmu / V5 | **Predykcja Operacyjna** — podgląd i bounded `operation_risk`/`operation_speed` |
@@ -693,16 +694,23 @@ runtime.
 
 ### Implementacja `.1.2` — Architekt / V2
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `ADJUST IMPLEMENTED / SERVER MULTI-TARGET RETEST PENDING`
 
 Produkcyjne mapowanie rozszerzono statycznie o
-`service_entrance → hack_actions`. Aktywacja wymaga bieżącego, nieterminalnego
-celu i przed utworzeniem okna zapisuje jego dokładny `target_key`. Realizer przez
-istniejący `PlayerTargetRuntimeStore` oraz CAS ustawia cztery canonical action
-dots (`scan_ports`, `exploit`, `sniff`, `trace`) jako wykonane. Nie zmienia ani
-jednego zabezpieczenia. Brak celu zwraca `target_unavailable` i nie zużywa okna
-ani cooldownu; zmiana celu przed recovery/replay kończy się bez mutacji nowego
-obiektu.
+`service_entrance → hack_actions`. Pierwszy test serwerowy potwierdził prawidłową
+mutację celu obecnego przy aktywacji: cztery canonical action dots
+(`scan_ports`, `exploit`, `sniff`, `trace`) przeszły z `0` na `1`, security
+pozostało `14`, a liczba markerów wzrosła z `0` do `1`. Test następnego celu
+ujawnił jednak zbyt wąski scope: efekt był związany tylko z pierwszym celem.
+
+Decyzja produktowa `ADJUST`: okno nie jest ograniczone do jednego obiektu.
+Aktywacja może nastąpić także bez zaznaczonego celu. Jeżeli cel już istnieje,
+dostaje efekt natychmiast; następnie wspólny canonical call-site `aimed` stosuje
+ten sam realizer do każdego kolejnego celu oznaczonego podczas aktywnego okna.
+Każdy cel dostaje dokładnie jeden marker danego okna, exact target key i CAS.
+Replay requestu aktywacyjnego pozostaje związany z celem obecnym przy pierwotnej
+aktywacji i nie służy do przenoszenia efektu; kolejne cele obsługuje wyłącznie
+hook `aimed`. Security nadal nie jest modyfikowane.
 
 Frontend otrzymuje po udanej zmianie wyłącznie sanitizowany snapshot własnego
 celu i publiczne pola timera okna, natychmiast aktualizuje toolbar i odświeża
@@ -716,10 +724,17 @@ okna. Utrata i ponowna aktywacja tej samej części nie wskrzesi starego efektu,
 ale niezwiązana zmiana wersji świata nie wyłącza mocy. Nie użyto globalnego
 `source_state_version`, ciężkiego profilu ani dodatkowego pollingu.
 
-Regresja kontraktu V2 i sąsiednich ścieżek: `53/53 PASS`. Pełna regresja
-GhostNetwork: `335/335 PASS`; `py_compile` i `git diff --check`: PASS. Test
-serwerowy ma potwierdzić cztery zapalone kropki, niezmienione security, jeden
-marker `*:actions`, target binding, reload i cooldown.
+Pierwotna regresja kontraktu V2 i sąsiednich ścieżek: `53/53 PASS`; pełna
+regresja GhostNetwork: `335/335 PASS`. Po korekcie multi-target bramka serwerowa
+ma potwierdzić na co najmniej dwóch kolejno oznaczonych celach: natychmiastowe
+cztery kropki, niezmienione security i po jednym markerze `*:actions`. Osobno
+sprawdzamy aktywację bez celu, reload, expiry, utratę części i cooldown.
+
+Korekta multi-target przeszła lokalnie `23/23` testów punktowych oraz pełną
+regresję GhostNetwork `339/339`; `py_compile`: PASS. Testy obejmują dwa kolejne
+cele w jednym oknie, idempotencję per cel, aktywację bez celu, expiry, part-loss
+i liczniki heavy-profile równe zero. Status pozostaje oczekujący wyłącznie na
+ponowny test serwerowy zachowania wielu celów.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.
