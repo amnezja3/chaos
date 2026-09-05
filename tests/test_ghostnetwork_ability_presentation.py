@@ -54,6 +54,18 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("window.setInterval", scheduler)
         self.assertNotIn("fetch(", scheduler)
 
+    def test_mobile_operation_panel_stays_below_ability_control(self):
+        mobile = self.source[
+            self.source.index("@media (max-width: 720px)"):
+            self.source.index(".chaos-map-refresh-control", self.source.index("@media (max-width: 720px)"))
+        ]
+        operation_panel = mobile[
+            mobile.index(".active-operations-panel {"):
+            mobile.index("}", mobile.index(".active-operations-panel {"))
+        ]
+        self.assertIn("z-index: 850", operation_panel)
+        self.assertIn("options: { position: 'bottomleft' }", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

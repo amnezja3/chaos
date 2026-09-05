@@ -2919,5 +2919,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Testy checkpointu oraz regresja sąsiednich kontraktów: `59/59 PASS`. Osobno
   odtworzono dwa istniejące błędy niezwiązane z zakresem: 403 w dwóch testach
   `operation_control` i oczekiwanie cleanupu orphan file w Ghost Exchange.
-- Status: `138.getway.0.5 COMPLETE / LOCAL PASS`. Następna bramka:
-  `138.getway.0.6` — kontrolowany SERVER PASS i `CONTRACT LOCK`.
+- Test produkcyjny potwierdził skrócenie operacji już rozpoczętych, ten sam efekt
+  dla operacji rozpoczętej w aktywnym oknie, trwałość po reloadzie, brak
+  wielokrotnego skracania oraz powrót nowych operacji do normalnego czasu po
+  expiry. Pliki stawały się dostępne do sprzedaży wcześniej wskutek szybszego
+  zakończenia operacji; mechanizm nie zmienia ceny ani czasu samej sprzedaży.
+- Na małym ekranie przycisk mocy wchodził pod przewijany panel operacji. Mobilny
+  panel otrzymał niższy `z-index`, dzięki czemu kontrolka Leaflet pozostaje nad
+  nim; kontrakt prezentacji `5/5 PASS`.
+- Status: `138.getway.0.5 SERVER FLOW PASS / MOBILE POLISH RETEST PENDING`.
+  Po krótkim reteście warstw następna bramka to `138.getway.0.6` — metryki,
+  korekta schematu i `CONTRACT LOCK`.

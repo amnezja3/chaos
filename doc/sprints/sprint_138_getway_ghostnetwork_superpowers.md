@@ -363,7 +363,7 @@ Obowiązkowy zapis decyzji:
 
 ## 9. 138.getway.0 — foundation i pilot wszystkich realizerów na V1
 
-Status: `IN PROGRESS — 138.getway.0.5 COMPLETE / LOCAL PASS`
+Status: `IN PROGRESS — 138.getway.0.5 SERVER FLOW PASS / MOBILE POLISH RETEST PENDING`
 
 ### Cel
 
@@ -386,7 +386,7 @@ menu gracza. Po zakończeniu certyfikacji V1 zostaje związany tylko z finalnym
 | `138.getway.0.2` | **LOCAL PASS / SERVER GATE PENDING** — wspólne okno aktywacji + light-read restoration | API, narrow capability projection, lekki scan/zoom snapshot, eligibility, expiry, cooldown i dedupe |
 | `138.getway.0.3` | **COMPLETE / SERVER PASS** — wspólna prezentacja | przycisk `Insider Feed` w lewym dolnym rogu, 6 s overlay, cztery palety klanów, centralnie skalowany asset z paddingiem i drżeniem, `ghostnetwork.part_activated`, lokalny timer i tekstowy fallback |
 | `138.getway.0.4` | **COMPLETE / LOCAL PASS** — certyfikacja realizerów 9/9 | dziewięć statycznych kontraktów przechodzi przez trwałą aktywację V1 i właściwe canonical stores; produkcyjne podpięcie V1 pozostaje w `.0.5` |
-| `138.getway.0.5` | **COMPLETE / LOCAL PASS** — finalny vertical slice V1 | prawdziwy `Insider Feed` skraca istniejące i nowe operacje przez `operation_speed`; 15 min, cooldown, CAS, idempotencja i zero heavy profile |
+| `138.getway.0.5` | **SERVER FLOW PASS / MOBILE POLISH RETEST PENDING** — finalny vertical slice V1 | prawdziwy `Insider Feed` skraca istniejące i nowe operacje przez `operation_speed`; 15 min, cooldown, CAS, idempotencja i zero heavy profile; mały ekran czeka na retest kolejności warstw |
 | `138.getway.0.6` | kontrolowany SERVER PASS | reload, duplikat, expiry, metryki, korekta schematu i `CONTRACT LOCK` |
 
 ### Pilot harness
