@@ -2960,3 +2960,34 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   nie otrzymał recovery, skanu kont ani odczytu ciężkiego profilu.
 - Regresja admin profession, rejestracji, session generation, precommit i identity
   projection: `60/60 PASS`.
+
+## 2026-09-05 — 138.getway.0.5 COMPLETE i start `.0.6`
+
+- Produkcyjny retest zamknął pełny vertical slice V1/Broker/`Insider Feed`:
+  mechanika istniejących i nowych operacji, expiry, cooldown, reload, mobile UX,
+  warstwy Leafleta, osobne assety show/timera, tagline, quake/glitch oraz miks SFX
+  działają zgodnie z przyjętym modelem.
+- Konta legacy z brakującą canonical profession zostały ręcznie zapisane przez
+  istniejący formularz administratora. Nie dodano runtime backfillu, account scan
+  ani fallbacku do ciężkiego profilu.
+- Nowe konto `trolu5` po rejestracji otrzymało od razu spójne canonical
+  clan/profession i identity projection; przycisk supermocy był widoczny bez
+  interwencji administratora. Bounded audit nie zwrócił dalszych błędnych rekordów.
+- `trolu2` pozostaje zamrożonym wyjątkiem historycznego incydentu. Próba guarded
+  zmiany profesji w adminie zakończyła się odpowiedzią
+  `dictionary update sequence element #0 has length 1; 2 is required`. Zgodnie z
+  decyzją operatorską nie wykonano naprawy, backfillu ani zmiany danych tego konta;
+  symptom dopisano do istniejącego artefaktu incydentu.
+- Status: `138.getway.0.5 COMPLETE / SERVER PASS`. Rozpoczęto
+  `138.getway.0.6`: kontrolę reload/duplicate/expiry, metryk, ewentualnej korekty
+  schematu oraz końcowy `CONTRACT LOCK`. Zasada nadrzędna pozostaje bez zmian:
+  zero ciężkiego profilu w runtime.
+- Pierwszy checkpoint `.0.6` dodał trwałe, bounded agregaty telemetrii mocy:
+  `cycle_id + ability_code + phase + outcome`, count, total/max oraz last-seen.
+  Schemat nie zawiera player/operation ID ani payloadu. Rejestrowane są wyniki
+  aktywacji i realizera, latency oraz wystąpienia CAS retry; awaria diagnostyki
+  pozostaje fail-open wobec gameplay.
+- Agregaty są widoczne wyłącznie przez systemowy runtime readiness i nie zmieniają
+  publicznego payloadu aktywacji. Testy checkpointu: `36/36 PASS`; pełna regresja
+  `test_ghostnetwork_*`: `323/323 PASS`; `py_compile`: PASS. Status `.0.6`:
+  `IN PROGRESS / METRICS CHECKPOINT PASS`.

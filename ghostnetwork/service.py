@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from time import perf_counter
+
 from database import DB_PATH, PlayerOperationStore
 from config import (
     GHOSTNETWORK_DROP_CHANCE,
@@ -241,6 +243,9 @@ class GhostNetworkService:
         telemetry = self.repository.get_pipeline_telemetry_summary(
             cycle["cycle_id"] if cycle else ""
         )
+        ability_telemetry = self.repository.get_ability_telemetry_summary(
+            cycle["cycle_id"] if cycle else ""
+        )
         errors = sorted(set(errors))
         return {
             "ok": not errors,
@@ -263,6 +268,7 @@ class GhostNetworkService:
             "unreconciled_effects": effects["failed"],
             "last_event": last_event,
             "telemetry": telemetry,
+            "ability_telemetry": ability_telemetry,
             "errors": errors,
             "warnings": sorted(set(warnings)),
         }
@@ -1070,15 +1076,34 @@ class GhostNetworkService:
         }
 
     def activate_player_ability(self, player_context, request_key, now=None):
+        activation_started = perf_counter()
         player_context = player_context if isinstance(player_context, dict) else {}
         request_key = str(request_key or "").strip()
+        metric_ability = None
+
+        def finish(payload, ability=None):
+            selected = ability if isinstance(ability, dict) else metric_ability or {}
+            try:
+                self.repository.record_ability_metric(
+                    "activation",
+                    str((payload or {}).get("status") or "unknown"),
+                    cycle_id=str(selected.get("cycle_id") or ""),
+                    ability_code=str(selected.get("ability_code") or ""),
+                    value=(perf_counter() - activation_started) * 1000.0,
+                )
+            except Exception:
+                # Telemetry is diagnostic and must never change gameplay outcome.
+                pass
+            return payload
+
         if not request_key or len(request_key) > 128:
-            return {"ok": False, "status": "invalid_request_key"}
+            return finish({"ok": False, "status": "invalid_request_key"})
         player_id = str(
             player_context.get("player_id") or player_context.get("username") or ""
         ).strip()
         resolved = self.resolve_player_abilities(player_context)
         eligible_ability = next(iter(resolved.get("active_abilities") or []), None)
+        metric_ability = eligible_ability
         ability = eligible_ability if (
             eligible_ability
             and eligible_ability.get("ability_code") in set(GHOSTNETWORK_ABILITY_ALLOWED_CODES)
@@ -1096,10 +1121,19 @@ class GhostNetworkService:
                 and replay_current < _utc_datetime(replayed.get("expires_at"))
                 and self.ability_production_realizer is not None
             ):
-                self.ability_production_realizer.apply_activation(player_id, replayed)
-            return {"ok": True, "status": "replayed", "window": replayed}
+                realizer_started = perf_counter()
+                internal_realizer_result = self.ability_production_realizer.apply_activation(
+                    player_id, replayed,
+                )
+                self._record_ability_realizer_metrics(
+                    replayed, internal_realizer_result, realizer_started,
+                )
+            return finish(
+                {"ok": True, "status": "replayed", "window": replayed},
+                replayed,
+            )
         if not ability:
-            return {
+            return finish({
                 "ok": False,
                 "status": (
                     "realizer_unavailable" if eligible_ability
@@ -1109,7 +1143,7 @@ class GhostNetworkService:
                     "ability_not_enabled_for_runtime" if eligible_ability
                     else (resolved.get("ability") or {}).get("activation_reason") or "not_eligible"
                 ),
-            }
+            }, eligible_ability)
         result = self.repository.activate_ability_window(
             player_id=resolved.get("player_id"),
             ability_code=ability.get("ability_code"),
@@ -1128,19 +1162,45 @@ class GhostNetworkService:
             pilot_evidence = self.ability_pilot_harness.apply(result.get("window") or {})
         realizer_result = None
         if result.get("status") == "activated" and self.ability_production_realizer is not None:
+            realizer_started = perf_counter()
             internal_realizer_result = self.ability_production_realizer.apply_activation(
                 player_id, result.get("window") or {},
+            )
+            self._record_ability_realizer_metrics(
+                result.get("window") or {}, internal_realizer_result,
+                realizer_started,
             )
             realizer_result = {
                 "status": internal_realizer_result.get("status") or "",
                 "applied_operations": len(internal_realizer_result.get("persisted") or []),
             }
-        return {
+        return finish({
             "ok": result.get("status") in {"activated", "replayed"},
             **result,
             **({"pilot_evidence": pilot_evidence} if pilot_evidence is not None else {}),
             **({"realizer": realizer_result} if realizer_result is not None else {}),
+        }, ability)
+
+    def _record_ability_realizer_metrics(self, window, result, started_at):
+        window = window if isinstance(window, dict) else {}
+        result = result if isinstance(result, dict) else {}
+        common = {
+            "cycle_id": str(window.get("cycle_id") or ""),
+            "ability_code": str(window.get("ability_code") or ""),
         }
+        try:
+            self.repository.record_ability_metric(
+                "realizer", str(result.get("status") or "unknown"),
+                value=(perf_counter() - started_at) * 1000.0, **common,
+            )
+            retries = max(0, int(result.get("cas_retries") or 0))
+            if retries:
+                self.repository.record_ability_metric(
+                    "realizer", "cas_retry", value=retries, **common,
+                )
+        except Exception:
+            # Metrics remain fail-open and never expose player/operation identity.
+            pass
 
     def apply_active_ability_to_new_operation(self, player_context, operation, now=None):
         """Apply the frozen production realizer while building one operation."""

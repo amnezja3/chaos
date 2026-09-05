@@ -1008,3 +1008,30 @@ Drugi preflight wykazał już tylko różnicę `targets`. Revision 3 powstała p
 kanoniczną projekcję aktywnych `player_marked_targets`, o ile konto ma durable
 seed receipt. Recovery odtwarza ten overlay dokładnie; nie usuwa `targets` z
 checksumu ani nie toleruje dowolnej zmiany tego pola.
+
+---
+
+# 30. Backroll incydentu podczas audytu profesji — 2026-09-05
+
+Podczas ręcznego uzupełniania canonical profession dla kont legacy formularz
+administratora poprawnie zapisał pozostałe konta. Dla exact canonical username
+`trolu2` guarded zapis zakończył się odpowiedzią:
+
+```json
+{"error":"dictionary update sequence element #0 has length 1; 2 is required","success":false}
+```
+
+Jest to kolejny obserwowalny symptom historycznie uszkodzonej struktury profilu
+`trolu2`, a nie dowód regresji nowego mapowania rejestracyjnego. Konto nie zostało
+naprawione ani zmienione. Nie uruchomiono recovery, ręcznego SQL, backfillu,
+normalizacji profilu ani runtime fallbacku.
+
+Kontrola rozdzielająca oba przypadki zakończyła się pozytywnie: świeżo utworzone
+konto `trolu5` otrzymało podczas rejestracji canonical clan/profession oraz spójną
+identity projection, a bounded audit po rejestracji nie zgłosił błędnych rekordów
+identity/profession. Nie jest to jednak certyfikacja ani naprawa ciężkiego profilu
+`trolu2`.
+
+Decyzja operatorska pozostaje bez zmian:
+
+`TROLU2 FROZEN — NO REPAIR IN 138.GETWAY; incident-owned recovery only`.

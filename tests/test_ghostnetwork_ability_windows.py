@@ -113,6 +113,31 @@ class GhostAbilityWindowTest(unittest.TestCase):
             self.assertFalse(activation["ok"])
             self.assertEqual("realizer_unavailable", activation["status"])
 
+    def test_ability_telemetry_is_bounded_aggregate_without_player_payload(self):
+        first = self.service.activate_player_ability(self.player, "metrics-1")
+        self.assertTrue(first["ok"])
+        self.service.activate_player_ability(self.player, "metrics-1")
+        self.service.activate_player_ability(self.player, "metrics-2")
+
+        summary = self.repo.get_ability_telemetry_summary(self.cycle["cycle_id"])
+        outcomes = {
+            (item["phase"], item["outcome"]): item["count"]
+            for item in summary["metrics"]
+        }
+        self.assertEqual(1, outcomes[("activation", "activated")])
+        self.assertEqual(1, outcomes[("activation", "replayed")])
+        self.assertEqual(1, outcomes[("activation", "already_active")])
+        self.assertGreaterEqual(outcomes[("realizer", "no_active_operations")], 2)
+        self.assertEqual("ghostnetwork-ability-telemetry-v1", summary["contract_version"])
+
+        with self.repo._conn() as conn:
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(ghost_ability_telemetry)")
+            }
+        self.assertNotIn("player_id", columns)
+        self.assertNotIn("payload_json", columns)
+
 
 if __name__ == "__main__":
     unittest.main()

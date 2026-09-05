@@ -477,9 +477,11 @@ class GhostAbilityProductionRealizer:
             return {"ok": False, "status": "realizer_unavailable"}
         changed_ids = set()
         persisted_ids = set()
+        attempts = 0
         factor = max(1.0, min(8.0, float(window.get("level_snapshot") or 1) * 0.1))
         pending = []
         for _attempt in range(2):
+            attempts += 1
             operations = self.operation_store.list_active_operations(
                 player_id, limit=MAX_ACTIVE_OPERATIONS,
             )
@@ -516,6 +518,8 @@ class GhostAbilityProductionRealizer:
             "factor": factor,
             "changed": sorted(changed_ids),
             "persisted": sorted(persisted_ids),
+            "attempts": attempts,
+            "cas_retries": max(0, attempts - 1),
         }
 
     def apply_to_new_operation(self, operation, window):

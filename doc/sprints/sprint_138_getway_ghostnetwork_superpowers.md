@@ -363,7 +363,7 @@ Obowiązkowy zapis decyzji:
 
 ## 9. 138.getway.0 — foundation i pilot wszystkich realizerów na V1
 
-Status: `IN PROGRESS — 138.getway.0.5 SERVER FLOW PASS / MOBILE POLISH RETEST PENDING`
+Status: `IN PROGRESS — 138.getway.0.5 COMPLETE / 138.getway.0.6 STARTED`
 
 ### Cel
 
@@ -386,8 +386,8 @@ menu gracza. Po zakończeniu certyfikacji V1 zostaje związany tylko z finalnym
 | `138.getway.0.2` | **LOCAL PASS / SERVER GATE PENDING** — wspólne okno aktywacji + light-read restoration | API, narrow capability projection, lekki scan/zoom snapshot, eligibility, expiry, cooldown i dedupe |
 | `138.getway.0.3` | **COMPLETE / SERVER PASS** — wspólna prezentacja | przycisk `Insider Feed` w lewym dolnym rogu, 6 s overlay, cztery palety klanów, centralnie skalowany asset z paddingiem i drżeniem, `ghostnetwork.part_activated`, lokalny timer i tekstowy fallback |
 | `138.getway.0.4` | **COMPLETE / LOCAL PASS** — certyfikacja realizerów 9/9 | dziewięć statycznych kontraktów przechodzi przez trwałą aktywację V1 i właściwe canonical stores; produkcyjne podpięcie V1 pozostaje w `.0.5` |
-| `138.getway.0.5` | **SERVER FLOW PASS / MOBILE POLISH RETEST PENDING** — finalny vertical slice V1 | prawdziwy `Insider Feed` skraca istniejące i nowe operacje przez `operation_speed`; 15 min, cooldown, CAS, idempotencja i zero heavy profile; mały ekran czeka na retest kolejności warstw |
-| `138.getway.0.6` | kontrolowany SERVER PASS | reload, duplikat, expiry, metryki, korekta schematu i `CONTRACT LOCK` |
+| `138.getway.0.5` | **COMPLETE / SERVER PASS** — finalny vertical slice V1 | prawdziwy `Insider Feed` skraca istniejące i nowe operacje przez `operation_speed`; 15 min, cooldown, CAS, idempotencja i zero heavy profile; desktop/mobile, warstwy, assety, tagline i dwuwarstwowe SFX potwierdzone |
+| `138.getway.0.6` | **IN PROGRESS / METRICS CHECKPOINT PASS** — kontrolowany contract lock | trwałe bounded agregaty aktywacji/realizera gotowe; dalej server replay/expiry i końcowy `CONTRACT LOCK` |
 
 ### Pilot harness
 
@@ -518,6 +518,54 @@ prezentacji i lekkich odczytów: `59/59 PASS`. Dwa niezależne starsze testy
 endpointów (`operation_control` z odpowiedzią CSRF 403 oraz cleanup orphan file
 w Ghost Exchange) pozostają czerwone poza zakresem zmian `.0.5`; żaden zmieniony
 plik nie dotyka ich ścieżek.
+
+Produkcyjny retest zamykający `.0.5` potwierdził również poprawną kolejność warstw
+na małym ekranie, stopkę Leafleta pod kontrolkami, osobny duży asset show i małą
+miniaturę timera, hasło `MEGA HOSSA`, quake/glitch oraz równoległe SFX. Ręcznie
+skorygowane konta legacy otrzymały canonical profession przez istniejący guarded
+zapis administratora. Świeżo zarejestrowane konto `trolu5` otrzymało od razu
+spójne clan/profession projections i widoczny przycisk mocy; ponowny bounded audit
+nie zgłosił błędnych rekordów identity/profession.
+
+Konto `trolu2` pozostaje świadomie wyłączone z tej promocji. Próba zmiany przez
+admina zakończyła się historycznym symptomem uszkodzonego profilu
+`dictionary update sequence element #0 has length 1; 2 is required`. Nie wykonano
+repair, backfillu ani obejścia runtime. Przypadek pozostaje zamrożony w artefakcie
+incydentu Trollu2 i nie obniża wyniku nowej ścieżki rejestracji.
+
+Status `.0.5`: `COMPLETE / SERVER PASS`.
+
+#### Contract lock `.0.6`
+
+Etap rozpoczęty po produkcyjnym zamknięciu vertical slice. Zakres pozostaje
+wyłącznie kontrolną bramką wspólnego modelu:
+
+- potwierdzić trwałość `window_id`, `expires_at` i `cooldown_until` po reloadzie;
+- potwierdzić idempotencję podwójnej aktywacji i replay bez drugiej mutacji;
+- potwierdzić wyłączenie efektu po expiry oraz fail-closed po utracie części;
+- zebrać bounded metryki aktywacji, odrzuceń, retry CAS i czasu realizera;
+- skorygować tylko wykryte rozjazdy kontraktu, bez nowej mechaniki;
+- zamrozić API, presentation payload, limity i zasady light-read jako
+  `138.getway.0 CONTRACT LOCK`.
+
+Zakaz naprawy `trolu2`, skanu ciężkich profili i recovery fallbacku pozostaje
+obowiązujący podczas całego `.0.6`.
+
+Pierwszy checkpoint `.0.6` dodał wyłącznie trwałą telemetrię agregatową
+`ghostnetwork-ability-telemetry-v1`. Klucz agregatu to
+`cycle_id + ability_code + phase + outcome`; przechowywane są tylko count,
+total/max wartości diagnostycznej i `last_seen_at`. Tabela celowo nie ma
+`player_id`, operation ID ani JSON payloadu.
+
+Faza `activation` liczy m.in. `activated`, `replayed`, `already_active`, cooldown
+i odrzucenia. Faza `realizer` liczy wynik realizera, jego czas oraz wystąpienia
+bounded CAS retry. Zapis metryki jest fail-open i nie może zmienić wyniku
+gameplay. Publiczny payload endpointu pozostał bez danych diagnostycznych;
+agregaty są dostępne w systemowym runtime readiness.
+
+Testy checkpointu: `36/36 PASS`. Pełna regresja `test_ghostnetwork_*`:
+`323/323 PASS`; `py_compile` zmienionych modułów: PASS. Jest to
+`METRICS CHECKPOINT PASS`, nie końcowy `CONTRACT LOCK`.
 
 ### Definition of Done 138.getway.0
 

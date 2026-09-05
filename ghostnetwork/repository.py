@@ -325,6 +325,21 @@ class GhostNetworkRepository:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS ghost_ability_telemetry (
+                    cycle_id TEXT NOT NULL DEFAULT '',
+                    ability_code TEXT NOT NULL DEFAULT '',
+                    phase TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    metric_count INTEGER NOT NULL DEFAULT 0,
+                    value_total REAL NOT NULL DEFAULT 0,
+                    value_max REAL NOT NULL DEFAULT 0,
+                    last_seen_at TEXT NOT NULL,
+                    PRIMARY KEY(cycle_id, ability_code, phase, outcome)
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ghost_part_reservations (
                     reservation_id TEXT PRIMARY KEY,
                     cycle_id TEXT NOT NULL,
@@ -2561,6 +2576,79 @@ class GhostNetworkRepository:
                 (player_id, dedupe_key),
             ).fetchone()
         return self._ability_window(row)
+
+    def record_ability_metric(
+        self, phase, outcome, *, cycle_id="", ability_code="", value=0,
+    ):
+        """Persist one bounded aggregate without player identity or payload."""
+        phase = _clean(phase)
+        outcome = _clean(outcome)
+        cycle_id = _clean(cycle_id)
+        ability_code = _clean(ability_code)
+        if phase not in {"activation", "realizer"}:
+            raise ValueError("Invalid GhostNetwork ability telemetry phase.")
+        if not outcome or len(outcome) > 64 or len(ability_code) > 64:
+            raise ValueError("Invalid GhostNetwork ability telemetry outcome.")
+        numeric = max(0.0, float(value or 0))
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO ghost_ability_telemetry(
+                    cycle_id, ability_code, phase, outcome, metric_count,
+                    value_total, value_max, last_seen_at
+                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+                ON CONFLICT(cycle_id, ability_code, phase, outcome) DO UPDATE SET
+                    metric_count = metric_count + 1,
+                    value_total = value_total + excluded.value_total,
+                    value_max = MAX(value_max, excluded.value_max),
+                    last_seen_at = excluded.last_seen_at
+                """,
+                (
+                    cycle_id, ability_code, phase, outcome,
+                    numeric, numeric, self.now(),
+                ),
+            )
+
+    def get_ability_telemetry_summary(self, cycle_id=None):
+        where = ""
+        params = []
+        if cycle_id is not None:
+            where = "WHERE cycle_id = ?"
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT ability_code, phase, outcome,
+                       SUM(metric_count) AS metric_count,
+                       SUM(value_total) AS value_total,
+                       MAX(value_max) AS value_max,
+                       MAX(last_seen_at) AS last_seen_at
+                FROM ghost_ability_telemetry
+                {where}
+                GROUP BY ability_code, phase, outcome
+                ORDER BY ability_code, phase, outcome
+                """,
+                tuple(params),
+            ).fetchall()
+        metrics = []
+        for row in rows:
+            count = int(row["metric_count"] or 0)
+            total = float(row["value_total"] or 0)
+            metrics.append({
+                "ability_code": row["ability_code"],
+                "phase": row["phase"],
+                "outcome": row["outcome"],
+                "count": count,
+                "value_total": round(total, 3),
+                "value_max": round(float(row["value_max"] or 0), 3),
+                "value_avg": round(total / count, 3) if count else 0,
+                "last_seen_at": row["last_seen_at"],
+            })
+        return {
+            "contract_version": "ghostnetwork-ability-telemetry-v1",
+            "metrics": metrics,
+            "total": sum(item["count"] for item in metrics),
+        }
 
     def activate_ability_window(
         self, *, player_id, ability_code, cycle_id, source_part_id,
