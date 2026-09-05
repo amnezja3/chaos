@@ -3151,3 +3151,12 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Bramka punktowa V1–V3, presentation, canonical stores, okien i risk metera:
   `65/65 PASS`. Pełna regresja GhostNetwork: `346/346 PASS`; `py_compile` oraz
   `git diff --check`: PASS.
+- Pierwszy test produkcyjny V3 potwierdził chwilowe nałożenie maskowania na
+  istniejącą operację, ale przycisk pojawił się dopiero po reloadzie mapy, a
+  wyróżnienie kart zniknęło przy następnym odświeżeniu operacji.
+- Adapter mapy reaguje teraz na lifecycle delta części i odświeża ability
+  eligibility natychmiast, bez pollingu. Widoczny opis wpływu został zmieniony na
+  `MASKOWANE · HEAT N`, aby nie opierać dowodu działania na starym `risk_state`.
+- Trwałość wymaga spójnego `CHAOS_GHOSTNETWORK_ABILITIES_ENABLED=true` i tej
+  samej allowlisty w web `13` oraz territory workerze `14`; stan workera pozostaje
+  elementem bramki ponownego testu.

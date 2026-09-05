@@ -57,7 +57,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("window.chaosMap = map", self.map_template)
         self.assertIn("loadGhostNetworkSnapshot", self.map_template)
         self.assertIn("'ghostnetwork'", self.map_template)
-        self.assertIn("mobile-boot-retry-7", self.map_template)
+        self.assertIn("ability-eligibility-live-1", self.map_template)
         self.assertIn("silent: true, retries: 2", self.map_template)
         self.assertIn("if (result === false)", self.map_template)
 

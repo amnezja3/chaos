@@ -784,6 +784,20 @@ utracie V3, cooldown, pojedynczy marker oraz widoczny efekt kart.
 Lokalna bramka punktowa zakończyła się `65/65 PASS`, pełna regresja
 GhostNetwork `346/346 PASS`; `py_compile` oraz `git diff --check`: PASS.
 
+Pierwszy test serwerowy potwierdził natychmiastowe nałożenie efektu na operację
+istniejącą, lecz ujawnił dwa problemy prezentacyjne/operacyjne. Przycisk stawał
+się widoczny dopiero po przeładowaniu mapy, a wyróżnienie kart zniknęło przy
+następnym odświeżeniu operacji. Adapter mapy odświeża teraz ability snapshot po
+delta `part_activated` oraz pozostałych zmianach lifecycle wpływających na
+eligibility; jest to debounce zdarzeniowy, nie polling. Centrum Operacji pokazuje
+`MASKOWANE · HEAT N`, zamiast niejednoznacznego starego `none/medium`.
+
+Każdy proces podtrzymujący efekt musi mieć spójne flagi
+`CHAOS_GHOSTNETWORK_ABILITIES_ENABLED=true` oraz tę samą allowlistę. W
+szczególności dotyczy to web `13` i territory workera `14`; web nakłada efekt przy
+aktywacji, a worker przelicza go na kolejnych tickach. Retest wymaga potwierdzenia
+obu flag przed oceną trwałości ramek.
+
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 

@@ -8,6 +8,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         cls.source = Path("templates/map_template.html").read_text(encoding="utf-8")
         cls.terminal_source = Path("static/js/terminal.js").read_text(encoding="utf-8")
         cls.css_source = Path("static/css/style.css").read_text(encoding="utf-8")
+        cls.map_runtime_source = Path("static/js/map/ghostnetwork.js").read_text(encoding="utf-8")
 
     def test_map_uses_server_snapshot_and_not_client_realizer_parameters(self):
         self.assertIn("fetch('/api/ghostnetwork/ability'", self.source)
@@ -98,6 +99,21 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "INSIDER FEED",
         ):
             self.assertIn(token, self.source)
+
+    def test_part_lifecycle_delta_refreshes_ability_eligibility_without_polling(self):
+        for token in (
+            "ABILITY_ELIGIBILITY_PART_DELTA_TYPES",
+            '"ghost.part_activated"',
+            '"ghost.part_deactivated"',
+            "window.refreshGhostAbilitySnapshot({ silent: true })",
+        ):
+            self.assertIn(token, self.map_runtime_source)
+        self.assertIn("ability-eligibility-live-1", self.source)
+
+    def test_false_image_risk_label_is_unambiguous(self):
+        self.assertIn("operation.risk_masked === true", self.source)
+        self.assertIn("MASKOWANE · HEAT", self.source)
+        self.assertIn("FAŁSZYWY OBRAZ", self.source)
 
     def test_target_realizer_refreshes_toolbar_without_profile_reload(self):
         activation = self.source[

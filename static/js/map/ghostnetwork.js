@@ -31,6 +31,13 @@
         "ghost.part_activated",
         "ghost.part_deactivated"
     ]);
+    const ABILITY_ELIGIBILITY_PART_DELTA_TYPES = new Set([
+        "ghost.part_activated",
+        "ghost.part_deactivated",
+        "ghost.part_contained",
+        "ghost.part_revealed",
+        "ghost.part_consumed"
+    ]);
 
     window.ghostNetworkPartLayers = window.ghostNetworkPartLayers || {};
     window.ghostNetworkConnectionLayers = window.ghostNetworkConnectionLayers || {};
@@ -1110,6 +1117,12 @@
                 // enters or leaves the public graph.
                 if (CONNECTION_STATE_PART_DELTA_TYPES.has(String(event && event.type || ""))) {
                     void requestGhostNetworkRecovery("connection_state_changed", event);
+                }
+                if (ABILITY_ELIGIBILITY_PART_DELTA_TYPES.has(String(event && event.type || ""))
+                        && typeof window.refreshGhostAbilitySnapshot === "function") {
+                    void Promise.resolve(
+                        window.refreshGhostAbilitySnapshot({ silent: true })
+                    ).catch(() => false);
                 }
                 return true;
             },
