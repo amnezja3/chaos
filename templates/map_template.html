@@ -2563,8 +2563,17 @@
             control: null,
             timer: null,
             overlayTimer: null,
-            audioHandle: null
+            audioHandles: []
         };
+
+        function stopGhostAbilityAudio(fadeMs) {
+            const runtime = window.ghostAbilityRuntime;
+            const handles = Array.isArray(runtime.audioHandles) ? runtime.audioHandles : [];
+            handles.forEach(handle => {
+                if (handle && typeof handle.stop === 'function') handle.stop({ fade_ms: fadeMs });
+            });
+            runtime.audioHandles = [];
+        }
 
         function ghostAbilityPalette(clanCode) {
             const names = {
@@ -2662,26 +2671,31 @@
                 String(presentation.activation_tagline || 'MOC AKTYWNA');
             const runtime = window.ghostAbilityRuntime;
             if (runtime.overlayTimer) window.clearTimeout(runtime.overlayTimer);
-            if (runtime.audioHandle && typeof runtime.audioHandle.stop === 'function') {
-                runtime.audioHandle.stop({ fade_ms: 60 });
-            }
+            stopGhostAbilityAudio(60);
             const sfx = parentGameSfx();
             if (sfx && typeof sfx.play === 'function') {
-                runtime.audioHandle = sfx.play(presentation.sound_event || 'ghostnetwork.part_activated', {
+                const background = secretPathLoreScenes[
+                    Math.floor(Math.random() * secretPathLoreScenes.length)
+                ];
+                runtime.audioHandles.push(sfx.play(background.sound_event, {
+                    event_id: `ghost-ability-background:${snapshot.window && snapshot.window.window_id || Date.now()}:${background.scene_id}`,
+                    source: 'map',
+                    scene_id: 'ghost_ability_activation_background',
+                    gain: 0.32
+                }));
+                runtime.audioHandles.push(sfx.play(presentation.sound_event || 'ghostnetwork.part_activated', {
                     event_id: `ghost-ability:${snapshot.window && snapshot.window.window_id || Date.now()}`,
                     source: 'map',
-                    scene_id: 'ghost_ability_activation'
-                });
+                    scene_id: 'ghost_ability_activation',
+                    gain: 1
+                }));
             }
             overlay.classList.remove('is-visible');
             void overlay.offsetWidth;
             overlay.classList.add('is-visible');
             runtime.overlayTimer = window.setTimeout(() => {
                 overlay.classList.remove('is-visible');
-                if (runtime.audioHandle && typeof runtime.audioHandle.stop === 'function') {
-                    runtime.audioHandle.stop({ fade_ms: 100 });
-                }
-                runtime.audioHandle = null;
+                stopGhostAbilityAudio(100);
                 runtime.overlayTimer = null;
             }, Math.max(4000, Math.min(6000, Number(presentation.show_duration_ms) || 6000)));
         }

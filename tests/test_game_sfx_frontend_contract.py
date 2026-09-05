@@ -17,10 +17,11 @@ class GameSfxFrontendContractTest(unittest.TestCase):
 
     def test_sfx_loads_once_before_radio_and_terminal(self):
         self.assertEqual(self.template.count("js/game_sfx.js"), 1)
-        self.assertIn("game_sfx.js') }}?v=sfx-ghostnetwork-6", self.template)
-        self.assertIn("manifest.v1.json?v=sfx-ghostnetwork-6", self.sfx)
+        self.assertIn("game_sfx.js') }}?v=sfx-ghostnetwork-7", self.template)
+        self.assertIn("manifest.v1.json?v=sfx-ghostnetwork-7", self.sfx)
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
+        self.assertIn("entry.volume * voice.gain", self.sfx)
 
     def test_manifest_has_secret_path_allowlist_with_expected_buses(self):
         self.assertEqual(self.manifest["schema"], 1)

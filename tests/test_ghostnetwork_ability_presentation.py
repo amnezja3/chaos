@@ -29,6 +29,10 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "ghostAbilityRemaining(windowState.cooldown_until)",
             "has-ghost-ability-effect",
             "sessionStorage.setItem(key, '1')",
+            "ghost_ability_activation_background",
+            "gain: 0.32",
+            "gain: 1",
+            "stopGhostAbilityAudio(100)",
         ):
             self.assertIn(token, self.source)
         self.assertIn("options: { position: 'bottomleft' }", self.source)
@@ -39,6 +43,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("presentation.visual_asset_motion", self.source)
         self.assertIn("ghost-ability-asset-shake", self.source)
         self.assertIn("ghost-ability-text-quake", self.source)
+        self.assertIn("Math.random() * secretPathLoreScenes.length", self.source)
         overlay = self.source[
             self.source.index("function showGhostAbilityActivation"):
             self.source.index("function ghostAbilityExpiryMessageOnce")

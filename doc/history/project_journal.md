@@ -2943,3 +2943,10 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `activation_tagline`; jest to wzorzec 2–3-wyrazowy dla kolejnych mocy.
 - Eyebrow, tytuł i tagline otrzymały szybkie, rozdzielone drżenie quake/glitch.
   `prefers-reduced-motion` wyłącza wszystkie trzy animacje tekstowe.
+- Show supermocy uruchamia równolegle dwa istniejące eventy SFX: losową scenę
+  Secret Path na `lore` przy gainie `0.32` oraz wiodący
+  `ghostnetwork.part_activated` na `gameplay` przy gainie `1.0`. Oba są zatrzymywane
+  jednym lifecycle sceny; nie dodano nowych assetów ani busów.
+- Wspólny `GameSfx.play()` obsługuje teraz opcjonalny, clampowany gain per voice i
+  zachowuje go również po zmianie globalnej głośności. Cache key podniesiono do
+  `sfx-ghostnetwork-7`.

@@ -1,7 +1,7 @@
 "use strict";
 
 (function initGameSfxModule(global) {
-    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-ghostnetwork-6";
+    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-ghostnetwork-7";
     const STORAGE_ENABLED = "chaos_sfx_enabled";
     const STORAGE_VOLUME = "chaos_sfx_volume";
     const DEFAULT_BUS_LIMITS = Object.freeze({
@@ -297,6 +297,7 @@
                 eventId,
                 bus: entry.bus,
                 priority: entry.priority,
+                gain: clamp(context.gain === undefined ? 1 : context.gain, 0, 1),
                 startedAt: now(),
                 stopped: false,
                 audio: new global.Audio(entry.url),
@@ -304,7 +305,7 @@
                 timeoutId: null
             };
             voice.audio.preload = "auto";
-            voice.audio.volume = clamp(state.volume * entry.volume, 0, 1);
+            voice.audio.volume = clamp(state.volume * entry.volume * voice.gain, 0, 1);
             handleState.pending.voice = voice;
             handleState.handle.voice_id = voice.id;
             state.voices.set(voice.id, voice);
@@ -426,7 +427,9 @@
             writeStorage(STORAGE_VOLUME, String(state.volume));
             state.voices.forEach(voice => {
                 const entry = state.manifest && state.manifest.events[voice.eventKey];
-                if (entry && voice.audio) voice.audio.volume = clamp(state.volume * entry.volume, 0, 1);
+                if (entry && voice.audio) {
+                    voice.audio.volume = clamp(state.volume * entry.volume * voice.gain, 0, 1);
+                }
             });
             return state.volume;
         },

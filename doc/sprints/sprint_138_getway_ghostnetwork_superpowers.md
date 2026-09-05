@@ -498,6 +498,13 @@ czytelne w kilka sekund `activation_tagline` długości 2–3 wyrazów; dla V1 j
 tytuł i hasło mają krótki efekt quake/glitch przez cały show, z obowiązkowym
 wyłączeniem przy `prefers-reduced-motion`.
 
+Wspólny podpis audio supermocy jest dwuwarstwowy i korzysta wyłącznie z obecnego
+SFX runtime. Losowy event `secret_path.scene_01–06` gra na busie `lore` jako tło
+z lokalnym gainem `0.32`, a `ghostnetwork.part_activated` pozostaje wiodącą
+warstwą na busie `gameplay` z gainem `1.0`. Oba uchwyty startują ze sceną i są
+wspólnie wygaszane po jej zakończeniu. Nie powstają nowe pliki audio ani osobny
+mikser supermocy.
+
 Testy celowane potwierdzają istniejące operacje, nowe operacje, replay recovery,
 idempotencję, expiry, utratę części, retry CAS, zamrożone mapowanie i zerowe
 liczniki heavy profile. Regresja kontraktów okien, canonical stores, risk,
