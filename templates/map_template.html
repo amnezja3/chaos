@@ -1650,6 +1650,31 @@
       line-height: 1.35;
     }
 
+    .active-operation-card--accelerated {
+      border-color: rgba(229, 57, 53, 0.72);
+      background:
+        linear-gradient(90deg, rgba(229, 57, 53, 0.18), rgba(0, 0, 0, 0.46) 42%);
+      box-shadow:
+        inset 3px 0 0 rgba(255, 78, 72, 0.9),
+        0 0 10px rgba(229, 57, 53, 0.2);
+    }
+
+    .active-operation-card--accelerated .active-operation-card__remaining {
+      color: #ff8a86;
+      text-shadow: 0 0 7px rgba(229, 57, 53, 0.45);
+    }
+
+    .active-operation-card__boost {
+      display: block;
+      margin-top: 2px;
+      color: #ff7772;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-align: right;
+      white-space: nowrap;
+    }
+
     .active-operation-card__title {
       display: flex;
       justify-content: space-between;
@@ -6878,19 +6903,20 @@
                     const icon = window.escapeMapText(meta.icon);
                     const rawOperationId = String(operation.operation_id || '').trim();
                     const operationId = window.escapeMapText(rawOperationId);
+                    const accelerated = operation.accelerated === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
@@ -6976,19 +7002,20 @@
                     const icon = window.escapeMapText(meta.icon);
                     const rawOperationId = String(operation.operation_id || '').trim();
                     const operationId = window.escapeMapText(rawOperationId);
+                    const accelerated = operation.accelerated === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>

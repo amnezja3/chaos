@@ -664,6 +664,17 @@ na jednej kontrolowanej operacji; nie wymaga ponownego trzygodzinnego soaku.
 Testy kalkulatora, realizera, canonical stores, okna i light-read:
 `39/39 PASS`; `py_compile` i `git diff --check`: PASS.
 
+Tuning widoczności dodaje lekki dowód działania bez debuggera: każda operacja,
+której termin został skrócony przez `Insider Feed`, otrzymuje w Centrum Operacji
+subtelny VIREX-red glow, boczny akcent i małą etykietę `INSIDER FEED`. Backend
+projektuje wyłącznie boolean `accelerated`; techniczny marker, `window_id`,
+provenance i factor nie trafiają do payloadu klienta. Zwykłe operacje oraz
+historia zachowują dotychczasowy wygląd. Nie dodano pollingu ani nowego odczytu.
+Izolowana regresja snapshotu, bezpiecznej projekcji, prezentacji, realizera i
+light-read: `38/38 PASS`; `py_compile` oraz `git diff --check`: PASS. Pełne
+uruchomienie klasy `operation_control` nadal odtwarza dwa znane, niezależne 403
+w testach cancel; nie dotyczą one ścieżki renderu ani zmian `.1.1`.
+
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 

@@ -87,6 +87,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn(".leaflet-bottom.leaflet-right", self.source)
         self.assertIn("z-index: 800", self.source)
 
+    def test_accelerated_operation_has_lightweight_visual_evidence(self):
+        for token in (
+            "operation.accelerated === true",
+            "active-operation-card--accelerated",
+            "active-operation-card__boost",
+            "INSIDER FEED",
+        ):
+            self.assertIn(token, self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

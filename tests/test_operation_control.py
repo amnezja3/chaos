@@ -144,6 +144,24 @@ class OperationControlTest(unittest.TestCase):
         self.assertFalse(history_item["can_cancel"])
         self.assertEqual(history_item["disabled_reason"], "already_terminal")
 
+    def test_snapshot_exposes_only_safe_acceleration_flag(self):
+        profile = operation_control_profile()
+        accelerated = operation("op-fast")
+        accelerated["ability_application_keys"] = [
+            "ghost_ability_window_private:operation_speed",
+        ]
+        ordinary = operation("op-normal")
+
+        snapshot = run.build_operation_control_snapshot(
+            "alice", profile, operations=[accelerated, ordinary],
+        )
+        items = {item["operation_id"]: item for item in snapshot["operations"]}
+
+        self.assertTrue(items["op-fast"]["accelerated"])
+        self.assertFalse(items["op-normal"]["accelerated"])
+        self.assertNotIn("ability_application_keys", items["op-fast"])
+        self.assertNotIn("ability_provenance", items["op-fast"])
+
     def test_snapshot_endpoint_requires_operation_control_app_and_does_not_use_full_sync(self):
         client, headers = self._client_with_user()
         profile = operation_control_profile()

@@ -14762,6 +14762,17 @@ def summarize_operation_for_client(operation):
         current_position = {}
     risk_state = operation.get("risk_state") if isinstance(operation.get("risk_state"), dict) else {}
     risk_meter = operation.get("operation_risk_meter") if isinstance(operation.get("operation_risk_meter"), dict) else {}
+    ability_markers = operation.get("ability_application_keys")
+    ability_markers = ability_markers if isinstance(ability_markers, list) else []
+    ability_provenance = (
+        operation.get("ability_provenance")
+        if isinstance(operation.get("ability_provenance"), dict)
+        else {}
+    )
+    accelerated = bool(
+        ability_provenance.get("ability_code") == "insider_feed"
+        or any(str(marker or "").endswith(":operation_speed") for marker in ability_markers)
+    )
 
     return {
         "operation_id": operation.get("operation_id"),
@@ -14786,6 +14797,7 @@ def summarize_operation_for_client(operation):
         "ended_at": operation.get("ended_at"),
         "remaining_seconds": operation.get("remaining_seconds"),
         "expired": operation.get("expired"),
+        "accelerated": accelerated,
         "output_mb": operation_output_size_mb(operation),
         "current_position": {
             "lat": current_position.get("lat"),

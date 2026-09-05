@@ -3039,3 +3039,12 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Testy `.1.1` obejmujące kalkulator, produkcyjny realizer, canonical stores,
   trwałe okno i light-read zakończyły się `39/39 PASS`; `py_compile` oraz
   `git diff --check`: PASS. Nie wykonano commita ani pushu.
+- Tuning `.1.1` dodaje bezpośredni, lekki dowód działania w Centrum Operacji.
+  Przyspieszona karta otrzymuje VIREX-red glow, boczny akcent i etykietę
+  `INSIDER FEED`. API wystawia wyłącznie boolean `accelerated`; nie ujawnia
+  markera, `window_id`, provenance ani factor. Nie dodano pollingu, ciężkiego
+  profilu ani nowej ścieżki runtime.
+- Izolowana regresja tuningu UI i kontraktów sąsiednich: `38/38 PASS`;
+  `py_compile` oraz `git diff --check`: PASS. Pełna klasa `operation_control`
+  nadal reprodukuje dwa wcześniej zapisane 403 w cancel endpointach, niezależne
+  od snapshotu i renderowania przyspieszonej karty.
