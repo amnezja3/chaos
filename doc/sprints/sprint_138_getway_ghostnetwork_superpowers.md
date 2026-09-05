@@ -753,7 +753,7 @@ zamknięty jako `COMPLETE / SERVER PASS`.
 
 ### Implementacja `.1.3` — Manipulator / V3
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `COMPLETE / SERVER PASS`
 
 `Fałszywy Obraz` korzysta wyłącznie z certyfikowanej rodziny `operation_risk`.
 Podczas 15-minutowego okna każda istniejąca i nowa aktywna operacja gracza
@@ -797,6 +797,14 @@ Każdy proces podtrzymujący efekt musi mieć spójne flagi
 szczególności dotyczy to web `13` i territory workera `14`; web nakłada efekt przy
 aktywacji, a worker przelicza go na kolejnych tickach. Retest wymaga potwierdzenia
 obu flag przed oceną trwałości ramek.
+
+Końcowy retest produkcyjny potwierdził cały kontrakt. Przycisk pojawia się
+natychmiast po aktywacji V3 bez przeładowania mapy, a efekt obejmuje zarówno
+operacje już trwające, jak i uruchomione później. Karty operacji pozostają
+wyróżnione podczas działania maskowania i wracają do zwykłego stanu po ustaniu
+wpływu na heat. Risk meter nadal sam wyznacza wynik; test nie wygenerował
+incydentów i moc nie utworzyła żadnych fałszywych rekordów świata. Decyzja:
+`KEEP / LOCKED` dla `false_image → operation_risk`.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

@@ -3160,3 +3160,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Trwałość wymaga spójnego `CHAOS_GHOSTNETWORK_ABILITIES_ENABLED=true` i tej
   samej allowlisty w web `13` oraz territory workerze `14`; stan workera pozostaje
   elementem bramki ponownego testu.
+- Końcowy retest wykonano ze spójną konfiguracją procesów `13` i `14`. Przycisk
+  mocy pojawił się natychmiast po aktywacji części, bez przeładowania mapy.
+- Istniejące oraz nowe operacje otrzymały maskowanie i widoczne wyróżnienie kart.
+  Efekt zniknął prawidłowo po ustaniu wpływu na heat, a kalkulator wrócił do
+  zwykłego zachowania.
+- W teście nie pojawiły się incydenty. Potwierdza to, że `Fałszywy Obraz`
+  modyfikuje wyłącznie wejście istniejącego risk metera i nie wymusza wyniku ani
+  nie tworzy syntetycznych zdarzeń świata.
+- Status `.1.3`: `COMPLETE / SERVER PASS`; decyzja realizera:
+  `false_image → operation_risk` = `KEEP / LOCKED`. Następny podsprint:
+  `.1.4`, V4 / Egzekutor Zysku / `Wrogie Przejęcie`.
