@@ -9,6 +9,8 @@ from ghostnetwork.ability_realizers import (
     ALLOWED_REALIZER_FAMILIES,
     DEFERRED_REALIZER_FAMILIES,
     GhostAbilityPilotHarness,
+    MAX_OPERATION_SPEED_FACTOR,
+    calculate_operation_speed_factor,
 )
 
 
@@ -164,6 +166,46 @@ class GhostAbilityRealizerCertificationTest(unittest.TestCase):
         quality_result = quality.apply(window)
         self.assertEqual(16, len(quality_result["evidence"]["changed"]))
         self.assertEqual(10, files[16]["quality_score"])
+
+    def test_operation_speed_has_independent_twenty_times_cap(self):
+        window = {
+            "window_id": "window-speed-cap",
+            "ability_code": "insider_feed",
+            "activated_at": self.now.isoformat(),
+            "level_snapshot": 9999,
+        }
+        operations = [{
+            "operation_id": "op-cap",
+            "status": "running",
+            "expires_at": (self.now + timedelta(minutes=20)).isoformat(),
+        }]
+        result = GhostAbilityPilotHarness(
+            "operation_speed", {"operations": operations},
+        ).apply(window)
+
+        self.assertEqual(20.0, MAX_OPERATION_SPEED_FACTOR)
+        self.assertEqual(20.0, result["evidence"]["factor"])
+        self.assertEqual(60, operations[0]["remaining_seconds"])
+
+    def test_operation_speed_level_matrix_is_frozen(self):
+        expected = {
+            1: 1.0,
+            10: 1.0,
+            15: 1.5,
+            71: 7.1,
+            110: 11.0,
+            199: 19.9,
+            200: 20.0,
+            9999: 20.0,
+        }
+        for level, factor in expected.items():
+            with self.subTest(level=level):
+                self.assertAlmostEqual(
+                    factor, calculate_operation_speed_factor(level), places=6,
+                )
+
+        self.assertEqual(1.0, calculate_operation_speed_factor("invalid"))
+        self.assertEqual(1.0, calculate_operation_speed_factor(-10))
 
     def test_harness_has_no_heavy_profile_or_deferred_runtime_dependency(self):
         source = inspect.getsource(__import__(

@@ -307,10 +307,11 @@ gracz zawsze widzi co najmniej jeden policzalny albo oczywisty skutek gameplay.
 Pierwszy kandydat do testu:
 
 ```text
-speed_multiplier = clamp(0.1 × LVL, 1.5, 8.0)
+speed_multiplier = clamp(0.1 × LVL, 1.0, 20.0)
 ```
 
-Dla poziomu 71 daje `7.1×`. Aktywacja obejmuje operacje już rozpoczęte i nowe
+Dla poziomu 71 daje `7.1×`, dla poziomu 110 `11×`, a od poziomu 200 obowiązuje
+twardy cap `20×`. Aktywacja obejmuje operacje już rozpoczęte i nowe
 operacje uruchomione podczas aktywnego okna. Technicznie używamy jednorazowej,
 idempotentnej korekty pozostałego czasu dla istniejących operacji oraz krótszego
 czasu startowego dla nowych. Poziom jest snapshotowany przy aktywacji, więc
@@ -363,7 +364,7 @@ Obowiązkowy zapis decyzji:
 
 ## 9. 138.getway.0 — foundation i pilot wszystkich realizerów na V1
 
-Status: `IN PROGRESS — 138.getway.0.5 COMPLETE / 138.getway.0.6 STARTED`
+Status: `COMPLETE — 138.getway.0 CONTRACT LOCK`
 
 ### Cel
 
@@ -387,7 +388,7 @@ menu gracza. Po zakończeniu certyfikacji V1 zostaje związany tylko z finalnym
 | `138.getway.0.3` | **COMPLETE / SERVER PASS** — wspólna prezentacja | przycisk `Insider Feed` w lewym dolnym rogu, 6 s overlay, cztery palety klanów, centralnie skalowany asset z paddingiem i drżeniem, `ghostnetwork.part_activated`, lokalny timer i tekstowy fallback |
 | `138.getway.0.4` | **COMPLETE / LOCAL PASS** — certyfikacja realizerów 9/9 | dziewięć statycznych kontraktów przechodzi przez trwałą aktywację V1 i właściwe canonical stores; produkcyjne podpięcie V1 pozostaje w `.0.5` |
 | `138.getway.0.5` | **COMPLETE / SERVER PASS** — finalny vertical slice V1 | prawdziwy `Insider Feed` skraca istniejące i nowe operacje przez `operation_speed`; 15 min, cooldown, CAS, idempotencja i zero heavy profile; desktop/mobile, warstwy, assety, tagline i dwuwarstwowe SFX potwierdzone |
-| `138.getway.0.6` | **IN PROGRESS / METRICS CHECKPOINT PASS** — kontrolowany contract lock | trwałe bounded agregaty aktywacji/realizera gotowe; dalej server replay/expiry i końcowy `CONTRACT LOCK` |
+| `138.getway.0.6` | **COMPLETE / SERVER PASS** — kontrolowany contract lock | reload, replay, expiry, cooldown, bounded telemetry oraz integralność 12/12 okien potwierdzone; `CONTRACT LOCK` |
 
 ### Pilot harness
 
@@ -474,9 +475,11 @@ Produkcyjne mapowanie jest zamrożone w kodzie jako
 ani generyczny wybór rodziny, który mógłby przypisać V1 inny efekt.
 
 Aktywacja skraca pozostały czas maksymalnie ośmiu już działających operacji.
-Mnożnik wynosi `0.1 × level_snapshot`, z clampem `1.0–8.0`; poziom 71 daje
-`7.1×`. Zapis przechodzi przez istniejący CAS `player_operations`, ma jeden retry
-na przejściowy konflikt i zapisuje stabilny marker okna. Replay requestu może
+Pilot `.0.5` wszedł na serwer z clampem `1.0–8.0`; po trzygodzinnej sesji
+produkcyjnej etap `.1.1` podniósł wyłącznie górny cap do `20×`, zachowując wzór
+`0.1 × level_snapshot`. Zapis przechodzi przez istniejący CAS
+`player_operations`, ma jeden retry na przejściowy konflikt i zapisuje stabilny
+marker okna. Replay requestu może
 bezpiecznie dokończyć efekt, jeżeli okno powstało przed mutacją operacji, ale nie
 skraca tej samej operacji ponownie.
 
@@ -567,6 +570,40 @@ Testy checkpointu: `36/36 PASS`. Pełna regresja `test_ghostnetwork_*`:
 `323/323 PASS`; `py_compile` zmienionych modułów: PASS. Jest to
 `METRICS CHECKPOINT PASS`, nie końcowy `CONTRACT LOCK`.
 
+Pierwszy odczyt produkcyjny po wdrożeniu potwierdził trwałość okna po restarcie
+procesu 13 i reloadzie klienta. Agregaty zapisały: `activation/activated=1`,
+`activation/already_active=2` oraz `realizer/no_active_operations=1`. Maksymalna
+zaobserwowana latencja aktywacji wyniosła `146.49 ms`, a realizera `52.65 ms`.
+Dwa HTTP 409 były oczekiwanym `already_active`, ponieważ test rozpoczęto przy już
+aktywnym oknie. Nie stanowią jeszcze dowodu ścieżki `replayed`.
+
+Kontrolowany test na koncie `robot`, rozpoczęty ze snapshotu
+`available=true / active=false / cooldown=false`, zamknął bramkę replay. Dwa POST
+z tym samym `Idempotency-Key` zapisały dokładnie jedną nową aktywację i jeden
+wynik `replayed`. Agregaty zmieniły się do `activation/activated=2`,
+`activation/replayed=1` oraz `realizer/no_active_operations=3`. Dwa wywołania
+realizera były bezpiecznym no-op, ponieważ konto nie miało aktywnych operacji;
+nie utworzono drugiego okna ani drugiej mutacji gameplay.
+
+Po naturalnym expiry tego samego okna snapshot zwrócił
+`active=false / available=false / cooldown=true`. Próba aktywacji z nowym
+kluczem zakończyła się oczekiwanym HTTP 409 i `status=cooldown`. Tym samym
+produkcyjne bramki reload, replay, expiry oraz cooldown mają SERVER PASS.
+Końcowy audyt produkcyjny objął 12 trwałych okien: `missing_contract=0`,
+`invalid_duration=0`, `invalid_cooldown=0` i `duplicate_dedupe_keys=0`.
+Telemetria nie zawiera żadnej z zakazanych kolumn `player_id`, `operation_id`,
+`payload_json` ani `profile_json`. Agregaty potwierdziły `activated=2`,
+`already_active=2`, `cooldown=1`, `replayed=1` oraz trzy bezpieczne wyniki
+`realizer/no_active_operations`.
+
+Status `.0.6`: `COMPLETE / SERVER PASS`.
+
+Status całego foundation: `138.getway.0 CONTRACT LOCK`. Wzorzec aktywacji,
+trwałego okna, idempotencji, expiry/cooldown, bounded realizera, presentation,
+SFX, telemetrii i light-read zostaje zamrożony dla etapów `.1–.4`. Kolejne
+podsprinty mogą wybierać jedynie certyfikowany realizer i bounded parametry;
+nie mogą tworzyć drugiego runtime ani przywracać ciężkiego profilu.
+
 ### Definition of Done 138.getway.0
 
 - wspólna ścieżka aktywacji działa end-to-end na V1;
@@ -579,6 +616,10 @@ Testy checkpointu: `36/36 PASS`. Pełna regresja `test_ghostnetwork_*`:
 - brak dodatkowego workera, kolejki, schedulera, LLM i generycznego interpretera;
 - kontrolowany test serwera potwierdza timer, reload, expiry, cooldown i dedupe;
 - wzorzec zostaje zamrożony jako szablon dla `.1–.4`.
+
+Wszystkie warunki DoD mają PASS. Następny etap: `138.getway.1.1` — formalna
+promocja V1/Broker/`Insider Feed` na zamrożonym kontrakcie i decyzja końcowego
+tuningu `operation_speed` bez zmiany wspólnego modelu.
 
 ## 10. 138.getway.1 — pięć mocy VIREX
 
@@ -593,6 +634,35 @@ parametry i wykonuje indywidualny test produktowy/E2E.
 | `.1.3` | Manipulator / V3 | **Fałszywy Obraz** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
 | `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — `data_quality`/`file_yield` dla danych przejętych w oknie |
 | `.1.5` | Kurator Algorytmu / V5 | **Predykcja Operacyjna** — podgląd i bounded `operation_risk`/`operation_speed` |
+
+### Decyzja `.1.1` — Broker / V1
+
+Status: `IN PROGRESS / LOCAL CONTRACT PASS — SERVER CAP RETEST PENDING`
+
+Po trzygodzinnej sesji produkcyjnej przyjęto `KEEP + ADJUST`: zachowujemy
+`Insider Feed → operation_speed`, czas 15 minut, cooldown 1 godzinę i limit
+maksymalnie ośmiu modyfikowanych operacji. Formuła pozostaje liniowa
+`0.1 × level_snapshot`, ale jej niezależny cap prędkości rośnie z pilotażowego
+`8×` do finalnego `20×`. Dzięki temu poziom może rosnąć bez ograniczenia, a czas
+operacji nigdy nie zostanie podzielony przez więcej niż 20.
+
+Cap `20×` jest stałą serwera i obowiązuje identycznie dla operacji istniejących
+oraz rozpoczynanych w aktywnym oknie. Klient nie może przesłać mnożnika. Limit
+ośmiu operacji nie został podniesiony i nie należy go mylić z mnożnikiem
+prędkości.
+
+Kalkulator mnożnika jest jedną funkcją współdzieloną przez aktywację istniejących
+operacji, replay recovery oraz hook nowej operacji. Zamrożona macierz kontrolna:
+LVL `1→1×`, `10→1×`, `15→1.5×`, `71→7.1×`, `110→11×`, `199→19.9×`,
+`200→20×`, `9999→20×`. Niepoprawny albo ujemny poziom kończy się bezpiecznym
+`1×`. Publiczna odpowiedź realizera nadal ujawnia wyłącznie status i liczbę
+zmienionych operacji, bez `factor`.
+
+Lokalny checkpoint `.1.1` obejmuje osobne testy capu dla operacji istniejącej i
+nowej oraz macierz poziomów. Produkcyjny retest ma potwierdzić LVL 110 `→11×`
+na jednej kontrolowanej operacji; nie wymaga ponownego trzygodzinnego soaku.
+Testy kalkulatora, realizera, canonical stores, okna i light-read:
+`39/39 PASS`; `py_compile` i `git diff --check`: PASS.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

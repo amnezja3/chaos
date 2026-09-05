@@ -26,6 +26,7 @@ DEFERRED_REALIZER_FAMILIES = (
 ACTION_KEYS = ("scan_ports", "exploit", "sniff", "trace")
 QUALITY_CATEGORIES = {"audio", "camera", "credentials"}
 MAX_ACTIVE_OPERATIONS = 8
+MAX_OPERATION_SPEED_FACTOR = 20.0
 MAX_BONUS_FILES = 2
 MAX_QUALITY_FILES = 16
 MAX_SECURITY_CHANGES = 2
@@ -58,10 +59,19 @@ def _stable_id(*parts):
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:18]
 
 
+def calculate_operation_speed_factor(level_snapshot):
+    """Return the frozen Insider Feed multiplier for one activation snapshot."""
+    try:
+        level = float(level_snapshot or 1)
+    except (TypeError, ValueError):
+        level = 1.0
+    return max(1.0, min(MAX_OPERATION_SPEED_FACTOR, level * 0.1))
+
+
 def _operation_speed(state, window):
     operations = state.setdefault("operations", [])
     now = _parse_datetime(window["activated_at"])
-    factor = max(1.0, min(8.0, float(window.get("level_snapshot") or 1) * 0.1))
+    factor = calculate_operation_speed_factor(window.get("level_snapshot"))
     marker = f'{window["window_id"]}:operation_speed'
     changed = []
     for operation in operations[:MAX_ACTIVE_OPERATIONS]:
@@ -101,7 +111,7 @@ def apply_operation_speed_to_new_operation(operation, window):
     markers = list(markers) if isinstance(markers, list) else []
     if marker in markers:
         return False
-    factor = max(1.0, min(8.0, float(window.get("level_snapshot") or 1) * 0.1))
+    factor = calculate_operation_speed_factor(window.get("level_snapshot"))
     duration = max(1, round((expires_at - started_at).total_seconds() / factor))
     operation["expires_at"] = _iso_datetime(started_at + timedelta(seconds=duration))
     operation["duration_seconds"] = duration
@@ -478,7 +488,7 @@ class GhostAbilityProductionRealizer:
         changed_ids = set()
         persisted_ids = set()
         attempts = 0
-        factor = max(1.0, min(8.0, float(window.get("level_snapshot") or 1) * 0.1))
+        factor = calculate_operation_speed_factor(window.get("level_snapshot"))
         pending = []
         for _attempt in range(2):
             attempts += 1

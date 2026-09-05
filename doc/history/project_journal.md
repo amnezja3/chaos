@@ -2991,3 +2991,51 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   publicznego payloadu aktywacji. Testy checkpointu: `36/36 PASS`; pełna regresja
   `test_ghostnetwork_*`: `323/323 PASS`; `py_compile`: PASS. Status `.0.6`:
   `IN PROGRESS / METRICS CHECKPOINT PASS`.
+- Produkcyjny odczyt po restarcie procesu 13 i reloadzie potwierdził zachowanie
+  aktywnego okna. Telemetria zawierała `activated=1`, `already_active=2` oraz
+  `realizer/no_active_operations=1`; maksymalna latencja aktywacji wyniosła
+  `146.49 ms`. Oba HTTP 409 były prawidłowym konfliktem `already_active`.
+  Kontrolowany `replayed` pozostaje następną bramką, ponieważ użyty klucz powstał
+  dopiero po wcześniejszej aktywacji okna.
+- Kontrolowany test konta `robot` rozpoczął się przy
+  `available=true / active=false / cooldown=false`. Dwa POST z identycznym
+  `Idempotency-Key` dały jedną nową aktywację i jeden `replayed`. Telemetria po
+  teście: `activation/activated=2`, `activation/replayed=1` oraz
+  `realizer/no_active_operations=3`. Replay ponowił bezpieczny no-op realizera,
+  lecz nie utworzył drugiego okna ani nie wykonał drugiej mutacji gameplay.
+- Po naturalnym expiry snapshot konta zwrócił
+  `active=false / available=false / cooldown=true`. POST z nowym kluczem został
+  prawidłowo odrzucony przez HTTP 409 i `status=cooldown`. Produkcyjne bramki
+  reload, replay, expiry i cooldown mają SERVER PASS; `.0.6` oczekuje już tylko
+  końcowego audytu integralności schematu/okien i telemetrii przed `CONTRACT LOCK`.
+- Końcowy audyt `.0.6` sprawdził 12 trwałych okien: zero braków kontraktu, zero
+  błędnych duration/cooldown i zero zduplikowanych dedupe keys. Tabela telemetrii
+  nie ma `player_id`, `operation_id`, `payload_json` ani `profile_json`.
+- Produkcyjne agregaty końcowe: `activated=2`, `already_active=2`, `cooldown=1`,
+  `replayed=1` i `realizer/no_active_operations=3`. Wszystkie oczekiwane gałęzie
+  trwałości i odrzucenia zostały zaobserwowane bez ciężkiego profilu.
+- Status: `138.getway.0.6 COMPLETE / SERVER PASS`; cały foundation otrzymuje
+  `138.getway.0 CONTRACT LOCK`. Zamrożony model jest obowiązkowym szablonem dla
+  `.1–.4`. Następny etap: `138.getway.1.1`, czyli promocja i finalny tuning
+  V1/Broker/`Insider Feed` bez zmiany wspólnego runtime.
+
+## 2026-09-05 — 138.getway.1.1, decyzja mnożnika Insider Feed
+
+- Po trzygodzinnej sesji produkcyjnej utrzymano finalne mapowanie
+  `Insider Feed → operation_speed`, okno 15 minut i cooldown 1 godzinę.
+- Formuła pozostaje `0.1 × level_snapshot`, ale niezależny cap prędkości został
+  podniesiony z pilotażowego `8×` do finalnego `20×`. LVL 110 daje `11×`, a
+  poziomy 200+ pozostają ograniczone do `20×`.
+- Limit maksymalnie ośmiu modyfikowanych operacji pozostaje bez zmian. Cap
+  mnożnika i limit liczby operacji są oddzielnymi zabezpieczeniami.
+- Jedna serwerowa stała obowiązuje w ścieżce aktywacji, replay i podczas budowy
+  nowej operacji. Klient nadal nie może wybrać ani nadpisać mnożnika; nie dodano
+  ciężkiego profilu, nowego runtime ani konfiguracji PM2.
+- Rozpoczęto właściwy checkpoint `.1.1`: trzy kopie wzoru zastąpił jeden
+  kalkulator używany przez istniejące operacje, replay recovery i nowe operacje.
+  Macierz `1/10/15/71/110/199/200/9999` potwierdza liniowy wzrost i cap `20×`;
+  zły albo ujemny poziom daje fail-safe `1×`. Publiczny wynik realizera nadal nie
+  zawiera `factor`. Status: `LOCAL CONTRACT PASS / SERVER CAP RETEST PENDING`.
+- Testy `.1.1` obejmujące kalkulator, produkcyjny realizer, canonical stores,
+  trwałe okno i light-read zakończyły się `39/39 PASS`; `py_compile` oraz
+  `git diff --check`: PASS. Nie wykonano commita ani pushu.

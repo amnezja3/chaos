@@ -66,6 +66,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
         self.assertEqual("applied", result["realizer"]["status"])
         self.assertEqual(1, result["realizer"]["applied_operations"])
         self.assertNotIn("persisted", result["realizer"])
+        self.assertNotIn("factor", result["realizer"])
         self.assertEqual(85, shortened["remaining_seconds"])
         self.assertEqual(1, len(shortened["ability_application_keys"]))
 
@@ -142,6 +143,18 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
         self.assertFalse(service.apply_active_ability_to_new_operation(
             self.player, operation, now=self.now,
         ))
+
+    def test_unbounded_level_is_capped_for_new_operations(self):
+        self.player["level"] = 9999
+        service = GhostNetworkService(repository=self.repo)
+        service.activate_player_ability(self.player, "insider-cap", now=self.now)
+        operation = self.operation("op-cap", minutes=20)
+
+        self.assertTrue(service.apply_active_ability_to_new_operation(
+            self.player, operation, now=self.now,
+        ))
+        self.assertEqual(60, operation["duration_seconds"])
+        self.assertEqual(20.0, operation["ability_provenance"]["factor"])
 
     def test_expired_window_and_part_loss_do_not_modify_new_operation(self):
         service = GhostNetworkService(repository=self.repo)
