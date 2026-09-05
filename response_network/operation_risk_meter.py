@@ -198,6 +198,7 @@ def _signature(meter):
             "tool_modifier",
             "security_modifier",
             "conflict_modifier",
+            "ability_heat_modifier",
             "current_heat",
             "active_contribution",
             "risk_level",
@@ -261,7 +262,18 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
     tool_modifier = _tool_modifier(operation, tool=tool)
     security_modifier = _security_modifier(operation, target=target)
     conflict_modifier = _conflict_modifier(operation, conflict=conflict)
-    current_heat = _clamp(base_heat + time_heat + tool_modifier + security_modifier + conflict_modifier, 0, 100)
+    rules = rules if isinstance(rules, dict) else {}
+    try:
+        ability_heat_modifier = int(round(float(rules.get("ability_heat_modifier") or 0)))
+    except (TypeError, ValueError):
+        ability_heat_modifier = 0
+    ability_heat_modifier = max(-25, min(25, ability_heat_modifier))
+    current_heat = _clamp(
+        base_heat + time_heat + tool_modifier + security_modifier
+        + conflict_modifier + ability_heat_modifier,
+        0,
+        100,
+    )
     active_contribution = 0 if status in TERMINAL_INACTIVE_STATUSES else current_heat
 
     warning_crossed = current_heat >= WARNING_THRESHOLD
@@ -281,6 +293,7 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
         "tool_modifier": tool_modifier,
         "security_modifier": security_modifier,
         "conflict_modifier": conflict_modifier,
+        "ability_heat_modifier": ability_heat_modifier,
         "current_heat": current_heat,
         "active_contribution": active_contribution,
         "risk_level": _risk_level(current_heat),
@@ -304,6 +317,7 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
             "tool_modifier" if tool_modifier else "",
             "security_modifier" if security_modifier else "",
             "conflict_modifier" if conflict_modifier else "",
+            "ability_heat_modifier" if ability_heat_modifier else "",
         ],
     }
 

@@ -9999,6 +9999,30 @@ def app_flow_debug_timed(flow_id, step, flow_started_at, step_started_at, **fiel
     app_flow_debug(flow_id, step, started_at=flow_started_at, **fields)
 
 
+def apply_active_ghostnetwork_ability_to_new_operation(username, operation, now=None):
+    """Narrow production hook; never hydrates the player profile."""
+    if not GHOSTNETWORK_ABILITIES_ENABLED or not username or not isinstance(operation, dict):
+        return False
+    try:
+        identity = identity_projection_store.get_identity(username)
+        capabilities = capability_projection_store.get_capabilities(username)
+        if not identity or not capabilities:
+            return False
+        context = {**identity, **capabilities, "player_id": username}
+        return get_ghostnetwork_service().apply_active_ability_to_new_operation(
+            context, operation, now=now,
+        )
+    except ProfileRecoveryRequired:
+        return False
+    except Exception as exc:
+        print(
+            f"[GHOST_ABILITY] new operation hook skipped "
+            f"user={username} error_type={type(exc).__name__}",
+            flush=True,
+        )
+        return False
+
+
 def build_operation_instance(username, app, map_action_id, operation_type, target):
     now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
@@ -10044,6 +10068,7 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         },
         "risk_state": initial_risk_state_for_operation(operation_type),
     }
+    apply_active_ghostnetwork_ability_to_new_operation(username, operation, now=now)
     update_operation_risk_meter(operation, tool=app or {}, target=target_snapshot, now_ts=now)
     return operation
 

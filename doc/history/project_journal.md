@@ -2859,5 +2859,65 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   nakłada się na jego dolną część. SFX korzysta teraz z dedykowanego eventu
   aktywacji części. Polish ma lokalny PASS (`27/27`, składnia JS i Python PASS),
   ale wymaga jednego krótkiego retestu wizualnego po wdrożeniu.
-- Status: `138.getway.0.3 SERVER FLOW PASS / POLISH RETEST PENDING`. Bez commita
-  i pushu.
+- Produkcyjny retest polish potwierdził lewy dolny narożnik, 6-sekundową scenę,
+  pełny kadr części z centralnym limitem i paddingiem, drżenie assetu oraz SFX
+  `ghostnetwork.part_activated`. Drugie konto VIREX/Broker otrzymało niezależny
+  przycisk po kanonicznym zapisie profesji; cooldown pierwszego konta pozostał
+  poprawnie odseparowany per gracz.
+- Status: `138.getway.0.3 COMPLETE / SERVER PASS`. Następny checkpoint:
+  `138.getway.0.4` — certyfikacja dopuszczonych realizerów na tym samym pilocie.
+## 2026-09-05 — 138.getway.0.4, pierwszy checkpoint kontraktów 9/9
+
+- Dodano serwerowo wstrzykiwany `GhostAbilityPilotHarness` dla dziewięciu
+  dopuszczonych rodzin efektów. Harness nie jest konfigurowany z requestu i nie
+  istnieje w standardowej konstrukcji produkcyjnego serwisu.
+- Wszystkie rodziny przechodzą przez ten sam trwały flow aktywacji V1;
+  idempotentny replay nie wykonuje mutacji drugi raz.
+- Zamrożono twarde limity: 8 aktywnych operacji, 2 pliki bonusowe, 16 plików
+  jakościowych, 4 action dots i 2 zmiany security. Wyniki range/zoom/quality są
+  clampowane.
+- `operation_risk` zmienia wyłącznie wejście heat dla kalkulatora i nie wymusza
+  poziomu ryzyka ani incydentu. `hack_actions` nie dotyka security.
+- `file_value`, `actor_visibility` i `incident_decoy` pozostają fail-closed;
+  moduł nie odwołuje się do pełnego profilu, account scan, Ghost Exchange,
+  incidentów ani kapsuł NPC.
+- Testy celowane: 25/25 PASS. Jest to `CONTRACT HARNESS / LOCAL PASS`, a nie
+  zamknięcie `.0.4`: następny checkpoint musi potwierdzić te same własności na
+  adapterach canonical stores. Produkcyjne podpięcie V1 do `operation_speed`
+  należy do `.0.5`.
+
+### Canonical store checkpoint i zamknięcie `.0.4`
+
+- Dodano bounded `list_active_operations(limit)`, atomowy bonus jakości plików,
+  CAS action dots/security oraz bezpośredni odczyt jednego captured targetu.
+- Canonical pilot 9/9 zapisuje do `player_operations`, `player_data_files` i
+  target/security stores albo czyta lekką capability projection dla range/zoom.
+- Kalkulator operation risk honoruje ograniczony `ability_heat_modifier` jako
+  wejście `-25..25`; nie przyjmuje gotowego risk level, progu ani wyniku incydentu.
+- Pomiar wszystkich dziewięciu rodzin: zero full profile read/write/bytes, zero
+  all-account scan i zero per-recipient profile reads.
+- Regresja okna, prezentacji, light reads, risk, captured target i identity:
+  `64/64 PASS`; Python compile i `git diff --check`: PASS.
+- Status: `138.getway.0.4 COMPLETE / LOCAL PASS`. Harness nadal jest wyłącznie
+  zależnością testową; produkcyjny efekt V1 powstanie dopiero w `.0.5`.
+
+## 2026-09-05 — 138.getway.0.5, produkcyjny Insider Feed
+
+- Zamrożono jedyne produkcyjne mapowanie V1: `insider_feed → operation_speed`.
+  Klient i konfiguracja procesu nie mogą wybrać realizera ani mnożnika.
+- Aktywacja skraca pozostały czas maksymalnie ośmiu aktywnych operacji według
+  `clamp(0.1 × level_snapshot, 1.0, 8.0)`. Zapis używa canonical
+  `player_operations`, CAS, stabilnego markera i jednego retry konfliktu.
+- Replay tego samego requestu bezpiecznie naprawia przypadek, w którym okno
+  zapisano przed mutacją operacji, bez ponownego skracania już oznaczonych wpisów.
+- Nowe operacje rozpoczynane w trakcie 15-minutowego okna otrzymują ten sam efekt
+  przed pierwszym canonical upsert. Hook korzysta tylko z identity/capability
+  projections i aktywnego okna; expiry albo utrata aktywnej V1 daje no-op.
+- Publiczna odpowiedź realizera nie ujawnia operation IDs, rodziny ani mnożnika.
+  Liczniki pełnego profilu, profile bytes, account scan i per-recipient reads są
+  zerowe.
+- Testy checkpointu oraz regresja sąsiednich kontraktów: `59/59 PASS`. Osobno
+  odtworzono dwa istniejące błędy niezwiązane z zakresem: 403 w dwóch testach
+  `operation_control` i oczekiwanie cleanupu orphan file w Ghost Exchange.
+- Status: `138.getway.0.5 COMPLETE / LOCAL PASS`. Następna bramka:
+  `138.getway.0.6` — kontrolowany SERVER PASS i `CONTRACT LOCK`.

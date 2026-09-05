@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from database import DB_PATH
+from database import DB_PATH, PlayerOperationStore
 from config import (
     GHOSTNETWORK_DROP_CHANCE,
     GHOSTNETWORK_DROPS_ENABLED,
@@ -19,6 +19,7 @@ from .catalog import (
     validate_catalog,
 )
 from .abilities import GhostAbilityRegistry
+from .ability_realizers import GhostAbilityProductionRealizer
 from .archive import GhostArchiveService
 from .closure import GhostNetworkClosureService
 from .cycles import GhostCycleService, ensure_active_ghostnetwork_cycle
@@ -40,7 +41,10 @@ from .visibility import build_viewer_projection
 class GhostNetworkService:
     """Central GhostNetwork entry point for future integrations."""
 
-    def __init__(self, repository=None, db_path=DB_PATH, drop_policy=None):
+    def __init__(
+        self, repository=None, db_path=DB_PATH, drop_policy=None,
+        ability_pilot_harness=None, ability_production_realizer=None,
+    ):
         self.repository = repository or GhostNetworkRepository(db_path=db_path)
         self.cycles = GhostCycleService(repository=self.repository)
         self.topology = GhostTopologyService(repository=self.repository)
@@ -48,6 +52,16 @@ class GhostNetworkService:
         self.territory = GhostTerritoryAdapter(repository=self.repository, lifecycle=self.lifecycle)
         self.modules = GhostModuleStateService(repository=self.repository)
         self.abilities = GhostAbilityRegistry(repository=self.repository, module_state_service=self.modules)
+        # Certification-only dependency injection. Production construction does
+        # not provide a harness and therefore cannot select a test realizer.
+        self.ability_pilot_harness = ability_pilot_harness
+        self.ability_production_realizer = (
+            None if ability_production_realizer is False else ability_production_realizer
+        )
+        if ability_production_realizer is None and ability_pilot_harness is None:
+            self.ability_production_realizer = GhostAbilityProductionRealizer(
+                PlayerOperationStore(self.repository.db_path)
+            )
         self.contributions = GhostContributionService(repository=self.repository)
         self.rewards = GhostRewardService(
             repository=self.repository,
@@ -1055,17 +1069,27 @@ class GhostNetworkService:
         player_id = str(
             player_context.get("player_id") or player_context.get("username") or ""
         ).strip()
-        replayed = self.repository.get_ability_window_by_request(
-            player_id, request_key,
-        )
-        if replayed:
-            return {"ok": True, "status": "replayed", "window": replayed}
         resolved = self.resolve_player_abilities(player_context)
         eligible_ability = next(iter(resolved.get("active_abilities") or []), None)
         ability = eligible_ability if (
             eligible_ability
             and eligible_ability.get("ability_code") in set(GHOSTNETWORK_ABILITY_ALLOWED_CODES)
         ) else None
+        replayed = self.repository.get_ability_window_by_request(
+            player_id, request_key,
+        )
+        if replayed:
+            from .repository import _utc_datetime
+            replay_current = _utc_datetime(self.repository.now() if now is None else now)
+            if (
+                ability
+                and replayed.get("ability_code") == ability.get("ability_code")
+                and replayed.get("source_part_id") == ability.get("source_part_id")
+                and replay_current < _utc_datetime(replayed.get("expires_at"))
+                and self.ability_production_realizer is not None
+            ):
+                self.ability_production_realizer.apply_activation(player_id, replayed)
+            return {"ok": True, "status": "replayed", "window": replayed}
         if not ability:
             return {
                 "ok": False,
@@ -1091,10 +1115,35 @@ class GhostNetworkService:
             cooldown_seconds=GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS,
             now=now,
         )
+        pilot_evidence = None
+        if result.get("status") == "activated" and self.ability_pilot_harness is not None:
+            pilot_evidence = self.ability_pilot_harness.apply(result.get("window") or {})
+        realizer_result = None
+        if result.get("status") == "activated" and self.ability_production_realizer is not None:
+            internal_realizer_result = self.ability_production_realizer.apply_activation(
+                player_id, result.get("window") or {},
+            )
+            realizer_result = {
+                "status": internal_realizer_result.get("status") or "",
+                "applied_operations": len(internal_realizer_result.get("persisted") or []),
+            }
         return {
             "ok": result.get("status") in {"activated", "replayed"},
             **result,
+            **({"pilot_evidence": pilot_evidence} if pilot_evidence is not None else {}),
+            **({"realizer": realizer_result} if realizer_result is not None else {}),
         }
+
+    def apply_active_ability_to_new_operation(self, player_context, operation, now=None):
+        """Apply the frozen production realizer while building one operation."""
+        if self.ability_production_realizer is None or not isinstance(operation, dict):
+            return False
+        snapshot = self.get_player_ability_window_snapshot(player_context, now=now)
+        if not snapshot.get("active"):
+            return False
+        return self.ability_production_realizer.apply_to_new_operation(
+            operation, snapshot.get("window") or {},
+        )
 
     def is_ability_active(self, player_context, ability_code):
         return self.abilities.is_ability_active(player_context, ability_code)

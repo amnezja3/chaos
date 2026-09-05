@@ -79,6 +79,26 @@ class OperationRiskMeterTest(unittest.TestCase):
         self.assertIsNone(meter["warning_issued_at"])
         self.assertIsNone(meter["incident_id"])
 
+    def test_bounded_ability_modifier_changes_input_without_forcing_outcome(self):
+        operation = self._operation(target_mode="ordinary", target={"security": {}})
+        baseline = calculate_operation_risk(operation, now_ts=ts(10, 30))
+        reduced = calculate_operation_risk(
+            operation,
+            rules={"ability_heat_modifier": -999},
+            now_ts=ts(10, 30),
+        )
+
+        self.assertEqual(-25, reduced["ability_heat_modifier"])
+        self.assertEqual(max(0, baseline["current_heat"] - 25), reduced["current_heat"])
+        self.assertEqual(
+            reduced["current_heat"] >= reduced["warning_threshold"],
+            reduced["warning_crossed"],
+        )
+        self.assertEqual(
+            reduced["current_heat"] >= reduced["incident_threshold"],
+            reduced["incident_crossed"],
+        )
+
     def test_threshold_crossing_is_idempotent_for_same_state(self):
         operation = self._operation()
 

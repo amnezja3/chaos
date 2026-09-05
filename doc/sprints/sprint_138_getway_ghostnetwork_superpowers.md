@@ -363,7 +363,7 @@ Obowiązkowy zapis decyzji:
 
 ## 9. 138.getway.0 — foundation i pilot wszystkich realizerów na V1
 
-Status: `IN PROGRESS — 138.getway.0.3 SERVER FLOW PASS / POLISH RETEST PENDING`
+Status: `IN PROGRESS — 138.getway.0.5 COMPLETE / LOCAL PASS`
 
 ### Cel
 
@@ -384,9 +384,9 @@ menu gracza. Po zakończeniu certyfikacji V1 zostaje związany tylko z finalnym
 | --- | --- | --- |
 | `138.getway.0.1` | **COMPLETE** — audit 12 rodzin i redukcja ryzyka | 9 rodzin w bramce, 3 jawnie `DEFERRED` |
 | `138.getway.0.2` | **LOCAL PASS / SERVER GATE PENDING** — wspólne okno aktywacji + light-read restoration | API, narrow capability projection, lekki scan/zoom snapshot, eligibility, expiry, cooldown i dedupe |
-| `138.getway.0.3` | **SERVER FLOW PASS / POLISH RETEST PENDING** — wspólna prezentacja | przycisk `Insider Feed` w lewym dolnym rogu, 6 s overlay, cztery palety klanów, duży asset V1, `ghostnetwork.part_activated`, lokalny timer i tekstowy fallback |
-| `138.getway.0.4` | certyfikacja realizerów 9/9 | każdy dopuszczony realizer przechodzi przez V1 pilot na fixture/testowej bazie |
-| `138.getway.0.5` | finalny vertical slice V1 | prawdziwy `Insider Feed` z `operation_speed`, 15 min i cooldownem |
+| `138.getway.0.3` | **COMPLETE / SERVER PASS** — wspólna prezentacja | przycisk `Insider Feed` w lewym dolnym rogu, 6 s overlay, cztery palety klanów, centralnie skalowany asset z paddingiem i drżeniem, `ghostnetwork.part_activated`, lokalny timer i tekstowy fallback |
+| `138.getway.0.4` | **COMPLETE / LOCAL PASS** — certyfikacja realizerów 9/9 | dziewięć statycznych kontraktów przechodzi przez trwałą aktywację V1 i właściwe canonical stores; produkcyjne podpięcie V1 pozostaje w `.0.5` |
+| `138.getway.0.5` | **COMPLETE / LOCAL PASS** — finalny vertical slice V1 | prawdziwy `Insider Feed` skraca istniejące i nowe operacje przez `operation_speed`; 15 min, cooldown, CAS, idempotencja i zero heavy profile |
 | `138.getway.0.6` | kontrolowany SERVER PASS | reload, duplikat, expiry, metryki, korekta schematu i `CONTRACT LOCK` |
 
 ### Pilot harness
@@ -432,6 +432,67 @@ limit, idempotency i test braku heavy profile:
 Testy `.0.4` nie czekają na odpowiadające rodzinom części ani profesje. Ich celem
 jest udowodnienie realizera i jego punktu integracji, a nie podjęcie finalnej
 decyzji produktowej dla 20 mocy.
+
+#### Pierwszy checkpoint lokalny `.0.4`
+
+Dodano `GhostAbilityPilotHarness`, który jest zależnością wstrzykiwaną wyłącznie
+przez test. Publiczny endpoint nie przyjmuje nazwy rodziny ani parametrów, a
+zwykła produkcyjna konstrukcja `GhostNetworkService` nie tworzy harnessu. Każda
+rodzina ma osobną, statyczną funkcję — nie istnieje generyczny interpreter.
+
+Macierz kontraktów 9/9 przechodzi przez prawdziwe `activate_player_ability()` i
+trwały rekord okna V1. Replay tego samego request key nie uruchamia transformacji
+drugi raz.
+Sprawdzono twarde limity operacji, plików i zmian security, clamp jakości i zoomu,
+niezmienność security w `hack_actions` oraz modyfikację wejścia zamiast wymuszenia
+wyniku w `operation_risk`. `file_value`, `actor_visibility` i `incident_decoy`
+są odrzucane przy budowie harnessu.
+
+Drugi checkpoint potwierdził te same kontrakty na prawdziwych canonical stores:
+
+- `operation_speed` używa bounded listy aktywnych operacji i istniejącego CAS;
+- `file_yield` oraz `data_quality` zapisują się atomowo do `player_data_files`,
+  ze stabilnymi identyfikatorami lub markerem aktywacji;
+- `hack_actions` i `target_security` wymagają dokładnego target key oraz expected
+  version i zapisują event bez dotykania profilu;
+- `operation_risk` podaje ograniczony modifier jako wejście do właściwego
+  kalkulatora, który nadal sam wyznacza progi;
+- `scan_range` i `map_zoom` korzystają wyłącznie z capability projection;
+- `territory_defense` odczytuje jeden własny captured target i używa istniejącego
+  owner/CAS security store.
+
+Liczniki `profile_full_read`, `profile_full_write`, `profile_bytes`, account scan
+i per-recipient reads pozostały zerowe. Regresja sąsiednich kontraktów zakończyła
+się wynikiem `64/64 PASS`. `.0.4` jest zamknięty lokalnie. `.0.5` zwiąże V1
+wyłącznie z `operation_speed`; obecny harness nadal nie ma przełącznika PM2 ani
+wpływu na działające konta.
+
+#### Finalny vertical slice `.0.5`
+
+Produkcyjne mapowanie jest zamrożone w kodzie jako
+`insider_feed → operation_speed`. Nie istnieje parametr klienta, konfiguracja PM2
+ani generyczny wybór rodziny, który mógłby przypisać V1 inny efekt.
+
+Aktywacja skraca pozostały czas maksymalnie ośmiu już działających operacji.
+Mnożnik wynosi `0.1 × level_snapshot`, z clampem `1.0–8.0`; poziom 71 daje
+`7.1×`. Zapis przechodzi przez istniejący CAS `player_operations`, ma jeden retry
+na przejściowy konflikt i zapisuje stabilny marker okna. Replay requestu może
+bezpiecznie dokończyć efekt, jeżeli okno powstało przed mutacją operacji, ale nie
+skraca tej samej operacji ponownie.
+
+Operacja utworzona podczas aktywnego okna dostaje ten sam mnożnik przed pierwszym
+zapisem do canonical store. Hook czyta wyłącznie identity i capability
+projections oraz bieżące okno; utrata części albo expiry natychmiast wyłącza efekt.
+Odpowiedź endpointu ujawnia jedynie status realizera i liczbę zmienionych
+operacji — bez identyfikatorów operacji, wewnętrznej rodziny i mnożnika.
+
+Testy celowane potwierdzają istniejące operacje, nowe operacje, replay recovery,
+idempotencję, expiry, utratę części, retry CAS, zamrożone mapowanie i zerowe
+liczniki heavy profile. Regresja kontraktów okien, canonical stores, risk,
+prezentacji i lekkich odczytów: `59/59 PASS`. Dwa niezależne starsze testy
+endpointów (`operation_control` z odpowiedzią CSRF 403 oraz cleanup orphan file
+w Ghost Exchange) pozostają czerwone poza zakresem zmian `.0.5`; żaden zmieniony
+plik nie dotyka ich ścieżek.
 
 ### Definition of Done 138.getway.0
 

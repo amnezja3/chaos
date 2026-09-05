@@ -2580,6 +2580,12 @@ def init_db(db_path=DB_PATH):
             "CREATE INDEX IF NOT EXISTS idx_captured_targets_owner ON captured_targets(owner_username)"
         )
         conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_captured_targets_owner_target_id
+            ON captured_targets(owner_username, json_extract(target_json, '$.target_id'))
+            """
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_player_areas_owner ON player_areas(owner_username)"
         )
         conn.execute(
@@ -5568,23 +5574,48 @@ class TerritoryStore:
 
     def get_captured_target(self, username, target_id=None, lat=None, lng=None, label=None):
         """Read one canonical captured target without touching the player profile."""
+        username = str(username or "").strip()
         target_id = str(target_id or "").strip()
-        for target in self.list_captured_targets(username):
-            stored_id = str(target.get("target_id") or "").strip()
-            if target_id and stored_id == target_id:
-                return target
-            if lat is None or lng is None:
-                continue
-            try:
-                same_position = (
-                    round(float(target.get("lat")), 5) == round(float(lat), 5)
-                    and round(float(target.get("lng", target.get("lon"))), 5) == round(float(lng), 5)
-                )
-            except (TypeError, ValueError):
-                same_position = False
-            if same_position and (label is None or str(target.get("label") or "") == str(label)):
-                return target
-        return None
+        if not username:
+            return None
+        row = None
+        if target_id:
+            with db_connect(self.db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT lat, lng, target_json FROM captured_targets
+                    WHERE owner_username = ?
+                      AND json_extract(target_json, '$.target_id') = ?
+                    ORDER BY captured_at DESC LIMIT 1
+                    """,
+                    (username, target_id),
+                ).fetchone()
+        if row is None and lat is not None and lng is not None:
+            clauses = [
+                "owner_username = ?", "ROUND(lat, 5) = ROUND(?, 5)",
+                "ROUND(lng, 5) = ROUND(?, 5)",
+            ]
+            params = [username, float(lat), float(lng)]
+            if label is not None:
+                clauses.append("label = ?")
+                params.append(str(label))
+            with db_connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT lat, lng, target_json FROM captured_targets WHERE "
+                    + " AND ".join(clauses)
+                    + " ORDER BY captured_at DESC LIMIT 1",
+                    tuple(params),
+                ).fetchone()
+        if not row:
+            return None
+        target = loads_json(row["target_json"], {})
+        if not isinstance(target, dict):
+            return None
+        target["lat"] = float(target.get("lat", row["lat"]))
+        target_lng = float(target.get("lng", target.get("lon", row["lng"])))
+        target["lng"] = target_lng
+        target["lon"] = target_lng
+        return target
 
     def update_captured_target_security(self, username, target, security, expected_version=None):
         """CAS update of security in captured_targets; geometry remains untouched."""
@@ -9954,6 +9985,28 @@ class PlayerOperationStore:
                 if isinstance(operation, dict)
             ]
 
+    def list_active_operations(self, username, limit=8):
+        """Return a bounded active-operation slice for narrow gameplay hooks."""
+        username = self._clean_text(username)
+        limit = max(1, min(int(limit or 1), 32))
+        if not username:
+            return []
+        placeholders = ",".join("?" for _ in self.TERMINAL_STATUSES)
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM player_operations
+                WHERE username = ? AND status NOT IN ({placeholders})
+                ORDER BY updated_at, operation_id
+                LIMIT ?
+                """,
+                (username, *sorted(self.TERMINAL_STATUSES), limit),
+            ).fetchall()
+        return [
+            operation for operation in (self._row_to_operation(row) for row in rows)
+            if isinstance(operation, dict)
+        ]
+
     def list_recent_terminal_operations(self, username, limit=25):
         """Return bounded terminal history without hydrating the full archive."""
         username = self._clean_text(username)
@@ -10798,6 +10851,64 @@ class PlayerInventoryStore:
                 payload.setdefault("file_category", row["folder"])
                 result.append(payload)
         return result
+
+    def apply_ability_data_quality(
+        self, username, *, operation_id, activation_id, limit=16,
+    ):
+        """Apply a fixed bounded bonus to canonical operation artifacts."""
+        username = self._clean_text(username)
+        operation_id = self._clean_text(operation_id)
+        activation_id = self._clean_text(activation_id)
+        limit = max(1, min(int(limit or 1), 16))
+        if not username or not operation_id or not activation_id:
+            return []
+        marker = f"{activation_id}:data_quality"
+        allowed_folders = ("audio", "camera", "credentials")
+        placeholders = ",".join("?" for _ in allowed_folders)
+        changed = []
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                f"""
+                SELECT file_id, file_json, version
+                FROM player_data_files
+                WHERE username = ? AND operation_id = ?
+                  AND folder IN ({placeholders})
+                ORDER BY created_at, file_id
+                LIMIT ?
+                """,
+                (username, operation_id, *allowed_folders, limit),
+            ).fetchall()
+            for row in rows:
+                payload = loads_json(row["file_json"], {})
+                if not isinstance(payload, dict):
+                    continue
+                markers = payload.get("ability_application_keys")
+                markers = list(markers) if isinstance(markers, list) else []
+                if marker in markers:
+                    continue
+                for key in ("quality_score", "completeness_percent"):
+                    try:
+                        value = int(payload.get(key) or 0)
+                    except (TypeError, ValueError):
+                        value = 0
+                    payload[key] = max(0, min(100, value + 20))
+                markers.append(marker)
+                payload["ability_application_keys"] = markers
+                cursor = conn.execute(
+                    """
+                    UPDATE player_data_files
+                    SET file_json = ?, version = ?, updated_at = ?
+                    WHERE username = ? AND file_id = ? AND version = ?
+                    """,
+                    (
+                        dumps_json(payload), int(row["version"] or 0) + 1, utc_now(),
+                        username, row["file_id"], int(row["version"] or 0),
+                    ),
+                )
+                if cursor.rowcount == 1:
+                    changed.append(payload)
+        return changed
 
     def append_data_files(self, username, files, *, operation_id="", finalized_operation=None):
         """Atomically append artifacts and mark their operation finalized."""
@@ -12549,6 +12660,106 @@ class PlayerTargetRuntimeStore:
         if not payload or payload.get("status") in self.TERMINAL_STATUSES:
             return {}
         return dict(payload.get("target") or {})
+
+    def apply_ability_actions(self, username, *, target_key, expected_version, activation_id):
+        """Complete the four canonical action dots without changing security."""
+        return self._apply_ability_target_change(
+            username, target_key=target_key, expected_version=expected_version,
+            activation_id=activation_id, mode="actions",
+        )
+
+    def apply_ability_security(self, username, *, target_key, expected_version, activation_id):
+        """Disable at most two security booleans on one canonical selected target."""
+        return self._apply_ability_target_change(
+            username, target_key=target_key, expected_version=expected_version,
+            activation_id=activation_id, mode="security",
+        )
+
+    def _apply_ability_target_change(
+        self, username, *, target_key, expected_version, activation_id, mode,
+    ):
+        username = self._clean_text(username)
+        target_key = self._clean_text(target_key)
+        activation_id = self._clean_text(activation_id)
+        if mode not in {"actions", "security"}:
+            raise ValueError("unsupported_ability_target_change")
+        if not username or not target_key or not activation_id:
+            return {"ok": False, "reason": "invalid_contract"}
+        marker = f"{activation_id}:{mode}"
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM player_target_runtime WHERE username = ? LIMIT 1",
+                (username,),
+            ).fetchone()
+            current = self._row_payload(row)
+            if not current or current.get("status") in self.TERMINAL_STATUSES:
+                return {"ok": False, "reason": "not_found"}
+            if current.get("target_key") != target_key:
+                return {
+                    "ok": False, "reason": "target_changed",
+                    "version": current.get("version", 0),
+                }
+            if int(current.get("version") or 0) != int(expected_version or 0):
+                return {
+                    "ok": False, "reason": "stale_version",
+                    "version": current.get("version", 0),
+                }
+            target = dict(current.get("target") or {})
+            markers = target.get("ability_application_keys")
+            markers = list(markers) if isinstance(markers, list) else []
+            if marker in markers:
+                return {
+                    "ok": True, "reason": "replayed", "changed": [],
+                    "version": current.get("version", 0),
+                }
+            actions = dict(current.get("actions_allowed") or {})
+            security = dict(current.get("security") or {})
+            changed = []
+            if mode == "actions":
+                for key in ("scan_ports", "exploit", "sniff", "trace"):
+                    if actions.get(key) is not True:
+                        actions[key] = True
+                        changed.append(key)
+            else:
+                for key in sorted(security):
+                    if len(changed) >= 2:
+                        break
+                    if security.get(key) is True:
+                        security[key] = False
+                        changed.append(key)
+            markers.append(marker)
+            target["ability_application_keys"] = markers
+            target["actions_allowed"] = actions
+            target["security"] = security
+            version = int(current.get("version") or 0) + 1
+            progress = self._progress_from_target(target)
+            cursor = conn.execute(
+                """
+                UPDATE player_target_runtime
+                SET target_json = ?, security_json = ?, actions_allowed_json = ?,
+                    disarm_progress = ?, version = ?, updated_at = ?
+                WHERE username = ? AND target_key = ? AND version = ?
+                """,
+                (
+                    dumps_json(target), dumps_json(security), dumps_json(actions),
+                    progress, version, utc_now(), username, target_key,
+                    int(current.get("version") or 0),
+                ),
+            )
+            if cursor.rowcount != 1:
+                return {
+                    "ok": False, "reason": "concurrent_change",
+                    "version": current.get("version", 0),
+                }
+            self._record_event(
+                conn, username, f"target.ability_{mode}", target_key, version,
+                {"activation_id": activation_id, "changed": changed},
+            )
+            return {
+                "ok": True, "reason": "applied", "changed": changed,
+                "version": version, "target": target,
+            }
 
     def upsert_aimed(self, username, target, status=STATUS_AIMED, source="", expected_target=None):
         username = self._clean_text(username)
