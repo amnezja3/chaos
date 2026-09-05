@@ -2829,12 +2829,12 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `138.getway.0.2 LOCAL PASS / SERVER GATE PENDING`; nie wykonano commita, pushu
   ani deployu.
 
-## 2026-09-05 — 138.getway.0.3: wspólna prezentacja pilota LOCAL PASS
+## 2026-09-05 — 138.getway.0.3: wspólna prezentacja pilota SERVER FLOW PASS
 
 - Snapshot okna mocy otrzymał mały kontrakt `presentation`: publiczną nazwę
   `Insider Feed`, token koloru klanu, istniejący asset aktywnej części V1,
-  semantyczny opis, czas sceny 5000 ms i istniejący event SFX
-  `secret_path.scene_04`. Dane pochodzą z katalogu i aktywnej części; klient nie
+  semantyczny opis, czas sceny 6000 ms i istniejący event SFX
+  `ghostnetwork.part_activated`. Dane pochodzą z katalogu i aktywnej części; klient nie
   może podać assetu, realizera ani parametrów mechaniki.
 - Mapa pokazuje przycisk mocy tylko dla uprawnionego pilota. Po potwierdzonej
   aktywacji odgrywa wspólny overlay 4–6 s, stosuje paletę klanu, pokazuje asset
@@ -2850,7 +2850,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   brak `profile_full_read` oraz `account_scan`. Testy prezentacji, okna i lekkiego
   read path: `19/19 PASS`; szersza regresja foundation/map/territory:
   `74/74 PASS`; składnia JS oraz `py_compile`: PASS.
-- Status: `138.getway.0.3 LOCAL PASS / VISUAL SERVER GATE PENDING`. Przed `.0.4`
-  potrzebny jest krótki test przeglądarkowy: widoczność przycisku, overlay/SFX,
-  kolor VIREX, asset V1, timer, reload, expiry i brak błędów konsoli. Bez commita,
-  pushu i deployu.
+- Produkcyjny test V1 / Broker potwierdził aktywację, overlay, paletę VIREX,
+  asset, lokalny timer oraz reload z tym samym `window_id`, `activated_at` i
+  `expires_at`. API po reloadzie zwróciło `active=true`, `available=false` oraz
+  `reason=active`.
+- Po obserwacji serwerowej kontrolkę przeniesiono do lewego dolnego rogu, scenę
+  wydłużono do 6 sekund, asset stał się głównym kadrem, a ramka z nazwą i opisem
+  nakłada się na jego dolną część. SFX korzysta teraz z dedykowanego eventu
+  aktywacji części. Polish ma lokalny PASS (`27/27`, składnia JS i Python PASS),
+  ale wymaga jednego krótkiego retestu wizualnego po wdrożeniu.
+- Status: `138.getway.0.3 SERVER FLOW PASS / POLISH RETEST PENDING`. Bez commita
+  i pushu.

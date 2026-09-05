@@ -57,7 +57,11 @@ class GhostAbilityWindowTest(unittest.TestCase):
             "/static/images/ghostnetwork/parts/v1_ledger_nexus.png",
             snapshot["presentation"]["visual_asset_url"],
         )
-        self.assertEqual(5000, snapshot["presentation"]["show_duration_ms"])
+        self.assertEqual(6000, snapshot["presentation"]["show_duration_ms"])
+        self.assertEqual(
+            "ghostnetwork.part_activated",
+            snapshot["presentation"]["sound_event"],
+        )
         self.assertEqual("Insider Feed", snapshot["presentation"]["display_name"])
 
         self.now += timedelta(minutes=16)

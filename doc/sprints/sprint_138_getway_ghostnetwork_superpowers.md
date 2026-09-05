@@ -363,7 +363,7 @@ Obowiązkowy zapis decyzji:
 
 ## 9. 138.getway.0 — foundation i pilot wszystkich realizerów na V1
 
-Status: `IN PROGRESS — 138.getway.0.3 LOCAL PASS / VISUAL SERVER GATE PENDING`
+Status: `IN PROGRESS — 138.getway.0.3 SERVER FLOW PASS / POLISH RETEST PENDING`
 
 ### Cel
 
@@ -384,7 +384,7 @@ menu gracza. Po zakończeniu certyfikacji V1 zostaje związany tylko z finalnym
 | --- | --- | --- |
 | `138.getway.0.1` | **COMPLETE** — audit 12 rodzin i redukcja ryzyka | 9 rodzin w bramce, 3 jawnie `DEFERRED` |
 | `138.getway.0.2` | **LOCAL PASS / SERVER GATE PENDING** — wspólne okno aktywacji + light-read restoration | API, narrow capability projection, lekki scan/zoom snapshot, eligibility, expiry, cooldown i dedupe |
-| `138.getway.0.3` | **LOCAL PASS / VISUAL SERVER GATE PENDING** — wspólna prezentacja | przycisk `Insider Feed`, Secret Path overlay, cztery palety klanów, asset V1, istniejący SFX, lokalny timer i tekstowy fallback |
+| `138.getway.0.3` | **SERVER FLOW PASS / POLISH RETEST PENDING** — wspólna prezentacja | przycisk `Insider Feed` w lewym dolnym rogu, 6 s overlay, cztery palety klanów, duży asset V1, `ghostnetwork.part_activated`, lokalny timer i tekstowy fallback |
 | `138.getway.0.4` | certyfikacja realizerów 9/9 | każdy dopuszczony realizer przechodzi przez V1 pilot na fixture/testowej bazie |
 | `138.getway.0.5` | finalny vertical slice V1 | prawdziwy `Insider Feed` z `operation_speed`, 15 min i cooldownem |
 | `138.getway.0.6` | kontrolowany SERVER PASS | reload, duplikat, expiry, metryki, korekta schematu i `CONTRACT LOCK` |

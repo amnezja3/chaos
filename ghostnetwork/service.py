@@ -976,8 +976,8 @@ class GhostNetworkService:
             "clan_code": clan_code,
             "clan_color_token": clan.get("ui_color_token") or "",
             "visual_asset_url": asset.get("visual_asset_url") or "",
-            "show_duration_ms": 5000,
-            "sound_event": "secret_path.scene_04",
+            "show_duration_ms": 6000,
+            "sound_event": "ghostnetwork.part_activated",
             "display_name": display_names.get(
                 str(ability.get("ability_code") or ""),
                 ability.get("ability_name") or "GhostNetwork",

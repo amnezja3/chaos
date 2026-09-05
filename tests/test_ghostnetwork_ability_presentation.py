@@ -29,6 +29,9 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "sessionStorage.setItem(key, '1')",
         ):
             self.assertIn(token, self.source)
+        self.assertIn("options: { position: 'bottomleft' }", self.source)
+        self.assertIn('class="chaos-ghost-ability-caption"', self.source)
+        self.assertIn("'ghostnetwork.part_activated'", self.source)
 
     def test_existing_territory_palette_is_reused_for_all_clans(self):
         palette = self.source[
