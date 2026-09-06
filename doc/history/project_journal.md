@@ -3236,3 +3236,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Bramka lokalna: 26/26 testów celowanych, 357/357 pełnej regresji GhostNetwork,
   `py_compile` PASS oraz zero heavy profile w teście ścieżki produkcyjnej.
 - Status `.1.5`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
+
+## 2026-09-06 — 138.getway.1.5, server E2E PASS
+
+- Potwierdzono eligibility i pojawienie się przycisku V5 dla konta VIREX /
+  Kurator Algorytmu oraz prawidłowy overlay Probability Core.
+- Przyspieszenie objęło operacje istniejące i nowe uruchomione w 15-minutowym
+  oknie; UI zachował wyróżnienie `WYNIK PRZEWIDZIANY`.
+- Potwierdzono pełny przepływ expiry/cooldown bez regresji V1 i bez nowego
+  workera lub heavy profile.
+- Status `.1.5`: `COMPLETE / SERVER E2E PASS`; decyzja
+  `operational_prediction → operation_speed` = `KEEP / LOCKED`.

@@ -59,7 +59,7 @@ rodziny, ale nie przebudowy wspólnego runtime.
 | `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `LOCKED / SERVER PASS` |
 | `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; jeden lekki odczyt okna na gracza/tick, widoczny maskowany risk | `LOCKED / SERVER PASS` |
 | `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | każda operacja dotknięta w oknie zachowuje wyróżnienie i przy finalizacji tworzy `oryginał + backup + fullbackup` każdego bazowego pliku GX | `LOCKED / SERVER PASS` |
-| `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_speed` | ten sam certyfikowany realizer co V1 dla operacji istniejących i nowych; osobna polityka mnożnika/capu oraz UX V5 | `LOCAL PASS / SERVER TEST` |
+| `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_speed` | ten sam certyfikowany realizer co V1 dla operacji istniejących i nowych; osobna polityka mnożnika/capu oraz UX V5 | `LOCKED / SERVER E2E PASS` |
 
 `false_image` nie używa `incident_decoy`: obraz zastępczy jest opowiedziany przez
 overlay i obniżenie heat, bez fałszywych globalnych rekordów. V4 nie tworzy

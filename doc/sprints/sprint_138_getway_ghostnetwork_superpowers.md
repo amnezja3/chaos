@@ -857,7 +857,7 @@ Przepływ oraz trwałe wyróżnienie operacji otrzymały E2E SERVER PASS. Decyzj
 
 ### Decyzja i checkpoint `.1.5` — Kurator Algorytmu / V5
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `COMPLETE / SERVER E2E PASS`
 
 `Predykcja Operacyjna` nie korzysta z `operation_risk`. V3 ma już wyraźny,
 przetestowany kontrakt maskowania heat i dokładanie drugiej wersji tego samego
@@ -897,9 +897,13 @@ provenance w kanonicznym rekordzie. Safe projection wystawia jedynie allowlistow
 kod efektu, dzięki czemu UI pokazuje `WYNIK PRZEWIDZIANY`, ale nie ujawnia
 `window_id`, mnożnika ani lineage. V5 został dodany do domyślnej allowlisty.
 
-Lokalna bramka: 26/26 testów celowanych oraz 357/357 pełnej regresji
-`test_ghostnetwork*.py`; kompilacja zmienionych modułów przeszła. Do zamknięcia
-pozostaje test serwerowy aktywnego V5 na koncie VIREX / Kurator Algorytmu.
+Lokalna bramka przed wdrożeniem: 26/26 testów celowanych oraz 357/357 pełnej
+regresji `test_ghostnetwork*.py`; kompilacja zmienionych modułów przeszła.
+
+Test serwerowy E2E potwierdził pełny przepływ V5: eligibility i przycisk,
+overlay/asset, przyspieszenie operacji istniejących oraz nowych w aktywnym oknie,
+trwały komunikat `WYNIK PRZEWIDZIANY`, expiry i cooldown. Decyzja:
+`KEEP / LOCKED` dla `operational_prediction → operation_speed`.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.
