@@ -3196,15 +3196,47 @@
             const proto = L.Polyline.prototype;
             if (proto._chaosBoundsGuardInstalled || typeof proto._clipPoints !== 'function') return;
             const originalClipPoints = proto._clipPoints;
+
+            function scheduleBoundsRecovery(layer) {
+                if (!layer || layer._chaosBoundsRecoveryScheduled) return;
+                layer._chaosBoundsRecoveryScheduled = true;
+                layer._chaosBoundsRecoveryAttempt = Number(layer._chaosBoundsRecoveryAttempt || 0);
+                const delay = Math.min(250, 16 * Math.pow(2, layer._chaosBoundsRecoveryAttempt));
+                window.setTimeout(() => {
+                    layer._chaosBoundsRecoveryScheduled = false;
+                    if (!layer._map || typeof layer.redraw !== 'function') {
+                        layer._chaosBoundsRecoveryAttempt = 0;
+                        return;
+                    }
+                    const rendererBounds = layer._renderer && layer._renderer._bounds;
+                    const pixelBounds = layer._pxBounds;
+                    if (hasFiniteLeafletBounds(rendererBounds) && hasFiniteLeafletBounds(pixelBounds)) {
+                        layer._chaosBoundsRecoveryAttempt = 0;
+                        layer.redraw();
+                        return;
+                    }
+                    layer._chaosBoundsRecoveryAttempt += 1;
+                    if (layer._chaosBoundsRecoveryAttempt < 8) {
+                        scheduleBoundsRecovery(layer);
+                    } else {
+                        console.warn('[map renderer] polyline bounds recovery exhausted', {
+                            layer: layer._chaosLayerRegistry || 'polyline'
+                        });
+                    }
+                }, delay);
+            }
+
             proto._clipPoints = function() {
                 const rendererBounds = this._renderer && this._renderer._bounds;
                 const pixelBounds = this._pxBounds;
                 if (!this._map || !this._renderer || !hasFiniteLeafletBounds(rendererBounds) || !hasFiniteLeafletBounds(pixelBounds)) {
                     this._parts = [];
+                    scheduleBoundsRecovery(this);
                     return;
                 }
                 try {
                     originalClipPoints.call(this);
+                    this._chaosBoundsRecoveryAttempt = 0;
                 } catch (err) {
                     const currentRendererBounds = this._renderer && this._renderer._bounds;
                     const currentPixelBounds = this._pxBounds;
@@ -3217,6 +3249,7 @@
                     );
                     if (!transientBoundsFailure) throw err;
                     this._parts = [];
+                    scheduleBoundsRecovery(this);
                     const now = Date.now();
                     if (!this._chaosLastBoundsWarningAt || now - this._chaosLastBoundsWarningAt >= 5000) {
                         this._chaosLastBoundsWarningAt = now;

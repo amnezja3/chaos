@@ -97,6 +97,16 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("map.on('contextmenu'", self.map_template)
         self.assertIn("showContextMenu(e.containerPoint.x", self.map_template)
 
+    def test_transient_polyline_bounds_guard_retries_visual_render(self):
+        guard_start = self.map_template.index("function installLeafletPolylineBoundsGuard")
+        guard_end = self.map_template.index("function registerLayerInArray", guard_start)
+        guard = self.map_template[guard_start:guard_end]
+        self.assertIn("function scheduleBoundsRecovery(layer)", guard)
+        self.assertIn("scheduleBoundsRecovery(this);", guard)
+        self.assertIn("layer.redraw();", guard)
+        self.assertIn("layer._chaosBoundsRecoveryAttempt < 8", guard)
+        self.assertIn("polyline bounds recovery exhausted", guard)
+
     def test_territory_palette_accepts_lightweight_canonical_clan_codes(self):
         normalizer = self.map_template[
             self.map_template.index("function normalizeTerritoryClanName"):
