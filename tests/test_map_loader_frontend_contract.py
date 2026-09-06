@@ -77,6 +77,10 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("replaceTerritoryAreaLayersAtomically", self.map_template)
         self.assertIn("invalid_territory_area_candidate", self.map_template)
         self.assertIn("territory candidate snapshot rejected", self.map_template)
+        self.assertIn("invalidTerritoryAreaCount += 1", self.map_template)
+        self.assertIn("invalid territory areas skipped", self.map_template)
+        self.assertIn("areas.length > 0 && candidates.length === 0", self.map_template)
+        self.assertNotIn("if (!candidate) throw new Error('invalid_territory_area_candidate')", self.map_template)
 
     def test_territory_polygons_bubble_contextmenu_to_empty_field_menu(self):
         style = self.map_template[

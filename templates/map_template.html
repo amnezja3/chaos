@@ -3443,10 +3443,14 @@
             if (!Array.isArray(areas)) return false;
             const candidates = [];
             const candidateRegistry = {};
+            let invalidTerritoryAreaCount = 0;
             try {
                 areas.forEach(area => {
                     const candidate = createTerritoryAreaLayerCandidate(area);
-                    if (!candidate) throw new Error('invalid_territory_area_candidate');
+                    if (!candidate) {
+                        invalidTerritoryAreaCount += 1;
+                        return;
+                    }
                     if (Object.prototype.hasOwnProperty.call(candidateRegistry, candidate.id)) {
                         throw new Error(`duplicate_territory_area:${candidate.id}`);
                     }
@@ -3454,12 +3458,21 @@
                     candidates.push(candidate.layer);
                     candidateRegistry[candidate.id] = candidate;
                 });
+                if (areas.length > 0 && candidates.length === 0) {
+                    throw new Error('invalid_territory_area_candidate:all');
+                }
             } catch (err) {
                 candidates.forEach(layer => {
                     try { removeMapLayerSafe(layer); } catch (_removeError) { /* keep previous snapshot */ }
                 });
                 console.warn('[map] territory candidate snapshot rejected', err);
                 return false;
+            }
+            if (invalidTerritoryAreaCount > 0) {
+                console.warn('[map] invalid territory areas skipped', {
+                    skipped: invalidTerritoryAreaCount,
+                    accepted: candidates.length
+                });
             }
 
             const previousLayers = Array.from(new Set([
