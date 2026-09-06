@@ -640,7 +640,7 @@ parametry i wykonuje indywidualny test produktowy/E2E.
 | `.1.2` | Architekt / V2 | **Wejście Serwisowe** — `hack_actions`, każdy cel oznaczony w aktywnym oknie natychmiast dostaje wszystkie kropki |
 | `.1.3` | Manipulator / V3 | **Fałszywy Obraz** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
 | `.1.4` | Egzekutor Zysku / V4 | **Wrogie Przejęcie** — trwały `file_yield ×3` dla operacji dotkniętych w oknie |
-| `.1.5` | Kurator Algorytmu / V5 | **Predykcja Operacyjna** — podgląd i bounded `operation_risk`/`operation_speed` |
+| `.1.5` | Kurator Algorytmu / V5 | **Predykcja Operacyjna** — osobno strojony wariant certyfikowanego `operation_speed` z V1 |
 
 ### Decyzja `.1.1` — Broker / V1
 
@@ -854,6 +854,52 @@ wolumen `11 MB`, kompletność `92%`, jakość `93/100`, status
 nie paczkami `.pkg`, więc istniejący Ghost Exchange przejął ich dalsze grupowanie.
 Przepływ oraz trwałe wyróżnienie operacji otrzymały E2E SERVER PASS. Decyzja:
 `KEEP / LOCKED` dla `hostile_takeover → file_yield ×3`.
+
+### Decyzja i checkpoint `.1.5` — Kurator Algorytmu / V5
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+`Predykcja Operacyjna` nie korzysta z `operation_risk`. V3 ma już wyraźny,
+przetestowany kontrakt maskowania heat i dokładanie drugiej wersji tego samego
+efektu osłabiłoby rozróżnienie profesji. V5 korzysta z certyfikowanej rodziny
+`operation_speed` oraz tych samych lekkich call-site'ów co V1: aktywacja obejmuje
+bounded zestaw operacji istniejących, a hook budowy obejmuje operacje nowe w
+15-minutowym oknie.
+
+Nie powstaje drugi realizer prędkości. Wspólna implementacja rozpoznaje kod mocy i
+wybiera backendową, niekliencką politykę parametrów. V1 zachowuje bez zmian
+`factor=clamp(0.1 × level_snapshot, 1, 20)`. V5 startuje od tych samych wartości
+jako bezpiecznego, trzygodzinnie przetestowanego baseline'u, lecz dostaje osobny
+wpis konfiguracyjny mnożnika oraz capu. Po pierwszym teście frontendowym można
+zmienić wyłącznie tuning V5 bez regresji Insider Feed.
+
+Marker/CAS, replay, limit maksymalnie ośmiu operacji, expiry, cooldown oraz zakaz
+heavy profile pozostają identyczne jak w `.1.1`. Bezpieczna projekcja UI musi
+dodatkowo rozróżnić źródło przyspieszenia wyłącznie przez allowlisted kod efektu;
+nie ujawnia `window_id`, provenance ani parametrów wewnętrznych. Karta V5 pokazuje
+`WYNIK PRZEWIDZIANY`, a wspólny overlay używa nazwy `Predykcja Operacyjna`,
+tagline'u `CZAS OBLICZONY`, assetu V5, kolorów VIREX i wspólnego SFX.
+
+Zakres implementacyjny `.1.5`:
+
+1. dodać statyczne mapowanie `operational_prediction → operation_speed`;
+2. wydzielić polityki V1/V5 bez zmiany wyniku V1;
+3. zastosować V5 do istniejących i nowych operacji dokładnie raz przez obecny CAS;
+4. rozróżnić w safe UI `INSIDER FEED` i `WYNIK PRZEWIDZIANY`;
+5. dodać V5 do allowlisty dopiero wraz z kompletem testów;
+6. wykonać regresję V1 oraz test V5: reload, replay, expiry, cooldown, cap i zero
+   heavy profile.
+
+Implementacja checkpointu korzysta z jednego realizera `operation_speed` i dwóch
+niezależnych, backendowych polityk V1/V5. `operational_prediction` obejmuje
+istniejące oraz nowe operacje, zapisuje idempotentny marker i zachowuje prywatne
+provenance w kanonicznym rekordzie. Safe projection wystawia jedynie allowlistowany
+kod efektu, dzięki czemu UI pokazuje `WYNIK PRZEWIDZIANY`, ale nie ujawnia
+`window_id`, mnożnika ani lineage. V5 został dodany do domyślnej allowlisty.
+
+Lokalna bramka: 26/26 testów celowanych oraz 357/357 pełnej regresji
+`test_ghostnetwork*.py`; kompilacja zmienionych modułów przeszła. Do zamknięcia
+pozostaje test serwerowy aktywnego V5 na koncie VIREX / Kurator Algorytmu.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

@@ -59,12 +59,15 @@ rodziny, ale nie przebudowy wspólnego runtime.
 | `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `LOCKED / SERVER PASS` |
 | `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; jeden lekki odczyt okna na gracza/tick, widoczny maskowany risk | `LOCKED / SERVER PASS` |
 | `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | każda operacja dotknięta w oknie zachowuje wyróżnienie i przy finalizacji tworzy `oryginał + backup + fullbackup` każdego bazowego pliku GX | `LOCKED / SERVER PASS` |
-| `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_risk` | niższe ryzyko dzięki przewidywaniu przebiegu operacji; wynik nadal liczy risk meter | `STRONG FIT` |
+| `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_speed` | ten sam certyfikowany realizer co V1 dla operacji istniejących i nowych; osobna polityka mnożnika/capu oraz UX V5 | `LOCAL PASS / SERVER TEST` |
 
 `false_image` nie używa `incident_decoy`: obraz zastępczy jest opowiedziany przez
 overlay i obniżenie heat, bez fałszywych globalnych rekordów. V4 nie tworzy
 gotowych paczek. `backup` i `fullbackup` są osobnymi kopiami tego samego materiału,
 a istniejący Ghost Exchange sam składa je z oryginałem w paczki sprzedażowe.
+V5 nie używa `operation_risk`: ta rodzina pozostaje domeną V3. Probability Core
+ponownie wykorzystuje `operation_speed` z V1, lecz ma osobną politykę parametrów,
+aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 
 ### 3.2 ECHO LIBERTAS
 
@@ -146,12 +149,12 @@ obserwowalny efekt.
 
 | Rodzina | Proponowane części |
 | --- | --- |
-| `operation_speed` | V1 |
+| `operation_speed` | V1, V5 |
 | `file_yield` | V4 |
 | `data_quality` | E3 |
 | `hack_actions` | V2 |
 | `target_security` | E1, E5, P2 |
-| `operation_risk` | V3, V5, E2, P1, S4 |
+| `operation_risk` | V3, E2, P1, S4 |
 | `scan_range` | E4, P3, S1 |
 | `map_zoom` | P4 |
 | `territory_defense` | P5, S2, S3, S5 |

@@ -3210,3 +3210,29 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Gracz potwierdził poprawne działanie całego przepływu i trwałego UX operacji.
   Status `.1.4`: `COMPLETE / SERVER PASS`; decyzja:
   `hostile_takeover → file_yield ×3` = `KEEP / LOCKED`.
+
+## 2026-09-06 — 138.getway.1.5, decyzja Probability Core
+
+- Odrzucono pierwotne mapowanie V5 do `operation_risk`. Ta rodzina pozostaje
+  przypisana do V3/Fałszywego Obrazu, aby profesje nie dublowały tego samego
+  maskowania heat.
+- Przyjęto `operational_prediction → operation_speed`: V5 ponownie wykorzysta
+  certyfikowany realizer, CAS oraz hooki istniejących i nowych operacji z `.1.1`.
+- Nie powstaje drugi realizer. V1 i V5 dostają osobne backendowe polityki
+  mnożnika/capu; baseline V5 zaczyna od przetestowanego
+  `clamp(0.1 × level_snapshot, 1, 20)`, a pierwszy test frontendowy może skorygować
+  wyłącznie parametry V5.
+- UX rozróżni źródło przyspieszenia bez ujawnienia lineage: V5 pokaże
+  `Predykcja Operacyjna`, `CZAS OBLICZONY` oraz `WYNIK PRZEWIDZIANY` na kartach.
+- Niezmienne granice: maksymalnie osiem operacji, 15 minut, cooldown 1 godzina,
+  idempotentny marker, replay/reload recovery, brak nowego workera i zero heavy
+  profile.
+- Zaimplementowano `operational_prediction → operation_speed` bez drugiego
+  realizera: osobne polityki V1/V5, obsługa operacji istniejących i nowych,
+  idempotentny marker/CAS oraz domyślny cap `×20`.
+- Safe projection rozróżnia V5 przez allowlistowany kod, nie ujawniając
+  provenance; overlay pokazuje `Predykcja Operacyjna / CZAS OBLICZONY`, a
+  dotknięte karty `WYNIK PRZEWIDZIANY`.
+- Bramka lokalna: 26/26 testów celowanych, 357/357 pełnej regresji GhostNetwork,
+  `py_compile` PASS oraz zero heavy profile w teście ścieżki produkcyjnej.
+- Status `.1.5`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.

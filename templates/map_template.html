@@ -6977,6 +6977,9 @@
                     const rawOperationId = String(operation.operation_id || '').trim();
                     const operationId = window.escapeMapText(rawOperationId);
                     const accelerated = operation.accelerated === true;
+                    const speedBoostLabel = operation.speed_boost_code === 'operational_prediction'
+                        ? 'WYNIK PRZEWIDZIANY'
+                        : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
                     const yieldBoosted = operation.yield_boosted === true;
                     const cancelInFlight = Boolean(
@@ -6991,7 +6994,7 @@
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
@@ -7078,6 +7081,9 @@
                     const rawOperationId = String(operation.operation_id || '').trim();
                     const operationId = window.escapeMapText(rawOperationId);
                     const accelerated = operation.accelerated === true;
+                    const speedBoostLabel = operation.speed_boost_code === 'operational_prediction'
+                        ? 'WYNIK PRZEWIDZIANY'
+                        : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
                     const yieldBoosted = operation.yield_boosted === true;
                     const cancelInFlight = Boolean(
@@ -7092,7 +7098,7 @@
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? '<span class="active-operation-card__boost">INSIDER FEED</span>' : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>

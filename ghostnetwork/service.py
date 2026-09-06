@@ -994,18 +994,21 @@ class GhostNetworkService:
         clan = clans.get(clan_code) or {}
         display_names = {
             "insider_feed": "Insider Feed",
+            "operational_prediction": "Predykcja Operacyjna",
             "service_entrance": "Wejście Serwisowe",
             "false_image": "Fałszywy Obraz",
             "hostile_takeover": "Wrogie Przejęcie",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
+            "operational_prediction": "CZAS OBLICZONY",
             "service_entrance": "BACKDOOR GOTOWY",
             "false_image": "NIE WIERZ OCZOM",
             "hostile_takeover": "POTRÓJNY ZYSK",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
+            "operational_prediction": "operation_cards",
             "service_entrance": "target_action_dots",
             "false_image": "operation_risk",
             "hostile_takeover": "file_yield",

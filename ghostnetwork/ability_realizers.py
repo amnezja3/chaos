@@ -27,6 +27,18 @@ ACTION_KEYS = ("scan_ports", "exploit", "sniff", "trace")
 QUALITY_CATEGORIES = {"audio", "camera", "credentials"}
 MAX_ACTIVE_OPERATIONS = 8
 MAX_OPERATION_SPEED_FACTOR = 20.0
+OPERATION_SPEED_POLICIES = {
+    "insider_feed": {
+        "level_multiplier": 0.1,
+        "minimum_factor": 1.0,
+        "maximum_factor": MAX_OPERATION_SPEED_FACTOR,
+    },
+    "operational_prediction": {
+        "level_multiplier": 0.1,
+        "minimum_factor": 1.0,
+        "maximum_factor": MAX_OPERATION_SPEED_FACTOR,
+    },
+}
 FILE_YIELD_COPY_VARIANTS = ("backup", "fullbackup")
 MAX_BONUS_FILES_PER_SOURCE = len(FILE_YIELD_COPY_VARIANTS)
 MAX_QUALITY_FILES = 16
@@ -60,19 +72,25 @@ def _stable_id(*parts):
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:18]
 
 
-def calculate_operation_speed_factor(level_snapshot):
-    """Return the frozen Insider Feed multiplier for one activation snapshot."""
+def calculate_operation_speed_factor(level_snapshot, ability_code="insider_feed"):
+    """Return the backend-owned multiplier for one speed ability snapshot."""
     try:
         level = float(level_snapshot or 1)
     except (TypeError, ValueError):
         level = 1.0
-    return max(1.0, min(MAX_OPERATION_SPEED_FACTOR, level * 0.1))
+    policy = OPERATION_SPEED_POLICIES.get(str(ability_code or "").strip())
+    policy = policy or OPERATION_SPEED_POLICIES["insider_feed"]
+    return max(
+        policy["minimum_factor"],
+        min(policy["maximum_factor"], level * policy["level_multiplier"]),
+    )
 
 
 def _operation_speed(state, window):
     operations = state.setdefault("operations", [])
     now = _parse_datetime(window["activated_at"])
-    factor = calculate_operation_speed_factor(window.get("level_snapshot"))
+    ability_code = str(window.get("ability_code") or "insider_feed").strip()
+    factor = calculate_operation_speed_factor(window.get("level_snapshot"), ability_code)
     marker = f'{window["window_id"]}:operation_speed'
     changed = []
     for operation in operations[:MAX_ACTIVE_OPERATIONS]:
@@ -88,6 +106,13 @@ def _operation_speed(state, window):
         )
         operation["remaining_seconds"] = round(remaining / factor)
         markers.append(marker)
+        if ability_code == "operational_prediction":
+            operation["operation_speed_provenance"] = {
+                "ability_code": ability_code,
+                "window_id": window["window_id"],
+                "family": "operation_speed",
+                "factor": factor,
+            }
         changed.append(str(operation.get("operation_id") or ""))
     return {"changed": changed, "factor": factor, "bounded_limit": MAX_ACTIVE_OPERATIONS}
 
@@ -96,7 +121,8 @@ def apply_operation_speed_to_new_operation(operation, window):
     """Apply Insider Feed once while constructing a new canonical operation."""
     operation = operation if isinstance(operation, dict) else {}
     window = window if isinstance(window, dict) else {}
-    if window.get("ability_code") != "insider_feed" or not window.get("window_id"):
+    ability_code = str(window.get("ability_code") or "").strip()
+    if ability_code not in OPERATION_SPEED_POLICIES or not window.get("window_id"):
         return False
     try:
         started_at = _parse_datetime(operation.get("started_at"))
@@ -112,18 +138,20 @@ def apply_operation_speed_to_new_operation(operation, window):
     markers = list(markers) if isinstance(markers, list) else []
     if marker in markers:
         return False
-    factor = calculate_operation_speed_factor(window.get("level_snapshot"))
+    factor = calculate_operation_speed_factor(window.get("level_snapshot"), ability_code)
     duration = max(1, round((expires_at - started_at).total_seconds() / factor))
     operation["expires_at"] = _iso_datetime(started_at + timedelta(seconds=duration))
     operation["duration_seconds"] = duration
     markers.append(marker)
     operation["ability_application_keys"] = markers
     operation["ability_provenance"] = {
-        "ability_code": "insider_feed",
+        "ability_code": ability_code,
         "window_id": window["window_id"],
         "family": "operation_speed",
         "factor": factor,
     }
+    if ability_code == "operational_prediction":
+        operation["operation_speed_provenance"] = dict(operation["ability_provenance"])
     return True
 
 
@@ -565,6 +593,7 @@ class GhostAbilityProductionRealizer:
 
     ABILITY_FAMILIES = {
         "insider_feed": "operation_speed",
+        "operational_prediction": "operation_speed",
         "service_entrance": "hack_actions",
         "false_image": "operation_risk",
         "hostile_takeover": "file_yield",
@@ -603,7 +632,9 @@ class GhostAbilityProductionRealizer:
         changed_ids = set()
         persisted_ids = set()
         attempts = 0
-        factor = calculate_operation_speed_factor(window.get("level_snapshot"))
+        factor = calculate_operation_speed_factor(
+            window.get("level_snapshot"), window.get("ability_code"),
+        )
         pending = []
         for _attempt in range(2):
             attempts += 1

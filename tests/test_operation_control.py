@@ -158,9 +158,30 @@ class OperationControlTest(unittest.TestCase):
         items = {item["operation_id"]: item for item in snapshot["operations"]}
 
         self.assertTrue(items["op-fast"]["accelerated"])
+        self.assertEqual("insider_feed", items["op-fast"]["speed_boost_code"])
         self.assertFalse(items["op-normal"]["accelerated"])
         self.assertNotIn("ability_application_keys", items["op-fast"])
         self.assertNotIn("ability_provenance", items["op-fast"])
+
+    def test_snapshot_exposes_safe_operational_prediction_label_only(self):
+        profile = operation_control_profile()
+        predicted = operation("op-predicted")
+        predicted["ability_application_keys"] = ["private-window:operation_speed"]
+        predicted["operation_speed_provenance"] = {
+            "ability_code": "operational_prediction",
+            "window_id": "private-window",
+            "factor": 7.1,
+        }
+
+        snapshot = run.build_operation_control_snapshot(
+            "alice", profile, operations=[predicted],
+        )
+        item = snapshot["operations"][0]
+
+        self.assertTrue(item["accelerated"])
+        self.assertEqual("operational_prediction", item["speed_boost_code"])
+        self.assertNotIn("ability_application_keys", item)
+        self.assertNotIn("operation_speed_provenance", item)
 
     def test_snapshot_exposes_only_safe_risk_mask_flag(self):
         profile = operation_control_profile()

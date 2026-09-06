@@ -176,6 +176,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
         self.assertEqual(
             {
                 "insider_feed": "operation_speed",
+                "operational_prediction": "operation_speed",
                 "service_entrance": "hack_actions",
                 "false_image": "operation_risk",
                 "hostile_takeover": "file_yield",

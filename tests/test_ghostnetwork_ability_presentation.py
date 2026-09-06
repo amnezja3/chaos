@@ -97,6 +97,8 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "active-operation-card--accelerated",
             "active-operation-card__boost",
             "INSIDER FEED",
+            "WYNIK PRZEWIDZIANY",
+            "operational_prediction",
         ):
             self.assertIn(token, self.source)
 

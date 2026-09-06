@@ -14884,9 +14884,23 @@ def summarize_operation_for_client(operation):
         if isinstance(operation.get("ability_provenance"), dict)
         else {}
     )
+    speed_provenance = (
+        operation.get("operation_speed_provenance")
+        if isinstance(operation.get("operation_speed_provenance"), dict)
+        else {}
+    )
+    has_speed_marker = any(
+        str(marker or "").endswith(":operation_speed") for marker in ability_markers
+    )
+    speed_boost_code = str(
+        speed_provenance.get("ability_code")
+        or ability_provenance.get("ability_code")
+        or ""
+    ).strip()
+    if speed_boost_code not in {"insider_feed", "operational_prediction"}:
+        speed_boost_code = "insider_feed" if has_speed_marker else ""
     accelerated = bool(
-        ability_provenance.get("ability_code") == "insider_feed"
-        or any(str(marker or "").endswith(":operation_speed") for marker in ability_markers)
+        speed_boost_code or has_speed_marker
     )
     risk_masked = int(risk_meter.get("ability_heat_modifier") or 0) < 0
     yield_boosted = any(
@@ -14917,6 +14931,7 @@ def summarize_operation_for_client(operation):
         "remaining_seconds": operation.get("remaining_seconds"),
         "expired": operation.get("expired"),
         "accelerated": accelerated,
+        "speed_boost_code": speed_boost_code if accelerated else "",
         "risk_masked": risk_masked,
         "yield_boosted": yield_boosted,
         "output_mb": operation_output_size_mb(operation),
