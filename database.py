@@ -12668,15 +12668,20 @@ class PlayerTargetRuntimeStore:
             activation_id=activation_id, mode="actions",
         )
 
-    def apply_ability_security(self, username, *, target_key, expected_version, activation_id):
-        """Disable at most two security booleans on one canonical selected target."""
+    def apply_ability_security(
+        self, username, *, target_key, expected_version, activation_id,
+        max_changes=2,
+    ):
+        """Disable a backend-bounded set of booleans on one canonical target."""
         return self._apply_ability_target_change(
             username, target_key=target_key, expected_version=expected_version,
             activation_id=activation_id, mode="security",
+            security_max_changes=max_changes,
         )
 
     def _apply_ability_target_change(
         self, username, *, target_key, expected_version, activation_id, mode,
+        security_max_changes=2,
     ):
         username = self._clean_text(username)
         target_key = self._clean_text(target_key)
@@ -12723,7 +12728,10 @@ class PlayerTargetRuntimeStore:
                         changed.append(key)
             else:
                 for key in sorted(security):
-                    if len(changed) >= 2:
+                    if (
+                        security_max_changes is not None
+                        and len(changed) >= max(0, int(security_max_changes))
+                    ):
                         break
                     if security.get(key) is True:
                         security[key] = False

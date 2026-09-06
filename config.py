@@ -147,7 +147,7 @@ GHOSTNETWORK_RUNTIME_MODE = str(os.environ.get("CHAOS_GHOSTNETWORK_RUNTIME_MODE"
 GHOSTNETWORK_TEST_MODE = env_bool("CHAOS_GHOSTNETWORK_TEST_MODE", False)
 GHOSTNETWORK_ABILITIES_ENABLED = env_bool("CHAOS_GHOSTNETWORK_ABILITIES_ENABLED", False)
 GHOSTNETWORK_ABILITY_ALLOWED_CODES = tuple(env_csv(
-    "CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES", "insider_feed,service_entrance,false_image,hostile_takeover,operational_prediction",
+    "CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES", "insider_feed,service_entrance,false_image,hostile_takeover,operational_prediction,expose",
 ))
 GHOSTNETWORK_ABILITY_DURATION_SECONDS = max(
     60, env_int("CHAOS_GHOSTNETWORK_ABILITY_DURATION_SECONDS", 15 * 60)

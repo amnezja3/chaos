@@ -137,10 +137,10 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
 
     def test_target_realizer_has_persistent_toolbar_impact_feedback(self):
         self.assertIn("updateParentToolbarGhostAbility(data)", self.source)
-        self.assertIn("ghost-ability-impact-2", self.source)
+        self.assertIn("ghost-ability-impact-3", self.source)
         for token in (
             "window.updateToolbarGhostAbilityState",
-            'impactUi === "target_action_dots"',
+            'abilityImpactUi === "target_action_dots"',
             "has-ghost-ability-impact",
             "target-status-icon",
             'aimedTarget.icon || "🎯"',
@@ -151,6 +151,21 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "ghost-ability-target-dot",
             "--ghost-ability-impact",
             "prefers-reduced-motion: reduce",
+        ):
+            self.assertIn(token, self.css_source)
+
+    def test_expose_highlights_security_bar_without_lighting_action_dots(self):
+        for token in (
+            '"target_security_bar"',
+            '"target_action_dots", "target_security_bar"',
+            "ghost-ability-impact-security",
+        ):
+            self.assertIn(token, self.terminal_source)
+        for token in (
+            "ghost-ability-impact-security .target-disarm-track",
+            "ghost-ability-impact-security .target-disarm-fill",
+            'content: "UJAWNIONE"',
+            "ghost-ability-security-bar",
         ):
             self.assertIn(token, self.css_source)
 

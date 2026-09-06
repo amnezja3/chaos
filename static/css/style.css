@@ -1336,7 +1336,7 @@ body {
   --ghost-ability-impact: #238bff;
 }
 
-#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dots::before {
+#system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dots::before {
   content: "";
   position: absolute;
   inset: -5px -7px;
@@ -1346,7 +1346,7 @@ body {
   animation: ghost-ability-target-ring 1150ms ease-in-out infinite;
 }
 
-#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active {
+#system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dot.is-active {
   background: #fff;
   box-shadow:
     0 0 4px #fff,
@@ -1355,15 +1355,15 @@ body {
   animation: ghost-ability-target-dot 900ms ease-in-out infinite alternate;
 }
 
-#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active:nth-child(2) {
+#system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dot.is-active:nth-child(2) {
   animation-delay: 90ms;
 }
 
-#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active:nth-child(3) {
+#system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dot.is-active:nth-child(3) {
   animation-delay: 180ms;
 }
 
-#system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active:nth-child(4) {
+#system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dot.is-active:nth-child(4) {
   animation-delay: 270ms;
 }
 
@@ -1401,6 +1401,35 @@ body {
   box-shadow: 0 0 5px rgba(112, 255, 141, 0.45);
   transition: width 280ms ease-out;
   font-style: normal;
+}
+
+#system-status-strip .system-status-target.ghost-ability-impact-security .target-feedback {
+  position: relative;
+}
+
+#system-status-strip .system-status-target.ghost-ability-impact-security .target-feedback::after {
+  content: "UJAWNIONE";
+  position: absolute;
+  right: 0;
+  bottom: -9px;
+  color: var(--ghost-ability-impact);
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 6px color-mix(in srgb, var(--ghost-ability-impact) 72%, transparent);
+}
+
+#system-status-strip .system-status-target.ghost-ability-impact-security .target-disarm-track {
+  height: 3px;
+  outline: 1px solid color-mix(in srgb, var(--ghost-ability-impact) 66%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ghost-ability-impact) 64%, transparent);
+}
+
+#system-status-strip .system-status-target.ghost-ability-impact-security .target-disarm-fill {
+  background: linear-gradient(90deg, #fff4a8, var(--ghost-ability-impact));
+  box-shadow: 0 0 8px var(--ghost-ability-impact);
+  animation: ghost-ability-security-bar 800ms ease-in-out infinite alternate;
 }
 
 #system-status-strip .system-status-target.is-feedback-change .target-action-dot.is-active {
@@ -1454,9 +1483,15 @@ body {
   to { transform: translateY(-1px) scale(1.22); }
 }
 
+@keyframes ghost-ability-security-bar {
+  from { filter: brightness(0.9); opacity: 0.72; }
+  to { filter: brightness(1.35); opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dots::before,
-  #system-status-strip .system-status-target.has-ghost-ability-impact .target-action-dot.is-active {
+  #system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dots::before,
+  #system-status-strip .system-status-target.ghost-ability-impact-actions .target-action-dot.is-active,
+  #system-status-strip .system-status-target.ghost-ability-impact-security .target-disarm-fill {
     animation: none;
   }
 }

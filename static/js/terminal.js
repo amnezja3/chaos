@@ -1439,9 +1439,10 @@ function renderToolbarStatus() {
         ? toolbarTargetHackedEffect
         : null;
     const targetMarkup = hasTarget ? (() => {
+        const abilityImpactUi = String(toolbarGhostAbilityState.impactUi || "");
         const abilityImpactActive = Boolean(
             toolbarGhostAbilityState.active
-            && toolbarGhostAbilityState.impactUi === "target_action_dots"
+            && ["target_action_dots", "target_security_bar"].includes(abilityImpactUi)
             && Date.parse(toolbarGhostAbilityState.expiresAt) > Date.now()
         );
         const targetIcon = String(aimedTarget.icon || "🎯");
@@ -1453,6 +1454,12 @@ function renderToolbarStatus() {
             targetFeedback?.changed ? "is-feedback-change" : "",
             targetFeedback?.targetChanged ? "is-target-change" : "",
             abilityImpactActive ? "has-ghost-ability-impact" : "",
+            abilityImpactActive && abilityImpactUi === "target_action_dots"
+                ? "ghost-ability-impact-actions"
+                : "",
+            abilityImpactActive && abilityImpactUi === "target_security_bar"
+                ? "ghost-ability-impact-security"
+                : "",
             abilityImpactActive && toolbarGhostAbilityState.clanCode
                 ? `ghost-ability-clan-${toolbarGhostAbilityState.clanCode.replace(/[^a-z0-9_-]/g, "")}`
                 : ""

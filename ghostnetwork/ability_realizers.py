@@ -597,6 +597,7 @@ class GhostAbilityProductionRealizer:
         "service_entrance": "hack_actions",
         "false_image": "operation_risk",
         "hostile_takeover": "file_yield",
+        "expose": "target_security",
     }
 
     def __init__(self, operation_store, target_store=None):
@@ -606,11 +607,11 @@ class GhostAbilityProductionRealizer:
     def resolve_activation_target(self, player_id, ability_code):
         """Remember the target present at activation for replay recovery.
 
-        Hack-action abilities remain valid without a selected target: their
+        Target abilities remain valid without a selected target: their
         active window is also applied by the canonical aimed-target hook.
         """
         family = self.ABILITY_FAMILIES.get(str(ability_code or "").strip())
-        if family != "hack_actions":
+        if family not in {"hack_actions", "target_security"}:
             return {"required": False, "target_id": ""}
         if self.target_store is None:
             return {"required": False, "target_id": ""}
@@ -807,6 +808,66 @@ class GhostAbilityProductionRealizer:
             "attempts": attempts, "cas_retries": max(0, attempts - 1),
         }
 
+    def _apply_target_security(self, player_id, window, target_id=None):
+        """Expose one exact target by disabling its complete security bar."""
+        target_id = str(
+            window.get("target_id") if target_id is None else target_id
+        ).strip()
+        if self.target_store is None:
+            return {"ok": False, "status": "target_unavailable"}
+        if not target_id:
+            return {
+                "ok": True, "status": "no_selected_target",
+                "family": "target_security", "changed": [],
+                "target_applied": False, "attempts": 0, "cas_retries": 0,
+            }
+        attempts = 0
+        for _attempt in range(2):
+            attempts += 1
+            row = self.target_store.get(player_id)
+            if (
+                not row
+                or str(row.get("status") or "").strip().lower()
+                in getattr(self.target_store, "TERMINAL_STATUSES", set())
+            ):
+                return {
+                    "ok": False, "status": "target_unavailable",
+                    "attempts": attempts, "cas_retries": max(0, attempts - 1),
+                }
+            if str(row.get("target_key") or "") != target_id:
+                return {
+                    "ok": False, "status": "target_changed",
+                    "attempts": attempts, "cas_retries": max(0, attempts - 1),
+                }
+            result = self.target_store.apply_ability_security(
+                player_id,
+                target_key=target_id,
+                expected_version=row.get("version") or 0,
+                activation_id=window.get("window_id") or "",
+                max_changes=None,
+            )
+            reason = str(result.get("reason") or "")
+            if result.get("ok"):
+                return {
+                    "ok": True,
+                    "status": "replayed" if reason == "replayed" else "applied",
+                    "family": "target_security",
+                    "changed": list(result.get("changed") or []),
+                    "target_applied": True,
+                    "target": dict(result.get("target") or {}),
+                    "attempts": attempts,
+                    "cas_retries": max(0, attempts - 1),
+                }
+            if reason != "stale_version":
+                return {
+                    "ok": False, "status": reason or "target_change_failed",
+                    "attempts": attempts, "cas_retries": max(0, attempts - 1),
+                }
+        return {
+            "ok": False, "status": "concurrent_change",
+            "attempts": attempts, "cas_retries": max(0, attempts - 1),
+        }
+
     @staticmethod
     def _apply_operation_risk_to_row(operation, window, now=None):
         from response_network.operation_risk_meter import calculate_operation_risk
@@ -897,6 +958,8 @@ class GhostAbilityProductionRealizer:
             return self._apply_operation_speed(player_id, window)
         if family == "hack_actions":
             return self._apply_hack_actions(player_id, window)
+        if family == "target_security":
+            return self._apply_target_security(player_id, window)
         if family == "operation_risk":
             return self._apply_operation_risk(player_id, window)
         if family == "file_yield":
@@ -914,10 +977,12 @@ class GhostAbilityProductionRealizer:
         return False
 
     def apply_to_aimed_target(self, player_id, target_id, window):
-        """Apply an active V2 window once to the exact newly aimed target."""
+        """Apply an active target ability once to the exact newly aimed target."""
         window = window if isinstance(window, dict) else {}
-        if self.ABILITY_FAMILIES.get(window.get("ability_code")) != "hack_actions":
+        family = self.ABILITY_FAMILIES.get(window.get("ability_code"))
+        if family not in {"hack_actions", "target_security"}:
             return {"ok": True, "status": "not_applicable", "target_applied": False}
-        return self._apply_hack_actions(
-            str(player_id or "").strip(), window, target_id=target_id,
-        )
+        player_id = str(player_id or "").strip()
+        if family == "target_security":
+            return self._apply_target_security(player_id, window, target_id=target_id)
+        return self._apply_hack_actions(player_id, window, target_id=target_id)

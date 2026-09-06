@@ -39,7 +39,7 @@ niezwiązanym zdarzeniu świata.
 | `file_yield` | dokładnie 2 kopie każdego bazowego pliku GX (`backup`, `fullbackup`), stabilne ID; operacja oznaczona w oknie zachowuje bonus do finalizacji |
 | `data_quality` | maksymalnie 16 plików; `quality/completeness +20`, clamp `0–100` |
 | `hack_actions` | cztery action dots ustawione jako wykonane; security bez zmian |
-| `target_security` | maksymalnie 2 zabezpieczenia wyłączone, exact target i CAS |
+| `target_security` | exact target i CAS; polityka E1 wyłącza cały boolean security bar, polityka P2 pozostaje ograniczona do maks. 2 flag |
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | `base + clamp(20 × LVL, 150, 1500)`, wynik maksymalnie `6000 m`, bez globalnego skanu |
 | `map_zoom` | bounded zmiana o 2 poziomy na lekkim capability snapshotcie |
@@ -73,7 +73,7 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
-| `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | maks. 1 zabezpieczenie oznaczonego celu zostaje ujawnione jako wyłączone | `STRONG FIT / LIMIT 1` |
+| `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | cały pasek boolean security aktualnego i każdego kolejnego celu `aimed` w oknie zostaje wyłączony; cztery action dots pozostają do wykonania | `LOCAL PASS / SERVER TEST` |
 | `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | opóźniona reakcja systemu przez `heat -15`; bez wymuszania wyniku detekcji | `STRONG FIT` |
 | `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | `+20` jakości i kompletności dla maks. 16 plików camera/audio | `STRONG FIT` |
 | `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | widocznie większy promień skanu, maks. `6000 m`; tylko gracz aktywujący | `SAFE FIRST SLICE` |
@@ -129,6 +129,12 @@ cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
 
 Cooldown zawsze biegnie do pierwotnego `cooldown_until`. Utrata części nie usuwa
 okna i nie pozwala ominąć cooldownu.
+
+Dla E1 `target_security` jest lustrzanym odpowiednikiem V2: `expose` wyłącza
+wszystkie aktywne flagi boolean security dokładnego celu, ale nie zmienia
+`actions_allowed`. Gracz nadal zapala cztery kropki istniejącymi narzędziami, więc
+jakość narzędzi zachowuje znaczenie. Każdy cel dotknięty przed expiry pozostaje
+rozbrojony; po expiry lub utracie części nowe cele nie są zmieniane.
 
 ## 5. Kolejność produkcji jednego podsprintu
 

@@ -995,6 +995,7 @@ class GhostNetworkService:
         display_names = {
             "insider_feed": "Insider Feed",
             "operational_prediction": "Predykcja Operacyjna",
+            "expose": "Ujawnienie",
             "service_entrance": "Wejście Serwisowe",
             "false_image": "Fałszywy Obraz",
             "hostile_takeover": "Wrogie Przejęcie",
@@ -1002,6 +1003,7 @@ class GhostNetworkService:
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
             "operational_prediction": "CZAS OBLICZONY",
+            "expose": "SŁABOŚĆ UJAWNIONA",
             "service_entrance": "BACKDOOR GOTOWY",
             "false_image": "NIE WIERZ OCZOM",
             "hostile_takeover": "POTRÓJNY ZYSK",
@@ -1009,6 +1011,7 @@ class GhostNetworkService:
         impact_ui = {
             "insider_feed": "operation_cards",
             "operational_prediction": "operation_cards",
+            "expose": "target_security_bar",
             "service_entrance": "target_action_dots",
             "false_image": "operation_risk",
             "hostile_takeover": "file_yield",

@@ -3247,3 +3247,21 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   workera lub heavy profile.
 - Status `.1.5`: `COMPLETE / SERVER E2E PASS`; decyzja
   `operational_prediction → operation_speed` = `KEEP / LOCKED`.
+
+## 2026-09-06 — start 138.getway.2.1, E1 Breach Voice
+
+- Skorygowano znaczenie rodziny E1: `Ujawnienie` nie wyłącza jednej słabości.
+  Wyłącza cały boolean security bar dokładnego celu, pozostawiając cztery action
+  dots nietknięte i zależne od istniejących narzędzi.
+- Zakres obejmuje cel obecny przy aktywacji oraz każdy nowy `aimed` w 15-minutowym
+  oknie. Exact target, CAS, marker/replay, expiry, part loss i cooldown pozostają
+  wspólnym kontraktem runtime.
+- Polityka E1 jest osobna od przyszłego P2, który nadal ma limit maksymalnie dwóch
+  zmian security. Nie powstaje nowy store, worker ani heavy-profile call-site.
+- Rozpoczęto implementację `expose → target_security` oraz żółtego UX paska
+  `UJAWNIONE`.
+- Implementacja przeszła lokalną bramkę: 28/28 testów celowanych, 364/364 pełnej
+  regresji GhostNetwork, `py_compile` i `diff --check`. Potwierdzono brak zmian
+  kropek, pełne wyzerowanie boolean security, każdy kolejny `aimed`, idempotencję,
+  expiry/part loss oraz zero heavy profile.
+- Status `.2.1`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.

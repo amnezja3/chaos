@@ -261,7 +261,7 @@ ability_code
 | `file_value` | **DEFERRED** — wymaga narrow settlementu Ghost Exchange | nie wchodzi do bieżącej bramki |
 | `data_quality` | rośnie kompletność/jakość konkretnych plików | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
-| `target_security` | mniej lub więcej aktywnych zabezpieczeń | ograniczona transformacja istniejącej security map z zachowaniem CAS |
+| `target_security` | mniej lub więcej aktywnych zabezpieczeń | polityka per ability na istniejącej security map z exact target i CAS; E1 zeruje cały boolean bar, P2 zachowuje limit 2 |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większy promień lub skan niezależny od motocykla | istniejący action range albo jawny bypass tylko dla endpointu skanu |
 | `map_zoom` | szerszy widok | istniejący getter zoomu, bez trwałego zakupu w profilu |
@@ -431,7 +431,7 @@ limit, idempotency i test braku heavy profile:
 | `file_yield` | operacja z trwałym markerem oraz bazowym materiałem GX | każdy materiał daje dwie osobne, deterministyczne kopie; GX sam buduje paczkę |
 | `data_quality` | camera/audio/credentials o znanej jakości | quality/completeness rośnie w granicach 0–100 |
 | `hack_actions` | oznaczony cel z niewykonanymi kropkami | właściwe action dots są wykonane, security pozostaje |
-| `target_security` | oznaczony cel z wersjonowaną security map | bounded redukcja/wzmocnienie zachowuje CAS |
+| `target_security` | oznaczony cel z wersjonowaną security map | polityka mocy zachowuje CAS: E1 wyłącza cały boolean bar bez zmiany kropek, P2 maks. 2 flagi |
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
 | `scan_range` | cel wewnątrz i poza bazowym zasięgiem | tylko dozwolony zakres/bypass zmienia wynik |
 | `map_zoom` | znany bazowy zoom | snapshot/UI pokazuje bounded rozszerzenie |
@@ -912,7 +912,7 @@ hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
-| `.2.1` | Haktywista / E1 | **Ujawnienie** — `target_security`, pokazanie/zdjęcie jednej słabości |
+| `.2.1` | Haktywista / E1 | **Ujawnienie** — `target_security`, pełne wyłączenie paska zabezpieczeń przy pozostawieniu czterech kropek do zhakowania |
 | `.2.2` | Socjotechnik / E2 | **Przejęcie Narracji** — `file_yield` i `data_quality` audio/conversation |
 | `.2.3` | Odsłaniacz / E3 | **Pełne Ujawnienie** — `file_yield`/`data_quality` camera i pełniejszy skan |
 | `.2.4` | Wizjoner / E4 | **Beacon Oporu** — większy `scan_range` klanu i widoczny beacon |
@@ -920,6 +920,34 @@ hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 
 Echo ma przede wszystkim dawać więcej treści z kamer i rozmów oraz ujawniać
 informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
+
+### Decyzja `.2.1` — Haktywista / E1
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+`Ujawnienie` działa jako lustrzany odpowiednik V2. Przy aktywacji wyłącza wszystkie
+aktywne flagi boolean na pasku zabezpieczeń aktualnego celu `aimed`, ale nie
+zmienia żadnej z czterech wartości `actions_allowed`. Jeśli celu nie ma, okno
+uruchamia się bez błędu. Każdy kolejny cel oznaczony podczas 15 minut otrzymuje
+ten sam efekt dokładnie raz. Kropki nadal wymagają właściwych narzędzi i zachowują
+ich istniejącą jakość/skuteczność.
+
+Zmiana przechodzi przez dokładny `target_key`, expected version, CAS i marker
+okna. Nie skanuje celów ani profili. Rozbrojenie dotkniętego celu zostaje po
+expiry; utrata aktywnej E1 zatrzymuje tylko dalsze zastosowania, a cooldown biegnie
+normalnie. Backendowa polityka `expose=disable_all_boolean_security` nie zmienia
+domyślnego limitu 2 rodziny przygotowanego dla przyszłego P2.
+
+UX: `Ujawnienie`, tagline `SŁABOŚĆ UJAWNIONA`, asset E1 i żółta paleta Echo.
+Podczas aktywnego okna pełny pasek security pulsuje z etykietą `UJAWNIONE`, a
+niezapalone kropki pozostają wizualnie nietknięte.
+
+Implementacja podłącza `expose → target_security` do istniejącego canonical
+target store i pojedynczego hooka `aimed`. Backendowa metoda zachowuje domyślny
+limit dwóch zmian, ale produkcyjna polityka E1 jawnie wybiera wszystkie flagi
+boolean jednego exact targetu. Odpowiedź klienta nie przyjmuje limitu ani kodu
+realizera. Lokalna bramka: 28/28 testów celowanych i 364/364 pełnej regresji
+GhostNetwork, `py_compile` oraz `diff --check` PASS.
 
 ## 12. 138.getway.3 — Siatka Widmo
 

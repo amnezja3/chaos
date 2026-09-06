@@ -180,6 +180,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "service_entrance": "hack_actions",
                 "false_image": "operation_risk",
                 "hostile_takeover": "file_yield",
+                "expose": "target_security",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,
         )
