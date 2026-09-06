@@ -21,7 +21,11 @@ from .catalog import (
     validate_catalog,
 )
 from .abilities import GhostAbilityRegistry
-from .ability_realizers import GhostAbilityProductionRealizer
+from .ability_realizers import (
+    OPERATION_RISK_POLICIES,
+    GhostAbilityProductionRealizer,
+    operation_risk_modifier,
+)
 from .archive import GhostArchiveService
 from .closure import GhostNetworkClosureService
 from .cycles import GhostCycleService, ensure_active_ghostnetwork_cycle
@@ -996,6 +1000,7 @@ class GhostNetworkService:
             "insider_feed": "Insider Feed",
             "operational_prediction": "Predykcja Operacyjna",
             "expose": "Ujawnienie",
+            "narrative_takeover": "Przejęcie Narracji",
             "service_entrance": "Wejście Serwisowe",
             "false_image": "Fałszywy Obraz",
             "hostile_takeover": "Wrogie Przejęcie",
@@ -1004,6 +1009,7 @@ class GhostNetworkService:
             "insider_feed": "MEGA HOSSA",
             "operational_prediction": "CZAS OBLICZONY",
             "expose": "SŁABOŚĆ UJAWNIONA",
+            "narrative_takeover": "REAKCJA OPÓŹNIONA",
             "service_entrance": "BACKDOOR GOTOWY",
             "false_image": "NIE WIERZ OCZOM",
             "hostile_takeover": "POTRÓJNY ZYSK",
@@ -1012,6 +1018,7 @@ class GhostNetworkService:
             "insider_feed": "operation_cards",
             "operational_prediction": "operation_cards",
             "expose": "target_security_bar",
+            "narrative_takeover": "operation_risk",
             "service_entrance": "target_action_dots",
             "false_image": "operation_risk",
             "hostile_takeover": "file_yield",
@@ -1273,9 +1280,10 @@ class GhostNetworkService:
         """Return one bounded rules input from an active eligible window."""
         snapshot = self.get_player_ability_window_snapshot(player_context, now=now)
         ability = snapshot.get("ability") or {}
-        if not snapshot.get("active") or ability.get("ability_code") != "false_image":
+        ability_code = str(ability.get("ability_code") or "")
+        if not snapshot.get("active") or ability_code not in OPERATION_RISK_POLICIES:
             return {}
-        return {"ability_heat_modifier": -15}
+        return {"ability_heat_modifier": operation_risk_modifier(ability_code)}
 
     def apply_active_ability_to_aimed_target(self, player_context, target_id, now=None):
         """Apply an active target realizer at the canonical aimed-target call-site."""

@@ -3265,3 +3265,37 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   kropek, pełne wyzerowanie boolean security, każdy kolejny `aimed`, idempotencję,
   expiry/part loss oraz zero heavy profile.
 - Status `.2.1`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
+
+## 2026-09-06 — 138.getway.2.1, server E2E PASS
+
+- Potwierdzono przycisk `Ujawnienie`, overlay/asset E1 oraz żółty UX Echo po
+  uzupełnieniu produkcyjnej allowlisty o `expose`.
+- Aktualny cel stracił cały boolean security bar, a cztery action dots pozostały
+  niezapalone i wymagały standardowych narzędzi.
+- Każdy kolejny cel `aimed` w 15-minutowym oknie otrzymał ten sam efekt dokładnie
+  raz; po expiry nowe cele nie były już modyfikowane.
+- Wszystkie punkty testu serwerowego przeszły. Status `.2.1`:
+  `COMPLETE / SERVER E2E PASS`; decyzja `expose → target_security` =
+  `KEEP / LOCKED`.
+
+## 2026-09-06 — start 138.getway.2.2, E2 Influence Relay
+
+- Wybrano certyfikowany realizer `operation_risk` dla mocy
+  `narrative_takeover` / `Przejęcie Narracji`.
+- E2 otrzymuje osobną politykę backendową z bazowym `heat -15`, aby jego tuning
+  nie zmieniał przetestowanego V3 `false_image`.
+- Efekt obejmuje maksymalnie 8 istniejących operacji przy aktywacji oraz nowe
+  operacje uruchomione w 15-minutowym oknie. Nie wymusza wyniku detekcji;
+  warning i incident pozostają odpowiedzialnością standardowego risk engine.
+- Zachowano wspólny kontrakt marker/replay, CAS, expiry, part loss, cooldown i
+  lekki snapshot per gracz/tick. Bez nowego workera, kolejki, store'u i heavy
+  profile.
+- Rozpoczęto implementację odrębnego UX E2: `Przejęcie Narracji`,
+  `REAKCJA OPÓŹNIONA` oraz `NARRACJA PRZEJĘTA` na dotkniętych operacjach.
+- Implementacja przeszła lokalną bramkę: 27/27 testów celowanych, 370/370 pełnej
+  regresji GhostNetwork, `py_compile` i `diff --check`. Potwierdzono osobne
+  polityki V3/E2, istniejące i nowe operacje, idempotencję, expiry/part loss,
+  bezpieczną projekcję UX oraz zero heavy profile.
+- Dwa poboczne testy anulowania operacji nadal zwracają 403 przez aktualny
+  kontrakt CSRF fixture; nie dotykają implementacji 2.2.
+- Status `.2.2`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.

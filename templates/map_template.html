@@ -6952,6 +6952,9 @@
                 const meter = operation.operation_risk_meter || operation.risk || {};
                 if (operation.risk_masked === true) {
                     const heat = Number(meter.current_heat);
+                    if (operation.risk_boost_code === 'narrative_takeover') {
+                        return Number.isFinite(heat) ? `REAKCJA OPÓŹNIONA · HEAT ${heat}` : 'REAKCJA OPÓŹNIONA';
+                    }
                     return Number.isFinite(heat) ? `MASKOWANE · HEAT ${heat}` : 'MASKOWANE';
                 }
                 const riskState = operation.risk_state || {};
@@ -6981,6 +6984,9 @@
                         ? 'WYNIK PRZEWIDZIANY'
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
+                    const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
+                        ? 'NARRACJA PRZEJĘTA'
+                        : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
@@ -6994,7 +7000,7 @@
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
@@ -7085,6 +7091,9 @@
                         ? 'WYNIK PRZEWIDZIANY'
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
+                    const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
+                        ? 'NARRACJA PRZEJĘTA'
+                        : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
@@ -7098,7 +7107,7 @@
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? '<span class="active-operation-card__boost">FAŁSZYWY OBRAZ</span>' : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>

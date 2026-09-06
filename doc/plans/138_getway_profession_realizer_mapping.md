@@ -73,11 +73,17 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
-| `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | cały pasek boolean security aktualnego i każdego kolejnego celu `aimed` w oknie zostaje wyłączony; cztery action dots pozostają do wykonania | `LOCAL PASS / SERVER TEST` |
-| `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | opóźniona reakcja systemu przez `heat -15`; bez wymuszania wyniku detekcji | `STRONG FIT` |
+| `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | cały pasek boolean security aktualnego i każdego kolejnego celu `aimed` w oknie zostaje wyłączony; cztery action dots pozostają do wykonania | `LOCKED / SERVER E2E PASS` |
+| `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; wynik nadal wyznacza standardowy risk engine | `LOCAL PASS / SERVER TEST` |
 | `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | `+20` jakości i kompletności dla maks. 16 plików camera/audio | `STRONG FIT` |
 | `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | widocznie większy promień skanu, maks. `6000 m`; tylko gracz aktywujący | `SAFE FIRST SLICE` |
 | `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | po rozbrojeniu celu wyłączone maks. 1 zabezpieczenie jednego sąsiedniego celu | `CONDITIONAL SELECTOR` |
+
+E2 wykorzystuje certyfikowany w V3 realizer `operation_risk`, ale ma osobną
+politykę backendową `narrative_takeover`. Startowy modyfikator wynosi `heat -15`
+i obejmuje operacje istniejące oraz nowe w 15-minutowym oknie. Nie wymusza
+detekcji ani jej braku: ostrzeżenia i incydenty nadal wyznacza standardowy risk
+engine. Osobna polityka pozwala stroić E2 bez zmiany zachowania V3.
 
 E5 wymaga małego, deterministycznego selektora jednego sąsiedniego celu. Dopóki
 nie ma narrow adjacency query z limitem 1, moc pozostaje `DEFER`, zamiast skanować

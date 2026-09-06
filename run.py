@@ -10108,17 +10108,19 @@ def active_ghostnetwork_operation_risk_rules(username, now=None):
 
 
 def embedded_ghostnetwork_operation_risk_rules(operation):
-    """Keep a just-created V3 operation masked until its first canonical tick."""
+    """Keep a just-created risk-modified operation stable until its first tick."""
     provenance = (
         operation.get("ability_provenance")
         if isinstance((operation or {}).get("ability_provenance"), dict)
         else {}
     )
     if (
-        provenance.get("ability_code") == "false_image"
+        provenance.get("ability_code") in {"false_image", "narrative_takeover"}
         and provenance.get("family") == "operation_risk"
     ):
-        return {"ability_heat_modifier": -15}
+        modifier = int(provenance.get("modifier") or 0)
+        if -100 <= modifier < 0:
+            return {"ability_heat_modifier": modifier}
     return {}
 
 
@@ -14903,6 +14905,9 @@ def summarize_operation_for_client(operation):
         speed_boost_code or has_speed_marker
     )
     risk_masked = int(risk_meter.get("ability_heat_modifier") or 0) < 0
+    risk_boost_code = str(ability_provenance.get("ability_code") or "").strip()
+    if risk_boost_code not in {"false_image", "narrative_takeover"}:
+        risk_boost_code = ""
     yield_boosted = any(
         str(marker or "").endswith(":file_yield") for marker in ability_markers
     )
@@ -14933,6 +14938,7 @@ def summarize_operation_for_client(operation):
         "accelerated": accelerated,
         "speed_boost_code": speed_boost_code if accelerated else "",
         "risk_masked": risk_masked,
+        "risk_boost_code": risk_boost_code if risk_masked else "",
         "yield_boosted": yield_boosted,
         "output_mb": operation_output_size_mb(operation),
         "current_position": {

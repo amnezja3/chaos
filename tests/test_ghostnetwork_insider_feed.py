@@ -179,6 +179,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "operational_prediction": "operation_speed",
                 "service_entrance": "hack_actions",
                 "false_image": "operation_risk",
+                "narrative_takeover": "operation_risk",
                 "hostile_takeover": "file_yield",
                 "expose": "target_security",
             },

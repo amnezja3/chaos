@@ -117,6 +117,14 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn("MASKOWANE · HEAT", self.source)
         self.assertIn("FAŁSZYWY OBRAZ", self.source)
 
+    def test_narrative_takeover_reuses_risk_ui_with_distinct_copy(self):
+        for token in (
+            "narrative_takeover",
+            "REAKCJA OPÓŹNIONA",
+            "NARRACJA PRZEJĘTA",
+        ):
+            self.assertIn(token, self.source)
+
     def test_hostile_takeover_marks_touched_operations_until_completion(self):
         for token in (
             "operation.yield_boosted === true",

@@ -39,6 +39,10 @@ OPERATION_SPEED_POLICIES = {
         "maximum_factor": MAX_OPERATION_SPEED_FACTOR,
     },
 }
+OPERATION_RISK_POLICIES = {
+    "false_image": {"ability_heat_modifier": -15},
+    "narrative_takeover": {"ability_heat_modifier": -15},
+}
 FILE_YIELD_COPY_VARIANTS = ("backup", "fullbackup")
 MAX_BONUS_FILES_PER_SOURCE = len(FILE_YIELD_COPY_VARIANTS)
 MAX_QUALITY_FILES = 16
@@ -84,6 +88,12 @@ def calculate_operation_speed_factor(level_snapshot, ability_code="insider_feed"
         policy["minimum_factor"],
         min(policy["maximum_factor"], level * policy["level_multiplier"]),
     )
+
+
+def operation_risk_modifier(ability_code):
+    """Return one backend-owned heat modifier for a supported risk ability."""
+    policy = OPERATION_RISK_POLICIES.get(str(ability_code or "").strip())
+    return int((policy or OPERATION_RISK_POLICIES["false_image"])["ability_heat_modifier"])
 
 
 def _operation_speed(state, window):
@@ -596,6 +606,7 @@ class GhostAbilityProductionRealizer:
         "operational_prediction": "operation_speed",
         "service_entrance": "hack_actions",
         "false_image": "operation_risk",
+        "narrative_takeover": "operation_risk",
         "hostile_takeover": "file_yield",
         "expose": "target_security",
     }
@@ -874,6 +885,8 @@ class GhostAbilityProductionRealizer:
 
         if not isinstance(operation, dict):
             return False
+        ability_code = str(window.get("ability_code") or "").strip()
+        modifier = operation_risk_modifier(ability_code)
         marker = f"{window.get('window_id')}:operation_risk"
         markers = operation.get("ability_application_keys")
         markers = list(markers) if isinstance(markers, list) else []
@@ -885,12 +898,12 @@ class GhostAbilityProductionRealizer:
             "window_id": window.get("window_id"),
             "ability_code": window.get("ability_code"),
             "family": "operation_risk",
-            "modifier": -15,
+            "modifier": modifier,
             "expires_at": window.get("expires_at"),
         }
         operation["operation_risk_meter"] = calculate_operation_risk(
             operation,
-            rules={"ability_heat_modifier": -15},
+            rules={"ability_heat_modifier": modifier},
             now_ts=now or window.get("activated_at"),
         )
         return first_application
@@ -901,6 +914,7 @@ class GhostAbilityProductionRealizer:
         changed_ids = set()
         persisted_ids = set()
         attempts = 0
+        modifier = operation_risk_modifier(window.get("ability_code"))
         pending = []
         for _attempt in range(2):
             attempts += 1
@@ -915,7 +929,7 @@ class GhostAbilityProductionRealizer:
                 operation_id = str(operation.get("operation_id") or "")
                 if operation_id and (
                     first_application
-                    or int(previous_meter.get("ability_heat_modifier") or 0) != -15
+                    or int(previous_meter.get("ability_heat_modifier") or 0) != modifier
                 ):
                     changed_ids.add(operation_id)
                     pending.append(operation)
@@ -941,7 +955,7 @@ class GhostAbilityProductionRealizer:
                 else "no_active_operations"
             ),
             "family": "operation_risk",
-            "modifier": -15,
+            "modifier": modifier,
             "changed": sorted(changed_ids),
             "persisted": sorted(persisted_ids),
             "attempts": attempts,

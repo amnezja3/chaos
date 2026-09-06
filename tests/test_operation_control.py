@@ -197,7 +197,31 @@ class OperationControlTest(unittest.TestCase):
         item = snapshot["operations"][0]
 
         self.assertTrue(item["risk_masked"])
+        self.assertEqual("", item["risk_boost_code"])
         self.assertNotIn("ability_application_keys", item)
+        self.assertNotIn("ability_provenance", item)
+
+    def test_snapshot_exposes_safe_narrative_takeover_label_only(self):
+        profile = operation_control_profile()
+        masked = operation("op-narrative")
+        masked["operation_risk_meter"] = {
+            "current_heat": 18,
+            "ability_heat_modifier": -15,
+        }
+        masked["ability_provenance"] = {
+            "ability_code": "narrative_takeover",
+            "window_id": "private-window",
+            "family": "operation_risk",
+            "modifier": -15,
+        }
+
+        snapshot = run.build_operation_control_snapshot(
+            "alice", profile, operations=[masked],
+        )
+        item = snapshot["operations"][0]
+
+        self.assertTrue(item["risk_masked"])
+        self.assertEqual("narrative_takeover", item["risk_boost_code"])
         self.assertNotIn("ability_provenance", item)
 
     def test_snapshot_exposes_only_safe_file_yield_flag(self):

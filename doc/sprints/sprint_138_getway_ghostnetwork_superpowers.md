@@ -913,7 +913,7 @@ hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
 | `.2.1` | Haktywista / E1 | **Ujawnienie** — `target_security`, pełne wyłączenie paska zabezpieczeń przy pozostawieniu czterech kropek do zhakowania |
-| `.2.2` | Socjotechnik / E2 | **Przejęcie Narracji** — `file_yield` i `data_quality` audio/conversation |
+| `.2.2` | Socjotechnik / E2 | **Przejęcie Narracji** — certyfikowany `operation_risk`, bazowe `heat -15`, bez wymuszania wyniku detekcji |
 | `.2.3` | Odsłaniacz / E3 | **Pełne Ujawnienie** — `file_yield`/`data_quality` camera i pełniejszy skan |
 | `.2.4` | Wizjoner / E4 | **Beacon Oporu** — większy `scan_range` klanu i widoczny beacon |
 | `.2.5` | Zapalnik / E5 | **Efekt Domina** — ograniczona redukcja security sąsiednich celów |
@@ -923,7 +923,7 @@ informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
 
 ### Decyzja `.2.1` — Haktywista / E1
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `COMPLETE / SERVER E2E PASS`
 
 `Ujawnienie` działa jako lustrzany odpowiednik V2. Przy aktywacji wyłącza wszystkie
 aktywne flagi boolean na pasku zabezpieczeń aktualnego celu `aimed`, ale nie
@@ -948,6 +948,37 @@ limit dwóch zmian, ale produkcyjna polityka E1 jawnie wybiera wszystkie flagi
 boolean jednego exact targetu. Odpowiedź klienta nie przyjmuje limitu ani kodu
 realizera. Lokalna bramka: 28/28 testów celowanych i 364/364 pełnej regresji
 GhostNetwork, `py_compile` oraz `diff --check` PASS.
+
+Test serwerowy E2E potwierdził cały kontrakt: przycisk i overlay E1, pełne
+wyzerowanie boolean security bar aktualnego celu, pozostawienie czterech kropek,
+obsługę kolejnych celów `aimed` w aktywnym oknie oraz zatrzymanie efektu dla
+nowych celów po expiry. Żółty puls i etykieta `UJAWNIONE` są czytelne w toolbarze.
+Decyzja: `KEEP / LOCKED` dla `expose → target_security`.
+
+### Decyzja i checkpoint `.2.2` — Socjotechnik / E2
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+`Przejęcie Narracji` ponownie wykorzystuje certyfikowaną rodzinę
+`operation_risk`, lecz przez osobną politykę backendową `narrative_takeover`.
+Początkowy efekt to `heat -15` dla operacji istniejących przy aktywacji oraz
+nowych operacji rozpoczętych podczas 15-minutowego okna. Realizer nie ustawia
+wyniku detekcji: standardowy risk engine nadal sam wyznacza warning i incident.
+
+Polityki V3 i E2 są rozdzielone, aby późniejszy tuning jednej profesji nie
+zmieniał drugiej. Wspólne pozostają exact operation, expected version, CAS,
+marker/replay, limit maksymalnie 8 istniejących operacji, expiry, part loss,
+cooldown oraz jeden lekki snapshot okna na gracza/tick. Bez nowego workera,
+kolejki, store'u i bez heavy profile.
+
+UX E2 jest odrębny od V3: `Przejęcie Narracji`, tagline `REAKCJA OPÓŹNIONA`,
+asset E2, karta operacji `NARRACJA PRZEJĘTA` oraz wiersz ryzyka
+`REAKCJA OPÓŹNIONA · HEAT N`.
+
+Lokalna bramka: 27/27 testów celowanych, 370/370 pełnej regresji GhostNetwork,
+`py_compile` i `diff --check` PASS. Dwa niezależne testy endpointów anulowania
+operacji pozostają czerwone przez 403 z aktualnego kontraktu CSRF fixture; nie
+dotykają ścieżki 2.2 ani jej realizera.
 
 ## 12. 138.getway.3 — Siatka Widmo
 
