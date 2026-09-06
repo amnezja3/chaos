@@ -259,7 +259,7 @@ ability_code
 | `operation_speed` | zegary rozpoczętych operacji wyraźnie przyspieszają | bounded korekta pozostałego czasu; znacznik chroni przed wielokrotnym użyciem |
 | `file_yield` | dotknięta operacja tworzy `oryginał + backup + fullbackup` każdego materiału GX | trwały marker operacji i replikacja przy istniejącej finalizacji plików |
 | `file_value` | **DEFERRED** — wymaga narrow settlementu Ghost Exchange | nie wchodzi do bieżącej bramki |
-| `data_quality` | rośnie kompletność/jakość konkretnych plików | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
+| `data_quality` | rośnie kompletność/jakość każdego pliku dotkniętej operacji, mocniej dla kategorii misyjnych | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
 | `target_security` | mniej lub więcej aktywnych zabezpieczeń | polityka per ability na istniejącej security map z exact target i CAS; E1 zeruje cały boolean bar, P2 zachowuje limit 2 |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
@@ -429,7 +429,7 @@ limit, idempotency i test braku heavy profile:
 | --- | --- | --- |
 | `operation_speed` | kilka aktywnych operacji o różnych czasach | zegary skracają się dokładnie raz |
 | `file_yield` | operacja z trwałym markerem oraz bazowym materiałem GX | każdy materiał daje dwie osobne, deterministyczne kopie; GX sam buduje paczkę |
-| `data_quality` | camera/audio/credentials o znanej jakości | quality/completeness rośnie w granicach 0–100 |
+| `data_quality` | pełny zestaw plików operacji o znanej jakości | każdy plik dostaje bazowy bonus, kategorie misyjne większy; quality/completeness pozostaje w granicach 0–100 |
 | `hack_actions` | oznaczony cel z niewykonanymi kropkami | właściwe action dots są wykonane, security pozostaje |
 | `target_security` | oznaczony cel z wersjonowaną security map | polityka mocy zachowuje CAS: E1 wyłącza cały boolean bar bez zmiany kropek, P2 maks. 2 flagi |
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
@@ -914,7 +914,7 @@ hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 | --- | --- | --- |
 | `.2.1` | Haktywista / E1 | **Ujawnienie** — `target_security`, pełne wyłączenie paska zabezpieczeń przy pozostawieniu czterech kropek do zhakowania |
 | `.2.2` | Socjotechnik / E2 | **Przejęcie Narracji** — certyfikowany `operation_risk`, bazowe `heat -15`, bez wymuszania wyniku detekcji |
-| `.2.3` | Odsłaniacz / E3 | **Pełne Ujawnienie** — `file_yield`/`data_quality` camera i pełniejszy skan |
+| `.2.3` | Odsłaniacz / E3 | **Pełne Ujawnienie** — `data_quality` dla wszystkich plików operacyjnych, z większym bonusem dla `camera`, `audio`, `network` i `personal` |
 | `.2.4` | Wizjoner / E4 | **Beacon Oporu** — większy `scan_range` klanu i widoczny beacon |
 | `.2.5` | Zapalnik / E5 | **Efekt Domina** — ograniczona redukcja security sąsiednich celów |
 
@@ -957,7 +957,7 @@ Decyzja: `KEEP / LOCKED` dla `expose → target_security`.
 
 ### Decyzja i checkpoint `.2.2` — Socjotechnik / E2
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `COMPLETE / SERVER E2E PASS`
 
 `Przejęcie Narracji` ponownie wykorzystuje certyfikowaną rodzinę
 `operation_risk`, lecz przez osobną politykę backendową `narrative_takeover`.
@@ -979,6 +979,47 @@ Lokalna bramka: 27/27 testów celowanych, 370/370 pełnej regresji GhostNetwork,
 `py_compile` i `diff --check` PASS. Dwa niezależne testy endpointów anulowania
 operacji pozostają czerwone przez 403 z aktualnego kontraktu CSRF fixture; nie
 dotykają ścieżki 2.2 ani jej realizera.
+
+Test serwerowy E2E objął 32 równoległe operacje. Wszystkie dotknięte karty miały
+wyróżnienie `NARRACJA PRZEJĘTA` i obniżony heat, a cichy alarm wystąpił dopiero
+po uruchomieniu 30. operacji. Potwierdza to zamierzony kontrakt: moc wyraźnie
+opóźnia reakcję systemu, ale jej nie wyłącza. Decyzja: `KEEP / LOCKED` dla
+`narrative_takeover → operation_risk` z bazowym `heat -15`.
+
+### Korekta hipotezy `.2.3` — Odsłaniacz / E3
+
+`Pełne Ujawnienie` nie może ograniczać się do dwóch typów plików. Każda operacja
+dotknięta podczas 15-minutowego okna zachowuje marker do finalizacji, a każdy jej
+plik operacyjny dostaje bazowo `quality_score +10` i
+`completeness_percent +10`. Kategorie odpowiadające misji Echo Wolności —
+`camera` (również materiał video), `audio`, `network` i `personal` — dostają
+mocniejszy bonus `+30/+30`. Wszystkie wartości są ograniczone do `100`, a safety
+cap pozostaje na poziomie 16 plików jednej operacji.
+
+Realizer nie tworzy plików, nie zmienia bezpośrednio ceny i nie dopisuje
+brakujących treści. Ghost Exchange nadal sam wycenia oraz składa materiały na
+podstawie istniejących pól jakości i kompletności. Operacja ma zachować widoczne
+wyróżnienie do końca, także jeśli 15-minutowe okno wygaśnie wcześniej. Po expiry
+lub utracie E3 nowe operacje nie dostają już markera.
+
+Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+
+Implementacja produkcyjna podłącza `full_disclosure → data_quality` do wspólnego
+okna ability. Aktywacja oznacza maksymalnie 8 istniejących operacji, a canonical
+hook oznacza każdą nową operację w aktywnym oknie. Trwały marker przenosi politykę
+do `finalize_operation_files_bounded`, gdzie bonus jest nakładany przed zapisem
+do `player_data_files` i przed standardową wyceną GX. Powtórna finalizacja ani
+replay nie naliczają bonusu drugi raz.
+
+Bezpieczny snapshot klienta ujawnia tylko `quality_boosted=true`. Centrum
+Operacji pokazuje żółty puls i etykietę `PEŁNE UJAWNIENIE`; prywatny window ID,
+provenance i parametry polityki nie trafiają do projekcji UI. Overlay używa assetu
+E3 i hasła `PRAWDA BEZ FILTRA`.
+
+Lokalna bramka: 41/41 testów celowanych oraz 377/377 pełnej regresji
+GhostNetwork, `py_compile` i `diff --check` PASS. Potwierdzono bazowy oraz misyjny
+bonus, clamp 100, cap 16, wzrost ceny w istniejącym GX, marker/replay, expiry,
+canonical finalizację i zero heavy profile.
 
 ## 12. 138.getway.3 — Siatka Widmo
 

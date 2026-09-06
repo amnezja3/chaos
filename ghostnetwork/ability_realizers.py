@@ -43,6 +43,14 @@ OPERATION_RISK_POLICIES = {
     "false_image": {"ability_heat_modifier": -15},
     "narrative_takeover": {"ability_heat_modifier": -15},
 }
+DATA_QUALITY_POLICIES = {
+    "full_disclosure": {
+        "base_bonus": 10,
+        "priority_bonus": 30,
+        "priority_categories": ("audio", "camera", "network", "personal"),
+        "max_files": 16,
+    },
+}
 FILE_YIELD_COPY_VARIANTS = ("backup", "fullbackup")
 MAX_BONUS_FILES_PER_SOURCE = len(FILE_YIELD_COPY_VARIANTS)
 MAX_QUALITY_FILES = 16
@@ -94,6 +102,17 @@ def operation_risk_modifier(ability_code):
     """Return one backend-owned heat modifier for a supported risk ability."""
     policy = OPERATION_RISK_POLICIES.get(str(ability_code or "").strip())
     return int((policy or OPERATION_RISK_POLICIES["false_image"])["ability_heat_modifier"])
+
+
+def data_quality_policy(ability_code):
+    """Return one copy of the backend-owned quality policy."""
+    policy = DATA_QUALITY_POLICIES.get(str(ability_code or "").strip()) or {}
+    return {
+        "base_bonus": _clamp_int(policy.get("base_bonus"), 0, 100),
+        "priority_bonus": _clamp_int(policy.get("priority_bonus"), 0, 100),
+        "priority_categories": tuple(policy.get("priority_categories") or ()),
+        "max_files": max(1, min(int(policy.get("max_files") or 1), MAX_QUALITY_FILES)),
+    }
 
 
 def _operation_speed(state, window):
@@ -245,6 +264,109 @@ def replicate_file_yield_files(operation, files):
             copies.append(entry)
             existing_ids.add(copy_id)
     return copies
+
+
+def _data_quality_window_id(operation):
+    provenance = (
+        operation.get("data_quality_provenance")
+        if isinstance((operation or {}).get("data_quality_provenance"), dict)
+        else {}
+    )
+    window_id = str(provenance.get("window_id") or "").strip()
+    if window_id:
+        return window_id
+    markers = operation.get("ability_application_keys")
+    markers = markers if isinstance(markers, list) else []
+    for marker in reversed(markers):
+        marker = str(marker or "")
+        if marker.endswith(":data_quality"):
+            return marker[:-len(":data_quality")]
+    return ""
+
+
+def _completeness_tier(percent):
+    percent = _clamp_int(percent, 0, 100)
+    if percent >= 85:
+        return "rich"
+    if percent >= 60:
+        return "enhanced"
+    if percent >= 35:
+        return "basic"
+    return "fragment"
+
+
+def enhance_data_quality_files(operation, files):
+    """Apply the durable E3 quality policy to finalized operation artifacts."""
+    operation = operation if isinstance(operation, dict) else {}
+    provenance = (
+        operation.get("data_quality_provenance")
+        if isinstance(operation.get("data_quality_provenance"), dict)
+        else {}
+    )
+    ability_code = str(provenance.get("ability_code") or "").strip()
+    window_id = _data_quality_window_id(operation)
+    if not window_id or ability_code not in DATA_QUALITY_POLICIES:
+        return []
+    policy = data_quality_policy(ability_code)
+    priority_categories = set(policy["priority_categories"])
+    changed = []
+    for item in list(files or [])[:policy["max_files"]]:
+        if not isinstance(item, dict):
+            continue
+        markers = item.get("ability_application_keys")
+        markers = list(markers) if isinstance(markers, list) else []
+        marker = f"{window_id}:data_quality"
+        if marker in markers:
+            continue
+        category = str(item.get("file_category") or "").strip().lower()
+        bonus = (
+            policy["priority_bonus"]
+            if category in priority_categories
+            else policy["base_bonus"]
+        )
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        metadata = copy.deepcopy(metadata)
+        quality = _clamp_int(
+            _clamp_int(
+                item.get("quality_score", metadata.get("quality_score", 0)), 0, 100,
+            ) + bonus,
+            0, 100,
+        )
+        completeness = _clamp_int(
+            _clamp_int(
+                item.get("completeness_percent", metadata.get("completeness_percent", 0)),
+                0, 100,
+            ) + bonus,
+            0, 100,
+        )
+        tier = _completeness_tier(completeness)
+        item["quality_score"] = quality
+        item["completeness_percent"] = completeness
+        item["completeness_tier"] = tier
+        item["data_quality_boosted"] = True
+        item["data_quality_bonus"] = bonus
+        metadata["quality_score"] = quality
+        metadata["completeness_percent"] = completeness
+        metadata["completeness_tier"] = tier
+        nested = metadata.get("completeness")
+        if isinstance(nested, dict):
+            nested = copy.deepcopy(nested)
+            nested["quality_score"] = quality
+            nested["percent"] = completeness
+            nested["tier"] = tier
+            metadata["completeness"] = nested
+        summary = item.get("summary")
+        if isinstance(summary, dict):
+            summary = copy.deepcopy(summary)
+            summary["quality_score"] = quality
+            summary["completeness_percent"] = completeness
+            summary["tier"] = tier
+            item["summary"] = summary
+        item["metadata"] = metadata
+        markers.append(marker)
+        item["ability_application_keys"] = markers
+        changed.append(str(item.get("id") or item.get("file_id") or ""))
+    return changed
 
 
 def _file_yield(state, window):
@@ -608,6 +730,7 @@ class GhostAbilityProductionRealizer:
         "false_image": "operation_risk",
         "narrative_takeover": "operation_risk",
         "hostile_takeover": "file_yield",
+        "full_disclosure": "data_quality",
         "expose": "target_security",
     }
 
@@ -755,6 +878,84 @@ class GhostAbilityProductionRealizer:
             ),
             "family": "file_yield",
             "copies_per_source": MAX_BONUS_FILES_PER_SOURCE,
+            "changed": sorted(changed_ids),
+            "persisted": sorted(persisted_ids),
+            "attempts": attempts,
+            "cas_retries": max(0, attempts - 1),
+        }
+
+    @staticmethod
+    def _apply_data_quality_to_row(operation, window):
+        if not isinstance(operation, dict):
+            return False
+        window_id = str(window.get("window_id") or "").strip()
+        ability_code = str(window.get("ability_code") or "").strip()
+        if not window_id or ability_code not in DATA_QUALITY_POLICIES:
+            return False
+        marker = f"{window_id}:data_quality"
+        markers = operation.get("ability_application_keys")
+        markers = list(markers) if isinstance(markers, list) else []
+        if marker in markers:
+            return False
+        policy = data_quality_policy(ability_code)
+        markers.append(marker)
+        operation["ability_application_keys"] = markers
+        operation["data_quality_provenance"] = {
+            "window_id": window_id,
+            "ability_code": ability_code,
+            "family": "data_quality",
+            "base_bonus": policy["base_bonus"],
+            "priority_bonus": policy["priority_bonus"],
+            "priority_categories": list(policy["priority_categories"]),
+            "max_files": policy["max_files"],
+            "touched_at": window.get("activated_at"),
+        }
+        return True
+
+    def _apply_data_quality(self, player_id, window):
+        if self.operation_store is None:
+            return {"ok": False, "status": "realizer_unavailable"}
+        changed_ids = set()
+        persisted_ids = set()
+        attempts = 0
+        pending = []
+        for _attempt in range(2):
+            attempts += 1
+            operations = self.operation_store.list_active_operations(
+                player_id, limit=MAX_ACTIVE_OPERATIONS,
+            )
+            pending = []
+            for operation in operations:
+                if self._apply_data_quality_to_row(operation, window):
+                    operation_id = str(operation.get("operation_id") or "")
+                    if operation_id:
+                        changed_ids.add(operation_id)
+                        pending.append(operation)
+            if not pending:
+                break
+            accepted = self.operation_store.compare_and_swap_runtime(
+                player_id,
+                pending,
+                event_type="operation.ability_data_quality",
+                record_event=True,
+            )
+            persisted_ids.update(
+                str(item.get("operation_id") or "") for item in accepted
+            )
+            if len(accepted) == len(pending):
+                pending = []
+                break
+        policy = data_quality_policy(window.get("ability_code"))
+        return {
+            "ok": not pending,
+            "status": (
+                "applied" if persisted_ids
+                else "concurrent_change" if pending
+                else "no_active_operations"
+            ),
+            "family": "data_quality",
+            "base_bonus": policy["base_bonus"],
+            "priority_bonus": policy["priority_bonus"],
             "changed": sorted(changed_ids),
             "persisted": sorted(persisted_ids),
             "attempts": attempts,
@@ -978,6 +1179,8 @@ class GhostAbilityProductionRealizer:
             return self._apply_operation_risk(player_id, window)
         if family == "file_yield":
             return self._apply_file_yield(player_id, window)
+        if family == "data_quality":
+            return self._apply_data_quality(player_id, window)
         return {"ok": False, "status": "realizer_unavailable"}
 
     def apply_to_new_operation(self, operation, window):
@@ -988,6 +1191,8 @@ class GhostAbilityProductionRealizer:
             return self._apply_operation_risk_to_row(operation, window)
         if family == "file_yield":
             return self._apply_file_yield_to_row(operation, window)
+        if family == "data_quality":
+            return self._apply_data_quality_to_row(operation, window)
         return False
 
     def apply_to_aimed_target(self, player_id, target_id, window):

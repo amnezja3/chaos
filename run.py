@@ -87,7 +87,10 @@ from ghostnetwork.editorial import (
     GOOGLEPLEX_HOME_SLOT_REGISTRY,
     GoogleplexEditorialProducer,
 )
-from ghostnetwork.ability_realizers import replicate_file_yield_files
+from ghostnetwork.ability_realizers import (
+    enhance_data_quality_files,
+    replicate_file_yield_files,
+)
 from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
@@ -14608,6 +14611,7 @@ def finalize_operation_files_bounded(username, operation):
                 item["queued_at"] = item.get("queued_at") or runtime_file_now()
                 item["market_sector"] = market_sector_for_file(item)
             generated.append(item)
+    enhance_data_quality_files(operation, generated)
     generated.extend(replicate_file_yield_files(operation, generated))
     if changed or generated:
         artifact_state["finalized_at"] = runtime_file_now()
@@ -14911,6 +14915,9 @@ def summarize_operation_for_client(operation):
     yield_boosted = any(
         str(marker or "").endswith(":file_yield") for marker in ability_markers
     )
+    quality_boosted = any(
+        str(marker or "").endswith(":data_quality") for marker in ability_markers
+    )
 
     return {
         "operation_id": operation.get("operation_id"),
@@ -14940,6 +14947,7 @@ def summarize_operation_for_client(operation):
         "risk_masked": risk_masked,
         "risk_boost_code": risk_boost_code if risk_masked else "",
         "yield_boosted": yield_boosted,
+        "quality_boosted": quality_boosted,
         "output_mb": operation_output_size_mb(operation),
         "current_position": {
             "lat": current_position.get("lat"),

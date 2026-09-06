@@ -134,6 +134,14 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ):
             self.assertIn(token, self.source)
 
+    def test_full_disclosure_marks_quality_operations_until_completion(self):
+        for token in (
+            "operation.quality_boosted === true",
+            "active-operation-card--quality-boosted",
+            "PEŁNE UJAWNIENIE",
+        ):
+            self.assertIn(token, self.source)
+
     def test_target_realizer_refreshes_toolbar_without_profile_reload(self):
         activation = self.source[
             self.source.index("async function activateGhostAbility"):

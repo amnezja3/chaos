@@ -37,7 +37,7 @@ niezwiązanym zdarzeniu świata.
 | --- | --- |
 | `operation_speed` | do 8 aktywnych operacji, jednorazowy marker, mnożnik `clamp(0.1 × LVL, 1, 20)` |
 | `file_yield` | dokładnie 2 kopie każdego bazowego pliku GX (`backup`, `fullbackup`), stabilne ID; operacja oznaczona w oknie zachowuje bonus do finalizacji |
-| `data_quality` | maksymalnie 16 plików; `quality/completeness +20`, clamp `0–100` |
+| `data_quality` | każdy plik finalizowanej operacji: bazowo `quality/completeness +10`; kategorie misyjne mocy mogą dostać `+30`; clamp `0–100`, maks. 16 plików na operację |
 | `hack_actions` | cztery action dots ustawione jako wykonane; security bez zmian |
 | `target_security` | exact target i CAS; polityka E1 wyłącza cały boolean security bar, polityka P2 pozostaje ograniczona do maks. 2 flag |
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
@@ -74,8 +74,8 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
 | `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | cały pasek boolean security aktualnego i każdego kolejnego celu `aimed` w oknie zostaje wyłączony; cztery action dots pozostają do wykonania | `LOCKED / SERVER E2E PASS` |
-| `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; wynik nadal wyznacza standardowy risk engine | `LOCAL PASS / SERVER TEST` |
-| `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | `+20` jakości i kompletności dla maks. 16 plików camera/audio | `STRONG FIT` |
+| `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; wynik nadal wyznacza standardowy risk engine | `LOCKED / SERVER E2E PASS` |
+| `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | każdy plik operacyjny `+10/+10`; `camera`, `audio`, `network`, `personal` dostają `+30/+30`; maks. 16 plików na operację | `LOCAL PASS / SERVER TEST` |
 | `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | widocznie większy promień skanu, maks. `6000 m`; tylko gracz aktywujący | `SAFE FIRST SLICE` |
 | `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | po rozbrojeniu celu wyłączone maks. 1 zabezpieczenie jednego sąsiedniego celu | `CONDITIONAL SELECTOR` |
 
@@ -131,7 +131,7 @@ cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
 | ciągły odczyt: `operation_risk`, `scan_range`, `map_zoom` | znika przy następnym snapshotcie/call-site |
 | jednorazowa mutacja: `operation_speed`, `hack_actions`, `target_security`, `territory_defense` | wykonana zmiana zostaje; nie powstają dalsze zmiany |
 | trwały marker + hook finalizacji: `file_yield` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane |
-| hook finalizacji: `data_quality` | ukończenia po utracie części nie dostają bonusu; wcześniej zapisane pliki zostają |
+| trwały marker + hook finalizacji: `data_quality` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane; zapisane pliki zostają |
 
 Cooldown zawsze biegnie do pierwotnego `cooldown_until`. Utrata części nie usuwa
 okna i nie pozwala ominąć cooldownu.

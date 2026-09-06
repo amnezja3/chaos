@@ -181,6 +181,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "false_image": "operation_risk",
                 "narrative_takeover": "operation_risk",
                 "hostile_takeover": "file_yield",
+                "full_disclosure": "data_quality",
                 "expose": "target_security",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,

@@ -1694,6 +1694,22 @@
       text-shadow: 0 0 8px rgba(255, 72, 60, 0.55);
     }
 
+    .active-operation-card--quality-boosted {
+      border-color: rgba(255, 210, 72, 0.78);
+      background:
+        linear-gradient(105deg, rgba(255, 210, 72, 0.16), rgba(0, 0, 0, 0.5) 48%),
+        rgba(0, 0, 0, 0.54);
+      box-shadow:
+        inset 3px 0 0 rgba(255, 222, 92, 0.95),
+        0 0 12px rgba(255, 210, 72, 0.22);
+      animation: ghost-data-quality-pulse 1.8s ease-in-out infinite;
+    }
+
+    .active-operation-card--quality-boosted .active-operation-card__boost {
+      color: #ffe48a;
+      text-shadow: 0 0 8px rgba(255, 210, 72, 0.58);
+    }
+
     @keyframes ghost-file-yield-pulse {
       50% {
         border-color: rgba(255, 160, 128, 0.96);
@@ -1705,9 +1721,17 @@
       50% { opacity: 0.58; transform: translateX(1px); }
     }
 
+    @keyframes ghost-data-quality-pulse {
+      50% {
+        border-color: rgba(255, 235, 142, 0.98);
+        box-shadow: inset 3px 0 0 #ffdf59, 0 0 18px rgba(255, 210, 72, 0.36);
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .active-operation-card--risk-masked .active-operation-card__risk { animation: none; }
       .active-operation-card--yield-boosted { animation: none; }
+      .active-operation-card--quality-boosted { animation: none; }
     }
 
     .active-operation-card__boost {
@@ -6988,19 +7012,20 @@
                         ? 'NARRACJA PRZEJĘTA'
                         : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
+                    const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}${qualityBoosted ? '<span class="active-operation-card__boost">PEŁNE UJAWNIENIE</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
@@ -7095,19 +7120,20 @@
                         ? 'NARRACJA PRZEJĘTA'
                         : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
+                    const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
                         rawOperationId
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}${qualityBoosted ? '<span class="active-operation-card__boost">PEŁNE UJAWNIENIE</span>' : ''}</span>
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>

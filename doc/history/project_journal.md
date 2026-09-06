@@ -3299,3 +3299,39 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Dwa poboczne testy anulowania operacji nadal zwracają 403 przez aktualny
   kontrakt CSRF fixture; nie dotykają implementacji 2.2.
 - Status `.2.2`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
+
+## 2026-09-06 — 138.getway.2.2, server E2E PASS
+
+- Potwierdzono przycisk, overlay E2 oraz odrębny UX `Przejęcie Narracji` /
+  `NARRACJA PRZEJĘTA` / `REAKCJA OPÓŹNIONA`.
+- Test objął 32 równoległe operacje. Modyfikator `heat -15` był widoczny na
+  dotkniętych kartach, a cichy alarm został wywołany dopiero przy 30. operacji.
+- Wynik potwierdza, że moc opóźnia reakcję systemu bez wyłączania standardowego
+  risk engine i bez wymuszania wyniku detekcji.
+- Wszystkie punkty testu serwerowego przeszły. Status `.2.2`:
+  `COMPLETE / SERVER E2E PASS`; decyzja
+  `narrative_takeover → operation_risk` = `KEEP / LOCKED`.
+
+## 2026-09-06 — korekta kontraktu 138.getway.2.3, E3 Truth Lens
+
+- Rozszerzono hipotezę `data_quality` na każdy plik operacji dotkniętej podczas
+  działania supermocy, aby E3 wspierała zarówno walkę, jak i zwykłą rozgrywkę.
+- Początkowa polityka testowa: każdy plik otrzymuje `quality/completeness +10`,
+  a misyjne kategorie Echo `camera`, `audio`, `network` i `personal` otrzymują
+  `+30/+30`; clamp `100`, safety cap 16 plików na operację.
+- Operacja zachowuje marker i widoczne wyróżnienie do finalizacji. Wygaśnięcie
+  okna lub utrata części zatrzymuje oznaczanie nowych operacji, ale nie odbiera
+  bonusu już dotkniętym operacjom.
+- GX nadal sam wycenia i składa pliki. Moc nie tworzy materiałów, nie ustawia
+  ceny i nie deklaruje odzyskania treści, których plik faktycznie nie zawiera.
+- Zaimplementowano produkcyjne `full_disclosure → data_quality`: maksymalnie 8
+  istniejących operacji przy aktywacji, każda nowa operacja w oknie oraz trwały
+  marker obsługiwany przez canonical finalizer plików.
+- Finalizacja przyznaje `+10/+10` wszystkim plikom i `+30/+30` kategoriom
+  `camera`, `audio`, `network`, `personal`, z clampem 100 i limitem 16 plików na
+  operację. Test potwierdził wzrost ceny przez istniejący kalkulator GX.
+- Dodano bezpieczny `quality_boosted` oraz żółty UX `PEŁNE UJAWNIENIE`; prywatne
+  provenance i parametry polityki pozostają po stronie backendu.
+- Bramka lokalna: 41/41 testów celowanych, 377/377 pełnej regresji GhostNetwork,
+  `py_compile` i `diff --check` PASS; zero heavy profile.
+- Status `.2.3`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
