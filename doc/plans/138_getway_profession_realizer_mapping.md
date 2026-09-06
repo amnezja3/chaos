@@ -76,7 +76,7 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 | `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | cały pasek boolean security aktualnego i każdego kolejnego celu `aimed` w oknie zostaje wyłączony; cztery action dots pozostają do wykonania | `LOCKED / SERVER E2E PASS` |
 | `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; wynik nadal wyznacza standardowy risk engine | `LOCKED / SERVER E2E PASS` |
 | `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | każdy plik operacyjny `+10/+10`; `camera`, `audio`, `network`, `personal` dostają `+30/+30`; maks. 16 plików na operację | `LOCAL PASS / SERVER TEST` |
-| `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | przez 15 minut gracz aktywujący może wywołać skan do `min(10 000 km, 25 km × LVL)` od motocykla; lokalny promień wyników pozostaje `300 m` | `SAFE FIRST SLICE` |
+| `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | przez 15 minut gracz aktywujący może wywołać skan do `min(10 000 km, 25 km × LVL)` od motocykla; lokalny promień wyników pozostaje `300 m` | `IMPLEMENTED / SERVER TEST` |
 | `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | po rozbrojeniu celu wyłączone maks. 1 zabezpieczenie jednego sąsiedniego celu | `CONDITIONAL SELECTOR` |
 
 E2 wykorzystuje certyfikowany w V3 realizer `operation_risk`, ale ma osobną

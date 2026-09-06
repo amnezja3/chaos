@@ -153,7 +153,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
 
     def test_target_realizer_has_persistent_toolbar_impact_feedback(self):
         self.assertIn("updateParentToolbarGhostAbility(data)", self.source)
-        self.assertIn("ghost-ability-impact-3", self.source)
+        self.assertIn("ghost-ability-impact-4", self.source)
         for token in (
             "window.updateToolbarGhostAbilityState",
             'abilityImpactUi === "target_action_dots"',
@@ -162,6 +162,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             'aimedTarget.icon || "🎯"',
         ):
             self.assertIn(token, self.terminal_source)
+
+    def test_scan_range_badge_exposes_bounded_effective_range(self):
+        for token in (
+            "function formatGhostAbilityRange",
+            "snapshot.player.effective_scan_range_m",
+            "presentation.impact_ui === 'scan_range'",
+            "ZASIĘG ${formatGhostAbilityRange(scanRange)}",
+        ):
+            self.assertIn(token, self.source)
         for token in (
             "ghost-ability-target-ring",
             "ghost-ability-target-dot",

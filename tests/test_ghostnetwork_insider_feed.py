@@ -183,6 +183,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "hostile_takeover": "file_yield",
                 "full_disclosure": "data_quality",
                 "expose": "target_security",
+                "resistance_signal": "scan_range",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,
         )

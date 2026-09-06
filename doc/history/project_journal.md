@@ -3335,3 +3335,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Bramka lokalna: 41/41 testów celowanych, 377/377 pełnej regresji GhostNetwork,
   `py_compile` i `diff --check` PASS; zero heavy profile.
 - Status `.2.3`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
+## 2026-09-06 — start 138.getway.2.4, E4 Resonance Beacon
+
+- Zaimplementowano produkcyjne `resistance_signal → scan_range` jako osobisty,
+  15-minutowy read-through w istniejącym distance gate skanu.
+- Zamrożona polityka wynosi `min(10 000 km, 25 km × level_snapshot)`; po
+  expiry system automatycznie wraca do bazowego `action_range`.
+- Nie zmieniono pozycji motocykla ani lokalnego promienia pobierania POI `300 m`.
+  Nie dodano workera, kolejki, store'u, globalnego skanu ani heavy profile read.
+- Dodano `focus <lat:lon>` i `focus cur:loc` do nawigacji mapy bez teleportu,
+  prezentację `Beacon Oporu / ŚWIAT W ZASIĘGU` oraz zasięg w badge'u mocy.
+- Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.

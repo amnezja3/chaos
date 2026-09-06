@@ -55,6 +55,8 @@ FILE_YIELD_COPY_VARIANTS = ("backup", "fullbackup")
 MAX_BONUS_FILES_PER_SOURCE = len(FILE_YIELD_COPY_VARIANTS)
 MAX_QUALITY_FILES = 16
 MAX_SECURITY_CHANGES = 2
+SCAN_RANGE_METERS_PER_LEVEL = 25_000
+MAX_SCAN_RANGE_METERS = 10_000_000
 
 
 def _clamp_int(value, minimum, maximum):
@@ -96,6 +98,17 @@ def calculate_operation_speed_factor(level_snapshot, ability_code="insider_feed"
         policy["minimum_factor"],
         min(policy["maximum_factor"], level * policy["level_multiplier"]),
     )
+
+
+def calculate_scan_range_m(level_snapshot, ability_code="resistance_signal"):
+    """Return the frozen, backend-owned scan invocation range for E4."""
+    if str(ability_code or "").strip() != "resistance_signal":
+        return 0
+    level = _clamp_int(
+        level_snapshot, 1,
+        MAX_SCAN_RANGE_METERS // SCAN_RANGE_METERS_PER_LEVEL,
+    )
+    return min(MAX_SCAN_RANGE_METERS, SCAN_RANGE_METERS_PER_LEVEL * level)
 
 
 def operation_risk_modifier(ability_code):
@@ -732,6 +745,7 @@ class GhostAbilityProductionRealizer:
         "hostile_takeover": "file_yield",
         "full_disclosure": "data_quality",
         "expose": "target_security",
+        "resistance_signal": "scan_range",
     }
 
     def __init__(self, operation_store, target_store=None):
@@ -1181,6 +1195,16 @@ class GhostAbilityProductionRealizer:
             return self._apply_file_yield(player_id, window)
         if family == "data_quality":
             return self._apply_data_quality(player_id, window)
+        if family == "scan_range":
+            return {
+                "ok": True,
+                "status": "applied",
+                "family": "scan_range",
+                "effective_range_m": calculate_scan_range_m(
+                    window.get("level_snapshot"), window.get("ability_code"),
+                ),
+                "changed": [],
+            }
         return {"ok": False, "status": "realizer_unavailable"}
 
     def apply_to_new_operation(self, operation, window):

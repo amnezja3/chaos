@@ -21068,11 +21068,16 @@ def api_ghostnetwork_ability():
     service = get_ghostnetwork_service()
     if request.method == "GET":
         snapshot = service.get_player_ability_window_snapshot(player_context)
+        scan_range = service.active_scan_range_effect(
+            player_context, snapshot=snapshot,
+        )
         snapshot.update({
             "enabled": bool(GHOSTNETWORK_ABILITIES_ENABLED),
             "player": {
                 "level": capabilities["level"],
                 "action_range": capabilities["action_range"],
+                "effective_scan_range_m": scan_range["effective_range_m"],
+                "scan_range_active": scan_range["active"],
                 "map_zoom": capabilities["map_zoom"],
             },
         })
@@ -23130,13 +23135,21 @@ def map_action():
         })
     
     profile = None
+    scan_range_effect = {
+        "active": False,
+        "ability_code": "",
+        "base_range_m": 0,
+        "effective_range_m": 0,
+    }
     if action == "scan":
         # Scan is a hot path. Position and range come from integrity-gated
         # narrow projections; never hydrate profile_json just to measure range.
         position = player_position_store.get_position(session["user"])
         try:
+            identity = identity_projection_store.get_identity(session["user"])
             capabilities = capability_projection_store.get_capabilities(session["user"])
         except ProfileRecoveryRequired:
+            identity = None
             capabilities = None
         if not position or not capabilities:
             return jsonify({
@@ -23148,6 +23161,23 @@ def map_action():
         ava_lat = position["lat"]
         ava_lng = position["lng"]
         action_range = int(capabilities["action_range"])
+        scan_range_effect.update({
+            "base_range_m": action_range,
+            "effective_range_m": action_range,
+        })
+        if GHOSTNETWORK_ABILITIES_ENABLED and identity:
+            try:
+                player_context = {
+                    **identity, **capabilities, "player_id": session["user"],
+                }
+                scan_range_effect = get_ghostnetwork_service().active_scan_range_effect(
+                    player_context,
+                )
+                action_range = int(scan_range_effect["effective_range_m"])
+            except Exception:
+                # E4 is fail-open to the baseline capability, never to an
+                # unlimited scan and never to a heavyweight profile read.
+                pass
     else:
         # Compatibility path for travel and legacy actions. It is deliberately
         # outside the scan branch and will be reduced in later light-read work.
@@ -23234,7 +23264,13 @@ def map_action():
         if distance > action_range:
             return jsonify({
                 "status": "🔍 Skanowanie nie udane! Nie jesteś w zasięgu.",
-                "markers": []
+                "markers": [],
+                "scan_context": {
+                    "distance_m": int(round(distance)),
+                    "action_range_m": int(action_range),
+                    "boost_active": bool(scan_range_effect.get("active")),
+                    "ability_code": scan_range_effect.get("ability_code") or "",
+                },
             })
 
         # Canonical marked-target rows are small and do not require another
@@ -23402,6 +23438,10 @@ def map_action():
             "scan_context": {
                 **scan_location_context,
                 "radius_m": int(fetcher.radius),
+                "distance_m": int(round(distance)),
+                "action_range_m": int(action_range),
+                "boost_active": bool(scan_range_effect.get("active")),
+                "ability_code": scan_range_effect.get("ability_code") or "",
             },
         })
     

@@ -7,7 +7,7 @@
   <meta name="referrer" content="origin">
   <link rel="icon" href="/static/images/chaos_favicon.svg" type="image/svg+xml">
   {{ folium_css|safe }}
-  <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-3">
+  <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-4">
   <link rel="stylesheet" href="/static/css/blacknet.css">
   <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=mobile-canvas-6">
   <style>
@@ -2709,6 +2709,12 @@
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
+        function formatGhostAbilityRange(meters) {
+            const value = Math.max(0, Number(meters) || 0);
+            if (value >= 1000) return `${Math.round(value / 1000)} KM`;
+            return `${Math.round(value)} M`;
+        }
+
         function ghostAbilityRemaining(isoValue) {
             const timestamp = Date.parse(String(isoValue || ''));
             return Number.isFinite(timestamp) ? Math.max(0, (timestamp - Date.now()) / 1000) : 0;
@@ -2858,7 +2864,10 @@
                 name.textContent = String(presentation.display_name || ability.ability_name || 'GhostNetwork');
                 const state = document.createElement('div');
                 state.className = 'ghost-ability-control__state';
-                state.textContent = liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN';
+                const scanRange = Number(snapshot.player && snapshot.player.effective_scan_range_m) || 0;
+                state.textContent = liveActive && presentation.impact_ui === 'scan_range'
+                    ? `ZASIĘG ${formatGhostAbilityRange(scanRange)}`
+                    : (liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN');
                 copy.append(name, state);
                 const timer = document.createElement('div');
                 timer.className = 'ghost-ability-control__timer';

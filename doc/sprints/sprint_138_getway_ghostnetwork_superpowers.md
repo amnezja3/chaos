@@ -925,6 +925,30 @@ nie wymaga potwierdzenia i nigdy nie zapisuje ani nie przesuwa pozycji motocykla
 Samo oglądanie mapy pozostaje dostępne bez mocy; dopiero istniejący distance gate
 decyduje, czy w wybranym punkcie wolno wykonać skan.
 
+### Bramka `.2.4` — E4 Resonance Beacon / Wizjoner
+
+Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
+- Produkcyjne mapowanie: `resistance_signal → scan_range`.
+- Zasięg wywołania skanu: `min(10 000 000 m, 25 000 m × level_snapshot)`.
+- Poziom jest zamrożony w oknie aktywacji; zmiana poziomu podczas 15 minut nie
+  przestraja już uruchomionej mocy.
+- Realizer jest lekkim read-through w istniejącym distance gate skanu. Czyta
+  wyłącznie identity, capability, pozycję i okno mocy; nie hydratuje profilu,
+  nie skanuje graczy i niczego nie zapisuje przy każdym skanie.
+- Motocykl pozostaje w swojej pozycji. `focus` przesuwa wyłącznie widok mapy.
+- Fetch POI nadal obejmuje lokalne `300 m` wokół punktu skanu. Moc nie tworzy
+  globalnego/account scan i nie omija pozostałych reguł mapy.
+- Po expiry nowe dalekie skany wracają do bazowego `action_range`; wcześniej
+  odkryte cele pozostają zgodnie ze zwykłym kontraktem mapy.
+- UX: `Beacon Oporu`, tagline `ŚWIAT W ZASIĘGU`, asset E4, kolor Echo oraz
+  widoczny na badge'u efektywny zasięg w kilometrach i licznik okna.
+
+Test serwerowy musi potwierdzić: pojawienie przycisku po aktywacji E4 bez reloadu,
+daleki `focus`, odrzucenie skanu poza zasięgiem, sukces wewnątrz zasięgu,
+`scan_context.radius_m = 300`, brak przesunięcia motocykla oraz powrót do
+bazowego gate po expiry.
+
 Echo ma przede wszystkim dawać więcej treści z kamer i rozmów oraz ujawniać
 informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
 

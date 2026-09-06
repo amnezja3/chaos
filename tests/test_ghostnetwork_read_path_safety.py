@@ -90,7 +90,9 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         start = source.index("# Scan is a hot path")
         scan_source = source[start:source.index("    else:", start)]
         self.assertIn("player_position_store.get_position", scan_source)
+        self.assertIn("identity_projection_store.get_identity", scan_source)
         self.assertIn("capability_projection_store.get_capabilities", scan_source)
+        self.assertIn("active_scan_range_effect", scan_source)
         self.assertNotIn("sync_session_profile", scan_source)
 
     def test_ability_endpoint_never_hydrates_full_profile(self):
@@ -112,6 +114,9 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
             "presentation": {"visual_asset_url": "/static/v1.png"},
             "window": None,
         }
+        service.active_scan_range_effect.return_value = {
+            "active": False, "base_range_m": 2528, "effective_range_m": 2528,
+        }
         service.activate_player_ability.return_value = {
             "ok": True, "status": "activated", "window": {"window_id": "w1"},
         }
@@ -130,7 +135,10 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
                 json={"request_id": "request-1"},
             )
         self.assertEqual(200, get_response.status_code)
-        self.assertTrue(get_response.get_json()["available"])
+        get_payload = get_response.get_json()
+        self.assertTrue(get_payload["available"])
+        self.assertEqual(2528, get_payload["player"]["effective_scan_range_m"])
+        self.assertFalse(get_payload["player"]["scan_range_active"])
         self.assertEqual(200, post_response.status_code)
         player_context = service.get_player_ability_window_snapshot.call_args.args[0]
         self.assertEqual("broker", player_context["profession"])

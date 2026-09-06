@@ -24,6 +24,7 @@ from .abilities import GhostAbilityRegistry
 from .ability_realizers import (
     OPERATION_RISK_POLICIES,
     GhostAbilityProductionRealizer,
+    calculate_scan_range_m,
     operation_risk_modifier,
 )
 from .archive import GhostArchiveService
@@ -1005,6 +1006,7 @@ class GhostNetworkService:
             "service_entrance": "Wejście Serwisowe",
             "false_image": "Fałszywy Obraz",
             "hostile_takeover": "Wrogie Przejęcie",
+            "resistance_signal": "Beacon Oporu",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1015,6 +1017,7 @@ class GhostNetworkService:
             "service_entrance": "BACKDOOR GOTOWY",
             "false_image": "NIE WIERZ OCZOM",
             "hostile_takeover": "POTRÓJNY ZYSK",
+            "resistance_signal": "ŚWIAT W ZASIĘGU",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1025,6 +1028,7 @@ class GhostNetworkService:
             "service_entrance": "target_action_dots",
             "false_image": "operation_risk",
             "hostile_takeover": "file_yield",
+            "resistance_signal": "scan_range",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {
@@ -1287,6 +1291,36 @@ class GhostNetworkService:
         if not snapshot.get("active") or ability_code not in OPERATION_RISK_POLICIES:
             return {}
         return {"ability_heat_modifier": operation_risk_modifier(ability_code)}
+
+    def active_scan_range_effect(self, player_context, now=None, snapshot=None):
+        """Resolve E4 at the scan gate from narrow identity/capability data."""
+        player_context = player_context if isinstance(player_context, dict) else {}
+        try:
+            base_range_m = max(1, int(player_context.get("action_range") or 300))
+        except (TypeError, ValueError):
+            base_range_m = 300
+        snapshot = snapshot or self.get_player_ability_window_snapshot(
+            player_context, now=now,
+        )
+        ability = snapshot.get("ability") or {}
+        window = snapshot.get("window") or {}
+        ability_code = str(ability.get("ability_code") or "").strip()
+        if not snapshot.get("active") or ability_code != "resistance_signal":
+            return {
+                "active": False,
+                "base_range_m": base_range_m,
+                "effective_range_m": base_range_m,
+            }
+        effective_range_m = calculate_scan_range_m(
+            window.get("level_snapshot"), ability_code,
+        )
+        return {
+            "active": True,
+            "ability_code": ability_code,
+            "window_id": str(window.get("window_id") or ""),
+            "base_range_m": base_range_m,
+            "effective_range_m": max(base_range_m, effective_range_m),
+        }
 
     def apply_active_ability_to_aimed_target(self, player_context, target_id, now=None):
         """Apply an active target realizer at the canonical aimed-target call-site."""
