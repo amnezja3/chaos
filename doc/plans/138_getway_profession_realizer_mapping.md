@@ -58,7 +58,7 @@ rodziny, ale nie przebudowy wspólnego runtime.
 | `.1.1` | V1 Ledger Nexus / `broker` | Insider Feed | `operation_speed` | istniejące i nowe operacje przyspieszone `0.1 × LVL`, cap `20×`, maks. 8 | `LOCKED / SERVER PASS` |
 | `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `LOCKED / SERVER PASS` |
 | `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; jeden lekki odczyt okna na gracza/tick, widoczny maskowany risk | `LOCKED / SERVER PASS` |
-| `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | każda operacja dotknięta w oknie zachowuje wyróżnienie i przy finalizacji tworzy `oryginał + backup + fullbackup` każdego bazowego pliku GX | `LOCAL PASS / SERVER TEST` |
+| `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | każda operacja dotknięta w oknie zachowuje wyróżnienie i przy finalizacji tworzy `oryginał + backup + fullbackup` każdego bazowego pliku GX | `LOCKED / SERVER PASS` |
 | `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_risk` | niższe ryzyko dzięki przewidywaniu przebiegu operacji; wynik nadal liczy risk meter | `STRONG FIT` |
 
 `false_image` nie używa `incident_decoy`: obraz zastępczy jest opowiedziany przez

@@ -808,7 +808,7 @@ incydentów i moc nie utworzyła żadnych fałszywych rekordów świata. Decyzja
 
 ### Implementacja `.1.4` — Egzekutor Zysku / V4
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `COMPLETE / SERVER PASS`
 
 `Wrogie Przejęcie` używa certyfikowanej rodziny `file_yield`, ale produkcyjny
 kontrakt nie jest stałym bonusem dwóch plików na operację. Aktywacja oznacza
@@ -845,6 +845,15 @@ plików; wejście kopii do zwykłej paczki GX; brak duplikatów po replayu.
 Lokalna bramka punktowa zakończyła się `41/41 PASS`, pełna regresja GhostNetwork
 `353/353 PASS`, a celowane testy istniejącej finalizacji i bundlera GX `4/4 PASS`.
 `py_compile` oraz `git diff --check`: PASS.
+
+Końcowy test produkcyjny potwierdził pełny przepływ E2E na operacji
+`op_20260906060540_655524`. Bazowy materiał network został zapisany jako oryginał,
+`backup` i `fullbackup`; wszystkie trzy rekordy zachowały kategorię `network`,
+wolumen `11 MB`, kompletność `92%`, jakość `93/100`, status
+`queued_for_market` oraz `sellable=true`. Kopie pozostały zwykłymi plikami `.net`,
+nie paczkami `.pkg`, więc istniejący Ghost Exchange przejął ich dalsze grupowanie.
+Przepływ oraz trwałe wyróżnienie operacji otrzymały E2E SERVER PASS. Decyzja:
+`KEEP / LOCKED` dla `hostile_takeover → file_yield ×3`.
 
 DoD etapu: pięć osobnych decyzji po teście, jeden wspólny UX i pięć małych
 hooków lub jawne `DEFER`; brak nowej kolejki/workera.

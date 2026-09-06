@@ -3196,3 +3196,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   istniejąca finalizacja i bundler Ghost Exchange: `4/4 PASS`; `py_compile` i
   `git diff --check`: PASS.
 - Status `.1.4`: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`.
+
+## 2026-09-06 — 138.getway.1.4, produkcyjny E2E SERVER PASS
+
+- Operacja `op_20260906060540_655524` wygenerowała trzy osobne rekordy materiału
+  network: oryginał, `backup` oraz `fullbackup`.
+- Wszystkie rekordy zachowały ten sam materiał źródłowy i parametry: `11 MB`,
+  kompletność `92%`, jakość `93/100`, status `queued_for_market` oraz
+  `sellable=true`.
+- Nazwy kopii pozostały plikami `.backup.net` i `.fullbackup.net`; żadna kopia nie
+  została zamieniona w gotową paczkę. Grupowanie pozostaje odpowiedzialnością
+  istniejącego runtime Ghost Exchange.
+- Gracz potwierdził poprawne działanie całego przepływu i trwałego UX operacji.
+  Status `.1.4`: `COMPLETE / SERVER PASS`; decyzja:
+  `hostile_takeover → file_yield ×3` = `KEEP / LOCKED`.
