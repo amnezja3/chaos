@@ -64,10 +64,15 @@ class GhostNetworkResistanceSignalTest(unittest.TestCase):
         effect = service.active_scan_range_effect(
             self.player, now=self.now, snapshot=snapshot,
         )
+        internal = service.ability_production_realizer.apply_activation(
+            self.player["player_id"], result["window"],
+        )
 
         self.assertEqual("applied", result["realizer"]["status"])
-        self.assertEqual("scan_range", result["realizer"]["family"])
-        self.assertEqual(1_775_000, result["realizer"]["effective_range_m"])
+        self.assertNotIn("family", result["realizer"])
+        self.assertNotIn("effective_range_m", result["realizer"])
+        self.assertEqual("scan_range", internal["family"])
+        self.assertEqual(1_775_000, internal["effective_range_m"])
         self.assertTrue(effect["active"])
         self.assertEqual(1_775_000, effect["effective_range_m"])
         self.assertEqual("Beacon Oporu", snapshot["presentation"]["display_name"])
@@ -94,14 +99,18 @@ class GhostNetworkResistanceSignalTest(unittest.TestCase):
         import run
 
         source = inspect.getsource(run.map_action)
-        scan = source[source.index("# Scan is a hot path"):source.index("if action == \"travel\"")]
-        self.assertIn("identity_projection_store.get_identity", scan)
-        self.assertIn("capability_projection_store.get_capabilities", scan)
-        self.assertIn("active_scan_range_effect", scan)
-        self.assertIn('"radius_m": int(fetcher.radius)', scan)
-        self.assertIn('distance > action_range', scan)
+        hot_start = source.index("# Scan is a hot path")
+        hot_path = source[hot_start:source.index("    else:", hot_start)]
+        scan_flow_start = source.index('    if action == "scan":\n        distance')
+        scan_flow = source[scan_flow_start:source.index('    if action == "travel"')]
+        self.assertIn("identity_projection_store.get_identity", hot_path)
+        self.assertIn("capability_projection_store.get_capabilities", hot_path)
+        self.assertIn("active_scan_range_effect", hot_path)
+        self.assertIn('"radius_m": int(fetcher.radius)', scan_flow)
+        self.assertIn('distance > action_range', scan_flow)
         for forbidden in ("sync_session_profile(", "user_store.get_profile(", "list_profiles("):
-            self.assertNotIn(forbidden, scan)
+            self.assertNotIn(forbidden, hot_path)
+            self.assertNotIn(forbidden, scan_flow)
 
 
 if __name__ == "__main__":
