@@ -210,6 +210,8 @@ def _format_help():
         "  map/browser/files/profile/settings open system apps",
         "  teleport <lat:lon>   teleport to coordinates",
         "  teleport cur:loc     teleport to device location",
+        "  focus <lat:lon>      show coordinates without teleport",
+        "  focus cur:loc        show device location without teleport",
         "",
         "Network:",
         "  ip / ipa / ip a      show pseudo interface state",
@@ -445,28 +447,40 @@ def _builtin_command(tokens, original_text, profile):
         return {"response": _log(arg or "system")}
     if cmd == "apps":
         return {"response": _apps_list(profile)}
-    if cmd == "teleport":
+    if cmd in {"teleport", "focus"}:
+        is_focus = cmd == "focus"
         coord_arg = original_text.partition(" ")[2].strip()
         if not coord_arg:
-            return {"response": "usage: teleport <lat:lon|cur:loc>"}
+            return {"response": f"usage: {cmd} <lat:lon|cur:loc>"}
         if coord_arg.lower() == "cur:loc":
             return {
                 "terminalGeolocationRequest": {
-                    "purpose": "teleport",
+                    "purpose": cmd,
                     "label": "Aktualna lokalizacja urzadzenia",
                 },
                 "response": "Oczekiwanie na zgode dostepu do lokalizacji...",
             }
         match = COORDINATE_PAIR_RE.match(coord_arg)
         if not match:
-            return {"response": "teleport: podaj wspolrzedne w formacie lat:lon, np. teleport 52.2297:21.0122"}
+            return {"response": f"{cmd}: podaj wspolrzedne w formacie lat:lon, np. {cmd} 52.2297:21.0122"}
         try:
             lat = float(match.group(1).replace(",", "."))
             lng = float(match.group(2).replace(",", "."))
         except ValueError:
-            return {"response": "teleport: nieprawidlowe wspolrzedne."}
+            return {"response": f"{cmd}: nieprawidlowe wspolrzedne."}
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
-            return {"response": "teleport: wspolrzedne poza zakresem."}
+            return {"response": f"{cmd}: wspolrzedne poza zakresem."}
+        if is_focus:
+            return {
+                "terminalMapFocus": {
+                    "lat": lat,
+                    "lng": lng,
+                    "label": f"{lat:.6f}, {lng:.6f}",
+                    "mode": "focus",
+                    "source": "terminal",
+                },
+                "response": f"Pokazuje na mapie: {lat:.6f}, {lng:.6f}",
+            }
         return {
             "terminalTeleport": {
                 "lat": lat,

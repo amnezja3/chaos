@@ -3104,6 +3104,12 @@ function attachTerminalInputHandler(input, content) {
             }
             notifyCreatedOperations(data);
 
+            if (data.terminalMapFocus) {
+                await handleTerminalMapFocus(content, data.terminalMapFocus);
+                appendTerminalPrompt(content);
+                return;
+            }
+
             if (data.terminalTeleport) {
                 await handleTerminalTeleport(content, data.terminalTeleport);
                 return;
@@ -3111,6 +3117,9 @@ function attachTerminalInputHandler(input, content) {
 
             if (data.terminalGeolocationRequest) {
                 await handleTerminalGeolocationRequest(content, data.terminalGeolocationRequest);
+                if (data.terminalGeolocationRequest?.purpose === "focus") {
+                    appendTerminalPrompt(content);
+                }
                 return;
             }
 
@@ -3415,6 +3424,31 @@ async function handleTerminalTeleport(content, teleport) {
     return true;
 }
 
+function handleTerminalMapFocus(content, focus = {}) {
+    const lat = Number(focus?.lat);
+    const lng = Number(focus?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        appendSystemTerminalOutput(content, "focus: brak poprawnych wspolrzednych.");
+        return false;
+    }
+
+    const label = focus?.label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    if (!openSystemAppFromTerminal("map")) {
+        appendSystemTerminalOutput(content, "focus: nie mozna otworzyc mapy.");
+        return false;
+    }
+    // createMap assigns the iframe URL on the next animation frames. Delay the
+    // focus bridge so a closed map cannot consume the message in about:blank.
+    window.setTimeout(() => notifyOpenMapsBlacknetFocus({
+        mode: "focus",
+        label,
+        lat,
+        lng,
+        source: "terminal"
+    }), 80);
+    return true;
+}
+
 function terminalGeolocationErrorMessage(error) {
     const code = Number(error?.code);
     if (code === 1) {
@@ -3430,7 +3464,8 @@ function terminalGeolocationErrorMessage(error) {
 }
 
 async function handleTerminalGeolocationRequest(content, request = {}) {
-    if (request?.purpose !== "teleport") {
+    const purpose = String(request?.purpose || "").toLowerCase();
+    if (!["teleport", "focus"].includes(purpose)) {
         appendSystemTerminalOutput(content, "Nieobslugiwane zadanie lokalizacji terminala.");
         return false;
     }
@@ -3467,6 +3502,9 @@ async function handleTerminalGeolocationRequest(content, request = {}) {
     const label = request?.label || "Aktualna lokalizacja urzadzenia";
     if (Number.isFinite(accuracy)) {
         appendSystemTerminalOutput(content, `Lokalizacja pobrana (dokladnosc ok. ${Math.round(accuracy)} m).`);
+    }
+    if (purpose === "focus") {
+        return handleTerminalMapFocus(content, { lat, lng, label, accuracy });
     }
     return handleTerminalTeleport(content, { lat, lng, label, accuracy });
 }
@@ -3537,6 +3575,11 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
             updateToolbarAimedTarget(data.target);
         }
         notifyCreatedOperations(data);
+
+        if (data.terminalMapFocus) {
+            stopLoader();
+            return handleTerminalMapFocus(content, data.terminalMapFocus);
+        }
 
         if (data.terminalTeleport) {
             stopLoader();

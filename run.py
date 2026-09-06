@@ -22151,6 +22151,12 @@ def command():
     if result.get("clear"):
         return jsonify({"clear": True})
 
+    if result.get("terminalMapFocus"):
+        return jsonify({
+            "response": result.get("response", "Pokazuje punkt na mapie."),
+            "terminalMapFocus": result.get("terminalMapFocus"),
+        })
+
     if result.get("terminalTeleport"):
         return jsonify({
             "response": result.get("response", "Przygotowano teleport."),

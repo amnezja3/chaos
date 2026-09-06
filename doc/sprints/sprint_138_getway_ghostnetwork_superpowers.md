@@ -263,7 +263,7 @@ ability_code
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
 | `target_security` | mniej lub więcej aktywnych zabezpieczeń | polityka per ability na istniejącej security map z exact target i CAS; E1 zeruje cały boolean bar, P2 zachowuje limit 2 |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
-| `scan_range` | większy promień lub skan niezależny od motocykla | istniejący action range albo jawny bypass tylko dla endpointu skanu |
+| `scan_range` | większa odległość wywołania skanu od motocykla | istniejący distance gate endpointu skanu; lokalny promień wyników pozostaje bounded i nie powstaje account/global scan |
 | `map_zoom` | szerszy widok | istniejący getter zoomu, bez trwałego zakupu w profilu |
 | `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
 | `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
@@ -433,7 +433,7 @@ limit, idempotency i test braku heavy profile:
 | `hack_actions` | oznaczony cel z niewykonanymi kropkami | właściwe action dots są wykonane, security pozostaje |
 | `target_security` | oznaczony cel z wersjonowaną security map | polityka mocy zachowuje CAS: E1 wyłącza cały boolean bar bez zmiany kropek, P2 maks. 2 flagi |
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
-| `scan_range` | cel wewnątrz i poza bazowym zasięgiem | tylko dozwolony zakres/bypass zmienia wynik |
+| `scan_range` | punkt wewnątrz i poza bazowym zasięgiem | tylko aktywne okno zmienia distance gate; lokalny promień wyników i pozycja motocykla pozostają bez zmian |
 | `map_zoom` | znany bazowy zoom | snapshot/UI pokazuje bounded rozszerzenie |
 | `territory_defense` | własny cel z security preset | ochrona zmienia się przez istniejący owner/CAS store |
 
@@ -915,8 +915,15 @@ hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 | `.2.1` | Haktywista / E1 | **Ujawnienie** — `target_security`, pełne wyłączenie paska zabezpieczeń przy pozostawieniu czterech kropek do zhakowania |
 | `.2.2` | Socjotechnik / E2 | **Przejęcie Narracji** — certyfikowany `operation_risk`, bazowe `heat -15`, bez wymuszania wyniku detekcji |
 | `.2.3` | Odsłaniacz / E3 | **Pełne Ujawnienie** — `data_quality` dla wszystkich plików operacyjnych, z większym bonusem dla `camera`, `audio`, `network` i `personal` |
-| `.2.4` | Wizjoner / E4 | **Beacon Oporu** — większy `scan_range` klanu i widoczny beacon |
+| `.2.4` | Wizjoner / E4 | **Beacon Oporu** — przez 15 minut osobisty `scan_range = min(10 000 km, 25 km × LVL)`, widoczny beacon i terminalowe `focus`; skan nadal zwraca lokalne `300 m` |
 | `.2.5` | Zapalnik / E5 | **Efekt Domina** — ograniczona redukcja security sąsiednich celów |
+
+`.2.4` korzysta z jednej wspólnej komendy nawigacji mapy:
+`focus <lat:lon>` ustawia widok na współrzędnych, a `focus cur:loc` na bieżącej
+lokalizacji urządzenia operatora. Komenda automatycznie otwiera zamkniętą mapę,
+nie wymaga potwierdzenia i nigdy nie zapisuje ani nie przesuwa pozycji motocykla.
+Samo oglądanie mapy pozostaje dostępne bez mocy; dopiero istniejący distance gate
+decyduje, czy w wybranym punkcie wolno wykonać skan.
 
 Echo ma przede wszystkim dawać więcej treści z kamer i rozmów oraz ujawniać
 informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
