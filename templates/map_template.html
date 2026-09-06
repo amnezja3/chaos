@@ -3279,9 +3279,13 @@
 
         function normalizeTerritoryClanName(value) {
             const normalized = String(value || '').trim().toLowerCase()
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[_-]+/g, ' ')
+                .replace(/\s+/g, ' ');
             return ({
+                'sentinel order': 'straznicy ladu',
                 'sentinel core': 'straznicy ladu',
+                'echo freedom': 'echo wolnosci',
                 'nova anarch': 'echo wolnosci',
                 'virex conglomerate': 'virex',
                 'virex korporacja': 'virex',
@@ -3303,7 +3307,7 @@
             const ownerClan = normalizeTerritoryClanName(area.owner_clan || '');
             const isCrew = Boolean(!isMine && ownerClan && ownerClan === territoryViewerClan());
             const clanColors = territoryClanPalette[ownerClan] || {
-                stroke: '#ff4b4b', fill: '#b62020'
+                stroke: '#9aa4ad', fill: '#626b73'
             };
             return {
                 pane: 'territoryPane',
@@ -9581,6 +9585,9 @@
                     if (!res.ok) return false;
                     const data = await res.json();
                     if (refreshSeq !== window.playerAreaRefreshSeq) return false;
+                    // Resolve both clan hue and same-clan relation from the
+                    // current lightweight snapshot before creating polygons.
+                    window.mapViewerClan = String((data.player || {}).clan || window.mapViewerClan || '');
                     if (!replaceTerritoryAreaLayersAtomically(data.areas || [])) return false;
                     cleanupLegacyPlayerAreaLayers();
                     clearLayerArray('areaIntruderLayers');
@@ -9594,8 +9601,6 @@
                     // overlapping polygons after each worker publication.
                     clearCanonicalTerritoryConflictLayers();
                     window.territoryConflictLayers = {};
-
-                    window.mapViewerClan = String((data.player || {}).clan || window.mapViewerClan || '');
 
                     if (typeof window.refreshGhostTerritoryBadges === 'function') {
                         window.refreshGhostTerritoryBadges();

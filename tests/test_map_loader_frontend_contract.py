@@ -93,6 +93,31 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("map.on('contextmenu'", self.map_template)
         self.assertIn("showContextMenu(e.containerPoint.x", self.map_template)
 
+    def test_territory_palette_accepts_lightweight_canonical_clan_codes(self):
+        normalizer = self.map_template[
+            self.map_template.index("function normalizeTerritoryClanName"):
+            self.map_template.index("function territoryViewerClan")
+        ]
+        for canonical_code in ("sentinel order", "echo freedom", "phantom mesh"):
+            self.assertIn(f"'{canonical_code}'", normalizer)
+        self.assertIn(".replace(/[_-]+/g, ' ')", normalizer)
+
+        style = self.map_template[
+            self.map_template.index("function territoryLayerStyle"):
+            self.map_template.index("function territoryTooltip")
+        ]
+        self.assertNotIn("stroke: '#ff4b4b', fill: '#b62020'", style)
+        self.assertIn("stroke: '#9aa4ad', fill: '#626b73'", style)
+
+        refresh = self.map_template[
+            self.map_template.index("window.refreshPlayerAreas = function"):
+            self.map_template.index("const MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS", self.map_template.index("window.refreshPlayerAreas = function"))
+        ]
+        self.assertLess(
+            refresh.index("window.mapViewerClan ="),
+            refresh.index("replaceTerritoryAreaLayersAtomically(data.areas || [])"),
+        )
+
     def test_travel_action_shows_destination_pulse_until_finished(self):
         self.assertIn("travel-destination-pulse", self.map_template)
         self.assertIn("showTravelDestinationPulse", self.map_template)
