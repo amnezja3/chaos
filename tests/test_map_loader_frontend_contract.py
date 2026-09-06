@@ -107,6 +107,12 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("layer._chaosBoundsRecoveryAttempt < 8", guard)
         self.assertIn("polyline bounds recovery exhausted", guard)
 
+    def test_global_territory_sanity_limit_accepts_large_canonical_cluster(self):
+        sanity_start = self.map_template.index("function isSaneTerritoryPolygon")
+        sanity_end = self.map_template.index("function normalizeMapLatLngPair", sanity_start)
+        sanity = self.map_template[sanity_start:sanity_end]
+        self.assertIn("latSpan <= 2.0 && lngSpan <= 2.0", sanity)
+
     def test_territory_palette_accepts_lightweight_canonical_clan_codes(self):
         normalizer = self.map_template[
             self.map_template.index("function normalizeTerritoryClanName"):

@@ -4131,9 +4131,11 @@
             const lngSpan = Math.max(...lngs) - Math.min(...lngs);
             const uniquePoints = new Set(points.map(point => `${Number(point[0]).toFixed(6)}:${Number(point[1]).toFixed(6)}`));
             if (uniquePoints.size < 3) return false;
-            // Duze, poprawne klastry terytorium potrafia przekroczyc 0.25 stopnia.
-            // Limit nadal odcina geometrie obejmujace przypadkiem znaczna czesc swiata.
-            return latSpan <= 1.0 && lngSpan <= 1.0;
+            // Globalna mapa dopuszcza kanoniczne klastry przekraczajace jeden
+            // stopien dlugosci geograficznej.
+            // Zachowujemy bezpiecznik przeciw przypadkowemu poligonowi o skali
+            // kontynentu, ale nie odcinamy poprawnych, rozleglych terytoriow.
+            return latSpan <= 2.0 && lngSpan <= 2.0;
         }
 
         function normalizeMapLatLngPair(latValue, lngValue) {
