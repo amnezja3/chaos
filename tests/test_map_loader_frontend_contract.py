@@ -175,9 +175,16 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         start = self.map_template.index("async function animateAvatarTravel")
         end = self.map_template.index("window.motorcycleTravelState", start)
         animator = self.map_template[start:end]
+        renderer_start = self.map_template.index("function renderMotorcycleMarkerVisual")
+        renderer_end = self.map_template.index("function updateAvatarDirection", renderer_start)
+        renderer = self.map_template[renderer_start:renderer_end]
 
         self.assertIn("window.avatarBikeDirection !== direction", animator)
-        self.assertEqual(animator.count("marker.setIcon(buildBikeIcon(direction))"), 1)
+        self.assertNotIn("marker.setIcon(buildBikeIcon", animator)
+        self.assertIn("renderMotorcycleMarkerVisual(initialDirection)", animator)
+        self.assertIn("renderMotorcycleMarkerVisual(direction)", animator)
+        self.assertEqual(renderer.count("marker.setIcon(buildBikeIcon(nextDirection))"), 1)
+        self.assertIn("image.src = bikeDirectionIcons[nextDirection]", renderer)
 
     def test_hack_target_has_non_interactive_pending_marker(self):
         self.assertIn("pendingTargetMarker = L.circleMarker", self.map_template)
