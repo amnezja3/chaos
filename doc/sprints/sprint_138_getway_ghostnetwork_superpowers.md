@@ -1180,7 +1180,7 @@ okna zachowują wspólny kontrakt rodziny. Decyzja: `KEEP / LOCKED` dla
 
 ### Bramka `.3.3` — P3 Paranoia Loop / Paranoik
 
-Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+Status: `COMPLETE / SERVER E2E PASS`.
 
 `Fałszywe Tropienie` montuje bez zmian certyfikowaną rodzinę `scan_range` z E4.
 Aktywne P3 daje osobisty zasięg wywołania skanu równy
@@ -1200,6 +1200,12 @@ UI używa palety `phantom_mesh`, assetów P3 oraz odrębnego copy
 Bramka serwerowa obejmuje konto `phantom_mesh / paranoid`, poziom niski i
 wysoki, scan poza bazowym range, brak teleportu, lokalny fetch `300 m`, cap
 `10 000 km`, snapshot poziomu, reload, replay, expiry, part-loss i cooldown.
+
+Test serwerowy i gameplay zakończyły się pełnym PASS. Potwierdzono aktywację
+P3, zasięg wyliczony z `level_snapshot`, skan poza bazowym `action_range`, brak
+teleportu oraz zachowanie lokalnego fetch radius. Prezentacja, timer, reload i
+lifecycle okna działają zgodnie ze wspólnym kontraktem. Decyzja:
+`KEEP / LOCKED` dla `false_tracking → scan_range`.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 

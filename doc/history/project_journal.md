@@ -3466,3 +3466,15 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   produkcyjną allowlistę oraz testy mapowania, prezentacji, snapshotu poziomu,
   expiry i powrotu do bazowego zasięgu.
 - Status `.3.3`: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+## 2026-09-07 — 138.getway.3.3 COMPLETE
+
+- Operator potwierdził pełny PASS testów serwerowych i gameplay P3.
+- `false_tracking → scan_range` poprawnie stosuje
+  `min(10 000 km, 25 km × level_snapshot)`, pozwala skanować poza bazowym
+  `action_range`, nie teleportuje motocykla i nie zmienia lokalnego promienia
+  pobierania POI.
+- Potwierdzono prezentację `Fałszywe Tropienie / WSZĘDZIE SĄ ŚLADY`, timer,
+  reload oraz lifecycle aktywnego okna.
+- Decyzja: `KEEP / LOCKED / SERVER E2E PASS`. Następny etap:
+  `138.getway.3.4` — P4 Fracture Engine / Rozłamowiec.
