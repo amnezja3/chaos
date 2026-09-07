@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 COMPLETE — 138.2.pre-endgame + 138.getway.0–5 REQUIRED / BLOCKING`
+Status: `138.1 COMPLETE — 138.2.pre-endgame + 138.getway.0–5 + 138.op.1–3 REQUIRED / BLOCKING`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -877,6 +877,7 @@ stabilization rollover + next cycle:          PASS
 signal media contract including radio:       PASS / EXPLICITLY DEFERRED
 critical narrative support fallbacks:        PASS
 superpowers gateway 138.getway.0-5:           REQUIRED / BLOCKING
+map runtime gate 138.op.1-3:                  REQUIRED / BLOCKING
 preflight strict on production state:         PASS
 failure matrix local/integration:             PASS
 operator backup and runbook rehearsal:        PASS
@@ -933,9 +934,15 @@ Pełny kontrakt, Definition of Done i macierz testowa znajdują się w
 `doc/sprints/sprint_138_getway_ghostnetwork_superpowers.md`. Dopóki wszystkie
 sześć etapów nie ma `SERVER PASS`, obowiązuje `DO NOT TRIGGER 20/20`.
 
+Po zamknięciu gameplay gateway obowiązuje dodatkowo `138.op.1–3`: interaction
+fast path, incremental operations/NPC runtime oraz LOD/culling z rzeczywistym
+testem urządzeń. Kontrakt i obciążenie referencyjne znajdują się w
+`doc/sprints/sprint_138_op_map_runtime_optimization.md`. Pełny test `138.2` nie
+startuje przed `SERVER/DEVICE PASS` wszystkich trzech etapów.
+
 ## 138.2 — E2E, failure i soak
 
-Status: `BLOCKED BY 138.2.pre-endgame AND 138.getway.0–5`
+Status: `BLOCKED BY 138.2.pre-endgame, 138.getway.0–5 AND 138.op.1–3`
 
 Pierwsza bramka implementacyjna dodaje bounded, read-only audit pełnego lineage:
 
@@ -1086,7 +1093,9 @@ Sprint 137.3 runtime/failure gate:           SERVER PASS
 publication baseline audit:                 COMPLETE
 138.1 lifecycle implementation:             COMPLETE / SERVER PASS
 138.2.pre-endgame production gate:           REQUIRED / BLOCKING
-138.2 producer-backed E2E/failure/soak:      BLOCKED BY PRE-ENDGAME
+138.getway.0-5 gameplay gateway:             REQUIRED / BLOCKING
+138.op.1-3 map runtime gate:                 REQUIRED / BLOCKING
+138.2 producer-backed E2E/failure/soak:      BLOCKED BY ALL ABOVE
 ```
 
 ## Definition of Done

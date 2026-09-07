@@ -187,6 +187,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "domino_effect": "target_security",
                 "glitch_injection": "target_security",
                 "resistance_signal": "scan_range",
+                "false_tracking": "scan_range",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,
         )

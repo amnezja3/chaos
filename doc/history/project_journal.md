@@ -3433,3 +3433,36 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Inny parametr lub skutek wymaga nowej nazwanej rodziny albo wersji kontraktu i
   ponownej certyfikacji wszystkich przypisań. Kolejne podsprinty pozostają
   montażem przetestowanych realizerów.
+
+## 2026-09-07 — utworzenie bramki 138.op.1–3 przed 138.2
+
+- Testy obciążonego świata ujawniły frontendowe przeciążenie mapy na słabych
+  komputerach i telefonach: pan, zoom i akcje reagowały z wielosekundowym
+  opóźnieniem przy dziesiątkach operacji, kilku konfliktach i około 15 aktywnych
+  częściach GhostNetwork.
+- Audyt wskazał kumulację kosztów: `backdrop-filter` Centrum Operacji,
+  animowane karty SP, pełny rebuild markerów/panelu operacji, częsty `setIcon()`
+  NPC oraz wielowarstwowe filtrowane SVG połączeń i terytoriów GN.
+- Dodano blokujący sprint `138.op`: `.op.1` interaction fast path, `.op.2`
+  incremental operations/NPC runtime, `.op.3` LOD/culling i obciążeniowy
+  `SERVER/DEVICE PASS`.
+- Bramka nie zmienia gameplay, liczby obiektów ani canonical state. Podczas
+  gestu i na słabym urządzeniu upraszcza dekorację, zachowując kolor, stan,
+  timer, target i możliwość działania.
+- Decyzja operatora: dokończyć `138.getway`, następnie wykonać `138.op.1–3`, a
+  dopiero później rozpocząć pełny test `138.2`.
+
+## 2026-09-07 — 138.getway.3.2 COMPLETE i start 3.3
+
+- Operator potwierdził pełny gameplay PASS `Glitch Injection`: aktualny i
+  kolejne cele `aimed` otrzymują pasek security na 100%, a cztery action dots i
+  liczbowy `security_level` pozostają bez zmian.
+- Zamknięto `glitch_injection → target_security` jako
+  `KEEP / LOCKED / SERVER E2E PASS`.
+- Rozpoczęto P3 Paranoia Loop / Paranoik. `false_tracking` montuje identyczny
+  certyfikowany `scan_range` E4: `25 km × level_snapshot`, globalny cap
+  `10 000 km`, lekki scan gate, brak teleportu i lokalny fetch POI `300 m`.
+- Dodano odrębny UX Siatki Widmo `Fałszywe Tropienie / WSZĘDZIE SĄ ŚLADY`,
+  produkcyjną allowlistę oraz testy mapowania, prezentacji, snapshotu poziomu,
+  expiry i powrotu do bazowego zasięgu.
+- Status `.3.3`: `IMPLEMENTATION / SERVER E2E TEST PENDING`.

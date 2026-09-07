@@ -63,6 +63,7 @@ MAX_QUALITY_FILES = 16
 MAX_SECURITY_CHANGES = 2
 SCAN_RANGE_METERS_PER_LEVEL = 25_000
 MAX_SCAN_RANGE_METERS = 10_000_000
+SCAN_RANGE_ABILITY_CODES = frozenset(("resistance_signal", "false_tracking"))
 
 
 def _clamp_int(value, minimum, maximum):
@@ -107,8 +108,8 @@ def calculate_operation_speed_factor(level_snapshot, ability_code="insider_feed"
 
 
 def calculate_scan_range_m(level_snapshot, ability_code="resistance_signal"):
-    """Return the frozen, backend-owned scan invocation range for E4."""
-    if str(ability_code or "").strip() != "resistance_signal":
+    """Return the frozen, backend-owned scan invocation range."""
+    if str(ability_code or "").strip() not in SCAN_RANGE_ABILITY_CODES:
         return 0
     level = _clamp_int(
         level_snapshot, 1,
@@ -762,6 +763,7 @@ class GhostAbilityProductionRealizer:
         "domino_effect": "target_security",
         "glitch_injection": "target_security",
         "resistance_signal": "scan_range",
+        "false_tracking": "scan_range",
     }
 
     def __init__(self, operation_store, target_store=None):

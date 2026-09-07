@@ -52,6 +52,7 @@ class GhostNetworkResistanceSignalTest(unittest.TestCase):
         self.assertEqual(1_775_000, calculate_scan_range_m(71))
         self.assertEqual(7_500_000, calculate_scan_range_m(300))
         self.assertEqual(MAX_SCAN_RANGE_METERS, calculate_scan_range_m(999999))
+        self.assertEqual(1_775_000, calculate_scan_range_m(71, "false_tracking"))
         self.assertEqual(0, calculate_scan_range_m(71, "other"))
 
     def test_activation_uses_level_snapshot_and_exposes_e4_presentation(self):

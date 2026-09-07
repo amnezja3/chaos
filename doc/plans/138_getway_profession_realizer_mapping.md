@@ -120,8 +120,8 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
 | `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; standardowy risk engine nadal wyznacza wynik | `LOCKED / SERVER E2E PASS` |
-| `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
-| `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | większy promień pozwala wcześniej dostrzec ślady; bez bypassu pozycji motocykla | `SAFE SUBSTITUTE` |
+| `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `LOCKED / SERVER E2E PASS` |
+| `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | identycznie jak E4: `25 km × level_snapshot`, cap `10 000 km`, bez teleportu i bez zmiany lokalnego fetch radius | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
 | `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | bounded zmiana perspektywy mapy o 2 poziomy; CSS pokazuje rozszczepienie | `VISUAL/GAMEPLAY PROXY` |
 | `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | maks. 2 warstwy ochrony wracają na oznaczonym własnym celu | `SAFE SUBSTITUTE` |
 
@@ -135,6 +135,11 @@ i E2. Klucz `phantom_node` jest technicznym aliasem. Modyfikator `heat -15` obej
 operacje istniejące przy aktywacji oraz nowe, rozpoczęte w 15-minutowym oknie.
 Nie powstają fałszywe incydenty, markery świata ani skan aktorów. Widocznym
 dowodem jest turkusowe wyróżnienie kart, `WĘZEŁ WIDMO` i `RUCH POZORNY`.
+
+P3 wykorzystuje dokładnie ten sam certyfikowany kontrakt `scan_range` co E4.
+Klucz `false_tracking` jest aliasem routingu i UX; nie zmienia mnożnika, capu,
+scope, expiry ani call-site. Różnicę klanową stanowią wyłącznie nazwa, tagline,
+asset, SFX i paleta Siatki Widmo.
 
 P2 wykorzystuje dokładnie ten sam pełny kontrakt `target_security` co E1/E5.
 Klucz `glitch_injection` jest technicznym aliasem. Wyłącza wszystkie aktywne flagi

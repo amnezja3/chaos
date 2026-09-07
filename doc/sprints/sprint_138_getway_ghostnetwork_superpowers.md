@@ -1,6 +1,6 @@
 # 138.getway — lekka bramka supermocy przed pełnym testem GhostSignalu
 
-Status: `REQUIRED / BLOCKING 138.2`
+Status: `REQUIRED / BLOCKING 138.2; FOLLOWED BY 138.op.1–3`
 Źródło audytu: `doc/audits/ghostnetwork_superpowers_actual_state_audit.md`
 Zakres: `138.getway.0` foundation/pilot, `138.getway.1–4` profesja po profesji
 oraz `138.getway.5` polish.
@@ -1109,7 +1109,7 @@ canonical finalizację i zero heavy profile.
 | --- | --- | --- |
 | `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — certyfikowany `operation_risk`, `heat -15`, bez syntetycznych incydentów |
 | `.3.2` | Wirusolog / P2 | **Glitch Injection** — pełny boolean security bar wyłączony na aktualnym i kolejnych celach `aimed` |
-| `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — skan niezależny od pozycji motocykla |
+| `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — certyfikowany globalny `scan_range`, `25 km × level_snapshot`, cap `10 000 km` |
 | `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — miks `scan_range` i zakłóceń markerów |
 | `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `operation_risk`/`target_security`, bez skanu aktorów |
 
@@ -1152,7 +1152,7 @@ zera przy następnym ticku.
 
 ### Bramka `.3.2` — P2 Glitch Reactor / Wirusolog
 
-Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+Status: `COMPLETE / SERVER E2E PASS`.
 
 `Glitch Injection` montuje pełny certyfikowany kontrakt `target_security`;
 `glitch_injection` jest technicznym aliasem rodziny. Aktywacja obejmuje dokładny aktualny cel `aimed`, a
@@ -1170,6 +1170,36 @@ Bramka serwerowa ma potwierdzić: aktywne P2, konto
 `phantom_mesh / virologist`, pełne wyłączenie boolean security na aktualnym oraz
 co najmniej dwóch kolejnych celach, nietknięte cztery kropki i `security_level`,
 replay bez drugiej mutacji, UX, reload, expiry, part-loss i cooldown.
+
+Test serwerowy i gameplay zakończyły się pełnym PASS. Potwierdzono pełne
+wyłączenie boolean security bar na aktualnym i kolejnych celach `aimed`, przy
+zachowaniu czterech action dots oraz liczbowego `security_level`. UX
+`Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION`, replay, reload i lifecycle
+okna zachowują wspólny kontrakt rodziny. Decyzja: `KEEP / LOCKED` dla
+`glitch_injection → target_security`.
+
+### Bramka `.3.3` — P3 Paranoia Loop / Paranoik
+
+Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+`Fałszywe Tropienie` montuje bez zmian certyfikowaną rodzinę `scan_range` z E4.
+Aktywne P3 daje osobisty zasięg wywołania skanu równy
+`min(10 000 km, 25 km × level_snapshot)`. Poziom jest snapshotem chwili
+aktywacji; wzrost poziomu w trakcie okna nie zmienia efektu. Po expiry lub
+utracie aktywności części gate wraca do bazowego `action_range`.
+
+P3 korzysta z tego samego lekkiego read-through w istniejącym distance gate.
+Nie teleportuje motocykla, nie zwiększa lokalnego promienia pobierania POI
+`300 m`, nie wykonuje globalnego skanu i nie dodaje workera, kolejki, store'u,
+pollera ani heavy profile read. Interpretacja „fałszywego tropienia” wynika z
+tego, że operator może badać odległe punkty świata bez ujawniania tam swojej
+pozycji.
+
+UI używa palety `phantom_mesh`, assetów P3 oraz odrębnego copy
+`Fałszywe Tropienie / WSZĘDZIE SĄ ŚLADY`; timer pokazuje efektywny zasięg.
+Bramka serwerowa obejmuje konto `phantom_mesh / paranoid`, poziom niski i
+wysoki, scan poza bazowym range, brak teleportu, lokalny fetch `300 m`, cap
+`10 000 km`, snapshot poziomu, reload, replay, expiry, part-loss i cooldown.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 
@@ -1250,3 +1280,9 @@ operator decision:                               GO FOR 138.2
 ```
 
 Do czasu spełnienia bramki obowiązuje `DO NOT TRIGGER 20/20`.
+
+Po gameplay closure `138.getway.0–5`, ale przed pełnym testem `138.2`, obowiązuje
+jeszcze wydajnościowa bramka `138.op.1–3` opisana w
+`doc/sprints/sprint_138_op_map_runtime_optimization.md`. Supermoc nie otrzymuje
+finalnego GO, jeżeli jej poprawny wizualnie stan czyni mapę niegrywalną na
+słabszym urządzeniu.

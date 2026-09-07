@@ -1010,6 +1010,7 @@ class GhostNetworkService:
             "domino_effect": "Efekt Domina",
             "phantom_node": "Węzeł Widmo",
             "glitch_injection": "Glitch Injection",
+            "false_tracking": "Fałszywe Tropienie",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1024,6 +1025,7 @@ class GhostNetworkService:
             "domino_effect": "ISKRA POSZŁA",
             "phantom_node": "RUCH POZORNY",
             "glitch_injection": "SYSTEM PĘKA",
+            "false_tracking": "WSZĘDZIE SĄ ŚLADY",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1038,6 +1040,7 @@ class GhostNetworkService:
             "domino_effect": "target_security_bar",
             "phantom_node": "operation_risk",
             "glitch_injection": "target_security_bar",
+            "false_tracking": "scan_range",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {
@@ -1314,7 +1317,11 @@ class GhostNetworkService:
         ability = snapshot.get("ability") or {}
         window = snapshot.get("window") or {}
         ability_code = str(ability.get("ability_code") or "").strip()
-        if not snapshot.get("active") or ability_code != "resistance_signal":
+        if (
+            not snapshot.get("active")
+            or ability_code not in GhostAbilityProductionRealizer.ABILITY_FAMILIES
+            or GhostAbilityProductionRealizer.ABILITY_FAMILIES.get(ability_code) != "scan_range"
+        ):
             return {
                 "active": False,
                 "base_range_m": base_range_m,
