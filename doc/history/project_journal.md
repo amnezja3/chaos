@@ -3346,3 +3346,27 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Dodano `focus <lat:lon>` i `focus cur:loc` do nawigacji mapy bez teleportu,
   prezentację `Beacon Oporu / ŚWIAT W ZASIĘGU` oraz zasięg w badge'u mocy.
 - Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
+## 2026-09-06 — 138.getway.2.4 COMPLETE
+
+- Serwerowy test E2E potwierdził `resistance_signal → scan_range`, komendy
+  `focus`, lokalny promień wyników `300 m`, brak teleportu oraz expiry/cooldown.
+- Potwierdzono przypadek globalnej konsolidacji: łańcuch terytoriów `neo1`
+  połączył się z obszarem warszawskim, przejął teren `pies1` i zgodnie z
+  kanonicznym lifecycle zablokował znajdującą się tam część.
+- Naprawiono fail-soft startu mapy oraz odzyskiwanie renderowania po przejściowym
+  braku bounds Leafleta. Limit poprawnego globalnego klastra podniesiono z `1°`
+  do `2°`; zmiana nie modyfikuje właściciela, uprawnień ani stanu części.
+- Status `.2.4`: `COMPLETE / SERVER E2E PASS`. Następny etap: `.2.5`.
+
+## 2026-09-07 — start 138.getway.2.5, E5 Spark Chamber
+
+- Odrzucono wcześniejszy wariant osłabiania jednego niewybranego sąsiada.
+  Wymagałby on trwałości postępu wielu markerów, której obecny runtime celu
+  nie zapewnia; ten sam problem obejmuje reset kropek filarów konfliktu.
+- Zamrożono prosty kontrakt `domino_effect → target_security`: pełne wyłączenie
+  paska zabezpieczeń aktualnego i każdego kolejnego celu `aimed` w aktywnym
+  oknie, przy pozostawieniu czterech kropek do zwykłego zhakowania.
+- Implementacja ponownie wykorzystuje sprawdzony E1 bez selektora sąsiedztwa,
+  skanu konta, nowego store'u, workera, kolejki ani ciężkiego profilu.
+- Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.

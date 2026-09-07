@@ -1007,6 +1007,7 @@ class GhostNetworkService:
             "false_image": "Fałszywy Obraz",
             "hostile_takeover": "Wrogie Przejęcie",
             "resistance_signal": "Beacon Oporu",
+            "domino_effect": "Efekt Domina",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1018,6 +1019,7 @@ class GhostNetworkService:
             "false_image": "NIE WIERZ OCZOM",
             "hostile_takeover": "POTRÓJNY ZYSK",
             "resistance_signal": "ŚWIAT W ZASIĘGU",
+            "domino_effect": "ISKRA POSZŁA",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1029,6 +1031,7 @@ class GhostNetworkService:
             "false_image": "operation_risk",
             "hostile_takeover": "file_yield",
             "resistance_signal": "scan_range",
+            "domino_effect": "target_security_bar",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {

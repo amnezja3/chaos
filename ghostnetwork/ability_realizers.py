@@ -745,6 +745,7 @@ class GhostAbilityProductionRealizer:
         "hostile_takeover": "file_yield",
         "full_disclosure": "data_quality",
         "expose": "target_security",
+        "domino_effect": "target_security",
         "resistance_signal": "scan_range",
     }
 
@@ -1035,7 +1036,7 @@ class GhostAbilityProductionRealizer:
         }
 
     def _apply_target_security(self, player_id, window, target_id=None):
-        """Expose one exact target by disabling its complete security bar."""
+        """Disable the complete security bar of one exact aimed target."""
         target_id = str(
             window.get("target_id") if target_id is None else target_id
         ).strip()

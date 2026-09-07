@@ -153,7 +153,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
 
     def test_target_realizer_has_persistent_toolbar_impact_feedback(self):
         self.assertIn("updateParentToolbarGhostAbility(data)", self.source)
-        self.assertIn("ghost-ability-impact-4", self.source)
+        self.assertIn("ghost-ability-impact-5", self.source)
         for token in (
             "window.updateToolbarGhostAbilityState",
             'abilityImpactUi === "target_action_dots"',
@@ -193,6 +193,18 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "ghost-ability-security-bar",
         ):
             self.assertIn(token, self.css_source)
+
+    def test_domino_effect_reuses_full_security_bar_with_distinct_copy(self):
+        for token in (
+            'abilityCode: String(',
+            'toolbarGhostAbilityState.abilityCode === "domino_effect"',
+            "ghost-ability-impact-domino",
+        ):
+            self.assertIn(token, self.terminal_source)
+        self.assertIn('content: "EFEKT DOMINA"', self.css_source)
+        for template in ("index.html", "linux.html", "linux_old.html"):
+            source = (Path("templates") / template).read_text(encoding="utf-8")
+            self.assertIn("ghost-ability-impact-5", source)
 
 
 if __name__ == "__main__":

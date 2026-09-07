@@ -7,7 +7,7 @@ let desktopSettings = { wallpaper: "", icon_positions: {}, auto_fullscreen: fals
 let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
-let toolbarGhostAbilityState = { active: false, impactUi: "", clanCode: "", expiresAt: "" };
+let toolbarGhostAbilityState = { active: false, abilityCode: "", impactUi: "", clanCode: "", expiresAt: "" };
 let toolbarGhostAbilityExpiryTimer = null;
 let gonnaWinRequestQueue = Promise.resolve();
 const gonnaWinLifecycleStates = new Map();
@@ -1399,6 +1399,7 @@ function updateToolbarGhostAbilityState(snapshot) {
     const remainingMs = Date.parse(expiresAt) - Date.now();
     toolbarGhostAbilityState = {
         active: Boolean(snapshot && snapshot.active && remainingMs > 0),
+        abilityCode: String((snapshot && snapshot.ability && snapshot.ability.ability_code) || windowState.ability_code || ""),
         impactUi: String(presentation.impact_ui || ""),
         clanCode: String(presentation.clan_code || "").toLowerCase(),
         expiresAt
@@ -1459,6 +1460,9 @@ function renderToolbarStatus() {
                 : "",
             abilityImpactActive && abilityImpactUi === "target_security_bar"
                 ? "ghost-ability-impact-security"
+                : "",
+            abilityImpactActive && toolbarGhostAbilityState.abilityCode === "domino_effect"
+                ? "ghost-ability-impact-domino"
                 : "",
             abilityImpactActive && toolbarGhostAbilityState.clanCode
                 ? `ghost-ability-clan-${toolbarGhostAbilityState.clanCode.replace(/[^a-z0-9_-]/g, "")}`

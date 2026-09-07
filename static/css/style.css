@@ -1420,6 +1420,10 @@ body {
   text-shadow: 0 0 6px color-mix(in srgb, var(--ghost-ability-impact) 72%, transparent);
 }
 
+#system-status-strip .system-status-target.ghost-ability-impact-security.ghost-ability-impact-domino .target-feedback::after {
+  content: "EFEKT DOMINA";
+}
+
 #system-status-strip .system-status-target.ghost-ability-impact-security .target-disarm-track {
   height: 3px;
   outline: 1px solid color-mix(in srgb, var(--ghost-ability-impact) 66%, transparent);

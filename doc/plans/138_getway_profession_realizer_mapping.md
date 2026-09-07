@@ -75,9 +75,9 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 | --- | --- | --- | --- | --- | --- |
 | `.2.1` | E1 Breach Voice / `hacktivist` | Ujawnienie | `target_security` | cały pasek boolean security aktualnego i każdego kolejnego celu `aimed` w oknie zostaje wyłączony; cztery action dots pozostają do wykonania | `LOCKED / SERVER E2E PASS` |
 | `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; wynik nadal wyznacza standardowy risk engine | `LOCKED / SERVER E2E PASS` |
-| `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | każdy plik operacyjny `+10/+10`; `camera`, `audio`, `network`, `personal` dostają `+30/+30`; maks. 16 plików na operację | `LOCAL PASS / SERVER TEST` |
-| `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | przez 15 minut gracz aktywujący może wywołać skan do `min(10 000 km, 25 km × LVL)` od motocykla; lokalny promień wyników pozostaje `300 m` | `IMPLEMENTED / SERVER TEST` |
-| `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | po rozbrojeniu celu wyłączone maks. 1 zabezpieczenie jednego sąsiedniego celu | `CONDITIONAL SELECTOR` |
+| `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | każdy plik operacyjny `+10/+10`; `camera`, `audio`, `network`, `personal` dostają `+30/+30`; maks. 16 plików na operację | `LOCKED / SERVER E2E PASS` |
+| `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | przez 15 minut gracz aktywujący może wywołać skan do `min(10 000 km, 25 km × LVL)` od motocykla; lokalny promień wyników pozostaje `300 m` | `LOCKED / SERVER E2E PASS` |
+| `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | aktualny i każdy kolejny cel `aimed` w oknie ma wyłączony cały pasek security; cztery action dots pozostają do zhakowania | `IMPLEMENTATION` |
 
 E2 wykorzystuje certyfikowany w V3 realizer `operation_risk`, ale ma osobną
 politykę backendową `narrative_takeover`. Startowy modyfikator wynosi `heat -15`
@@ -85,9 +85,11 @@ i obejmuje operacje istniejące oraz nowe w 15-minutowym oknie. Nie wymusza
 detekcji ani jej braku: ostrzeżenia i incydenty nadal wyznacza standardowy risk
 engine. Osobna polityka pozwala stroić E2 bez zmiany zachowania V3.
 
-E5 wymaga małego, deterministycznego selektora jednego sąsiedniego celu. Dopóki
-nie ma narrow adjacency query z limitem 1, moc pozostaje `DEFER`, zamiast skanować
-terytorium lub listę celów. E4 nie wzmacnia całego klanu w pierwszej wersji, bo
+E5 korzysta z tego samego canonical `aimed` hooka i pełnego wariantu
+`target_security`, który został sprawdzony przez E1. Nie mutuje niewybranego
+sąsiedniego markera i nie wymaga utrwalania postępu wielu celów. Efekt domina
+powstaje przez szybkie przechodzenie gracza przez serię celów A → B → C w
+15-minutowym oknie. E4 nie wzmacnia całego klanu w pierwszej wersji, bo
 wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 
 ### 3.3 PHANTOM VEIL

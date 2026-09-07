@@ -916,7 +916,7 @@ hooków lub jawne `DEFER`; brak nowej kolejki/workera.
 | `.2.2` | Socjotechnik / E2 | **Przejęcie Narracji** — certyfikowany `operation_risk`, bazowe `heat -15`, bez wymuszania wyniku detekcji |
 | `.2.3` | Odsłaniacz / E3 | **Pełne Ujawnienie** — `data_quality` dla wszystkich plików operacyjnych, z większym bonusem dla `camera`, `audio`, `network` i `personal` |
 | `.2.4` | Wizjoner / E4 | **Beacon Oporu** — przez 15 minut osobisty `scan_range = min(10 000 km, 25 km × LVL)`, widoczny beacon i terminalowe `focus`; skan nadal zwraca lokalne `300 m` |
-| `.2.5` | Zapalnik / E5 | **Efekt Domina** — ograniczona redukcja security sąsiednich celów |
+| `.2.5` | Zapalnik / E5 | **Efekt Domina** — pełne wyłączenie paska security aktualnego i każdego kolejnego celu `aimed`; cztery kropki pozostają do zhakowania |
 
 `.2.4` korzysta z jednej wspólnej komendy nawigacji mapy:
 `focus <lat:lon>` ustawia widok na współrzędnych, a `focus cur:loc` na bieżącej
@@ -927,7 +927,7 @@ decyduje, czy w wybranym punkcie wolno wykonać skan.
 
 ### Bramka `.2.4` — E4 Resonance Beacon / Wizjoner
 
-Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+Status: `COMPLETE / SERVER E2E PASS`.
 
 - Produkcyjne mapowanie: `resistance_signal → scan_range`.
 - Zasięg wywołania skanu: `min(10 000 000 m, 25 000 m × level_snapshot)`.
@@ -948,6 +948,38 @@ Test serwerowy musi potwierdzić: pojawienie przycisku po aktywacji E4 bez reloa
 daleki `focus`, odrzucenie skanu poza zasięgiem, sukces wewnątrz zasięgu,
 `scan_context.radius_m = 300`, brak przesunięcia motocykla oraz powrót do
 bazowego gate po expiry.
+
+Test serwerowy E2E potwierdził cały kontrakt `.2.4`: przycisk bez reloadu,
+globalne przesuwanie widoku przez `focus`, skan ograniczony efektywnym zasięgiem,
+lokalne wyniki `300 m`, nieruchomą pozycję motocykla oraz prawidłowy expiry.
+Dodatkowy przypadek dużej konsolidacji terytorium ujawnił frontendowy limit
+geometrii i przejściowy race bounds Leafleta. Renderer odzyskuje teraz warstwę
+przez ograniczony `redraw`, pomija pojedynczy wadliwy rekord bez blokowania mapy
+i akceptuje poprawne globalne klastry do `2°`. Decyzja: `KEEP / LOCKED` dla
+`resistance_signal → scan_range`.
+
+### Bramka `.2.5` — E5 Spark Chamber / Zapalnik
+
+Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+- Produkcyjne mapowanie: `domino_effect → target_security`.
+- E5 ponownie wykorzystuje cały sprawdzony szlak E1: canonical target runtime,
+  exact `target_key`, expected version, CAS, marker okna oraz hook każdego `aimed`.
+- Aktywacja bez celu jest dozwolona. Cel obecny przy aktywacji oraz każdy kolejny
+  wybrany podczas 15 minut ma wyłączone wszystkie boolean security.
+- Cztery `actions_allowed` pozostają bez zmian i nadal wymagają narzędzi.
+- Nazwa „Efekt Domina” opisuje serię szybszych przejęć A → B → C. E5 nie
+  modyfikuje niewybranego markera i nie dodaje selektora sąsiedztwa.
+- Nie naprawiamy tutaj szerszego problemu trwałości częściowego postępu po
+  przełączeniu celu ani resetu kropek filarów konfliktu.
+- UX wykorzystuje asset E5, żółtą paletę Echo, nazwę `Efekt Domina`, tagline
+  `ISKRA POSZŁA` oraz istniejący puls paska security z etykietą `EFEKT DOMINA`.
+- Zakazane pozostają: heavy profile, account scan, nowy store, worker, kolejka,
+  polling i klientowy wybór realizera.
+
+Test serwerowy ma potwierdzić aktywację z celem i bez celu, pełny pasek security
+na co najmniej trzech kolejnych celach, nietknięte cztery kropki, replay bez
+dodatkowego zapisu, reload, expiry, part-loss i cooldown.
 
 Echo ma przede wszystkim dawać więcej treści z kamer i rozmów oraz ujawniać
 informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
