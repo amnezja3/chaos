@@ -43,6 +43,7 @@ from .reservations import GhostDropPolicy, GhostReservationService, is_ghostnetw
 from .territory import GhostTerritoryAdapter
 from .topology import GhostTopologyService
 from .transmission import GhostTransmissionService
+from .territory_defense import MAX_TERRITORY_DEFENSE_SWARM
 from .visibility import build_viewer_projection
 
 
@@ -1013,6 +1014,7 @@ class GhostNetworkService:
             "glitch_injection": "Glitch Injection",
             "false_tracking": "Fałszywe Tropienie",
             "network_fracture": "Pęknięcie Sieci",
+            "reflection": "Odbicie",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1029,6 +1031,7 @@ class GhostNetworkService:
             "glitch_injection": "SYSTEM PĘKA",
             "false_tracking": "WSZĘDZIE SĄ ŚLADY",
             "network_fracture": "HORYZONT PĘKA",
+            "reflection": "RÓJ ODBITY",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1045,6 +1048,7 @@ class GhostNetworkService:
             "glitch_injection": "target_security_bar",
             "false_tracking": "scan_range",
             "network_fracture": "map_zoom",
+            "reflection": "territory_defense",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {
@@ -1366,6 +1370,27 @@ class GhostNetworkService:
             window.get("level_snapshot"), ability_code,
         )
         return {**effect, "ability_code": ability_code}
+
+    def active_territory_defense_effect(self, player_context, now=None, snapshot=None):
+        """Resolve an active vulnerability-swarm window at the report gate."""
+        snapshot = snapshot or self.get_player_ability_window_snapshot(
+            player_context, now=now,
+        )
+        ability = snapshot.get("ability") or {}
+        window = snapshot.get("window") or {}
+        ability_code = str(ability.get("ability_code") or "").strip()
+        if (
+            not snapshot.get("active")
+            or GhostAbilityProductionRealizer.ABILITY_FAMILIES.get(ability_code)
+            != "territory_defense"
+        ):
+            return {"active": False, "swarm_limit": 1}
+        return {
+            "active": True,
+            "ability_code": ability_code,
+            "window_id": str(window.get("window_id") or ""),
+            "swarm_limit": MAX_TERRITORY_DEFENSE_SWARM,
+        }
 
     def apply_active_ability_to_aimed_target(self, player_context, target_id, now=None):
         """Apply an active target realizer at the canonical aimed-target call-site."""

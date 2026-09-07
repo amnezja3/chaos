@@ -66,7 +66,7 @@ przetestowanego realizera, a nie tworzeniem nowych odmian gameplayu.
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | bounded zasięg wywołania skanu, bez account/global scan i bez zwiększania lokalnego promienia wyników; polityka E4: `min(10 000 km, 25 km × LVL)` |
 | `map_zoom` | proporcjonalny boost odejmowany od zwykłego `min_zoom`; kotwice efektu: LVL `1→17`, `9→13`, `10→12`, `50→7`, `100→6`, `200+→5`; cap oddalenia `5` |
-| `territory_defense` | maksymalnie 2 zabezpieczenia przywrócone/włączone na własnym celu, owner check i CAS |
+| `territory_defense` | jedno zgłoszenie publikuje obrys tego samego serwerowego skanu: 1–3 punkty w całości, większy scan maks. 8 punktów; filary i ich security bez zmian |
 
 Limity powyżej były punktami startowymi do chwili certyfikacji. Po certyfikacji
 nie wolno ich zmieniać w podsprincie profesji. Każda zmiana limitu lub scope
@@ -123,10 +123,10 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `LOCKED / SERVER E2E PASS` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | identycznie jak E4: `25 km × level_snapshot`, cap `10 000 km`, bez teleportu i bez zmiany lokalnego fetch radius | `LOCKED / SERVER E2E PASS` |
 | `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | przez 15 minut strategiczny zoom-out: od miasta na LVL 10, przez kraj i Europę, do całego świata na LVL 200+ | `KEEP / LOCKED / SERVER E2E PASS` |
-| `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | maks. 2 warstwy ochrony wracają na oznaczonym własnym celu | `SAFE SUBSTITUTE` |
+| `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | jedno zgłoszenie wystawia publiczny, geometryczny rój maks. 8 podatności z tego samego skanu | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
 
 P1 nie tworzy fałszywego markera, P3 nie wykonuje skanu niezależnego od pozycji,
-a P5 nie odczytuje atakującego. To świadome bezpieczne zamienniki rodzin
+a P5 nie odczytuje atakującego i nie mutuje filarów. To świadome bezpieczne zamienniki rodzin
 `incident_decoy` i `actor_visibility`. Jeżeli efekt nie obroni się w grze,
 wybieramy `REPLACE` albo `DEFER`, bez rozszerzania ciężkiego runtime.
 
@@ -165,19 +165,29 @@ okno standardowy auto-return zoomu jest wyłączony.
 Expiry lub utrata części przywraca bazowy limit oddalenia, bez teleportowania
 motocykla, zmiany punktu obserwacji, zasięgu skanu, action range i danych mapy.
 
+P5 ustanawia wspólny kontrakt `territory_defense` oparty na publicznych
+podatnościach. Ostatni scan gracza jest zapisywany na serwerze pod nieprzenośnym
+`scan_id` i wygasa po godzinie. Jedno poprawne zgłoszenie w aktywnym oknie P5
+publikuje wszystkie 1–3 wyniki albo uproszczony obrys maksymalnie 8 punktów dla
+większego zbioru. Wybrany punkt zawsze pozostaje w roju. Markery korzystają
+z istniejącego minimalnego security, publicznej mapy oraz alarmów; dzięki temu
+klan może szybko budować małe terytoria osłonowe wokół strategicznego obszaru.
+Opublikowany rój pozostaje po expiry, ale bez aktywnego okna kolejne zgłoszenie
+tworzy już tylko jeden marker. Każde przyszłe przypisanie rodziny ma zachować
+identyczny call-site, selekcję geometryczną, limit i lifecycle.
+
 ### 3.4 SENTINEL AEGIS
 
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
 | `.4.1` | S1 Deep Sensor / `analyzer` | Skan Integralności | `scan_range` | głębszy skan przez zwiększony promień, maks. `6000 m`; bez account scan | `STRONG FIT` |
-| `.4.2` | S2 Bastion Matrix / `defender` | Bastion | `territory_defense` | maks. 2 zabezpieczenia włączone na oznaczonym własnym celu | `EXACT FIT` |
-| `.4.3` | S3 Restoration Engine / `reconstructor` | Odtworzenie | `territory_defense` | maks. 2 brakujące zabezpieczenia przywrócone na jednym uszkodzonym własnym celu | `STRONG FIT` |
+| `.4.2` | S2 Bastion Matrix / `defender` | Bastion | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
+| `.4.3` | S3 Restoration Engine / `reconstructor` | Odtworzenie | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
 | `.4.4` | S4 Accord Relay / `mediator` | Korytarz Zaufania | `operation_risk` | bezpieczny korytarz zmniejsza heat własnej bieżącej operacji o 15 | `SAFE FIRST SLICE` |
-| `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `territory_defense` | maks. 2 warstwy ochrony na jednym aktualnie zagrożonym własnym celu | `SAFE SUBSTITUTE` |
+| `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
 
-S3 i S5 mogą później dostać narrow selektor: odpowiednio ostatnio uszkodzony oraz
-aktualnie atakowany własny cel, zawsze limit 1. Pierwsza wersja korzysta z celu
-oznaczonego przez gracza. S4 nie przyznaje uprawnień innemu klanowi, ponieważ
+S2, S3 i S5 nie mogą zmieniać mechaniki rodziny po jej certyfikacji na P5;
+różnią się wyłącznie nazwą, assetem, SFX i paletą. S4 nie przyznaje uprawnień innemu klanowi, ponieważ
 cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
 
 ## 4. Semantyka utraty części
@@ -185,7 +195,8 @@ cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
 | Typ realizera | Po utracie `active` |
 | --- | --- |
 | ciągły odczyt: `operation_risk`, `scan_range`, `map_zoom` | znika przy następnym snapshotcie/call-site |
-| jednorazowa mutacja: `operation_speed`, `hack_actions`, `target_security`, `territory_defense` | wykonana zmiana zostaje; nie powstają dalsze zmiany |
+| jednorazowa mutacja: `operation_speed`, `hack_actions`, `target_security` | wykonana zmiana zostaje; nie powstają dalsze zmiany |
+| publikacja: `territory_defense` | wystawione podatności zostają publiczne; nowe zgłoszenia po expiry tworzą tylko jeden marker |
 | trwały marker + hook finalizacji: `file_yield` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane |
 | trwały marker + hook finalizacji: `data_quality` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane; zapisane pliki zostają |
 

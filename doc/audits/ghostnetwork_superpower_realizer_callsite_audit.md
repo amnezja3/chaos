@@ -213,16 +213,17 @@ stabilny porządek i indeks zaczynający się od klucza gracza/scope.
 
 ### 3.12 `territory_defense` — `SMALL HOOK`
 
-- Store: `captured_targets`; owner-specific odczyt i
-  `update_captured_target_security()` z `security_version`.
-- Hook: jeden canonical własny target albo mały jawny batch target IDs, każdy z
-  owner check, expected version i activation dedupe.
-- Wymagane: bezpośredni bounded lookup targetu. Obecny `get_captured_target()`
-  wywołuje `list_captured_targets(username)` i przeszukuje całą listę w Pythonie;
-  należy zastąpić go zapytaniem `SELECT ... LIMIT 1` po istniejącym unikalnym
-  kluczu lub nowym indeksowanym canonical target key.
-- Zakazane: globalne wzmacnianie wszystkich celów/terytoriów oraz zapis do
-  profilu `hacked`.
+- **SUPERSEDED w `138.getway.3.5`:** rodzina nie mutuje `captured_targets` ani
+  zabezpieczeń filarów.
+- Store: godzinny `player_scan_snapshots` przypisany do użytkownika oraz istniejący
+  publiczny `reported_vulnerabilities`.
+- Hook: poprawne zgłoszenie jednego punktu obecnego w tym samym `scan_id`.
+- Bounded fan-out: 1–3 wyniki w całości; większy zbiór redukowany geometrycznie
+  do maks. 8 punktów obrysu z obowiązkowym zachowaniem wybranego punktu.
+- Dedupe: istniejąca unikalność aktywnej podatności po pozycji i etykiecie;
+  provenance okna SP zapisywana w `target_json`.
+- Zakazane: dane geometrii dostarczone przez klienta, globalny scan kont,
+  wzmacnianie filarów, masowa publikacja całego wyniku i zapis do profilu `hacked`.
 
 ## 4. Obowiązkowa ścieżka przywrócenia lekkiego runtime
 

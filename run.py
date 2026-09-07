@@ -24,7 +24,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, UserIdentityProjectionStore, UserCapabilityProjectionStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, UserIdentityProjectionStore, UserCapabilityProjectionStore, VulnerabilityStore, PlayerScanSnapshotStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
 import requests
 from config import (
     APP_VERSION,
@@ -92,6 +92,11 @@ from ghostnetwork.ability_realizers import (
     enhance_data_quality_files,
     replicate_file_yield_files,
 )
+from ghostnetwork.territory_defense import (
+    MAX_TERRITORY_DEFENSE_SWARM,
+    select_territory_defense_swarm,
+    territory_defense_swarm_span_m,
+)
 from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
@@ -124,6 +129,7 @@ territory_conflict_engagement_store = TerritoryConflictEngagementStore()
 territory_target_ownership_store = TerritoryTargetOwnershipStore()
 territory_progression_receipt_store = TerritoryProgressionReceiptStore()
 vulnerability_store = VulnerabilityStore()
+player_scan_snapshot_store = PlayerScanSnapshotStore()
 wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
 dev_bug_report_store = DevBugReportStore()
@@ -22912,6 +22918,7 @@ def map_aim_target():
         "target_type": str(data.get("target_type") or "").strip() or None,
         "osm_id": str(data.get("osm_id") or "").strip()[:120] or None,
         "node_id": str(data.get("node_id") or "").strip()[:120] or None,
+        "scan_id": str(data.get("scan_id") or "").strip()[:64] or None,
         "target_mode": str(data.get("target_mode") or "standard"),
         "target_id": str(data.get("target_id") or "").strip() or None,
         "vulnerability_id": data.get("vulnerability_id"),
@@ -23446,6 +23453,20 @@ def map_action():
             if location:
                 marker["location"] = location
 
+        scan_id = ""
+        try:
+            scan_snapshot = player_scan_snapshot_store.record(
+                session["user"], all_results, lat, lng,
+            )
+            scan_id = scan_snapshot["scan_id"]
+        except Exception as exc:
+            # A transient SQLite writer collision must not break ordinary scan.
+            # territory_defense safely falls back to one reported marker.
+            print(f"[territory defense] scan snapshot skipped: {exc}", flush=True)
+        if scan_id:
+            for marker in all_results:
+                marker["scan_id"] = scan_id
+
         # for category in tag_filters:
         #     fetched = fetcher.get_category(category, lat=lat, lon=lng, result_limit=20)
         #     for obj in fetched:
@@ -23458,6 +23479,7 @@ def map_action():
             "markers": all_results,
             "scan_context": {
                 **scan_location_context,
+                "scan_id": scan_id,
                 "radius_m": int(fetcher.radius),
                 "distance_m": int(round(distance)),
                 "action_range_m": int(action_range),
@@ -27453,37 +27475,102 @@ def report_vulnerability():
     clan = get_profile_clan(profile)
     security_template = resources_store.get("user_security", default={})
     report_security = build_minimal_target_security(security_template)
-    territory = find_area_for_point(lat, lng)
-    owner_username = (territory or {}).get("owner_username") or ""
-    owner_clan = (territory or {}).get("owner_clan") or ""
-
-    report = vulnerability_store.report(
-        target,
-        username,
-        clan,
-        report_security,
-        territory_owner_username=owner_username,
-        territory_owner_clan=owner_clan,
+    player_context = ghostnetwork_player_payload(username, profile)
+    player_context["level"] = get_player_level(profile)
+    defense = get_ghostnetwork_service().active_territory_defense_effect(player_context)
+    scan_id = str(target.get("scan_id") or "").strip()
+    scan_snapshot = (
+        player_scan_snapshot_store.get(username, scan_id)
+        if defense.get("active") and scan_id else None
     )
-    report["is_reporter"] = report.get("reported_by_username") == username
-    report["same_clan"] = bool(clan and report.get("reported_by_clan") == clan)
+    swarm_targets = select_territory_defense_swarm(
+        (scan_snapshot or {}).get("markers") or [],
+        target,
+        limit=defense.get("swarm_limit") or MAX_TERRITORY_DEFENSE_SWARM,
+    )
+    swarm_active = bool(scan_snapshot and defense.get("active") and swarm_targets)
+    if not swarm_targets:
+        swarm_targets = [target]
 
-    if owner_username and owner_username != username:
+    reports = []
+    owners = {}
+    ability_marker = (
+        f"{defense.get('window_id')}:territory_defense"
+        if swarm_active and defense.get("window_id") else ""
+    )
+    for candidate in swarm_targets:
+        candidate = dict(candidate)
+        candidate["scan_id"] = scan_id if scan_snapshot else ""
+        if ability_marker:
+            candidate["ability_application_keys"] = [ability_marker]
+            candidate["territory_defense_provenance"] = {
+                "ability_code": defense.get("ability_code"),
+                "window_id": defense.get("window_id"),
+                "family": "territory_defense",
+                "scan_id": scan_id,
+            }
+        candidate_lat = float(candidate.get("lat"))
+        candidate_lng = float(candidate.get("lng", candidate.get("lon")))
+        territory = find_area_for_point(candidate_lat, candidate_lng)
+        owner_username = (territory or {}).get("owner_username") or ""
+        owner_clan = (territory or {}).get("owner_clan") or ""
+        item = vulnerability_store.report(
+            candidate,
+            username,
+            clan,
+            report_security,
+            territory_owner_username=owner_username,
+            territory_owner_clan=owner_clan,
+        )
+        item["is_reporter"] = item.get("reported_by_username") == username
+        item["same_clan"] = bool(clan and item.get("reported_by_clan") == clan)
+        reports.append(item)
+        if owner_username and owner_username != username:
+            owner = owners.setdefault(owner_username, {"clan": owner_clan, "count": 0})
+            owner["count"] += 1
+
+    report = next(
+        (
+            item for item in reports
+            if round(float(item.get("lat")), 5) == round(lat, 5)
+            and round(float(item.get("lng")), 5) == round(lng, 5)
+        ),
+        reports[0],
+    )
+    for owner_username, owner in owners.items():
+        owner_clan = owner.get("clan") or ""
         same_clan = owner_clan and owner_clan == clan
         add_system_message_to_user(
             owner_username,
             "info" if same_clan else "warning",
-            "Info: podatnosc na terytorium" if same_clan else "Alarm: obca podatnosc",
+            "Info: roj podatnosci na terytorium" if same_clan else "Alarm: obcy roj podatnosci",
             (
+                f"{profile.get('nick') or username} wystawil "
+                f"{owner.get('count') or 1} punktow podatnosci na podstawie jednego skanu."
+                if swarm_active else
                 f"{profile.get('nick') or username} wystawil podatnosc celu "
                 f"{target['label']} na twoim terytorium."
-            )
+            ),
         )
+
+    message = f"Podatnosc celu {target['label']} wystawiona dla klanu."
+    if swarm_active:
+        message = f"Roj obronny aktywny: wystawiono {len(reports)} podatnosci ze skanu."
 
     return jsonify({
         "success": True,
-        "message": f"Podatnosc celu {target['label']} wystawiona dla klanu.",
+        "message": message,
         "report": report,
+        "reports": reports,
+        "swarm": {
+            "active": swarm_active,
+            "count": len(reports),
+            "scan_count": len((scan_snapshot or {}).get("markers") or []),
+            "limit": int(defense.get("swarm_limit") or 1),
+            "span_m": territory_defense_swarm_span_m(reports) if swarm_active else 0,
+            "ability_code": defense.get("ability_code") if swarm_active else "",
+            "window_id": defense.get("window_id") if swarm_active else "",
+        },
         "potential": potential,
     })
 

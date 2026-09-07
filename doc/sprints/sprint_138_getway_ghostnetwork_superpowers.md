@@ -281,7 +281,7 @@ ability_code
 | `map_zoom` | proporcjonalny strategiczny limit oddalenia zależny od `level_snapshot` | tymczasowy boost istniejącego serwerowego `min_zoom`; Folium i kafelki powstają z tym samym limitem, bez trwałego zakupu w profilu |
 | `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
 | `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
-| `territory_defense` | cele zyskują/odzyskują zabezpieczenia | istniejący security store i owner/CAS checks |
+| `territory_defense` | jedno poprawne zgłoszenie wystawia geometryczny rój publicznych podatności z tego samego skanu | wygasający, przypisany do gracza snapshot `scan_id`; obrys skanu upraszczany do maks. 8 punktów; istniejący vulnerability store i alarmy |
 
 Katalog zachowuje 12 rodzin technicznych, ale bieżąca bramka certyfikuje 9.
 `file_value`, `actor_visibility` i `incident_decoy` pozostają jawnie odłożone.
@@ -449,7 +449,7 @@ limit, idempotency i test braku heavy profile:
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
 | `scan_range` | punkt wewnątrz i poza bazowym zasięgiem | tylko aktywne okno zmienia distance gate; lokalny promień wyników i pozycja motocykla pozostają bez zmian |
 | `map_zoom` | znany bazowy minimalny zoom | snapshot/UI pokazuje poziom skali i bounded promień; expiry przywraca bazowy limit |
-| `territory_defense` | własny cel z security preset | ochrona zmienia się przez istniejący owner/CAS store |
+| `territory_defense` | serwerowy scan zawierający od 1 do wielu kandydatów | 1–3 wyniki publikowane w całości; większy zbiór daje geometryczny obrys maks. 8 publicznych podatności, zawsze z punktem wybranym przez gracza |
 
 Testy `.0.4` nie czekają na odpowiadające rodzinom części ani profesje. Ich celem
 jest udowodnienie realizera i jego punktu integracji, a nie podjęcie finalnej
@@ -480,8 +480,9 @@ Drugi checkpoint potwierdził te same kontrakty na prawdziwych canonical stores:
 - `operation_risk` podaje ograniczony modifier jako wejście do właściwego
   kalkulatora, który nadal sam wyznacza progi;
 - `scan_range` i `map_zoom` korzystają wyłącznie z capability projection;
-- `territory_defense` odczytuje jeden własny captured target i używa istniejącego
-  owner/CAS security store.
+- `territory_defense` odczytuje wyłącznie ostatni, wygasający snapshot skanu
+  przypisany do gracza. Po jednym poprawnym zgłoszeniu wystawia jego uproszczony
+  obrys przez istniejący publiczny vulnerability store; nie mutuje filarów.
 
 Liczniki `profile_full_read`, `profile_full_write`, `profile_bytes`, account scan
 i per-recipient reads pozostały zerowe. Regresja sąsiednich kontraktów zakończyła
@@ -1111,7 +1112,7 @@ canonical finalizację i zero heavy profile.
 | `.3.2` | Wirusolog / P2 | **Glitch Injection** — pełny boolean security bar wyłączony na aktualnym i kolejnych celach `aimed` |
 | `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — certyfikowany globalny `scan_range`, `25 km × level_snapshot`, cap `10 000 km` |
 | `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — `map_zoom` jako strategiczna skala od miasta do całego świata |
-| `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `operation_risk`/`target_security`, bez skanu aktorów |
+| `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `territory_defense`, jedno zgłoszenie wystawia geometryczny rój podatności z tego samego skanu |
 
 Siatka Widmo może dawać szeroki i chaotyczny rezultat, ale wyłącznie przez
 istniejące typy danych, markery, aktorów, incydenty i zabezpieczenia.
@@ -1246,18 +1247,48 @@ progi LVL `9/10/50/100/200`, snapshot poziomu, widok na telefonie i desktopie,
 swobodne pan/zoom/focus, brak teleportu, reload, replay, expiry, part-loss oraz
 cooldown.
 
+### Bramka `.3.5` — P5 Mirror Kernel / Lustrzany Sędzia
+
+Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+`Odbicie` jest pierwszym produkcyjnym montażem nowego kontraktu
+`territory_defense`. Rodzina nie zabezpiecza filarów i nie włącza flag security
+na captured target. Aktywacja uzbraja na 15 minut hook zgłaszania podatności.
+Każdy scan otrzymuje serwerowy `scan_id` i godzinny, przypisany do gracza snapshot
+wyników. Klient nie może dostarczyć własnej geometrii roju.
+
+Po poprawnym zgłoszeniu jednego punktu z aktywnego snapshotu system publikuje
+reprezentatywną siatkę podatności. Dla 1–3 wyników publikuje wszystkie. Dla
+większego zbioru wylicza wypukły obrys, usuwa punkty o najmniejszym wkładzie
+w geometrię i zachowuje maksymalnie 8 markerów. Punkt wybrany przez gracza zawsze
+pozostaje w wyniku, także gdy leży wewnątrz obrysu. Duplikaty pozycji są usuwane,
+a rzeczywisty obiekt ma pierwszeństwo przed generowanym odpowiednikiem.
+
+Każdy marker przechodzi przez istniejący `VulnerabilityStore`, otrzymuje minimalny
+security preset, publiczną widoczność oraz trwałą provenance okna SP. Sojusznicy
+mogą wykorzystać rój do szybkiego budowania osłonowych terytoriów, a ingerencja
+obcego klanu nadal korzysta z istniejących alarmów. Właściciel obszaru dostaje
+jeden zbiorczy komunikat o roju zamiast serii komunikatów dla każdego punktu.
+Ponowienie żądania nie tworzy duplikatów.
+
+Po expiry lub utracie P5 opublikowane podatności pozostają, lecz kolejne zgłoszenie
+publikuje już tylko wybrany marker. Brak `scan_id`, snapshot innego gracza,
+wygasły snapshot albo punkt spoza snapshotu również bezpiecznie redukuje działanie
+do pojedynczego zgłoszenia. Publiczne markery utworzone przez moc mają statyczne,
+turkusowe wyróżnienie bez ciągłej animacji obciążającej mapę.
+
 ## 13. 138.getway.4 — Strażnicy Ładu
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
 | `.4.1` | Analizator / S1 | **Skan Integralności** — `target_security` i stan ochrony własnych celów |
-| `.4.2` | Obrońca / S2 | **Bastion** — czasowe `territory_defense` |
-| `.4.3` | Rekonstruktor / S3 | **Odtworzenie** — przywrócenie zabezpieczeń istniejącym presetem |
+| `.4.2` | Obrońca / S2 | **Bastion** — wspólny `territory_defense`, publiczny rój podatności ze skanu |
+| `.4.3` | Rekonstruktor / S3 | **Odtworzenie** — wspólny `territory_defense`, publiczny rój podatności ze skanu |
 | `.4.4` | Mediator / S4 | **Korytarz Zaufania** — większy `scan_range`/action range na własnym obszarze |
-| `.4.5` | Egzekutor / S5 | **Kwarantanna** — ograniczenie startu wrogich operacji na chronionych celach |
+| `.4.5` | Egzekutor / S5 | **Kwarantanna** — wspólny `territory_defense`, publiczny rój podatności ze skanu |
 
-Strażnicy wzmacniają istniejące zabezpieczenia i czytelność stanu. Nie powstaje
-osobny system fortyfikacji.
+Strażnicy wykorzystują publiczne podatności do szybkiego budowania osłonowych
+terytoriów. Nie mutują zabezpieczeń filarów i nie tworzą osobnego systemu fortyfikacji.
 
 ## 14. 138.getway.5 — polish
 

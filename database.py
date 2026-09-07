@@ -2478,6 +2478,19 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS player_scan_snapshots (
+                scan_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                origin_lat REAL NOT NULL,
+                origin_lng REAL NOT NULL,
+                markers_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                expires_at REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS game_state_deltas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
@@ -2603,6 +2616,10 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_reported_vulnerabilities_target ON reported_vulnerabilities(target_lat, target_lng, label, status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_scan_snapshots_user_expiry "
+            "ON player_scan_snapshots(username, expires_at DESC)"
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_wallet_transactions_users ON wallet_transactions(from_username, to_username, created_at)"
@@ -9080,6 +9097,88 @@ class TerritoryConflictStore:
                 """,
                 (username, username, f'%"{username}"%'),
             )
+
+
+class PlayerScanSnapshotStore:
+    MAX_MARKERS = 512
+    DEFAULT_TTL_SECONDS = 60 * 60
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _normalize_marker(marker):
+        marker = copy.deepcopy(marker or {})
+        lat = float(marker.get("lat"))
+        lng = float(marker.get("lng", marker.get("lon")))
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            raise ValueError("invalid_scan_marker")
+        allowed = {
+            "label", "name", "icon", "source_type", "target_type",
+            "osm_id", "node_id", "location", "generated",
+        }
+        normalized = {key: marker.get(key) for key in allowed if key in marker}
+        normalized.update({"lat": lat, "lng": lng, "lon": lng})
+        normalized["label"] = str(normalized.get("label") or normalized.get("name") or "Cel")
+        normalized["name"] = str(normalized.get("name") or normalized["label"])
+        normalized["icon"] = str(normalized.get("icon") or "!")
+        normalized["source_type"] = str(normalized.get("source_type") or "unknown")
+        normalized["generated"] = bool(normalized.get("generated"))
+        return normalized
+
+    def record(self, username, markers, origin_lat, origin_lng, ttl_seconds=None):
+        username = str(username or "").strip()
+        if not username:
+            raise ValueError("missing_scan_username")
+        normalized = []
+        for marker in list(markers or [])[:self.MAX_MARKERS]:
+            try:
+                normalized.append(self._normalize_marker(marker))
+            except (TypeError, ValueError):
+                continue
+        scan_id = "scan_" + secrets.token_hex(12)
+        now = time.time()
+        expires_at = now + max(60, int(ttl_seconds or self.DEFAULT_TTL_SECONDS))
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                "DELETE FROM player_scan_snapshots WHERE expires_at <= ? OR username = ?",
+                (now, username),
+            )
+            conn.execute(
+                """
+                INSERT INTO player_scan_snapshots
+                    (scan_id, username, origin_lat, origin_lng, markers_json,
+                     created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_id, username, float(origin_lat), float(origin_lng),
+                    dumps_json(normalized), utc_now(), expires_at,
+                ),
+            )
+        return {"scan_id": scan_id, "markers": normalized, "expires_at": expires_at}
+
+    def get(self, username, scan_id):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM player_scan_snapshots
+                WHERE scan_id = ? AND username = ? AND expires_at > ?
+                """,
+                (str(scan_id or ""), str(username or ""), time.time()),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "scan_id": row["scan_id"],
+            "username": row["username"],
+            "origin_lat": row["origin_lat"],
+            "origin_lng": row["origin_lng"],
+            "markers": loads_json(row["markers_json"], []),
+            "created_at": row["created_at"],
+            "expires_at": row["expires_at"],
+        }
 
 
 class VulnerabilityStore:

@@ -4,6 +4,8 @@ import copy
 import hashlib
 from datetime import datetime, timedelta, timezone
 
+from .territory_defense import MAX_TERRITORY_DEFENSE_SWARM, select_territory_defense_swarm
+
 
 ALLOWED_REALIZER_FAMILIES = (
     "operation_speed",
@@ -563,10 +565,17 @@ def _map_zoom(state, window):
 
 
 def _territory_defense(state, window):
-    result = _change_security(state, enable=True)
-    result["owner_checked"] = bool(state.get("owner_checked"))
-    result["cas_checked"] = bool(state.get("cas_checked"))
-    return result
+    selected = select_territory_defense_swarm(
+        state.get("scan_markers") or [],
+        state.get("target") or {},
+        limit=MAX_TERRITORY_DEFENSE_SWARM,
+    )
+    state["swarm"] = copy.deepcopy(selected)
+    return {
+        "changed": [str(item.get("label") or item.get("name") or "") for item in selected],
+        "bounded_limit": MAX_TERRITORY_DEFENSE_SWARM,
+        "anchor_matched": bool(selected),
+    }
 
 
 _HANDLERS = {
@@ -793,30 +802,22 @@ class GhostAbilityCanonicalPilotHarness:
         return _map_zoom(state, window)
 
     def _apply_territory_defense(self, window):
-        store = self._store("territory")
-        target = store.get_captured_target(
-            self.username,
-            target_id=self.selection.get("captured_target_id"),
-            lat=self.selection.get("captured_lat"),
-            lng=self.selection.get("captured_lng"),
-            label=self.selection.get("captured_label"),
+        scan = self._store("scan_snapshots").get(
+            self.username, self.selection.get("scan_id"),
         )
-        if not target:
-            raise ValueError("ghost_ability_pilot_captured_target_missing")
+        if not scan:
+            raise ValueError("ghost_ability_pilot_scan_missing")
         state = {
-            "target": copy.deepcopy(target),
-            "owner_checked": True,
-            "cas_checked": True,
+            "target": copy.deepcopy(self.selection.get("scan_anchor") or {}),
+            "scan_markers": copy.deepcopy(scan.get("markers") or []),
         }
         evidence = _territory_defense(state, window)
-        result = store.update_captured_target_security(
-            self.username,
-            target,
-            state["target"].get("security") or {},
-            expected_version=target.get("security_version") or 0,
-        )
-        evidence["persisted"] = bool(result.get("ok"))
-        evidence["security_version"] = result.get("security_version")
+        persisted = []
+        for target in state.get("swarm") or []:
+            persisted.append(self._store("vulnerabilities").report(
+                target, self.username, "pilot", {},
+            ))
+        evidence["persisted"] = [item.get("id") for item in persisted]
         return evidence
 
 
@@ -838,6 +839,7 @@ class GhostAbilityProductionRealizer:
         "resistance_signal": "scan_range",
         "false_tracking": "scan_range",
         "network_fracture": "map_zoom",
+        "reflection": "territory_defense",
     }
 
     def __init__(self, operation_store, target_store=None):
@@ -1306,6 +1308,14 @@ class GhostAbilityProductionRealizer:
                     window.get("level_snapshot"), window.get("ability_code"),
                 ),
                 "changed": [],
+            }
+        if family == "territory_defense":
+            return {
+                "ok": True,
+                "status": "armed",
+                "family": "territory_defense",
+                "changed": [],
+                "swarm_limit": MAX_TERRITORY_DEFENSE_SWARM,
             }
         return {"ok": False, "status": "realizer_unavailable"}
 

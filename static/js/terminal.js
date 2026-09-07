@@ -6037,6 +6037,7 @@ function renderVictimPickerScanResults(app, state) {
                         target_type: scan.target_type || "poi",
                         osm_id: scan.osm_id || null,
                         node_id: scan.node_id || null,
+                        scan_id: scan.scan_id || null,
                         location: scan.location || null
                     })
                 });

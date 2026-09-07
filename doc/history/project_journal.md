@@ -3561,3 +3561,23 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   podstawowym show a naturalnym reloadem mapy i nie odtwarza się ponownie po nim.
 - Decyzja: `KEEP / LOCKED / SERVER E2E PASS` dla
   `network_fracture → map_zoom`. Rodzina realizera została sprawdzona w grze.
+
+## 2026-09-07 — redefinicja territory_defense i start 138.getway.3.5
+
+- Odrzucono prototyp wzmacniający security filarów/captured targets. Filary są
+  narzędziem hakowania i budowy, lecz nie stanowią właściwego punktu obrony.
+- Nowy kanon `territory_defense` wykorzystuje publiczne podatności. Jedno poprawne
+  zgłoszenie podczas aktywnego okna publikuje reprezentatywny rój z tego samego
+  serwerowo potwierdzonego skanu.
+- Dodano godzinny, przypisany do gracza snapshot `scan_id`. Snapshot zastępuje
+  poprzedni scan użytkownika, przechowuje maks. 512 znormalizowanych kandydatów
+  i nie pozwala klientowi podmienić geometrii.
+- Selekcja publikuje wszystkie 1–3 punkty. Większy zbiór jest redukowany przez
+  wypukły obrys i geometryczne upraszczanie do maks. 8 punktów; kliknięty punkt
+  zawsze pozostaje w wyniku, a duplikaty nie są tworzone.
+- Rój korzysta z istniejącego `VulnerabilityStore`, minimalnego security,
+  publicznego renderera i alarmów. Właściciel dostaje jeden komunikat zbiorczy,
+  a markery mają statyczne turkusowe wyróżnienie bez kosztownej animacji.
+- Produkcyjnie podłączono P5 `reflection → territory_defense`. Aktywacja wyłącznie
+  uzbraja report gate; publikacja następuje po zgłoszeniu podatności. Status:
+  `IMPLEMENTATION / SERVER E2E TEST PENDING`.

@@ -50,9 +50,12 @@ def fixture_for(family, now):
         "scan_range": {"capability": {"action_range": 500}},
         "map_zoom": {"capability": {"map_zoom": 18}},
         "territory_defense": {
-            **common_target,
-            "owner_checked": True,
-            "cas_checked": True,
+            "target": {"lat": 52.2, "lng": 21.0, "label": "A"},
+            "scan_markers": [
+                {"lat": 52.2, "lng": 21.0, "label": "A"},
+                {"lat": 52.21, "lng": 21.0, "label": "B"},
+                {"lat": 52.2, "lng": 21.01, "label": "C"},
+            ],
         },
     }
     return fixtures[family]
@@ -128,8 +131,8 @@ class GhostAbilityRealizerCertificationTest(unittest.TestCase):
         self.assertEqual(1_550_000, results["map_zoom"]["evidence"]["radius_m"])
         self.assertEqual(7, results["map_zoom"]["evidence"]["min_zoom"])
         self.assertEqual(7, results["map_zoom"]["evidence"]["zoom_out_bonus"])
-        self.assertTrue(results["territory_defense"]["evidence"]["owner_checked"])
-        self.assertTrue(results["territory_defense"]["evidence"]["cas_checked"])
+        self.assertEqual(3, len(results["territory_defense"]["evidence"]["changed"]))
+        self.assertTrue(results["territory_defense"]["evidence"]["anchor_matched"])
 
     def test_deferred_and_unknown_families_fail_closed(self):
         for family in (*DEFERRED_REALIZER_FAMILIES, "unknown"):

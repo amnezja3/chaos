@@ -8,6 +8,8 @@ from database import (
     PlayerInventoryStore,
     PlayerOperationStore,
     PlayerTargetRuntimeStore,
+    PlayerScanSnapshotStore,
+    VulnerabilityStore,
     TerritoryStore,
     UserCapabilityProjectionStore,
     UserStore,
@@ -74,6 +76,8 @@ class GhostAbilityCanonicalStoreCertificationTest(unittest.TestCase):
         self.inventory = PlayerInventoryStore(self.db_path)
         self.targets = PlayerTargetRuntimeStore(self.db_path)
         self.territory = TerritoryStore(self.db_path)
+        self.scan_snapshots = PlayerScanSnapshotStore(self.db_path)
+        self.vulnerabilities = VulnerabilityStore(self.db_path)
         self.capabilities = UserCapabilityProjectionStore(self.db_path)
         self.operation_id = "pilot-operation"
         self.operations.upsert_operations(self.username, [{
@@ -134,6 +138,15 @@ class GhostAbilityCanonicalStoreCertificationTest(unittest.TestCase):
             },
             "security_version": 0,
         })
+        scan_markers = [
+            {"lat": 52.3, "lng": 21.3, "label": "A"},
+            {"lat": 52.31, "lng": 21.3, "label": "B"},
+            {"lat": 52.3, "lng": 21.31, "label": "C"},
+        ]
+        self.scan = self.scan_snapshots.record(
+            self.username, scan_markers, 52.3, 21.3,
+        )
+        self.scan_anchor = scan_markers[0]
         self.player = {
             "username": self.username, "player_id": self.username,
             "clan": "virex", "profession": "broker", "level": 71,
@@ -151,6 +164,8 @@ class GhostAbilityCanonicalStoreCertificationTest(unittest.TestCase):
                 "inventory": self.inventory,
                 "targets": self.targets,
                 "territory": self.territory,
+                "scan_snapshots": self.scan_snapshots,
+                "vulnerabilities": self.vulnerabilities,
                 "capabilities": self.capabilities,
             },
             selection={
@@ -160,6 +175,8 @@ class GhostAbilityCanonicalStoreCertificationTest(unittest.TestCase):
                 "captured_lat": self.captured["lat"],
                 "captured_lng": self.captured["lng"],
                 "captured_label": self.captured["label"],
+                "scan_id": self.scan["scan_id"],
+                "scan_anchor": self.scan_anchor,
             },
         )
 
@@ -217,7 +234,7 @@ class GhostAbilityCanonicalStoreCertificationTest(unittest.TestCase):
         self.assertLessEqual(len(security["changed"]), 2)
         self.assertEqual(after_actions["version"] + 1, self.targets.get(self.username)["version"])
 
-    def test_risk_range_zoom_and_owned_defense_use_real_calculators_and_stores(self):
+    def test_risk_range_zoom_and_vulnerability_swarm_use_real_calculators_and_stores(self):
         risk = self.activate("operation_risk")
         self.assertTrue(risk["persisted"])
         self.assertEqual(-15, risk["modifier"])
@@ -233,14 +250,9 @@ class GhostAbilityCanonicalStoreCertificationTest(unittest.TestCase):
         self.assertEqual(7, zoom["zoom_out_bonus"])
         self.now += timedelta(hours=1, seconds=1)
         defense = self.activate("territory_defense")
-        self.assertTrue(defense["persisted"])
-        self.assertTrue(defense["owner_checked"])
-        stored = self.territory.get_captured_target(
-            self.username,
-            lat=self.captured["lat"], lng=self.captured["lng"],
-            label=self.captured["label"],
-        )
-        self.assertEqual(1, stored["security_version"])
+        self.assertEqual(3, len(defense["persisted"]))
+        self.assertTrue(defense["anchor_matched"])
+        self.assertEqual(3, len(self.vulnerabilities.list_active()))
 
     def test_canonical_harness_records_zero_heavy_profile_activity(self):
         token = reset_hot_path_metrics()
