@@ -188,6 +188,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "glitch_injection": "target_security",
                 "resistance_signal": "scan_range",
                 "false_tracking": "scan_range",
+                "network_fracture": "map_zoom",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,
         )

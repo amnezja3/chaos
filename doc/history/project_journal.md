@@ -3478,3 +3478,18 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   reload oraz lifecycle aktywnego okna.
 - Decyzja: `KEEP / LOCKED / SERVER E2E PASS`. Następny etap:
   `138.getway.3.4` — P4 Fracture Engine / Rozłamowiec.
+
+## 2026-09-07 — start 138.getway.3.4, P4 Fracture Engine
+
+- Odrzucono pilotażowe `map_zoom +2` jako efekt zbyt mały dla supermocy.
+- Zamrożono strategiczne progi z `level_snapshot`: `<10` lokalnie `10 km`,
+  `10+` miasto `30 km`, `50+` kraj `500 km`, `100+` Europa `3000 km`,
+  `200+` cały świat.
+- Implementacja używa viewport-adaptive `fitBounds`/`fitWorld`, a podczas okna
+  wyłącza standardowy auto-return zoomu. Efekt jest nakładany raz na `window_id`.
+- Expiry i utrata części przywracają bazowy limit oddalenia. Motocykl, centrum
+  obserwacji, scan range, action range, promień POI i pobierany zakres danych
+  pozostają bez zmian.
+- Dodano produkcyjne mapowanie `network_fracture → map_zoom`, prezentację
+  `Pęknięcie Sieci / HORYZONT PĘKA` oraz bezpieczne pola snapshotu gracza.
+- Status `.3.4`: `IMPLEMENTATION / SERVER E2E TEST PENDING`.

@@ -2244,6 +2244,7 @@
         const clanVulnerabilityRegistry = new Map();
         window.targetMarkers = window.targetMarkers || {};
         const baseZoom = map.getZoom();
+        const baseMinZoom = typeof map.getMinZoom === 'function' ? map.getMinZoom() : 1;
         const MANUAL_MAP_VIEW_STORAGE_KEY = `chaos:map:manual-view:${window.mapViewerUsername || 'anonymous'}`;
 
         function saveManualMapViewport() {
@@ -2500,7 +2501,11 @@
         }
 
         function scheduleZoomReturn() {
-            if (programmaticMapMove || map.getZoom() >= baseZoom) return;
+            if (
+                programmaticMapMove
+                || (window.ghostAbilityRuntime && window.ghostAbilityRuntime.mapZoomActive)
+                || map.getZoom() >= baseZoom
+            ) return;
             clearZoomReturn();
             zoomReturnTimer = setTimeout(() => {
                 zoomReturnInterval = setInterval(() => {
@@ -2682,8 +2687,70 @@
             control: null,
             timer: null,
             overlayTimer: null,
-            audioHandles: []
+            audioHandles: [],
+            mapZoomActive: false,
+            mapZoomWindowId: ''
         };
+
+        function ghostAbilityMapScaleLabel(scale) {
+            return ({
+                local: 'LOKALNIE',
+                city: 'MIASTO',
+                country: 'KRAJ',
+                continent: 'EUROPA',
+                world: 'ŚWIAT'
+            })[String(scale || '')] || 'MAPA';
+        }
+
+        function restoreGhostAbilityMapZoom() {
+            const runtime = window.ghostAbilityRuntime;
+            if (!runtime.mapZoomActive && !runtime.mapZoomWindowId) return;
+            runtime.mapZoomActive = false;
+            runtime.mapZoomWindowId = '';
+            clearZoomReturn();
+            if (typeof map.setMinZoom === 'function') map.setMinZoom(baseMinZoom);
+            if (map.getZoom() < baseMinZoom) {
+                programmaticMapMove = true;
+                map.setZoom(baseMinZoom, { animate: true });
+                window.setTimeout(() => { programmaticMapMove = false; }, 350);
+            }
+        }
+
+        function applyGhostAbilityMapZoom(snapshot, liveActive) {
+            const runtime = window.ghostAbilityRuntime;
+            const player = snapshot && snapshot.player || {};
+            const presentation = snapshot && snapshot.presentation || {};
+            const windowId = String(snapshot && snapshot.window && snapshot.window.window_id || '');
+            const enabled = Boolean(
+                liveActive
+                && presentation.impact_ui === 'map_zoom'
+                && player.map_zoom_active
+                && windowId
+            );
+            if (!enabled) {
+                restoreGhostAbilityMapZoom();
+                return;
+            }
+            runtime.mapZoomActive = true;
+            clearZoomReturn();
+            if (runtime.mapZoomWindowId === windowId) return;
+            runtime.mapZoomWindowId = windowId;
+            requestAnimationFrame(() => {
+                programmaticMapMove = true;
+                map.invalidateSize({ pan: false, animate: false });
+                if (player.map_zoom_fit_world) {
+                    if (typeof map.setMinZoom === 'function') map.setMinZoom(1);
+                    map.fitWorld({ padding: [12, 12], animate: true });
+                } else {
+                    const radiusM = Math.max(1000, Number(player.map_zoom_radius_m) || 10000);
+                    const bounds = map.getCenter().toBounds(radiusM * 2);
+                    const strategicZoom = map.getBoundsZoom(bounds, false, L.point(24, 24));
+                    if (typeof map.setMinZoom === 'function') map.setMinZoom(Math.min(baseMinZoom, strategicZoom));
+                    map.fitBounds(bounds, { padding: [24, 24], animate: true });
+                }
+                window.setTimeout(() => { programmaticMapMove = false; }, 500);
+            });
+        }
 
         function stopGhostAbilityAudio(fadeMs) {
             const runtime = window.ghostAbilityRuntime;
@@ -2851,6 +2918,7 @@
             const cooldownRemaining = ghostAbilityRemaining(windowState.cooldown_until);
             const liveActive = Boolean(snapshot.active && activeRemaining > 0);
             if (snapshot.active && !liveActive) ghostAbilityExpiryMessageOnce(snapshot);
+            applyGhostAbilityMapZoom(snapshot, liveActive);
             if (mapContainer) {
                 applyGhostAbilityPalette(mapContainer, presentation);
                 mapContainer.classList.toggle('has-ghost-ability-effect', liveActive);
@@ -2879,9 +2947,12 @@
                 const state = document.createElement('div');
                 state.className = 'ghost-ability-control__state';
                 const scanRange = Number(snapshot.player && snapshot.player.effective_scan_range_m) || 0;
+                const strategicScale = snapshot.player && snapshot.player.map_zoom_scale;
                 state.textContent = liveActive && presentation.impact_ui === 'scan_range'
                     ? `ZASIĘG ${formatGhostAbilityRange(scanRange)}`
-                    : (liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN');
+                    : liveActive && presentation.impact_ui === 'map_zoom'
+                        ? `SKALA ${ghostAbilityMapScaleLabel(strategicScale)}`
+                        : (liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN');
                 copy.append(name, state);
                 const timer = document.createElement('div');
                 timer.className = 'ghost-ability-control__timer';

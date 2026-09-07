@@ -278,7 +278,7 @@ ability_code
 | `target_security` | mniej lub więcej aktywnych zabezpieczeń | jeden kontrakt rodziny na istniejącej security map z exact target i CAS; E1, E5 i P2 zerują cały boolean bar |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większa odległość wywołania skanu od motocykla | istniejący distance gate endpointu skanu; lokalny promień wyników pozostaje bounded i nie powstaje account/global scan |
-| `map_zoom` | szerszy widok | istniejący getter zoomu, bez trwałego zakupu w profilu |
+| `map_zoom` | strategiczna skala widoku zależna od `level_snapshot` | lekki snapshot i viewport-adaptive `fitBounds`/`fitWorld`, bez trwałego zakupu w profilu |
 | `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
 | `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
 | `territory_defense` | cele zyskują/odzyskują zabezpieczenia | istniejący security store i owner/CAS checks |
@@ -448,7 +448,7 @@ limit, idempotency i test braku heavy profile:
 | `target_security` | oznaczony cel z wersjonowaną security map | polityka mocy zachowuje CAS: E1, E5 i P2 wyłączają cały boolean bar bez zmiany kropek |
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
 | `scan_range` | punkt wewnątrz i poza bazowym zasięgiem | tylko aktywne okno zmienia distance gate; lokalny promień wyników i pozycja motocykla pozostają bez zmian |
-| `map_zoom` | znany bazowy zoom | snapshot/UI pokazuje bounded rozszerzenie |
+| `map_zoom` | znany bazowy minimalny zoom | snapshot/UI pokazuje poziom skali i bounded promień; expiry przywraca bazowy limit |
 | `territory_defense` | własny cel z security preset | ochrona zmienia się przez istniejący owner/CAS store |
 
 Testy `.0.4` nie czekają na odpowiadające rodzinom części ani profesje. Ich celem
@@ -1110,7 +1110,7 @@ canonical finalizację i zero heavy profile.
 | `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — certyfikowany `operation_risk`, `heat -15`, bez syntetycznych incydentów |
 | `.3.2` | Wirusolog / P2 | **Glitch Injection** — pełny boolean security bar wyłączony na aktualnym i kolejnych celach `aimed` |
 | `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — certyfikowany globalny `scan_range`, `25 km × level_snapshot`, cap `10 000 km` |
-| `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — miks `scan_range` i zakłóceń markerów |
+| `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — `map_zoom` jako strategiczna skala od miasta do całego świata |
 | `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `operation_risk`/`target_security`, bez skanu aktorów |
 
 Siatka Widmo może dawać szeroki i chaotyczny rezultat, ale wyłącznie przez
@@ -1206,6 +1206,30 @@ P3, zasięg wyliczony z `level_snapshot`, skan poza bazowym `action_range`, brak
 teleportu oraz zachowanie lokalnego fetch radius. Prezentacja, timer, reload i
 lifecycle okna działają zgodnie ze wspólnym kontraktem. Decyzja:
 `KEEP / LOCKED` dla `false_tracking → scan_range`.
+
+### Bramka `.3.4` — P4 Fracture Engine / Rozłamowiec
+
+Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+`Pęknięcie Sieci` montuje rodzinę `map_zoom` jako 15-minutową zmianę skali
+obserwacji mapy. Nie jest to bonus `+2` do liczby zoomu Leafleta. Polityka jest
+wyliczana wyłącznie z `level_snapshot` aktywnego okna: poniżej LVL 10 widok
+lokalny `10 km`, od LVL 10 całe miasto `30 km`, od LVL 50 kraj `500 km`, od
+LVL 100 Europa `3000 km`, a od LVL 200 cały świat.
+
+Backend publikuje lekki kontrakt `scale/radius/fit_world`; klient używa
+viewport-adaptive `fitBounds` albo `fitWorld`, ustawia tymczasowy minimalny zoom
+i wyłącza standardowy auto-return przybliżenia. Dopasowanie następuje raz na
+`window_id`, więc lokalny zegar nie przelicza widoku co sekundę. Operator może
+potem swobodnie przesuwać mapę i używać `focus` w ramach odblokowanej skali.
+
+Moc nie teleportuje motocykla, nie zmienia bieżącego centrum na pozycję gracza,
+nie rozszerza `scan_range`, `action_range`, promienia POI ani zakresu danych
+pobieranych przez mapę. Po expiry albo utracie aktywności P4 wraca bazowy
+minimalny zoom; pozycja motocykla pozostaje bez zmian. Bramka serwerowa obejmuje
+progi LVL `9/10/50/100/200`, snapshot poziomu, widok na telefonie i desktopie,
+swobodne pan/zoom/focus, brak teleportu, reload, replay, expiry, part-loss oraz
+cooldown.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 

@@ -21075,6 +21075,9 @@ def api_ghostnetwork_ability():
         scan_range = service.active_scan_range_effect(
             player_context, snapshot=snapshot,
         )
+        map_zoom_effect = service.active_map_zoom_effect(
+            player_context, snapshot=snapshot,
+        )
         snapshot.update({
             "enabled": bool(GHOSTNETWORK_ABILITIES_ENABLED),
             "player": {
@@ -21083,6 +21086,10 @@ def api_ghostnetwork_ability():
                 "effective_scan_range_m": scan_range["effective_range_m"],
                 "scan_range_active": scan_range["active"],
                 "map_zoom": capabilities["map_zoom"],
+                "map_zoom_active": map_zoom_effect["active"],
+                "map_zoom_scale": map_zoom_effect["scale"],
+                "map_zoom_radius_m": map_zoom_effect["radius_m"],
+                "map_zoom_fit_world": map_zoom_effect["fit_world"],
             },
         })
         if not GHOSTNETWORK_ABILITIES_ENABLED:

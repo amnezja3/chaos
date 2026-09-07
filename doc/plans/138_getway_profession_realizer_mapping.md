@@ -65,7 +65,7 @@ przetestowanego realizera, a nie tworzeniem nowych odmian gameplayu.
 | `target_security` | exact target i CAS; polityki E1, E5 i P2 wyłączają cały boolean security bar, pozostawiając action dots |
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | bounded zasięg wywołania skanu, bez account/global scan i bez zwiększania lokalnego promienia wyników; polityka E4: `min(10 000 km, 25 km × LVL)` |
-| `map_zoom` | bounded zmiana o 2 poziomy na lekkim capability snapshotcie |
+| `map_zoom` | strategiczna skala widoku z `level_snapshot`: `<10` lokalnie, `10+` miasto, `50+` kraj, `100+` Europa, `200+` cały świat; viewport-adaptive `fitBounds`/`fitWorld` |
 | `territory_defense` | maksymalnie 2 zabezpieczenia przywrócone/włączone na własnym celu, owner check i CAS |
 
 Limity powyżej były punktami startowymi do chwili certyfikacji. Po certyfikacji
@@ -122,7 +122,7 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; standardowy risk engine nadal wyznacza wynik | `LOCKED / SERVER E2E PASS` |
 | `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `LOCKED / SERVER E2E PASS` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | identycznie jak E4: `25 km × level_snapshot`, cap `10 000 km`, bez teleportu i bez zmiany lokalnego fetch radius | `LOCKED / SERVER E2E PASS` |
-| `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | bounded zmiana perspektywy mapy o 2 poziomy; CSS pokazuje rozszczepienie | `VISUAL/GAMEPLAY PROXY` |
+| `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | przez 15 minut strategiczny zoom-out: od miasta na LVL 10, przez kraj i Europę, do całego świata na LVL 200+ | `IMPLEMENTATION / SERVER TEST PENDING` |
 | `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | maks. 2 warstwy ochrony wracają na oznaczonym własnym celu | `SAFE SUBSTITUTE` |
 
 P1 nie tworzy fałszywego markera, P3 nie wykonuje skanu niezależnego od pozycji,
@@ -148,9 +148,14 @@ Nie zmienia `actions_allowed`, liczbowego `security_level` ani celów sąsiednic
 Każdy cel dotknięty w aktywnym oknie zachowuje zmianę; po expiry lub utracie
 części nowe cele nie są już modyfikowane.
 
-Kierunek `map_zoom` trzeba potwierdzić wizualnie w `.3.4`: Leaflet interpretuje
-większą wartość jako bliższy widok. Podsprint zamraża właściwy znak zmiany po
-teście, nadal z twardym zakresem `1–20`.
+P4 definiuje `map_zoom` jako skalę strategiczną, a nie liczbowy bonus Leafleta.
+Backend zwraca wyłącznie poziom skali i promień wynikające z zamrożonego
+`level_snapshot`: `<10 = 10 km`, `10–49 = 30 km`, `50–99 = 500 km`,
+`100–199 = 3000 km`, `200+ = cały świat`. Frontend dopasowuje widok przez
+`fitBounds` albo `fitWorld`, dlatego efekt ma ten sam sens na telefonie i dużym
+monitorze. Przez aktywne okno standardowy auto-return zoomu jest wyłączony.
+Expiry lub utrata części przywraca bazowy limit oddalenia, bez teleportowania
+motocykla, zmiany punktu obserwacji, zasięgu skanu, action range i danych mapy.
 
 ### 3.4 SENTINEL AEGIS
 

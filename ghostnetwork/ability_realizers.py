@@ -64,6 +64,14 @@ MAX_SECURITY_CHANGES = 2
 SCAN_RANGE_METERS_PER_LEVEL = 25_000
 MAX_SCAN_RANGE_METERS = 10_000_000
 SCAN_RANGE_ABILITY_CODES = frozenset(("resistance_signal", "false_tracking"))
+MAP_ZOOM_ABILITY_CODES = frozenset(("network_fracture",))
+MAP_ZOOM_SCALE_POLICIES = (
+    (200, "world", 0),
+    (100, "continent", 3_000_000),
+    (50, "country", 500_000),
+    (10, "city", 30_000),
+    (1, "local", 10_000),
+)
 
 
 def _clamp_int(value, minimum, maximum):
@@ -116,6 +124,22 @@ def calculate_scan_range_m(level_snapshot, ability_code="resistance_signal"):
         MAX_SCAN_RANGE_METERS // SCAN_RANGE_METERS_PER_LEVEL,
     )
     return min(MAX_SCAN_RANGE_METERS, SCAN_RANGE_METERS_PER_LEVEL * level)
+
+
+def calculate_map_zoom_scale(level_snapshot, ability_code="network_fracture"):
+    """Return the frozen viewport-adaptive strategic map scale for one window."""
+    if str(ability_code or "").strip() not in MAP_ZOOM_ABILITY_CODES:
+        return {"active": False, "scale": "", "radius_m": 0, "fit_world": False}
+    level = _clamp_int(level_snapshot, 1, 999_999)
+    for minimum_level, scale, radius_m in MAP_ZOOM_SCALE_POLICIES:
+        if level >= minimum_level:
+            return {
+                "active": True,
+                "scale": scale,
+                "radius_m": radius_m,
+                "fit_world": scale == "world",
+            }
+    raise AssertionError("map zoom policy has no fallback")
 
 
 def operation_risk_modifier(ability_code):
@@ -485,8 +509,16 @@ def _scan_range(state, window):
 def _map_zoom(state, window):
     capability = state.setdefault("capability", {})
     base = _clamp_int(capability.get("map_zoom", 18), 1, 20)
-    capability["map_zoom"] = min(20, base + 2)
-    return {"changed": ["map_zoom"], "base": base, "effective": capability["map_zoom"]}
+    ability_code = str(window.get("ability_code") or "").strip()
+    if ability_code not in MAP_ZOOM_ABILITY_CODES:
+        ability_code = "network_fracture"
+    effect = calculate_map_zoom_scale(
+        window.get("level_snapshot"), ability_code,
+    )
+    capability["map_zoom_scale"] = effect["scale"]
+    capability["map_zoom_radius_m"] = effect["radius_m"]
+    capability["map_zoom_fit_world"] = effect["fit_world"]
+    return {"changed": ["map_zoom"], "base": base, **effect}
 
 
 def _territory_defense(state, window):
@@ -764,6 +796,7 @@ class GhostAbilityProductionRealizer:
         "glitch_injection": "target_security",
         "resistance_signal": "scan_range",
         "false_tracking": "scan_range",
+        "network_fracture": "map_zoom",
     }
 
     def __init__(self, operation_store, target_store=None):
@@ -1219,6 +1252,16 @@ class GhostAbilityProductionRealizer:
                 "status": "applied",
                 "family": "scan_range",
                 "effective_range_m": calculate_scan_range_m(
+                    window.get("level_snapshot"), window.get("ability_code"),
+                ),
+                "changed": [],
+            }
+        if family == "map_zoom":
+            return {
+                "ok": True,
+                "status": "applied",
+                "family": "map_zoom",
+                **calculate_map_zoom_scale(
                     window.get("level_snapshot"), window.get("ability_code"),
                 ),
                 "changed": [],

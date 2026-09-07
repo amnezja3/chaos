@@ -117,6 +117,9 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         service.active_scan_range_effect.return_value = {
             "active": False, "base_range_m": 2528, "effective_range_m": 2528,
         }
+        service.active_map_zoom_effect.return_value = {
+            "active": False, "scale": "", "radius_m": 0, "fit_world": False,
+        }
         service.activate_player_ability.return_value = {
             "ok": True, "status": "activated", "window": {"window_id": "w1"},
         }
@@ -139,6 +142,7 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         self.assertTrue(get_payload["available"])
         self.assertEqual(2528, get_payload["player"]["effective_scan_range_m"])
         self.assertFalse(get_payload["player"]["scan_range_active"])
+        self.assertFalse(get_payload["player"]["map_zoom_active"])
         self.assertEqual(200, post_response.status_code)
         player_context = service.get_player_ability_window_snapshot.call_args.args[0]
         self.assertEqual("broker", player_context["profession"])
