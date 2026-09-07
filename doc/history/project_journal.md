@@ -3614,3 +3614,11 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   satelity wygasają przy `cooldown_until`, sojusznik przejmuje cały rój jednym
   pełnym hakiem, a wróg przejmuje tylko bieżący punkt i generuje deduplikowany
   alarm dla zgłaszającego.
+- Produkcyjna obserwacja ujawniła drugi poziom regresji: samo przypięcie snapshotu
+  do DOM nie zatrzymywało routera Leafleta przed wcześniejszym wywołaniem callbacku
+  obcej warstwy. Menu skanów pozostawało losowo błędne, a podatności stabilizowały
+  się dopiero po zakończeniu odświeżenia warstw.
+- Finalna ścieżka przechwytuje natywne `contextmenu` w fazie DOM capture na
+  kontenerze mapy. Fizycznie kliknięta ikona rozstrzyga snapshot i rodzaj menu,
+  zanim zdarzenie dotrze do rejestru warstw Leafleta. Callback per marker pozostaje
+  wyłącznie kompatybilnym fallbackiem dla zdarzeń syntetycznych.

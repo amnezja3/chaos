@@ -1284,9 +1284,11 @@ statyczne, turkusowe wyróżnienie bez ciągłej animacji obciążającej mapę.
 Fix audit menu markerów przy dużym skanie wraca do kontraktu z 02.07.2026:
 każdy fizyczny element ikony posiada własny zamrożony snapshot celu. Źródłem
 prawdy dla `contextmenu` jest faktycznie kliknięty element DOM, nie callback
-warstwy wskazanej przez wewnętrzny rejestr Leafleta. Dzięki temu nawet stale
-dispatch po odświeżeniu wielu markerów nie może otworzyć menu odległego celu,
-a publiczna podatność dziedziczy poprawne powiązanie `marker → menu`.
+warstwy wskazanej przez wewnętrzny rejestr Leafleta. Natywne zdarzenie jest
+przechwytywane na kontenerze mapy w fazie capture, zanim uruchomi się router
+warstw Leafleta; callback markera jest tylko fallbackiem dla zdarzeń syntetycznych.
+Dzięki temu stale dispatch podczas dużego skanu lub asynchronicznego odświeżania
+podatności nie może otworzyć menu odległego celu.
 
 Fix audit testu serwerowego zamroził również kontrakt hakowania publicznej
 podatności. `vulnerability_id` musi przejść z markera przez aimed target,

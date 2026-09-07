@@ -4910,6 +4910,7 @@
             marker._chaosContextBinding = binding;
             const iconElement = marker.getElement ? marker.getElement() : marker._icon;
             if (iconElement) iconElement._chaosContextBinding = binding;
+            ensureMarkerContextMenuDelegation();
             return binding;
         }
 
@@ -4922,6 +4923,52 @@
             }
             return marker?._chaosContextBinding
                 || bindMarkerContextSnapshot(marker, fallbackTarget, source, report);
+        }
+
+        function showBoundMarkerContextMenu(binding, event) {
+            if (!binding || !binding.target || !map) return false;
+            const point = mapContextEventContainerPoint(event);
+            if (!point) return false;
+            consumeMapContextEvent(event);
+            document.querySelectorAll('.context-menu').forEach(el => el.remove());
+            if (binding.report && binding.report.is_reporter) {
+                showVulnerabilityReporterMenu(point.x, point.y, binding.report);
+                return true;
+            }
+            if (binding.report) {
+                showHackingMenuForMarker(
+                    point.x,
+                    point.y,
+                    binding.target,
+                    binding.target.icon,
+                    binding.target.label,
+                    binding.source || 'clanVulnerabilityMarker'
+                );
+                return true;
+            }
+            showMarkerContextMenu(
+                point.x,
+                point.y,
+                binding.target,
+                binding.target.icon,
+                binding.target.label,
+                binding.source || 'marker'
+            );
+            return true;
+        }
+
+        function ensureMarkerContextMenuDelegation() {
+            if (!map || typeof map.getContainer !== 'function' || typeof document === 'undefined') return;
+            const container = map.getContainer();
+            if (!container || container._chaosMarkerContextDelegationInstalled) return;
+            container._chaosMarkerContextDelegationInstalled = true;
+            container.addEventListener('contextmenu', event => {
+                // Resolve ownership from the physical icon before Leaflet's
+                // layer router can dispatch a stale callback during refresh.
+                const binding = resolveMarkerContextBinding(null, event);
+                if (!binding) return;
+                showBoundMarkerContextMenu(binding, event);
+            }, true);
         }
 
         function showMapMenuFromLeafletContextEvent(e) {

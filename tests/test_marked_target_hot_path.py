@@ -255,6 +255,9 @@ class MarkedTargetFrontendContractTests(unittest.TestCase):
         hitbox = self.source[hitbox_start:hitbox_end]
         self.assertIn("function bindMarkerContextSnapshot", hitbox)
         self.assertIn("eventNode._chaosContextBinding", hitbox)
+        self.assertIn("function ensureMarkerContextMenuDelegation", hitbox)
+        self.assertIn("container.addEventListener('contextmenu'", hitbox)
+        self.assertIn("}, true);", hitbox)
 
         scan_start = self.source.index("if (action === 'scan')")
         scan_end = self.source.index("if (action === 'travel')", scan_start)

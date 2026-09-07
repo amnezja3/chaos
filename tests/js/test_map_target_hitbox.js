@@ -9,18 +9,37 @@ const end = template.indexOf("function showMapMenuFromLeafletContextEvent", star
 assert(start >= 0, "map target hitbox helpers missing");
 assert(end > start, "map target hitbox helper boundary missing");
 
+const mapContainer = {
+    addEventListener(type, handler, capture) {
+        if (type === "contextmenu" && capture === true) this.contextHandler = handler;
+    }
+};
+let delegatedTarget = null;
 const sandbox = {
+    document: {
+        querySelectorAll() { return []; }
+    },
     normalizeMapMenuTarget(target) {
         return Object.freeze({ ...(target || {}) });
     },
+    consumeMapContextEvent(event) {
+        if (event.preventDefault) event.preventDefault();
+    },
     map: {
+        getContainer() {
+            return mapContainer;
+        },
         mouseEventToContainerPoint(event) {
             return { x: Number(event.clientX), y: Number(event.clientY) };
         },
         latLngToContainerPoint(latlng) {
             return { x: Number(latlng[1]), y: Number(latlng[0]) };
         }
-    }
+    },
+    showMarkerContextMenu(x, y, target) { delegatedTarget = target; },
+    showVulnerabilityReporterMenu() {},
+    showHackingMenuForMarker() {},
+    L: { DomEvent: { stop() {} } }
 };
 vm.createContext(sandbox);
 vm.runInContext(template.slice(start, end), sandbox);
@@ -60,6 +79,16 @@ const resolved = sandbox.resolveMarkerContextBinding(
 );
 assert.strictEqual(resolved.target.label, "Zabka", "clicked DOM marker must own the menu snapshot");
 assert.strictEqual(resolved.marker, markerA, "clicked DOM marker must win over a stale Leaflet callback");
+assert.strictEqual(typeof mapContainer.contextHandler, "function", "capture-phase delegation must be installed");
+mapContainer.contextHandler({
+    target: childOfA,
+    clientX: 100,
+    clientY: 80,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {}
+});
+assert.strictEqual(delegatedTarget.label, "Zabka", "delegated menu must resolve before Leaflet layer routing");
 assert.strictEqual(
     sandbox.isContextEventInsideProjectedMarkerHitbox(
         { containerPoint: { x: 220, y: 80 } },
