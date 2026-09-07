@@ -3556,6 +3556,51 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(payload["target"]["target_id"], current_target["target_id"])
         apply_actions.assert_not_called()
 
+    def test_gonna_win_accepts_vulnerability_bound_by_canonical_target_id(self):
+        expected_target = {
+            "target_id": "vulnerability:17",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Publiczna podatnosc",
+            "target_mode": "vulnerability",
+        }
+        current_target = {
+            **expected_target,
+            "vulnerability_id": 17,
+            "actions_allowed": {
+                "scan_ports": False, "exploit": False, "sniff": False, "trace": False,
+            },
+            "security": {"firewall": True},
+        }
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "map_actions": ["trace_gps"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": current_target,
+            "operations": [],
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "apply_app_map_actions_to_aimed_target", return_value=(False, [])), \
+                patch.object(run, "merge_latest_aimed_target_runtime_state"), \
+                patch.object(run, "create_missing_operations_for_app_target", return_value=[]):
+            response = client.post("/gonna-win", json={
+                "app_id": "gps_tool",
+                "operation_only": True,
+                "expected_target": expected_target,
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+        self.assertEqual(response.get_json()["target"]["vulnerability_id"], 17)
+
     def test_gonna_win_rejects_same_launch_receipt_across_targets(self):
         previous_target = {
             "target_id": "map:52.1:21.2:Previous",
@@ -4517,6 +4562,23 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
 
         self.assertEqual(target_position_key(left), target_position_key(right))
         self.assertTrue(targets_share_position(left, right))
+
+    def test_vulnerability_runtime_identity_recovers_id_from_canonical_target_id(self):
+        launch_snapshot = {
+            "target_id": "vulnerability:17",
+            "target_mode": "vulnerability",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Publiczna podatnosc",
+        }
+        runtime_snapshot = {
+            **launch_snapshot,
+            "vulnerability_id": 17,
+        }
+
+        self.assertTrue(run.targets_share_runtime_identity(launch_snapshot, runtime_snapshot))
+        self.assertTrue(run.target_has_stable_runtime_identity(launch_snapshot))
+        self.assertEqual("vulnerability:17", run.build_operation_target_id(launch_snapshot))
 
     def test_filter_removes_by_position_without_label_match(self):
         captured = {"lat": 52.1, "lng": 21.2, "label": "AE Woman"}

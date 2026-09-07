@@ -2168,6 +2168,7 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
             lng: pending.lng,
             label: pending.label || pending.name || "",
             target_mode: pending.target_mode || "",
+            vulnerability_id: pending.vulnerability_id || "",
             foreign_area_id: pending.foreign_area_id || "",
             stable_conflict_id: pending.stable_conflict_id || "",
             conflict_id: pending.conflict_id || "",
@@ -2561,6 +2562,7 @@ function buildApplicationLaunchContext(appData = {}) {
         lng: aimedTarget.lng !== undefined ? aimedTarget.lng : aimedTarget.lon,
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
         target_mode: aimedTarget.target_mode || "",
+        vulnerability_id: aimedTarget.vulnerability_id || "",
         foreign_area_id: aimedTarget.foreign_area_id || "",
         stable_conflict_id: aimedTarget.stable_conflict_id || "",
         conflict_id: aimedTarget.conflict_id || "",
@@ -2708,6 +2710,16 @@ function preserveCanonicalGonnaWinSuccess(context, receiptScope, payload = null)
         idempotent_replay: true,
         semantic_success_preserved: true
     };
+}
+
+function surfaceGonnaWinConflict(response, payload = {}, appId = "") {
+    if (!response || response.status !== 409 || payload.success === true) return false;
+    const message = String(
+        payload.message || payload.status || payload.reason || payload.error
+        || "Stan celu zmienil sie. Uruchom aplikacje ponownie."
+    ).trim();
+    addSystemMessage("warning", `Konflikt celu${appId ? ` // ${appId}` : ""}`, message);
+    return true;
 }
 
 function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
@@ -5326,6 +5338,7 @@ async function notifyGonnaWin(appId, appWindow = null, {
             };
             appFlowTrace(flowId, "gonna_win_response", responseTrace);
             console.info(`[GONNA_WIN_RESPONSE] ${JSON.stringify(responseTrace)}`);
+            surfaceGonnaWinConflict(response, data || {}, appId);
         } catch (error) {
             throw error;
         }
@@ -8471,6 +8484,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
                 current_owner_username: data.current_owner_username || '',
                 ownership_version: data.ownership_version
             });
+            surfaceGonnaWinConflict(response, data || {}, appId);
         }
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);

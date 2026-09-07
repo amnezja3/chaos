@@ -240,9 +240,17 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("explicitLaunchReceipt || createApplicationInvocationReceipt", context)
         self.assertIn("invocation_id: launchReceipt", context)
         self.assertIn("foreign_area_id: aimedTarget.foreign_area_id", context)
+        self.assertIn("vulnerability_id: aimedTarget.vulnerability_id", context)
         self.assertIn("stable_conflict_id: aimedTarget.stable_conflict_id", context)
         self.assertIn("ownership_version: aimedTarget.ownership_version", context)
         self.assertNotIn('`${flowId || "manual"}:${appId || name}`', context)
+
+    def test_authoritative_backend_failure_message_is_visible_in_feedback(self):
+        self.assertIn(
+            "payload.message || payload.status || payload.reason || payload.error",
+            self.feedback,
+        )
+        self.assertIn("authoritativeFailure", self.feedback)
 
     def test_gonna_win_response_trace_exposes_conflict_identity(self):
         notify = self.function_source(
@@ -257,6 +265,16 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("[GONNA_WIN_RESPONSE] ${JSON.stringify(responseTrace)}", notify)
         self.assertIn('error: (data && data.error) || ""', notify)
         self.assertIn("retryable: data && data.retryable === true", notify)
+        self.assertIn("surfaceGonnaWinConflict(response, data || {}, appId)", notify)
+
+    def test_controlled_409_is_exposed_through_system_messaging(self):
+        helper = self.function_source(
+            "function surfaceGonnaWinConflict",
+            "function applyApplicationLaunchContext",
+        )
+        self.assertIn("response.status !== 409", helper)
+        self.assertIn("payload.message || payload.status || payload.reason || payload.error", helper)
+        self.assertIn('addSystemMessage("warning"', helper)
 
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {

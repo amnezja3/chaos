@@ -7370,6 +7370,21 @@ def targets_share_position(left, right, precision=5):
     return bool(left_key and right_key and left_key == right_key)
 
 
+def target_vulnerability_identity(target):
+    """Return the canonical public-vulnerability id carried by a target."""
+    if not isinstance(target, dict):
+        return ""
+    vulnerability_id = str(target.get("vulnerability_id") or "").strip()
+    if vulnerability_id:
+        return vulnerability_id
+    target_id = str(target.get("target_id") or "").strip()
+    if target_id.startswith("vulnerability:"):
+        candidate = target_id.split(":", 1)[1].strip()
+        if candidate.isdigit():
+            return candidate
+    return ""
+
+
 def targets_share_runtime_identity(left, right):
     """Return true when two target snapshots point at the same gameplay object."""
     if not isinstance(left, dict) or not isinstance(right, dict):
@@ -7386,8 +7401,8 @@ def targets_share_runtime_identity(left, right):
             == str(right.get("target_username") or right.get("username") or "").strip()
         )
 
-    left_vulnerability = str(left.get("vulnerability_id") or "").strip()
-    right_vulnerability = str(right.get("vulnerability_id") or "").strip()
+    left_vulnerability = target_vulnerability_identity(left)
+    right_vulnerability = target_vulnerability_identity(right)
     if left_vulnerability or right_vulnerability:
         return bool(left_vulnerability and left_vulnerability == right_vulnerability)
 
@@ -8490,8 +8505,9 @@ def build_operation_target_id(target):
     target = target or {}
     if target.get("target_mode") == "player" and target.get("target_username"):
         return f"player:{target.get('target_username')}"
-    if target.get("vulnerability_id"):
-        return f"vulnerability:{target.get('vulnerability_id')}"
+    vulnerability_id = target_vulnerability_identity(target)
+    if vulnerability_id:
+        return f"vulnerability:{vulnerability_id}"
     if target.get("foreign_area_id"):
         key = target_position_key(target) or ("unknown", "unknown")
         return f"territory_contest:{target.get('foreign_area_id')}:{key[0]}:{key[1]}"
@@ -8506,7 +8522,7 @@ def target_has_stable_runtime_identity(target):
         return False
     if str(target.get("target_mode") or "").strip() == "player":
         return bool(str(target.get("target_username") or target.get("username") or "").strip())
-    if str(target.get("vulnerability_id") or "").strip():
+    if target_vulnerability_identity(target):
         return True
     key = target_position_key(target)
     if not key:

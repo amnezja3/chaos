@@ -3581,3 +3581,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Produkcyjnie podłączono P5 `reflection → territory_defense`. Aktywacja wyłącznie
   uzbraja report gate; publikacja następuje po zgłoszeniu podatności. Status:
   `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+## 2026-09-07 — fix audit publicznych podatności P5
+
+- Pierwszy test serwerowy potwierdził publikację roju, ale każda aplikacja
+  uruchomiona przez klanowicza kończyła się `409 target_selection_changed`.
+- Przyczyną była utrata `vulnerability_id` podczas wiązania okna aplikacji.
+  Snapshot startowy stawał się zwykłym `map:<pozycja>:<etykieta>`, podczas gdy
+  kanoniczny runtime poprawnie przechowywał `vulnerability:<id>`.
+- Desktop i provisional launch zachowują teraz `vulnerability_id`. Backend umie
+  dodatkowo odzyskać numeryczną tożsamość ze stabilnego `target_id`, dzięki czemu
+  chroni również okna utworzone przez klienta sprzed odświeżenia assetów.
+- Zachowano dotychczasową bramkę obcego terytorium: publiczna podatność nie
+  omija ochrony obszaru, natomiast klanowicz na wspólnym terytorium przechodzi
+  zwykłą ścieżkę hakowania minimalnego security.
+- Negatywny wynik OFS pokazuje teraz autorytatywny `message/status/reason/error`
+  z backendu obok narracji aplikacji, zamiast samego ogólnego komunikatu.
+  Kontrolowane `409` publikuje ten sam powód także przez system messaging UI.
+- Cache bust assetów wymusza pobranie naprawionego kontraktu po wdrożeniu.
+  Status `.3.5` pozostaje `IMPLEMENTATION / SERVER E2E RETEST PENDING`.

@@ -1658,9 +1658,17 @@
                 : (legacyCompletion && legacyCompletion.length
                     ? legacyCompletion
                     : fallbackCompletion);
+            const terminalLine = randomItem(completionLines, this.random)
+                || (success ? "Runtime potwierdzil powodzenie." : "Runtime zwrocil wynik operacji.");
+            const authoritativeFailure = success ? "" : safeContentText(
+                payload.message || payload.status || payload.reason || payload.error,
+                { allowOutcome: true }
+            );
             this.render(success ? "Potwierdzono wynik." : "Operacja zakonczona.", [
-                randomItem(completionLines, this.random)
-                    || (success ? "Runtime potwierdzil powodzenie." : "Runtime zwrocil wynik operacji.")
+                terminalLine,
+                ...(authoritativeFailure && authoritativeFailure !== terminalLine
+                    ? [authoritativeFailure]
+                    : [])
             ], success ? "success" : "failure");
             this.trace("feedback_payload_received", { success });
             this.playSemanticSfx(success ? "success" : "failure");

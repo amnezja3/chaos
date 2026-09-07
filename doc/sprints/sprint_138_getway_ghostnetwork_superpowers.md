@@ -1277,6 +1277,16 @@ wygasły snapshot albo punkt spoza snapshotu również bezpiecznie redukuje dzia
 do pojedynczego zgłoszenia. Publiczne markery utworzone przez moc mają statyczne,
 turkusowe wyróżnienie bez ciągłej animacji obciążającej mapę.
 
+Fix audit testu serwerowego zamroził również kontrakt hakowania publicznej
+podatności. `vulnerability_id` musi przejść z markera przez aimed target,
+provisional/desktop launch i `expected_target` aż do `/gonna-win`; stabilna
+tożsamość w każdej warstwie ma postać `vulnerability:<id>`. Klanowicz korzysta
+z normalnych aplikacji przeciw minimalnemu security markera. Backend akceptuje
+także kanoniczne `target_id` klienta sprzed przeładowania assetów, ale nie znosi
+ochrony obcego terytorium. Kontrolowany błąd runtime musi być pokazany w aplikacji
+razem z jego autorytatywnym komunikatem oraz przez system messaging UI, a nie
+wyłącznie jako ogólny wynik negatywny.
+
 ## 13. 138.getway.4 — Strażnicy Ładu
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
