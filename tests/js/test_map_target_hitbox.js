@@ -10,6 +10,9 @@ assert(start >= 0, "map target hitbox helpers missing");
 assert(end > start, "map target hitbox helper boundary missing");
 
 const sandbox = {
+    normalizeMapMenuTarget(target) {
+        return Object.freeze({ ...(target || {}) });
+    },
     map: {
         mouseEventToContainerPoint(event) {
             return { x: Number(event.clientX), y: Number(event.clientY) };
@@ -41,6 +44,22 @@ assert.strictEqual(
     false,
     "an event captured far outside the icon must fall through to the map menu"
 );
+
+const markerA = { getElement() { return this.icon; }, icon: {} };
+const markerB = { getElement() { return this.icon; }, icon: {} };
+const targetA = { lat: 52.1, lng: 21.1, label: "Zabka" };
+const targetB = { lat: 50.0, lng: 19.0, label: "Topaz" };
+sandbox.bindMarkerContextSnapshot(markerA, targetA, "scanTargetMarker");
+sandbox.bindMarkerContextSnapshot(markerB, targetB, "scanTargetMarker");
+const childOfA = { parentNode: markerA.icon };
+const resolved = sandbox.resolveMarkerContextBinding(
+    markerB,
+    { originalEvent: { target: childOfA } },
+    targetB,
+    "scanTargetMarker"
+);
+assert.strictEqual(resolved.target.label, "Zabka", "clicked DOM marker must own the menu snapshot");
+assert.strictEqual(resolved.marker, markerA, "clicked DOM marker must win over a stale Leaflet callback");
 assert.strictEqual(
     sandbox.isContextEventInsideProjectedMarkerHitbox(
         { containerPoint: { x: 220, y: 80 } },

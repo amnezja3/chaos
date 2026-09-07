@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import run
 from database import PlayerScanSnapshotStore, VulnerabilityStore
@@ -94,6 +94,7 @@ class TerritoryDefenseRuntimeTest(unittest.TestCase):
                     "active": True,
                     "ability_code": "reflection",
                     "window_id": "window-p5",
+                    "cooldown_until": "2099-09-07T22:00:00+00:00",
                     "swarm_limit": 8,
                 }
 
@@ -122,10 +123,79 @@ class TerritoryDefenseRuntimeTest(unittest.TestCase):
         self.assertLessEqual(payload["swarm"]["count"], MAX_TERRITORY_DEFENSE_SWARM)
         stored = self.vulnerabilities.list_active()
         self.assertEqual(payload["swarm"]["count"], len(stored))
+        self.assertEqual("2099-09-07T22:00:00+00:00", payload["swarm"]["expires_at"])
+        self.assertEqual(1, sum(
+            bool(item["target"]["territory_defense_provenance"]["primary"])
+            for item in stored
+        ))
         for report in stored:
             provenance = report["target"]["territory_defense_provenance"]
             self.assertEqual("territory_defense", provenance["family"])
             self.assertEqual("window-p5", provenance["window_id"])
+            self.assertEqual(payload["swarm"]["swarm_id"], provenance["swarm_id"])
+
+    def test_swarm_satellites_expire_after_cooldown_but_primary_survives(self):
+        expiry = "2026-09-07T22:00:00+00:00"
+        for index, primary in enumerate((True, False, False)):
+            item = marker(52 + index * 0.01, 21, f"V{index}")
+            item["territory_defense_provenance"] = {
+                "family": "territory_defense",
+                "swarm_id": "swarm-expiry",
+                "primary": primary,
+                "ephemeral": not primary,
+                "expires_at": expiry,
+            }
+            self.vulnerabilities.report(item, "alice", "phantom_mesh", {})
+
+        expired = self.vulnerabilities.expire_territory_defense_satellites(
+            "2026-09-07T22:00:01+00:00"
+        )
+        self.assertEqual(2, expired)
+        active = self.vulnerabilities.list_active()
+        self.assertEqual(1, len(active))
+        self.assertTrue(active[0]["target"]["territory_defense_provenance"]["primary"])
+
+    def test_enemy_swarm_alarm_is_claimed_once_per_clan(self):
+        self.assertTrue(self.vulnerabilities.claim_swarm_alarm("swarm-1", "virex", "eve"))
+        self.assertFalse(self.vulnerabilities.claim_swarm_alarm("swarm-1", "virex", "mallory"))
+        self.assertTrue(self.vulnerabilities.claim_swarm_alarm("swarm-1", "echo_freedom", "bob"))
+
+    def test_same_clan_capture_takes_whole_swarm_but_enemy_capture_does_not(self):
+        reports = []
+        for index in range(3):
+            item = marker(52 + index * 0.01, 21, f"S{index}")
+            item["territory_defense_provenance"] = {
+                "family": "territory_defense",
+                "swarm_id": "swarm-capture",
+                "primary": index == 0,
+                "expires_at": "2099-09-07T22:00:00+00:00",
+            }
+            reports.append(self.vulnerabilities.report(
+                item, "alice", "Siatka Widmo", {}
+            ))
+
+        territory = MagicMock()
+        territory.save_captured_target.side_effect = lambda username, target: dict(target)
+        marked = MagicMock()
+        runtime = MagicMock()
+        with (
+            patch.object(run, "vulnerability_store", self.vulnerabilities),
+            patch.object(run, "territory_store", territory),
+            patch.object(run, "player_marked_target_store", marked),
+            patch.object(run, "player_target_runtime_store", runtime),
+            patch.object(run, "record_map_target_delta"),
+        ):
+            enemy = run.capture_same_clan_territory_defense_swarm(
+                reports[0], "eve", {"clan": "VIREX"}
+            )
+            captured = run.capture_same_clan_territory_defense_swarm(
+                reports[0], "bob", {"clan": "Siatka Widmo"}
+            )
+
+        self.assertEqual([], enemy)
+        self.assertEqual(2, len(captured))
+        self.assertEqual(2, territory.save_captured_target.call_count)
+        self.assertEqual(1, len(self.vulnerabilities.list_active()))
 
     def test_p5_maps_to_shared_family_and_activation_only_arms_report_gate(self):
         now = datetime(2026, 9, 7, 20, 0, tzinfo=timezone.utc)

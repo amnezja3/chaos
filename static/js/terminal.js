@@ -5367,6 +5367,7 @@ async function notifyGonnaWin(appId, appWindow = null, {
         if (data.success && data.captured_target && !data.semantic_success_preserved) {
             playAuthoritativeCaptureSfx(data.captured_target);
             notifyOpenMapsTargetHacked(data.captured_target);
+            notifyOpenMapsTerritoryDefenseSwarmCaptured(data);
             refreshToolbarProfile();
         }
         if (typeof beforeFeedbackComplete === "function") {
@@ -5409,6 +5410,12 @@ function notifyOpenMapsTargetHacked(target) {
             console.warn("Nie udało się odświeżyć markera mapy:", err);
         }
     });
+}
+
+function notifyOpenMapsTerritoryDefenseSwarmCaptured(data = {}) {
+    const capturedTargets = data.territory_defense_swarm_capture?.captured_targets;
+    if (!Array.isArray(capturedTargets)) return;
+    capturedTargets.forEach(target => notifyOpenMapsTargetHacked(target));
 }
 
 function authoritativeCaptureSfxVersion(target = {}) {
@@ -8514,6 +8521,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         if (data.success && data.captured_target && responseMatchesCurrentTarget && !data.semantic_success_preserved) {
             playAuthoritativeCaptureSfx(data.captured_target);
             notifyOpenMapsTargetHacked(data.captured_target);
+            notifyOpenMapsTerritoryDefenseSwarmCaptured(data);
             refreshToolbarProfile();
             appFlowTrace(flowId, "target_captured_from_app_option", {
                 app_id: appId,

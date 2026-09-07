@@ -24000,15 +24000,46 @@ def hack_action():
 
         reporter = vulnerability_report.get("reported_by_username")
         if reporter and reporter != session["user"]:
-            add_system_message_to_user(
-                reporter,
-                "info",
-                "Proba hackowania podatnosci",
-                (
-                    f"{profile.get('nick') or session['user']} uruchomil akcje {action} "
-                    f"na zgloszeniu {vulnerability_report.get('label')}."
-                )
+            provenance = (
+                (vulnerability_report.get("target") or {})
+                .get("territory_defense_provenance") or {}
             )
+            swarm_id = str(provenance.get("swarm_id") or "").strip()
+            attacker_clan = get_profile_clan(profile)
+            defending_clan = str(vulnerability_report.get("reported_by_clan") or "").strip()
+            enemy_swarm_attack = bool(
+                swarm_id and defending_clan and attacker_clan != defending_clan
+            )
+            if enemy_swarm_attack:
+                if vulnerability_store.claim_swarm_alarm(
+                    swarm_id, attacker_clan, session["user"]
+                ):
+                    attacker_name = profile.get("nick") or session["user"]
+                    alert_text = (
+                        f"{attacker_name} ({session['user']}) naruszyl roj obronny "
+                        f"na celu {vulnerability_report.get('label')}. "
+                        "Wrogi atak nie przejmuje pozostalych punktow roju."
+                    )
+                    add_system_message_to_user(
+                        reporter, "warning", "Alarm: atak na roj podatnosci", alert_text
+                    )
+                    add_cyberner_direct_notification(
+                        reporter,
+                        "System",
+                        "System",
+                        "Alarm: atak na roj podatnosci",
+                        alert_text,
+                    )
+            elif not swarm_id:
+                add_system_message_to_user(
+                    reporter,
+                    "info",
+                    "Proba hackowania podatnosci",
+                    (
+                        f"{profile.get('nick') or session['user']} uruchomil akcje {action} "
+                        f"na zgloszeniu {vulnerability_report.get('label')}."
+                    )
+                )
     app_flow_debug_timed(
         flow_id,
         "hack_action_vulnerability_check_done",
@@ -27514,16 +27545,37 @@ def report_vulnerability():
         f"{defense.get('window_id')}:territory_defense"
         if swarm_active and defense.get("window_id") else ""
     )
+    swarm_id = ""
+    if swarm_active:
+        swarm_seed = "|".join([
+            str(defense.get("window_id") or ""),
+            scan_id,
+            username,
+        ])
+        swarm_id = "territory_defense_swarm_" + hashlib.sha1(
+            swarm_seed.encode("utf-8")
+        ).hexdigest()[:20]
     for candidate in swarm_targets:
         candidate = dict(candidate)
         candidate["scan_id"] = scan_id if scan_snapshot else ""
         if ability_marker:
             candidate["ability_application_keys"] = [ability_marker]
+            primary_swarm_target = (
+                round(float(candidate.get("lat")), 5) == round(lat, 5)
+                and round(float(candidate.get("lng", candidate.get("lon"))), 5)
+                == round(lng, 5)
+            )
             candidate["territory_defense_provenance"] = {
                 "ability_code": defense.get("ability_code"),
                 "window_id": defense.get("window_id"),
                 "family": "territory_defense",
                 "scan_id": scan_id,
+                "swarm_id": swarm_id,
+                "primary": primary_swarm_target,
+                "ephemeral": not primary_swarm_target,
+                # Satellites live through the whole ability cooldown. The
+                # player-reported primary is never expired by this policy.
+                "expires_at": defense.get("cooldown_until"),
             }
         candidate_lat = float(candidate.get("lat"))
         candidate_lng = float(candidate.get("lng", candidate.get("lon")))
@@ -27586,6 +27638,8 @@ def report_vulnerability():
             "span_m": territory_defense_swarm_span_m(reports) if swarm_active else 0,
             "ability_code": defense.get("ability_code") if swarm_active else "",
             "window_id": defense.get("window_id") if swarm_active else "",
+            "swarm_id": swarm_id if swarm_active else "",
+            "expires_at": defense.get("cooldown_until") if swarm_active else "",
         },
         "potential": potential,
     })
@@ -29443,6 +29497,79 @@ def resolve_app_required_off_state(target_security, required_off):
     }
 
 
+def capture_same_clan_territory_defense_swarm(
+    vulnerability_report, attacker_username, attacker_profile
+):
+    """Capture remaining swarm members after one same-clan member is hacked."""
+    report_target = (vulnerability_report or {}).get("target") or {}
+    provenance = report_target.get("territory_defense_provenance") or {}
+    swarm_id = str(provenance.get("swarm_id") or "").strip()
+    defending_clan = str((vulnerability_report or {}).get("reported_by_clan") or "").strip()
+    attacker_clan = str(get_profile_clan(attacker_profile) or "").strip()
+    if not swarm_id or not defending_clan or attacker_clan != defending_clan:
+        return []
+
+    current_id = int((vulnerability_report or {}).get("id") or 0)
+    captured = []
+    for member in vulnerability_store.list_active_swarm(swarm_id):
+        member_id = int(member.get("id") or 0)
+        if not member_id or member_id == current_id:
+            continue
+        target = dict(member.get("target") or {})
+        target.update({
+            "lat": float(member.get("lat")),
+            "lng": float(member.get("lng")),
+            "lon": float(member.get("lng")),
+            "label": member.get("label") or target.get("label") or "Podatnosc",
+            "name": member.get("name") or target.get("name") or member.get("label") or "Podatnosc",
+            "icon": member.get("icon") or target.get("icon") or "!",
+            "source_type": member.get("source_type") or target.get("source_type") or "manual",
+            "generated": bool(member.get("generated") or target.get("generated")),
+            "security": dict(member.get("security") or target.get("security") or {}),
+            "target_mode": "vulnerability",
+            "vulnerability_id": member_id,
+            "target_id": f"vulnerability:{member_id}",
+            "owner_username": attacker_username,
+            "captured_at": datetime.utcnow().isoformat(timespec="seconds"),
+        })
+        target["stationary"] = not bool(target.get("generated", False))
+        try:
+            committed = territory_store.save_captured_target(attacker_username, target)
+            vulnerability_store.set_status(member_id, "hacked")
+            player_marked_target_store.remove_matching(
+                attacker_username,
+                committed,
+                match_label=False,
+                source="territory_defense_swarm_capture",
+            )
+            try:
+                player_target_runtime_store.mark_captured(
+                    attacker_username,
+                    committed,
+                    source="territory_defense_swarm_capture",
+                )
+            except Exception as exc:
+                print(
+                    f"[territory defense] swarm runtime mark failed "
+                    f"user={attacker_username} vulnerability_id={member_id} error={exc}",
+                    flush=True,
+                )
+            record_map_target_delta(
+                attacker_username,
+                committed,
+                change_type="map.target_captured",
+                reason="territory_defense_swarm_capture",
+            )
+            captured.append(committed)
+        except Exception as exc:
+            print(
+                f"[territory defense] swarm member capture failed "
+                f"user={attacker_username} vulnerability_id={member_id} error={exc}",
+                flush=True,
+            )
+    return captured
+
+
 @app.route('/gonna-win', methods=['POST'])
 def gonna_win():
     app_flow_started_at = time.perf_counter()
@@ -30032,6 +30159,7 @@ def gonna_win():
 
     session["profile"] = profile
     rebuilt_areas = None
+    territory_defense_swarm_captures = []
     progression = None
     captured_target_response = None
     ordinary_capture_commit_published = False
@@ -30473,6 +30601,16 @@ def gonna_win():
 
         if vulnerability_report:
             vulnerability_store.set_status(vulnerability_report.get("id"), "hacked")
+            territory_defense_swarm_captures = capture_same_clan_territory_defense_swarm(
+                vulnerability_report,
+                session["user"],
+                profile,
+            )
+            if territory_defense_swarm_captures:
+                hacked_targets.extend(territory_defense_swarm_captures)
+                profile["targets"] = player_marked_target_store.list_targets(
+                    session["user"], ensure_seeded=False,
+                )
         elif not contest_owner_username and captured_target_mode != "player":
             vulnerability_store.mark_hacked_by_target(
                 captured_target.get("lat"),
@@ -30849,6 +30987,13 @@ def gonna_win():
         "created_operations": created_operations,
         "territory_conflict_consolidation": conflict_consolidation_summary,
         "territory_conflict_capture": conflict_capture_summary,
+        "territory_defense_swarm_capture": {
+            "active": bool(territory_defense_swarm_captures),
+            "count": len(territory_defense_swarm_captures) + (
+                1 if territory_defense_swarm_captures else 0
+            ),
+            "captured_targets": territory_defense_swarm_captures,
+        },
     }
     finish_gonna_win_receipt(payload)
     return jsonify(payload)

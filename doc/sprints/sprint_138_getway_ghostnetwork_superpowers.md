@@ -281,7 +281,7 @@ ability_code
 | `map_zoom` | proporcjonalny strategiczny limit oddalenia zależny od `level_snapshot` | tymczasowy boost istniejącego serwerowego `min_zoom`; Folium i kafelki powstają z tym samym limitem, bez trwałego zakupu w profilu |
 | `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
 | `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
-| `territory_defense` | jedno poprawne zgłoszenie wystawia geometryczny rój publicznych podatności z tego samego skanu | wygasający, przypisany do gracza snapshot `scan_id`; obrys skanu upraszczany do maks. 8 punktów; istniejący vulnerability store i alarmy |
+| `territory_defense` | jedno poprawne zgłoszenie wystawia geometryczny rój publicznych podatności z tego samego skanu | wygasający, przypisany do gracza snapshot `scan_id`; obrys maks. 8 punktów; sojusznicze przejęcie całego roju, wrogi alarm i pojedynczy hack; satelity do `cooldown_until` |
 
 Katalog zachowuje 12 rodzin technicznych, ale bieżąca bramka certyfikuje 9.
 `file_value`, `actor_visibility` i `incident_decoy` pozostają jawnie odłożone.
@@ -1271,11 +1271,22 @@ obcego klanu nadal korzysta z istniejących alarmów. Właściciel obszaru dosta
 jeden zbiorczy komunikat o roju zamiast serii komunikatów dla każdego punktu.
 Ponowienie żądania nie tworzy duplikatów.
 
-Po expiry lub utracie P5 opublikowane podatności pozostają, lecz kolejne zgłoszenie
-publikuje już tylko wybrany marker. Brak `scan_id`, snapshot innego gracza,
-wygasły snapshot albo punkt spoza snapshotu również bezpiecznie redukuje działanie
-do pojedynczego zgłoszenia. Publiczne markery utworzone przez moc mają statyczne,
-turkusowe wyróżnienie bez ciągłej animacji obciążającej mapę.
+Pierwotny punkt oznaczony przez gracza pozostaje klasyczną podatnością. Dodatkowe
+punkty roju istnieją do końca `cooldown_until`; niewykorzystane są wtedy oznaczane
+jako wygasłe i znikają z publicznej mapy. Schakowanie dowolnego aktywnego punktu
+przez członka tego samego klanu przejmuje cały rój. Gracz obcego klanu przejmuje
+wyłącznie hakowany punkt, a pierwsze naruszenie roju przez dany obcy klan generuje
+deduplikowany System Message i wiadomość Cybernera do zgłaszającego. Brak
+`scan_id`, snapshot innego gracza, wygasły snapshot albo punkt spoza snapshotu
+bezpiecznie redukuje działanie do pojedynczego zgłoszenia. Publiczne markery mają
+statyczne, turkusowe wyróżnienie bez ciągłej animacji obciążającej mapę.
+
+Fix audit menu markerów przy dużym skanie wraca do kontraktu z 02.07.2026:
+każdy fizyczny element ikony posiada własny zamrożony snapshot celu. Źródłem
+prawdy dla `contextmenu` jest faktycznie kliknięty element DOM, nie callback
+warstwy wskazanej przez wewnętrzny rejestr Leafleta. Dzięki temu nawet stale
+dispatch po odświeżeniu wielu markerów nie może otworzyć menu odległego celu,
+a publiczna podatność dziedziczy poprawne powiązanie `marker → menu`.
 
 Fix audit testu serwerowego zamroził również kontrakt hakowania publicznej
 podatności. `vulnerability_id` musi przejść z markera przez aimed target,

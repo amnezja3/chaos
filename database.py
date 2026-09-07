@@ -2478,6 +2478,17 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS vulnerability_swarm_alerts (
+                swarm_id TEXT NOT NULL,
+                attacker_clan TEXT NOT NULL DEFAULT '',
+                attacker_username TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(swarm_id, attacker_clan)
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS player_scan_snapshots (
                 scan_id TEXT PRIMARY KEY,
                 username TEXT NOT NULL,
@@ -9182,7 +9193,7 @@ class PlayerScanSnapshotStore:
 
 
 class VulnerabilityStore:
-    VALID_STATUSES = {"active", "withdrawn", "hacked"}
+    VALID_STATUSES = {"active", "withdrawn", "hacked", "expired"}
 
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
@@ -9235,7 +9246,7 @@ class VulnerabilityStore:
         with db_connect(self.db_path) as conn:
             existing = conn.execute(
                 """
-                SELECT id, reported_by_username
+                SELECT id, reported_by_username, target_json
                 FROM reported_vulnerabilities
                 WHERE ROUND(target_lat, 5) = ROUND(?, 5)
                     AND ROUND(target_lng, 5) = ROUND(?, 5)
@@ -9257,6 +9268,16 @@ class VulnerabilityStore:
                         (existing["id"],),
                     ).fetchone()
                     return self._row_to_report(row)
+                previous_target = loads_json(existing["target_json"], {})
+                previous_provenance = (
+                    previous_target.get("territory_defense_provenance")
+                    if isinstance(previous_target, dict) else None
+                )
+                incoming_provenance = normalized.get("territory_defense_provenance")
+                if isinstance(incoming_provenance, dict) and not previous_provenance:
+                    # A classic marker that already existed may participate in
+                    # the swarm, but it must never become an expiring satellite.
+                    incoming_provenance["ephemeral"] = False
                 conn.execute(
                     """
                     UPDATE reported_vulnerabilities
@@ -9323,7 +9344,25 @@ class VulnerabilityStore:
                 "SELECT * FROM reported_vulnerabilities WHERE id = ?",
                 (report_id,),
             ).fetchone()
-            return self._row_to_report(row) if row else None
+            if not row:
+                return None
+            report = self._row_to_report(row)
+            provenance = (report.get("target") or {}).get(
+                "territory_defense_provenance"
+            ) or {}
+            expires_at = str(provenance.get("expires_at") or "").strip()
+            if (
+                report.get("status") == "active"
+                and provenance.get("ephemeral") is True
+                and expires_at
+            ):
+                expired = conn.execute(
+                    "SELECT julianday(?) <= julianday('now') AS expired",
+                    (expires_at,),
+                ).fetchone()
+                if expired and bool(expired["expired"]):
+                    report["status"] = "expired"
+            return report
 
     def list_active_for_clan(self, clan):
         with db_connect(self.db_path) as conn:
@@ -9333,6 +9372,11 @@ class VulnerabilityStore:
                 FROM reported_vulnerabilities
                 WHERE reported_by_clan = ?
                     AND status = 'active'
+                    AND (
+                        COALESCE(json_extract(target_json, '$.territory_defense_provenance.ephemeral'), 0) != 1
+                        OR json_extract(target_json, '$.territory_defense_provenance.expires_at') IS NULL
+                        OR julianday(json_extract(target_json, '$.territory_defense_provenance.expires_at')) > julianday('now')
+                    )
                 ORDER BY updated_at DESC, id DESC
                 """,
                 (clan or "",),
@@ -9346,10 +9390,98 @@ class VulnerabilityStore:
                 SELECT *
                 FROM reported_vulnerabilities
                 WHERE status = 'active'
+                    AND (
+                        COALESCE(json_extract(target_json, '$.territory_defense_provenance.ephemeral'), 0) != 1
+                        OR json_extract(target_json, '$.territory_defense_provenance.expires_at') IS NULL
+                        OR julianday(json_extract(target_json, '$.territory_defense_provenance.expires_at')) > julianday('now')
+                    )
                 ORDER BY updated_at DESC, id DESC
                 """
             ).fetchall()
             return [self._row_to_report(row) for row in rows]
+
+    def expire_territory_defense_satellites(self, now=None):
+        """Expire only generated swarm members; the player's anchor survives."""
+        now = str(now or utc_now())
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE reported_vulnerabilities
+                SET status = 'expired', updated_at = ?
+                WHERE status = 'active'
+                  AND json_extract(target_json, '$.territory_defense_provenance.family') = 'territory_defense'
+                  AND COALESCE(
+                        json_extract(target_json, '$.territory_defense_provenance.ephemeral'),
+                        0
+                      ) = 1
+                  AND julianday(
+                        json_extract(target_json, '$.territory_defense_provenance.expires_at')
+                      ) <= julianday(?)
+                """,
+                (now, now),
+            )
+            return int(cursor.rowcount or 0)
+
+    def list_active_swarm(self, swarm_id):
+        swarm_id = str(swarm_id or "").strip()
+        if not swarm_id:
+            return []
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM reported_vulnerabilities
+                WHERE status = 'active'
+                  AND json_extract(target_json, '$.territory_defense_provenance.swarm_id') = ?
+                  AND (
+                      COALESCE(json_extract(target_json, '$.territory_defense_provenance.ephemeral'), 0) != 1
+                      OR json_extract(target_json, '$.territory_defense_provenance.expires_at') IS NULL
+                      OR julianday(json_extract(target_json, '$.territory_defense_provenance.expires_at')) > julianday('now')
+                  )
+                ORDER BY id ASC
+                """,
+                (swarm_id,),
+            ).fetchall()
+            return [self._row_to_report(row) for row in rows]
+
+    def set_swarm_status(self, swarm_id, status):
+        if status not in self.VALID_STATUSES:
+            raise ValueError(f"Invalid vulnerability status: {status}")
+        swarm_id = str(swarm_id or "").strip()
+        if not swarm_id:
+            return 0
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE reported_vulnerabilities
+                SET status = ?, updated_at = ?
+                WHERE status = 'active'
+                  AND json_extract(target_json, '$.territory_defense_provenance.swarm_id') = ?
+                """,
+                (status, utc_now(), swarm_id),
+            )
+            return int(cursor.rowcount or 0)
+
+    def claim_swarm_alarm(self, swarm_id, attacker_clan, attacker_username):
+        """Return True once per enemy clan and swarm to avoid tool-by-tool spam."""
+        swarm_id = str(swarm_id or "").strip()
+        if not swarm_id:
+            return False
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO vulnerability_swarm_alerts
+                    (swarm_id, attacker_clan, attacker_username, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    swarm_id,
+                    str(attacker_clan or ""),
+                    str(attacker_username or ""),
+                    utc_now(),
+                ),
+            )
+            return int(cursor.rowcount or 0) == 1
 
     def set_status(self, report_id, status):
         if status not in self.VALID_STATUSES:

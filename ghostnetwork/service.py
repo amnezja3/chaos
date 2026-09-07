@@ -1389,6 +1389,7 @@ class GhostNetworkService:
             "active": True,
             "ability_code": ability_code,
             "window_id": str(window.get("window_id") or ""),
+            "cooldown_until": str(window.get("cooldown_until") or ""),
             "swarm_limit": MAX_TERRITORY_DEFENSE_SWARM,
         }
 

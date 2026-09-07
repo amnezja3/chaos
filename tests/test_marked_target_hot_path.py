@@ -249,6 +249,19 @@ class MarkedTargetFrontendContractTests(unittest.TestCase):
             helpers.index("layer.unbindTooltip()"),
         )
 
+    def test_dense_scan_markers_resolve_menu_from_clicked_dom_owner(self):
+        hitbox_start = self.source.index("function isContextEventInsideMarkerHitbox")
+        hitbox_end = self.source.index("function showMapMenuFromLeafletContextEvent", hitbox_start)
+        hitbox = self.source[hitbox_start:hitbox_end]
+        self.assertIn("function bindMarkerContextSnapshot", hitbox)
+        self.assertIn("eventNode._chaosContextBinding", hitbox)
+
+        scan_start = self.source.index("if (action === 'scan')")
+        scan_end = self.source.index("if (action === 'travel')", scan_start)
+        scan = self.source[scan_start:scan_end]
+        self.assertIn("bindMarkerContextSnapshot(marker, menuTarget", scan)
+        self.assertIn("const contextTarget = binding?.target || menuTarget", scan)
+
     def test_mark_response_settles_pending_and_installs_interactive_marker(self):
         start = self.source.index("async function mapAction(")
         end = self.source.index("const bikeDirectionIcons", start)

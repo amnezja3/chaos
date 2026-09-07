@@ -66,7 +66,7 @@ przetestowanego realizera, a nie tworzeniem nowych odmian gameplayu.
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | bounded zasięg wywołania skanu, bez account/global scan i bez zwiększania lokalnego promienia wyników; polityka E4: `min(10 000 km, 25 km × LVL)` |
 | `map_zoom` | proporcjonalny boost odejmowany od zwykłego `min_zoom`; kotwice efektu: LVL `1→17`, `9→13`, `10→12`, `50→7`, `100→6`, `200+→5`; cap oddalenia `5` |
-| `territory_defense` | jedno zgłoszenie publikuje obrys tego samego serwerowego skanu: 1–3 punkty w całości, większy scan maks. 8 punktów; filary i ich security bez zmian |
+| `territory_defense` | jedno zgłoszenie publikuje obrys tego samego serwerowego skanu: 1–3 punkty w całości, większy scan maks. 8 punktów; sojusznik przejmuje cały rój jednym hakiem, wróg tylko jeden punkt i uruchamia alarm; filary i ich security bez zmian |
 
 Limity powyżej były punktami startowymi do chwili certyfikacji. Po certyfikacji
 nie wolno ich zmieniać w podsprincie profesji. Każda zmiana limitu lub scope
@@ -172,9 +172,12 @@ publikuje wszystkie 1–3 wyniki albo uproszczony obrys maksymalnie 8 punktów d
 większego zbioru. Wybrany punkt zawsze pozostaje w roju. Markery korzystają
 z istniejącego minimalnego security, publicznej mapy oraz alarmów; dzięki temu
 klan może szybko budować małe terytoria osłonowe wokół strategicznego obszaru.
-Opublikowany rój pozostaje po expiry, ale bez aktywnego okna kolejne zgłoszenie
-tworzy już tylko jeden marker. Każde przyszłe przypisanie rodziny ma zachować
-identyczny call-site, selekcję geometryczną, limit i lifecycle.
+Pierwotna podatność jest klasycznym, trwałym zgłoszeniem. Dodatkowe markery roju
+żyją do `cooldown_until`; niewykorzystane wygasają wtedy automatycznie. Przejęcie
+jednego punktu przez członka tego samego klanu przejmuje cały aktywny rój i buduje
+z niego punkty terytorium. Atak obcego klanu generuje deduplikowany alarm, lecz
+przejmuje wyłącznie hakowany punkt. Każde przyszłe przypisanie rodziny ma zachować
+identyczny call-site, selekcję geometryczną, relacje klanowe, limit i lifecycle.
 
 ### 3.4 SENTINEL AEGIS
 
@@ -196,7 +199,7 @@ cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
 | --- | --- |
 | ciągły odczyt: `operation_risk`, `scan_range`, `map_zoom` | znika przy następnym snapshotcie/call-site |
 | jednorazowa mutacja: `operation_speed`, `hack_actions`, `target_security` | wykonana zmiana zostaje; nie powstają dalsze zmiany |
-| publikacja: `territory_defense` | wystawione podatności zostają publiczne; nowe zgłoszenia po expiry tworzą tylko jeden marker |
+| publikacja: `territory_defense` | pierwotna podatność zostaje; dodatkowe punkty roju wygasają przy `cooldown_until`; wykorzystane przez sojusznika są przejmowane jako cały rój |
 | trwały marker + hook finalizacji: `file_yield` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane |
 | trwały marker + hook finalizacji: `data_quality` | operacja dotknięta przed expiry lub utratą części zachowuje bonus do finalizacji; nowe operacje nie są już oznaczane; zapisane pliki zostają |
 

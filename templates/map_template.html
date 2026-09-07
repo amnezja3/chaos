@@ -4899,6 +4899,31 @@
             ));
         }
 
+        function bindMarkerContextSnapshot(marker, targetSnapshot = {}, source = 'marker', report = null) {
+            if (!marker) return null;
+            const binding = {
+                marker,
+                target: normalizeMapMenuTarget(targetSnapshot),
+                source: String(source || 'marker'),
+                report: report || null
+            };
+            marker._chaosContextBinding = binding;
+            const iconElement = marker.getElement ? marker.getElement() : marker._icon;
+            if (iconElement) iconElement._chaosContextBinding = binding;
+            return binding;
+        }
+
+        function resolveMarkerContextBinding(marker, e, fallbackTarget = {}, source = 'marker', report = null) {
+            const originalEvent = e && (e.originalEvent || e);
+            let eventNode = originalEvent && originalEvent.target;
+            while (eventNode) {
+                if (eventNode._chaosContextBinding) return eventNode._chaosContextBinding;
+                eventNode = eventNode.parentNode;
+            }
+            return marker?._chaosContextBinding
+                || bindMarkerContextSnapshot(marker, fallbackTarget, source, report);
+        }
+
         function showMapMenuFromLeafletContextEvent(e) {
             if (!e || !map) return false;
             const originalEvent = e.originalEvent;
@@ -6592,6 +6617,7 @@
                         }).addTo(map);
 
                         marker._scanTarget = menuTarget;
+                        bindMarkerContextSnapshot(marker, menuTarget, 'scanTargetMarker');
                         rememberScanResultLayer(marker);
                         registerTargetMarker(menuTarget, marker, {
                             source: 'scanTargetMarker',
@@ -6600,7 +6626,12 @@
                         marker.bindTooltip(menuTarget.label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
-                            if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'scanTargetMarker')) {
+                            const binding = resolveMarkerContextBinding(
+                                marker, e, menuTarget, 'scanTargetMarker'
+                            );
+                            const contextMarker = binding?.marker || marker;
+                            const contextTarget = binding?.target || menuTarget;
+                            if (!isContextEventInsideMarkerHitbox(contextMarker, e, contextTarget, binding?.source || 'scanTargetMarker')) {
                                 consumeMapContextEvent(e);
                                 showMapMenuFromOriginalContextEvent(e);
                                 return;
@@ -6610,10 +6641,10 @@
                             showMarkerContextMenu(
                                 e.containerPoint.x,
                                 e.containerPoint.y,
-                                menuTarget,
-                                menuTarget.icon,
-                                menuTarget.label,
-                                'scanTargetMarker'
+                                contextTarget,
+                                contextTarget.icon,
+                                contextTarget.label,
+                                binding?.source || 'scanTargetMarker'
                             );
                         });
 
@@ -9650,20 +9681,29 @@
                             icon: window.buildClanVulnerabilityIcon(report)
                         }).addTo(map);
 
+                        bindMarkerContextSnapshot(
+                            marker, markerTarget, 'clanVulnerabilityMarker', report
+                        );
+
                         marker.bindTooltip(markerTarget.label, { permanent: false, direction: 'top' });
                         marker.on('contextmenu', function(e) {
+                            const binding = resolveMarkerContextBinding(
+                                marker, e, markerTarget, 'clanVulnerabilityMarker', report
+                            );
+                            const contextTarget = binding?.target || markerTarget;
+                            const contextReport = binding ? binding.report : report;
                             consumeMapContextEvent(e);
-                            if (report.is_reporter) {
-                                showVulnerabilityReporterMenu(e.containerPoint.x, e.containerPoint.y, report);
+                            if (contextReport && contextReport.is_reporter) {
+                                showVulnerabilityReporterMenu(e.containerPoint.x, e.containerPoint.y, contextReport);
                                 return;
                             }
                             showHackingMenuForMarker(
                                 e.containerPoint.x,
                                 e.containerPoint.y,
-                                markerTarget,
-                                markerTarget.icon,
-                                markerTarget.label,
-                                'clanVulnerabilityMarker'
+                                contextTarget,
+                                contextTarget.icon,
+                                contextTarget.label,
+                                binding?.source || 'clanVulnerabilityMarker'
                             );
                         });
 

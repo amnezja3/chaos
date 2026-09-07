@@ -3600,3 +3600,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Kontrolowane `409` publikuje ten sam powód także przez system messaging UI.
 - Cache bust assetów wymusza pobranie naprawionego kontraktu po wdrożeniu.
   Status `.3.5` pozostaje `IMPLEMENTATION / SERVER E2E RETEST PENDING`.
+
+# 2026-09-07 — 138.getway.3.5 menu identity i lifecycle roju
+
+- Audit historycznej regresji markerów potwierdził kontrakt z 02.07.2026:
+  snapshot menu musi należeć do fizycznie klikniętej ikony. Zamknięcie danych
+  celu w callbacku warstwy nie wystarczało przy stale dispatch Leafleta i mogło
+  otworzyć menu markera odległego o wiele kilometrów.
+- Scan markers i publiczne podatności zapisują autorytatywne powiązanie na DOM
+  ikony; handler rozwiązuje cel z klikniętego elementu, nawet gdy wywołała go
+  niewłaściwa/stara warstwa.
+- `territory_defense` otrzymał finalny lifecycle: pierwotne zgłoszenie pozostaje,
+  satelity wygasają przy `cooldown_until`, sojusznik przejmuje cały rój jednym
+  pełnym hakiem, a wróg przejmuje tylko bieżący punkt i generuje deduplikowany
+  alarm dla zgłaszającego.
