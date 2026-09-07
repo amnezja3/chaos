@@ -105,19 +105,25 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
         self.assertFalse(expired["active"])
         self.assertEqual("", expired["scale"])
 
-    def test_frontend_fits_once_disables_auto_return_and_restores_base_limit(self):
+    def test_frontend_unlocks_zoom_without_moving_view_and_restores_base_limit(self):
         source = Path("templates/map_template.html").read_text(encoding="utf-8")
         for token in (
             "function applyGhostAbilityMapZoom",
             "runtime.mapZoomWindowId === windowId",
             "map.getCenter().toBounds(radiusM * 2)",
-            "map.fitBounds(bounds",
-            "map.fitWorld(",
+            "strategicMinZoom = map.getBoundsZoom",
+            "map.setMinZoom(Math.min(baseMinZoom, strategicMinZoom))",
             "map.setMinZoom(baseMinZoom)",
             "window.ghostAbilityRuntime.mapZoomActive",
             "SKALA ${ghostAbilityMapScaleLabel(strategicScale)}",
         ):
             self.assertIn(token, source)
+        zoom_runtime = source[
+            source.index("function applyGhostAbilityMapZoom"):
+            source.index("function stopGhostAbilityAudio")
+        ]
+        for forbidden in ("map.fitBounds(", "map.fitWorld(", "map.setView(", "map.panTo("):
+            self.assertNotIn(forbidden, zoom_runtime)
         endpoint = inspect.getsource(__import__("run").api_ghostnetwork_ability)
         for field in (
             "map_zoom_active", "map_zoom_scale", "map_zoom_radius_m",

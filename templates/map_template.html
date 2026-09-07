@@ -2736,19 +2736,18 @@
             if (runtime.mapZoomWindowId === windowId) return;
             runtime.mapZoomWindowId = windowId;
             requestAnimationFrame(() => {
-                programmaticMapMove = true;
                 map.invalidateSize({ pan: false, animate: false });
+                let strategicMinZoom;
                 if (player.map_zoom_fit_world) {
-                    if (typeof map.setMinZoom === 'function') map.setMinZoom(1);
-                    map.fitWorld({ padding: [12, 12], animate: true });
+                    strategicMinZoom = 1;
                 } else {
                     const radiusM = Math.max(1000, Number(player.map_zoom_radius_m) || 10000);
                     const bounds = map.getCenter().toBounds(radiusM * 2);
-                    const strategicZoom = map.getBoundsZoom(bounds, false, L.point(24, 24));
-                    if (typeof map.setMinZoom === 'function') map.setMinZoom(Math.min(baseMinZoom, strategicZoom));
-                    map.fitBounds(bounds, { padding: [24, 24], animate: true });
+                    strategicMinZoom = map.getBoundsZoom(bounds, false, L.point(24, 24));
                 }
-                window.setTimeout(() => { programmaticMapMove = false; }, 500);
+                if (typeof map.setMinZoom === 'function') {
+                    map.setMinZoom(Math.min(baseMinZoom, strategicMinZoom));
+                }
             });
         }
 

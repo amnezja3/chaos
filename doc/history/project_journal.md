@@ -3493,3 +3493,15 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Dodano produkcyjne mapowanie `network_fracture → map_zoom`, prezentację
   `Pęknięcie Sieci / HORYZONT PĘKA` oraz bezpieczne pola snapshotu gracza.
 - Status `.3.4`: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+## 2026-09-07 — korekta UX 138.getway.3.4 przed certyfikacją
+
+- Pierwszy test serwerowy ujawnił, że automatyczny `fitBounds` po aktywacji P4
+  przenosił operatora do szerokiego, pozbawionego kontekstu kadru i ukrywał
+  motocykl. Skala kraju otwierała się od razu, chociaż miała być uprawnieniem.
+- Zamrożono poprawny kontrakt: P4 wyłącznie obniża tymczasowy `minZoom`, czyli
+  pozwala graczowi samodzielnie oddalić mapę do skali wynikającej z poziomu.
+- Aktywacja nie wykonuje `fitBounds`, `fitWorld`, `setView` ani `panTo`; zachowuje
+  aktualny kadr wyznaczony przez motocykl lub ostatnie `focus`.
+- Progi, snapshot poziomu, auto-return bypass oraz powrót bazowego limitu po
+  expiry/part-loss pozostają bez zmian.

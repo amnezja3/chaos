@@ -278,7 +278,7 @@ ability_code
 | `target_security` | mniej lub więcej aktywnych zabezpieczeń | jeden kontrakt rodziny na istniejącej security map z exact target i CAS; E1, E5 i P2 zerują cały boolean bar |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większa odległość wywołania skanu od motocykla | istniejący distance gate endpointu skanu; lokalny promień wyników pozostaje bounded i nie powstaje account/global scan |
-| `map_zoom` | strategiczna skala widoku zależna od `level_snapshot` | lekki snapshot i viewport-adaptive `fitBounds`/`fitWorld`, bez trwałego zakupu w profilu |
+| `map_zoom` | strategiczny limit oddalenia zależny od `level_snapshot` | lekki snapshot i dynamiczny `minZoom`, bez automatycznego przesunięcia widoku i bez trwałego zakupu w profilu |
 | `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
 | `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
 | `territory_defense` | cele zyskują/odzyskują zabezpieczenia | istniejący security store i owner/CAS checks |
@@ -1217,11 +1217,12 @@ wyliczana wyłącznie z `level_snapshot` aktywnego okna: poniżej LVL 10 widok
 lokalny `10 km`, od LVL 10 całe miasto `30 km`, od LVL 50 kraj `500 km`, od
 LVL 100 Europa `3000 km`, a od LVL 200 cały świat.
 
-Backend publikuje lekki kontrakt `scale/radius/fit_world`; klient używa
-viewport-adaptive `fitBounds` albo `fitWorld`, ustawia tymczasowy minimalny zoom
-i wyłącza standardowy auto-return przybliżenia. Dopasowanie następuje raz na
-`window_id`, więc lokalny zegar nie przelicza widoku co sekundę. Operator może
-potem swobodnie przesuwać mapę i używać `focus` w ramach odblokowanej skali.
+Backend publikuje lekki kontrakt `scale/radius/fit_world`; klient wylicza z niego
+viewport-adaptive minimalny zoom i wyłącza standardowy auto-return przybliżenia.
+Nie wykonuje automatycznego `fitBounds`, `fitWorld`, `setView` ani `panTo`.
+Aktywacja nie zmienia więc kadru: jego środkiem pozostaje motocykl albo ostatni
+punkt `focus`, a operator sam oddala mapę gestem lub przyciskiem. Limit jest
+nakładany raz na `window_id`, więc lokalny zegar nie przelicza go co sekundę.
 
 Moc nie teleportuje motocykla, nie zmienia bieżącego centrum na pozycję gracza,
 nie rozszerza `scan_range`, `action_range`, promienia POI ani zakresu danych
