@@ -156,8 +156,11 @@ Daje to efektywne punkty kalibracyjne `1→17`, `9→13`, `10→12`, `50→7`,
 `100→6`, `200+→5`. Efekt trafia do serwerowego `min_zoom` przed utworzeniem
 mapy Folium, więc mapa i warstwa kafelków otrzymują ten sam zakres. Frontend nie
 wylicza zoomu i nie wywołuje `fitBounds`, `fitWorld`,
-`setView` ani `panTo`: po aktywacji przeładowuje dokument mapy z zachowaniem
-aktualnego kadru, a gracz sam decyduje, czy i kiedy go oddalić. Przez aktywne
+`setView` ani `panTo`: po 6-sekundowym show prezentuje narracyjny handoff
+`AKTYWACJA DODATKOWYCH SATELIT` z dużym impulsem rozszerzającego się zoomu,
+a następnie przeładowuje dokument mapy z zachowaniem aktualnego kadru. Naturalny
+reload jest finałem efektu wizualnego P4 i nie powtarza się na już przebudowanej
+mapie. Gracz sam decyduje, czy i kiedy oddalić widok. Przez aktywne
 okno standardowy auto-return zoomu jest wyłączony.
 Expiry lub utrata części przywraca bazowy limit oddalenia, bez teleportowania
 motocykla, zmiany punktu obserwacji, zasięgu skanu, action range i danych mapy.

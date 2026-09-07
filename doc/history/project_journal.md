@@ -3535,3 +3535,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Efektywne limity: `1→17`, `9→13`, `10→12`, `50→7`, `100→6`, `200+→5`.
 - Poziomy pośrednie są interpolowane proporcjonalnie; szerszy całkowity zoom
   odblokowuje się konserwatywnie dopiero po osiągnięciu wyliczonego progu.
+
+## 2026-09-07 — narracyjny handoff P4 przed reloadem mapy
+
+- Operator potwierdził, że kalibracja `network_fracture → map_zoom` jest właściwa
+  i adekwatna do gameplayu.
+- Usunięto pustą pauzę pomiędzy 6-sekundowym show aktywacji a technicznym reloadem.
+  P4 przechodzi teraz w pełnoekranową sekwencję
+  `AKTYWACJA DODATKOWYCH SATELIT` z rozszerzającymi się pierścieniami orbitalnymi
+  i komunikatem o skali odblokowanej sieci obserwacji.
+- Naturalny reload mapy jest finałem narracji realizera. Przed przeładowaniem
+  zapisywany jest aktualny viewport; mapa wraca z serwerowo rozszerzonym zakresem
+  kafelków, bez teleportu, automatycznego oddalenia i zmiany punktu obserwacji.
+- Handoff jest ograniczony do świeżej aktywacji P4 wymagającej przebudowy dokumentu.
+  Snapshot już aktywnego okna na poprawnie zbudowanej mapie nie odtwarza animacji
+  i nie inicjuje kolejnego reloadu.
+- Status `.3.4`: `IMPLEMENTATION / FINAL UX SERVER TEST PENDING`.

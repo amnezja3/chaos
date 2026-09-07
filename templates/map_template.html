@@ -489,6 +489,56 @@
 
     .chaos-ghost-ability-overlay.is-visible { opacity: 1; }
 
+    .chaos-ghost-map-zoom-handoff {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      overflow: hidden;
+      font-family: monospace;
+      text-align: center;
+    }
+
+    .chaos-ghost-ability-overlay.is-map-zoom-transition {
+      background:
+        repeating-radial-gradient(circle at center, transparent 0 28px, color-mix(in srgb, var(--ability-accent) 18%, transparent) 30px 31px),
+        radial-gradient(circle at center, color-mix(in srgb, var(--ability-accent) 30%, transparent), rgba(0, 3, 2, .98) 68%);
+    }
+
+    .chaos-ghost-ability-overlay.is-map-zoom-transition .chaos-ghost-ability-panel { display: none; }
+    .chaos-ghost-ability-overlay.is-map-zoom-transition .chaos-ghost-map-zoom-handoff { display: grid; }
+
+    .chaos-ghost-map-zoom-orbit,
+    .chaos-ghost-map-zoom-orbit::before,
+    .chaos-ghost-map-zoom-orbit::after {
+      position: absolute;
+      width: min(38vw, 300px);
+      aspect-ratio: 1;
+      border: 2px solid var(--ability-accent);
+      border-radius: 50%;
+      box-shadow: 0 0 34px color-mix(in srgb, var(--ability-accent) 70%, transparent);
+      content: "";
+      animation: ghost-map-zoom-satellite-burst 1.8s cubic-bezier(.1,.7,.2,1) infinite;
+    }
+
+    .chaos-ghost-map-zoom-orbit::before { inset: -2px; animation-delay: .45s; }
+    .chaos-ghost-map-zoom-orbit::after { inset: -2px; animation-delay: .9s; }
+
+    .chaos-ghost-map-zoom-copy {
+      position: relative;
+      z-index: 2;
+      width: min(920px, 92%);
+      padding: clamp(22px, 5vw, 54px);
+      border-block: 2px solid var(--ability-accent);
+      background: rgba(0, 8, 5, .86);
+      box-shadow: 0 0 80px color-mix(in srgb, var(--ability-accent) 35%, transparent);
+      animation: ghost-ability-text-quake 110ms steps(2, end) infinite;
+    }
+
+    .chaos-ghost-map-zoom-eyebrow { color: var(--ability-accent); font: 900 12px/1 monospace; letter-spacing: .24em; }
+    .chaos-ghost-map-zoom-title { margin: 14px 0; font: 1000 clamp(30px, 6vw, 76px)/.9 monospace; text-transform: uppercase; }
+    .chaos-ghost-map-zoom-status { color: #fff; font: 900 clamp(13px, 2vw, 22px)/1.2 monospace; letter-spacing: .13em; }
+
     .chaos-ghost-ability-panel {
       --ability-asset-max-size: 560px;
       --ability-asset-padding: 52px;
@@ -580,6 +630,11 @@
       60% { transform: translate(-1px, -1px) skewX(-.5deg); text-shadow: 2px -1px var(--ability-deep); }
       80% { transform: translate(1px, 2px) skewX(.4deg); text-shadow: -2px 0 var(--ability-accent); }
     }
+    @keyframes ghost-map-zoom-satellite-burst {
+      0% { opacity: 0; transform: scale(.12) rotate(0deg); }
+      18% { opacity: 1; }
+      100% { opacity: 0; transform: scale(5.8) rotate(42deg); }
+    }
 
     @media (max-width: 620px) {
       .ghost-ability-control { min-width: 158px; }
@@ -594,6 +649,8 @@
       .chaos-ghost-ability-eyebrow,
       .chaos-ghost-ability-title,
       .chaos-ghost-ability-copy,
+      .chaos-ghost-map-zoom-orbit,
+      .chaos-ghost-map-zoom-copy,
       .leaflet-container.has-ghost-ability-effect::after { animation: none !important; }
     }
 
@@ -2692,6 +2749,7 @@
             mapZoomWindowId: '',
             mapZoomBaseMin: baseMinZoom,
             mapZoomReloadTimer: null,
+            mapZoomNarrationTimer: null,
             mapZoomReloadWindowId: ''
         };
 
@@ -2714,6 +2772,10 @@
             if (runtime.mapZoomReloadTimer) {
                 window.clearTimeout(runtime.mapZoomReloadTimer);
                 runtime.mapZoomReloadTimer = null;
+            }
+            if (runtime.mapZoomNarrationTimer) {
+                window.clearTimeout(runtime.mapZoomNarrationTimer);
+                runtime.mapZoomNarrationTimer = null;
             }
             clearZoomReturn();
             const normalMinZoom = Number(runtime.mapZoomBaseMin) || baseMinZoom;
@@ -2750,10 +2812,14 @@
             if (map.getMinZoom() > effectiveMinZoom) {
                 if (runtime.mapZoomReloadWindowId === windowId) return;
                 runtime.mapZoomReloadWindowId = windowId;
+                runtime.mapZoomNarrationTimer = window.setTimeout(() => {
+                    showGhostMapZoomHandoff(snapshot);
+                    runtime.mapZoomNarrationTimer = null;
+                }, 6000);
                 runtime.mapZoomReloadTimer = window.setTimeout(() => {
                     saveManualMapViewport();
                     window.location.reload();
-                }, 6200);
+                }, 8400);
                 return;
             }
             if (typeof map.setMinZoom === 'function') map.setMinZoom(effectiveMinZoom);
@@ -2845,9 +2911,30 @@
                         <div class="chaos-ghost-ability-title"></div>
                         <div class="chaos-ghost-ability-copy"></div>
                     </div>
+                </div>
+                <div class="chaos-ghost-map-zoom-handoff" aria-hidden="true">
+                    <div class="chaos-ghost-map-zoom-orbit"></div>
+                    <div class="chaos-ghost-map-zoom-copy">
+                        <div class="chaos-ghost-map-zoom-eyebrow">FRACTURE ENGINE // ORBITAL UPLINK</div>
+                        <div class="chaos-ghost-map-zoom-title">AKTYWACJA DODATKOWYCH SATELIT</div>
+                        <div class="chaos-ghost-map-zoom-status"></div>
+                    </div>
                 </div>`;
             container.appendChild(overlay);
             return overlay;
+        }
+
+        function showGhostMapZoomHandoff(snapshot) {
+            const overlay = ensureGhostAbilityOverlay();
+            if (!overlay) return;
+            const presentation = snapshot && snapshot.presentation || {};
+            const player = snapshot && snapshot.player || {};
+            applyGhostAbilityPalette(overlay, presentation);
+            const status = overlay.querySelector('.chaos-ghost-map-zoom-status');
+            if (status) {
+                status.textContent = `ROZSZERZANIE SIATKI OBSERWACJI // ${ghostAbilityMapScaleLabel(player.map_zoom_scale)}`;
+            }
+            overlay.classList.add('is-map-zoom-transition', 'is-visible');
         }
 
         function showGhostAbilityActivation(snapshot) {
@@ -2855,6 +2942,7 @@
             const presentation = snapshot && snapshot.presentation || {};
             const overlay = ensureGhostAbilityOverlay();
             if (!overlay) return;
+            overlay.classList.remove('is-map-zoom-transition');
             applyGhostAbilityPalette(overlay, presentation);
             const asset = overlay.querySelector('.chaos-ghost-ability-asset');
             asset.src = String(presentation.visual_asset_url || '');
@@ -2893,7 +2981,9 @@
             void overlay.offsetWidth;
             overlay.classList.add('is-visible');
             runtime.overlayTimer = window.setTimeout(() => {
-                overlay.classList.remove('is-visible');
+                if (!overlay.classList.contains('is-map-zoom-transition')) {
+                    overlay.classList.remove('is-visible');
+                }
                 stopGhostAbilityAudio(100);
                 runtime.overlayTimer = null;
             }, Math.max(4000, Math.min(6000, Number(presentation.show_duration_ms) || 6000)));

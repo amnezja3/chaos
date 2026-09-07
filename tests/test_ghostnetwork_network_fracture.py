@@ -122,6 +122,10 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
             "map.setMinZoom(normalMinZoom)",
             "window.ghostAbilityRuntime.mapZoomActive",
             "SKALA ${ghostAbilityMapScaleLabel(strategicScale)}",
+            "AKTYWACJA DODATKOWYCH SATELIT",
+            "ROZSZERZANIE SIATKI OBSERWACJI",
+            "ghost-map-zoom-satellite-burst",
+            "showGhostMapZoomHandoff(snapshot)",
         ):
             self.assertIn(token, source)
         zoom_runtime = source[
@@ -133,6 +137,13 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
             "map.getBoundsZoom(", "toBounds(radiusM",
         ):
             self.assertNotIn(forbidden, zoom_runtime)
+        self.assertLess(
+            zoom_runtime.index("showGhostMapZoomHandoff(snapshot)"),
+            zoom_runtime.index("window.location.reload()"),
+        )
+        self.assertIn("}, 6000);", zoom_runtime)
+        self.assertIn("}, 8400);", zoom_runtime)
+        self.assertIn("saveManualMapViewport();", zoom_runtime)
         map_view = inspect.getsource(__import__("run").map_view)
         self.assertIn("active_map_zoom_effect", map_view)
         self.assertIn("min_zoom = min(min_zoom", map_view)

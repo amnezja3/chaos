@@ -1222,8 +1222,13 @@ następny całkowity poziom Leafleta dopiero po osiągnięciu jego progu.
 
 Backend publikuje lekki kontrakt skali i podaje efektywny `min_zoom` do istniejącej
 ścieżki budowy mapy. Folium oraz TileLayer powstają od razu z tym samym zakresem,
-więc nie ma pustych kafelków. Po aktywacji dokument mapy przeładowuje się po
-6-sekundowym show, zachowując aktualny viewport. Klient nie wykonuje
+więc nie ma pustych kafelków. Po podstawowym 6-sekundowym show P4 przechodzi w
+krótki, pełnoekranowy handoff `AKTYWACJA DODATKOWYCH SATELIT`: rozszerzające się
+pierścienie orbitalne komunikują duży boost zoomu i skalę odblokowaną dla gracza.
+Finałem handoffu jest naturalny reload dokumentu mapy z zachowaniem aktualnego
+viewportu. Reload jest w ten sposób częścią narracji realizera, a nie pustą pauzą.
+Handoff występuje tylko bezpośrednio po aktywacji wymagającej przebudowy zakresu
+kafelków i nie powtarza się na już przebudowanej, aktywnej mapie. Klient nie wykonuje
 automatycznego `fitBounds`, `fitWorld`, `setView` ani `panTo`; operator sam oddala
 mapę gestem lub przyciskiem. Standardowy auto-return pozostaje wyłączony w oknie.
 
