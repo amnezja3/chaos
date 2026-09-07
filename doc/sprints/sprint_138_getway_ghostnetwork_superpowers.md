@@ -1249,7 +1249,7 @@ cooldown.
 
 ### Bramka `.3.5` — P5 Mirror Kernel / Lustrzany Sędzia
 
-Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+Status: `COMPLETE / LOCKED / SERVER E2E + GAMEPLAY PASS`.
 
 `Odbicie` jest pierwszym produkcyjnym montażem nowego kontraktu
 `territory_defense`. Rodzina nie zabezpiecza filarów i nie włącza flag security
@@ -1299,6 +1299,20 @@ także kanoniczne `target_id` klienta sprzed przeładowania assetów, ale nie zn
 ochrony obcego terytorium. Kontrolowany błąd runtime musi być pokazany w aplikacji
 razem z jego autorytatywnym komunikatem oraz przez system messaging UI, a nie
 wyłącznie jako ogólny wynik negatywny.
+
+Finalna walidacja serwerowa potwierdziła cały kontrakt realizera: publikację
+ograniczonego roju, minimalne security, pełne przejęcie aktywnego roju przez
+sojusznika po schakowaniu jednego punktu, pojedyncze przejęcie i deduplikowany
+alarm dla intruza, wygaśnięcie satelitów przy `cooldown_until` oraz pozostawienie
+pierwotnej klasycznej podatności. `territory_defense` jest od tej chwili wspólną,
+zamrożoną rodziną dla P5, S2, S3 i S5; kolejne montaże nie mogą zmieniać jej
+gameplayu per profesja.
+
+Osobny hardbugfix menu markerów zakończył się dziesięcioma kolejnymi skanami bez
+błędnego przypisania menu. Sporadycznie niewłaściwy tooltip Leafleta pozostaje
+zaakceptowanym defektem prezentacyjnym: nie wpływa na menu, target identity,
+aimed target ani hakowanie i nie blokuje PASS `.3.5`. Pełny przypadek:
+`doc/hardbugfix/scan_marker_menu_identity_leaflet_dispatch_sprint_138_getway_3_5_2026-09-07.md`.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 

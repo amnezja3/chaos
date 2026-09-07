@@ -3622,3 +3622,9 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   kontenerze mapy. Fizycznie kliknięta ikona rozstrzyga snapshot i rodzaj menu,
   zanim zdarzenie dotrze do rejestru warstw Leafleta. Callback per marker pozostaje
   wyłącznie kompatybilnym fallbackiem dla zdarzeń syntetycznych.
+- Manual serwerowy: 10 kolejnych skanów bez błędnego menu. Tooltipy Leafleta
+  nadal mogą sporadycznie pokazać etykietę obcej warstwy, ale są prezentacyjne
+  i nie uczestniczą w target identity ani akcjach. Ograniczenie zaakceptowano.
+- `138.getway.3.5` oraz rodzina `territory_defense`: `COMPLETE / LOCKED /
+  SERVER E2E + GAMEPLAY PASS`. Dedykowany zapis techniczny znajduje się w
+  `doc/hardbugfix/scan_marker_menu_identity_leaflet_dispatch_sprint_138_getway_3_5_2026-09-07.md`.

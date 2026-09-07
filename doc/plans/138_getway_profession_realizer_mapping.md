@@ -123,10 +123,11 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `LOCKED / SERVER E2E PASS` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | identycznie jak E4: `25 km × level_snapshot`, cap `10 000 km`, bez teleportu i bez zmiany lokalnego fetch radius | `LOCKED / SERVER E2E PASS` |
 | `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | przez 15 minut strategiczny zoom-out: od miasta na LVL 10, przez kraj i Europę, do całego świata na LVL 200+ | `KEEP / LOCKED / SERVER E2E PASS` |
-| `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | jedno zgłoszenie wystawia publiczny, geometryczny rój maks. 8 podatności z tego samego skanu | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
+| `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | jedno zgłoszenie wystawia publiczny, geometryczny rój maks. 8 podatności; sojusznik przejmuje cały rój jednym hakiem, wróg pojedynczy punkt i uruchamia alarm; satelity wygasają przy końcu cooldownu | `LOCKED / SERVER E2E PASS` |
 
 P1 nie tworzy fałszywego markera, P3 nie wykonuje skanu niezależnego od pozycji,
-a P5 nie odczytuje atakującego i nie mutuje filarów. To świadome bezpieczne zamienniki rodzin
+a P5 nie mutuje filarów; relację klanową odczytuje dopiero canonical capture/alarm
+roju, bez account scan. To świadome bezpieczne zamienniki rodzin
 `incident_decoy` i `actor_visibility`. Jeżeli efekt nie obroni się w grze,
 wybieramy `REPLACE` albo `DEFER`, bez rozszerzania ciężkiego runtime.
 

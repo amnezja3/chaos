@@ -6,6 +6,7 @@ Dokumenty te są niezależne od `project_journal.md`.
 
 ## Artefakty
 
+- [Sprint 138.getway.3.5 — błędna tożsamość menu markerów po dużym skanie](scan_marker_menu_identity_leaflet_dispatch_sprint_138_getway_3_5_2026-09-07.md)
 - [Sprint 135.5 — heavy profile na ścieżce operacje, pliki i Ghost Exchange](heavy_profile_operation_files_gx_regression_sprint_135_5_2026-08-30.md)
 - [Sprint 135.5 — regresje kontraktu publikacji LLM](llm_publication_contract_regressions_sprint_135_5_2026-08-30.md)
 
