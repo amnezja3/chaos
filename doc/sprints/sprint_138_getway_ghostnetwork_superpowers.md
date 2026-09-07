@@ -1104,7 +1104,7 @@ istniejące typy danych, markery, aktorów, incydenty i zabezpieczenia.
 
 ### Bramka `.3.1` — P1 Mirage Projector / Iluzjonista
 
-Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+Status: `COMPLETE / SERVER E2E PASS`.
 
 `Węzeł Widmo` montuje certyfikowaną rodzinę `operation_risk` pod osobną polityką
 `phantom_node`. Aktywacja zapisuje bounded `ability_heat_modifier=-15` w maksymalnie
@@ -1122,6 +1122,19 @@ Implementacja nie dodaje workera, pollera, kolejki, syntetycznych incydentów,
 odczytu aktorów ani pełnego profilu. Bramka serwerowa obejmuje: P1 aktywne,
 konto `phantom_mesh / illusionist`, operację istniejącą i nową, widoczny spadek
 heat, brak wymuszonego incydentu, replay, reload, expiry, part-loss i cooldown.
+
+Test serwerowy przeszedł pełnym PASS po zsynchronizowaniu allowlisty procesów
+`13` i `14`. Canonical operation rows potwierdziły `ability_code=phantom_node`
+oraz `ability_heat_modifier=-15` dla wszystkich obserwowanych operacji. Centrum
+Operacji pokazało turkusowe karty, etykietę `WĘZEŁ WIDMO` i aktualny
+`RUCH POZORNY · HEAT`. Decyzja: `KEEP / LOCKED` dla
+`phantom_node → operation_risk`.
+
+Warunek wdrożeniowy rodzin operacyjnych: proces aplikacji `13` i proces runtime
+operacji `14` muszą otrzymać tę samą wartość
+`CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES`. Niezgodność jest fail-closed:
+aplikacja zapisuje provenance, lecz worker bez kodu mocy przelicza modifier do
+zera przy następnym ticku.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 

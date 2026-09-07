@@ -3393,3 +3393,16 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Nie dodano workerów, kolejek, pollingu, syntetycznych incydentów, skanu aktorów
   ani odczytu ciężkiego profilu.
 - Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+## 2026-09-07 — 138.getway.3.1 COMPLETE
+
+- Testy serwerowe i gameplay P1 zakończyły się pełnym PASS.
+- Potwierdzono `ability_code=phantom_node` i `ability_heat_modifier=-15` dla
+  operacji istniejących oraz uruchamianych w aktywnym oknie.
+- Centrum Operacji poprawnie pokazuje turkusowy efekt Siatki Widmo,
+  `WĘZEŁ WIDMO` oraz `RUCH POZORNY · HEAT`.
+- Pierwsza próba ujawniła rozjazd allowlisty: proces `13` znał P1, a worker `14`
+  nie. Po zsynchronizowaniu środowiska worker przywrócił modifier przy kolejnym
+  ticku bez ponownej aktywacji mocy. Zapisano wymóg wspólnej allowlisty `13/14`.
+- Decyzja: `KEEP / LOCKED` dla `phantom_node → operation_risk`.
+  Status `.3.1`: `COMPLETE / SERVER E2E PASS`.
