@@ -97,7 +97,7 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
 | `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; standardowy risk engine nadal wyznacza wynik | `LOCKED / SERVER E2E PASS` |
-| `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | maks. 2 zabezpieczenia oznaczonego celu zostają wyłączone przez CAS | `STRONG FIT` |
+| `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | aktualny i każdy kolejny cel `aimed` traci maks. 2 aktywne flagi security przez CAS; cztery kropki pozostają | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | większy promień pozwala wcześniej dostrzec ślady; bez bypassu pozycji motocykla | `SAFE SUBSTITUTE` |
 | `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | bounded zmiana perspektywy mapy o 2 poziomy; CSS pokazuje rozszczepienie | `VISUAL/GAMEPLAY PROXY` |
 | `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | maks. 2 warstwy ochrony wracają na oznaczonym własnym celu | `SAFE SUBSTITUTE` |
@@ -112,6 +112,13 @@ osobną politykę `phantom_node`. Bazowy modyfikator wynosi `heat -15` i obejmuj
 operacje istniejące przy aktywacji oraz nowe, rozpoczęte w 15-minutowym oknie.
 Nie powstają fałszywe incydenty, markery świata ani skan aktorów. Widocznym
 dowodem jest turkusowe wyróżnienie kart, `WĘZEŁ WIDMO` i `RUCH POZORNY`.
+
+P2 wykorzystuje canonical target runtime i ten sam hook `aimed` co E1/E5, ale
+ma osobną politykę `glitch_injection` z limitem 2. W deterministycznej kolejności
+wyłącza najwyżej dwie aktywne flagi boolean security dokładnego celu przez CAS.
+Nie zmienia `actions_allowed`, liczbowego `security_level` ani celów sąsiednich.
+Każdy cel dotknięty w aktywnym oknie zachowuje zmianę; po expiry lub utracie
+części nowe cele nie są już modyfikowane.
 
 Kierunek `map_zoom` trzeba potwierdzić wizualnie w `.3.4`: Leaflet interpretuje
 większą wartość jako bliższy widok. Podsprint zamraża właściwy znak zmiany po

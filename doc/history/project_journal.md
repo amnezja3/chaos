@@ -3406,3 +3406,15 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   ticku bez ponownej aktywacji mocy. Zapisano wymóg wspólnej allowlisty `13/14`.
 - Decyzja: `KEEP / LOCKED` dla `phantom_node → operation_risk`.
   Status `.3.1`: `COMPLETE / SERVER E2E PASS`.
+
+## 2026-09-07 — start 138.getway.3.2, P2 Glitch Reactor
+
+- Zamrożono `glitch_injection → target_security` jako osobną politykę z limitem
+  maksymalnie 2 aktywnych flag security na dokładnym celu.
+- P2 korzysta z przetestowanego canonical target store, CAS oraz wspólnego hooka
+  dla aktualnego i kolejnych celów `aimed` w 15-minutowym oknie.
+- E1/E5 zachowują pełne wyłączenie paska; P2 nie zmienia action dots ani
+  liczbowego `security_level`.
+- Dodano turkusowy UX `Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION` oraz
+  testy polityki, replay, expiry, part-loss i braku ciężkiego profilu.
+- Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.

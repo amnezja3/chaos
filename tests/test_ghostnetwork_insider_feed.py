@@ -185,6 +185,7 @@ class GhostNetworkInsiderFeedTest(unittest.TestCase):
                 "full_disclosure": "data_quality",
                 "expose": "target_security",
                 "domino_effect": "target_security",
+                "glitch_injection": "target_security",
                 "resistance_signal": "scan_range",
             },
             GhostAbilityProductionRealizer.ABILITY_FAMILIES,

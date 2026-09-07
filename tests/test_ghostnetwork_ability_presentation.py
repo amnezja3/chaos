@@ -163,7 +163,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
 
     def test_target_realizer_has_persistent_toolbar_impact_feedback(self):
         self.assertIn("updateParentToolbarGhostAbility(data)", self.source)
-        self.assertIn("ghost-ability-impact-5", self.source)
+        self.assertIn("ghost-ability-impact-6", self.source)
         for token in (
             "window.updateToolbarGhostAbilityState",
             'abilityImpactUi === "target_action_dots"',
@@ -214,7 +214,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         self.assertIn('content: "EFEKT DOMINA"', self.css_source)
         for template in ("index.html", "linux.html", "linux_old.html"):
             source = (Path("templates") / template).read_text(encoding="utf-8")
-            self.assertIn("ghost-ability-impact-5", source)
+            self.assertIn("ghost-ability-impact-6", source)
+
+    def test_glitch_injection_reuses_security_ui_with_distinct_copy(self):
+        for token in (
+            'toolbarGhostAbilityState.abilityCode === "glitch_injection"',
+            "ghost-ability-impact-glitch",
+        ):
+            self.assertIn(token, self.terminal_source)
+        self.assertIn('content: "GLITCH INJECTION"', self.css_source)
 
 
 if __name__ == "__main__":

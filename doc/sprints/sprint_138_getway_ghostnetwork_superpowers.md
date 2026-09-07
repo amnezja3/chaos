@@ -1094,7 +1094,7 @@ canonical finalizację i zero heavy profile.
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
 | `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — certyfikowany `operation_risk`, `heat -15`, bez syntetycznych incydentów |
-| `.3.2` | Wirusolog / P2 | **Glitch Injection** — bounded `target_security` reduction |
+| `.3.2` | Wirusolog / P2 | **Glitch Injection** — maks. 2 aktywne flagi security wyłączone na aktualnym i kolejnych celach `aimed` |
 | `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — skan niezależny od pozycji motocykla |
 | `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — miks `scan_range` i zakłóceń markerów |
 | `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `operation_risk`/`target_security`, bez skanu aktorów |
@@ -1135,6 +1135,27 @@ operacji `14` muszą otrzymać tę samą wartość
 `CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES`. Niezgodność jest fail-closed:
 aplikacja zapisuje provenance, lecz worker bez kodu mocy przelicza modifier do
 zera przy następnym ticku.
+
+### Bramka `.3.2` — P2 Glitch Reactor / Wirusolog
+
+Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+`Glitch Injection` montuje certyfikowaną rodzinę `target_security` przez osobną
+politykę `glitch_injection`. Aktywacja obejmuje dokładny aktualny cel `aimed`, a
+istniejący lekki hook obejmuje każdy kolejny cel wybrany podczas 15-minutowego
+okna. Canonical store wyłącza w jednym CAS maksymalnie 2 aktywne flagi boolean
+security. Cztery action dots, liczbowy `security_level`, inne cele i owner checks
+pozostają bez zmian.
+
+P2 nie zmienia pełnych polityk E1/E5. UI korzysta z istniejącego paska security,
+palety `phantom_mesh`, assetów P2 oraz odrębnego copy
+`Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION`. Nie powstaje nowy store,
+worker, kolejka, poller, skan konta ani odczyt ciężkiego profilu.
+
+Bramka serwerowa ma potwierdzić: aktywne P2, konto
+`phantom_mesh / virologist`, dokładnie 2 wyłączone flagi na aktualnym oraz co
+najmniej dwóch kolejnych celach, nietknięte cztery kropki i `security_level`,
+replay bez drugiej mutacji, UX, reload, expiry, part-loss i cooldown.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 

@@ -1464,6 +1464,9 @@ function renderToolbarStatus() {
             abilityImpactActive && toolbarGhostAbilityState.abilityCode === "domino_effect"
                 ? "ghost-ability-impact-domino"
                 : "",
+            abilityImpactActive && toolbarGhostAbilityState.abilityCode === "glitch_injection"
+                ? "ghost-ability-impact-glitch"
+                : "",
             abilityImpactActive && toolbarGhostAbilityState.clanCode
                 ? `ghost-ability-clan-${toolbarGhostAbilityState.clanCode.replace(/[^a-z0-9_-]/g, "")}`
                 : ""

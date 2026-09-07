@@ -44,6 +44,11 @@ OPERATION_RISK_POLICIES = {
     "narrative_takeover": {"ability_heat_modifier": -15},
     "phantom_node": {"ability_heat_modifier": -15},
 }
+TARGET_SECURITY_POLICIES = {
+    "expose": {"max_changes": None},
+    "domino_effect": {"max_changes": None},
+    "glitch_injection": {"max_changes": 2},
+}
 DATA_QUALITY_POLICIES = {
     "full_disclosure": {
         "base_bonus": 10,
@@ -116,6 +121,13 @@ def operation_risk_modifier(ability_code):
     """Return one backend-owned heat modifier for a supported risk ability."""
     policy = OPERATION_RISK_POLICIES.get(str(ability_code or "").strip())
     return int((policy or OPERATION_RISK_POLICIES["false_image"])["ability_heat_modifier"])
+
+
+def target_security_max_changes(ability_code):
+    """Return the backend-owned security mutation bound for one ability."""
+    policy = TARGET_SECURITY_POLICIES.get(str(ability_code or "").strip()) or {}
+    value = policy.get("max_changes", 0)
+    return None if value is None else max(0, min(int(value), MAX_SECURITY_CHANGES))
 
 
 def data_quality_policy(ability_code):
@@ -748,6 +760,7 @@ class GhostAbilityProductionRealizer:
         "full_disclosure": "data_quality",
         "expose": "target_security",
         "domino_effect": "target_security",
+        "glitch_injection": "target_security",
         "resistance_signal": "scan_range",
     }
 
@@ -1038,7 +1051,7 @@ class GhostAbilityProductionRealizer:
         }
 
     def _apply_target_security(self, player_id, window, target_id=None):
-        """Disable the complete security bar of one exact aimed target."""
+        """Apply the ability policy to one exact aimed target with CAS."""
         target_id = str(
             window.get("target_id") if target_id is None else target_id
         ).strip()
@@ -1073,7 +1086,7 @@ class GhostAbilityProductionRealizer:
                 target_key=target_id,
                 expected_version=row.get("version") or 0,
                 activation_id=window.get("window_id") or "",
-                max_changes=None,
+                max_changes=target_security_max_changes(window.get("ability_code")),
             )
             reason = str(result.get("reason") or "")
             if result.get("ok"):

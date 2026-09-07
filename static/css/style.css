@@ -1424,6 +1424,10 @@ body {
   content: "EFEKT DOMINA";
 }
 
+#system-status-strip .system-status-target.ghost-ability-impact-security.ghost-ability-impact-glitch .target-feedback::after {
+  content: "GLITCH INJECTION";
+}
+
 #system-status-strip .system-status-target.ghost-ability-impact-security .target-disarm-track {
   height: 3px;
   outline: 1px solid color-mix(in srgb, var(--ghost-ability-impact) 66%, transparent);

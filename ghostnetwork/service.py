@@ -1009,6 +1009,7 @@ class GhostNetworkService:
             "resistance_signal": "Beacon Oporu",
             "domino_effect": "Efekt Domina",
             "phantom_node": "Węzeł Widmo",
+            "glitch_injection": "Glitch Injection",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1022,6 +1023,7 @@ class GhostNetworkService:
             "resistance_signal": "ŚWIAT W ZASIĘGU",
             "domino_effect": "ISKRA POSZŁA",
             "phantom_node": "RUCH POZORNY",
+            "glitch_injection": "SYSTEM PĘKA",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1035,6 +1037,7 @@ class GhostNetworkService:
             "resistance_signal": "scan_range",
             "domino_effect": "target_security_bar",
             "phantom_node": "operation_risk",
+            "glitch_injection": "target_security_bar",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {
