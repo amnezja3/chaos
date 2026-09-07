@@ -65,12 +65,12 @@ SCAN_RANGE_METERS_PER_LEVEL = 25_000
 MAX_SCAN_RANGE_METERS = 10_000_000
 SCAN_RANGE_ABILITY_CODES = frozenset(("resistance_signal", "false_tracking"))
 MAP_ZOOM_ABILITY_CODES = frozenset(("network_fracture",))
-MAP_ZOOM_SCALE_POLICIES = (
-    (200, "world", 0),
-    (100, "continent", 3_000_000),
-    (50, "country", 500_000),
-    (10, "city", 30_000),
-    (1, "local", 10_000),
+MAP_ZOOM_LEVEL_ANCHORS = (
+    (1, 14, "local", 3_000),
+    (10, 10, "city", 30_000),
+    (50, 6, "country", 500_000),
+    (100, 4, "continent", 3_000_000),
+    (200, 2, "world", 20_000_000),
 )
 
 
@@ -129,17 +129,37 @@ def calculate_scan_range_m(level_snapshot, ability_code="resistance_signal"):
 def calculate_map_zoom_scale(level_snapshot, ability_code="network_fracture"):
     """Return the frozen viewport-adaptive strategic map scale for one window."""
     if str(ability_code or "").strip() not in MAP_ZOOM_ABILITY_CODES:
-        return {"active": False, "scale": "", "radius_m": 0, "fit_world": False}
-    level = _clamp_int(level_snapshot, 1, 999_999)
-    for minimum_level, scale, radius_m in MAP_ZOOM_SCALE_POLICIES:
-        if level >= minimum_level:
+        return {
+            "active": False, "scale": "", "radius_m": 0,
+            "fit_world": False, "min_zoom": 0,
+        }
+    level = _clamp_int(level_snapshot, 1, MAP_ZOOM_LEVEL_ANCHORS[-1][0])
+    lower = MAP_ZOOM_LEVEL_ANCHORS[0]
+    if level == lower[0]:
+        return {
+            "active": True, "scale": lower[2], "radius_m": lower[3],
+            "fit_world": False, "min_zoom": lower[1],
+        }
+    for upper in MAP_ZOOM_LEVEL_ANCHORS[1:]:
+        if level == upper[0]:
             return {
-                "active": True,
-                "scale": scale,
-                "radius_m": radius_m,
-                "fit_world": scale == "world",
+                "active": True, "scale": upper[2], "radius_m": upper[3],
+                "fit_world": upper[2] == "world", "min_zoom": upper[1],
             }
-    raise AssertionError("map zoom policy has no fallback")
+        if level < upper[0]:
+            progress = (level - lower[0]) / (upper[0] - lower[0])
+            min_zoom = round(lower[1] + progress * (upper[1] - lower[1]))
+            radius_m = round(lower[3] + progress * (upper[3] - lower[3]))
+            return {
+                "active": True, "scale": lower[2], "radius_m": radius_m,
+                "fit_world": False, "min_zoom": min_zoom,
+            }
+        lower = upper
+    world = MAP_ZOOM_LEVEL_ANCHORS[-1]
+    return {
+        "active": True, "scale": world[2], "radius_m": world[3],
+        "fit_world": True, "min_zoom": world[1],
+    }
 
 
 def operation_risk_modifier(ability_code):
@@ -518,6 +538,7 @@ def _map_zoom(state, window):
     capability["map_zoom_scale"] = effect["scale"]
     capability["map_zoom_radius_m"] = effect["radius_m"]
     capability["map_zoom_fit_world"] = effect["fit_world"]
+    capability["map_zoom_min"] = effect["min_zoom"]
     return {"changed": ["map_zoom"], "base": base, **effect}
 
 

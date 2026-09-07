@@ -125,7 +125,8 @@ class GhostAbilityRealizerCertificationTest(unittest.TestCase):
         self.assertNotIn("risk_level", results["operation_risk"]["after"]["operation"])
         self.assertGreater(results["scan_range"]["evidence"]["effective"], 500)
         self.assertEqual("country", results["map_zoom"]["evidence"]["scale"])
-        self.assertEqual(500_000, results["map_zoom"]["evidence"]["radius_m"])
+        self.assertEqual(1_550_000, results["map_zoom"]["evidence"]["radius_m"])
+        self.assertEqual(5, results["map_zoom"]["evidence"]["min_zoom"])
         self.assertTrue(results["territory_defense"]["evidence"]["owner_checked"])
         self.assertTrue(results["territory_defense"]["evidence"]["cas_checked"])
 

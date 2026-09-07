@@ -2689,7 +2689,10 @@
             overlayTimer: null,
             audioHandles: [],
             mapZoomActive: false,
-            mapZoomWindowId: ''
+            mapZoomWindowId: '',
+            mapZoomBaseMin: baseMinZoom,
+            mapZoomReloadTimer: null,
+            mapZoomReloadWindowId: ''
         };
 
         function ghostAbilityMapScaleLabel(scale) {
@@ -2707,11 +2710,17 @@
             if (!runtime.mapZoomActive && !runtime.mapZoomWindowId) return;
             runtime.mapZoomActive = false;
             runtime.mapZoomWindowId = '';
+            runtime.mapZoomReloadWindowId = '';
+            if (runtime.mapZoomReloadTimer) {
+                window.clearTimeout(runtime.mapZoomReloadTimer);
+                runtime.mapZoomReloadTimer = null;
+            }
             clearZoomReturn();
-            if (typeof map.setMinZoom === 'function') map.setMinZoom(baseMinZoom);
-            if (map.getZoom() < baseMinZoom) {
+            const normalMinZoom = Number(runtime.mapZoomBaseMin) || baseMinZoom;
+            if (typeof map.setMinZoom === 'function') map.setMinZoom(normalMinZoom);
+            if (map.getZoom() < normalMinZoom) {
                 programmaticMapMove = true;
-                map.setZoom(baseMinZoom, { animate: true });
+                map.setZoom(normalMinZoom, { animate: true });
                 window.setTimeout(() => { programmaticMapMove = false; }, 350);
             }
         }
@@ -2732,26 +2741,22 @@
                 return;
             }
             runtime.mapZoomActive = true;
+            runtime.mapZoomBaseMin = Number(player.base_min_map_zoom) || baseMinZoom;
             clearZoomReturn();
             if (runtime.mapZoomWindowId === windowId) return;
             runtime.mapZoomWindowId = windowId;
-            requestAnimationFrame(() => {
-                map.invalidateSize({ pan: false, animate: false });
-                let strategicMinZoom;
-                if (player.map_zoom_fit_world) {
-                    strategicMinZoom = 1;
-                } else {
-                    const radiusM = Math.max(1000, Number(player.map_zoom_radius_m) || 10000);
-                    const bounds = map.getCenter().toBounds(radiusM * 2);
-                    // Leaflet clamps getBoundsZoom() to the current minZoom.
-                    // Unlock calculation first; this changes no center or zoom.
-                    if (typeof map.setMinZoom === 'function') map.setMinZoom(1);
-                    strategicMinZoom = map.getBoundsZoom(bounds, false, L.point(24, 24));
-                }
-                if (typeof map.setMinZoom === 'function') {
-                    map.setMinZoom(Math.min(baseMinZoom, strategicMinZoom));
-                }
-            });
+            const effectiveMinZoom = Number(player.effective_min_map_zoom);
+            if (!Number.isFinite(effectiveMinZoom)) return;
+            if (map.getMinZoom() > effectiveMinZoom) {
+                if (runtime.mapZoomReloadWindowId === windowId) return;
+                runtime.mapZoomReloadWindowId = windowId;
+                runtime.mapZoomReloadTimer = window.setTimeout(() => {
+                    saveManualMapViewport();
+                    window.location.reload();
+                }, 6200);
+                return;
+            }
+            if (typeof map.setMinZoom === 'function') map.setMinZoom(effectiveMinZoom);
         }
 
         function stopGhostAbilityAudio(fadeMs) {

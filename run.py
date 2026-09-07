@@ -21078,6 +21078,7 @@ def api_ghostnetwork_ability():
         map_zoom_effect = service.active_map_zoom_effect(
             player_context, snapshot=snapshot,
         )
+        base_min_map_zoom = get_player_min_map_zoom(capabilities)
         snapshot.update({
             "enabled": bool(GHOSTNETWORK_ABILITIES_ENABLED),
             "player": {
@@ -21090,6 +21091,11 @@ def api_ghostnetwork_ability():
                 "map_zoom_scale": map_zoom_effect["scale"],
                 "map_zoom_radius_m": map_zoom_effect["radius_m"],
                 "map_zoom_fit_world": map_zoom_effect["fit_world"],
+                "base_min_map_zoom": base_min_map_zoom,
+                "effective_min_map_zoom": (
+                    min(base_min_map_zoom, map_zoom_effect["min_zoom"])
+                    if map_zoom_effect["active"] else base_min_map_zoom
+                ),
             },
         })
         if not GHOSTNETWORK_ABILITIES_ENABLED:
@@ -22635,6 +22641,18 @@ def map_view():
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     zoom = get_player_map_zoom(profile)
     min_zoom = get_player_min_map_zoom(profile)
+    if GHOSTNETWORK_ABILITIES_ENABLED:
+        try:
+            username = str(session.get("user") or profile.get("username") or "").strip()
+            identity = identity_projection_store.get_identity(username) or {}
+            capabilities = capability_projection_store.get_capabilities(username) or {}
+            map_zoom_effect = get_ghostnetwork_service().active_map_zoom_effect({
+                **identity, **capabilities, "player_id": username,
+            })
+            if map_zoom_effect.get("active"):
+                min_zoom = min(min_zoom, int(map_zoom_effect.get("min_zoom") or min_zoom))
+        except (ProfileRecoveryRequired, TypeError, ValueError):
+            pass
     desktop_settings = normalize_desktop_settings(profile.get("desktop_settings"))
     requested_scheme = str(request.args.get("scheme") or "").strip()
     scheme_id = requested_scheme if requested_scheme in MAP_TILE_SCHEMES else desktop_settings.get("map_tile_scheme")

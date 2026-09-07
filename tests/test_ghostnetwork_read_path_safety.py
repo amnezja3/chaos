@@ -118,7 +118,8 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
             "active": False, "base_range_m": 2528, "effective_range_m": 2528,
         }
         service.active_map_zoom_effect.return_value = {
-            "active": False, "scale": "", "radius_m": 0, "fit_world": False,
+            "active": False, "scale": "", "radius_m": 0,
+            "fit_world": False, "min_zoom": 0,
         }
         service.activate_player_ability.return_value = {
             "ok": True, "status": "activated", "window": {"window_id": "w1"},

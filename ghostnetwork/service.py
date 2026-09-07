@@ -1360,6 +1360,7 @@ class GhostNetworkService:
                 "scale": "",
                 "radius_m": 0,
                 "fit_world": False,
+                "min_zoom": 0,
             }
         effect = calculate_map_zoom_scale(
             window.get("level_snapshot"), ability_code,

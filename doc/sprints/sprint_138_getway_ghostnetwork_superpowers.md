@@ -278,7 +278,7 @@ ability_code
 | `target_security` | mniej lub więcej aktywnych zabezpieczeń | jeden kontrakt rodziny na istniejącej security map z exact target i CAS; E1, E5 i P2 zerują cały boolean bar |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większa odległość wywołania skanu od motocykla | istniejący distance gate endpointu skanu; lokalny promień wyników pozostaje bounded i nie powstaje account/global scan |
-| `map_zoom` | strategiczny limit oddalenia zależny od `level_snapshot` | lekki snapshot i dynamiczny `minZoom`, bez automatycznego przesunięcia widoku i bez trwałego zakupu w profilu |
+| `map_zoom` | proporcjonalny strategiczny limit oddalenia zależny od `level_snapshot` | tymczasowy boost istniejącego serwerowego `min_zoom`; Folium i kafelki powstają z tym samym limitem, bez trwałego zakupu w profilu |
 | `actor_visibility` | **DEFERRED** — obecny snapshot wykonuje account scan | nie wchodzi do bieżącej bramki |
 | `incident_decoy` | **DEFERRED** — globalne listy i write-on-GET | nie wchodzi do bieżącej bramki |
 | `territory_defense` | cele zyskują/odzyskują zabezpieczenia | istniejący security store i owner/CAS checks |
@@ -1211,18 +1211,18 @@ lifecycle okna działają zgodnie ze wspólnym kontraktem. Decyzja:
 
 Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
 
-`Pęknięcie Sieci` montuje rodzinę `map_zoom` jako 15-minutową zmianę skali
-obserwacji mapy. Nie jest to bonus `+2` do liczby zoomu Leafleta. Polityka jest
-wyliczana wyłącznie z `level_snapshot` aktywnego okna: poniżej LVL 10 widok
-lokalny `10 km`, od LVL 10 całe miasto `30 km`, od LVL 50 kraj `500 km`, od
-LVL 100 Europa `3000 km`, a od LVL 200 cały świat.
+`Pęknięcie Sieci` montuje rodzinę `map_zoom` jako 15-minutowy boost istniejącego
+serwerowego limitu oddalenia. Nie jest to bonus `+2` ani frontendowe obchodzenie
+Leafleta. Polityka interpoluje proporcjonalnie pomiędzy kotwicami
+`level_snapshot`: LVL `1→zoom 14` (dzielnica), `10→10` (miasto), `50→6`
+(kraj), `100→4` (Europa), `200+→2` (świat).
 
-Backend publikuje lekki kontrakt `scale/radius/fit_world`; klient wylicza z niego
-viewport-adaptive minimalny zoom i wyłącza standardowy auto-return przybliżenia.
-Nie wykonuje automatycznego `fitBounds`, `fitWorld`, `setView` ani `panTo`.
-Aktywacja nie zmienia więc kadru: jego środkiem pozostaje motocykl albo ostatni
-punkt `focus`, a operator sam oddala mapę gestem lub przyciskiem. Limit jest
-nakładany raz na `window_id`, więc lokalny zegar nie przelicza go co sekundę.
+Backend publikuje lekki kontrakt skali i podaje efektywny `min_zoom` do istniejącej
+ścieżki budowy mapy. Folium oraz TileLayer powstają od razu z tym samym zakresem,
+więc nie ma pustych kafelków. Po aktywacji dokument mapy przeładowuje się po
+6-sekundowym show, zachowując aktualny viewport. Klient nie wykonuje
+automatycznego `fitBounds`, `fitWorld`, `setView` ani `panTo`; operator sam oddala
+mapę gestem lub przyciskiem. Standardowy auto-return pozostaje wyłączony w oknie.
 
 Moc nie teleportuje motocykla, nie zmienia bieżącego centrum na pozycję gracza,
 nie rozszerza `scan_range`, `action_range`, promienia POI ani zakresu danych

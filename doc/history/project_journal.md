@@ -3510,3 +3510,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   odblokować skali. Obliczenie najpierw tymczasowo ustawia `minZoom=1`, wyznacza
   viewport-adaptive limit i dopiero zapisuje właściwy próg. Nie zmienia to
   aktualnego zoomu ani środka mapy.
+
+## 2026-09-07 — P4 przeniesione do istniejącej ścieżki map zoom
+
+- Test na LVL 1 potwierdził, że runtime `setMinZoom()` odblokowuje geometrię,
+  lecz TileLayer utworzony wcześniej z `min_zoom=18` nie renderuje niższych
+  poziomów. Efekt był też zbyt szeroki dla początkującego gracza.
+- Usunięto frontendowe obliczanie limitu. Aktywne P4 chwilowo podaje efektywny
+  `min_zoom` do istniejącej serwerowej konstrukcji `folium.Map`, dzięki czemu
+  mapa i kafelki mają identyczny zakres.
+- Zastąpiono widełki proporcjonalną interpolacją pomiędzy kotwicami:
+  LVL `1→14` (dzielnica), `10→10` (miasto), `50→6` (kraj), `100→4` (Europa),
+  `200+→2` (świat).
+- Aktywacja po 6-sekundowym show przeładowuje wyłącznie dokument mapy i zachowuje
+  aktualny viewport. Nie teleportuje motocykla ani nie wybiera nowego centrum.
