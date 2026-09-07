@@ -105,16 +105,30 @@ atrakcyjny wizualnie.
 22. Ollama może później opisać zdarzenie poza hot path, ale nigdy nie wybiera
     mocy, targetu, wartości, czasu, nagrody ani powodzenia aktywacji.
 
+### Niezmienność certyfikowanej rodziny
+
+23. Rodzina z `SERVER E2E PASS` ma identyczne działanie niezależnie od profesji:
+    ten sam call-site, target scope, mutację, limit lub mnożnik, expiry/part-loss
+    i typ dowodu gameplayowego.
+24. Profesja może zmieniać wyłącznie nazwę, tagline, opis, asset, SFX, etykietę
+    oraz kolor klanu. Nie może zmieniać siły ani zasad działania realizera.
+25. Klucz polityki per `ability_code` jest dozwolony wyłącznie jako alias
+    routingu, telemetry i prezentacji. Jego parametry muszą być równe
+    certyfikowanemu kontraktowi rodziny.
+26. Każda różnica gameplayowa wymaga nowej nazwanej rodziny lub wersji kontraktu
+    i ponownej certyfikacji wszystkich przypisań. Nie jest dopuszczalna jako
+    lokalny tuning podsprintu profesji.
+
 ### Budżet wydajności i wymagane dowody
 
-23. Snapshot mocy zwraca tylko viewer-safe capability, aktywne okno i cooldown;
+27. Snapshot mocy zwraca tylko viewer-safe capability, aktywne okno i cooldown;
     nie dołącza pełnego profilu, historii użyć ani list obiektów świata.
-24. Efekt klastrowy jest ograniczony liczbą klastrów i obiektów na aktywację.
+28. Efekt klastrowy jest ograniczony liczbą klastrów i obiektów na aktywację.
     Żadna moc nie wykonuje nieograniczonego fan-out po terytoriach, celach,
     operacjach, plikach lub aktorach.
-25. Każdy podsprint dostarcza test potwierdzający bounded liczbę read/write,
+29. Każdy podsprint dostarcza test potwierdzający bounded liczbę read/write,
     brak heavy-profile read/write/account scan oraz brak regresji SQLite lock.
-26. Audit przed `SERVER PASS` raportuje co najmniej:
+30. Audit przed `SERVER PASS` raportuje co najmniej:
     `profile_full_read=0`, `profile_full_write=0`, `account_scan=0`, liczbę
     dotkniętych rekordów, czas aktywacji i liczbę odrzuconych duplikatów.
 
@@ -261,7 +275,7 @@ ability_code
 | `file_value` | **DEFERRED** — wymaga narrow settlementu Ghost Exchange | nie wchodzi do bieżącej bramki |
 | `data_quality` | rośnie kompletność/jakość każdego pliku dotkniętej operacji, mocniej dla kategorii misyjnych | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
-| `target_security` | mniej lub więcej aktywnych zabezpieczeń | polityka per ability na istniejącej security map z exact target i CAS; E1, E5 i P2 zerują cały boolean bar |
+| `target_security` | mniej lub więcej aktywnych zabezpieczeń | jeden kontrakt rodziny na istniejącej security map z exact target i CAS; E1, E5 i P2 zerują cały boolean bar |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większa odległość wywołania skanu od motocykla | istniejący distance gate endpointu skanu; lokalny promień wyników pozostaje bounded i nie powstaje account/global scan |
 | `map_zoom` | szerszy widok | istniejący getter zoomu, bez trwałego zakupu w profilu |
@@ -1027,14 +1041,14 @@ Decyzja: `KEEP / LOCKED` dla `expose → target_security`.
 
 Status: `COMPLETE / SERVER E2E PASS`
 
-`Przejęcie Narracji` ponownie wykorzystuje certyfikowaną rodzinę
-`operation_risk`, lecz przez osobną politykę backendową `narrative_takeover`.
+`Przejęcie Narracji` ponownie wykorzystuje pełny certyfikowany kontrakt
+`operation_risk`; `narrative_takeover` jest technicznym aliasem rodziny.
 Początkowy efekt to `heat -15` dla operacji istniejących przy aktywacji oraz
 nowych operacji rozpoczętych podczas 15-minutowego okna. Realizer nie ustawia
 wyniku detekcji: standardowy risk engine nadal sam wyznacza warning i incident.
 
-Polityki V3 i E2 są rozdzielone, aby późniejszy tuning jednej profesji nie
-zmieniał drugiej. Wspólne pozostają exact operation, expected version, CAS,
+V3 i E2 mają identyczne parametry i nie mogą być strojone osobno. Odrębne klucze
+istnieją wyłącznie dla routingu, telemetry oraz różnego copy. Wspólne pozostają exact operation, expected version, CAS,
 marker/replay, limit maksymalnie 8 istniejących operacji, expiry, part loss,
 cooldown oraz jeden lekki snapshot okna na gracza/tick. Bez nowego workera,
 kolejki, store'u i bez heavy profile.
@@ -1106,8 +1120,8 @@ istniejące typy danych, markery, aktorów, incydenty i zabezpieczenia.
 
 Status: `COMPLETE / SERVER E2E PASS`.
 
-`Węzeł Widmo` montuje certyfikowaną rodzinę `operation_risk` pod osobną polityką
-`phantom_node`. Aktywacja zapisuje bounded `ability_heat_modifier=-15` w maksymalnie
+`Węzeł Widmo` montuje pełny certyfikowany kontrakt `operation_risk`;
+`phantom_node` jest technicznym aliasem rodziny. Aktywacja zapisuje bounded `ability_heat_modifier=-15` w maksymalnie
 8 istniejących aktywnych operacjach, a lekki hook budowy stosuje tę samą politykę
 do każdej nowej operacji rozpoczętej podczas 15-minutowego okna. Standardowy risk
 engine nadal sam oblicza heat, warning i incident; moc nie wymusza wyniku.
@@ -1140,14 +1154,14 @@ zera przy następnym ticku.
 
 Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
 
-`Glitch Injection` montuje certyfikowaną rodzinę `target_security` przez osobną
-politykę `glitch_injection`. Aktywacja obejmuje dokładny aktualny cel `aimed`, a
+`Glitch Injection` montuje pełny certyfikowany kontrakt `target_security`;
+`glitch_injection` jest technicznym aliasem rodziny. Aktywacja obejmuje dokładny aktualny cel `aimed`, a
 istniejący lekki hook obejmuje każdy kolejny cel wybrany podczas 15-minutowego
 okna. Canonical store wyłącza w jednym CAS wszystkie aktywne flagi boolean
 security, ustawiając pasek na 100%. Cztery action dots, liczbowy `security_level`, inne cele i owner checks
 pozostają bez zmian.
 
-P2 ma osobną politykę, ale korzysta z pełnego kontraktu E1/E5. UI korzysta z istniejącego paska security,
+P2 ma identyczny gameplay jak E1/E5. UI korzysta z istniejącego paska security,
 palety `phantom_mesh`, assetów P2 oraz odrębnego copy
 `Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION`. Nie powstaje nowy store,
 worker, kolejka, poller, skan konta ani odczyt ciężkiego profilu.

@@ -3283,8 +3283,8 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 
 - Wybrano certyfikowany realizer `operation_risk` dla mocy
   `narrative_takeover` / `Przejęcie Narracji`.
-- E2 otrzymuje osobną politykę backendową z bazowym `heat -15`, aby jego tuning
-  nie zmieniał przetestowanego V3 `false_image`.
+- E2 otrzymuje techniczny alias backendowy z tym samym `heat -15` co
+  przetestowane V3 `false_image`; parametr rodziny nie podlega tuningowi per profesja.
 - Efekt obejmuje maksymalnie 8 istniejących operacji przy aktywacji oraz nowe
   operacje uruchomione w 15-minutowym oknie. Nie wymusza wyniku detekcji;
   warning i incident pozostają odpowiedzialnością standardowego risk engine.
@@ -3387,7 +3387,7 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 ## 2026-09-07 — start 138.getway.3.1, P1 Mirage Projector
 
 - Zamrożono montaż `phantom_node → operation_risk` z bazowym `heat -15`.
-- Osobna polityka P1 korzysta z przetestowanego szlaku V3/E2 dla operacji
+- Techniczny alias P1 korzysta z identycznego kontraktu V3/E2 dla operacji
   istniejących i nowych, bez wymuszania wyniku risk engine.
 - Dodano odrębny UX Siatki Widmo: `Węzeł Widmo / RUCH POZORNY`, asset P1 oraz
   rozpoznawalne wyróżnienie kart operacji.
@@ -3410,7 +3410,7 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 
 ## 2026-09-07 — start 138.getway.3.2, P2 Glitch Reactor
 
-- Zamrożono `glitch_injection → target_security` jako osobną politykę pełnego
+- Zamrożono `glitch_injection → target_security` jako techniczny alias pełnego
   wyłączenia boolean security dokładnego celu.
 - P2 korzysta z przetestowanego canonical target store, CAS oraz wspólnego hooka
   dla aktualnego i kolejnych celów `aimed` w 15-minutowym oknie.
@@ -3419,3 +3419,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Dodano turkusowy UX `Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION` oraz
   testy polityki, replay, expiry, part-loss i braku ciężkiego profilu.
 - Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+## 2026-09-07 — invariant certyfikowanych rodzin realizerów
+
+- Ustalono nadrzędną zasadę: rodzina po `SERVER E2E PASS` działa identycznie dla
+  każdej przypisanej profesji.
+- Wspólne i niezmienne są call-site, target scope, mutacja, limit lub mnożnik,
+  expiry/part-loss oraz typ dowodu gameplayowego.
+- Profesja różnicuje wyłącznie prezentację: nazwę, tagline, opis, asset, SFX,
+  etykietę efektu i kolor klanu.
+- Klucze per `ability_code` są wyłącznie aliasami routingu, telemetry i UX; nie
+  mogą wprowadzać osobnego balansu ani zachowania.
+- Inny parametr lub skutek wymaga nowej nazwanej rodziny albo wersji kontraktu i
+  ponownej certyfikacji wszystkich przypisań. Kolejne podsprinty pozostają
+  montażem przetestowanych realizerów.

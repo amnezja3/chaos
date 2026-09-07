@@ -10,7 +10,8 @@ w odpowiednim podsprincie i decyzji `KEEP / ADJUST / REPLACE / DEFER`.
 ## 1. Granice rozwiązania
 
 - jedna moc ma jedną główną rodzinę gameplayową;
-- kilka mocy może używać tej samej rodziny z innym zakresem i copy;
+- kilka mocy może używać tej samej rodziny, ale zawsze z identycznym zakresem,
+  parametrami i skutkiem gameplayowym; różnić może się wyłącznie prezentacja;
 - mapowanie `ability_code → family` jest statyczne i wyłącznie serwerowe;
 - klient nie przesyła rodziny, mnożnika, limitu ani target scope;
 - używamy wspólnego okna 15 minut, cooldownu 1 godziny, prezentacji, SFX,
@@ -33,6 +34,28 @@ niezwiązanym zdarzeniu świata.
 
 ## 2. Certyfikowane rodziny
 
+### Nadrzędny invariant rodziny
+
+Po uzyskaniu `SERVER E2E PASS` rodzina realizera jest jednym, niepodzielnym
+kontraktem gameplayowym. Każda profesja przypisana do tej rodziny otrzymuje
+dokładnie ten sam call-site, zakres celu, sposób mutacji, limity, mnożniki,
+semantykę expiry/part-loss oraz dowód działania w UI. Przykładowo wszystkie
+przypisania `operation_risk` używają `heat -15`, wszystkie przypisania
+`operation_speed` używają `clamp(0.1 × LVL, 1, 20)`, a wszystkie przypisania
+`target_security` wyłączają pełny boolean security bar i pozostawiają kropki.
+
+Profesja i część zmieniają wyłącznie warstwę narracyjną: nazwę mocy, tagline,
+opis, asset, SFX, etykietę efektu i kolor klanu. Klucze polityk per
+`ability_code` mogą istnieć technicznie dla routingu, telemetry i prezentacji,
+ale muszą być aliasami tych samych parametrów rodziny i nie mogą służyć do
+strojenia profesji osobno.
+
+Zmiana parametru, limitu, zakresu celu albo zachowania dla jednej profesji
+oznacza utworzenie nowej nazwanej rodziny lub nowej wersji kontraktu oraz pełną
+ponowną certyfikację wszystkich jej przypisań. Nie wolno wprowadzać takiej
+różnicy jako „polityki profesji”. Dzięki temu kolejne podsprinty są montażem
+przetestowanego realizera, a nie tworzeniem nowych odmian gameplayu.
+
 | Rodzina | Zamrożona granica techniczna |
 | --- | --- |
 | `operation_speed` | do 8 aktywnych operacji, jednorazowy marker, mnożnik `clamp(0.1 × LVL, 1, 20)` |
@@ -45,9 +68,9 @@ niezwiązanym zdarzeniu świata.
 | `map_zoom` | bounded zmiana o 2 poziomy na lekkim capability snapshotcie |
 | `territory_defense` | maksymalnie 2 zabezpieczenia przywrócone/włączone na własnym celu, owner check i CAS |
 
-Limity powyżej są punktem startowym. Podsprint może je obniżyć. Podniesienie
-limitu lub rozszerzenie kategorii/scope wymaga ponownego testu tej odmiany
-rodziny, ale nie przebudowy wspólnego runtime.
+Limity powyżej były punktami startowymi do chwili certyfikacji. Po certyfikacji
+nie wolno ich zmieniać w podsprincie profesji. Każda zmiana limitu lub scope
+wymaga wersjonowania rodziny i ponownej wspólnej certyfikacji.
 
 ## 3. Proponowane mapowanie 20 profesji
 
@@ -59,15 +82,15 @@ rodziny, ale nie przebudowy wspólnego runtime.
 | `.1.2` | V2 Backdoor Forge / `architect` | Wejście Serwisowe | `hack_actions` | cel obecny przy aktywacji oraz każdy cel oznaczony w 15-minutowym oknie natychmiast dostaje cztery kropki; zabezpieczenia pozostają | `LOCKED / SERVER PASS` |
 | `.1.3` | V3 Mimicry Engine / `manipulator` | Fałszywy Obraz | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; jeden lekki odczyt okna na gracza/tick, widoczny maskowany risk | `LOCKED / SERVER PASS` |
 | `.1.4` | V4 Acquisition Drive / `profit_enforcer` | Wrogie Przejęcie | `file_yield` | każda operacja dotknięta w oknie zachowuje wyróżnienie i przy finalizacji tworzy `oryginał + backup + fullbackup` każdego bazowego pliku GX | `LOCKED / SERVER PASS` |
-| `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_speed` | ten sam certyfikowany realizer co V1 dla operacji istniejących i nowych; osobna polityka mnożnika/capu oraz UX V5 | `LOCKED / SERVER E2E PASS` |
+| `.1.5` | V5 Probability Core / `algorithm_curator` | Predykcja Operacyjna | `operation_speed` | dokładnie ten sam certyfikowany realizer, mnożnik i cap co V1; odrębny wyłącznie UX V5 | `LOCKED / SERVER E2E PASS` |
 
 `false_image` nie używa `incident_decoy`: obraz zastępczy jest opowiedziany przez
 overlay i obniżenie heat, bez fałszywych globalnych rekordów. V4 nie tworzy
 gotowych paczek. `backup` i `fullbackup` są osobnymi kopiami tego samego materiału,
 a istniejący Ghost Exchange sam składa je z oryginałem w paczki sprzedażowe.
 V5 nie używa `operation_risk`: ta rodzina pozostaje domeną V3. Probability Core
-ponownie wykorzystuje `operation_speed` z V1, lecz ma osobną politykę parametrów,
-aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
+ponownie wykorzystuje pełny kontrakt `operation_speed` z V1. Techniczny klucz
+V5 jest aliasem tych samych parametrów; różni się wyłącznie prezentacją.
 
 ### 3.2 ECHO LIBERTAS
 
@@ -79,11 +102,11 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 | `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | przez 15 minut gracz aktywujący może wywołać skan do `min(10 000 km, 25 km × LVL)` od motocykla; lokalny promień wyników pozostaje `300 m` | `LOCKED / SERVER E2E PASS` |
 | `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | aktualny i każdy kolejny cel `aimed` w oknie ma wyłączony cały pasek security; cztery action dots pozostają do zhakowania | `LOCKED / SERVER E2E PASS` |
 
-E2 wykorzystuje certyfikowany w V3 realizer `operation_risk`, ale ma osobną
-politykę backendową `narrative_takeover`. Startowy modyfikator wynosi `heat -15`
+E2 wykorzystuje pełny certyfikowany w V3 realizer `operation_risk`. Techniczny
+klucz `narrative_takeover` jest aliasem rodziny. Modyfikator wynosi `heat -15`
 i obejmuje operacje istniejące oraz nowe w 15-minutowym oknie. Nie wymusza
 detekcji ani jej braku: ostrzeżenia i incydenty nadal wyznacza standardowy risk
-engine. Osobna polityka pozwala stroić E2 bez zmiany zachowania V3.
+engine. E2 nie może być strojone niezależnie od V3 ani innych przypisań rodziny.
 
 E5 korzysta z tego samego canonical `aimed` hooka i pełnego wariantu
 `target_security`, który został sprawdzony przez E1. Nie mutuje niewybranego
@@ -107,14 +130,14 @@ a P5 nie odczytuje atakującego. To świadome bezpieczne zamienniki rodzin
 `incident_decoy` i `actor_visibility`. Jeżeli efekt nie obroni się w grze,
 wybieramy `REPLACE` albo `DEFER`, bez rozszerzania ciężkiego runtime.
 
-P1 wykorzystuje ten sam certyfikowany szlak `operation_risk` co V3 i E2, ale ma
-osobną politykę `phantom_node`. Bazowy modyfikator wynosi `heat -15` i obejmuje
+P1 wykorzystuje dokładnie ten sam certyfikowany kontrakt `operation_risk` co V3
+i E2. Klucz `phantom_node` jest technicznym aliasem. Modyfikator `heat -15` obejmuje
 operacje istniejące przy aktywacji oraz nowe, rozpoczęte w 15-minutowym oknie.
 Nie powstają fałszywe incydenty, markery świata ani skan aktorów. Widocznym
 dowodem jest turkusowe wyróżnienie kart, `WĘZEŁ WIDMO` i `RUCH POZORNY`.
 
-P2 wykorzystuje canonical target runtime i ten sam pełny hook `aimed` co E1/E5,
-ale ma osobną politykę `glitch_injection`. Wyłącza wszystkie aktywne flagi
+P2 wykorzystuje dokładnie ten sam pełny kontrakt `target_security` co E1/E5.
+Klucz `glitch_injection` jest technicznym aliasem. Wyłącza wszystkie aktywne flagi
 boolean security dokładnego celu przez CAS, ustawiając pasek na 100%.
 Nie zmienia `actions_allowed`, liczbowego `security_level` ani celów sąsiednich.
 Każdy cel dotknięty w aktywnym oknie zachowuje zmianę; po expiry lub utracie
