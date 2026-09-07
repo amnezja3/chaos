@@ -3256,8 +3256,9 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Zakres obejmuje cel obecny przy aktywacji oraz każdy nowy `aimed` w 15-minutowym
   oknie. Exact target, CAS, marker/replay, expiry, part loss i cooldown pozostają
   wspólnym kontraktem runtime.
-- Polityka E1 jest osobna od przyszłego P2, który nadal ma limit maksymalnie dwóch
-  zmian security. Nie powstaje nowy store, worker ani heavy-profile call-site.
+- Historyczna hipoteza P2 zakładała limit dwóch zmian security; została później
+  zastąpiona pełnym kontraktem E1/E5. Nie powstaje nowy store, worker ani
+  heavy-profile call-site.
 - Rozpoczęto implementację `expose → target_security` oraz żółtego UX paska
   `UJAWNIONE`.
 - Implementacja przeszła lokalną bramkę: 28/28 testów celowanych, 364/364 pełnej
@@ -3409,12 +3410,12 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 
 ## 2026-09-07 — start 138.getway.3.2, P2 Glitch Reactor
 
-- Zamrożono `glitch_injection → target_security` jako osobną politykę z limitem
-  maksymalnie 2 aktywnych flag security na dokładnym celu.
+- Zamrożono `glitch_injection → target_security` jako osobną politykę pełnego
+  wyłączenia boolean security dokładnego celu.
 - P2 korzysta z przetestowanego canonical target store, CAS oraz wspólnego hooka
   dla aktualnego i kolejnych celów `aimed` w 15-minutowym oknie.
-- E1/E5 zachowują pełne wyłączenie paska; P2 nie zmienia action dots ani
-  liczbowego `security_level`.
+- P2 korzysta z pełnego kontraktu E1/E5 i ustawia pasek na 100%; nie zmienia
+  action dots ani liczbowego `security_level`.
 - Dodano turkusowy UX `Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION` oraz
   testy polityki, replay, expiry, part-loss i braku ciężkiego profilu.
 - Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.

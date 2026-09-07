@@ -69,17 +69,17 @@ class GhostNetworkGlitchInjectionTest(unittest.TestCase):
             },
         })
 
-    def assert_two_security_flags_disabled(self, target):
+    def assert_complete_security_bar_disabled(self, target):
         booleans = {
             key: value for key, value in target["security"].items()
             if isinstance(value, bool)
         }
-        self.assertEqual(1, sum(value is True for value in booleans.values()))
-        self.assertEqual(3, sum(value is False for value in booleans.values()))
+        self.assertEqual(0, sum(value is True for value in booleans.values()))
+        self.assertEqual(4, sum(value is False for value in booleans.values()))
         self.assertTrue(all(value is False for value in target["actions_allowed"].values()))
         self.assertEqual(4, target["security"]["security_level"])
 
-    def test_activation_disables_at_most_two_security_flags(self):
+    def test_activation_disables_complete_security_bar(self):
         aimed = self.aim()
         result = GhostNetworkService(repository=self.repo).activate_player_ability(
             self.player, "glitch-now", now=self.now,
@@ -88,11 +88,11 @@ class GhostNetworkGlitchInjectionTest(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual("applied", result["realizer"]["status"])
-        self.assertEqual(2, result["realizer"]["applied_changes"])
-        self.assert_two_security_flags_disabled(after)
+        self.assertEqual(3, result["realizer"]["applied_changes"])
+        self.assert_complete_security_bar_disabled(after)
         self.assertEqual(aimed["target"]["target_id"], result["window"]["target_id"])
 
-    def test_every_new_aimed_target_gets_same_bounded_effect_once(self):
+    def test_every_new_aimed_target_gets_same_full_bar_effect_once(self):
         service = GhostNetworkService(repository=self.repo)
         activated = service.activate_player_ability(
             self.player, "glitch-window", now=self.now,
@@ -106,8 +106,8 @@ class GhostNetworkGlitchInjectionTest(unittest.TestCase):
             )
             after = self.targets.get("virus")
             self.assertEqual("applied", first["status"])
-            self.assertEqual(2, len(first["changed"]))
-            self.assert_two_security_flags_disabled(after)
+            self.assertEqual(3, len(first["changed"]))
+            self.assert_complete_security_bar_disabled(after)
             version = after["version"]
             replay = service.apply_active_ability_to_aimed_target(
                 self.player, aimed["target"]["target_id"], now=self.now,
@@ -115,14 +115,14 @@ class GhostNetworkGlitchInjectionTest(unittest.TestCase):
             self.assertEqual("replayed", replay["status"])
             self.assertEqual(version, self.targets.get("virus")["version"])
 
-    def test_p2_policy_is_independent_from_full_bar_variants(self):
+    def test_p2_policy_is_independent_but_uses_full_bar_contract(self):
         self.assertIsNot(
             TARGET_SECURITY_POLICIES["expose"],
             TARGET_SECURITY_POLICIES["glitch_injection"],
         )
         self.assertIsNone(target_security_max_changes("expose"))
         self.assertIsNone(target_security_max_changes("domino_effect"))
-        self.assertEqual(2, target_security_max_changes("glitch_injection"))
+        self.assertIsNone(target_security_max_changes("glitch_injection"))
 
     def test_expiry_and_part_loss_stop_future_targets(self):
         service = GhostNetworkService(repository=self.repo)

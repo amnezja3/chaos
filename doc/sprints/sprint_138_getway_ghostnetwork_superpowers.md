@@ -261,7 +261,7 @@ ability_code
 | `file_value` | **DEFERRED** — wymaga narrow settlementu Ghost Exchange | nie wchodzi do bieżącej bramki |
 | `data_quality` | rośnie kompletność/jakość każdego pliku dotkniętej operacji, mocniej dla kategorii misyjnych | bounded bonus przy finalizacji; istniejące quality/completeness dalej liczy cenę |
 | `hack_actions` | mniej kropek pozostaje do wykonania | inicjalizacja/aktualizacja action state oznaczonego celu |
-| `target_security` | mniej lub więcej aktywnych zabezpieczeń | polityka per ability na istniejącej security map z exact target i CAS; E1 zeruje cały boolean bar, P2 zachowuje limit 2 |
+| `target_security` | mniej lub więcej aktywnych zabezpieczeń | polityka per ability na istniejącej security map z exact target i CAS; E1, E5 i P2 zerują cały boolean bar |
 | `operation_risk` | spada/rośnie widoczny heat i ryzyko incydentu | modyfikator w istniejącym risk meterze, przed progami warning/incident |
 | `scan_range` | większa odległość wywołania skanu od motocykla | istniejący distance gate endpointu skanu; lokalny promień wyników pozostaje bounded i nie powstaje account/global scan |
 | `map_zoom` | szerszy widok | istniejący getter zoomu, bez trwałego zakupu w profilu |
@@ -431,7 +431,7 @@ limit, idempotency i test braku heavy profile:
 | `file_yield` | operacja z trwałym markerem oraz bazowym materiałem GX | każdy materiał daje dwie osobne, deterministyczne kopie; GX sam buduje paczkę |
 | `data_quality` | pełny zestaw plików operacji o znanej jakości | każdy plik dostaje bazowy bonus, kategorie misyjne większy; quality/completeness pozostaje w granicach 0–100 |
 | `hack_actions` | oznaczony cel z niewykonanymi kropkami | właściwe action dots są wykonane, security pozostaje |
-| `target_security` | oznaczony cel z wersjonowaną security map | polityka mocy zachowuje CAS: E1 wyłącza cały boolean bar bez zmiany kropek, P2 maks. 2 flagi |
+| `target_security` | oznaczony cel z wersjonowaną security map | polityka mocy zachowuje CAS: E1, E5 i P2 wyłączają cały boolean bar bez zmiany kropek |
 | `operation_risk` | aktywna operacja z heat blisko progu | risk meter liczy zmienione wejście, nie wymuszony wynik |
 | `scan_range` | punkt wewnątrz i poza bazowym zasięgiem | tylko aktywne okno zmienia distance gate; lokalny promień wyników i pozycja motocykla pozostają bez zmian |
 | `map_zoom` | znany bazowy zoom | snapshot/UI pokazuje bounded rozszerzenie |
@@ -1003,8 +1003,8 @@ ich istniejącą jakość/skuteczność.
 Zmiana przechodzi przez dokładny `target_key`, expected version, CAS i marker
 okna. Nie skanuje celów ani profili. Rozbrojenie dotkniętego celu zostaje po
 expiry; utrata aktywnej E1 zatrzymuje tylko dalsze zastosowania, a cooldown biegnie
-normalnie. Backendowa polityka `expose=disable_all_boolean_security` nie zmienia
-domyślnego limitu 2 rodziny przygotowanego dla przyszłego P2.
+normalnie. Backendowa polityka `expose=disable_all_boolean_security` stanowi
+pełny wariant używany później również przez E5 i P2.
 
 UX: `Ujawnienie`, tagline `SŁABOŚĆ UJAWNIONA`, asset E1 i żółta paleta Echo.
 Podczas aktywnego okna pełny pasek security pulsuje z etykietą `UJAWNIONE`, a
@@ -1094,7 +1094,7 @@ canonical finalizację i zero heavy profile.
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
 | `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — certyfikowany `operation_risk`, `heat -15`, bez syntetycznych incydentów |
-| `.3.2` | Wirusolog / P2 | **Glitch Injection** — maks. 2 aktywne flagi security wyłączone na aktualnym i kolejnych celach `aimed` |
+| `.3.2` | Wirusolog / P2 | **Glitch Injection** — pełny boolean security bar wyłączony na aktualnym i kolejnych celach `aimed` |
 | `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — skan niezależny od pozycji motocykla |
 | `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — miks `scan_range` i zakłóceń markerów |
 | `.3.5` | Lustrzany Sędzia / P5 | **Odbicie** — `operation_risk`/`target_security`, bez skanu aktorów |
@@ -1143,18 +1143,18 @@ Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
 `Glitch Injection` montuje certyfikowaną rodzinę `target_security` przez osobną
 politykę `glitch_injection`. Aktywacja obejmuje dokładny aktualny cel `aimed`, a
 istniejący lekki hook obejmuje każdy kolejny cel wybrany podczas 15-minutowego
-okna. Canonical store wyłącza w jednym CAS maksymalnie 2 aktywne flagi boolean
-security. Cztery action dots, liczbowy `security_level`, inne cele i owner checks
+okna. Canonical store wyłącza w jednym CAS wszystkie aktywne flagi boolean
+security, ustawiając pasek na 100%. Cztery action dots, liczbowy `security_level`, inne cele i owner checks
 pozostają bez zmian.
 
-P2 nie zmienia pełnych polityk E1/E5. UI korzysta z istniejącego paska security,
+P2 ma osobną politykę, ale korzysta z pełnego kontraktu E1/E5. UI korzysta z istniejącego paska security,
 palety `phantom_mesh`, assetów P2 oraz odrębnego copy
 `Glitch Injection / SYSTEM PĘKA / GLITCH INJECTION`. Nie powstaje nowy store,
 worker, kolejka, poller, skan konta ani odczyt ciężkiego profilu.
 
 Bramka serwerowa ma potwierdzić: aktywne P2, konto
-`phantom_mesh / virologist`, dokładnie 2 wyłączone flagi na aktualnym oraz co
-najmniej dwóch kolejnych celach, nietknięte cztery kropki i `security_level`,
+`phantom_mesh / virologist`, pełne wyłączenie boolean security na aktualnym oraz
+co najmniej dwóch kolejnych celach, nietknięte cztery kropki i `security_level`,
 replay bez drugiej mutacji, UX, reload, expiry, part-loss i cooldown.
 
 ## 13. 138.getway.4 — Strażnicy Ładu

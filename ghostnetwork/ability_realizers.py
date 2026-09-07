@@ -47,7 +47,7 @@ OPERATION_RISK_POLICIES = {
 TARGET_SECURITY_POLICIES = {
     "expose": {"max_changes": None},
     "domino_effect": {"max_changes": None},
-    "glitch_injection": {"max_changes": 2},
+    "glitch_injection": {"max_changes": None},
 }
 DATA_QUALITY_POLICIES = {
     "full_disclosure": {

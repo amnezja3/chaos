@@ -39,7 +39,7 @@ niezwiązanym zdarzeniu świata.
 | `file_yield` | dokładnie 2 kopie każdego bazowego pliku GX (`backup`, `fullbackup`), stabilne ID; operacja oznaczona w oknie zachowuje bonus do finalizacji |
 | `data_quality` | każdy plik finalizowanej operacji: bazowo `quality/completeness +10`; kategorie misyjne mocy mogą dostać `+30`; clamp `0–100`, maks. 16 plików na operację |
 | `hack_actions` | cztery action dots ustawione jako wykonane; security bez zmian |
-| `target_security` | exact target i CAS; polityka E1 wyłącza cały boolean security bar, polityka P2 pozostaje ograniczona do maks. 2 flag |
+| `target_security` | exact target i CAS; polityki E1, E5 i P2 wyłączają cały boolean security bar, pozostawiając action dots |
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | bounded zasięg wywołania skanu, bez account/global scan i bez zwiększania lokalnego promienia wyników; polityka E4: `min(10 000 km, 25 km × LVL)` |
 | `map_zoom` | bounded zmiana o 2 poziomy na lekkim capability snapshotcie |
@@ -97,7 +97,7 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
 | `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; standardowy risk engine nadal wyznacza wynik | `LOCKED / SERVER E2E PASS` |
-| `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | aktualny i każdy kolejny cel `aimed` traci maks. 2 aktywne flagi security przez CAS; cztery kropki pozostają | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
+| `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | większy promień pozwala wcześniej dostrzec ślady; bez bypassu pozycji motocykla | `SAFE SUBSTITUTE` |
 | `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | bounded zmiana perspektywy mapy o 2 poziomy; CSS pokazuje rozszczepienie | `VISUAL/GAMEPLAY PROXY` |
 | `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | maks. 2 warstwy ochrony wracają na oznaczonym własnym celu | `SAFE SUBSTITUTE` |
@@ -113,9 +113,9 @@ operacje istniejące przy aktywacji oraz nowe, rozpoczęte w 15-minutowym oknie.
 Nie powstają fałszywe incydenty, markery świata ani skan aktorów. Widocznym
 dowodem jest turkusowe wyróżnienie kart, `WĘZEŁ WIDMO` i `RUCH POZORNY`.
 
-P2 wykorzystuje canonical target runtime i ten sam hook `aimed` co E1/E5, ale
-ma osobną politykę `glitch_injection` z limitem 2. W deterministycznej kolejności
-wyłącza najwyżej dwie aktywne flagi boolean security dokładnego celu przez CAS.
+P2 wykorzystuje canonical target runtime i ten sam pełny hook `aimed` co E1/E5,
+ale ma osobną politykę `glitch_injection`. Wyłącza wszystkie aktywne flagi
+boolean security dokładnego celu przez CAS, ustawiając pasek na 100%.
 Nie zmienia `actions_allowed`, liczbowego `security_level` ani celów sąsiednich.
 Każdy cel dotknięty w aktywnym oknie zachowuje zmianę; po expiry lub utracie
 części nowe cele nie są już modyfikowane.
