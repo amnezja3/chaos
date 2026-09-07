@@ -3505,3 +3505,8 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   aktualny kadr wyznaczony przez motocykl lub ostatnie `focus`.
 - Progi, snapshot poziomu, auto-return bypass oraz powrót bazowego limitu po
   expiry/part-loss pozostają bez zmian.
+- Test LVL 1 ujawnił ograniczenie Leafleta: `getBoundsZoom()` zwracał wynik już
+  przycięty przez bazowy `minZoom=18`, więc późniejsze `setMinZoom()` nie mogło
+  odblokować skali. Obliczenie najpierw tymczasowo ustawia `minZoom=1`, wyznacza
+  viewport-adaptive limit i dopiero zapisuje właściwy próg. Nie zmienia to
+  aktualnego zoomu ani środka mapy.

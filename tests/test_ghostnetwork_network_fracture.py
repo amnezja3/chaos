@@ -111,6 +111,7 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
             "function applyGhostAbilityMapZoom",
             "runtime.mapZoomWindowId === windowId",
             "map.getCenter().toBounds(radiusM * 2)",
+            "map.setMinZoom(1)",
             "strategicMinZoom = map.getBoundsZoom",
             "map.setMinZoom(Math.min(baseMinZoom, strategicMinZoom))",
             "map.setMinZoom(baseMinZoom)",
@@ -124,6 +125,10 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
         ]
         for forbidden in ("map.fitBounds(", "map.fitWorld(", "map.setView(", "map.panTo("):
             self.assertNotIn(forbidden, zoom_runtime)
+        self.assertLess(
+            zoom_runtime.index("map.setMinZoom(1)"),
+            zoom_runtime.index("strategicMinZoom = map.getBoundsZoom"),
+        )
         endpoint = inspect.getsource(__import__("run").api_ghostnetwork_ability)
         for field in (
             "map_zoom_active", "map_zoom_scale", "map_zoom_radius_m",

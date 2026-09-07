@@ -2743,6 +2743,9 @@
                 } else {
                     const radiusM = Math.max(1000, Number(player.map_zoom_radius_m) || 10000);
                     const bounds = map.getCenter().toBounds(radiusM * 2);
+                    // Leaflet clamps getBoundsZoom() to the current minZoom.
+                    // Unlock calculation first; this changes no center or zoom.
+                    if (typeof map.setMinZoom === 'function') map.setMinZoom(1);
                     strategicMinZoom = map.getBoundsZoom(bounds, false, L.point(24, 24));
                 }
                 if (typeof map.setMinZoom === 'function') {
