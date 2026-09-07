@@ -122,7 +122,7 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 | `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; standardowy risk engine nadal wyznacza wynik | `LOCKED / SERVER E2E PASS` |
 | `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | cały boolean security bar aktualnego i każdego kolejnego celu `aimed` zostaje wyłączony przez CAS; cztery kropki pozostają | `LOCKED / SERVER E2E PASS` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | identycznie jak E4: `25 km × level_snapshot`, cap `10 000 km`, bez teleportu i bez zmiany lokalnego fetch radius | `LOCKED / SERVER E2E PASS` |
-| `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | przez 15 minut strategiczny zoom-out: od miasta na LVL 10, przez kraj i Europę, do całego świata na LVL 200+ | `IMPLEMENTATION / SERVER TEST PENDING` |
+| `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | przez 15 minut strategiczny zoom-out: od miasta na LVL 10, przez kraj i Europę, do całego świata na LVL 200+ | `KEEP / LOCKED / SERVER E2E PASS` |
 | `.3.5` | P5 Mirror Kernel / `mirror_judge` | Odbicie | `territory_defense` | maks. 2 warstwy ochrony wracają na oznaczonym własnym celu | `SAFE SUBSTITUTE` |
 
 P1 nie tworzy fałszywego markera, P3 nie wykonuje skanu niezależnego od pozycji,

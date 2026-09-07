@@ -1209,7 +1209,7 @@ lifecycle okna działają zgodnie ze wspólnym kontraktem. Decyzja:
 
 ### Bramka `.3.4` — P4 Fracture Engine / Rozłamowiec
 
-Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+Status: `KEEP / LOCKED / SERVER E2E PASS`.
 
 `Pęknięcie Sieci` montuje rodzinę `map_zoom` jako 15-minutowy boost istniejącego
 serwerowego limitu oddalenia. Nie jest to bonus `+2` ani frontendowe obchodzenie
@@ -1231,6 +1231,12 @@ Handoff występuje tylko bezpośrednio po aktywacji wymagającej przebudowy zakr
 kafelków i nie powtarza się na już przebudowanej, aktywnej mapie. Klient nie wykonuje
 automatycznego `fitBounds`, `fitWorld`, `setView` ani `panTo`; operator sam oddala
 mapę gestem lub przyciskiem. Standardowy auto-return pozostaje wyłączony w oknie.
+
+Test serwerowy i gameplay zakończyły się pełnym PASS. Potwierdzono właściwą
+kalibrację progresji zoomu, renderowanie kafelków w rozszerzonym zakresie,
+zachowanie viewportu oraz narracyjny handoff dodatkowych satelit wykorzystujący
+naturalny reload mapy. Decyzja: `KEEP / LOCKED` dla
+`network_fracture → map_zoom`.
 
 Moc nie teleportuje motocykla, nie zmienia bieżącego centrum na pozycję gracza,
 nie rozszerza `scan_range`, `action_range`, promienia POI ani zakresu danych

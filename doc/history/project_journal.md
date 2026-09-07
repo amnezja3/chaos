@@ -3551,3 +3551,13 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Snapshot już aktywnego okna na poprawnie zbudowanej mapie nie odtwarza animacji
   i nie inicjuje kolejnego reloadu.
 - Status `.3.4`: `IMPLEMENTATION / FINAL UX SERVER TEST PENDING`.
+
+## 2026-09-07 — certyfikacja 138.getway.3.4
+
+- Operator potwierdził pełny PASS testu serwerowego i gameplay P4.
+- Zweryfikowano właściwą kalibrację zoomu zależną od poziomu, poprawne kafelki,
+  brak automatycznego przesunięcia mapy oraz zachowanie aktualnego viewportu.
+- Sekwencja `AKTYWACJA DODATKOWYCH SATELIT` płynnie wypełnia przejście pomiędzy
+  podstawowym show a naturalnym reloadem mapy i nie odtwarza się ponownie po nim.
+- Decyzja: `KEEP / LOCKED / SERVER E2E PASS` dla
+  `network_fracture → map_zoom`. Rodzina realizera została sprawdzona w grze.
