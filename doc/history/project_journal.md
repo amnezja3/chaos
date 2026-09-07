@@ -3524,3 +3524,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `200+→2` (świat).
 - Aktywacja po 6-sekundowym show przeładowuje wyłącznie dokument mapy i zachowuje
   aktualny viewport. Nie teleportuje motocykla ani nie wybiera nowego centrum.
+
+## 2026-09-07 — kalibracja P4 jako boost istniejącej progresji
+
+- Serwerowy test LVL 75 pokazał, że bezpośrednie `min_zoom=5` daje już szeroki
+  widok Europy. Ustalono go jako twarde maksimum P4 dostępne dopiero od LVL 200.
+- Realizer nie zastępuje już zwykłego limitu. Liczy
+  `effective_min_zoom = max(5, base_min_zoom(level) - p4_bonus(level_snapshot))`.
+- Kotwice bonusu: LVL `1→1`, `9→3`, `10→4`, `50→7`, `100→8`, `200+→9`.
+  Efektywne limity: `1→17`, `9→13`, `10→12`, `50→7`, `100→6`, `200+→5`.
+- Poziomy pośrednie są interpolowane proporcjonalnie; szerszy całkowity zoom
+  odblokowuje się konserwatywnie dopiero po osiągnięciu wyliczonego progu.

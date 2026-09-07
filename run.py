@@ -88,6 +88,7 @@ from ghostnetwork.editorial import (
     GoogleplexEditorialProducer,
 )
 from ghostnetwork.ability_realizers import (
+    calculate_base_min_map_zoom,
     enhance_data_quality_files,
     replicate_file_yield_files,
 )
@@ -16155,16 +16156,7 @@ def get_player_map_zoom(profile):
 
 
 def get_player_min_map_zoom(profile):
-    level = get_player_level(profile)
-    if level >= 24:
-        return 14
-    if level >= 12:
-        return 15
-    if level >= 6:
-        return 16
-    if level >= 3:
-        return 17
-    return 18
+    return calculate_base_min_map_zoom(get_player_level(profile))
 
 
 def profile_fraction_mapping(profile):

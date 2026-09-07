@@ -49,21 +49,21 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
 
     def test_strategic_scale_thresholds_are_frozen(self):
         expected = {
-            1: ("local", 3_000, False, 14),
-            9: ("local", 27_000, False, 10),
-            10: ("city", 30_000, False, 10),
-            50: ("country", 500_000, False, 6),
-            75: ("country", 1_750_000, False, 5),
-            100: ("continent", 3_000_000, False, 4),
-            150: ("continent", 11_500_000, False, 3),
-            200: ("world", 20_000_000, True, 2),
+            1: ("local", 3_000, False, 17, 1),
+            9: ("local", 10_000, False, 13, 3),
+            10: ("city", 30_000, False, 12, 4),
+            50: ("country", 500_000, False, 7, 7),
+            75: ("country", 1_750_000, False, 7, 7),
+            100: ("continent", 3_000_000, False, 6, 8),
+            150: ("continent", 5_500_000, False, 6, 8),
+            200: ("world", 8_000_000, True, 5, 9),
         }
         for level, contract in expected.items():
             with self.subTest(level=level):
                 effect = calculate_map_zoom_scale(level)
                 self.assertEqual(contract, (
                     effect["scale"], effect["radius_m"], effect["fit_world"],
-                    effect["min_zoom"],
+                    effect["min_zoom"], effect["zoom_out_bonus"],
                 ))
         self.assertFalse(calculate_map_zoom_scale(100, "other")["active"])
 
@@ -85,7 +85,8 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
         self.assertEqual("map_zoom", internal["family"])
         self.assertEqual("country", effect["scale"])
         self.assertEqual(1_650_000, effect["radius_m"])
-        self.assertEqual(5, effect["min_zoom"])
+        self.assertEqual(7, effect["min_zoom"])
+        self.assertEqual(7, effect["zoom_out_bonus"])
         self.assertEqual("Pęknięcie Sieci", snapshot["presentation"]["display_name"])
         self.assertEqual("HORYZONT PĘKA", snapshot["presentation"]["activation_tagline"])
         self.assertEqual("map_zoom", snapshot["presentation"]["impact_ui"])
@@ -104,7 +105,7 @@ class GhostNetworkNetworkFractureTest(unittest.TestCase):
 
         self.assertEqual("country", active["scale"])
         self.assertEqual(1_650_000, active["radius_m"])
-        self.assertEqual(5, active["min_zoom"])
+        self.assertEqual(7, active["min_zoom"])
         self.assertFalse(expired["active"])
         self.assertEqual("", expired["scale"])
 

@@ -65,7 +65,7 @@ przetestowanego realizera, a nie tworzeniem nowych odmian gameplayu.
 | `target_security` | exact target i CAS; polityki E1, E5 i P2 wyłączają cały boolean security bar, pozostawiając action dots |
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | bounded zasięg wywołania skanu, bez account/global scan i bez zwiększania lokalnego promienia wyników; polityka E4: `min(10 000 km, 25 km × LVL)` |
-| `map_zoom` | proporcjonalny strategiczny limit oddalenia z `level_snapshot`; kotwice: LVL `1→14`, `10→10`, `50→6`, `100→4`, `200→2`; istniejący serwerowy `min_zoom`, bez automatycznej zmiany widoku |
+| `map_zoom` | proporcjonalny boost odejmowany od zwykłego `min_zoom`; kotwice efektu: LVL `1→17`, `9→13`, `10→12`, `50→7`, `100→6`, `200+→5`; cap oddalenia `5` |
 | `territory_defense` | maksymalnie 2 zabezpieczenia przywrócone/włączone na własnym celu, owner check i CAS |
 
 Limity powyżej były punktami startowymi do chwili certyfikacji. Po certyfikacji
@@ -148,12 +148,14 @@ Nie zmienia `actions_allowed`, liczbowego `security_level` ani celów sąsiednic
 Każdy cel dotknięty w aktywnym oknie zachowuje zmianę; po expiry lub utracie
 części nowe cele nie są już modyfikowane.
 
-P4 definiuje `map_zoom` jako skalę strategiczną, a nie skok kamery. Backend
-interpoluje proporcjonalnie pomiędzy kotwicami `level_snapshot`: LVL 1 daje
-`min_zoom=14` (dzielnica), LVL 10 `10` (miasto), LVL 50 `6` (kraj), LVL 100
-`4` (Europa), a LVL 200+ `2` (świat). Efekt trafia do istniejącego serwerowego
-`min_zoom` przed utworzeniem mapy Folium, więc mapa i warstwa kafelków otrzymują
-ten sam zakres. Frontend nie wylicza zoomu i nie wywołuje `fitBounds`, `fitWorld`,
+P4 definiuje `map_zoom` jako boost istniejącej progresji, a nie skok kamery.
+Backend najpierw liczy zwykły `min_zoom(level)`, a następnie odejmuje interpolowany
+`p4_zoom_out_bonus(level_snapshot)`. Kotwice bonusu to LVL `1→1`, `9→3`,
+`10→4`, `50→7`, `100→8`, `200+→9`; wynik ma cap `min_zoom=5`.
+Daje to efektywne punkty kalibracyjne `1→17`, `9→13`, `10→12`, `50→7`,
+`100→6`, `200+→5`. Efekt trafia do serwerowego `min_zoom` przed utworzeniem
+mapy Folium, więc mapa i warstwa kafelków otrzymują ten sam zakres. Frontend nie
+wylicza zoomu i nie wywołuje `fitBounds`, `fitWorld`,
 `setView` ani `panTo`: po aktywacji przeładowuje dokument mapy z zachowaniem
 aktualnego kadru, a gracz sam decyduje, czy i kiedy go oddalić. Przez aktywne
 okno standardowy auto-return zoomu jest wyłączony.

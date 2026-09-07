@@ -1214,8 +1214,11 @@ Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
 `Pęknięcie Sieci` montuje rodzinę `map_zoom` jako 15-minutowy boost istniejącego
 serwerowego limitu oddalenia. Nie jest to bonus `+2` ani frontendowe obchodzenie
 Leafleta. Polityka interpoluje proporcjonalnie pomiędzy kotwicami
-`level_snapshot`: LVL `1→zoom 14` (dzielnica), `10→10` (miasto), `50→6`
-(kraj), `100→4` (Europa), `200+→2` (świat).
+`level_snapshot`. Zwykły `min_zoom(level)` jest pomniejszany o bonus z kotwic
+LVL `1→1`, `9→3`, `10→4`, `50→7`, `100→8`, `200+→9`, z capem oddalenia
+`min_zoom=5`. Efektywnie daje to `1→17`, `9→13`, `10→12`, `50→7`, `100→6`
+i `200+→5`. Poziomy pośrednie rosną proporcjonalnie i konserwatywnie odblokowują
+następny całkowity poziom Leafleta dopiero po osiągnięciu jego progu.
 
 Backend publikuje lekki kontrakt skali i podaje efektywny `min_zoom` do istniejącej
 ścieżki budowy mapy. Folium oraz TileLayer powstają od razu z tym samym zakresem,

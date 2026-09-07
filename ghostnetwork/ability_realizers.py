@@ -65,13 +65,15 @@ SCAN_RANGE_METERS_PER_LEVEL = 25_000
 MAX_SCAN_RANGE_METERS = 10_000_000
 SCAN_RANGE_ABILITY_CODES = frozenset(("resistance_signal", "false_tracking"))
 MAP_ZOOM_ABILITY_CODES = frozenset(("network_fracture",))
-MAP_ZOOM_LEVEL_ANCHORS = (
-    (1, 14, "local", 3_000),
-    (10, 10, "city", 30_000),
-    (50, 6, "country", 500_000),
-    (100, 4, "continent", 3_000_000),
-    (200, 2, "world", 20_000_000),
+MAP_ZOOM_BOOST_ANCHORS = (
+    (1, 1, "local", 3_000),
+    (9, 3, "local", 10_000),
+    (10, 4, "city", 30_000),
+    (50, 7, "country", 500_000),
+    (100, 8, "continent", 3_000_000),
+    (200, 9, "world", 8_000_000),
 )
+MAP_ZOOM_MINIMUM = 5
 
 
 def _clamp_int(value, minimum, maximum):
@@ -126,39 +128,57 @@ def calculate_scan_range_m(level_snapshot, ability_code="resistance_signal"):
     return min(MAX_SCAN_RANGE_METERS, SCAN_RANGE_METERS_PER_LEVEL * level)
 
 
+def calculate_base_min_map_zoom(level_snapshot):
+    """Mirror the existing level progression used by the canonical map builder."""
+    level = _clamp_int(level_snapshot, 1, 999_999)
+    if level >= 24:
+        return 14
+    if level >= 12:
+        return 15
+    if level >= 6:
+        return 16
+    if level >= 3:
+        return 17
+    return 18
+
+
 def calculate_map_zoom_scale(level_snapshot, ability_code="network_fracture"):
-    """Return the frozen viewport-adaptive strategic map scale for one window."""
+    """Return P4 as a proportional boost over the canonical map progression."""
     if str(ability_code or "").strip() not in MAP_ZOOM_ABILITY_CODES:
         return {
             "active": False, "scale": "", "radius_m": 0,
             "fit_world": False, "min_zoom": 0,
+            "base_min_zoom": 0, "zoom_out_bonus": 0,
         }
-    level = _clamp_int(level_snapshot, 1, MAP_ZOOM_LEVEL_ANCHORS[-1][0])
-    lower = MAP_ZOOM_LEVEL_ANCHORS[0]
-    if level == lower[0]:
-        return {
-            "active": True, "scale": lower[2], "radius_m": lower[3],
-            "fit_world": False, "min_zoom": lower[1],
-        }
-    for upper in MAP_ZOOM_LEVEL_ANCHORS[1:]:
+    level = _clamp_int(level_snapshot, 1, MAP_ZOOM_BOOST_ANCHORS[-1][0])
+    lower = MAP_ZOOM_BOOST_ANCHORS[0]
+    zoom_out_bonus = lower[1]
+    scale = lower[2]
+    radius_m = lower[3]
+    for upper in MAP_ZOOM_BOOST_ANCHORS[1:]:
         if level == upper[0]:
-            return {
-                "active": True, "scale": upper[2], "radius_m": upper[3],
-                "fit_world": upper[2] == "world", "min_zoom": upper[1],
-            }
+            zoom_out_bonus, scale, radius_m = upper[1], upper[2], upper[3]
+            break
         if level < upper[0]:
             progress = (level - lower[0]) / (upper[0] - lower[0])
-            min_zoom = round(lower[1] + progress * (upper[1] - lower[1]))
+            # Integer Leaflet levels are stepped down conservatively: the next
+            # wider level unlocks only after its level anchor is reached.
+            zoom_out_bonus = int(lower[1] + progress * (upper[1] - lower[1]))
             radius_m = round(lower[3] + progress * (upper[3] - lower[3]))
-            return {
-                "active": True, "scale": lower[2], "radius_m": radius_m,
-                "fit_world": False, "min_zoom": min_zoom,
-            }
+            scale = lower[2]
+            break
         lower = upper
-    world = MAP_ZOOM_LEVEL_ANCHORS[-1]
+    else:
+        zoom_out_bonus, scale, radius_m = lower[1], lower[2], lower[3]
+    base_min_zoom = calculate_base_min_map_zoom(level_snapshot)
     return {
-        "active": True, "scale": world[2], "radius_m": world[3],
-        "fit_world": True, "min_zoom": world[1],
+        "active": True,
+        "scale": scale,
+        "radius_m": radius_m,
+        "fit_world": scale == "world",
+        "base_min_zoom": base_min_zoom,
+        "zoom_out_bonus": zoom_out_bonus,
+        "min_zoom": max(MAP_ZOOM_MINIMUM, base_min_zoom - zoom_out_bonus),
     }
 
 
