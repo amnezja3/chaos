@@ -3370,3 +3370,26 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Implementacja ponownie wykorzystuje sprawdzony E1 bez selektora sąsiedztwa,
   skanu konta, nowego store'u, workera, kolejki ani ciężkiego profilu.
 - Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+## 2026-09-07 — 138.getway.2.5 COMPLETE
+
+- Testy serwerowe oraz gameplay E2E zakończyły się pełnym PASS.
+- Potwierdzono aktywację E5, pełne wyłączenie paska security kolejnych celów
+  `aimed`, pozostawienie czterech action dots oraz idempotentny replay.
+- UX `Efekt Domina / ISKRA POSZŁA` i etykieta paska `EFEKT DOMINA` działają
+  zgodnie z kontraktem Echo Wolności.
+- Nie dodano selektora sąsiedztwa, trwałości wielu markerów, nowego store'u,
+  workera, kolejki ani ciężkiego profilu.
+- Decyzja: `KEEP / LOCKED` dla `domino_effect → target_security`.
+  Status `.2.5`: `COMPLETE / SERVER E2E PASS`.
+
+## 2026-09-07 — start 138.getway.3.1, P1 Mirage Projector
+
+- Zamrożono montaż `phantom_node → operation_risk` z bazowym `heat -15`.
+- Osobna polityka P1 korzysta z przetestowanego szlaku V3/E2 dla operacji
+  istniejących i nowych, bez wymuszania wyniku risk engine.
+- Dodano odrębny UX Siatki Widmo: `Węzeł Widmo / RUCH POZORNY`, asset P1 oraz
+  rozpoznawalne wyróżnienie kart operacji.
+- Nie dodano workerów, kolejek, pollingu, syntetycznych incydentów, skanu aktorów
+  ani odczytu ciężkiego profilu.
+- Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.

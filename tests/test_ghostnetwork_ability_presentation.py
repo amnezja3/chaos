@@ -125,6 +125,16 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ):
             self.assertIn(token, self.source)
 
+    def test_phantom_node_reuses_risk_ui_with_distinct_copy(self):
+        for token in (
+            "phantom_node",
+            "RUCH POZORNY",
+            "WĘZEŁ WIDMO",
+            "active-operation-card--risk-phantom",
+            "rgba(0, 207, 166",
+        ):
+            self.assertIn(token, self.source)
+
     def test_hostile_takeover_marks_touched_operations_until_completion(self):
         for token in (
             "operation.yield_boosted === true",

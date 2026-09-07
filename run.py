@@ -10118,7 +10118,9 @@ def embedded_ghostnetwork_operation_risk_rules(operation):
         else {}
     )
     if (
-        provenance.get("ability_code") in {"false_image", "narrative_takeover"}
+        provenance.get("ability_code") in {
+            "false_image", "narrative_takeover", "phantom_node",
+        }
         and provenance.get("family") == "operation_risk"
     ):
         modifier = int(provenance.get("modifier") or 0)
@@ -14910,7 +14912,9 @@ def summarize_operation_for_client(operation):
     )
     risk_masked = int(risk_meter.get("ability_heat_modifier") or 0) < 0
     risk_boost_code = str(ability_provenance.get("ability_code") or "").strip()
-    if risk_boost_code not in {"false_image", "narrative_takeover"}:
+    if risk_boost_code not in {
+        "false_image", "narrative_takeover", "phantom_node",
+    }:
         risk_boost_code = ""
     yield_boosted = any(
         str(marker or "").endswith(":file_yield") for marker in ability_markers

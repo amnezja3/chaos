@@ -42,6 +42,7 @@ OPERATION_SPEED_POLICIES = {
 OPERATION_RISK_POLICIES = {
     "false_image": {"ability_heat_modifier": -15},
     "narrative_takeover": {"ability_heat_modifier": -15},
+    "phantom_node": {"ability_heat_modifier": -15},
 }
 DATA_QUALITY_POLICIES = {
     "full_disclosure": {
@@ -742,6 +743,7 @@ class GhostAbilityProductionRealizer:
         "service_entrance": "hack_actions",
         "false_image": "operation_risk",
         "narrative_takeover": "operation_risk",
+        "phantom_node": "operation_risk",
         "hostile_takeover": "file_yield",
         "full_disclosure": "data_quality",
         "expose": "target_security",

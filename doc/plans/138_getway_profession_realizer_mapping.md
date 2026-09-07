@@ -77,7 +77,7 @@ aby tuning V5 nie zmienił zachowania certyfikowanego Insider Feed.
 | `.2.2` | E2 Influence Relay / `social_engineer` | Przejęcie Narracji | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; wynik nadal wyznacza standardowy risk engine | `LOCKED / SERVER E2E PASS` |
 | `.2.3` | E3 Truth Lens / `revealer` | Pełne Ujawnienie | `data_quality` | każdy plik operacyjny `+10/+10`; `camera`, `audio`, `network`, `personal` dostają `+30/+30`; maks. 16 plików na operację | `LOCKED / SERVER E2E PASS` |
 | `.2.4` | E4 Resonance Beacon / `visionary` | Beacon Oporu | `scan_range` | przez 15 minut gracz aktywujący może wywołać skan do `min(10 000 km, 25 km × LVL)` od motocykla; lokalny promień wyników pozostaje `300 m` | `LOCKED / SERVER E2E PASS` |
-| `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | aktualny i każdy kolejny cel `aimed` w oknie ma wyłączony cały pasek security; cztery action dots pozostają do zhakowania | `IMPLEMENTATION` |
+| `.2.5` | E5 Spark Chamber / `igniter` | Efekt Domina | `target_security` | aktualny i każdy kolejny cel `aimed` w oknie ma wyłączony cały pasek security; cztery action dots pozostają do zhakowania | `LOCKED / SERVER E2E PASS` |
 
 E2 wykorzystuje certyfikowany w V3 realizer `operation_risk`, ale ma osobną
 politykę backendową `narrative_takeover`. Startowy modyfikator wynosi `heat -15`
@@ -96,7 +96,7 @@ wymagałoby per-recipient reads; wspólnotowy charakter zapewnia prezentacja.
 
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
-| `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | pozorny ruch maskuje prawdziwą operację przez `heat -15` | `SAFE SUBSTITUTE` |
+| `.3.1` | P1 Mirage Projector / `illusionist` | Węzeł Widmo | `operation_risk` | istniejące i nowe aktywne operacje mają `heat -15`; standardowy risk engine nadal wyznacza wynik | `IMPLEMENTATION / SERVER E2E TEST PENDING` |
 | `.3.2` | P2 Glitch Reactor / `virologist` | Glitch Injection | `target_security` | maks. 2 zabezpieczenia oznaczonego celu zostają wyłączone przez CAS | `STRONG FIT` |
 | `.3.3` | P3 Paranoia Loop / `paranoid` | Fałszywe Tropienie | `scan_range` | większy promień pozwala wcześniej dostrzec ślady; bez bypassu pozycji motocykla | `SAFE SUBSTITUTE` |
 | `.3.4` | P4 Fracture Engine / `network_splitter` | Pęknięcie Sieci | `map_zoom` | bounded zmiana perspektywy mapy o 2 poziomy; CSS pokazuje rozszczepienie | `VISUAL/GAMEPLAY PROXY` |
@@ -106,6 +106,12 @@ P1 nie tworzy fałszywego markera, P3 nie wykonuje skanu niezależnego od pozycj
 a P5 nie odczytuje atakującego. To świadome bezpieczne zamienniki rodzin
 `incident_decoy` i `actor_visibility`. Jeżeli efekt nie obroni się w grze,
 wybieramy `REPLACE` albo `DEFER`, bez rozszerzania ciężkiego runtime.
+
+P1 wykorzystuje ten sam certyfikowany szlak `operation_risk` co V3 i E2, ale ma
+osobną politykę `phantom_node`. Bazowy modyfikator wynosi `heat -15` i obejmuje
+operacje istniejące przy aktywacji oraz nowe, rozpoczęte w 15-minutowym oknie.
+Nie powstają fałszywe incydenty, markery świata ani skan aktorów. Widocznym
+dowodem jest turkusowe wyróżnienie kart, `WĘZEŁ WIDMO` i `RUCH POZORNY`.
 
 Kierunek `map_zoom` trzeba potwierdzić wizualnie w `.3.4`: Leaflet interpretuje
 większą wartość jako bliższy widok. Podsprint zamraża właściwy znak zmiany po

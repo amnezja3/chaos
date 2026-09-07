@@ -960,7 +960,7 @@ i akceptuje poprawne globalne klastry do `2°`. Decyzja: `KEEP / LOCKED` dla
 
 ### Bramka `.2.5` — E5 Spark Chamber / Zapalnik
 
-Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+Status: `COMPLETE / SERVER E2E PASS`.
 
 - Produkcyjne mapowanie: `domino_effect → target_security`.
 - E5 ponownie wykorzystuje cały sprawdzony szlak E1: canonical target runtime,
@@ -980,6 +980,11 @@ Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
 Test serwerowy ma potwierdzić aktywację z celem i bez celu, pełny pasek security
 na co najmniej trzech kolejnych celach, nietknięte cztery kropki, replay bez
 dodatkowego zapisu, reload, expiry, part-loss i cooldown.
+
+Test serwerowy i gameplay zakończyły się pełnym PASS. Potwierdzono wspólny z E1
+canonical target hook, wyłączenie całego paska security kolejnych celów `aimed`,
+pozostawienie czterech kropek oraz odrębny UX E5. Decyzja:
+`KEEP / LOCKED` dla `domino_effect → target_security`.
 
 Echo ma przede wszystkim dawać więcej treści z kamer i rozmów oraz ujawniać
 informacje. Nie tworzymy osobnego systemu narracji ani nowych typów plików.
@@ -1088,7 +1093,7 @@ canonical finalizację i zero heavy profile.
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
-| `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — hipoteza do ponownego wyboru spośród 9 bezpiecznych rodzin |
+| `.3.1` | Iluzjonista / P1 | **Węzeł Widmo** — certyfikowany `operation_risk`, `heat -15`, bez syntetycznych incydentów |
 | `.3.2` | Wirusolog / P2 | **Glitch Injection** — bounded `target_security` reduction |
 | `.3.3` | Paranoik / P3 | **Fałszywe Tropienie** — skan niezależny od pozycji motocykla |
 | `.3.4` | Rozłamowiec / P4 | **Pęknięcie Sieci** — miks `scan_range` i zakłóceń markerów |
@@ -1096,6 +1101,27 @@ canonical finalizację i zero heavy profile.
 
 Siatka Widmo może dawać szeroki i chaotyczny rezultat, ale wyłącznie przez
 istniejące typy danych, markery, aktorów, incydenty i zabezpieczenia.
+
+### Bramka `.3.1` — P1 Mirage Projector / Iluzjonista
+
+Status: `IMPLEMENTATION / SERVER E2E TEST PENDING`.
+
+`Węzeł Widmo` montuje certyfikowaną rodzinę `operation_risk` pod osobną polityką
+`phantom_node`. Aktywacja zapisuje bounded `ability_heat_modifier=-15` w maksymalnie
+8 istniejących aktywnych operacjach, a lekki hook budowy stosuje tę samą politykę
+do każdej nowej operacji rozpoczętej podczas 15-minutowego okna. Standardowy risk
+engine nadal sam oblicza heat, warning i incident; moc nie wymusza wyniku.
+
+Frontend otrzymuje tylko bezpieczne pola `risk_masked` i `risk_boost_code`.
+Centrum Operacji wyróżnia dotknięte karty wspólną animacją rodziny oraz odrębnym
+copy `WĘZEŁ WIDMO / RUCH POZORNY`. Overlay i timer korzystają z assetów P1,
+palety Siatki Widmo i wspólnego SFX. Prywatne identyfikatory okna, provenance i
+wartość polityki nie są eksponowane.
+
+Implementacja nie dodaje workera, pollera, kolejki, syntetycznych incydentów,
+odczytu aktorów ani pełnego profilu. Bramka serwerowa obejmuje: P1 aktywne,
+konto `phantom_mesh / illusionist`, operację istniejącą i nową, widoczny spadek
+heat, brak wymuszonego incydentu, replay, reload, expiry, part-loss i cooldown.
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 

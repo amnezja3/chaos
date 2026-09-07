@@ -1678,6 +1678,20 @@
       animation: ghost-risk-mask-pulse 1.25s steps(2, end) infinite;
     }
 
+    .active-operation-card--risk-phantom {
+      border-color: rgba(0, 207, 166, 0.72);
+      background:
+        repeating-linear-gradient(135deg, rgba(0, 207, 166, 0.08) 0 4px, transparent 4px 10px),
+        rgba(0, 0, 0, 0.54);
+      box-shadow: inset 3px 0 0 rgba(0, 207, 166, 0.88), 0 0 12px rgba(0, 207, 166, 0.2);
+    }
+
+    .active-operation-card--risk-phantom .active-operation-card__risk,
+    .active-operation-card--risk-phantom .active-operation-card__boost {
+      color: #5fffdc;
+      text-shadow: 1px 0 rgba(99, 255, 222, 0.5), -1px 0 rgba(35, 139, 255, 0.38);
+    }
+
     .active-operation-card--yield-boosted {
       border-color: rgba(255, 82, 72, 0.78);
       background:
@@ -7040,6 +7054,9 @@
                     if (operation.risk_boost_code === 'narrative_takeover') {
                         return Number.isFinite(heat) ? `REAKCJA OPÓŹNIONA · HEAT ${heat}` : 'REAKCJA OPÓŹNIONA';
                     }
+                    if (operation.risk_boost_code === 'phantom_node') {
+                        return Number.isFinite(heat) ? `RUCH POZORNY · HEAT ${heat}` : 'RUCH POZORNY';
+                    }
                     return Number.isFinite(heat) ? `MASKOWANE · HEAT ${heat}` : 'MASKOWANE';
                 }
                 const riskState = operation.risk_state || {};
@@ -7069,9 +7086,12 @@
                         ? 'WYNIK PRZEWIDZIANY'
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
+                    const phantomRisk = operation.risk_boost_code === 'phantom_node';
                     const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
                         ? 'NARRACJA PRZEJĘTA'
-                        : 'FAŁSZYWY OBRAZ';
+                        : operation.risk_boost_code === 'phantom_node'
+                            ? 'WĘZEŁ WIDMO'
+                            : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
                     const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
@@ -7080,7 +7100,7 @@
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
@@ -7177,9 +7197,12 @@
                         ? 'WYNIK PRZEWIDZIANY'
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
+                    const phantomRisk = operation.risk_boost_code === 'phantom_node';
                     const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
                         ? 'NARRACJA PRZEJĘTA'
-                        : 'FAŁSZYWY OBRAZ';
+                        : operation.risk_boost_code === 'phantom_node'
+                            ? 'WĘZEŁ WIDMO'
+                            : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
                     const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
@@ -7188,7 +7211,7 @@
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
