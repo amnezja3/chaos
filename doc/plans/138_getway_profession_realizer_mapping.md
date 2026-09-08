@@ -184,15 +184,18 @@ identyczny call-site, selekcję geometryczną, relacje klanowe, limit i lifecycl
 
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
-| `.4.1` | S1 Deep Sensor / `analyzer` | Skan Integralności | `scan_range` | głębszy skan przez zwiększony promień, maks. `6000 m`; bez account scan | `STRONG FIT` |
+| `.4.1` | S1 Deep Sensor / `analyzer` | Skan Integralności | `scan_range` | certyfikowany zasięg strategiczny `25 km × level_snapshot`, ograniczony do `10 000 km`; bez account scan | `STRONG FIT` |
 | `.4.2` | S2 Bastion Matrix / `defender` | Bastion | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
-| `.4.3` | S3 Restoration Engine / `reconstructor` | Odtworzenie | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
+| `.4.3` | S3 Restoration Engine / `reconstructor` | Odtworzenie | `hack_actions` | ten sam komplet czterech odblokowanych akcji celu co V2; działa na każdy `aimed` podczas okna | `STRONG FIT` |
 | `.4.4` | S4 Accord Relay / `mediator` | Korytarz Zaufania | `operation_risk` | bezpieczny korytarz zmniejsza heat własnej bieżącej operacji o 15 | `SAFE FIRST SLICE` |
-| `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
+| `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `map_zoom` | ten sam certyfikowany strategiczny zoom co P4, skalowany poziomem i ograniczony do produkcyjnego maksimum | `STRONG FIT` |
 
-S2, S3 i S5 nie mogą zmieniać mechaniki rodziny po jej certyfikacji na P5;
-różnią się wyłącznie nazwą, assetem, SFX i paletą. S4 nie przyznaje uprawnień innemu klanowi, ponieważ
-cross-player/cross-clan grant nie jest częścią certyfikowanej rodziny.
+Każdy montaż zachowuje pełny kontrakt certyfikowanej rodziny niezależnie od
+profesji: S2 dziedziczy `territory_defense` z P5, S3 `hack_actions` z V2, S4
+`operation_risk` z V3/E2/P1, a S5 `map_zoom` z P4. Różnice obejmują wyłącznie
+nazwę, asset, SFX, paletę i narrację. S4 nie przyznaje uprawnień innemu graczowi
+ani klanowi, ponieważ cross-player/cross-clan grant nie należy do kontraktu
+`operation_risk`.
 
 ## 4. Semantyka utraty części
 
@@ -235,12 +238,12 @@ obserwowalny efekt.
 | `operation_speed` | V1, V5 |
 | `file_yield` | V4 |
 | `data_quality` | E3 |
-| `hack_actions` | V2 |
+| `hack_actions` | V2, S3 |
 | `target_security` | E1, E5, P2 |
 | `operation_risk` | V3, E2, P1, S4 |
 | `scan_range` | E4, P3, S1 |
-| `map_zoom` | P4 |
-| `territory_defense` | P5, S2, S3, S5 |
+| `map_zoom` | P4, S5 |
+| `territory_defense` | P5, S2 |
 
 Wszystkie 9 certyfikowanych rodzin ma zastosowanie. Trzy rodziny odłożone mają
 zero przypisań.

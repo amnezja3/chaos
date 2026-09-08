@@ -1305,8 +1305,8 @@ ograniczonego roju, minimalne security, pełne przejęcie aktywnego roju przez
 sojusznika po schakowaniu jednego punktu, pojedyncze przejęcie i deduplikowany
 alarm dla intruza, wygaśnięcie satelitów przy `cooldown_until` oraz pozostawienie
 pierwotnej klasycznej podatności. `territory_defense` jest od tej chwili wspólną,
-zamrożoną rodziną dla P5, S2, S3 i S5; kolejne montaże nie mogą zmieniać jej
-gameplayu per profesja.
+zamrożoną rodziną dla P5 i S2; kolejne montaże nie mogą zmieniać jej gameplayu
+per profesja.
 
 Osobny hardbugfix menu markerów zakończył się dziesięcioma kolejnymi skanami bez
 błędnego przypisania menu. Sporadycznie niewłaściwy tooltip Leafleta pozostaje
@@ -1318,14 +1318,31 @@ aimed target ani hakowanie i nie blokuje PASS `.3.5`. Pełny przypadek:
 
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
-| `.4.1` | Analizator / S1 | **Skan Integralności** — `target_security` i stan ochrony własnych celów |
+| `.4.1` | Analizator / S1 | **Skan Integralności** — certyfikowany `scan_range`: `25 km × level_snapshot`, maks. `10 000 km` |
 | `.4.2` | Obrońca / S2 | **Bastion** — wspólny `territory_defense`, publiczny rój podatności ze skanu |
-| `.4.3` | Rekonstruktor / S3 | **Odtworzenie** — wspólny `territory_defense`, publiczny rój podatności ze skanu |
-| `.4.4` | Mediator / S4 | **Korytarz Zaufania** — większy `scan_range`/action range na własnym obszarze |
-| `.4.5` | Egzekutor / S5 | **Kwarantanna** — wspólny `territory_defense`, publiczny rój podatności ze skanu |
+| `.4.3` | Rekonstruktor / S3 | **Odtworzenie** — certyfikowany `hack_actions`, cztery akcje dla każdego `aimed` podczas okna |
+| `.4.4` | Mediator / S4 | **Korytarz Zaufania** — certyfikowany `operation_risk`, redukcja heat własnych operacji o 15 |
+| `.4.5` | Egzekutor / S5 | **Kwarantanna** — certyfikowany `map_zoom`, strategiczna skala mapy zależna od poziomu |
 
-Strażnicy wykorzystują publiczne podatności do szybkiego budowania osłonowych
-terytoriów. Nie mutują zabezpieczeń filarów i nie tworzą osobnego systemu fortyfikacji.
+Każda zdolność zachowuje identyczne działanie swojej certyfikowanej rodziny bez
+wariantu mechanicznego zależnego od profesji. Strażnicy nie mutują zabezpieczeń
+filarów i nie tworzą osobnego systemu fortyfikacji.
+
+### 13.1 138.getway.4.1 — S1 Deep Sensor / Skan Integralności
+
+`integrity_scan → scan_range` montuje bez zmian certyfikowany kontrakt E4/P3:
+
+- zasięg wywołania skanu wynosi `min(10 000 km, 25 km × level_snapshot)`;
+- poziom jest zamrożony w oknie aktywacji, a wygaśnięcie przywraca bazowy
+  `action_range` z lekkiej projekcji capability;
+- moc nie teleportuje motocykla, nie zwiększa lokalnego promienia pobierania POI
+  i nie omija owner checks ani zabezpieczeń celu;
+- prezentacja S1 korzysta z assetu Deep Sensor, nazwy **Skan Integralności**,
+  komunikatu **SIEĆ PRZEŚWIETLONA** i wspólnego badge'a `scan_range`;
+- istniejący scan gate oraz frontend nie otrzymują wariantu zależnego od profesji.
+
+Testy lokalne obejmują S1, E4, P3, lekki read path i wspólny kontrakt prezentacji:
+`39/39 PASS`. Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
 
 ## 14. 138.getway.5 — polish
 

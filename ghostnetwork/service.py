@@ -1015,6 +1015,7 @@ class GhostNetworkService:
             "false_tracking": "Fałszywe Tropienie",
             "network_fracture": "Pęknięcie Sieci",
             "reflection": "Odbicie",
+            "integrity_scan": "Skan Integralności",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1032,6 +1033,7 @@ class GhostNetworkService:
             "false_tracking": "WSZĘDZIE SĄ ŚLADY",
             "network_fracture": "HORYZONT PĘKA",
             "reflection": "RÓJ ODBITY",
+            "integrity_scan": "SIEĆ PRZEŚWIETLONA",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1049,6 +1051,7 @@ class GhostNetworkService:
             "false_tracking": "scan_range",
             "network_fracture": "map_zoom",
             "reflection": "territory_defense",
+            "integrity_scan": "scan_range",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {

@@ -3628,3 +3628,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - `138.getway.3.5` oraz rodzina `territory_defense`: `COMPLETE / LOCKED /
   SERVER E2E + GAMEPLAY PASS`. Dedykowany zapis techniczny znajduje się w
   `doc/hardbugfix/scan_marker_menu_identity_leaflet_dispatch_sprint_138_getway_3_5_2026-09-07.md`.
+
+## 2026-09-08 — start 138.getway.4.1, S1 Deep Sensor
+
+- Zamontowano `integrity_scan → scan_range` bez tworzenia nowej rodziny ani
+  wariantu mechanicznego dla Strażników Ładu.
+- S1 dziedziczy zamrożoną politykę E4/P3:
+  `min(10 000 km, 25 km × level_snapshot)`, lekki read-through w scan gate,
+  brak teleportu i powrót do bazowego `action_range` po expiry.
+- Dodano osobną prezentację: **Skan Integralności**, tagline
+  **SIEĆ PRZEŚWIETLONA**, asset `s1_deep_sensor` i wspólny impact UI
+  `scan_range`.
+- Testy S1 wraz z regresją E4/P3, lekkiego read path i prezentacji:
+  `39/39 PASS`.
+- Status `.4.1`: `IMPLEMENTED / SERVER E2E TEST PENDING` na koncie `pies1`.

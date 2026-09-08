@@ -65,7 +65,9 @@ MAX_QUALITY_FILES = 16
 MAX_SECURITY_CHANGES = 2
 SCAN_RANGE_METERS_PER_LEVEL = 25_000
 MAX_SCAN_RANGE_METERS = 10_000_000
-SCAN_RANGE_ABILITY_CODES = frozenset(("resistance_signal", "false_tracking"))
+SCAN_RANGE_ABILITY_CODES = frozenset((
+    "resistance_signal", "false_tracking", "integrity_scan",
+))
 MAP_ZOOM_ABILITY_CODES = frozenset(("network_fracture",))
 MAP_ZOOM_BOOST_ANCHORS = (
     (1, 1, "local", 3_000),
@@ -840,6 +842,7 @@ class GhostAbilityProductionRealizer:
         "false_tracking": "scan_range",
         "network_fracture": "map_zoom",
         "reflection": "territory_defense",
+        "integrity_scan": "scan_range",
     }
 
     def __init__(self, operation_store, target_store=None):
