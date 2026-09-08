@@ -844,6 +844,7 @@ class GhostAbilityProductionRealizer:
         "reflection": "territory_defense",
         "integrity_scan": "scan_range",
         "bastion": "territory_defense",
+        "rollback": "hack_actions",
     }
 
     def __init__(self, operation_store, target_store=None):

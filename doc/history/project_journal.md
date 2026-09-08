@@ -3683,3 +3683,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   przez intruza, alarm oraz lifecycle pozostały zgodne z kontraktem P5.
 - Zamknięto `bastion → territory_defense` oraz skorygowaną wspólną rodzinę jako
   `KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
+
+## 2026-09-08 — start 138.getway.4.3, S3 Restoration Engine
+
+- Zamontowano `rollback → hack_actions` jako dokładny alias certyfikowanej
+  rodziny V2, bez osobnego realizera lub wariantu profesji.
+- Aktywacja obejmuje aktualny cel, a wspólny hook `aimed` stosuje efekt do
+  każdego następnego celu w aktywnym oknie. Cztery `actions_allowed` przechodzą
+  na `true`; słownik `security` nie jest zmieniany.
+- Zachowano marker idempotencji `window_id:actions`, stabilny replay, brak
+  przenoszenia związanej aktywacji na inny cel oraz zatrzymanie nowych aplikacji
+  po expiry lub utracie części.
+- Dodano prezentację S3: **Odtworzenie**, tagline **DOSTĘP ODTWORZONY**, asset
+  `s3_restoration_engine` i wspólny impact UI `target_action_dots`.
+- Testy S3 wraz z regresją V2, read path, prezentacji i map loadera:
+  `61/61 PASS`.
+- Status `.4.3`: `IMPLEMENTED / SERVER E2E TEST PENDING`.

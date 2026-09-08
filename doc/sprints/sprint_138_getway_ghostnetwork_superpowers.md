@@ -1374,6 +1374,25 @@ nazwy klanowe, glow widoczny wyłącznie dla własnego klanu, zwykłe kapsuły d
 intruza oraz niezmienione menu i hakowanie. Status:
 `KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
 
+### 13.3 138.getway.4.3 — S3 Restoration Engine / Odtworzenie
+
+`rollback → hack_actions` montuje bez zmian certyfikowany kontrakt V2:
+
+- aktywacja z wybranym celem ustawia `scan_ports`, `exploit`, `sniff` i `trace`
+  na `true`, zachowując cały słownik `security` bez zmian;
+- aktywacja bez celu otwiera prawidłowe okno i nie wykonuje sztucznej mutacji;
+- każdy nowy `aimed` podczas aktywnego okna otrzymuje komplet czterech akcji;
+- marker `window_id:actions` zapewnia idempotencję, więc ponowienie na tym samym
+  celu nie zwiększa wersji i nie przenosi efektu replay na inny cel;
+- po expiry albo utracie S3 istniejące zmiany pozostają, lecz kolejne cele nie są
+  już modyfikowane;
+- S3 używa wspólnego podświetlenia `target_action_dots`, assetu
+  `s3_restoration_engine`, nazwy **Odtworzenie** i tagline
+  **DOSTĘP ODTWORZONY**.
+
+Testy S3, pełna regresja V2, lekki read path, prezentacja i map loader:
+`61/61 PASS`. Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
 ## 14. 138.getway.5 — polish
 
 Polish przechodzi profesja po profesji:
