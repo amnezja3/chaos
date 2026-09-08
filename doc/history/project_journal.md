@@ -3758,3 +3758,30 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Regresja S5/P4, prezentacji, visibility, lekkiego read path i map loadera:
   `75/75 PASS`.
 - Status `.4.5`: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
+## 2026-09-08 — 138.getway.4.5 i etap Strażników Ładu COMPLETE
+
+- Operator potwierdził pełny serwerowy i gameplayowy PASS S5.
+- Zweryfikowano certyfikowaną kalibrację `map_zoom`, dostępność kafelków w całym
+  odblokowanym zakresie, zachowanie ręcznego viewportu, brak teleportu,
+  sentinelowy handoff Judgment Core oraz powrót do bazowego limitu po expiry.
+- Zamknięto `quarantine → map_zoom` jako `KEEP / LOCKED / SERVER E2E + GAMEPLAY
+  PASS`.
+- Cały etap `138.getway.4` zakończono wynikiem `5/5 SERVER E2E + GAMEPLAY PASS`:
+  S1 `scan_range`, S2 `territory_defense`, S3 `hack_actions`, S4
+  `operation_risk`, S5 `map_zoom`.
+
+## 2026-09-08 — pre-polish: trwały częściowy postęp hakowania celu
+
+- Potwierdzono root cause utraty stanu A → B → A: lekki
+  `player_target_runtime` poprawnie przechowywał tylko jeden aktywny cel, ale nie
+  istniała projekcja ostatniego wpływu dla pary gracz–obiekt.
+- Dodano `player_target_progress(username, target_key)` bez przywracania ciężkiego
+  profilu do hot path mapy.
+- Backend wznawia kropki, zabezpieczenia i procent paska przez monotoniczny merge;
+  stan jest prywatny dla gracza i przeżywa zmianę/wyczyszczenie bieżącego celu.
+- Terminalny `captured` blokuje odtworzenie starszego aliasu, a ochrona stale/CAS
+  bieżącej aplikacji pozostaje bez zmian.
+- Polityka początkowa: bez TTL; postęp trwa do przejęcia/resetu. Retencja zależna
+  od poziomu pozostaje późniejszą decyzją balansową.
+- Status: `IMPLEMENTED / LOCAL PASS / SERVER E2E PENDING`.

@@ -403,6 +403,73 @@ class TargetDisplayLabelTest(unittest.TestCase):
 
 
 class MapAimTargetEndpointTest(unittest.TestCase):
+    def test_menu_title_restores_durable_progress_after_switching_targets(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            runtime_store = PlayerTargetRuntimeStore(db_path=path)
+            client = run.app.test_client()
+            with client.session_transaction() as flask_session:
+                flask_session["user"] = "alice"
+            profile = {"username": "alice", "aimed_target": {}}
+            security_template = {
+                "firewall": True,
+                "ids": True,
+                "vpn": True,
+                "sandbox": True,
+                "kernel_guard": True,
+            }
+
+            def aim(label, lat, lng):
+                return client.post("/api/map/aim-target", json={
+                    "lat": lat,
+                    "lng": lng,
+                    "label": label,
+                    "source_type": "shop",
+                })
+
+            with patch.object(run, "player_target_runtime_store", runtime_store), \
+                    patch.object(run.user_store, "get_profile_identity", return_value=profile), \
+                    patch.object(run.resources_store, "get", return_value=security_template), \
+                    patch.object(run, "choice", return_value=True), \
+                    patch.object(run, "find_contested_target", return_value=None), \
+                    patch.object(run, "foreign_territory_action_block", return_value=None), \
+                    patch.object(run, "find_owned_captured_target_for_runtime_target", return_value=None), \
+                    patch.object(run, "safe_ghostnetwork_on_target_aimed"), \
+                    patch.object(run, "record_map_target_delta"):
+                first_a = aim("Alpha", 52.1, 21.2)
+                self.assertEqual(200, first_a.status_code)
+                target_a = first_a.get_json()["target"]
+                progressed_a = {
+                    **target_a,
+                    "actions_allowed": {
+                        "scan_ports": True, "exploit": True,
+                        "sniff": True, "trace": False,
+                    },
+                    "security": {
+                        key: index >= 3
+                        for index, key in enumerate(security_template)
+                    },
+                }
+                runtime_store.upsert_aimed(
+                    "alice", progressed_a, status="in_progress",
+                    expected_target=target_a, source="tool_result",
+                )
+
+                self.assertEqual(200, aim("Beta", 52.2, 21.3).status_code)
+                returned_a = aim("Alpha", 52.1, 21.2)
+
+            self.assertEqual(200, returned_a.status_code)
+            restored = returned_a.get_json()["target"]
+            self.assertEqual(3, sum(restored["actions_allowed"].values()))
+            self.assertEqual(3, sum(value is False for value in restored["security"].values()))
+            self.assertEqual(60, restored["disarm_progress"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
     def test_menu_title_aims_without_launching_hack_runtime(self):
         client = run.app.test_client()
         with client.session_transaction() as flask_session:
@@ -567,6 +634,156 @@ class MapAimTargetEndpointTest(unittest.TestCase):
 
 
 class PlayerTargetRuntimeIdentityTest(unittest.TestCase):
+    @staticmethod
+    def _ordinary_target(target_id, lat, lng, *, action_count=0, disabled_security=0):
+        action_keys = ("scan_ports", "exploit", "sniff", "trace")
+        security_keys = ("firewall", "ids", "vpn", "sandbox", "kernel_guard")
+        return {
+            "target_id": target_id,
+            "target_mode": "standard",
+            "lat": lat,
+            "lng": lng,
+            "label": target_id,
+            "actions_allowed": {
+                key: index < action_count for index, key in enumerate(action_keys)
+            },
+            "security": {
+                key: index >= disabled_security for index, key in enumerate(security_keys)
+            },
+        }
+
+    def test_switching_targets_restores_each_targets_partial_hack_state(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            target_a = self._ordinary_target("map:a", 52.1, 21.2)
+            target_b = self._ordinary_target("map:b", 52.2, 21.3)
+            store.upsert_aimed("alice", target_a)
+            progressed_a = self._ordinary_target(
+                "map:a", 52.1, 21.2, action_count=3, disabled_security=3,
+            )
+            store.upsert_aimed(
+                "alice", progressed_a, status="in_progress",
+                expected_target=target_a, source="tool_result",
+            )
+            store.upsert_aimed("alice", target_b)
+            store.upsert_aimed(
+                "alice",
+                self._ordinary_target(
+                    "map:b", 52.2, 21.3, action_count=4, disabled_security=5,
+                ),
+                status="in_progress", expected_target=target_b, source="tool_result",
+            )
+
+            resumed = store.upsert_aimed("alice", target_a, source="map_target_return")
+            current = store.get_active_target("alice")
+
+            self.assertEqual("target.resumed", self._last_target_event(path))
+            self.assertEqual("map:a", resumed["target"]["target_id"])
+            self.assertEqual(3, sum(current["actions_allowed"].values()))
+            self.assertEqual(3, sum(value is False for value in current["security"].values()))
+            self.assertEqual(60, current["disarm_progress"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
+    @staticmethod
+    def _last_target_event(path):
+        conn = sqlite3.connect(path)
+        try:
+            return conn.execute(
+                "SELECT event_type FROM player_target_events ORDER BY id DESC LIMIT 1"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    def test_partial_state_survives_store_recreation_and_explicit_clear(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            target_a = self._ordinary_target("map:a", 52.1, 21.2)
+            store = PlayerTargetRuntimeStore(db_path=path)
+            store.upsert_aimed("alice", target_a)
+            store.upsert_aimed(
+                "alice",
+                self._ordinary_target(
+                    "map:a", 52.1, 21.2, action_count=2, disabled_security=2,
+                ),
+                status="in_progress", expected_target=target_a,
+            )
+            self.assertTrue(store.clear_if_matches("alice", target_a))
+
+            resumed = PlayerTargetRuntimeStore(db_path=path).upsert_aimed("alice", target_a)
+
+            self.assertEqual(2, sum(resumed["target"]["actions_allowed"].values()))
+            self.assertEqual(40, resumed["target"]["disarm_progress"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
+    def test_partial_state_is_private_to_each_player(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            fresh = self._ordinary_target("map:shared", 52.1, 21.2)
+            store.upsert_aimed("alice", fresh)
+            store.upsert_aimed(
+                "alice",
+                self._ordinary_target(
+                    "map:shared", 52.1, 21.2, action_count=3, disabled_security=3,
+                ),
+                status="in_progress", expected_target=fresh,
+            )
+            store.upsert_aimed("alice", self._ordinary_target("map:other", 52.3, 21.4))
+
+            store.upsert_aimed("bob", fresh)
+            bob = store.get_active_target("bob")
+            alice = store.upsert_aimed("alice", fresh)["target"]
+
+            self.assertEqual(0, sum(bob["actions_allowed"].values()))
+            self.assertEqual(0, bob["disarm_progress"])
+            self.assertEqual(3, sum(alice["actions_allowed"].values()))
+            self.assertEqual(60, alice["disarm_progress"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
+    def test_captured_target_does_not_revive_older_partial_snapshot(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            target_a = self._ordinary_target("map:a", 52.1, 21.2)
+            partial_a = self._ordinary_target(
+                "map:a", 52.1, 21.2, action_count=3, disabled_security=3,
+            )
+            store.upsert_aimed("alice", target_a)
+            store.upsert_aimed(
+                "alice", partial_a, status="in_progress", expected_target=target_a,
+            )
+            store.mark_captured("alice", partial_a, source="target_hacked")
+            store.upsert_aimed("alice", self._ordinary_target("map:b", 52.2, 21.3))
+
+            store.upsert_aimed("alice", target_a)
+            fresh = store.get_active_target("alice")
+
+            self.assertEqual(0, sum(fresh["actions_allowed"].values()))
+            self.assertEqual(0, fresh["disarm_progress"])
+            self.assertEqual("target.aimed", self._last_target_event(path))
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
     def test_runtime_action_dots_do_not_inflate_security_progress(self):
         fd, path = tempfile.mkstemp(suffix=".sqlite3")
         os.close(fd)

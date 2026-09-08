@@ -1316,6 +1316,8 @@ aimed target ani hakowanie i nie blokuje PASS `.3.5`. Pełny przypadek:
 
 ## 13. 138.getway.4 — Strażnicy Ładu
 
+Status etapu: `COMPLETE / 5 OF 5 SERVER E2E + GAMEPLAY PASS`.
+
 | Podsprint | Profesja / część | Pierwsza hipoteza do testu |
 | --- | --- | --- |
 | `.4.1` | Analizator / S1 | **Skan Integralności** — certyfikowany `scan_range`: `25 km × level_snapshot`, maks. `10 000 km` |
@@ -1459,7 +1461,13 @@ Moc przesuwa ekspozycję, ale nie wyłącza systemu reakcji. Status:
 Presentation profile: **Kwarantanna**, tagline **GRANICA WYZNACZONA**, asset
 `s5_judgment_core`, impact UI `map_zoom`. Regresja S5/P4, prezentacji,
 widoczności, lekkiego read path oraz map loadera: `75/75 PASS`. Status:
-`IMPLEMENTED / SERVER E2E TEST PENDING`.
+`KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`. Test serwerowy potwierdził pełną
+kalibrację poziomów, poprawny zakres kafelków, zachowanie viewportu, narracyjny
+handoff z reloadem oraz powrót do bazowego limitu po zakończeniu wpływu.
+
+Etap `138.getway.4` jest zamknięty: wszystkie pięć części Sentinel korzysta z
+certyfikowanych rodzin bez wariantów mechanicznych zależnych od profesji i ma
+pełne potwierdzenie serwerowe oraz gameplayowe.
 
 ## 14. 138.getway.5 — polish
 

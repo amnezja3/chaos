@@ -194,7 +194,7 @@ samą publiczną podatność i sufiks klanu, lecz jako zwykłą kapsułę bez gl
 | `.4.2` | S2 Bastion Matrix / `defender` | Bastion | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
 | `.4.3` | S3 Restoration Engine / `reconstructor` | Odtworzenie | `hack_actions` | ten sam komplet czterech odblokowanych akcji celu co V2; działa na każdy `aimed` podczas okna | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
 | `.4.4` | S4 Accord Relay / `mediator` | Korytarz Zaufania | `operation_risk` | certyfikowane `heat -15` dla maks. 8 istniejących oraz wszystkich nowych operacji podczas okna | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
-| `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `map_zoom` | ten sam certyfikowany strategiczny zoom co P4, skalowany poziomem i ograniczony do produkcyjnego maksimum | `IMPLEMENTED / SERVER E2E TEST PENDING` |
+| `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `map_zoom` | ten sam certyfikowany strategiczny zoom co P4, skalowany poziomem i ograniczony do produkcyjnego maksimum | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
 
 Każdy montaż zachowuje pełny kontrakt certyfikowanej rodziny niezależnie od
 profesji: S2 dziedziczy `territory_defense` z P5, S3 `hack_actions` z V2, S4

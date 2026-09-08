@@ -1816,6 +1816,48 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS player_target_progress (
+                username TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                identity_key TEXT NOT NULL,
+                target_json TEXT NOT NULL DEFAULT '{}',
+                security_json TEXT NOT NULL DEFAULT '{}',
+                actions_allowed_json TEXT NOT NULL DEFAULT '{}',
+                disarm_progress INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'aimed',
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (username, target_key)
+            )
+            """
+        )
+        target_progress_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(player_target_progress)").fetchall()
+        }
+        if "identity_key" not in target_progress_columns:
+            conn.execute(
+                "ALTER TABLE player_target_progress "
+                "ADD COLUMN identity_key TEXT NOT NULL DEFAULT ''"
+            )
+            conn.execute(
+                "UPDATE player_target_progress SET identity_key = target_key "
+                "WHERE identity_key = ''"
+            )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_target_progress_username_updated
+            ON player_target_progress(username, updated_at DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_target_progress_identity
+            ON player_target_progress(username, identity_key, updated_at DESC)
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS player_target_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
@@ -2859,6 +2901,7 @@ _IDENTITY_ORPHAN_COLUMNS = {
     "player_areas": ("owner_username",),
     "territory_area_publications": ("owner_username",),
     "player_target_runtime": ("username",),
+    "player_target_progress": ("username",),
     "player_target_events": ("username",),
     "player_positions": ("username",),
     "player_operations": ("username",),
@@ -12822,6 +12865,20 @@ class PlayerTargetRuntimeStore:
                     merged[key] = value
         return merged
 
+    @staticmethod
+    def _merge_markers(current, incoming):
+        current = current if isinstance(current, list) else []
+        incoming = incoming if isinstance(incoming, list) else []
+        return list(dict.fromkeys([*current, *incoming]))
+
+    @classmethod
+    def _progress_identity_key(cls, target, target_key=""):
+        target = target if isinstance(target, dict) else {}
+        ordinary_position = cls._ordinary_map_position_key(target)
+        if ordinary_position:
+            return f"ordinary:{ordinary_position[0]:.5f}:{ordinary_position[1]:.5f}"
+        return cls._clean_text(target_key or cls.target_key(target))
+
     @classmethod
     def _row_payload(cls, row):
         if not row:
@@ -12845,6 +12902,91 @@ class PlayerTargetRuntimeStore:
             "version": int(row["version"] or 0),
             "updated_at": row["updated_at"],
         }
+
+    @classmethod
+    def _find_progress_with_conn(cls, conn, username, target_key, target):
+        """Find a durable non-terminal snapshot by exact or canonical identity."""
+        row = conn.execute(
+            """
+            SELECT * FROM player_target_progress
+            WHERE username = ? AND target_key = ?
+            LIMIT 1
+            """,
+            (username, target_key),
+        ).fetchone()
+        exact = cls._row_payload(row)
+        if exact:
+            return exact if exact.get("status") not in cls.TERMINAL_STATUSES else None
+        identity_key = cls._progress_identity_key(target, target_key)
+        if identity_key:
+            row = conn.execute(
+                """
+                SELECT * FROM player_target_progress
+                WHERE username = ? AND identity_key = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (username, identity_key),
+            ).fetchone()
+            canonical = cls._row_payload(row)
+            if canonical:
+                return canonical if canonical.get("status") not in cls.TERMINAL_STATUSES else None
+        # Conflict pillars can retain lineage through intersecting source ids
+        # even when their exact key changes after a territory rebuild. This is
+        # the only case that needs the broader compatibility lookup.
+        if not cls._same_conflict_target_lineage(target, target):
+            return None
+        rows = conn.execute(
+            """
+            SELECT * FROM player_target_progress
+            WHERE username = ?
+            ORDER BY updated_at DESC
+            """,
+            (username,),
+        ).fetchall()
+        for candidate_row in rows:
+            candidate = cls._row_payload(candidate_row)
+            if candidate and cls._same_runtime_target(candidate.get("target"), target):
+                # The newest matching terminal snapshot is authoritative. Do
+                # not revive an older alias after the object was captured.
+                return candidate if candidate.get("status") not in cls.TERMINAL_STATUSES else None
+        return None
+
+    @classmethod
+    def _write_progress_snapshot(cls, conn, payload, *, now=None):
+        """Persist one compact per-target snapshot without changing active selection."""
+        payload = payload if isinstance(payload, dict) else {}
+        username = cls._clean_text(payload.get("username"))
+        target_key = cls._clean_text(payload.get("target_key"))
+        target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
+        status = cls._clean_text(payload.get("status"), cls.STATUS_AIMED)
+        if not username or not target_key or not target or status == cls.STATUS_CLEARED:
+            return
+        security = payload.get("security") if isinstance(payload.get("security"), dict) else {}
+        actions = payload.get("actions_allowed") if isinstance(payload.get("actions_allowed"), dict) else {}
+        identity_key = cls._progress_identity_key(target, target_key)
+        conn.execute(
+            """
+            INSERT INTO player_target_progress
+                (username, target_key, identity_key, target_json, security_json,
+                 actions_allowed_json, disarm_progress, status, version, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(username, target_key) DO UPDATE SET
+                identity_key = excluded.identity_key,
+                target_json = excluded.target_json,
+                security_json = excluded.security_json,
+                actions_allowed_json = excluded.actions_allowed_json,
+                disarm_progress = excluded.disarm_progress,
+                status = excluded.status,
+                version = excluded.version,
+                updated_at = excluded.updated_at
+            """,
+            (
+                username, target_key, identity_key, dumps_json(target), dumps_json(security),
+                dumps_json(actions), int(payload.get("disarm_progress") or 0),
+                status, int(payload.get("version") or 0), now or utc_now(),
+            ),
+        )
 
     def _record_event(self, conn, username, event_type, target_key, version, payload=None):
         conn.execute(
@@ -12979,6 +13121,19 @@ class PlayerTargetRuntimeStore:
                     "ok": False, "reason": "concurrent_change",
                     "version": current.get("version", 0),
                 }
+            self._write_progress_snapshot(
+                conn,
+                {
+                    "username": username,
+                    "target_key": target_key,
+                    "target": target,
+                    "security": security,
+                    "actions_allowed": actions,
+                    "disarm_progress": progress,
+                    "status": current.get("status"),
+                    "version": version,
+                },
+            )
             self._record_event(
                 conn, username, f"target.ability_{mode}", target_key, version,
                 {"activation_id": activation_id, "changed": changed},
@@ -13038,25 +13193,33 @@ class PlayerTargetRuntimeStore:
                     "version": current.get("version", 0),
                 }
 
-            if same_runtime_target:
-                merged_security = self._merge_security(current.get("security"), incoming_security)
-                merged_actions = self._merge_actions(current.get("actions_allowed"), incoming_actions)
-                merged_target = dict(current.get("target") or {})
+            resumed = None if same_runtime_target else self._find_progress_with_conn(
+                conn, username, target_key, target,
+            )
+            base = current if same_runtime_target else resumed
+            if base:
+                merged_security = self._merge_security(base.get("security"), incoming_security)
+                merged_actions = self._merge_actions(base.get("actions_allowed"), incoming_actions)
+                merged_target = dict(base.get("target") or {})
                 for key, value in target.items():
                     if key in {"display_label", "label", "name", "title"} and self._is_missing_target_name(value):
                         continue
                     merged_target[key] = value
+                merged_target["ability_application_keys"] = self._merge_markers(
+                    (base.get("target") or {}).get("ability_application_keys"),
+                    target.get("ability_application_keys"),
+                )
                 merged_target["security"] = merged_security
                 merged_target["actions_allowed"] = merged_actions
                 # Keep the identity already handed to the application window.
                 # A later payload may carry another display-derived map id for
                 # the same coordinates; changing it would split progress.
-                target_key = current.get("target_key") or target_key
+                target_key = base.get("target_key") or target_key
                 merged_target["target_id"] = target_key
                 # Merged security is monotonic (False wins), so recomputing is
                 # monotonic without preserving stale action-derived progress.
                 progress = self._progress_from_target(merged_target)
-                version = int(current.get("version") or 0) + 1
+                version = int((current or {}).get("version") or 0) + 1
             else:
                 merged_security = dict(incoming_security or {})
                 merged_actions = dict(incoming_actions or {})
@@ -13112,7 +13275,27 @@ class PlayerTargetRuntimeStore:
                     now,
                 ),
             )
-            event_type = "target.progressed" if same_runtime_target else "target.aimed"
+            if current and not same_runtime_target:
+                self._write_progress_snapshot(conn, current, now=now)
+            self._write_progress_snapshot(
+                conn,
+                {
+                    "username": username,
+                    "target_key": target_key,
+                    "target": merged_target,
+                    "security": merged_security,
+                    "actions_allowed": merged_actions,
+                    "disarm_progress": progress,
+                    "status": self._clean_text(status, self.STATUS_AIMED),
+                    "version": version,
+                },
+                now=now,
+            )
+            event_type = (
+                "target.progressed" if same_runtime_target
+                else "target.resumed" if resumed
+                else "target.aimed"
+            )
             self._record_event(conn, username, event_type, target_key, version, {"source": source})
             return {
                 "changed": True,
@@ -13142,6 +13325,7 @@ class PlayerTargetRuntimeStore:
                 return False
             version = int(current.get("version") or 0) + 1
             now = utc_now()
+            self._write_progress_snapshot(conn, current, now=now)
             conn.execute(
                 """
                 UPDATE player_target_runtime
@@ -13202,6 +13386,20 @@ class PlayerTargetRuntimeStore:
                     now,
                 ),
             )
+            self._write_progress_snapshot(
+                conn,
+                {
+                    "username": username,
+                    "target_key": target_key,
+                    "target": target,
+                    "security": target.get("security") if isinstance(target.get("security"), dict) else {},
+                    "actions_allowed": target.get("actions_allowed") if isinstance(target.get("actions_allowed"), dict) else {},
+                    "disarm_progress": self._progress_from_target(target),
+                    "status": status,
+                    "version": version,
+                },
+                now=now,
+            )
             self._record_event(conn, username, event_type, target_key, version, {"source": source})
             return {"changed": True, "target": target, "status": status, "version": version}
 
@@ -13216,6 +13414,7 @@ class PlayerTargetRuntimeStore:
     def clear_all(self):
         with db_connect(self.db_path) as conn:
             conn.execute("DELETE FROM player_target_runtime")
+            conn.execute("DELETE FROM player_target_progress")
             conn.execute("DELETE FROM player_target_events")
 
 
