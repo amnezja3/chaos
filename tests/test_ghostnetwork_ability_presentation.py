@@ -135,6 +135,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ):
             self.assertIn(token, self.source)
 
+    def test_quarantine_reuses_map_zoom_ui_with_sentinel_copy(self):
+        for token in (
+            "quarantine",
+            "JUDGMENT CORE // CONTAINMENT GRID",
+            "AKTYWACJA PIERŚCIENIA KWARANTANNY",
+            "ROZSZERZANIE STREFY NADZORU",
+        ):
+            self.assertIn(token, self.source)
+
     def test_trust_corridor_reuses_risk_ui_with_sentinel_copy(self):
         for token in (
             "trust_corridor",

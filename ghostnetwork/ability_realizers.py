@@ -69,7 +69,7 @@ MAX_SCAN_RANGE_METERS = 10_000_000
 SCAN_RANGE_ABILITY_CODES = frozenset((
     "resistance_signal", "false_tracking", "integrity_scan",
 ))
-MAP_ZOOM_ABILITY_CODES = frozenset(("network_fracture",))
+MAP_ZOOM_ABILITY_CODES = frozenset(("network_fracture", "quarantine"))
 MAP_ZOOM_BOOST_ANCHORS = (
     (1, 1, "local", 3_000),
     (9, 3, "local", 10_000),
@@ -847,6 +847,7 @@ class GhostAbilityProductionRealizer:
         "bastion": "territory_defense",
         "rollback": "hack_actions",
         "trust_corridor": "operation_risk",
+        "quarantine": "map_zoom",
     }
 
     def __init__(self, operation_store, target_store=None):

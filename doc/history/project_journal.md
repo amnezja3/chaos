@@ -3738,3 +3738,23 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   anulowania operacji zwracają zastany `403` także izolowanie i nie należą do
   `.4.4`.
 - Status `.4.4`: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
+## 2026-09-08 — certyfikacja 138.getway.4.4 i start 138.getway.4.5
+
+- Test obciążeniowy S4 potwierdził pierwsze ciche alarmy dopiero przy 45
+  operacjach oraz brak incydentów podczas aktywnego wpływu. Po expiry powróciły
+  sygnały BlackNet, służby i prawidłowa eskalacja incydentów. Zamknięto `.4.4`
+  jako `KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
+- Zamontowano `quarantine → map_zoom` jako dokładny alias certyfikowanej rodziny
+  P4, bez nowej kalibracji i bez wariantu mechanicznego dla Egzekutora.
+- S5 dziedziczy kotwice LVL `1→17`, `9→13`, `10→12`, `50→7`, `100→6`,
+  `200+→5`, level snapshot, cap `min_zoom=5`, zgodny zakres Folium/TileLayer i
+  przywrócenie bazowego limitu po expiry lub utracie części.
+- Zachowano brak automatycznego centrowania i teleportu oraz istniejący handoff
+  z naturalnym reloadem. Narrację dostosowano do Judgment Core: **AKTYWACJA
+  PIERŚCIENIA KWARANTANNY** i **ROZSZERZANIE STREFY NADZORU**.
+- Presentation profile: **Kwarantanna**, **GRANICA WYZNACZONA**, asset
+  `s5_judgment_core`, impact UI `map_zoom`.
+- Regresja S5/P4, prezentacji, visibility, lekkiego read path i map loadera:
+  `75/75 PASS`.
+- Status `.4.5`: `IMPLEMENTED / SERVER E2E TEST PENDING`.

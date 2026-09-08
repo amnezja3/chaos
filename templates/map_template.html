@@ -2950,12 +2950,29 @@
         function showGhostMapZoomHandoff(snapshot) {
             const overlay = ensureGhostAbilityOverlay();
             if (!overlay) return;
+            const ability = snapshot && snapshot.ability || {};
             const presentation = snapshot && snapshot.presentation || {};
             const player = snapshot && snapshot.player || {};
+            const quarantine = ability.ability_code === 'quarantine';
             applyGhostAbilityPalette(overlay, presentation);
+            const eyebrow = overlay.querySelector('.chaos-ghost-map-zoom-eyebrow');
+            const title = overlay.querySelector('.chaos-ghost-map-zoom-title');
+            if (eyebrow) {
+                eyebrow.textContent = quarantine
+                    ? 'JUDGMENT CORE // CONTAINMENT GRID'
+                    : 'FRACTURE ENGINE // ORBITAL UPLINK';
+            }
+            if (title) {
+                title.textContent = quarantine
+                    ? 'AKTYWACJA PIERŚCIENIA KWARANTANNY'
+                    : 'AKTYWACJA DODATKOWYCH SATELIT';
+            }
             const status = overlay.querySelector('.chaos-ghost-map-zoom-status');
             if (status) {
-                status.textContent = `ROZSZERZANIE SIATKI OBSERWACJI // ${ghostAbilityMapScaleLabel(player.map_zoom_scale)}`;
+                const action = quarantine
+                    ? 'ROZSZERZANIE STREFY NADZORU'
+                    : 'ROZSZERZANIE SIATKI OBSERWACJI';
+                status.textContent = `${action} // ${ghostAbilityMapScaleLabel(player.map_zoom_scale)}`;
             }
             overlay.classList.add('is-map-zoom-transition', 'is-visible');
         }

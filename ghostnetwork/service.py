@@ -1019,6 +1019,7 @@ class GhostNetworkService:
             "bastion": "Bastion",
             "rollback": "Odtworzenie",
             "trust_corridor": "Korytarz Zaufania",
+            "quarantine": "Kwarantanna",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1040,6 +1041,7 @@ class GhostNetworkService:
             "bastion": "MUR PODNIESIONY",
             "rollback": "DOSTĘP ODTWORZONY",
             "trust_corridor": "PRZEJŚCIE ZABEZPIECZONE",
+            "quarantine": "GRANICA WYZNACZONA",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1061,6 +1063,7 @@ class GhostNetworkService:
             "bastion": "territory_defense",
             "rollback": "target_action_dots",
             "trust_corridor": "operation_risk",
+            "quarantine": "map_zoom",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {

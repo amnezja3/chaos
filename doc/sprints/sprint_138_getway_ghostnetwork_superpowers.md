@@ -1427,7 +1427,38 @@ właściwe narzędzie nadal jest wymagane.
 Testy S4 oraz pełna regresja V3/E2/P1, prezentacji, widoczności, lekkiego read
 path i projekcji Centrum Operacji: `70/70 PASS`. Dwa istniejące testy endpointu
 anulowania operacji nadal zwracają `403` także izolowanie i nie dotykają ścieżki
-`operation_risk`; nie są regresją `.4.4`. Status:
+`operation_risk`; nie są regresją `.4.4`.
+
+Serwerowy test obciążeniowy potwierdził pierwszy cichy alarm dopiero przy 45
+operacjach i brak incydentów podczas aktywnego wpływu. Po zakończeniu okna efekt
+odpuścił, sygnały BlackNet oraz służby wróciły, a incydenty ponownie eskalowały.
+Moc przesuwa ekspozycję, ale nie wyłącza systemu reakcji. Status:
+`KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
+
+### 13.5 138.getway.4.5 — S5 Judgment Core / Kwarantanna
+
+`quarantine → map_zoom` montuje bez zmian certyfikowany kontrakt P4:
+
+- przez 15 minut obniża istniejący serwerowy `min_zoom` zgodnie z zamrożoną,
+  proporcjonalną kalibracją `level_snapshot`;
+- efektywne kotwice pozostają identyczne: LVL `1→17`, `9→13`, `10→12`,
+  `50→7`, `100→6`, `200+→5`, z produkcyjnym capem oddalenia `5`;
+- poziom jest snapshotowany przy aktywacji; późniejsza zmiana levelu nie zmienia
+  bieżącego okna;
+- Folium, TileLayer i runtime otrzymują ten sam limit, dlatego kafelki istnieją
+  na całym odblokowanym zakresie;
+- aktywacja nie centruje, nie przesuwa i nie teleportuje motocykla. Zachowuje
+  ostatni viewport, operator sam korzysta z nowego zoomu;
+- jeżeli mapa wymaga przebudowy zakresu, zachowany zostaje sprawdzony handoff i
+  naturalny reload P4. S5 używa własnej narracji **JUDGMENT CORE // CONTAINMENT
+  GRID**, **AKTYWACJA PIERŚCIENIA KWARANTANNY** i **ROZSZERZANIE STREFY
+  NADZORU**;
+- po expiry albo utracie S5 wraca bazowy limit zoomu; `scan_range`,
+  `action_range`, promień POI i pozycja motocykla pozostają bez zmian.
+
+Presentation profile: **Kwarantanna**, tagline **GRANICA WYZNACZONA**, asset
+`s5_judgment_core`, impact UI `map_zoom`. Regresja S5/P4, prezentacji,
+widoczności, lekkiego read path oraz map loadera: `75/75 PASS`. Status:
 `IMPLEMENTED / SERVER E2E TEST PENDING`.
 
 ## 14. 138.getway.5 — polish
