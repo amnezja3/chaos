@@ -1360,9 +1360,17 @@ scan bez teleportu i poprawny powrót do bazowego zakresu. Status:
 - S2 używa istniejącego publicznego renderera, kontraktu menu markerów i assetu
   `s2_bastion_matrix`; różnią się jedynie nazwa **Bastion**, tagline
   **MUR PODNIESIONY**, paleta i narracja.
+- publiczna etykieta roju otrzymuje sufiks właściciela (`VIREX`, `Echo`,
+  `Phantom`, `Sentinel`), ale kanoniczny `label` i `vulnerability_id` nie są
+  zmieniane;
+- glow jest projektowany przez backend jako clan-only. Właściciel i jego klan
+  widzą wyróżnienie własnego roju, natomiast intruz widzi zwykłą kapsułę z jawnym
+  sufiksem klanu.
 
 Testy S2 wraz z pełną regresją rodziny P5, lekkiego read path, prezentacji oraz
-widoczności: `62/62 PASS`. Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+widoczności: `62/62 PASS`. Dodatkowa regresja etykiet, projekcji clan-only,
+renderera i map loadera: `49/49 PASS`. Status:
+`ADJUSTED / SERVER E2E RETEST PENDING`.
 
 ## 14. 138.getway.5 — polish
 

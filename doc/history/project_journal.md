@@ -3657,3 +3657,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Testy S2 oraz pełna regresja P5, widoczności, read path i prezentacji:
   `62/62 PASS`.
 - Status `.4.2`: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
+## 2026-09-08 — 138.getway.4.2 korekta czytelności rojów między klanami
+
+- Pierwszy test serwerowy potwierdził mechanikę S2, lecz dwa sąsiednie roje
+  różnych klanów były wizualnie nierozróżnialne, ponieważ frontend nakładał glow
+  na każde provenance `territory_defense` bez uwzględnienia relacji widza.
+- Publiczne etykiety punktów roju otrzymują stabilny sufiks klanu: `VIREX`,
+  `Echo`, `Phantom` albo `Sentinel`, np. `Virtual Router Sentinel`.
+- Sufiks zapisano jako osobną prezentację. Kanoniczny `label`, `vulnerability_id`,
+  deduplikacja, menu oraz tożsamość celu pozostają bez zmian. Projekcja potrafi
+  wyliczyć sufiks także dla rojów utworzonych przed poprawką.
+- Backend przekazuje znormalizowaną relację `same_clan`; renderer stosuje glow
+  wyłącznie przy `territory_defense_provenance` oraz `same_clan=true`. Intruz
+  widzi publiczną podatność jako zwykłą kapsułę z sufiksem klanu.
+- Regresja rodziny, relacji, renderera i map loadera: `49/49 PASS`.
+- Status `.4.2`: `ADJUSTED / SERVER E2E RETEST PENDING`.

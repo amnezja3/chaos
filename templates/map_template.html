@@ -9658,10 +9658,12 @@
             window.buildClanVulnerabilityIcon = function(report) {
                 const icon = window.escapeMapText ? window.escapeMapText(report.icon || '!')
                     : (report.icon || '!');
-                const label = window.escapeMapText ? window.escapeMapText(report.label || report.name || 'Podatnosc')
-                    : (report.label || report.name || 'Podatnosc');
+                const rawLabel = report.display_label || report.target?.display_label || report.label || report.name || 'Podatnosc';
+                const label = window.escapeMapText ? window.escapeMapText(rawLabel) : rawLabel;
                 const provenance = report.target && report.target.territory_defense_provenance;
-                const swarmClass = provenance ? ' is-territory-defense' : '';
+                const swarmClass = provenance && report.same_clan === true
+                    ? ' is-territory-defense'
+                    : '';
 
                 return L.divIcon({
                     className: `clan-vulnerability-icon${swarmClass}`,
@@ -9710,6 +9712,7 @@
                             lon: lng,
                             label: report.label || target.label || target.name || 'Podatnosc',
                             name: report.name || target.name || report.label || 'Podatnosc',
+                            display_label: report.display_label || target.display_label || report.label || target.label || target.name || 'Podatnosc',
                             icon: report.icon || target.icon || '!',
                             source_type: report.source_type || target.source_type || 'manual',
                             generated: Boolean(report.generated || target.generated),
@@ -9732,7 +9735,7 @@
                             marker, markerTarget, 'clanVulnerabilityMarker', report
                         );
 
-                        marker.bindTooltip(markerTarget.label, { permanent: false, direction: 'top' });
+                        marker.bindTooltip(markerTarget.display_label || markerTarget.label, { permanent: false, direction: 'top' });
                         marker.on('contextmenu', function(e) {
                             const binding = resolveMarkerContextBinding(
                                 marker, e, markerTarget, 'clanVulnerabilityMarker', report

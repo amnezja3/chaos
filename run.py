@@ -27419,6 +27419,26 @@ def map_incident_detection_candidates():
     })
 
 
+TERRITORY_DEFENSE_CLAN_MARKER_SUFFIXES = {
+    "virex": "VIREX",
+    "echo_freedom": "Echo",
+    "phantom_mesh": "Phantom",
+    "sentinel_order": "Sentinel",
+}
+
+
+def territory_defense_marker_label(label, clan):
+    """Add a public clan suffix without changing canonical target identity."""
+    base_label = str(label or "Podatnosc").strip() or "Podatnosc"
+    clan_code = normalize_ghostnetwork_profile_identity({
+        "clan": clan,
+    }).get("clan_code") or ""
+    suffix = TERRITORY_DEFENSE_CLAN_MARKER_SUFFIXES.get(clan_code, "")
+    if not suffix or base_label.casefold().endswith(f" {suffix}".casefold()):
+        return base_label
+    return f"{base_label} {suffix}"
+
+
 @app.route("/api/map/clan-vulnerabilities")
 def map_clan_vulnerabilities():
     if "user" not in session:
@@ -27430,24 +27450,44 @@ def map_clan_vulnerabilities():
     ) or {}
     username = session["user"]
     clan = get_profile_clan(profile)
+    viewer_clan_code = normalize_ghostnetwork_profile_identity({
+        "clan": clan,
+    }).get("clan_code") or ""
     reports = []
 
     for report in vulnerability_store.list_active():
         item = dict(report)
         target = dict(item.get("target") or {})
+        provenance = target.get("territory_defense_provenance") or {}
+        display_label = target.get("territory_defense_display_label")
+        if provenance and not display_label:
+            display_label = territory_defense_marker_label(
+                item.get("label") or item.get("name"),
+                item.get("reported_by_clan"),
+            )
+        display_label = str(
+            display_label or item.get("label") or item.get("name") or "Podatnosc"
+        )
         target["lat"] = item.get("lat")
         target["lng"] = item.get("lng")
         target["lon"] = item.get("lng")
         target["label"] = item.get("label")
         target["name"] = item.get("name")
+        target["display_label"] = display_label
         target["icon"] = item.get("icon")
         target["source_type"] = item.get("source_type")
         target["generated"] = item.get("generated")
         target["security"] = item.get("security", {})
 
         item["target"] = target
+        item["display_label"] = display_label
         item["is_reporter"] = item.get("reported_by_username") == username
-        item["same_clan"] = bool(clan and item.get("reported_by_clan") == clan)
+        report_clan_code = normalize_ghostnetwork_profile_identity({
+            "clan": item.get("reported_by_clan"),
+        }).get("clan_code") or ""
+        item["same_clan"] = bool(
+            viewer_clan_code and report_clan_code == viewer_clan_code
+        )
         reports.append(item)
 
     return jsonify({"vulnerabilities": reports})
@@ -27559,6 +27599,9 @@ def report_vulnerability():
         candidate = dict(candidate)
         candidate["scan_id"] = scan_id if scan_snapshot else ""
         if ability_marker:
+            candidate["territory_defense_display_label"] = territory_defense_marker_label(
+                candidate.get("label") or candidate.get("name"), clan,
+            )
             candidate["ability_application_keys"] = [ability_marker]
             primary_swarm_target = (
                 round(float(candidate.get("lat")), 5) == round(lat, 5)

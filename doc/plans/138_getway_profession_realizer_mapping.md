@@ -179,6 +179,12 @@ jednego punktu przez członka tego samego klanu przejmuje cały aktywny rój i b
 z niego punkty terytorium. Atak obcego klanu generuje deduplikowany alarm, lecz
 przejmuje wyłącznie hakowany punkt. Każde przyszłe przypisanie rodziny ma zachować
 identyczny call-site, selekcję geometryczną, relacje klanowe, limit i lifecycle.
+Publiczna etykieta każdego punktu roju kończy się stabilnym sufiksem klanu:
+`VIREX`, `Echo`, `Phantom` albo `Sentinel`, np. `Virtual Router Sentinel`.
+Sufiks jest wyłącznie prezentacją i nie zmienia kanonicznego `label`,
+`vulnerability_id`, deduplikacji ani target identity. Glow roju jest clan-only:
+widzą go wyłącznie właściciel i członkowie klanu wystawiającego. Intruz widzi tę
+samą publiczną podatność i sufiks klanu, lecz jako zwykłą kapsułę bez glow.
 
 ### 3.4 SENTINEL AEGIS
 

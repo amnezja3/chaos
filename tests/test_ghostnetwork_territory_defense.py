@@ -29,6 +29,24 @@ def marker(lat, lng, label, generated=False):
 
 
 class TerritoryDefenseGeometryTest(unittest.TestCase):
+    def test_public_swarm_label_uses_stable_clan_suffix_without_mutating_twice(self):
+        cases = (
+            ("VIREX", "Virtual Router VIREX"),
+            ("Echo Wolności", "Virtual Router Echo"),
+            ("Siatka Widmo", "Virtual Router Phantom"),
+            ("Strażnicy Ładu", "Virtual Router Sentinel"),
+        )
+        for clan, expected in cases:
+            with self.subTest(clan=clan):
+                self.assertEqual(
+                    expected,
+                    run.territory_defense_marker_label("Virtual Router", clan),
+                )
+                self.assertEqual(
+                    expected,
+                    run.territory_defense_marker_label(expected, clan),
+                )
+
     def test_one_to_three_scan_results_are_all_published(self):
         markers = [marker(52.0, 21.0, "A"), marker(52.01, 21.0, "B"), marker(52.0, 21.01, "C")]
         self.assertEqual(markers, select_territory_defense_swarm(markers, markers[0]))
@@ -133,6 +151,44 @@ class TerritoryDefenseRuntimeTest(unittest.TestCase):
             self.assertEqual("territory_defense", provenance["family"])
             self.assertEqual("window-p5", provenance["window_id"])
             self.assertEqual(payload["swarm"]["swarm_id"], provenance["swarm_id"])
+            self.assertIn(report["label"], {item["label"] for item in markers})
+            self.assertEqual(
+                f"{report['label']} Phantom",
+                report["target"]["territory_defense_display_label"],
+            )
+
+    def test_map_projection_exposes_clan_label_but_glow_relation_is_viewer_scoped(self):
+        own = marker(52.0, 21.0, "Virtual Router")
+        own["territory_defense_provenance"] = {
+            "family": "territory_defense", "swarm_id": "sentinel-swarm",
+        }
+        enemy = marker(52.1, 21.1, "Edge Node")
+        enemy["territory_defense_provenance"] = {
+            "family": "territory_defense", "swarm_id": "phantom-swarm",
+        }
+        self.vulnerabilities.report(own, "alice", "sentinel_order", {})
+        self.vulnerabilities.report(enemy, "eve", "phantom_mesh", {})
+
+        with run.app.test_request_context("/api/map/clan-vulnerabilities"):
+            run.session["user"] = "bob"
+            with (
+                patch.object(run, "load_profile_readonly", return_value={
+                    "username": "bob", "clan": "Strażnicy Ładu",
+                }),
+                patch.object(run, "vulnerability_store", self.vulnerabilities),
+            ):
+                response = run.map_clan_vulnerabilities()
+
+        by_owner = {
+            item["reported_by_username"]: item
+            for item in response.get_json()["vulnerabilities"]
+        }
+        self.assertTrue(by_owner["alice"]["same_clan"])
+        self.assertEqual("Virtual Router Sentinel", by_owner["alice"]["display_label"])
+        self.assertFalse(by_owner["eve"]["same_clan"])
+        self.assertEqual("Edge Node Phantom", by_owner["eve"]["display_label"])
+        self.assertEqual("Virtual Router", by_owner["alice"]["label"])
+        self.assertEqual("Edge Node", by_owner["eve"]["label"])
 
     def test_swarm_satellites_expire_after_cooldown_but_primary_survives(self):
         expiry = "2026-09-07T22:00:00+00:00"
@@ -238,6 +294,9 @@ class TerritoryDefenseRuntimeTest(unittest.TestCase):
         self.assertIn("scan_id: targetContext?.scan_id", frontend)
         self.assertIn("data.swarm && data.swarm.active", frontend)
         self.assertIn("is-territory-defense", frontend)
+        self.assertIn("report.display_label || report.target?.display_label", frontend)
+        self.assertIn("provenance && report.same_clan === true", frontend)
+        self.assertIn("markerTarget.display_label || markerTarget.label", frontend)
 
 
 if __name__ == "__main__":
