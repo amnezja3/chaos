@@ -3673,3 +3673,13 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   widzi publiczną podatność jako zwykłą kapsułę z sufiksem klanu.
 - Regresja rodziny, relacji, renderera i map loadera: `49/49 PASS`.
 - Status `.4.2`: `ADJUSTED / SERVER E2E RETEST PENDING`.
+
+## 2026-09-08 — certyfikacja 138.getway.4.2
+
+- Operator potwierdził kompletny serwerowy retest S2 po korekcie czytelności.
+- Nazwy punktów roju jednoznacznie wskazują klan, właściciel i jego klan widzą
+  glow, a intruz widzi te same publiczne podatności jako zwykłe kapsuły.
+- Menu, hakowanie, przejęcie całego roju przez sojusznika, pojedyncze przejęcie
+  przez intruza, alarm oraz lifecycle pozostały zgodne z kontraktem P5.
+- Zamknięto `bastion → territory_defense` oraz skorygowaną wspólną rodzinę jako
+  `KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.

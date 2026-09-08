@@ -1369,8 +1369,10 @@ scan bez teleportu i poprawny powrót do bazowego zakresu. Status:
 
 Testy S2 wraz z pełną regresją rodziny P5, lekkiego read path, prezentacji oraz
 widoczności: `62/62 PASS`. Dodatkowa regresja etykiet, projekcji clan-only,
-renderera i map loadera: `49/49 PASS`. Status:
-`ADJUSTED / SERVER E2E RETEST PENDING`.
+renderera i map loadera: `49/49 PASS`. Serwerowy retest potwierdził prawidłowe
+nazwy klanowe, glow widoczny wyłącznie dla własnego klanu, zwykłe kapsuły dla
+intruza oraz niezmienione menu i hakowanie. Status:
+`KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
 
 ## 14. 138.getway.5 — polish
 
