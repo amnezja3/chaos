@@ -1401,7 +1401,34 @@ upsercie tego samego celu i nie zmienia kontraktu `target_security`.
 
 Testy korekty S3, pełna regresja V2 oraz rodzin `target_security`, prezentacja i
 target persistence: `53/53 PASS`. Status:
-`ADJUSTED / SERVER VISUAL RETEST PENDING`.
+`KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`. Serwerowy retest potwierdził, że
+cztery kropki pozostają aktywne, pasek zachowuje rzeczywisty stan security, a
+właściwe narzędzie nadal jest wymagane.
+
+### 13.4 138.getway.4.4 — S4 Accord Relay / Korytarz Zaufania
+
+`trust_corridor → operation_risk` montuje bez zmian kontrakt V3/E2/P1:
+
+- aktywacja obejmuje bounded zestaw maksymalnie ośmiu istniejących aktywnych
+  operacji i ustawia w ich kalkulatorze wejście `ability_heat_modifier=-15`;
+- każda nowa operacja uruchomiona w 15-minutowym oknie dostaje ten sam modifier
+  dokładnie raz, ze stabilnym markerem `window_id:operation_risk`;
+- kalkulator nadal sam wyznacza `current_heat`, progi warning/incident i wynik;
+  moc nie ustawia bezpośrednio ryzyka ani nie usuwa już utworzonych incydentów;
+- następny tick po expiry albo utracie S4 wraca do obliczeń bez modifiera;
+- call-site nowej operacji, workerowy read-through i canonical CAS pozostają
+  wspólne z trzema wcześniej certyfikowanymi implementacjami;
+- Centrum Operacji dostaje wyłącznie bezpieczne `risk_masked` oraz
+  `risk_boost_code=trust_corridor`, bez prywatnego window ID lub provenance;
+- prezentacja S4 używa assetu `s4_accord_relay`, nazwy **Korytarz Zaufania**,
+  tagline **PRZEJŚCIE ZABEZPIECZONE**, etykiety **KORYTARZ BEZPIECZNY** oraz
+  złotego akcentu kart Strażników Ładu.
+
+Testy S4 oraz pełna regresja V3/E2/P1, prezentacji, widoczności, lekkiego read
+path i projekcji Centrum Operacji: `70/70 PASS`. Dwa istniejące testy endpointu
+anulowania operacji nadal zwracają `403` także izolowanie i nie dotykają ścieżki
+`operation_risk`; nie są regresją `.4.4`. Status:
+`IMPLEMENTED / SERVER E2E TEST PENDING`.
 
 ## 14. 138.getway.5 — polish
 

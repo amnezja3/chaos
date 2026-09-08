@@ -3716,3 +3716,25 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Regresja S3, V2, trzech implementacji `target_security`, prezentacji i target
   persistence: `53/53 PASS`.
 - Status `.4.3`: `ADJUSTED / SERVER VISUAL RETEST PENDING`.
+
+## 2026-09-08 — certyfikacja 138.getway.4.3 i start 138.getway.4.4
+
+- Serwerowy retest S3 potwierdził pełny kontrakt: cztery kropki akcji są
+  aktywne, pasek pokazuje faktyczny stan security, a poprawne narzędzie nadal
+  jest wymagane. Zamknięto `.4.3` jako `KEEP / LOCKED / SERVER E2E + GAMEPLAY
+  PASS`.
+- Zamontowano `trust_corridor → operation_risk` jako czwarty alias
+  certyfikowanej rodziny V3/E2/P1, bez odmiany mechanicznej dla Mediatora.
+- S4 stosuje `ability_heat_modifier=-15` do maksymalnie ośmiu bieżących operacji
+  przy aktywacji oraz każdej nowej operacji podczas okna. Wynik, progi i
+  incydenty nadal wylicza istniejący risk meter.
+- Po expiry lub utracie części worker wraca do bazowych reguł. Zachowano lekki
+  odczyt raz na gracza/tick, canonical CAS, marker idempotencji oraz zero
+  ciężkiego profilu.
+- Dodano prezentację S4: **Korytarz Zaufania**, **PRZEJŚCIE ZABEZPIECZONE**,
+  etykietę kart **KORYTARZ BEZPIECZNY** i złoty akcent Sentinel.
+- Regresja S4/V3/E2/P1, wspólnej prezentacji, widoczności, lekkiego read path i
+  bezpiecznej projekcji Centrum Operacji: `70/70 PASS`. Dwa niezależne testy
+  anulowania operacji zwracają zastany `403` także izolowanie i nie należą do
+  `.4.4`.
+- Status `.4.4`: `IMPLEMENTED / SERVER E2E TEST PENDING`.

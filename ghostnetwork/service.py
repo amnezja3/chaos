@@ -1018,6 +1018,7 @@ class GhostNetworkService:
             "integrity_scan": "Skan Integralności",
             "bastion": "Bastion",
             "rollback": "Odtworzenie",
+            "trust_corridor": "Korytarz Zaufania",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1038,6 +1039,7 @@ class GhostNetworkService:
             "integrity_scan": "SIEĆ PRZEŚWIETLONA",
             "bastion": "MUR PODNIESIONY",
             "rollback": "DOSTĘP ODTWORZONY",
+            "trust_corridor": "PRZEJŚCIE ZABEZPIECZONE",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1058,6 +1060,7 @@ class GhostNetworkService:
             "integrity_scan": "scan_range",
             "bastion": "territory_defense",
             "rollback": "target_action_dots",
+            "trust_corridor": "operation_risk",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {

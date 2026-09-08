@@ -10142,7 +10142,7 @@ def embedded_ghostnetwork_operation_risk_rules(operation):
     )
     if (
         provenance.get("ability_code") in {
-            "false_image", "narrative_takeover", "phantom_node",
+            "false_image", "narrative_takeover", "phantom_node", "trust_corridor",
         }
         and provenance.get("family") == "operation_risk"
     ):
@@ -14936,7 +14936,7 @@ def summarize_operation_for_client(operation):
     risk_masked = int(risk_meter.get("ability_heat_modifier") or 0) < 0
     risk_boost_code = str(ability_provenance.get("ability_code") or "").strip()
     if risk_boost_code not in {
-        "false_image", "narrative_takeover", "phantom_node",
+        "false_image", "narrative_takeover", "phantom_node", "trust_corridor",
     }:
         risk_boost_code = ""
     yield_boosted = any(

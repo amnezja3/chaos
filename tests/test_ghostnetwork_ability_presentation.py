@@ -135,6 +135,16 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ):
             self.assertIn(token, self.source)
 
+    def test_trust_corridor_reuses_risk_ui_with_sentinel_copy(self):
+        for token in (
+            "trust_corridor",
+            "KORYTARZ BEZPIECZNY",
+            "KORYTARZ ZAUFANIA",
+            "active-operation-card--risk-sentinel",
+            "rgba(255, 209, 82",
+        ):
+            self.assertIn(token, self.source)
+
     def test_hostile_takeover_marks_touched_operations_until_completion(self):
         for token in (
             "operation.yield_boosted === true",

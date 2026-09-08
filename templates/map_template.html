@@ -1758,6 +1758,20 @@
       text-shadow: 1px 0 rgba(99, 255, 222, 0.5), -1px 0 rgba(35, 139, 255, 0.38);
     }
 
+    .active-operation-card--risk-sentinel {
+      border-color: rgba(255, 209, 82, 0.78);
+      background:
+        repeating-linear-gradient(135deg, rgba(255, 209, 82, 0.08) 0 4px, transparent 4px 10px),
+        rgba(0, 0, 0, 0.54);
+      box-shadow: inset 3px 0 0 rgba(255, 209, 82, 0.9), 0 0 12px rgba(255, 209, 82, 0.2);
+    }
+
+    .active-operation-card--risk-sentinel .active-operation-card__risk,
+    .active-operation-card--risk-sentinel .active-operation-card__boost {
+      color: #ffe07a;
+      text-shadow: 0 0 7px rgba(255, 209, 82, 0.55);
+    }
+
     .active-operation-card--yield-boosted {
       border-color: rgba(255, 82, 72, 0.78);
       background:
@@ -7319,6 +7333,9 @@
                     if (operation.risk_boost_code === 'phantom_node') {
                         return Number.isFinite(heat) ? `RUCH POZORNY · HEAT ${heat}` : 'RUCH POZORNY';
                     }
+                    if (operation.risk_boost_code === 'trust_corridor') {
+                        return Number.isFinite(heat) ? `KORYTARZ BEZPIECZNY · HEAT ${heat}` : 'KORYTARZ BEZPIECZNY';
+                    }
                     return Number.isFinite(heat) ? `MASKOWANE · HEAT ${heat}` : 'MASKOWANE';
                 }
                 const riskState = operation.risk_state || {};
@@ -7349,11 +7366,14 @@
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
                     const phantomRisk = operation.risk_boost_code === 'phantom_node';
+                    const sentinelRisk = operation.risk_boost_code === 'trust_corridor';
                     const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
                         ? 'NARRACJA PRZEJĘTA'
                         : operation.risk_boost_code === 'phantom_node'
                             ? 'WĘZEŁ WIDMO'
-                            : 'FAŁSZYWY OBRAZ';
+                            : operation.risk_boost_code === 'trust_corridor'
+                                ? 'KORYTARZ ZAUFANIA'
+                                : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
                     const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
@@ -7362,7 +7382,7 @@
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${sentinelRisk ? 'active-operation-card--risk-sentinel' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
@@ -7460,11 +7480,14 @@
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
                     const phantomRisk = operation.risk_boost_code === 'phantom_node';
+                    const sentinelRisk = operation.risk_boost_code === 'trust_corridor';
                     const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
                         ? 'NARRACJA PRZEJĘTA'
                         : operation.risk_boost_code === 'phantom_node'
                             ? 'WĘZEŁ WIDMO'
-                            : 'FAŁSZYWY OBRAZ';
+                            : operation.risk_boost_code === 'trust_corridor'
+                                ? 'KORYTARZ ZAUFANIA'
+                                : 'FAŁSZYWY OBRAZ';
                     const yieldBoosted = operation.yield_boosted === true;
                     const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
@@ -7473,7 +7496,7 @@
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${sentinelRisk ? 'active-operation-card--risk-sentinel' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>

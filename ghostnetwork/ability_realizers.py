@@ -45,6 +45,7 @@ OPERATION_RISK_POLICIES = {
     "false_image": {"ability_heat_modifier": -15},
     "narrative_takeover": {"ability_heat_modifier": -15},
     "phantom_node": {"ability_heat_modifier": -15},
+    "trust_corridor": {"ability_heat_modifier": -15},
 }
 TARGET_SECURITY_POLICIES = {
     "expose": {"max_changes": None},
@@ -845,6 +846,7 @@ class GhostAbilityProductionRealizer:
         "integrity_scan": "scan_range",
         "bastion": "territory_defense",
         "rollback": "hack_actions",
+        "trust_corridor": "operation_risk",
     }
 
     def __init__(self, operation_store, target_store=None):

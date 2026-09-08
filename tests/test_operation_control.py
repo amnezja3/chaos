@@ -224,6 +224,29 @@ class OperationControlTest(unittest.TestCase):
         self.assertEqual("narrative_takeover", item["risk_boost_code"])
         self.assertNotIn("ability_provenance", item)
 
+    def test_snapshot_exposes_safe_trust_corridor_label_only(self):
+        profile = operation_control_profile()
+        masked = operation("op-trust")
+        masked["operation_risk_meter"] = {
+            "current_heat": 22,
+            "ability_heat_modifier": -15,
+        }
+        masked["ability_provenance"] = {
+            "ability_code": "trust_corridor",
+            "window_id": "private-window",
+            "family": "operation_risk",
+            "modifier": -15,
+        }
+
+        snapshot = run.build_operation_control_snapshot(
+            "alice", profile, operations=[masked],
+        )
+        item = snapshot["operations"][0]
+
+        self.assertTrue(item["risk_masked"])
+        self.assertEqual("trust_corridor", item["risk_boost_code"])
+        self.assertNotIn("ability_provenance", item)
+
     def test_snapshot_exposes_only_safe_file_yield_flag(self):
         profile = operation_control_profile()
         touched = operation("op-yield")
