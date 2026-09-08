@@ -2501,6 +2501,13 @@
         let programmaticMapMove = false;
         const AUTO_ZOOM_RETURN_DELAY_MS = 120000;
         window.activeOperationLayers = [];
+        window.activeOperationMarkers = window.activeOperationMarkers instanceof Map
+            ? window.activeOperationMarkers
+            : new Map();
+        window.activeOperationClockTimer = window.activeOperationClockTimer || null;
+        window.activeOperationCardCache = window.activeOperationCardCache instanceof Map
+            ? window.activeOperationCardCache
+            : new Map();
         window.incidentHotspotLayers = window.incidentHotspotLayers || {};
         window.latestActiveOperations = [];
         window.latestOperationHistory = [];
@@ -2664,11 +2671,30 @@
             return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(delayMs) || 0)));
         }
 
+        function mapContainerPixelSize() {
+            const container = map && typeof map.getContainer === 'function' ? map.getContainer() : null;
+            if (!container) return null;
+            const rect = typeof container.getBoundingClientRect === 'function'
+                ? container.getBoundingClientRect()
+                : null;
+            const width = Math.round(Number(rect && rect.width) || Number(container.clientWidth) || 0);
+            const height = Math.round(Number(rect && rect.height) || Number(container.clientHeight) || 0);
+            return width > 0 && height > 0 ? `${width}x${height}` : null;
+        }
+
         function invalidateMapAfterLayerUpdate() {
-            if (!map || typeof map.invalidateSize !== 'function') return;
-            requestAnimationFrame(() => {
-                map.invalidateSize({ pan: false, animate: false });
-            });
+            if (!map || typeof map.invalidateSize !== 'function') return false;
+            const sizeKey = mapContainerPixelSize();
+            if (!sizeKey || sizeKey === window.chaosMapLastInvalidatedSize) return false;
+            window.chaosMapLastInvalidatedSize = sizeKey;
+            requestAnimationFrame(() => map.invalidateSize({ pan: false, animate: false }));
+            return true;
+        }
+
+        window.chaosMapLastInvalidatedSize = mapContainerPixelSize();
+        if (typeof ResizeObserver === 'function' && map && typeof map.getContainer === 'function') {
+            window.chaosMapResizeObserver = new ResizeObserver(invalidateMapAfterLayerUpdate);
+            window.chaosMapResizeObserver.observe(map.getContainer());
         }
 
         function clearZoomReturn() {
@@ -3256,13 +3282,32 @@
             }
             if (!snapshot.enabled || (!ability.ability_name && !liveActive && cooldownRemaining <= 0)) {
                 control.classList.add('is-hidden');
-                control.replaceChildren();
+                if (control.dataset.renderKey !== 'hidden') control.replaceChildren();
+                control.dataset.renderKey = 'hidden';
                 return;
             }
             applyGhostAbilityPalette(control, presentation);
             control.classList.remove('is-hidden');
-            control.replaceChildren();
             if (liveActive || cooldownRemaining > 0) {
+                const renderKey = [
+                    'badge', ability.ability_code || '', windowState.window_id || '',
+                    liveActive ? 'active' : 'cooldown',
+                    presentation.timer_asset_url || presentation.visual_asset_url || ''
+                ].join(':');
+                const existingState = control.querySelector('.ghost-ability-control__state');
+                const existingTimer = control.querySelector('.ghost-ability-control__timer');
+                if (control.dataset.renderKey === renderKey && existingState && existingTimer) {
+                    const scanRange = Number(snapshot.player && snapshot.player.effective_scan_range_m) || 0;
+                    const strategicScale = snapshot.player && snapshot.player.map_zoom_scale;
+                    existingState.textContent = liveActive && presentation.impact_ui === 'scan_range'
+                        ? `ZASIĘG ${formatGhostAbilityRange(scanRange)}`
+                        : liveActive && presentation.impact_ui === 'map_zoom'
+                            ? `SKALA ${ghostAbilityMapScaleLabel(strategicScale)}`
+                            : (liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN');
+                    existingTimer.textContent = formatGhostAbilitySeconds(liveActive ? activeRemaining : cooldownRemaining);
+                    return;
+                }
+                control.replaceChildren();
                 const badge = document.createElement('div');
                 badge.className = 'ghost-ability-control__badge';
                 const asset = document.createElement('img');
@@ -3290,13 +3335,21 @@
                 timer.textContent = formatGhostAbilitySeconds(liveActive ? activeRemaining : cooldownRemaining);
                 badge.append(asset, copy, timer);
                 control.appendChild(badge);
+                control.dataset.renderKey = renderKey;
             } else if (snapshot.available) {
+                const renderKey = `available:${ability.ability_code || ''}:${presentation.display_name || ability.ability_name || ''}`;
+                if (control.dataset.renderKey === renderKey) return;
+                control.replaceChildren();
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'ghost-ability-control__button';
                 button.textContent = String(presentation.display_name || ability.ability_name || 'Aktywuj moc');
                 button.addEventListener('click', () => activateGhostAbility(button));
                 control.appendChild(button);
+                control.dataset.renderKey = renderKey;
+            } else {
+                if (control.dataset.renderKey !== 'idle') control.replaceChildren();
+                control.dataset.renderKey = 'idle';
             }
         }
 
@@ -7560,6 +7613,12 @@
                 panel.classList.toggle('is-empty', active.length === 0);
 
                 const cards = active.map(operation => {
+                    const cacheId = operationClientId(operation);
+                    const cacheSignature = `${window.operationDomSignature(operation)}:${Boolean(
+                        window.operationCancelInFlight instanceof Map && window.operationCancelInFlight.has(cacheId)
+                    )}`;
+                    const cachedCard = window.activeOperationCardCache.get(cacheId);
+                    if (cachedCard && cachedCard.signature === cacheSignature) return cachedCard.html;
                     const meta = window.operationMarkerMeta(operation);
                     const label = window.escapeMapText(window.operationLabel(operation));
                     const type = window.escapeMapText(meta.name);
@@ -7592,7 +7651,7 @@
                         && window.operationCancelInFlight instanceof Map
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
-                    return `
+                    const cardHtml = `
                         <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${sentinelRisk ? 'active-operation-card--risk-sentinel' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
@@ -7608,7 +7667,13 @@
                             ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? 'Anulowanie...' : 'Anuluj'}</button></div>` : ''}
                         </div>
                     `;
+                    window.activeOperationCardCache.set(cacheId, { signature: cacheSignature, html: cardHtml });
+                    return cardHtml;
                 }).join('');
+                const activeIds = new Set(active.map(operationClientId));
+                window.activeOperationCardCache.forEach((value, operationId) => {
+                    if (!activeIds.has(operationId)) window.activeOperationCardCache.delete(operationId);
+                });
 
                 panel.innerHTML = `
                     <div class="active-operations-panel__header">
@@ -7659,6 +7724,15 @@
                 `;
             };
 
+            window.operationDomSignature = function(operation) {
+                const raw = JSON.stringify(operation || {}, (key, value) => (
+                    ['remaining_seconds', 'elapsed_seconds', 'server_time'].includes(key) ? undefined : value
+                ));
+                let hash = 5381;
+                for (let index = 0; index < raw.length; index += 1) hash = ((hash << 5) + hash) ^ raw.charCodeAt(index);
+                return (hash >>> 0).toString(36);
+            };
+
             window.renderActiveOperationsPanel = function(operations, history) {
                 const panel = document.getElementById('active-operations-panel');
                 if (!panel) return;
@@ -7668,6 +7742,17 @@
                 const state = ['minimized', 'preview', 'expanded'].includes(window.operationCenterState)
                     ? window.operationCenterState
                     : 'preview';
+                const stableActive = JSON.stringify(active, (key, value) => (
+                    ['remaining_seconds', 'elapsed_seconds', 'server_time'].includes(key) ? undefined : value
+                ));
+                const cancelSignature = window.operationCancelInFlight instanceof Map
+                    ? Array.from(window.operationCancelInFlight.keys()).sort().join(',')
+                    : '';
+                const panelSignature = `${activeTab}:${state}:${stableActive}:${cancelSignature}:${activeTab === 'history' ? operationHistorySignature(operationHistory) : ''}`;
+                if (panel.dataset.renderSignature === panelSignature) {
+                    window.updateActiveOperationCountdowns?.();
+                    return;
+                }
                 panel.classList.toggle('is-empty', active.length === 0);
                 panel.classList.toggle('is-minimized', state === 'minimized');
                 panel.classList.toggle('is-expanded', state === 'expanded');
@@ -7707,7 +7792,7 @@
                         && window.operationCancelInFlight.has(rawOperationId)
                     );
                     return `
-                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${sentinelRisk ? 'active-operation-card--risk-sentinel' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}">
+                        <div class="active-operation-card ${accelerated ? 'active-operation-card--accelerated' : ''} ${riskMasked ? 'active-operation-card--risk-masked' : ''} ${phantomRisk ? 'active-operation-card--risk-phantom' : ''} ${sentinelRisk ? 'active-operation-card--risk-sentinel' : ''} ${yieldBoosted ? 'active-operation-card--yield-boosted' : ''} ${qualityBoosted ? 'active-operation-card--quality-boosted' : ''}" data-operation-id="${operationId}" data-operation-render-signature="${cacheSignature}">
                             <div class="active-operation-card__title">
                                 <span class="active-operation-card__name">
                                     <span class="active-operation-card__icon">${icon}</span>
@@ -7717,19 +7802,56 @@
                             </div>
                             <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
-                            <div class="active-operation-card__remaining">Pozostalo: ${remaining}</div>
+                            <div class="active-operation-card__remaining" data-operation-expires-at="${window.escapeMapText(operation.expires_at || '')}">Pozostalo: <span data-operation-countdown>${remaining}</span></div>
                             <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
                             ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? 'Anulowanie...' : 'Anuluj'}</button></div>` : ''}
                         </div>
                     `;
                 }).join('');
-                const historyCards = operationHistory.slice().reverse().map(window.renderOperationHistoryCard).join('');
+                const historyCards = activeTab === 'history'
+                    ? operationHistory.slice().reverse().map(window.renderOperationHistoryCard).join('')
+                    : '';
                 const body = activeTab === 'history'
                     ? (historyCards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak zakonczonych operacji.</div></div>')
                     : (cards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak aktywnych operacji.</div></div>');
                 const countLabel = activeTab === 'history'
                     ? `${active.length} / ${operationHistory.length}`
                     : `${active.length}`;
+
+                const viewKey = `${activeTab}:${state}`;
+                const existingBody = panel.querySelector('.active-operations-panel__body');
+                if (activeTab === 'active' && active.length > 0 && panel.dataset.viewKey === viewKey && existingBody) {
+                    const template = document.createElement('template');
+                    template.innerHTML = cards;
+                    Array.from(existingBody.children).forEach(child => {
+                        if (!child.hasAttribute('data-operation-id')) child.remove();
+                    });
+                    const currentCards = new Map(Array.from(existingBody.querySelectorAll('[data-operation-id]')).map(card => [card.dataset.operationId, card]));
+                    const incomingCards = Array.from(template.content.querySelectorAll('[data-operation-id]'));
+                    const visibleIds = new Set();
+                    let cursor = existingBody.firstElementChild;
+                    incomingCards.forEach(incomingCard => {
+                        const operationId = incomingCard.dataset.operationId;
+                        const currentCard = currentCards.get(operationId);
+                        const card = currentCard && currentCard.dataset.operationRenderSignature === incomingCard.dataset.operationRenderSignature
+                            ? currentCard
+                            : incomingCard;
+                        if (currentCard && card !== currentCard) {
+                            const replacesCursor = cursor === currentCard;
+                            currentCard.replaceWith(card);
+                            if (replacesCursor) cursor = card;
+                        }
+                        if (card !== cursor) existingBody.insertBefore(card, cursor);
+                        cursor = card.nextElementSibling;
+                        visibleIds.add(operationId);
+                    });
+                    currentCards.forEach((card, operationId) => { if (!visibleIds.has(operationId)) card.remove(); });
+                    const countNode = panel.querySelector('.active-operations-panel__count');
+                    if (countNode) countNode.textContent = countLabel;
+                    panel.dataset.renderSignature = panelSignature;
+                    window.updateActiveOperationCountdowns?.();
+                    return;
+                }
 
                 panel.innerHTML = `
                     <div class="active-operations-panel__header" data-operation-center-toggle="1" title="Kliknij, aby zmienic wysokosc panelu">
@@ -7744,12 +7866,32 @@
                         ${body}
                     </div>
                 `;
+                panel.dataset.renderSignature = panelSignature;
+                panel.dataset.viewKey = viewKey;
             };
 
-            window.clearActiveOperationLayers = function() {
-                (window.activeOperationLayers || []).forEach(layer => {
-                    removeMapLayerSafe(layer);
+            window.updateActiveOperationCountdowns = function() {
+                document.querySelectorAll('#active-operations-panel [data-operation-expires-at]').forEach(row => {
+                    const node = row.querySelector('[data-operation-countdown]');
+                    if (!node) return;
+                    const next = window.formatRemainingTime(row.dataset.operationExpiresAt);
+                    if (node.textContent !== next) node.textContent = next;
                 });
+                (window.activeOperationMarkers || new Map()).forEach(marker => {
+                    const node = marker.getElement?.()?.querySelector('[data-operation-marker-countdown]');
+                    if (!node || !marker._operationExpiresAt) return;
+                    const next = window.formatRemainingTime(marker._operationExpiresAt);
+                    if (node.textContent !== next) node.textContent = next;
+                });
+            };
+
+            if (!window.activeOperationClockTimer) {
+                window.activeOperationClockTimer = window.setInterval(window.updateActiveOperationCountdowns, 1000);
+            }
+
+            window.clearActiveOperationLayers = function() {
+                (window.activeOperationMarkers || new Map()).forEach(marker => removeMapLayerSafe(marker));
+                window.activeOperationMarkers = new Map();
                 window.activeOperationLayers = [];
             };
 
@@ -7840,8 +7982,9 @@
             };
 
             window.renderActiveOperationMarkers = function(operations) {
-                window.clearActiveOperationLayers();
+                const visible = new Set();
                 (operations || []).forEach(operation => {
+                    const operationId = operationClientId(operation);
                     const target = operation.target || {};
                     const position = operation.current_position || target;
                     const lat = parseFloat(position.lat);
@@ -7851,28 +7994,47 @@
                     const meta = window.operationMarkerMeta(operation);
                     const label = window.escapeMapText(window.operationLabel(operation));
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
-                    const marker = L.marker([lat, lng], {
-                        zIndexOffset: 780,
-                        icon: L.divIcon({
-                            className: 'active-operation-marker',
-                            html: `
-                                <div class="active-operation-pin ${meta.css}">
-                                    <div class="active-operation-pin__badge">${window.escapeMapText(meta.icon)}</div>
-                                    <div class="active-operation-pin__timer">${remaining}</div>
-                                </div>
-                            `,
-                            iconSize: [72, 58],
-                            iconAnchor: [36, 52],
-                            popupAnchor: [0, -44]
-                        })
-                    }).addTo(map);
-
-                    marker.bindTooltip(`${window.escapeMapText(meta.label)}<br>${label}<br>${remaining}`, {
-                        sticky: true,
-                        opacity: 0.95
-                    });
-                    window.activeOperationLayers.push(marker);
+                    const visualSignature = `${meta.css}:${meta.icon}:${meta.label}:${label}:${operation.expires_at || ''}`;
+                    let marker = window.activeOperationMarkers.get(operationId);
+                    if (!marker) {
+                        marker = L.marker([lat, lng], {
+                            zIndexOffset: 780,
+                            icon: L.divIcon({
+                                className: 'active-operation-marker',
+                                html: `<div class="active-operation-pin ${meta.css}"><div class="active-operation-pin__badge">${window.escapeMapText(meta.icon)}</div><div class="active-operation-pin__timer" data-operation-marker-countdown>${remaining}</div></div>`,
+                                iconSize: [72, 58], iconAnchor: [36, 52], popupAnchor: [0, -44]
+                            })
+                        }).addTo(map);
+                        marker.bindTooltip(`${window.escapeMapText(meta.label)}<br>${label}<br>${remaining}`, { sticky: true, opacity: 0.95 });
+                        marker._operationVisualSignature = visualSignature;
+                        marker._operationExpiresAt = operation.expires_at || '';
+                        window.activeOperationMarkers.set(operationId, marker);
+                    } else {
+                        marker._operationExpiresAt = operation.expires_at || '';
+                        const current = marker.getLatLng();
+                        if (Number(current.lat) !== lat || Number(current.lng) !== lng) marker.setLatLng([lat, lng]);
+                        if (marker._operationVisualSignature !== visualSignature) {
+                            marker.setIcon(L.divIcon({
+                                className: 'active-operation-marker',
+                                html: `<div class="active-operation-pin ${meta.css}"><div class="active-operation-pin__badge">${window.escapeMapText(meta.icon)}</div><div class="active-operation-pin__timer" data-operation-marker-countdown>${remaining}</div></div>`,
+                                iconSize: [72, 58], iconAnchor: [36, 52], popupAnchor: [0, -44]
+                            }));
+                            marker.setTooltipContent(`${window.escapeMapText(meta.label)}<br>${label}<br>${remaining}`);
+                            marker._operationVisualSignature = visualSignature;
+                        } else {
+                            const timer = marker.getElement()?.querySelector('[data-operation-marker-countdown]');
+                            if (timer && timer.textContent !== remaining) timer.textContent = remaining;
+                            marker.setTooltipContent(`${window.escapeMapText(meta.label)}<br>${label}<br>${remaining}`);
+                        }
+                    }
+                    visible.add(operationId);
                 });
+                window.activeOperationMarkers.forEach((marker, operationId) => {
+                    if (visible.has(operationId)) return;
+                    removeMapLayerSafe(marker);
+                    window.activeOperationMarkers.delete(operationId);
+                });
+                window.activeOperationLayers = Array.from(window.activeOperationMarkers.values());
             };
 
             window.notifyOperationLifecycle = function(message, type = 'info') {
@@ -8607,7 +8769,7 @@
                         <div class="response-npc-marker-hitbox" title="${label}">
                             <span class="response-npc-marker-ring"></span>
                             <img class="response-npc-marker-sprite" src="${src}" alt="">
-                            ${countdownText ? `<span class="response-npc-marker-countdown">${countdownText}</span>` : ''}
+                            <span class="response-npc-marker-countdown" ${countdownText ? '' : 'hidden'}>${countdownText}</span>
                             ${feedbackLabel ? `<span class="response-npc-marker-feedback">${feedbackLabel}</span>` : ''}
                         </div>
                     `,
@@ -8615,6 +8777,48 @@
                     iconAnchor: [23, 36],
                     popupAnchor: [0, -32]
                 });
+            };
+
+            window.responseNpcIconSignature = function(capsule, position) {
+                const capsuleId = String((capsule && (capsule.capsule_id || capsule.npc_id)) || '').trim();
+                const feedback = window.responseNpcFeedbackByCapsule && window.responseNpcFeedbackByCapsule[capsuleId];
+                const feedbackStatus = feedback && feedback.expiresAt > Date.now() ? feedback.status : '';
+                return [
+                    window.normalizeResponseNpcFamily(capsule.visual_family || capsule.service_type),
+                    window.normalizeResponseNpcDirection(position && position.direction),
+                    String((position && position.animation_state) || 'patrol'),
+                    capsule.service_level || 1,
+                    feedbackStatus
+                ].join(':');
+            };
+
+            window.updateResponseNpcCountdown = function(marker, capsule, now = window.responseNpcNow()) {
+                const second = Math.floor(now.getTime() / 1000);
+                if (marker._responseNpcCountdownSecond === second) return;
+                marker._responseNpcCountdownSecond = second;
+                const node = marker.getElement?.()?.querySelector('.response-npc-marker-countdown');
+                if (!node) return;
+                const until = Date.parse(capsule.expires_at || capsule.arrival_at || capsule.warning_until || '');
+                const remaining = Number.isFinite(until) ? Math.max(0, Math.ceil((until - now.getTime()) / 1000)) : null;
+                const text = remaining === null ? '' : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
+                if (node.textContent !== text) node.textContent = text;
+                node.hidden = !text;
+            };
+
+            window.updateResponseNpcMarker = function(marker, capsule, position, now, options = {}) {
+                const signature = window.responseNpcIconSignature(capsule, position);
+                if (options.forceIcon || marker._responseNpcIconSignature !== signature) {
+                    marker.setIcon(window.buildResponseNpcIcon(capsule, position));
+                    marker._responseNpcIconSignature = signature;
+                    marker._responseNpcCountdownSecond = null;
+                }
+                if (options.move !== false) {
+                    const current = marker.getLatLng();
+                    if (Number(current.lat) !== Number(position.lat) || Number(current.lng) !== Number(position.lng)) {
+                        marker.setLatLng([position.lat, position.lng]);
+                    }
+                }
+                window.updateResponseNpcCountdown(marker, capsule, now);
             };
 
             window.applyDetectionFeedbackToNpc = function(capsuleId, status, reason) {
@@ -8630,8 +8834,9 @@
                 const capsule = window.responseNpcCapsules && window.responseNpcCapsules[key];
                 const marker = window.responseNpcMarkers && window.responseNpcMarkers[key];
                 if (capsule && marker) {
-                const position = window.positionResponseNpcAt(capsule, window.responseNpcNow());
-                    if (position) marker.setIcon(window.buildResponseNpcIcon(capsule, position));
+                    const now = window.responseNpcNow();
+                    const position = window.positionResponseNpcAt(capsule, now);
+                    if (position) window.updateResponseNpcMarker(marker, capsule, position, now, { forceIcon: true });
                 }
                 return true;
             };
@@ -8679,6 +8884,7 @@
                         interactive: false,
                         icon: window.buildResponseNpcIcon(data, position)
                     }).addTo(map);
+                    marker._responseNpcIconSignature = window.responseNpcIconSignature(data, position);
                     marker._responseNpcSnapshot = data;
                     window.responseNpcMarkers[capsuleId] = marker;
                     window.responseNpcDebug('marker created', {
@@ -8692,8 +8898,7 @@
                     });
                 } else {
                     const marker = window.responseNpcMarkers[capsuleId];
-                    marker.setLatLng([position.lat, position.lng]);
-                    marker.setIcon(window.buildResponseNpcIcon(data, position));
+                    window.updateResponseNpcMarker(marker, data, position, window.responseNpcNow());
                     marker._responseNpcSnapshot = data;
                     window.responseNpcDebug('marker updated', {
                         capsule_id: capsuleId,
@@ -8932,9 +9137,17 @@
                     window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
                     return;
                 }
-                if (!window.responseNpcLastTick || (timestamp - window.responseNpcLastTick) >= 240) {
+                const now = window.responseNpcNow();
+                window.runLocalDetectionProbe(now);
+                const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+                const hidden = document.visibilityState === 'hidden';
+                const visualCadenceMs = hidden ? 1000 : (lowPower ? 520 : 240);
+                if (!window.responseNpcLastTick || (timestamp - window.responseNpcLastTick) >= visualCadenceMs) {
                     window.responseNpcLastTick = timestamp;
-                    const now = window.responseNpcNow();
+                    const currentBounds = map && typeof map.getBounds === 'function' ? map.getBounds() : null;
+                    const paddedBounds = currentBounds && typeof currentBounds.pad === 'function'
+                        ? currentBounds.pad(0.2)
+                        : currentBounds;
                     ids.forEach(capsuleId => {
                         const capsule = capsules[capsuleId];
                         const marker = window.responseNpcMarkers[capsuleId];
@@ -8946,10 +9159,12 @@
                             window.removeResponseNpcActor(capsuleId);
                             return;
                         }
-                        marker.setLatLng([position.lat, position.lng]);
-                        marker.setIcon(window.buildResponseNpcIcon(capsule, position));
+                        const inViewport = !paddedBounds || paddedBounds.contains([position.lat, position.lng]);
+                        const markerCadenceMs = inViewport ? visualCadenceMs : 1000;
+                        if (marker._responseNpcLastVisualAt && (timestamp - marker._responseNpcLastVisualAt) < markerCadenceMs) return;
+                        marker._responseNpcLastVisualAt = timestamp;
+                        window.updateResponseNpcMarker(marker, capsule, position, now);
                     });
-                    window.runLocalDetectionProbe(now);
                 }
                 window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
             };

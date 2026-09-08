@@ -63,7 +63,7 @@ class MapInteractionFastPathContractTest(unittest.TestCase):
             self.map_source.index("window.ensureResponseNpcAnimation = function")
         ]
         pause = tick.index("window.chaosMapInteractionState.active")
-        movement = tick.index("marker.setLatLng")
+        movement = tick.index("window.updateResponseNpcMarker")
         detection = tick.index("window.runLocalDetectionProbe")
         self.assertLess(pause, movement)
         self.assertLess(pause, detection)

@@ -112,7 +112,7 @@ serwerze: telefon/coarse pointer oraz komputer referencyjny.
 
 ## 5. 138.op.2 — incremental operations and NPC runtime
 
-Status: `PLANNED`
+Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`
 
 Cel: koszt aktualizacji zależy od liczby zmienionych rekordów, nie od liczby
 wszystkich rekordów na mapie.
@@ -145,6 +145,34 @@ Zakres:
 - countdown operacji, NPC i SP pozostaje zgodny po reloadzie i po wznowieniu
   ukrytej karty;
 - brak regresji anulowania operacji, incydentów, detekcji i lifecycle terytorium.
+
+### Implementacja `.op.2`
+
+- registry markerów operacji jest trwałą mapą `operation_id -> marker`; snapshot
+  uzgadnia add/update/remove, ale nie czyści całej warstwy;
+- zmiana pozycji operacji używa `setLatLng`, zmiana prezentacji używa `setIcon`,
+  a sam countdown mutuje istniejący text node raz na sekundę;
+- Centrum Operacji używa sygnatur danych bez pól zegarowych. Niezmienione karty
+  zachowują swój DOM, zmieniona operacja wymienia wyłącznie własną kartę, a
+  historia jest budowana dopiero po wejściu do zakładki `Historia`;
+- kontrolka SP zachowuje asset i strukturę badge'a w obrębie tego samego okna;
+  tick zmienia tylko tekst stanu oraz czasu;
+- kapsuły Response Network zachowują marker i poruszają go przez `setLatLng`.
+  `setIcon` występuje tylko po zmianie rodziny, kierunku, stanu animacji albo
+  krótkiego feedbacku detekcji;
+- countdown NPC ma osobny, sekundowy update istniejącego DOM. Pozycja pozostaje
+  wyliczana z czasu serwera, więc wznowienie karty nie powoduje dryfu;
+- cadence wizualny NPC wynosi `240 ms` w aktywnym widoku, `520 ms` w low-power
+  i `1000 ms` dla ukrytej karty lub obiektu poza rozszerzonym viewportem.
+  Lokalny probe detekcji zachowuje niezależny kontrakt `1200 ms`;
+- `invalidateSize()` jest chronione sygnaturą realnych wymiarów kontenera i
+  wywoływane przez `ResizeObserver`, a nie przez każdą zmianę warstwy.
+
+Lokalna bramka: `445/445` testów Python GhostNetwork, `10/10` pakietów JS mapy,
+delta, operacji, SFX i motocykla oraz `52/52` celowanych kontraktów `.op.2`/NPC/
+map loader/SP: PASS. Renderowanie szablonu `/map`: `3/3 PASS`.
+`git diff --check`: PASS. Do zamknięcia pozostaje test serwerowy pod obciążeniem
+30+ operacji i kilkoma konfliktami, szczególnie na Redmi/coarse pointer.
 
 ## 6. 138.op.3 — map LOD, culling i performance gate
 

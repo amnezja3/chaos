@@ -3860,3 +3860,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   mapowaniem `GhostAbilityProductionRealizer.ABILITY_FAMILIES`.
 - Składnia trzech konfiguracji Node: PASS; kontrakt ecosystem + map fast path:
   `49/49 PASS`.
+
+## 2026-09-08 — 138.op.2 incremental operations and NPC runtime
+
+- Markery operacji przeszły z pełnego clear/rebuild na trwały registry po
+  `operation_id`; snapshot uzgadnia wyłącznie rekordy dodane, zmienione i usunięte.
+- Centrum Operacji zachowuje DOM niezmienionych kart. Countdown operacji oraz
+  markerów aktualizuje text nodes, a historia nie jest formatowana poza swoją
+  zakładką.
+- Kapsuły służb poruszają istniejące markery przez `setLatLng`; `setIcon` jest
+  ograniczone do zmiany kierunku/rodziny/stanu/feedbacku, a countdown działa
+  osobno raz na sekundę.
+- Dodano niższy cadence wizualny dla low-power, ukrytej karty i kapsuł poza
+  viewportem bez zmiany czasu serwerowego oraz semantyki lokalnej detekcji.
+- Badge aktywnej SP nie odtwarza assetu co sekundę, a `invalidateSize()` reaguje
+  wyłącznie na zmianę wymiaru kontenera obserwowaną przez `ResizeObserver`.
+- Regresja: `445/445` GhostNetwork Python, `10/10` pakietów JS, `52/52`
+  celowanych kontraktów runtime oraz `3/3` renderowania `/map`: PASS.
+- Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`; bez commita,
+  pushu i deployu.
