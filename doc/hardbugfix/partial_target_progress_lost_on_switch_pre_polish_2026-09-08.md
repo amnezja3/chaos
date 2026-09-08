@@ -3,7 +3,7 @@
 **Etap:** pre-polish po `138.getway.4`  
 **Data:** 2026-09-08  
 **Severity:** P1 gameplay  
-**Status:** `IMPLEMENTED / LOCAL PASS / SERVER E2E PENDING`
+**Status:** `RESOLVED / SERVER E2E + GAMEPLAY PASS`
 
 ## Problem
 
@@ -94,4 +94,4 @@ terminalny cel nie może wznowić starszego snapshotu
 
 ## Bramka
 
-`LOCAL PASS / SERVER E2E PENDING`
+`RESOLVED / SERVER E2E + GAMEPLAY PASS`

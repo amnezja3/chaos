@@ -5626,6 +5626,157 @@ def safe_player_areas(areas):
     return normalized
 
 
+FIRST_RESPAWN_TERRITORY_MARGIN_METERS = max(
+    50.0,
+    min(
+        1000.0,
+        float(os.environ.get("CHAOS_FIRST_RESPAWN_TERRITORY_MARGIN_METERS", "180")),
+    ),
+)
+
+
+def resolve_first_respawn_outside_controlled_territory(
+    position,
+    areas=None,
+    margin_m=FIRST_RESPAWN_TERRITORY_MARGIN_METERS,
+):
+    """Move a first spawn to the nearest free side of a controlled boundary.
+
+    This is a pure registration policy. It does not publish movement, intrusion
+    or detection events and can later be reused as a GhostLab placement tool.
+    """
+    try:
+        origin = {
+            "lat": float((position or {}).get("lat")),
+            "lng": float((position or {}).get("lng", (position or {}).get("lon"))),
+        }
+    except (AttributeError, TypeError, ValueError):
+        return {"position": {}, "adjusted": False, "reason": "invalid_position"}
+    if (
+        not math.isfinite(origin["lat"])
+        or not math.isfinite(origin["lng"])
+        or not (-90 <= origin["lat"] <= 90)
+        or not (-180 <= origin["lng"] <= 180)
+    ):
+        return {"position": {}, "adjusted": False, "reason": "invalid_position"}
+
+    controlled = [
+        area
+        for area in safe_player_areas(
+            areas if areas is not None else territory_store.list_player_areas(limit=1000)
+        )
+        if area.get("status") in {"active", "encircled"}
+    ]
+    containing = [
+        area
+        for area in controlled
+        if territory_point_in_polygon_or_boundary(origin, area.get("vertices") or [])
+    ]
+    if not containing:
+        return {
+            "position": dict(origin),
+            "adjusted": False,
+            "reason": "free_origin",
+            "territory_ids": [],
+            "owner_usernames": [],
+            "distance_m": 0,
+        }
+
+    margin_m = max(1.0, float(margin_m or FIRST_RESPAWN_TERRITORY_MARGIN_METERS))
+    lat_scale = 110540.0
+    lng_scale = 111320.0 * max(0.01, abs(math.cos(math.radians(origin["lat"]))))
+
+    def to_xy(point):
+        return (
+            (float(point.get("lng", point.get("lon"))) - origin["lng"]) * lng_scale,
+            (float(point.get("lat")) - origin["lat"]) * lat_scale,
+        )
+
+    def from_xy(x, y):
+        return {
+            "lat": max(-89.999999, min(89.999999, origin["lat"] + y / lat_scale)),
+            "lng": ((origin["lng"] + x / lng_scale + 180.0) % 360.0) - 180.0,
+        }
+
+    def is_free(candidate):
+        return not any(
+            territory_point_in_polygon_or_boundary(candidate, area.get("vertices") or [])
+            for area in controlled
+        )
+
+    candidates = []
+    # Testing all controlled edges handles overlapping and nested territories:
+    # an internal boundary is rejected by is_free, while the nearest edge of
+    # the entire controlled union remains eligible.
+    for area in controlled:
+        vertices = area.get("vertices") or []
+        for index, start in enumerate(vertices):
+            end = vertices[(index + 1) % len(vertices)]
+            try:
+                ax, ay = to_xy(start)
+                bx, by = to_xy(end)
+            except (AttributeError, TypeError, ValueError):
+                continue
+            dx, dy = bx - ax, by - ay
+            length_sq = dx * dx + dy * dy
+            if length_sq <= 1e-9:
+                continue
+            ratio = max(0.0, min(1.0, -(ax * dx + ay * dy) / length_sq))
+            qx, qy = ax + ratio * dx, ay + ratio * dy
+            length = math.sqrt(length_sq)
+            nx, ny = -dy / length, dx / length
+            for sign in (-1.0, 1.0):
+                candidate = from_xy(
+                    qx + sign * nx * margin_m,
+                    qy + sign * ny * margin_m,
+                )
+                if is_free(candidate):
+                    candidates.append((math.hypot(
+                        qx + sign * nx * margin_m,
+                        qy + sign * ny * margin_m,
+                    ), candidate))
+
+    if not candidates:
+        # Malformed/self-intersecting geometry must never abort registration.
+        # A deterministic radial fallback expands beyond the furthest vertex.
+        containing_vertices = [
+            vertex for area in containing for vertex in (area.get("vertices") or [])
+        ]
+        max_radius = max(
+            [math.hypot(*to_xy(vertex)) for vertex in containing_vertices] or [margin_m]
+        ) + margin_m
+        for ring in range(1, 17):
+            radius = max_radius * ring / 8.0
+            for bearing in range(0, 360, 15):
+                angle = math.radians(bearing)
+                candidate = from_xy(radius * math.sin(angle), radius * math.cos(angle))
+                if is_free(candidate):
+                    candidates.append((radius, candidate))
+            if candidates:
+                break
+
+    if not candidates:
+        return {
+            "position": {},
+            "adjusted": False,
+            "reason": "no_safe_edge_found",
+            "territory_ids": [str(area.get("id") or "") for area in containing],
+            "owner_usernames": sorted({str(area.get("owner_username") or "") for area in containing}),
+            "distance_m": 0,
+        }
+
+    distance_m, resolved = min(candidates, key=lambda item: item[0])
+    return {
+        "position": {"lat": round(resolved["lat"], 6), "lng": round(resolved["lng"], 6)},
+        "adjusted": True,
+        "reason": "controlled_territory_edge",
+        "territory_ids": [str(area.get("id") or "") for area in containing],
+        "owner_usernames": sorted({str(area.get("owner_username") or "") for area in containing}),
+        "distance_m": int(round(distance_m)),
+        "margin_m": int(round(margin_m)),
+    }
+
+
 def territory_conflict_key(*areas):
     keys = sorted(conflict_area_key(area) for area in areas if area)
     return "::".join(keys)
@@ -20650,8 +20801,30 @@ def api_register_finalize():
     ip = get_request_ip()
     start_location = get_start_location_by_ip(ip)
     city = start_location["city"]
-    lat = start_location["lat"]
-    lng = start_location["lng"]
+    first_respawn = resolve_first_respawn_outside_controlled_territory({
+        "lat": start_location["lat"],
+        "lng": start_location["lng"],
+    })
+    resolved_position = first_respawn.get("position")
+    if not resolved_position:
+        print(
+            "[registration] first_spawn_resolution_failed "
+            f"reason={first_respawn.get('reason') or 'unknown'}",
+            flush=True,
+        )
+        return jsonify(
+            success=False,
+            error="Nie udalo sie wyznaczyc bezpiecznej pozycji startowej. Sprobuj ponownie.",
+        ), 503
+    lat = float(resolved_position["lat"])
+    lng = float(resolved_position["lng"])
+    if first_respawn.get("adjusted"):
+        print(
+            "[registration] first_spawn_relocated "
+            f"territories={len(first_respawn.get('territory_ids') or [])} "
+            f"distance_m={int(first_respawn.get('distance_m') or 0)}",
+            flush=True,
+        )
     avatar_path = identity["avatar"]
     faction_name = identity["faction_name"]
 

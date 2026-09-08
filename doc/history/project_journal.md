@@ -3784,4 +3784,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   bieżącej aplikacji pozostaje bez zmian.
 - Polityka początkowa: bez TTL; postęp trwa do przejęcia/resetu. Retencja zależna
   od poziomu pozostaje późniejszą decyzją balansową.
+- Operator potwierdził test serwerowy i gameplayowy. Status:
+  `RESOLVED / SERVER E2E + GAMEPLAY PASS`.
+
+## 2026-09-08 — pre-polish: pierwszy respawn na wolnych obrzeżach
+
+- Ustalono kontrakt onboardingowy: punkt geolokalizacji IP nie może umieścić
+  świeżego konta wewnątrz kontrolowanego terytorium.
+- Dodano czystą politykę `resolve_first_respawn_outside_controlled_territory`,
+  która znajduje najbliższy punkt poza sumą aktywnych/okrążonych obszarów i
+  dodaje domyślnie 180 m marginesu.
+- Obsłużono nakładające się i zagnieżdżone terytoria oraz awaryjny radialny search;
+  brak bezpiecznego wyniku przerywa rejestrację przed utworzeniem konta.
+- Korekta jest wykonywana przed zapisem pierwszej pozycji i nie przechodzi przez
+  teleport, travel ani Response Network, więc nie generuje alarmu wtargnięcia.
+- Funkcja pozostaje wydzielonym kontraktem możliwym do późniejszego użycia przez
+  Pro Tool w GhostLab.
 - Status: `IMPLEMENTED / LOCAL PASS / SERVER E2E PENDING`.
