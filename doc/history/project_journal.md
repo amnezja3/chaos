@@ -3811,4 +3811,23 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Zachowuje bieżący zoom i nie wykonuje reloadu, requestu, teleportu ani zapisu,
   eliminując pełny restart mapy jako sposób odzyskania własnej pozycji.
 - Regresja map loadera: `19/19 PASS`.
-- Status: `IMPLEMENTED / LOCAL PASS / SERVER UI TEST PENDING`.
+- Operator potwierdził działanie kontrolki na serwerze. Status:
+  `RESOLVED / SERVER UI PASS`.
+
+## 2026-09-08 — 138.getway.5 polish i zamknięcie bramki gameplayowej
+
+- Zamknięto wszystkie 20 mocy wynikiem `SERVER E2E + GAMEPLAY PASS`; każda z 9
+  certyfikowanych rodzin zachowuje identyczny kontrakt niezależnie od profesji.
+- Trzy równoległe mapy copy prezentacji zastąpiono jednym rejestrem
+  `ability_code → display_name / activation_tagline / impact_ui`.
+- Dodano automatyczny polish gate 20/20: komplet katalogu, mapowań, profili UX,
+  rodzin, klanów `5/5`, miniaturek oraz grafik aktywacji.
+- Pełna regresja Python `test_ghostnetwork_*`: `444/444 PASS`; siedem celowanych
+  pakietów JS mapy, suite, delta, SFX i motocykla: `7/7 PASS`; `py_compile` oraz
+  `git diff --check`: PASS.
+- Ujednolicono historyczny test limitu geometrii terytorium z kanonicznym limitem
+  renderera `2°`; zachowanie produkcyjne nie zostało zmienione.
+- Szczegółowy audyt call-site/evidence zapisano w
+  `doc/audits/ghostnetwork_superpower_polish_gate.md`.
+- Status: `138.getway COMPLETE / GO FOR 138.op.1–3`; finalne `GO FOR 138.2`
+  pozostaje zależne od bramki wydajnościowej mapy.

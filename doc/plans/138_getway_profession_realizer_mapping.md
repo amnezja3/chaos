@@ -1,11 +1,11 @@
 # 138.getway — mapa profesja → gameplay realizer
 
-Status: `PROPOSAL / DECISION ARTIFACT`
+Status: `LOCKED / 20 OF 20 SERVER E2E + GAMEPLAY PASS`
 
 Ten artefakt przypisuje każdej z 20 profesji jedną główną rodzinę wpływu z
-certyfikowanego katalogu `138.getway.0.4`. Nie jest jeszcze mapowaniem
-produkcyjnym. Każdy wiersz staje się kontraktem dopiero po teście frontendowym
-w odpowiednim podsprincie i decyzji `KEEP / ADJUST / REPLACE / DEFER`.
+certyfikowanego katalogu `138.getway.0.4`. Po testach serwerowych i gameplayowych
+wszystkie wiersze są zamrożonym mapowaniem produkcyjnym. Zmiana wymaga jawnej
+decyzji `ADJUST / REPLACE / DEFER` oraz ponownej certyfikacji całej rodziny.
 
 ## 1. Granice rozwiązania
 
@@ -72,7 +72,7 @@ Limity powyżej były punktami startowymi do chwili certyfikacji. Po certyfikacj
 nie wolno ich zmieniać w podsprincie profesji. Każda zmiana limitu lub scope
 wymaga wersjonowania rodziny i ponownej wspólnej certyfikacji.
 
-## 3. Proponowane mapowanie 20 profesji
+## 3. Zamrożone mapowanie 20 profesji
 
 ### 3.1 VIREX ORACLE
 
@@ -190,8 +190,8 @@ samą publiczną podatność i sufiks klanu, lecz jako zwykłą kapsułę bez gl
 
 | Sprint | Część / profesja | Moc | Rodzina | Widoczny skutek i początkowy scope | Ocena |
 | --- | --- | --- | --- | --- | --- |
-| `.4.1` | S1 Deep Sensor / `analyzer` | Skan Integralności | `scan_range` | certyfikowany zasięg strategiczny `25 km × level_snapshot`, ograniczony do `10 000 km`; bez account scan | `STRONG FIT` |
-| `.4.2` | S2 Bastion Matrix / `defender` | Bastion | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `STRONG FIT` |
+| `.4.1` | S1 Deep Sensor / `analyzer` | Skan Integralności | `scan_range` | certyfikowany zasięg strategiczny `25 km × level_snapshot`, ograniczony do `10 000 km`; bez account scan | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
+| `.4.2` | S2 Bastion Matrix / `defender` | Bastion | `territory_defense` | ten sam rój publicznych podatności z jednego skanu co P5 | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
 | `.4.3` | S3 Restoration Engine / `reconstructor` | Odtworzenie | `hack_actions` | ten sam komplet czterech odblokowanych akcji celu co V2; działa na każdy `aimed` podczas okna | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
 | `.4.4` | S4 Accord Relay / `mediator` | Korytarz Zaufania | `operation_risk` | certyfikowane `heat -15` dla maks. 8 istniejących oraz wszystkich nowych operacji podczas okna | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
 | `.4.5` | S5 Judgment Core / `executor` | Kwarantanna | `map_zoom` | ten sam certyfikowany strategiczny zoom co P4, skalowany poziomem i ograniczony do produkcyjnego maksimum | `LOCKED / SERVER E2E + GAMEPLAY PASS` |
@@ -243,7 +243,7 @@ Nie powtarzamy pełnej certyfikacji wspólnego okna dla każdej części. Każdy
 podsprint certyfikuje wyłącznie swoje statyczne mapowanie, mały adapter oraz
 obserwowalny efekt.
 
-## 6. Pokrycie rodzin w propozycji
+## 6. Pokrycie rodzin w produkcji
 
 | Rodzina | Proponowane części |
 | --- | --- |

@@ -80,7 +80,9 @@ function testLeafletPolylineBoundsGuard() {
     };
     const guardSandbox = {
         Number,
-        window: {},
+        window: {
+            setTimeout() { return 1; }
+        },
         L: { Polyline: { prototype } }
     };
     guardSandbox.window.L = guardSandbox.L;

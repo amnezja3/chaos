@@ -28,6 +28,7 @@ from .ability_realizers import (
     calculate_scan_range_m,
     operation_risk_modifier,
 )
+from .ability_presentation import ability_presentation_profile
 from .archive import GhostArchiveService
 from .closure import GhostNetworkClosureService
 from .cycles import GhostCycleService, ensure_active_ghostnetwork_cycle
@@ -999,73 +1000,8 @@ class GhostNetworkService:
         asset = part_superpower_asset_contract(part_definition)
         timer_asset = part_visual_asset_contract(part_definition)
         clan = clans.get(clan_code) or {}
-        display_names = {
-            "insider_feed": "Insider Feed",
-            "operational_prediction": "Predykcja Operacyjna",
-            "expose": "Ujawnienie",
-            "narrative_takeover": "Przejęcie Narracji",
-            "full_disclosure": "Pełne Ujawnienie",
-            "service_entrance": "Wejście Serwisowe",
-            "false_image": "Fałszywy Obraz",
-            "hostile_takeover": "Wrogie Przejęcie",
-            "resistance_signal": "Beacon Oporu",
-            "domino_effect": "Efekt Domina",
-            "phantom_node": "Węzeł Widmo",
-            "glitch_injection": "Glitch Injection",
-            "false_tracking": "Fałszywe Tropienie",
-            "network_fracture": "Pęknięcie Sieci",
-            "reflection": "Odbicie",
-            "integrity_scan": "Skan Integralności",
-            "bastion": "Bastion",
-            "rollback": "Odtworzenie",
-            "trust_corridor": "Korytarz Zaufania",
-            "quarantine": "Kwarantanna",
-        }
-        activation_taglines = {
-            "insider_feed": "MEGA HOSSA",
-            "operational_prediction": "CZAS OBLICZONY",
-            "expose": "SŁABOŚĆ UJAWNIONA",
-            "narrative_takeover": "REAKCJA OPÓŹNIONA",
-            "full_disclosure": "PRAWDA BEZ FILTRA",
-            "service_entrance": "BACKDOOR GOTOWY",
-            "false_image": "NIE WIERZ OCZOM",
-            "hostile_takeover": "POTRÓJNY ZYSK",
-            "resistance_signal": "ŚWIAT W ZASIĘGU",
-            "domino_effect": "ISKRA POSZŁA",
-            "phantom_node": "RUCH POZORNY",
-            "glitch_injection": "SYSTEM PĘKA",
-            "false_tracking": "WSZĘDZIE SĄ ŚLADY",
-            "network_fracture": "HORYZONT PĘKA",
-            "reflection": "RÓJ ODBITY",
-            "integrity_scan": "SIEĆ PRZEŚWIETLONA",
-            "bastion": "MUR PODNIESIONY",
-            "rollback": "DOSTĘP ODTWORZONY",
-            "trust_corridor": "PRZEJŚCIE ZABEZPIECZONE",
-            "quarantine": "GRANICA WYZNACZONA",
-        }
-        impact_ui = {
-            "insider_feed": "operation_cards",
-            "operational_prediction": "operation_cards",
-            "expose": "target_security_bar",
-            "narrative_takeover": "operation_risk",
-            "full_disclosure": "data_quality",
-            "service_entrance": "target_action_dots",
-            "false_image": "operation_risk",
-            "hostile_takeover": "file_yield",
-            "resistance_signal": "scan_range",
-            "domino_effect": "target_security_bar",
-            "phantom_node": "operation_risk",
-            "glitch_injection": "target_security_bar",
-            "false_tracking": "scan_range",
-            "network_fracture": "map_zoom",
-            "reflection": "territory_defense",
-            "integrity_scan": "scan_range",
-            "bastion": "territory_defense",
-            "rollback": "target_action_dots",
-            "trust_corridor": "operation_risk",
-            "quarantine": "map_zoom",
-        }
         ability_code = str(ability.get("ability_code") or "")
+        profile = ability_presentation_profile(ability_code)
         return {
             "clan_code": clan_code,
             "clan_color_token": clan.get("ui_color_token") or "",
@@ -1076,12 +1012,13 @@ class GhostNetworkService:
             "visual_asset_motion": asset.get("presentation_asset_motion") or "shake",
             "show_duration_ms": 6000,
             "sound_event": "ghostnetwork.part_activated",
-            "display_name": display_names.get(
-                ability_code,
-                ability.get("ability_name") or "GhostNetwork",
+            "display_name": (
+                profile.get("display_name")
+                or ability.get("ability_name")
+                or "GhostNetwork"
             ),
-            "activation_tagline": activation_taglines.get(ability_code) or "MOC AKTYWNA",
-            "impact_ui": impact_ui.get(ability_code) or "",
+            "activation_tagline": profile.get("activation_tagline") or "MOC AKTYWNA",
+            "impact_ui": profile.get("impact_ui") or "",
             "semantic_description": ability.get("ability_description") or "",
         }
 

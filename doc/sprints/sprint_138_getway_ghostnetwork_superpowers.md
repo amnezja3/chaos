@@ -1,6 +1,6 @@
 # 138.getway — lekka bramka supermocy przed pełnym testem GhostSignalu
 
-Status: `REQUIRED / BLOCKING 138.2; FOLLOWED BY 138.op.1–3`
+Status: `COMPLETE / 20 OF 20 SERVER E2E + GAMEPLAY PASS; NEXT 138.op.1–3`
 Źródło audytu: `doc/audits/ghostnetwork_superpowers_actual_state_audit.md`
 Zakres: `138.getway.0` foundation/pilot, `138.getway.1–4` profesja po profesji
 oraz `138.getway.5` polish.
@@ -1085,7 +1085,7 @@ podstawie istniejących pól jakości i kompletności. Operacja ma zachować wid
 wyróżnienie do końca, także jeśli 15-minutowe okno wygaśnie wcześniej. Po expiry
 lub utracie E3 nowe operacje nie dostają już markera.
 
-Status: `LOCAL PASS / SERVER GAMEPLAY TEST PENDING`
+Status: `COMPLETE / SERVER E2E + GAMEPLAY PASS`
 
 Implementacja produkcyjna podłącza `full_disclosure → data_quality` do wspólnego
 okna ability. Aktywacja oznacza maksymalnie 8 istniejących operacji, a canonical
@@ -1471,6 +1471,8 @@ pełne potwierdzenie serwerowe oraz gameplayowe.
 
 ## 14. 138.getway.5 — polish
 
+Status: `COMPLETE / CROSS-CLAN POLISH PASS`.
+
 Polish przechodzi profesja po profesji:
 
 ```text
@@ -1496,6 +1498,25 @@ Zakres polish:
 
 Nie są częścią polish: nowy worker, queue, event bus, język skryptowy efektów,
 drugi system profili, osobna topologia ani LLM w ścieżce aktywacji.
+
+Polish zamknął wspólny kontrakt prezentacji jako pojedynczy rejestr kodowy
+`ability_code → display_name / activation_tagline / impact_ui`. Dzięki temu nazwa,
+hasło i widoczny dowód realizera nie mogą rozjechać się między trzema niezależnymi
+słownikami. Automatyczna bramka `test_ghostnetwork_polish_gate` sprawdza:
+
+- dokładnie 20 unikalnych mocy katalogu, mapowań produkcyjnych i profili UX;
+- po 5 kompletnych mocy dla VIREX, Echo, Phantom i Sentinel;
+- wyłącznie 9 certyfikowanych rodzin oraz zero użyć 3 rodzin odłożonych;
+- zgodność `impact_ui` z rodziną gameplayową;
+- 20 unikalnych miniaturek timera i 20 unikalnych grafik aktywacji jako PNG;
+- wspólne `15 min / 1 h`, show `4–6 s`, fallback grafiki, System Message przy
+  odrzuceniu oraz lekki snapshot `no-store`.
+
+Poprawiono także stary test kontraktowy terytoriów, który nadal oczekiwał
+historycznego limitu geometrii `1°`, gdy produkcyjny renderer i kanoniczny test
+map loadera używają uzgodnionego limitu `2°`. To była rozbieżność testów, nie
+zmiana zachowania mapy. Pełny audyt 20/20 z call-site i evidence znajduje się w
+`doc/audits/ghostnetwork_superpower_polish_gate.md`.
 
 ## 15. Minimalna macierz testowa
 
@@ -1531,13 +1552,16 @@ polish profession-by-profession:                  PASS
 no parallel ability runtime/pipeline introduced: PASS
 heavy profile full reads/writes/account scans:     0 / 0 / 0
 bounded DB reads/writes and SQLite lock audit:     PASS
-operator decision:                               GO FOR 138.2
+operator decision:                         GO FOR 138.op.1–3
 ```
 
-Do czasu spełnienia bramki obowiązuje `DO NOT TRIGGER 20/20`.
+Brama gameplayowa `138.getway` jest spełniona. Dawne ograniczenie
+`DO NOT TRIGGER 20/20` zostaje zdjęte dla testów kontrolowanych; produkcyjny
+master switch nadal pozostaje fail-closed i wymaga jawnego włączenia.
 
 Po gameplay closure `138.getway.0–5`, ale przed pełnym testem `138.2`, obowiązuje
 jeszcze wydajnościowa bramka `138.op.1–3` opisana w
 `doc/sprints/sprint_138_op_map_runtime_optimization.md`. Supermoc nie otrzymuje
-finalnego GO, jeżeli jej poprawny wizualnie stan czyni mapę niegrywalną na
-słabszym urządzeniu.
+finalnego `GO FOR 138.2`, jeżeli jej poprawny wizualnie stan czyni mapę
+niegrywalną na słabszym urządzeniu. Aktualny werdykt:
+`138.getway COMPLETE / GO FOR 138.op.1–3 / 138.2 PERFORMANCE GATE PENDING`.
