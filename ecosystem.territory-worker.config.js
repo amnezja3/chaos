@@ -15,8 +15,12 @@ module.exports = {
         CHAOS_PROFILE_WRITE_METRICS: "1",
         CHAOS_GHOSTNETWORK_RUNTIME_MODE: "development",
         CHAOS_GHOSTNETWORK_DROPS_ENABLED: "true",
-        CHAOS_GHOSTNETWORK_DROP_CHANCE: "0.25",
-        CHAOS_GHOSTNETWORK_MIN_PART_DISTANCE_KM: "50"
+        CHAOS_GHOSTNETWORK_DROP_CHANCE: "0.004",
+        CHAOS_GHOSTNETWORK_MIN_PART_DISTANCE_KM: "50",
+        CHAOS_GHOSTNETWORK_ABILITIES_ENABLED: "true",
+        CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES: "insider_feed,service_entrance,false_image,hostile_takeover,operational_prediction,expose,narrative_takeover,full_disclosure,resistance_signal,domino_effect,phantom_node,glitch_injection,false_tracking,network_fracture,reflection,integrity_scan,bastion,rollback,trust_corridor,quarantine",
+        CHAOS_GHOSTNETWORK_ABILITY_DURATION_SECONDS: "900",
+        CHAOS_GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS: "3600"
       }
     }
   ]

@@ -9,7 +9,7 @@
   {{ folium_css|safe }}
   <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-6">
   <link rel="stylesheet" href="/static/css/blacknet.css">
-  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=mobile-canvas-6">
+  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=interaction-fast-path-1">
   <style>
     .context-menu {
       position: absolute;
@@ -2198,6 +2198,49 @@
       }
     }
 
+    /* 138.op.1: map gestures own the frame budget. Gameplay state remains
+       visible through borders, labels and clan colors while paint-heavy
+       decoration is temporarily flattened. */
+    body.is-map-interacting .active-operations-panel,
+    body.is-map-low-power .active-operations-panel {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      background: rgba(5, 12, 8, 0.96);
+    }
+
+    body.is-map-interacting .active-operation-card,
+    body.is-map-low-power .active-operation-card,
+    body.is-map-interacting .active-operation-card *,
+    body.is-map-low-power .active-operation-card * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    body.is-map-interacting .active-operation-card,
+    body.is-map-low-power .active-operation-card {
+      box-shadow: none !important;
+    }
+
+    .leaflet-container.is-map-interacting .response-npc-marker-root,
+    .leaflet-container.is-map-low-power .response-npc-marker-root {
+      filter: none !important;
+    }
+
+    .leaflet-container.is-map-interacting .response-npc-marker-sprite,
+    .leaflet-container.is-map-low-power .response-npc-marker-sprite,
+    .leaflet-container.is-map-interacting.has-ghost-ability-effect::after,
+    .leaflet-container.is-map-low-power.has-ghost-ability-effect::after {
+      animation: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce), (hover: none) and (pointer: coarse) {
+      .active-operations-panel {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        background: rgba(5, 12, 8, 0.96);
+      }
+    }
+
     .chaos-map-refresh-control .chaos-map-refresh-button,
     .chaos-map-refresh-control .chaos-map-focus-button {
       display: grid;
@@ -2662,11 +2705,103 @@
             }, AUTO_ZOOM_RETURN_DELAY_MS);
         }
 
+        const MAP_INTERACTION_SETTLE_MS = 160;
+        const mapInteractionContainer = map && typeof map.getContainer === 'function'
+            ? map.getContainer()
+            : null;
+        const mapCoarsePointerQuery = typeof window.matchMedia === 'function'
+            ? window.matchMedia('(hover: none) and (pointer: coarse)')
+            : null;
+        const mapReducedMotionQuery = typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-reduced-motion: reduce)')
+            : null;
+        window.chaosMapInteractionState = window.chaosMapInteractionState || {
+            active: false,
+            settleTimer: null,
+            lowPower: false
+        };
+
+        function storedMapLowPowerPreference() {
+            try {
+                return window.localStorage
+                    && window.localStorage.getItem('chaos_map_low_power') === '1';
+            } catch (err) {
+                return false;
+            }
+        }
+
+        function applyMapLowPowerMode() {
+            const state = window.chaosMapInteractionState;
+            const automatic = Boolean(
+                (mapCoarsePointerQuery && mapCoarsePointerQuery.matches)
+                || (mapReducedMotionQuery && mapReducedMotionQuery.matches)
+            );
+            state.lowPower = automatic || storedMapLowPowerPreference();
+            if (mapInteractionContainer) {
+                mapInteractionContainer.classList.toggle('is-map-low-power', state.lowPower);
+            }
+            document.body.classList.toggle('is-map-low-power', state.lowPower);
+            return state.lowPower;
+        }
+
+        window.setChaosMapLowPowerMode = function(enabled) {
+            try {
+                if (window.localStorage) {
+                    window.localStorage.setItem('chaos_map_low_power', enabled ? '1' : '0');
+                }
+            } catch (err) {
+                // The in-memory mode still follows coarse/reduced-motion policy.
+            }
+            return applyMapLowPowerMode();
+        };
+
+        function beginMapInteraction() {
+            const state = window.chaosMapInteractionState;
+            if (state.settleTimer) {
+                window.clearTimeout(state.settleTimer);
+                state.settleTimer = null;
+            }
+            state.active = true;
+            if (mapInteractionContainer) {
+                mapInteractionContainer.classList.add('is-map-interacting');
+            }
+            document.body.classList.add('is-map-interacting');
+        }
+
+        function settleMapInteraction() {
+            const state = window.chaosMapInteractionState;
+            if (state.settleTimer) window.clearTimeout(state.settleTimer);
+            state.settleTimer = window.setTimeout(() => {
+                state.settleTimer = null;
+                state.active = false;
+                if (mapInteractionContainer) {
+                    mapInteractionContainer.classList.remove('is-map-interacting');
+                }
+                document.body.classList.remove('is-map-interacting');
+                window.responseNpcLastTick = 0;
+                if (typeof window.ensureResponseNpcAnimation === 'function') {
+                    window.ensureResponseNpcAnimation();
+                }
+            }, MAP_INTERACTION_SETTLE_MS);
+        }
+
+        [mapCoarsePointerQuery, mapReducedMotionQuery].forEach(query => {
+            if (!query) return;
+            if (typeof query.addEventListener === 'function') {
+                query.addEventListener('change', applyMapLowPowerMode);
+            } else if (typeof query.addListener === 'function') {
+                query.addListener(applyMapLowPowerMode);
+            }
+        });
+        applyMapLowPowerMode();
+
         map.on('zoomend', scheduleZoomReturn);
         map.on('dragstart movestart zoomstart', () => {
+            beginMapInteraction();
             if (!programmaticMapMove) clearZoomReturn();
             if (typeof closeTerritoryTooltips === 'function') closeTerritoryTooltips();
         });
+        map.on('dragend moveend zoomend', settleMapInteraction);
         map.on('dragend moveend', scheduleZoomReturn);
         map.createPane('territoryPane');
         map.getPane('territoryPane').style.zIndex = 250;
@@ -8791,6 +8926,10 @@
                 const ids = Object.keys(capsules);
                 if (!ids.length) {
                     window.responseNpcAnimationFrame = null;
+                    return;
+                }
+                if (window.chaosMapInteractionState && window.chaosMapInteractionState.active) {
+                    window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
                     return;
                 }
                 if (!window.responseNpcLastTick || (timestamp - window.responseNpcLastTick) >= 240) {

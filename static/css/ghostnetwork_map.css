@@ -312,6 +312,33 @@
   }
 }
 
+/* 138.op.1 interaction/low-power fast path. The static stroke and state
+   classes remain authoritative; only animation and paint-heavy filters stop. */
+.leaflet-container.is-map-interacting .ghostnetwork-part-art,
+.leaflet-container.is-map-interacting .ghostnetwork-part-halo,
+.leaflet-container.is-map-interacting .ghostnetwork-connection,
+.leaflet-container.is-map-interacting .ghostnetwork-territory-active,
+.leaflet-container.is-map-interacting .ghostnetwork-territory-hostile,
+.leaflet-container.is-map-low-power .ghostnetwork-part-art,
+.leaflet-container.is-map-low-power .ghostnetwork-part-halo,
+.leaflet-container.is-map-low-power .ghostnetwork-connection,
+.leaflet-container.is-map-low-power .ghostnetwork-territory-active,
+.leaflet-container.is-map-low-power .ghostnetwork-territory-hostile {
+  animation: none !important;
+  transition: none !important;
+}
+
+.leaflet-container.is-map-interacting .ghostnetwork-part-art,
+.leaflet-container.is-map-interacting .ghostnetwork-connection,
+.leaflet-container.is-map-interacting .ghostnetwork-territory-active,
+.leaflet-container.is-map-interacting .ghostnetwork-territory-hostile,
+.leaflet-container.is-map-low-power .ghostnetwork-part-art,
+.leaflet-container.is-map-low-power .ghostnetwork-connection,
+.leaflet-container.is-map-low-power .ghostnetwork-territory-active,
+.leaflet-container.is-map-low-power .ghostnetwork-territory-hostile {
+  filter: none !important;
+}
+
 @media (max-width: 760px) {
   /* Large animated SVG filters force a full territory repaint on every
      Leaflet transform on mobile. Preserve state signalling without asking

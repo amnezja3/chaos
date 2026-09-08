@@ -3831,3 +3831,32 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   `doc/audits/ghostnetwork_superpower_polish_gate.md`.
 - Status: `138.getway COMPLETE / GO FOR 138.op.1–3`; finalne `GO FOR 138.2`
   pozostaje zależne od bramki wydajnościowej mapy.
+
+## 2026-09-08 — 138.op.1 interaction fast path
+
+- Dodano debounced stan `is-map-interacting` dla gestów Leaflet z czasem settle
+  `160 ms`. Gest nie uruchamia requestu, snapshotu, reloadu ani zapisu.
+- Podczas ruchu mapy wyłączane są wyłącznie kosztowne blur, animacje, cienie i
+  filtry mapy/GN/operacji/NPC; semantyczne kolory, obramowania, etykiety i stan
+  gameplayowy pozostają widoczne.
+- Pętla NPC pauzuje pozycjonowanie i lokalną detekcję podczas gestu, a po jego
+  końcu uzgadnia aktualny stan w następnej klatce.
+- Coarse pointer, `prefers-reduced-motion` i jawny persisted low-power mode
+  korzystają z tego samego kontraktu CSS/JS.
+- Regresja: `110/110` Python i `10/10` pakietów JS PASS; `git diff --check` PASS.
+- Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`; bez commita,
+  pushu i deployu.
+
+## 2026-09-08 — produkcyjny kontrakt PM2 dla supermocy
+
+- `ecosystem.web.config.js` i `ecosystem.territory-worker.config.js` otrzymały
+  identyczny master switch supermocy, pełną allowlistę `20/20`, czas działania
+  `900 s` i cooldown `3600 s`.
+- Zachowano produkcyjną korektę częstotliwości dropów `0.004`; pozostałe zmienne
+  GhostNetwork nie zostały zmienione.
+- `ecosystem.config.example.js` używa tego samego kontraktu dla weba i workera,
+  dzięki czemu odtworzenie konfiguracji nie wyłącza części rodziny SP.
+- Dodano fail-closed test zgodności wszystkich trzech ecosystemów z produkcyjnym
+  mapowaniem `GhostAbilityProductionRealizer.ABILITY_FAMILIES`.
+- Składnia trzech konfiguracji Node: PASS; kontrakt ecosystem + map fast path:
+  `49/49 PASS`.

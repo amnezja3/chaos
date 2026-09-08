@@ -58,7 +58,7 @@ częstych przebudów DOM oraz wielu markerów aktualizowanych pełnym `setIcon()
 
 ## 4. 138.op.1 — interaction fast path
 
-Status: `PLANNED`
+Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`
 
 Cel: gest `drag/zoom` ma pierwszeństwo przed dekoracją.
 
@@ -86,6 +86,29 @@ Zakres:
   w stałym low-power mode;
 - brak dodatkowego requestu, snapshotu lub zapisu wywołanego samym gestem;
 - desktop, narrow viewport i coarse pointer mają test kontraktowy CSS/JS.
+
+### Implementacja `.op.1`
+
+- wspólny stan `window.chaosMapInteractionState` jest aktywowany przez
+  `dragstart/movestart/zoomstart` i wygaszany `160 ms` po ostatnim
+  `dragend/moveend/zoomend`;
+- klasa `is-map-interacting` trafia równocześnie na kontener Leaflet i `body`,
+  dzięki czemu obejmuje warstwy mapy oraz Centrum Operacji bez przenoszenia DOM;
+- podczas gestu wyłączone są blur panelu, animacje kart, filtry i animacje GN,
+  animacje terytoriów, połączeń, NPC oraz globalnego efektu aktywnej SP;
+- obramowanie, kolor, etykieta, timer, pozycja i stan pozostają widoczne;
+- pętla pozycji i lokalnej detekcji NPC nie wykonuje pracy podczas gestu. Po
+  settle zeruje cadence i uzgadnia stan w następnej klatce animacji;
+- coarse pointer i `prefers-reduced-motion` automatycznie włączają trwały
+  `is-map-low-power`. Jawny override jest dostępny przez
+  `window.setChaosMapLowPowerMode(true|false)` i zapis `chaos_map_low_power`;
+- żaden handler fast path nie wykonuje `fetch`, `invalidateSize`, reloadu,
+  `setView` ani zapisu gameplayowego.
+
+Lokalna bramka: `110/110` testów Python mapy/NPC/GhostNetwork oraz `10/10`
+pakietów JS mapy, snapshot recovery, target hitbox, operacji, SFX i motocykla:
+PASS. `git diff --check`: PASS. Do zamknięcia `.op.1` pozostaje test gestów na
+serwerze: telefon/coarse pointer oraz komputer referencyjny.
 
 ## 5. 138.op.2 — incremental operations and NPC runtime
 
