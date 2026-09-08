@@ -3,7 +3,7 @@
 **Etap:** pre-polish po `138.getway.4`  
 **Data:** 2026-09-08  
 **Severity:** P1 onboarding/gameplay  
-**Status:** `IMPLEMENTED / LOCAL PASS / SERVER E2E PENDING`
+**Status:** `RESOLVED / SERVER E2E + GAMEPLAY PASS`
 
 ## Problem
 
@@ -64,5 +64,4 @@ rejestracyjna korekta pozycji ≠ intrusion/detection/alarm
 
 ## Bramka
 
-`LOCAL PASS / SERVER E2E PENDING`
-
+`RESOLVED / SERVER E2E + GAMEPLAY PASS`

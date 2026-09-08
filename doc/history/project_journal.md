@@ -3800,4 +3800,15 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   teleport, travel ani Response Network, więc nie generuje alarmu wtargnięcia.
 - Funkcja pozostaje wydzielonym kontraktem możliwym do późniejszego użycia przez
   Pro Tool w GhostLab.
-- Status: `IMPLEMENTED / LOCAL PASS / SERVER E2E PENDING`.
+- Operator potwierdził, że nowe konto zostało ustawione po wolnej stronie granicy
+  bez alarmu właściciela. Status: `RESOLVED / SERVER E2E + GAMEPLAY PASS`.
+
+## 2026-09-08 — pre-polish: kontrolka powrotu do motocykla
+
+- Pod ręcznym odświeżeniem mapy dodano zieloną kontrolkę motocykla.
+- Akcja centruje viewport przez `panTo` na aktualnym `avatarMarkerRef`, również
+  podczas animowanego przejazdu; fallbackiem jest ostatnia logiczna pozycja.
+- Zachowuje bieżący zoom i nie wykonuje reloadu, requestu, teleportu ani zapisu,
+  eliminując pełny restart mapy jako sposób odzyskania własnej pozycji.
+- Regresja map loadera: `19/19 PASS`.
+- Status: `IMPLEMENTED / LOCAL PASS / SERVER UI TEST PENDING`.

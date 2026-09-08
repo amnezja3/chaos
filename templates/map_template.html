@@ -2198,7 +2198,8 @@
       }
     }
 
-    .chaos-map-refresh-control .chaos-map-refresh-button {
+    .chaos-map-refresh-control .chaos-map-refresh-button,
+    .chaos-map-refresh-control .chaos-map-focus-button {
       display: grid;
       place-items: center;
       width: 30px;
@@ -2211,7 +2212,9 @@
     }
 
     .chaos-map-refresh-control .chaos-map-refresh-button:hover,
-    .chaos-map-refresh-control .chaos-map-refresh-button:focus-visible {
+    .chaos-map-refresh-control .chaos-map-refresh-button:focus-visible,
+    .chaos-map-refresh-control .chaos-map-focus-button:hover,
+    .chaos-map-refresh-control .chaos-map-focus-button:focus-visible {
       color: #baffcf;
       background: #032b14;
     }
@@ -2227,8 +2230,26 @@
       animation: chaos-map-manual-refresh 0.55s ease-in-out 1;
     }
 
+    .chaos-map-refresh-control .chaos-map-focus-button svg {
+      width: 23px;
+      height: 23px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .chaos-map-refresh-control .chaos-map-focus-button.is-focusing svg {
+      animation: chaos-map-bike-focus 0.5s ease-out 1;
+    }
+
     @keyframes chaos-map-manual-refresh {
       to { transform: rotate(360deg); }
+    }
+
+    @keyframes chaos-map-bike-focus {
+      45% { transform: scale(1.18); filter: drop-shadow(0 0 4px #19ef75); }
     }
 
 
@@ -2360,6 +2381,24 @@
 
         restoreManualMapViewport();
 
+        window.focusMapOnMotorcycle = function() {
+            const marker = window.avatarMarkerRef;
+            let position = null;
+            if (marker && typeof marker.getLatLng === 'function') {
+                position = marker.getLatLng();
+            }
+            if (!position || !Number.isFinite(Number(position.lat)) || !Number.isFinite(Number(position.lng))) {
+                position = getAvatarVisualPosition();
+            }
+            const lat = Number(position && position.lat);
+            const lng = Number(position && position.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+            programmaticMapMove = true;
+            map.panTo([lat, lng], { animate: true, duration: 0.45 });
+            window.setTimeout(() => { programmaticMapMove = false; }, 520);
+            return true;
+        };
+
         const ManualMapRefreshControl = L.Control.extend({
             options: { position: 'topleft' },
             onAdd: function() {
@@ -2389,6 +2428,26 @@
                         }
                         window.requestAnimationFrame(() => window.location.reload());
                     }, 560);
+                });
+                const focusButton = L.DomUtil.create('a', 'chaos-map-focus-button', container);
+                focusButton.href = '#';
+                focusButton.title = 'Wroc do motocykla';
+                focusButton.setAttribute('role', 'button');
+                focusButton.setAttribute('aria-label', 'Wroc do aktualnej pozycji motocykla');
+                focusButton.innerHTML = `
+                    <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                      <circle cx="8" cy="23" r="5"></circle>
+                      <circle cx="24" cy="23" r="5"></circle>
+                      <path d="M8 23l6-10h5l5 10M8 23h9l-5-7m2-3 4 6h6m-9-9h5"></path>
+                    </svg>`;
+                L.DomEvent.on(focusButton, 'click', function(event) {
+                    L.DomEvent.preventDefault(event);
+                    L.DomEvent.stopPropagation(event);
+                    if (!window.focusMapOnMotorcycle()) return;
+                    focusButton.classList.remove('is-focusing');
+                    void focusButton.offsetWidth;
+                    focusButton.classList.add('is-focusing');
+                    window.setTimeout(() => focusButton.classList.remove('is-focusing'), 520);
                 });
                 return container;
             }

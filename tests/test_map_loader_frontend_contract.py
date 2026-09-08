@@ -202,6 +202,24 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertEqual(renderer.count("marker.setIcon(buildBikeIcon(nextDirection))"), 1)
         self.assertIn("image.src = bikeDirectionIcons[nextDirection]", renderer)
 
+    def test_motorcycle_focus_control_recenters_without_reloading_or_changing_zoom(self):
+        focus_start = self.map_template.index("window.focusMapOnMotorcycle = function")
+        focus_end = self.map_template.index("const ManualMapRefreshControl", focus_start)
+        focus = self.map_template[focus_start:focus_end]
+        control_start = focus_end
+        control_end = self.map_template.index("map.addControl(new ManualMapRefreshControl())", control_start)
+        control = self.map_template[control_start:control_end]
+
+        self.assertIn("chaos-map-focus-button", control)
+        self.assertIn("Wroc do aktualnej pozycji motocykla", control)
+        self.assertIn("window.avatarMarkerRef", focus)
+        self.assertIn("marker.getLatLng()", focus)
+        self.assertIn("map.panTo([lat, lng]", focus)
+        self.assertNotIn("window.location.reload", focus)
+        self.assertNotIn("fetch(", focus)
+        self.assertNotIn("setZoom", focus)
+        self.assertNotIn("setView", focus)
+
     def test_hack_target_has_non_interactive_pending_marker(self):
         self.assertIn("pendingTargetMarker = L.circleMarker", self.map_template)
         self.assertIn("interactive: false", self.map_template)

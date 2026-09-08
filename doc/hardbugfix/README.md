@@ -6,6 +6,7 @@ Dokumenty te są niezależne od `project_journal.md`.
 
 ## Artefakty
 
+- [Pre-polish 138 — przywracanie fokusu mapy na motocykl](motorcycle_focus_map_control_pre_polish_2026-09-08.md)
 - [Pre-polish 138 — pierwszy respawn wewnątrz kontrolowanego terytorium](first_respawn_inside_foreign_territory_pre_polish_2026-09-08.md)
 - [Pre-polish 138 — utrata częściowego postępu celu po zmianie zaznaczenia](partial_target_progress_lost_on_switch_pre_polish_2026-09-08.md)
 - [Sprint 138.getway.3.5 — błędna tożsamość menu markerów po dużym skanie](scan_marker_menu_identity_leaflet_dispatch_sprint_138_getway_3_5_2026-09-07.md)
