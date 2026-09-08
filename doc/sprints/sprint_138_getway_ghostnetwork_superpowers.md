@@ -1342,7 +1342,27 @@ filarów i nie tworzą osobnego systemu fortyfikacji.
 - istniejący scan gate oraz frontend nie otrzymują wariantu zależnego od profesji.
 
 Testy lokalne obejmują S1, E4, P3, lekki read path i wspólny kontrakt prezentacji:
-`39/39 PASS`. Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+`39/39 PASS`. Test serwerowy potwierdził przycisk, aktywację, skalowany zasięg,
+scan bez teleportu i poprawny powrót do bazowego zakresu. Status:
+`KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
+
+### 13.2 138.getway.4.2 — S2 Bastion Matrix / Bastion
+
+`bastion → territory_defense` montuje bez zmian certyfikowany kontrakt P5:
+
+- aktywacja uzbraja wyłącznie istniejący report gate; rój powstaje dopiero po
+  oznaczeniu jednej podatności z serwerowo potwierdzonego snapshotu skanu;
+- 1–3 elementy są publikowane w całości, a większy skan jest redukowany
+  geometrycznie do maksymalnie ośmiu reprezentatywnych punktów;
+- sojusznik przejmuje aktywny rój po schakowaniu jednego punktu, natomiast intruz
+  przejmuje wyłącznie bieżący marker i uruchamia deduplikowany alarm;
+- satelity istnieją do `cooldown_until`, a pierwotna klasyczna podatność pozostaje;
+- S2 używa istniejącego publicznego renderera, kontraktu menu markerów i assetu
+  `s2_bastion_matrix`; różnią się jedynie nazwa **Bastion**, tagline
+  **MUR PODNIESIONY**, paleta i narracja.
+
+Testy S2 wraz z pełną regresją rodziny P5, lekkiego read path, prezentacji oraz
+widoczności: `62/62 PASS`. Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
 
 ## 14. 138.getway.5 — polish
 

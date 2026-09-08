@@ -1016,6 +1016,7 @@ class GhostNetworkService:
             "network_fracture": "Pęknięcie Sieci",
             "reflection": "Odbicie",
             "integrity_scan": "Skan Integralności",
+            "bastion": "Bastion",
         }
         activation_taglines = {
             "insider_feed": "MEGA HOSSA",
@@ -1034,6 +1035,7 @@ class GhostNetworkService:
             "network_fracture": "HORYZONT PĘKA",
             "reflection": "RÓJ ODBITY",
             "integrity_scan": "SIEĆ PRZEŚWIETLONA",
+            "bastion": "MUR PODNIESIONY",
         }
         impact_ui = {
             "insider_feed": "operation_cards",
@@ -1052,6 +1054,7 @@ class GhostNetworkService:
             "network_fracture": "map_zoom",
             "reflection": "territory_defense",
             "integrity_scan": "scan_range",
+            "bastion": "territory_defense",
         }
         ability_code = str(ability.get("ability_code") or "")
         return {

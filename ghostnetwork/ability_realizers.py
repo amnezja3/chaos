@@ -843,6 +843,7 @@ class GhostAbilityProductionRealizer:
         "network_fracture": "map_zoom",
         "reflection": "territory_defense",
         "integrity_scan": "scan_range",
+        "bastion": "territory_defense",
     }
 
     def __init__(self, operation_store, target_store=None):

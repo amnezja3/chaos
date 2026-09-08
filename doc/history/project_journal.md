@@ -3642,3 +3642,18 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Testy S1 wraz z regresją E4/P3, lekkiego read path i prezentacji:
   `39/39 PASS`.
 - Status `.4.1`: `IMPLEMENTED / SERVER E2E TEST PENDING` na koncie `pies1`.
+
+## 2026-09-08 — certyfikacja 138.getway.4.1 i start 138.getway.4.2
+
+- Operator potwierdził pełny serwerowy i gameplayowy PASS S1. Zamknięto
+  `integrity_scan → scan_range` jako `KEEP / LOCKED / SERVER E2E + GAMEPLAY PASS`.
+- Zamontowano `bastion → territory_defense` jako dokładny alias certyfikowanej
+  rodziny P5. Nie dodano wariantu mechanicznego zależnego od profesji.
+- Aktywacja S2 tylko uzbraja report gate. Selekcja roju, limit ośmiu punktów,
+  relacje sojusznik/intruz, alarm, expiry satelitów i zachowanie pierwotnej
+  podatności pozostają we wspólnych call-site'ach rodziny.
+- Dodano prezentację S2: **Bastion**, tagline **MUR PODNIESIONY**, asset
+  `s2_bastion_matrix` i impact UI `territory_defense`.
+- Testy S2 oraz pełna regresja P5, widoczności, read path i prezentacji:
+  `62/62 PASS`.
+- Status `.4.2`: `IMPLEMENTED / SERVER E2E TEST PENDING`.
