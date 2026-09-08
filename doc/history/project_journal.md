@@ -3879,3 +3879,39 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   celowanych kontraktów runtime oraz `3/3` renderowania `/map`: PASS.
 - Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`; bez commita,
   pushu i deployu.
+
+## 2026-09-08 — 138.op.2 test serwerowy i mobilny blocker zoom-out
+
+- Operator potwierdził dalszą poprawę płynności po `.op.2`; desktop pozostaje
+  stabilny, a widok mobilny reaguje lepiej w zwykłym użyciu.
+- Przy agresywnym zoom-out na telefonie mapa nadal potrafi zatrzymać się na około
+  `10 s`, po czym odzyskuje działanie.
+- W chwili testu część operacji była już zakończona, więc wynik nie izoluje
+  kosztu samej ścieżki incremental od mniejszej liczby aktywnych obiektów.
+- `.op.2` otrzymuje `DESKTOP SERVER PASS`, ale nie pełny device pass. Mobilny
+  blocker przechodzi do `.op.3`: LOD, viewport culling oraz ograniczenie montażu
+  i repaintu warstw podczas redukcji zoomu.
+
+## 2026-09-08 — 138.op.3 map LOD i viewport culling
+
+- Dodano trzy poziomy szczegółowości mapy (`detail`, `tactical`, `strategic`),
+  przełączane na podstawie realnego zoomu i klasy urządzenia bez requestu ani
+  ingerencji w canonical snapshot.
+- Mobilny/low-power runtime renderuje terytoria i konflikty przez wspólny Canvas,
+  ogranicza bufor kafelków i aktualizuje je dopiero po uspokojeniu zoomu.
+- Dalekie połączenia GhostNetwork przeszły na jedną statyczną, przycinaną do
+  viewportu ścieżkę Canvas; pełne warstwy SVG z glow pozostają w bliskim idle
+  view desktopu.
+- Operacje, NPC, części GN, badge'e oraz markery dużych skanów pozostają w
+  canonical registry, lecz do DOM trafiają wyłącznie reprezentanci rozszerzonego
+  viewportu i ekranowej siatki LOD.
+- Nowe markery są tworzone jako odpięte i montowane dopiero przez reconcile,
+  dzięki czemu snapshot nie powoduje chwilowego fan-outu całego DOM. Zachowana
+  zostaje ta sama tożsamość markera, menu, tooltip i popup.
+- Dodano lokalny, read-only probe liczby warstw/SVG/markerów i Long Tasks,
+  uruchamiany wyłącznie jawną flagą developerską bez telemetrii gracza.
+- Regresja celowana: `114/114` Python oraz `10/10` JS PASS. Pełny pakiet
+  GhostNetwork: `444/445`; jedyny test został przerwany przez współbieżny init
+  tymczasowego SQLite na Windows, a izolowany rerun: `1/1 PASS`.
+- Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`; bez commita,
+  pushu i deployu.

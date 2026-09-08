@@ -52,6 +52,7 @@
     let ghostNetworkSnapshotRequestId = 0;
     let ghostNetworkRecoveryPromise = null;
     let ghostNetworkMobileConnectionRenderer = null;
+    let ghostNetworkConnectionLodMode = "";
     let ghostTerritoryRefreshDepth = 0;
     let ghostTerritoryRefreshPending = false;
     const ghostNetworkDeltaClient = window.GhostNetworkDeltaClient || null;
@@ -100,6 +101,12 @@
             ghostNetworkMobileConnectionRenderer = L.canvas({ pane: CONNECTION_PANE, padding: 0.2, tolerance: 0 });
         }
         return ghostNetworkMobileConnectionRenderer;
+    }
+
+    function ghostNetworkLodMode(map) {
+        const level = String(window.chaosMapLodState && window.chaosMapLodState.level || "detail");
+        const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+        return isMobileGhostNetworkMap() || lowPower || level !== "detail" ? "flat" : "full";
     }
 
     function mobileTapContainerPoint(map, event) {
@@ -271,7 +278,23 @@
         if (layer._ghostNetworkStrategicState === normalized) return false;
         layer._ghostNetworkStrategicState = normalized;
         const element = typeof layer.getElement === "function" ? layer.getElement() : null;
-        if (!element || !element.classList) return false;
+        if (!element || !element.classList) {
+            if (typeof layer.setStyle !== "function") return false;
+            if (!layer._ghostNetworkBaseCanvasStyle) {
+                layer._ghostNetworkBaseCanvasStyle = {
+                    weight: Number(layer.options && layer.options.weight || 2),
+                    dashArray: layer.options && layer.options.dashArray || null,
+                    opacity: Number(layer.options && layer.options.opacity || 1)
+                };
+            }
+            const base = layer._ghostNetworkBaseCanvasStyle;
+            layer.setStyle(normalized === "none" ? base : {
+                weight: base.weight + 2,
+                dashArray: normalized === "hostile" ? "2 5" : "4 4",
+                opacity: Math.max(base.opacity, 0.9)
+            });
+            return true;
+        }
         element.classList.remove("ghostnetwork-territory-active", "ghostnetwork-territory-hostile");
         if (normalized !== "none") element.classList.add(`ghostnetwork-territory-${normalized}`);
         return true;
@@ -586,13 +609,13 @@
         const state = String(connection.state || "hidden");
         if (!connection.can_show_on_map || !["half_from_a", "half_from_b", "active"].includes(state)) return null;
 
-        if (isMobileGhostNetworkMap()) {
+        if (ghostNetworkLodMode(map) === "flat") {
             const renderer = mobileConnectionRenderer(map);
             const contested = Boolean(connection.contested);
             return L.polyline(points, {
                 pane: CONNECTION_PANE,
                 renderer: renderer || undefined,
-                noClip: true,
+                noClip: false,
                 interactive: false,
                 bubblingMouseEvents: false,
                 color: contested ? "#ff473d" : (state === "active" ? "#5cff8f" : "#d7ff3a"),
@@ -724,6 +747,48 @@
         return renderGhostConnections(projections);
     }
 
+    function reconcileGhostNetworkMarkerLod(map) {
+        if (!map || typeof map.getBounds !== "function") return 0;
+        const level = String(window.chaosMapLodState && window.chaosMapLodState.level || "detail");
+        const currentBounds = map.getBounds();
+        const bounds = currentBounds && typeof currentBounds.pad === "function" ? currentBounds.pad(0.22) : currentBounds;
+        const gridSize = level === "strategic" ? 58 : (level === "tactical" ? 42 : 0);
+        const registries = [window.ghostNetworkPartLayers || {}, window.ghostNetworkTerritoryLayers || {}];
+        let visibleCount = 0;
+        registries.forEach(registry => {
+            const selected = new Map();
+            Object.entries(registry).forEach(([key, marker]) => {
+                const latLng = marker && typeof marker.getLatLng === "function" ? marker.getLatLng() : null;
+                if (!latLng || (bounds && !bounds.contains(latLng))) return;
+                const point = typeof map.latLngToContainerPoint === "function" ? map.latLngToContainerPoint(latLng) : null;
+                const bucket = gridSize > 0 && point
+                    ? `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                    : key;
+                if (!selected.has(bucket)) selected.set(bucket, key);
+            });
+            const visible = new Set(selected.values());
+            Object.entries(registry).forEach(([key, marker]) => {
+                const mounted = typeof map.hasLayer === "function" && map.hasLayer(marker);
+                if (visible.has(key) && !mounted) marker.addTo(map);
+                if (!visible.has(key) && mounted) map.removeLayer(marker);
+            });
+            visibleCount += visible.size;
+        });
+        return visibleCount;
+    }
+
+    function refreshGhostNetworkLod() {
+        const map = ensureGhostNetworkPanes();
+        if (!map) return false;
+        const mode = ghostNetworkLodMode(map);
+        if (mode !== ghostNetworkConnectionLodMode) {
+            ghostNetworkConnectionLodMode = mode;
+            refreshGhostConnections();
+        }
+        reconcileGhostNetworkMarkerLod(map);
+        return mode;
+    }
+
     function renderGhostPart(part, options = {}) {
         const map = ensureGhostNetworkPanes();
         if (!map || !window.L || !part) return false;
@@ -792,6 +857,7 @@
                     if (renderGhostPart(part)) rendered += 1;
                 });
         });
+        reconcileGhostNetworkMarkerLod(ensureGhostNetworkPanes());
         return rendered;
     }
 
@@ -1148,6 +1214,7 @@
     window.renderGhostTerritoryBadge = renderGhostTerritoryBadge;
     window.refreshGhostTerritoryBadges = refreshGhostTerritoryBadges;
     window.refreshGhostTerritoryStates = refreshGhostTerritoryStates;
+    window.refreshGhostNetworkLod = refreshGhostNetworkLod;
     window.openGhostPartPanel = openGhostPartPanel;
     window.focusGhostNetworkSuiteTarget = focusGhostNetworkSuiteTarget;
     window.applyPendingGhostNetworkSuiteFocus = applyPendingGhostNetworkSuiteFocus;

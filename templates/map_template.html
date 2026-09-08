@@ -1977,6 +1977,38 @@
       pointer-events: auto;
     }
 
+    .active-operation-marker.is-map-lod-cluster::after,
+    .response-npc-marker-root.is-map-lod-cluster::after {
+      content: "+" attr(data-lod-count);
+      position: absolute;
+      right: -5px;
+      top: -5px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 3px;
+      border: 1px solid #8dffad;
+      border-radius: 9px;
+      background: rgba(0, 20, 10, 0.94);
+      color: #c9ffd8;
+      font: 700 10px/17px monospace;
+      text-align: center;
+      box-shadow: 0 0 5px rgba(38, 255, 106, 0.45);
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .leaflet-container.is-map-lod-tactical .active-operation-pin,
+    .leaflet-container.is-map-lod-tactical .response-npc-marker-hitbox {
+      scale: 0.88;
+    }
+
+    .leaflet-container.is-map-lod-strategic .active-operation-pin,
+    .leaflet-container.is-map-lod-strategic .response-npc-marker-hitbox,
+    .leaflet-container.is-map-lod-strategic .ghostnetwork-node,
+    .leaflet-container.is-map-lod-strategic .ghostnetwork-territory-badge {
+      scale: 0.72;
+    }
+
     .hack-action-spinner-marker {
       pointer-events: none;
       z-index: 940 !important;
@@ -2778,7 +2810,10 @@
             } catch (err) {
                 // The in-memory mode still follows coarse/reduced-motion policy.
             }
-            return applyMapLowPowerMode();
+            const active = applyMapLowPowerMode();
+            if (typeof applyMobileTileRuntimePolicy === 'function') applyMobileTileRuntimePolicy();
+            if (typeof window.applyMapLevelOfDetail === 'function') window.applyMapLevelOfDetail();
+            return active;
         };
 
         function beginMapInteraction() {
@@ -2814,9 +2849,17 @@
         [mapCoarsePointerQuery, mapReducedMotionQuery].forEach(query => {
             if (!query) return;
             if (typeof query.addEventListener === 'function') {
-                query.addEventListener('change', applyMapLowPowerMode);
+                query.addEventListener('change', () => {
+                    applyMapLowPowerMode();
+                    applyMobileTileRuntimePolicy();
+                    if (typeof window.applyMapLevelOfDetail === 'function') window.applyMapLevelOfDetail();
+                });
             } else if (typeof query.addListener === 'function') {
-                query.addListener(applyMapLowPowerMode);
+                query.addListener(() => {
+                    applyMapLowPowerMode();
+                    applyMobileTileRuntimePolicy();
+                    if (typeof window.applyMapLevelOfDetail === 'function') window.applyMapLevelOfDetail();
+                });
             }
         });
         applyMapLowPowerMode();
@@ -2832,12 +2875,149 @@
         map.createPane('territoryPane');
         map.getPane('territoryPane').style.zIndex = 250;
         map.getPane('territoryPane').style.pointerEvents = 'auto';
+        const mapRuntimeMobileQuery = window.matchMedia
+            ? window.matchMedia('(max-width: 900px), (hover: none) and (pointer: coarse)')
+            : null;
+        function applyMobileTileRuntimePolicy() {
+            const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+            const mobile = Boolean(mapRuntimeMobileQuery && mapRuntimeMobileQuery.matches);
+            const optimized = mobile || lowPower;
+            map.eachLayer(layer => {
+                if (!(window.L && L.TileLayer && layer instanceof L.TileLayer)) return;
+                if (!layer._chaosTileRuntimeBaseline) {
+                    layer._chaosTileRuntimeBaseline = {
+                        updateWhenZooming: layer.options.updateWhenZooming,
+                        updateWhenIdle: layer.options.updateWhenIdle,
+                        updateInterval: layer.options.updateInterval,
+                        keepBuffer: layer.options.keepBuffer
+                    };
+                }
+                const baseline = layer._chaosTileRuntimeBaseline;
+                if (optimized) {
+                    if (!layer._chaosMoveListenerSuppressed && layer._map === map && typeof layer._onMove === 'function') {
+                        map.off('move', layer._onMove, layer);
+                        layer._chaosMoveListenerSuppressed = true;
+                    }
+                    layer.options.updateWhenZooming = false;
+                    layer.options.updateWhenIdle = true;
+                    layer.options.updateInterval = 240;
+                    layer.options.keepBuffer = 1;
+                    return;
+                }
+                layer.options.updateWhenZooming = baseline.updateWhenZooming;
+                layer.options.updateWhenIdle = baseline.updateWhenIdle;
+                layer.options.updateInterval = baseline.updateInterval;
+                layer.options.keepBuffer = baseline.keepBuffer;
+                if (layer._chaosMoveListenerSuppressed && layer._map === map && typeof layer._onMove === 'function') {
+                    map.off('move', layer._onMove, layer);
+                    if (!baseline.updateWhenIdle) map.on('move', layer._onMove, layer);
+                    layer._chaosMoveListenerSuppressed = false;
+                }
+            });
+            return optimized;
+        }
+        applyMobileTileRuntimePolicy();
+        window.chaosTerritoryCanvasRenderer = window.L && typeof L.canvas === 'function'
+            ? L.canvas({ pane: 'territoryPane', padding: 0.35, tolerance: 5 })
+            : null;
+        function territoryPathRenderer() {
+            const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+            const mobile = Boolean(mapRuntimeMobileQuery && mapRuntimeMobileQuery.matches);
+            return (mobile || lowPower) ? window.chaosTerritoryCanvasRenderer : undefined;
+        }
         map.createPane('incidentPane');
         map.getPane('incidentPane').style.zIndex = 640;
         map.getPane('incidentPane').style.pointerEvents = 'auto';
         map.createPane('responseNpcPane');
         map.getPane('responseNpcPane').style.zIndex = 735;
         map.getPane('responseNpcPane').style.pointerEvents = 'none';
+
+        window.chaosMapLodState = window.chaosMapLodState || { level: '', frame: null, appliedAt: 0 };
+        function currentMapLodLevel() {
+            const zoom = Number(map.getZoom());
+            const mobile = Boolean(mapRuntimeMobileQuery && mapRuntimeMobileQuery.matches);
+            if (zoom <= (mobile ? 12 : 10)) return 'strategic';
+            if (zoom <= (mobile ? 15 : 13)) return 'tactical';
+            return 'detail';
+        }
+
+        function applyMapLevelOfDetail(options = {}) {
+            const state = window.chaosMapLodState;
+            const reconcileStartedAt = performance.now();
+            const level = currentMapLodLevel();
+            const changed = state.level !== level;
+            state.level = level;
+            state.appliedAt = Date.now();
+            const container = map.getContainer();
+            ['detail', 'tactical', 'strategic'].forEach(name => container.classList.toggle(`is-map-lod-${name}`, name === level));
+            document.body.dataset.mapLod = level;
+            if (typeof window.reconcileActiveOperationMarkerLod === 'function') window.reconcileActiveOperationMarkerLod();
+            if (typeof window.reconcileResponseNpcMarkerLod === 'function') window.reconcileResponseNpcMarkerLod();
+            if (typeof window.reconcileScanResultMarkerLod === 'function') window.reconcileScanResultMarkerLod();
+            if (typeof window.refreshGhostNetworkLod === 'function') window.refreshGhostNetworkLod(level, { changed });
+            state.lastReconcileMs = Number((performance.now() - reconcileStartedAt).toFixed(2));
+            return level;
+        }
+
+        function scheduleMapLevelOfDetail() {
+            const state = window.chaosMapLodState;
+            if (state.frame) return;
+            state.frame = window.requestAnimationFrame(() => {
+                state.frame = null;
+                if (currentMapLodLevel() !== state.level) applyMapLevelOfDetail();
+            });
+        }
+
+        window.applyMapLevelOfDetail = applyMapLevelOfDetail;
+        map.on('zoom', scheduleMapLevelOfDetail);
+        map.on('zoomend moveend', applyMapLevelOfDetail);
+        applyMapLevelOfDetail({ initial: true });
+        if (mapRuntimeMobileQuery && typeof mapRuntimeMobileQuery.addEventListener === 'function') {
+            mapRuntimeMobileQuery.addEventListener('change', () => {
+                applyMobileTileRuntimePolicy();
+                applyMapLevelOfDetail();
+            });
+        }
+
+        window.chaosMapPerformanceState = window.chaosMapPerformanceState || { longTasks: [] };
+        window.chaosMapPerformanceProbe = function() {
+            const startedAt = performance.now();
+            const container = map.getContainer();
+            const mountedOperations = Array.from(window.activeOperationMarkers || new Map())
+                .filter(([, marker]) => map.hasLayer(marker)).length;
+            const mountedNpcs = Object.values(window.responseNpcMarkers || {})
+                .filter(marker => map.hasLayer(marker)).length;
+            const result = {
+                zoom: map.getZoom(),
+                lod: window.chaosMapLodState && window.chaosMapLodState.level,
+                leaflet_layers: Object.keys(map._layers || {}).length,
+                svg_paths: container.querySelectorAll('path.leaflet-interactive').length,
+                dom_markers: container.querySelectorAll('.leaflet-marker-icon').length,
+                operations: { canonical: (window.activeOperationMarkers || new Map()).size, mounted: mountedOperations },
+                npc: { canonical: Object.keys(window.responseNpcMarkers || {}).length, mounted: mountedNpcs },
+                ghost_parts: Object.keys(window.ghostNetworkPartLayers || {}).length,
+                ghost_connections: Object.keys(window.ghostNetworkConnectionLayers || {}).length,
+                reconcile_ms: Number(window.chaosMapLodState && window.chaosMapLodState.lastReconcileMs || 0),
+                long_tasks: (window.chaosMapPerformanceState.longTasks || []).slice(-20)
+            };
+            result.probe_ms = Number((performance.now() - startedAt).toFixed(2));
+            return result;
+        };
+        try {
+            if (localStorage.getItem('chaos_map_perf_probe') === '1' && typeof PerformanceObserver === 'function') {
+                window.chaosMapLongTaskObserver = new PerformanceObserver(list => {
+                    list.getEntries().forEach(entry => {
+                        window.chaosMapPerformanceState.longTasks.push({
+                            at: Math.round(entry.startTime), duration_ms: Math.round(entry.duration)
+                        });
+                    });
+                    window.chaosMapPerformanceState.longTasks = window.chaosMapPerformanceState.longTasks.slice(-50);
+                });
+                window.chaosMapLongTaskObserver.observe({ type: 'longtask', buffered: true });
+            }
+        } catch (_performanceProbeError) {
+            // Development-only probe must never affect gameplay rendering.
+        }
 
         function targetLayerKey(lat, lng, label = "") {
             return `${Number(lat).toFixed(6)}:${Number(lng).toFixed(6)}:${label || ""}`;
@@ -3822,6 +4002,7 @@
             };
             return {
                 pane: 'territoryPane',
+                renderer: territoryPathRenderer(),
                 color: isEncircled ? '#ffcc33' : (isMine ? '#26ff6a' : clanColors.stroke),
                 fillColor: isEncircled ? '#b88700' : (isMine ? '#0aa83d' : clanColors.fill),
                 fillOpacity: isEncircled ? 0.26 : (isMine ? 0.13 : 0.20),
@@ -4014,6 +4195,7 @@
 
                 const polygon = registerLayerInArray('conflictAreaLayers', L.polygon(points, {
                     pane: 'territoryPane',
+                    renderer: territoryPathRenderer(),
                     color: '#ffb300',
                     fillColor: '#ff8a00',
                     fillOpacity: 0.18,
@@ -4110,6 +4292,7 @@
                 }
                 const layer = L.polygon(points, {
                     pane: 'territoryPane', color: '#d500f9', fillColor: '#7c00ff',
+                    renderer: territoryPathRenderer(),
                     // An engagement contains pairwise overlap geometries. A
                     // separate fill per polygon compounds toward opacity in a
                     // multi-party conflict, so MC presentation is outline-only.
@@ -4299,6 +4482,7 @@
             }
             const layer = L.polygon(points, {
                 pane: 'territoryPane', color: '#ffb300', fillColor: '#ff8a00',
+                renderer: territoryPathRenderer(),
                 fillOpacity: 0.18, weight: 3, dashArray: '3 5',
                 interactive: true, bubblingMouseEvents: true
             }).addTo(map);
@@ -4697,8 +4881,38 @@
 
         function rememberScanResultLayer(layer) {
             scanResultLayers.push(layer);
+            if (typeof window.reconcileScanResultMarkerLod === 'function') {
+                window.setTimeout(window.reconcileScanResultMarkerLod, 0);
+            }
             return layer;
         }
+
+        window.reconcileScanResultMarkerLod = function() {
+            if (!map || !Array.isArray(scanResultLayers)) return 0;
+            const lod = (window.chaosMapLodState && window.chaosMapLodState.level) || 'detail';
+            const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+            const currentBounds = typeof map.getBounds === 'function' ? map.getBounds() : null;
+            const bounds = currentBounds && typeof currentBounds.pad === 'function' ? currentBounds.pad(0.18) : currentBounds;
+            const gridSize = lod === 'strategic' ? 48 : (lod === 'tactical' ? 34 : (lowPower ? 24 : 0));
+            const selected = new Map();
+            scanResultLayers.forEach((layer, index) => {
+                const latLng = layer && layer.getLatLng?.();
+                if (!latLng || (bounds && !bounds.contains(latLng))) return;
+                const point = map.latLngToContainerPoint?.(latLng);
+                const bucket = gridSize > 0 && point
+                    ? `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                    : String(index);
+                if (!selected.has(bucket)) selected.set(bucket, layer);
+            });
+            const visible = new Set(selected.values());
+            scanResultLayers.forEach(layer => {
+                if (!layer) return;
+                const mounted = typeof map.hasLayer === 'function' && map.hasLayer(layer);
+                if (visible.has(layer) && !mounted) layer.addTo(map);
+                if (!visible.has(layer) && mounted) map.removeLayer(layer);
+            });
+            return visible.size;
+        };
 
         function removeScanResultForTarget(target) {
             const targetKey = vulnerabilityTargetKey(target);
@@ -6939,7 +7153,7 @@
                                 iconSize: markerIconSize,
                                 iconAnchor: markerIconAnchor
                             })
-                        }).addTo(map);
+                        });
 
                         marker._scanTarget = menuTarget;
                         bindMarkerContextSnapshot(marker, menuTarget, 'scanTargetMarker');
@@ -8004,7 +8218,7 @@
                                 html: `<div class="active-operation-pin ${meta.css}"><div class="active-operation-pin__badge">${window.escapeMapText(meta.icon)}</div><div class="active-operation-pin__timer" data-operation-marker-countdown>${remaining}</div></div>`,
                                 iconSize: [72, 58], iconAnchor: [36, 52], popupAnchor: [0, -44]
                             })
-                        }).addTo(map);
+                        });
                         marker.bindTooltip(`${window.escapeMapText(meta.label)}<br>${label}<br>${remaining}`, { sticky: true, opacity: 0.95 });
                         marker._operationVisualSignature = visualSignature;
                         marker._operationExpiresAt = operation.expires_at || '';
@@ -8035,6 +8249,45 @@
                     window.activeOperationMarkers.delete(operationId);
                 });
                 window.activeOperationLayers = Array.from(window.activeOperationMarkers.values());
+                window.reconcileActiveOperationMarkerLod();
+            };
+
+            window.reconcileActiveOperationMarkerLod = function() {
+                const registry = window.activeOperationMarkers || new Map();
+                if (!map || !(registry instanceof Map)) return 0;
+                const lod = (window.chaosMapLodState && window.chaosMapLodState.level) || 'detail';
+                const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+                const currentBounds = typeof map.getBounds === 'function' ? map.getBounds() : null;
+                const bounds = currentBounds && typeof currentBounds.pad === 'function' ? currentBounds.pad(0.25) : currentBounds;
+                const gridSize = lod === 'strategic' ? 64 : (lod === 'tactical' ? 46 : (lowPower ? 30 : 0));
+                const selected = new Map();
+                registry.forEach((marker, operationId) => {
+                    const latLng = marker && marker.getLatLng?.();
+                    if (!latLng || (bounds && !bounds.contains(latLng))) return;
+                    const point = map.latLngToContainerPoint?.(latLng);
+                    const bucket = gridSize > 0 && point
+                        ? `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                        : operationId;
+                    const entry = selected.get(bucket) || { marker, operationId, count: 0 };
+                    entry.count += 1;
+                    selected.set(bucket, entry);
+                });
+                const visible = new Map(Array.from(selected.values()).map(entry => [entry.operationId, entry]));
+                registry.forEach((marker, operationId) => {
+                    const shouldMount = visible.has(operationId);
+                    const mounted = typeof map.hasLayer === 'function' && map.hasLayer(marker);
+                    if (shouldMount && !mounted) marker.addTo(map);
+                    if (!shouldMount && mounted) map.removeLayer(marker);
+                    if (!shouldMount) return;
+                    const element = marker.getElement?.();
+                    const count = visible.get(operationId).count;
+                    if (element) {
+                        element.classList.toggle('is-map-lod-cluster', count > 1);
+                        if (count > 1) element.dataset.lodCount = String(count);
+                        else delete element.dataset.lodCount;
+                    }
+                });
+                return visible.size;
             };
 
             window.notifyOperationLifecycle = function(message, type = 'info') {
@@ -8883,7 +9136,7 @@
                         zIndexOffset: 720 + Number(data.service_level || 1),
                         interactive: false,
                         icon: window.buildResponseNpcIcon(data, position)
-                    }).addTo(map);
+                    });
                     marker._responseNpcIconSignature = window.responseNpcIconSignature(data, position);
                     marker._responseNpcSnapshot = data;
                     window.responseNpcMarkers[capsuleId] = marker;
@@ -8908,6 +9161,7 @@
                     });
                 }
                 window.ensureResponseNpcAnimation();
+                window.setTimeout(window.reconcileResponseNpcMarkerLod, 0);
                 return true;
             };
 
@@ -8945,7 +9199,46 @@
                     visible: visible.size,
                     marker_count: Object.keys(window.responseNpcMarkers || {}).length
                 });
+                window.reconcileResponseNpcMarkerLod();
                 window.ensureResponseNpcAnimation();
+            };
+
+            window.reconcileResponseNpcMarkerLod = function() {
+                const registry = window.responseNpcMarkers || {};
+                if (!map) return 0;
+                const lod = (window.chaosMapLodState && window.chaosMapLodState.level) || 'detail';
+                const lowPower = Boolean(window.chaosMapInteractionState && window.chaosMapInteractionState.lowPower);
+                const currentBounds = typeof map.getBounds === 'function' ? map.getBounds() : null;
+                const bounds = currentBounds && typeof currentBounds.pad === 'function' ? currentBounds.pad(0.2) : currentBounds;
+                const gridSize = lod === 'strategic' ? 54 : (lod === 'tactical' ? 38 : (lowPower ? 26 : 0));
+                const selected = new Map();
+                Object.entries(registry).forEach(([capsuleId, marker]) => {
+                    const latLng = marker && marker.getLatLng?.();
+                    if (!latLng || (bounds && !bounds.contains(latLng))) return;
+                    const point = map.latLngToContainerPoint?.(latLng);
+                    const bucket = gridSize > 0 && point
+                        ? `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                        : capsuleId;
+                    const entry = selected.get(bucket) || { marker, capsuleId, count: 0 };
+                    entry.count += 1;
+                    selected.set(bucket, entry);
+                });
+                const visible = new Map(Array.from(selected.values()).map(entry => [entry.capsuleId, entry]));
+                Object.entries(registry).forEach(([capsuleId, marker]) => {
+                    const shouldMount = visible.has(capsuleId);
+                    const mounted = typeof map.hasLayer === 'function' && map.hasLayer(marker);
+                    if (shouldMount && !mounted) marker.addTo(map);
+                    if (!shouldMount && mounted) map.removeLayer(marker);
+                    if (!shouldMount) return;
+                    const element = marker.getElement?.();
+                    const count = visible.get(capsuleId).count;
+                    if (element) {
+                        element.classList.toggle('is-map-lod-cluster', count > 1);
+                        if (count > 1) element.dataset.lodCount = String(count);
+                        else delete element.dataset.lodCount;
+                    }
+                });
+                return visible.size;
             };
 
             window.refreshResponseNpcCapsules = async function() {
@@ -9165,6 +9458,10 @@
                         marker._responseNpcLastVisualAt = timestamp;
                         window.updateResponseNpcMarker(marker, capsule, position, now);
                     });
+                    if (!window.responseNpcLastLodAt || (timestamp - window.responseNpcLastLodAt) >= 1000) {
+                        window.responseNpcLastLodAt = timestamp;
+                        window.reconcileResponseNpcMarkerLod();
+                    }
                 }
                 window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
             };

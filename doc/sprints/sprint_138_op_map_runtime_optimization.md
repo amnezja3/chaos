@@ -58,7 +58,7 @@ częstych przebudów DOM oraz wielu markerów aktualizowanych pełnym `setIcon()
 
 ## 4. 138.op.1 — interaction fast path
 
-Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`
+Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE PARTIAL`
 
 Cel: gest `drag/zoom` ma pierwszeństwo przed dekoracją.
 
@@ -112,7 +112,7 @@ serwerze: telefon/coarse pointer oraz komputer referencyjny.
 
 ## 5. 138.op.2 — incremental operations and NPC runtime
 
-Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`
+Status: `IMPLEMENTED / LOCAL PASS / DESKTOP SERVER PASS / MOBILE ZOOM-OUT BLOCKED`
 
 Cel: koszt aktualizacji zależy od liczby zmienionych rekordów, nie od liczby
 wszystkich rekordów na mapie.
@@ -174,9 +174,17 @@ map loader/SP: PASS. Renderowanie szablonu `/map`: `3/3 PASS`.
 `git diff --check`: PASS. Do zamknięcia pozostaje test serwerowy pod obciążeniem
 30+ operacji i kilkoma konfliktami, szczególnie na Redmi/coarse pointer.
 
+Test produkcyjny po wdrożeniu potwierdził wyraźną poprawę oraz stabilny desktop.
+Na urządzeniu mobilnym agresywna redukcja zoomu nadal może zablokować mapę na
+około `10 s`, po czym widok wraca do działania. Test odbył się już po zakończeniu
+części operacji, dlatego nie przypisujemy całej poprawy wyłącznie `.op.2`.
+Wynik klasyfikujemy jako częściowy pass ścieżki incremental oraz blocker mobilny
+przeniesiony do `.op.3`: LOD, viewport culling i ograniczenie kosztu warstw
+montowanych/odmalowywanych podczas `zoom-out`.
+
 ## 6. 138.op.3 — map LOD, culling i performance gate
 
-Status: `PLANNED`
+Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`
 
 Cel: koszt widoku zależy od viewportu i poziomu szczegółowości, a nie od całego
 świata zwróconego w snapshotach.
@@ -196,6 +204,42 @@ Zakres:
 - powstaje lekki development probe liczby Leaflet layers, SVG paths, markerów,
   aktywnych animacji, long tasks i czasu reconcile, bez telemetry payloadów
   gracza.
+
+### Implementacja `.op.3`
+
+- mobilny/low-power TileLayer nie aktualizuje kafelków w każdej klatce zoomu;
+  pobieranie i montaż następują po uspokojeniu gestu, z buforem ograniczonym do
+  jednego pierścienia kafelków;
+- terytoria, fronty i obszary konfliktów używają na mobile/low-power wspólnego
+  renderera Canvas. Canonical geometria, kolor klanu, dash i semantyczny stan
+  pozostają bez zmian;
+- wprowadzono trzy poziomy LOD (`detail`, `tactical`, `strategic`) zależne od
+  realnego zoomu i klasy urządzenia. Przejście poziomu odbywa się najwyżej raz
+  na klatkę i nie uruchamia requestu ani przebudowy snapshotu;
+- połączenie GhostNetwork w trybie oddalonym/mobile/low-power jest pojedynczą,
+  przycinaną do viewportu ścieżką Canvas. Pełny warstwowy SVG z glow pozostaje
+  wyłącznie dekoracją bliskiego widoku na desktopie;
+- markery operacji, Response Network, części GN, badge'e terytoriów GN i wyniki
+  dużych skanów są wybierane przez rozszerzony viewport oraz ekranową siatkę.
+  Poza wyborem pozostają w canonical registry, lecz nie są montowane w DOM;
+- nowe markery skanu, operacji i NPC trafiają najpierw do registry, a dopiero
+  potem do warstwy mapy po reconcile LOD. Eliminuje to koszt masowego
+  `addTo(map)` poprzedzającego natychmiastowe odpięcie;
+- odpięcie używa istniejącego obiektu Leaflet, więc zachowuje snapshot kontekstu,
+  tooltip, popup oraz powiązanie `marker -> menu`; powrót do viewportu nie tworzy
+  nowej tożsamości markera;
+- opcjonalny, lokalny probe `window.chaosMapPerformanceProbe()` raportuje liczbę
+  warstw, SVG, markerów kanonicznych i zamontowanych oraz Long Tasks. Observer
+  działa tylko po ustawieniu `localStorage.chaos_map_perf_probe = '1'` i nie
+  wysyła telemetrii.
+
+Lokalna bramka: `114/114` celowanych testów kontraktów LOD, map loadera, menu,
+terytoriów i recovery oraz `10/10` pakietów JS mapy/GN/delta/operacji/motocykla:
+PASS. Pełna regresja GhostNetwork: `444/445` w pierwszym przebiegu; jedyny błąd
+powstał podczas współbieżnej inicjalizacji testowego SQLite na Windows
+(`duplicate column name`), a izolowany rerun tego testu: `1/1 PASS`.
+`git diff --check` i kontrola składni JS: PASS. Do zamknięcia pozostaje test
+serwerowy zoom-out/pan na Redmi oraz desktopie przy obciążeniu referencyjnym.
 
 ### Obciążenie referencyjne `.op.3`
 

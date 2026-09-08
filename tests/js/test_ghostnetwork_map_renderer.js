@@ -286,7 +286,7 @@ function response(payload) {
     assert.ok(mobileConnection);
     assert.strictEqual(mobileConnection.layers, undefined, "mobile connection must use one canvas path, not an SVG group");
     assert.ok(mobileConnection.options.renderer, "mobile connection must use the shared canvas renderer");
-    assert.strictEqual(mobileConnection.options.noClip, true);
+    assert.strictEqual(mobileConnection.options.noClip, false, "flat canvas path must be clipped to the viewport");
     mobileMode = false;
 
     win.applyGhostPartDelta({
