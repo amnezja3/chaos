@@ -3699,3 +3699,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Testy S3 wraz z regresją V2, read path, prezentacji i map loadera:
   `61/61 PASS`.
 - Status `.4.3`: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+
+## 2026-09-08 — 138.getway.4.3, korekta paska zabezpieczeń
+
+- Serwerowy gameplay S3 przeszedł, lecz toolbar błędnie prezentował pełny pasek
+  po zastosowaniu `hack_actions`, mimo że realizer prawidłowo nie zmieniał
+  `security` i nadal wymagane było właściwe narzędzie.
+- Przyczyną było łączenie postępu czterech `actions_allowed` z postępem
+  zabezpieczeń w frontendzie i canonical target runtime. Rozdzielono te
+  kontrakty: kropki pokazują dostępne akcje, a pasek wyłącznie rozbrojone flagi
+  boolean `security`, z fallbackiem do jawnego `disarm_progress` dla celów bez
+  mapy security.
+- Same-target upsert przelicza pasek z połączonego stanu security, dzięki czemu
+  stare action-derived `100%` nie jest utrwalane. `target_security` nadal
+  poprawnie daje `100%`, gdy rzeczywiście wyłącza cały pasek.
+- Regresja S3, V2, trzech implementacji `target_security`, prezentacji i target
+  persistence: `53/53 PASS`.
+- Status `.4.3`: `ADJUSTED / SERVER VISUAL RETEST PENDING`.

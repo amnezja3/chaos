@@ -12787,34 +12787,22 @@ class PlayerTargetRuntimeStore:
     @classmethod
     def _progress_from_target(cls, target):
         target = target if isinstance(target, dict) else {}
-        allowed = target.get("actions_allowed") or {}
-        if not isinstance(allowed, dict):
-            allowed = {}
         security = target.get("security") or {}
         if not isinstance(security, dict):
             security = {}
-        # Runtime and frontend share a percentage contract here. Older code
-        # persisted the raw number of completed actions (1..4), which made the
-        # toolbar render a nearly invisible 1-4% line despite lit action dots.
-        action_keys = ("scan_ports", "exploit", "sniff", "trace")
-        action_values = [allowed.get(key) for key in action_keys]
-        action_progress = round(
-            (sum(1 for value in action_values if value is True) / len(action_keys)) * 100
-        )
+        # Action dots and the security bar are separate contracts. Available
+        # actions must never inflate the visual/authoritative disarm progress.
         security_values = [value for value in security.values() if isinstance(value, bool)]
-        security_progress = (
-            round(
+        if security_values:
+            return int(round(
                 (sum(1 for value in security_values if value is False) / len(security_values)) * 100
-            )
-            if security_values
-            else 0
-        )
+            ))
         explicit_progress = target.get("disarm_progress")
         try:
             explicit_progress = max(0, min(100, int(explicit_progress)))
         except (TypeError, ValueError):
             explicit_progress = 0
-        return int(max(action_progress, security_progress, explicit_progress))
+        return int(explicit_progress)
 
     @staticmethod
     def _merge_actions(current, incoming):
@@ -13065,7 +13053,9 @@ class PlayerTargetRuntimeStore:
                 # the same coordinates; changing it would split progress.
                 target_key = current.get("target_key") or target_key
                 merged_target["target_id"] = target_key
-                progress = max(int(current.get("disarm_progress") or 0), incoming_progress)
+                # Merged security is monotonic (False wins), so recomputing is
+                # monotonic without preserving stale action-derived progress.
+                progress = self._progress_from_target(merged_target)
                 version = int(current.get("version") or 0) + 1
             else:
                 merged_security = dict(incoming_security or {})

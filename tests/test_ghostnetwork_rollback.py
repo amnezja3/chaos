@@ -73,6 +73,7 @@ class GhostNetworkRollbackTest(unittest.TestCase):
         self.assertEqual(4, result["realizer"]["applied_changes"])
         self.assertTrue(all(after["actions_allowed"].values()))
         self.assertEqual(before["security"], after["security"])
+        self.assertEqual(before["disarm_progress"], after["disarm_progress"])
         self.assertEqual(aimed["target"]["target_id"], result["window"]["target_id"])
         self.assertEqual(1, len(after["target"].get("ability_application_keys") or []))
 
@@ -95,6 +96,7 @@ class GhostNetworkRollbackTest(unittest.TestCase):
             self.assertEqual("applied", first["status"])
             self.assertTrue(all(after["actions_allowed"].values()))
             self.assertEqual(security, after["security"])
+            self.assertEqual(before["disarm_progress"], after["disarm_progress"])
             self.assertEqual(1, len(after["target"].get("ability_application_keys") or []))
 
             version = after["version"]

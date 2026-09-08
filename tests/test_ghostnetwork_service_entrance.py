@@ -107,6 +107,7 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
         self.assertEqual(1, result["realizer"]["applied_targets"])
         self.assertEqual(4, result["realizer"]["applied_changes"])
         self.assertEqual(before["security"], after["security"])
+        self.assertEqual(before["disarm_progress"], after["disarm_progress"])
         self.assertTrue(all(
             after["actions_allowed"].get(key) is True
             for key in ("scan_ports", "exploit", "sniff", "trace")
@@ -161,6 +162,7 @@ class GhostNetworkServiceEntranceTest(unittest.TestCase):
             self.assertEqual("applied", first["status"])
             self.assertTrue(all(after["actions_allowed"].values()))
             self.assertEqual(security, after["security"])
+            self.assertEqual(before["disarm_progress"], after["disarm_progress"])
             self.assertEqual(1, len(after["target"].get("ability_application_keys") or []))
 
             version = after["version"]

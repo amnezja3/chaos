@@ -61,7 +61,7 @@ przetestowanego realizera, a nie tworzeniem nowych odmian gameplayu.
 | `operation_speed` | do 8 aktywnych operacji, jednorazowy marker, mnożnik `clamp(0.1 × LVL, 1, 20)` |
 | `file_yield` | dokładnie 2 kopie każdego bazowego pliku GX (`backup`, `fullbackup`), stabilne ID; operacja oznaczona w oknie zachowuje bonus do finalizacji |
 | `data_quality` | każdy plik finalizowanej operacji: bazowo `quality/completeness +10`; kategorie misyjne mocy mogą dostać `+30`; clamp `0–100`, maks. 16 plików na operację |
-| `hack_actions` | cztery action dots ustawione jako wykonane; security bez zmian |
+| `hack_actions` | cztery action dots ustawione jako wykonane; security i wynikający z niego pasek rozbrojenia bez zmian |
 | `target_security` | exact target i CAS; polityki E1, E5 i P2 wyłączają cały boolean security bar, pozostawiając action dots |
 | `operation_risk` | bounded wejście `heat -15`; kalkulator nadal wyznacza wynik i progi |
 | `scan_range` | bounded zasięg wywołania skanu, bez account/global scan i bez zwiększania lokalnego promienia wyników; polityka E4: `min(10 000 km, 25 km × LVL)` |
@@ -202,6 +202,12 @@ profesji: S2 dziedziczy `territory_defense` z P5, S3 `hack_actions` z V2, S4
 nazwę, asset, SFX, paletę i narrację. S4 nie przyznaje uprawnień innemu graczowi
 ani klanowi, ponieważ cross-player/cross-clan grant nie należy do kontraktu
 `operation_risk`.
+
+W rodzinie `hack_actions` cztery kropki akcji i pasek zabezpieczeń są dwoma
+niezależnymi kontraktami. Realizer ustawia wyłącznie `actions_allowed`. Pasek
+rozbrojenia jest wyliczany z faktycznych flag boolean `security`, a przy ich
+braku z jawnego `disarm_progress`; komplet kropek nigdy nie oznacza wizualnego
+`100%`. Zasada obowiązuje identycznie V2 i S3.
 
 ## 4. Semantyka utraty części
 

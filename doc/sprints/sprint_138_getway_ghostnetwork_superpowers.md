@@ -1390,8 +1390,18 @@ intruza oraz niezmienione menu i hakowanie. Status:
   `s3_restoration_engine`, nazwy **Odtworzenie** i tagline
   **DOSTĘP ODTWORZONY**.
 
-Testy S3, pełna regresja V2, lekki read path, prezentacja i map loader:
-`61/61 PASS`. Status: `IMPLEMENTED / SERVER E2E TEST PENDING`.
+Serwerowy test mechaniki przeszedł, ale ujawnił błąd prezentacji we wspólnym
+kontrakcie V2/S3: komplet czterech `actions_allowed` był błędnie przeliczany na
+pełny pasek rozbrojenia. Akcje i zabezpieczenia zostały rozdzielone zarówno w
+canonical runtime store, jak i kalkulatorze toolbara. `hack_actions` nadal
+zapala cztery kropki, natomiast pasek pokazuje wyłącznie faktyczny stan boolean
+`security` (albo jawny backendowy postęp, gdy mapa security nie istnieje).
+Poprawka usuwa także wcześniej zapisane, action-derived `100%` przy kolejnym
+upsercie tego samego celu i nie zmienia kontraktu `target_security`.
+
+Testy korekty S3, pełna regresja V2 oraz rodzin `target_security`, prezentacja i
+target persistence: `53/53 PASS`. Status:
+`ADJUSTED / SERVER VISUAL RETEST PENDING`.
 
 ## 14. 138.getway.5 — polish
 

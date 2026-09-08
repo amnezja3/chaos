@@ -173,6 +173,15 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         ):
             self.assertIn(token, self.terminal_source)
 
+    def test_action_dots_never_drive_the_security_progress_bar(self):
+        calculator = self.terminal_source[
+            self.terminal_source.index("function calculateTargetDisarmProgress"):
+            self.terminal_source.index("function resolveTargetBarFeedback")
+        ]
+        self.assertIn("TARGET_FEEDBACK_SECURITY_KEYS", calculator)
+        self.assertNotIn("TARGET_FEEDBACK_ACTION_KEYS", calculator)
+        self.assertNotIn("actionProgress", calculator)
+
     def test_scan_range_badge_exposes_bounded_effective_range(self):
         for token in (
             "function formatGhostAbilityRange",
