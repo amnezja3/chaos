@@ -145,7 +145,14 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
     active_parts = [part for part in parts if part.get("status") == "active"]
     closing = [part for part in parts if part.get("status") != "active"]
     conflicts = repository.list_strategic_conflicts(cycle_id=cycle_id, limit=1000)
-    conflict_gate = resolve_endgame_conflict_gate(parts, conflicts)
+    live_production_conflicts = repository.list_endgame_production_conflicts(
+        [part.get("conflict_id") for part in parts if part.get("conflict_id")],
+        territory_ids=[part.get("territory_id") for part in parts if part.get("territory_id")],
+        limit=500,
+        include_unresolved=True,
+        unresolved_only=True,
+    )
+    conflict_gate = resolve_endgame_conflict_gate(parts, conflicts, live_production_conflicts)
     blockers = conflict_gate.get("blockers") or []
     modules = GhostModuleStateService(repository).resolve_cycle_module_states(cycle_id)
     topology = repository.get_cycle(cycle_id) or {}

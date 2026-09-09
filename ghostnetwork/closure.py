@@ -15,6 +15,7 @@ from .topology import GhostTopologyService
 
 
 UNRESOLVED_CONFLICT_STATUSES = {"active", "contested", "escalating", "pending"}
+UNRESOLVED_PRODUCTION_CONFLICT_STATUSES = {"detected", "active", "changing", "resolving"}
 CLOSING_EVENT_TYPES = {
     "ghost.part_activated",
     "ghost.part_conflict_resolved",
@@ -22,7 +23,7 @@ CLOSING_EVENT_TYPES = {
 }
 
 
-def resolve_endgame_conflict_gate(parts, conflicts):
+def resolve_endgame_conflict_gate(parts, conflicts, production_conflicts=None):
     """Classify endgame blockers without trusting stale strategic rows.
 
     A live part conflict is fail-closed. An unresolved strategic row also
@@ -31,6 +32,9 @@ def resolve_endgame_conflict_gate(parts, conflicts):
     """
     parts = [item for item in (parts or []) if isinstance(item, dict)]
     conflicts = [item for item in (conflicts or []) if isinstance(item, dict)]
+    production_conflicts = [
+        item for item in (production_conflicts or []) if isinstance(item, dict)
+    ]
     part_by_id = {_clean(item.get("part_id")): item for item in parts}
     conflict_by_id = {_clean(item.get("conflict_id")): item for item in conflicts}
     blockers = []
@@ -85,6 +89,34 @@ def resolve_endgame_conflict_gate(parts, conflicts):
             item["reason"] = "verified_orphaned_strategic_conflict"
             warnings.append(item)
 
+    part_territory_ids = {
+        _clean(item.get("territory_id")) for item in parts if _clean(item.get("territory_id"))
+    }
+    part_conflict_ids = {
+        _clean(item.get("conflict_id")) for item in parts if _clean(item.get("conflict_id"))
+    }
+    production_blockers = []
+    for conflict in production_conflicts:
+        status = _clean(conflict.get("status")).lower()
+        if status not in UNRESOLVED_PRODUCTION_CONFLICT_STATUSES:
+            continue
+        conflict_id = _clean(conflict.get("conflict_id"))
+        territory_ids = {
+            _clean(item) for item in (conflict.get("territory_ids") or []) if _clean(item)
+        }
+        if conflict_id not in part_conflict_ids and not part_territory_ids.intersection(territory_ids):
+            continue
+        item = {
+            "reason": "unresolved_production_territory_conflict",
+            "conflict_id": conflict_id,
+            "production_status": status,
+            "territory_ids": sorted(territory_ids),
+        }
+        production_blockers.append(item)
+        if conflict_id not in blocker_ids:
+            blockers.append(item)
+            blocker_ids.add(conflict_id)
+
     return {
         "ok": True,
         "blocked": bool(blockers),
@@ -94,6 +126,7 @@ def resolve_endgame_conflict_gate(parts, conflicts):
             item for item in conflicts
             if _clean(item.get("conflict_id")) in blocker_ids
         ],
+        "unresolved_production_conflicts": production_blockers,
     }
 
 
@@ -135,7 +168,14 @@ class GhostNetworkClosureService:
         lock_snapshots = self.repository.list_cycle_lock_snapshots(cycle_id)
         signals = self.repository.list_signals_for_cycle(cycle_id, limit=1000)
         conflicts = self.repository.list_strategic_conflicts(cycle_id=cycle_id, limit=1000)
-        conflict_gate = resolve_endgame_conflict_gate(parts, conflicts)
+        production_conflicts = self.repository.list_endgame_production_conflicts(
+            [part.get("conflict_id") for part in parts if part.get("conflict_id")],
+            territory_ids=[part.get("territory_id") for part in parts if part.get("territory_id")],
+            limit=500,
+            include_unresolved=True,
+            unresolved_only=True,
+        )
+        conflict_gate = resolve_endgame_conflict_gate(parts, conflicts, production_conflicts)
         unresolved_conflicts = conflict_gate["unresolved_conflicts"]
 
         reasons = []

@@ -4013,3 +4013,24 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   transmission/runtime/integrity/archive `28/28 PASS`, kontrakty JS Signal
   Registry, Centrum Operacji i Signal Show PASS, `py_compile` i diff-check PASS.
   Status: `LOCAL PASS / READY FOR CONTROLLED SERVER E2E`; bez pushu.
+
+## 2026-09-09 — .signal.3 pierwszy production E2E: premature transmission
+
+- Entry preflight potwierdził `19/20` i jedną realną blokadę konfliktową S1.
+- Po aktywacji P3 nie powstał wymagany checkpoint blocked. Generic publication
+  wyczyściła projekcję konfliktu, closure utworzył lock i wysłał signal, zanim
+  produkcyjny konflikt został rozwiązany przez gameplay.
+- Konsumpcja terytorium dopiero wtórnie zamknęła konflikt. Scenariusz otrzymuje
+  `E2E FAIL / P0`; `.signal.3` i wejście do `138.2` pozostają zablokowane.
+- Post-commit domknął się spójnie: 20 części, 20 historycznych nodes, 23
+  terytoria, 44 nagrody planu, ranking, show, settlement i jeden next cycle.
+  Stan nie wymaga rollbacku naprawczego, ale pełny restore zweryfikowanego
+  snapshotu sprzed emisji jest wymagany testowo: `138.2` musi otrzymać nowy,
+  canonical `ghost.signal_sent` i rzeczywiste taski Ollamy. Częściowy reset tabel
+  lub syntetyczny replay nie zalicza producer-backed E2E.
+- Pierwszy postflight miał dwa własne false-negative: limit 1000 eventów oraz
+  SHA-256 zamiast canonical SHA-1. Oba usunięto.
+- Dodano podwójny conflict gate: generic reconcile nie rozwiązuje konfliktu,
+  a closure niezależnie odpytuje otwarte produkcyjne `territory_conflicts`.
+  Postflight waliduje dodatkowo `resolved_at <= locked_at`.
+- Pełne ustalenia: `doc/audits/138-signal3-production-e2e-findings.md`.

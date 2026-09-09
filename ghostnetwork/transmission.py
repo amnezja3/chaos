@@ -24,7 +24,8 @@ def _parse_iso(value):
     return dt.astimezone(timezone.utc)
 
 
-def _checksum(payload):
+def signal_payload_checksum(payload):
+    """Return the canonical checksum stored with a GhostSignal payload."""
     return hashlib.sha1(dumps_json(payload).encode("utf-8")).hexdigest()
 
 
@@ -148,7 +149,7 @@ class GhostTransmissionService:
                 "resolved_at": "",
                 "next_version": next_version,
                 "lock_snapshot_id": lock_snapshot.get("lock_snapshot_id"),
-                "signal_checksum": _checksum(payload),
+                "signal_checksum": signal_payload_checksum(payload),
                 "payload": payload,
             }
         )

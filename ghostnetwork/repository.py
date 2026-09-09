@@ -4244,6 +4244,39 @@ class GhostNetworkRepository:
             ).fetchall()
             return [self._event(row) for row in rows]
 
+    def list_events_by_types(self, cycle_id, event_types):
+        """Return the complete bounded set of selected event types for a cycle.
+
+        Unlike ``list_events`` this query is not a timeline/feed read and must
+        not silently truncate an integrity audit at 1000 older events.
+        """
+        cycle_id = _clean(cycle_id)
+        event_types = sorted({_clean(item) for item in (event_types or []) if _clean(item)})
+        if not cycle_id or not event_types:
+            return []
+        placeholders = ",".join("?" for _item in event_types)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_part_events
+                WHERE cycle_id = ? AND event_type IN ({placeholders})
+                ORDER BY state_version ASC, created_at ASC, event_id ASC
+                """,
+                (cycle_id, *event_types),
+            ).fetchall()
+            return [self._event(row) for row in rows]
+
+    def count_events(self, cycle_id=None):
+        with self._conn() as conn:
+            if cycle_id:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS total FROM ghost_part_events WHERE cycle_id = ?",
+                    (_clean(cycle_id),),
+                ).fetchone()
+            else:
+                row = conn.execute("SELECT COUNT(*) AS total FROM ghost_part_events").fetchone()
+            return int(row["total"] or 0)
+
     def get_event(self, event_id):
         event_id = _clean(event_id)
         if not event_id:
@@ -8170,7 +8203,8 @@ class GhostNetworkRepository:
                 })
             return result
 
-    def list_endgame_production_conflicts(self, conflict_ids=None, territory_ids=None, limit=100):
+    def list_endgame_production_conflicts(self, conflict_ids=None, territory_ids=None, limit=100,
+                                          include_unresolved=False, unresolved_only=False):
         conflict_ids = sorted({_clean(item) for item in (conflict_ids or []) if _clean(item)})
         requested_territory_ids = {
             _clean(item) for item in (territory_ids or []) if _clean(item)
@@ -8182,7 +8216,23 @@ class GhostNetworkRepository:
             ).fetchone()
             if not exists:
                 return []
-            if conflict_ids:
+            if unresolved_only:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM territory_conflicts
+                    WHERE status IN ('detected', 'active', 'changing', 'resolving')
+                    ORDER BY updated_at DESC
+                    """
+                ).fetchall()
+            elif include_unresolved:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM territory_conflicts
+                    ORDER BY updated_at DESC LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            elif conflict_ids:
                 placeholders = ",".join("?" for _item in conflict_ids)
                 rows = conn.execute(
                     f"""
@@ -8229,6 +8279,11 @@ class GhostNetworkRepository:
                 "conflict_id": identity,
                 "status": _clean(row["status"]),
                 "territory_ids": area_ids,
+                "created_at": _clean(row["created_at"]),
+                "updated_at": _clean(row["updated_at"]),
+                "resolved_at": _clean(row["resolved_at"]),
+                "closed_at": _clean(row["closed_at"]),
+                "resolution_reason": _clean(row["resolution_reason"]),
             })
         return result
 

@@ -204,6 +204,28 @@ class GhostTerritoryAdapterTest(unittest.TestCase):
         self.assertEqual(len({event["dedupe_key"] for event in contained}), 2)
         self.assertEqual(self.repo.get_part(part["part_id"])["status"], "contained")
 
+    def test_generic_reconcile_cannot_clear_an_authoritative_conflict(self):
+        part = self.reserve_and_discover("target-conflict-guard")
+        own = self.territory(part["clan_code"], owner="main", version=20)
+        self.adapter.on_territory_stabilized(own)
+        contested = dict(own, status="contested", conflict_id="production-conflict-a")
+        self.adapter.on_territory_contested(contested)
+
+        generic = self.adapter.reconcile_parts_with_territories(
+            territories=[own], apply=True,
+        )
+        frozen = self.repo.get_part(part["part_id"])
+        self.assertEqual(generic["count"], 0)
+        self.assertEqual(frozen["conflict_state"], "contested")
+        self.assertEqual(frozen["conflict_id"], "production-conflict-a")
+
+        canonical = self.adapter.reconcile_parts_with_territories(
+            territories=[own], apply=True, resolve_conflicts=True,
+        )
+        resolved = self.repo.get_part(part["part_id"])
+        self.assertEqual(canonical["count"], 1)
+        self.assertEqual(resolved["conflict_state"], "none")
+
 
 if __name__ == "__main__":
     unittest.main()

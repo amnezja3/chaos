@@ -61,6 +61,27 @@ class GhostNetworkEndgameIntegrityTest(unittest.TestCase):
         self.assertTrue(live["blocked"])
         self.assertEqual(live["blockers"][0]["reason"], "part_conflict_without_strategic_record")
 
+    def test_production_conflict_blocks_even_when_part_projection_was_cleared(self):
+        part = {
+            "part_id": "part-a", "part_code": "A1", "territory_id": "territory-a",
+            "conflict_state": "none", "conflict_id": "",
+        }
+        production = {
+            "conflict_id": "production-a", "status": "active",
+            "territory_ids": ["territory-a", "territory-b"],
+        }
+
+        blocked = resolve_endgame_conflict_gate([part], [], [production])
+        self.assertTrue(blocked["blocked"])
+        self.assertEqual(
+            blocked["blockers"][0]["reason"],
+            "unresolved_production_territory_conflict",
+        )
+
+        production["status"] = "resolved"
+        resolved = resolve_endgame_conflict_gate([part], [], [production])
+        self.assertFalse(resolved["blocked"])
+
     def test_territory_plan_is_deduplicated_and_only_expands_one_hop(self):
         territories = [
             {"territory_id": "a", "owner_id": "alice", "clan_code": "echo", "vertices": square(0, 0, 2, 2)},

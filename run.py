@@ -4042,7 +4042,7 @@ def advance_ghostnetwork_endgame_once(service=None, trigger_result=None):
 
 
 def bridge_ghostnetwork_territory_publication(reason="territory_publication", service=None,
-                                               timings=None):
+                                               timings=None, resolve_conflicts=False):
     try:
         timings = timings if isinstance(timings, dict) else {}
         phase_started = time.perf_counter()
@@ -4052,7 +4052,11 @@ def bridge_ghostnetwork_territory_publication(reason="territory_publication", se
         territories = build_ghostnetwork_territory_publication()
         timings["publication_read"] = int((time.perf_counter() - phase_started) * 1000)
         phase_started = time.perf_counter()
-        report = service.reconcile_parts_with_territories(territories=territories, apply=True)
+        report = service.reconcile_parts_with_territories(
+            territories=territories,
+            apply=True,
+            resolve_conflicts=resolve_conflicts,
+        )
         timings["reconcile"] = int((time.perf_counter() - phase_started) * 1000)
         phase_started = time.perf_counter()
         report["rewards"] = apply_ghostnetwork_runtime_result(service, report, timings=timings)
@@ -4078,7 +4082,8 @@ def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflic
         status = str(conflict.get("status") or "").lower()
         if status in {"resolved", "closed"}:
             return bridge_ghostnetwork_territory_publication(
-                reason=f"{reason}:resolved", service=service, timings=timings
+                reason=f"{reason}:resolved", service=service, timings=timings,
+                resolve_conflicts=True,
             )
         phase_started = time.perf_counter()
         reports = []

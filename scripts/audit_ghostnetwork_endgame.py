@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -16,11 +16,62 @@ if PROJECT_ROOT not in sys.path:
 
 from database import DB_PATH  # noqa: E402
 from ghostnetwork import GhostNetworkRepository, GhostNetworkService  # noqa: E402
+from ghostnetwork.transmission import signal_payload_checksum  # noqa: E402
 
 
 def _signal_checksum(payload):
-    encoded = json.dumps(payload or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return signal_payload_checksum(payload or {})
+
+
+def _parse_iso(value):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _production_conflict_chronology(repository, snapshot):
+    parts = snapshot.get("parts") or []
+    territory_ids = sorted({
+        str(item.get("territory_id") or "").strip()
+        for item in parts if str(item.get("territory_id") or "").strip()
+    })
+    conflict_ids = sorted({
+        str(item.get("conflict_id") or "").strip()
+        for item in parts if str(item.get("conflict_id") or "").strip()
+    })
+    lock_at = _parse_iso(snapshot.get("locked_at"))
+    conflicts = repository.list_endgame_production_conflicts(
+        conflict_ids,
+        territory_ids=territory_ids,
+        limit=500,
+        include_unresolved=True,
+    )
+    violations = []
+    for conflict in conflicts:
+        status = str(conflict.get("status") or "").lower()
+        resolved_at = _parse_iso(conflict.get("resolved_at") or conflict.get("closed_at"))
+        if status not in {"resolved", "closed"}:
+            reason = "still_unresolved"
+        elif not resolved_at:
+            reason = "missing_resolution_timestamp"
+        elif not lock_at or resolved_at > lock_at:
+            reason = "resolved_after_cycle_lock"
+        else:
+            continue
+        violations.append({
+            "conflict_id": conflict.get("conflict_id") or "",
+            "status": status,
+            "reason": reason,
+            "resolved_at": conflict.get("resolved_at") or conflict.get("closed_at") or "",
+            "lock_at": snapshot.get("locked_at") or "",
+            "territory_ids": conflict.get("territory_ids") or [],
+            "resolution_reason": conflict.get("resolution_reason") or "",
+        })
+    return {"ok": not violations, "checked": len(conflicts), "violations": violations}
 
 
 def audit(cycle_id, db_path=DB_PATH, *, strict=False):
@@ -37,17 +88,14 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
     rewards = repository.list_rewards(cycle_id=cycle_id, limit=5000)
     history = repository.list_historical_nodes_for_signal((signal or {}).get("signal_id")) if signal else []
     consumptions = repository.list_signal_territory_consumptions((signal or {}).get("signal_id"), limit=5000) if signal else []
-    events = repository.list_events(cycle_id=cycle_id, limit=5000) if cycle else []
-    event_counts = {}
-    for event in events:
-        event_type = str(event.get("event_type") or "")
-        event_counts[event_type] = event_counts.get(event_type, 0) + 1
-
     lock_validation = service.validate_locked_snapshot(cycle_id) if lock else {"valid": False, "reasons": ["missing"]}
     ranking_validation = service.ranking.validate(ranking) if ranking else {"valid": False, "reasons": ["missing"]}
     all_time = service.rebuild_signal_rankings_all_time()
     signal_checksum_valid = bool(signal) and _signal_checksum((signal or {}).get("payload") or {}) == (signal or {}).get("signal_checksum")
     snapshot = (lock or {}).get("snapshot") or {}
+    production_conflict_chronology = _production_conflict_chronology(repository, snapshot) if lock else {
+        "ok": False, "checked": 0, "violations": [{"reason": "missing_lock_snapshot"}],
+    }
     territory_plan = snapshot.get("territory_consumption_plan") or {}
     expected_territories = {
         str(item.get("territory_id") or "") for item in territory_plan.get("entries") or []
@@ -60,6 +108,13 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
         "ghost.signal_show_started", "ghost.signal_ranking_created",
         "ghost.endgame_postcommit_reconciled", "ghost.endgame_delta_reconciled",
     }
+    # The general event feed is capped at 1000 rows. Integrity must query the
+    # required types directly or a busy first cycle loses its closing events.
+    required_events = repository.list_events_by_types(cycle_id, required_once) if cycle else []
+    event_counts = {event_type: 0 for event_type in sorted(required_once)}
+    for event in required_events:
+        event_type = str(event.get("event_type") or "")
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
     next_cycles = [
         item for item in repository.list_cycles(limit=100)
         if cycle and int(item.get("signal_number") or 0) == int(cycle.get("signal_number") or 0) + 1
@@ -94,6 +149,7 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
         "rewards_created": bool(rewards),
         "rewards_projected": bool(rewards) and all(item.get("status") == "applied" for item in rewards),
         "required_events_exactly_once": all(event_counts.get(event_type) == 1 for event_type in required_once),
+        "production_conflicts_resolved_before_lock": bool(production_conflict_chronology.get("ok")),
         "show_exists": bool(show),
         "ranking_exists": bool(ranking),
         "ranking_checksum_valid": bool(ranking_validation.get("valid")),
@@ -116,18 +172,21 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
         "show_id": (show or {}).get("show_id") or "",
         "ranking_id": (ranking or {}).get("ranking_id") or "",
         "reward_ids": [item.get("reward_id") for item in rewards],
-        "event_ids": [item.get("event_id") for item in events],
+        "event_ids": [item.get("event_id") for item in required_events],
         "next_cycle_id": active_next[0].get("cycle_id") if len(active_next) == 1 else "",
     }
     return {
         "ok": ok, "status": status, "strict": strict, "mode": "read_only",
-        "contract": "138.prepare.gn.signal.3.postflight.v1", "cycle_id": cycle_id,
+        "contract": "138.prepare.gn.signal.3.postflight.v2", "cycle_id": cycle_id,
         "checks": checks, "integrity_errors": integrity_errors, "pending": pending,
         "counts": {"parts": len(parts), "connections": len(connections), "historical_nodes": len(history),
-                   "rewards": len(rewards), "territories": len(consumptions), "events": len(events),
+                   "rewards": len(rewards), "territories": len(consumptions),
+                   "events": repository.count_events(cycle_id) if cycle else 0,
+                   "required_events": len(required_events),
                    "rankings": int(bool(ranking)), "next_cycles": len(next_cycles)},
         "reward_statuses": reward_statuses, "event_counts": event_counts,
         "lock_validation": lock_validation, "ranking_validation": ranking_validation,
+        "production_conflict_chronology": production_conflict_chronology,
         "settlement": service.validate_rollover_settlement(cycle_id) if cycle else {"ok": False},
         "all_time": {"rebuilt_from_snapshots": all_time.get("rebuilt_from_snapshots", 0),
                      "players": len(all_time.get("players") or []), "clans": len(all_time.get("clans") or [])},

@@ -1009,9 +1009,15 @@ class GhostNetworkService:
         self._dispatch_persisted_events(result, cycle_id=cycle_id, after_state_version=cursor)
         return result
 
-    def reconcile_parts_with_territories(self, cycle_id=None, territories=None, apply=False):
+    def reconcile_parts_with_territories(self, cycle_id=None, territories=None, apply=False,
+                                         resolve_conflicts=False):
         selected_cycle_id, cursor = self._event_cursor(cycle_id)
-        report = self.territory.reconcile_parts_with_territories(cycle_id=cycle_id, territories=territories, apply=apply)
+        report = self.territory.reconcile_parts_with_territories(
+            cycle_id=cycle_id,
+            territories=territories,
+            apply=apply,
+            resolve_conflicts=resolve_conflicts,
+        )
         if apply:
             report = self._with_module_progress(report, changed_key="changes")
             self._dispatch_persisted_events(

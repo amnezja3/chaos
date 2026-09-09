@@ -277,7 +277,8 @@ class GhostTerritoryAdapter:
         territory = normalise_territory_event(event)
         return self._apply_public_decay(territory, reason="territory_released")
 
-    def reconcile_parts_with_territories(self, cycle_id=None, territories=None, apply=False):
+    def reconcile_parts_with_territories(self, cycle_id=None, territories=None, apply=False,
+                                         resolve_conflicts=False):
         cycle_id = _clean(cycle_id or ((self.repository.get_active_cycle() or {}).get("cycle_id")))
         if not cycle_id:
             return {"ok": False, "cycle_id": "", "apply": bool(apply), "changes": [], "reason": "no_cycle"}
@@ -291,7 +292,7 @@ class GhostTerritoryAdapter:
                 continue
             outcome = self.resolve_part_territory(part, territories=territories)
             desired = outcome.get("outcome")
-            if not self._needs_change(part, outcome):
+            if not self._needs_change(part, outcome, resolve_conflicts=resolve_conflicts):
                 continue
             change = {
                 "part_id": part["part_id"],
@@ -310,6 +311,7 @@ class GhostTerritoryAdapter:
                     part,
                     outcome,
                     source_event_id=transition_id,
+                    resolve_conflicts=resolve_conflicts,
                 )
             changes.append(change)
         return {"ok": True, "cycle_id": cycle_id, "apply": bool(apply), "changes": changes, "count": len(changes)}
@@ -329,7 +331,7 @@ class GhostTerritoryAdapter:
         skipped = []
         for part in self.resolve_parts_in_changed_area(changed_event):
             outcome = self.resolve_part_territory(part, territories=territories)
-            if not self._needs_change(part, outcome):
+            if not self._needs_change(part, outcome, resolve_conflicts=True):
                 skipped.append({"part_id": part.get("part_id"), "reason": "already_current"})
                 continue
             changed.append(
@@ -338,6 +340,7 @@ class GhostTerritoryAdapter:
                     outcome,
                     reason=reason,
                     source_event_id=changed_event["event_id"] or changed_event["territory_id"],
+                    resolve_conflicts=True,
                 )
             )
         return self._report(reason, changed_event, changed, skipped)
@@ -347,6 +350,12 @@ class GhostTerritoryAdapter:
         changed = []
         skipped = []
         for part in self.resolve_parts_in_changed_area(territory):
+            if part.get("conflict_state") == "contested":
+                skipped.append({
+                    "part_id": part.get("part_id"),
+                    "reason": "canonical_conflict_resolution_required",
+                })
+                continue
             if part.get("status") == "public" and not part.get("territory_id") and part.get("conflict_state") != "contested":
                 skipped.append({"part_id": part.get("part_id"), "reason": "already_public"})
                 continue
@@ -361,11 +370,16 @@ class GhostTerritoryAdapter:
             )
         return self._report(reason, territory, changed, skipped)
 
-    def _apply_part_outcome(self, part, outcome, reason="", source_event_id=""):
+    def _apply_part_outcome(self, part, outcome, reason="", source_event_id="",
+                            resolve_conflicts=False):
         part = part if isinstance(part, dict) else {}
         outcome_name = outcome.get("outcome")
         territory = outcome.get("territory") or {}
-        if part.get("conflict_state") == "contested" and outcome_name in {"public", "contained", "active"}:
+        if (
+            resolve_conflicts
+            and part.get("conflict_state") == "contested"
+            and outcome_name in {"public", "contained", "active"}
+        ):
             self.lifecycle.resolve_after_conflict(
                 part["part_id"],
                 resolution_status=part.get("frozen_status") or part.get("status"),
@@ -397,7 +411,7 @@ class GhostTerritoryAdapter:
             )
         return part
 
-    def _needs_change(self, part, outcome):
+    def _needs_change(self, part, outcome, resolve_conflicts=False):
         desired = outcome.get("outcome")
         territory = outcome.get("territory") or {}
         if desired == "ignored":
@@ -405,7 +419,7 @@ class GhostTerritoryAdapter:
         if desired == "contested":
             return part.get("conflict_state") != "contested"
         if part.get("conflict_state") == "contested":
-            return True
+            return bool(resolve_conflicts)
         if desired == "public":
             return part.get("status") != "public" or bool(part.get("territory_id"))
         if desired in {"contained", "active"}:

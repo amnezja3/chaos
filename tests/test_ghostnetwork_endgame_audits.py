@@ -1,9 +1,16 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from ghostnetwork import GhostCycleService, GhostNetworkRepository
-from scripts.audit_ghostnetwork_endgame import audit as postflight_audit
+from database import db_connect
+from ghostnetwork.transmission import signal_payload_checksum
+from scripts.audit_ghostnetwork_endgame import (
+    _production_conflict_chronology,
+    _signal_checksum,
+    audit as postflight_audit,
+)
 from scripts.audit_ghostnetwork_endgame_preflight import (
     _compact_report,
     audit as preflight_audit,
@@ -55,6 +62,54 @@ class GhostNetworkEndgameAuditTest(unittest.TestCase):
         self.assertNotIn("targets", compact["territory_plan"]["entries"][0])
         self.assertEqual(compact["territory_plan"]["entries"][0]["target_count"], 1)
         self.assertEqual(compact["territory_plan"]["entries"][0]["geometry_vertices"], 1)
+
+    def test_postflight_uses_canonical_signal_checksum(self):
+        payload = {"unicode": "sygnał", "nested": {"b": 2, "a": 1}}
+        self.assertEqual(_signal_checksum(payload), signal_payload_checksum(payload))
+
+    def test_production_conflict_resolved_after_lock_is_an_integrity_violation(self):
+        locked_at = datetime.now(timezone.utc)
+
+        class RepositoryStub:
+            @staticmethod
+            def list_endgame_production_conflicts(*_args, **_kwargs):
+                return [{
+                    "conflict_id": "conflict-a",
+                    "status": "resolved",
+                    "territory_ids": ["territory-a"],
+                    "resolved_at": (locked_at + timedelta(seconds=2)).isoformat(),
+                    "closed_at": "",
+                    "resolution_reason": "territory_consumed",
+                }]
+
+        result = _production_conflict_chronology(RepositoryStub(), {
+            "locked_at": locked_at.isoformat(),
+            "parts": [{"territory_id": "territory-a", "conflict_id": ""}],
+        })
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["violations"][0]["reason"], "resolved_after_cycle_lock")
+
+    def test_integrity_event_query_is_not_truncated_by_timeline_limit(self):
+        cycle_id = self.cycle["cycle_id"]
+        now = self.repository.now()
+        with db_connect(self.db_path) as conn:
+            conn.executemany(
+                """
+                INSERT INTO ghost_part_events (
+                    event_id, cycle_id, part_id, event_type, player_id,
+                    clan_code, territory_id, state_version, created_at,
+                    payload_json, dedupe_key, audience_scope, audience_clan, entity_id
+                ) VALUES (?, ?, '', ?, '', '', '', ?, ?, '{}', '', 'system', '', '')
+                """,
+                [(f"bulk-{index}", cycle_id, "ghost.audit.bulk", index + 1, now)
+                 for index in range(1005)],
+            )
+
+        self.assertEqual(len(self.repository.list_events(cycle_id, limit=5000)), 1000)
+        self.assertEqual(
+            len(self.repository.list_events_by_types(cycle_id, ["ghost.audit.bulk"])),
+            1005,
+        )
 
 
 if __name__ == "__main__":
