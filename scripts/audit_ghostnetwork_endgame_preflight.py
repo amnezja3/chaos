@@ -54,12 +54,33 @@ def _runtime_status():
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:160], "processes": {}}
     wanted = {"chaos", "chaos-territory-worker", "chaos-ollama-worker", "chaos-narrative-publisher"}
-    processes = {
-        str(item.get("name") or ""): str((item.get("pm2_env") or {}).get("status") or "")
-        for item in rows if str(item.get("name") or "") in wanted
+    tracked_env = {
+        "CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONSUMPTION_ENABLED",
+        "CHAOS_GHOSTNETWORK_RANK_NODE_POOL",
+        "CHAOS_GHOSTNETWORK_RANK_TERRITORY_POOL",
+        "CHAOS_GHOSTNETWORK_RANK_CONFLICT_POOL",
+        "CHAOS_GHOSTNETWORK_RANK_CLOSER_POOL",
     }
+    processes = {}
+    environment = {}
+    for item in rows:
+        name = str(item.get("name") or "")
+        if name not in wanted:
+            continue
+        pm2_env = item.get("pm2_env") or {}
+        nested_env = pm2_env.get("env") if isinstance(pm2_env.get("env"), dict) else {}
+        processes[name] = str(pm2_env.get("status") or "")
+        environment[name] = {
+            key: nested_env.get(key, pm2_env.get(key))
+            for key in tracked_env
+            if nested_env.get(key, pm2_env.get(key)) is not None
+        }
     return {"ok": wanted.issubset(processes) and all(value == "online" for value in processes.values()),
-            "processes": processes}
+            "processes": processes, "environment": environment}
+
+
+def _enabled(value):
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _git_head():
@@ -125,7 +146,7 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
     closing = [part for part in parts if part.get("status") != "active"]
     conflicts = repository.list_strategic_conflicts(cycle_id=cycle_id, limit=1000)
     conflict_gate = resolve_endgame_conflict_gate(parts, conflicts)
-    blockers = conflict_gate.get("blocking_conflicts") or []
+    blockers = conflict_gate.get("blockers") or []
     modules = GhostModuleStateService(repository).resolve_cycle_module_states(cycle_id)
     topology = repository.get_cycle(cycle_id) or {}
     topology_validation = GhostTopologyService(repository).validate_topology(cycle_id)
@@ -141,12 +162,29 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
     locks = repository.list_cycle_lock_snapshots(cycle_id)
     signals = repository.list_signals_for_cycle(cycle_id, limit=100)
     rewards = repository.list_rewards(cycle_id=cycle_id, limit=5000)
+    signal_reward_types = {
+        "ghost_signal_node_holder", "ghost_signal_closer", "ghost_signal_territory_consumed",
+    }
+    signal_rewards = [
+        reward for reward in rewards if reward.get("reward_type") in signal_reward_types
+    ]
     with db_connect(db_path) as conn:
         active_cycle_consumptions = int(conn.execute(
             "SELECT COUNT(*) FROM ghost_signal_territory_consumptions WHERE cycle_id = ?",
             (cycle_id,),
         ).fetchone()[0])
     runtime = _runtime_status() if check_runtime else {"ok": True, "skipped": True, "processes": {}}
+    runtime_environment = runtime.get("environment") or {}
+    executor_env = [
+        (runtime_environment.get(name) or {}).get(
+            "CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONSUMPTION_ENABLED"
+        )
+        for name in ("chaos", "chaos-territory-worker")
+    ]
+    territory_executor_enabled = (
+        all(_enabled(value) for value in executor_env)
+        if check_runtime else bool(GHOSTNETWORK_ENDGAME_FLAGS.get("territory_consumption_enabled"))
+    )
     git = _git_head()
     database_health = _database_health(db_path)
     pending_work = _pending_endgame_work(db_path)
@@ -173,7 +211,7 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
         and len(connections) == 20
         and topology_validation.get("topology_checksum") == topology.get("topology_checksum"),
         "no_lock_or_signal": not locks and not signals,
-        "no_rewards_for_active_cycle": not rewards,
+        "no_signal_rewards_for_active_cycle": not signal_rewards,
         "no_pending_endgame_work": bool(pending_work.get("ok")),
         "exactly_one_conflict_blocker": len(blockers) == 1,
         "show_and_ranking_schema_ready": before.get("ghost_signal_shows") is not None and before.get("ghost_signal_rankings") is not None,
@@ -183,7 +221,7 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
         "database_quick_check": bool(database_health.get("ok")),
         "disk_space_min_1gb": disk.free >= 1024 ** 3,
         "backup_readable_and_fresh": bool(backup.get("readable") and backup.get("fresh")),
-        "territory_executor_enabled": bool(GHOSTNETWORK_ENDGAME_FLAGS.get("territory_consumption_enabled")),
+        "territory_executor_enabled": territory_executor_enabled,
     }
     if expect == "entry":
         checks.update({
@@ -193,8 +231,11 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
     else:
         checks.update({
             "blocked_checkpoint_20_of_20": len(parts) == 20 and len(active_parts) == 20 and not closing,
-            "blocked_checkpoint_no_irreversible_effects": not locks and not signals and not rewards
+            "blocked_checkpoint_no_irreversible_effects": not locks and not signals and not signal_rewards
             and active_cycle_consumptions == 0,
+            "blocked_checkpoint_territory_plan_ready": not any(
+                item.get("blocking") for item in territory_plan.get("warnings") or []
+            ),
             "blocked_checkpoint_gate_blocks": bool(conflict_gate.get("network_complete"))
             and not conflict_gate.get("ready") and len(blockers) == 1,
         })
@@ -225,12 +266,44 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
         "ranking_policy": GHOSTNETWORK_RANKING_POLICY, "checks": checks,
         "runtime": runtime, "git": git, "database_health": database_health,
         "pending_endgame_work": pending_work,
+        "existing_cycle_rewards": len(rewards),
+        "existing_signal_rewards": len(signal_rewards),
         "active_cycle_territory_consumptions": active_cycle_consumptions,
         "backup": backup, "backup_max_age_minutes": int(backup_max_age_minutes),
         "disk_free_bytes": disk.free,
         "mutations": mutations, "errors": sorted(set(errors)), "before": before, "after": after,
     }
     return report
+
+
+def _compact_report(report):
+    compact = dict(report or {})
+    plan = dict(compact.get("territory_plan") or {})
+    plan["entries"] = [
+        {
+            "territory_id": item.get("territory_id"),
+            "owner_id": item.get("owner_id"),
+            "clan_code": item.get("clan_code"),
+            "role": item.get("role"),
+            "reason": item.get("reason"),
+            "source_conflict_id": item.get("source_conflict_id"),
+            "area_size": item.get("area_size"),
+            "publication_version": item.get("publication_version"),
+            "target_count": len(item.get("targets") or []),
+            "geometry_vertices": len(item.get("vertices") or []),
+        }
+        for item in plan.get("entries") or []
+    ]
+    compact["territory_plan"] = plan
+    closing = dict(compact.get("closing_part") or {})
+    if closing:
+        compact["closing_part"] = {
+            key: closing.get(key) for key in (
+                "part_id", "part_code", "machine_code", "clan_code", "status",
+                "target_id", "territory_id", "conflict_state", "conflict_id",
+            )
+        }
+    return compact
 
 
 def main():
@@ -242,13 +315,15 @@ def main():
     parser.add_argument("--expect", choices=("entry", "blocked"), default="entry")
     parser.add_argument("--skip-runtime", action="store_true")
     parser.add_argument("--compact", action="store_true")
+    parser.add_argument("--full", action="store_true")
     args = parser.parse_args()
     report = audit(
         args.db, strict=args.strict, check_runtime=not args.skip_runtime,
         backup_path=args.backup, backup_max_age_minutes=args.backup_max_age_minutes,
         expect=args.expect,
     )
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=None if args.compact else 2))
+    printable = report if args.full else _compact_report(report)
+    print(json.dumps(printable, ensure_ascii=False, sort_keys=True, indent=None if args.compact else 2))
     return 0 if report.get("ok") else 1
 
 

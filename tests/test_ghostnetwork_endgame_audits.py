@@ -4,7 +4,10 @@ import unittest
 
 from ghostnetwork import GhostCycleService, GhostNetworkRepository
 from scripts.audit_ghostnetwork_endgame import audit as postflight_audit
-from scripts.audit_ghostnetwork_endgame_preflight import audit as preflight_audit
+from scripts.audit_ghostnetwork_endgame_preflight import (
+    _compact_report,
+    audit as preflight_audit,
+)
 
 
 class GhostNetworkEndgameAuditTest(unittest.TestCase):
@@ -38,6 +41,20 @@ class GhostNetworkEndgameAuditTest(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertIn("one_lock", report["integrity_errors"])
         self.assertIn("one_signal", report["integrity_errors"])
+
+    def test_preflight_console_report_does_not_dump_target_payloads(self):
+        compact = _compact_report({
+            "closing_part": {"part_id": "p1", "part_code": "P1", "anchor_snapshot": {"large": True}},
+            "territory_plan": {"entries": [{
+                "territory_id": "t1", "targets": [{"large": True}],
+                "vertices": [{"lat": 1, "lng": 2}],
+            }]},
+        })
+
+        self.assertNotIn("anchor_snapshot", compact["closing_part"])
+        self.assertNotIn("targets", compact["territory_plan"]["entries"][0])
+        self.assertEqual(compact["territory_plan"]["entries"][0]["target_count"], 1)
+        self.assertEqual(compact["territory_plan"]["entries"][0]["geometry_vertices"], 1)
 
 
 if __name__ == "__main__":
