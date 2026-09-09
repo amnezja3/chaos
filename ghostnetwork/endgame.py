@@ -77,6 +77,11 @@ def build_territory_consumption_plan(parts, conflicts, territories, production_c
                 "territory_id": territory_id,
                 "role": role,
                 "source_conflict_id": _clean(source_conflict_id),
+                # A primary territory is part of the live 20/20 authority and
+                # must exist at lock time. A resolved conflict participant may
+                # already have disappeared during canonical conflict rebuild;
+                # it remains auditable, but there is no live area to consume.
+                "blocking": role == "primary",
             })
             return
         current = selected.get(territory_id)

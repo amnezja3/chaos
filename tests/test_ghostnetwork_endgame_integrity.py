@@ -81,6 +81,26 @@ class GhostNetworkEndgameIntegrityTest(unittest.TestCase):
         self.assertEqual(entries["d"]["role"], "conflict")
         self.assertNotIn("c", entries, "one-hop expansion must not recurse through b")
 
+        historical_missing = build_territory_consumption_plan(
+            [{"territory_id": "a", "territory_clan": "echo"}],
+            [{
+                "conflict_id": "resolved-2",
+                "territory_id": "historical-area",
+                "status": "resolved",
+            }],
+            territories,
+        )
+        warning = historical_missing["warnings"][0]
+        self.assertEqual(warning["role"], "conflict")
+        self.assertFalse(warning["blocking"])
+
+        primary_missing = build_territory_consumption_plan(
+            [{"territory_id": "missing-primary", "territory_clan": "echo"}],
+            [],
+            territories,
+        )
+        self.assertTrue(primary_missing["warnings"][0]["blocking"])
+
     def test_territory_consumption_is_archived_hidden_and_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "territory-consumption.sqlite3")

@@ -3944,3 +3944,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   endgame/reward/rollover/ecosystem `38/38 PASS`, `py_compile`, konfiguracje Node
   i `git diff --check` PASS. Status: `LOCAL PASS / SERVER PENDING`;
   produkcyjny GhostSignal nie został uruchomiony.
+
+## 2026-09-09 — .signal.1 produkcyjny read-only baseline
+
+- Audyt cyklu `ghostnetwork_0001` wykazał oczekiwane `19 active + 1 public`,
+  `3/4` maszyny online, brak konfliktu, locka i GhostSignalu.
+- Wszystkie obserwowane liczniki bazy były identyczne przed i po audycie;
+  `mutations={}` i konsumpcja terytoriów pozostawała wyłączona.
+- Wynik oznaczono jako `SERVER READ-ONLY BASELINE PASS`. Nie zalicza on jeszcze
+  scenariusza `20/20 + konflikt`, ponieważ środowisko celowo nie zostało do niego
+  przygotowane.
+- Dry-run ujawnił historyczne ID rozstrzygniętego konfliktu bez live area.
+  Klasyfikację doprecyzowano: brak live primary territory blokuje, natomiast
+  nieistniejący już uczestnik zakończonego konfliktu pozostaje warningiem
+  audytowym i nie może trwale zablokować finału.

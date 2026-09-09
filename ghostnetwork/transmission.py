@@ -526,7 +526,11 @@ class GhostTransmissionService:
                     reasons.append("lock_territory_plan_empty")
                 if expected_primary != actual_primary:
                     reasons.append("lock_primary_territories_incomplete")
-                if territory_plan.get("warnings"):
+                if any(
+                    bool(item.get("blocking"))
+                    for item in territory_plan.get("warnings") or []
+                    if isinstance(item, dict)
+                ):
                     reasons.append("lock_territory_plan_has_warnings")
         if existing_signal:
             return {
