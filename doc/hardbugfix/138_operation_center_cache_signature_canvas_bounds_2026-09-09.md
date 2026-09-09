@@ -56,6 +56,16 @@ renderera są już niedostępne.
 - prawidłowe bounds nadal delegują do oryginalnej implementacji Leafleta;
 - wyjątki niezwiązane z przejściowym brakiem bounds nie są ukrywane.
 
+## Korekta po teście urządzenia
+
+Pierwsza wersja ograniczała ostrzeżenia osobno dla każdej warstwy. Przy wielu
+poliliniach oznaczało to nadal lawinę wpisów w konsoli, mimo że każdy pojedynczy
+obiekt raportował błąd najwyżej raz na pięć sekund. Raportowanie jest teraz
+agregowane dla całej instancji mapy: pierwszy przechwycony wyścig jest widoczny
+od razu, a następne raporty pojawiają się najwyżej raz na 30 sekund i zawierają
+liczbę zdarzeń oraz sumę od uruchomienia mapy. Fail-closed hit-test i bounded
+recovery pozostają bez zmian.
+
 ## Regresja
 
 - test wykonawczy Canvas sprawdza invalid oraz valid `_containsPoint`;
@@ -72,4 +82,3 @@ Po deployu należy uruchomić operacje kolejno na markerze skanu/konfliktu oraz
 publicznej podatności innego gracza. Obie muszą natychmiast pojawić się w
 Centrum Operacji. Następnie reload mapy, hover/click/pan/zoom na desktopie i
 mobile nie mogą zwijać panelu ani generować `cacheSignature` lub `Bounds.js`.
-

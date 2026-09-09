@@ -65,7 +65,9 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("!hasFiniteLeafletBounds(pixelBounds)", self.map_template)
         self.assertIn("this._parts = [];", self.map_template)
         self.assertIn("transientBoundsFailure", self.map_template)
-        self.assertIn("transient polyline bounds race skipped", self.map_template)
+        self.assertIn("function reportBoundsRace(kind, layer, error)", self.map_template)
+        self.assertIn("transient Leaflet bounds races contained", self.map_template)
+        self.assertIn("now - boundsDiagnostics.lastReportedAt < 30000", self.map_template)
 
     def test_territory_recovery_is_coalesced_bounded_and_atomic(self):
         self.assertIn("state.promises[scopeKey]", self.map_template)
@@ -105,7 +107,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("scheduleBoundsRecovery(this);", guard)
         self.assertIn("layer.redraw();", guard)
         self.assertIn("layer._chaosBoundsRecoveryAttempt < 8", guard)
-        self.assertIn("polyline bounds recovery exhausted", guard)
+        self.assertIn("reportBoundsRace('recovery_exhausted', layer, 'invalid_bounds')", guard)
 
     def test_canvas_polygon_hit_test_skips_transient_invalid_bounds(self):
         guard_start = self.map_template.index("function installLeafletPolylineBoundsGuard")
@@ -113,7 +115,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         guard = self.map_template[guard_start:guard_end]
         self.assertIn("function installContainsPointGuard(targetProto, layerName)", guard)
         self.assertIn("installContainsPointGuard(L.Polygon.prototype, 'polygon')", guard)
-        self.assertIn("transient canvas hit-test bounds race skipped", guard)
+        self.assertIn("reportBoundsRace('canvas_hit_test', this, err)", guard)
         self.assertIn("return false;", guard)
 
     def test_incremental_operation_cards_define_their_render_signature(self):

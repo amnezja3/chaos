@@ -3981,3 +3981,7 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   hover/click wspólnego Canvas.
 - `41/41` celowanych testów Python oraz testy JS renderera, anulowania i
   feedbacku: PASS. Server/device revalidation pozostaje przed `.signal.3`.
+- Test urządzenia potwierdził odzyskanie Centrum Operacji oraz skuteczne
+  przechwytywanie wyścigu bounds, ale ujawnił lawinę ostrzeżeń limitowanych
+  dotąd per warstwa. Diagnostykę zmieniono na jeden agregowany raport mapy nie
+  częściej niż raz na 30 sekund, z zachowaniem licznika wszystkich zdarzeń.

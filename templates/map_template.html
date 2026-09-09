@@ -3845,6 +3845,31 @@
             const proto = L.Polyline.prototype;
             if (proto._chaosBoundsGuardInstalled || typeof proto._clipPoints !== 'function') return;
             const originalClipPoints = proto._clipPoints;
+            const boundsDiagnostics = window._chaosLeafletBoundsDiagnostics || {
+                total: 0,
+                pending: 0,
+                lastReportedAt: 0,
+                byKind: {}
+            };
+            window._chaosLeafletBoundsDiagnostics = boundsDiagnostics;
+
+            function reportBoundsRace(kind, layer, error) {
+                const now = Date.now();
+                boundsDiagnostics.total += 1;
+                boundsDiagnostics.pending += 1;
+                boundsDiagnostics.byKind[kind] = Number(boundsDiagnostics.byKind[kind] || 0) + 1;
+                if (boundsDiagnostics.lastReportedAt && now - boundsDiagnostics.lastReportedAt < 30000) return;
+                const occurrences = boundsDiagnostics.pending;
+                boundsDiagnostics.pending = 0;
+                boundsDiagnostics.lastReportedAt = now;
+                console.warn('[map renderer] transient Leaflet bounds races contained', {
+                    kind,
+                    layer: layer && layer._chaosLayerRegistry || 'polyline',
+                    occurrences,
+                    total: boundsDiagnostics.total,
+                    error: String(error && error.message || error || 'invalid_bounds')
+                });
+            }
 
             function scheduleBoundsRecovery(layer) {
                 if (!layer || layer._chaosBoundsRecoveryScheduled) return;
@@ -3868,9 +3893,7 @@
                     if (layer._chaosBoundsRecoveryAttempt < 8) {
                         scheduleBoundsRecovery(layer);
                     } else {
-                        console.warn('[map renderer] polyline bounds recovery exhausted', {
-                            layer: layer._chaosLayerRegistry || 'polyline'
-                        });
+                        reportBoundsRace('recovery_exhausted', layer, 'invalid_bounds');
                     }
                 }, delay);
             }
@@ -3902,14 +3925,7 @@
                         );
                         if (!transientBoundsFailure) throw err;
                         scheduleBoundsRecovery(this);
-                        const now = Date.now();
-                        if (!this._chaosLastHitTestWarningAt || now - this._chaosLastHitTestWarningAt >= 5000) {
-                            this._chaosLastHitTestWarningAt = now;
-                            console.warn('[map renderer] transient canvas hit-test bounds race skipped', {
-                                layer: this._chaosLayerRegistry || layerName,
-                                error: String(err && err.message || 'invalid_bounds')
-                            });
-                        }
+                        reportBoundsRace('canvas_hit_test', this, err);
                         return false;
                     }
                 };
@@ -3940,14 +3956,7 @@
                     if (!transientBoundsFailure) throw err;
                     this._parts = [];
                     scheduleBoundsRecovery(this);
-                    const now = Date.now();
-                    if (!this._chaosLastBoundsWarningAt || now - this._chaosLastBoundsWarningAt >= 5000) {
-                        this._chaosLastBoundsWarningAt = now;
-                        console.warn('[map renderer] transient polyline bounds race skipped', {
-                            layer: 'polyline',
-                            error: String(err && err.message || 'invalid_bounds')
-                        });
-                    }
+                    reportBoundsRace('polyline_clip', this, err);
                 }
             };
             installContainsPointGuard(proto, 'polyline');

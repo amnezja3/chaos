@@ -83,8 +83,10 @@ function testLeafletPolylineBoundsGuard() {
             return this._pxBounds.contains(point);
         }
     };
+    const boundsWarnings = [];
     const guardSandbox = {
         Number,
+        console: { warn(...args) { boundsWarnings.push(args); } },
         window: {
             setTimeout() { return 1; }
         },
@@ -136,7 +138,11 @@ function testLeafletPolylineBoundsGuard() {
     racingLine._parts = ["stale"];
     assert.doesNotThrow(() => racingLine._clipPoints());
     assert.deepStrictEqual(Array.from(racingLine._parts), []);
-    assert.ok(racingLine._chaosLastBoundsWarningAt, "transient warning must be rate limited per layer");
+    racingLine._renderer._bounds = validBounds;
+    assert.doesNotThrow(() => racingLine._clipPoints());
+    assert.strictEqual(boundsWarnings.length, 1, "transient warnings must be aggregated globally");
+    assert.strictEqual(guardSandbox.window._chaosLeafletBoundsDiagnostics.total, 2);
+    assert.strictEqual(guardSandbox.window._chaosLeafletBoundsDiagnostics.pending, 1);
 
     clipBehavior = function unrelatedFailure() {
         throw new Error("unrelated renderer defect");
