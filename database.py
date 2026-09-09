@@ -5982,8 +5982,9 @@ class TerritoryStore:
             "ON territory_area_publications.owner_username = player_areas.owner_username"
         )
         params = []
+        query += " WHERE player_areas.status != 'consumed'"
         if username:
-            query += " WHERE player_areas.owner_username = ?"
+            query += " AND player_areas.owner_username = ?"
             params.append(username)
         query += " ORDER BY player_areas.owner_username, player_areas.id"
         if limit is not None:
@@ -6054,7 +6055,7 @@ class TerritoryStore:
             return 0
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT COUNT(*) AS count FROM player_areas WHERE owner_username = ?",
+                "SELECT COUNT(*) AS count FROM player_areas WHERE owner_username = ? AND status != 'consumed'",
                 (username,),
             ).fetchone()
         return int(row["count"] or 0) if row else 0

@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from database import dumps_json
+from config import GHOSTNETWORK_ENDGAME_REWARD_POLICY
 
 from .closure import GhostNetworkClosureService
 from .errors import InvalidStateTransition, RepositoryIntegrityError
@@ -68,6 +69,7 @@ class GhostTransmissionService:
                 }
 
             signal = self.create_signal_from_lock(validation["lock_snapshot"])
+            territories = self.consume_signal_territories(signal["signal_id"])
             rewards = self.apply_transmission_rewards(signal["signal_id"])
             consumed = self.consume_cycle_parts(signal["signal_id"])
             history = self.archive_historical_nodes(signal["signal_id"])
@@ -93,6 +95,7 @@ class GhostTransmissionService:
                 "status": "sent",
                 "cycle_id": cycle_id,
                 "signal": self.repository.get_signal(signal["signal_id"]),
+                "territories": territories,
                 "rewards": rewards,
                 "consumed": consumed,
                 "history": history,
@@ -126,8 +129,15 @@ class GhostTransmissionService:
             "lock_snapshot_checksum": lock_snapshot.get("snapshot_checksum"),
             "parts": snapshot.get("parts") or [],
             "topology": snapshot.get("topology") or {},
-            "machines": snapshot.get("machines") or [],
+            "machine_progress": copy.deepcopy(snapshot.get("machine_progress") or []),
+            # Public compatibility alias. ``machine_progress`` remains the
+            # only canonical source in the immutable lock and signal payload.
+            "machines": copy.deepcopy(snapshot.get("machine_progress") or []),
             "closing": snapshot.get("closing") or {},
+            "territory_consumption_plan": copy.deepcopy(
+                snapshot.get("territory_consumption_plan") or {}
+            ),
+            "reward_plan": copy.deepcopy(snapshot.get("reward_plan") or {}),
         }
         signal = self.repository.create_signal(
             {
@@ -167,7 +177,52 @@ class GhostTransmissionService:
         lock_snapshot = self.repository.get_cycle_lock_snapshot(signal["cycle_id"])
         snapshot = (lock_snapshot or {}).get("snapshot") or {}
         closing = snapshot.get("closing") or {}
+        planned = (snapshot.get("reward_plan") or {}).get("entries") or []
+        territory_required = bool(
+            (snapshot.get("territory_consumption_plan") or {}).get("execution_required")
+        )
         rewards = []
+        if planned:
+            for item in planned:
+                reward_type = _clean(item.get("reward_type"))
+                if reward_type == "ghost_signal_territory_consumed" and not territory_required:
+                    continue
+                player_id = _clean(item.get("subject_id"))
+                reference_id = _clean(item.get("reference_id"))
+                if not player_id or not reference_id:
+                    continue
+                if reward_type == "ghost_signal_node_holder":
+                    reward_key = f"ghost-signal:{signal_id}:node:{reference_id}:{player_id}"
+                elif reward_type == "ghost_signal_closer":
+                    reward_key = f"ghost-signal:{signal_id}:closer:{player_id}"
+                else:
+                    reward_key = (
+                        f"ghost-signal:{signal_id}:{reward_type}:{player_id}:{reference_id}"
+                    )
+                rewards.append(self.repository.insert_reward({
+                    "reward_key": reward_key,
+                    "cycle_id": signal["cycle_id"],
+                    "signal_id": signal_id,
+                    "player_id": player_id,
+                    "clan_code": item.get("clan_code"),
+                    "reward_type": reward_type,
+                    "base_rsp": int(item.get("base_rsp") or 0),
+                    "multiplier": float(item.get("multiplier") or 1.0),
+                    "final_rsp": int(item.get("final_rsp") or 0),
+                    "source_event_id": lock_snapshot.get("lock_event_id"),
+                    "metadata": copy.deepcopy(item.get("metadata") or {}),
+                }))
+            self._append_once(
+                "ghost.final_rewards_created",
+                cycle_id=signal["cycle_id"],
+                entity_id=signal_id,
+                dedupe_key=f"ghost:final_rewards:{signal_id}",
+                payload={"signal_id": signal_id, "count": len(rewards)},
+            )
+            return {"count": len(rewards), "rewards": rewards}
+
+        node_rsp = max(0, int(GHOSTNETWORK_ENDGAME_REWARD_POLICY.get("node_holder_rsp") or 0))
+        closer_rsp = max(0, int(GHOSTNETWORK_ENDGAME_REWARD_POLICY.get("closer_rsp") or 0))
         for part in snapshot.get("parts") or []:
             owner_id = _clean(part.get("territory_owner_id") or part.get("discovered_by"))
             if not owner_id:
@@ -181,9 +236,9 @@ class GhostTransmissionService:
                         "player_id": owner_id,
                         "clan_code": part.get("territory_clan") or part.get("clan_code"),
                         "reward_type": "ghost_signal_node_holder",
-                        "base_rsp": 8,
+                        "base_rsp": node_rsp,
                         "multiplier": 1.0,
-                        "final_rsp": 8,
+                        "final_rsp": node_rsp,
                         "source_event_id": lock_snapshot.get("lock_event_id"),
                         "metadata": {
                             "part_id": part.get("part_id"),
@@ -205,9 +260,9 @@ class GhostTransmissionService:
                         "player_id": closer_id,
                         "clan_code": closing.get("closing_clan_code"),
                         "reward_type": "ghost_signal_closer",
-                        "base_rsp": 20,
+                        "base_rsp": closer_rsp,
                         "multiplier": 1.0,
-                        "final_rsp": 20,
+                        "final_rsp": closer_rsp,
                         "source_event_id": lock_snapshot.get("lock_event_id"),
                         "metadata": {
                             "closing_part_id": closing.get("closing_part_id"),
@@ -225,6 +280,42 @@ class GhostTransmissionService:
             payload={"signal_id": signal_id, "count": len(rewards)},
         )
         return {"count": len(rewards), "rewards": rewards}
+
+    def consume_signal_territories(self, signal_id):
+        signal = self._require_signal(signal_id)
+        lock_snapshot = self.repository.get_cycle_lock_snapshot(signal["cycle_id"]) or {}
+        snapshot = lock_snapshot.get("snapshot") or {}
+        plan = snapshot.get("territory_consumption_plan") or {}
+        if not plan.get("execution_required"):
+            return {
+                "enabled": False,
+                "count": 0,
+                "territories": [],
+                "plan_counts": copy.deepcopy(plan.get("counts") or {}),
+            }
+        consumed = self.repository.consume_signal_territories(
+            signal_id,
+            signal["cycle_id"],
+            plan,
+        )
+        event = self._append_once(
+            "ghost.territories_consumed",
+            cycle_id=signal["cycle_id"],
+            entity_id=signal_id,
+            dedupe_key=f"ghost:territories_consumed:{signal_id}",
+            payload={
+                "signal_id": signal_id,
+                "count": len(consumed),
+                "territory_ids": [item.get("territory_id") for item in consumed],
+            },
+        )
+        return {
+            "enabled": True,
+            "count": len(consumed),
+            "territories": consumed,
+            "event": event,
+            "plan_counts": copy.deepcopy(plan.get("counts") or {}),
+        }
 
     def consume_cycle_parts(self, signal_id):
         signal = self._require_signal(signal_id)
@@ -366,6 +457,7 @@ class GhostTransmissionService:
         signal = self.repository.get_signal_for_cycle(cycle_id)
         if not signal:
             return self.start_transmission(cycle_id)
+        territories = self.consume_signal_territories(signal["signal_id"])
         rewards = self.apply_transmission_rewards(signal["signal_id"])
         consumed = self.consume_cycle_parts(signal["signal_id"])
         history = self.archive_historical_nodes(signal["signal_id"])
@@ -378,6 +470,7 @@ class GhostTransmissionService:
             "status": "resumed",
             "cycle_id": cycle_id,
             "signal": self.repository.get_signal(signal["signal_id"]),
+            "territories": territories,
             "rewards": rewards,
             "consumed": consumed,
             "history": history,
@@ -407,7 +500,7 @@ class GhostTransmissionService:
             snapshot = lock_snapshot.get("snapshot") or {}
             parts = snapshot.get("parts") or []
             connections = ((snapshot.get("topology") or {}).get("connections") or [])
-            machines = snapshot.get("machines") or snapshot.get("machine_progress") or []
+            machines = snapshot.get("machine_progress") or []
             if len(parts) != 20:
                 reasons.append("lock_parts_count_not_20")
             if len(connections) != 20:
@@ -416,6 +509,25 @@ class GhostTransmissionService:
                 reasons.append("lock_active_parts_not_20")
             if sum(1 for machine in machines if machine.get("machine_online")) != 4:
                 reasons.append("lock_machines_not_online")
+            if any(int(machine.get("parts_active") or 0) != 5 for machine in machines):
+                reasons.append("lock_machines_not_five_of_five")
+            territory_plan = snapshot.get("territory_consumption_plan") or {}
+            if territory_plan.get("execution_required"):
+                entries = territory_plan.get("entries") or []
+                expected_primary = {
+                    _clean(part.get("territory_id")) for part in parts
+                    if _clean(part.get("territory_id"))
+                }
+                actual_primary = {
+                    _clean(item.get("territory_id")) for item in entries
+                    if _clean(item.get("role")) == "primary"
+                }
+                if not entries:
+                    reasons.append("lock_territory_plan_empty")
+                if expected_primary != actual_primary:
+                    reasons.append("lock_primary_territories_incomplete")
+                if territory_plan.get("warnings"):
+                    reasons.append("lock_territory_plan_has_warnings")
         if existing_signal:
             return {
                 "ok": not reasons,

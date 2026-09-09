@@ -403,6 +403,11 @@ class GhostNetworkService:
             "ghost.restart_required",
             "ghost.stabilization_started",
         }
+        territory_plan = ((lock_snapshot.get("snapshot") or {}).get(
+            "territory_consumption_plan"
+        ) or {})
+        if territory_plan.get("execution_required"):
+            required_event_types.add("ghost.territories_consumed")
         missing_event_types = sorted(required_event_types - event_types)
         current_version = int(self.repository.get_state_version(cycle_id) or 0)
         maximum_event_version = max(
@@ -516,18 +521,57 @@ class GhostNetworkService:
 
         snapshot = (lock_snapshot or {}).get("snapshot") or {}
         closing = snapshot.get("closing") or {}
-        expected_reward_keys = {
-            f"ghost-signal:{signal_id}:node:{part.get('part_id')}:{owner_id}"
-            for part in snapshot.get("parts") or []
-            for owner_id in [str(part.get("territory_owner_id") or part.get("discovered_by") or "").strip()]
-            if owner_id
-        }
-        closer_id = str(closing.get("closing_player_id") or "").strip()
-        if closer_id:
-            expected_reward_keys.add(f"ghost-signal:{signal_id}:closer:{closer_id}")
+        reward_plan = snapshot.get("reward_plan") or {}
+        territory_plan = snapshot.get("territory_consumption_plan") or {}
+        expected_reward_keys = set()
+        for item in reward_plan.get("entries") or []:
+            reward_type = str(item.get("reward_type") or "").strip()
+            if (
+                reward_type == "ghost_signal_territory_consumed"
+                and not territory_plan.get("execution_required")
+            ):
+                continue
+            player_id = str(item.get("subject_id") or "").strip()
+            reference_id = str(item.get("reference_id") or "").strip()
+            if not player_id or not reference_id:
+                continue
+            if reward_type == "ghost_signal_node_holder":
+                key = f"ghost-signal:{signal_id}:node:{reference_id}:{player_id}"
+            elif reward_type == "ghost_signal_closer":
+                key = f"ghost-signal:{signal_id}:closer:{player_id}"
+            else:
+                key = f"ghost-signal:{signal_id}:{reward_type}:{player_id}:{reference_id}"
+            expected_reward_keys.add(key)
+        if not reward_plan.get("entries"):
+            expected_reward_keys = {
+                f"ghost-signal:{signal_id}:node:{part.get('part_id')}:{owner_id}"
+                for part in snapshot.get("parts") or []
+                for owner_id in [str(part.get("territory_owner_id") or part.get("discovered_by") or "").strip()]
+                if owner_id
+            }
+            closer_id = str(closing.get("closing_player_id") or "").strip()
+            if closer_id:
+                expected_reward_keys.add(f"ghost-signal:{signal_id}:closer:{closer_id}")
         actual_reward_keys = {str(reward.get("reward_key") or "") for reward in rewards}
         if not expected_reward_keys or not expected_reward_keys.issubset(actual_reward_keys):
             reasons.append("final_rewards_incomplete")
+        territory_consumptions = (
+            self.repository.list_signal_territory_consumptions(signal_id, limit=5000)
+            if signal and territory_plan.get("execution_required") else []
+        )
+        if territory_plan.get("execution_required"):
+            planned_ids = {
+                str(item.get("territory_id") or "").strip()
+                for item in territory_plan.get("entries") or []
+                if str(item.get("territory_id") or "").strip()
+            }
+            consumed_ids = {
+                str(item.get("territory_id") or "").strip()
+                for item in territory_consumptions
+                if str(item.get("territory_id") or "").strip()
+            }
+            if not planned_ids or planned_ids != consumed_ids:
+                reasons.append("signal_territories_incomplete")
         if not self.repository.get_event_by_dedupe_key(
             f"ghost:endgame_postcommit_reconciled:{cycle_id}:archive_narrative:v1"
         ):
@@ -548,6 +592,8 @@ class GhostNetworkService:
                 "historical_nodes": len(history),
                 "expected_rewards": len(expected_reward_keys),
                 "rewards": len(rewards),
+                "planned_territories": len(territory_plan.get("entries") or []),
+                "consumed_territories": len(territory_consumptions),
             },
         }
 

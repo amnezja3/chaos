@@ -86,6 +86,12 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
         self.assertEqual(signal["outcome"], "pending")
         self.assertEqual(signal["lock_snapshot_id"], lock["snapshot"]["lock_snapshot_id"])
         self.assertTrue(signal["signal_checksum"])
+        self.assertEqual(len(signal["payload"]["machine_progress"]), 4)
+        self.assertTrue(all(
+            machine["machine_online"] and machine["parts_active"] == 5
+            for machine in signal["payload"]["machine_progress"]
+        ))
+        self.assertEqual(signal["payload"]["machines"], signal["payload"]["machine_progress"])
 
         updated_cycle = self.repo.get_cycle(cycle["cycle_id"])
         self.assertEqual(updated_cycle["status"], "stabilizing")

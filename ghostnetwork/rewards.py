@@ -23,6 +23,9 @@ ALLOWED_CONTRIBUTION_TYPES = {
     "ability_support",
     "transmission_node_held",
     "network_closer",
+    "ghost_signal_node_holder",
+    "ghost_signal_closer",
+    "ghost_signal_territory_consumed",
 }
 
 REWARD_STATUSES = {"pending", "applied", "rejected", "failed", "cancelled"}
@@ -64,6 +67,9 @@ PROFILE_STAT_BY_REWARD = {
     "ability_support": "ability_support",
     "transmission_node_held": "transmission_nodes_held",
     "network_closer": "networks_closed",
+    "ghost_signal_node_holder": "transmission_nodes_held",
+    "ghost_signal_closer": "networks_closed",
+    "ghost_signal_territory_consumed": "signal_territories_consumed",
 }
 
 CLAN_REP_FIELD_BY_REWARD = {
@@ -74,6 +80,9 @@ CLAN_REP_FIELD_BY_REWARD = {
     "part_defended": "territories_defended",
     "transmission_node_held": "transmission_nodes_held",
     "network_closer": "networks_closed",
+    "ghost_signal_node_holder": "transmission_nodes_held",
+    "ghost_signal_closer": "networks_closed",
+    "ghost_signal_territory_consumed": "signal_territories_consumed",
 }
 
 

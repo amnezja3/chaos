@@ -10,6 +10,7 @@ from sqlite3 import IntegrityError
 import Haversine
 from config import GHOSTNETWORK_MIN_PART_DISTANCE_KM
 from database import DB_PATH, db_connect, dumps_json, loads_json
+from territory_geometry import point_in_polygon
 
 from .catalog import CATALOG_VERSION, get_catalog, get_catalog_checksum
 from .enums import (
@@ -643,6 +644,7 @@ class GhostNetworkRepository:
             self._ensure_column(conn, "ghost_clan_reputation", "active_node_seconds", "active_node_seconds INTEGER NOT NULL DEFAULT 0")
             self._ensure_column(conn, "ghost_clan_reputation", "transmission_nodes_held", "transmission_nodes_held INTEGER NOT NULL DEFAULT 0")
             self._ensure_column(conn, "ghost_clan_reputation", "networks_closed", "networks_closed INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_clan_reputation", "signal_territories_consumed", "signal_territories_consumed INTEGER NOT NULL DEFAULT 0")
             self._ensure_column(conn, "ghost_clan_reputation", "metadata_json", "metadata_json TEXT NOT NULL DEFAULT '{}'")
             conn.execute(
                 """
@@ -679,6 +681,33 @@ class GhostNetworkRepository:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_strategic_conflict_dedupe
                 ON ghost_strategic_conflicts(dedupe_key)
                 WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_signal_territory_consumptions (
+                    consumption_id TEXT PRIMARY KEY,
+                    signal_id TEXT NOT NULL,
+                    cycle_id TEXT NOT NULL,
+                    territory_id TEXT NOT NULL,
+                    owner_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    role TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    source_conflict_id TEXT NOT NULL DEFAULT '',
+                    area_size REAL NOT NULL DEFAULT 0,
+                    publication_version INTEGER NOT NULL DEFAULT 0,
+                    vertices_json TEXT NOT NULL DEFAULT '[]',
+                    targets_json TEXT NOT NULL DEFAULT '[]',
+                    consumed_at TEXT NOT NULL,
+                    UNIQUE(signal_id, territory_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_signal_territory_consumptions_cycle
+                ON ghost_signal_territory_consumptions(cycle_id, signal_id)
                 """
             )
             conn.execute(
@@ -1983,6 +2012,7 @@ class GhostNetworkRepository:
             "active_node_seconds": int(row["active_node_seconds"] or 0) if "active_node_seconds" in keys else 0,
             "transmission_nodes_held": int(row["transmission_nodes_held"] or 0) if "transmission_nodes_held" in keys else 0,
             "networks_closed": int(row["networks_closed"] or 0) if "networks_closed" in keys else 0,
+            "signal_territories_consumed": int(row["signal_territories_consumed"] or 0) if "signal_territories_consumed" in keys else 0,
             "metadata": loads_json(row["metadata_json"], {}) if "metadata_json" in keys else {},
             "updated_at": row["updated_at"],
         }
@@ -7226,6 +7256,7 @@ class GhostNetworkRepository:
             "active_node_seconds",
             "transmission_nodes_held",
             "networks_closed",
+            "signal_territories_consumed",
         }
         clean_increments = {key: int(value or 0) for key, value in increments.items() if key in allowed}
         now = self.now()
@@ -7828,6 +7859,279 @@ class GhostNetworkRepository:
                 "active_reservations": reservations,
                 "state_version": int(cycle.get("state_version") or 0),
             }
+
+    def list_endgame_territories(self, limit=1000):
+        """Return a bounded territory/identity/target projection for closure."""
+        limit = max(1, min(int(limit or 1000), 1000))
+        with self._conn() as conn:
+            table_names = {
+                row["name"] for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if "player_areas" not in table_names:
+                return []
+            rows = conn.execute(
+                """
+                SELECT a.*, COALESCE(p.publication_version, 0) AS publication_version,
+                       COALESCE(i.clan_code, '') AS clan_code
+                FROM player_areas AS a
+                LEFT JOIN territory_area_publications AS p
+                  ON p.owner_username = a.owner_username
+                LEFT JOIN user_identity_projection AS i
+                  ON i.username = a.owner_username
+                WHERE a.status != 'consumed'
+                ORDER BY a.owner_username, a.id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            owners = sorted({_clean(row["owner_username"]) for row in rows if _clean(row["owner_username"])})
+            captured_by_owner = {owner: [] for owner in owners}
+            if owners:
+                placeholders = ",".join("?" for _item in owners)
+                captured = conn.execute(
+                    f"""
+                    SELECT id, owner_username, lat, lng, target_json
+                    FROM captured_targets
+                    WHERE owner_username IN ({placeholders}) AND stationary = 1
+                    ORDER BY owner_username, captured_at
+                    LIMIT 5000
+                    """,
+                    tuple(owners),
+                ).fetchall()
+                for row in captured:
+                    target = loads_json(row["target_json"], {})
+                    captured_by_owner.setdefault(_clean(row["owner_username"]), []).append({
+                        "capture_record_id": int(row["id"]),
+                        "target_id": _clean(target.get("target_id")),
+                        "lat": float(row["lat"]),
+                        "lng": float(row["lng"]),
+                        "target": target,
+                    })
+            result = []
+            for row in rows:
+                vertices = loads_json(row["vertices_json"], [])
+                vertex_keys = {
+                    (round(float(item.get("lat")), 7), round(float(item.get("lng", item.get("lon"))), 7))
+                    for item in vertices if isinstance(item, dict)
+                    and item.get("lat") is not None and item.get("lng", item.get("lon")) is not None
+                }
+                targets = []
+                for item in captured_by_owner.get(_clean(row["owner_username"]), []):
+                    key = (round(item["lat"], 7), round(item["lng"], 7))
+                    if key in vertex_keys or point_in_polygon(item["lat"], item["lng"], vertices):
+                        targets.append(copy.deepcopy(item))
+                result.append({
+                    "territory_id": _clean(row["id"]),
+                    "owner_id": _clean(row["owner_username"]),
+                    "clan_code": _clean(row["clan_code"]),
+                    "vertices": vertices,
+                    "area_size": float(row["area_size"] or 0),
+                    "publication_version": int(row["publication_version"] or 0),
+                    "status": _clean(row["status"]),
+                    "targets": targets,
+                })
+            return result
+
+    def list_endgame_production_conflicts(self, conflict_ids=None, territory_ids=None, limit=100):
+        conflict_ids = sorted({_clean(item) for item in (conflict_ids or []) if _clean(item)})
+        requested_territory_ids = {
+            _clean(item) for item in (territory_ids or []) if _clean(item)
+        }
+        limit = max(1, min(int(limit or 100), 500))
+        with self._conn() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'territory_conflicts'"
+            ).fetchone()
+            if not exists:
+                return []
+            if conflict_ids:
+                placeholders = ",".join("?" for _item in conflict_ids)
+                rows = conn.execute(
+                    f"""
+                    SELECT * FROM territory_conflicts
+                    WHERE status IN ('resolved', 'closed')
+                       OR conflict_id IN ({placeholders})
+                       OR conflict_key IN ({placeholders})
+                    ORDER BY updated_at DESC LIMIT ?
+                    """,
+                    tuple(conflict_ids) + tuple(conflict_ids) + (limit,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM territory_conflicts
+                    WHERE status IN ('resolved', 'closed')
+                    ORDER BY updated_at DESC LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+        result = []
+        for row in rows:
+            area_ids = []
+            for value in (row["area_a_id"], row["area_b_id"]):
+                if value not in (None, ""):
+                    area_ids.append(_clean(value))
+            for item in loads_json(row["participants_json"], []):
+                if isinstance(item, dict):
+                    value = item.get("area_id") or item.get("territory_id")
+                    if value not in (None, ""):
+                        area_ids.append(_clean(value))
+            for value in loads_json(row["area_ids_json"], []):
+                if value not in (None, ""):
+                    area_ids.append(_clean(value))
+            identity = _clean(row["conflict_id"] or row["conflict_key"])
+            area_ids = list(dict.fromkeys(area_ids))
+            if (
+                identity not in conflict_ids
+                and requested_territory_ids
+                and not requested_territory_ids.intersection(area_ids)
+            ):
+                continue
+            result.append({
+                "conflict_id": identity,
+                "status": _clean(row["status"]),
+                "territory_ids": area_ids,
+            })
+        return result
+
+    def consume_signal_territories(self, signal_id, cycle_id, plan):
+        """Atomically archive and remove live target ownership for a lock plan."""
+        signal_id = _clean(signal_id)
+        cycle_id = _clean(cycle_id)
+        entries = list((plan or {}).get("entries") or [])
+        consumed = []
+        with self.transaction():
+            conn = self._transaction_conn
+            changed_owners = set()
+            for entry in entries:
+                territory_id = _clean(entry.get("territory_id"))
+                existing = conn.execute(
+                    """
+                    SELECT * FROM ghost_signal_territory_consumptions
+                    WHERE signal_id = ? AND territory_id = ?
+                    """,
+                    (signal_id, territory_id),
+                ).fetchone()
+                if existing:
+                    restored = dict(existing)
+                    restored["vertices"] = loads_json(restored.get("vertices_json"), [])
+                    restored["targets"] = loads_json(restored.get("targets_json"), [])
+                    consumed.append(restored)
+                    continue
+                area = conn.execute(
+                    "SELECT * FROM player_areas WHERE id = ? LIMIT 1",
+                    (territory_id,),
+                ).fetchone()
+                if not area:
+                    raise RepositoryIntegrityError(
+                        f"Planned territory disappeared before consumption: {territory_id}"
+                    )
+                if _clean(area["owner_username"]) != _clean(entry.get("owner_id")):
+                    raise RepositoryIntegrityError(
+                        f"Planned territory owner changed before consumption: {territory_id}"
+                    )
+                expected_version = int(entry.get("publication_version") or 0)
+                publication = conn.execute(
+                    "SELECT publication_version FROM territory_area_publications WHERE owner_username = ?",
+                    (_clean(entry.get("owner_id")),),
+                ).fetchone()
+                current_version = int(publication["publication_version"] or 0) if publication else 0
+                if expected_version and current_version != expected_version:
+                    raise RepositoryIntegrityError(
+                        f"Planned territory version changed before consumption: {territory_id}"
+                    )
+                for target in entry.get("targets") or []:
+                    capture_id = int(target.get("capture_record_id") or 0)
+                    if not capture_id:
+                        continue
+                    current = conn.execute(
+                        "SELECT owner_username, target_json FROM captured_targets WHERE id = ?",
+                        (capture_id,),
+                    ).fetchone()
+                    if not current:
+                        continue
+                    if _clean(current["owner_username"]) != _clean(entry.get("owner_id")):
+                        raise RepositoryIntegrityError(
+                            f"Planned captured target owner changed: {capture_id}"
+                        )
+                    target_payload = loads_json(current["target_json"], {})
+                    target_id = _clean(target_payload.get("target_id") or target.get("target_id"))
+                    conn.execute("DELETE FROM captured_targets WHERE id = ?", (capture_id,))
+                    if target_id:
+                        conn.execute(
+                            "DELETE FROM territory_target_ownership WHERE target_id = ? AND owner_username = ?",
+                            (target_id, _clean(entry.get("owner_id"))),
+                        )
+                conn.execute(
+                    "UPDATE player_areas SET status = 'consumed', updated_at = ? WHERE id = ?",
+                    (self.now(), territory_id),
+                )
+                changed_owners.add(_clean(entry.get("owner_id")))
+                consumed_at = self.now()
+                consumption_id = _hash_id("territory_consumption", signal_id, territory_id)
+                conn.execute(
+                    """
+                    INSERT INTO ghost_signal_territory_consumptions (
+                        consumption_id, signal_id, cycle_id, territory_id, owner_id,
+                        clan_code, role, reason, source_conflict_id, area_size,
+                        publication_version, vertices_json, targets_json, consumed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        consumption_id, signal_id, cycle_id, territory_id,
+                        _clean(entry.get("owner_id")), _clean(entry.get("clan_code")),
+                        _clean(entry.get("role")), _clean(entry.get("reason")),
+                        _clean(entry.get("source_conflict_id")),
+                        float(entry.get("area_size") or 0), expected_version,
+                        dumps_json(entry.get("vertices") or []),
+                        dumps_json(entry.get("targets") or []), consumed_at,
+                    ),
+                )
+                consumed.append({
+                    **copy.deepcopy(entry),
+                    "consumption_id": consumption_id,
+                    "signal_id": signal_id,
+                    "cycle_id": cycle_id,
+                    "consumed_at": consumed_at,
+                })
+            publication_time = self.now()
+            for owner_id in sorted(changed_owners):
+                if not owner_id:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO territory_area_publications (
+                        owner_username, publication_version, geometry_hash, updated_at
+                    ) VALUES (?, 1, '', ?)
+                    ON CONFLICT(owner_username) DO UPDATE SET
+                        publication_version = publication_version + 1,
+                        geometry_hash = '',
+                        updated_at = excluded.updated_at
+                    """,
+                    (owner_id, publication_time),
+                )
+        return consumed
+
+    def list_signal_territory_consumptions(self, signal_id, limit=1000):
+        limit = max(1, min(int(limit or 1000), 5000))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_signal_territory_consumptions
+                WHERE signal_id = ? ORDER BY territory_id LIMIT ?
+                """,
+                (_clean(signal_id), limit),
+            ).fetchall()
+        return [
+            {
+                **dict(row),
+                "vertices": loads_json(row["vertices_json"], []),
+                "targets": loads_json(row["targets_json"], []),
+            }
+            for row in rows
+        ]
 
     def health_check(self):
         warnings = []

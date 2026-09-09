@@ -41,7 +41,14 @@ module.exports = {
         CHAOS_GHOSTNETWORK_ABILITIES_ENABLED: "true",
         CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES: "insider_feed,service_entrance,false_image,hostile_takeover,operational_prediction,expose,narrative_takeover,full_disclosure,resistance_signal,domino_effect,phantom_node,glitch_injection,false_tracking,network_fracture,reflection,integrity_scan,bastion,rollback,trust_corridor,quarantine",
         CHAOS_GHOSTNETWORK_ABILITY_DURATION_SECONDS: "900",
-        CHAOS_GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS: "3600"
+        CHAOS_GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS: "3600",
+        CHAOS_GHOSTNETWORK_SIGNAL_NODE_HOLDER_RSP: "8",
+        CHAOS_GHOSTNETWORK_SIGNAL_CLOSER_RSP: "20",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_RSP: "8",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_PRIMARY_MULTIPLIER: "1.0",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONFLICT_MULTIPLIER: "1.0",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_OVERLAP_MULTIPLIER: "1.0",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONSUMPTION_ENABLED: "0"
       }
     },
     {
@@ -62,7 +69,14 @@ module.exports = {
         CHAOS_GHOSTNETWORK_ABILITIES_ENABLED: "true",
         CHAOS_GHOSTNETWORK_ABILITY_ALLOWED_CODES: "insider_feed,service_entrance,false_image,hostile_takeover,operational_prediction,expose,narrative_takeover,full_disclosure,resistance_signal,domino_effect,phantom_node,glitch_injection,false_tracking,network_fracture,reflection,integrity_scan,bastion,rollback,trust_corridor,quarantine",
         CHAOS_GHOSTNETWORK_ABILITY_DURATION_SECONDS: "900",
-        CHAOS_GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS: "3600"
+        CHAOS_GHOSTNETWORK_ABILITY_COOLDOWN_SECONDS: "3600",
+        CHAOS_GHOSTNETWORK_SIGNAL_NODE_HOLDER_RSP: "8",
+        CHAOS_GHOSTNETWORK_SIGNAL_CLOSER_RSP: "20",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_RSP: "8",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_PRIMARY_MULTIPLIER: "1.0",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONFLICT_MULTIPLIER: "1.0",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_OVERLAP_MULTIPLIER: "1.0",
+        CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONSUMPTION_ENABLED: "0"
       }
     }
   ]

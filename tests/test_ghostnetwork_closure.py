@@ -124,6 +124,26 @@ class GhostNetworkClosureTest(unittest.TestCase):
         result = self.closure.attempt_cycle_lock(cycle["cycle_id"], closing_event["event_id"])
         self.assertFalse(result["locked"])
 
+    def test_next_tick_can_lock_after_last_live_part_conflict_is_resolved(self):
+        cycle, closing_event = self.create_ready_cycle()
+        part = self.repo.list_parts(cycle["cycle_id"])[0]
+        self.repo.update_part(
+            part["part_id"],
+            conflict_state="contested",
+            conflict_id="production-conflict-1",
+        )
+        blocked = self.closure.attempt_cycle_lock(
+            cycle["cycle_id"], closing_event["event_id"]
+        )
+        self.assertFalse(blocked["locked"], blocked)
+        self.assertIn("unresolved_strategic_conflict", blocked["readiness"]["reasons"])
+
+        self.repo.update_part(part["part_id"], conflict_state="none", conflict_id="")
+        retried = self.closure.attempt_cycle_lock(
+            cycle["cycle_id"], closing_event["event_id"]
+        )
+        self.assertTrue(retried["locked"], retried)
+
     def test_existing_signal_blocks_lock(self):
         cycle, closing_event = self.create_ready_cycle()
         with db_connect(self.db_path) as conn:

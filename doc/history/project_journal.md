@@ -3923,3 +3923,24 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   blocker, który po `.op.2` nadal ujawniał się podczas agresywnego zoom-out.
 - `.op.1`, `.op.2` i `.op.3` uzyskują wspólny status `SERVER-DEVICE PASS`.
 - Status: `138.op COMPLETE / GO FOR 138.2`.
+
+## 2026-09-09 — 138.prepare.gn.signal.1 mechaniczna integralność finału
+
+- Dodano wspólny, fail-closed conflict gate oraz test przejścia `20/20 + konflikt
+  -> rozwiązanie konfliktu -> lock przy kolejnym ticku`.
+- Lock i GhostSignal używają canonical `machine_progress`; wymagają czterech
+  maszyn online po pięć aktywnych części i zachowują `machines` tylko jako alias.
+- Polityka finałowych nagród jest konfigurowalna i zamrażana w locku. Canonical
+  node holder, closer i territory reward aktualizują RSP, profil i reputację klanu.
+- Dodano immutable planner konsumpcji terytoriów: primary, uczestnicy zakończonych
+  konfliktów oraz jeden hop rzeczywistego overlapu tego samego klanu.
+- Idempotentny executor zapisuje durable receipt, usuwa live target ownership,
+  ukrywa consumed area przed mapą i konfliktami oraz aktualizuje publication version.
+- Hard settlement potwierdza zgodność territory planu, receiptów i reward keys.
+- Dodano read-only preflight `scripts/audit_ghostnetwork_signal.py` oraz zgodne
+  zmienne ecosystem web/worker. Konsumpcja produkcyjna pozostaje jawnie wyłączona
+  do ukończenia całej bramki `.signal.1–3`.
+- Testy: celowane `16/16 PASS`, pełna uruchomiona regresja
+  endgame/reward/rollover/ecosystem `38/38 PASS`, `py_compile`, konfiguracje Node
+  i `git diff --check` PASS. Status: `LOCAL PASS / SERVER PENDING`;
+  produkcyjny GhostSignal nie został uruchomiony.

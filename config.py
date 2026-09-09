@@ -191,6 +191,29 @@ GHOSTNETWORK_CLAN_REPUTATION_WEIGHTS = {
     "ability_support": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_ABILITY_SUPPORT", 1),
     "transmission_node_held": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_TRANSMISSION_NODE_HELD", 2),
     "network_closer": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_NETWORK_CLOSER", 5),
+    "ghost_signal_node_holder": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_SIGNAL_NODE_HOLDER", 2),
+    "ghost_signal_closer": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_SIGNAL_CLOSER", 5),
+    "ghost_signal_territory_consumed": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_SIGNAL_TERRITORY", 2),
+}
+
+GHOSTNETWORK_ENDGAME_REWARD_POLICY = {
+    "node_holder_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_NODE_HOLDER_RSP", 8),
+    "closer_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_CLOSER_RSP", 20),
+    "territory_consumed_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_RSP", 8),
+    "territory_role_multipliers": {
+        "primary": env_float("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_PRIMARY_MULTIPLIER", 1.0),
+        "conflict": env_float("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONFLICT_MULTIPLIER", 1.0),
+        "allied_overlap": env_float("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_OVERLAP_MULTIPLIER", 1.0),
+    },
+}
+
+# The complete prepare.gn.signal.1-3 gate enables the irreversible executor.
+# Lock snapshots and dry-run validation are built while this stays disabled.
+GHOSTNETWORK_ENDGAME_FLAGS = {
+    "territory_consumption_enabled": env_bool(
+        "CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONSUMPTION_ENABLED",
+        False,
+    ),
 }
 GHOSTNETWORK_DEFENSE_POLICY = {
     "min_attack_progress": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_ATTACK_PROGRESS", 25),

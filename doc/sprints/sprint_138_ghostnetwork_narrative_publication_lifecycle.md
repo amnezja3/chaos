@@ -1,6 +1,6 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 COMPLETE — 138.2.pre-endgame + 138.getway.0–5 + 138.op.1–3 REQUIRED / BLOCKING`
+Status: `138.1 COMPLETE — 138.prepare.gn.signal.1–3 REQUIRED / BLOCKING 138.2`
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -524,6 +524,12 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w 138.2.
 
 Status: `REQUIRED / BLOCKING — DO NOT TRIGGER 20/20`
 
+> Aktualizacja 2026-09-09: wykonanie tej bramki zostało rozpisane na trzy
+> canonical sprinty `138.prepare.gn.signal.1–3`: mechanika finału, Signal Show
+> i cutover oraz ranking z kontrolowanym production E2E. Wcześniejsze wymagania
+> P0 pozostają obowiązujące i są wejściem do nowej trzyetapowej bramki. Sprint
+> `138.2` pozostaje zablokowany do pełnego `SERVER E2E PASS` wszystkich trzech.
+
 ### Powód bramki
 
 Cykl i GhostSignal nie miały jeszcze produkcyjnego debiutu. Zebranie następnych
@@ -942,7 +948,7 @@ startuje przed `SERVER/DEVICE PASS` wszystkich trzech etapów.
 
 ## 138.2 — E2E, failure i soak
 
-Status: `BLOCKED BY 138.2.pre-endgame, 138.getway.0–5 AND 138.op.1–3`
+Status: `BLOCKED BY 138.prepare.gn.signal.1–3`
 
 Pierwsza bramka implementacyjna dodaje bounded, read-only audit pełnego lineage:
 
