@@ -76,12 +76,14 @@ function testLeafletPolylineBoundsGuard() {
     const prototype = {
         _clipPoints() {
             return clipBehavior.call(this);
-        }
-    };
-    const polygonPrototype = {
+        },
         _containsPoint(point) {
             return this._pxBounds.contains(point);
         }
+    };
+    const polygonPrototype = Object.create(prototype);
+    polygonPrototype._containsPoint = function(point) {
+        return this._pxBounds.contains(point);
     };
     const boundsWarnings = [];
     const guardSandbox = {
@@ -102,6 +104,10 @@ function testLeafletPolylineBoundsGuard() {
     polygon._pxBounds = undefined;
     assert.doesNotThrow(() => polygon._containsPoint({ x: 1, y: 1 }));
     assert.strictEqual(polygon._containsPoint({ x: 1, y: 1 }), false);
+    assert.ok(
+        Object.prototype.hasOwnProperty.call(polygonPrototype, '_chaosContainsPointGuardInstalled'),
+        "polygon override must receive its own guard despite inheriting the polyline flag"
+    );
 
     const hitBounds = {
         min: { x: 0, y: 0 }, max: { x: 10, y: 10 },

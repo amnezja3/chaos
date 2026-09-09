@@ -3901,7 +3901,7 @@
             function installContainsPointGuard(targetProto, layerName) {
                 if (
                     !targetProto
-                    || targetProto._chaosContainsPointGuardInstalled
+                    || Object.prototype.hasOwnProperty.call(targetProto, '_chaosContainsPointGuardInstalled')
                     || typeof targetProto._containsPoint !== 'function'
                 ) return;
                 const originalContainsPoint = targetProto._containsPoint;

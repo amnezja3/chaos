@@ -114,6 +114,10 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         guard_end = self.map_template.index("function registerLayerInArray", guard_start)
         guard = self.map_template[guard_start:guard_end]
         self.assertIn("function installContainsPointGuard(targetProto, layerName)", guard)
+        self.assertIn(
+            "Object.prototype.hasOwnProperty.call(targetProto, '_chaosContainsPointGuardInstalled')",
+            guard,
+        )
         self.assertIn("installContainsPointGuard(L.Polygon.prototype, 'polygon')", guard)
         self.assertIn("reportBoundsRace('canvas_hit_test', this, err)", guard)
         self.assertIn("return false;", guard)

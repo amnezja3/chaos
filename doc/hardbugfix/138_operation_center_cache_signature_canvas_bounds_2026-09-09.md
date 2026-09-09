@@ -66,6 +66,13 @@ od razu, a następne raporty pojawiają się najwyżej raz na 30 sekund i zawier
 liczbę zdarzeń oraz sumę od uruchomienia mapy. Fail-closed hit-test i bounded
 recovery pozostają bez zmian.
 
+Test po przesunięciu mapy ujawnił ponadto, że flaga instalacji guardu była
+sprawdzana przez zwykły odczyt właściwości prototypu. `L.Polygon` dziedziczy po
+`L.Polyline`, więc widział flagę rodzica i pomijał zabezpieczenie własnej,
+nadpisanej implementacji `_containsPoint`. Kontrola używa teraz wyłącznie
+własnej właściwości prototypu (`hasOwnProperty`), dzięki czemu oba hit-testy są
+opakowane niezależnie.
+
 ## Regresja
 
 - test wykonawczy Canvas sprawdza invalid oraz valid `_containsPoint`;

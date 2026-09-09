@@ -3985,3 +3985,7 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   przechwytywanie wyścigu bounds, ale ujawnił lawinę ostrzeżeń limitowanych
   dotąd per warstwa. Diagnostykę zmieniono na jeden agregowany raport mapy nie
   częściej niż raz na 30 sekund, z zachowaniem licznika wszystkich zdarzeń.
+- Kolejny stack z urządzenia wskazał nieopakowane `Polygon._containsPoint`.
+  Przyczyną była odziedziczona z `Polyline` flaga instalacji; sprawdzanie flagi
+  ograniczono do własności konkretnego prototypu i dodano regresję z rzeczywistym
+  układem dziedziczenia Leafleta.
