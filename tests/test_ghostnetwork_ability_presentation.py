@@ -110,7 +110,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "window.refreshGhostAbilitySnapshot({ silent: true })",
         ):
             self.assertIn(token, self.map_runtime_source)
-        self.assertIn("ability-eligibility-live-1", self.source)
+        self.assertIn("canvas-interaction-recovery-1", self.source)
 
     def test_false_image_risk_label_is_unambiguous(self):
         self.assertIn("operation.risk_masked === true", self.source)

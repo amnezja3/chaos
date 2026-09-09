@@ -81,6 +81,8 @@ class MapInteractionFastPathContractTest(unittest.TestCase):
             "installTerritoryInteractionFallback",
             "territoryLayerAtContainerPoint",
             "layer._containsPoint(layerPoint)",
+            "territoryLayerContainsLatLng(layer, latlng)",
+            "pointInsideTerritoryRing",
             "openTerritoryTooltipFromNativeEvent",
             "showMapMenuFromLeafletContextEvent({ originalEvent: event, containerPoint, latlng })",
             "event.target?.closest?.('.leaflet-marker-icon')",

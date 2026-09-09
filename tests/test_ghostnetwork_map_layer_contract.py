@@ -57,7 +57,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("window.chaosMap = map", self.map_template)
         self.assertIn("loadGhostNetworkSnapshot", self.map_template)
         self.assertIn("'ghostnetwork'", self.map_template)
-        self.assertIn("ability-eligibility-live-1", self.map_template)
+        self.assertIn("canvas-interaction-recovery-1", self.map_template)
         self.assertIn("silent: true, retries: 2", self.map_template)
         self.assertIn("if (result === false)", self.map_template)
 
@@ -198,6 +198,8 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("MOBILE_MAP_QUERY", self.map_js)
         self.assertIn("ensureMobilePartTapBridge", self.map_js)
         self.assertIn("mobileTapContainerPoint", self.map_js)
+        self.assertIn("const originalEvent = event.originalEvent || event", self.map_js)
+        self.assertIn("originalEvent.clientX", self.map_js)
         self.assertIn("interactive: false", self.map_js)
         self.assertIn('pane.style.pointerEvents = "none"', self.map_js)
         self.assertIn("bubblingMouseEvents: true", self.map_js)

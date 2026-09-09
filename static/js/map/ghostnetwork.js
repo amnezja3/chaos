@@ -121,8 +121,11 @@
             if (event.latlng && typeof map.latLngToContainerPoint === "function") {
                 return map.latLngToContainerPoint(event.latlng) || null;
             }
-            if (event.originalEvent && typeof map.mouseEventToContainerPoint === "function") {
-                return map.mouseEventToContainerPoint(event.originalEvent) || null;
+            const originalEvent = event.originalEvent || event;
+            if (originalEvent && typeof map.mouseEventToContainerPoint === "function"
+                    && Number.isFinite(Number(originalEvent.clientX))
+                    && Number.isFinite(Number(originalEvent.clientY))) {
+                return map.mouseEventToContainerPoint(originalEvent) || null;
             }
         } catch (err) {
             console.warn("[ghostnetwork] mobile tap point unavailable", err);

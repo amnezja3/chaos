@@ -2374,7 +2374,7 @@
 
 {{ folium_js|safe }}
 <script src="/static/js/ghostnetwork_delta_client.js?v=suite-cutover-1"></script>
-<script src="/static/js/map/ghostnetwork.js?v=ability-eligibility-live-1"></script>
+<script src="/static/js/map/ghostnetwork.js?v=canvas-interaction-recovery-1"></script>
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
@@ -4072,7 +4072,47 @@
             return layers;
         }
 
-        function territoryLayerAtContainerPoint(containerPoint) {
+        function pointInsideTerritoryRing(latlng, ring) {
+            if (!latlng || !Array.isArray(ring) || ring.length < 3) return false;
+            let inside = false;
+            for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
+                const currentPoint = ring[index] || {};
+                const previousPoint = ring[previous] || {};
+                const currentLat = Number(currentPoint.lat);
+                const currentLng = Number(currentPoint.lng);
+                const previousLat = Number(previousPoint.lat);
+                const previousLng = Number(previousPoint.lng);
+                if (![currentLat, currentLng, previousLat, previousLng].every(Number.isFinite)) continue;
+                const crosses = ((currentLat > latlng.lat) !== (previousLat > latlng.lat))
+                    && (latlng.lng < ((previousLng - currentLng) * (latlng.lat - currentLat))
+                        / ((previousLat - currentLat) || Number.EPSILON) + currentLng);
+                if (crosses) inside = !inside;
+            }
+            return inside;
+        }
+
+        function territoryLatLngRings(value, rings = []) {
+            if (!Array.isArray(value) || !value.length) return rings;
+            if (value.every(point => point && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)))) {
+                rings.push(value);
+                return rings;
+            }
+            value.forEach(item => territoryLatLngRings(item, rings));
+            return rings;
+        }
+
+        function territoryLayerContainsLatLng(layer, latlng) {
+            if (!layer || !latlng || typeof layer.getLatLngs !== 'function') return false;
+            try {
+                const bounds = typeof layer.getBounds === 'function' ? layer.getBounds() : null;
+                if (bounds && typeof bounds.contains === 'function' && !bounds.contains(latlng)) return false;
+                return territoryLatLngRings(layer.getLatLngs()).some(ring => pointInsideTerritoryRing(latlng, ring));
+            } catch (_territoryGeometryHitError) {
+                return false;
+            }
+        }
+
+        function territoryLayerAtContainerPoint(containerPoint, latlng = null) {
             if (!containerPoint || !map || typeof map.containerPointToLayerPoint !== 'function') return null;
             const layerPoint = map.containerPointToLayerPoint(containerPoint);
             const layers = territoryInteractionLayers();
@@ -4081,8 +4121,9 @@
                 try {
                     if (typeof layer._containsPoint === 'function' && layer._containsPoint(layerPoint)) return layer;
                 } catch (_territoryHitError) {
-                    // A layer can be between redraws; the next pointer frame retries.
+                    // Fall back to canonical geographic geometry below.
                 }
+                if (territoryLayerContainsLatLng(layer, latlng)) return layer;
             }
             return null;
         }
@@ -4093,16 +4134,16 @@
             // fallback is only needed for the shared mobile/low-power canvas.
             if (!territoryPathRenderer()) return false;
             const point = mapContextEventContainerPoint(event);
-            const layer = territoryLayerAtContainerPoint(point);
+            const latlng = point && typeof map.containerPointToLatLng === 'function'
+                ? map.containerPointToLatLng(point)
+                : null;
+            const layer = territoryLayerAtContainerPoint(point, latlng);
             if (nativeTerritoryTooltipLayer && nativeTerritoryTooltipLayer !== layer
                     && typeof nativeTerritoryTooltipLayer.closeTooltip === 'function') {
                 nativeTerritoryTooltipLayer.closeTooltip();
             }
             nativeTerritoryTooltipLayer = layer;
             if (!layer || typeof layer.openTooltip !== 'function') return false;
-            const latlng = typeof map.containerPointToLatLng === 'function'
-                ? map.containerPointToLatLng(point)
-                : null;
             layer.openTooltip(latlng || undefined);
             return true;
         }
