@@ -1,6 +1,6 @@
 # 138.op — optymalizacja runtime mapy przed pełnym testem 138.2
 
-Status: `REQUIRED / BLOCKING 138.2`
+Status: `COMPLETE / SERVER-DEVICE PASS / GO FOR 138.2`
 
 Źródło: audyt przeciążenia mapy wykonany po wdrożeniu kolejnych mocy
 `138.getway`, przy stanie świata obejmującym dziesiątki aktywnych operacji,
@@ -58,7 +58,7 @@ częstych przebudów DOM oraz wielu markerów aktualizowanych pełnym `setIcon()
 
 ## 4. 138.op.1 — interaction fast path
 
-Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE PARTIAL`
+Status: `COMPLETE / COVERED BY FINAL 138.op SERVER-DEVICE PASS`
 
 Cel: gest `drag/zoom` ma pierwszeństwo przed dekoracją.
 
@@ -112,7 +112,7 @@ serwerze: telefon/coarse pointer oraz komputer referencyjny.
 
 ## 5. 138.op.2 — incremental operations and NPC runtime
 
-Status: `IMPLEMENTED / LOCAL PASS / DESKTOP SERVER PASS / MOBILE ZOOM-OUT BLOCKED`
+Status: `COMPLETE / DESKTOP PASS / MOBILE BLOCKER RESOLVED BY .op.3`
 
 Cel: koszt aktualizacji zależy od liczby zmienionych rekordów, nie od liczby
 wszystkich rekordów na mapie.
@@ -184,7 +184,7 @@ montowanych/odmalowywanych podczas `zoom-out`.
 
 ## 6. 138.op.3 — map LOD, culling i performance gate
 
-Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`
+Status: `COMPLETE / SERVER-DEVICE PASS`
 
 Cel: koszt widoku zależy od viewportu i poziomu szczegółowości, a nie od całego
 świata zwróconego w snapshotach.
@@ -238,8 +238,12 @@ terytoriów i recovery oraz `10/10` pakietów JS mapy/GN/delta/operacji/motocykl
 PASS. Pełna regresja GhostNetwork: `444/445` w pierwszym przebiegu; jedyny błąd
 powstał podczas współbieżnej inicjalizacji testowego SQLite na Windows
 (`duplicate column name`), a izolowany rerun tego testu: `1/1 PASS`.
-`git diff --check` i kontrola składni JS: PASS. Do zamknięcia pozostaje test
+`git diff --check` i kontrola składni JS: PASS. Końcową bramką był test
 serwerowy zoom-out/pan na Redmi oraz desktopie przy obciążeniu referencyjnym.
+
+Test urządzeniowy potwierdził realną poprawę mobilnej mapy po wdrożeniu `.op.3`.
+Wcześniejsza wielosekundowa blokada agresywnego zoom-out nie stanowi już
+blockera. Status końcowy: `SERVER-DEVICE PASS`.
 
 ### Obciążenie referencyjne `.op.3`
 
@@ -273,10 +277,10 @@ NPC capsules:            rzeczywisty fan-out konfliktów
 
 ```text
 138.getway.0–5 gameplay closure:     REQUIRED
-138.op.1 interaction fast path:      REQUIRED / SERVER-DEVICE PASS
-138.op.2 incremental runtime:        REQUIRED / SERVER-DEVICE PASS
-138.op.3 LOD + load gate:            REQUIRED / SERVER-DEVICE PASS
-138.2 producer E2E/failure/soak:     BLOCKED UNTIL ALL ABOVE PASS
+138.op.1 interaction fast path:      PASS
+138.op.2 incremental runtime:        PASS
+138.op.3 LOD + load gate:            PASS
+138.2 producer E2E/failure/soak:     GO
 ```
 
 Implementacja przebiega kolejno `.op.1`, `.op.2`, `.op.3`. Nie łączymy jej z

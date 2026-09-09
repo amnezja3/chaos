@@ -133,9 +133,9 @@
     function ensureMobilePartTapBridge(map) {
         if (!map || typeof map.on !== "function" || map._ghostNetworkMobileTapBound) return;
         map._ghostNetworkMobileTapBound = true;
-        map.on("click", event => {
+        const openNearestPart = event => {
             const tapPoint = mobileTapContainerPoint(map, event);
-            if (!tapPoint) return;
+            if (!tapPoint) return false;
             let nearest = null;
             let nearestDistance = MOBILE_PART_TAP_RADIUS_PX;
             Object.values(window.ghostNetworkPartLayers || {}).forEach(marker => {
@@ -160,8 +160,25 @@
             });
             if (nearest && nearest.ghostNetworkProjection) {
                 openGhostPartPanel(nearest.ghostNetworkProjection, nearest);
+                return true;
             }
+            return false;
+        };
+        map.on("click", event => {
+            if (event && event.originalEvent && event.originalEvent._chaosGhostPartHandled) return;
+            openNearestPart(event);
         });
+        const container = typeof map.getContainer === "function" ? map.getContainer() : null;
+        if (container && !container._ghostNetworkNativePartTapBound) {
+            container._ghostNetworkNativePartTapBound = true;
+            container.addEventListener("click", event => {
+                if (event.target && typeof event.target.closest === "function"
+                        && event.target.closest(".leaflet-control, .leaflet-popup, .context-menu, .context-menu-clean, .active-operations-panel")) {
+                    return;
+                }
+                if (openNearestPart(event)) event._chaosGhostPartHandled = true;
+            }, true);
+        }
     }
 
     function escapeHtml(value) {

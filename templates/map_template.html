@@ -4047,6 +4047,91 @@
             }
         }
 
+        let nativeTerritoryTooltipLayer = null;
+        let nativeTerritoryTooltipFrame = null;
+
+        function isMapInteractionChrome(node) {
+            return Boolean(node && typeof node.closest === 'function' && node.closest(
+                '.leaflet-control, .leaflet-popup, .context-menu, .context-menu-clean, .active-operations-panel'
+            ));
+        }
+
+        function territoryInteractionLayers() {
+            const layers = [];
+            const seen = new Set();
+            const append = layer => {
+                if (!layer || seen.has(layer) || (typeof map.hasLayer === 'function' && !map.hasLayer(layer))) return;
+                seen.add(layer);
+                layers.push(layer);
+            };
+            Object.values(window.territoryAreaLayers || {}).forEach(entry => append(entry && entry.layer ? entry.layer : entry));
+            (window.conflictAreaLayers || []).forEach(append);
+            ['territoryFrontLayers', 'territoryEngagementLayers'].forEach(name => {
+                Object.values(window[name] || {}).forEach(entry => append(entry && entry.layer ? entry.layer : entry));
+            });
+            return layers;
+        }
+
+        function territoryLayerAtContainerPoint(containerPoint) {
+            if (!containerPoint || !map || typeof map.containerPointToLayerPoint !== 'function') return null;
+            const layerPoint = map.containerPointToLayerPoint(containerPoint);
+            const layers = territoryInteractionLayers();
+            for (let index = layers.length - 1; index >= 0; index -= 1) {
+                const layer = layers[index];
+                try {
+                    if (typeof layer._containsPoint === 'function' && layer._containsPoint(layerPoint)) return layer;
+                } catch (_territoryHitError) {
+                    // A layer can be between redraws; the next pointer frame retries.
+                }
+            }
+            return null;
+        }
+
+        function openTerritoryTooltipFromNativeEvent(event) {
+            if (!event || event._chaosGhostPartHandled || isMapInteractionChrome(event.target)) return false;
+            // SVG layers already provide native Leaflet hover semantics. The
+            // fallback is only needed for the shared mobile/low-power canvas.
+            if (!territoryPathRenderer()) return false;
+            const point = mapContextEventContainerPoint(event);
+            const layer = territoryLayerAtContainerPoint(point);
+            if (nativeTerritoryTooltipLayer && nativeTerritoryTooltipLayer !== layer
+                    && typeof nativeTerritoryTooltipLayer.closeTooltip === 'function') {
+                nativeTerritoryTooltipLayer.closeTooltip();
+            }
+            nativeTerritoryTooltipLayer = layer;
+            if (!layer || typeof layer.openTooltip !== 'function') return false;
+            const latlng = typeof map.containerPointToLatLng === 'function'
+                ? map.containerPointToLatLng(point)
+                : null;
+            layer.openTooltip(latlng || undefined);
+            return true;
+        }
+
+        function installTerritoryInteractionFallback() {
+            const container = map && typeof map.getContainer === 'function' ? map.getContainer() : null;
+            if (!container || container._chaosTerritoryInteractionFallbackInstalled) return;
+            container._chaosTerritoryInteractionFallbackInstalled = true;
+            container.addEventListener('pointermove', event => {
+                if (nativeTerritoryTooltipFrame || (window.chaosMapInteractionState && window.chaosMapInteractionState.active)) return;
+                nativeTerritoryTooltipFrame = window.requestAnimationFrame(() => {
+                    nativeTerritoryTooltipFrame = null;
+                    openTerritoryTooltipFromNativeEvent(event);
+                });
+            }, { passive: true });
+            container.addEventListener('click', event => {
+                // The GN proximity bridge runs in the same native dispatch and
+                // marks the event when a part owns the click. Resolve the
+                // territory one task later so the more specific target wins.
+                window.setTimeout(() => openTerritoryTooltipFromNativeEvent(event), 0);
+            }, true);
+            container.addEventListener('pointerleave', () => {
+                if (nativeTerritoryTooltipLayer && typeof nativeTerritoryTooltipLayer.closeTooltip === 'function') {
+                    nativeTerritoryTooltipLayer.closeTooltip();
+                }
+                nativeTerritoryTooltipLayer = null;
+            }, { passive: true });
+        }
+
         function bindTerritoryMapContextMenu(layer) {
             if (!layer || typeof layer.on !== 'function') return;
             if (layer._chaosMapContextMenuHandler && typeof layer.off === 'function') {
@@ -4080,6 +4165,7 @@
                     }
                 });
             });
+            nativeTerritoryTooltipLayer = null;
             cleanupLegacyPlayerAreaTooltipDom();
         }
 
@@ -5458,8 +5544,22 @@
                 // Resolve ownership from the physical icon before Leaflet's
                 // layer router can dispatch a stale callback during refresh.
                 const binding = resolveMarkerContextBinding(null, event);
-                if (!binding) return;
-                showBoundMarkerContextMenu(binding, event);
+                if (binding) {
+                    showBoundMarkerContextMenu(binding, event);
+                    return;
+                }
+                // Canvas territory paths can own the native event without
+                // forwarding Leaflet's map contextmenu event. Preserve the
+                // empty-field menu while leaving unbound marker handlers alone.
+                if (isMapInteractionChrome(event.target)
+                        || event.target?.closest?.('.leaflet-marker-icon')) return;
+                const containerPoint = mapContextEventContainerPoint(event);
+                const latlng = containerPoint && typeof map.containerPointToLatLng === 'function'
+                    ? map.containerPointToLatLng(containerPoint)
+                    : null;
+                if (!containerPoint || !latlng) return;
+                consumeMapContextEvent(event);
+                showMapMenuFromLeafletContextEvent({ originalEvent: event, containerPoint, latlng });
             }, true);
         }
 
@@ -5693,6 +5793,8 @@
             showContextMenu(e.containerPoint.x, e.containerPoint.y, e.latlng.lat, e.latlng.lng, true);
             return;
         });
+        ensureMarkerContextMenuDelegation();
+        installTerritoryInteractionFallback();
 
 
 

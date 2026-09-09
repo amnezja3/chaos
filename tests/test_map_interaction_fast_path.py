@@ -76,6 +76,25 @@ class MapInteractionFastPathContractTest(unittest.TestCase):
         self.assertIn("window.responseNpcLastTick = 0", settle)
         self.assertIn("window.ensureResponseNpcAnimation()", settle)
 
+    def test_canvas_keeps_empty_field_menu_and_territory_tooltips(self):
+        for token in (
+            "installTerritoryInteractionFallback",
+            "territoryLayerAtContainerPoint",
+            "layer._containsPoint(layerPoint)",
+            "openTerritoryTooltipFromNativeEvent",
+            "showMapMenuFromLeafletContextEvent({ originalEvent: event, containerPoint, latlng })",
+            "event.target?.closest?.('.leaflet-marker-icon')",
+        ):
+            self.assertIn(token, self.map_source)
+
+        fallback = self.map_source[
+            self.map_source.index("function installTerritoryInteractionFallback"):
+            self.map_source.index("function closeTerritoryTooltips")
+        ]
+        self.assertIn("container.addEventListener('pointermove'", fallback)
+        self.assertIn("container.addEventListener('click'", fallback)
+        self.assertIn("window.requestAnimationFrame", fallback)
+
 
 if __name__ == "__main__":
     unittest.main()

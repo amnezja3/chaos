@@ -203,6 +203,8 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("bubblingMouseEvents: true", self.map_js)
         self.assertIn("map.latLngToContainerPoint", self.map_js)
         self.assertIn("openGhostPartPanel(nearest.ghostNetworkProjection, nearest)", self.map_js)
+        self.assertIn("container._ghostNetworkNativePartTapBound", self.map_js)
+        self.assertIn("event._chaosGhostPartHandled = true", self.map_js)
 
 
 if __name__ == "__main__":

@@ -3915,3 +3915,11 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   tymczasowego SQLite na Windows, a izolowany rerun: `1/1 PASS`.
 - Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE TEST PENDING`; bez commita,
   pushu i deployu.
+
+## 2026-09-08 — 138.op.3 test urządzeniowy i zamknięcie 138.op
+
+- Operator potwierdził, że `.op.3` realnie poprawiło działanie mapy mobilnej.
+- LOD, Canvas, viewport culling i ograniczenie pracy kafelków usunęły mobilny
+  blocker, który po `.op.2` nadal ujawniał się podczas agresywnego zoom-out.
+- `.op.1`, `.op.2` i `.op.3` uzyskują wspólny status `SERVER-DEVICE PASS`.
+- Status: `138.op COMPLETE / GO FOR 138.2`.
