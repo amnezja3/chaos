@@ -21472,6 +21472,42 @@ def api_ghostnetwork_archive_readiness():
     return jsonify(GhostNetworkService().get_archive_readiness_report())
 
 
+@app.route("/api/ghostnetwork/rankings")
+def api_ghostnetwork_rankings():
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 50), 200))
+    except (TypeError, ValueError):
+        limit = 50
+    rankings = get_ghostnetwork_service().list_signal_rankings(limit=limit)
+    return jsonify({
+        "ok": True,
+        "scope": "ghostnetwork_ranking",
+        "product_name": "Signal Registry",
+        "available": bool(rankings),
+        "rankings": rankings,
+    })
+
+
+@app.route("/api/ghostnetwork/rankings/all-time")
+def api_ghostnetwork_rankings_all_time():
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    return jsonify(get_ghostnetwork_service().rebuild_signal_rankings_all_time())
+
+
+@app.route("/api/ghostnetwork/rankings/<signal_id>")
+def api_ghostnetwork_ranking_detail(signal_id):
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    result = get_ghostnetwork_service().get_signal_ranking(signal_id)
+    return jsonify(result), (200 if result.get("ok") else 404)
+
+
 @app.route("/api/dev/ghostnetwork/readiness")
 def api_dev_ghostnetwork_readiness():
     if not require_dev_admin():
@@ -25038,6 +25074,12 @@ def api_profile():
     profile["ghost_profession_name"] = get_profile_profession_display(profile)
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION
+    try:
+        profile["signal_registry_available"] = bool(
+            get_ghostnetwork_service().repository.list_signal_rankings(limit=1)
+        )
+    except Exception:
+        profile["signal_registry_available"] = False
     attach_profile_snapshot_meta(profile, snapshot_started_at, blacknet_utc_now())
     return jsonify(profile)
 

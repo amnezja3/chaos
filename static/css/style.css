@@ -5646,6 +5646,13 @@ form button:hover {
 .ghostnetwork-suite-card-actions button:disabled { opacity: .42; cursor: not-allowed; }
 .ghostnetwork-suite-card-actions button { min-width: 38px; font-size: 18px; }
 .ghostnetwork-suite-empty { padding: 28px; text-align: center; border: 1px dashed rgba(62, 255, 151, .3); color: #83c9a6; }
+.ghostsignal-ranking-grid { min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 9px; }
+.ghostsignal-ranking-grid article { border: 1px solid rgba(62, 255, 151, .3); background: rgba(0, 19, 14, .82); padding: 9px; }
+.ghostsignal-ranking-grid h3 { margin: 0 0 7px; color: #48ff94; font-size: 12px; letter-spacing: .06em; }
+.ghostsignal-ranking-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 8px; padding: 5px 3px; border-top: 1px solid rgba(62, 255, 151, .13); }
+.ghostsignal-ranking-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ghostsignal-ranking-row span small { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; color: #70a78b; font-size: 9px; }
+.ghostsignal-ranking-row strong { color: #66ffc0; }
 .territory-control-ghost-summary { grid-column: 1 / -1; }
 .territory-control-ghost-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid rgba(57, 255, 139, .42); color: #99ffc0; background: rgba(0, 35, 21, .72); font-size: 11px; }
 .territory-control-ghost-badge.state-contested { border-color: #ff8f38; color: #ffc079; }
@@ -5679,6 +5686,7 @@ form button:hover {
   .ghostnetwork-suite-header, .ghostnetwork-suite-toolbar { grid-template-columns: 1fr; }
   .ghostnetwork-suite-counters { grid-template-columns: repeat(2, 1fr); }
   .ghostnetwork-suite-card { grid-template-columns: 46px 1fr; }
+  .ghostsignal-ranking-grid { grid-template-columns: 1fr; }
   .ghostnetwork-suite-card-state, .ghostnetwork-suite-card-actions { grid-column: 2; }
 }
 

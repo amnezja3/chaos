@@ -358,6 +358,11 @@ class GhostNetworkClosureService:
             )
 
         conflicts = self.repository.list_strategic_conflicts(cycle_id=cycle_id, limit=1000)
+        conflict_actions = [
+            action
+            for conflict in conflicts
+            for action in self.repository.list_conflict_actions(conflict.get("conflict_id"), limit=5000)
+        ]
         resolved_conflict_ids = [
             item.get("conflict_id") for item in conflicts
             if _clean(item.get("status")).lower() in {"resolved", "closed"}
@@ -404,6 +409,7 @@ class GhostNetworkClosureService:
             "operator_contributions": self.repository.list_cycle_contributions(cycle_id, limit=5000),
             "clan_reputation": self.repository.list_clan_reputation(limit=100),
             "conflicts": conflicts,
+            "conflict_actions": conflict_actions,
             "territory_consumption_plan": territory_plan,
             "reward_plan": reward_plan,
             "transfers": self.repository.list_transfer_history(cycle_id=cycle_id, limit=1000),

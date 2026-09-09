@@ -41,6 +41,7 @@ from .part_assets import part_superpower_asset_contract, part_visual_asset_contr
 from .repository import GhostNetworkRepository
 from .rewards import GhostContributionService, GhostRewardService
 from .reservations import GhostDropPolicy, GhostReservationService, is_ghostnetwork_eligible_target
+from .ranking import GhostSignalRankingService
 from .territory import GhostTerritoryAdapter
 from .topology import GhostTopologyService
 from .transmission import GhostTransmissionService
@@ -102,6 +103,7 @@ class GhostNetworkService:
         )
         self.narrative = GhostNarrativePublisher(repository=self.repository)
         self.archive = GhostArchiveService(repository=self.repository)
+        self.ranking = GhostSignalRankingService(repository=self.repository)
 
     def _event_cursor(self, cycle_id=""):
         cycle_id = str(cycle_id or "").strip()
@@ -396,12 +398,24 @@ class GhostNetworkService:
         marker_key = f"ghost:endgame_postcommit_reconciled:{cycle_id}:archive_narrative:v1"
         existing = self.repository.get_event_by_dedupe_key(marker_key)
         if existing:
+            signal = self.repository.get_signal_for_cycle(cycle_id)
+            ranking = self.ranking.finalize((signal or {}).get("signal_id"))
+            if not ranking.get("ok"):
+                return {
+                    "ok": False, "status": "retry", "cycle_id": cycle_id,
+                    "reasons": ["ranking_reconciliation_failed"], "ranking": ranking,
+                }
+            ranking_event = self._ensure_signal_ranking_event(
+                cycle_id, signal, ranking.get("ranking") or {},
+            )
             return {
                 "ok": True,
                 "status": "complete",
                 "cycle_id": cycle_id,
                 "idempotent": True,
                 "marker_event": existing,
+                "ranking": ranking,
+                "ranking_event": ranking_event,
             }
 
         cycle = self.repository.get_cycle(cycle_id)
@@ -435,6 +449,20 @@ class GhostNetworkService:
                 "archive": archive,
             }
 
+        ranking = self.ranking.finalize(signal["signal_id"])
+        if not ranking.get("ok"):
+            return {
+                "ok": False,
+                "status": "retry",
+                "cycle_id": cycle_id,
+                "reasons": ["ranking_reconciliation_failed"],
+                "archive": archive,
+                "ranking": ranking,
+            }
+        ranking_event = self._ensure_signal_ranking_event(
+            cycle_id, signal, ranking.get("ranking") or {},
+        )
+
         first_version = max(0, int(lock_snapshot.get("state_version") or 0) - 1)
         events = self.repository.list_events_after(
             cycle_id, state_version=first_version, limit=100,
@@ -446,6 +474,7 @@ class GhostNetworkService:
             "ghost.version_changed",
             "ghost.restart_required",
             "ghost.stabilization_started",
+            "ghost.signal_ranking_created",
         }
         territory_plan = ((lock_snapshot.get("snapshot") or {}).get(
             "territory_consumption_plan"
@@ -503,7 +532,7 @@ class GhostNetworkService:
                 dedupe_key=marker_key,
                 payload={
                     "signal_id": signal["signal_id"],
-                    "effects": ["archive", "narrative"],
+                    "effects": ["archive", "ranking", "narrative"],
                     "events_checked": len(events),
                     "contract_version": "ghostnetwork-endgame-postcommit-v1",
                 },
@@ -516,9 +545,34 @@ class GhostNetworkService:
             "cycle_id": cycle_id,
             "idempotent": False,
             "archive": archive,
+            "ranking": ranking,
+            "ranking_event": ranking_event,
             "narrative": narrative,
             "marker_event": marker,
         }
+
+    def _ensure_signal_ranking_event(self, cycle_id, signal, ranking_row):
+        """Persist the public ranking marker even when an older postcommit marker exists."""
+        signal_id = str((signal or {}).get("signal_id") or "").strip()
+        if not signal_id:
+            return None
+        dedupe_key = f"ghost:signal_ranking_created:{signal_id}:v2"
+        try:
+            return self.repository.append_event(
+                "ghost.signal_ranking_created",
+                cycle_id=cycle_id,
+                entity_id=signal_id,
+                audience_scope="public",
+                dedupe_key=dedupe_key,
+                payload={
+                    "signal_id": signal_id,
+                    "ranking_id": ranking_row.get("ranking_id"),
+                    "snapshot_checksum": ranking_row.get("snapshot_checksum"),
+                    "snapshot_schema": ranking_row.get("snapshot_schema"),
+                },
+            )
+        except RepositoryIntegrityError:
+            return self.repository.get_event_by_dedupe_key(dedupe_key)
 
     def validate_rollover_settlement(self, cycle_id):
         """Validate the mechanical endgame ledger before creating a new cycle."""
@@ -616,6 +670,10 @@ class GhostNetworkService:
             }
             if not planned_ids or planned_ids != consumed_ids:
                 reasons.append("signal_territories_incomplete")
+        ranking = self.repository.get_cycle_ranking(cycle_id)
+        ranking_validation = self.ranking.validate(ranking)
+        if not ranking or not ranking_validation.get("valid"):
+            reasons.append("signal_ranking_missing_or_invalid")
         if not self.repository.get_event_by_dedupe_key(
             f"ghost:endgame_postcommit_reconciled:{cycle_id}:archive_narrative:v1"
         ):
@@ -638,7 +696,9 @@ class GhostNetworkService:
                 "rewards": len(rewards),
                 "planned_territories": len(territory_plan.get("entries") or []),
                 "consumed_territories": len(territory_consumptions),
+                "rankings": int(bool(ranking)),
             },
+            "ranking_validation": ranking_validation,
         }
 
     def rollover_stabilized_cycle(self, cycle_id):
@@ -862,6 +922,21 @@ class GhostNetworkService:
         if not catalog["validation"]["ok"]:
             report["ok"] = False
         return report
+
+    def list_signal_rankings(self, limit=100):
+        return self.ranking.list_public(limit=limit)
+
+    def get_signal_ranking(self, signal_id):
+        ranking = self.repository.get_signal_ranking(signal_id)
+        if not ranking:
+            return {"ok": False, "error": "ranking_not_found", "signal_id": str(signal_id or "")}
+        validation = self.ranking.validate(ranking)
+        if not validation.get("valid"):
+            return {"ok": False, "error": "ranking_invalid", "validation": validation}
+        return {"ok": True, "ranking": self.ranking.public_snapshot(ranking)}
+
+    def rebuild_signal_rankings_all_time(self):
+        return self.ranking.all_time()
 
     def get_onboarding_catalog(self):
         return get_onboarding_catalog()

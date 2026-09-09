@@ -52,7 +52,7 @@ def table_counts(db_path):
 
 
 def audit(db_path):
-    repository = GhostNetworkRepository(db_path=db_path)
+    repository = GhostNetworkRepository(db_path=db_path, ensure_schema=False)
     before = table_counts(db_path)
     cycle = repository.get_active_cycle()
     errors = []

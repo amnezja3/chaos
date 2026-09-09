@@ -222,6 +222,17 @@ GHOSTNETWORK_SIGNAL_SHOW_POLICY = {
     ),
     "phase_policy_version": "ghostsignal-show-v1",
 }
+GHOSTNETWORK_RANKING_POLICY = {
+    "policy_version": "ghostsignal-ranking-v2",
+    "snapshot_schema": 2,
+    "weights": {
+        "node_control": env_int("CHAOS_GHOSTNETWORK_RANK_NODE_POOL", 400),
+        "territory_contribution": env_int("CHAOS_GHOSTNETWORK_RANK_TERRITORY_POOL", 300),
+        "conflict_contribution": env_int("CHAOS_GHOSTNETWORK_RANK_CONFLICT_POOL", 200),
+        "signal_closer": env_int("CHAOS_GHOSTNETWORK_RANK_CLOSER_POOL", 100),
+    },
+    "product_name": "Signal Registry",
+}
 GHOSTNETWORK_DEFENSE_POLICY = {
     "min_attack_progress": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_ATTACK_PROGRESS", 25),
     "min_integrity_loss": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_INTEGRITY_LOSS", 10),

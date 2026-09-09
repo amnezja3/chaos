@@ -29,6 +29,7 @@ from .lifecycle import GhostPartLifecycleService
 from .closure import GhostNetworkClosureService
 from .transmission import GhostTransmissionService
 from .show import GhostSignalShowService
+from .ranking import GhostSignalRankingService
 from .narrative import GhostNarrativePublisher
 from .producers import BlackNetNarrativeProducer, GoogleplexLlmTaskIngress
 from .publication import NarrativePublicationService
@@ -75,6 +76,7 @@ __all__ = [
     "GhostNetworkClosureService",
     "GhostTransmissionService",
     "GhostSignalShowService",
+    "GhostSignalRankingService",
     "GhostNarrativePublisher",
     "BlackNetNarrativeProducer",
     "GoogleplexLlmTaskIngress",

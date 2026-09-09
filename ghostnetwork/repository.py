@@ -173,11 +173,12 @@ class GhostNetworkRepository:
     profiles, map layers or gameplay endpoints.
     """
 
-    def __init__(self, db_path=DB_PATH, clock=None):
+    def __init__(self, db_path=DB_PATH, clock=None, ensure_schema=True):
         self.db_path = db_path
         self.clock = clock
         self._transaction_conn = None
-        self._ensure_schema()
+        if ensure_schema:
+            self._ensure_schema()
 
     def now(self):
         if self.clock:
@@ -557,6 +558,28 @@ class GhostNetworkRepository:
                     FOREIGN KEY(signal_id) REFERENCES ghost_signals(signal_id),
                     FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
                 )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_signal_rankings (
+                    ranking_id TEXT PRIMARY KEY,
+                    signal_id TEXT NOT NULL UNIQUE,
+                    cycle_id TEXT NOT NULL UNIQUE,
+                    signal_number INTEGER NOT NULL,
+                    snapshot_schema INTEGER NOT NULL,
+                    snapshot_checksum TEXT NOT NULL,
+                    snapshot_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(signal_id) REFERENCES ghost_signals(signal_id),
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_signal_rankings_number
+                ON ghost_signal_rankings(signal_number DESC, created_at DESC)
                 """
             )
             conn.execute(
@@ -2599,6 +2622,92 @@ class GhostNetworkRepository:
                 [*[_clean(value) for value in updates.values()], self.now(), _clean(show_id)],
             )
             return self.get_signal_show(show_id)
+
+    @staticmethod
+    def _signal_ranking(row):
+        if not row:
+            return None
+        return {
+            "ranking_id": row["ranking_id"],
+            "signal_id": row["signal_id"],
+            "cycle_id": row["cycle_id"],
+            "signal_number": int(row["signal_number"] or 0),
+            "snapshot_schema": int(row["snapshot_schema"] or 0),
+            "snapshot_checksum": row["snapshot_checksum"],
+            "snapshot": loads_json(row["snapshot_json"], {}),
+            "created_at": row["created_at"],
+        }
+
+    def create_signal_ranking(self, ranking):
+        """Insert one immutable ranking snapshot for a signal.
+
+        Replays return the existing row. A caller must validate its checksum;
+        this repository method never updates historical ranking payloads.
+        """
+        ranking = ranking if isinstance(ranking, dict) else {}
+        signal_id = _clean(ranking.get("signal_id"))
+        cycle_id = _clean(ranking.get("cycle_id"))
+        existing = self.get_signal_ranking(signal_id)
+        if existing:
+            existing["idempotent"] = True
+            return existing
+        with self.transaction():
+            conn = self._transaction_conn
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_signal_rankings (
+                        ranking_id, signal_id, cycle_id, signal_number,
+                        snapshot_schema, snapshot_checksum, snapshot_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        _clean(ranking.get("ranking_id") or _hash_id("ranking", signal_id)),
+                        signal_id,
+                        cycle_id,
+                        int(ranking.get("signal_number") or 0),
+                        int(ranking.get("snapshot_schema") or 0),
+                        _clean(ranking.get("snapshot_checksum")),
+                        dumps_json(ranking.get("snapshot") if isinstance(ranking.get("snapshot"), dict) else {}),
+                        _clean(ranking.get("created_at") or self.now()),
+                    ),
+                )
+            except IntegrityError:
+                existing = self.get_signal_ranking(signal_id)
+                if existing:
+                    existing["idempotent"] = True
+                    return existing
+                raise
+        return self.get_signal_ranking(signal_id)
+
+    def get_signal_ranking(self, signal_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_signal_rankings WHERE signal_id = ? LIMIT 1",
+                (_clean(signal_id),),
+            ).fetchone()
+        return self._signal_ranking(row)
+
+    def get_cycle_ranking(self, cycle_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_signal_rankings WHERE cycle_id = ? LIMIT 1",
+                (_clean(cycle_id),),
+            ).fetchone()
+        return self._signal_ranking(row)
+
+    def list_signal_rankings(self, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_signal_rankings
+                ORDER BY signal_number DESC, created_at DESC, ranking_id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [self._signal_ranking(row) for row in rows]
 
     def get_state_version(self, cycle_id=None):
         with self._conn() as conn:

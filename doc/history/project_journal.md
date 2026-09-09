@@ -3989,3 +3989,27 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Przyczyną była odziedziczona z `Polyline` flaga instalacji; sprawdzanie flagi
   ograniczono do własności konkretnego prototypu i dodano regresję z rzeczywistym
   układem dziedziczenia Leafleta.
+- Operator potwierdził pełny powrót mapy do normy na małych i dużych kontach.
+  Hardbugfix otrzymuje `COMPLETE / SERVER-DEVICE PASS`.
+
+## 2026-09-09 — 138.prepare.gn.signal.3 ranking i produkcyjna bramka
+
+- Dodano immutable `ghostsignal-ranking-v2` tworzony z locka, sygnału, reward
+  ledger i receipts konsumpcji, a nie z mutable świata po rolloverze.
+- Polityka klanowa utrwala pule `400/300/200/100`, największe reszty z
+  deterministycznym tie-breakiem oraz fallback area -> territory count.
+- Ranking i publiczny event `ghost.signal_ranking_created` są idempotentnym
+  warunkiem hard settlementu także podczas wznowienia starszego post-commit.
+- All-time jest za każdym razem odbudowywany wyłącznie z immutable snapshots.
+- Dodano viewer-safe API oraz systemową aplikację **Signal Registry**, widoczną
+  na desktopie i mobile dopiero po pierwszym poprawnym rankingu.
+- Dodano strict read-only preflight i postflight pełnego lineage. Produkcyjna
+  aktywacja ostatniej części pozostaje zabroniona do chwili przygotowania realnej
+  pojedynczej blokady konfliktowej, świeżego backupu i wyniku preflight `ok=true`.
+- W ecosystem web i worker przygotowano finalną flagę territory executor oraz
+  centralne zmienne polityki rankingu. Production E2E nadal wymaga decyzji i
+  działania operatora; sprint nie otrzymuje przed nim statusu COMPLETE.
+- Lokalnie: ranking/API/audyty/ecosystem `9/9 PASS`, regresja
+  transmission/runtime/integrity/archive `28/28 PASS`, kontrakty JS Signal
+  Registry, Centrum Operacji i Signal Show PASS, `py_compile` i diff-check PASS.
+  Status: `LOCAL PASS / READY FOR CONTROLLED SERVER E2E`; bez pushu.

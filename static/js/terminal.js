@@ -430,10 +430,17 @@ const devBugReporterApp = {
     action: createDevBugReporterApp
 };
 
+const signalRegistrySystemApp = {
+    id: 'signal_registry',
+    icon: '\u25C9',
+    label: 'Signal Registry',
+    action: () => createGhostSignalArchiveApp()
+};
+
 const desktop = document.getElementById('desktop-icons');
 const iconSpacing = 100; // odstęp w pionie
 const MOBILE_SAFE_MODE_QUERY = '(max-width: 900px), (max-height: 700px)';
-const MOBILE_DESKTOP_ICON_ORDER = ['wallet_hc', 'pliki', 'mapa', 'browser', 'ghost_hack_radio', 'ustawienia', 'cyberner', 'terminal', 'dev_bug_reporter', 'profil'];
+const MOBILE_DESKTOP_ICON_ORDER = ['wallet_hc', 'pliki', 'mapa', 'browser', 'ghost_hack_radio', 'signal_registry', 'ustawienia', 'cyberner', 'terminal', 'dev_bug_reporter', 'profil'];
 const MOBILE_DESKTOP_ICON_KEYS = new Set(MOBILE_DESKTOP_ICON_ORDER);
 
 function isMobileSafeMode() {
@@ -516,6 +523,9 @@ function mobileDesktopIconRank(app) {
 
 function getSystemDesktopApps(profile = null) {
     const apps = [...desktopApps];
+    if (profile && profile.signal_registry_available === true) {
+        apps.push(signalRegistrySystemApp);
+    }
     if ((profile && profile.dev_mode) || isMobileSafeMode()) {
         apps.push(devBugReporterApp);
     }
@@ -8046,14 +8056,24 @@ async function loadGhostSignalArchive(app, signalId = "") {
     if (!shell) return false;
     shell.innerHTML = '<div class="ghostnetwork-suite-status">SYNCHRONIZACJA ARCHIWUM GHOSTSIGNAL...</div>';
     try {
-        const listResponse = await fetch("/api/ghostnetwork/archive/signals?limit=50", {
-            credentials: "same-origin", cache: "no-store", headers: {"Accept": "application/json"}
-        });
-        const listPayload = await listResponse.json().catch(() => ({}));
+        const requestOptions = {credentials: "same-origin", cache: "no-store", headers: {"Accept": "application/json"}};
+        const [listResponse, rankingsResponse, allTimeResponse] = await Promise.all([
+            fetch("/api/ghostnetwork/archive/signals?limit=50", requestOptions),
+            fetch("/api/ghostnetwork/rankings?limit=50", requestOptions),
+            fetch("/api/ghostnetwork/rankings/all-time", requestOptions)
+        ]);
+        const [listPayload, rankingsPayload, allTimePayload] = await Promise.all([
+            listResponse.json().catch(() => ({})),
+            rankingsResponse.json().catch(() => ({})),
+            allTimeResponse.json().catch(() => ({}))
+        ]);
         if (!listResponse.ok || listPayload.ok !== true) throw new Error(listPayload.error || "archive_unavailable");
+        if (!rankingsResponse.ok || rankingsPayload.ok !== true) throw new Error(rankingsPayload.error || "ranking_unavailable");
+        if (!allTimeResponse.ok || allTimePayload.ok !== true) throw new Error(allTimePayload.error || "all_time_unavailable");
         const signals = Array.isArray(listPayload.signals) ? listPayload.signals : [];
+        const rankings = Array.isArray(rankingsPayload.rankings) ? rankingsPayload.rankings : [];
         let detail = null;
-        const selectedId = String(signalId || app.dataset.signalId || "").trim();
+        const selectedId = String(signalId || app.dataset.signalId || rankings[0]?.signal_id || "").trim();
         if (selectedId) {
             const detailResponse = await fetch(`/api/ghostnetwork/archive/signals/${encodeURIComponent(selectedId)}`, {
                 credentials: "same-origin", cache: "no-store", headers: {"Accept": "application/json"}
@@ -8062,6 +8082,7 @@ async function loadGhostSignalArchive(app, signalId = "") {
             if (detailResponse.ok && detailPayload.ok === true) detail = detailPayload;
         }
         const selectedSignal = detail?.signal || signals.find(item => String(item?.signal_id || "") === selectedId) || null;
+        const selectedRanking = rankings.find(item => String(item?.signal_id || "") === selectedId) || null;
         const rows = signals.map(item => {
             const id = String(item?.signal_id || "");
             const label = item?.signal_number ? `GHOSTSIGNAL ${String(item.signal_number).padStart(4, "0")}` : "GHOSTSIGNAL";
@@ -8073,11 +8094,30 @@ async function loadGhostSignalArchive(app, signalId = "") {
                 <p>${escapeHTML(selectedSignal.summary || selectedSignal.status || "Zarchiwizowany sygnał GhostNetwork.")}</p>
                 <small>${escapeHTML(selectedSignal.sent_at || selectedSignal.created_at || "")}</small></div>
             </article>` : '<div class="ghostnetwork-suite-empty">Wybierz zarchiwizowany sygnał.</div>';
+        const rankRows = (items, valueKey, labelKey, kind) => (Array.isArray(items) ? items : []).slice(0, 10).map(item => {
+            const conflictScore = item?.conflict_metrics?.score || 0;
+            const nodes = item?.nodes_held ?? item?.nodes_held_total ?? 0;
+            const territories = item?.territories_consumed ?? item?.territories_consumed_total ?? 0;
+            const area = item?.territory_area_consumed ?? item?.territory_area_consumed_total ?? 0;
+            const rsp = item?.rsp_signal ?? item?.ghostnetwork_rsp_total ?? 0;
+            const meta = kind === "clan"
+                ? `NODES ${nodes} · TER ${territories} · AREA ${area}${item?.conflict_metrics ? ` · CONFLICT ${conflictScore}` : ""}`
+                : `RSP ${rsp} · NODES ${nodes} · TER ${territories}${item?.conflict_metrics ? ` · CONFLICT ${conflictScore}` : ""}${item?.closer ? " · CLOSER" : ""}`;
+            return `<div class="ghostsignal-ranking-row"><b>#${escapeHTML(item?.rank || "-")}</b><span>${escapeHTML(item?.[labelKey] || "-")}<small>${escapeHTML(meta)}</small></span><strong>${escapeHTML(item?.[valueKey] || 0)}</strong></div>`;
+        }).join("");
+        const rankingMarkup = selectedRanking ? `
+            <section class="ghostsignal-ranking-grid">
+                <article><h3>GRACZE // SIGNAL ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.players, "rsp_signal", "display_alias_snapshot", "player")}</article>
+                <article><h3>KLANY // SIGNAL ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.clans, "clan_ghost_score", "clan_name_snapshot", "clan")}</article>
+                <article><h3>GRACZE // ALL-TIME</h3>${rankRows(allTimePayload.players, "ghostnetwork_rsp_total", "display_alias_snapshot", "player")}</article>
+                <article><h3>KLANY // ALL-TIME</h3>${rankRows(allTimePayload.clans, "clan_ghost_score_total", "clan_name_snapshot", "clan")}</article>
+            </section>` : '<div class="ghostnetwork-suite-empty">Brak zakończonego rankingu GhostSignal.</div>';
         shell.innerHTML = `
-            <header class="ghostnetwork-suite-header"><div><strong>GHOSTSIGNAL // ARCHIWUM</strong><span>READ ONLY</span></div></header>
+            <header class="ghostnetwork-suite-header"><div><strong>SIGNAL REGISTRY</strong><span>IMMUTABLE // REBUILDABLE</span></div></header>
             <div class="ghostnetwork-suite-toolbar"><button type="button" data-ghostsignal-refresh>ODŚWIEŻ</button></div>
             <section class="ghostnetwork-suite-list">${rows || '<div class="ghostnetwork-suite-empty">Brak zarchiwizowanych sygnałów.</div>'}</section>
-            <section class="ghostnetwork-suite-list">${detailMarkup}</section>`;
+            <section class="ghostnetwork-suite-list">${detailMarkup}</section>
+            ${rankingMarkup}`;
         shell.querySelector("[data-ghostsignal-refresh]")?.addEventListener("click", () => loadGhostSignalArchive(app, app.dataset.signalId || ""));
         shell.querySelectorAll("[data-ghostsignal-id]").forEach(button => button.addEventListener("click", () => {
             app.dataset.signalId = button.dataset.ghostsignalId || "";
@@ -8103,10 +8143,10 @@ function createGhostSignalArchiveApp(signalId = "") {
     app.dataset.app = "ghostsignal-archive";
     app.dataset.signalId = String(signalId || "");
     app.dataset.appIcon = "◉";
-    app.dataset.appTitle = "GhostSignal Archive";
+    app.dataset.appTitle = "Signal Registry";
     const position = findAvailablePosition(760, 560);
     Object.assign(app.style, {top: `${position.top}px`, left: `${position.left}px`, width: "760px", height: "560px"});
-    app.innerHTML = '<div class="title-bar">GhostSignal Archive <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div><div class="ghostnetwork-suite-shell ghostsignal-archive-shell"></div>';
+    app.innerHTML = '<div class="title-bar">Signal Registry <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div><div class="ghostnetwork-suite-shell ghostsignal-archive-shell"></div>';
     document.body.appendChild(app);
     makeDraggable(app);
     bringWindowToFront(app);

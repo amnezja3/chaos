@@ -1,6 +1,6 @@
 # Hardbugfix 138 — Operation Center cache signature i Canvas bounds race
 
-Status: `IMPLEMENTED / LOCAL PASS / SERVER-DEVICE REVALIDATION PENDING`
+Status: `COMPLETE / SERVER-DEVICE PASS (SMALL + LARGE ACCOUNTS)`
 
 ## Objawy
 

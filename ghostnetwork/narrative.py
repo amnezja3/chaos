@@ -34,6 +34,7 @@ TECHNICAL_EVENT_TYPES = frozenset({
     "ghost.endgame_postcommit_reconciled",
     "ghost.endgame_delta_reconciled",
     "ghost.rollover_postcommit_reconciled",
+    "ghost.signal_ranking_created",
 })
 
 
