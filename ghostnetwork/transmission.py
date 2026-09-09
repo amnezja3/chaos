@@ -5,15 +5,13 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from database import dumps_json
-from config import GHOSTNETWORK_ENDGAME_REWARD_POLICY
+from config import GHOSTNETWORK_ENDGAME_REWARD_POLICY, GHOSTNETWORK_SIGNAL_SHOW_POLICY
 
 from .closure import GhostNetworkClosureService
 from .errors import InvalidStateTransition, RepositoryIntegrityError
 from .lifecycle import GhostPartLifecycleService
 from .repository import GhostNetworkRepository, _clean
-
-
-STABILIZATION_MINUTES = 15
+from .show import GhostSignalShowService
 
 
 def _parse_iso(value):
@@ -24,11 +22,6 @@ def _parse_iso(value):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
-
-
-def _add_minutes(value, minutes):
-    dt = _parse_iso(value) or datetime.now(timezone.utc)
-    return (dt + timedelta(minutes=int(minutes or 0))).isoformat()
 
 
 def _checksum(payload):
@@ -48,10 +41,11 @@ class GhostTransmissionService:
     or the transmitted payload.
     """
 
-    def __init__(self, repository=None, lifecycle_service=None, closure_service=None):
+    def __init__(self, repository=None, lifecycle_service=None, closure_service=None, show_service=None):
         self.repository = repository or GhostNetworkRepository()
         self.lifecycle = lifecycle_service or GhostPartLifecycleService(self.repository)
         self.closure = closure_service or GhostNetworkClosureService(repository=self.repository)
+        self.show = show_service or GhostSignalShowService(repository=self.repository)
 
     def start_transmission(self, cycle_id):
         cycle_id = _clean(cycle_id)
@@ -395,10 +389,10 @@ class GhostTransmissionService:
         next_version = cycle.get("next_version") or _version_text(next_number)
         updated = self.repository.update_cycle(
             signal["cycle_id"],
-            ghostsystem_version=next_number,
             source_version=source_version,
             next_version=next_version,
             transmitted_at=signal.get("sent_at") or self.repository.now(),
+            upgrade_pending=1,
             restart_required=1,
             restart_reason="ghostsignal_transmission",
             restart_signal_id=signal_id,
@@ -406,6 +400,21 @@ class GhostTransmissionService:
             restart_to_version=next_version,
             restart_required_at=self.repository.now(),
         )
+        self._append_once(
+            "ghost.version_prepared",
+            cycle_id=signal["cycle_id"],
+            entity_id=signal_id,
+            dedupe_key=f"ghost:version_prepared:{signal_id}",
+            payload={
+                "signal_id": signal_id,
+                "source_version": source_version,
+                "next_version": next_version,
+                "reason": "ghostsignal_show_pending",
+            },
+        )
+        # Compatibility event for existing narrative/delta consumers.  The
+        # payload explicitly marks this as a prepared cutover; the cycle's
+        # current numeric version is intentionally unchanged until rollover.
         self._append_once(
             "ghost.version_changed",
             cycle_id=signal["cycle_id"],
@@ -415,7 +424,8 @@ class GhostTransmissionService:
                 "signal_id": signal_id,
                 "source_version": source_version,
                 "next_version": next_version,
-                "reason": "ghostsignal_transmission",
+                "cutover_pending": True,
+                "reason": "ghostsignal_show_pending",
             },
         )
         self._append_once(
@@ -437,7 +447,9 @@ class GhostTransmissionService:
         cycle = self.repository.get_cycle(signal["cycle_id"])
         until = cycle.get("stabilization_until")
         if not until:
-            until = _add_minutes(signal.get("sent_at") or self.repository.now(), STABILIZATION_MINUTES)
+            duration = max(60, int(GHOSTNETWORK_SIGNAL_SHOW_POLICY.get("duration_seconds") or 900))
+            start = _parse_iso(signal.get("sent_at") or self.repository.now())
+            until = (start + timedelta(seconds=duration)).isoformat()
         updated = self.repository.update_cycle(
             signal["cycle_id"],
             status="stabilizing",
@@ -450,7 +462,28 @@ class GhostTransmissionService:
             dedupe_key=f"ghost:stabilization_started:{signal_id}",
             payload={"signal_id": signal_id, "stabilization_until": until},
         )
-        return {"cycle": updated, "stabilization_until": until, "event": event}
+        show = self.show.ensure_for_signal(
+            signal,
+            cycle=updated,
+            started_at=signal.get("sent_at"),
+            ends_at=until,
+        )
+        show_event = self._append_once(
+            "ghost.signal_show_started",
+            cycle_id=signal["cycle_id"],
+            entity_id=signal_id,
+            dedupe_key=f"ghost:signal_show_started:{signal_id}",
+            audience_scope="public",
+            payload={
+                "signal_public_id": show.get("signal_public_id"),
+                "show_started_at": show.get("show_started_at"),
+                "show_ends_at": show.get("show_ends_at"),
+                "from_system_version": show.get("from_system_version"),
+                "to_system_version": show.get("to_system_version"),
+            },
+        )
+        return {"cycle": updated, "stabilization_until": until, "event": event,
+                "show": show, "show_event": show_event}
 
     def resume_interrupted_transmission(self, cycle_id):
         cycle_id = _clean(cycle_id)

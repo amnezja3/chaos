@@ -3875,6 +3875,47 @@
                 }, delay);
             }
 
+            function installContainsPointGuard(targetProto, layerName) {
+                if (
+                    !targetProto
+                    || targetProto._chaosContainsPointGuardInstalled
+                    || typeof targetProto._containsPoint !== 'function'
+                ) return;
+                const originalContainsPoint = targetProto._containsPoint;
+                targetProto._containsPoint = function(point) {
+                    if (
+                        !this._map
+                        || !this._renderer
+                        || !hasFiniteLeafletBounds(this._renderer._bounds)
+                        || !hasFiniteLeafletBounds(this._pxBounds)
+                    ) {
+                        scheduleBoundsRecovery(this);
+                        return false;
+                    }
+                    try {
+                        return originalContainsPoint.call(this, point);
+                    } catch (err) {
+                        const transientBoundsFailure = (
+                            !hasFiniteLeafletBounds(this._renderer && this._renderer._bounds)
+                            || !hasFiniteLeafletBounds(this._pxBounds)
+                            || (err instanceof TypeError && /(?:undefined|null).*\bx\b|\bx\b.*(?:undefined|null)/i.test(String(err.message || '')))
+                        );
+                        if (!transientBoundsFailure) throw err;
+                        scheduleBoundsRecovery(this);
+                        const now = Date.now();
+                        if (!this._chaosLastHitTestWarningAt || now - this._chaosLastHitTestWarningAt >= 5000) {
+                            this._chaosLastHitTestWarningAt = now;
+                            console.warn('[map renderer] transient canvas hit-test bounds race skipped', {
+                                layer: this._chaosLayerRegistry || layerName,
+                                error: String(err && err.message || 'invalid_bounds')
+                            });
+                        }
+                        return false;
+                    }
+                };
+                targetProto._chaosContainsPointGuardInstalled = true;
+            }
+
             proto._clipPoints = function() {
                 const rendererBounds = this._renderer && this._renderer._bounds;
                 const pixelBounds = this._pxBounds;
@@ -3909,6 +3950,10 @@
                     }
                 }
             };
+            installContainsPointGuard(proto, 'polyline');
+            if (L.Polygon && L.Polygon.prototype) {
+                installContainsPointGuard(L.Polygon.prototype, 'polygon');
+            }
             proto._chaosBoundsGuardInstalled = true;
         }
 
@@ -8116,6 +8161,10 @@
                 panel.classList.toggle('is-preview', state === 'preview');
 
                 const cards = active.map(operation => {
+                    const cacheId = operationClientId(operation);
+                    const cacheSignature = `${window.operationDomSignature(operation)}:${Boolean(
+                        window.operationCancelInFlight instanceof Map && window.operationCancelInFlight.has(cacheId)
+                    )}`;
                     const meta = window.operationMarkerMeta(operation);
                     const label = window.escapeMapText(window.operationLabel(operation));
                     const type = window.escapeMapText(meta.name);

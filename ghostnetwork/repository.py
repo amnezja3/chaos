@@ -241,6 +241,7 @@ class GhostNetworkRepository:
             self._ensure_column(conn, "ghost_cycles", "restart_from_version", "restart_from_version TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "ghost_cycles", "restart_to_version", "restart_to_version TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "ghost_cycles", "restart_required_at", "restart_required_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "upgrade_pending", "upgrade_pending INTEGER NOT NULL DEFAULT 0")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS ghost_parts (
@@ -534,6 +535,26 @@ class GhostNetworkRepository:
                     snapshot_json TEXT NOT NULL DEFAULT '{}',
                     snapshot_checksum TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL,
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_signal_shows (
+                    show_id TEXT PRIMARY KEY,
+                    signal_id TEXT NOT NULL UNIQUE,
+                    cycle_id TEXT NOT NULL UNIQUE,
+                    signal_public_id TEXT NOT NULL,
+                    show_started_at TEXT NOT NULL,
+                    show_ends_at TEXT NOT NULL,
+                    from_system_version TEXT NOT NULL,
+                    to_system_version TEXT NOT NULL,
+                    phase_policy_version TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(signal_id) REFERENCES ghost_signals(signal_id),
                     FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
                 )
                 """
@@ -1545,6 +1566,7 @@ class GhostNetworkRepository:
             "restart_from_version": row["restart_from_version"] if "restart_from_version" in keys else "",
             "restart_to_version": row["restart_to_version"] if "restart_to_version" in keys else "",
             "restart_required_at": row["restart_required_at"] if "restart_required_at" in keys else "",
+            "upgrade_pending": bool(row["upgrade_pending"]) if "upgrade_pending" in keys else False,
             "closed_at": row["closed_at"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
@@ -2267,6 +2289,7 @@ class GhostNetworkRepository:
             "restart_from_version",
             "restart_to_version",
             "restart_required_at",
+            "upgrade_pending",
         }
         updates = {key: value for key, value in fields.items() if key in allowed}
         if "status" in updates and updates["status"] not in CYCLE_STATUSES:
@@ -2283,6 +2306,15 @@ class GhostNetworkRepository:
                 f"UPDATE ghost_cycles SET {assignments}, updated_at = ? WHERE cycle_id = ?",
                 [*values, self.now(), cycle_id],
             )
+            if "stabilization_until" in updates:
+                conn.execute(
+                    """
+                    UPDATE ghost_signal_shows
+                    SET show_ends_at = ?, updated_at = ?
+                    WHERE cycle_id = ? AND status = 'active'
+                    """,
+                    (_clean(updates["stabilization_until"]), self.now(), cycle_id),
+                )
             self.append_event(
                 "ghost.cycle_state_changed",
                 cycle_id=cycle_id,
@@ -2472,6 +2504,101 @@ class GhostNetworkRepository:
                     return existing
                 raise
             return self.get_signal(signal_id)
+
+    @staticmethod
+    def _signal_show(row):
+        if not row:
+            return None
+        return {
+            "show_id": row["show_id"],
+            "signal_id": row["signal_id"],
+            "cycle_id": row["cycle_id"],
+            "signal_public_id": row["signal_public_id"],
+            "show_started_at": row["show_started_at"],
+            "show_ends_at": row["show_ends_at"],
+            "from_system_version": row["from_system_version"],
+            "to_system_version": row["to_system_version"],
+            "phase_policy_version": row["phase_policy_version"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def get_signal_show(self, show_id):
+        with self._conn() as conn:
+            return self._signal_show(conn.execute(
+                "SELECT * FROM ghost_signal_shows WHERE show_id = ? LIMIT 1",
+                (_clean(show_id),),
+            ).fetchone())
+
+    def get_signal_show_for_signal(self, signal_id):
+        with self._conn() as conn:
+            return self._signal_show(conn.execute(
+                "SELECT * FROM ghost_signal_shows WHERE signal_id = ? LIMIT 1",
+                (_clean(signal_id),),
+            ).fetchone())
+
+    def get_signal_show_for_cycle(self, cycle_id):
+        with self._conn() as conn:
+            return self._signal_show(conn.execute(
+                "SELECT * FROM ghost_signal_shows WHERE cycle_id = ? LIMIT 1",
+                (_clean(cycle_id),),
+            ).fetchone())
+
+    def get_latest_signal_show(self):
+        with self._conn() as conn:
+            return self._signal_show(conn.execute(
+                "SELECT * FROM ghost_signal_shows ORDER BY show_started_at DESC LIMIT 1"
+            ).fetchone())
+
+    def create_signal_show(self, show):
+        show = show if isinstance(show, dict) else {}
+        signal_id = _clean(show.get("signal_id"))
+        existing = self.get_signal_show_for_signal(signal_id)
+        if existing:
+            existing["idempotent"] = True
+            return existing
+        now = self.now()
+        with self.transaction():
+            conn = self._transaction_conn
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_signal_shows (
+                        show_id, signal_id, cycle_id, signal_public_id,
+                        show_started_at, show_ends_at, from_system_version,
+                        to_system_version, phase_policy_version, status,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        _clean(show.get("show_id")), signal_id, _clean(show.get("cycle_id")),
+                        _clean(show.get("signal_public_id")), _clean(show.get("show_started_at")),
+                        _clean(show.get("show_ends_at")), _clean(show.get("from_system_version")),
+                        _clean(show.get("to_system_version")), _clean(show.get("phase_policy_version")),
+                        _clean(show.get("status"), "active"), now, now,
+                    ),
+                )
+            except IntegrityError:
+                existing = self.get_signal_show_for_signal(signal_id)
+                if existing:
+                    existing["idempotent"] = True
+                    return existing
+                raise
+            return self.get_signal_show(_clean(show.get("show_id")))
+
+    def update_signal_show(self, show_id, **fields):
+        updates = {key: value for key, value in fields.items() if key in {"status", "show_ends_at"}}
+        if not updates:
+            return self.get_signal_show(show_id)
+        with self.transaction():
+            conn = self._transaction_conn
+            assignments = ", ".join(f"{key} = ?" for key in updates)
+            conn.execute(
+                f"UPDATE ghost_signal_shows SET {assignments}, updated_at = ? WHERE show_id = ?",
+                [*[_clean(value) for value in updates.values()], self.now(), _clean(show_id)],
+            )
+            return self.get_signal_show(show_id)
 
     def get_state_version(self, cycle_id=None):
         with self._conn() as conn:

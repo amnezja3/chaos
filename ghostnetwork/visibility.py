@@ -447,6 +447,7 @@ class GhostVisibilityService:
         progress.update(self._connection_progress(connections))
         machines = [self.project_machine_for_viewer(machine, context) for machine in progress["machines"]]
         cycle = self._project_cycle(snapshot.get("cycle") or {})
+        show = snapshot.get("show") if isinstance(snapshot.get("show"), dict) else {"show_active": False}
         return {
             "projection": "viewer_visibility",
             "visibility_version": VISIBILITY_VERSION,
@@ -459,6 +460,9 @@ class GhostVisibilityService:
             "restart_to_version": cycle.get("restart_to_version"),
             "restart_signal_ref": cycle.get("restart_signal_ref"),
             "stabilization_until": cycle.get("stabilization_until"),
+            "show": show,
+            "show_active": bool(show.get("show_active")),
+            "upgrade_pending": bool(cycle.get("upgrade_pending")),
             "progress": {key: value for key, value in progress.items() if key != "machines"},
             "machines": machines,
             "parts": parts,
@@ -509,12 +513,15 @@ class GhostVisibilityService:
             "cycle_id": _clean(cycle.get("cycle_id")) or None,
             "signal_number": cycle.get("signal_number"),
             "ghostsystem_version": cycle.get("ghostsystem_version"),
+            "current_version": _clean(cycle.get("source_version")) or None,
+            "next_version": _clean(cycle.get("next_version")) or None,
             "status": _clean(cycle.get("status")) or None,
             "catalog_version": _clean(cycle.get("catalog_version")) or None,
             "state_version": int(cycle.get("state_version") or 0),
             "started_at": _clean(cycle.get("started_at")) or None,
             "updated_at": _clean(cycle.get("updated_at")) or None,
             "restart_required": restart_required,
+            "upgrade_pending": _as_bool(cycle.get("upgrade_pending")),
             "restart_reason": _clean(cycle.get("restart_reason")) or None,
             "restart_from_version": _clean(cycle.get("restart_from_version")) or None,
             "restart_to_version": _clean(cycle.get("restart_to_version")) or None,

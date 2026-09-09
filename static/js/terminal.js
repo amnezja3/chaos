@@ -7405,7 +7405,7 @@ const GHOSTNETWORK_SUITE_CYCLE_DELTA_TYPES = new Set([
     "ghost.cycle_created", "ghost.cycle_activated", "ghost.cycle_status_changed",
     "ghost.cycle_state_changed",
     "ghost.cycle_locked", "ghost.version_changed", "ghost.restart_required",
-    "ghost.signal_sent", "ghost.stabilization_started",
+    "ghost.signal_sent", "ghost.signal_show_started", "ghost.stabilization_started",
 ]);
 const GHOSTNETWORK_SUITE_RECOVERY_DELTA_TYPES = new Set([
     "ghost.parts_created", "ghost.parts_consumed", "ghost.connections_closed",

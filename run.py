@@ -8889,6 +8889,8 @@ def publish_ghostnetwork_event_delta(event):
 GHOSTNETWORK_PUBLIC_CYCLE_DELTA_TYPES = {
     "ghost.cycle_locked",
     "ghost.signal_sent",
+    "ghost.signal_show_started",
+    "ghost.version_prepared",
     "ghost.version_changed",
     "ghost.restart_required",
     "ghost.stabilization_started",
@@ -20641,6 +20643,36 @@ def get_start_location_by_ip(ip):
 
     return fallback_start_city()
 
+
+@app.before_request
+def block_gameplay_writes_during_ghostsignal_show():
+    """The server, not the overlay, is authority for the global gameplay lock."""
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    if not str(session.get("user") or "").strip():
+        return None
+    if request.path in {"/", "/api/register-check", "/api/register-finalize"}:
+        return None
+    if request.path == "/command":
+        payload = request.get_json(silent=True) or {}
+        command = str(payload.get("input") or payload.get("command") or "").strip().lower()
+        if command in {"exit", "logout"}:
+            return None
+    try:
+        cycle = GhostNetworkService().get_active_cycle() or {}
+    except Exception:
+        # A read failure must not become a global denial-of-service switch.
+        return None
+    if str(cycle.get("status") or "").strip().lower() != "stabilizing":
+        return None
+    return jsonify({
+        "ok": False,
+        "error": "ghostsignal_show_active",
+        "reason": "gameplay_locked_during_ghostsignal_show",
+        "show_active": True,
+        "stabilization_until": cycle.get("stabilization_until") or None,
+    }), 423
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -21240,6 +21272,18 @@ def api_ghostnetwork_snapshot():
         "current_version": current_version,
         **projection,
     })
+
+
+@app.route("/api/ghostnetwork/show")
+def api_ghostnetwork_show():
+    if not session.get("user"):
+        return jsonify({"ok": False, "error": "not_logged_in", "show_active": False}), 401
+    try:
+        show = GhostNetworkService().get_signal_show_for_viewer()
+    except Exception as exc:
+        print(f"[ghostnetwork] show snapshot failed error_type={type(exc).__name__}", flush=True)
+        return jsonify({"ok": False, "error": "ghostnetwork_show_unavailable"}), 503
+    return jsonify({"ok": True, **show})
 
 
 @app.route("/api/ghostnetwork/ability", methods=["GET", "POST"])

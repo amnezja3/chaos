@@ -97,7 +97,10 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
         self.assertEqual(updated_cycle["status"], "stabilizing")
         self.assertTrue(updated_cycle["restart_required"])
         self.assertEqual(updated_cycle["restart_signal_id"], signal["signal_id"])
-        self.assertEqual(updated_cycle["ghostsystem_version"], cycle["ghostsystem_version"] + 1)
+        self.assertEqual(updated_cycle["ghostsystem_version"], cycle["ghostsystem_version"])
+        self.assertTrue(updated_cycle["upgrade_pending"])
+        self.assertEqual(updated_cycle["next_version"], "1.0.2")
+        self.assertIsNotNone(self.repo.get_signal_show_for_signal(signal["signal_id"]))
         self.assertTrue(updated_cycle["stabilization_until"])
 
         parts = self.repo.list_parts(cycle["cycle_id"])
@@ -114,13 +117,17 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
     def test_transmission_retry_is_idempotent(self):
         cycle, _lock = self.create_locked_cycle()
         first = self.transmission.start_transmission(cycle["cycle_id"])
+        first_show = self.repo.get_signal_show_for_signal(first["signal"]["signal_id"])
         second = self.transmission.start_transmission(cycle["cycle_id"])
+        second_show = self.repo.get_signal_show_for_signal(second["signal"]["signal_id"])
         self.assertTrue(second["idempotent"])
         self.assertEqual(first["signal"]["signal_id"], second["signal"]["signal_id"])
         self.assertEqual(len(self.repo.list_signals_for_cycle(cycle["cycle_id"])), 1)
         self.assertEqual(len(self.repo.list_pending_rewards(cycle_id=cycle["cycle_id"], limit=100)), 21)
         self.assertEqual(len(self.repo.list_historical_nodes_for_signal(first["signal"]["signal_id"])), 20)
-        self.assertEqual(self.repo.get_cycle(cycle["cycle_id"])["ghostsystem_version"], cycle["ghostsystem_version"] + 1)
+        self.assertEqual(self.repo.get_cycle(cycle["cycle_id"])["ghostsystem_version"], cycle["ghostsystem_version"])
+        self.assertEqual(first_show["show_id"], second_show["show_id"])
+        self.assertEqual(first_show["show_started_at"], second_show["show_started_at"])
 
     def test_transmission_requires_valid_lock_snapshot(self):
         cycle = self.cycle_service.create_cycle()["cycle"]

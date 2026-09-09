@@ -3958,3 +3958,26 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Klasyfikację doprecyzowano: brak live primary territory blokuje, natomiast
   nieistniejący już uczestnik zakończonego konfliktu pozostaje warningiem
   audytowym i nie może trwale zablokować finału.
+## 2026-09-09 — 138.prepare.gn.signal.2 implemented locally
+
+- Dodano trwałą, idempotentną sesję GhostSignal Show i sześć faz liczonych z
+  czasu serwera.
+- Dodano lekki viewer endpoint, globalny overlay z recovery po loginie,
+  reloadzie i delcie oraz jednorazowy receipt zakończonego show.
+- Backend blokuje write actions podczas `stabilizing`; UI nie jest authority
+  blokady.
+- Rozdzielono aktywną wersję vN od przygotowanej vNext. Cutover zachodzi dopiero
+  po czasie show i kompletnym settlementcie.
+- Zaktualizowano konfiguracje PM2 o 900-sekundową policy show.
+- Produkcyjnego `20/20` nie uruchomiono; server/device gate ma użyć fixture.
+## 2026-09-09 — hardbugfix Centrum Operacji i Canvas hit-test
+
+- Regresję niewidocznych aktywnych operacji sprowadzono do brakującej lokalnej
+  deklaracji `cacheSignature` w aktywnym rendererze incremental z `.op.2`.
+- Przywrócono render kart i dalsze uzgadnianie markerów bez cofania optymalizacji
+  DOM/countdown.
+- Historyczny fail-closed guard Bounds rozszerzono z `_clipPoints` na
+  `Polyline._containsPoint` i `Polygon._containsPoint`, czyli aktualny stack
+  hover/click wspólnego Canvas.
+- `41/41` celowanych testów Python oraz testy JS renderera, anulowania i
+  feedbacku: PASS. Server/device revalidation pozostaje przed `.signal.3`.

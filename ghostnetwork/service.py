@@ -44,6 +44,7 @@ from .reservations import GhostDropPolicy, GhostReservationService, is_ghostnetw
 from .territory import GhostTerritoryAdapter
 from .topology import GhostTopologyService
 from .transmission import GhostTransmissionService
+from .show import GhostSignalShowService, _parse_iso
 from .territory_defense import MAX_TERRITORY_DEFENSE_SWARM
 from .visibility import build_viewer_projection
 
@@ -92,10 +93,12 @@ class GhostNetworkService:
             topology_service=self.topology,
             module_state_service=self.modules,
         )
+        self.show = GhostSignalShowService(repository=self.repository)
         self.transmission = GhostTransmissionService(
             repository=self.repository,
             lifecycle_service=self.lifecycle,
             closure_service=self.closure,
+            show_service=self.show,
         )
         self.narrative = GhostNarrativePublisher(repository=self.repository)
         self.archive = GhostArchiveService(repository=self.repository)
@@ -156,6 +159,46 @@ class GhostNetworkService:
             return 0
         return self.repository.get_state_version(active["cycle_id"])
 
+    def get_signal_show_for_viewer(self):
+        active = self.repository.get_active_cycle()
+        if active:
+            projection = self.show.projection_for_cycle(active["cycle_id"])
+            if (
+                active.get("status") == "stabilizing"
+                and not projection.get("signal_public_id")
+            ):
+                signal = self.repository.get_signal_for_cycle(active["cycle_id"])
+                if signal:
+                    self.show.ensure_for_signal(
+                        signal,
+                        cycle=active,
+                        started_at=signal.get("sent_at"),
+                        ends_at=active.get("stabilization_until") or None,
+                    )
+                    projection = self.show.projection_for_cycle(active["cycle_id"])
+            projection["restart_required"] = bool(active.get("restart_required"))
+            projection["upgrade_pending"] = bool(active.get("upgrade_pending"))
+            projection["current_version"] = active.get("source_version") or None
+            projection["next_version"] = active.get("next_version") or None
+            if not projection.get("show_active") and not projection.get("signal_public_id"):
+                latest = self.repository.get_latest_signal_show()
+                if latest and latest.get("status") == "completed":
+                    projection.update({
+                        "completed": True,
+                        "last_completed_signal_public_id": latest.get("signal_public_id") or None,
+                        "last_completed_from_system_version": latest.get("from_system_version") or None,
+                        "last_completed_to_system_version": latest.get("to_system_version") or None,
+                    })
+            return projection
+        latest = self.repository.get_latest_signal_show()
+        if not latest:
+            return {"show_active": False, "server_now": self.repository.now()}
+        return {
+            **self.show.projection_for_cycle(latest["cycle_id"]),
+            "show_active": False,
+            "completed": latest.get("status") == "completed",
+        }
+
     def get_snapshot_for_viewer(self, viewer=None):
         active = self.repository.get_active_cycle()
         if not active:
@@ -171,6 +214,7 @@ class GhostNetworkService:
                 },
             }
         snapshot = self.repository.build_internal_snapshot(active["cycle_id"])
+        snapshot["show"] = self.show.projection_for_cycle(active["cycle_id"])
         validation = self.topology.validate_topology(active["cycle_id"])
         snapshot["topology"].update(
             {
@@ -608,6 +652,9 @@ class GhostNetworkService:
             active = self.repository.get_active_cycle()
             if cycle.get("status") == "closed":
                 if active and int(active.get("signal_number") or 0) == expected_signal_number:
+                    if cycle.get("upgrade_pending"):
+                        self.repository.update_cycle(cycle_id, upgrade_pending=0)
+                    self.show.complete_for_cycle(cycle_id)
                     return {
                         "ok": True, "status": "rolled_over", "idempotent": True,
                         "closed_cycle": cycle, "next_cycle": active,
@@ -624,6 +671,22 @@ class GhostNetworkService:
                     "reasons": ["cycle_not_stabilizing_or_closed"], "cycle": cycle,
                 }
 
+            show = self.show.projection_for_cycle(cycle_id)
+            if show.get("show_active") and not show.get("show_time_elapsed"):
+                return {
+                    "ok": False, "status": "show_active",
+                    "reasons": ["ghostsignal_show_not_elapsed"],
+                    "cycle": cycle, "show": show,
+                }
+            deadline = _parse_iso(cycle.get("stabilization_until"))
+            now = _parse_iso(self.repository.now())
+            if deadline and now and now < deadline:
+                return {
+                    "ok": False, "status": "show_active",
+                    "reasons": ["ghostsignal_show_not_elapsed"],
+                    "cycle": cycle, "show": show,
+                }
+
             settlement = self.validate_rollover_settlement(cycle_id)
             if not settlement.get("ok"):
                 return {
@@ -633,10 +696,18 @@ class GhostNetworkService:
             closed = cycle
             if cycle.get("status") == "stabilizing":
                 closed = self.cycles.close_cycle(cycle_id)
+            signal = self.repository.get_signal_for_cycle(cycle_id) or {}
+            next_system_version = int(
+                signal.get("next_version")
+                or str(closed.get("next_version") or "").rsplit(".", 1)[-1]
+                or int(closed.get("ghostsystem_version") or 0) + 1
+            )
             created = self.cycles.create_cycle(
                 signal_number=expected_signal_number,
-                ghostsystem_version=int(closed.get("ghostsystem_version") or expected_signal_number),
+                ghostsystem_version=next_system_version,
             )
+            closed = self.repository.update_cycle(cycle_id, upgrade_pending=0)
+            completed_show = self.show.complete_for_cycle(cycle_id)
             return {
                 "ok": True,
                 "status": "rolled_over",
@@ -645,6 +716,7 @@ class GhostNetworkService:
                 "next_cycle": created.get("cycle"),
                 "created": created,
                 "settlement": settlement,
+                "show": completed_show,
             }
 
     def _with_transmission_narrative(self, result, after_state_version=None):

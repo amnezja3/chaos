@@ -78,16 +78,36 @@ function testLeafletPolylineBoundsGuard() {
             return clipBehavior.call(this);
         }
     };
+    const polygonPrototype = {
+        _containsPoint(point) {
+            return this._pxBounds.contains(point);
+        }
+    };
     const guardSandbox = {
         Number,
         window: {
             setTimeout() { return 1; }
         },
-        L: { Polyline: { prototype } }
+        L: { Polyline: { prototype }, Polygon: { prototype: polygonPrototype } }
     };
     guardSandbox.window.L = guardSandbox.L;
     vm.createContext(guardSandbox);
     vm.runInContext(`${template.slice(start, end)}\ninstallLeafletPolylineBoundsGuard();`, guardSandbox);
+
+    const polygon = Object.create(polygonPrototype);
+    polygon._map = {};
+    polygon._renderer = { _bounds: undefined };
+    polygon._pxBounds = undefined;
+    assert.doesNotThrow(() => polygon._containsPoint({ x: 1, y: 1 }));
+    assert.strictEqual(polygon._containsPoint({ x: 1, y: 1 }), false);
+
+    const hitBounds = {
+        min: { x: 0, y: 0 }, max: { x: 10, y: 10 },
+        contains() { return true; }
+    };
+    polygon._renderer._bounds = hitBounds;
+    polygon._pxBounds = hitBounds;
+    assert.strictEqual(polygon._containsPoint({ x: 1, y: 1 }), true);
 
     const validBounds = { min: { x: 0, y: 0 }, max: { x: 10, y: 10 } };
     const line = Object.create(prototype);

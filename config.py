@@ -215,6 +215,13 @@ GHOSTNETWORK_ENDGAME_FLAGS = {
         False,
     ),
 }
+GHOSTNETWORK_SIGNAL_SHOW_POLICY = {
+    "duration_seconds": max(
+        60,
+        env_int("CHAOS_GHOSTNETWORK_SIGNAL_SHOW_DURATION_SECONDS", 15 * 60),
+    ),
+    "phase_policy_version": "ghostsignal-show-v1",
+}
 GHOSTNETWORK_DEFENSE_POLICY = {
     "min_attack_progress": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_ATTACK_PROGRESS", 25),
     "min_integrity_loss": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_INTEGRITY_LOSS", 10),

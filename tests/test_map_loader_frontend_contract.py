@@ -107,6 +107,26 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("layer._chaosBoundsRecoveryAttempt < 8", guard)
         self.assertIn("polyline bounds recovery exhausted", guard)
 
+    def test_canvas_polygon_hit_test_skips_transient_invalid_bounds(self):
+        guard_start = self.map_template.index("function installLeafletPolylineBoundsGuard")
+        guard_end = self.map_template.index("function registerLayerInArray", guard_start)
+        guard = self.map_template[guard_start:guard_end]
+        self.assertIn("function installContainsPointGuard(targetProto, layerName)", guard)
+        self.assertIn("installContainsPointGuard(L.Polygon.prototype, 'polygon')", guard)
+        self.assertIn("transient canvas hit-test bounds race skipped", guard)
+        self.assertIn("return false;", guard)
+
+    def test_incremental_operation_cards_define_their_render_signature(self):
+        first = self.map_template.index("window.renderActiveOperationsPanel = function(operations)")
+        current = self.map_template.index(
+            "window.renderActiveOperationsPanel = function(operations, history)", first
+        )
+        end = self.map_template.index("window.updateActiveOperationCountdowns = function", current)
+        renderer = self.map_template[current:end]
+        declaration = renderer.index("const cacheSignature =")
+        use = renderer.index('data-operation-render-signature="${cacheSignature}"')
+        self.assertLess(declaration, use)
+
     def test_global_territory_sanity_limit_accepts_large_canonical_cluster(self):
         sanity_start = self.map_template.index("function isSaneTerritoryPolygon")
         sanity_end = self.map_template.index("function normalizeMapLatLngPair", sanity_start)
