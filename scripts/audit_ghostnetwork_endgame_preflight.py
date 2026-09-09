@@ -121,6 +121,18 @@ def _pending_endgame_work(db_path):
     return result
 
 
+def _blocked_checkpoint_gate_holds(parts, conflict_gate):
+    """Confirm a complete network is still held by exactly one conflict gate."""
+    parts = [item for item in (parts or []) if isinstance(item, dict)]
+    blockers = (conflict_gate or {}).get("blockers") or []
+    return (
+        len(parts) == 20
+        and all(item.get("status") == "active" for item in parts)
+        and bool((conflict_gate or {}).get("blocked"))
+        and len(blockers) == 1
+    )
+
+
 def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
           backup_max_age_minutes=120, expect="entry"):
     expect = str(expect or "entry").strip().lower()
@@ -243,8 +255,9 @@ def audit(db_path=DB_PATH, *, strict=False, check_runtime=True, backup_path="",
             "blocked_checkpoint_territory_plan_ready": not any(
                 item.get("blocking") for item in territory_plan.get("warnings") or []
             ),
-            "blocked_checkpoint_gate_blocks": bool(conflict_gate.get("network_complete"))
-            and not conflict_gate.get("ready") and len(blockers) == 1,
+            "blocked_checkpoint_gate_blocks": _blocked_checkpoint_gate_holds(
+                parts, conflict_gate
+            ),
         })
     if strict:
         errors.extend(sorted(key for key, value in checks.items() if not value))

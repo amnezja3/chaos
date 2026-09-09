@@ -12,6 +12,7 @@ from scripts.audit_ghostnetwork_endgame import (
     audit as postflight_audit,
 )
 from scripts.audit_ghostnetwork_endgame_preflight import (
+    _blocked_checkpoint_gate_holds,
     _compact_report,
     audit as preflight_audit,
 )
@@ -62,6 +63,14 @@ class GhostNetworkEndgameAuditTest(unittest.TestCase):
         self.assertNotIn("targets", compact["territory_plan"]["entries"][0])
         self.assertEqual(compact["territory_plan"]["entries"][0]["target_count"], 1)
         self.assertEqual(compact["territory_plan"]["entries"][0]["geometry_vertices"], 1)
+
+    def test_blocked_checkpoint_uses_conflict_gate_public_contract(self):
+        parts = [{"part_id": f"part-{index}", "status": "active"} for index in range(20)]
+        gate = {"blocked": True, "blockers": [{"conflict_id": "conflict-a"}]}
+
+        self.assertTrue(_blocked_checkpoint_gate_holds(parts, gate))
+        self.assertFalse(_blocked_checkpoint_gate_holds(parts[:-1], gate))
+        self.assertFalse(_blocked_checkpoint_gate_holds(parts, {"blocked": False, "blockers": []}))
 
     def test_postflight_uses_canonical_signal_checksum(self):
         payload = {"unicode": "sygnał", "nested": {"b": 2, "a": 1}}

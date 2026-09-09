@@ -4034,3 +4034,17 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   a closure niezależnie odpytuje otwarte produkcyjne `territory_conflicts`.
   Postflight waliduje dodatkowo `resolved_at <= locked_at`.
 - Pełne ustalenia: `doc/audits/138-signal3-production-e2e-findings.md`.
+
+## 2026-09-09 — .signal.3 replay: poprawna blokada 20/20
+
+- Przywrócono pełną bazę sprzed pierwszej emisji i powtórzono strict entry
+  preflight: `19/20`, P2 publiczna, S1 `contested`, runtime online.
+- Po aktywacji P2 system utrzymał `20/20 + konflikt`, bez transmisji, locka,
+  konsumpcji i mutacji nieodwracalnych. Poprawiona bramka runtime działa.
+- Jedyny FAIL checkpointu pochodził z audytora: używał pól, których helper
+  conflict gate nie zwraca. Sprawdzenie przepisano na kontrakt `blocked` oraz
+  dokładnie jeden blocker przy 20 aktywnych częściach.
+- Dodano regresję kontraktu; celowane audyty, integralność i adapter terytoriów:
+  `23/23 PASS`, `py_compile` i `git diff --check`: PASS.
+- Rozwiązanie konfliktu pozostaje wstrzymane do wdrożenia audytora i ponownego
+  strict checkpointu z wynikiem `ok=true`.
