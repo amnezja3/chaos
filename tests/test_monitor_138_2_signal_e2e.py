@@ -35,7 +35,9 @@ class SignalE2EMonitorTest(unittest.TestCase):
             "narrative": {
                 "signal_task_count": 3,
                 "signal_attempt_count": 1,
-                "signal_candidate_count": 1,
+                "signal_candidate_count": 4,
+                "signal_accepted_candidate_count": 3,
+                "signal_quarantined_candidate_count": 1,
                 "signal_receipt_count": 1,
                 "signal_record_count": 1,
             },
@@ -49,6 +51,7 @@ class SignalE2EMonitorTest(unittest.TestCase):
             "signal_tasks_3_durable",
             "signal_attempt_started",
             "signal_candidate_created",
+            "signal_candidates_3_accepted",
             "signal_receipt_created",
             "signal_record_published",
             "ranking_created",

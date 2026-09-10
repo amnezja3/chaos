@@ -6910,6 +6910,59 @@ class GhostNetworkRepository:
                 ).fetchone()
             )
 
+    def requeue_completed_narrative_support_repair(
+        self, outbox_id, candidate_id, now=None,
+    ):
+        """Requeue a completed task while preserving its rejected candidate."""
+        now_iso = _iso(now if now is not None else self.now())
+        outbox_id = _clean(outbox_id)
+        candidate_id = _clean(candidate_id)
+        with self.transaction():
+            conn = self._transaction_conn
+            current = self._narrative_outbox(conn.execute(
+                "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                (outbox_id,),
+            ).fetchone())
+            candidate = conn.execute(
+                """
+                SELECT validation_status FROM ghost_narrative_inbox_candidates
+                WHERE candidate_id = ? AND task_id = ? LIMIT 1
+                """,
+                (candidate_id, outbox_id),
+            ).fetchone()
+            accepted = conn.execute(
+                """
+                SELECT 1 FROM ghost_narrative_inbox_candidates
+                WHERE task_id = ? AND validation_status = 'accepted' LIMIT 1
+                """,
+                (outbox_id,),
+            ).fetchone()
+            if (
+                not current
+                or current.get("status") != "completed"
+                or not candidate
+                or candidate["validation_status"] == "accepted"
+                or accepted
+            ):
+                return None
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'ready', processed_at = '', completed_at = '',
+                    claimed_by = '', claimed_at = '', lease_until = '',
+                    next_attempt_at = ?, last_error_code = '', last_error_at = '',
+                    updated_at = ?
+                WHERE outbox_id = ? AND status = 'completed'
+                """,
+                (now_iso, now_iso, outbox_id),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(conn.execute(
+                "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                (outbox_id,),
+            ).fetchone())
+
     def update_narrative_outbox_status(self, outbox_id, status, processed_at=None, validation=None):
         """Bounded Sprint 129 compatibility transition; worker paths require lease CAS."""
         requested = _clean(status)

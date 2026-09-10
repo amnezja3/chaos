@@ -486,6 +486,8 @@ def _ghostnetwork_voice_integrity_errors(title, body, model_input):
         (model_input or {}).get("semantic_facts") or [], ensure_ascii=False,
     )
     visible_tokens = set(_normalized_narrative_text(visible).split())
+    if _normalized_narrative_text(title) == "przechwyt":
+        errors.append("voice_title_missing_subject")
     for field_name, value in (("title", title), ("body", body)):
         normalized = _normalized_narrative_text(value)
         tokens = normalized.split()
@@ -1271,7 +1273,7 @@ def parse_and_validate_ollama_content(content, task_package):
         else []
     )
     selected_source_ref = str(task_package.get("selected_source_ref") or "").strip()
-    if selected_source_ref and canonical_refs != [selected_source_ref]:
+    if selected_source_ref and selected_source_ref not in canonical_refs:
         security_errors.append("selected_fact_mismatch")
     cta_ref_removed = False
     cta_map = task_package.get("cta_map") or {}

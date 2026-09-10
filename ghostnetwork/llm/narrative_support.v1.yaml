@@ -122,6 +122,37 @@ fallbacks:
           - "...nowy cykl GhostNetwork został aktywowany."
           - "...GhostNetwork uruchomił nowy aktywny cykl."
 
+  cyberner:
+    machine_online:
+      public:
+        tone: info
+        title:
+          - "Maszyna GhostNetwork online"
+          - "Synchronizacja maszyny zakończona"
+        body:
+          - "Jedna z maszyn GhostNetwork osiągnęła stan online."
+          - "Potwierdzono synchronizację kompletnej maszyny GhostNetwork."
+
+    cycle_locked:
+      public:
+        tone: critical
+        title:
+          - "Cykl GhostNetwork zamknięty"
+          - "Obwód GhostNetwork domknięty"
+        body:
+          - "Bieżący cykl GhostNetwork został nieodwracalnie zamknięty."
+          - "Potwierdzono domknięcie i blokadę cyklu GhostNetwork."
+
+    signal_sent:
+      public:
+        tone: critical
+        title:
+          - "GhostSignal wysłany"
+          - "Transmisja GhostNetwork zakończona"
+        body:
+          - "Zamknięta sieć GhostNetwork wysłała GhostSignal."
+          - "Potwierdzono transmisję GhostSignalu z domkniętej sieci."
+
   googleplex_news:
     part_discovered:
       public:

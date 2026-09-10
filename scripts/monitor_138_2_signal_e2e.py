@@ -353,6 +353,20 @@ def read_snapshot(db_path, cycle_id, conflict_id, include_pm2=True):
             "signal_attempt_count": sum(row["task_id"] in signal_task_set for row in attempts),
             "candidates": candidates,
             "signal_candidate_count": sum(row["task_id"] in signal_task_set for row in candidates),
+            "signal_candidate_statuses": sorted(
+                row["validation_status"]
+                for row in candidates if row["task_id"] in signal_task_set
+            ),
+            "signal_accepted_candidate_count": sum(
+                row["task_id"] in signal_task_set
+                and row["validation_status"] == "accepted"
+                for row in candidates
+            ),
+            "signal_quarantined_candidate_count": sum(
+                row["task_id"] in signal_task_set
+                and row["validation_status"] == "quarantined"
+                for row in candidates
+            ),
             "receipts": receipts,
             "signal_receipt_count": sum(row["task_id"] in signal_task_set for row in receipts),
             "records": records,
@@ -401,6 +415,9 @@ def milestone_flags(snapshot):
         "signal_tasks_3_durable": int(narrative.get("signal_task_count") or 0) == 3,
         "signal_attempt_started": int(narrative.get("signal_attempt_count") or 0) > 0,
         "signal_candidate_created": int(narrative.get("signal_candidate_count") or 0) > 0,
+        "signal_candidates_3_accepted": int(
+            narrative.get("signal_accepted_candidate_count") or 0
+        ) == 3,
         "signal_receipt_created": int(narrative.get("signal_receipt_count") or 0) > 0,
         "signal_record_published": int(narrative.get("signal_record_count") or 0) > 0,
         "ranking_created": len(snapshot.get("rankings") or []) == 1,

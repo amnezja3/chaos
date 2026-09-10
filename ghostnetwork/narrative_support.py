@@ -22,7 +22,15 @@ REQUIRED_ENDGAME_FALLBACK_FAMILIES = (
     "stabilization_started",
     "cycle_activated",
 )
-REQUIRED_ENDGAME_FALLBACK_MEDIA = ("blacknet", "googleplex_news")
+REQUIRED_ENDGAME_FALLBACK_ROUTES = tuple(
+    (medium, family)
+    for medium in ("blacknet", "googleplex_news")
+    for family in REQUIRED_ENDGAME_FALLBACK_FAMILIES
+) + (
+    ("cyberner", "machine_online"),
+    ("cyberner", "cycle_locked"),
+    ("cyberner", "signal_sent"),
+)
 DEFAULT_SUPPORT_PATH = (
     Path(__file__).resolve().parent / "llm" / "narrative_support.v1.yaml"
 )
@@ -79,17 +87,16 @@ class NarrativeSupportLayer:
                             if isinstance(definition.get(field), list)
                         )
         missing_required_endgame_routes = []
-        for medium in REQUIRED_ENDGAME_FALLBACK_MEDIA:
-            for event_family in REQUIRED_ENDGAME_FALLBACK_FAMILIES:
-                definition = self._definition(medium, event_family, "public")
-                if not isinstance(definition, dict) or any(
-                    not isinstance(definition.get(field), list)
-                    or not definition.get(field)
-                    for field in ("title", "body")
-                ):
-                    missing_required_endgame_routes.append(
-                        f"{medium}:{event_family}:public"
-                    )
+        for medium, event_family in REQUIRED_ENDGAME_FALLBACK_ROUTES:
+            definition = self._definition(medium, event_family, "public")
+            if not isinstance(definition, dict) or any(
+                not isinstance(definition.get(field), list)
+                or not definition.get(field)
+                for field in ("title", "body")
+            ):
+                missing_required_endgame_routes.append(
+                    f"{medium}:{event_family}:public"
+                )
         errors = list(self.errors)
         errors.extend(
             f"narrative_support_required_endgame_fallback_missing:{route}"
@@ -100,10 +107,7 @@ class NarrativeSupportLayer:
             "contract_version": self.config.get("contract_version") or "",
             "errors": errors,
             "variants": variants,
-            "required_endgame_routes": (
-                len(REQUIRED_ENDGAME_FALLBACK_MEDIA)
-                * len(REQUIRED_ENDGAME_FALLBACK_FAMILIES)
-            ),
+            "required_endgame_routes": len(REQUIRED_ENDGAME_FALLBACK_ROUTES),
             "missing_required_endgame_routes": missing_required_endgame_routes,
         }
 

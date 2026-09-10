@@ -75,7 +75,10 @@ def _dry_run(client):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Canonical CHAOS Ollama narrative worker")
-    parser.add_argument("command", choices=("status", "verify", "dry-run", "run-once", "run"))
+    parser.add_argument(
+        "command",
+        choices=("status", "verify", "dry-run", "run-once", "repair-support", "run"),
+    )
     parser.add_argument(
         "--target-medium",
         choices=("blacknet", "googleplex_news", "cyberner"),
@@ -87,9 +90,18 @@ def main(argv=None):
         default=None,
         help="Claim only tasks belonging to one canonical source event.",
     )
+    parser.add_argument(
+        "--task-id",
+        default="",
+        help="Completed quarantined task selected for deterministic support repair.",
+    )
     args = parser.parse_args(argv)
     if (args.target_medium or args.source_event_id) and args.command != "run-once":
         parser.error("task selectors are available only with run-once")
+    if args.task_id and args.command != "repair-support":
+        parser.error("--task-id is available only with repair-support")
+    if args.command == "repair-support" and not args.task_id:
+        parser.error("repair-support requires --task-id")
     worker = _worker()
     try:
         if args.command == "status":
@@ -103,6 +115,10 @@ def main(argv=None):
             result = _dry_run(worker.client)
             _print(result)
             return 0 if result.get("ok") else 3
+        if args.command == "repair-support":
+            result = worker.prepare_support_repair(args.task_id)
+            _print(result)
+            return 0 if result.get("ok") else 7
         if args.command == "run-once" and not worker.config.enabled:
             _print({"ok": False, "error": "ollama_worker_disabled"})
             return 4

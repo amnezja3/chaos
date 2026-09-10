@@ -331,6 +331,61 @@ class NarrativeSupportLayerTest(unittest.TestCase):
                         fixed_action["cta_action"],
                     )
 
+    def test_cyberner_signal_accepts_context_refs_and_repairs_empty_intercept_title(self):
+        facts = [
+            attach_semantic_content(
+                {"fact_id": f"fact:signal:{index}", "fact_type": "signal_sent"},
+                {"statement": statement},
+            )
+            for index, statement in enumerate((
+                "GhostSignal został wysłany z zamkniętej sieci.",
+                "Sieć GhostNetwork osiągnęła pełne zamknięcie.",
+                "Ghost System wymaga przejścia do kolejnego cyklu.",
+            ), start=1)
+        ]
+        task = assign_ollama_task_policy({
+            "source_scope": "ghostnetwork",
+            "source_event_id": "event-signal-cyberner",
+            "target_medium": "cyberner",
+            "audience_scope": "public",
+            "truth_class": "canonical",
+            "truth_class_policy": "canonical_facts_only",
+            "facts": facts,
+            "allowed_actions": [],
+            "selected_source_ref": facts[0]["fact_id"],
+            "task_variant": "signal_sent",
+            "narrative_intent": "ghost_signal_transmission",
+            "narrative_thread_id": "ghost-signal:public:test",
+            "validation": {"event_family": "signal_sent", "significance": "critical"},
+        })
+        package = build_ollama_task_package(task)
+        contextual = parse_and_validate_ollama_content(json.dumps({
+            "title": "GhostSignal wysłany",
+            "body": "Sieć GhostNetwork osiągnęła pełne zamknięcie i wysłała GhostSignal.",
+            "tone": "critical",
+            "fact_refs": ["f01", "f02", "f03"],
+            "cta_ref": None,
+        }, ensure_ascii=False), package)
+        self.assertEqual(contextual["status"], "accepted", contextual)
+
+        incomplete = parse_and_validate_ollama_content(json.dumps({
+            "title": "PRZECHWYT //",
+            "body": "Sieć GhostNetwork osiągnęła pełne zamknięcie i wysłała GhostSignal.",
+            "tone": "critical",
+            "fact_refs": ["f01", "f02", "f03"],
+            "cta_ref": None,
+        }, ensure_ascii=False), package)
+        self.assertEqual(incomplete["status"], "rejected", incomplete)
+        self.assertIn("voice_title_missing_subject", incomplete["errors"])
+        supported = NarrativeSupportLayer().apply(
+            task, package, incomplete, parse_and_validate_ollama_content,
+        )
+        self.assertIsNotNone(supported)
+        self.assertEqual(supported["validation"]["status"], "accepted")
+        self.assertNotEqual(
+            supported["validation"]["output"]["title"], "PRZECHWYT //"
+        )
+
     def test_private_endgame_route_can_only_inherit_public_safe_template(self):
         layer = NarrativeSupportLayer()
         public = layer._definition("blacknet", "signal_sent", "public")
@@ -348,7 +403,7 @@ class NarrativeSupportLayerTest(unittest.TestCase):
             result = NarrativeSupportLayer(path).verify()
 
         self.assertFalse(result["ok"], result)
-        self.assertEqual(result["required_endgame_routes"], 12)
+        self.assertEqual(result["required_endgame_routes"], 15)
         self.assertEqual(
             result["missing_required_endgame_routes"],
             ["blacknet:cycle_activated:public"],
@@ -358,7 +413,7 @@ class NarrativeSupportLayerTest(unittest.TestCase):
         result = NarrativeSupportLayer().verify()
 
         self.assertTrue(result["ok"], result)
-        self.assertEqual(result["required_endgame_routes"], 12)
+        self.assertEqual(result["required_endgame_routes"], 15)
         self.assertEqual(result["missing_required_endgame_routes"], [])
 
 

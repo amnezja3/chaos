@@ -280,7 +280,7 @@ class OllamaNarrativeWorker:
 
     def _terminal_candidate_completion(self, task):
         candidate = self.repository.get_narrative_candidate_for_task(task["outbox_id"])
-        if not candidate:
+        if not candidate or candidate.get("validation_status") != "accepted":
             return None
         completed = self.repository.complete_narrative_task(
             task["outbox_id"], self.worker_id, task["lease_until"]
@@ -296,6 +296,44 @@ class OllamaNarrativeWorker:
             "result": "candidate_recovered" if completed else "lease_lost",
             "task_id": task["outbox_id"],
             "candidate_id": candidate["candidate_id"],
+        }
+
+    def prepare_support_repair(self, task_id):
+        task = self.repository.get_narrative_outbox(task_id)
+        candidate = self.repository.get_narrative_candidate_for_task(task_id)
+        if not task or not candidate:
+            return {"ok": False, "reason": "task_or_candidate_missing"}
+        if candidate.get("validation_status") == "accepted":
+            return {"ok": True, "status": "already_accepted", "task_id": task_id}
+        try:
+            package = build_ollama_task_package(task)
+            replay = parse_and_validate_ollama_content(
+                candidate.get("bounded_raw_output") or "", package,
+            )
+            support = self.narrative_support.apply(
+                task, package, replay, parse_and_validate_ollama_content,
+            )
+        except (TypeError, ValueError) as exc:
+            return {
+                "ok": False,
+                "reason": "support_repair_invalid",
+                "error": str(exc)[:160],
+            }
+        if not support or (support.get("validation") or {}).get("status") != "accepted":
+            return {
+                "ok": False,
+                "reason": "support_repair_unavailable",
+                "model_errors": replay.get("errors") or [],
+            }
+        requeued = self.repository.requeue_completed_narrative_support_repair(
+            task_id, candidate["candidate_id"],
+        )
+        return {
+            "ok": bool(requeued),
+            "status": "ready" if requeued else "state_changed",
+            "task_id": task_id,
+            "source_candidate_id": candidate["candidate_id"],
+            "support_mode": support.get("mode") or "",
         }
 
     def _complete_with_support(
@@ -439,6 +477,30 @@ class OllamaNarrativeWorker:
         )
         if not attempt:
             return {"result": "lease_lost", "task_id": task["outbox_id"]}
+
+        prior_candidate = self.repository.get_narrative_candidate_for_task(
+            task["outbox_id"]
+        )
+        if (
+            prior_candidate
+            and prior_candidate.get("validation_status") != "accepted"
+            and prior_candidate.get("bounded_raw_output")
+        ):
+            replay = parse_and_validate_ollama_content(
+                prior_candidate["bounded_raw_output"], package,
+            )
+            repaired = self._complete_with_support(
+                task,
+                attempt,
+                package,
+                task["lease_until"],
+                replay,
+                error_code="support_repair",
+                error_message="deterministic support repair",
+            )
+            if repaired:
+                repaired["recovered_from_candidate_id"] = prior_candidate["candidate_id"]
+                return repaired
 
         heartbeat = LeaseHeartbeat(
             self.repository, task, self.worker_id, self.config

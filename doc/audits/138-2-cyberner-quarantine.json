@@ -1,0 +1,160 @@
+{
+  "contract_version": "ghostnetwork-generation-validation-audit-v1",
+  "errors": [
+    "generation_chain_incomplete_or_rejected"
+  ],
+  "event": {
+    "created_at": "2026-09-10T16:08:59.424378+00:00",
+    "event_id": "event_482e06e1401c116f",
+    "event_type": "ghost.signal_sent"
+  },
+  "expected_task_count": 1,
+  "manual_voice_review": {
+    "checks": [
+      "title_and_body_are_polish",
+      "voice_matches_target_medium",
+      "copy_describes_only_semantic_facts",
+      "entity_roles_do_not_gain_ownership_causality_or_agency",
+      "proper_names_are_complete_and_not_truncated",
+      "copy_does_not_echo_control_metadata_or_identifiers"
+    ],
+    "required": true
+  },
+  "missing_task_identities": [],
+  "ok": false,
+  "sample_count": 1,
+  "samples": [
+    {
+      "attempt": {
+        "attempt_id": "narrative_attempt_0fbc888afbd394aa",
+        "attempt_number": 1,
+        "error_code": "",
+        "fact_count": 3,
+        "input_bytes": 844,
+        "request_hash": "c396a1ab641ae492b3faaddc1bdb815980c29a2d2a367f02fe396dc0cc54455e",
+        "result": "quarantined",
+        "status": "completed"
+      },
+      "candidate": {
+        "asset_ref": "",
+        "attempt_id": "narrative_attempt_0fbc888afbd394aa",
+        "body": "...Sieć GhostNetwork osiągnęła pełne zamknięcie. Wysłano GhostSignal z zamkniętej sieci.",
+        "candidate_id": "narrative_candidate_17fd6815583191e8",
+        "cta_action": "",
+        "fact_refs": [
+          "f01",
+          "f02",
+          "f03"
+        ],
+        "quarantine_reason": "selected_fact_mismatch",
+        "title": "PRZECHWYT //",
+        "tone": "critical",
+        "validation_errors": [
+          "selected_fact_mismatch"
+        ],
+        "validation_status": "quarantined"
+      },
+      "errors": [
+        "candidate_fact_lineage_invalid",
+        "candidate_not_accepted:quarantined"
+      ],
+      "model_input": {
+        "audience": {
+          "scope": "public"
+        },
+        "event_family": "signal_sent",
+        "medium": "cyberner",
+        "narrative_intent": "ghost_signal_transmission",
+        "semantic_contract": "chaos-llm-semantic-input-v1",
+        "semantic_facts": [
+          {
+            "attributes": [
+              {
+                "name": "wynik",
+                "value": "pending"
+              }
+            ],
+            "fact_ref": "f01",
+            "statement": "GhostSignal został wysłany z zamkniętej sieci."
+          },
+          {
+            "attributes": [
+              {
+                "name": "liczba części",
+                "value": 20
+              },
+              {
+                "name": "liczba połączeń",
+                "value": 20
+              },
+              {
+                "name": "liczba maszyn",
+                "value": 4
+              },
+              {
+                "name": "wynik",
+                "value": "pending"
+              }
+            ],
+            "fact_ref": "f02",
+            "statement": "Sieć GhostNetwork osiągnęła pełne zamknięcie."
+          },
+          {
+            "attributes": [
+              {
+                "name": "wynik",
+                "value": "pending"
+              }
+            ],
+            "fact_ref": "f03",
+            "statement": "Ghost System wymaga przejścia do kolejnego cyklu."
+          }
+        ],
+        "significance": "critical",
+        "tone_hint": "critical"
+      },
+      "ok": false,
+      "package": {
+        "fact_count": 3,
+        "input_bytes": 844,
+        "output_safety_contract_version": "ghostnetwork-output-safety-v1",
+        "output_safety_forbidden_value_count": 0,
+        "request_hash": "c396a1ab641ae492b3faaddc1bdb815980c29a2d2a367f02fe396dc0cc54455e"
+      },
+      "support_replay": {
+        "available": true,
+        "model_validation": {
+          "errors": [
+            "selected_fact_mismatch"
+          ],
+          "output": {
+            "body": "...Sieć GhostNetwork osiągnęła pełne zamknięcie. Wysłano GhostSignal z zamkniętej sieci.",
+            "cta_ref": null,
+            "fact_refs": [
+              "f01",
+              "f02",
+              "f03"
+            ],
+            "title": "PRZECHWYT //",
+            "tone": "critical"
+          },
+          "status": "quarantined"
+        },
+        "read_only": true,
+        "support_applied": false,
+        "support_mode": "",
+        "support_output": null
+      },
+      "task": {
+        "audience_scope": "public",
+        "event_family": "signal_sent",
+        "narrative_intent": "ghost_signal_transmission",
+        "prompt_version": "ghostsignal-prompt-v11",
+        "source_event_id": "event_482e06e1401c116f",
+        "status": "completed",
+        "target_medium": "cyberner",
+        "task_id": "narrative_task_f50c7ebe7c7d3bec"
+      }
+    }
+  ]
+}

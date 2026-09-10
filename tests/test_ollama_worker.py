@@ -388,7 +388,7 @@ class OllamaWorkerTest(unittest.TestCase):
             task_id=item["outbox_id"], limit=10,
         )), 5)
 
-    def test_cyberner_signal_transport_failure_has_bounded_terminal(self):
+    def test_cyberner_signal_transport_failure_uses_bounded_support_terminal(self):
         fact = attach_semantic_content(
             {"fact_id": "fact:signal-terminal", "fact_type": "signal_sent"},
             {"statement": "GhostSignal został wysłany z zamkniętej sieci."},
@@ -416,11 +416,80 @@ class OllamaWorkerTest(unittest.TestCase):
         terminal = worker.process_once(target_medium="cyberner")
 
         current = self.repo.get_narrative_outbox(item["outbox_id"])
-        self.assertEqual(terminal["result"], "dead_letter")
-        self.assertEqual(current["status"], "dead_letter")
+        self.assertEqual(terminal["result"], "completed")
+        self.assertEqual(terminal["validation_status"], "accepted")
+        self.assertEqual(terminal["narrative_support_mode"], "full")
+        self.assertEqual(current["status"], "completed")
         self.assertEqual(current["attempt_count"], 5)
-        self.assertEqual(current["last_error_code"], "ollama_unavailable")
-        self.assertIsNone(self.repo.get_narrative_candidate_for_task(item["outbox_id"]))
+        self.assertEqual(current["last_error_code"], "")
+        self.assertEqual(
+            self.repo.get_narrative_candidate_for_task(item["outbox_id"])["validation_status"],
+            "accepted",
+        )
+
+    def test_quarantined_signal_is_repaired_from_raw_output_without_second_model_call(self):
+        facts = [
+            attach_semantic_content(
+                {"fact_id": f"fact:signal-repair:{index}", "fact_type": "signal_sent"},
+                {"statement": statement},
+            )
+            for index, statement in enumerate((
+                "GhostSignal został wysłany z zamkniętej sieci.",
+                "Sieć GhostNetwork osiągnęła pełne zamknięcie.",
+            ), start=1)
+        ]
+        task = assign_ollama_task_policy({
+            **self.task(event_id="signal-cyberner-repair"),
+            "target_medium": "cyberner",
+            "task_variant": "signal_sent",
+            "narrative_intent": "ghost_signal_transmission",
+            "facts": facts,
+            "selected_source_ref": facts[0]["fact_id"],
+            "validation": {"event_family": "signal_sent", "significance": "critical"},
+        })
+        item = self.repo.enqueue_narrative_task(task)
+
+        class NoSupport:
+            @staticmethod
+            def verify():
+                return {"ok": True, "errors": []}
+
+            @staticmethod
+            def apply(*_args, **_kwargs):
+                return None
+
+        first_client = FakeClient([json.dumps({
+            "title": "GhostSignal wysłany",
+            "body": "Sieć GhostNetwork osiągnęła pełne zamknięcie.",
+            "tone": "critical",
+            "fact_refs": ["f02"],
+            "cta_ref": None,
+        }, ensure_ascii=False)])
+        first_worker = OllamaNarrativeWorker(
+            repository=self.repo,
+            client=first_client,
+            config=self.config,
+            worker_id="quarantine-worker",
+            narrative_support=NoSupport(),
+        )
+        first = first_worker.process_once(source_event_id="signal-cyberner-repair")
+        self.assertEqual(first["validation_status"], "quarantined")
+
+        repair_client = FakeClient([])
+        repair_worker = self.worker(repair_client, worker_id="support-repair-worker")
+        prepared = repair_worker.prepare_support_repair(item["outbox_id"])
+        repaired = repair_worker.process_once(source_event_id="signal-cyberner-repair")
+
+        self.assertTrue(prepared["ok"], prepared)
+        self.assertEqual(repaired["result"], "completed", repaired)
+        self.assertEqual(repaired["validation_status"], "accepted")
+        self.assertEqual(repaired["narrative_support_mode"], "full")
+        self.assertEqual(repair_client.calls, 0)
+        candidates = self.repo.list_narrative_candidates(limit=10)
+        self.assertEqual(
+            sorted(candidate["validation_status"] for candidate in candidates),
+            ["accepted", "quarantined"],
+        )
 
     def test_guaranteed_signal_route_uses_support_after_transport_retries(self):
         action = {
