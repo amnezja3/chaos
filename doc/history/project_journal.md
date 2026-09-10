@@ -4224,3 +4224,20 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   PASS, py_compile/node --check/diff check PASS. Mały i 35 MB profil:
   identyczna ograniczona liczba zapytań, zero pełnych odczytów/zapisów profilu
   oraz skanów kont. Status: `139.2 LOCAL PASS / SERVER + VISUAL GATE PENDING`.
+
+## 2026-09-10 — 139.2: wynik izolowanej bramki serwerowej
+
+- Na `3ac2c3b`: 137 testów Python PASS, 380,252 s. Trzy zestawy JS
+  (show, recovery/iframe, delta client) PASS na Node 12.22.9.
+- Istniejący test session generation nie uruchomił asercji: parser Node 12
+  odrzucił optional chaining w przeglądarkowym module sesji. Pierwotna
+  instrukcja błędnie zakładała zgodność tego dodatkowego testu z Node serwera.
+  Ponowiono go lokalnie na Node 24.8.0: PASS. Test potrzebuje także API Headers.
+- Poprawiono instrukcję bramki, rozdzielając regresję modułu przeglądarkowego
+  od testów zgodnych z serwerowym runtime. Nie zmieniono kodu mechaniki/sesji
+  ani środowiska PM2. Ostatnie node --check nie wykonało się przez &&;
+  pozostaje do uruchomienia osobno, podobnie jak otwarta kontrola wizualna.
+- Operator następnie potwierdził osobne `node --check
+  static/js/ghost_signal_show.js` z kodem wyjścia 0. Izolowana bramka serwerowa
+  139.2 zaliczona; status `LOCAL + ISOLATED SERVER PASS / VISUAL GATE PENDING`.
+  Nie jest to potwierdzenie przeładowania PM2 ani production E2E.

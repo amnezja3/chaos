@@ -1,6 +1,6 @@
 # Sprint 139 — GhostSignal: natychmiastowy show i kontrolowany restart
 
-Status: `IN PROGRESS / 139.1 CLOSED / 139.2 LOCAL PASS / SERVER + VISUAL GATE PENDING`
+Status: `IN PROGRESS / 139.1 CLOSED / 139.2 LOCAL + ISOLATED SERVER PASS / VISUAL GATE PENDING`
 
 Źródło produktowe: `doc/sprints/sprint_139_opis_15-minutowe_show.md`
 
@@ -504,12 +504,31 @@ PY
 node tests/ghost_signal_show_frontend.test.js
 node tests/ghost_signal_show_recovery.test.js
 node tests/js/test_ghostnetwork_delta_client.js
-node tests/js/test_session_generation_isolation.js
 node --check static/js/ghost_signal_show.js
 ```
+
+Regresję przeglądarkowego modułu sesji
+`node tests/js/test_session_generation_isolation.js` uruchamiamy osobno
+w środowisku testowym zgodnym z jego składnią i API przeglądarkowymi
+(potwierdzone lokalnie: Node 24.8.0). Ten istniejący test wymaga m.in.
+optional chaining oraz `Headers`; nie jest zgodny z serwerowym Node 12.22.9.
+Nie zmieniamy runtime PM2 ani kodu modułu sesji tylko na potrzeby tej bramki.
 
 Każde polecenie musi zakończyć się kodem 0. Błąd wymaga diagnozy; nie
 uruchamiamy kolejnego finału ani naprawczego SQL. Wynik tej bramki nadal
 nie jest production E2E 139.4. Kontrola wizualna desktop/mobile, dwóch kart,
 reloadu i powrotu połączenia pozostaje otwarta: lokalna sesja Browser
 zwróciła `No browser is available` i pustą listę przeglądarek.
+
+### Wynik serwerowy 139.2 — 3ac2c3b
+
+- Python: **137 testów, 380,252 s, OK**.
+- JS: show, recovery/iframe i delta client PASS na Node 12.22.9.
+- Stary test session generation zatrzymał się na `?.` przed wykonaniem
+  asercji. To błąd doboru polecenia do środowiska w pierwotnej instrukcji,
+  nie wynik FAIL asercji sesji. Ponowienie lokalnie na Node 24.8.0: PASS.
+- Po zatrzymaniu łańcucha `&&` operator wykonał osobno
+  `node --check static/js/ghost_signal_show.js`; `echo $?` zwróciło **0**.
+- Izolowana bramka serwerowa 139.2 zaliczona. Kontrola wizualna desktop/mobile
+  pozostaje otwarta; wynik nie potwierdza przeładowania PM2 ani production E2E.
+  Nie ma potrzeby ponawiać 137 zaliczonych testów Python.
