@@ -13,6 +13,22 @@
 - Testy kontraktu monitora: 4/4 PASS; read-only smoke na dużej lokalnej bazie
   PASS.
 
+## 2026-09-10 — 138.2 arm: backlog isolation i graceful PM2 stop
+
+- Produkcyjna diagnostyka wykazała, że PM2 17 i 18 były `online`, lecz miały
+  odpowiednio `CHAOS_OLLAMA_WORKER_ENABLED=false` i
+  `CHAOS_NARRATIVE_PUBLISHER_ENABLED=false`; po włączeniu publisher prawidłowo
+  wygasił sześć przeterminowanych aktywnych rekordów.
+- Zastany backlog należy do wcześniejszych rodzin BlackNet, Googleplex i
+  GhostNetwork. Nie blokuje canonical testu, ponieważ nowe taski finału są
+  audytowane po jednoznacznym `ghost.signal_sent.source_event_id`.
+- `ecosystem.ollama-worker.config.js` otrzymał `kill_timeout=300000`, dłuższy od
+  bounded read timeoutu modelu 240 sekund. Kontrolowany `pm2 stop 17` pozwala
+  dokończyć bieżące wywołanie i nie pozostawia sztucznego stale lease.
+- Globalne wyzerowanie historycznej kolejki przestało być warunkiem 138.2;
+  obowiązuje event-scoped baseline i asercja braku attempt/candidate wyłącznie
+  dla trzech nowych tasków sygnału.
+
 ## 2026-08-24 - Sprint 130.11: recovery v2 gotowe do serwerowego dry-run
 
 - Live geometry audit potwierdził przyczynę `A+B`: dziewięć historycznych

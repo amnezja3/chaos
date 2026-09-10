@@ -10,7 +10,9 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      kill_timeout: 10000,
+      // SIGTERM only stops the outer claim loop. Let the in-flight bounded
+      // model call (240 s read timeout) finish before PM2 escalates to SIGKILL.
+      kill_timeout: 300000,
       env: {
         PYTHONUNBUFFERED: "1",
         CHAOS_OLLAMA_WORKER_ENABLED: process.env.CHAOS_OLLAMA_WORKER_ENABLED || "false",
