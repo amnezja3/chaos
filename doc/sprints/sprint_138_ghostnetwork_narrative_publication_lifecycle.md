@@ -1,6 +1,10 @@
 # Sprint 138 — GhostNetwork Narrative Publication Lifecycle
 
-Status: `138.1 COMPLETE — 138.prepare.gn.signal.1–3 REQUIRED / BLOCKING 138.2`
+Status: `138.1 COMPLETE — 138.2 ARMED AT 20/20 + ONE CONFLICT`
+
+Aktualny wykonawczy runbook producer-backed finału znajduje się w
+`doc/sprints/138.2.production-e2e.md`. Stan produkcyjny ma formalny strict PASS
+checkpointu `20/20 + S1 contested`; konflikt pozostaje nierozwiązany.
 
 Produkcyjna generacja v3 przeszła bramkę techniczną, ale nie ręczną ocenę
 treści: model dopisał relacje własności i sprawstwa, a BlackNet brzmiał raportowo.
@@ -522,13 +526,12 @@ Cybernera. Decyzja o jego aktywacji wymaga osobnego failure testu w 138.2.
 
 ## 138.2.pre-endgame — wymagana bramka debiutu cyklu i GhostSignalu
 
-Status: `REQUIRED / BLOCKING — DO NOT TRIGGER 20/20`
+Status: `COMPLETE / STRICT 20 OF 20 CONFLICT-BLOCKED CHECKPOINT PASS`
 
-> Aktualizacja 2026-09-09: wykonanie tej bramki zostało rozpisane na trzy
-> canonical sprinty `138.prepare.gn.signal.1–3`: mechanika finału, Signal Show
-> i cutover oraz ranking z kontrolowanym production E2E. Wcześniejsze wymagania
-> P0 pozostają obowiązujące i są wejściem do nowej trzyetapowej bramki. Sprint
-> `138.2` pozostaje zablokowany do pełnego `SERVER E2E PASS` wszystkich trzech.
+> Aktualizacja 2026-09-10: mechanika finału, Signal Show, ranking oraz conflict
+> gate są wdrożone. Produkcja osiągnęła strict checkpoint `20/20 + S1 contested`
+> bez emisji. Końcowy production E2E `.signal.3` jest wspólnym triggerem z
+> `138.2`, zgodnie z `doc/sprints/138.2.production-e2e.md`.
 
 ### Powód bramki
 
@@ -882,8 +885,8 @@ final reward projection exactly-once:        PASS
 stabilization rollover + next cycle:          PASS
 signal media contract including radio:       PASS / EXPLICITLY DEFERRED
 critical narrative support fallbacks:        PASS
-superpowers gateway 138.getway.0-5:           REQUIRED / BLOCKING
-map runtime gate 138.op.1-3:                  REQUIRED / BLOCKING
+superpowers gateway 138.getway.0-5:           COMPLETE / SERVER PASS
+map runtime gate 138.op.1-3:                  COMPLETE / SERVER PASS
 preflight strict on production state:         PASS
 failure matrix local/integration:             PASS
 operator backup and runbook rehearsal:        PASS
@@ -937,18 +940,28 @@ tworzenia nowych systemów. Moc nie ustawia bezpośrednio ceny, detekcji ani
 incydentu — modyfikuje bounded wejście istniejącego kalkulatora.
 
 Pełny kontrakt, Definition of Done i macierz testowa znajdują się w
-`doc/sprints/sprint_138_getway_ghostnetwork_superpowers.md`. Dopóki wszystkie
-sześć etapów nie ma `SERVER PASS`, obowiązuje `DO NOT TRIGGER 20/20`.
+`doc/sprints/sprint_138_getway_ghostnetwork_superpowers.md`. Wszystkie rodziny
+realizerów oraz końcowy polish mają potwierdzony `SERVER PASS`.
 
-Po zamknięciu gameplay gateway obowiązuje dodatkowo `138.op.1–3`: interaction
-fast path, incremental operations/NPC runtime oraz LOD/culling z rzeczywistym
-testem urządzeń. Kontrakt i obciążenie referencyjne znajdują się w
-`doc/sprints/sprint_138_op_map_runtime_optimization.md`. Pełny test `138.2` nie
-startuje przed `SERVER/DEVICE PASS` wszystkich trzech etapów.
+Po gameplay gateway wykonano także `138.op.1–3`: interaction fast path,
+incremental operations/NPC runtime oraz LOD/culling z rzeczywistym testem
+urządzeń. Kontrakt i obciążenie referencyjne znajdują się w
+`doc/sprints/sprint_138_op_map_runtime_optimization.md`; wszystkie trzy etapy
+mają `SERVER/DEVICE PASS`.
 
 ## 138.2 — E2E, failure i soak
 
-Status: `BLOCKED BY 138.prepare.gn.signal.1–3`
+Status: `READY / ARMED — SHARED FINAL TRIGGER WITH 138.prepare.gn.signal.3`
+
+Aktualizacja 2026-09-10: zależność nie jest już sekwencyjna. `.signal.3` oraz
+`138.2` domyka ta sama realna emisja. Szczegółowy stan, trzy etapy i runbook:
+`doc/sprints/138.2.production-e2e.md`.
+
+Cały producer-backed test rejestruje read-only monitor
+`scripts/monitor_138_2_signal_e2e.py`: baseline, zmiany, heartbeat i kamienie
+milowe trafiają do trwałego JSONL oraz atomowego summary bez heavy-profile
+reads. Monitor startuje przed kontrolowanym zatrzymaniem PM2 17 i kończy się
+dopiero po settlement oraz soak.
 
 Pierwsza bramka implementacyjna dodaje bounded, read-only audit pełnego lineage:
 
@@ -1098,10 +1111,10 @@ Sprint 137.2 forbidden-knowledge gate:      SERVER PASS
 Sprint 137.3 runtime/failure gate:           SERVER PASS
 publication baseline audit:                 COMPLETE
 138.1 lifecycle implementation:             COMPLETE / SERVER PASS
-138.2.pre-endgame production gate:           REQUIRED / BLOCKING
-138.getway.0-5 gameplay gateway:             REQUIRED / BLOCKING
-138.op.1-3 map runtime gate:                 REQUIRED / BLOCKING
-138.2 producer-backed E2E/failure/soak:      BLOCKED BY ALL ABOVE
+138.2.pre-endgame production gate:           PASS / 20 OF 20 BLOCKED
+138.getway.0-5 gameplay gateway:             COMPLETE / SERVER PASS
+138.op.1-3 map runtime gate:                 COMPLETE / SERVER PASS
+138.2 producer-backed E2E/failure/soak:      READY / ARMED
 ```
 
 ## Definition of Done

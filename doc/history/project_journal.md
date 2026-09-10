@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-09-10 — trwały monitoring produkcyjnego E2E 138.2
+
+- Dodano `scripts/monitor_138_2_signal_e2e.py`, read-only monitor działający
+  przez cały test GhostSignal mimo zerwania SSH.
+- JSONL przechowuje baseline, wyłącznie zmiany stanu i okresowy heartbeat, a
+  osobny summary JSON jest odświeżany atomowo.
+- Obserwacja obejmuje konflikt, endgame, settlement, trzy taski Ollamy, pełne
+  lineage publikacji, kolejki i PM2 13/14/17/18 bez payloadów i profili.
+- Monitor chroni dowód przed przypadkowym nadpisaniem i ma jawny tryb
+  `--resume`; runbook start/stop zapisano w `138.2.production-e2e.md`.
+- Testy kontraktu monitora: 4/4 PASS; read-only smoke na dużej lokalnej bazie
+  PASS.
+
 ## 2026-08-24 - Sprint 130.11: recovery v2 gotowe do serwerowego dry-run
 
 - Live geometry audit potwierdził przyczynę `A+B`: dziewięć historycznych
@@ -4046,5 +4059,23 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   dokładnie jeden blocker przy 20 aktywnych częściach.
 - Dodano regresję kontraktu; celowane audyty, integralność i adapter terytoriów:
   `23/23 PASS`, `py_compile` i `git diff --check`: PASS.
-- Rozwiązanie konfliktu pozostaje wstrzymane do wdrożenia audytora i ponownego
-  strict checkpointu z wynikiem `ok=true`.
+- Audytor wdrożono, a ponowny strict checkpoint zakończył się `ok=true`,
+  `errors=[]`, exit `0`. Konflikt pozostaje świadomie nierozwiązany.
+
+## 2026-09-10 — przygotowanie 138.2 na realnym checkpointcie
+
+- Stan produkcyjny jest uzbrojony: `ghostnetwork_0001`, GhostSystem v1, `20/20`,
+  dokładnie jeden blocker S1 oraz zero locków, sygnałów i konsumpcji.
+- Zapisano recovery point
+  `game-pre-138-2-20of20-blocked-20260909T215910Z.sqlite3`, SHA-256
+  `858be3b697952f3cfffd8a290a6ccd876f0d8c525631e17c404bd8e18d5b9fca`.
+- Usunięto sekwencyjną, kołową zależność dokumentacji: normalne rozwiązanie S1
+  jednocześnie domknie `.signal.3` i utworzy jedyny prawdziwy producer event dla
+  `138.2`.
+- Aktualny `signal_sent` ma dokładnie trzy publiczne trasy: BlackNet,
+  Googleplex News i Cyberner. Radio oraz osobne signal clan/owner nie należą do
+  obecnego fan-outu.
+- Sprint podzielono na read-only arm, canonical trigger z kontrolowanym outage
+  PM2 17 oraz lineage/UI/settlement/soak. Gameplay pozostaje zamrożony do PASS
+  pierwszego etapu.
+- Wykonawczy dokument: `doc/sprints/138.2.production-e2e.md`.
