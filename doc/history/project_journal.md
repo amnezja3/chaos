@@ -4173,3 +4173,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   i 35 MB profilu potwierdził zera heavy-profile i tę samą liczbę zapytań.
   Python compile, kontrakt/składnia JS i diff check PASS.
   Status: `139.1 LOCAL PASS / SERVER GATE PENDING`; zmiany pozostają lokalne.
+
+## 2026-09-10 — 139.1: pierwsza próba bramki serwerowej
+
+- Operator potwierdził pull do `1d73a8d`. Na serwerze są zastane pliki
+  untracked; pozostają poza zakresem zmian i nie są czyszczone.
+- Zestaw uruchomiony systemowym Pythonem 3.10.12: 37 pozycji PASS, 2 błędy
+  importu (`folium`), 119,237 s. Test profilu 35 MB i moduł runtime endgame
+  nie zostały wykonane; bramka nadal oczekuje na pełny wynik.
+- Skorygowano instrukcję: używać `.venv/bin/python`, wskazanego przez
+  konfigurację aplikacji/territory-worker, i ponowić cały izolowany zestaw.
+  Nie zmieniano kodu mechaniki ani zależności środowiska produkcyjnego.

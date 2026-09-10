@@ -331,8 +331,8 @@ Z katalogu tego kodu (interpreter zgodny z runtime aplikacji):
 ```bash
 git status --short --branch
 git rev-parse HEAD
-python3 --version
-python3 -B - <<'PY'
+.venv/bin/python --version
+.venv/bin/python -B - <<'PY'
 import os
 import sys
 import tempfile
@@ -364,6 +364,14 @@ Zachować HEAD, wersję Pythona, wynik i czas testów. Testy zakładają własne
 w katalogach tymczasowych; import `run.py` również odbywa się poza katalogiem
 danych gry. Wymagany wynik to zero błędów, w tym test niezależnego czytelnika
 i dwóch workerów. Błąd przerywa bramkę i wymaga diagnozy przed 139.2.
+
+Pierwsza próba serwerowa na `1d73a8d`: systemowy Python 3.10.12 zakończył
+39 pozycji wynikiem `FAILED (errors=2)` (119,237 s). Przyczyną obu błędów
+był brak `folium` podczas importu `run.py`: nie wykonano testu profilu 35 MB
+ani modułu runtime endgame. Pozostałe 37 pozycji przeszło. To nie jest PASS
+bramki serwerowej. Poprawiono powyższe polecenie na `.venv/bin/python`, zgodnie
+z konfiguracją web/territory-worker; należy ponowić cały zestaw w środowisku
+aplikacji, bez instalowania zależności w systemowym Pythonie.
 
 Przed wdrożeniem produkcyjnym nadal domknąć read-only summary z handoffu:
 HEAD serwera, filtr Ollamy, ready/retry_wait, bieżący cykl i strict audyty.
