@@ -9,6 +9,7 @@ from ghostnetwork.transmission import signal_payload_checksum
 from scripts.audit_ghostnetwork_endgame import (
     _production_conflict_chronology,
     _signal_checksum,
+    _transmission_chronology,
     audit as postflight_audit,
 )
 from scripts.audit_ghostnetwork_endgame_preflight import (
@@ -119,6 +120,54 @@ class GhostNetworkEndgameAuditTest(unittest.TestCase):
             len(self.repository.list_events_by_types(cycle_id, ["ghost.audit.bulk"])),
             1005,
         )
+
+    def timeline_fixture(self):
+        start = "2026-09-10T10:00:00+00:00"
+        end = "2026-09-10T10:15:00+00:00"
+        effect = "2026-09-10T10:00:02+00:00"
+        signal = {"cycle_id": "c", "signal_id": "s", "lock_snapshot_id": "l",
+                  "sent_at": "2026-09-10T10:00:03+00:00"}
+        show = {"cycle_id": "c", "signal_id": "s", "created_at": start,
+                "show_started_at": start, "show_ends_at": end, "phase_policy_version": "v1"}
+        events = [{"event_type": kind, "state_version": index + 1} for index, kind in enumerate([
+            "ghost.transmission_started", "ghost.signal_show_started", "ghost.parts_consumed",
+            "ghost.signal_sent", "ghost.stabilization_started"])]
+        events[0]["payload"] = {"signal_id": "s", "lock_snapshot_id": "l", "started_at": start,
+                                "ends_at": end, "phase_policy_version": "v1"}
+        return show, signal, events, [effect]
+
+    def test_timeline_checks_creation_time_not_backdated_show_start(self):
+        show, signal, events, effects = self.timeline_fixture()
+        self.assertTrue(_transmission_chronology(show, signal, events, effects)["ok"])
+        show["created_at"] = "2026-09-10T10:00:05+00:00"
+        report = _transmission_chronology(show, signal, events, effects)
+        self.assertIn("show_not_created_before_effects", report["violations"])
+
+    def test_timeline_rejects_early_sent_and_changed_deadline(self):
+        show, signal, events, effects = self.timeline_fixture()
+        signal["sent_at"] = "2026-09-10T10:00:01+00:00"
+        show["show_ends_at"] = "2026-09-10T10:16:00+00:00"
+        events[2]["state_version"] = 6
+        report = _transmission_chronology(show, signal, events, effects)
+        self.assertIn("signal_sent_before_effects", report["violations"])
+        self.assertIn("timeline_lineage_or_clock_changed", report["violations"])
+        self.assertIn("effects_outside_show_to_sent_window", report["violations"])
+
+    def test_legacy_timeline_is_not_certified_as_139(self):
+        report = _transmission_chronology(None, None, [], [])
+        self.assertFalse(report["enforced"])
+        self.assertIsNone(report["ok"])
+        strict = _transmission_chronology(None, None, [], [], required=True)
+        self.assertTrue(strict["enforced"])
+        self.assertFalse(strict["ok"])
+
+    def test_postflight_can_require_139_without_mutating_old_schema(self):
+        before = self.repository.get_state_version(self.cycle["cycle_id"])
+        report = postflight_audit(self.cycle["cycle_id"], self.db_path,
+                                 require_transmission_timeline=True)
+        self.assertIn("transmission_timeline_valid", report["integrity_errors"])
+        self.assertFalse(report["transmission_chronology"]["ok"])
+        self.assertEqual(before, self.repository.get_state_version(self.cycle["cycle_id"]))
 
 
 if __name__ == "__main__":

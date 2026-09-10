@@ -152,6 +152,8 @@ class GhostNarrativePublisher:
         signal = self.repository.get_signal(signal_id)
         if not signal:
             return {"ok": False, "reason": "signal_not_found", "signal_id": _clean(signal_id), "outbox": []}
+        if signal.get("status") != "sent":
+            return {"ok": False, "reason": "signal_not_sent", "signal_id": _clean(signal_id), "outbox": []}
         event = self.repository.get_event_by_dedupe_key(f"ghost:signal_sent:{signal['cycle_id']}")
         if not event:
             event = {

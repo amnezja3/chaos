@@ -74,7 +74,60 @@ def _production_conflict_chronology(repository, snapshot):
     return {"ok": not violations, "checked": len(conflicts), "violations": violations}
 
 
-def audit(cycle_id, db_path=DB_PATH, *, strict=False):
+def _transmission_chronology(show, signal, events, effect_times, *, required=False):
+    """Check stored chronology; independent-reader tests prove the commit boundary.
+
+    Historical 138 signals are reported as legacy, never rewritten or silently
+    certified against the 139 contract. Operators can explicitly require 139.
+    """
+    by_type = {event["event_type"]: event for event in events}
+    start = by_type.get("ghost.transmission_started")
+    enforced = required or bool(start)
+    if not enforced:
+        return {"enforced": False, "ok": None, "status": "legacy", "violations": []}
+    violations = []
+    show_event = by_type.get("ghost.signal_show_started")
+    sent = by_type.get("ghost.signal_sent")
+    stabilized = by_type.get("ghost.stabilization_started")
+    created = _parse_iso((show or {}).get("created_at"))
+    timestamps = [_parse_iso(value) for value in effect_times if value]
+    first_effect = min(timestamps) if timestamps else None
+    if not start or not show_event or not sent or not stabilized:
+        violations.append("missing_timeline_milestone")
+    if not created or not first_effect or created > first_effect:
+        violations.append("show_not_created_before_effects")
+    if show and signal and (show.get("cycle_id") != signal.get("cycle_id")
+                            or show.get("signal_id") != signal.get("signal_id")):
+        violations.append("show_signal_lineage_mismatch")
+    if start and show:
+        payload = start.get("payload") or {}
+        if (payload.get("signal_id") != (signal or {}).get("signal_id")
+                or payload.get("lock_snapshot_id") != (signal or {}).get("lock_snapshot_id")
+                or payload.get("started_at") != show.get("show_started_at")
+                or payload.get("ends_at") != show.get("show_ends_at")
+                or payload.get("phase_policy_version") != show.get("phase_policy_version")):
+            violations.append("timeline_lineage_or_clock_changed")
+    if start and show_event and sent and stabilized:
+        versions = [int(e.get("state_version") or 0) for e in (start, show_event, sent, stabilized)]
+        if not all(a < b for a, b in zip(versions, versions[1:])):
+            violations.append("milestone_order_invalid")
+        if any(int(e.get("state_version") or 0) >= versions[2]
+               or int(e.get("state_version") or 0) <= versions[1]
+               for e in events if e["event_type"] in {
+                   "ghost.territories_consumed", "ghost.final_rewards_created", "ghost.parts_consumed",
+                   "ghost.connections_closed", "ghost.abilities_disabled", "ghost.version_prepared"}):
+            violations.append("effects_outside_show_to_sent_window")
+        sent_at = _parse_iso((signal or {}).get("sent_at"))
+        if not sent_at or any(t > sent_at for t in timestamps):
+            violations.append("signal_sent_before_effects")
+    return {"enforced": True, "ok": not violations,
+            "status": "valid" if not violations else "invalid", "violations": violations,
+            "show_created_at": (show or {}).get("created_at"),
+            "first_effect_at": first_effect.isoformat() if first_effect else None,
+            "signal_sent_at": (signal or {}).get("sent_at")}
+
+
+def audit(cycle_id, db_path=DB_PATH, *, strict=False, require_transmission_timeline=False):
     repository = GhostNetworkRepository(db_path=db_path, ensure_schema=False)
     service = GhostNetworkService(repository=repository)
     cycle_id = str(cycle_id or "").strip()
@@ -108,9 +161,27 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
         "ghost.signal_show_started", "ghost.signal_ranking_created",
         "ghost.endgame_postcommit_reconciled", "ghost.endgame_delta_reconciled",
     }
+    if require_transmission_timeline or repository.get_event_by_dedupe_key(
+        f"ghost:transmission_started:{cycle_id}"
+    ):
+        required_once.update({"ghost.transmission_started", "ghost.final_rewards_created",
+                              "ghost.parts_consumed", "ghost.connections_closed",
+                              "ghost.abilities_disabled", "ghost.version_prepared"})
+        if territory_plan.get("execution_required"):
+            required_once.add("ghost.territories_consumed")
+    timeline_types = {"ghost.transmission_started", "ghost.territories_consumed",
+                      "ghost.final_rewards_created", "ghost.parts_consumed",
+                      "ghost.connections_closed", "ghost.abilities_disabled", "ghost.version_prepared"}
     # The general event feed is capped at 1000 rows. Integrity must query the
     # required types directly or a busy first cycle loses its closing events.
-    required_events = repository.list_events_by_types(cycle_id, required_once) if cycle else []
+    timeline_events = repository.list_events_by_types(cycle_id, required_once | timeline_types) if cycle else []
+    required_events = [e for e in timeline_events if e["event_type"] in required_once]
+    chronology = _transmission_chronology(show, signal, timeline_events,
+        [p.get("consumed_at") for p in parts] + [r.get("created_at") for r in rewards]
+        + [t.get("consumed_at") for t in consumptions]
+        + [e.get("created_at") for e in timeline_events
+           if e["event_type"] in timeline_types - {"ghost.transmission_started"}],
+        required=require_transmission_timeline)
     event_counts = {event_type: 0 for event_type in sorted(required_once)}
     for event in required_events:
         event_type = str(event.get("event_type") or "")
@@ -160,6 +231,8 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
         "exactly_one_next_active_cycle": len(active_next) == 1,
     }
     final_checks = {"old_cycle_closed", "show_completed", "exactly_one_next_active_cycle", "rewards_projected"}
+    if chronology["enforced"]:
+        checks["transmission_timeline_valid"] = chronology["ok"]
     integrity_errors = sorted(key for key, value in checks.items() if not value and key not in final_checks)
     pending = sorted(key for key, value in checks.items() if not value and key in final_checks)
     complete = not integrity_errors and not pending
@@ -177,7 +250,7 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
     }
     return {
         "ok": ok, "status": status, "strict": strict, "mode": "read_only",
-        "contract": "138.prepare.gn.signal.3.postflight.v2", "cycle_id": cycle_id,
+        "contract": "139.1.ghostsignal.postflight.v3", "cycle_id": cycle_id,
         "checks": checks, "integrity_errors": integrity_errors, "pending": pending,
         "counts": {"parts": len(parts), "connections": len(connections), "historical_nodes": len(history),
                    "rewards": len(rewards), "territories": len(consumptions),
@@ -187,6 +260,7 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False):
         "reward_statuses": reward_statuses, "event_counts": event_counts,
         "lock_validation": lock_validation, "ranking_validation": ranking_validation,
         "production_conflict_chronology": production_conflict_chronology,
+        "transmission_chronology": chronology,
         "settlement": service.validate_rollover_settlement(cycle_id) if cycle else {"ok": False},
         "all_time": {"rebuilt_from_snapshots": all_time.get("rebuilt_from_snapshots", 0),
                      "players": len(all_time.get("players") or []), "clans": len(all_time.get("clans") or [])},
@@ -200,8 +274,11 @@ def main():
     parser.add_argument("--db", default=DB_PATH)
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--compact", action="store_true")
+    parser.add_argument("--require-transmission-timeline", action="store_true",
+                        help="Require Sprint 139 show-before-effects chronology, including on legacy cycles")
     args = parser.parse_args()
-    report = audit(args.cycle_id, args.db, strict=args.strict)
+    report = audit(args.cycle_id, args.db, strict=args.strict,
+                   require_transmission_timeline=args.require_transmission_timeline)
     print(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=None if args.compact else 2))
     return 0 if report.get("ok") else 1
 

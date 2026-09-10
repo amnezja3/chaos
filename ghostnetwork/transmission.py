@@ -49,29 +49,105 @@ class GhostTransmissionService:
         self.show = show_service or GhostSignalShowService(repository=self.repository)
 
     def start_transmission(self, cycle_id):
-        cycle_id = _clean(cycle_id)
-        with self.repository.transaction():
-            validation = self.validate_transmission(cycle_id)
-            if validation.get("existing_signal"):
-                return self.resume_interrupted_transmission(cycle_id)
-            if not validation.get("ok"):
-                return {
-                    "ok": False,
-                    "status": "blocked",
-                    "cycle_id": cycle_id,
-                    "reasons": validation.get("reasons") or [],
-                    "validation": validation,
-                }
+        return self._transmit(cycle_id)
 
-            signal = self.create_signal_from_lock(validation["lock_snapshot"])
-            territories = self.consume_signal_territories(signal["signal_id"])
-            rewards = self.apply_transmission_rewards(signal["signal_id"])
-            consumed = self.consume_cycle_parts(signal["signal_id"])
-            history = self.archive_historical_nodes(signal["signal_id"])
-            connections = self.repository.remove_connections_for_cycle(cycle_id, signal_id=signal["signal_id"])
-            abilities = self.disable_superpowers(signal["signal_id"])
-            version = self.advance_ghostsystem_version(signal["signal_id"])
-            stabilization = self.begin_stabilization(signal["signal_id"])
+    def _completed_result(self, cycle_id, signal):
+        # Preserve the existing result contract using receipts, never reapply
+        # effects (a late retry can arrive even after rollover).
+        signal_id = signal["signal_id"]
+        cycle = self.repository.get_cycle(cycle_id)
+        show = self.repository.get_signal_show_for_cycle(cycle_id)
+        territories = self.repository.list_signal_territory_consumptions(signal_id, limit=5000)
+        rewards = self.repository.list_rewards(signal_id=signal_id, limit=5000)
+        parts = self.repository.list_parts(cycle_id)
+        nodes = self.repository.list_historical_nodes_for_signal(signal_id)
+        plan = (signal.get("payload") or {}).get("territory_consumption_plan") or {}
+        return {
+            "ok": True, "status": "resumed", "idempotent": True,
+            "cycle_id": cycle_id, "signal": signal,
+            "territories": {"count": len(territories), "territories": territories,
+                            "enabled": bool(plan.get("execution_required")),
+                            "plan_counts": copy.deepcopy(plan.get("counts") or {}),
+                            "event": self.repository.get_event_by_dedupe_key(
+                                f"ghost:territories_consumed:{signal_id}")},
+            "rewards": {"count": len(rewards), "rewards": rewards},
+            "consumed": {"count": len(parts), "parts": parts},
+            "history": {"count": len(nodes), "nodes": nodes},
+            "connections": {"cycle_id": cycle_id, "removed": 0},
+            "abilities": {"disabled": True, "event": self.repository.get_event_by_dedupe_key(
+                f"ghost:abilities_disabled:{signal_id}")},
+            "version": {"cycle": cycle, "source_version": cycle.get("source_version"),
+                        "next_version": cycle.get("next_version")},
+            "stabilization": {"cycle": cycle, "show": show,
+                              "event": self.repository.get_event_by_dedupe_key(
+                                  f"ghost:stabilization_started:{signal_id}"),
+                              "show_event": self.repository.get_event_by_dedupe_key(
+                                  f"ghost:signal_show_started:{signal_id}"),
+                              "stabilization_until": cycle.get("stabilization_until")},
+        }
+
+    def _transmit(self, cycle_id, resume=False):
+        cycle_id = _clean(cycle_id)
+        # A nested transaction would hide the show until the caller commits.
+        # All production entry points own their transaction boundaries here.
+        if self.repository.in_transaction:
+            raise InvalidStateTransition("Transmission requires its own commit boundary.")
+        validation = self.validate_transmission(cycle_id)
+        signal = validation.get("existing_signal")
+        cycle = validation.get("cycle") or {}
+        if signal and cycle.get("status") in {"stabilizing", "closed"}:
+            return self._completed_result(cycle_id, signal)
+        if not validation.get("ok"):
+            return {"ok": False, "status": "blocked", "cycle_id": cycle_id,
+                    "reasons": validation.get("reasons") or [], "validation": validation}
+        lock = validation["lock_snapshot"]
+        # Snapshot copying/checksum work happens before acquiring the writer.
+        prepared = self._build_signal_from_lock(lock) if not signal else None
+        serialized = dumps_json(prepared["payload"]) if prepared else None
+        with self.repository.transaction():
+            current = self.repository.get_cycle(cycle_id) or {}
+            existing = self.repository.get_signal_for_cycle(cycle_id)
+            if existing and current.get("status") in {"stabilizing", "closed"}:
+                return self._completed_result(cycle_id, existing)
+            current_lock = self.repository.get_cycle_lock_snapshot(cycle_id) or {}
+            if (current.get("status") != "transmitting"
+                    or current_lock.get("snapshot_checksum") != lock.get("snapshot_checksum")
+                    or current_lock.get("lock_snapshot_id") != lock.get("lock_snapshot_id")
+                    or (not existing and current.get("state_version") != cycle.get("state_version"))):
+                return {"ok": False, "status": "blocked", "cycle_id": cycle_id,
+                        "reasons": ["transmission_state_changed"]}
+            signal = existing or self._persist_signal(prepared, serialized_payload=serialized)
+            if signal.get("lock_snapshot_id") != lock.get("lock_snapshot_id"):
+                raise RepositoryIntegrityError("Transmission signal/lock lineage mismatch.")
+            self._ensure_transmission_show(signal, current, lock)
+        # The show and its start events are now visible to independent readers.
+        # Existing ledgers own recovery; no parallel job/state store is needed.
+        results = {}
+        steps = (
+            ("territories", lambda: self.consume_signal_territories(signal["signal_id"])),
+            ("rewards", lambda: self.apply_transmission_rewards(signal["signal_id"])),
+            ("consumed", lambda: self.consume_cycle_parts(signal["signal_id"])),
+            ("history", lambda: self.archive_historical_nodes(signal["signal_id"])),
+            ("connections", lambda: self.repository.remove_connections_for_cycle(
+                cycle_id, signal_id=signal["signal_id"])),
+            ("abilities", lambda: self.disable_superpowers(signal["signal_id"])),
+            ("version", lambda: self.advance_ghostsystem_version(signal["signal_id"])),
+        )
+        for name, apply in steps:
+            with self.repository.transaction():
+                current = self.repository.get_cycle(cycle_id) or {}
+                if current.get("status") in {"stabilizing", "closed"}:
+                    return self._completed_result(cycle_id, self._require_signal(signal["signal_id"]))
+                if current.get("status") != "transmitting":
+                    raise InvalidStateTransition("Transmission cycle changed during recovery.")
+                results[name] = apply()
+        with self.repository.transaction():
+            current = self.repository.get_cycle(cycle_id) or {}
+            if current.get("status") in {"stabilizing", "closed"}:
+                return self._completed_result(cycle_id, self._require_signal(signal["signal_id"]))
+            if current.get("status") != "transmitting":
+                raise InvalidStateTransition("Transmission cycle changed before completion.")
+            signal = self.repository.mark_signal_sent(signal["signal_id"])
             self._append_once(
                 "ghost.signal_sent",
                 cycle_id=cycle_id,
@@ -85,22 +161,24 @@ class GhostTransmissionService:
                     "signal_checksum": signal.get("signal_checksum"),
                 },
             )
+            stabilization = self.begin_stabilization(signal["signal_id"])
             return {
                 "ok": True,
-                "status": "sent",
+                "status": "resumed" if resume or existing else "sent",
+                "idempotent": bool(resume or existing),
                 "cycle_id": cycle_id,
                 "signal": self.repository.get_signal(signal["signal_id"]),
-                "territories": territories,
-                "rewards": rewards,
-                "consumed": consumed,
-                "history": history,
-                "connections": connections,
-                "abilities": abilities,
-                "version": version,
+                **results,
                 "stabilization": stabilization,
             }
 
     def create_signal_from_lock(self, lock_snapshot):
+        prepared = self._build_signal_from_lock(lock_snapshot)
+        serialized = dumps_json(prepared["payload"])
+        with self.repository.transaction():
+            return self._persist_signal(prepared, serialized_payload=serialized)
+
+    def _build_signal_from_lock(self, lock_snapshot):
         lock_snapshot = lock_snapshot if isinstance(lock_snapshot, dict) else {}
         snapshot = copy.deepcopy(lock_snapshot.get("snapshot") or {})
         cycle_id = _clean(lock_snapshot.get("cycle_id") or snapshot.get("cycle_id"))
@@ -134,25 +212,27 @@ class GhostTransmissionService:
             ),
             "reward_plan": copy.deepcopy(snapshot.get("reward_plan") or {}),
         }
-        signal = self.repository.create_signal(
-            {
+        return {
                 "signal_id": f"ghost_signal_{cycle_id}",
                 "signal_number": int(payload["signal_number"]),
                 "cycle_id": cycle_id,
                 "source_version": int(payload["source_version"]),
                 "target_year": 2108,
-                "status": "sent",
+                "status": "transmitting",
                 "outcome": "pending",
                 "integrity": 0,
                 "recipient": "",
-                "sent_at": self.repository.now(),
+                "sent_at": "",
                 "resolved_at": "",
                 "next_version": next_version,
                 "lock_snapshot_id": lock_snapshot.get("lock_snapshot_id"),
                 "signal_checksum": signal_payload_checksum(payload),
                 "payload": payload,
             }
-        )
+
+    def _persist_signal(self, prepared, *, serialized_payload=None):
+        signal = self.repository.create_signal(prepared, serialized_payload=serialized_payload)
+        cycle_id = signal["cycle_id"]
         self._append_once(
             "ghost.signal_created",
             cycle_id=cycle_id,
@@ -340,6 +420,8 @@ class GhostTransmissionService:
         signal = self._require_signal(signal_id)
         lock_snapshot = self.repository.get_cycle_lock_snapshot(signal["cycle_id"]) or {}
         snapshot = lock_snapshot.get("snapshot") or {}
+        consumed_at = {part["part_id"]: part.get("consumed_at")
+                       for part in self.repository.list_parts(signal["cycle_id"])}
         nodes = []
         for part in snapshot.get("parts") or []:
             anchor = part.get("anchor") if isinstance(part.get("anchor"), dict) else {}
@@ -358,7 +440,7 @@ class GhostTransmissionService:
                         "machine_code": part.get("machine_code"),
                         "profession_code": part.get("profession_code"),
                         "active_since": part.get("activated_at") or part.get("last_activated_at"),
-                        "active_until": signal.get("sent_at"),
+                        "active_until": signal.get("sent_at") or consumed_at.get(part.get("part_id")),
                         "defense_count": len(part.get("hold_time") or []),
                         "metadata": {
                             "target_id": part.get("target_id"),
@@ -388,19 +470,20 @@ class GhostTransmissionService:
         next_number = int(signal.get("next_version") or source_number + 1)
         source_version = cycle.get("source_version") or _version_text(source_number)
         next_version = cycle.get("next_version") or _version_text(next_number)
-        updated = self.repository.update_cycle(
-            signal["cycle_id"],
-            source_version=source_version,
-            next_version=next_version,
-            transmitted_at=signal.get("sent_at") or self.repository.now(),
-            upgrade_pending=1,
-            restart_required=1,
-            restart_reason="ghostsignal_transmission",
-            restart_signal_id=signal_id,
-            restart_from_version=source_version,
-            restart_to_version=next_version,
-            restart_required_at=self.repository.now(),
-        )
+        updated = cycle
+        if not self.repository.get_event_by_dedupe_key(f"ghost:version_prepared:{signal_id}"):
+            updated = self.repository.update_cycle(
+                signal["cycle_id"],
+                source_version=source_version,
+                next_version=next_version,
+                upgrade_pending=1,
+                restart_required=1,
+                restart_reason="ghostsignal_transmission",
+                restart_signal_id=signal_id,
+                restart_from_version=source_version,
+                restart_to_version=next_version,
+                restart_required_at=self.repository.now(),
+            )
         self._append_once(
             "ghost.version_prepared",
             cycle_id=signal["cycle_id"],
@@ -446,7 +529,8 @@ class GhostTransmissionService:
     def begin_stabilization(self, signal_id):
         signal = self._require_signal(signal_id)
         cycle = self.repository.get_cycle(signal["cycle_id"])
-        until = cycle.get("stabilization_until")
+        show = self.repository.get_signal_show_for_signal(signal_id)
+        until = (show or {}).get("show_ends_at") or cycle.get("stabilization_until")
         if not until:
             duration = max(60, int(GHOSTNETWORK_SIGNAL_SHOW_POLICY.get("duration_seconds") or 900))
             start = _parse_iso(signal.get("sent_at") or self.repository.now())
@@ -455,6 +539,7 @@ class GhostTransmissionService:
             signal["cycle_id"],
             status="stabilizing",
             stabilization_until=until,
+            transmitted_at=signal.get("sent_at"),
         )
         event = self._append_once(
             "ghost.stabilization_started",
@@ -463,17 +548,33 @@ class GhostTransmissionService:
             dedupe_key=f"ghost:stabilization_started:{signal_id}",
             payload={"signal_id": signal_id, "stabilization_until": until},
         )
+        return {"cycle": updated, "stabilization_until": until, "event": event,
+                "show": show, "show_event": self.repository.get_event_by_dedupe_key(
+                    f"ghost:signal_show_started:{signal_id}")}
+
+    def _ensure_transmission_show(self, signal, cycle, lock):
         show = self.show.ensure_for_signal(
-            signal,
-            cycle=updated,
-            started_at=signal.get("sent_at"),
-            ends_at=until,
+            signal, cycle=cycle,
+            # Legacy interrupted signals retain their original clock. New
+            # transmissions start at the canonical immutable lock timestamp.
+            started_at=signal.get("sent_at") or lock.get("locked_at"),
+            ends_at=cycle.get("stabilization_until") or None,
+        )
+        self._append_once(
+            "ghost.transmission_started", cycle_id=signal["cycle_id"],
+            entity_id=signal["signal_id"],
+            dedupe_key=f"ghost:transmission_started:{signal['cycle_id']}",
+            payload={"signal_id": signal["signal_id"],
+                     "lock_snapshot_id": signal.get("lock_snapshot_id"),
+                     "started_at": show["show_started_at"],
+                     "ends_at": show["show_ends_at"],
+                     "phase_policy_version": show["phase_policy_version"]},
         )
         show_event = self._append_once(
             "ghost.signal_show_started",
             cycle_id=signal["cycle_id"],
-            entity_id=signal_id,
-            dedupe_key=f"ghost:signal_show_started:{signal_id}",
+            entity_id=signal["signal_id"],
+            dedupe_key=f"ghost:signal_show_started:{signal['signal_id']}",
             audience_scope="public",
             payload={
                 "signal_public_id": show.get("signal_public_id"),
@@ -483,37 +584,10 @@ class GhostTransmissionService:
                 "to_system_version": show.get("to_system_version"),
             },
         )
-        return {"cycle": updated, "stabilization_until": until, "event": event,
-                "show": show, "show_event": show_event}
+        return {"show": show, "show_event": show_event}
 
     def resume_interrupted_transmission(self, cycle_id):
-        cycle_id = _clean(cycle_id)
-        signal = self.repository.get_signal_for_cycle(cycle_id)
-        if not signal:
-            return self.start_transmission(cycle_id)
-        territories = self.consume_signal_territories(signal["signal_id"])
-        rewards = self.apply_transmission_rewards(signal["signal_id"])
-        consumed = self.consume_cycle_parts(signal["signal_id"])
-        history = self.archive_historical_nodes(signal["signal_id"])
-        connections = self.repository.remove_connections_for_cycle(cycle_id, signal_id=signal["signal_id"])
-        abilities = self.disable_superpowers(signal["signal_id"])
-        version = self.advance_ghostsystem_version(signal["signal_id"])
-        stabilization = self.begin_stabilization(signal["signal_id"])
-        return {
-            "ok": True,
-            "status": "resumed",
-            "cycle_id": cycle_id,
-            "signal": self.repository.get_signal(signal["signal_id"]),
-            "territories": territories,
-            "rewards": rewards,
-            "consumed": consumed,
-            "history": history,
-            "connections": connections,
-            "abilities": abilities,
-            "version": version,
-            "stabilization": stabilization,
-            "idempotent": True,
-        }
+        return self._transmit(cycle_id, resume=True)
 
     def validate_transmission(self, cycle_id):
         cycle_id = _clean(cycle_id)
@@ -567,6 +641,10 @@ class GhostTransmissionService:
                 ):
                     reasons.append("lock_territory_plan_has_warnings")
         if existing_signal:
+            if existing_signal.get("lock_snapshot_id") != (lock_snapshot or {}).get("lock_snapshot_id"):
+                reasons.append("signal_lock_snapshot_mismatch")
+            if signal_payload_checksum(existing_signal.get("payload") or {}) != existing_signal.get("signal_checksum"):
+                reasons.append("signal_payload_invalid_checksum")
             return {
                 "ok": not reasons,
                 "cycle_id": cycle_id,

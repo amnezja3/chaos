@@ -199,6 +199,10 @@ class GhostNetworkRepository:
             finally:
                 self._transaction_conn = None
 
+    @property
+    def in_transaction(self):
+        return self._transaction_conn is not None
+
     @contextmanager
     def _conn(self):
         if self._transaction_conn is not None:
@@ -2334,9 +2338,10 @@ class GhostNetworkRepository:
                     """
                     UPDATE ghost_signal_shows
                     SET show_ends_at = ?, updated_at = ?
-                    WHERE cycle_id = ? AND status = 'active'
+                    WHERE cycle_id = ? AND status = 'active' AND show_ends_at != ?
                     """,
-                    (_clean(updates["stabilization_until"]), self.now(), cycle_id),
+                    (_clean(updates["stabilization_until"]), self.now(), cycle_id,
+                     _clean(updates["stabilization_until"])),
                 )
             self.append_event(
                 "ghost.cycle_state_changed",
@@ -2479,7 +2484,7 @@ class GhostNetworkRepository:
                 ).fetchone()
             )
 
-    def create_signal(self, signal):
+    def create_signal(self, signal, *, serialized_payload=None):
         signal = signal if isinstance(signal, dict) else {}
         cycle_id = _clean(signal.get("cycle_id"))
         existing = self.get_signal_for_cycle(cycle_id)
@@ -2511,13 +2516,15 @@ class GhostNetworkRepository:
                         _clean(signal.get("outcome"), "pending"),
                         int(signal.get("integrity") if signal.get("integrity") is not None else 0),
                         _clean(signal.get("recipient")),
-                        _clean(signal.get("sent_at") or now),
+                        _clean(signal.get("sent_at") or (
+                            "" if _clean(signal.get("status")) == "transmitting" else now)),
                         _clean(signal.get("resolved_at")),
                         int(signal.get("next_version") or 0),
                         _clean(signal.get("lock_snapshot_id")),
                         _clean(signal.get("signal_checksum")),
                         _clean(signal.get("created_at") or now),
-                        dumps_json(signal.get("payload") if isinstance(signal.get("payload"), dict) else {}),
+                        serialized_payload if serialized_payload is not None else dumps_json(
+                            signal.get("payload") if isinstance(signal.get("payload"), dict) else {}),
                     ),
                 )
             except IntegrityError:
@@ -2526,6 +2533,16 @@ class GhostNetworkRepository:
                     existing["idempotent"] = True
                     return existing
                 raise
+            return self.get_signal(signal_id)
+
+    def mark_signal_sent(self, signal_id):
+        """Finalize the existing signal without rewriting its immutable payload."""
+        with self.transaction():
+            self._transaction_conn.execute(
+                "UPDATE ghost_signals SET status = 'sent', sent_at = ? "
+                "WHERE signal_id = ? AND status = 'transmitting'",
+                (self.now(), _clean(signal_id)),
+            )
             return self.get_signal(signal_id)
 
     @staticmethod

@@ -4146,3 +4146,30 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   listę bezwzględnych zakazów wynikających z wcześniejszych regresji.
 - `doc/README.md` kieruje teraz nowy wątek najpierw do aktywnego handoffu, a
   następnie do dokumentów produktu, journalu i wiążącego kontraktu profilu.
+
+## 2026-09-10 — Sprint 139.1: commit show przed skutkami transmisji
+
+- Po kontroli wejściowej na czystym `dc1255d` rozpoczęto 139.1. Baseline:
+  47 testów Python oraz kontrakt/składnia JS PASS. Produkcja potwierdzona
+  tylko w zakresie czterech procesów PM2 online; pozostałe summary nadal otwarte.
+- Test drugiego połączenia SQLite ujawnił rzeczywistą granicę problemu:
+  przed konsumpcją brak widocznego show i sygnału, mimo rozpoczętej transmisji.
+  Zewnętrzna transakcja obejmowała wszystkie skutki oraz późne utworzenie show.
+- Rozwinięto istniejącą transmisję: przygotowanie payloadu, osobny commit
+  signal/show/milestone, idempotentne etapy na istniejących ledgerach, a dopiero
+  po skutkach `sent`/`signal_sent`/`stabilizing`. Start i resume używają tej
+  samej ścieżki; retry zakończonego cyklu odczytuje receipts.
+- Zachowano lock/conflict gate, zegar recovery, format show, historię legacy
+  i session generation. Nie dodano schematu, równoległego systemu, kolejki
+  ani ciężkiej ścieżki profilu. Publisher nie publikuje sygnału `transmitting`.
+- Rozszerzono istniejący audyt endgame o chronologię 139 i jawną bramkę
+  `--require-transmission-timeline`; stary finał nie jest przepisywany ani
+  certyfikowany wstecznie.
+- W dokumencie Sprintu 139 zapisano decyzje, testy i procedurę pierwszej
+  bramki serwerowej na danych tymczasowych przed 139.2. Production E2E,
+  blokada HTTP oraz reboot pozostają dalszymi etapami sprintu.
+- Wynik końcowy: 86 testów regresyjnych PASS; po ostatniej poprawce zgodności
+  repository dodatkowo 11 testów PASS (częściowo powtórzonych). Test małego
+  i 35 MB profilu potwierdził zera heavy-profile i tę samą liczbę zapytań.
+  Python compile, kontrakt/składnia JS i diff check PASS.
+  Status: `139.1 LOCAL PASS / SERVER GATE PENDING`; zmiany pozostają lokalne.
