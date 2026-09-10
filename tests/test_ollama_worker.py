@@ -533,6 +533,24 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(result["task_id"], cyberner["outbox_id"])
         self.assertEqual(self.repo.get_narrative_outbox(blacknet["outbox_id"])["status"], "ready")
 
+    def test_controlled_run_once_can_claim_one_source_event(self):
+        historical = self.repo.enqueue_narrative_task(
+            self.task(event_id="historical-critical", priority=100)
+        )
+        selected = self.repo.enqueue_narrative_task(
+            self.task(event_id="signal-event", priority=100)
+        )
+        client = FakeClient([self.accepted("signal-event")])
+
+        result = self.worker(client).process_once(source_event_id="signal-event")
+
+        self.assertEqual(result["result"], "completed")
+        self.assertEqual(result["task_id"], selected["outbox_id"])
+        self.assertEqual(
+            self.repo.get_narrative_outbox(historical["outbox_id"])["status"],
+            "ready",
+        )
+
 
     def test_failed_runtime_preflight_does_not_claim_task(self):
         item = self.repo.enqueue_narrative_task(self.task(event_id="preflight"))

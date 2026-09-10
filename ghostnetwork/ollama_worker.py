@@ -52,6 +52,7 @@ class OllamaWorkerConfig:
     preflight_retry_seconds: int = 30
     database_contention_min_seconds: float = 0.25
     database_contention_max_seconds: float = 2.0
+    source_event_id: str = ""
 
     @classmethod
     def from_env(cls):
@@ -79,6 +80,9 @@ class OllamaWorkerConfig:
                 0.05,
                 float(os.environ.get("CHAOS_OLLAMA_DB_CONTENTION_MAX_SECONDS", "2.0")),
             ),
+            source_event_id=str(
+                os.environ.get("CHAOS_OLLAMA_SOURCE_EVENT_ID", "") or ""
+            ).strip(),
         )
 
     def validate(self):
@@ -342,9 +346,12 @@ class OllamaNarrativeWorker:
             "fact_count": package["fact_count"],
         }
 
-    def process_once(self, target_medium=None):
+    def process_once(self, target_medium=None, source_event_id=None):
         try:
-            result = self._process_once(target_medium=target_medium)
+            result = self._process_once(
+                target_medium=target_medium,
+                source_event_id=source_event_id,
+            )
         except sqlite3.OperationalError as exc:
             if not is_database_contention(exc):
                 raise
@@ -366,7 +373,7 @@ class OllamaNarrativeWorker:
             self._runtime_metrics["last_runtime_error_code"] = ""
         return result
 
-    def _process_once(self, target_medium=None):
+    def _process_once(self, target_medium=None, source_event_id=None):
         if self.config.validate():
             return {"result": "invalid_worker_config", "errors": self.config.validate()}
         registry_status = verify_prompt_registry()
@@ -383,6 +390,11 @@ class OllamaNarrativeWorker:
             lease_seconds=self.config.lease_seconds,
             eligible_policies=self.policies,
             target_medium=target_medium,
+            source_event_id=(
+                source_event_id
+                if source_event_id is not None
+                else self.config.source_event_id
+            ),
         )
         if not task:
             return {"result": "idle"}

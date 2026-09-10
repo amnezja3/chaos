@@ -5321,6 +5321,7 @@ class GhostNetworkRepository:
         lease_seconds=60,
         processor=NARRATIVE_TASK_PROCESSOR,
         target_medium=None,
+        source_event_id=None,
         eligible_policies=None,
         now=None,
         recovery_limit=100,
@@ -5355,6 +5356,9 @@ class GhostNetworkRepository:
             if target_medium:
                 clauses.append("target_medium = ?")
                 params.append(_clean(target_medium))
+            if source_event_id:
+                clauses.append("source_event_id = ?")
+                params.append(_clean(source_event_id))
             if eligible_policies is not None:
                 clauses.extend((
                     "prompt_version != 'unassigned'",

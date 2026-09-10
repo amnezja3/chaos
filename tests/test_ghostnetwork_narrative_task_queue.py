@@ -255,6 +255,26 @@ class GhostNarrativeTaskQueueTest(unittest.TestCase):
         self.assertEqual(claimed["outbox_id"], high["outbox_id"])
         self.assertNotEqual(claimed["outbox_id"], low["outbox_id"])
 
+    def test_claim_can_be_scoped_to_one_source_event(self):
+        older = self.repo.enqueue_narrative_task(
+            self.task(event_id="historical-critical", priority=100)
+        )
+        selected = self.repo.enqueue_narrative_task(
+            self.task(event_id="signal-event", priority=100)
+        )
+
+        claimed = self.repo.claim_next_narrative_task(
+            "event-scoped-worker",
+            lease_seconds=30,
+            source_event_id="signal-event",
+        )
+
+        self.assertEqual(claimed["outbox_id"], selected["outbox_id"])
+        self.assertEqual(
+            self.repo.get_narrative_outbox(older["outbox_id"])["status"],
+            "ready",
+        )
+
     def test_bounded_list_cursor_continues_after_last_task(self):
         for index in range(5):
             self.repo.enqueue_narrative_task(self.task(event_id=f"event-page-{index}"))

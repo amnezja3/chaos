@@ -82,9 +82,14 @@ def main(argv=None):
         default=None,
         help="Claim one task for controlled medium-specific run-once validation.",
     )
+    parser.add_argument(
+        "--source-event-id",
+        default=None,
+        help="Claim only tasks belonging to one canonical source event.",
+    )
     args = parser.parse_args(argv)
-    if args.target_medium and args.command != "run-once":
-        parser.error("--target-medium is available only with run-once")
+    if (args.target_medium or args.source_event_id) and args.command != "run-once":
+        parser.error("task selectors are available only with run-once")
     worker = _worker()
     try:
         if args.command == "status":
@@ -102,7 +107,10 @@ def main(argv=None):
             _print({"ok": False, "error": "ollama_worker_disabled"})
             return 4
         if args.command == "run-once":
-            result = worker.process_once(target_medium=args.target_medium)
+            result = worker.process_once(
+                target_medium=args.target_medium,
+                source_event_id=args.source_event_id,
+            )
             _print(result)
             return 0 if result.get("result") not in {"invalid_worker_config"} else 5
 
