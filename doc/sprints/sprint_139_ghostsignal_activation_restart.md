@@ -1,6 +1,6 @@
 # Sprint 139 — GhostSignal: natychmiastowy show i kontrolowany restart
 
-Status: `IN PROGRESS / 139.1 LOCAL PASS / SERVER GATE PENDING`
+Status: `IN PROGRESS / 139.1 CLOSED / 139.2 LOCAL PASS / SERVER + VISUAL GATE PENDING`
 
 Źródło produktowe: `doc/sprints/sprint_139_opis_15-minutowe_show.md`
 
@@ -381,3 +381,135 @@ ale nie zastępuje tych kontroli.
 139.2 (HTTP lock/delta/recovery), 139.3 (reboot/ack/boot) i 139.4
 (production E2E) pozostają otwarte. Samo 139.1 nie jest jeszcze gotową
 mechaniczną bramką do produkcyjnego finału.
+
+### Wynik ponowienia bramki serwerowej
+
+Operator ponowił ten sam zestaw przez `.venv/bin/python` (Python 3.10.12):
+**53 testy, 346,637 s, OK**. Wykonały się wszystkie pięć rodzin, w tym
+test małego/35 MB profilu oraz cały runtime endgame, których poprzednia próba
+nie uruchomiła. Potwierdzono widoczność show przed konsumpcją, dwa workery,
+rollback/recovery, conflict gate, idempotencję nagród oraz rollover.
+
+Status: `139.1 ISOLATED SERVER PASS`. Jest to bramka kodu na tymczasowych
+bazach w środowisku serwera, nie production E2E ani potwierdzenie działania
+nowej wersji w procesach PM2. Nie wymaga ponawiania triggera GhostSignal.
+
+### Wejściowy audyt 139.2
+
+- Istniejący guard HTTP sprawdza tylko mutujące metody i `stabilizing`,
+  a wyjątek odczytu przepuszcza request. Należy również objąć ochroną zapis
+  requestu rozpoczętego przed T0; istniejący request transaction precommit
+  jest punktem integracji, bez równoległego systemu blokad.
+- `get_signal_show_for_viewer()` odtwarza brakujący rekord tylko w
+  `stabilizing`. Recovery trzeba rozszerzyć na `transmitting` z zachowaniem
+  walidacji locka, zegara i lekkiej ścieżki.
+- `ghost.signal_show_started` jest już typem publicznego routingu delt,
+  ale odbiór durable delivery queue odbywa się w tym samym workerze co
+  endgame. Samo wcześniejsze enqueue nie dowodzi natychmiastowej dostawy
+  podczas długiej transmisji. Rozwiązanie ma rozwinąć istniejący delta feed,
+  bez drugiego busa i bez skanu wszystkich profili.
+- Kontroler show odświeża się na boot/deltę oraz przy deadline; nie ma
+  okresowego odczytu naprawczego przed pojawieniem się show. Pomija też
+  osadzone dokumenty. Weryfikacji wymagają samodzielna mapa, karta w tle,
+  ponowne połączenie i awaria renderera.
+- Przeczytano wskazane kontrakty mapy, marker/menu identity i zabezpieczeń
+  Leaflet. Blokada/show nie może przebudowywać markerów ani usuwać tych ochron.
+
+### 139.2 — implementacja i kontrakt
+
+139.1 zamknięty decyzją operatora po 53 testach izolowanych na serwerze.
+139.2 rozwija istniejące repository/show, request precommit, delta feed
+i kontroler JS. Nie powstał drugi bus, ledger, worker ani system blokad.
+
+- Guard obejmuje `transmitting`, `stabilizing`, aktywne show i zamknięty
+  cykl z show bez uruchomionego następcy. Upływ deadline nie zwalnia blokady.
+  Jawna lista wyjątków obejmuje shell `/desktop`, zasoby statyczne,
+  show, delty, session recovery i logout. Pozostałe GET/HEAD także są
+  blokowane, bo starsze endpointy mogą mieć skutki uboczne; `/map` przekierowuje
+  do chronionego shella. Błąd odczytu daje kontrolowane `503`.
+- Request transaction precommit zachowuje guard generacji sesji i sprawdza
+  zatwierdzony lock przed zapisem. Odczyt przez niezależne połączenie podczas
+  trzymania writer locka wspólnej SQLite pozwala zatwierdzić transakcję
+  tworzącą T0, a odrzuca późniejszego writera. Rollback zachowuje odpowiedź
+  `423` także przy przechwyceniu wyjątku przez starszy handler. Atomowa
+  serializacja dotyczy wspólnej bazy produkcyjnej; pomocnicza, odrębna baza
+  sprawdza canonical lock, lecz nie tworzymy transakcji rozproszonej.
+- `/api/ghostnetwork/show` używa istniejącego lekkiego serwisu show, bez
+  konstrukcji pełnej fasady i bez migracji schematu w requestach. Recovery
+  `transmitting` wykonuje tylko przygotowanie trwałego signal/show/eventów
+  z walidowanego locka. Nie wykonuje konsumpcji, nagród ani publikacji.
+- `/api/state/changes` dostarcza utrwalony `ghost.signal_show_started`
+  wyłącznie pytającemu graczowi, z tym samym dedupe key co dotychczasowy
+  publisher. Nie czeka na worker, nie skanuje kont ani pełnych profili.
+  „Natychmiast” oznacza dostępność po commitcie przy kolejnym odczycie
+  istniejącego feedu; nie jest to nowy transport push.
+- Kontroler desktop/map/iframe odświeża stan na boot, deltę, wznowienie,
+  powrót połączenia i co 5 sekund. Single-flight i timeout 8 sekund ograniczają
+  zalegające requesty. Starsza generacja cyklu, wersja i czas odpowiedzi nie
+  cofają stanu. Zegar pozostaje serwerowy, błąd sieci/renderera nie odblokowuje
+  gameplayu. Awaria renderera daje prosty pełnoekranowy widok; localStorage
+  pozostaje wyłącznie opcjonalną obsługą dotychczasowego toastu.
+- Nie zmieniano handlerów Leaflet ani ścieżki marker/menu identity.
+  Reboot/epoch/receipt i Signal Registry pozostają zakresem 139.3.
+
+### Druga bramka serwerowa — 139.2
+
+Wynik lokalny: **137 testów Python, 126,422 s, OK**; cztery zestawy JS
+(show, recovery/iframe, delta client, session generation) PASS. Mały profil
+i profil 35 MB: zero heavy-profile read/write/bytes/scan oraz identyczna,
+ograniczona liczba zapytań, również dla viewer recovery, locka i dostawy
+startu do feedu. `py_compile`, `node --check` i `git diff --check` PASS.
+
+Po udostępnieniu tego zestawu zmian i pullu operator sprawdza HEAD oraz
+uruchamia poniższy zestaw z katalogu repozytorium. Bramka używa tymczasowych
+baz, nie wymaga restartu PM2 ani uruchomienia produkcyjnego GhostSignal.
+Zastane pliki użytkownika pozostają poza zakresem.
+
+```bash
+git status --short --branch
+git rev-parse --short HEAD
+.venv/bin/python --version
+.venv/bin/python -B - <<'PY'
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+
+root = os.getcwd()
+sys.path[:0] = [root, os.path.join(root, "tests")]
+with tempfile.TemporaryDirectory(prefix="chaos139-2-") as tmp:
+    try:
+        # Istniejący test sesji czyta te dwa assety względem cwd.
+        os.makedirs(os.path.join(tmp, "static", "js"))
+        for name in ("session_generation.js", "terminal.js"):
+            shutil.copyfile(os.path.join(root, "static", "js", name),
+                            os.path.join(tmp, "static", "js", name))
+        os.chdir(tmp)  # przed importem run/database: żadnej lokalnej bazy gry
+        os.environ["CHAOS_SESSION_FILE_DIR"] = os.path.join(tmp, "sessions")
+        names = [
+            "test_ghostnetwork_transmission", "test_ghostnetwork_signal_show",
+            "test_ghostnetwork_signal_show_http", "test_ghostnetwork_runtime_endgame",
+            "test_ghostnetwork_endgame_integrity", "test_ghostnetwork_endgame_audits",
+            "test_ghostnetwork_suite_snapshot", "test_session_generation_precommit",
+            "test_session_generation_isolation", "test_ghostnetwork_delta_publisher",
+            "test_ghostnetwork_delta_audience_bridge",
+        ]
+        result = unittest.TextTestRunner(verbosity=1).run(
+            unittest.defaultTestLoader.loadTestsFromNames(names))
+    finally:
+        os.chdir(root)
+sys.exit(not result.wasSuccessful())
+PY
+node tests/ghost_signal_show_frontend.test.js
+node tests/ghost_signal_show_recovery.test.js
+node tests/js/test_ghostnetwork_delta_client.js
+node tests/js/test_session_generation_isolation.js
+node --check static/js/ghost_signal_show.js
+```
+
+Każde polecenie musi zakończyć się kodem 0. Błąd wymaga diagnozy; nie
+uruchamiamy kolejnego finału ani naprawczego SQL. Wynik tej bramki nadal
+nie jest production E2E 139.4. Kontrola wizualna desktop/mobile, dwóch kart,
+reloadu i powrotu połączenia pozostaje otwarta: lokalna sesja Browser
+zwróciła `No browser is available` i pustą listę przeglądarek.

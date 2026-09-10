@@ -2591,6 +2591,37 @@ class GhostNetworkRepository:
                 "SELECT * FROM ghost_signal_shows ORDER BY show_started_at DESC LIMIT 1"
             ).fetchone())
 
+    def get_gameplay_lock(self, conn=None):
+        """Small canonical lock projection; usable inside the request commit."""
+        if conn is None:
+            with self._conn() as connection:
+                return self.get_gameplay_lock(conn=connection)
+        row = conn.execute(
+            """
+            SELECT c.cycle_id, c.status AS cycle_status, c.signal_number,
+                   c.state_version, c.locked_at, c.stabilization_until,
+                   s.signal_public_id, s.show_started_at, s.show_ends_at
+            FROM ghost_cycles c LEFT JOIN ghost_signal_shows s ON s.cycle_id = c.cycle_id
+            WHERE c.status IN ('transmitting', 'stabilizing') OR s.status = 'active'
+               OR (c.status = 'closed' AND s.signal_id IS NOT NULL AND NOT EXISTS (
+                   SELECT 1 FROM ghost_cycles successor
+                   WHERE successor.signal_number > c.signal_number
+                     AND successor.status IN ('active', 'transmitting', 'stabilizing', 'closed')
+               ))
+            ORDER BY c.signal_number DESC LIMIT 1
+            """
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_latest_show_start_event(self):
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT e.* FROM ghost_signal_shows s
+                JOIN ghost_part_events e ON e.dedupe_key = 'ghost:signal_show_started:' || s.signal_id
+                ORDER BY s.show_started_at DESC LIMIT 1"""
+            ).fetchone()
+            return self._event(row) if row else None
+
     def create_signal_show(self, show):
         show = show if isinstance(show, dict) else {}
         signal_id = _clean(show.get("signal_id"))

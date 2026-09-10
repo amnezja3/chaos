@@ -6,6 +6,13 @@ from datetime import datetime, timedelta, timezone
 from config import GHOSTNETWORK_SIGNAL_SHOW_POLICY
 
 from .repository import GhostNetworkRepository, _clean
+from database import ProfilePrecommitRejected
+
+
+class GhostGameplayLocked(ProfilePrecommitRejected):
+    def __init__(self, state):
+        super().__init__("Gameplay is locked by GhostSignal.")
+        self.state = state
 
 
 PHASES = (
@@ -39,6 +46,85 @@ class GhostSignalShowService:
         self.repository = repository or GhostNetworkRepository()
         self.policy = dict(GHOSTNETWORK_SIGNAL_SHOW_POLICY)
         self.policy.update(policy or {})
+
+    def gameplay_lock(self, conn=None):
+        state = self.repository.get_gameplay_lock(conn=conn)
+        if not state:
+            return {"gameplay_locked": False}
+        return {"gameplay_locked": True, "show_active": True,
+                "cycle_id": state["cycle_id"], "cycle_status": state["cycle_status"],
+                "cycle_number": state["signal_number"], "state_version": state["state_version"],
+                "signal_public_id": state.get("signal_public_id"),
+                "show_started_at": state.get("show_started_at") or state.get("locked_at"),
+                "show_ends_at": state.get("show_ends_at") or state.get("stabilization_until") or None,
+                "stabilization_until": state.get("stabilization_until") or None,
+                "refresh_url": "/api/ghostnetwork/show"}
+
+    def assert_gameplay_unlocked(self, conn):
+        # Read COMMITTED authority through a separate reader while the caller
+        # holds SQLite's writer lock. The transaction creating T0 must not
+        # reject its own uncommitted cycle transition. A later writer sees T0
+        # and rolls back. Ancillary stores also consult the canonical database.
+        reader = GhostSignalShowService(GhostNetworkRepository(
+            db_path=self.repository.db_path, ensure_schema=False))
+        state = reader.gameplay_lock()
+        if state["gameplay_locked"]:
+            raise GhostGameplayLocked(state)
+
+    def get_for_viewer(self):
+        # No schema init or heavy facade construction on the polling path.
+        active = self.repository.get_active_cycle()
+        if active:
+            cycle_id = active["cycle_id"]
+            projection = self.projection_for_cycle(cycle_id)
+            if active.get("status") == "transmitting" and not projection.get("signal_public_id"):
+                from .transmission import GhostTransmissionService
+                GhostTransmissionService(self.repository).prepare_transmission(cycle_id)
+                projection = self.projection_for_cycle(cycle_id)
+            elif active.get("status") == "stabilizing" and not projection.get("signal_public_id"):
+                signal = self.repository.get_signal_for_cycle(cycle_id)
+                if signal:
+                    self.ensure_for_signal(signal, cycle=active,
+                        started_at=signal.get("sent_at"), ends_at=active.get("stabilization_until") or None)
+                    projection = self.projection_for_cycle(cycle_id)
+            projection.update({"cycle_id": cycle_id, "cycle_number": active.get("signal_number"),
+                "state_version": active.get("state_version", 0),
+                "restart_required": bool(active.get("restart_required")),
+                "upgrade_pending": bool(active.get("upgrade_pending")),
+                "current_version": active.get("source_version") or None,
+                "next_version": active.get("next_version") or None})
+        else:
+            projection = {"show_active": False}
+        lock = self.gameplay_lock()
+        projection.update(lock)
+        if not projection.get("show_active"):
+            latest = self.repository.get_latest_signal_show()
+            if latest and latest.get("status") == "completed":
+                projection.update({"completed": True,
+                    "last_completed_signal_public_id": latest.get("signal_public_id"),
+                    "last_completed_from_system_version": latest.get("from_system_version"),
+                    "last_completed_to_system_version": latest.get("to_system_version")})
+        projection["server_now"] = self.repository.now()
+        return projection
+
+    def deliver_start_to_viewer(self, delta_bus, username):
+        """Project the committed start into the existing per-user delta feed.
+
+        The requesting viewer is the only recipient; no worker/fan-out is on
+        this path. The normal delivery job shares the same dedupe key.
+        """
+        event = self.repository.get_latest_show_start_event()
+        if not event:
+            return None
+        payload = event.get("payload") or {}
+        safe = {key: payload.get(key) for key in (
+            "signal_public_id", "show_started_at", "show_ends_at",
+            "from_system_version", "to_system_version")}
+        safe.update({"cycle_id": event["cycle_id"], "state_version": event["state_version"],
+                     "refresh_url": "/api/ghostnetwork/show"})
+        return delta_bus.record_change(username, "ghostnetwork", "ghost.signal_show_started",
+            payload=safe, entity_id=payload.get("signal_public_id"),
+            dedupe_key=f"ghostnetwork:{username}:{event['dedupe_key']}", created_at=event.get("created_at"))
 
     def ensure_for_signal(self, signal, cycle=None, started_at=None, ends_at=None):
         signal = signal if isinstance(signal, dict) else {}

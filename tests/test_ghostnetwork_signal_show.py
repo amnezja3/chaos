@@ -65,6 +65,17 @@ class GhostSignalShowTest(unittest.TestCase):
         self.assertTrue(projection["show_time_elapsed"])
         self.assertEqual(projection["show_phase"]["code"], "ghostsystem_restart")
 
+    def test_closed_cycle_does_not_release_unfinished_show(self):
+        self.show.ensure_for_signal(self.signal, self.cycle)
+        self.repo.update_cycle(self.cycle["cycle_id"], status="closed")
+        self.assertTrue(self.show.get_for_viewer()["gameplay_locked"])
+        self.show.complete_for_cycle(self.cycle["cycle_id"])
+        self.assertTrue(self.show.get_for_viewer()["gameplay_locked"])
+        self.repo.create_cycle(cycle_id="ghostnetwork_0008", signal_number=8,
+            ghostsystem_version=8, status="active")
+        self.assertFalse(self.show.get_for_viewer()["gameplay_locked"])
+        self.assertFalse(self.show.get_for_viewer()["show_active"])
+
 
 if __name__ == "__main__":
     unittest.main()

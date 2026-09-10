@@ -83,6 +83,8 @@ from ghostnetwork.llm.semantic_input import (
     project_poi_location,
 )
 from ghostnetwork.publication_lifecycle import publication_selection_key
+from ghostnetwork.show import GhostSignalShowService, GhostGameplayLocked
+from ghostnetwork.repository import GhostNetworkRepository
 from ghostnetwork.editorial import (
     GOOGLEPLEX_HOME_SLOT_REGISTRY,
     GoogleplexEditorialProducer,
@@ -109,6 +111,8 @@ from googleplex_news import (
 from territory_geometry import polygons_intersect as canonical_polygons_intersect
 
 app = Flask(__name__)
+# Ensure once during application startup; request readers never migrate schema.
+ghostsignal_show_db_path = GhostNetworkRepository().db_path
 
 tag_filters = ["shop", "amenity", "office"]
 fetcher = POIFetcher(tag_filters=tag_filters)
@@ -19917,8 +19921,16 @@ def bind_request_profile_precommit_guard():
         ) or None,
         account_revision=getattr(g, "session_account_revision", None),
     )
+    def guarded_commit(*, conn):
+        transaction_guard(conn=conn)
+        if not ghostsignal_request_is_exempt():
+            try:
+                get_ghostsignal_show_service().assert_gameplay_unlocked(conn)
+            except GhostGameplayLocked as exc:
+                g.ghostsignal_rejected_commit = exc.state
+                raise
     g.transaction_precommit_guard_token = (
-        set_request_transaction_precommit_guard(transaction_guard)
+        set_request_transaction_precommit_guard(guarded_commit)
     )
     request_id = (
         request.headers.get("X-Request-Id")
@@ -20649,34 +20661,65 @@ def get_start_location_by_ip(ip):
     return fallback_start_city()
 
 
+def get_ghostsignal_show_service():
+    return GhostSignalShowService(GhostNetworkRepository(db_path=ghostsignal_show_db_path, ensure_schema=False))
+
+
+def ghostsignal_request_is_exempt():
+    if not str(session.get("user") or "").strip():
+        return True
+    if request.method == "OPTIONS":
+        return True
+    if request.method in {"GET", "HEAD"} and (
+        request.endpoint == "static" or request.path in {
+            "/", "/desktop", "/logout", "/session/recover",
+            "/api/ghostnetwork/show", "/api/state/changes",
+        }
+    ):
+        return True
+    if request.path == "/command" and request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        return str(payload.get("input") or payload.get("command") or "").strip().lower() in {"exit", "logout"}
+    return False
+
+
+def ghostsignal_locked_response(state):
+    response = jsonify({"ok": False, "error": "ghostsignal_show_active",
+        "reason": "gameplay_locked_during_ghostsignal_show", **state})
+    response.status_code = 423
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.errorhandler(GhostGameplayLocked)
+def reject_ghostsignal_gameplay_commit(error):
+    return ghostsignal_locked_response(error.state)
+
+
+@app.after_request
+def preserve_ghostsignal_commit_rejection(response):
+    # Legacy route exception handlers must not turn a rolled-back write into
+    # a success response (or hide the recovery contract behind a generic 500).
+    state = getattr(g, "ghostsignal_rejected_commit", None)
+    return ghostsignal_locked_response(state) if state else response
+
+
 @app.before_request
 def block_gameplay_writes_during_ghostsignal_show():
     """The server, not the overlay, is authority for the global gameplay lock."""
-    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+    if ghostsignal_request_is_exempt():
         return None
-    if not str(session.get("user") or "").strip():
-        return None
-    if request.path in {"/", "/api/register-check", "/api/register-finalize"}:
-        return None
-    if request.path == "/command":
-        payload = request.get_json(silent=True) or {}
-        command = str(payload.get("input") or payload.get("command") or "").strip().lower()
-        if command in {"exit", "logout"}:
-            return None
     try:
-        cycle = GhostNetworkService().get_active_cycle() or {}
-    except Exception:
-        # A read failure must not become a global denial-of-service switch.
+        state = get_ghostsignal_show_service().gameplay_lock()
+    except Exception as exc:
+        print(f"[ghostnetwork] gameplay lock read failed error_type={type(exc).__name__}", flush=True)
+        return jsonify({"ok": False, "error": "ghostnetwork_lock_unavailable",
+                        "refresh_url": "/api/ghostnetwork/show", "retryable": True}), 503
+    if not state["gameplay_locked"]:
         return None
-    if str(cycle.get("status") or "").strip().lower() != "stabilizing":
-        return None
-    return jsonify({
-        "ok": False,
-        "error": "ghostsignal_show_active",
-        "reason": "gameplay_locked_during_ghostsignal_show",
-        "show_active": True,
-        "stabilization_until": cycle.get("stabilization_until") or None,
-    }), 423
+    if request.path == "/map" and request.method in {"GET", "HEAD"}:
+        return redirect(url_for("desktop"))
+    return ghostsignal_locked_response(state)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -21163,6 +21206,10 @@ def api_state_changes():
             "recovery_scopes": recovery_scopes,
         }), 401
 
+    try:
+        get_ghostsignal_show_service().deliver_start_to_viewer(delta_bus, username)
+    except Exception as exc:
+        print(f"[ghostnetwork] show delta delivery failed error_type={type(exc).__name__}", flush=True)
     result = delta_bus.get_changes_since(
         username,
         request.args.get("since", 0),
@@ -21284,11 +21331,13 @@ def api_ghostnetwork_show():
     if not session.get("user"):
         return jsonify({"ok": False, "error": "not_logged_in", "show_active": False}), 401
     try:
-        show = GhostNetworkService().get_signal_show_for_viewer()
+        show = get_ghostsignal_show_service().get_for_viewer()
     except Exception as exc:
         print(f"[ghostnetwork] show snapshot failed error_type={type(exc).__name__}", flush=True)
         return jsonify({"ok": False, "error": "ghostnetwork_show_unavailable"}), 503
-    return jsonify({"ok": True, **show})
+    response = jsonify({"ok": True, **show})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/api/ghostnetwork/ability", methods=["GET", "POST"])

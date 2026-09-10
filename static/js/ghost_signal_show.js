@@ -44,6 +44,7 @@
         root = doc.createElement("section");
         root.id = "ghost-signal-show";
         root.className = "ghost-signal-show";
+        root.style.cssText = "position:fixed;inset:0;z-index:2147483646;background:#05090d;color:#d5fff1;overflow:auto;place-items:center";
         root.setAttribute("role", "status");
         root.setAttribute("aria-live", "polite");
         root.innerHTML = [
@@ -69,18 +70,37 @@
         let snapshot = null;
         let offsetMs = 0;
         let timer = 0;
+        let pollTimer = 0;
+        let inFlight = null;
+        let cancelRequest = null;
+        let started = false;
+
+        function locked() { return !!(snapshot && (snapshot.show_active || snapshot.gameplay_locked)); }
+
+        function blockInput(event) {
+            if (!locked()) return;
+            const root = doc && doc.getElementById("ghost-signal-show");
+            if (root && root.contains && root.contains(event.target)) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
 
         function hide() {
             if (!doc) return;
             const root = doc.getElementById("ghost-signal-show");
-            if (root) root.classList.remove("is-active");
+            if (root) { root.classList.remove("is-active"); root.style.display = "none"; }
+            const fallback = doc.getElementById("ghost-signal-show-fallback");
+            if (fallback) fallback.remove();
             if (timer) global.clearInterval(timer);
             timer = 0;
         }
 
         function render() {
-            if (!doc || !snapshot || !snapshot.show_active) return hide();
+            if (!doc || !locked()) return hide();
+            try {
             const root = ensureOverlay(doc);
+            root.style.display = "grid";
+            root.classList.add("is-active");
             const phase = phaseAt(snapshot, Date.now(), offsetMs);
             const copy = PHASE_COPY[phase.code] || [phase.label || "GHOSTSIGNAL", "Global transmission in progress"];
             root.querySelector(".ghost-signal-show__signal").textContent = snapshot.signal_public_id || "GHOSTSIGNAL";
@@ -93,13 +113,35 @@
             root.querySelector(".ghost-signal-show__time").textContent =
                 `T-${String(secondsRemaining(snapshot, Date.now(), offsetMs)).padStart(3, "0")}s`;
             root.classList.add("is-active");
+            const fallback = doc.getElementById("ghost-signal-show-fallback");
+            if (fallback) fallback.remove();
+            } catch (error) {
+                let fallback = doc.getElementById("ghost-signal-show-fallback");
+                if (!fallback) {
+                    fallback = doc.createElement("section");
+                    fallback.id = "ghost-signal-show-fallback";
+                    fallback.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#05090d;color:#d5fff1;padding:10vh 8vw";
+                    fallback.textContent = "GHOSTSIGNAL — transmisja trwa. Trwa odtwarzanie widoku.";
+                    fallback.setAttribute("role", "status");
+                    doc.body.appendChild(fallback);
+                    if (global.console) global.console.warn("[ghostnetwork] show renderer recovery");
+                }
+            }
         }
 
         function apply(next) {
-            snapshot = next || {show_active: false};
+            if (!next || typeof next.show_active !== "boolean") return locked();
+            if (snapshot) {
+                const oldCycle = Number(snapshot.cycle_number || 0), newCycle = Number(next.cycle_number || 0);
+                if (newCycle < oldCycle || (newCycle === oldCycle &&
+                    Number(next.state_version || 0) < Number(snapshot.state_version || 0))) return locked();
+                if (Date.parse(next.server_now || "") < Date.parse(snapshot.server_now || "")) return locked();
+            }
+            snapshot = next;
             offsetMs = serverOffset(snapshot, Date.now());
             render();
-            if (!snapshot.show_active && snapshot.last_completed_signal_public_id && global.localStorage) {
+            try {
+            if (!locked() && snapshot.last_completed_signal_public_id && global.localStorage) {
                 const receipt = `chaos:${snapshot.last_completed_signal_public_id}:show-seen`;
                 if (!global.localStorage.getItem(receipt)) {
                     global.localStorage.setItem(receipt, "1");
@@ -113,35 +155,82 @@
                     }
                 }
             }
-            if (snapshot.show_active && !timer) {
+            } catch (error) { /* Optional toast receipts cannot interrupt the show. */ }
+            if (locked() && !timer) {
                 timer = global.setInterval(function () {
                     render();
-                    if (!secondsRemaining(snapshot, Date.now(), offsetMs)) refresh("deadline");
                 }, 1000);
             }
-            return snapshot.show_active;
+            return locked();
         }
 
         function refresh() {
+            if (inFlight) return inFlight;
             if (typeof fetcher !== "function") return Promise.resolve(false);
-            return fetcher("/api/ghostnetwork/show", {credentials: "same-origin", cache: "no-store"})
+            const abort = global.AbortController ? new global.AbortController() : null;
+            let expired = false;
+            let timeout;
+            const timedOut = new Promise(resolve => {
+                cancelRequest = function () {
+                    expired = true;
+                    if (abort) abort.abort();
+                    resolve(false);
+                };
+                timeout = global.setTimeout(cancelRequest, 8000);
+            });
+            const request = Promise.resolve().then(() => fetcher("/api/ghostnetwork/show", {
+                credentials: "same-origin", cache: "no-store", signal: abort ? abort.signal : undefined
+            }))
                 .then(response => response.ok ? response.json() : null)
-                .then(data => data && data.ok ? apply(data) : false)
+                .then(data => !expired && data && data.ok ? apply(data) : false)
                 .catch(() => false);
+            inFlight = Promise.race([request, timedOut]).then(result => {
+                global.clearTimeout(timeout);
+                inFlight = null;
+                cancelRequest = null;
+                return result;
+            });
+            return inFlight;
         }
 
-        return {apply, refresh, render, hide, get snapshot() { return snapshot; }};
+        function wake() { refresh("wake"); }
+        function start() {
+            if (started) return;
+            started = true;
+            refresh("boot");
+            pollTimer = global.setInterval(() => refresh("poll"), 5000);
+            if (doc && doc.addEventListener) {
+                doc.addEventListener("visibilitychange", wake);
+                ["keydown", "keypress", "keyup", "click", "pointerdown", "contextmenu", "submit"].forEach(
+                    type => doc.addEventListener(type, blockInput, true));
+            }
+            if (global.addEventListener) ["online", "pageshow", "focus"].forEach(type => global.addEventListener(type, wake));
+        }
+        function stop() {
+            started = false;
+            if (cancelRequest) cancelRequest();
+            global.clearInterval(pollTimer);
+            global.clearInterval(timer);
+            pollTimer = timer = 0;
+            if (doc && doc.removeEventListener) {
+                doc.removeEventListener("visibilitychange", wake);
+                ["keydown", "keypress", "keyup", "click", "pointerdown", "contextmenu", "submit"].forEach(
+                    type => doc.removeEventListener(type, blockInput, true));
+            }
+            if (global.removeEventListener) ["online", "pageshow", "focus"].forEach(type => global.removeEventListener(type, wake));
+        }
+        return {apply, refresh, render, start, stop, get snapshot() { return snapshot; }};
     }
 
     const api = {createController, serverOffset, secondsRemaining, phaseAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 
-    if (!global.document || (global.top && global.top !== global)) return;
+    if (!global.document) return;
     const start = function () {
         const controller = createController({document: global.document, fetch: global.fetch && global.fetch.bind(global)});
         global.GhostSignalShowController = controller;
-        controller.refresh("boot");
+        controller.start();
         const delta = global.GhostNetworkDeltaClient;
         if (delta && typeof delta.registerAdapter === "function") {
             delta.registerAdapter("ghost-signal-show", {

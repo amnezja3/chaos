@@ -162,44 +162,7 @@ class GhostNetworkService:
         return self.repository.get_state_version(active["cycle_id"])
 
     def get_signal_show_for_viewer(self):
-        active = self.repository.get_active_cycle()
-        if active:
-            projection = self.show.projection_for_cycle(active["cycle_id"])
-            if (
-                active.get("status") == "stabilizing"
-                and not projection.get("signal_public_id")
-            ):
-                signal = self.repository.get_signal_for_cycle(active["cycle_id"])
-                if signal:
-                    self.show.ensure_for_signal(
-                        signal,
-                        cycle=active,
-                        started_at=signal.get("sent_at"),
-                        ends_at=active.get("stabilization_until") or None,
-                    )
-                    projection = self.show.projection_for_cycle(active["cycle_id"])
-            projection["restart_required"] = bool(active.get("restart_required"))
-            projection["upgrade_pending"] = bool(active.get("upgrade_pending"))
-            projection["current_version"] = active.get("source_version") or None
-            projection["next_version"] = active.get("next_version") or None
-            if not projection.get("show_active") and not projection.get("signal_public_id"):
-                latest = self.repository.get_latest_signal_show()
-                if latest and latest.get("status") == "completed":
-                    projection.update({
-                        "completed": True,
-                        "last_completed_signal_public_id": latest.get("signal_public_id") or None,
-                        "last_completed_from_system_version": latest.get("from_system_version") or None,
-                        "last_completed_to_system_version": latest.get("to_system_version") or None,
-                    })
-            return projection
-        latest = self.repository.get_latest_signal_show()
-        if not latest:
-            return {"show_active": False, "server_now": self.repository.now()}
-        return {
-            **self.show.projection_for_cycle(latest["cycle_id"]),
-            "show_active": False,
-            "completed": latest.get("status") == "completed",
-        }
+        return self.show.get_for_viewer()
 
     def get_snapshot_for_viewer(self, viewer=None):
         active = self.repository.get_active_cycle()

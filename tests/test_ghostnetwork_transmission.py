@@ -265,6 +265,38 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
                 self.transmission.start_transmission(cycle["cycle_id"])
         self.assertIsNone(self.repo.get_signal_for_cycle(cycle["cycle_id"]))
 
+    def test_viewer_recovers_missing_show_without_running_effects_or_changing_clock(self):
+        cycle, _lock = self.create_locked_cycle()
+        with patch.object(GhostTransmissionService, "consume_signal_territories", side_effect=AssertionError("effects")):
+            first = self.transmission.show.get_for_viewer()
+            second = self.transmission.show.get_for_viewer()
+        self.assertTrue(first["show_active"])
+        self.assertTrue(first["gameplay_locked"])
+        self.assertEqual(first["show_started_at"], second["show_started_at"])
+        self.assertEqual(self.repo.get_signal_for_cycle(cycle["cycle_id"])["status"], "transmitting")
+        self.assertFalse(self.repo.list_rewards(cycle_id=cycle["cycle_id"]))
+        self.assertTrue(all(part["status"] == "active" for part in self.repo.list_parts(cycle["cycle_id"])))
+        self.assertEqual(len(self.repo.list_events_by_types(cycle["cycle_id"], ["ghost.signal_show_started"])), 1)
+        self.assertFalse(self.repo.list_events_by_types(cycle["cycle_id"], ["ghost.signal_sent"]))
+
+    def test_show_start_reaches_existing_user_delta_feed_without_worker(self):
+        from database import GameStateDeltaBus
+        cycle, _lock = self.create_locked_cycle()
+        self.transmission.prepare_transmission(cycle["cycle_id"])
+        bus = GameStateDeltaBus(self.db_path)
+        first = self.transmission.show.deliver_start_to_viewer(bus, "alice")
+        repeat = self.transmission.show.deliver_start_to_viewer(bus, "alice")
+        second_user = self.transmission.show.deliver_start_to_viewer(bus, "bob")
+        self.assertEqual(first["version"], repeat["version"])
+        self.assertEqual(first["type"], "ghost.signal_show_started")
+        self.assertEqual(first["payload"], second_user["payload"])
+        event = self.repo.get_latest_show_start_event()
+        normal_delivery = bus.record_change("alice", "ghostnetwork", event["event_type"],
+            payload=event["payload"], dedupe_key=f"ghostnetwork:alice:{event['dedupe_key']}")
+        self.assertEqual(first["version"], normal_delivery["version"])
+        self.assertNotIn("signal_id", first["payload"])
+        self.assertNotIn("lock_snapshot_id", first["payload"])
+
     def test_two_prepared_workers_converge_without_changing_show_clock(self):
         cycle, _lock = self.create_locked_cycle()
         barrier = Barrier(2)
@@ -293,7 +325,7 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
     def test_transmission_and_show_ignore_small_and_35mb_profiles(self):
         # Same canonical UserStore fixture used by the suite hot-path tests.
         from tests.test_ghostnetwork_suite_snapshot import valid_profile
-        from database import InstrumentedConnection
+        from database import InstrumentedConnection, GameStateDeltaBus
         counts = []
         for padding_size in (0, 35_000_000):
             with self.subTest(padding_size=padding_size):
@@ -304,6 +336,7 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
                     users.save_profile_guarded(valid_profile(padding="x" * padding_size),
                         expected_revision=0, source="test.139.transmission", allow_create=True)
                     cycle, _lock = fixture.create_locked_cycle()
+                    bus = GameStateDeltaBus(fixture.db_path)
                     count = [0]
                     execute = InstrumentedConnection.execute
 
@@ -321,6 +354,10 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
                             result = fixture.transmission.start_transmission(cycle["cycle_id"])
                             self.assertTrue(result["ok"])
                             self.assertTrue(fixture.transmission.show.projection_for_cycle(cycle["cycle_id"])["show_active"])
+                            self.assertTrue(fixture.transmission.show.get_for_viewer()["gameplay_locked"])
+                            self.assertTrue(fixture.transmission.show.gameplay_lock()["gameplay_locked"])
+                            self.assertEqual(fixture.transmission.show.deliver_start_to_viewer(bus, "alice")["type"],
+                                             "ghost.signal_show_started")
                         metrics = get_hot_path_metrics()
                     finally:
                         restore_hot_path_metrics(token)

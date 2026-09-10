@@ -4184,3 +4184,43 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Skorygowano instrukcję: używać `.venv/bin/python`, wskazanego przez
   konfigurację aplikacji/territory-worker, i ponowić cały izolowany zestaw.
   Nie zmieniano kodu mechaniki ani zależności środowiska produkcyjnego.
+
+## 2026-09-10 — 139.1 isolated server PASS, wejście w 139.2
+
+- Operator ponowił pięć rodzin testów przez `.venv/bin/python` 3.10.12:
+  53 testy w 346,637 s, `OK`. Test profilu 35 MB i moduł runtime endgame
+  wykonały się w całości. Bramka 139.1 na odizolowanych danych serwera zaliczona.
+- Wynik nie oznacza production E2E ani potwierdzenia przeładowania procesów
+  PM2. 139.2, 139.3 i pełna produkcyjna bramka 139.4 pozostają otwarte.
+- Rozpoczęto audyt 139.2: HTTP guard, istniejący precommit requestów,
+  transmitting recovery oraz dostarczanie show przez istniejący delta feed.
+  Delivery queue i endgame obsługuje ten sam worker; samo enqueue przed
+  skutkami nie wystarczy jako dowód natychmiastowej dostawy.
+
+## 2026-09-10 — zamknięcie 139.1 i implementacja 139.2
+
+- Operator zamknął 139.1 po zaliczeniu izolowanej bramki serwerowej.
+  Implementacja 139.2 bazuje lokalnie na `d2e3826`.
+- Istniejący guard HTTP obejmuje transmitting/stabilizing, aktywne show
+  i lukę przed gotowością następcy. Chroni też GET-y ze skutkami ubocznymi;
+  jawne wyjątki pozostawiają shell, show, delty, recovery i logout.
+- Istniejący transaction precommit łączy ochronę generacji sesji z canonical
+  lockiem. Test rozróżnia commit tworzący T0 od późnego zapisu gameplayu;
+  ten drugi podlega rollbackowi i odpowiedzi 423, także po przechwyceniu
+  wyjątku przez starszy handler.
+- Recovery show przygotowuje wyłącznie trwały początek transmisji. Feed
+  `/api/state/changes` dostarcza start pytającemu graczowi bez czekania
+  na worker, z dotychczasowym dedupe. Nie dodano busa ani skanu profili.
+- Dotychczasowy kontroler JS obsługuje poll recovery, timeout/single-flight,
+  starsze odpowiedzi, wznowienie i iframe mapy. Błąd renderera uruchamia
+  pełnoekranowy fallback bez zwolnienia locka.
+- Pierwsza szersza regresja: 136/137 PASS; jeden błąd wynikał z braku
+  dwóch assetów w izolowanym cwd starego testu sesji. Instrukcja bramki
+  kopiuje tylko te assety, nadal importując aplikację poza katalogiem gry.
+- Browser nie ma dostępnej przeglądarki. Kontrola wizualna desktop/mobile
+  pozostaje otwarta; testy JS nie zastępują tej kontroli. Bramka serwerowa
+  jest opisana w dokumencie Sprintu 139; 139.3 i production E2E nie rozpoczęto.
+- Wynik końcowy: **137 testów Python PASS, 126,422 s**, cztery zestawy JS
+  PASS, py_compile/node --check/diff check PASS. Mały i 35 MB profil:
+  identyczna ograniczona liczba zapytań, zero pełnych odczytów/zapisów profilu
+  oraz skanów kont. Status: `139.2 LOCAL PASS / SERVER + VISUAL GATE PENDING`.

@@ -86,7 +86,11 @@ class GhostTransmissionService:
                               "stabilization_until": cycle.get("stabilization_until")},
         }
 
-    def _transmit(self, cycle_id, resume=False):
+    def prepare_transmission(self, cycle_id):
+        """Repair only the durable start; HTTP recovery never applies effects."""
+        return self._transmit(cycle_id, prepare_only=True)
+
+    def _transmit(self, cycle_id, resume=False, prepare_only=False):
         cycle_id = _clean(cycle_id)
         # A nested transaction would hide the show until the caller commits.
         # All production entry points own their transaction boundaries here.
@@ -120,6 +124,9 @@ class GhostTransmissionService:
             if signal.get("lock_snapshot_id") != lock.get("lock_snapshot_id"):
                 raise RepositoryIntegrityError("Transmission signal/lock lineage mismatch.")
             self._ensure_transmission_show(signal, current, lock)
+        if prepare_only:
+            return {"ok": True, "cycle_id": cycle_id, "signal": signal,
+                    "show": self.repository.get_signal_show_for_cycle(cycle_id)}
         # The show and its start events are now visible to independent readers.
         # Existing ledgers own recovery; no parallel job/state store is needed.
         results = {}
