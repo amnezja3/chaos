@@ -4111,3 +4111,38 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   rekordów bez kasowania. Narzędzie służy do zamknięcia 25 historycznych tasków
   przed stałym uruchomieniem PM2 17.
 - Status: `138.2 COMPLETE / PRODUCER-BACKED SERVER E2E PASS`.
+
+## 2026-09-10 — plan Sprintów 139–140: finał GhostSignal
+
+- Produkcyjny test ujawnił 2–3-minutową lukę między rozpoczęciem skutków
+  GhostSignal a pojawieniem się Signal Show oraz brak automatycznego restartu
+  klienta po rolloverze. Signal Registry stawało się widoczne dopiero po
+  ręcznym restarcie.
+- Sprint 139 otrzymał rangę P0 mechanics gate: durable show ma powstać przed
+  pierwszym skutkiem nieodwracalnym, serwer blokuje gameplay przez transmitting
+  i stabilizing, a po settlement następuje dokładnie jeden kontrolowany reboot
+  do nowego cyklu z gotowym Signal Registry.
+- Sprint 140 obejmuje właściwy piętnastominutowy montaż: części, maszyny, sieć,
+  transmisję, rekonstrukcję świata, ranking i boot vNext. Director działa z
+  czasu serwera i bounded immutable manifestu.
+- Ollama pozostaje poza ścieżką krytyczną show. Finał używa już utrwalonych
+  publikacji, eventów i tekstów awaryjnych; model może równolegle przygotowywać
+  kolejny cykl, ale jego stan nie blokuje oprawy ani restartu.
+- Źródło produktowe zachowano w
+  `doc/sprints/sprint_139_opis_15-minutowe_show.md`; wykonanie opisują osobne
+  dokumenty Sprintów 139 i 140.
+
+## 2026-09-10 — handoff do nowego wątku przed Sprintem 139
+
+- Dodano `doc/runbooks/handoff_sprints_139_140.md` jako samowystarczalne
+  przekazanie aktualnego stanu, architektury, procesu pracy i produkcyjnych
+  ograniczeń.
+- Handoff rozdziela potwierdzony PASS 138.2 od stanu wymagającego read-only
+  kontroli: ostatnim jednoznacznie potwierdzonym stanem PM2 17 było zatrzymanie,
+  a dry-run retirementu 25 tasków nie jest dowodem wykonania `--apply` ani
+  ponownego stałego uruchomienia workera bez filtra E2E.
+- Zapisano mapę repozytorium, canonical pipeline GhostNetwork/Ollama, zasady
+  session generation, hot-path, SQLite, delt, mapy, deploymentu, audytów oraz
+  listę bezwzględnych zakazów wynikających z wcześniejszych regresji.
+- `doc/README.md` kieruje teraz nowy wątek najpierw do aktywnego handoffu, a
+  następnie do dokumentów produktu, journalu i wiążącego kontraktu profilu.

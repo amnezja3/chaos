@@ -5,10 +5,11 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
-1. [`overview/ABOUT_CHAOS.md`](overview/ABOUT_CHAOS.md) — produkt, świat i canon.
-2. [`history/project_journal.md`](history/project_journal.md) — najnowszy stan prac.
-3. [`architecture/profile_hot_path_contract_130_11_plus.md`](architecture/profile_hot_path_contract_130_11_plus.md) — wiążąca bramka wydajności i integralności.
-4. [`history/game_play_180726.md`](history/game_play_180726.md) — aktualna chronologia sprintów.
+1. [`runbooks/handoff_sprints_139_140.md`](runbooks/handoff_sprints_139_140.md) — aktywne przekazanie pracy i zasady wejścia w Sprinty 139–140.
+2. [`overview/ABOUT_CHAOS.md`](overview/ABOUT_CHAOS.md) — produkt, świat i canon.
+3. [`history/project_journal.md`](history/project_journal.md) — najnowszy stan prac.
+4. [`architecture/profile_hot_path_contract_130_11_plus.md`](architecture/profile_hot_path_contract_130_11_plus.md) — wiążąca bramka wydajności i integralności.
+5. [`history/game_play_180726.md`](history/game_play_180726.md) — chronologia wcześniejszych sprintów.
 
 ## Struktura
 
@@ -28,6 +29,14 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 - [`history/`](history/) — journale oraz historyczne roadmapy.
 
 ## Status bieżący
+
+- Sprint 138.2 zakończył pełny producer-backed production E2E wynikiem `PASS`.
+  Aktywny backlog stanowią
+  [`Sprint 139 — natychmiastowy show i restart`](sprints/sprint_139_ghostsignal_activation_restart.md)
+  oraz
+  [`Sprint 140 — 15-minutowy finał`](sprints/sprint_140_ghostsignal_15_minute_finale.md).
+  Pełny kontekst, reguły pracy i stan wymagający ponownej weryfikacji zawiera
+  [`handoff Sprintów 139–140`](runbooks/handoff_sprints_139_140.md).
 
 - Sprinty 130.10-130.12 oraz GhostNetwork Suite 131-135 są zamknięte albo
   przekazane do potwierdzonej walidacji zgodnie z journalem.
