@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-09-10T17:22:21.833831+00:00",
+  "contract_version": "ghostnetwork-publication-lifecycle-audit-v1",
+  "errors": [],
+  "health": {
+    "active_expired": 0,
+    "active_missing_contract": 0,
+    "checked_at": "2026-09-10T17:22:21.833831+00:00",
+    "contract_version": "ghostnetwork-publication-lifecycle-v1",
+    "duplicate_active_head_samples": [],
+    "duplicate_active_heads": 0,
+    "invalidated_missing_lineage": 0,
+    "limit": 50,
+    "states": {
+      "active": 144,
+      "expired": 85,
+      "invalidated": 20,
+      "legacy": 500
+    }
+  },
+  "lifecycle_contract_version": "ghostnetwork-publication-lifecycle-v1",
+  "ok": true,
+  "profiles_loaded": false,
+  "read_only": true,
+  "warnings": [
+    "historical_legacy_records_present"
+  ]
+}

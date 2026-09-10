@@ -1,0 +1,479 @@
+{
+  "bounded_limit": 500,
+  "chain_count": 3,
+  "chains": [
+    {
+      "candidate_id": "narrative_candidate_bf2e1ea88f995b86",
+      "errors": [],
+      "event_to_publication_ms": 2030152.137,
+      "ok": true,
+      "outcome": "published",
+      "receipt": {
+        "last_error_code": "",
+        "publication_receipt_id": "narrative_publication_6e0b41360df60d11",
+        "status": "published"
+      },
+      "record": {
+        "active_state": "active",
+        "event_family": "signal_sent",
+        "medium_record_id": "narrative_medium_a285bd00c0e8032d",
+        "narrative_thread_id": "ghost-signal:ghost_signal_ghostnetwork_0001",
+        "publication_mode": "model",
+        "source_state_version": 1574
+      },
+      "superseding_record": null,
+      "task_id": "narrative_task_7b760fe5fe2ec0e7"
+    },
+    {
+      "candidate_id": "narrative_candidate_0c0dba9b60b60801",
+      "errors": [],
+      "event_to_publication_ms": 3949333.758,
+      "ok": true,
+      "outcome": "published",
+      "receipt": {
+        "last_error_code": "",
+        "publication_receipt_id": "narrative_publication_7e329fc4f8bfe71f",
+        "status": "published"
+      },
+      "record": {
+        "active_state": "active",
+        "event_family": "signal_sent",
+        "medium_record_id": "narrative_medium_bb2e304cc4893ad2",
+        "narrative_thread_id": "ghost-signal:ghost_signal_ghostnetwork_0001",
+        "publication_mode": "model",
+        "source_state_version": 1574
+      },
+      "superseding_record": null,
+      "task_id": "narrative_task_f50c7ebe7c7d3bec"
+    },
+    {
+      "candidate_id": "narrative_candidate_64eec6185d32349f",
+      "errors": [],
+      "event_to_publication_ms": 1941352.101,
+      "ok": true,
+      "outcome": "published",
+      "receipt": {
+        "last_error_code": "",
+        "publication_receipt_id": "narrative_publication_41ab1d713d4ad5d5",
+        "status": "published"
+      },
+      "record": {
+        "active_state": "active",
+        "event_family": "signal_sent",
+        "medium_record_id": "narrative_medium_5594bd438a7116bb",
+        "narrative_thread_id": "ghost-signal:ghost_signal_ghostnetwork_0001",
+        "publication_mode": "model",
+        "source_state_version": 1574
+      },
+      "superseding_record": null,
+      "task_id": "narrative_task_1f9132058cd8ef53"
+    }
+  ],
+  "contract_version": "ghostnetwork-narrative-e2e-audit-v2",
+  "errors": [],
+  "event": {
+    "created_at": "2026-09-10T16:08:59.424378+00:00",
+    "event_id": "event_482e06e1401c116f",
+    "event_type": "ghost.signal_sent"
+  },
+  "event_to_publication_ms": {
+    "average": 2640279.332,
+    "maximum": 3949333.758,
+    "samples": 3
+  },
+  "expected_task_count": 3,
+  "generation": {
+    "contract_version": "ghostnetwork-generation-validation-audit-v1",
+    "errors": [],
+    "event": {
+      "created_at": "2026-09-10T16:08:59.424378+00:00",
+      "event_id": "event_482e06e1401c116f",
+      "event_type": "ghost.signal_sent"
+    },
+    "expected_task_count": 3,
+    "manual_voice_review": {
+      "checks": [
+        "title_and_body_are_polish",
+        "voice_matches_target_medium",
+        "copy_describes_only_semantic_facts",
+        "entity_roles_do_not_gain_ownership_causality_or_agency",
+        "proper_names_are_complete_and_not_truncated",
+        "copy_does_not_echo_control_metadata_or_identifiers"
+      ],
+      "required": true
+    },
+    "missing_task_identities": [],
+    "ok": true,
+    "sample_count": 3,
+    "samples": [
+      {
+        "attempt": {
+          "attempt_id": "narrative_attempt_f9878bd5a7dcc8b3",
+          "attempt_number": 2,
+          "error_code": "",
+          "fact_count": 3,
+          "input_bytes": 844,
+          "request_hash": "a4800dcc08182de1f3f0858e32868d1587e672b649cd46ed2ec34de02d7ab9d9",
+          "result": "accepted_support_full",
+          "status": "completed"
+        },
+        "candidate": {
+          "asset_ref": "",
+          "attempt_id": "narrative_attempt_f9878bd5a7dcc8b3",
+          "body": "...GhostSignal opuścił domknięty obwód GhostNetwork.",
+          "candidate_id": "narrative_candidate_bf2e1ea88f995b86",
+          "cta_action": "open_ghostsignal_archive",
+          "fact_refs": [
+            "ghost_fact:event_482e06e1401c116f:signal_sent:public"
+          ],
+          "quarantine_reason": "",
+          "title": "PRZECHWYT // TRANSMISJA WYSŁANA",
+          "tone": "critical",
+          "validation_errors": [],
+          "validation_status": "accepted"
+        },
+        "errors": [],
+        "model_input": {
+          "audience": {
+            "scope": "public"
+          },
+          "event_family": "signal_sent",
+          "medium": "blacknet",
+          "narrative_intent": "ghost_signal_transmission",
+          "semantic_contract": "chaos-llm-semantic-input-v1",
+          "semantic_facts": [
+            {
+              "attributes": [
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f01",
+              "statement": "GhostSignal został wysłany z zamkniętej sieci."
+            },
+            {
+              "attributes": [
+                {
+                  "name": "liczba części",
+                  "value": 20
+                },
+                {
+                  "name": "liczba połączeń",
+                  "value": 20
+                },
+                {
+                  "name": "liczba maszyn",
+                  "value": 4
+                },
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f02",
+              "statement": "Sieć GhostNetwork osiągnęła pełne zamknięcie."
+            },
+            {
+              "attributes": [
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f03",
+              "statement": "Ghost System wymaga przejścia do kolejnego cyklu."
+            }
+          ],
+          "significance": "critical",
+          "tone_hint": "critical"
+        },
+        "ok": true,
+        "package": {
+          "fact_count": 3,
+          "input_bytes": 844,
+          "output_safety_contract_version": "ghostnetwork-output-safety-v1",
+          "output_safety_forbidden_value_count": 0,
+          "request_hash": "a4800dcc08182de1f3f0858e32868d1587e672b649cd46ed2ec34de02d7ab9d9"
+        },
+        "support_replay": {
+          "available": true,
+          "model_validation": {
+            "errors": [],
+            "output": {
+              "body": "...GhostSignal opuścił domknięty obwód GhostNetwork.",
+              "cta_ref": null,
+              "fact_refs": [
+                "ghost_fact:event_482e06e1401c116f:signal_sent:public"
+              ],
+              "title": "PRZECHWYT // TRANSMISJA WYSŁANA",
+              "tone": "critical"
+            },
+            "status": "accepted"
+          },
+          "read_only": true,
+          "support_applied": false,
+          "support_mode": "",
+          "support_output": null
+        },
+        "task": {
+          "audience_scope": "public",
+          "event_family": "signal_sent",
+          "narrative_intent": "ghost_signal_transmission",
+          "prompt_version": "ghostsignal-prompt-v11",
+          "source_event_id": "event_482e06e1401c116f",
+          "status": "completed",
+          "target_medium": "blacknet",
+          "task_id": "narrative_task_7b760fe5fe2ec0e7"
+        }
+      },
+      {
+        "attempt": {
+          "attempt_id": "narrative_attempt_6d70f3a9039d7954",
+          "attempt_number": 2,
+          "error_code": "support_repair",
+          "fact_count": 3,
+          "input_bytes": 844,
+          "request_hash": "c396a1ab641ae492b3faaddc1bdb815980c29a2d2a367f02fe396dc0cc54455e",
+          "result": "accepted_support_full",
+          "status": "completed"
+        },
+        "candidate": {
+          "asset_ref": "",
+          "attempt_id": "narrative_attempt_6d70f3a9039d7954",
+          "body": "Zamknięta sieć GhostNetwork wysłała GhostSignal.",
+          "candidate_id": "narrative_candidate_0c0dba9b60b60801",
+          "cta_action": "open_ghostsignal_archive",
+          "fact_refs": [
+            "ghost_fact:event_482e06e1401c116f:signal_sent:public"
+          ],
+          "quarantine_reason": "",
+          "title": "GhostSignal wysłany",
+          "tone": "critical",
+          "validation_errors": [],
+          "validation_status": "accepted"
+        },
+        "errors": [],
+        "model_input": {
+          "audience": {
+            "scope": "public"
+          },
+          "event_family": "signal_sent",
+          "medium": "cyberner",
+          "narrative_intent": "ghost_signal_transmission",
+          "semantic_contract": "chaos-llm-semantic-input-v1",
+          "semantic_facts": [
+            {
+              "attributes": [
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f01",
+              "statement": "GhostSignal został wysłany z zamkniętej sieci."
+            },
+            {
+              "attributes": [
+                {
+                  "name": "liczba części",
+                  "value": 20
+                },
+                {
+                  "name": "liczba połączeń",
+                  "value": 20
+                },
+                {
+                  "name": "liczba maszyn",
+                  "value": 4
+                },
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f02",
+              "statement": "Sieć GhostNetwork osiągnęła pełne zamknięcie."
+            },
+            {
+              "attributes": [
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f03",
+              "statement": "Ghost System wymaga przejścia do kolejnego cyklu."
+            }
+          ],
+          "significance": "critical",
+          "tone_hint": "critical"
+        },
+        "ok": true,
+        "package": {
+          "fact_count": 3,
+          "input_bytes": 844,
+          "output_safety_contract_version": "ghostnetwork-output-safety-v1",
+          "output_safety_forbidden_value_count": 0,
+          "request_hash": "c396a1ab641ae492b3faaddc1bdb815980c29a2d2a367f02fe396dc0cc54455e"
+        },
+        "support_replay": {
+          "available": true,
+          "model_validation": {
+            "errors": [],
+            "output": {
+              "body": "Zamknięta sieć GhostNetwork wysłała GhostSignal.",
+              "cta_ref": null,
+              "fact_refs": [
+                "ghost_fact:event_482e06e1401c116f:signal_sent:public"
+              ],
+              "title": "GhostSignal wysłany",
+              "tone": "critical"
+            },
+            "status": "accepted"
+          },
+          "read_only": true,
+          "support_applied": false,
+          "support_mode": "",
+          "support_output": null
+        },
+        "task": {
+          "audience_scope": "public",
+          "event_family": "signal_sent",
+          "narrative_intent": "ghost_signal_transmission",
+          "prompt_version": "ghostsignal-prompt-v11",
+          "source_event_id": "event_482e06e1401c116f",
+          "status": "completed",
+          "target_medium": "cyberner",
+          "task_id": "narrative_task_f50c7ebe7c7d3bec"
+        }
+      },
+      {
+        "attempt": {
+          "attempt_id": "narrative_attempt_388b64e4437b862b",
+          "attempt_number": 1,
+          "error_code": "",
+          "fact_count": 3,
+          "input_bytes": 924,
+          "request_hash": "c010ca2b0cf101a263a48ce08f4c7632b7ff5d27083c19d7033a2f03ac014aee",
+          "result": "accepted_support_title",
+          "status": "completed"
+        },
+        "candidate": {
+          "asset_ref": "gp_scene_world_neutral_01",
+          "attempt_id": "narrative_attempt_388b64e4437b862b",
+          "body": "Sieć GhostNetwork osiągnęła pełne zamknięcie, składająca się z 20 części połączonych przez 20 połączeń i obsługiwana 4-m",
+          "candidate_id": "narrative_candidate_64eec6185d32349f",
+          "cta_action": "open_ghostsignal_archive",
+          "fact_refs": [
+            "ghost_fact:event_482e06e1401c116f:signal_sent:public"
+          ],
+          "quarantine_reason": "",
+          "title": "Transmisja GhostNetwork zakończona",
+          "tone": "critical",
+          "validation_errors": [],
+          "validation_status": "accepted"
+        },
+        "errors": [],
+        "model_input": {
+          "audience": {
+            "scope": "public"
+          },
+          "event_family": "signal_sent",
+          "medium": "googleplex_news",
+          "narrative_intent": "ghost_signal_transmission",
+          "semantic_contract": "chaos-llm-semantic-input-v1",
+          "semantic_facts": [
+            {
+              "attributes": [
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f01",
+              "statement": "GhostSignal został wysłany z zamkniętej sieci."
+            },
+            {
+              "attributes": [
+                {
+                  "name": "liczba części",
+                  "value": 20
+                },
+                {
+                  "name": "liczba połączeń",
+                  "value": 20
+                },
+                {
+                  "name": "liczba maszyn",
+                  "value": 4
+                },
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f02",
+              "statement": "Sieć GhostNetwork osiągnęła pełne zamknięcie."
+            },
+            {
+              "attributes": [
+                {
+                  "name": "wynik",
+                  "value": "pending"
+                }
+              ],
+              "fact_ref": "f03",
+              "statement": "Ghost System wymaga przejścia do kolejnego cyklu."
+            }
+          ],
+          "significance": "critical",
+          "tone_hint": "critical"
+        },
+        "ok": true,
+        "package": {
+          "fact_count": 3,
+          "input_bytes": 924,
+          "output_safety_contract_version": "ghostnetwork-output-safety-v1",
+          "output_safety_forbidden_value_count": 0,
+          "request_hash": "c010ca2b0cf101a263a48ce08f4c7632b7ff5d27083c19d7033a2f03ac014aee"
+        },
+        "support_replay": {
+          "available": true,
+          "model_validation": {
+            "errors": [],
+            "output": {
+              "asset_ref": "gp_scene_world_neutral_01",
+              "body": "Sieć GhostNetwork osiągnęła pełne zamknięcie, składająca się z 20 części połączonych przez 20 połączeń i obsługiwana 4-m",
+              "cta_ref": null,
+              "fact_refs": [
+                "ghost_fact:event_482e06e1401c116f:signal_sent:public"
+              ],
+              "title": "Transmisja GhostNetwork zakończona",
+              "tone": "critical"
+            },
+            "status": "accepted"
+          },
+          "read_only": true,
+          "support_applied": false,
+          "support_mode": "",
+          "support_output": null
+        },
+        "task": {
+          "audience_scope": "public",
+          "event_family": "signal_sent",
+          "narrative_intent": "ghost_signal_transmission",
+          "prompt_version": "ghostnetwork-googleplex-prompt-v11",
+          "source_event_id": "event_482e06e1401c116f",
+          "status": "completed",
+          "target_medium": "googleplex_news",
+          "task_id": "narrative_task_1f9132058cd8ef53"
+        }
+      }
+    ]
+  },
+  "generation_ok": true,
+  "ok": true,
+  "profiles_loaded": false,
+  "read_only": true
+}

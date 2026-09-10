@@ -5227,6 +5227,116 @@ class GhostNetworkRepository:
             )
             return task_ids
 
+    def plan_historical_narrative_backlog_retirement(
+        self, eligible_policies, *, before, protected_source_event_ids=(), limit=500,
+    ):
+        """List queued, unpublished work eligible for an operator cut-off."""
+        policy_clause, policy_params = _narrative_policy_sql(eligible_policies)
+        if not policy_params:
+            raise ValueError("Narrative backlog retirement requires eligible policies")
+        before_iso = _iso(before)
+        bounded_limit = max(1, min(int(limit or 500), 500))
+        protected = tuple(dict.fromkeys(
+            _clean(item) for item in (protected_source_event_ids or ()) if _clean(item)
+        ))
+        protected_clause = ""
+        protected_params = []
+        if protected:
+            placeholders = ",".join("?" for _item in protected)
+            protected_clause = (
+                f"AND source_event_id NOT IN ({placeholders}) "
+                "AND outbox_id NOT IN ("
+                "SELECT outbox_id FROM ghost_narrative_task_sources "
+                f"WHERE source_event_id IN ({placeholders})"
+                ")"
+            )
+            protected_params.extend(protected)
+            protected_params.extend(protected)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT o.*
+                FROM ghost_narrative_outbox o
+                WHERE o.processor = ? AND o.status IN ('ready', 'retry_wait')
+                  AND ({policy_clause})
+                  AND o.created_at < ?
+                  {protected_clause}
+                  AND NOT EXISTS (
+                    SELECT 1 FROM ghost_narrative_inbox_candidates c
+                    WHERE c.task_id = o.outbox_id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM ghost_narrative_publication_receipts r
+                    WHERE r.task_id = o.outbox_id
+                  )
+                ORDER BY o.created_at ASC, o.outbox_id ASC
+                LIMIT ?
+                """,
+                tuple(
+                    [NARRATIVE_TASK_PROCESSOR]
+                    + policy_params
+                    + [before_iso]
+                    + protected_params
+                    + [bounded_limit]
+                ),
+            ).fetchall()
+            return [self._narrative_outbox(row) for row in rows]
+
+    def retire_historical_narrative_backlog(
+        self, eligible_policies, *, before, expected_count,
+        protected_source_event_ids=(), reason_code="historical_backlog_operator_cutoff",
+        limit=500, now=None,
+    ):
+        """Atomically retire an exact, preflighted historical queue selection."""
+        expected_count = int(expected_count)
+        if expected_count < 0:
+            raise ValueError("expected_count must not be negative")
+        now_iso = _iso(now if now is not None else self.now())
+        with self.transaction():
+            rows = self.plan_historical_narrative_backlog_retirement(
+                eligible_policies,
+                before=before,
+                protected_source_event_ids=protected_source_event_ids,
+                limit=limit,
+            )
+            if len(rows) != expected_count:
+                raise RepositoryIntegrityError(
+                    "Narrative backlog selection changed: "
+                    f"expected {expected_count}, found {len(rows)}"
+                )
+            task_ids = [row["outbox_id"] for row in rows]
+            if not task_ids:
+                return []
+            placeholders = ",".join("?" for _item in task_ids)
+            conn = self._transaction_conn
+            cursor = conn.execute(
+                f"""
+                UPDATE ghost_narrative_outbox
+                SET status = 'dead_letter', last_error_code = ?,
+                    last_error_at = ?, dead_lettered_at = ?, processed_at = ?,
+                    updated_at = ?, claimed_by = '', claimed_at = '',
+                    lease_until = '', next_attempt_at = ''
+                WHERE outbox_id IN ({placeholders})
+                  AND status IN ('ready', 'retry_wait')
+                """,
+                tuple(
+                    [_clean(reason_code, "historical_backlog_operator_cutoff")]
+                    + [now_iso] * 4
+                    + task_ids
+                ),
+            )
+            if cursor.rowcount != expected_count:
+                raise RepositoryIntegrityError(
+                    "Narrative backlog retirement CAS did not update the expected rows"
+                )
+            return [
+                self._narrative_outbox(conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ?",
+                    (task_id,),
+                ).fetchone())
+                for task_id in task_ids
+            ]
+
     def get_latest_narrative_task(
         self,
         target_medium=None,

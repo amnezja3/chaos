@@ -1,0 +1,98 @@
+{
+  "checked_at": "2026-09-10T17:22:20.375627+00:00",
+  "contract_version": "ghostnetwork-narrative-runtime-audit-v1",
+  "errors": [],
+  "guarantees": {
+    "candidate_after_crash": "complete_without_second_model_call",
+    "database_contention": "retryable_without_process_exit",
+    "expired_lease": "atomic_recovery",
+    "max_attempts": "dead_letter",
+    "model_transport_failure": "bounded_exponential_backoff",
+    "unknown_database_error": "fail_fast"
+  },
+  "health": {
+    "active_without_lease": 0,
+    "active_without_lease_samples": [],
+    "attempt_statuses": {
+      "completed": 1397,
+      "lease_lost": 2,
+      "retry": 208,
+      "started": 19
+    },
+    "candidate_recoveries": 0,
+    "exhausted_nonterminal": 0,
+    "exhausted_nonterminal_samples": [],
+    "incomplete_attempt_samples": [
+      "narrative_attempt_b5a49b03c20c196e",
+      "narrative_attempt_cd0dea4210349ff1",
+      "narrative_attempt_9797aec1c67fe51d",
+      "narrative_attempt_9b200ebca296d987",
+      "narrative_attempt_abd23b3dd3dee9f1",
+      "narrative_attempt_fbf1089619a11a63",
+      "narrative_attempt_d93723ff6238ab26",
+      "narrative_attempt_f72e5edf61969f6d",
+      "narrative_attempt_40e2fc7897505e14",
+      "narrative_attempt_9c25b5046c8902eb",
+      "narrative_attempt_ddc328bb32658d7a",
+      "narrative_attempt_40a11f81aa0e0e2b",
+      "narrative_attempt_6f01ab3deca56a4e",
+      "narrative_attempt_d20328f3c9503f63",
+      "narrative_attempt_a9ccb3f850e6553e",
+      "narrative_attempt_d1c46bdcb1e0a884",
+      "narrative_attempt_40801ffd334808e9",
+      "narrative_attempt_62a38b6040d83f5d",
+      "narrative_attempt_9aba184d4555b38f"
+    ],
+    "incomplete_attempts": 19,
+    "queue": {
+      "active_legacy_file_tasks": 0,
+      "eligible_ready": 25,
+      "expired_leases": 0,
+      "ineligible_ready": 0,
+      "oldest_eligible_ready": "2026-09-09T11:32:31.016419+00:00",
+      "ready_by_prompt_version": {
+        "blacknet-signal-prompt-v9": 9,
+        "ghostnetwork-event-prompt-v11": 11,
+        "ghostnetwork-googleplex-prompt-v11": 4,
+        "googleplex-world-hero-prompt-v14": 1
+      },
+      "statuses": {
+        "completed": 1396,
+        "dead_letter": 55,
+        "ready": 25
+      }
+    },
+    "retry_schedule_violation_samples": [],
+    "retry_schedule_violations": 0,
+    "retryable_errors": {
+      "invalid_json": 118,
+      "lease_lost": 2,
+      "ollama_http_500": 15,
+      "ollama_timeout": 75
+    }
+  },
+  "ok": true,
+  "profiles_loaded": false,
+  "read_only": true,
+  "runtime_safety": {
+    "contract_version": "ghostnetwork-ollama-runtime-v1",
+    "database_contention_backoff_seconds": {
+      "maximum": 2.0,
+      "minimum": 0.25
+    },
+    "database_contention_is_retryable": true,
+    "errors": [],
+    "ok": true,
+    "task_max_attempts": 5,
+    "task_retry_backoff_seconds": [
+      5,
+      10,
+      20,
+      40,
+      80
+    ]
+  },
+  "warnings": [
+    "historical_incomplete_attempts"
+  ]
+}

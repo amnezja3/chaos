@@ -4095,3 +4095,19 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   PM2 17 oraz lineage/UI/settlement/soak. Gameplay pozostaje zamrożony do PASS
   pierwszego etapu.
 - Wykonawczy dokument: `doc/sprints/138.2.production-e2e.md`.
+
+## 2026-09-10 — 138.2 production E2E PASS i kontrola backlogu
+
+- `ghostnetwork_0001` zakończył pełny przebieg: konflikt → lock → signal → Show
+  → ranking → stabilizacja → zamknięcie → `ghostnetwork_0002`.
+- Endgame: 20 historycznych części, 90 nagród, 23 konsumpcje terytoriów,
+  dokładnie jeden następny cykl; strict postflight `ok=true`.
+- Narrative: 3/3 tasków `ghost.signal_sent` completed, 3 accepted candidates,
+  3 receipts i 3 publikacje. Odrzucony pierwotny candidate Cybernera pozostał
+  w audycie, a Support Layer naprawił lineage bez drugiego model calla.
+- Monitor produkcyjny: 3858 próbek, 189 zmian, 0 błędów; zatrzymany poprawnie.
+- Dodano `scripts/retire_narrative_backlog.py`: dry-run-first, jawny cut-off,
+  ochrona source eventu, obowiązkowy expected-count i terminalne zachowanie
+  rekordów bez kasowania. Narzędzie służy do zamknięcia 25 historycznych tasków
+  przed stałym uruchomieniem PM2 17.
+- Status: `138.2 COMPLETE / PRODUCER-BACKED SERVER E2E PASS`.
