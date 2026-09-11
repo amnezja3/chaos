@@ -19926,6 +19926,7 @@ def bind_request_profile_precommit_guard():
         if not ghostsignal_request_is_exempt():
             try:
                 get_ghostsignal_show_service().assert_gameplay_unlocked(conn)
+                assert_ghostsystem_epoch()
             except GhostGameplayLocked as exc:
                 g.ghostsignal_rejected_commit = exc.state
                 raise
@@ -19978,6 +19979,7 @@ def session_generation_client_context():
         "query_token": _session_generation_query_token(generation),
         "username": str(session.get("user") or ""),
         "header": SESSION_GENERATION_HEADER,
+        "ghost_epoch": (get_ghostsignal_show_service().restart_projection() or {}).get("epoch", ""),
     }
 
 
@@ -20672,7 +20674,7 @@ def ghostsignal_request_is_exempt():
         return True
     if request.method in {"GET", "HEAD"} and (
         request.endpoint == "static" or request.path in {
-            "/", "/desktop", "/logout", "/session/recover",
+            "/", "/desktop", "/logout", "/session/recover", "/resources.json",
             "/api/ghostnetwork/show", "/api/state/changes",
         }
     ):
@@ -20689,6 +20691,21 @@ def ghostsignal_locked_response(state):
     response.status_code = 423
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+def assert_ghostsystem_epoch():
+    restart = get_ghostsignal_show_service().restart_projection()
+    if not restart:
+        return
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+    supplied = request.headers.get("X-Chaos-Ghost-Epoch") or request.args.get("_ghost_epoch") or payload.get("_ghost_epoch") or ""
+    if supplied != restart["epoch"]:
+        raise GhostGameplayLocked({"error": "ghostsystem_restart_required",
+            "reason": "document_epoch_replaced", "gameplay_locked": True,
+            "show_active": False, "client_restart": restart,
+            "refresh_url": "/api/ghostnetwork/show"})
 
 
 @app.errorhandler(GhostGameplayLocked)
@@ -20711,6 +20728,12 @@ def block_gameplay_writes_during_ghostsignal_show():
         return None
     try:
         state = get_ghostsignal_show_service().gameplay_lock()
+        if not state["gameplay_locked"]:
+            assert_ghostsystem_epoch()
+    except GhostGameplayLocked as exc:
+        if request.path == "/map" and request.method in {"GET", "HEAD"}:
+            return redirect(url_for("desktop"))
+        return ghostsignal_locked_response(exc.state)
     except Exception as exc:
         print(f"[ghostnetwork] gameplay lock read failed error_type={type(exc).__name__}", flush=True)
         return jsonify({"ok": False, "error": "ghostnetwork_lock_unavailable",
@@ -20720,6 +20743,25 @@ def block_gameplay_writes_during_ghostsignal_show():
     if request.path == "/map" and request.method in {"GET", "HEAD"}:
         return redirect(url_for("desktop"))
     return ghostsignal_locked_response(state)
+
+
+@app.after_request
+def reject_old_ghostsystem_response(response):
+    # A login establishes identity during the request; it is not a response
+    # produced by an old authenticated document and must retain its redirect.
+    if getattr(g, "session_generation_user", None) and not ghostsignal_request_is_exempt():
+        try:
+            assert_ghostsystem_epoch()
+        except GhostGameplayLocked as exc:
+            if request.path == "/map" and request.method in {"GET", "HEAD"}:
+                return redirect(url_for("desktop"))
+            return ghostsignal_locked_response(exc.state)
+        except Exception as exc:
+            print(f"[ghostnetwork] response epoch read failed error_type={type(exc).__name__}", flush=True)
+            if response.status_code < 400:
+                response = jsonify({"ok": False, "error": "ghostnetwork_lock_unavailable"})
+                response.status_code = 503
+    return response
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -25098,6 +25140,53 @@ def hack_action():
 
 
 
+def desktop_boot_snapshot():
+    username = session["user"]
+    presentation = identity_projection_store.get_desktop_boot(username)
+    identity = presentation["identity"]
+    capabilities = capability_projection_store.get_capabilities(username)
+    if not identity or not capabilities:
+        raise ProfileRecoveryRequired("Desktop identity projection missing")
+    profile = {key: identity[key] for key in ("username", "nick", "clan", "ghost_profession")}
+    profile.update({"level": capabilities["level"],
+        "desktop_settings": normalize_desktop_settings(presentation.get("desktop_settings")),
+        "respect": presentation.get("respect", 0),
+        "apps": normalize_app_contracts(player_inventory_store.desktop_apps(username)),
+        "hackcoins": wallet_balance_store.get_balance(username),
+        "dev_mode": is_dev_mode_enabled(), "app_version": APP_VERSION})
+    show = get_ghostsignal_show_service()
+    restart = show.restart_projection()
+    profile["signal_registry_available"] = show.repository.signal_registry_available(
+        cycle_id=(restart or {}).get("closed_cycle_id"))
+    profile["client_restart"] = restart
+    if restart:
+        if not profile["signal_registry_available"]:
+            return jsonify({"error": "signal_registry_not_ready"}), 503
+        lineage = session.get(SESSION_LINEAGE_KEY) or ""
+        generation = session.get(SESSION_GENERATION_KEY) or ""
+        token = hashlib.sha256(("ghost_boot:" + lineage + ":" + generation + ":" + restart["epoch"]).encode()).hexdigest()
+        session_generation_store.prepare_restart_boot(lineage, generation, username, restart["epoch"], token)
+        profile["restart_boot_token"] = token
+    return jsonify(profile)
+
+
+@app.route("/api/ghostnetwork/restart/ack", methods=["POST"])
+def api_ghostnetwork_restart_ack():
+    if not session.get("user"):
+        return jsonify({"ok": False, "error": "not_logged_in"}), 401
+    restart = get_ghostsignal_show_service().restart_projection()
+    payload = request.get_json(silent=True) or {}
+    if not restart or payload.get("epoch") != restart["epoch"]:
+        return jsonify({"ok": False, "error": "restart_epoch_mismatch"}), 409
+    try:
+        result = session_generation_store.acknowledge_restart(
+            session.get(SESSION_LINEAGE_KEY), session.get(SESSION_GENERATION_KEY),
+            session["user"], restart["epoch"], payload.get("boot_token"))
+    except SessionGenerationStateError:
+        return jsonify({"ok": False, "error": "restart_boot_not_ready"}), 409
+    return jsonify({"ok": True, **result})
+
+
 @app.route("/api/profile")
 def api_profile():
     if "user" not in session:
@@ -25783,11 +25872,13 @@ def update_profile_security():
     })
 
 
-@app.route("/api/profile/desktop", methods=["POST"])
+@app.route("/api/profile/desktop", methods=["GET", "POST"])
 def update_profile_desktop():
     if "user" not in session:
         return jsonify({"error": "Brak danych uzytkownika"}), 401
 
+    if request.method == "GET":
+        return desktop_boot_snapshot()
     data = request.get_json(silent=True) or {}
     username = session["user"]
     changes = {}

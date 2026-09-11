@@ -105,7 +105,32 @@ class GhostSignalShowService:
                     "last_completed_from_system_version": latest.get("from_system_version"),
                     "last_completed_to_system_version": latest.get("to_system_version")})
         projection["server_now"] = self.repository.now()
+        projection["client_restart"] = self.restart_projection()
         return projection
+
+    def restart_projection(self):
+        event = self.repository.get_client_restart()
+        if not event:
+            return None
+        payload = event.get("payload") or {}
+        return {key: payload.get(key) for key in (
+            "epoch", "signal_public_id", "closed_cycle_id", "next_cycle_id", "next_cycle_number", "to_system_version")}
+
+    def publish_client_restart(self, closed_cycle, next_cycle):
+        """Called inside the validated, atomic rollover transaction."""
+        show = self.repository.get_signal_show_for_cycle(closed_cycle["cycle_id"])
+        if not show or show.get("status") != "completed" or next_cycle.get("status") != "active":
+            raise ValueError("Client restart requires completed show and active successor")
+        epoch = hashlib.sha256((show["show_id"] + ":" + next_cycle["cycle_id"]).encode()).hexdigest()
+        return self.repository.append_event("ghost.client_restart_required",
+            cycle_id=closed_cycle["cycle_id"], entity_id=show["signal_public_id"],
+            dedupe_key="ghost:client_restart_required:" + show["signal_id"],
+            audience_scope="public", payload={"epoch": epoch,
+                "signal_public_id": show["signal_public_id"],
+                "closed_cycle_id": closed_cycle["cycle_id"],
+                "next_cycle_id": next_cycle["cycle_id"],
+                "next_cycle_number": next_cycle["signal_number"],
+                "to_system_version": show["to_system_version"]})
 
     def deliver_start_to_viewer(self, delta_bus, username):
         """Project the committed start into the existing per-user delta feed.

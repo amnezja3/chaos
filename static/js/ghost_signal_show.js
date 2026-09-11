@@ -44,7 +44,8 @@
         root = doc.createElement("section");
         root.id = "ghost-signal-show";
         root.className = "ghost-signal-show";
-        root.style.cssText = "position:fixed;inset:0;z-index:2147483646;background:#05090d;color:#d5fff1;overflow:auto;place-items:center";
+        // Clip the oversized perspective grid, matching the shared stylesheet.
+        root.style.cssText = "position:fixed;inset:0;z-index:2147483646;background:#05090d;color:#d5fff1;overflow:hidden;place-items:center";
         root.setAttribute("role", "status");
         root.setAttribute("aria-live", "polite");
         root.innerHTML = [
@@ -74,6 +75,59 @@
         let inFlight = null;
         let cancelRequest = null;
         let started = false;
+        let rebooting = false;
+        let bootReceipt = null;
+        let ackInFlight = false;
+
+        function acknowledgeBoot(profile) {
+            if (profile && profile.client_restart && profile.restart_boot_token && profile.signal_registry_available) {
+                bootReceipt = {epoch: profile.client_restart.epoch, boot_token: profile.restart_boot_token};
+            }
+            if (!bootReceipt || ackInFlight || typeof fetcher !== "function") return;
+            ackInFlight = true;
+            const abort = global.AbortController ? new global.AbortController() : null;
+            let expired = false;
+            let timeout;
+            const deadline = new Promise(resolve => {
+                timeout = global.setTimeout(() => {
+                    expired = true;
+                    if (abort) abort.abort();
+                    resolve(null);
+                }, 8000);
+            });
+            const sent = bootReceipt;
+            const request = Promise.resolve().then(() => fetcher("/api/ghostnetwork/restart/ack", {
+                method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(sent), signal: abort ? abort.signal : undefined
+            })).then(response => response.ok ? response.json() : null).catch(() => null);
+            Promise.race([request, deadline]).then(data => {
+                if (!expired && data && data.ok && data.epoch === sent.epoch && bootReceipt === sent) bootReceipt = null;
+                global.clearTimeout(timeout);
+                ackInFlight = false;
+            });
+        }
+
+        function restartIfRequired(next) {
+            const restart = next.client_restart;
+            const session = global.ChaosSessionGeneration && global.ChaosSessionGeneration.getState();
+            if (!restart || !restart.epoch || !session || restart.epoch === (session.ghost_epoch || "") || next.show_active) return false;
+            if (rebooting) return true;
+            rebooting = true;
+            snapshot = Object.assign({}, next, {show_active: true, gameplay_locked: true,
+                show_phase: {code: "ghostsystem_restart"}, show_started_at: null, show_ends_at: null,
+                signal_public_id: restart.signal_public_id,
+                from_system_version: next.last_completed_from_system_version || next.from_system_version,
+                to_system_version: restart.to_system_version});
+            render();
+            if (global.top && global.top !== global && global.top.GhostSignalShowController) {
+                global.top.GhostSignalShowController.refresh();
+                return true;
+            }
+            if (typeof global.teardownDesktopForInvalidatedSession === "function") global.teardownDesktopForInvalidatedSession();
+            const destination = "/desktop?_session_generation=" + encodeURIComponent(session.query_token || session.generation);
+            global.setTimeout(() => global.location.replace(destination), 750);
+            return true;
+        }
 
         function locked() { return !!(snapshot && (snapshot.show_active || snapshot.gameplay_locked)); }
 
@@ -131,12 +185,14 @@
 
         function apply(next) {
             if (!next || typeof next.show_active !== "boolean") return locked();
+            if (rebooting) return true;
             if (snapshot) {
                 const oldCycle = Number(snapshot.cycle_number || 0), newCycle = Number(next.cycle_number || 0);
                 if (newCycle < oldCycle || (newCycle === oldCycle &&
                     Number(next.state_version || 0) < Number(snapshot.state_version || 0))) return locked();
                 if (Date.parse(next.server_now || "") < Date.parse(snapshot.server_now || "")) return locked();
             }
+            if (restartIfRequired(next)) return true;
             snapshot = next;
             offsetMs = serverOffset(snapshot, Date.now());
             render();
@@ -165,6 +221,7 @@
         }
 
         function refresh() {
+            acknowledgeBoot();
             if (inFlight) return inFlight;
             if (typeof fetcher !== "function") return Promise.resolve(false);
             const abort = global.AbortController ? new global.AbortController() : null;
@@ -219,7 +276,7 @@
             }
             if (global.removeEventListener) ["online", "pageshow", "focus"].forEach(type => global.removeEventListener(type, wake));
         }
-        return {apply, refresh, render, start, stop, get snapshot() { return snapshot; }};
+        return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
     const api = {createController, serverOffset, secondsRemaining, phaseAt, PHASE_COPY};

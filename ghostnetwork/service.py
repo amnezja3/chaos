@@ -731,6 +731,7 @@ class GhostNetworkService:
             )
             closed = self.repository.update_cycle(cycle_id, upgrade_pending=0)
             completed_show = self.show.complete_for_cycle(cycle_id)
+            self.show.publish_client_restart(closed, created["cycle"])
             return {
                 "ok": True,
                 "status": "rolled_over",

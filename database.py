@@ -1566,6 +1566,9 @@ def init_db(db_path=DB_PATH):
             ON user_identity_projection(clan_code, username)
             """
         )
+        identity_columns = {row[1] for row in conn.execute("PRAGMA table_info(user_identity_projection)")}
+        if "desktop_boot_json" not in identity_columns:
+            conn.execute("ALTER TABLE user_identity_projection ADD COLUMN desktop_boot_json TEXT")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS user_capability_projection (
@@ -3037,6 +3040,11 @@ def _upsert_identity_projection_with_conn(
         checksum,
         updated_at=updated_at,
     )
+    conn.execute("UPDATE user_identity_projection SET desktop_boot_json=? WHERE username=?",
+                 (dumps_json({"desktop_settings": profile.get("desktop_settings") or {},
+                              "respect": profile.get("respect") or 0,
+                              "source_profile_revision": revision,
+                              "source_profile_checksum": checksum}), username))
 
 
 def _upsert_capability_projection_with_conn(
@@ -4511,9 +4519,12 @@ class UserIdentityProjectionStore:
         }
 
     @staticmethod
-    def _select_sql(where_sql):
+    def _select_sql(where_sql, desktop=False):
         return f"""
-            SELECT p.*,
+            SELECT {"p.desktop_boot_json," if desktop else ""}
+                   p.username, p.display_alias, p.clan_code, p.profession_code,
+                   p.source_profile_revision, p.source_profile_checksum,
+                   p.projection_version, p.updated_at,
                    u.profile_revision AS current_profile_revision,
                    u.profile_checksum AS current_profile_checksum,
                    u.profile_integrity_status AS current_profile_integrity_status
@@ -4535,6 +4546,19 @@ class UserIdentityProjectionStore:
         if identity:
             record_hot_path_metric("bounded_identity_count")
         return identity
+
+    def get_desktop_boot(self, username):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(self._select_sql("p.username = ?", desktop=True), (username,)).fetchone()
+        identity = self._row_identity(row)
+        if not identity or row["desktop_boot_json"] is None:
+            raise ProfileRecoveryRequired("Desktop projection migration required")
+        desktop = loads_json(row["desktop_boot_json"], {})
+        if (not isinstance(desktop, dict)
+                or desktop.get("source_profile_revision") != identity["source_profile_revision"]
+                or desktop.get("source_profile_checksum") != identity["source_profile_checksum"]):
+            raise ProfileRecoveryRequired("Desktop projection is stale")
+        return {**desktop, "identity": identity}
 
     def get_identities(self, usernames, max_items=IDENTITY_PROJECTION_MAX_BATCH):
         max_items = self._bounded_limit(max_items)
@@ -10845,6 +10869,15 @@ class SystemMessageStore:
 
 
 class PlayerInventoryStore:
+    def desktop_apps(self, username):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute("""SELECT app_json FROM player_apps
+                WHERE username=? AND status!='uninstalled' ORDER BY updated_at, app_id LIMIT 1001""",
+                (username,)).fetchall()
+        if len(rows) > 1000:
+            raise ProfileRecoveryRequired("Desktop application limit exceeded")
+        return [loads_json(row["app_json"], {}) for row in rows]
+
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         init_db(self.db_path)

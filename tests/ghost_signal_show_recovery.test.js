@@ -70,6 +70,46 @@ async function main() {
   await frame.window.GhostSignalShowController.refresh();
   assert.strictEqual(frame.window.GhostSignalShowController.snapshot.show_active, true);
   frame.window.GhostSignalShowController.stop();
+  const restartState = Object.assign({}, active, {show_active: false, gameplay_locked: false,
+    cycle_number: 2, state_version: 1, server_now: '2026-09-09T10:16:00Z',
+    client_restart: {epoch: 'epoch-next'}});
+  for (let tab = 0; tab < 2; tab++) {
+    const old = fixture(false);
+    let closedWindows = 0, navigations = 0;
+    old.window.top = old.window;
+    old.window.ChaosSessionGeneration = {getState: () => ({ghost_epoch: '', query_token: 'current-session'})};
+    old.window.teardownDesktopForInvalidatedSession = () => {closedWindows++;};
+    old.window.location = {replace(url) {assert(url.includes('/desktop?_session_generation=current-session')); navigations++;}};
+    const c = old.create({document: old.doc});
+    c.apply(Object.assign({}, active, {client_restart: {epoch: 'epoch-next'}}));
+    assert.strictEqual(closedWindows, 0); // Never reboot an active show.
+    c.apply(restartState); c.apply(restartState);
+    assert.strictEqual(closedWindows, 1);
+    const navigation = Array.from(old.timers.values()).filter(t => t.delay === 750);
+    assert.strictEqual(navigation.length, 1);
+    navigation[0].fn();
+    assert.strictEqual(navigations, 1);
+    c.stop();
+  }
+  const boot = fixture(false);
+  let ackCalls = 0;
+  boot.window.ChaosSessionGeneration = {getState: () => ({ghost_epoch: 'epoch-next'})};
+  boot.window.location = {replace() {throw new Error('reload loop');}};
+  const bootController = boot.create({document: boot.doc, fetch: async () => {
+    ackCalls++;
+    return {ok: ackCalls > 1, json: async () => ({ok: true, epoch: 'epoch-next'})};
+  }});
+  bootController.apply(restartState);
+  assert.strictEqual(bootController.snapshot.show_active, false);
+  bootController.acknowledgeBoot({client_restart: {epoch: 'epoch-next'},
+    restart_boot_token: 'proof', signal_registry_available: true});
+  await new Promise(setImmediate);
+  bootController.acknowledgeBoot();
+  await new Promise(setImmediate);
+  bootController.acknowledgeBoot();
+  await new Promise(setImmediate);
+  assert.strictEqual(ackCalls, 2); // Failed acknowledgement retries, success stops.
+  bootController.stop();
   console.log('ghost signal show recovery/lock/iframe contract: PASS');
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});

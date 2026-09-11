@@ -1,6 +1,6 @@
 # Sprint 139 — GhostSignal: natychmiastowy show i kontrolowany restart
 
-Status: `IN PROGRESS / 139.1 CLOSED / 139.2 LOCAL + ISOLATED SERVER PASS / VISUAL GATE PENDING`
+Status: `IN PROGRESS / 139.1 CLOSED / 139.2 CLOSED BY OPERATOR / 139.3 LOCAL PASS / SERVER GATE PENDING`
 
 Źródło produktowe: `doc/sprints/sprint_139_opis_15-minutowe_show.md`
 
@@ -532,3 +532,165 @@ zwróciła `No browser is available` i pustą listę przeglądarek.
 - Izolowana bramka serwerowa 139.2 zaliczona. Kontrola wizualna desktop/mobile
   pozostaje otwarta; wynik nie potwierdza przeładowania PM2 ani production E2E.
   Nie ma potrzeby ponawiać 137 zaliczonych testów Python.
+
+### Kontrola po przeładowaniu aplikacji
+
+Operator wykonał pull do `c70d3e5` i `pm2 reload 13`. Przekazany log
+potwierdził status online oraz uruchomienie czterech nowych workerów Gunicorna.
+Następnie operator potwierdził brak nieprawidłowości podczas opisanej kontroli
+zwykłego pulpitu na komputerze i telefonie: odświeżenie, mapa/aplikacja,
+układ mobilny, powrót z tła i odzyskanie połączenia.
+
+Zwykły desktop/mobile smoke: **PASS według operatora**. Nie uruchamiano
+GhostSignal na potrzeby tej kontroli. Wygląd aktywnego show, blokada
+interakcji pod overlayem oraz odtworzenie trwającego show po reloadzie
+pozostają do sprawdzenia wizualnie w przygotowanym scenariuszu. Nie zaliczamy
+tych punktów na podstawie poprawnego działania zwykłego pulpitu.
+
+### Podgląd show — korekta pasków przewijania
+
+Operator pokazał lokalny podgląd konsolowy: overlay zasłania cały ekran,
+lecz pojawiają się oba paski przewijania. Styl inline `overflow:auto`
+nadpisywał istniejące CSS `overflow:hidden`; dekoracyjna siatka z ujemnym
+insetem i perspektywą rozszerzała obszar przewijania. Przywrócono przycinanie
+na kontenerze i zmieniono wersję assetu JS w czterech template'ach.
+Istniejące testy show/recovery oraz node --check PASS. Operator potwierdził
+w podglądzie konsolowym, że po ustawieniu overflow:hidden oba paski zniknęły,
+a overlay pozostał pełnoekranowy. Korekta w repozytorium pozostaje lokalna.
+Podgląd konsolowy nie potwierdza blokady
+backendowej ani recovery rzeczywistego show po reloadzie.
+
+### 139.3 — wejście 2026-09-11
+
+Operator zamknął 139.2 i zlecił rozpoczęcie 139.3. Zachowano lokalną
+poprawkę scrolla oraz dokumentację; HEAD wejściowy `c70d3e5`, branch main.
+Zamknięcie etapu nie certyfikuje niewykonanego production E2E: recovery
+aktywnego show i pełne przejście pozostają dowodem wymaganym w 139.4.
+
+Audyt: rollover zamyka cykl, tworzy następcę i kończy show atomowo;
+session generation ma istniejące guardy wejścia, precommit i odpowiedzi.
+Frontend po show pokazuje wyłącznie toast. Pierwszy boot korzysta z
+`/api/profile`, które nadal wywołuje ciężkie `sync_session_profile()`.
+139.3 nie może użyć tego odczytu jako ścieżki nowego bootu. Wymaga lekkiej
+projekcji desktopu z istniejących stores i zachowania zapisanych ustawień.
+
+### 139.3 — kontrakt implementacji
+
+- `rollover_stabilized_cycle()` po walidacji settlementu zapisuje
+  `ghost.client_restart_required` w tej samej transakcji co aktywacja następcy
+  i zakończenie show. Epoka jest deterministyczna dla show i następnego cyklu;
+  dedupe eventu gwarantuje jeden zapis. Awaria publikacji cofa również
+  aktywację następcy i zakończenie show. Nie dorabiamy eventu historycznym,
+  już zamkniętym cyklom w idempotentnej gałęzi recovery.
+- Kontekst istniejącej session generation w dokumencie zawiera `ghost_epoch`.
+  Ten sam bridge fetch przekazuje `X-Chaos-Ghost-Epoch`; iframe i beacon
+  przekazują `_ghost_epoch`. Guard wejścia, istniejący request precommit
+  i kontrola odpowiedzi odrzucają stary dokument po rolloverze. Login
+  zachowuje swój redirect, a nawigacja mapy kieruje do canonical desktopu.
+  Generacja logowania nie jest rotowana bez powodu; epoka świata rozszerza
+  ochronę istniejącej sesji. ACK jednej karty nie autoryzuje starych kart.
+- Dotychczasowy kontroler show wykrywa nową epokę dopiero po zwolnieniu
+  globalnego show. Wywołuje istniejący teardown okien/timerów, pokazuje
+  końcową fazę i raz przechodzi do canonical `/desktop` z bieżącym tokenem
+  generacji. Iframe prosi kontroler rodzica o refresh. Nowy dokument dostaje
+  aktualną epokę i nie wykonuje ponownego reloadu, także po utracie ACK.
+- Boot używa **GET `/api/profile/desktop`**, rozszerzającego istniejący
+  endpoint ustawień (POST zachowuje swój kontrakt). Odczytuje identity,
+  capability, canonical apps i wallet oraz dostępność rankingu właściwego
+  sygnału. Nie uruchamia `sync_session_profile()`, pełnej fasady GN ani
+  inicjalizacji schematu. Brak projekcji powoduje kontrolowany błąd i retry,
+  nigdy fallback do pełnego `/api/profile`.
+- Ustawienia i respect są małą projekcją `user_identity_projection.desktop_boot_json`.
+  Aktualizuje ją istniejący guarded write profilu razem z identity.
+  Własne source revision/checksum projekcji bootu wykrywają również zapis
+  starszego procesu między migracją a reloadem; stale snapshot jest odrzucany.
+  Zwykłe odczyty identity nie pobierają nowej kolumny. Istniejące konta
+  wymagają jawnej migracji; nie zerujemy ustawień, tapet ani pozycji ikon.
+- `session_restart_receipts` w `SessionGenerationStore` przechowuje receipt
+  per hash użytkownika + lineage + epoka sygnału. Token przygotowania bootu
+  i generacja są hashowane. Snapshot przygotowuje receipt dopiero po
+  poprawnym odczycie danych i gotowości Signal Registry. Klient wysyła
+  **POST `/api/ghostnetwork/restart/ack`** po zbudowaniu ikon/paska/pulpitu.
+  Brak bootu, zła epoka lub zastąpiona sesja nie przechodzą walidacji.
+  Utrata odpowiedzi ACK uruchamia bounded retry; powtórzenie jest idempotentne.
+- Schemat: jedna nullable kolumna istniejącej projekcji i jedna tabela
+  receipts w domenie sesji. Nie dodano równoległego busa, workera ani
+  drugiego systemu endgame. Bieżący GET pełnego `/api/profile` zachowuje
+  starszych konsumentów, ale nie jest wywoływany przez nowy boot.
+
+### Trzecia bramka serwerowa — 139.3
+
+Wynik lokalny: baseline **52 testy PASS**, pełna regresja **145 testów PASS
+w 336,865 s**. Po końcowych zmianach adaptera HTTP dodatkowo **15 testów PASS**,
+a po dodaniu własnego source revision/checksum projekcji bootu **19 testów
+PASS w 54,412 s** (zestawy częściowo się pokrywają). Małe konto i profil
+35 MB: zero heavy-profile read/write/bytes/scan, identyczna ograniczona liczba
+zapytań przy boot snapshot + receipt/ACK. Cztery zestawy JS, py_compile,
+node --check zmienionych skryptów i git diff --check PASS. Bramka serwerowa,
+migracja produkcyjna i wizualny scenariusz pełnego rebootu pozostają otwarte.
+
+Najpierw isolated tests po udostępnieniu zmian i pullu. **Nie reloadować
+jeszcze web/territory-worker**: przed uruchomieniem nowego bootu potrzebna
+jest migracja projekcji istniejących kont. Testy wykonują migrację wyłącznie
+w tymczasowych bazach.
+
+```bash
+.venv/bin/python -B - <<'PY'
+import os, shutil, sys, tempfile, unittest
+root = os.getcwd()
+sys.path[:0] = [root, os.path.join(root, "tests")]
+with tempfile.TemporaryDirectory(prefix="chaos139-3-") as tmp:
+    try:
+        os.makedirs(os.path.join(tmp, "static", "js"))
+        for name in ("session_generation.js", "terminal.js"):
+            shutil.copyfile(os.path.join(root, "static", "js", name),
+                            os.path.join(tmp, "static", "js", name))
+        shutil.copyfile(os.path.join(root, "run.py"), os.path.join(tmp, "run.py"))
+        os.chdir(tmp)
+        os.environ["CHAOS_SESSION_FILE_DIR"] = os.path.join(tmp, "sessions")
+        names = [
+            "test_ghostnetwork_client_restart", "test_ghostnetwork_signal_show",
+            "test_ghostnetwork_signal_show_http", "test_ghostnetwork_runtime_endgame",
+            "test_ghostnetwork_transmission", "test_ghostnetwork_endgame_integrity",
+            "test_ghostnetwork_endgame_audits", "test_session_generation_store",
+            "test_session_generation_precommit", "test_session_generation_isolation",
+            "test_profile_boot_snapshot", "test_identity_projection",
+        ]
+        result = unittest.TextTestRunner().run(
+            unittest.defaultTestLoader.loadTestsFromNames(names))
+    finally:
+        os.chdir(root)
+sys.exit(not result.wasSuccessful())
+PY
+node tests/ghost_signal_show_frontend.test.js
+node tests/ghost_signal_show_recovery.test.js
+node tests/js/test_ghostnetwork_delta_client.js
+node --check static/js/ghost_signal_show.js
+```
+
+Test `tests/js/test_session_generation_isolation.js` oraz składnia zmienionych
+session_generation/terminal są sprawdzane w środowisku z Node 24.8.0;
+serwerowy Node 12 nie parsuje ich istniejącej składni przeglądarkowej.
+
+Po zaliczonych testach można wykonać read-only plan migracji:
+
+```bash
+.venv/bin/python -B scripts/migrate_desktop_boot_projection.py --db data/game.sqlite3 --limit 100
+```
+
+Plan pokazuje tylko potrzebę zmiany schematu, liczbę brakujących projekcji
+i limit partii. Przed `--apply` obowiązują świeży backup SQLite,
+quick_check/SHA-256 i zatwierdzony zakres operatorski. Skrypt przygotowuje
+dane przed writer-lockiem, a aktualizacja ma recheck revision/checksum.
+Nie zapisuje profili. Po wykonaniu wszystkich zatwierdzonych partii plan
+musi zwrócić `pending=0`; stale/invalid rows wymagają diagnozy, nie fallbacku.
+Nowych reloadów i migracji produkcji nie wykonano w ramach implementacji.
+
+Po migracji trzeba przeładować web i territory-worker, ponieważ nowy event
+powstaje w runtime rolloveru. Ponowić read-only plan po reloadzie; jeśli
+stary proces zdążył zmienić profil, uzupełnić wskazane projekcje w zatwierdzonym
+zakresie. Następnie sprawdzić boot małego/dużego konta,
+zachowanie ustawień i aplikacji, a w przygotowanym scenariuszu pełny
+show → rollover → shutdown → boot z Signal Registry → ACK, dwie karty,
+mobile w tle, utratę ACK i brak pętli reloadu. Production E2E nadal należy
+do 139.4 i wymaga preflightu/backupów/monitora z handoffu.

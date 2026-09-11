@@ -611,7 +611,8 @@ function sendDesktopSettingsBeacon(partial = {}) {
         if (!generation) return false;
         const payload = JSON.stringify({
             ...settings,
-            _session_generation: generation
+            _session_generation: generation,
+            _ghost_epoch: window.ChaosSessionGeneration?.getState?.().ghost_epoch || ""
         });
         return navigator.sendBeacon('/api/profile/desktop', new Blob([payload], { type: 'application/json' }));
     } catch (err) {
@@ -624,7 +625,7 @@ function currentSessionGenerationQuery() {
     const state = window.ChaosSessionGeneration?.getState?.() || {};
     const queryToken = state.query_token || state.generation || "";
     return queryToken
-        ? `&_embedded=1&_session_generation=${encodeURIComponent(queryToken)}`
+        ? `&_embedded=1&_session_generation=${encodeURIComponent(queryToken)}&_ghost_epoch=${encodeURIComponent(state.ghost_epoch || "")}`
         : "&_embedded=1";
 }
 
@@ -2918,7 +2919,7 @@ function getLauncherAppIcon(app = {}) {
     try {
         setBootProgress(12, "Budzenie terminala operatora...");
         // const res = await fetch('static/app_config.json');
-        const profileData = await getUserProfile();
+        const profileData = await getDesktopBootProfile();
         if (!profileData) {
             addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
             finishBootLoader("Nie udało się wczytać profilu.");
@@ -2939,6 +2940,7 @@ function getLauncherAppIcon(app = {}) {
         setBootProgress(88, "Odtwarzanie tapety i pozycji ikon...");
         applyDesktopSettings(profileData.desktop_settings || {});
         renderDesktopIcons(allApps, desktopSettings);
+        window.GhostSignalShowController?.acknowledgeBoot?.(profileData);
         finishBootLoader("ghost_init.pkg zakończony. System gotowy.");
         return;
     } catch (err) {
@@ -12131,6 +12133,26 @@ async function createProfile() {
     });
 }
 
+
+async function getDesktopBootProfile() {
+    let attempt = 0;
+    while (desktopSessionActive) {
+        try {
+            const response = await fetchDesktopBackground('/api/profile/desktop');
+            if (response.status === 401) return null;
+            if (!response.ok) throw new Error('desktop_boot_pending');
+            const data = await response.json();
+            if (!desktopSessionActive) return null;
+            setToolbarProfile(data);
+            return data;
+        } catch (error) {
+            if (!desktopSessionActive) return null;
+            setBootProgress(12, 'Oczekiwanie na gotowość pulpitu...');
+            await new Promise(resolve => setTimeout(resolve, Math.min(30000, 5000 * ++attempt)));
+        }
+    }
+    return null;
+}
 
 async function getUserProfile() {
     if (!desktopSessionActive) return null;

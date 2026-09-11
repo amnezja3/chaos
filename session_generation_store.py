@@ -122,6 +122,13 @@ class SessionGenerationStore:
                 ON session_generation_lineages(status, updated_at)
                 """
             )
+            conn.execute("""CREATE TABLE IF NOT EXISTS session_restart_receipts (
+                lineage_hash TEXT NOT NULL, epoch TEXT NOT NULL,
+                generation_hash TEXT NOT NULL, username_hash TEXT NOT NULL,
+                boot_token_hash TEXT NOT NULL, prepared_at TEXT NOT NULL,
+                acknowledged_at TEXT,
+                PRIMARY KEY (username_hash, lineage_hash, epoch)
+            )""")
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_session_generation_account_state
@@ -142,6 +149,36 @@ class SessionGenerationStore:
         ) as owned_conn:
             owned_conn.execute("BEGIN IMMEDIATE")
             yield owned_conn
+
+    def prepare_restart_boot(self, lineage, generation, username, epoch, token):
+        """A bounded receipt in the existing session domain, no profile state."""
+        with self._writer() as conn:
+            self.assert_current(lineage, generation, username, conn=conn)
+            conn.execute("""INSERT INTO session_restart_receipts
+                (lineage_hash, epoch, generation_hash, username_hash, boot_token_hash, prepared_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username_hash, lineage_hash, epoch) DO UPDATE SET
+                boot_token_hash=excluded.boot_token_hash,
+                generation_hash=excluded.generation_hash""",
+                (lineage_digest(lineage), epoch, generation_digest(generation),
+                 username_digest(username), _secret_digest("restart_boot", token), utc_now()))
+
+    def acknowledge_restart(self, lineage, generation, username, epoch, token):
+        with self._writer() as conn:
+            self.assert_current(lineage, generation, username, conn=conn)
+            row = conn.execute("""SELECT * FROM session_restart_receipts
+                WHERE lineage_hash=? AND epoch=? AND username_hash=?""",
+                (lineage_digest(lineage), epoch, username_digest(username))).fetchone()
+            if not row or row["generation_hash"] != generation_digest(generation) or row["username_hash"] != username_digest(username):
+                raise SessionGenerationStateError("restart_boot_missing")
+            if row["acknowledged_at"]:
+                return {"acknowledged": True, "idempotent": True, "epoch": epoch}
+            if row["boot_token_hash"] != _secret_digest("restart_boot", token):
+                raise SessionGenerationStateError("restart_boot_token_mismatch")
+            conn.execute("""UPDATE session_restart_receipts SET acknowledged_at=?
+                WHERE lineage_hash=? AND epoch=? AND username_hash=? AND acknowledged_at IS NULL""",
+                (utc_now(), lineage_digest(lineage), epoch, username_digest(username)))
+            return {"acknowledged": True, "idempotent": False, "epoch": epoch}
 
     @staticmethod
     def _row_value(row, key, index):

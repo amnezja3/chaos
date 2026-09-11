@@ -4241,3 +4241,67 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   static/js/ghost_signal_show.js` z kodem wyjścia 0. Izolowana bramka serwerowa
   139.2 zaliczona; status `LOCAL + ISOLATED SERVER PASS / VISUAL GATE PENDING`.
   Nie jest to potwierdzenie przeładowania PM2 ani production E2E.
+
+## 2026-09-10 — 139.2: reload web i desktop/mobile smoke PASS
+
+- Operator potwierdził pull do `c70d3e5`, reload PM2 13, status online
+  i start czterech nowych workerów Gunicorna.
+- Po kontroli zwykłego pulpitu na komputerze i telefonie operator zgłosił:
+  „wszystko wygląda poprawnie, nie widać żadnych nieprawidłowości”.
+  Zapisano desktop/mobile smoke PASS według operatora.
+- Kontrola nie obejmowała aktywnego GhostSignal. Wizualna weryfikacja
+  pełnoekranowego show, blokady interakcji i odtworzenia po reloadzie
+  pozostaje otwarta; nie jest to production E2E ani test rebootu 139.3.
+
+## 2026-09-10 — 139.2: scroll dekoracyjnej siatki w podglądzie show
+
+- Zrzut operatora potwierdził pełny overlay i niepożądane paski przewijania.
+  Inline overflow:auto nadpisywało istniejące przycinanie CSS, eksponując
+  obszar rozszerzony przez perspektywiczną siatkę z inset:-20%.
+- Przywrócono overflow:hidden w kontrolerze i podbito wersję assetu
+  w index/linux/linux_old/map. Dwa istniejące zestawy JS i kontrola składni
+  PASS. Operator potwierdził w podglądzie konsolowym zniknięcie obu pasków
+  i zachowanie pełnego overlayu po korekcie. Poprawka w repo pozostaje
+  lokalna; brak zmian backendu. Nie jest to test recovery prawdziwego show.
+
+## 2026-09-11 — zamknięcie 139.2 i rozpoczęcie 139.3
+
+- Operator zamknął 139.2 i zlecił 139.3. Zachowano lokalną korektę scrolla.
+- Audyt entrypointów: atomowy rollover, guardy sesji i precommit istnieją;
+  brakuje trwałego potwierdzenia klienta i automatycznego rebootu po rolloverze.
+- Pierwszy odczyt desktopu nadal przechodzi przez ciężkie /api/profile.
+  Nowy boot wymaga lekkiej projekcji, bez fallbacku do pełnego profilu.
+- Zamknięcie 139.2 jest decyzją operatora, nie dowodem niewykonanego E2E.
+
+## 2026-09-11 — 139.3: restart epoch, receipt i lekki boot
+
+- Rozwinięto atomowy rollover o idempotentny event client_restart_required.
+  Epoka powstaje tylko z zakończonym show i aktywnym następcą po walidacji
+  settlementu; wyjątek cofa całą transakcję. Historyczne cykle nie są przepisywane.
+- Do istniejącego kontekstu/bridge session generation dodano epokę świata.
+  Guard wejścia, precommit i odpowiedzi odrzucają stary dokument; ACK drugiej
+  karty nie zwalnia tej ochrony. Login i nawigacja mapy zachowują redirecty.
+- Kontroler show używa istniejącego teardown pulpitu i canonical reloadu,
+  a nowy dokument otrzymuje aktualną epokę. Utrata ACK nie tworzy pętli rebootu.
+  Receipt trafia do SessionGenerationStore, z hashami użytkownika, lineage,
+  generacji i tokenu bootu, bez pełnego profilu i bez localStorage jako authority.
+- GET istniejącego /api/profile/desktop dostarcza mały boot z identity,
+  capability, inventory, wallet i gotowości Signal Registry dla danego finału.
+  POST zachowuje zapis ustawień. Nowy boot nie wywołuje pełnego /api/profile.
+- Rozszerzono istniejącą identity projection o desktop_boot_json (ustawienia
+  i respect), aktualizowane przy guarded write. Dodano ograniczoną migrację
+  operatorską z read-only planem i CAS/recheck; nie uruchamiano jej na produkcji.
+- Test limitu zapytań wykazał redundantny odczyt identity; połączono go
+  z odczytem projekcji bootu zamiast podnosić limit. Nowe testy obejmują rollback
+  rolloveru, starą kartę/request po zmianie epoki, receipts, migrację starego
+  schematu oraz mały/35 MB profil. Procedurę serwerową zapisano w sprincie.
+- Projekcja bootu otrzymała własne source revision/checksum, aby wykrywać
+  zapis starszego procesu po migracji. Read-only plan wykrywa również takie
+  stale rows; getter odrzuca je bez powrotu do pełnego profilu.
+- Wyniki lokalne: baseline 52 PASS; pełna regresja 145 PASS (336,865 s);
+  końcowe kontrole HTTP 15 PASS, a następnie boot/migracja/identity 19 PASS
+  (54,412 s), częściowo powtórzone. Cztery zestawy JS, py_compile,
+  node --check i diff check PASS. Mały/35 MB profil: zero ciężkiego profilu,
+  identyczna ograniczona liczba zapytań dla bootu i receipt/ACK.
+- Status: `139.3 LOCAL PASS / SERVER GATE PENDING`. Zmiany są lokalne;
+  nie wykonano migracji produkcyjnej, reloadu procesów ani production E2E.

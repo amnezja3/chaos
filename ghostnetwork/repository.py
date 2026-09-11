@@ -2622,6 +2622,24 @@ class GhostNetworkRepository:
             ).fetchone()
             return self._event(row) if row else None
 
+    def get_client_restart(self):
+        """Latest committed rollover receipt; never reconstruct from UI state."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT e.* FROM ghost_part_events e
+                JOIN ghost_cycles c ON c.cycle_id = e.cycle_id
+                WHERE e.event_type = 'ghost.client_restart_required'
+                ORDER BY c.signal_number DESC LIMIT 1"""
+            ).fetchone()
+            return self._event(row) if row else None
+
+    def signal_registry_available(self, cycle_id=None):
+        with self._conn() as conn:
+            if cycle_id:
+                return conn.execute("SELECT 1 FROM ghost_signal_rankings WHERE cycle_id=? LIMIT 1",
+                                    (cycle_id,)).fetchone() is not None
+            return conn.execute("SELECT 1 FROM ghost_signal_rankings LIMIT 1").fetchone() is not None
+
     def create_signal_show(self, show):
         show = show if isinstance(show, dict) else {}
         signal_id = _clean(show.get("signal_id"))

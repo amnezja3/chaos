@@ -27,6 +27,7 @@
         invalidated: false,
         generation: "",
         queryToken: "",
+        ghostEpoch: "",
         username: "",
         header: DEFAULT_HEADER,
         nativeFetch: null,
@@ -235,6 +236,8 @@
             const headers = HeadersCtor ? new HeadersCtor(inheritedHeaders) : { ...inheritedHeaders };
             if (HeadersCtor) headers.set(state.header, state.generation);
             else headers[state.header] = state.generation;
+            if (HeadersCtor) headers.set("X-Chaos-Ghost-Epoch", state.ghostEpoch);
+            else headers["X-Chaos-Ghost-Epoch"] = state.ghostEpoch;
 
             const requestGeneration = state.generation;
             const requestInit = { ...init, headers };
@@ -285,6 +288,7 @@
         const config = options.config || readDocumentConfig();
         state.generation = String(config.generation || "").trim();
         state.queryToken = String(config.query_token || "").trim();
+        state.ghostEpoch = String(config.ghost_epoch || "").trim();
         state.username = String(config.username || "").trim();
         state.header = String(config.header || DEFAULT_HEADER).trim() || DEFAULT_HEADER;
         state.installed = true;
@@ -299,6 +303,7 @@
             invalidated: state.invalidated,
             generation: state.generation,
             query_token: state.queryToken,
+            ghost_epoch: state.ghostEpoch,
             username: state.username,
             header: state.header,
             active_requests: state.controllers.size,
