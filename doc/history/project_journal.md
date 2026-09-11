@@ -4305,3 +4305,18 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   identyczna ograniczona liczba zapytań dla bootu i receipt/ACK.
 - Status: `139.3 LOCAL PASS / SERVER GATE PENDING`. Zmiany są lokalne;
   nie wykonano migracji produkcyjnej, reloadu procesów ani production E2E.
+
+### 2026-09-11 — 139.3 zamknięty po wdrożeniu i smoke operatora
+
+- Produkcja `69aa71c`: izolowane 145 testów Python PASS (615,612 s),
+  zestawy JS show frontend, recovery/lock/iframe i delta client PASS.
+- Backup SQLite `pre-139-3-20260911T061356737452Z.sqlite3` przeszedł
+  quick_check. Migracja projekcji bootu: 31/31, retry_or_recovery 0;
+  pending 0 również po reloadzie PM2 13 i 14, oba online.
+- Przejściowe 405 GET /api/profile/desktop po pullu wynikało z nowego JS
+  przy starym backendzie; po migracji i reloadzie operator potwierdził
+  poprawne ładowanie oraz ogólny wygląd gry. Żywy pull statyk przed reloadem
+  pozostawia okno niespójności wersji do uwzględnienia przy wdrożeniach.
+- Status: 139.3 CLOSED; pełny production E2E show/restart/boot/ACK
+  oraz warianty kart/mobile pozostają w 139.4. Nie uruchamiano nowego finału
+  w ramach tego potwierdzenia.

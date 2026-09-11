@@ -1,6 +1,6 @@
 # Sprint 139 — GhostSignal: natychmiastowy show i kontrolowany restart
 
-Status: `IN PROGRESS / 139.1 CLOSED / 139.2 CLOSED BY OPERATOR / 139.3 LOCAL PASS / SERVER GATE PENDING`
+Status: `IN PROGRESS / 139.1 CLOSED / 139.2 CLOSED BY OPERATOR / 139.3 CLOSED / 139.4 PREFLIGHT`
 
 Źródło produktowe: `doc/sprints/sprint_139_opis_15-minutowe_show.md`
 
@@ -694,3 +694,36 @@ zachowanie ustawień i aplikacji, a w przygotowanym scenariuszu pełny
 show → rollover → shutdown → boot z Signal Registry → ACK, dwie karty,
 mobile w tle, utratę ACK i brak pętli reloadu. Production E2E nadal należy
 do 139.4 i wymaga preflightu/backupów/monitora z handoffu.
+
+### Zamknięcie 139.3 — produkcja, 2026-09-11
+
+Operator wdrożył `69aa71c`. Izolowana bramka serwerowa: **145 testów Python
+PASS w 615,612 s**, frontend show, recovery/lock/iframe oraz delta client JS
+PASS. Po pullu wystąpił przejściowy GET `/api/profile/desktop` 405: nowy plik
+JS był już dostępny, podczas gdy stary proces WWW nadal miał endpoint POST.
+Procedura wdrożenia musi uwzględniać to okno niespójności statyk i backendu;
+sam pull na żywym katalogu nie jest atomowym wdrożeniem.
+
+Read-only plan: 31 projekcji, wymagana zmiana schematu. Operator wykonał
+backup `data/backups/pre-139-3-20260911T061356737452Z.sqlite3`,
+`quick_check: ok`, następnie migrację z limitem 31: prepared/written 31,
+retry_or_recovery 0. Plan zwrócił pending 0 przed i po reloadzie PM2
+13 (`chaos`) i 14 (`chaos-territory-worker`); oba procesy online.
+
+Operator potwierdził przywrócenie ładowania gry i ustąpienie błędu API,
+a następnie: „teraz wszystko wygląda poprawnie w grze”. Zamyka to 139.3
+po testach serwerowych, migracji i ogólnym smoke wizualnym. Nie stanowi
+potwierdzenia pełnego production E2E show → rollover → shutdown → boot
+→ ACK ani wszystkich wariantów kart/mobile; pozostają one w 139.4.
+
+### Wejście 139.4 — 2026-09-11
+
+Operator zlecił rozpoczęcie ostatniej bramki. Lokalny HEAD `69aa71c`,
+zmiany robocze wyłącznie w dokumentacji zamknięcia 139.3. Zaliczonej
+regresji 145 testów nie powtarzamy bez nowej zmiany lub wykrytej luki.
+Przed triggerem wymagane są aktualny cykl i blokady, stan kolejek oraz
+filtra source eventu Ollamy, strict audyty, świeży backup i działający
+monitor JSONL z PID. Historyczne ID cyklu/konfliktu monitora 138.2 nie
+mogą zostać użyte domyślnie. Istniejący monitor wymaga przeglądu pokrycia
+epoki restartu i receipt/ACK z 139.3; nie tworzymy równoległego monitora.
+Nie uruchomiono triggera ani nie zmieniono produkcyjnego stanu gry.
