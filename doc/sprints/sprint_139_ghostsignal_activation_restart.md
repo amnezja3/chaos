@@ -727,3 +727,52 @@ monitor JSONL z PID. Historyczne ID cyklu/konfliktu monitora 138.2 nie
 mogą zostać użyte domyślnie. Istniejący monitor wymaga przeglądu pokrycia
 epoki restartu i receipt/ACK z 139.3; nie tworzymy równoległego monitora.
 Nie uruchomiono triggera ani nie zmieniono produkcyjnego stanu gry.
+
+### Wynik wejściowy 139.4 — produkcja 2026-09-11
+
+Operator potwierdził HEAD `5ad4ce4`, cztery procesy online i brak filtra
+CHAOS_OLLAMA_SOURCE_EVENT_ID. Cykl `ghostnetwork_0001` jest closed,
+`ghostnetwork_0002` active, lecz wszystkie 20 części mają status pooled.
+Nie jest to checkpoint 19/20 ani 20/20 z blokadą konfliktu wymagany przez
+istniejący preflight finału.
+
+Worker verify, runtime audit i lifecycle audit: ok=true, bez errors.
+Ostrzeżenia: historical_incomplete_attempts i historical_legacy_records_present.
+Raporty operatora: `data/audits/139-4-entry-20260911T063232Z`.
+W poprzedzającym odczycie kolejka Ollamy miała completed 1415, dead_letter 80,
+processing 1, ready 1 i brak retry_wait. Nie wykonano cleanupu.
+
+Stan: kontrola runtime zaliczona, przygotowanie scenariusza produkcyjnego
+pozostaje otwarte. Potrzebne są wskazane konta i zakres świata do testu,
+przygotowane przez istniejące mechanizmy gry; nie wolno traktować pooled
+jako błędu wymagającego bezpośredniego UPDATE ani odtwarzać starego finału.
+
+### 139.4 — uzgodniony restore i online preflight
+
+Operator uzgodnił cofnięcie postępu z graczami i wybrał restore checkpointu
+001. Źródło: `game-pre-138-2-arm-20260910T151816Z.sqlite3`, quick_check OK,
+SHA-256 `c61403a4d144927a7e29c11739834dc5f50cb358539d852e036046c081164a0d`.
+Potwierdzono 20 active parts, zero skutków finału i dokładnie jeden blocker:
+S1 contested / `territory_conflict_5145c32c3e634c66`.
+
+Przy zatrzymanych czterech procesach wykonano recovery backup
+`pre-139-4-restore-20260911T064149953277Z.sqlite3`, następnie restore przez
+SQLite Backup API. Quick_check OK. Migracja bootu 31/31, pending 0,
+SessionGenerationStore schema OK. Świeży backup przed triggerem:
+`pre-139-4-trigger-20260911T064618158666Z.sqlite3`.
+Monitor uruchomiony z PID 4037133 i limitem 7200 s; dowody:
+`data/audits/139-4-restored-20260911T064618158666Z`.
+
+Po starcie procesów online-preflight, worker verify, runtime i lifecycle
+mają ok=true. Pozostają wyłącznie historical_incomplete_attempts oraz
+historical_legacy_records_present. Operator potwierdził działanie gry.
+Trigger nadal niewykonany.
+
+Istniejący monitor rozszerzono lokalnie o show-start/restart events i
+ograniczony odczyt receiptów dla epoki monitorowanego cyklu (limit 1000
+z flagą truncation). Raport zawiera hashe użytkownika/lineage i czasy boot/ACK,
+bez tokenów i profili. Podwójny restart event nie zalicza milestone.
+Testy monitora: 5 PASS, git diff --check PASS. Rozszerzenie wymaga wdrożenia
+i ponownego uruchomienia samego monitora z --resume; nie wymaga reloadu gry.
+Czasy milestone monitora są czasami obserwacji, a nie dostarczenia do
+przeglądarki; odbiór UI pozostaje osobnym dowodem operatorskim.

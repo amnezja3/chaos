@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
@@ -8,10 +9,30 @@ from scripts.monitor_138_2_signal_e2e import (
     canonical_hash,
     changed_sections,
     milestone_flags,
+    read_client_restart,
 )
 
 
 class SignalE2EMonitorTest(unittest.TestCase):
+    def test_restart_evidence_is_cycle_scoped_and_excludes_boot_secrets(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("CREATE TABLE ghost_part_events (event_id, created_at, payload_json, cycle_id, event_type, state_version)")
+            conn.execute("CREATE TABLE session_restart_receipts (username_hash, lineage_hash, epoch, prepared_at, acknowledged_at, boot_token_hash)")
+            conn.execute("INSERT INTO ghost_part_events VALUES ('e', 't1', ?, 'c1', 'ghost.client_restart_required', 1)",
+                         (json.dumps({"epoch": "epoch1"}),))
+            conn.executemany("INSERT INTO session_restart_receipts VALUES (?, ?, ?, 't2', ?, 'secret')", [
+                ('u1', 'l1', 'epoch1', 't3'), ('u1', 'l2', 'epoch1', None),
+                ('u2', 'l3', 'other-epoch', 't4')])
+            evidence = read_client_restart(conn, 'c1')
+            self.assertEqual(len(evidence['receipts']), 2)
+            self.assertNotIn('secret', json.dumps(evidence))
+            self.assertTrue(milestone_flags({'client_restart': evidence})['client_restart_acknowledged'])
+            self.assertEqual(read_client_restart(conn, 'c2')['receipts'], [])
+            conn.execute("INSERT INTO ghost_part_events SELECT 'duplicate', created_at, payload_json, cycle_id, event_type, 2 FROM ghost_part_events")
+            duplicate = read_client_restart(conn, 'c1')
+            self.assertFalse(milestone_flags({'client_restart': duplicate})['client_restart_requested'])
+
     def test_canonical_hash_ignores_dictionary_order(self):
         self.assertEqual(
             canonical_hash({"b": 2, "a": {"d": 4, "c": 3}}),

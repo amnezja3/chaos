@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Persistent, read-only production monitor for the 138.2 GhostSignal E2E.
 
-The monitor deliberately avoids profiles and JSON payload columns.  It writes
+The monitor avoids profiles; only the restart event's epoch is extracted from JSON. It writes
 one baseline, state changes, bounded heartbeats and an atomically refreshed
 summary so that an SSH disconnect does not destroy the test evidence.
 """
@@ -35,6 +35,8 @@ RELEVANT_EVENTS = (
     "ghost.stabilization_started",
     "ghost.cycle_closed",
     "ghost.cycle_activated",
+    "ghost.signal_show_started",
+    "ghost.client_restart_required",
 )
 
 
@@ -72,6 +74,23 @@ def _table_exists(conn, table):
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
     ).fetchone()
     return row is not None
+
+
+def read_client_restart(conn, cycle_id):
+    events = _rows(conn, """SELECT event_id, created_at,
+        json_extract(payload_json, '$.epoch') AS epoch
+        FROM ghost_part_events
+        WHERE cycle_id=? AND event_type='ghost.client_restart_required'
+        ORDER BY state_version LIMIT 2""", (cycle_id,))
+    schema_ready = _table_exists(conn, "session_restart_receipts")
+    receipts = []
+    if schema_ready and len(events) == 1 and events[0].get("epoch"):
+        receipts = _rows(conn, """SELECT username_hash, lineage_hash,
+            prepared_at, acknowledged_at FROM session_restart_receipts
+            WHERE epoch=? ORDER BY username_hash, lineage_hash LIMIT 1001""",
+            (events[0]["epoch"],))
+    return {"events": events, "schema_ready": schema_ready,
+            "receipts": receipts[:1000], "truncated": len(receipts) > 1000}
 
 
 def open_readonly(db_path):
@@ -330,6 +349,7 @@ def read_snapshot(db_path, cycle_id, conflict_id, include_pm2=True):
                     conn, "ghost_narrative_publication_receipts", "status"
                 ),
             }
+        client_restart = read_client_restart(conn, cycle_id)
         conn.execute("COMMIT")
 
     signal_task_set = set(signal_task_ids)
@@ -341,6 +361,7 @@ def read_snapshot(db_path, cycle_id, conflict_id, include_pm2=True):
         "locks": locks,
         "signals": signals,
         "shows": shows,
+        "client_restart": client_restart,
         "rankings": rankings,
         "events": {"counts": event_counts, "rows": events},
         "narrative": {
@@ -407,6 +428,8 @@ def milestone_flags(snapshot):
     cycle_status = str((snapshot.get("cycle") or {}).get("status") or "")
     narrative = snapshot.get("narrative") or {}
     next_cycles = (snapshot.get("settlement") or {}).get("next_cycles") or []
+    restart = snapshot.get("client_restart") or {}
+    restart_unique = len(restart.get("events") or []) == 1
     return {
         "conflict_resolved": conflict_status in {"resolved", "closed"},
         "cycle_locked": len(snapshot.get("locks") or []) == 1,
@@ -425,6 +448,9 @@ def milestone_flags(snapshot):
         "cycle_stabilizing": cycle_status == "stabilizing",
         "cycle_closed": cycle_status == "closed",
         "next_cycle_active": any(row.get("status") == "active" for row in next_cycles),
+        "client_restart_requested": restart_unique,
+        "client_restart_acknowledged": restart_unique and any(
+            row.get("acknowledged_at") for row in restart.get("receipts") or []),
     }
 
 
