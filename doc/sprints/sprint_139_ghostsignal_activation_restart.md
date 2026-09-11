@@ -776,3 +776,39 @@ Testy monitora: 5 PASS, git diff --check PASS. Rozszerzenie wymaga wdrożenia
 i ponownego uruchomienia samego monitora z --resume; nie wymaga reloadu gry.
 Czasy milestone monitora są czasami obserwacji, a nie dostarczenia do
 przeglądarki; odbiór UI pozostaje osobnym dowodem operatorskim.
+
+### 139.4 — odbiór wizualny finału, postflight pending
+
+Operator zgłosił rozwiązanie S1 o 09:21 i ujawnienie drugiej blokady;
+po jej rozwiązaniu o 09:22 show pojawiło się po około 3 s, praktycznie
+równocześnie na trzech sesjach. Powrót karty i telefonu z tła przebiegł
+zgodnie ze scenariuszem. Druga blokada pozostaje rozbieżnością względem
+wcześniejszego preflightu wymagającą sprawdzenia w dowodach.
+
+Po zakończeniu show operator potwierdził restart i Signal Registry na
+pulpitach oraz ocenił test jako zaliczony. SFX ruszył sam na wszystkich
+sesjach około 2–3 min po początku show. Kod terminal.js wiąże ten dźwięk
+z ghost.signal_sent, nie ghost.signal_show_started. Decyzja operatora:
+pozostawić ten kontrakt i wykorzystać go w Sprincie 140. Nie zmieniono audio.
+Dokładny czas transmisji/dostarczenia pozostaje do porównania z monitorem.
+Odbiór wizualny PASS; strict postflight, końcowe audyty i zatrzymanie
+monitora pozostają otwarte przed zamknięciem całego sprintu.
+
+### 139.4 — diagnoza czerwonej chronologii postflightu
+
+Końcowe runtime/lifecycle/narrative ok=true; restart event jeden, boot receipts
+3 i ACK 3, bez truncation. Strict endgame nie miał pending, ale odrzucił
+show_not_created_before_effects: first_effect_at wskazywał 2026-08-19,
+show_created_at 2026-09-11T07:24:15.001871+00:00, sent_at
+2026-09-11T07:24:15.950182+00:00. Audyt konfliktów sprawdził dwa konflikty
+bez naruszeń. Przyczyna w kodzie audytu: do czasów skutków transmisji
+włączano created_at wszystkich nagród cyklu, również sprzed finału.
+
+Poprawka ogranicza wyłącznie daty nagród do badanego signal_id; pozostałe
+kontrole chronologii pozostają bez zmian. Test z historyczną nagrodą cyklu
+przechodzi, a zbyt wczesna nagroda właściwego sygnału nadal jest odrzucana.
+Izolowany zestaw audytów: 12 PASS (12,130 s), diff check PASS.
+Wymagane wdrożenie poprawki i ponowienie strict postflight na tym samym
+cyklu, z zachowaniem pierwotnego raportu. Nie wymaga kolejnego triggera,
+restore ani restartu procesów. Nie ustalono jeszcze dokładnego źródła
+produkcjnego znacznika z sierpnia ani pełnej osi czasu obserwowanej przez UI.

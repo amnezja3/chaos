@@ -74,6 +74,14 @@ def _production_conflict_chronology(repository, snapshot):
     return {"ok": not violations, "checked": len(conflicts), "violations": violations}
 
 
+def _transmission_reward_times(rewards, signal):
+    # A cycle also contains discovery/activation rewards predating its finale.
+    # Only this signal's rewards are effects of the audited transmission.
+    signal_id = (signal or {}).get("signal_id")
+    return [reward.get("created_at") for reward in rewards
+            if signal_id and reward.get("signal_id") == signal_id]
+
+
 def _transmission_chronology(show, signal, events, effect_times, *, required=False):
     """Check stored chronology; independent-reader tests prove the commit boundary.
 
@@ -177,7 +185,7 @@ def audit(cycle_id, db_path=DB_PATH, *, strict=False, require_transmission_timel
     timeline_events = repository.list_events_by_types(cycle_id, required_once | timeline_types) if cycle else []
     required_events = [e for e in timeline_events if e["event_type"] in required_once]
     chronology = _transmission_chronology(show, signal, timeline_events,
-        [p.get("consumed_at") for p in parts] + [r.get("created_at") for r in rewards]
+        [p.get("consumed_at") for p in parts] + _transmission_reward_times(rewards, signal)
         + [t.get("consumed_at") for t in consumptions]
         + [e.get("created_at") for e in timeline_events
            if e["event_type"] in timeline_types - {"ghost.transmission_started"}],

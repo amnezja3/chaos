@@ -10,6 +10,7 @@ from scripts.audit_ghostnetwork_endgame import (
     _production_conflict_chronology,
     _signal_checksum,
     _transmission_chronology,
+    _transmission_reward_times,
     audit as postflight_audit,
 )
 from scripts.audit_ghostnetwork_endgame_preflight import (
@@ -142,6 +143,23 @@ class GhostNetworkEndgameAuditTest(unittest.TestCase):
         show["created_at"] = "2026-09-10T10:00:05+00:00"
         report = _transmission_chronology(show, signal, events, effects)
         self.assertIn("show_not_created_before_effects", report["violations"])
+
+    def test_timeline_excludes_cycle_rewards_but_rejects_early_signal_reward(self):
+        show, signal, events, effects = self.timeline_fixture()
+        old = "2026-08-19T09:18:22.763615+00:00"
+        rewards = [
+            {"signal_id": "", "created_at": old},
+            {"signal_id": "other-signal", "created_at": old},
+            {"signal_id": signal["signal_id"], "created_at": effects[0]},
+        ]
+        selected = _transmission_reward_times(rewards, signal)
+        self.assertEqual(selected, effects)
+        self.assertTrue(_transmission_chronology(show, signal, events, selected)["ok"])
+        rewards.append({"signal_id": signal["signal_id"], "created_at": old})
+        report = _transmission_chronology(
+            show, signal, events, _transmission_reward_times(rewards, signal))
+        self.assertIn("show_not_created_before_effects", report["violations"])
+        self.assertEqual(_transmission_reward_times(rewards, None), [])
 
     def test_timeline_rejects_early_sent_and_changed_deadline(self):
         show, signal, events, effects = self.timeline_fixture()
