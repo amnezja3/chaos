@@ -4395,3 +4395,13 @@ Końcowa regresja: 54 Python PASS (170,769 s), pięć zestawów JS i syntax PASS
 Runbook doc/runbooks/deploy_140_2.md zawiera pełne komendy testów, backupu,
 migracji pojedynczej kolumny, reloadu i podglądu bez triggera świata.
 Wdrożenie i wizualny odbiór desktop/mobile pozostają do wykonania przez operatora.
+
+### 2026-09-11 — 140.2 pole filmu / plan muzyki 140.4
+
+Operator potwierdził push/pull 678e82f. Dostosowano ramkę do 3:2 z limitem
+720×480 i wyłączono interakcje, kontrolki, PiP/remote playback/fullscreen.
+Test montage i recovery oraz node --check PASS. Cache token media-1.
+Cztery MP3 autora mają łącznie 14:20; zapisano nazwy part_01–04 i plan
+zastąpienia radia przez istniejący GhostRadio w 140.4. Pauza tła na film
+38,12 s daje 898,12 s prezentacji z audio i 1,88 s końcowej ciszy.
+Nie zmieniono w tym kroku runtime audio ani backendu.

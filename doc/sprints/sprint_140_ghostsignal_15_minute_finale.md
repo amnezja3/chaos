@@ -588,3 +588,66 @@ Odbiór wizualny autoplay/mobile wymaga podglądu na serwerze.
 Końcowa regresja po podłączeniu filmu: 54 testy Python PASS (170,769 s),
 pięć zestawów JS i node --check PASS. Pełne dekodowanie MP4 przez ffmpeg
 bez błędów. Kompletna procedura: [deploy_140_2.md](../runbooks/deploy_140_2.md).
+
+### Doprecyzowanie autora: pole filmu i cztery MP3
+
+Kod 678e82f został przez operatora opublikowany i pobrany na serwerze.
+Sam pull nie potwierdza migracji, reloadu ani odbioru wizualnego.
+Dalsza poprawka 140.2: pole filmu 3:2, maksymalnie 720×480 CSS px,
+responsywne pomniejszanie bez rozciągania i kadrowania. Brak kontrolek,
+fokusu, interakcji wskaźnika, fullscreen, PiP i remote playback w odtwarzaczu.
+Wbudowane mechanizmy przeglądarki/rozszerzeń pozostają poza kontrolą strony.
+
+Autor podał łączny czas czterech MP3: 14:20 (860 s). Nazwy docelowe:
+
+- static/audio/ghostnetwork/show/ghostsignal_show_part_01.mp3
+- static/audio/ghostnetwork/show/ghostsignal_show_part_02.mp3
+- static/audio/ghostnetwork/show/ghostsignal_show_part_03.mp3
+- static/audio/ghostnetwork/show/ghostsignal_show_part_04.mp3
+
+Pliki to kolejne części jednej ścieżki; ich indywidualne długości i granice
+zostaną odczytane po dostarczeniu, bez założenia czterech równych odcinków.
+860 s muzyki + 38,12 s filmu = 898,12 s. Ostatnie 1,88 s show pozostaje ciszą.
+Nie zmieniamy deadline 900 s ani restartu/ACK 139.
+
+Plan 140.4 rozszerza istniejący GhostRadio (ghost_radio.js), jego ustawienia
+volume/mute i mechanizm requestDuck/releaseDuck; bez osobnego radia lub miksera.
+Show czasowo zastępuje program radia, zachowuje poprzedni stan i nie zapisuje
+tej zamiany jako preferencji użytkownika. Po show/nowym boot przywraca zwykłą
+politykę radia, także gdy przed show było zatrzymane lub wyciszone.
+
+Od 425 do 463,12 s tło jest niesłyszalne i zatrzymane. Po filmie wraca od
+tego samego miejsca. Pozycja ścieżki przy reconnect wynika z zegara show:
+t dla t<425; 425 podczas filmu; t-38,12 po filmie; po 860 s ścieżki cisza.
+Wybór części i offset wynikają z sum zmierzonych długości MP3, nie z callbacku
+ended. Spóźnione ładowanie/seek nie restartuje muzyki i nie przesuwa scen.
+Brak assetu/autoplay nie blokuje show. Preferencje mute pozostają nadrzędne.
+SFX ghost.signal_sent zachowuje własny istniejący trigger i nie jest częścią MP3.
+Dźwięk AAC filmu wymaga jeszcze ustalenia z autorem; bieżące 140.2 nadal
+odtwarza film wyciszony. Przełączenie miksu nastąpi razem z obsługą tła.
+
+140.3 pozostaje etapem rozliczenia świata; 140.4 obejmuje powyższą integrację
+całego 15-minutowego audio, ranking i restart. Odbiór: radio gra/nie gra/mute,
+cztery przejścia plików, pauza i wznowienie przy filmie, reconnect w każdej
+części i filmie, brak podwójnego audio w iframe, cleanup/restart, autoplay
+zablokowane i brak MP3. Końcowe E2E pozostaje w 140.5.
+
+### Odbiór czterech MP3 — pomiar plików
+
+Wszystkie pliki w static/audio/ghostnetwork/show/ przeszły pełne dekodowanie
+ffmpeg bez błędów. MP3 stereo, 44,1 kHz, około 128 kb/s.
+
+| Plik | Bajty | Czas [s] |
+| --- | ---: | ---: |
+| ghostsignal_show_part_01.mp3 | 3259935 | 203,702813 |
+| ghostsignal_show_part_02.mp3 | 3376128 | 210,964875 |
+| ghostsignal_show_part_03.mp3 | 3746022 | 234,083250 |
+| ghostsignal_show_part_04.mp3 | 3381561 | 211,304438 |
+
+Łącznie 13 763 646 B (13,76 MB), 860,055376 s. Wcześniejsze 860 s było
+zaokrągleniem autora. Z filmem 38,12 s otrzymujemy 898,175376 s, więc końcowa
+cisza wynosi około 1,825 s. Dla integracji 140.4 obowiązują zmierzone długości;
+nie przycinamy muzyki do zaokrąglonego czasu. Pliki gotowe do publikacji,
+bez potrzeby dodatkowej kompresji na tym etapie. Ładowanie scenami/częściami,
+z przygotowaniem następnej części, bez jednoczesnego pobierania całego pakietu.
+To odbiór techniczny zasobów, nie potwierdzenie wdrożenia miksu audio.

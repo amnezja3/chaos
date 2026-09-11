@@ -1416,3 +1416,15 @@ glitch
 rozliczenie starego świata.
 
 Faktyczny punkt nieodwracalnych skutków pozostaje w istniejącym backendzie 139, na początku show. Retrospekcja jest kulminacją wizualną i nie wykonuje drugiej transmisji ani innych mutacji świata.
+
+## Uzupełnienie audio i pola filmu — 2026-09-11
+
+Pole filmu ma proporcje 3:2, limit 720×480, pomniejszanie na mobile i brak
+interakcji/kontrolek odtwarzacza. Cztery kolejne MP3 autora mają łącznie 860 s:
+ghostsignal_show_part_01.mp3 do ghostsignal_show_part_04.mp3 w
+static/audio/ghostnetwork/show/. Tło zastępuje radio, zatrzymuje się na czas
+filmu 425–463,12 s i wraca bez pominięcia muzyki; kończy się w 898,12 s.
+Ostatnie 1,88 s pozostaje ciszą. Indywidualne granice MP3 wynikną z metadanych.
+Miks zostanie wdrożony w istniejącym GhostRadio w 140.4, z poszanowaniem mute
+oraz bez zmiany SFX ghost.signal_sent. Audio samego filmu pozostaje do ustalenia;
+w bieżącym 140.2 jest wyciszone. Szczegóły i testy: §11 głównego planu 140.

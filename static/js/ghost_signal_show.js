@@ -215,8 +215,11 @@
             const frame = element("div", "ghost-show-transmission");
             frame.appendChild(element("p", "ghost-show-kicker", "ARCHIWALNY ZAPIS TRANSMISJI"));
             if (scene.id === "transmission_video") {
+                const field = element("div", "ghost-show-video-field");
+                field.setAttribute("inert", "");
+                frame.appendChild(field);
                 const fallback = element("div", "ghost-show-video-fallback", "GHOSTSIGNAL // TRANSMISSION RECORD");
-                frame.appendChild(fallback);
+                field.appendChild(fallback);
                 const asset = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
                 if (asset && asset.available && asset.src === "/static/video/ghostsignal_transmission_video.mp4"
                         && Number.isFinite(asset.duration_seconds) && asset.duration_seconds > 0) {
@@ -225,6 +228,15 @@
                     video._showDuration = asset.duration_seconds;
                     video.muted = true; video.defaultMuted = true;
                     video.playsInline = true; video.preload = "auto";
+                    video.controls = false; video.tabIndex = -1;
+                    video.disablePictureInPicture = true;
+                    video.disableRemotePlayback = true;
+                    video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback noplaybackrate");
+                    video.setAttribute("disablepictureinpicture", "");
+                    video.setAttribute("disableremoteplayback", "");
+                    video.setAttribute("tabindex", "-1");
+                    video.setAttribute("aria-hidden", "true");
+                    video.oncontextmenu = event => { event.preventDefault(); return false; };
                     video.setAttribute("playsinline", "");
                     video.setAttribute("muted", "");
                     const failed = () => {
@@ -244,7 +256,7 @@
                     };
                     syncVideo(stage, scene);
                     video.src = asset.src;
-                    frame.appendChild(video);
+                    field.appendChild(video);
                 }
             } else if (scene.id === "terminal_2108") {
                 const text = ["GHOSTSIGNAL // " + snapshot.signal_public_id,

@@ -65,6 +65,12 @@ try {
     video.duration = 38.12; video.readyState = 1; video.currentTime = 0;
     video.onloadedmetadata();
     assert(video.muted && video.playsInline && video.played);
+    assert.strictEqual(video.controls, false);
+    assert.strictEqual(video.tabIndex, -1);
+    assert(video.disablePictureInPicture && video.disableRemotePlayback);
+    assert(video.attrs.controlslist.includes('nofullscreen'));
+    assert.strictEqual(video.parent.className, 'ghost-show-video-field');
+    assert.strictEqual(video.parent.attrs.inert, '');
     assert(Math.abs(video.currentTime - 10) < 0.1);
     seek(450);
     assert.strictEqual(root.querySelector('.ghost-show-video'), video);
