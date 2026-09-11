@@ -86,3 +86,27 @@ długością, informacją o audio i źródle/prawach. Dokładne rozmiary i waria
 zatwierdzamy po pomiarze materiałów, nie wymuszamy teraz przypadkowej rozdzielczości.
 Nieistniejące pliki mają src=null i available=false; klient nie próbuje ich pobierać.
 W 140.1 nie ma preloadu mediów ani nowych żądań assetów.
+
+## Dostarczone materiały — 7a7d03c
+
+W signal_sends/ istnieją machine_virex_oracle, machine_echo_libertas,
+machine_phantom_veil, machine_sentinel_aegis jako PNG oraz ich warianty _active.
+Odczyt metadanych: podstawowe 1254×1254 RGBA (alpha 0–255), około 1,7–1,9 MB;
+aktywne 1672×941 bez alpha, około 2,6–2,9 MB. Wariantów _active nie traktujemy
+jako przezroczystych nakładek. Ładowanie scenami i ocena wariantów mobile
+pozostają zadaniem montażu; plików źródłowych nie zmieniano.
+
+20 canonical części w parts/ ma 128×128 i alpha 0–255. Mogą służyć jako
+przezroczyste elementy sieci, ale nie są materiałami o rozdzielczości hero.
+Aktualny pull zawiera osiem nowych maszyn, bez osobnych nowych wersji części.
+Film autora w przygotowaniu. Dostępność plików nie oznacza jeszcze ich
+podłączenia w runtime: manifest 140.1 zachowuje jawne fallbacki.
+
+## Film dostarczony do 140.2
+
+`static/video/ghostsignal_transmission_video.mp4`: 38,120 s, 7 003 148 B,
+H.264 720×480 yuv420p 25 fps oraz AAC; dodatkowy MJPEG to okładka.
+Sprawdzono metadane ffprobe i klatkę środkową. Film podłączony w oryginalnym
+tempie 07:05–07:43,12, wyciszony. SFX nadal należy do ghost.signal_sent.
+Nie modyfikowano źródła ani dołączonej miniatury. Przeglądarkowy odbiór
+kompozycji/odtwarzania pozostaje bramką wdrożenia.

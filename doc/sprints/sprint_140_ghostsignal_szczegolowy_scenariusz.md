@@ -517,9 +517,9 @@ Przygotowujemy kontrast przed transmisją.
 
 ---
 
-## 07:05–07:35 — TRANSMISSION VIDEO
+## 07:05–07:43,12 — TRANSMISSION VIDEO
 
-Uruchamiany jest nowy 30-sekundowy asset video przygotowany specjalnie dla GhostSignal.
+Uruchamiany jest dostarczony asset video o długości 38,12 s przygotowany specjalnie dla GhostSignal.
 
 Film:
 
@@ -540,7 +540,7 @@ Film jest wyłącznie wprowadzeniem do retrospekcji potwierdzonej transmisji.
 
 ---
 
-## 07:35 — RETROSPEKCJA POTWIERDZONEJ EMISJI
+## 07:43,12 — RETROSPEKCJA POTWIERDZONEJ EMISJI
 
 Backend wykonał operację zgodnie z kontraktem 139 na początku show. Koniec filmu nie wywołuje żadnej operacji backendu.
 
@@ -564,13 +564,13 @@ Show pozostaje w kontrolowanym stanie awaryjnym/recovery istniejącego mechanizm
 
 # 8. EVENT `ghost.signal_sent`
 
-## 07:35–07:38 — wizualizacja zapisanej emisji
+## 07:43,12–07:46,12 — wizualizacja zapisanej emisji
 
 W momencie faktycznego odebrania na początku show:
 
 `ghost.signal_sent`
 
-następują SFX i krótki akcent potwierdzenia. Poniższa rozbudowana sekwencja wizualna stanowi późniejszą retrospekcję o 07:35, pod warunkiem istnienia potwierdzenia:
+następują SFX i krótki akcent potwierdzenia. Poniższa rozbudowana sekwencja wizualna stanowi późniejszą retrospekcję o 07:43,12, pod warunkiem istnienia potwierdzenia:
 
 * właściwy SFX GhostSignal został już uruchomiony przez event — nie odtwarzamy go ponownie,
 * bardzo jasny błysk,
@@ -595,11 +595,11 @@ Dźwięk:
 * charakterystyczny,
 * dużo mocniejszy niż wcześniejszy ambient.
 
-To jest dźwięk faktycznej emisji. Zachowujemy istniejący asset i jego przypisanie z 139; nie przesuwamy odtworzenia do filmu ani sceny 07:35.
+To jest dźwięk faktycznej emisji. Zachowujemy istniejący asset i jego przypisanie z 139; nie przesuwamy odtworzenia do filmu ani sceny 07:43,12.
 
 ---
 
-## 07:38–07:43 — punkt sygnału
+## 07:46,12–07:49,12 — punkt sygnału
 
 Błysk zaczyna się kurczyć.
 
@@ -616,7 +616,7 @@ Przez moment ekran jest niemal całkowicie pusty.
 
 ---
 
-## 07:43–07:55 — TERMINAL 2108
+## 07:49,12–07:57 — TERMINAL 2108
 
 Na ekranie pojawia się konsola.
 
@@ -641,7 +641,7 @@ Nie dokładamy przypadkowych pseudotechnicznych komunikatów z generacji runtime
 
 ---
 
-## 07:55–08:00 — potwierdzenie GhostSignal
+## 07:57–08:00 — potwierdzenie GhostSignal
 
 Terminal dostaje silny glitch i znika.
 
@@ -665,7 +665,7 @@ Następnie data przechodzi wizualnie w:
 
 Przykład:
 
-`11.09.2026 07:35:42`
+`11.09.2026 07:24:15`
 
 ↓
 
@@ -1101,7 +1101,7 @@ Każda powinna stylistycznie wynikać z pięciu istniejących części danego kl
 
 ## B. GhostSignal Transmission Video
 
-Jeden około 30-sekundowy materiał.
+Jeden materiał 38,12 s, odtwarzany w oryginalnym tempie, bez dźwięku (SFX pozostaje przy ghost.signal_sent).
 
 Cel:
 
@@ -1251,7 +1251,7 @@ Minimalnie:
 
 ↓
 
-`WAITING_FOR_SIGNAL_SENT` (tylko jeśli brakuje trwałego potwierdzenia; nie nowa bramka o 07:35)
+`WAITING_FOR_SIGNAL_SENT` (tylko jeśli brakuje trwałego potwierdzenia; nie nowa bramka o 07:43,12)
 
 ↓
 
@@ -1329,13 +1329,13 @@ Części są nieregularne, historia jest nieuporządkowana, połączenia pojawia
 
 ### ORDER / GHOST NETWORK
 
-05:20–07:35
+05:20–07:43,12
 
 System się porządkuje, części tworzą regularną sieć, maszyny stają się pełnymi strukturami, GhostSignal zostaje uzbrojony.
 
 ### COLLAPSE → RECONSTRUCTION
 
-07:35–15:00
+07:43,12–15:00
 
 Odtwarzamy wizualnie potwierdzone wysłanie GhostSignal, które nastąpiło na początku show.
 
@@ -1355,9 +1355,9 @@ Jest nim:
 
 **`ghost.signal_sent`**
 
-Rozdzielamy faktyczną chronologię 139 od montażu retrospekcji. Na początku: trwałe show i lock → skutki → backend potwierdza ghost.signal_sent → istniejący SFX i akcent. Około 07:35 przedstawiamy retrospekcję:
+Rozdzielamy faktyczną chronologię 139 od montażu retrospekcji. Na początku: trwałe show i lock → skutki → backend potwierdza ghost.signal_sent → istniejący SFX i akcent. Około 07:43,12 przedstawiamy retrospekcję:
 
-30 s video
+38,12 s video
 
 ↓
 

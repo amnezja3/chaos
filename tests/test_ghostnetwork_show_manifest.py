@@ -1,6 +1,8 @@
 import json
 import os
 import tempfile
+import sqlite3
+from contextlib import closing
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +13,22 @@ from ghostnetwork.show_manifest import build_manifest, SCENES
 
 
 class ShowManifestTest(unittest.TestCase):
+    def test_scene_schema_migration_is_read_only_by_default_and_preserves_history(self):
+        from scripts.migrate_ghostsignal_scene_snapshot import migrate
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "old.sqlite3")
+            with closing(sqlite3.connect(path)) as conn:
+                conn.execute("CREATE TABLE ghost_signal_shows(show_id TEXT PRIMARY KEY, status TEXT)")
+                conn.execute("INSERT INTO ghost_signal_shows VALUES ('old', 'completed')")
+                conn.commit()
+            self.assertTrue(migrate(path)["schema_change"])
+            with closing(sqlite3.connect(path)) as conn:
+                self.assertEqual(len(conn.execute("PRAGMA table_info(ghost_signal_shows)").fetchall()), 2)
+            self.assertTrue(migrate(path, True)["changed"])
+            self.assertFalse(migrate(path, True)["changed"])
+            with closing(sqlite3.connect(path)) as conn:
+                self.assertEqual(conn.execute("SELECT * FROM ghost_signal_shows").fetchone(), ('old', 'completed', '{}'))
+
     def test_complete_storyboard_and_canonical_machine_relations(self):
         manifest = build_manifest({})
         scenes = manifest["scenes"]
@@ -27,6 +45,11 @@ class ShowManifestTest(unittest.TestCase):
         self.assertLess(len(json.dumps(manifest).encode()), 32768)
         self.assertFalse(manifest["signal_confirmed"])
         self.assertFalse(manifest["audio"]["replay"])
+        video = next(a for a in manifest["assets"] if a["kind"] == "video")
+        scene = next(s for s in scenes if s["id"] == "transmission_video")
+        self.assertAlmostEqual(scene["end"] - scene["start"], video["duration_seconds"])
+        self.assertTrue(video["available"] and video["muted"])
+        self.assertTrue(next(s for s in scenes if s["id"] == "transmission_replay")["requires_signal_sent"])
 
     def test_polling_projection_has_constant_queries_with_35mb_profile_and_payload(self):
         query_counts = []

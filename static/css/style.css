@@ -9666,3 +9666,52 @@ form button:hover {
 .ghost-signal-show__progress span { display: block; height: 100%; background: #00ff88; box-shadow: 0 0 15px #00ff88; transition: width .6s linear; }
 .ghost-signal-show__time { margin-top: 12px; color: #fff; }
 @media (prefers-reduced-motion: reduce) { .ghost-signal-show__progress span { transition: none; } }
+
+/* 140.2: scene layers owned by the existing GhostSignal controller. */
+.ghost-signal-show__stage { position: absolute; inset: 5vh 5vw 22vh; pointer-events: none; }
+.ghost-signal-show.has-montage .ghost-signal-show__panel { position: absolute; bottom: 3vh; width: min(920px, 90vw); }
+.ghost-signal-show.has-montage .ghost-signal-show__phase { font-size: clamp(18px, 3vw, 32px); margin: 8px 0; }
+.ghost-signal-show.has-montage .ghost-signal-show__signal { font-size: 14px; margin: 5px; }
+.ghost-signal-show.has-montage .ghost-signal-show__copy { font-size: 12px; min-height: 0; margin: 4px; }
+.ghost-signal-show.has-montage .ghost-signal-show__versions { margin: 8px 0; }
+.ghost-show-board { position: absolute; inset: 0; animation: ghost-show-map-drift 30s ease-in-out infinite alternate; }
+@keyframes ghost-show-map-drift { from { transform: translate(-.5%, .3%) scale(.99); } to { transform: translate(.5%, -.3%) scale(1.01); } }
+.ghost-show-links { position: absolute; width: 100%; height: 100%; overflow: visible; }
+.ghost-show-links line { stroke: #23ffb5; stroke-width: 1; opacity: .45; }
+.ghost-show-map-node { fill: #75dac5; opacity: .25; }
+.ghost-show-part { position: absolute; transform: translate(-50%, -50%); width: clamp(42px, 6vw, 90px); text-align: center; opacity: .2; }
+.ghost-show-part.is-highlighted { opacity: 1; }
+.ghost-show-part img { width: 100%; aspect-ratio: 1; object-fit: contain; filter: drop-shadow(0 0 8px #00dd8855); }
+.ghost-show-part span { display: block; font-size: clamp(7px, .7vw, 11px); color: #baffdc; overflow-wrap: anywhere; }
+.ghost-show-hero { height: 100%; display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 4vw; }
+.ghost-show-hero__image { width: 100%; height: 100%; min-height: 0; object-fit: contain; filter: drop-shadow(0 0 22px #43ebbd30); }
+.ghost-show-hero__info { border-left: 1px solid #4cffbd66; padding: 2vw; overflow-wrap: anywhere; }
+.ghost-show-hero__info h2 { font-size: clamp(24px, 4vw, 56px); color: #eafff7; }
+.ghost-show-hero__info p { font-size: clamp(11px, 1.2vw, 18px); line-height: 1.6; }
+.ghost-show-kicker { color: #64dfb8; letter-spacing: .15em; font-size: 12px; }
+.ghost-show-history { position: absolute; right: 0; bottom: 0; max-width: 60%; white-space: pre-line; font-size: 10px; line-height: 1.7; opacity: .4; }
+.ghost-show-transmission { display: grid; align-content: center; justify-items: center; height: 100%; gap: 20px; text-align: center; }
+.ghost-show-video-fallback { width: min(720px, 80vw); aspect-ratio: 16 / 9; border: 1px solid #52e5b5; display: grid; place-items: center; background: radial-gradient(ellipse, #165d4244, #020b0d); font-size: clamp(12px, 2vw, 22px); }
+.ghost-show-terminal { width: min(780px, 84vw); text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; color: #85ffd1; font-size: clamp(12px, 2vw, 20px); min-height: 8em; }
+.ghost-show-signal-point { width: 12px; height: 12px; border-radius: 50%; background: #e6fff8; box-shadow: 0 0 40px 15px #71ffc5; }
+.ghost-show-future { color: #8fffe0; font-size: clamp(16px, 3vw, 32px); }
+.ghost-show-video { display: block; width: 100%; max-width: 720px; height: 100%; min-height: 0; object-fit: contain; border: 1px solid #52e5b5; background: #000; }
+.ghost-signal-show[data-show-scene="transmission_video"] .ghost-show-transmission { grid-template-rows: auto minmax(0, 1fr); }
+.ghost-signal-show[data-show-scene="transmission_replay"] .ghost-signal-show__stage { background: #e6fff8; opacity: calc(1 - var(--scene-progress)); }
+.ghost-signal-show[data-show-scene="signal_point"] .ghost-show-signal-point { transform: scale(calc(1 - var(--scene-progress))); }
+.ghost-signal-show[data-show-scene="network_tension"] .ghost-show-links line { stroke-width: 2; opacity: .9; }
+@media (max-width: 600px) {
+    .ghost-signal-show__stage { inset: 4vh 3vw 27vh; }
+    .ghost-show-hero { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; }
+    .ghost-show-hero__info { border-left: 0; text-align: center; padding: 0 12px; }
+    .ghost-show-hero__info h2 { margin: 6px; font-size: 24px; }
+    .ghost-show-hero__info p { margin: 5px; font-size: 11px; }
+    .ghost-show-history { max-width: 95%; font-size: 8px; max-height: 10vh; overflow: hidden; }
+    .ghost-show-part { width: 38px; }
+    .ghost-show-part span { font-size: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ghost-show-board { animation: none; }
+    .ghost-signal-show[data-show-scene="transmission_replay"] .ghost-signal-show__stage { background: transparent; opacity: 1; }
+    .ghost-signal-show[data-show-scene="signal_point"] .ghost-show-signal-point { transform: none; box-shadow: none; }
+}

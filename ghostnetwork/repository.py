@@ -564,6 +564,8 @@ class GhostNetworkRepository:
                 )
                 """
             )
+            self._ensure_column(conn, "ghost_signal_shows", "scene_snapshot_json",
+                                "scene_snapshot_json TEXT NOT NULL DEFAULT '{}'")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS ghost_signal_rankings (
@@ -2562,6 +2564,8 @@ class GhostNetworkRepository:
             "status": row["status"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "scene_snapshot": loads_json(row["scene_snapshot_json"], {})
+                if "scene_snapshot_json" in row.keys() else {},
         }
 
     def get_signal_show(self, show_id):
@@ -2669,8 +2673,8 @@ class GhostNetworkRepository:
                         show_id, signal_id, cycle_id, signal_public_id,
                         show_started_at, show_ends_at, from_system_version,
                         to_system_version, phase_policy_version, status,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        created_at, updated_at, scene_snapshot_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         _clean(show.get("show_id")), signal_id, _clean(show.get("cycle_id")),
@@ -2678,6 +2682,7 @@ class GhostNetworkRepository:
                         _clean(show.get("show_ends_at")), _clean(show.get("from_system_version")),
                         _clean(show.get("to_system_version")), _clean(show.get("phase_policy_version")),
                         _clean(show.get("status"), "active"), now, now,
+                        show.get("scene_snapshot_json") or "{}",
                     ),
                 )
             except IntegrityError:

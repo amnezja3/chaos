@@ -4360,3 +4360,38 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Złożone dane cyklu, data 2108 i montaż assetów pozostają zadaniami scen;
   manifest nie publikuje fikcyjnych zamienników. Procedura pierwszej bramki
   serwerowej w planie 140. Nie wykonano commit/push, migracji ani wdrożenia.
+
+### 2026-09-11 — 140.1 server tests PASS, assety maszyn dostarczone
+
+- Operator wdrożył 7a7d03c: 40 Python PASS (222,790 s), cztery zestawy JS
+  PASS i node --check bez błędów; chaos przeładowany, online.
+- Zinwentaryzowano cztery maszyny RGBA 1254×1254 i cztery warianty _active
+  1672×941 bez alpha. Istniejące 20 części 128×128 ma przezroczystość.
+- Film 30 s w przygotowaniu autora. Podłączenie assetów i smoke/podgląd
+  scen pozostają otwarte; nie zmieniano runtime przy odbiorze wyników.
+
+### 2026-09-11 — 140.2 lokalny montaż i testy PASS, visual gate pending
+
+- Istniejący kontroler show renderuje części, grupy, ring, hero maszyn,
+  ramkę filmu (placeholder), retrospekcję i terminal 2108. SFX pozostaje
+  wyłącznie przy realnym ghost.signal_sent, bez ponowienia w montażu.
+- Istniejący rekord show otrzymał bounded scene_snapshot_json, przygotowany
+  z locku poza writerem. Zachowuje stany sprzed konsumpcji, ring i datę 2108.
+  Brak profili/Ollamy/live world; brak nowej authority i zmiany mechaniki 139.
+- 53 testy regresji Python PASS, końcowe 4 PASS po teście migracji;
+  pięć zestawów JS PASS, składnia/generator podglądu PASS.
+- Przeglądarka do automatycznego odbioru niedostępna. Visual gate i serwer
+  pozostają otwarte. Procedura migracji jednego pola oraz statyczny podgląd
+  bez transmisji opisane w planie 140. Nie wykonano wdrożenia ani commit/push.
+
+### 2026-09-11 — 140.2: film i przygotowanie wdrożenia
+
+Dostarczony MP4: ffprobe 38,120 s, H.264 720×480/25 fps, AAC, 7 003 148 B;
+pełne dekodowanie bez błędów. W istniejącym kontrolerze dodano wyciszone
+odtwarzanie inline, seek według zegara show, cleanup i fallback błędów.
+Film 07:05–07:43,12; późniejsze przejścia skrócone do granicy 08:00.
+Nie zmieniono emisji/SFX, 900-sekundowego zegara ani restartu/ACK 139.
+Końcowa regresja: 54 Python PASS (170,769 s), pięć zestawów JS i syntax PASS.
+Runbook doc/runbooks/deploy_140_2.md zawiera pełne komendy testów, backupu,
+migracji pojedynczej kolumny, reloadu i podglądu bez triggera świata.
+Wdrożenie i wizualny odbiór desktop/mobile pozostają do wykonania przez operatora.

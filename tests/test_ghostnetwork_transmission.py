@@ -75,6 +75,26 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
         self.assertTrue(lock["locked"], lock)
         return self.repo.get_cycle(cycle["cycle_id"]), lock
 
+    def test_scene_projection_is_prepared_before_writer_and_survives_consumption(self):
+        import json
+        from ghostnetwork.show_manifest import prepare_scene_snapshot
+        cycle, _ = self.create_locked_cycle()
+        def prepare(lock, signal_id):
+            self.assertFalse(self.repo.in_transaction)
+            return prepare_scene_snapshot(lock, signal_id)
+        with patch("ghostnetwork.show_manifest.prepare_scene_snapshot", side_effect=prepare):
+            self.transmission.start_transmission(cycle["cycle_id"])
+        first = self.repo.get_signal_show_for_cycle(cycle["cycle_id"])["scene_snapshot"]
+        self.assertTrue(first["available"])
+        self.assertEqual(len(first["parts"]), 20)
+        self.assertEqual(len(first["ring_codes"]), 20)
+        self.assertTrue(first["future_2108_timestamp"].startswith("2108-"))
+        self.assertNotIn("operator-", json.dumps(first))
+        self.assertTrue(all(p["status"] == "active" for p in first["parts"]))
+        self.assertTrue(all(p["status"] == "consumed" for p in self.repo.list_parts(cycle["cycle_id"])))
+        self.transmission.start_transmission(cycle["cycle_id"])
+        self.assertEqual(first, self.repo.get_signal_show_for_cycle(cycle["cycle_id"])["scene_snapshot"])
+
     def test_locked_cycle_transmits_once_and_starts_restart_window(self):
         cycle, lock = self.create_locked_cycle()
         result = self.transmission.start_transmission(cycle["cycle_id"])

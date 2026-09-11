@@ -50,6 +50,7 @@
         root.setAttribute("aria-live", "polite");
         root.innerHTML = [
             '<div class="ghost-signal-show__grid"></div>',
+            '<div class="ghost-signal-show__stage" aria-hidden="true"></div>',
             '<div class="ghost-signal-show__panel">',
             '<div class="ghost-signal-show__eyebrow">GHOSTNETWORK // GLOBAL EVENT</div>',
             '<div class="ghost-signal-show__signal"></div>',
@@ -88,8 +89,221 @@
                 progress: 0, blocked: true};
         }
         return {id: scene.id, label: scene.label,
+            elapsed,
             progress: Math.max(0, Math.min(1, (elapsed - scene.start) / (scene.end - scene.start))),
             blocked: false};
+    }
+
+    function sceneLayout(manifest, scene) {
+        const catalog = manifest && manifest.catalog || {};
+        const parts = Array.isArray(catalog.parts) ? catalog.parts.slice(0, 20) : [];
+        const machines = Array.isArray(catalog.machines) ? catalog.machines.slice(0, 4) : [];
+        const history = manifest.cycle_history || {};
+        const historical = history.available && Array.isArray(history.parts) ? history.parts : [];
+        const byCode = new Map(historical.map(p => [p.part_code, p]));
+        const completeDates = parts.length === 20 && parts.every(p => (byCode.get(p.part_code) || {}).discovered_at);
+        const ordered = completeDates ? parts.slice().sort((a, b) =>
+            String(byCode.get(a.part_code).discovered_at).localeCompare(String(byCode.get(b.part_code).discovered_at))
+                || parts.indexOf(a) - parts.indexOf(b)) : parts.slice();
+        const elapsed = scene.elapsed || 0;
+        const ring = Array.isArray(history.ring_codes) ? history.ring_codes : [];
+        const visible = elapsed < 30 ? 0 : elapsed < 60 ? Math.ceil((elapsed - 30) * 20 / 30) : 20;
+        const group = elapsed >= 160 && elapsed < 300;
+        const round = elapsed >= 320;
+        const nodes = ordered.map((part, i) => {
+            const machineIndex = Math.max(0, machines.findIndex(m => m.code === part.machine_code));
+            const machine = machines[machineIndex] || {};
+            const slot = Math.max(0, (machine.part_codes || []).indexOf(part.part_code));
+            const ringIndex = ring.indexOf(part.part_code);
+            const angle = ((ringIndex < 0 ? i : ringIndex) / 20) * Math.PI * 2 - Math.PI / 2;
+            let x = 100 + ((i * 173) % 800), y = 80 + ((i * 107) % 390);
+            if (group) {
+                x = 260 + (machineIndex % 2) * 480 + Math.cos(slot * Math.PI * 2 / 5) * 100;
+                y = 175 + Math.floor(machineIndex / 2) * 250 + Math.sin(slot * Math.PI * 2 / 5) * 85;
+            } else if (round) { x = 500 + Math.cos(angle) * 370; y = 300 + Math.sin(angle) * 220; }
+            return {part, history: byCode.get(part.part_code) || {}, x, y, visible: i < visible,
+                highlighted: elapsed < 180 || elapsed >= 300 || machineIndex === Math.floor((elapsed - 180) / 30)};
+        });
+        const codes = new Set(parts.map(p => p.part_code));
+        const validRing = ring.length === 20 && new Set(ring).size === 20 && ring.every(c => codes.has(c));
+        const edges = validRing && elapsed >= 90 ? ring.map((code, i) => [code, ring[(i + 1) % 20]]) : [];
+        return {nodes, edges, machines};
+    }
+
+    function clearMontage(stage) {
+        if (!stage) return;
+        const video = stage._video;
+        stage._video = null;
+        if (video) {
+            video.onloadedmetadata = null;
+            video.onerror = null;
+            video.pause();
+            video.removeAttribute("src");
+            video.load();
+        }
+        if (stage.replaceChildren) stage.replaceChildren();
+        stage._showKey = null;
+    }
+
+    function syncVideo(stage, scene) {
+        const video = stage._video;
+        if (!video) return;
+        video._showTarget = scene.progress * video._showDuration;
+        if (video.readyState >= 1 && Number.isFinite(video.duration)) {
+            const target = Math.max(0, Math.min(video.duration - 0.05, video._showTarget));
+            if (Math.abs(video.currentTime - target) > 0.75) video.currentTime = target;
+        }
+        if (video.readyState >= 2 && video.paused && !video.ended && !video._showPlayPending) {
+            video._showPlayPending = true;
+            const playing = video.play();
+            if (playing && playing.then) playing.then(() => { video._showPlayPending = false; }, () => {
+                video._showPlayPending = false;
+                if (stage._video === video && video.onerror) video.onerror();
+            });
+            else video._showPlayPending = false;
+        }
+    }
+
+    function renderMontage(doc, root, snapshot, scene) {
+        const stage = root.querySelector(".ghost-signal-show__stage");
+        if (!stage || !scene || scene.blocked || scene.elapsed >= 480) {
+            clearMontage(stage);
+            root.classList.remove("has-montage");
+            return;
+        }
+        const manifest = snapshot.show_manifest;
+        const history = manifest.cycle_history || {};
+        const key = [snapshot.signal_public_id, scene.id, !!manifest.signal_confirmed,
+            scene.id === "parts_enter" ? Math.ceil(scene.progress * 20)
+                : scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
+        root.classList.add("has-montage");
+        stage.style.setProperty("--scene-progress", scene.progress);
+        root.style.background = scene.id === "takeover"
+            ? "rgba(5,9,13," + (0.15 + scene.progress * 0.8) + ")" : "#05090d";
+        if (stage._showKey === key) { syncVideo(stage, scene); return; }
+        clearMontage(stage);
+        const element = (tag, className, text) => {
+            const node = doc.createElement(tag); node.className = className;
+            if (text !== undefined) node.textContent = text;
+            return node;
+        };
+        const addImage = (parent, url, className, name) => {
+            if (!/^\/static\/images\/ghostnetwork\/[a-z0-9_./-]+\.png$/.test(url || "") || url.includes("..")) return;
+            const img = element("img", className);
+            img.alt = name || ""; img.decoding = "async";
+            img.onerror = () => { img.remove(); parent.appendChild(element("span", "ghost-show-asset-fallback", name)); };
+            img.src = url; parent.appendChild(img);
+        };
+        const layout = sceneLayout(manifest, scene);
+        const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
+        if (heroIndex >= 0) {
+            const machine = layout.machines[heroIndex];
+            if (!machine) return;
+            const asset = (manifest.assets || []).find(a => a.id === "machine_" + machine.code);
+            const hero = element("div", "ghost-show-hero");
+            if (asset && asset.available) addImage(hero, asset.src, "ghost-show-hero__image", machine.name);
+            const info = element("div", "ghost-show-hero__info");
+            info.appendChild(element("p", "ghost-show-kicker", "GHOST NETWORK / " + machine.clan_code));
+            info.appendChild(element("h2", "", machine.name));
+            info.appendChild(element("p", "", "PARTS: " + (machine.part_codes || []).join(" · ")));
+            const professions = (manifest.catalog.professions || []).filter(p => p.machine_code === machine.code);
+            info.appendChild(element("p", "", professions.map(p => p.name).join(" / ")));
+            const abilityCodes = new Set(layout.nodes.filter(n => n.part.machine_code === machine.code).map(n => n.part.ability_code));
+            info.appendChild(element("p", "ghost-show-powers", (manifest.catalog.abilities || []).filter(a => abilityCodes.has(a.ability_code)).map(a => a.name).join(" / ")));
+            hero.appendChild(info); stage.appendChild(hero);
+        } else if (scene.elapsed >= 420) {
+            const frame = element("div", "ghost-show-transmission");
+            frame.appendChild(element("p", "ghost-show-kicker", "ARCHIWALNY ZAPIS TRANSMISJI"));
+            if (scene.id === "transmission_video") {
+                const fallback = element("div", "ghost-show-video-fallback", "GHOSTSIGNAL // TRANSMISSION RECORD");
+                frame.appendChild(fallback);
+                const asset = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
+                if (asset && asset.available && asset.src === "/static/video/ghostsignal_transmission_video.mp4"
+                        && Number.isFinite(asset.duration_seconds) && asset.duration_seconds > 0) {
+                    const video = element("video", "ghost-show-video");
+                    stage._video = video;
+                    video._showDuration = asset.duration_seconds;
+                    video.muted = true; video.defaultMuted = true;
+                    video.playsInline = true; video.preload = "auto";
+                    video.setAttribute("playsinline", "");
+                    video.setAttribute("muted", "");
+                    const failed = () => {
+                        if (stage._video !== video) return;
+                        stage._video = null;
+                        video.onloadedmetadata = null; video.onerror = null;
+                        video.pause(); video.removeAttribute("src"); video.load(); video.remove();
+                        fallback.style.display = "";
+                    };
+                    video.onerror = failed;
+                    video.onloadedmetadata = () => {
+                        if (stage._video !== video) return;
+                        syncVideo(stage, {progress: video._showTarget / video._showDuration});
+                        const playing = video.play();
+                        if (playing && playing.catch) playing.catch(failed);
+                        fallback.style.display = "none";
+                    };
+                    syncVideo(stage, scene);
+                    video.src = asset.src;
+                    frame.appendChild(video);
+                }
+            } else if (scene.id === "terminal_2108") {
+                const text = ["GHOSTSIGNAL // " + snapshot.signal_public_id,
+                    "TRANSMISSION UTC // " + (manifest.signal_sent_at || "—"),
+                    "TEMPORAL CHANNEL // 2108", "DESTINATION // " + (history.future_2108_timestamp || "—")].join("\n");
+                // Seek directly to the current text length; no per-character timers.
+                frame.appendChild(element("pre", "ghost-show-terminal", text.slice(0, Math.ceil(text.length * scene.progress))));
+            } else if (scene.id === "signal_confirmation") {
+                frame.appendChild(element("h2", "", "GHOSTSIGNAL WYSŁANY"));
+                frame.appendChild(element("p", "", manifest.signal_sent_at || ""));
+                if (history.future_2108_timestamp) frame.appendChild(element("p", "ghost-show-future", history.future_2108_timestamp));
+            } else { frame.appendChild(element("div", "ghost-show-signal-point", "")); }
+            stage.appendChild(frame);
+        } else {
+            const board = element("div", "ghost-show-board");
+            const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 1000 600"); svg.setAttribute("preserveAspectRatio", "none");
+            svg.classList.add("ghost-show-links");
+            const indexed = new Map(layout.nodes.map(n => [n.part.part_code, n]));
+            // Public frozen node positions; never load the changing gameplay map.
+            for (const n of layout.nodes) {
+                if (!Number.isFinite(n.history.latitude) || !Number.isFinite(n.history.longitude)) continue;
+                const marker = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+                marker.setAttribute("cx", (n.history.longitude + 180) * 1000 / 360);
+                marker.setAttribute("cy", (90 - n.history.latitude) * 600 / 180);
+                marker.setAttribute("r", "4"); marker.classList.add("ghost-show-map-node");
+                svg.appendChild(marker);
+            }
+            for (const [a, b] of layout.edges) {
+                const left = indexed.get(a), right = indexed.get(b);
+                const line = doc.createElementNS("http://www.w3.org/2000/svg", "line");
+                for (const [attr, value] of Object.entries({x1: left.x, y1: left.y, x2: right.x, y2: right.y})) line.setAttribute(attr, value);
+                svg.appendChild(line);
+            }
+            board.appendChild(svg);
+            for (const node of layout.nodes.filter(n => n.visible)) {
+                const card = element("div", "ghost-show-part" + (node.highlighted ? " is-highlighted" : ""));
+                card.style.left = node.x / 10 + "%"; card.style.top = node.y / 6 + "%";
+                addImage(card, "/static/images/ghostnetwork/parts/" + node.part.part_code.toLowerCase() + "_" + node.part.icon_key + ".png", "", node.part.name);
+                card.appendChild(element("span", "", node.part.part_code + " / " + node.part.name));
+                if (scene.id === "part_states") {
+                    const states = [];
+                    if (node.history.discovered_at) states.push("DISCOVERED");
+                    if (node.history.activated_at) states.push("ACTIVE");
+                    if (states.length) card.appendChild(element("small", "", states.join(" → ")));
+                }
+                board.appendChild(card);
+            }
+            stage.appendChild(board);
+            if (scene.elapsed >= 120) {
+                const logs = element("div", "ghost-show-history");
+                const lines = layout.nodes.flatMap(n => [
+                    n.history.discovered_at ? n.part.part_code + " / DISCOVERED / " + n.history.discovered_at : "",
+                    n.history.activated_at ? n.part.part_code + " / ACTIVE / " + n.history.activated_at : ""
+                ].filter(Boolean)).slice(-8);
+                logs.textContent = lines.join("\n"); stage.appendChild(logs);
+            }
+        }
+        stage._showKey = key;
     }
 
     function createController(options) {
@@ -170,7 +384,13 @@
         function hide() {
             if (!doc) return;
             const root = doc.getElementById("ghost-signal-show");
-            if (root) { root.classList.remove("is-active"); root.style.display = "none"; }
+            if (root) {
+                root.classList.remove("is-active"); root.style.display = "none";
+                try {
+                    const stage = root.querySelector(".ghost-signal-show__stage");
+                    clearMontage(stage);
+                } catch (error) { /* Cleanup must survive a broken renderer. */ }
+            }
             const fallback = doc.getElementById("ghost-signal-show-fallback");
             if (fallback) fallback.remove();
             if (timer) global.clearInterval(timer);
@@ -186,6 +406,7 @@
             const phase = phaseAt(snapshot, Date.now(), offsetMs);
             const copy = PHASE_COPY[phase.code] || [phase.label || "GHOSTSIGNAL", "Global transmission in progress"];
             const scene = sceneAt(snapshot, Date.now(), offsetMs);
+            renderMontage(doc, root, snapshot, scene);
             root.setAttribute("data-show-scene", scene ? scene.id : phase.code || "fallback");
             root.querySelector(".ghost-signal-show__signal").textContent = snapshot.signal_public_id || "GHOSTSIGNAL";
             root.querySelector(".ghost-signal-show__phase").textContent = scene ? scene.label : copy[0];
@@ -297,6 +518,10 @@
         }
         function stop() {
             started = false;
+            try {
+                const root = doc && doc.getElementById("ghost-signal-show");
+                if (root) clearMontage(root.querySelector(".ghost-signal-show__stage"));
+            } catch (_) { /* Keep shutdown safe if the renderer failed. */ }
             if (cancelRequest) cancelRequest();
             global.clearInterval(pollTimer);
             global.clearInterval(timer);
@@ -311,7 +536,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 

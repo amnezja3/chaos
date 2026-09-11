@@ -108,6 +108,8 @@ class GhostTransmissionService:
         # Snapshot copying/checksum work happens before acquiring the writer.
         prepared = self._build_signal_from_lock(lock) if not signal else None
         serialized = dumps_json(prepared["payload"]) if prepared else None
+        from .show_manifest import prepare_scene_snapshot
+        scene_snapshot_json = prepare_scene_snapshot(lock, (signal or prepared)["signal_id"])
         with self.repository.transaction():
             current = self.repository.get_cycle(cycle_id) or {}
             existing = self.repository.get_signal_for_cycle(cycle_id)
@@ -123,7 +125,7 @@ class GhostTransmissionService:
             signal = existing or self._persist_signal(prepared, serialized_payload=serialized)
             if signal.get("lock_snapshot_id") != lock.get("lock_snapshot_id"):
                 raise RepositoryIntegrityError("Transmission signal/lock lineage mismatch.")
-            self._ensure_transmission_show(signal, current, lock)
+            self._ensure_transmission_show(signal, current, lock, scene_snapshot_json=scene_snapshot_json)
         if prepare_only:
             return {"ok": True, "cycle_id": cycle_id, "signal": signal,
                     "show": self.repository.get_signal_show_for_cycle(cycle_id)}
@@ -559,13 +561,14 @@ class GhostTransmissionService:
                 "show": show, "show_event": self.repository.get_event_by_dedupe_key(
                     f"ghost:signal_show_started:{signal_id}")}
 
-    def _ensure_transmission_show(self, signal, cycle, lock):
+    def _ensure_transmission_show(self, signal, cycle, lock, scene_snapshot_json=None):
         show = self.show.ensure_for_signal(
             signal, cycle=cycle,
             # Legacy interrupted signals retain their original clock. New
             # transmissions start at the canonical immutable lock timestamp.
             started_at=signal.get("sent_at") or lock.get("locked_at"),
             ends_at=cycle.get("stabilization_until") or None,
+            scene_snapshot_json=scene_snapshot_json,
         )
         self._append_once(
             "ghost.transmission_started", cycle_id=signal["cycle_id"],

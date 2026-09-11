@@ -152,7 +152,7 @@ class GhostSignalShowService:
             payload=safe, entity_id=payload.get("signal_public_id"),
             dedupe_key=f"ghostnetwork:{username}:{event['dedupe_key']}", created_at=event.get("created_at"))
 
-    def ensure_for_signal(self, signal, cycle=None, started_at=None, ends_at=None):
+    def ensure_for_signal(self, signal, cycle=None, started_at=None, ends_at=None, scene_snapshot_json=None):
         signal = signal if isinstance(signal, dict) else {}
         cycle = cycle or self.repository.get_cycle(signal.get("cycle_id")) or {}
         existing = self.repository.get_signal_show_for_signal(signal.get("signal_id"))
@@ -178,6 +178,7 @@ class GhostSignalShowService:
             "to_system_version": cycle.get("next_version") or _version_text(signal.get("next_version")),
             "phase_policy_version": self.policy.get("phase_policy_version") or "ghostsignal-show-v1",
             "status": "active",
+            "scene_snapshot_json": scene_snapshot_json or "{}",
         })
 
     def phase_at(self, show, now=None):
@@ -224,7 +225,7 @@ class GhostSignalShowService:
             "server_now": current.isoformat(),
             "show_phase": phase,
             "show_manifest": build_manifest(
-                self.repository.get_show_presentation_facts(show["signal_id"])),
+                self.repository.get_show_presentation_facts(show["signal_id"]), show.get("scene_snapshot")),
             "from_system_version": show.get("from_system_version") or None,
             "to_system_version": show.get("to_system_version") or None,
             "phase_policy_version": show.get("phase_policy_version") or None,

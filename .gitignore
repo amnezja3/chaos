@@ -52,3 +52,6 @@ Thumbs.db
 
 # Frontend dependency cache, if introduced later
 node_modules/
+
+# Generated, synthetic GhostSignal preview pages (operator QA).
+static/previews/ghostsignal-*.html

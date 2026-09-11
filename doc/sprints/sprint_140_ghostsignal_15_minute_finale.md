@@ -1,6 +1,6 @@
 # Sprint 140 — GhostSignal: pełny 15-minutowy finał CHAOS
 
-Status: `IN PROGRESS / 140.1 LOCAL PASS / SERVER GATE PENDING`
+Status: `IN PROGRESS / 140.1 SERVER TESTS PASS / 140.2 LOCAL TESTS PASS / VISUAL GATE PENDING`
 
 Bramka Sprintu 139 zaliczona 2026-09-11; dowody:
 `doc/audits/139-4-production-e2e-summary.md`.
@@ -54,7 +54,7 @@ utrwalonych show_started_at/show_ends_at; nie opóźniają poprawnego restartu.
 
 Scenariusz dostosowujemy do 139, nie odwrotnie. Transmisja zachodzi na początku
 show zgodnie z backendem; odcinek 06:00–08:00 jest retrospekcją złożenia maszyn
-i już potwierdzonej emisji. Film 07:05–07:35 i wizualizacja około 07:35
+i już potwierdzonej emisji. Film 07:05–07:43,12 i wizualizacja około 07:43,12
 nie oznaczają nowej próby wysłania. Nie opóźniamy ani nie powtarzamy SFX.
 Scena korzysta z utrwalonego potwierdzenia i rzeczywistego signal_sent_at.
 
@@ -154,15 +154,15 @@ Regularność pojawia się dopiero od 05:20; geometria nie tworzy nowych relacji
 
 06:00–07:00: cztery hero assety maszyn po 15 s (nazwa, klan, profesja,
 superpower/superpowers, PARTS 5/5 z canonical config). 07:00–07:05
-wygaszenie i wyciszenie ambientu. 07:05–07:35: 30 s filmu w centralnej ramce,
+wygaszenie i wyciszenie ambientu. 07:05–07:43,12: 38,12 s filmu w centralnej ramce,
 z żywą mapą, logami i telemetrią w tle, bez pełnoekranowego zastąpienia sceny.
 Film jest rekonstrukcją wizualną potwierdzonego zdarzenia, nie przygotowaniem
 przyszłej operacji backendu. Retrospekcja jest czytelnie oznaczona.
 
-Przy istniejącym potwierdzeniu ghost.signal_sent: 07:35–07:38 wizualny replay
+Przy istniejącym potwierdzeniu ghost.signal_sent: 07:43,12–07:46,12 wizualny replay
 błysku/glitchu bez ponownego SFX i bez drugiej emisji,
-07:38–07:43 kurczenie światła do punktu i ciemność, 07:43–07:55 terminal 2108
-z zatwierdzonym tekstem/typewriter, 07:55–08:00 „GHOSTSIGNAL WYSŁANY”
+07:46,12–07:49,12 kurczenie światła do punktu i ciemność, 07:49,12–07:57 terminal 2108
+z zatwierdzonym tekstem/typewriter, 07:57–08:00 „GHOSTSIGNAL WYSŁANY”
 w estetyce Secret Path/Superpowers oraz przejście daty transmisji w datę 2108.
 Te czasy dotyczą montażu retrospekcji, nie momentu emisji. Bez potwierdzenia
 scena nie pokazuje sukcesu i pozostaje w istniejącym trybie recovery 139.
@@ -253,7 +253,7 @@ plikami.
 ### 4.3. Dodatkowe assety od autora
 
 Wymagane: cztery hero assety kompletnych maszyn, stylistycznie wywiedzione
-z ich pięciu części, oraz około 30-sekundowy film w ramce do retrospekcji
+z ich pięciu części, oraz dostarczony film 38,12 s w ramce do retrospekcji
 transmisji. Zachowujemy istniejący SFX sygnału. Terminal 2108 korzysta
 z zatwierdzonego zestawu tekstów; żaden asset nie zawiera logiki emisji.
 
@@ -451,3 +451,140 @@ wejście do mapy, oraz frontendowy podgląd manifestu bez triggera świata.
 Mieszane wersje po pullu są obsługiwane przez legacy fallback. Nie trzeba
 przywracać bazy ani wysyłać nowego GhostSignal dla tej bramki.
 Pełny produkcyjny odbiór reżyserii pozostaje w 140.5.
+
+### Wynik serwerowy 140.1 i odbiór assetów — 2026-09-11
+
+Operator wdrożył `7a7d03c`: 40 testów Python PASS (222,790 s), cztery
+zestawy JS PASS, node --check bez błędów. Reload chaos potwierdzony, PM2 13
+online. Nie zgłoszono jeszcze osobnego wyniku smoke/podglądu scen manifestu.
+
+Dostarczono osiem PNG w static/images/ghostnetwork/signal_sends: po jednym
+wariancie podstawowym i _active dla czterech maszyn. Warianty podstawowe
+1254×1254 mają rzeczywisty kanał alfa; _active 1672×941 nie mają kanału alfa.
+Istniejące 20 części w parts/ ma 128×128 i przezroczystość. W pullu nie ma
+nowych osobnych plików części; nie zakładamy istnienia dodatkowych wersji
+o większej rozdzielczości. Film 30 s jest przygotowywany przez autora.
+Pliki zinwentaryzowane; manifest nadal ma fallback do czasu podłączenia
+rendererów/assetów. Nie wykonano zmian runtime w ramach tego odbioru.
+
+## 11. Realizacja 140.2 — pierwszy montaż 00:00–08:00
+
+Zachowano lokalne wpisy odbioru 140.1. Operator sprostował, że nowe
+przezroczyste assety dotyczą maszyn, nie części. Wykorzystano cztery
+podstawowe maszyny RGBA oraz istniejące części 128×128; warianty _active
+są zarejestrowane w metadanych, ale nie są ładowane jako nieprzezroczyste
+nakładki. Film autora jest podłączony jako wyciszony zapis archiwalny, bez wywoływania emisji.
+
+### Dane i call flow
+
+Istniejący rekord ghost_signal_shows rozszerzono o scene_snapshot_json.
+Transmisja przygotowuje małą projekcję z już odczytanego lock snapshotu
+przed writerem i zapisuje ją razem z show. Kolejność commitów/effects,
+deadline, SFX, settlement, rollover i restart/ACK 139 nie zmieniają się.
+Nie dodano osobnego magazynu, workera ani silnika scen.
+
+Projekcja zawiera maksymalnie 20 części (kod, stan w locku, rzeczywiste daty
+discovery/activation, poprawne współrzędne), 20 kodów ring topology oraz
+jedną datę 2108, wybraną deterministycznie na backendzie z signal_id i zapisaną
+z show. Nie stosuje +82 lata ani losowania w przeglądarce. Brak właścicieli,
+profili, target payloadów, live world i generacji Ollamy. Historyczne show
+nie są backfillowane; bez projekcji działają canonical/text fallbacki.
+
+### Montaż w istniejącym kontrolerze
+
+- 00–03: stopniowe przejęcie UI, wejście części według kompletnych dat
+  discovery lub porządku katalogu, rzeczywiste połączenia, zapisane daty
+  w logach oraz grupowanie 4 × 5. Nie pokazuje nieistniejącej historii containment.
+- 03–06: wyróżnienie kolejnych grup, wspólna sieć i regularny ring według
+  snapshotu. Bez topologii nie rysuje się wymyślonych krawędzi.
+- 06–07: przezroczyste hero assety maszyn, nazwa/klan/części i pięć profesji
+  oraz zdolności odpowiadających częściom.
+- 07–08: pełny film 38,12 s z tekstowym fallbackiem, wizualny replay emisji bez SFX,
+  punkt światła, terminal odtwarzany według czasu serwera oraz faktyczna data
+  wysłania i trwała data 2108. Brak sent utrzymuje istniejące oczekiwanie.
+
+Warstwa tła pokazuje zapisane pozycje węzłów na siatce współrzędnych;
+nie jest pełną mapą terytoriów. Pełny zamrożony świat i rozliczenie mapy
+pozostają w 140.3. Logi 140.2 obejmują dostępne daty części; dodatkowe
+historyczne publikacje nadal wymagają projekcji audience-safe.
+Brak nowych fetchy gameplayowych, nowych timerów i odtwarzania audio.
+Obrazy ładowane tylko dla widocznej sceny, usuwane przy zmianie/ukryciu;
+onerror daje tekst. Tekst podsumowania/lock działa również po awarii montażu.
+Reduced motion wyłącza dryf i błysk replayu; mobile ma pionowy układ hero.
+
+### Walidacja lokalna
+
+25 testów show/manifest/transmisja PASS (74,223 s), następnie regresja
+53 testów Python PASS (154,451 s): HTTP, restart, transmisja i strict audyty.
+Po dodaniu testu migracji końcowe 4 testy PASS (4,254 s).
+Pięć zestawów JS PASS: frontend, recovery, manifest/layout, montage/fallback,
+delta. node --check, py_compile oraz generowanie podglądu PASS.
+Test potwierdza przygotowanie projekcji poza writerem, jej niezmienność
+po konsumpcji i retry, brak prywatnych ownerów, datę 2108 i poprawną topologię.
+Migracja domyślnie read-only, idempotentna, zachowuje historyczne rekordy.
+
+Browser skill nie znalazł dostępnej przeglądarki (lista pusta). Nie wykonano
+automatycznego ani operatorskiego odbioru wizualnego 140.2. Etap nie jest
+zamknięty; lokalne testy nie zastępują oceny kompozycji i mobile.
+
+### Bramka serwerowa 140.2
+
+Po commit/push i pull, przed reloadem: uruchomić izolowane testy z §10,
+dodając do listy names `test_ghostnetwork_endgame_audits` (łącznie 54 testy),
+oraz `node tests/ghost_signal_show_montage.test.js` do zestawów JS.
+Następnie plan migracji:
+
+```bash
+.venv/bin/python -B scripts/migrate_ghostsignal_scene_snapshot.py --db data/game.sqlite3
+```
+
+Przed apply obowiązuje świeży backup SQLite, quick_check i SHA-256 według
+handoffu. Zakres: jedno pole scene_snapshot_json, zero backfillu starego show.
+Po zatwierdzeniu planu:
+
+```bash
+.venv/bin/python -B scripts/migrate_ghostsignal_scene_snapshot.py --db data/game.sqlite3 --apply
+.venv/bin/python -B scripts/migrate_ghostsignal_scene_snapshot.py --db data/game.sqlite3
+```
+
+Po schema_change=false i PASS testów przeładować chaos oraz
+chaos-territory-worker, ponieważ przygotowanie projekcji działa w transmisji.
+Nie reloadować workerów narracji. Zwykły desktop/mobile smoke, brak nowych
+błędów; SFX bez zmian. Nie uruchamiać nowego finału dla podglądu.
+
+### Podgląd scen bez transmisji
+
+Generator tworzy stronę demonstracyjną, bez dostępu do bazy i bez eventów:
+
+```bash
+.venv/bin/python -B tools/build_ghostsignal_show_preview.py --output static/previews/ghostsignal-140-2.html
+```
+
+Otworzyć `/static/previews/ghostsignal-140-2.html` na wdrożonej aplikacji.
+Strona jest jawnie oznaczona jako demo, korzysta z katalogu i jego topology
+anchor, nie z historii produkcyjnego cyklu. Ma wybór scen, suwak 0–479 s
+i przełącznik potwierdzenia sygnału. Wszystkie fetch w tej osobnej stronie
+są lokalną atrapą; nie zmienia globalnego fetch w prawdziwych sesjach gry.
+Nie nadpisuje istniejącego pliku podglądu. Wygenerowanego HTML nie commitować.
+Sprawdzić: 20 części, cztery grupy, ring, cztery hero, brak SFX przy seek,
+film (w tym seek w jego środek), terminal i potwierdzenie, powrót do wcześniejszej sceny,
+wariant mobile oraz waiting przy odznaczeniu potwierdzenia emisji.
+
+### Film autora i korekta montażu — 2026-09-11
+
+`static/video/ghostsignal_transmission_video.mp4`: ffprobe potwierdza 38,120 s,
+H.264/yuv420p, 720×480, 25 fps, AAC, 7 003 148 bajtów; dodatkowy strumień MJPEG
+jest okładką. Źródło pozostaje niezmienione. Film wyciszony, playsinline,
+object-fit: contain. Odtwarzanie 07:05–07:43,12 w oryginalnym tempie;
+replay 07:43,12–07:46,12, punkt do 07:49,12, terminal do 07:57,
+potwierdzenie do 08:00. Zegar 900 s i kontrakt 139 pozostają bez zmian.
+
+Seek/recovery koryguje currentTime istniejącym tickiem, również po późnym
+załadowaniu metadanych. Błąd zasobu lub odmowa autoplay daje tekst zastępczy.
+Zmiana sceny/ukrycie zatrzymuje film i zwalnia src; koniec filmu nie emituje
+eventów. Testy JS obejmują wejście w środek, korektę czasu, cleanup i onerror.
+Odbiór wizualny autoplay/mobile wymaga podglądu na serwerze.
+
+Końcowa regresja po podłączeniu filmu: 54 testy Python PASS (170,769 s),
+pięć zestawów JS i node --check PASS. Pełne dekodowanie MP4 przez ffmpeg
+bez błędów. Kompletna procedura: [deploy_140_2.md](../runbooks/deploy_140_2.md).
