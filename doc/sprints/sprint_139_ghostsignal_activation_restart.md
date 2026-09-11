@@ -1,6 +1,6 @@
 # Sprint 139 — GhostSignal: natychmiastowy show i kontrolowany restart
 
-Status: `IN PROGRESS / 139.1 CLOSED / 139.2 CLOSED BY OPERATOR / 139.3 CLOSED / 139.4 PREFLIGHT`
+Status: `COMPLETE / SERVER E2E PASS / 139.1–139.4 CLOSED`
 
 Źródło produktowe: `doc/sprints/sprint_139_opis_15-minutowe_show.md`
 
@@ -812,3 +812,33 @@ Wymagane wdrożenie poprawki i ponowienie strict postflight na tym samym
 cyklu, z zachowaniem pierwotnego raportu. Nie wymaga kolejnego triggera,
 restore ani restartu procesów. Nie ustalono jeszcze dokładnego źródła
 produkcjnego znacznika z sierpnia ani pełnej osi czasu obserwowanej przez UI.
+
+### 139.4 — końcowy strict postflight PASS
+
+Operator ponowił audyt po poprawce zakresu nagród: ok=true,
+status=complete, integrity_errors=[], pending=[], chronologia valid.
+Show created: 2026-09-11T07:24:15.001871+00:00;
+pierwszy skutek: 2026-09-11T07:24:15.167819+00:00;
+signal sent: 2026-09-11T07:24:15.950182+00:00.
+Show wyprzedza pierwszy skutek o 165,948 ms. Od utworzenia show do sent
+upłynęło 948,311 ms. Nie należy na tej podstawie przypisywać obserwowanego
+opóźnienia SFX 2–3 min wykonaniu samych skutków transmisji; dokładna relacja
+obserwacji UI do znaczników backendu nie została rozstrzygnięta.
+
+Wynik 139.4: wizualny E2E i techniczny postflight PASS, jeden restart event,
+3 boot receipts i 3 ACK, runtime/lifecycle/narrative PASS. Do formalnego
+zamknięcia pozostało clean stop monitora i zabezpieczenie końcowych dowodów.
+
+### Zamknięcie Sprintu 139 — 2026-09-11
+
+Operator potwierdził clean stop monitora: status=stopped, samples=1216,
+errors=0, last_error pusty. Monitor zaobserwował restart_requested,
+cycle_closed i next_cycle_active o 07:39:17.681769 UTC, a ACK o
+07:39:19.680102 UTC. Są to czasy obserwacji; kanoniczne restart event
+created_at wynosi 07:39:16.244206 UTC. Potwierdzono 3/3 receipts/ACK.
+
+Sprint 139 zamknięty: COMPLETE / SERVER E2E PASS. Podsumowanie przekazanych
+przez operatora dowodów: `doc/audits/139-4-production-e2e-summary.md`.
+Pełne raporty i JSONL pozostają na serwerze w wcześniej wskazanym katalogu;
+lokalne podsumowanie nie jest kopią pełnego logu. SFX pozostaje przypisany
+do ghost.signal_sent zgodnie z decyzją operatora dla Sprintu 140.

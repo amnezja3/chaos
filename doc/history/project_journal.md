@@ -4320,3 +4320,14 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Status: 139.3 CLOSED; pełny production E2E show/restart/boot/ACK
   oraz warianty kart/mobile pozostają w 139.4. Nie uruchamiano nowego finału
   w ramach tego potwierdzenia.
+
+### 2026-09-11 — Sprint 139 COMPLETE / SERVER E2E PASS
+
+- Po uzgodnionym restore checkpointu 001 wykonano pełny finał: show,
+  powrót kart/mobile, rollover, automatyczny restart, Signal Registry.
+- Strict postflight PASS po naprawie zakresu dat nagród w audycie;
+  runtime/lifecycle/narrative PASS. Jeden restart event, 3 boot receipts i 3 ACK.
+- Monitor clean stop: 1216 próbek, zero błędów. Dowody operatora opisano
+  w `doc/audits/139-4-production-e2e-summary.md`; pełne logi pozostają na serwerze.
+- SFX pozostaje przy ghost.signal_sent na potrzeby Sprintu 140.
+  Sprint 140 pozostaje planowany, z zaliczoną bramką mechaniki 139.

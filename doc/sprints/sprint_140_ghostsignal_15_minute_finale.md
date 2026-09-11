@@ -1,6 +1,11 @@
 # Sprint 140 — GhostSignal: pełny 15-minutowy finał CHAOS
 
-Status: `PLANNED / REQUIRES SPRINT 139 MECHANICS PASS`
+Status: `PLANNED / SPRINT 139 MECHANICS PASS`
+
+Bramka Sprintu 139 zaliczona 2026-09-11; dowody:
+`doc/audits/139-4-production-e2e-summary.md`.
+Decyzja operatora: zachować istniejące przypisanie SFX sygnału do
+`ghost.signal_sent` i wykorzystać ten moment w reżyserii Sprintu 140.
 
 Źródło produktowe: `doc/sprints/sprint_139_opis_15-minutowe_show.md`
 
