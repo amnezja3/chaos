@@ -48,9 +48,10 @@ zakresem przeglądu, nie stwierdzeniem usterek zaakceptowanego podglądu.
   pozostają obowiązujące. Późniejsza wizualizacja emisji jest retrospekcją.
 - Video zachowuje proporcje 3:2 i pole maksymalnie 720×480, bez interakcji,
   kontrolek i fullscreen w odtwarzaczu. Nie powiększamy go kosztem jakości.
-- Cztery MP3 mają łącznie 860,055376 s. Tło zastępuje radio i zatrzymuje się
-  na film 38,12 s; pozostałe około 1,825 s to cisza. Ustawienia mute są
-  nadrzędne. Decyzja dotycząca własnego audio filmu nadal wymaga ustalenia.
+- Cztery MP3 mają łącznie 860,055376 s. Autor zatwierdził AAC filmu i 0,5 s
+  nakładania: fade-out muzyki 425–425,5 s, pauza do 463,12 s, fade-in do
+  463,62 s. Muzyka kończy się w 897,675376 s, ostatnie około 2,325 s to cisza.
+  Tło zastępuje radio, ustawienia mute są nadrzędne. Ocenę tempa robimy z audio.
 - Zachowujemy ograniczone ładowanie assetów i zwalnianie zasobów po scenie.
   Poprawki estetyczne nie mogą pogorszyć blokady UI, recovery ani dostępności.
 

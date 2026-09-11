@@ -28,9 +28,90 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         errorSkips: 0,
         elements: {}
     };
+    let showPlayback = null;
+    let sourceGeneration = 0;
+    const showResumeKey = "chaos:ghost-show-radio-resume";
+    let pendingRadioRestore = null;
+    let resumeAutoplayAllowed = true;
+    try {
+        const saved = JSON.parse(window.sessionStorage.getItem(showResumeKey) || "null");
+        if (saved && typeof saved.wasPlaying === "boolean") {
+            pendingRadioRestore = saved;
+            resumeAutoplayAllowed = saved.wasPlaying;
+            state.volume = Math.max(0, Math.min(1, Number(saved.volume) || 0));
+            state.muted = !!saved.muted;
+        }
+    } catch (_) { /* Storage is optional. */ }
+
+    function rememberShowRadio() {
+        if (!showPlayback) return;
+        try { window.sessionStorage.setItem(showResumeKey, JSON.stringify({
+            wasPlaying: showPlayback.wasPlaying, originalSrc: showPlayback.originalSrc,
+            originalTime: showPlayback.originalTime, volume: state.volume, muted: state.muted
+        })); } catch (_) { /* Storage is optional. */ }
+    }
+
+    function clearShowRadioReceipt() {
+        try { window.sessionStorage.removeItem(showResumeKey); } catch (_) { /* Optional. */ }
+    }
+
+    function cancelShowFade(current) {
+        if (!current) return;
+        clearTimeout(current.fadeTimer);
+        if (current.fadeFrame) cancelAnimationFrame(current.fadeFrame);
+    }
+
+    function scheduleShowFade() {
+        const current = showPlayback;
+        if (!current) return;
+        cancelShowFade(current);
+        const step = () => {
+            if (showPlayback !== current) return;
+            const t = current.elapsed + (Date.now() - current.anchor) / 1000;
+            const start = current.videoStart, end = current.videoEnd;
+            const fadingOut = t >= start && t < start + 0.5;
+            const fadingIn = t >= end && t < end + 0.5;
+            current.gain = fadingOut ? (start + 0.5 - t) / 0.5 : fadingIn ? (t - end) / 0.5
+                : t >= start + 0.5 && t < end ? 0 : 1;
+            if (t >= start + 0.5 && t < end) { current.paused = true; current.inVideo = true; current.offset = current.pauseOffset; state.audio.pause(); }
+            if (t >= end && current.inVideo) {
+                current.inVideo = false; current.paused = !current.src;
+                current.offset += t - end;
+                syncShowMedia();
+            }
+            syncAudioSettings();
+            if (fadingOut || fadingIn) current.fadeFrame = requestAnimationFrame(step);
+            else {
+                const next = t < start ? start : t < end ? end : null;
+                if (next !== null) current.fadeTimer = setTimeout(step, Math.max(0, (next - t) * 1000));
+            }
+        };
+        step();
+    }
+
+    function syncShowMedia() {
+        if (!showPlayback || !state.audio) return;
+        const current = showPlayback;
+        if (state.audio.readyState >= 1 && Number.isFinite(state.audio.duration)) {
+            const target = Math.max(0, Math.min(state.audio.duration - 0.05, current.offset));
+            if (Math.abs(state.audio.currentTime - target) > 0.75) state.audio.currentTime = target;
+        }
+        if (current.paused || current.failed || current.blocked || !current.allowed) {
+            state.audio.pause(); return;
+        }
+        if (state.audio.paused && !current.playPending) {
+            current.playPending = true;
+            const promise = state.audio.play();
+            if (promise && promise.then) promise.then(() => {
+                current.playPending = false;
+                if (showPlayback === current && current.paused) state.audio.pause();
+            }, () => { current.playPending = false; current.blocked = true; });
+            else current.playPending = false;
+        }
+    }
 
     function escapeRadioHTML(value) {
-        return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        return String(value == null ? "" : value).replace(/[&<>"']/g, (char) => ({
             "&": "&amp;",
             "<": "&lt;",
             ">": "&gt;",
@@ -88,7 +169,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             const matchIndex = playlist.findIndex(track => String(track.file || "").trim().toLowerCase() === requestedFile);
             if (matchIndex >= 0) return matchIndex;
         }
-        const rawIndex = Number(options.trackIndex ?? options.index);
+        const rawIndex = Number(options.trackIndex == null ? options.index : options.trackIndex);
         if (Number.isFinite(rawIndex)) {
             const zeroBased = rawIndex > 0 ? rawIndex - 1 : rawIndex;
             return Math.max(0, Math.min(Math.floor(zeroBased), playlist.length - 1));
@@ -97,7 +178,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
     }
 
     function displayTrackTitle(track, fallbackIndex = 0) {
-        const source = String(track?.title || track?.file || `Track ${fallbackIndex + 1}`);
+        const source = String((track && (track.title || track.file)) || `Track ${fallbackIndex + 1}`);
         const filename = source.split(/[\\/]/).pop() || source;
         return filename.replace(/\.mp3$/i, "").replace(/[_-]+/g, " ").trim() || `Track ${fallbackIndex + 1}`;
     }
@@ -110,7 +191,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
 
     function isAutoplayEnabled() {
         try {
-            return window.localStorage?.getItem("ghost_radio_autoplay") !== "0";
+            return !window.localStorage || window.localStorage.getItem("ghost_radio_autoplay") !== "0";
         } catch (error) {
             return true;
         }
@@ -133,8 +214,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
 
     function updateTrackView() {
         const track = currentTrack();
-        const channelName = state.channel?.name || "Ghost Hack Radio";
-        const trackTitle = track?.title || "Brak utworu";
+        const channelName = (state.channel && state.channel.name) || "Ghost Hack Radio";
+        const trackTitle = (track && track.title) || "Brak utworu";
         const position = state.playlist.length ? `${state.currentIndex + 1} / ${state.playlist.length}` : "0 / 0";
 
         if (state.elements.channelName) state.elements.channelName.textContent = channelName;
@@ -148,8 +229,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
 
     function updateProgress() {
         const audio = state.audio;
-        const duration = Number.isFinite(audio?.duration) && audio.duration > 0 ? audio.duration : 0;
-        const current = Number.isFinite(audio?.currentTime) ? audio.currentTime : 0;
+        const duration = audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+        const current = audio && Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
         const percent = duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0;
         if (state.elements.progressFill) {
             state.elements.progressFill.style.width = `${percent}%`;
@@ -167,6 +248,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
     }
 
     function setAudioSource(index = state.currentIndex) {
+        if (showPlayback) return;
         if (!state.audio || !state.playlist.length) return;
         state.currentIndex = Math.max(0, Math.min(index, state.playlist.length - 1));
         const track = currentTrack();
@@ -188,7 +270,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         const userVolume = Math.max(0, Math.min(1, Number(state.volume) || 0));
         const duckGain = Math.max(0, Math.min(1, Number(state.duckGain) || 0));
         state.syncingVolume = true;
-        state.audio.volume = userVolume * duckGain;
+        state.audio.volume = userVolume * duckGain * (showPlayback ? Math.max(0, Math.min(1, showPlayback.gain)) : 1);
         state.audio.muted = Boolean(state.muted);
         state.syncingVolume = false;
         updateVolumeView();
@@ -223,10 +305,12 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         if (!state.audio || state.audio.dataset.ghostRadioBound === "1") return;
         state.audio.dataset.ghostRadioBound = "1";
         state.audio.addEventListener("ended", () => {
+            if (showPlayback) return;
             GhostRadio.next({ fromEnded: true });
         });
         state.audio.addEventListener("timeupdate", updateProgress);
         state.audio.addEventListener("loadedmetadata", updateProgress);
+        state.audio.addEventListener("loadedmetadata", syncShowMedia);
         state.audio.addEventListener("play", () => {
             state.isPlaying = true;
             state.resumeAfterSourceChange = false;
@@ -244,6 +328,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             updatePlaybackView();
         });
         state.audio.addEventListener("error", () => {
+            if (showPlayback) { showPlayback.failed = true; return; }
             if (state.resumeAfterSourceChange && state.playlist.length && state.errorSkips < state.playlist.length) {
                 state.errorSkips += 1;
                 setStatus("SIGNAL SEARCH");
@@ -296,6 +381,83 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
     }
 
     const GhostRadio = {
+        syncShow(request) {
+            if (!request || !request.key) return;
+            if (!state.audio) {
+                state.audio = new Audio(); bindAudioEvents(); syncAudioSettings();
+            }
+            if (!showPlayback || showPlayback.key !== request.key) {
+                if (showPlayback) this.endShow(false);
+                sourceGeneration += 1;
+                showPlayback = {key: request.key, originalSrc: state.audio.getAttribute("src") || "",
+                    originalTime: state.audio.currentTime || 0, wasPlaying: !state.audio.paused,
+                    allowed: isAutoplayEnabled(), src: null, offset: 0, gain: 1};
+                if (pendingRadioRestore) {
+                    showPlayback.wasPlaying = pendingRadioRestore.wasPlaying;
+                    showPlayback.originalSrc = /^\/static\/mp3\/radio\/channel\//.test(pendingRadioRestore.originalSrc || "")
+                        ? pendingRadioRestore.originalSrc : "";
+                    showPlayback.originalTime = Math.max(0, Number(pendingRadioRestore.originalTime) || 0);
+                    pendingRadioRestore = null;
+                }
+                rememberShowRadio();
+                state.resumeAfterSourceChange = false;
+            }
+            const current = showPlayback;
+            const src = /^\/static\/audio\/ghostnetwork\/show\/ghostsignal_show_part_0[1-4]\.mp3$/.test(request.src || "") ? request.src : "";
+            current.offset = Math.max(0, Number(request.offset) || 0);
+            current.paused = !!request.paused || !src;
+            current.elapsed = Number(request.elapsed) || 0; current.anchor = Date.now();
+            current.pauseOffset = current.offset + Math.max(0, 425.5 - current.elapsed);
+            current.videoStart = 425; current.videoEnd = 463.12;
+            current.inVideo = current.elapsed >= current.videoStart + 0.5 && current.elapsed < current.videoEnd;
+            if (current.src !== src) {
+                current.src = src; current.failed = false; current.playPending = false;
+                state.audio.pause();
+                if (src) state.audio.src = src; else state.audio.removeAttribute("src");
+                state.audio.preload = "auto";
+                state.audio.load();
+            }
+            scheduleShowFade(); syncAudioSettings(); syncShowMedia();
+        },
+
+        unlockShow() {
+            if (showPlayback) {
+                showPlayback.allowed = true; showPlayback.blocked = false;
+                syncShowMedia();
+            }
+        },
+
+        endShow(resume = true) {
+            if (!showPlayback) {
+                if (pendingRadioRestore && resume) {
+                    const old = pendingRadioRestore;
+                    pendingRadioRestore = null; clearShowRadioReceipt();
+                    if (old.wasPlaying && isAutoplayEnabled()) this.startAutoplay().catch(() => {});
+                }
+                return;
+            }
+            const old = showPlayback;
+            cancelShowFade(old);
+            showPlayback = null; sourceGeneration += 1;
+            if (resume) clearShowRadioReceipt();
+            else pendingRadioRestore = {wasPlaying: old.wasPlaying, originalSrc: old.originalSrc,
+                originalTime: old.originalTime, volume: state.volume, muted: state.muted};
+            state.audio.pause();
+            state.audio.preload = "metadata";
+            const generation = sourceGeneration;
+            if (old.originalSrc) {
+                const restore = () => {
+                    state.audio.removeEventListener("loadedmetadata", restore);
+                    if (showPlayback || sourceGeneration !== generation) return;
+                    if (Number.isFinite(state.audio.duration)) state.audio.currentTime = Math.min(old.originalTime, state.audio.duration);
+                    if (resume && old.wasPlaying) this.play();
+                };
+                state.audio.addEventListener("loadedmetadata", restore);
+                state.audio.src = old.originalSrc;
+            } else { state.audio.removeAttribute("src"); }
+            state.audio.load(); syncAudioSettings();
+        },
+
         async loadChannels() {
             try {
                 const response = await fetch(radioChannelsUrl(), { cache: "no-store" });
@@ -321,6 +483,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         init(root = document) {
+            if (showPlayback) return Promise.resolve(state.channel);
             if (!state.audio) {
                 state.audio = new Audio();
                 state.audio.preload = "metadata";
@@ -343,6 +506,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         async loadChannel(id = state.defaultChannel, options = {}) {
+            if (showPlayback) return state.channel;
+            const generation = sourceGeneration;
             const channelId = String(id || state.defaultChannel);
             setStatus("SIGNAL LOADING");
             const response = await fetch(radioManifestUrl(channelId), { cache: "no-store" });
@@ -351,6 +516,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 throw new Error(`Ghost Radio channel load failed: ${response.status}`);
             }
             const manifest = await response.json();
+            if (showPlayback || generation !== sourceGeneration) return state.channel;
             const channel = manifest.channel || {};
             if (Number(channel.schema) !== 1) {
                 setStatus("BAD SCHEMA");
@@ -388,6 +554,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         async playTrack(channelId, options = {}) {
+            if (showPlayback) return false;
             if (!state.audio) {
                 state.audio = new Audio();
                 state.audio.preload = "metadata";
@@ -403,6 +570,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         async play() {
+            if (showPlayback) return false;
             if (!state.audio || !currentTrack()) return false;
             try {
                 await state.audio.play();
@@ -433,6 +601,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 }
             }
             syncAudioSettings();
+            rememberShowRadio();
             return state.muted;
         },
 
@@ -446,6 +615,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 state.muted = true;
             }
             syncAudioSettings();
+            rememberShowRadio();
             return state.volume;
         },
 
@@ -479,6 +649,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         async startAutoplay() {
+            if (showPlayback || pendingRadioRestore || !resumeAutoplayAllowed) return false;
             if (!isAutoplayEnabled()) {
                 setStatus("AUTOPLAY OFF");
                 return false;
@@ -494,6 +665,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         armFirstInteractionAutostart() {
+            if (window.top && window.top !== window) return false;
             if (state.firstInteractionBound || state.firstInteractionAttempted || !isAutoplayEnabled()) {
                 return false;
             }
@@ -516,10 +688,11 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         next(options = {}) {
+            if (showPlayback) return;
             if (!state.playlist.length) return;
             const wasPlaying = state.isPlaying || options.fromEnded;
             const atEnd = state.currentIndex >= state.playlist.length - 1;
-            if (atEnd && !state.channel?.loop) {
+            if (atEnd && !(state.channel && state.channel.loop)) {
                 this.pause();
                 return;
             }
@@ -534,6 +707,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         previous() {
+            if (showPlayback) return;
             if (!state.playlist.length) return;
             const wasPlaying = state.isPlaying;
             const previousIndex = state.currentIndex <= 0 ? state.playlist.length - 1 : state.currentIndex - 1;
@@ -590,7 +764,9 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 muted: state.muted,
                 duckGain: state.duckGain,
                 duckRequests: state.duckRequests.size,
-                autostartBlocked: state.autostartBlocked
+                autostartBlocked: state.autostartBlocked,
+                showActive: !!showPlayback,
+                showAudioBlocked: !!(showPlayback && (showPlayback.blocked || !showPlayback.allowed))
             };
         }
     };

@@ -9727,3 +9727,10 @@ form button:hover {
 .ghost-show-settlement-map polygon { stroke: #71ffca; stroke-width: 2; }
 .ghost-show-settlement-map .is-before { fill: #145e4e; }
 .ghost-show-settlement-map .is-consumed { fill: #252d32; stroke-dasharray: 6 4; }
+
+.ghost-signal-show__sound { margin-top: 8px; padding: 6px 12px; background: #092e23; border: 1px solid #52e5b5; color: #d5fff1; font: inherit; cursor: pointer; }
+.ghost-signal-show__sound:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.ghost-signal-show[data-show-scene="shutdown"] .ghost-signal-show__stage { opacity: calc(1 - var(--scene-progress)); }
+@media (prefers-reduced-motion: reduce) {
+    .ghost-signal-show[data-show-scene="shutdown"] .ghost-signal-show__stage { opacity: 1; }
+}

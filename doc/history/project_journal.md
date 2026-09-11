@@ -4433,3 +4433,21 @@ fikcyjnych danych. Podgląd DEMO rozszerzono do 839 s; audio pozostaje w 140.4,
 a stylizacja w 140.stylization.1+. Regresja 63 Python PASS, końcowe 10 PASS;
 pięć zestawów JS i generator PASS. Zestaw serwerowy: 64 testy. Procedura:
 doc/runbooks/deploy_140_3.md. Wdrożenie i odbiór operatora oczekują wykonania.
+
+### 2026-09-11 — 140.3 odbiór zakresu, 140.4 audio i końcówka
+
+Operator: 87dab45, 64 Python PASS (281,306 s), JS PASS, schema_change:false,
+PM2 13/14 online po reloadzie. Zaakceptował sekwencję i zakres scen; tempo
+oceni z muzyką, stylizacja pozostaje odłożona. Podgląd DEMO nie jest dowodem
+odbioru danych historycznego finału — ta walidacja pozostaje do 140.5.
+
+Autor zatwierdził AAC filmu i 0,5 s nakładania na jego wejściu. Zaimplementowano
+czasowe przejęcie istniejącego Audio w GhostRadio przez cztery MP3, fade-out
+425–425,5 s, pauzę do 463,12 s i fade-in 0,5 s. Koniec muzyki 897,675376 s.
+Stan radio/mute przechodzi przez restart w małym sessionStorage. Guard top
+window zapobiega drugiej ścieżce z iframe. SFX ghost.signal_sent bez zmian.
+Sceny 14–15: ranking, statystyki, archiwum i oczekiwanie na restart według 139.
+Podgląd ma teraz pełne 15 minut i rzeczywiste media na danych demonstracyjnych.
+64 Python PASS (204,277 s), siedem zestawów JS PASS, syntax i generator PASS.
+Procedura odsłuchu: doc/runbooks/deploy_140_4.md. Brak nowej migracji.
+Zmiany lokalne, odbiór audio i wdrożenie oczekują operatora.

@@ -48,7 +48,10 @@ class ShowManifestTest(unittest.TestCase):
         video = next(a for a in manifest["assets"] if a["kind"] == "video")
         scene = next(s for s in scenes if s["id"] == "transmission_video")
         self.assertAlmostEqual(scene["end"] - scene["start"], video["duration_seconds"])
-        self.assertTrue(video["available"] and video["muted"])
+        self.assertTrue(video["available"])
+        self.assertFalse(video["muted"])
+        self.assertTrue(manifest["audio"]["video_audio"])
+        self.assertEqual(len(manifest["audio"]["show_tracks"]), 4)
         self.assertTrue(next(s for s in scenes if s["id"] == "transmission_replay")["requires_signal_sent"])
 
     def test_polling_projection_has_constant_queries_with_35mb_profile_and_payload(self):

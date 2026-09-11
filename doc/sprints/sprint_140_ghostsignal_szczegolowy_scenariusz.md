@@ -1,5 +1,12 @@
 # Sprint 140 — szczegółowy scenariusz GhostSignal Final Show
 
+Aktualizacja audio 140.4: autor zatwierdził dźwięk AAC filmu oraz nakładanie
+wejścia przez 0,5 s. Obowiązuje fade-out MP3 425–425,5 s, pauza 425,5–463,12 s
+i fade-in 463,12–463,62 s. Cztery MP3 kończą się w 897,675376 s; końcowa cisza
+to około 2,325 s. Ta decyzja zastępuje wcześniejsze zapisy o wyciszeniu filmu
+i pauzie trwającej całe 38,12 s. Kolejność/zakres scen 140.3 zaakceptowane;
+tempo podlega odsłuchowi, a stylizacja pozostaje w 140.stylization.1+.
+
 Scenariusz autora przekazany 2026-09-11, dostosowany na jego polecenie do zatwierdzonego Sprintu 139. Plan wykonawczy: [Sprint 140](sprint_140_ghostsignal_15_minute_finale.md). Godziny oznaczają montaż warstwy prezentacji. Backend wysyła sygnał na początku show; późniejsza scena transmisji jest oznaczoną retrospekcją. Nie zmieniamy harmonogramu, deadline'u, settlementu ani restartu 139.
 
 

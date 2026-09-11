@@ -214,7 +214,12 @@ def build_manifest(facts, scene_snapshot=None):
              "available": True, "fallback": "canonical_parts"} for machine in MACHINES
         ] + [{"id": "ghostsignal_transmission_video", "kind": "video",
               "src": "/static/video/ghostsignal_transmission_video.mp4",
-              "available": True, "duration_seconds": 38.12, "muted": True, "fallback": "text"}],
+              "available": True, "duration_seconds": 38.12, "muted": False, "fallback": "text"}],
         "audio": {"event": "ghost.signal_sent", "sfx_key": "ghostnetwork.signal",
-                  "owner": "existing_delta_sfx", "replay": False},
+                  "owner": "existing_delta_sfx", "replay": False,
+                  "show_tracks": [{"src": "/static/audio/ghostnetwork/show/ghostsignal_show_part_0" + str(i + 1) + ".mp3",
+                                   "duration": duration} for i, duration in enumerate(
+                                       (203.702813, 210.964875, 234.083250, 211.304438))],
+                  "video_start": 425, "video_end": 463.12, "video_audio": True,
+                  "fade_seconds": 0.5, "overlap_video_intro": True},
     }

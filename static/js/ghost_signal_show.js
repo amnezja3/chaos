@@ -50,7 +50,7 @@
         root.setAttribute("aria-live", "polite");
         root.innerHTML = [
             '<div class="ghost-signal-show__grid"></div>',
-            '<div class="ghost-signal-show__stage" aria-hidden="true"></div>',
+            '<div class="ghost-signal-show__stage" aria-live="off"></div>',
             '<div class="ghost-signal-show__panel">',
             '<div class="ghost-signal-show__eyebrow">GHOSTNETWORK // GLOBAL EVENT</div>',
             '<div class="ghost-signal-show__signal"></div>',
@@ -59,6 +59,7 @@
             '<div class="ghost-signal-show__versions"></div>',
             '<div class="ghost-signal-show__progress"><span></span></div>',
             '<div class="ghost-signal-show__time"></div>',
+            '<button type="button" class="ghost-signal-show__sound">Dźwięk</button>',
             '</div>'
         ].join("");
         doc.body.appendChild(root);
@@ -158,7 +159,12 @@
             const playing = video.play();
             if (playing && playing.then) playing.then(() => { video._showPlayPending = false; }, () => {
                 video._showPlayPending = false;
-                if (stage._video === video && video.onerror) video.onerror();
+                if (stage._video !== video) return;
+                video._audioBlocked = true; video.muted = true;
+                const silent = video.play();
+                if (silent && silent.catch) silent.catch(() => {
+                    if (stage._video === video && video.onerror) video.onerror();
+                });
             });
             else video._showPlayPending = false;
         }
@@ -166,7 +172,7 @@
 
     function renderMontage(doc, root, snapshot, scene) {
         const stage = root.querySelector(".ghost-signal-show__stage");
-        if (!stage || !scene || scene.blocked || scene.elapsed >= 840) {
+        if (!stage || !scene || scene.blocked) {
             clearMontage(stage);
             root.classList.remove("has-montage");
             return;
@@ -175,6 +181,8 @@
         const history = manifest.cycle_history || {};
         const settlement = history.settlement || {};
         const pageCounts = {players: Math.ceil((settlement.players || []).length / 4),
+            player_ranking: Math.ceil((settlement.players || []).length / 4),
+            clan_ranking: Math.ceil((settlement.clans || []).length / 4),
             achievements: Math.ceil((settlement.players || []).length / 4),
             reward_ledger: Math.ceil((settlement.reward_groups || []).length / 4),
             clans: Math.ceil((settlement.clans || []).length / 4),
@@ -271,6 +279,26 @@
                 line("Clan Ghost Score / " + data.score_policy);
                 for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line(clan.code + " / " + clan.score
                     + " / uczestnicy: " + clan.members + " / " + clan.rsp + " RSP");
+            } else if (scene.elapsed >= 840) {
+                if (scene.id === "player_ranking") {
+                    line("RANKING GRACZY / " + data.players_total);
+                    if (data.players_truncated) line("Wyświetlany jest wybór pierwszych " + (data.players || []).length + " uczestników.");
+                    for (const player of (data.players || []).slice(pageIndex * 4, pageIndex * 4 + 4))
+                        line(player.rank + ". " + player.alias + " / " + player.rsp + " RSP");
+                } else if (scene.id === "clan_ranking") {
+                    line("RANKING KLANÓW / " + data.score_policy);
+                    for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4))
+                        line(clan.rank + ". " + clan.code + " / " + clan.score);
+                } else if (scene.id === "cycle_statistics") {
+                    line("Uczestnicy: " + data.players_total + " / nagrody: " + data.rewards_total);
+                    line("RSP finału: " + data.rsp_total + " / terytoria: " + data.territories_total);
+                } else if (scene.id === "archive") {
+                    line("SIGNAL REGISTRY / " + snapshot.signal_public_id);
+                    line("Archiwum finału będzie dostępne na pulpicie po restarcie.");
+                } else {
+                    line("GHOSTSYSTEM / OCZEKIWANIE NA RESTART");
+                    line("Przejście nastąpi po potwierdzeniu nowego cyklu.");
+                }
             } else {
                 const layers = {
                     system_layers: "CHAOS / warstwy systemu",
@@ -353,7 +381,12 @@
                         if (stage._video !== video) return;
                         syncVideo(stage, {progress: video._showTarget / video._showDuration});
                         const playing = video.play();
-                        if (playing && playing.catch) playing.catch(failed);
+                        if (playing && playing.catch) playing.catch(() => {
+                            if (stage._video !== video) return;
+                            video._audioBlocked = true; video.muted = true;
+                            const silent = video.play();
+                            if (silent && silent.catch) silent.catch(failed);
+                        });
                         fallback.style.display = "none";
                     };
                     syncVideo(stage, scene);
@@ -420,6 +453,28 @@
         stage._showKey = key;
     }
 
+    function showAudioAt(snapshot, now, offset) {
+        const config = snapshot && snapshot.show_manifest && snapshot.show_manifest.audio;
+        const start = Date.parse(snapshot && snapshot.show_started_at || "");
+        const end = Date.parse(snapshot && snapshot.show_ends_at || "");
+        if (!snapshot || !snapshot.show_active || !config || !Array.isArray(config.show_tracks)
+                || config.show_tracks.length !== 4 || !Number.isFinite(start) || !(end > start)) return null;
+        const elapsed = Math.max(0, (now + (offset || 0) - start) * 900 / (end - start));
+        const pauseAt = 425.5, resumeAt = 463.12;
+        const position = elapsed < pauseAt ? elapsed : elapsed < resumeAt ? pauseAt : elapsed - (resumeAt - pauseAt);
+        let base = 0;
+        for (const track of config.show_tracks) {
+            if (!Number.isFinite(track.duration) || track.duration <= 0) return null;
+            if (position < base + track.duration) return {key: snapshot.signal_public_id || snapshot.show_started_at,
+                src: track.src, offset: position - base, elapsed,
+                paused: elapsed >= pauseAt && elapsed < resumeAt};
+            base += track.duration;
+        }
+        return {key: snapshot.signal_public_id || snapshot.show_started_at, src: "", offset: 0, elapsed, paused: true};
+    }
+
+    function ownsShowAudio() { return !global.top || global.top === global; }
+
     function createController(options) {
         options = options || {};
         const doc = options.document || global.document;
@@ -428,6 +483,7 @@
         let offsetMs = 0;
         let timer = 0;
         let pollTimer = 0;
+        let mediaTimer = 0;
         let inFlight = null;
         let cancelRequest = null;
         let started = false;
@@ -496,6 +552,8 @@
         }
 
         function hide() {
+            global.clearTimeout(mediaTimer); mediaTimer = 0;
+            if (ownsShowAudio() && global.GhostRadio && global.GhostRadio.endShow) global.GhostRadio.endShow(!rebooting);
             if (!doc) return;
             const root = doc.getElementById("ghost-signal-show");
             if (root) {
@@ -520,7 +578,47 @@
             const phase = phaseAt(snapshot, Date.now(), offsetMs);
             const copy = PHASE_COPY[phase.code] || [phase.label || "GHOSTSIGNAL", "Global transmission in progress"];
             const scene = sceneAt(snapshot, Date.now(), offsetMs);
+            global.clearTimeout(mediaTimer); mediaTimer = 0;
+            const clockStart = Date.parse(snapshot.show_started_at || "");
+            const clockEnd = Date.parse(snapshot.show_ends_at || "");
+            if (clockEnd > clockStart) {
+                const clockNow = Date.now() + offsetMs;
+                const nextCue = [425, 463.12].map(t => clockStart + t * (clockEnd - clockStart) / 900)
+                    .find(t => t > clockNow);
+                if (nextCue) mediaTimer = global.setTimeout(render, Math.max(1, nextCue - clockNow));
+            }
+            const radio = ownsShowAudio() && global.GhostRadio && global.GhostRadio.syncShow ? global.GhostRadio : null;
+            const audioState = showAudioAt(snapshot, Date.now(), offsetMs);
+            if (radio && radio.syncShow) {
+                if (audioState) radio.syncShow(audioState);
+                else radio.endShow(false);
+            }
             renderMontage(doc, root, snapshot, scene);
+            const stage = root.querySelector(".ghost-signal-show__stage");
+            const video = stage && stage._video;
+            const sound = root.querySelector(".ghost-signal-show__sound");
+            const settings = radio && radio.getState ? radio.getState() : null;
+            if (video) {
+                video.muted = !!(!settings || settings.muted || settings.showAudioBlocked || video._audioBlocked);
+                video.volume = settings ? Math.max(0, Math.min(1, settings.effectiveVolume)) : 0;
+            }
+            if (sound) {
+                sound.style.display = radio && audioState ? "" : "none";
+                sound.textContent = settings && (settings.showAudioBlocked || (video && video._audioBlocked))
+                    ? "Włącz dźwięk" : settings && settings.muted ? "Włącz dźwięk" : "Wycisz";
+                sound.onclick = () => {
+                    if (!radio) return;
+                    const current = radio.getState();
+                    const enable = current.muted || current.showAudioBlocked || (video && video._audioBlocked);
+                    radio.mute(!enable);
+                    if (enable) radio.unlockShow();
+                    if (video) {
+                        video._audioBlocked = false; video.muted = !enable;
+                        const playing = video.play();
+                        if (playing && playing.catch) playing.catch(() => { video._audioBlocked = true; video.muted = true; });
+                    }
+                };
+            }
             root.setAttribute("data-show-scene", scene ? scene.id : phase.code || "fallback");
             root.querySelector(".ghost-signal-show__signal").textContent = snapshot.signal_public_id || "GHOSTSIGNAL";
             root.querySelector(".ghost-signal-show__phase").textContent = scene ? scene.label : copy[0];
@@ -631,6 +729,8 @@
             if (global.addEventListener) ["online", "pageshow", "focus"].forEach(type => global.addEventListener(type, wake));
         }
         function stop() {
+            global.clearTimeout(mediaTimer); mediaTimer = 0;
+            if (ownsShowAudio() && global.GhostRadio && global.GhostRadio.endShow) global.GhostRadio.endShow(false);
             started = false;
             try {
                 const root = doc && doc.getElementById("ghost-signal-show");
@@ -650,7 +750,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, showAudioAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 

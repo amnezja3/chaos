@@ -107,11 +107,25 @@ try {
     assert(!root.querySelector('.ghost-show-settlement'));
     manifest.signal_confirmed = true;
     seek(850);
-    assert.strictEqual(root.querySelector('.ghost-signal-show__stage').children.length,0);
+    assert(root.querySelector('.ghost-show-settlement'));
+    const audioCalls = [];
+    global.GhostRadio = {syncShow: state => audioCalls.push(state), endShow() {},
+        getState: () => ({muted:false,effectiveVolume:0.5}), mute() {}, unlockShow() {}};
+    manifest.audio = {show_tracks:[203.702813,210.964875,234.083250,211.304438].map((duration,i) => ({duration,
+        src:'/static/audio/ghostnetwork/show/ghostsignal_show_part_0'+(i+1)+'.mp3'}))};
+    global.top = {};
+    seek(430);
+    assert.strictEqual(audioCalls.length,0,'iframe must not own show audio');
+    assert(root.querySelector('.ghost-show-video').muted);
+    delete global.top;
+    seek(431);
+    assert.strictEqual(audioCalls.length,1);
+    assert.strictEqual(root.querySelector('.ghost-show-video').muted,false,'top-level film has AAC audio');
+    assert.strictEqual(root.querySelector('.ghost-show-video').volume,0.5);
     seek(430);
     const hiddenVideo = root.querySelector('.ghost-show-video'); assert(hiddenVideo);
     controller.apply({show_active:false,cycle_number:2,state_version:1,server_now:new Date().toISOString()});
     assert.strictEqual(root.style.display,'none');
     assert(hiddenVideo.paused && hiddenVideo.released && !hiddenVideo.src);
-} finally {controller.stop();}
+} finally {controller.stop();delete global.GhostRadio;delete global.top;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

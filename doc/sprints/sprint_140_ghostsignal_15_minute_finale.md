@@ -1,6 +1,6 @@
 # Sprint 140 — GhostSignal: pełny 15-minutowy finał CHAOS
 
-Status: `IN PROGRESS / 140.1 SERVER TESTS PASS / 140.2 LOCAL TESTS PASS / SERVER MIGRATION PASS / VISUAL ACCEPTED / 140.3 LOCAL TESTS PASS`
+Status: `IN PROGRESS / 140.3 SERVER TESTS PASS / SCENE SEQUENCE ACCEPTED / 140.4 LOCAL TESTS PASS / AUDIO REVIEW PENDING`
 
 Decyzja autora: w 140 budujemy szkielet całego show, wyciągamy właściwe dane
 i synchronizujemy sceny, video, muzykę oraz restart. Wygląd pozostaje otwarty
@@ -735,3 +735,62 @@ niezmiennie dwa SELECT/sześć instrukcji, zero pełnych odczytów/zapisów prof
 Testy potwierdzają write-once projekcji, retry po awarii bez blokowania rankingu,
 publiczną widoczność publikacji, signal lineage nagród i brak prywatnych ID.
 Nie wykonano produkcyjnego wdrożenia ani odbioru w przeglądarce.
+
+## 13. Realizacja 140.4 — audio, ranking i końcówka show
+
+Decyzje autora: zakres i kolejność scen 140.3 zaakceptowane. Tempo ocenimy
+z muzyką/dźwiękiem; stylizacja pozostaje w 140.stylization.1+. Na serwerze
+87dab45: 64 testy PASS (281,306 s), JS/syntax PASS, schemat aktualny, PM2 13/14
+przeładowane i online. Podgląd był demonstracyjny; nie potwierdza danych
+historycznego finału. Odbiór takich danych pozostaje do 140.5.
+
+### Obowiązujący miks (zastępuje wcześniejszy plan ciszy w filmie)
+
+Autor potwierdził AAC filmu oraz dopuszczenie 0,5 s nakładania na jego wejściu.
+Muzyka 860,055376 s jest rozłożona według czasu serwera, bez kończenia scen
+callbackiem ended. Film zaczyna się w 425 s. Fade-out tła 425–425,5 s;
+pauza MP3 425,5–463,12 s; fade-in 463,12–463,62 s. AAC filmu działa przez
+całe jego 38,12 s, z poszanowaniem mute/volume użytkownika. Nałożenie wejścia
+skraca pauzę do 37,62 s: muzyka kończy się w 897,675376 s, pozostawiając
+około 2,325 s ciszy. Nie obcinamy 0,5 s MP3 — ten fragment gra na wejściu filmu.
+SFX ghost.signal_sent zachowuje istniejący trigger, bez ponawiania w podglądzie.
+
+### Implementacja w istniejących modułach
+
+GhostRadio czasowo używa tego samego elementu Audio do ścieżki show. Zachowuje
+źródło/pozycję/stany normalnego radia i chroni je przed spóźnionym loadChannel.
+Wyciszenie i duck SFX nadal przechodzą przez syncAudioSettings. Krótka rampa
+używa requestAnimationFrame tylko podczas fade; timer wyznacza jej granicę.
+Poza rampami nie ma pętli animacji miksera. Wszystkie uchwyty są zwalniane.
+Mały wpis sessionStorage przenosi stan radio/mute przez restart przeglądarki;
+nie ma profili, zapisu do bazy, nowego magazynu serwerowego ani nowego miksera.
+
+Istniejący kontroler wyznacza plik i offset; dodatkowe wywołanie render na
+granicach filmu 425/463,12 s uniezależnia jego wejście od ticku 1 s.
+Jedynie top window jest właścicielem audio; film w iframe pozostaje wyciszony.
+Odmowa autoplay daje przycisk show „Włącz dźwięk”; film może kontynuować bez
+AAC do gestu użytkownika. Film jest nadal nieinteraktywnym polem 3:2 720×480,
+bez natywnych kontrolek. Błąd assetu nie staje się bramką finału.
+
+Ranking 840–870 s korzysta z utrwalonej projekcji 140.3 (pierwszych do 20
+uczestników, z jawnym limitem i stronami; klany do 8). Kolejne sceny pokazują
+statystyki, Signal Registry i oczekiwanie na restart. Zegar nie emituje epoki
+ani reloadu. Globalny przycisk mute jest dostępny z klawiatury, tekst wyników
+jest dostępny dla czytnika; reduced motion wyłącza fade wizualny shutdown.
+Nie dodano transkrypcji AAC — wymaga treści od autora, nie zgadywanych napisów.
+
+Generator obejmuje 0–899 s i ładuje rzeczywiste media przy danych DEMO.
+Nie uruchamia backendu ani transmisji. Cache: signal-show-140-4/radio-show-140-4.
+Radio usunięto z ograniczenia składni optional chaining/nullish w tym pliku,
+aby nowy test jego działania był wykonalny również w serwerowym Node 12.
+Procedura: [deploy_140_4.md](../runbooks/deploy_140_4.md).
+
+Walidacja lokalna 140.4: 64 testy Python PASS (204,277 s), generator pełnego
+podglądu PASS. Siedem zestawów JS PASS (frontend, recovery, manifest, montage,
+audio, delta, GameSfx), node --check obu zmienionych skryptów PASS.
+Test audio obejmuje granice plików, 0,5 s fade/overlap, pauzę i offset po filmie,
+reuse jednego Audio, duck/mute, restore radia i preferencji przez restart,
+blokadę autoplay, brak assetu, spóźniony loadChannel oraz cleanup timerów.
+Test montage potwierdza AAC w top window i ciszę w iframe. Odsłuch realnego
+buforowania/fade na desktop/mobile pozostaje bramką serwerową. Nie wykonano
+automatycznego testu w przeglądarce ani produkcyjnej transmisji.

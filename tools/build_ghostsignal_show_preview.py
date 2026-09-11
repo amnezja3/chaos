@@ -35,19 +35,20 @@ def main():
     html = """<!doctype html><html lang="pl"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GhostSignal — PODGLĄD, dane demonstracyjne</title>
-<link rel="stylesheet" href="/static/css/style.css?v=signal-show-140-3">
+<link rel="stylesheet" href="/static/css/style.css?v=signal-show-140-4">
 <style>body{background:#05090d;color:#caffdf}#preview-controls{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#071b13;padding:8px;font:12px monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap}#preview-controls input{width:min(30vw,350px)}#preview-controls select{max-width:40vw}</style>
 <div id="preview-controls"><strong>PODGLĄD / DANE DEMO</strong>
 <select id="scene-select" aria-label="Scena"></select>
-<input id="seek" aria-label="Sekundy show" type="range" min="0" max="839" value="0">
+<input id="seek" aria-label="Sekundy show" type="range" min="0" max="899" value="0">
 <output id="position">0 s</output><label><input type="checkbox" id="sent" checked>potwierdzony sygnał</label></div>
 <script>window.fetch=()=>Promise.resolve({ok:true,json:()=>Promise.resolve({ok:true,show_active:false})});</script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-140-3"></script>
+<script src="/static/js/ghost_radio.js?v=radio-show-140-4"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-140-4"></script>
 <script>
 const manifest = MANIFEST;
 let previewController;
 const select=document.getElementById('scene-select'), seek=document.getElementById('seek');
-for(const scene of manifest.scenes.filter(s=>s.start<840)) {
+for(const scene of manifest.scenes) {
  const option=document.createElement('option'); option.value=scene.start; option.textContent=scene.start+' s / '+scene.label; select.appendChild(option);
 }
 function showAt(seconds) {
