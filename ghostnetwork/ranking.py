@@ -312,6 +312,11 @@ class GhostSignalRankingService:
         show = self.repository.get_signal_show_for_signal(ranking["signal_id"])
         if not show or (show.get("scene_snapshot") or {}).get("settlement"):
             return
+        projection = self.build_show_scene(ranking)
+        self.repository.store_show_settlement_scene(ranking["signal_id"], projection)
+
+    def build_show_scene(self, ranking):
+        """Read-only presentation preparation shared with the historical preview."""
         from .show_manifest import prepare_settlement_scene
         publications = self.repository.list_show_publication_excerpts(
             ranking["cycle_id"], ranking.get("created_at") or self.repository.now())
@@ -325,8 +330,7 @@ class GhostSignalRankingService:
                       and row.get("status") in {"resolved", "closed"}
                       and (row.get("resolved_at") or row.get("closed_at"))
                       and (row.get("resolved_at") or row.get("closed_at")) <= cutoff]
-        projection = prepare_settlement_scene(ranking, publications, production)
-        self.repository.store_show_settlement_scene(ranking["signal_id"], projection)
+        return prepare_settlement_scene(ranking, publications, production)
 
     def validate(self, ranking):
         ranking = ranking if isinstance(ranking, dict) else {}

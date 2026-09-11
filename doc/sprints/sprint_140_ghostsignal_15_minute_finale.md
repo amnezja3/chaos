@@ -1,6 +1,6 @@
 # Sprint 140 — GhostSignal: pełny 15-minutowy finał CHAOS
 
-Status: `IN PROGRESS / 140.3 SERVER TESTS PASS / SCENE SEQUENCE ACCEPTED / 140.4 LOCAL TESTS PASS / AUDIO REVIEW PENDING`
+Status: `IN PROGRESS / 140.4 AUDIO SYNC ACCEPTED / 140.5 LOCAL TESTS PASS / SERVER AND E2E PENDING`
 
 Decyzja autora: w 140 budujemy szkielet całego show, wyciągamy właściwe dane
 i synchronizujemy sceny, video, muzykę oraz restart. Wygląd pozostaje otwarty
@@ -794,3 +794,50 @@ blokadę autoplay, brak assetu, spóźniony loadChannel oraz cleanup timerów.
 Test montage potwierdza AAC w top window i ciszę w iframe. Odsłuch realnego
 buforowania/fade na desktop/mobile pozostaje bramką serwerową. Nie wykonano
 automatycznego testu w przeglądarce ani produkcyjnej transmisji.
+
+### Odbiór synchronizacji 140.4 przez operatora — 2026-09-11
+
+Operator potwierdził: muzyka i video grają ze sobą idealnie; synchronizacja
+zaakceptowana w podglądzie ghostsignal-140-4.html. Pozostałe sceny ocenił
+wstępnie jako obiecujące, bez deklaracji pełnego odbioru wszystkich wariantów.
+W przekazanym logu: GameSfx contract ok, schema_change:false, reload chaos
+(13, 73 restarty) i chaos-territory-worker (14, 20 restartów), oba online,
+generator podglądu zakończony poprawnie. Brak osobnego wyniku pełnej serwerowej
+regresji Python w tym zgłoszeniu; nie dopisujemy go na podstawie odsłuchu.
+Nie określono urządzeń, na których wykonano odsłuch.
+
+Nie wymaga się zmiany zaakceptowanego miksu. Następna bramka 140.5 obejmuje
+rzeczywiste dane finału, wydajność desktop/mobile, recovery, warianty audio
+oraz pełny E2E. Podgląd DEMO i akceptacja synchronizacji nie zastępują tego
+odbioru. Stylizacja nadal pozostaje w 140.stylization.1+.
+
+## 14. Realizacja 140.5 — podgląd archiwalny i bramka techniczna
+
+Istniejący generator przyjmuje teraz parę `--db` / `--cycle-id`. Tryb
+historyczny czyta jedną transakcję SQLite mode=ro/query_only, bez inicjowania
+schematu. Sprawdza checksumy locka/rankingu, powiązanie sygnału i trwały event
+sent. Weryfikuje sumy utrwalonej projekcji względem rankingu. Brak lub
+niespójność danych kończy generowanie błędem, bez fallbacku do DEMO.
+
+Starszy finał 139 odtwarzamy z locka i rankingu przy użyciu wydzielonej
+metody istniejącego serwisu rankingu. Rekonstrukcja jest jawna w raporcie;
+nie zapisuje backfillu i nie wymyśla historycznej daty 2108. Snapshoty mają
+limit po 32 MiB; renderer otrzymuje dotychczasową ograniczoną projekcję.
+Nie dodano odczytu profili ani świata live. To podgląd prezentacji na
+archiwalnych danych, nie powtórzenie rzeczywistej transmisji i jej opóźnień.
+
+Podgląd eksportuje lokalny JSON wydajności: odstępy klatek, long tasks,
+DOM, ograniczone próbki pamięci i wizyty scen. Pomiar kończy się po 920 s;
+nie ma telemetrii serwerowej ani zmian w pętli runtime gry. CPU/GPU i warstwy
+wymagają osobnego profilowania na urządzeniu. Nie deklarujemy ich PASS na
+podstawie samych testów jednostkowych.
+
+Regresja lokalna: 69 Python PASS (278,772 s), siedem zestawów JS PASS,
+syntax obu skryptów i wygenerowanego HTML PASS. Testy podglądu obejmują
+legacy bez zapisu do bazy, brak źródła, złą checksumę, błędną projekcję oraz
+brak kanonicznego eventu. Browser nie udostępnił przeglądarki w tej sesji;
+pomiar desktop/mobile, rzeczywiste dane produkcyjne i nowy E2E pozostają
+otwartymi bramkami. Odsłuch 140.4 i E2E 139 nie zastępują tych wyników.
+
+Pełne komendy oraz kryteria odbioru:
+[deploy_140_5.md](../runbooks/deploy_140_5.md).

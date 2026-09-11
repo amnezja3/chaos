@@ -4451,3 +4451,24 @@ Podgląd ma teraz pełne 15 minut i rzeczywiste media na danych demonstracyjnych
 64 Python PASS (204,277 s), siedem zestawów JS PASS, syntax i generator PASS.
 Procedura odsłuchu: doc/runbooks/deploy_140_4.md. Brak nowej migracji.
 Zmiany lokalne, odbiór audio i wdrożenie oczekują operatora.
+
+### 2026-09-11 — 140.4 synchronizacja audio/video zaakceptowana
+
+Operator potwierdził idealne zgranie muzyki i filmu w podglądzie 140.4.
+Schemat aktualny, GameSfx contract ok, reload 13/14 zakończony, oba online;
+podgląd wygenerowany. Pozostałe sceny ocenione wstępnie jako obiecujące.
+Zapisano akceptację synchronizacji, bez przypisywania niezgłoszonego pełnego
+E2E, urządzeń ani wyniku serwerowej regresji Python. Dalszy zakres: bramka
+140.5; oprawa w 140.stylization.1+.
+
+### 2026-09-12 — 140.5 podgląd historyczny i pomiar lokalny
+
+Rozszerzono istniejący generator o read-only replay wybranego cyklu:
+checksumy locka/rankingu, kanoniczny sent, zgodność sum projekcji, jawna
+rekonstrukcja starszego finału przez istniejący adapter wyników. Brak
+ciężkich profili, zapisów/backfillu i nowego systemu prezentacji.
+Dodano ograniczony raport wydajności w podglądzie oraz pełną procedurę
+serwerową doc/runbooks/deploy_140_5.md. 69 Python PASS (278,772 s), siedem
+zestawów JS i syntax generatora PASS. Zaakceptowany miks bez zmian.
+Brak dostępnej przeglądarki; historyczne dane produkcyjne, desktop/mobile,
+recovery i E2E oczekują odbioru. 140.5 nie jest jeszcze zamknięty.
