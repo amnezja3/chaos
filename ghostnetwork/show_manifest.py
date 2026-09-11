@@ -35,6 +35,94 @@ def prepare_scene_snapshot(lock, signal_id):
 
 
 MANIFEST_VERSION = "ghostsignal-show-manifest-v2"
+
+
+def prepare_settlement_scene(ranking, publications=(), production_conflicts=()):
+    """Small public replay prepared from the already validated ranking, never in polling."""
+    snapshot = ranking.get("snapshot") or {}
+    signal_id = ranking.get("signal_id")
+    def text(value, limit=80):
+        return str(value or "")[:limit]
+    def number(value):
+        try:
+            result = float(value or 0)
+            return max(0, result) if math.isfinite(result) else 0
+        except (TypeError, ValueError):
+            return 0
+    territories = snapshot.get("territories") or []
+    rewards = [r for r in snapshot.get("rewards") or [] if r.get("signal_id") == signal_id]
+    players = snapshot.get("players") or []
+    clans = snapshot.get("clans") or []
+    conflicts = snapshot.get("conflicts") or []
+    shapes = []
+    for index, row in enumerate(territories[:40]):
+        vertices = row.get("vertices") or []
+        # Oversized geometry is omitted, not distorted into a fictitious polygon.
+        points = []
+        if 3 <= len(vertices) <= 32:
+            for point in vertices:
+                try:
+                    lat, lon = float(point["lat"]), float(point.get("lng", point.get("lon")))
+                except (KeyError, TypeError, ValueError):
+                    points = []
+                    break
+                if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
+                    points = []
+                    break
+                points.append([round(lon, 6), round(lat, 6)])
+        shapes.append({"label": "T" + str(index + 1), "clan": text(row.get("clan_code")),
+                       "outcome": "consumed", "area": number(row.get("area_size")),
+                       "points": points, "geometry_available": bool(points),
+                       "consumed_at": text(row.get("consumed_at"))})
+    reward_groups = {}
+    for row in rewards:
+        key = text(row.get("reward_type"))
+        group = reward_groups.setdefault(key, {"type": key, "count": 0, "rsp": 0})
+        group["count"] += 1
+        group["rsp"] += number(row.get("final_rsp"))
+    payload = {
+        "version": 1, "available": True, "source": "validated_signal_ranking",
+        "scope": "signal_settlement", "territories": shapes,
+        "territories_total": len(territories), "territories_truncated": len(territories) > 40,
+        "area_consumed": sum(number(t.get("area_size")) for t in territories),
+        "preserved_available": False, "reduced_available": False,
+        "players_total": len(players), "players_truncated": len(players) > 20,
+        "players": [{"alias": text(p.get("display_alias_snapshot") or p.get("username_snapshot")),
+                     "clan": text(p.get("clan_id_snapshot")), "rank": number(p.get("rank")),
+                     "rsp": number(p.get("rsp_signal")), "nodes": number(p.get("nodes_held")),
+                     "closer": bool(p.get("closer"))} for p in players[:20]],
+        "clans": [{"code": text(c.get("clan_id")), "rank": number(c.get("rank")),
+                   "members": number(c.get("member_count_participating")),
+                   "score": number(c.get("clan_ghost_score")), "rsp": number(c.get("rsp_members_total"))}
+                  for c in clans[:8]],
+        "score_policy": text((snapshot.get("score_policy") or {}).get("policy_version")),
+        "reward_groups": list(reward_groups.values())[:16], "rewards_total": len(rewards),
+        "rsp_total": sum(number(r.get("final_rsp")) for r in rewards),
+        "conflicts_total": len(conflicts), "conflicts_scope": "strategic_lock_snapshot",
+        "conflicts": [{"label": "C" + str(i + 1), "status": text(c.get("status"))}
+                      for i, c in enumerate(conflicts[:20])],
+        "production_conflicts": [{"label": "P" + str(i + 1), "status": text(c.get("status")),
+                                  "resolved_at": text(c.get("resolved_at") or c.get("closed_at"))}
+                                 for i, c in enumerate(production_conflicts[:20])],
+        "production_conflicts_scope": "explicit_lock_and_receipt_references",
+        "publications": [{"medium": text(p.get("target_medium")), "title": text(p.get("title"), 160),
+                          "body": text(p.get("body"), 480), "published_at": text(p.get("published_at"))}
+                         for p in publications[:6]],
+    }
+    # Explicit fixed transfer budget; fallback retains counts if geometry is too large.
+    if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 24576:
+        for shape in payload["territories"]:
+            shape.update(points=[], geometry_available=False)
+    while len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 24576 and payload["publications"]:
+        payload["publications"].pop()
+    while len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 24576 and payload["players"]:
+        payload["players"].pop()
+        payload["players_truncated"] = True
+    if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 24576:
+        for key in ("territories", "conflicts", "production_conflicts", "reward_groups", "clans"):
+            payload[key] = []
+        payload.update(territories_truncated=True, details_truncated=True)
+    return payload
 # Half-open scene intervals on the nominal 900-second storyboard.
 SCENES = (
     (0, "takeover", "PRZEJĘCIE INTERFEJSU"),

@@ -9717,3 +9717,13 @@ form button:hover {
     .ghost-signal-show[data-show-scene="transmission_replay"] .ghost-signal-show__stage { background: transparent; opacity: 1; }
     .ghost-signal-show[data-show-scene="signal_point"] .ghost-show-signal-point { transform: none; box-shadow: none; }
 }
+
+/* 140.3: functional settlement/reconstruction; styling iterations follow separately. */
+.ghost-show-settlement { width: min(960px, 94%); height: 100%; margin: auto; overflow: auto; padding: 8px; box-sizing: border-box; font-size: clamp(12px, 1.3vw, 18px); text-align: left; }
+.ghost-show-settlement p { margin: 8px 0; overflow-wrap: anywhere; }
+.ghost-show-settlement h2 { font-size: clamp(20px, 3vw, 36px); }
+.ghost-show-settlement h3 { font-size: clamp(16px, 2vw, 24px); }
+.ghost-show-settlement-map { display: block; width: 100%; max-height: 35vh; }
+.ghost-show-settlement-map polygon { stroke: #71ffca; stroke-width: 2; }
+.ghost-show-settlement-map .is-before { fill: #145e4e; }
+.ghost-show-settlement-map .is-consumed { fill: #252d32; stroke-dasharray: 6 4; }

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 from collections import defaultdict
 
 from config import GHOSTNETWORK_RANKING_POLICY
@@ -279,6 +280,8 @@ class GhostSignalRankingService:
         existing = self.repository.get_signal_ranking(signal_id)
         if existing:
             valid = self.validate(existing)
+            if valid["valid"]:
+                self._prepare_show_scene(existing)
             return {"ok": valid["valid"], "ranking": existing, "validation": valid, "idempotent": True}
         built = self.build_snapshot(signal_id)
         if not built.get("ok"):
@@ -294,7 +297,36 @@ class GhostSignalRankingService:
             "snapshot": snapshot,
         })
         valid = self.validate(ranking)
+        if valid["valid"]:
+            self._prepare_show_scene(ranking)
         return {"ok": valid["valid"], "ranking": ranking, "validation": valid, "idempotent": False}
+
+    def _prepare_show_scene(self, ranking):
+        try:
+            self._store_show_scene(ranking)
+        except Exception as exc:
+            # Presentation must never become another endgame/restart gate.
+            logging.getLogger(__name__).warning("Show settlement projection deferred: %s", type(exc).__name__)
+
+    def _store_show_scene(self, ranking):
+        show = self.repository.get_signal_show_for_signal(ranking["signal_id"])
+        if not show or (show.get("scene_snapshot") or {}).get("settlement"):
+            return
+        from .show_manifest import prepare_settlement_scene
+        publications = self.repository.list_show_publication_excerpts(
+            ranking["cycle_id"], ranking.get("created_at") or self.repository.now())
+        snapshot = ranking.get("snapshot") or {}
+        references = {str(row.get("conflict_id") or row.get("source_conflict_id") or "")
+                      for key in ("parts", "conflicts", "territories") for row in snapshot.get(key) or []}
+        references.discard("")
+        production = self.repository.list_endgame_production_conflicts(sorted(references), limit=500) if references else []
+        cutoff = ranking.get("created_at") or self.repository.now()
+        production = [row for row in production if row.get("conflict_id") in references
+                      and row.get("status") in {"resolved", "closed"}
+                      and (row.get("resolved_at") or row.get("closed_at"))
+                      and (row.get("resolved_at") or row.get("closed_at")) <= cutoff]
+        projection = prepare_settlement_scene(ranking, publications, production)
+        self.repository.store_show_settlement_scene(ranking["signal_id"], projection)
 
     def validate(self, ranking):
         ranking = ranking if isinstance(ranking, dict) else {}

@@ -30,6 +30,11 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Status bieżący
 
+- Draft [`140.stylization.1+ — stylizacja całego show`](sprints/sprint_140_stylization_1_plus.md)
+  obejmuje późniejszy przegląd i dopracowanie 00–15. Bieżący Sprint 140 buduje
+  szkielet, projekcje danych i synchronizację scen/video/muzyki; oprawa pozostaje
+  otwarta na kolejne iteracje.
+
 - Sprint 138.2 zakończył pełny producer-backed production E2E wynikiem `PASS`.
   Aktywny backlog stanowią
   [`Sprint 139 — natychmiastowy show i restart`](sprints/sprint_139_ghostsignal_activation_restart.md)

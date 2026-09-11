@@ -2595,6 +2595,33 @@ class GhostNetworkRepository:
                 "SELECT * FROM ghost_signal_shows ORDER BY show_started_at DESC LIMIT 1"
             ).fetchone())
 
+    def store_show_settlement_scene(self, signal_id, payload):
+        """Attach once to the existing show; serialize outside the SQLite writer."""
+        serialized = dumps_json(payload)
+        with self._conn() as conn:
+            conn.execute("""UPDATE ghost_signal_shows
+                SET scene_snapshot_json=json_set(scene_snapshot_json, '$.settlement', json(?))
+                WHERE signal_id=? AND json_type(scene_snapshot_json, '$.settlement') IS NULL""",
+                (serialized, _clean(signal_id)))
+
+    def list_show_publication_excerpts(self, cycle_id, cutoff):
+        """Published public excerpts at ranking time; no candidate/CTA/private payload reads."""
+        with self._conn() as conn:
+            rows = conn.execute("""SELECT m.target_medium, substr(m.title,1,160) AS title,
+                    substr(m.body,1,480) AS body, m.published_at
+                FROM ghost_narrative_medium_records m
+                JOIN ghost_part_events e ON e.event_id=m.source_event_id
+                JOIN ghost_narrative_publication_receipts r
+                    ON r.publication_receipt_id=m.publication_receipt_id
+                WHERE e.cycle_id=? AND m.source_scope='ghostnetwork'
+                    AND m.audience_scope='public' AND m.audience_clan='' AND m.audience_owner=''
+                    AND m.target_medium IN ('blacknet', 'googleplex_news')
+                    AND m.active_state='active' AND r.status='published'
+                    AND m.published_at<=? AND (m.valid_until='' OR m.valid_until>?)
+                ORDER BY m.published_at DESC, m.medium_record_id DESC LIMIT 6""",
+                (_clean(cycle_id), _clean(cutoff), _clean(cutoff))).fetchall()
+            return [dict(row) for row in rows]
+
     def get_show_presentation_facts(self, signal_id):
         """One indexed read; never hydrate signal payload or ranking JSON."""
         with self._conn() as conn:

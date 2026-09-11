@@ -6,7 +6,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from ghostnetwork.show_manifest import build_manifest  # noqa: E402
+from ghostnetwork.show_manifest import build_manifest, prepare_settlement_scene  # noqa: E402
 from ghostnetwork.catalog import TOPOLOGY_ANCHOR  # noqa: E402
 
 
@@ -18,23 +18,36 @@ def main():
     # Explicit demo layout, not claimed as the topology/history of any real cycle.
     manifest["cycle_history"] = {"available": False, "parts": [], "ring_codes": list(TOPOLOGY_ANCHOR),
                                   "future_2108_timestamp": "2108-04-27T23:17:08+00:00"}
+    manifest["cycle_history"]["settlement"] = prepare_settlement_scene({
+        "signal_id": "DEMO", "snapshot": {
+            "territories": [{"clan_code": "virex", "area_size": 1,
+                             "vertices": [{"lat": 52, "lng": 21}, {"lat": 52.01, "lng": 21},
+                                          {"lat": 52.01, "lng": 21.02}]}],
+            "players": [{"display_alias_snapshot": "GRACZ DEMO", "clan_id_snapshot": "virex",
+                         "rank": 1, "rsp_signal": 10, "nodes_held": 1, "closer": True}],
+            "rewards": [{"signal_id": "DEMO", "reward_type": "ghost_signal_closer", "final_rsp": 10}],
+            "clans": [{"clan_id": "virex", "rank": 1, "clan_ghost_score": 10,
+                       "member_count_participating": 1, "rsp_members_total": 10}],
+            "conflicts": [{"status": "resolved"}], "score_policy": {"policy_version": "DEMO"}}},
+        [{"target_medium": medium, "title": "PUBLIKACJA DEMO", "body": "Dane demonstracyjne, nie historia gry.",
+          "published_at": "2026-09-11T10:00:00Z"} for medium in ("blacknet", "googleplex_news")])
     encoded = json.dumps(manifest, ensure_ascii=False).replace("<", "\\u003c")
     html = """<!doctype html><html lang="pl"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GhostSignal — PODGLĄD, dane demonstracyjne</title>
-<link rel="stylesheet" href="/static/css/style.css?v=signal-show-140-2-media-1">
+<link rel="stylesheet" href="/static/css/style.css?v=signal-show-140-3">
 <style>body{background:#05090d;color:#caffdf}#preview-controls{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#071b13;padding:8px;font:12px monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap}#preview-controls input{width:min(30vw,350px)}#preview-controls select{max-width:40vw}</style>
 <div id="preview-controls"><strong>PODGLĄD / DANE DEMO</strong>
 <select id="scene-select" aria-label="Scena"></select>
-<input id="seek" aria-label="Sekundy show" type="range" min="0" max="479" value="0">
+<input id="seek" aria-label="Sekundy show" type="range" min="0" max="839" value="0">
 <output id="position">0 s</output><label><input type="checkbox" id="sent" checked>potwierdzony sygnał</label></div>
 <script>window.fetch=()=>Promise.resolve({ok:true,json:()=>Promise.resolve({ok:true,show_active:false})});</script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-140-2-media-1"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-140-3"></script>
 <script>
 const manifest = MANIFEST;
 let previewController;
 const select=document.getElementById('scene-select'), seek=document.getElementById('seek');
-for(const scene of manifest.scenes.filter(s=>s.start<480)) {
+for(const scene of manifest.scenes.filter(s=>s.start<840)) {
  const option=document.createElement('option'); option.value=scene.start; option.textContent=scene.start+' s / '+scene.label; select.appendChild(option);
 }
 function showAt(seconds) {

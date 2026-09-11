@@ -83,6 +83,30 @@ try {
     assert(!root.querySelector('.ghost-show-video'));
     assert.strictEqual(root.querySelector('.ghost-show-video-fallback').style.display, '');
     seek(500);
+    assert(root.querySelector('.ghost-show-settlement'));
+    assert(!root.querySelector('.ghost-show-video'));
+    const stages = [[480,'aftershock'],[495,'world_before'],[525,'territory_outcomes'],[555,'territory_reduction'],
+        [585,'conflict_results'],[615,'world_final'],[630,'reward_ledger'],[660,'players'],[680,'achievements'],
+        [700,'clans'],[720,'system_layers'],[740,'googleplex'],[760,'pro_tools'],[780,'file_system'],
+        [800,'blacknet_history'],[820,'desktop_assembly'],[835,'system_ready'],[840,'player_ranking']];
+    manifest.scenes.splice(4, 1, ...stages.map((s,i) => ({start:s[0],id:s[1],label:s[1],
+        end:stages[i+1] ? stages[i+1][0] : 900,requires_signal_sent:true})));
+    manifest.cycle_history.settlement = {available:true,territories_total:1,area_consumed:1,
+        territories:[{label:'T1',clan:'virex',geometry_available:true,points:[[21,52],[22,52],[22,53]]}],
+        players_total:1,players:[{alias:'<script>unsafe()</script>',clan:'virex',rsp:7,nodes:1}],
+        clans:[],conflicts:[],reward_groups:[],publications:[],rewards_total:1,rsp_total:7};
+    seek(500); // Projection arrives during the same scene.
+    assert(root.querySelector('.ghost-show-settlement-map'));
+    for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
+        seek(entry[0]+0.1);
+        assert(root.querySelector('.ghost-show-settlement'), entry[1]);
+        assert(!root.querySelector('.ghost-show-video'));
+    }
+    manifest.signal_confirmed = false;
+    seek(650);
+    assert(!root.querySelector('.ghost-show-settlement'));
+    manifest.signal_confirmed = true;
+    seek(850);
     assert.strictEqual(root.querySelector('.ghost-signal-show__stage').children.length,0);
     seek(430);
     const hiddenVideo = root.querySelector('.ghost-show-video'); assert(hiddenVideo);

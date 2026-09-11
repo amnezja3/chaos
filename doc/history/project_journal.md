@@ -4405,3 +4405,31 @@ Cztery MP3 autora mają łącznie 14:20; zapisano nazwy part_01–04 i plan
 zastąpienia radia przez istniejący GhostRadio w 140.4. Pauza tła na film
 38,12 s daje 898,12 s prezentacji z audio i 1,88 s końcowej ciszy.
 Nie zmieniono w tym kroku runtime audio ani backendu.
+
+### 2026-09-11 — operator akceptuje podgląd 140.2
+
+Podgląd zaakceptowany; dalsze poprawki estetyczne odłożone do sprintów
+stylizujących. Potwierdzono wcześniej pull bb2b6e5 i zakończoną migrację
+scene_snapshot_json. Zapisano akceptację wizualną bez dopisywania brakujących
+wyników testów serwerowych/PM2. Następny zakres to 140.3 (08–14), audio 140.4.
+
+### 2026-09-11 — otwarcie draftu 140.stylization.1+
+
+Na polecenie autora utworzono doc/sprints/sprint_140_stylization_1_plus.md:
+przyszły przegląd i stylizacja całego show scena po scenie. Bieżące 140
+realizuje szkielet, projekcje danych, synchronizację scen/video/muzyki oraz
+integrację z 139. Odbiór 140.5 jest techniczny; dalsza oprawa artystyczna ma
+własne iteracje. Zaktualizowano plan 140 i indeks dokumentacji. Draft nie
+uruchamia implementacji stylizacji ani nie odkłada błędów funkcjonalnych.
+
+### 2026-09-11 — 140.3 lokalny szkielet 08–14
+
+Rozwinięto istniejący show o małą projekcję wyników z zatwierdzonego rankingu,
+receipts i publicznych publikacji. Zapis jednorazowy w scene_snapshot_json;
+bez migracji i bez nowego magazynu. Fallback prezentacji nie blokuje 139.
+Sceny obejmują zakres konsumpcji, konflikty, nagrody/uczestników/klany oraz
+rekonstrukcję systemu. Brak pełnej mapy preserved/reduced jest jawny, bez
+fikcyjnych danych. Podgląd DEMO rozszerzono do 839 s; audio pozostaje w 140.4,
+a stylizacja w 140.stylization.1+. Regresja 63 Python PASS, końcowe 10 PASS;
+pięć zestawów JS i generator PASS. Zestaw serwerowy: 64 testy. Procedura:
+doc/runbooks/deploy_140_3.md. Wdrożenie i odbiór operatora oczekują wykonania.

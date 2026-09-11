@@ -1428,3 +1428,12 @@ Ostatnie 1,88 s pozostaje ciszą. Indywidualne granice MP3 wynikną z metadanych
 Miks zostanie wdrożony w istniejącym GhostRadio w 140.4, z poszanowaniem mute
 oraz bez zmiany SFX ghost.signal_sent. Audio samego filmu pozostaje do ustalenia;
 w bieżącym 140.2 jest wyciszone. Szczegóły i testy: §11 głównego planu 140.
+
+## Dalsza stylizacja całego show
+
+Decyzją autora bieżący Sprint 140 przygotowuje działający szkielet, dane
+oraz synchronizację scen, video i muzyki. Niniejszy scenariusz jest kierunkiem
+artystycznym do iteracyjnego dopracowania w
+[140.stylization.1+](sprint_140_stylization_1_plus.md), gdzie przejdziemy przez
+całe 15 minut. Akceptacja podglądu nie zamraża wyglądu. Kontrakt 139 i bramki
+poprawności danych/synchronizacji pozostają obowiązujące już w 140.

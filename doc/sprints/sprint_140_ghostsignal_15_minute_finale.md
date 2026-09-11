@@ -1,6 +1,13 @@
 # Sprint 140 — GhostSignal: pełny 15-minutowy finał CHAOS
 
-Status: `IN PROGRESS / 140.1 SERVER TESTS PASS / 140.2 LOCAL TESTS PASS / VISUAL GATE PENDING`
+Status: `IN PROGRESS / 140.1 SERVER TESTS PASS / 140.2 LOCAL TESTS PASS / SERVER MIGRATION PASS / VISUAL ACCEPTED / 140.3 LOCAL TESTS PASS`
+
+Decyzja autora: w 140 budujemy szkielet całego show, wyciągamy właściwe dane
+i synchronizujemy sceny, video, muzykę oraz restart. Wygląd pozostaje otwarty
+na dalsze iteracje. Przegląd i stylizacja 00–15 są wydzielone do draftu
+[140.stylization.1+](sprint_140_stylization_1_plus.md). Akceptacja techniczna
+scen nie oznacza zamrożenia ich oprawy; błędy danych, synchronizacji i działania
+nadal należą do bieżącego zakresu 140.
 
 Bramka Sprintu 139 zaliczona 2026-09-11; dowody:
 `doc/audits/139-4-production-e2e-summary.md`.
@@ -310,13 +317,14 @@ używa jawnego placeholdera/fallbacku możliwego do późniejszej podmiany.
 - shutdown/boot spięty z kontraktem 139;
 - reduced motion, captions, mute, przerwanie audio i wznowienie aplikacji.
 
-### 140.5 — mobile performance, soak i production polish
+### 140.5 — mobile performance, soak i odbiór techniczny całości
 
 - test Redmi/telefon o ograniczonej pamięci oraz desktop;
 - profil CPU, GPU, pamięci, liczby DOM nodes i canvas layers;
 - preload tylko najbliższego segmentu, zwalnianie zasobów po scenie;
 - recovery po background/foreground, zmianie orientacji i utracie sieci;
-- pełny 15-minutowy E2E z zapisem telemetrii i ręcznym odbiorem artystycznym.
+- pełny 15-minutowy E2E z zapisem telemetrii i ręcznym odbiorem działania;
+- dalszy przegląd artystyczny całego show i stylizacja w 140.stylization.1+.
 
 ## 6. Budżety jakości
 
@@ -523,9 +531,9 @@ Test potwierdza przygotowanie projekcji poza writerem, jej niezmienność
 po konsumpcji i retry, brak prywatnych ownerów, datę 2108 i poprawną topologię.
 Migracja domyślnie read-only, idempotentna, zachowuje historyczne rekordy.
 
-Browser skill nie znalazł dostępnej przeglądarki (lista pusta). Nie wykonano
-automatycznego ani operatorskiego odbioru wizualnego 140.2. Etap nie jest
-zamknięty; lokalne testy nie zastępują oceny kompozycji i mobile.
+Podczas implementacji Browser skill nie znalazł dostępnej przeglądarki (lista pusta).
+Automatyczny odbiór wizualny nie został wykonany. Późniejsza akceptacja
+podglądu przez operatora jest zapisana poniżej.
 
 ### Bramka serwerowa 140.2
 
@@ -651,3 +659,79 @@ nie przycinamy muzyki do zaokrąglonego czasu. Pliki gotowe do publikacji,
 bez potrzeby dodatkowej kompresji na tym etapie. Ładowanie scenami/częściami,
 z przygotowaniem następnej części, bez jednoczesnego pobierania całego pakietu.
 To odbiór techniczny zasobów, nie potwierdzenie wdrożenia miksu audio.
+
+### Odbiór podglądu przez operatora — 2026-09-11
+
+Operator zaakceptował podgląd 140.2 jako wystarczający. Ewentualne dalsze
+poprawki estetyczne przenosi do osobnych sprintów stylizujących; nie blokują
+przejścia do zakresu 140.3 (świat, wyniki i rekonstrukcja 08–14).
+Potwierdzone dowody: pull bb2b6e5, migracja changed=true, ponowny plan
+schema_change=false oraz akceptacja podglądu. W przekazanej rozmowie nie ma
+osobnego wyniku serwerowych 54 testów Python/JS ani statusu PM2 po reloadzie;
+nie oznaczamy ich jako potwierdzonego SERVER TESTS PASS na podstawie podglądu.
+Lokalna regresja pozostaje PASS. Bramka wizualna została zaakceptowana.
+Brak dźwięku w podglądzie 140.2 jest zgodny z implementacją. Miks czterech
+MP3 pozostaje w 140.4, a decyzja o audio AAC filmu nadal wymaga ustalenia.
+
+## 12. Realizacja 140.3 — szkielet scen 08–14
+
+Status: implementacja lokalna, bramka serwerowa i podgląd oczekują odbioru.
+To etap danych, synchronizacji i działających scen; stylizacja pozostaje
+w [140.stylization.1+](sprint_140_stylization_1_plus.md).
+
+### Call flow i granice
+
+Istniejące reconcile_endgame_postcommit → ranking.finalize → walidacja
+niezmiennego rankingu → przygotowanie małej publicznej projekcji poza writerem
+→ jednorazowy zapis $.settlement w ghost_signal_shows.scene_snapshot_json.
+Zapis JSON scala tylko tę sekcję; zachowuje części, ring i datę 2108 z 140.2.
+Nie ma nowej tabeli, workera, endpointu, migracji ani pobierania profili.
+Polling pozostaje show + indexed facts (dwa SELECT, sześć instrukcji z PRAGMA).
+Nie czyta ranking JSON, signal payload ani narracji. Błąd prezentacji loguje
+ostrzeżenie i pozostawia fallback; nie blokuje rankingu, transmisji ani restartu.
+Ponowne finalize może uzupełnić brakującą projekcję; zapis istniejącej jest stały.
+
+### Źródła i limity
+
+- Receipts terytoriów z rankingu: do 40 figur, do 32 wierzchołków na figurę.
+  Większa/niepoprawna geometria jest pomijana, bez zmyślonego wielokąta.
+  Liczby dotyczą pełnego zakresu przekazanego rankingowi, widok ma znacznik limitu.
+  Przed/po to geometria receipts sprzed konsumpcji i jej wynik. Nie jest to
+  pełna mapa świata; brak osobnych receipts PRESERVED/REDUCED daje jawny brak.
+- Nagrody filtrowane po dokładnym signal_id, do 16 grup; bez przeliczania nagród.
+  Uczestnicy do 20, klany do 8, aliasy/pola z publicznego kontraktu rankingu.
+  Clan Ghost Score pochodzi z rankingu, bez nowej formuły. Osiągnięcia to fakty
+  nodes/closer/RSP, bez fikcyjnych odznak. Dłuższe listy mają strony według czasu.
+- Konflikty strategiczne z lock snapshotu; produkcyjne tylko z jawnymi
+  referencjami parts/conflicts/receipts, resolved/closed przed datą rankingu.
+  Do 20 pozycji z każdego źródła; bez zgadywania zwycięzcy i obcych konfliktów.
+- Maksymalnie sześć fragmentów publicznych publikacji Googleplex/BlackNet,
+  ze zdarzeń tego cyklu, z receipt published i active lifecycle przy utrwalaniu.
+  Tytuł 160, treść 480 znaków. Bez CTA/payloadów i publikacji owner/clan.
+  To zamrożony wybór, nie feed; późniejsze publikacje nie są dobierane w pollu.
+- Budżet sekcji 24 KiB; przy przekroczeniu najpierw pomijamy geometrię,
+  następnie ograniczamy teksty/uczestników. Manifest bez tej sekcji zachowuje
+  dotychczasowy budżet. Nie twierdzimy, że renderer ma pełną historię świata.
+
+### Frontend i podgląd
+
+Istniejący renderMontage obejmuje 480–840 s: mapa zakresu konsumpcji, konflikty,
+nagrody, uczestnicy, klany oraz plansze rekonstrukcji systemu. Te ostatnie nie
+uruchamiają aplikacji ani bootu i nie odczytują plików użytkowników. Fakty pochodzą
+z projekcji; brak danych utrzymuje czytelny fallback. Teksty trafiają przez
+textContent. Zegar, lock, SFX i restart/ACK pozostają zgodne z 139.
+
+Generator podglądu obejmuje 0–839 s i ma jawne dane demonstracyjne dla wyników
+oraz publikacji. Nie dotyka bazy ani API gry. Audio nie zostało zmienione.
+Cache token: signal-show-140-3. Pełne komendy testów i odbioru:
+[deploy_140_3.md](../runbooks/deploy_140_3.md).
+
+Walidacja lokalna 140.3: regresja 63 testów Python PASS (148,255 s), następnie
+10 testów końcowych manifestu/rankingu PASS (11,819 s), w tym nowe sprawdzenie
+powiązania konfliktów. Pełna lista serwerowa obejmuje teraz 64 testy.
+Pięć zestawów JS, node --check, generowanie podglądu i git diff --check PASS.
+Test pollingu obejmuje 35 MB profilu, signal payload i ranking snapshot:
+niezmiennie dwa SELECT/sześć instrukcji, zero pełnych odczytów/zapisów profilu.
+Testy potwierdzają write-once projekcji, retry po awarii bez blokowania rankingu,
+publiczną widoczność publikacji, signal lineage nagród i brak prywatnych ID.
+Nie wykonano produkcyjnego wdrożenia ani odbioru w przeglądarce.

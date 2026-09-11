@@ -62,15 +62,21 @@ class ShowManifestTest(unittest.TestCase):
                                              "payload": {"private": "x" * padding}})
                 service = GhostSignalShowService(repo)
                 service.ensure_for_signal(signal, cycle)
+                repo.store_show_settlement_scene("s", {"available": True, "rsp_total": 7})
                 with db_connect(path) as conn:
                     conn.execute("CREATE TABLE IF NOT EXISTS users(username TEXT PRIMARY KEY, profile_json TEXT)")
                     conn.execute("INSERT INTO users(username, profile_json) VALUES ('viewer', ?)", (json.dumps({"private": "x" * padding}),))
+                    conn.execute("""INSERT INTO ghost_signal_rankings
+                        (ranking_id,signal_id,cycle_id,signal_number,snapshot_schema,snapshot_checksum,snapshot_json,created_at)
+                        VALUES ('r','s','c',1,2,'test',?,'2026-09-11T00:00:00Z')""",
+                        (json.dumps({"private": "x" * padding}),))
                 queries = []
                 original = InstrumentedConnection.execute
                 def measured(conn, sql, *args, **kwargs):
                     self.assertNotIn("profile_json", sql.lower())
                     self.assertNotIn("payload_json", sql.lower())
                     self.assertNotIn("select * from ghost_signals", sql.lower())
+                    self.assertNotIn("select * from ghost_signal_rankings", sql.lower())
                     queries.append(sql)
                     return original(conn, sql, *args, **kwargs)
                 token = reset_hot_path_metrics()
@@ -91,7 +97,8 @@ class ShowManifestTest(unittest.TestCase):
                 confirmed = service.projection_for_cycle("c")["show_manifest"]
                 self.assertTrue(confirmed["signal_confirmed"])
                 self.assertNotIn("private", json.dumps(confirmed))
-                self.assertFalse(confirmed["ranking_available"])
+                self.assertTrue(confirmed["ranking_available"])
+                self.assertEqual(confirmed["cycle_history"]["settlement"]["rsp_total"], 7)
         # Each of the two readers also executes its connection PRAGMAs.
         self.assertEqual(query_counts, [6, 6])
 

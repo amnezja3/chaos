@@ -166,14 +166,26 @@
 
     function renderMontage(doc, root, snapshot, scene) {
         const stage = root.querySelector(".ghost-signal-show__stage");
-        if (!stage || !scene || scene.blocked || scene.elapsed >= 480) {
+        if (!stage || !scene || scene.blocked || scene.elapsed >= 840) {
             clearMontage(stage);
             root.classList.remove("has-montage");
             return;
         }
         const manifest = snapshot.show_manifest;
         const history = manifest.cycle_history || {};
+        const settlement = history.settlement || {};
+        const pageCounts = {players: Math.ceil((settlement.players || []).length / 4),
+            achievements: Math.ceil((settlement.players || []).length / 4),
+            reward_ledger: Math.ceil((settlement.reward_groups || []).length / 4),
+            clans: Math.ceil((settlement.clans || []).length / 4),
+            conflict_results: Math.ceil(((settlement.conflicts || []).length + (settlement.production_conflicts || []).length) / 4),
+            googleplex: (settlement.publications || []).filter(p => p.medium === "googleplex_news").length,
+            blacknet_history: (settlement.publications || []).filter(p => p.medium === "blacknet").length};
+        const pageCount = Math.max(1, pageCounts[scene.id] || 1);
+        const pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
         const key = [snapshot.signal_public_id, scene.id, !!manifest.signal_confirmed,
+            !!history.settlement,
+            pageIndex,
             scene.id === "parts_enter" ? Math.ceil(scene.progress * 20)
                 : scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
         root.classList.add("has-montage");
@@ -196,7 +208,97 @@
         };
         const layout = sceneLayout(manifest, scene);
         const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
-        if (heroIndex >= 0) {
+        if (scene.elapsed >= 480) {
+            const data = history.settlement;
+            const panel = element("div", "ghost-show-settlement");
+            panel.appendChild(element("p", "ghost-show-kicker", "ARCHIWUM FINAŁU / REKONSTRUKCJA"));
+            const line = text => panel.appendChild(element("p", "", text));
+            if (data && data.details_truncated) line("Ograniczony zakres szczegółów — dostępne podsumowanie finału.");
+            if (!data || !data.available) {
+                line("Oczekiwanie na zapis wyników finału.");
+            } else if (["aftershock", "world_before", "territory_outcomes", "territory_reduction", "world_final"].includes(scene.id)) {
+                line("Zakres rozliczenia sygnału: " + data.territories_total + " terytoriów skonsumowanych.");
+                if (scene.id === "territory_reduction") {
+                    line("Brak osobnej projekcji terytoriów zredukowanych i zachowanych.");
+                }
+                const shapes = (data.territories || []).slice(0, 40).filter(t => t.geometry_available && t.points.length >= 3);
+                if (shapes.length) {
+                    const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    svg.classList.add("ghost-show-settlement-map");
+                    const points = shapes.flatMap(t => t.points);
+                    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+                    const minX = Math.min.apply(null, xs), minY = Math.min.apply(null, ys);
+                    const spanX = Math.max(0.0001, Math.max.apply(null, xs) - minX);
+                    const spanY = Math.max(0.0001, Math.max.apply(null, ys) - minY);
+                    const scale = Math.min(900 / spanX, 340 / spanY);
+                    svg.setAttribute("viewBox", "0 0 1000 440");
+                    for (const territory of shapes) {
+                        const polygon = doc.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                        polygon.setAttribute("points", territory.points.map(p =>
+                            (50 + (p[0] - minX) * scale) + "," + (390 - (p[1] - minY) * scale)).join(" "));
+                        polygon.setAttribute("class", scene.id === "world_before" ? "is-before" : "is-consumed");
+                        const title = doc.createElementNS("http://www.w3.org/2000/svg", "title");
+                        title.textContent = territory.label + " / " + territory.clan;
+                        polygon.appendChild(title); svg.appendChild(polygon);
+                    }
+                    panel.appendChild(svg);
+                } else { line("Geometria archiwalna niedostępna — podsumowanie tekstowe."); }
+                line("Mapa schematyczna zakresu finału; poza nim brak projekcji świata.");
+                if (data.territories_truncated) line("Geometria: ograniczony wybór 40 terytoriów.");
+            } else if (scene.id === "conflict_results") {
+                line("Archiwalne konflikty strategiczne: " + data.conflicts_total);
+                const rows = (data.conflicts || []).slice(0, 20).concat((data.production_conflicts || []).slice(0, 20));
+                for (const row of rows.slice(pageIndex * 4, pageIndex * 4 + 4)) line(row.label + " / " + row.status + " / " + (row.resolved_at || ""));
+                line("Strona " + (pageIndex + 1) + " / " + pageCount);
+                line("Podsumowanie obejmuje konflikty wskazane w archiwum finału.");
+            } else if (scene.id === "reward_ledger") {
+                line("Nagrody finału: " + data.rewards_total + " / RSP: " + data.rsp_total);
+                const labels = {ghost_signal_node_holder: "Kontrola węzłów", ghost_signal_closer: "Zamknięcie sygnału",
+                    ghost_signal_territory_consumed: "Terytoria finału"};
+                for (const row of (data.reward_groups || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line((labels[row.type] || "Nagroda finału") + " / " + row.count + " / " + row.rsp + " RSP");
+            } else if (scene.id === "players" || scene.id === "achievements") {
+                line("Uczestnicy: " + data.players_total + (data.players_truncated ? " / wybór pierwszych 20" : ""));
+                const players = (data.players || []).slice(0, 20);
+                const pages = Math.max(1, Math.ceil(players.length / 4));
+                const page = Math.min(pages - 1, Math.floor(scene.progress * pages));
+                line("Strona " + (page + 1) + " / " + pages);
+                for (const player of players.slice(page * 4, page * 4 + 4)) {
+                    line(player.alias + " / " + player.clan + " / " + player.rsp + " RSP / węzły: " + player.nodes
+                        + (player.closer ? " / ZAMKNIĘCIE SYGNAŁU" : ""));
+                }
+                if (scene.id === "achievements") line("Osiągnięcia wynikają z rankingu finału; bez dodatkowych odznak.");
+            } else if (scene.id === "clans") {
+                line("Clan Ghost Score / " + data.score_policy);
+                for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line(clan.code + " / " + clan.score
+                    + " / uczestnicy: " + clan.members + " / " + clan.rsp + " RSP");
+            } else {
+                const layers = {
+                    system_layers: "CHAOS / warstwy systemu",
+                    googleplex: "GOOGLEPLEX / zapis publikacji",
+                    pro_tools: "PRO TOOLS / TERMINAL",
+                    file_system: "PLIKI / ARCHIWUM SYGNAŁU",
+                    blacknet_history: "BLACKNET / HISTORIA",
+                    desktop_assembly: "PULPIT / REKONSTRUKCJA",
+                    system_ready: "WARSTWY PREZENTACJI GOTOWE"
+                };
+                panel.appendChild(element("h2", "", layers[scene.id] || scene.label));
+                line("Rekonstrukcja wizualna — rzeczywisty boot nastąpi według procedury restartu.");
+                if (scene.id === "googleplex" || scene.id === "blacknet_history") {
+                    const medium = scene.id === "googleplex" ? "googleplex_news" : "blacknet";
+                    const records = (data.publications || []).filter(p => p.medium === medium).slice(0, 6);
+                    const index = Math.min(records.length - 1, Math.floor(scene.progress * records.length));
+                    for (const record of records.slice(Math.max(0, index), index + 1)) {
+                        panel.appendChild(element("h3", "", record.title));
+                        line(record.body); line(record.published_at);
+                    }
+                    if (!records.length) line("Brak publicznego zapisu w tej projekcji finału.");
+                } else {
+                    line("GhostSignal / " + snapshot.signal_public_id);
+                    line("Zapisano: " + data.players_total + " uczestników / " + data.rewards_total + " nagród finału.");
+                }
+            }
+            stage.appendChild(panel);
+        } else if (heroIndex >= 0) {
             const machine = layout.machines[heroIndex];
             if (!machine) return;
             const asset = (manifest.assets || []).find(a => a.id === "machine_" + machine.code);
