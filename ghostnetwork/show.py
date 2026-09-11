@@ -7,6 +7,7 @@ from config import GHOSTNETWORK_SIGNAL_SHOW_POLICY
 
 from .repository import GhostNetworkRepository, _clean
 from database import ProfilePrecommitRejected
+from .show_manifest import build_manifest
 
 
 class GhostGameplayLocked(ProfilePrecommitRejected):
@@ -222,6 +223,8 @@ class GhostSignalShowService:
             "show_ends_at": show.get("show_ends_at") or None,
             "server_now": current.isoformat(),
             "show_phase": phase,
+            "show_manifest": build_manifest(
+                self.repository.get_show_presentation_facts(show["signal_id"])),
             "from_system_version": show.get("from_system_version") or None,
             "to_system_version": show.get("to_system_version") or None,
             "phase_policy_version": show.get("phase_policy_version") or None,

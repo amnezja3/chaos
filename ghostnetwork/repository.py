@@ -2591,6 +2591,18 @@ class GhostNetworkRepository:
                 "SELECT * FROM ghost_signal_shows ORDER BY show_started_at DESC LIMIT 1"
             ).fetchone())
 
+    def get_show_presentation_facts(self, signal_id):
+        """One indexed read; never hydrate signal payload or ranking JSON."""
+        with self._conn() as conn:
+            row = conn.execute("""SELECT s.sent_at,
+                EXISTS(SELECT 1 FROM ghost_part_events e WHERE e.dedupe_key='ghost:signal_sent:' || s.cycle_id
+                    AND e.event_type='ghost.signal_sent' AND e.entity_id=s.signal_id) AS sent_event,
+                EXISTS(SELECT 1 FROM ghost_signal_rankings r WHERE r.signal_id=s.signal_id)
+                    AS ranking_available
+                FROM ghost_signals s WHERE s.signal_id=? LIMIT 1""",
+                (_clean(signal_id),)).fetchone()
+            return dict(row) if row else {}
+
     def get_gameplay_lock(self, conn=None):
         """Small canonical lock projection; usable inside the request commit."""
         if conn is None:

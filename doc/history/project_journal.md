@@ -4331,3 +4331,32 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   w `doc/audits/139-4-production-e2e-summary.md`; pełne logi pozostają na serwerze.
 - SFX pozostaje przy ghost.signal_sent na potrzeby Sprintu 140.
   Sprint 140 pozostaje planowany, z zaliczoną bramką mechaniki 139.
+
+### 2026-09-11 — szczegółowa reżyseria Sprintu 140
+
+- Włączono pełny scenariusz autora do
+  `doc/sprints/sprint_140_ghostsignal_szczegolowy_scenariusz.md` i rozwinięto
+  główny plan 140 o przedziały scen, źródła danych, assety i kryteria odbioru.
+- Zgodnie z korektą operatora dostosowano scenariusz do zatwierdzonego 139:
+  emisja i SFX pozostają na początku według backendu; film i scena około
+  07:35 są oznaczoną retrospekcją, bez drugiej transmisji/SFX.
+- Bez zmian deadline'u, settlementu, restart epoch/ACK lub mechaniki nagród.
+  Snapshot prezentacji rozwija istniejące dane; brak nowych równoległych
+  systemów i ciężkich profili. Runtime i produkcja bez zmian.
+
+### 2026-09-11 — 140.1 LOCAL PASS / SERVER GATE PENDING
+
+- Przeprowadzono audyt 24 źródeł scenariusza i asset inventory;
+  `doc/audits/140-1-show-sources-and-assets.md` opisuje również braki projekcji.
+- Istniejący endpoint show zwraca manifest v2: 49 scen, canonical katalog,
+  indeksowane potwierdzenie sent i dostępności rankingu, identyfikatory
+  czterech hero assetów i filmu z fallbackami. Brak nowych tabel/workerów.
+- Istniejący kontroler wybiera scenę z zegara serwera, obsługuje seek,
+  tekstowy fallback i brak sent. SFX, deadline i restart/ACK 139 bez zmian.
+- Baseline 23 PASS; regresja 40 PASS; po ostatnich zmianach 2 testy manifestu
+  PASS. Cztery zestawy JS, node --check, py_compile PASS. Manifest 15 694 B;
+  projection_for_cycle: dwa SELECT-y (+ cztery PRAGMAs) dla małych/35 MB danych,
+  zera metryk pełnego profilu, bytes i all-user scan.
+- Złożone dane cyklu, data 2108 i montaż assetów pozostają zadaniami scen;
+  manifest nie publikuje fikcyjnych zamienników. Procedura pierwszej bramki
+  serwerowej w planie 140. Nie wykonano commit/push, migracji ani wdrożenia.

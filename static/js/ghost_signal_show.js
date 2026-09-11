@@ -64,6 +64,34 @@
         return root;
     }
 
+    function sceneAt(snapshot, nowMs, offsetMs) {
+        const manifest = snapshot && snapshot.show_manifest;
+        if (!manifest || manifest.version !== "ghostsignal-show-manifest-v2"
+                || !Array.isArray(manifest.scenes) || !manifest.scenes.length
+                || manifest.scenes.length > 64 || manifest.nominal_duration_seconds !== 900) return null;
+        const start = Date.parse(snapshot.show_started_at || "");
+        const end = Date.parse(snapshot.show_ends_at || "");
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+        let boundary = 0;
+        for (const scene of manifest.scenes) {
+            if (!scene || typeof scene.id !== "string" || typeof scene.label !== "string"
+                    || !Number.isFinite(scene.start) || !Number.isFinite(scene.end)
+                    || scene.start !== boundary || scene.end <= scene.start || scene.end > 900) return null;
+            boundary = scene.end;
+        }
+        if (boundary !== 900) return null;
+        const now = Number(nowMs === undefined ? Date.now() : nowMs) + Number(offsetMs || 0);
+        const elapsed = Math.max(0, Math.min(900, (now - start) * 900 / (end - start)));
+        const scene = manifest.scenes.find(item => elapsed < item.end) || manifest.scenes[manifest.scenes.length - 1];
+        if (scene.requires_signal_sent && !manifest.signal_confirmed) {
+            return {id: "waiting_for_signal_sent", label: "OCZEKIWANIE NA POTWIERDZENIE SYGNAŁU",
+                progress: 0, blocked: true};
+        }
+        return {id: scene.id, label: scene.label,
+            progress: Math.max(0, Math.min(1, (elapsed - scene.start) / (scene.end - scene.start))),
+            blocked: false};
+    }
+
     function createController(options) {
         options = options || {};
         const doc = options.document || global.document;
@@ -157,9 +185,13 @@
             root.classList.add("is-active");
             const phase = phaseAt(snapshot, Date.now(), offsetMs);
             const copy = PHASE_COPY[phase.code] || [phase.label || "GHOSTSIGNAL", "Global transmission in progress"];
+            const scene = sceneAt(snapshot, Date.now(), offsetMs);
+            root.setAttribute("data-show-scene", scene ? scene.id : phase.code || "fallback");
             root.querySelector(".ghost-signal-show__signal").textContent = snapshot.signal_public_id || "GHOSTSIGNAL";
-            root.querySelector(".ghost-signal-show__phase").textContent = copy[0];
-            root.querySelector(".ghost-signal-show__copy").textContent = copy[1];
+            root.querySelector(".ghost-signal-show__phase").textContent = scene ? scene.label : copy[0];
+            root.querySelector(".ghost-signal-show__copy").textContent = scene
+                ? (scene.blocked ? "Trwa odtwarzanie stanu transmisji." : "Historia zakończenia cyklu GhostNetwork")
+                : copy[1];
             root.querySelector(".ghost-signal-show__versions").textContent =
                 `${snapshot.from_system_version || "vN"}  >  ${snapshot.to_system_version || "vNext"}`;
             root.querySelector(".ghost-signal-show__progress span").style.width =
@@ -279,7 +311,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, phaseAt, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 
