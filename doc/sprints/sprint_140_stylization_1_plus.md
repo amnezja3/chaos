@@ -4,7 +4,7 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE PAIR v3 / FOREGROUND OVERSCAN / AWAITING AUTHOR REVIEW`.
+Realizacja .2: `REFERENCE PAIR v4 / DEPTH AND MAP HOVER / AWAITING AUTHOR REVIEW`.
 Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
 
 ### Pierwsza para .2 — dwadzieścia części
@@ -18,7 +18,10 @@ płaską siatkę na rzecz czterech planów głębi. Każda grupa ma pięć czę�
 jednej maszyny, nieregularnie rozmieszczonych: Virex na pierwszym planie,
 Echo na drugim, Phantom na trzecim, Sentinel w oddali. To propozycja
 kolejności planów do akceptacji, nie hierarchia klanów ani wynik cyklu.
-Skala desktop: 20/15/11/8% szerokości pola; portrait: 25/19/14/10%.
+Skala desktop v4: 28/15/11/7,2% szerokości pola; portrait: 35/19/14/9%.
+Pierwszy plan +40%, ostatni −10% wobec v3. Dodano wolne oddychanie oraz
+hover/focus przez istniejące klasy i keyframes aktywnej części z mapy.
+Reduced motion wyłącza ruch; interakcja nie zmienia stanów części w grze.
 Pozycje są zapisane, a nie losowane przy każdym renderze. Kody i przypisanie
 maszyn pozostają stałe; indeks ringu nie wyznacza już siatki kadru.
 Pełne nazwy pokazujemy bliżej, kody także w oddali. Akcenty wynikają z klanu.

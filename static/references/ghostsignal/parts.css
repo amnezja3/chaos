@@ -26,16 +26,16 @@ footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:c
 .identity{position:absolute;top:8%;left:4%;right:4%;z-index:1;font-size:clamp(10px,.9vw,17px);text-shadow:0 2px 3px #000}
 .identity>span{display:none}.identity b{padding:2px 4px;background:#030907b3;border-left:1px solid var(--clan)}
 .part h2{font-size:clamp(10px,.9vw,17px);min-height:0;line-height:1.2;text-shadow:0 2px 4px #000;background:#03090780;padding:2px 4px}
-[data-depth="1"]{--size:20%;--depth-order:4;--depth-opacity:1}
+[data-depth="1"]{--size:28%;--depth-order:4;--depth-opacity:1}
 [data-depth="2"]{--size:15%;--depth-order:3;--depth-opacity:.88}
 [data-depth="3"]{--size:11%;--depth-order:2;--depth-opacity:.73}
-[data-depth="4"]{--size:8%;--depth-order:1;--depth-opacity:.62}
+[data-depth="4"]{--size:7.2%;--depth-order:1;--depth-opacity:.62}
 .part[data-depth="3"] h2,.part[data-depth="4"] h2{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;padding:0}
 @media(max-aspect-ratio:1/1){
  .parts-scene{gap:1.4vh;grid-template-rows:auto auto minmax(0,1fr) auto}
  .heading{gap:.5vh 3vw}.eyebrow{font-size:clamp(10px,1.9vw,21px)}.twenty{font-size:17vw}.word{font-size:7vw}.deck{font-size:clamp(10px,2vw,22px)}.legend{font-size:clamp(9px,1.8vw,20px);gap:.6vh 2vw}
  .part{left:var(--mx);top:var(--my)}
- [data-depth="1"]{--size:25%}[data-depth="2"]{--size:19%}[data-depth="3"]{--size:14%}[data-depth="4"]{--size:10%}
+ [data-depth="1"]{--size:35%}[data-depth="2"]{--size:19%}[data-depth="3"]{--size:14%}[data-depth="4"]{--size:9%}
 .identity,.part h2{font-size:clamp(10px,2.1vw,23px)}
 }
 /* v3: fixed irregular scatter, object rotation, deliberate foreground overscan. */
@@ -48,4 +48,18 @@ footer{position:relative;z-index:10;background:linear-gradient(0deg,#050907 75%,
  .parts-board{clip-path:inset(-4% -6vw -1% -6vw)}
  .part[data-code="V1"] h2{position:relative;left:48%;max-width:85%}
  .part[data-code="V1"] .identity{left:65%;right:auto}
+}
+/* Rotation belongs to the frame; map active-float owns the image transform. */
+.part-art-frame{display:block;width:100%;aspect-ratio:1;transform:rotate(var(--turn,0deg))}
+.part .ghostnetwork-node{width:100%;height:100%}
+.part .ghostnetwork-part-art{position:absolute;inset:0;width:100%;height:100%;transform:none;transform-origin:50% 60%}
+.part:not(:hover):not(:focus-visible) .ghostnetwork-part-art{filter:drop-shadow(0 12px 14px #000b);animation-duration:6.8s;animation-delay:-1.1s}
+.part:nth-child(3n):not(:hover):not(:focus-visible) .ghostnetwork-part-art{animation-duration:7.6s;animation-delay:-3.2s}
+.part:nth-child(3n+1):not(:hover):not(:focus-visible) .ghostnetwork-part-art{animation-duration:8.4s;animation-delay:-5.7s}
+.part .ghostnetwork-part-halo{inset:15%;display:none}
+.part:hover .ghostnetwork-part-halo,.part:focus-visible .ghostnetwork-part-halo{display:block}
+.part:hover .ghostnetwork-part-art,.part:focus-visible .ghostnetwork-part-art{filter:drop-shadow(0 0 7px rgba(183,255,53,.9));animation:ghostnetwork-part-active-float 2.8s ease-in-out infinite}
+.part:focus-visible{outline:1px solid #b7ff35;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){
+ .part .ghostnetwork-part-art,.part .ghostnetwork-part-halo{animation:none!important;transition:none!important}
 }

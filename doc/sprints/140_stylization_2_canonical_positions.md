@@ -1,4 +1,4 @@
-# .2 — canonical positions v3
+# .2 — canonical positions v4
 
 REFERENCE / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW
 
@@ -15,8 +15,9 @@ obiektów w procentach pola części, osobno dla obu formatów.
 Plan 1: Virex / V1–V5; plan 2: Echo / E1–E5; plan 3: Phantom / P1–P5;
 plan 4: Sentinel / S1–S5. Przypisanie planów jest kompozycyjne, nie rankingowe.
 
-Szerokość części względem pola: desktop 20%, 15%, 11%, 8%; portrait 25%,
-19%, 14%, 10%. Warstwy bliższe zasłaniają dalsze, a kontrast maleje w głąb.
+Szerokość części względem pola: desktop 28%, 15%, 11%, 7,2%; portrait 35%,
+19%, 14%, 9%. Pierwszy plan +40%, ostatni −10% względem v3; indywidualne
+mnożniki i pozycje zachowane. Warstwy bliższe zasłaniają dalsze, kontrast maleje w głąb.
 Rozkład ma wyglądać swobodnie i losowo, ale jest utrwalony dla odtworzenia
 po seek i dla ciągłości między scenami. Bez losowania nowych pozycji co klatkę.
 
@@ -30,8 +31,13 @@ może zmieniać odsłanianie, ale nie tożsamość ani adres części.
 
 Najdalsze plany pokazują kody; nazwy pozostają w HTML dla dostępności,
 a pełna ekspozycja części będzie rozwijana w kolejnych scenach .2.
-To jedna statyczna para do akceptacji. Ruch, paralaksa i reszta grupy
-nie zostały jeszcze zaimplementowane.
+V4 dodaje oddychanie istniejącą animacją ghostnetwork-part-active-float,
+spowolnioną do 6,8–8,4 s i z przesuniętymi fazami. Hover/focus stosuje
+efekt aktywnej części z mapy: poświata rgba(183,255,53,.9) o promieniu
+7 px, active-float 2,8 s i halo active-pulse 1,55 s. Źródło:
+ghostnetwork_map.css; obrót assetu jest na osobnym wrapperze.
+Reduced motion wyłącza ruch i puls, pozostawiając statyczne podświetlenie.
+Para czeka na akceptację; transformacje do sieci i reszta .2 nie są wdrożone.
 
 | Code | Depth | Desktop X,Y (%) | Portrait X,Y (%) | Machine slot |
 | --- | --- | --- | --- | --- |
