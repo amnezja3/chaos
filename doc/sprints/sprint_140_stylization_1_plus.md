@@ -4,10 +4,30 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE PAIR v6 / SOFT HOVER GLOW / AWAITING AUTHOR REVIEW`.
+Realizacja .2: `REFERENCE v6 ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING`.
 V6 redukuje łunę hover/focus do około 20% intensywności v5, ze zmiękczeniem
 halo. Skala części, ruch, OFS i glitch pozostają jak w v5; mapa bez zmian.
-Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
+Podsprinty .3–.10 pozostają w backlogu. Autor zaakceptował parę v6 i zlecił
+implementację słowami „mamy to, możesz implementować”.
+
+### Implementacja czterech scen .2
+
+`parts_enter`, `parts_complete`, `history_logs`, `part_states` korzystają
+z zaakceptowanej kompozycji v6 i wspólnego z referencją `ghost_signal_parts.css`.
+Stałe pozycje są przypisane do kodów części, niezależnie od kolejności odkryć.
+Wejście odsłania elementy i ładuje ich obrazki bez przebudowy planszy co tick.
+Historia i stany pokazują cztery grupy po pięć zapisów (5 s na grupę),
+daty w UTC i jawne braki danych; odczyt wyłącznie z zamrożonego manifestu.
+Aktualny stan archiwalny nie jest zastępowany dekoracyjnym stanem `active`.
+
+Scena `connections` zachowuje te same pozycje i pokazuje wyłącznie zapisany
+pierścień. To most do .3, nie odbiór stylizacji sieci ani późniejszych
+transformacji do ringu i maszyn. Ruch, OFS, glitch i łuna hover/focus v6
+korzystają z istniejących efektów; brak nowego zegara lub kontrolera.
+Progress, dźwięk, muzyka, film i restart pozostają pod istniejącą obsługą show.
+
+[Wdrożenie i odbiór .2](../runbooks/deploy_140_stylization_2.md).
+Odbiór wizualny czterech scen na serwerze pozostaje do wykonania.
 
 ### Pierwsza para .2 — dwadzieścia części
 
@@ -18,8 +38,8 @@ Po push/pull: `/static/references/ghostsignal/parts-pair.html`, bez reloadu.
 Wybrano parts_complete, statyczny moment referencyjny 01:15. Autor odrzucił
 płaską siatkę na rzecz czterech planów głębi. Każda grupa ma pięć części
 jednej maszyny, nieregularnie rozmieszczonych: Virex na pierwszym planie,
-Echo na drugim, Phantom na trzecim, Sentinel w oddali. To propozycja
-kolejności planów do akceptacji, nie hierarchia klanów ani wynik cyklu.
+Echo na drugim, Phantom na trzecim, Sentinel w oddali. To zaakceptowana
+kolejność kompozycyjna, nie hierarchia klanów ani wynik cyklu.
 Skala desktop v5: 24/15/11/7,2% szerokości pola; portrait: 30/19/14/9%.
 Pierwszy plan +20%, ostatni −10% wobec v3; zastępuje zbyt duże +40% w v4.
 V5 dodaje wspólne efekty OFS i glitch mapy za treścią, jak w .1.
@@ -41,15 +61,15 @@ odtworzenia, nie losowy układ przy każdym wejściu.
 rozpisuje wszystkie 20 pozycji desktop/portrait, kolejność ringu oraz
 przypisanie do maszyny i slotu 1–5. Część przechodzi we węzeł z tego samego
 środka; późniejsze przemieszczenia do ringu i grup są jawnie zaplanowane.
-W integracji topologia będzie pochodzić z zamrożonego cyklu, a brak historii
-nie zostanie zastąpiony fikcyjnym rekordem.
+W integracji topologia pochodzi z zamrożonego cyklu, a brak historii
+nie jest zastępowany fikcyjnym rekordem.
 
-Do akceptacji: pełny zestaw i czytelność nazw, wielkość części, proporcja
+Zaakceptowano w parze v6: pełny zestaw i czytelność nazw, wielkość części, proporcja
 nagłówka do przestrzennej kompozycji i rozdzielenie czterech planów. Makieta nie podaje dat, aktywacji
 ani wyników produkcyjnego cyklu; czas służy wyłącznie kompozycji.
 Sprawdzono 20 unikalnych kodów, obecność 20 assetów i składnię JS pary.
 Brak automatycznego odbioru wizualnego w przeglądarce. Transformacje, efekty
-OFS i pozostałe sceny .2 rozwijamy po akceptacji tej pary.
+OFS i pozostałe sceny .2 zostały wdrożone po akceptacji tej pary.
 
 ### Implementacja siedmiu scen .1
 
@@ -189,7 +209,8 @@ Podobna scena może wracać później w show na tym samym schemacie graficznym.
 
 ## Makieta podsprintów — template po templacie
 
-Wszystkie pozycje mają status DRAFT. Checkpoint oznacza przyszły odbiór
+Tabela opisuje zakres bazowego planu; aktualne statusy .1/.2 są na początku
+dokumentu. Pozostałe pozycje mają status DRAFT. Checkpoint oznacza odbiór
 danego układu przez autora, nie już wykonaną implementację.
 
 | Podsprint | Template i wspólna kompozycja | Sceny / zastosowania | Główny checkpoint |

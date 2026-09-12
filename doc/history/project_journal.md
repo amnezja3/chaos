@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — 140.stylization.2: integracja zaakceptowanej pary v6
+
+- Autor zaakceptował cztery plany części i łunę hover/focus o intensywności
+  około 20%. Wdrożono parts_enter, parts_complete, history_logs i part_states
+  w istniejącym rendererze, ze wspólnym CSS dla referencji i runtime.
+- Pozycje zależą od kodu, wejście odsłania istniejący DOM i ładuje obrazki
+  na żądanie. Historia/stany: cztery grupy po pięć zapisów, daty UTC,
+  jawne braki. Brak nowych odczytów, profili, kontrolera i migracji.
+- Connections zachowuje te same adresy i wyłącznie archiwalny ring;
+  docelowa stylizacja/transformacje sieci i maszyn pozostają w .3/.4.
+- Lokalnie: siedem zestawów testów JS PASS, składnia JS i diff check PASS.
+  Dodano regresję pozycji, lazy reveal, paginacji, częściowej historii,
+  brakujących assetów/ringu oraz cleanup. Odbiór wizualny runtime otwarty.
+- Procedura: `doc/runbooks/deploy_140_stylization_2.md`. Trigger dopiero
+  po stylizacji .1–.9 i odbiorze montażu .10.
+
 ## 2026-09-10 — trwały monitoring produkcyjnego E2E 138.2
 
 - Dodano `scripts/monitor_138_2_signal_e2e.py`, read-only monitor działający

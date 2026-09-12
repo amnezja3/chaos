@@ -1,3 +1,4 @@
+@import url("ghost_signal_parts.css?v=parts-runtime-1");
 @import url("ofs_ambient_effects.css?v=1");
 @import url("ghost_exchange_charts.css");
 
@@ -9718,9 +9719,9 @@ form button:hover {
 .ghost-signal-show__sound { margin-top: 8px; padding: 6px 12px; background: #092e23; border: 1px solid #52e5b5; color: #d5fff1; font: inherit; cursor: pointer; }
 .ghost-signal-show__sound:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 /* 140.stylization.1: seven compositions, existing controller and audio owner. */
-.ghost-signal-show.has-interface { --gsi-ink:#dfe6dc; --gsi-muted:#99aaa0; --gsi-accent:#97b9a3; font-family:"Courier New",monospace; }
-.ghost-signal-show.has-interface .ghost-signal-show__grid { display:none; }
-.ghost-signal-show.has-interface .ghost-signal-show__stage { inset:0; }
+.ghost-signal-show:is(.has-interface,.has-parts) { --gsi-ink:#dfe6dc; --gsi-muted:#99aaa0; --gsi-accent:#97b9a3; font-family:"Courier New",monospace; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__grid { display:none; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__stage { inset:0; }
 .ghost-show-interface { position:absolute; inset:0; isolation:isolate; overflow:hidden; padding:6vh 4vw 17vh; display:grid; grid-template-columns:minmax(0,1fr) 25%; grid-template-rows:auto 1fr auto; gap:3vh 5vw; color:var(--gsi-ink); }
 .ghost-show-interface:after { content:""; position:absolute; inset:3vh 2vw; border:1px solid #a6c5b22b; pointer-events:none; z-index:-1; }
 .gsi-city { position:absolute; inset:0; z-index:-3; background:#101816 url('../images/wallpaper2.jpg') 58% center/cover no-repeat; filter:grayscale(1) brightness(.43); }
@@ -9738,13 +9739,13 @@ form button:hover {
 .gsi-layers .is-current { border-left:2px solid var(--gsi-accent); background:#8bad981c; color:var(--gsi-ink); }
 .gsi-details { grid-column:1/-1; font-size:clamp(11px,1vw,19px); line-height:1.6; color:var(--gsi-muted); max-width:70ch; }
 .gsi-facts { margin-top:1vh!important; color:var(--gsi-ink); }
-.ghost-signal-show.has-interface .ghost-signal-show__panel { inset:auto 4vw max(4vh,env(safe-area-inset-bottom)); width:auto; display:grid; grid-template-columns:1fr minmax(150px,22vw); gap:8px 3vw; text-align:left; align-items:center; }
-.ghost-signal-show.has-interface .ghost-signal-show__eyebrow,.ghost-signal-show.has-interface .ghost-signal-show__phase,.ghost-signal-show.has-interface .ghost-signal-show__copy,.ghost-signal-show.has-interface .ghost-signal-show__versions { display:none; }
-.ghost-signal-show.has-interface .ghost-signal-show__signal { grid-column:1; grid-row:1; color:var(--gsi-muted); margin:0; overflow-wrap:anywhere; font-size:clamp(10px,.9vw,16px); }
-.ghost-signal-show.has-interface .ghost-signal-show__progress { grid-column:2; grid-row:1; height:3px; border:0; background:#92a19840; }
-.ghost-signal-show.has-interface .ghost-signal-show__progress span { background:#d4ddd2; box-shadow:none; }
-.ghost-signal-show.has-interface .ghost-signal-show__time { grid-column:2; grid-row:2; margin:0; color:var(--gsi-muted); font-size:clamp(10px,.9vw,16px); text-align:right; }
-.ghost-signal-show.has-interface .ghost-signal-show__sound { grid-column:1; grid-row:2; justify-self:start; margin:0; min-height:32px; background:#06100a; border-color:#667f6e; color:var(--gsi-ink); font-size:12px; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__panel { inset:auto 4vw max(4vh,env(safe-area-inset-bottom)); width:auto; display:grid; grid-template-columns:1fr minmax(150px,22vw); gap:8px 3vw; text-align:left; align-items:center; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__eyebrow,.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__phase,.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__copy,.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__versions { display:none; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__signal { grid-column:1; grid-row:1; color:var(--gsi-muted); margin:0; overflow-wrap:anywhere; font-size:clamp(10px,.9vw,16px); }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__progress { grid-column:2; grid-row:1; height:3px; border:0; background:#92a19840; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__progress span { background:#d4ddd2; box-shadow:none; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__time { grid-column:2; grid-row:2; margin:0; color:var(--gsi-muted); font-size:clamp(10px,.9vw,16px); text-align:right; }
+.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__sound { grid-column:1; grid-row:2; justify-self:start; margin:0; min-height:32px; background:#06100a; border-color:#667f6e; color:var(--gsi-ink); font-size:12px; }
 /* Identity persists; focus, alignment and scale change across compositions. */
 /* OFS-like ambient light: static glow textures, animate their opacity only. */
 .gsi-message { position:relative; isolation:isolate; }
@@ -9757,7 +9758,7 @@ form button:hover {
 .ghost-show-interface > .gsi-glitch::after { display:none; }
 .ghost-show-interface .gsi-glitch .chaos-map-glitch-block { will-change:auto; }
 @media(prefers-reduced-motion:reduce) {
- .ghost-signal-show.has-interface .ghost-signal-show__stage { --gsi-light:.4!important; --gsi-line-light:.4!important; }
+ .ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__stage { --gsi-light:.4!important; --gsi-line-light:.4!important; }
  .gsi-message:before,.gsi-hero,.gsi-kicker,.gsi-layers .is-current:before { transition:none; }
  .ghost-show-interface > .gsi-glitch { display:none; }
 }
@@ -9801,8 +9802,8 @@ form button:hover {
  .ghost-show-interface[data-composition="system_layers"] .gsi-hero,.ghost-show-interface[data-composition="desktop_assembly"] .gsi-hero { font-size:10vw; }
  .ghost-show-interface[data-composition="desktop_assembly"] .gsi-layers { display:grid; align-self:center; }
  .ghost-show-interface[data-composition="restart"] .gsi-hero { font-size:25vw; }
- .ghost-signal-show.has-interface .ghost-signal-show__panel { left:6vw; right:6vw; bottom:max(4vh,env(safe-area-inset-bottom)); grid-template-columns:minmax(0,1fr) 36vw; }
- .ghost-signal-show.has-interface .ghost-signal-show__signal,.ghost-signal-show.has-interface .ghost-signal-show__time { font-size:clamp(10px,1.9vw,20px); }
+ .ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__panel { left:6vw; right:6vw; bottom:max(4vh,env(safe-area-inset-bottom)); grid-template-columns:minmax(0,1fr) 36vw; }
+ .ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__signal,.ghost-signal-show:is(.has-interface,.has-parts) .ghost-signal-show__time { font-size:clamp(10px,1.9vw,20px); }
 }
 @media(max-height:600px) and (min-aspect-ratio:1/1) {
  .ghost-show-interface { gap:1vh; padding-top:4vh; padding-bottom:20vh; }.gsi-brand { font-size:18vh; }.gsi-hero { font-size:10vh; }.gsi-layers li { padding:1vh; }.gsi-details { display:none; }

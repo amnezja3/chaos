@@ -1,6 +1,12 @@
 # .2 — canonical positions v6
 
-REFERENCE / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW
+REFERENCE v6 ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING
+
+Po akceptacji autora kompozycję przeniesiono do istniejącego renderera show.
+`PART_POSES` w `static/js/ghost_signal_show.js` utrwala adresy kodów;
+referencja i runtime korzystają ze wspólnego `static/css/ghost_signal_parts.css`.
+Historia i stany zachowują te adresy, a `connections` nakłada zapisany ring.
+Przejścia do późniejszych grup maszyn i ringu pozostają zakresem .3/.4.
 
 V6: podświetlenie hover/focus w prezentacji ograniczono do około 20%
 intensywności v5. Alpha poświaty assetu .9 → .18; kolor obrysu i cieni
@@ -44,7 +50,8 @@ efekt aktywnej części z mapy: poświata rgba(183,255,53,.9) o promieniu
 7 px, active-float 2,8 s i halo active-pulse 1,55 s. Źródło:
 ghostnetwork_map.css; obrót assetu jest na osobnym wrapperze.
 Reduced motion wyłącza ruch i puls, pozostawiając statyczne podświetlenie.
-Para czeka na akceptację; transformacje do sieci i reszta .2 nie są wdrożone.
+Para v6 została zaakceptowana. Cztery sceny .2 są wdrożone;
+docelowe transformacje sieci i maszyn pozostają w .3/.4.
 
 V5 koryguje nadmierne +40% z v4 do +20% względem v3. Dodano wspólny
 glitch mapy w tle (slow 7 s / overloaded 5 s) oraz efekty OFS napisów,

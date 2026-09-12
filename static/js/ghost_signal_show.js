@@ -95,12 +95,36 @@
             blocked: false};
     }
 
+    // Approved v6 composition; identity is independent of reveal order.
+    const PART_POSES = {
+        V1: {"depth":1,"values":[8,61,-3,52,1.27,-13]},
+        S5: {"depth":4,"values":[84,90,90,89,1.03,17]},
+        E4: {"depth":2,"values":[80,9,86,10,0.87,11]},
+        P3: {"depth":3,"values":[32,8,32,5,1.14,-8]},
+        V2: {"depth":1,"values":[56,53,64,66,1.08,18]},
+        E1: {"depth":2,"values":[17,27,18,29,0.92,-14]},
+        S4: {"depth":4,"values":[48,70,49,64,0.92,-12]},
+        P5: {"depth":3,"values":[91,52,91,56,1.04,-19]},
+        V3: {"depth":1,"values":[30,85,24,86,1.15,-21]},
+        S2: {"depth":4,"values":[65,10,73,7,0.89,-15]},
+        E5: {"depth":2,"values":[68,86,62,91,1.12,24]},
+        P1: {"depth":3,"values":[8,11,11,12,1.06,-17]},
+        V4: {"depth":1,"values":[104,73,105,81,1.34,14]},
+        E3: {"depth":2,"values":[52,17,51,17,1.02,-22]},
+        S1: {"depth":4,"values":[46,6,53,5,1.1,9]},
+        P4: {"depth":3,"values":[10,82,12,73,0.98,26]},
+        V5: {"depth":1,"values":[88,29,86,35,1.03,-9]},
+        S3: {"depth":4,"values":[32,29,33,27,1.07,22]},
+        E2: {"depth":2,"values":[38,44,44,49,1.08,16]},
+        P2: {"depth":3,"values":[69,38,70,29,0.89,21]}
+    };
+
     function sceneLayout(manifest, scene) {
         const catalog = manifest && manifest.catalog || {};
         const parts = Array.isArray(catalog.parts) ? catalog.parts.slice(0, 20) : [];
         const machines = Array.isArray(catalog.machines) ? catalog.machines.slice(0, 4) : [];
         const history = manifest.cycle_history || {};
-        const historical = history.available && Array.isArray(history.parts) ? history.parts : [];
+        const historical = Array.isArray(history.parts) ? history.parts.slice(0, 20) : [];
         const byCode = new Map(historical.map(p => [p.part_code, p]));
         const completeDates = parts.length === 20 && parts.every(p => (byCode.get(p.part_code) || {}).discovered_at);
         const ordered = completeDates ? parts.slice().sort((a, b) =>
@@ -117,12 +141,14 @@
             const slot = Math.max(0, (machine.part_codes || []).indexOf(part.part_code));
             const ringIndex = ring.indexOf(part.part_code);
             const angle = ((ringIndex < 0 ? i : ringIndex) / 20) * Math.PI * 2 - Math.PI / 2;
-            let x = 100 + ((i * 173) % 800), y = 80 + ((i * 107) % 390);
+            const pose = PART_POSES[part.part_code];
+            let x = pose ? pose.values[0] * 10 : 100 + ((i * 173) % 800);
+            let y = pose ? pose.values[1] * 6 : 80 + ((i * 107) % 390);
             if (group) {
                 x = 260 + (machineIndex % 2) * 480 + Math.cos(slot * Math.PI * 2 / 5) * 100;
                 y = 175 + Math.floor(machineIndex / 2) * 250 + Math.sin(slot * Math.PI * 2 / 5) * 85;
             } else if (round) { x = 500 + Math.cos(angle) * 370; y = 300 + Math.sin(angle) * 220; }
-            return {part, history: byCode.get(part.part_code) || {}, x, y, visible: i < visible,
+            return {part, pose, history: byCode.get(part.part_code) || {}, x, y, visible: i < visible,
                 highlighted: elapsed < 180 || elapsed >= 300 || machineIndex === Math.floor((elapsed - 180) / 30)};
         });
         const codes = new Set(parts.map(p => p.part_code));
@@ -144,6 +170,7 @@
         }
         if (stage.replaceChildren) stage.replaceChildren();
         stage._showKey = null;
+        stage._partsRows = null;
     }
 
     function syncVideo(stage, scene) {
@@ -236,9 +263,127 @@
         stage.appendChild(canvas);
     }
 
+    const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"];
+
+    function syncParts(stage, scene) {
+        (stage._partsRows || []).forEach((row, index) => {
+            const visible = scene.id !== "parts_enter" || index < Math.ceil(scene.progress * 20);
+            row.card.style.visibility = visible ? "visible" : "hidden";
+            row.card.tabIndex = visible ? 0 : -1;
+            row.card.setAttribute("aria-hidden", visible ? "false" : "true");
+            if (visible && !row.loaded) { row.load(); row.loaded = true; }
+        });
+    }
+
+    function renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage) {
+        const canvas = element("section", "ghost-show-parts");
+        const recordsView = scene.id === "history_logs" || scene.id === "part_states";
+        canvas.setAttribute("data-view", recordsView ? "records" : "parts");
+        canvas.appendChild(element("div", "background"));
+        const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
+        glitch.setAttribute("aria-hidden", "true");
+        canvas.appendChild(glitch);
+        if (global.ChaosMapGlitch) {
+            let seed = 139140;
+            global.ChaosMapGlitch.seed(glitch, doc, () => {
+                seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+                return seed / 4294967296;
+            });
+        }
+        const header = element("header", "");
+        header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
+        header.appendChild(element("span", "", "CZTERY PLANY / JEDNA SIEĆ"));
+        canvas.appendChild(header);
+        const heading = element("section", "heading");
+        heading.appendChild(element("p", "eyebrow", scene.id === "history_logs" ? "HISTORIA CZĘŚCI / UTC"
+            : scene.id === "part_states" ? "STANY CZĘŚCI / ZAPIS CYKLU" : "GHOSTSIGNAL / HISTORIA CZĘŚCI"));
+        const title = element("h1", "");
+        title.appendChild(element("span", "twenty", String(layout.nodes.length)));
+        const word = element("span", "word", "CZĘŚCI");
+        word.appendChild(element("span", "underscore", "_")); title.appendChild(word);
+        heading.appendChild(title);
+        heading.appendChild(element("p", "deck", "CZTERY MASZYNY. JEDNA SIEĆ."));
+        const legend = element("div", "legend");
+        layout.machines.forEach((machine, index) => {
+            const label = element("span", "", "0" + (index + 1) + " / " + machine.name);
+            label.setAttribute("data-clan", machine.clan_code); legend.appendChild(label);
+        });
+        heading.appendChild(legend);
+        const history = manifest.cycle_history || {};
+        if (!history.available) heading.appendChild(element("p", "parts-history-note", "Historia niepełna — pokazujemy dostępny zapis."));
+        if (recordsView) {
+            const records = element("ol", "parts-records");
+            const codes = (layout.machines[pageIndex] || {}).part_codes || [];
+            const rows = codes.slice(0, 5).map(code => layout.nodes.find(n => n.part.part_code === code)).filter(Boolean);
+            const timestamp = value => {
+                const time = Date.parse(value || "");
+                return Number.isFinite(time) ? new Date(time).toISOString().replace("T", " ").slice(0, 19) : "brak zapisu";
+            };
+            rows.forEach(node => {
+                const row = element("li", "parts-record");
+                row.appendChild(element("b", "", node.part.part_code + " / " + node.part.name));
+                row.appendChild(element("span", "", scene.id === "history_logs"
+                    ? "Odkrycie: " + timestamp(node.history.discovered_at)
+                    : "Stan: " + (node.history.status || "brak zapisu")));
+                row.appendChild(element("span", "", "Aktywacja: " + timestamp(node.history.activated_at)));
+                records.appendChild(row);
+            });
+            if (!rows.length) records.appendChild(element("li", "", "Brak części w zapisie tej grupy."));
+            heading.appendChild(records);
+            heading.appendChild(element("p", "parts-page", (layout.machines[pageIndex] || {}).name || "Brak grupy"));
+        }
+        canvas.appendChild(heading);
+        const board = element("ol", "parts-board");
+        board.setAttribute("aria-label", "Części w czterech planach");
+        // Connections carry the same addresses until the network template (.3).
+        // Edges come exclusively from the frozen ring, never a guessed catalog order.
+        if (scene.id === "connections") {
+            [false, true].forEach(portrait => {
+                const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.setAttribute("class", "parts-edges " + (portrait ? "is-portrait" : "is-desktop"));
+                svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none");
+                svg.setAttribute("aria-hidden", "true");
+                layout.edges.forEach(pair => {
+                    const a = PART_POSES[pair[0]], b = PART_POSES[pair[1]];
+                    if (!a || !b) return;
+                    const offset = portrait ? 2 : 0;
+                    const line = doc.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", a.values[offset] * 10); line.setAttribute("y1", a.values[offset + 1] * 10);
+                    line.setAttribute("x2", b.values[offset] * 10); line.setAttribute("y2", b.values[offset + 1] * 10);
+                    svg.appendChild(line);
+                });
+                board.appendChild(svg);
+            });
+            if (!layout.edges.length) heading.appendChild(element("p", "parts-history-note", "Brak zapisu połączeń."));
+        }
+        stage._partsRows = layout.nodes.map((node, index) => {
+            const part = node.part, pose = node.pose || {depth: 4, values: [50,50,50,50,1,0]};
+            const card = element("li", "part");
+            card.setAttribute("data-code", part.part_code); card.setAttribute("data-depth", pose.depth);
+            card.setAttribute("data-clan", part.clan_code || "");
+            ["--x", "--y", "--mx", "--my", "--scatter-scale", "--turn"].forEach((key, i) =>
+                card.style.setProperty(key, pose.values[i] + (i < 4 ? "%" : i === 5 ? "deg" : "")));
+            card.style.setProperty("--fx-offset", (index * .37).toFixed(2) + "s");
+            const identity = element("div", "identity");
+            identity.appendChild(element("b", "", part.part_code)); card.appendChild(identity);
+            const frame = element("span", "part-art-frame");
+            // is-active selects the existing decorative map effect, not gameplay state.
+            const art = element("span", "ghostnetwork-node is-active");
+            const halo = element("span", "ghostnetwork-part-halo"); halo.setAttribute("aria-hidden", "true");
+            art.appendChild(halo); frame.appendChild(art); card.appendChild(frame);
+            card.appendChild(element("h2", "", part.name)); board.appendChild(card);
+            return {card, loaded: false, load: () => addImage(art,
+                "/static/images/ghostnetwork/parts/" + part.part_code.toLowerCase() + "_" + part.icon_key + ".png",
+                "ghostnetwork-part-art", part.name)};
+        });
+        canvas.appendChild(board); stage.appendChild(canvas);
+        syncParts(stage, scene);
+    }
+
     function renderMontage(doc, root, snapshot, scene) {
         const stage = root.querySelector(".ghost-signal-show__stage");
         root.classList.remove("has-interface");
+        root.classList.remove("has-parts");
         if (!stage || !scene || scene.blocked) {
             clearMontage(stage);
             root.classList.remove("has-montage");
@@ -246,10 +391,12 @@
         }
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
+        const isParts = PART_SCENES.includes(scene.id);
+        if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
         const settlement = history.settlement || {};
-        const pageCounts = {players: Math.ceil((settlement.players || []).length / 4),
+        const pageCounts = {history_logs: 4, part_states: 4, players: Math.ceil((settlement.players || []).length / 4),
             player_ranking: Math.ceil((settlement.players || []).length / 4),
             clan_ranking: Math.ceil((settlement.clans || []).length / 4),
             achievements: Math.ceil((settlement.players || []).length / 4),
@@ -263,17 +410,18 @@
         const key = [snapshot.signal_public_id, scene.id, !!manifest.signal_confirmed,
             !!history.settlement,
             pageIndex,
-            scene.id === "parts_enter" ? Math.ceil(scene.progress * 20)
-                : scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
+            scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
         root.classList.add("has-montage");
         stage.style.setProperty("--scene-progress", scene.progress);
         // Subtle OFS-like light follows the existing server-aligned render tick.
         // No extra timer or animation history is needed after seek/reconnect.
-        if (isInterface) {
+        if (isInterface || isParts) {
             const elapsed = Number(scene.elapsed) || 0;
             stage.style.setProperty("--gsi-fx-clock", (-elapsed) + "s");
             stage.style.setProperty("--gsi-light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 5.4)).toFixed(4));
             stage.style.setProperty("--gsi-line-light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 8 + 1.2)).toFixed(4));
+            stage.style.setProperty("--fx-clock", (-elapsed) + "s");
+            stage.style.setProperty("--light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 5.4)).toFixed(4));
         }
         root.style.background = scene.id === "takeover" && !isInterface
             ? "rgba(5,9,13," + (0.15 + scene.progress * 0.8) + ")" : "#05090d";
@@ -282,11 +430,12 @@
             if (glitch) {
                 const high = (Number(scene.elapsed) || 0) % 12 >= 7;
                 glitch.className = "chaos-map-glitch-overlay is-visible gsi-glitch is-slow"
+                    + (isParts ? " parts-glitch" : "")
                     + (high ? " is-heavy is-overloaded" : "");
                 glitch.setAttribute("data-glitch-level", high ? "overloaded" : "slow");
             }
         };
-        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); return; }
+        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); syncParts(stage, scene); return; }
         clearMontage(stage);
         const element = (tag, className, text) => {
             const node = doc.createElement(tag); node.className = className;
@@ -304,6 +453,8 @@
         const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
+        } else if (isParts) {
+            renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage);
         } else if (scene.elapsed >= 480) {
             const data = history.settlement;
             const panel = element("div", "ghost-show-settlement");
@@ -520,12 +671,6 @@
                 card.style.left = node.x / 10 + "%"; card.style.top = node.y / 6 + "%";
                 addImage(card, "/static/images/ghostnetwork/parts/" + node.part.part_code.toLowerCase() + "_" + node.part.icon_key + ".png", "", node.part.name);
                 card.appendChild(element("span", "", node.part.part_code + " / " + node.part.name));
-                if (scene.id === "part_states") {
-                    const states = [];
-                    if (node.history.discovered_at) states.push("DISCOVERED");
-                    if (node.history.activated_at) states.push("ACTIVE");
-                    if (states.length) card.appendChild(element("small", "", states.join(" → ")));
-                }
                 board.appendChild(card);
             }
             stage.appendChild(board);

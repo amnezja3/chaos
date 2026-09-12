@@ -7,7 +7,7 @@ class Node {
         this.style = {setProperty(name, value) {this[name] = value;}};
         this.classList = {add: name => {this.className += ' ' + name;}, remove: name => {this.className = this.className.replace(name, '');}};
     }
-    setAttribute(name, value) {this.attrs[name] = value;}
+    setAttribute(name, value) {this.attrs[name] = value; if (name === 'class') this.className = value;}
     removeAttribute(name) {delete this.attrs[name]; if (name === 'src') this.src = '';}
     play() {this.played = true; return Promise.resolve();}
     pause() {this.paused = true;}
@@ -53,9 +53,9 @@ function seek(seconds) {
 try {
     seek(45);
     const root=doc.getElementById('ghost-signal-show');
-    assert(root.querySelector('.ghost-show-board'));
+    assert(root.querySelector('.parts-board'));
     seek(370);
-    assert(!root.querySelector('.ghost-show-board'));
+    assert(!root.querySelector('.parts-board'));
     const img=root.querySelector('.ghost-show-hero__image'); assert(img);
     img.onerror(); assert(!root.querySelector('.ghost-show-hero__image'));
     assert(root.querySelector('.ghost-show-asset-fallback'));
@@ -172,8 +172,57 @@ try {
     assert(!root.querySelector('.ghost-show-video'));
     seek(40);
     assert(!root.querySelector('.ghost-show-interface'));
-    assert(!root.querySelector('.gsi-glitch'));
+    assert(root.querySelector('.gsi-glitch'));
     assert(!root.className.includes('has-interface'));
+    // Approved four-depth layout, real frozen records and lazy reveal.
+    catalog.parts = ['V','E','P','S'].flatMap((prefix, group) => Array.from({length:5}, (_,i) => ({
+        part_code:prefix+(i+1),name:prefix+' name '+i,icon_key:'part',machine_code:'m'+group,
+        clan_code:['virex','echo_freedom','phantom_mesh','sentinel_order'][group]})));
+    catalog.machines = ['V','E','P','S'].map((prefix,i) => ({code:'m'+i,name:'Machine '+prefix,
+        clan_code:catalog.parts[i*5].clan_code,part_codes:catalog.parts.slice(i*5,i*5+5).map(p=>p.part_code)}));
+    manifest.scenes = [[0,'takeover'],[30,'parts_enter'],[60,'parts_complete'],[90,'connections'],
+        [120,'history_logs'],[140,'part_states'],[160,'machine_groups'],[720,'system_layers']].map((row,i,rows) => ({
+            start:row[0],id:row[1],label:row[1],end:rows[i+1] ? rows[i+1][0] : 900,requires_signal_sent:row[0]>=720}));
+    manifest.cycle_history.parts = catalog.parts.map((p,i) => ({part_code:p.part_code,status:'consumed',
+        discovered_at:new Date(Date.UTC(2026,0,20-i)).toISOString(),activated_at:''}));
+    manifest.cycle_history.ring_codes = catalog.parts.map(p=>p.part_code);
+    seek(31);
+    const partsStage=root.querySelector('.ghost-signal-show__stage');
+    const rows=partsStage._partsRows;
+    assert.strictEqual(rows.length,20);
+    assert.strictEqual(rows.filter(r=>r.loaded).length,1,'load images only as they appear');
+    assert.strictEqual(rows.filter(r=>r.card.tabIndex===0).length,1);
+    const positions=rows.map(r=>[r.card.attrs['data-code'],r.card.style['--x'],r.card.style['--mx']]);
+    seek(45);
+    assert.strictEqual(partsStage._partsRows,rows,'reveal keeps the same DOM');
+    assert.strictEqual(rows.filter(r=>r.card.style.visibility==='visible').length,10);
+    assert.deepStrictEqual(rows.map(r=>[r.card.attrs['data-code'],r.card.style['--x'],r.card.style['--mx']]),positions);
+    assert.strictEqual(rows.find(r=>r.card.attrs['data-code']==='V4').card.style['--x'],'104%');
+    for (let depth=1;depth<=4;depth++) assert.strictEqual(rows.filter(r=>r.card.attrs['data-depth']===depth).length,5);
+    seek(75);
+    assert.strictEqual(partsStage._partsRows.filter(r=>r.loaded).length,20);
+    const failed=root.querySelector('.ghostnetwork-part-art'); failed.onerror();
+    assert(root.querySelector('.ghost-show-asset-fallback'));
+    seek(95);
+    assert.strictEqual(root.querySelector('.parts-edges').children.length,20);
+    seek(121);
+    assert.strictEqual(root.querySelector('.parts-records').children.length,5);
+    assert(root.querySelector('.parts-history-note'),'partial history is explicit');
+    const firstRecords=root.querySelector('.parts-records');
+    assert(firstRecords.children[0].children[1].textContent.includes('2026-01-20'),'retain actual partial records');
+    seek(122); assert.strictEqual(root.querySelector('.parts-records'),firstRecords);
+    seek(126); assert.notStrictEqual(root.querySelector('.parts-records'),firstRecords);
+    assert(root.querySelector('.parts-records').children[0].children[0].textContent.startsWith('E1'));
+    seek(141);
+    assert(root.querySelector('.parts-records').children[0].children[1].textContent.includes('consumed'));
+    assert(root.querySelector('.parts-records').children[0].children[2].textContent.includes('brak zapisu'));
+    seek(161);
+    assert(!root.querySelector('.ghost-show-parts'));
+    assert.strictEqual(partsStage._partsRows,null);
+    assert(!root.className.includes('has-parts'));
+    manifest.cycle_history.ring_codes=[];
+    seek(95);
+    assert.strictEqual(root.querySelector('.parts-edges').children.length,0,'never invent a ring');
     seek(721);
     manifest.signal_confirmed=false;
     seek(722);
