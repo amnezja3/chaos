@@ -159,6 +159,10 @@
 
     function clearMontage(stage) {
         if (!stage) return;
+        if (stage._archiveFrame != null && global.cancelAnimationFrame) global.cancelAnimationFrame(stage._archiveFrame);
+        stage._archiveFrame = null;
+        if (stage._archive) stage._archive.flash.remove();
+        stage._archive = null;
         if (stage._networkFrame != null && global.cancelAnimationFrame) global.cancelAnimationFrame(stage._networkFrame);
         stage._networkFrame = null;
         if (stage._networkDetails) stage._networkDetails.dispose();
@@ -451,10 +455,54 @@
                 }
     }
 
-    function renderArchiveRecord(doc, stage, manifest, scene, element) {
+    function syncArchiveFlash(stage, scene) {
+        const state = stage._archive;
+        if (!state) return;
+        if (stage._archiveFrame != null && global.cancelAnimationFrame) global.cancelAnimationFrame(stage._archiveFrame);
+        stage._archiveFrame = null;
+        const start = Number(scene.elapsed) || 0, origin = Date.now();
+        const reduced = global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        function draw(elapsed) {
+            const ms = Math.max(0, Math.round((elapsed - state.start) * 1000000) / 1000);
+            let opacity = 1, clip = "inset(0)";
+            if (ms < 50) clip = "inset(calc(50% - 1px) 0 calc(50% - 1px) 0)";
+            else if (ms < 125) clip = "inset(12.5% 0 12.5% 0)";
+            else if (ms >= 625 && ms < 750) opacity = 1 - Math.pow((ms - 625) / 125, 2);
+            else if (ms >= 750) opacity = 0;
+            if (reduced) opacity = 0;
+            state.flash.style.clipPath = clip; state.flash.style.opacity = String(opacity);
+            state.flash.style.visibility = opacity > 0 ? "visible" : "hidden";
+            state.terminal.hidden = !reduced && ms < 625;
+            const phase = elapsed >= state.channel ? 2 : elapsed >= state.point ? 1 : 0;
+            const texts = [state.record, state.record + state.trace, state.record + state.trace + state.channelText];
+            const begins = [state.start + .75, state.point, state.channel];
+            const prior = phase ? texts[phase - 1] : "";
+            const current = phase === 0 ? state.record : phase === 1 ? state.trace : state.channelText;
+            const duration = Math.max(.1, (phase === 0 ? state.point : phase === 1 ? state.channel : state.end) - begins[phase]);
+            const progress = Math.max(0, Math.min(1, (elapsed - begins[phase]) / (duration * .85)));
+            state.output.textContent = prior + current.slice(0, Math.floor(progress * current.length));
+            state.output.scrollTop = state.output.scrollHeight;
+            state.title.textContent = ["ZAPIS", "ŚLAD SYGNAŁU", "KANAŁ 2108"][phase];
+            state.caption.textContent = phase === 2 ? "PRZEKAZ Z KANAŁU 2108" : "ZAPIS TRANSMISJI / ŚLAD SYGNAŁU";
+        }
+        draw(start);
+        if (!global.requestAnimationFrame) return;
+        function tick() {
+            if (stage._archive !== state) return;
+            const elapsed = Math.min(state.end, start + (Date.now() - origin) / 1000 * state.rate);
+            draw(elapsed);
+            if (elapsed < state.end) stage._archiveFrame = global.requestAnimationFrame(tick);
+            else stage._archiveFrame = null;
+        }
+        stage._archiveFrame = global.requestAnimationFrame(tick);
+    }
+
+    function renderArchiveRecord(doc, root, stage, snapshot, scene, element) {
+        const manifest = snapshot.show_manifest;
         const isVideo = scene.id === "transmission_video";
+        const isTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
         const canvas = element("section", "ghost-show-parts archive-scene");
-        canvas.setAttribute("data-state", isVideo ? "video" : "record");
+        canvas.setAttribute("data-state", isVideo || isTerminal ? "video" : "record");
         const background = element("div", "background"); background.setAttribute("aria-hidden", "true");
         canvas.appendChild(background);
         const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
@@ -482,24 +530,41 @@
         const heading = element("section", "archive-title");
         heading.appendChild(element("p", "eyebrow", "HISTORIA ZAKOŃCZENIA CYKLU"));
         const title = element("h1", ""), sub = element("span", "title-sub", "TRANSMISJI");
-        title.appendChild(element("span", "", isVideo ? "REKONSTRUKCJA" : "ZAPIS")); sub.appendChild(element("span", "underscore", "_"));
+        const titleText = element("span", "", isVideo ? "REKONSTRUKCJA" : "ZAPIS");
+        title.appendChild(titleText); sub.appendChild(element("span", "underscore", "_"));
         title.appendChild(sub); heading.appendChild(title); canvas.appendChild(heading);
         const log = element("aside", "archive-log"), list = element("ol", "");
         log.appendChild(element("p", "section-label", "01 / ODCZYT ARCHIWUM"));
         ["INICJACJA ODCZYTU","SYNCHRONIZACJA OBRAZU","REKONSTRUKCJA TRANSMISJI","ŚLAD SYGNAŁU"].forEach(text => list.appendChild(element("li", "", text)));
         log.appendChild(list); log.appendChild(element("p", "archive-quote", "Z rozproszonych fragmentów powstaje pełny obraz.")); canvas.appendChild(log);
         const center = element("section", "archive-center");
-        if (isVideo) {
+        if (isVideo || isTerminal) {
             const shell = element("div", "archive-video-shell");
             const top = element("div", "video-topline"), bottom = element("div", "video-bottomline");
             top.appendChild(element("span", "", "ARCHIWALNY ZAPIS")); top.appendChild(element("span", "", "ŹRÓDŁO / 3:2"));
             shell.appendChild(top);
-            renderTransmissionVideo(stage, scene, manifest, shell, element);
+            if (isVideo) renderTransmissionVideo(stage, scene, manifest, shell, element);
+            else {
+                const field = element("div", "archive-video-field"), terminal = element("div", "archive-flash-terminal"), output = element("pre", "");
+                terminal.appendChild(output); field.appendChild(terminal); shell.appendChild(field);
+                const flash = element("div", "archive-flash"); flash.setAttribute("aria-hidden", "true"); root.appendChild(flash);
+                const find = id => (manifest.scenes || []).find(item => item.id === id);
+                const replay = find("transmission_replay"), point = find("signal_point"), channel = find("terminal_2108");
+                const span = Date.parse(snapshot.show_ends_at) - Date.parse(snapshot.show_started_at);
+                stage._archive = {flash, terminal, output, title:titleText, start:replay ? replay.start : 463.12,
+                    point:point ? point.start : 466.12, channel:channel ? channel.start : 469.12, end:channel ? channel.end : 477,
+                    rate:span > 0 ? 900000 / span : 1,
+                    record:"> ZAPIS TRANSMISJI\nGHOSTSIGNAL // " + (snapshot.signal_public_id || "—") + "\n",
+                    trace:"> ŚLAD SYGNAŁU\nTRANSMISSION UTC // " + (manifest.signal_sent_at || "Brak zapisu czasu") + "\n",
+                    channelText:"> KANAŁ 2108\nTEMPORAL CHANNEL // 2108\nDESTINATION // " + ((manifest.cycle_history || {}).future_2108_timestamp || "Brak zapisu daty docelowej") + "\n"};
+            }
             bottom.appendChild(element("span", "", "REKONSTRUKCJA / GHOSTSIGNAL"));
             bottom.appendChild(element("span", "archive-video-time", "")); shell.appendChild(bottom);
             center.appendChild(shell);
         }
-        center.appendChild(element("p", "archive-caption", isVideo ? "ODTWORZENIE ARCHIWALNEGO OBRAZU" : "PRZYGOTOWANIE ODCZYTU")); canvas.appendChild(center);
+        const caption = element("p", "archive-caption", isVideo ? "ODTWORZENIE ARCHIWALNEGO OBRAZU" : "PRZYGOTOWANIE ODCZYTU");
+        if (stage._archive) stage._archive.caption = caption;
+        center.appendChild(caption); canvas.appendChild(center);
         const data = element("aside", "archive-data"), params = element("dl", "");
         data.appendChild(element("p", "section-label", "02 / ZAPIS OBRAZU"));
         const video = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
@@ -766,7 +831,8 @@
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
         const isHero = /^machine_hero_[1-4]$/.test(scene.id);
-        const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video";
+        const isArchiveTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
+        const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal;
         const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
@@ -783,10 +849,10 @@
             blacknet_history: (settlement.publications || []).filter(p => p.medium === "blacknet").length};
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
         const pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
-        const key = [snapshot.signal_public_id, scene.id, !!manifest.signal_confirmed,
+        const key = [snapshot.signal_public_id, isArchiveTerminal ? "archive_terminal" : scene.id, !!manifest.signal_confirmed,
             !!history.settlement,
             pageIndex,
-            scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
+            ""].join(":");
         root.classList.add("has-montage");
         stage.style.setProperty("--scene-progress", scene.progress);
         // Subtle OFS-like light follows the existing server-aligned render tick.
@@ -811,7 +877,7 @@
                 glitch.setAttribute("data-glitch-level", high ? "overloaded" : "slow");
             }
         };
-        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); syncParts(stage, scene); animateNetworkEntrance(stage, snapshot, scene); return; }
+        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); syncParts(stage, scene); syncArchiveFlash(stage, scene); animateNetworkEntrance(stage, snapshot, scene); return; }
         clearMontage(stage);
         const element = (tag, className, text) => {
             const node = doc.createElement(tag); node.className = className;
@@ -830,7 +896,7 @@
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
         } else if (isArchive) {
-            renderArchiveRecord(doc, stage, manifest, scene, element);
+            renderArchiveRecord(doc, root, stage, snapshot, scene, element);
         } else if (isHero) {
             renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage);
         } else if (isParts) {
@@ -948,13 +1014,7 @@
         } else if (scene.elapsed >= 420) {
             const frame = element("div", "ghost-show-transmission");
             frame.appendChild(element("p", "ghost-show-kicker", "ARCHIWALNY ZAPIS TRANSMISJI"));
-            if (scene.id === "terminal_2108") {
-                const text = ["GHOSTSIGNAL // " + snapshot.signal_public_id,
-                    "TRANSMISSION UTC // " + (manifest.signal_sent_at || "—"),
-                    "TEMPORAL CHANNEL // 2108", "DESTINATION // " + (history.future_2108_timestamp || "—")].join("\n");
-                // Seek directly to the current text length; no per-character timers.
-                frame.appendChild(element("pre", "ghost-show-terminal", text.slice(0, Math.ceil(text.length * scene.progress))));
-            } else if (scene.id === "signal_confirmation") {
+            if (scene.id === "signal_confirmation") {
                 frame.appendChild(element("h2", "", "GHOSTSIGNAL WYSŁANY"));
                 frame.appendChild(element("p", "", manifest.signal_sent_at || ""));
                 if (history.future_2108_timestamp) frame.appendChild(element("p", "ghost-show-future", history.future_2108_timestamp));
@@ -1002,6 +1062,7 @@
         stage._showKey = key;
         syncGlitch();
         if (isArchive) syncParts(stage, scene);
+        syncArchiveFlash(stage, scene);
         animateNetworkEntrance(stage, snapshot, scene);
     }
 

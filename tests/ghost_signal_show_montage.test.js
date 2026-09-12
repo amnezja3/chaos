@@ -368,7 +368,31 @@ try {
     seek(426);assert.notStrictEqual(root.querySelector('.archive-scene'),archive);assert(root.querySelector('.ghost-show-video'));
     assert.strictEqual(root.querySelector('.archive-scene').attrs['data-state'],'video');
     assert(root.querySelector('.archive-video-time').textContent.startsWith('00:01'));
-    seek(464);assert(!root.querySelector('.archive-scene'));assert(!root.querySelector('.ghost-show-video'));
+    seek(464);assert(root.querySelector('.archive-flash-terminal'));assert(!root.querySelector('.ghost-show-video'));
     seek(422);assert(root.querySelector('.archive-scene'));assert(!root.querySelector('.ghost-show-video'));
+    manifest.scenes.pop();
+    manifest.scenes.push({id:'transmission_replay',label:'Replay',start:463.12,end:466.12,requires_signal_sent:true},
+        {id:'signal_point',label:'Trace',start:466.12,end:469.12,requires_signal_sent:true},
+        {id:'terminal_2108',label:'2108',start:469.12,end:477,requires_signal_sent:true},
+        {id:'signal_confirmation',label:'Sent',start:477,end:480,requires_signal_sent:true},
+        {id:'aftershock',label:'World',start:480,end:900});
+    manifest.signal_sent_at='2026-09-11T07:24:15Z';
+    manifest.cycle_history.future_2108_timestamp='2108-03-04T12:00:00Z';
+    seek(463.13);
+    const flash=root.querySelector('.archive-flash'), terminalScene=root.querySelector('.archive-scene');
+    assert(flash.style.clipPath.includes('1px'));
+    seek(463.18);assert.strictEqual(flash.style.clipPath,'inset(12.5% 0 12.5% 0)');
+    seek(463.26);assert.strictEqual(flash.style.clipPath,'inset(0)');assert.strictEqual(flash.style.opacity,'1');
+    seek(463.80);assert(Number(flash.style.opacity)<1 && Number(flash.style.opacity)>0);
+    seek(463.88);assert.strictEqual(flash.style.visibility,'hidden');
+    seek(467);assert.strictEqual(root.querySelector('.archive-scene'),terminalScene);
+    seek(476);assert.strictEqual(root.querySelector('.archive-scene'),terminalScene);
+    const terminalText=root.querySelector('.archive-flash-terminal').children[0].textContent;
+    assert(terminalText.includes(manifest.signal_sent_at));assert(terminalText.includes(manifest.cycle_history.future_2108_timestamp));
+    seek(465);assert.strictEqual(root.querySelector('.archive-scene'),terminalScene);
+    assert(!root.querySelector('.archive-flash-terminal').children[0].textContent.includes('2108-03-04'));
+    seek(463.13);assert.strictEqual(flash.style.opacity,'1');
+    manifest.signal_confirmed=false;seek(464);assert(!root.querySelector('.archive-flash'));assert(!root.querySelector('.archive-scene'));
+    manifest.signal_confirmed=true;seek(477.1);assert(!root.querySelector('.archive-flash'));
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

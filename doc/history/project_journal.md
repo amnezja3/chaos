@@ -1,5 +1,13 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .5: błysk 750 ms i terminal
+
+Po akceptacji flash-ref-2 wdrożono trzy skokowe klatki 50/75/500 ms
+i wygaszenie 125 ms. Sceny zapisu emisji, śladu i kanału 2108 zachowują
+wspólną ramkę. Typewriter odczytuje trwałe metadane sygnału; czasy show
+i bramka potwierdzenia bez zmian. Zegar odtwarza stan po seek, reduced
+motion pomija błysk. Pięć zestawów JS PASS; odbiór runtime otwarty.
+
 ## 2026-09-12 — .5: film v8 wdrożony
 
 Po akceptacji autora wdrożono rekonstrukcję na tle archiwum, lewy duży

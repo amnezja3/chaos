@@ -1,6 +1,10 @@
 # .5 — błysk i kanał 2108: para referencyjna
 
-Status: `REFERENCE / AUTHOR REVIEW PENDING`.
+Status: `REFERENCE ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING`.
+
+Autor zaakceptował wariant 2. Efekt wdrożono w istniejącym rendererze show,
+ze wspólnym CSS referencji/runtime i danymi istniejącego kanału 2108.
+[Procedura wdrożenia](../runbooks/deploy_140_stylization_5_flash.md).
 
 [Desktop i portrait](../../static/references/ghostsignal/transmission-flash-pair.html).
 Adres po push/pull: `/static/references/ghostsignal/transmission-flash-pair.html?v=flash-ref-2`.

@@ -1,9 +1,1 @@
-/* Reference-only three-frame flash and terminal, on the approved video set. */
-.archive-flash{position:absolute;inset:0;z-index:30;background:#fff;pointer-events:none;opacity:0;visibility:hidden;transition:none!important}
-.archive-flash-terminal{position:absolute;inset:0;padding:clamp(12px,1.8vw,30px);background:#030806f5;color:#bbd4c3;text-align:left;overflow:hidden}
-.archive-flash-terminal[hidden]{display:none}
-.archive-flash-terminal:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 3px,#93b99f06 3px 4px)}
-.archive-flash-terminal pre{position:relative;margin:0;max-width:100%;height:100%;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font:clamp(11px,1.15vw,20px)/1.65 "Courier New",monospace;letter-spacing:.025em;text-shadow:0 0 7px #93b99f30}
-.archive-flash-terminal pre:after{content:"_";color:#dfe6dc;animation:ofs-fx-soft-pulse 1.2s steps(1,end) infinite}
-@media(max-aspect-ratio:1/1){.archive-flash-terminal{padding:3vw}.archive-flash-terminal pre{font-size:clamp(10px,2.6vw,26px);line-height:1.55}}
-@media(prefers-reduced-motion:reduce){.archive-flash-terminal pre:after{animation:none}}
+@import url("../../css/ghost_signal_archive_flash.css?v=archive-flash-1");
