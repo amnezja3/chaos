@@ -1,6 +1,11 @@
 # 140.stylization.3 — pierwsza para sieci
 
-Status: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+Status: `REFERENCE PAIR ACCEPTED / IMPLEMENTATION PENDING`.
+
+REF-3: zgodnie z końcową uwagą autora tooltip dopasowano do przygaszonej
+szarozielonej palety layoutu (#93b99f, #95a69b, #dfe6dc), ze słabszymi
+ramkami i łuną. Etykieta „Supermoc” pozostaje w jednym wierszu.
+Autor zaakceptował kierunek słowami „dostosuj kolorystykę do layoutu i mamy to”.
 
 Korekta REF-2: autor zaakceptował kierunek, wskazując elipsę na wąskim ekranie.
 Sieć ma teraz kwadratowe pole o boku równym mniejszemu wymiarowi dostępnej

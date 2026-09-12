@@ -1,5 +1,12 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .3 REF-3: paleta tooltipu i akceptacja pary
+
+- Tooltip otrzymał przygaszoną szarozieloną paletę layoutu, subtelniejsze
+  obramowanie i cień. Poprawiono łamanie etykiety „Supermoc”.
+- Para .3 zaakceptowana po tej korekcie; integracja runtime pozostaje
+  kolejnym etapem. Cache referencji: `network-ref-3`.
+
 ## 2026-09-12 — .3 REF-2: koło i tooltip terminalowy
 
 - Poprawiono rozciąganie sieci na wąskim ekranie: wspólne kwadratowe pole

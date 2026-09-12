@@ -6,7 +6,9 @@ Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
 Realizacja .2: `IMPLEMENTED / OPERATOR ACCEPTED`.
 Autor potwierdził efekt energetycznych połączeń i przejście dalej.
-Realizacja .3: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+Realizacja .3: `REFERENCE PAIR ACCEPTED / IMPLEMENTATION PENDING`.
+Końcowa korekta REF-3 dopasowuje tooltip do palety layoutu; koło i szczegóły
+części zostały zaakceptowane przez autora.
 [Para network_ring 05:30](../../static/references/ghostsignal/network-pair.html)
 oraz [plan kompozycji i przejść .3](140_stylization_3_network_reference.md).
 V6 redukuje łunę hover/focus do około 20% intensywności v5, ze zmiękczeniem
