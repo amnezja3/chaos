@@ -5,12 +5,12 @@
 button{background:#0b1711;color:#c3d9cb;border:1px solid #667f6e;padding:10px 16px;font:inherit;cursor:pointer}button:hover{background:#22362b}
 </style>
 <h1>140.stylization.5 / FLASH / CHANNEL 2108</h1>
-<p>Trzy skokowe klatki: 100 / 150 / 1000 ms, wygaszenie 250 ms. Potem terminal w tej samej ramce. Tekst przekazu jest przykładem do oceny layoutu. Bez audio. Reduced motion pomija błysk.</p>
-<p><a href="transmission-flash.html?v=flash-ref-1" target="_blank" rel="noopener">Otwórz scenę w rozmiarze swojego ekranu</a></p>
+<p>Trzy skokowe klatki: 50 / 75 / 500 ms, wygaszenie 125 ms. Potem terminal w tej samej ramce. Tekst przekazu jest przykładem do oceny layoutu. Bez audio. Reduced motion pomija błysk.</p>
+<p><a href="transmission-flash.html?v=flash-ref-2" target="_blank" rel="noopener">Otwórz scenę w rozmiarze swojego ekranu</a></p>
 <p><button data-view="flash-ready">Przed błyskiem</button> <button data-view="flash-play">Odtwórz błysk i przekaz</button> <button data-view="flash-terminal">Terminal</button></p>
 <main>
-<figure><figcaption>DESKTOP / 1920 × 1080</figcaption><div class="frame" data-width="1920" data-height="1080"><iframe src="transmission-flash.html?v=flash-ref-1" width="1920" height="1080" title="Referencja desktop 1920 na 1080"></iframe></div></figure>
-<figure><figcaption>PORTRAIT / 1080 × 1920</figcaption><div class="frame" data-width="1080" data-height="1920"><iframe src="transmission-flash.html?v=flash-ref-1" width="1080" height="1920" title="Referencja portrait 1080 na 1920"></iframe></div></figure>
+<figure><figcaption>DESKTOP / 1920 × 1080</figcaption><div class="frame" data-width="1920" data-height="1080"><iframe src="transmission-flash.html?v=flash-ref-2" width="1920" height="1080" title="Referencja desktop 1920 na 1080"></iframe></div></figure>
+<figure><figcaption>PORTRAIT / 1080 × 1920</figcaption><div class="frame" data-width="1080" data-height="1920"><iframe src="transmission-flash.html?v=flash-ref-2" width="1080" height="1920" title="Referencja portrait 1080 na 1920"></iframe></div></figure>
 </main>
 <script>
 function fitReferences(){document.querySelectorAll('.frame').forEach(function(frame){var scale=frame.clientWidth/Number(frame.dataset.width);frame.style.height=Number(frame.dataset.height)*scale+'px';frame.firstElementChild.style.transform='scale('+scale+')';});}

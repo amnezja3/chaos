@@ -24,29 +24,29 @@
     ].join('\n');
     function stop(){if(frame!==null)cancelAnimationFrame(frame);frame=null;}
     function draw(elapsed){
-        // Hard cuts for the three exposures; only the final 250 ms fades.
+        // Hard cuts for the three exposures; only the final 125 ms fades.
         let opacity=1, inset='0';
-        if(elapsed<100)inset='inset(48.5% 0 48.5% 0)';
-        else if(elapsed<250)inset='inset(12.5% 0 12.5% 0)';
-        else if(elapsed<1250)inset='inset(0)';
-        else if(elapsed<1500){inset='inset(0)';opacity=1-Math.pow((elapsed-1250)/250,2);}
+        if(elapsed<50)inset='inset(calc(50% - 1px) 0 calc(50% - 1px) 0)';
+        else if(elapsed<125)inset='inset(12.5% 0 12.5% 0)';
+        else if(elapsed<625)inset='inset(0)';
+        else if(elapsed<750){inset='inset(0)';opacity=1-Math.pow((elapsed-625)/125,2);}
         else opacity=0;
         flash.style.clipPath=inset;flash.style.opacity=String(opacity);flash.style.visibility=opacity>0?'visible':'hidden';
-        terminal.hidden=elapsed<1250;
-        const chars=Math.max(0,Math.floor((elapsed-1500)/24));
+        terminal.hidden=elapsed<625;
+        const chars=Math.max(0,Math.floor((elapsed-750)/24));
         output.textContent=text.slice(0,chars);output.scrollTop=output.scrollHeight;
-        const title=elapsed<2600?'ZAPIS':elapsed<4200?'ŚLAD SYGNAŁU':'KANAŁ 2108';
+        const title=elapsed<1850?'ZAPIS':elapsed<3450?'ŚLAD SYGNAŁU':'KANAŁ 2108';
         document.getElementById('scene-title').textContent=title;
-        document.querySelector('.title-sub').firstChild.textContent=elapsed<2600?'TRANSMISJI':'GHOSTNETWORK';
-        document.getElementById('archive-caption').textContent=elapsed<4200?'ZAPIS TRANSMISJI / ŚLAD SYGNAŁU':'PRZEKAZ Z KANAŁU 2108';
-        document.getElementById('video-time').textContent=elapsed<1500?'KONIEC ZAPISU':'KANAŁ / 2108';
+        document.querySelector('.title-sub').firstChild.textContent=elapsed<1850?'TRANSMISJI':'GHOSTNETWORK';
+        document.getElementById('archive-caption').textContent=elapsed<3450?'ZAPIS TRANSMISJI / ŚLAD SYGNAŁU':'PRZEKAZ Z KANAŁU 2108';
+        document.getElementById('video-time').textContent=elapsed<750?'KONIEC ZAPISU':'KANAŁ / 2108';
     }
     function play(){
         stop();video.pause();started=performance.now();
         const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         function tick(now){
-            const elapsed=now-started+(reduced?1500:0);draw(elapsed);
-            if(elapsed<1500+text.length*24+1000)frame=requestAnimationFrame(tick);else frame=null;
+            const elapsed=now-started+(reduced?750:0);draw(elapsed);
+            if(elapsed<750+text.length*24+1000)frame=requestAnimationFrame(tick);else frame=null;
         }
         tick(started);
     }
