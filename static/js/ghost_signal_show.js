@@ -213,7 +213,11 @@
         canvas.appendChild(message);
         const list = make("ol", "gsi-layers");
         ["INTERFEJS", "GHOST NETWORK", "ŚWIAT", "UCZESTNICY", "GHOSTSIGNAL"].forEach((label, index) => {
-            list.appendChild(make("li", index === spec[3] ? "is-current" : "", "0" + (index + 1) + " / " + label));
+            const row = make("li", index === spec[3] ? "is-current" : "");
+            row.style.setProperty("--gsi-fx-offset", (index * 2.4) + "s");
+            row.appendChild(make("span", "gsi-index ofs-scene-icon", "0" + (index + 1) + " /"));
+            row.appendChild(make("span", "gsi-label ofs-scene-text", label));
+            list.appendChild(row);
         });
         list.setAttribute("aria-label", "Warstwy prezentacji");
         canvas.appendChild(list);
@@ -267,6 +271,7 @@
         // No extra timer or animation history is needed after seek/reconnect.
         if (isInterface) {
             const elapsed = Number(scene.elapsed) || 0;
+            stage.style.setProperty("--gsi-fx-clock", (-elapsed) + "s");
             stage.style.setProperty("--gsi-light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 5.4)).toFixed(4));
             stage.style.setProperty("--gsi-line-light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 8 + 1.2)).toFixed(4));
         }

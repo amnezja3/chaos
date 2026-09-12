@@ -4566,3 +4566,12 @@ czasu show; warstwa za tekstem, deterministyczne pozycje, reduced motion
 bez glitcha. 21 testów kontraktu mapy, siedem zestawów JS, syntax i generator
 PASS. Brak nowego kontrolera, timerów i assetów graficznych. Odbiór wizualny
 oraz wydajność na urządzeniach oczekują operatora.
+
+### 2026-09-12 — OFS dla napisów pomocniczych i indeksów .1
+
+Rozdzielono indeksy i etykiety listy, użyto istniejących klas i keyframes
+OFS do podświetlania tekstów, indeksów, opisu i detali sceny. Różne fazy
+wierszy nie zmieniają semantycznej aktywności; czas wynika z obecnego ticku.
+Reduced motion zachowuje statyczny czytelny tekst. Montage/recovery/audio
+i syntax PASS. Cache i nowy podgląd: stylization-1-ofs-2; odbiór wizualny
+pozostaje u operatora.

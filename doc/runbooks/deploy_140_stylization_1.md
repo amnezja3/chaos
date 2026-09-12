@@ -29,12 +29,12 @@ wymaga przeładowania z powodu tej zmiany:
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-1-glitch-1.html
+  --output static/previews/ghostsignal-stylization-1-ofs-2.html
 ```
 
 Przy istniejącym pliku wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-1-glitch-1.html`. Cache CSS/JS:
-`signal-show-stylization-1-glitch-1`. Podgląd używa istniejącego kontrolera,
+`/static/previews/ghostsignal-stylization-1-ofs-2.html`. Cache CSS/JS:
+`signal-show-stylization-1-ofs-2`. Podgląd używa istniejącego kontrolera,
 historycznych danych i prawdziwych mediów; nie emituje sygnału ani restartu.
 
 ## Odbiór siedmiu scen
@@ -72,6 +72,13 @@ Reduced motion wyłącza glitch. Brak skryptu efektu nie blokuje sceny.
 Sprawdź pierwsze 15 s takeover bez przewijania oraz powrót do mapy:
 jej dotychczasowe poziomy i obsługa wejścia powinny działać jak wcześniej.
 Poziomy show są dekoracją, nie raportem rzeczywistego przeciążenia mapy.
+
+OFS-2: indeksy i etykiety wierszy są osobnymi elementami. Korzystają z
+istniejących ofs-scene-icon/ofs-scene-text oraz keyframes ofs-fx-icon-live,
+ofs-fx-line-focus i ofs-fx-soft-pulse. Kolejne wiersze mają przesunięcie 2,4 s;
+opis, system tag, notatka i fakty mają różne fazy. Obejrzyj 12 s sceny:
+podświetlenie przechodzi między etykietami, bez zmiany aktywnej warstwy.
+Reduced motion wyłącza te animacje, a seek odtwarza fazę z czasu show.
 
 Brak settlementu daje jawny komunikat. Brak potwierdzenia sygnału nadal
 blokuje późniejsze sceny. Na końcu podglądu nie oczekujemy restartu gry.

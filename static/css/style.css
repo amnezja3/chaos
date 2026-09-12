@@ -9774,6 +9774,18 @@ form button:hover {
  .gsi-message:before,.gsi-hero,.gsi-kicker,.gsi-layers .is-current:before { transition:none; }
  .ghost-show-interface > .gsi-glitch { display:none; }
 }
+/* OFS line/icon effects, staggered and driven by the existing show clock. */
+.ghost-show-interface { --ofs-accent:var(--gsi-accent); }
+.gsi-layers li { display:flex; align-items:baseline; gap:.65em; }
+.gsi-index.ofs-scene-icon { display:inline; min-width:2.6em; min-height:0; font:inherit; color:var(--gsi-accent); animation:ofs-fx-icon-live 7.6s steps(1,end) infinite paused; animation-delay:calc(var(--gsi-fx-clock,0s) - var(--gsi-fx-offset,0s)); }
+.gsi-label { flex:1; animation:ofs-fx-line-focus 12s steps(1,end) infinite paused; animation-delay:calc(var(--gsi-fx-clock,0s) - var(--gsi-fx-offset,0s)); }
+.gsi-statement,.gsi-tag,.gsi-note,.gsi-facts { text-shadow:0 0 9px #a8d9b34d; animation:ofs-fx-soft-pulse 5.4s ease-in-out infinite paused; animation-delay:calc(var(--gsi-fx-clock,0s) - 1.3s); }
+.gsi-tag { animation-delay:calc(var(--gsi-fx-clock,0s) - 2.7s); }
+.gsi-note { animation-delay:calc(var(--gsi-fx-clock,0s) - 3.9s); }
+.gsi-facts { animation-delay:calc(var(--gsi-fx-clock,0s) - .6s); }
+@media(prefers-reduced-motion:reduce) {
+ .gsi-index.ofs-scene-icon,.gsi-label,.gsi-statement,.gsi-tag,.gsi-note,.gsi-facts { animation:none!important; transform:none!important; filter:none!important; opacity:1; text-shadow:none; }
+}
 .ghost-show-interface[data-composition="network_layer"] { grid-template-columns:25% minmax(0,1fr); }
 .ghost-show-interface[data-composition="network_layer"] .gsi-message { grid-column:2; text-align:right; }
 .ghost-show-interface[data-composition="network_layer"] .gsi-layers { grid-column:1; grid-row:2; }

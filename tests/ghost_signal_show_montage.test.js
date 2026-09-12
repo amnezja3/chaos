@@ -143,9 +143,12 @@ try {
         assert.strictEqual(canvas.attrs['data-composition'],row[1]);
         assert(root.className.includes('has-interface'));
         assert(root.querySelector('.gsi-title'));
+        assert.strictEqual(root.querySelector('.gsi-index').textContent,'01 /');
+        assert.strictEqual(root.querySelector('.gsi-label').textContent,'INTERFEJS');
         assert.strictEqual(root.querySelector('.chaos-map-glitch-field').children.length,18);
         const stage = root.querySelector('.ghost-signal-show__stage');
         const firstLight = Number(stage.style['--gsi-light']);
+        assert(Math.abs(parseFloat(stage.style['--gsi-fx-clock']) + row[0] + 1)<.05);
         assert(firstLight >= 0 && firstLight <= 1);
         seek(row[0]+2);
         assert.strictEqual(root.querySelector('.ghost-show-interface'),canvas,'tick reuses scene DOM');
