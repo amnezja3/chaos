@@ -252,6 +252,13 @@
                 : scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
         root.classList.add("has-montage");
         stage.style.setProperty("--scene-progress", scene.progress);
+        // Subtle OFS-like light follows the existing server-aligned render tick.
+        // No extra timer or animation history is needed after seek/reconnect.
+        if (isInterface) {
+            const elapsed = Number(scene.elapsed) || 0;
+            stage.style.setProperty("--gsi-light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 5.4)).toFixed(4));
+            stage.style.setProperty("--gsi-line-light", (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 8 + 1.2)).toFixed(4));
+        }
         root.style.background = scene.id === "takeover" && !isInterface
             ? "rgba(5,9,13," + (0.15 + scene.progress * 0.8) + ")" : "#05090d";
         if (stage._showKey === key) { syncVideo(stage, scene); return; }

@@ -32,7 +32,7 @@ pm2 reload chaos
 
 Przy istniejącym pliku wybierz nową nazwę. Otwórz
 `/static/previews/ghostsignal-stylization-1.html`. Cache CSS/JS:
-`signal-show-stylization-1`. Podgląd używa istniejącego kontrolera,
+`signal-show-stylization-1-pulse-1`. Podgląd używa istniejącego kontrolera,
 historycznych danych i prawdziwych mediów; nie emituje sygnału ani restartu.
 
 ## Odbiór siedmiu scen
@@ -53,6 +53,12 @@ Przejdź do scen suwakiem oraz obejrzyj ich granice w ciągłym odtwarzaniu.
 Wyjście do części, publikacji i rankingu nie może pozostawić layoutu .1.
 Sprawdź reduced motion (widoczny shutdown), powrót z tła, zmianę orientacji
 i brak wallpaper2.jpg. Miks filmu/muzyki pozostaje zatwierdzony w 140.4.
+
+Aktualizacja pulsowania: obserwuj każdą scenę przez kilka sekund bez seek.
+Nagłówek i lokalna poświata mają spokojny rytm 5,4 s, a kicker i aktywny
+wiersz rytm 8 s. Nie powinny zanikać treści ani zmieniać się układ.
+Po seek światło wraca do fazy wynikającej z czasu show; reduced motion
+utrzymuje stałe podświetlenie. Istniejący shutdown nadal wygasza scenę.
 
 Brak settlementu daje jawny komunikat. Brak potwierdzenia sygnału nadal
 blokuje późniejsze sceny. Na końcu podglądu nie oczekujemy restartu gry.

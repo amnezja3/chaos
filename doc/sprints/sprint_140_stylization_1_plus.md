@@ -19,6 +19,14 @@ w katalogu tymczasowym PASS. Regresja obejmuje siedem kompozycji bez
 settlementu, reuse DOM, cleanup i gate sygnału. Odbiór wizualny integracji
 pozostaje otwarty, według [procedury .1](../runbooks/deploy_140_stylization_1.md).
 
+Operator potwierdził testy i kierunek zintegrowanych scen, prosząc o ruch
+w stylu OFS. Dodano subtelne pulsowanie nagłówka i lokalnego światła (5,4 s)
+oraz rozświetlanie kickera i aktywnego wiersza (8 s). Faza wynika z czasu
+show w istniejącym ticku; CSS interpoluje opacity, bez nowych timerów,
+plików graficznych i zmian audio. Reduced motion daje stałe światło.
+Regresja montage/audio/recovery i syntax PASS; wizualna intensywność
+tej aktualizacji czeka na ocenę autora.
+
 ### Pierwsza para — takeover
 
 [Otwórz desktop 1920×1080 i portrait 1080×1920 obok siebie](../../static/references/ghostsignal/index.html).

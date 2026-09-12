@@ -4548,3 +4548,11 @@ wallpaper2.jpg, neutralny progress i dotychczasowy przycisk audio.
 Siedem zestawów JS, syntax i generator PASS. Odbiór wizualny pozostaje
 otwarty; procedura doc/runbooks/deploy_140_stylization_1.md. Trigger po
 stylizacji całości, .2 nie rozpoczęto. Brak zmian backendu i nowych assetów.
+
+### 2026-09-12 — subtelne pulsowanie .1 w kierunku OFS
+
+Operator potwierdził testy i kierunek, prosząc o ożywienie statycznych scen.
+Dodano puls nagłówka, lokalnej poświaty i podświetlenie aktywnego wiersza.
+Efekty korzystają z czasu istniejącego kontrolera, zachowują fazę po seek,
+reduced motion utrzymuje stałe światło. Bez dodatkowych timerów i assetów.
+Montage/audio/recovery i składnia PASS; intensywność efektów do odbioru.

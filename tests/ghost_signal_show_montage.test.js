@@ -142,8 +142,14 @@ try {
         assert.strictEqual(canvas.attrs['data-composition'],row[1]);
         assert(root.className.includes('has-interface'));
         assert(root.querySelector('.gsi-title'));
+        const stage = root.querySelector('.ghost-signal-show__stage');
+        const firstLight = Number(stage.style['--gsi-light']);
+        assert(firstLight >= 0 && firstLight <= 1);
         seek(row[0]+2);
         assert.strictEqual(root.querySelector('.ghost-show-interface'),canvas,'tick reuses scene DOM');
+        assert.notStrictEqual(Number(stage.style['--gsi-light']),firstLight,'light progresses on existing clock');
+        seek(row[0]+1);
+        assert(Math.abs(Number(stage.style['--gsi-light'])-firstLight)<.005,'seek restores light phase');
     }
     assert(root.querySelector('.gsi-note').textContent.includes('potwierdzeniu nowego cyklu'));
     assert(!root.querySelector('.ghost-show-video'));
