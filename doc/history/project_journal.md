@@ -1,5 +1,12 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .2: szczegółowe assety pierwszego planu
+
+- Zgodnie z sugestią autora V1–V5 używają `superpower/` 540×540 zamiast
+  `parts/` 128×128. Waga pięciu plików: 1 760 653 B zamiast 245 536 B.
+- Dalsze plany pozostają lekkie; ładowanie przy odsłanianiu zachowane.
+  Podmieniono również referencję. Token: `signal-show-stylization-2-detail-1`.
+
 ## 2026-09-12 — .2: brakujące efekty OFS w historii i stanach
 
 - Operator potwierdził testy .2, wskazując statyczne wiersze dat i nazw.

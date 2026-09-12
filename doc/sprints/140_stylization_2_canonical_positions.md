@@ -2,6 +2,11 @@
 
 REFERENCE v6 ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING
 
+Pierwszy plan V1–V5 używa teraz istniejących obrazów `superpower/` 540×540
+(łącznie 1 760 653 B), zamiast `parts/` 128×128 (245 536 B).
+Pozostałe 15 części zachowuje lekkie pliki `parts/`. Podmiana dotyczy
+referencji i renderera .2; skale, pozycje i odsłanianie pozostają zachowane.
+
 Po akceptacji autora kompozycję przeniesiono do istniejącego renderera show.
 `PART_POSES` w `static/js/ghost_signal_show.js` utrwala adresy kodów;
 referencja i runtime korzystają ze wspólnego `static/css/ghost_signal_parts.css`.

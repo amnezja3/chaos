@@ -201,6 +201,11 @@ try {
     for (let depth=1;depth<=4;depth++) assert.strictEqual(rows.filter(r=>r.card.attrs['data-depth']===depth).length,5);
     seek(75);
     assert.strictEqual(partsStage._partsRows.filter(r=>r.loaded).length,20);
+    partsStage._partsRows.forEach(row => {
+        const src=row.card.querySelector('.ghostnetwork-part-art').src;
+        assert(src.includes(row.card.attrs['data-depth']===1 ? '/superpower/' : '/parts/'),
+            'only foreground loads the detailed asset');
+    });
     const failed=root.querySelector('.ghostnetwork-part-art'); failed.onerror();
     assert(root.querySelector('.ghost-show-asset-fallback'));
     seek(95);

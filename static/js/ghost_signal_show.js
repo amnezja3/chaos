@@ -382,7 +382,8 @@
             art.appendChild(halo); frame.appendChild(art); card.appendChild(frame);
             card.appendChild(element("h2", "", part.name)); board.appendChild(card);
             return {card, loaded: false, load: () => addImage(art,
-                "/static/images/ghostnetwork/parts/" + part.part_code.toLowerCase() + "_" + part.icon_key + ".png",
+                "/static/images/ghostnetwork/" + (pose.depth === 1 ? "superpower/" : "parts/")
+                    + part.part_code.toLowerCase() + "_" + part.icon_key + ".png",
                 "ghostnetwork-part-art", part.name)};
         });
         canvas.appendChild(board); stage.appendChild(canvas);

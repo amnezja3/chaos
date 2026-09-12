@@ -28,15 +28,20 @@ Worker nie wymaga reloadu z powodu tej zmiany.
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-2-ofs-1.html
+  --output static/previews/ghostsignal-stylization-2-detail-1.html
 ```
 
 Jeżeli plik już istnieje, wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-2-ofs-1.html`.
-Token CSS/JS: `signal-show-stylization-2-ofs-1`.
+`/static/previews/ghostsignal-stylization-2-detail-1.html`.
+Token CSS/JS: `signal-show-stylization-2-detail-1`.
 Podgląd historyczny czyta bazę, nie wyzwala sygnału ani restartu gry.
 
 ## Odbiór desktop i portrait
+
+DETAIL-1: pierwszy plan V1–V5 korzysta z istniejących plików `superpower/`
+540×540. Łącznie około 1,76 MB, ładowane przy odsłanianiu; dalsze plany
+pozostają przy `parts/` 128×128. Sprawdź szczegóły obrazu przy 01:15 oraz
+pierwsze wejście z pustym cache. Efekty OFS-1 są zachowane.
 
 Korekta OFS-1 po odbiorze operatora: wiersze historii i stanów mają ramki,
 naprzemienne podświetlenie `ofs-fx-line-focus` i krótkie mignięcia nazw
