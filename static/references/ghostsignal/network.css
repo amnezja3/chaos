@@ -5,7 +5,8 @@ html,body{margin:0;height:100%;background:#050907}
 .network-reference .word{font-size:clamp(30px,5vw,96px);margin:0 0 2vh}
 .network-reference .network-note{margin-top:3vh;font-size:clamp(9px,.75vw,14px);color:var(--muted)}
 .network-field{position:relative;min-height:0;isolation:isolate}
-.network-field:before{content:"";position:absolute;inset:15% 10%;border:1px solid #93b99f12;border-radius:50%;background:radial-gradient(ellipse,#93b99f15,transparent 65%);box-shadow:0 0 45px #93b99f09;pointer-events:none}
+.network-square{position:absolute;left:50%;top:50%;width:var(--network-size,100%);height:var(--network-size,auto);aspect-ratio:1;transform:translate(-50%,-50%)}
+.network-square:before{content:"";position:absolute;inset:12%;border:1px solid #93b99f12;border-radius:50%;background:radial-gradient(circle,#93b99f15,transparent 65%);box-shadow:0 0 45px #93b99f09;pointer-events:none}
 .network-reference .parts-board{position:absolute;inset:0;clip-path:none}
 .network-reference .part{--size:8%;--depth-opacity:.9;--depth-order:2}
 .ghost-show-parts.network-reference .part h2{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0;white-space:nowrap}
@@ -34,3 +35,9 @@ html,body{margin:0;height:100%;background:#050907}
  .network-center small{font-size:2vw}
 }
 @media(prefers-reduced-motion:reduce){.network-center{animation:none}}
+.network-tooltip{position:fixed;z-index:1000;box-sizing:border-box;width:min(340px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:12px 14px;border:1px solid #79cba1;border-left:3px solid #b0ffd0;background:repeating-linear-gradient(0deg,transparent 0 3px,#8affb507 3px 4px),#05100ff5;box-shadow:0 0 20px #69e7a52b,inset 0 0 18px #69e7a50a;color:#c5dacd;font:12px/1.5 "Courier New",monospace;overflow-wrap:anywhere}
+.network-tooltip[hidden]{display:none}
+.network-tooltip .network-tooltip-title{color:#b0ffd0;letter-spacing:.12em;border-bottom:1px solid #79cba144;padding-bottom:6px;margin:0 0 8px}
+.network-tooltip dl{display:grid;grid-template-columns:7ch minmax(0,1fr);gap:4px 12px;margin:0}
+.network-tooltip dt{color:#789d88}.network-tooltip dd{margin:0;color:#e0f3e6}
+.network-tooltip p:last-child{margin:8px 0 0;padding-top:6px;border-top:1px solid #79cba144}

@@ -1,5 +1,13 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .3 REF-2: koło i tooltip terminalowy
+
+- Poprawiono rozciąganie sieci na wąskim ekranie: wspólne kwadratowe pole
+  SVG i części, równe promienie, dopasowanie do obu dostępnych wymiarów.
+- Tooltip hover/focus/tap z nazwą, klanem, symbolem, supermocą i maszyną
+  oraz opisem mocy; 20 rekordów pochodzi z katalogu. Bez odczytów API/bazy.
+- Aktualizacja dotyczy pary referencyjnej .3 (`network-ref-2`).
+
 ## 2026-09-12 — akceptacja .2 i para referencyjna .3
 
 - Autor zaakceptował energetyczne połączenia („to jest to co chcieliśmy

@@ -1,6 +1,13 @@
 # 140.stylization.3 — pierwsza para sieci
 
 Status: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+
+Korekta REF-2: autor zaakceptował kierunek, wskazując elipsę na wąskim ekranie.
+Sieć ma teraz kwadratowe pole o boku równym mniejszemu wymiarowi dostępnej
+przestrzeni; wspólne pole obejmuje SVG, części i środek. Promień X/Y jest równy.
+Tooltip terminalowy na hover/focus/tap pokazuje nazwę, klan, symbol,
+supermoc z opisem i maszynę, z katalogu. Escape lub dotknięcie poza zamyka;
+panel mieści się w viewport. To nadal referencja, nie zmiana runtime.
 Etap .2 zaakceptowany przez autora. Najpierw odbieramy tę jedną parę,
 potem rozwijamy pięć scen sieci w istniejącym rendererze.
 
@@ -20,8 +27,8 @@ Topologia makiety to katalogowy TOPOLOGY_ANCHOR, jawnie oznaczony jako
 referencja. Kolejność jest przejęta z zaakceptowanej pary części; w runtime
 jedynym źródłem będzie zamrożony ring_codes. Bez dodatkowych połączeń.
 Docelowy adres: kąt `2π × indeks / 20 − π/2`, X = 50 + 41 cos(kąt),
-Y = 50 + 42 sin(kąt), procent pola sieci. Różne proporcje pola dają osobne
-kompozycje desktop/portrait przy zachowaniu tożsamości i kolejności.
+Y = 50 + 41 sin(kąt), procent kwadratowego pola sieci. Różne kompozycje
+desktop/portrait zachowują koło, tożsamość i kolejność węzłów.
 
 Energetyczny rdzeń, łuna, zanikanie i fazy błysków pochodzą ze wspólnego
 CSS zaakceptowanego w .2. Reuse wallpaper2.jpg, ikon części 128×128,
