@@ -1,7 +1,9 @@
 # 140.5 — dane historyczne, wydajność i odbiór E2E
 
-Status: implementacja i regresja lokalna PASS; test serwerowy, urządzenia
-i nowy E2E oczekują wyników. Zaakceptowany miks 140.4 pozostaje bez zmian.
+Status: wykonane testy PASS — potwierdzenie operatorskie 2026-09-12.
+Zgodnie z doprecyzowaniem autora trigger i produkcyjny E2E z §4 czekają
+na stylizację całego show. Szczegółowe raporty nie zostały załączone do
+potwierdzenia. Zaakceptowany miks 140.4 pozostaje bez zmian.
 Stylizacja: 140.stylization.1+. Wszystkie komendy wykonuj w `~/app/chaos`.
 Przy błędzie zatrzymaj dany etap i zachowaj wynik.
 

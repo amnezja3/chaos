@@ -43,9 +43,9 @@ const manifest = {version:'ghostsignal-show-manifest-v2',nominal_duration_second
         {id:'transmission_video',label:'Film',start:425,end:463.12},
         {id:'transmission_replay',label:'Replay',start:463.12,end:480,requires_signal_sent:true},
         {id:'aftershock',label:'World',start:480,end:900}]};
-let version=0;
+let version=0, cycle=1;
 function seek(seconds) {
-    const now=Date.now(); controller.apply({show_active:true,cycle_number:1,state_version:++version,
+    const now=Date.now(); controller.apply({show_active:true,cycle_number:cycle,state_version:++version,
         server_now:new Date(now).toISOString(),show_started_at:new Date(now-seconds*1000).toISOString(),
         show_ends_at:new Date(now+(900-seconds)*1000).toISOString(),show_manifest:manifest,signal_public_id:'DEMO'});
 }
@@ -99,7 +99,8 @@ try {
     assert(root.querySelector('.ghost-show-settlement-map'));
     for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
         seek(entry[0]+0.1);
-        assert(root.querySelector('.ghost-show-settlement'), entry[1]);
+        assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
+            ? '.ghost-show-interface' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
     manifest.signal_confirmed = false;
@@ -127,5 +128,32 @@ try {
     controller.apply({show_active:false,cycle_number:2,state_version:1,server_now:new Date().toISOString()});
     assert.strictEqual(root.style.display,'none');
     assert(hiddenVideo.paused && hiddenVideo.released && !hiddenVideo.src);
+    const interfaces = ['takeover','network_layer','system_layers','desktop_assembly','system_ready','shutdown','restart'];
+    cycle=2;
+    const timeline = [[0,'takeover'],[15,'network_layer'],[30,'parts_complete'],[720,'system_layers'],
+        [740,'googleplex'],[820,'desktop_assembly'],[835,'system_ready'],[840,'player_ranking'],[890,'shutdown'],[896,'restart']];
+    manifest.scenes = timeline.map((row,i) => ({start:row[0],id:row[1],label:row[1],
+        end:timeline[i+1] ? timeline[i+1][0] : 900,requires_signal_sent:row[0]>=720}));
+    manifest.cycle_history.settlement = null;
+    for (const row of timeline.filter(row => interfaces.includes(row[1]))) {
+        seek(row[0]+1);
+        const canvas = root.querySelector('.ghost-show-interface');
+        assert(canvas, row[1]+' renders without settlement');
+        assert.strictEqual(canvas.attrs['data-composition'],row[1]);
+        assert(root.className.includes('has-interface'));
+        assert(root.querySelector('.gsi-title'));
+        seek(row[0]+2);
+        assert.strictEqual(root.querySelector('.ghost-show-interface'),canvas,'tick reuses scene DOM');
+    }
+    assert(root.querySelector('.gsi-note').textContent.includes('potwierdzeniu nowego cyklu'));
+    assert(!root.querySelector('.ghost-show-video'));
+    seek(40);
+    assert(!root.querySelector('.ghost-show-interface'));
+    assert(!root.className.includes('has-interface'));
+    seek(721);
+    manifest.signal_confirmed=false;
+    seek(722);
+    assert(!root.querySelector('.ghost-show-interface'),'signal gate must remove interface layout');
+    assert(!root.className.includes('has-interface'));
 } finally {controller.stop();delete global.GhostRadio;delete global.top;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

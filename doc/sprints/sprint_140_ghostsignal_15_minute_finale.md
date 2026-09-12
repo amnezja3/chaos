@@ -1,6 +1,6 @@
 # Sprint 140 — GhostSignal: pełny 15-minutowy finał CHAOS
 
-Status: `IN PROGRESS / 140.4 AUDIO SYNC ACCEPTED / 140.5 LOCAL TESTS PASS / SERVER AND E2E PENDING`
+Status: `IMPLEMENTATION AND COMPLETED TESTS ACCEPTED / PRODUCTION TRIGGER AND E2E AFTER STYLIZATION`
 
 Decyzja autora: w 140 budujemy szkielet całego show, wyciągamy właściwe dane
 i synchronizujemy sceny, video, muzykę oraz restart. Wygląd pozostaje otwarty
@@ -8,6 +8,11 @@ na dalsze iteracje. Przegląd i stylizacja 00–15 są wydzielone do draftu
 [140.stylization.1+](sprint_140_stylization_1_plus.md). Akceptacja techniczna
 scen nie oznacza zamrożenia ich oprawy; błędy danych, synchronizacji i działania
 nadal należą do bieżącego zakresu 140.
+
+Plan stylizacji .1–.10 uwzględnia
+[kontrakt layoutu, responsywności i assetów](140_stylization_layout_responsive_asset_contract.md).
+.1 ustala wspólne reguły, .2–.9 rozwijają template'y w dwóch kompozycjach,
+a .10 scala show i poprzedza produkcyjny trigger.
 
 Bramka Sprintu 139 zaliczona 2026-09-11; dowody:
 `doc/audits/139-4-production-e2e-summary.md`.
@@ -841,3 +846,16 @@ otwartymi bramkami. Odsłuch 140.4 i E2E 139 nie zastępują tych wyników.
 
 Pełne komendy oraz kryteria odbioru:
 [deploy_140_5.md](../runbooks/deploy_140_5.md).
+
+### Zamknięcie 140.5 i Sprintu 140 — 2026-09-12
+
+Po przekazaniu procedury 140.5 operator zgłosił „wszystko pass”. Następnie
+doprecyzował, że trigger uruchomimy dopiero po stylizacji. Wcześniejsze
+uznanie tego zgłoszenia za zamknięcie całego E2E było zbyt szerokie.
+Akceptacja obejmuje implementację i wykonane testy; nowy produkcyjny trigger
+i E2E pozostają otwartą bramką po 140.stylization.1+. Nie dopisujemy
+nieprzekazanych raportów, parametrów urządzeń, ID cyklu ani liczników ACK.
+
+Makieta stylizacji obejmuje dziewięć template'ów dla 49 istniejących scen
+oraz podsprint .10 na montaż i odbiór całości. Zaakceptowane dane,
+synchronizacja, miks i kontrakt restartu 139 stanowią bazę kolejnych iteracji.

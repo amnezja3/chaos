@@ -4472,3 +4472,79 @@ serwerową doc/runbooks/deploy_140_5.md. 69 Python PASS (278,772 s), siedem
 zestawów JS i syntax generatora PASS. Zaakceptowany miks bez zmian.
 Brak dostępnej przeglądarki; historyczne dane produkcyjne, desktop/mobile,
 recovery i E2E oczekują odbioru. 140.5 nie jest jeszcze zamknięty.
+
+### 2026-09-12 — zamknięcie 140.5 i technicznego zakresu Sprintu 140
+
+Operator po otrzymaniu procedury 140.5 potwierdził „wszystko pass”.
+Zapisano odbiór operatorski i zamknięto etap oraz Sprint 140. Potwierdzenie
+nie zawiera załączonych raportów, ID cyklu ani liczbowych pomiarów;
+nie przypisujemy mu niezależnej weryfikacji przez agenta.
+Dalsza stylizacja 00–15 pozostaje w draftcie 140.stylization.1+.
+
+### 2026-09-12 — makieta stylizacji i doprecyzowanie bramki E2E
+
+Autor ustalił, że trigger nastąpi dopiero po stylizacji. Skorygowano zbyt
+szerokie wcześniejsze zamknięcie: „wszystko pass” potwierdza wykonane testy,
+nie nowy produkcyjny E2E. Trigger i końcowy E2E pozostają do wykonania.
+Draft 140.stylization.1+ grupuje 49 istniejących scen w dziewięć wspólnych
+template'ów (.1–.9); .10 obejmuje montaż, odbiór całości i późniejszy E2E.
+To makieta checkpointów do rozwinięcia z autorem, bez zmian kodu,
+harmonogramu, miksu i bez uruchamiania finału.
+
+### 2026-09-12 — kontrakt layoutu w planie 140.stylization.1–.10
+
+Przeczytano i powiązano załącznik 140_stylization_layout_responsive_asset_contract.md.
+Rozszerzono .1 o wspólne strefy, warstwy, paletę, typografię i neutralny
+progress; wszystkie template'y otrzymały checkpoint desktop/portrait,
+reflow, reuse assetów, fallback i recovery. .4 wymaga czterech różnych
+kompozycji maszyn w jednym systemie. Nowe grafiki zasadniczo ograniczono
+do ponownie używanych teł; .10 kontroluje także liczbę i pamięć assetów.
+Załącznik pozostaje niezmienionym źródłem kontraktu. Zmiany wyłącznie
+w dokumentacji; implementacja stylizacji i produkcyjny trigger nie ruszyły.
+
+### 2026-09-12 — trzy bramki realizacji stylizacji
+
+Autor doprecyzował: reuse kodu nie narzuca jednakowego wyglądu scen;
+pozycje kanoniczne części planujemy od .2 z ciągłością część → węzeł →
+grupa → maszyna; każdy podsprint zaczyna dokładnie jedna para referencyjna
+desktop/portrait do akceptacji przed rozwinięciem grupy. Zasady wpisano
+do planu .1–.10, w tym cztery różne kompozycje maszyn i odtwarzanie pozycji
+po seek/reconnect. Zmiany dokumentacyjne, bez rozpoczęcia implementacji.
+
+### 2026-09-12 — referencja wizualna layoutu GhostSignal
+
+Autor wskazał doc/visual/signal_show/signal_show_0.png jako punkt odniesienia
+layoutu. Dodano link, podgląd i opis do planu 140.stylization.1+.
+Referencja obejmuje desktopowe przejęcie/transmisję oraz portrait części
+i rankingu; nie zmienia danych, timeline ani bramek akceptacji template'ów.
+
+### 2026-09-12 — wskazane hero maszyn do stylizacji .4
+
+Autor wskazał static/images/ghostnetwork/signal_sends jako źródło hero.
+Plan zawiera linki do czterech maszyn i ich wariantów active. Wybór wariantu
+nastąpi przy kompozycji scen; zachowano reuse assetów i bramkę jednej pary
+desktop/portrait przed rozwinięciem pozostałych prezentacji.
+
+### 2026-09-12 — pierwsza para referencyjna 140.stylization.1
+
+Przygotowano statyczną makietę takeover 00:08: desktop 1920×1080 oraz
+portrait 1080×1920, wspólny HTML/CSS z reflow. Źródło:
+static/references/ghostsignal/index.html. Reuse wallpaper2.jpg, typograficzne
+hero, neutralna paleta i progress. Bez zmian runtime, API, audio i triggera.
+Browser niedostępny; para oczekuje oceny autora przed rozwinięciem grupy.
+
+### 2026-09-12 — kierunek pierwszej pary .1 zaakceptowany
+
+Autor potwierdził, że para takeover desktop/portrait odpowiada oczekiwanemu
+kierunkowi. Zapisano VISUAL DIRECTION ACCEPTED jako bazę rozwinięcia .1.
+Integracja z istniejącym rendererem, pozostałe sceny oraz ich testy pozostają
+do realizacji. Trigger produkcyjny nadal nastąpi po stylizacji całego show.
+
+### 2026-09-12 — implementacja 140.stylization.1
+
+Rozwinięto zaakceptowany kierunek takeover na siedem scen interfejsu
+w istniejącym renderMontage. Różne kompozycje desktop/portrait, reuse
+wallpaper2.jpg, neutralny progress i dotychczasowy przycisk audio.
+Siedem zestawów JS, syntax i generator PASS. Odbiór wizualny pozostaje
+otwarty; procedura doc/runbooks/deploy_140_stylization_1.md. Trigger po
+stylizacji całości, .2 nie rozpoczęto. Brak zmian backendu i nowych assetów.

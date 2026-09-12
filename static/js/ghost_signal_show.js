@@ -170,14 +170,68 @@
         }
     }
 
+    const INTERFACE_SCENES = {
+        takeover: ["CHAOS", "INTERFACE\nLOST_", "SYSTEM PRZEJĘTY PRZEZ GHOST NETWORK", 0],
+        network_layer: ["GHOST", "NETWORK_", "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ.", 1],
+        system_layers: ["CHAOS", "REKONSTRUKCJA_", "WARSTWY ZAPISU ZAKOŃCZONEGO CYKLU", 2],
+        desktop_assembly: ["PULPIT", "REKONSTRUKCJA_", "PRZYGOTOWANIE WIDOKU NOWEGO CYKLU", 3],
+        system_ready: ["CHAOS", "WIDOK GOTOWY_", "REKONSTRUKCJA — PODSUMOWANIE", 4],
+        shutdown: ["KONIEC", "TEGO CYKLU_", "ZAMYKANIE PREZENTACJI", 4],
+        restart: ["NOWY", "CYKL_", "OCZEKIWANIE NA POTWIERDZENIE RESTARTU", 4]
+    };
+
+    function renderInterface(doc, stage, snapshot, scene) {
+        const spec = INTERFACE_SCENES[scene.id];
+        const make = (tag, cls, text) => {
+            const n = doc.createElement(tag); n.className = cls;
+            if (text !== undefined) n.textContent = text;
+            return n;
+        };
+        const canvas = make("div", "ghost-show-interface");
+        canvas.setAttribute("data-composition", scene.id);
+        const city = make("div", "gsi-city"); city.setAttribute("aria-hidden", "true");
+        canvas.appendChild(city);
+        canvas.appendChild(make("p", "gsi-tag", "CHAOS / GHOST NETWORK"));
+        const message = make("div", "gsi-message");
+        message.appendChild(make("p", "gsi-kicker", scene.label));
+        const title = make("h2", "gsi-title");
+        title.appendChild(make("span", "gsi-brand", spec[0]));
+        title.appendChild(make("span", "gsi-hero", spec[1]));
+        message.appendChild(title);
+        message.appendChild(make("p", "gsi-statement", spec[2]));
+        canvas.appendChild(message);
+        const list = make("ol", "gsi-layers");
+        ["INTERFEJS", "GHOST NETWORK", "ŚWIAT", "UCZESTNICY", "GHOSTSIGNAL"].forEach((label, index) => {
+            list.appendChild(make("li", index === spec[3] ? "is-current" : "", "0" + (index + 1) + " / " + label));
+        });
+        list.setAttribute("aria-label", "Warstwy prezentacji");
+        canvas.appendChild(list);
+        const data = (snapshot.show_manifest.cycle_history || {}).settlement;
+        const late = scene.elapsed >= 720;
+        const note = late ? (scene.id === "restart" || scene.id === "shutdown"
+            ? "Przejście nastąpi po potwierdzeniu nowego cyklu."
+            : "Rekonstrukcja wizualna. Rzeczywisty boot nastąpi po potwierdzeniu restartu.")
+            : "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ.";
+        const details = make("div", "gsi-details");
+        details.appendChild(make("p", "gsi-note", note));
+        if (late) details.appendChild(make("p", "gsi-facts", data && data.available
+            ? "ZAPIS CYKLU / " + data.players_total + " uczestników / " + data.rewards_total + " nagród"
+            : "Oczekiwanie na zapis wyników finału."));
+        canvas.appendChild(details);
+        stage.appendChild(canvas);
+    }
+
     function renderMontage(doc, root, snapshot, scene) {
         const stage = root.querySelector(".ghost-signal-show__stage");
+        root.classList.remove("has-interface");
         if (!stage || !scene || scene.blocked) {
             clearMontage(stage);
             root.classList.remove("has-montage");
             return;
         }
         const manifest = snapshot.show_manifest;
+        const isInterface = !!INTERFACE_SCENES[scene.id];
+        if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
         const settlement = history.settlement || {};
         const pageCounts = {players: Math.ceil((settlement.players || []).length / 4),
@@ -198,7 +252,7 @@
                 : scene.id === "terminal_2108" ? Math.floor(scene.progress * 100) : ""].join(":");
         root.classList.add("has-montage");
         stage.style.setProperty("--scene-progress", scene.progress);
-        root.style.background = scene.id === "takeover"
+        root.style.background = scene.id === "takeover" && !isInterface
             ? "rgba(5,9,13," + (0.15 + scene.progress * 0.8) + ")" : "#05090d";
         if (stage._showKey === key) { syncVideo(stage, scene); return; }
         clearMontage(stage);
@@ -216,7 +270,9 @@
         };
         const layout = sceneLayout(manifest, scene);
         const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
-        if (scene.elapsed >= 480) {
+        if (isInterface) {
+            renderInterface(doc, stage, snapshot, scene);
+        } else if (scene.elapsed >= 480) {
             const data = history.settlement;
             const panel = element("div", "ghost-show-settlement");
             panel.appendChild(element("p", "ghost-show-kicker", "ARCHIWUM FINAŁU / REKONSTRUKCJA"));

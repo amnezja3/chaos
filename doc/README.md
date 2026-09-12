@@ -34,6 +34,10 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
   obejmuje późniejszy przegląd i dopracowanie 00–15. Bieżący Sprint 140 buduje
   szkielet, projekcje danych i synchronizację scen/video/muzyki; oprawa pozostaje
   otwarta na kolejne iteracje.
+  Plan .1–.10 obowiązuje wraz z
+  [kontraktem layoutu, responsywności i assetów](sprints/140_stylization_layout_responsive_asset_contract.md):
+  wspólna oprawa CSS, reflow desktop/portrait i reuse zasobów CHAOS.
+  Trigger oraz nowy produkcyjny E2E nastąpią po stylizacji.
 
 - Sprint 138.2 zakończył pełny producer-backed production E2E wynikiem `PASS`.
   Aktywny backlog stanowią
