@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .4: para hero VIREX ORACLE
+
+- Po akceptacji grup części i overscanu autor zlecił parę hero maszyny.
+  Przygotowano machine_hero_1 / 06:08, desktop 1920×1080 i portrait 1080×1920.
+- Dominujący istniejący asset VIREX ORACLE przed typografią, opis katalogowy
+  i pięć komponentów. Reuse tła, OFS i glitch; bez nowych bitmap i API.
+- `machine-hero-pair.html` czeka na akceptację. Pozostałe trzy hero wymagają
+  własnych kompozycji, a nie powielenia układu pierwszej maszyny.
+
 ## 2026-09-12 — hero części nad panelem tekstowym
 
 - Na prośbę autora rozszerzono desktopowy obszar widoczności planszy w lewo.

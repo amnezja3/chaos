@@ -1,6 +1,7 @@
 # 140.stylization.4 — warstwowa prezentacja grup części
 
-Status: `REFERENCE ACCEPTED / 160–300 IMPLEMENTED / SERVER REVIEW PENDING`.
+Status: `160–300 IMPLEMENTED / OPERATOR ACCEPTED`.
+Autor zaakceptował zakres wraz z efektem hero części nad panelem.
 
 Autor zaakceptował parę słowami „to jest to implementuj”. Pięć scen grup
 wdrożono w istniejącym renderParts, ze wspólnym z parą CSS. Zmiana grup
