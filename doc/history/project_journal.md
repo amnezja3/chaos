@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .5: film v8 wdrożony
+
+Po akceptacji autora wdrożono rekonstrukcję na tle archiwum, lewy duży
+tytuł i ramkę na pierwszym planie. Desktop +30% / 2:1, portrait 3:2 / 6vw.
+Oprawa współdzieli CSS z referencją. Istniejąca obsługa filmu została
+wydzielona do funkcji używanej przez scenę archiwum; zachowano mikser,
+fallback i seek. Pięć zestawów JS PASS, łącznie z wejściem/wyjściem filmu
+i zegarem ramki. Następna para: rozbłysk i ślad sygnału po filmie.
+
 ## 2026-09-12 — .5: zaakceptowany zapis w runtime
 
 Wdrożono `transmission_quiet` 420–425 s zgodnie z przyjętą referencją:

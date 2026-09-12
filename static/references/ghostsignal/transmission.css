@@ -1,25 +1,3 @@
 @import url("../../css/ghost_signal_parts.css?v=parts-runtime-4");
-@import url("../../css/ghost_signal_archive.css?v=archive-runtime-1");
+@import url("../../css/ghost_signal_archive.css?v=archive-runtime-2");
 html,body{margin:0;height:100%;background:#050907}
-/* Video reference only, awaiting approval before integration into the show. */
-.archive-scene[data-state="video"] .archive-title{left:4vw;right:4vw;top:13vh;text-align:left}
-.archive-scene[data-state="video"] .archive-title h1{font-size:clamp(60px,9.8vw,190px);margin:2vh 0}
-.archive-scene[data-state="video"] .archive-title .title-sub{font-size:.38em;margin-top:1.5vh}
-.archive-scene[data-state="video"] .archive-center{left:22%;right:22%;top:29vh;bottom:17vh;z-index:3}
-.archive-scene[data-state="video"] .archive-video-shell{max-width:min(744px,calc((54vh - 64px)*1.5 + 24px))}
-.archive-scene[data-state="video"] .archive-caption{bottom:-4vh}
-@media(min-aspect-ratio:1001/1000){
- .archive-scene[data-state="video"] .archive-center{left:18%;right:18%}
- .archive-scene[data-state="video"] .archive-video-shell{max-width:min(967.2px,calc((54vh - 64px)*2 + 24px))}
- .archive-scene[data-state="video"] .archive-video-field{max-width:none;aspect-ratio:2/1}
- .archive-scene[data-state="video"] .archive-video-field video{object-fit:cover;object-position:center}
-}
-@media(max-aspect-ratio:1/1){
- .archive-scene[data-state="video"] .archive-title{left:6vw;right:6vw;top:12vh;text-align:left}
- .archive-scene[data-state="video"] .archive-title h1{font-size:10vw}
- .archive-scene[data-state="video"] .archive-center{left:6vw;right:6vw;top:30vh;bottom:32vh}
- .archive-scene[data-state="video"] .archive-video-shell{max-width:none;padding:0;border:0;outline:1px solid #93b99f66}
- .archive-scene[data-state="video"] .archive-video-field{max-width:none}
- .archive-scene[data-state="video"] .video-topline,.archive-scene[data-state="video"] .video-bottomline{padding:4px 5px}
- .archive-scene[data-state="video"] .archive-caption{bottom:-3vh}
-}

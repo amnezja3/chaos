@@ -2,6 +2,12 @@
 
 Status: `REFERENCE ACCEPTED / RECORD RUNTIME IMPLEMENTED / SERVER REVIEW PENDING`.
 
+Aktualizacja: autor zaakceptował film v8 i zlecił implementację.
+Scena `transmission_video` jest wdrożona z panoramicznym kadrem desktop
+i zaakceptowanym portrait. Wspólny odtwarzacz zachowuje miks 0,5 s.
+[Wdrożenie filmu i następny checkpoint rozbłysku](../runbooks/deploy_140_stylization_5_video.md).
+Poniżej historia ustaleń pary; odbiór wizualny runtime filmu pozostaje otwarty.
+
 Zapis autor potwierdził jako gotowy. Kolejna para dotyczy filmu:
 [desktop / portrait — rekonstrukcja](../../static/references/ghostsignal/transmission-video-pair.html).
 Adres: `/static/references/ghostsignal/transmission-video-pair.html?v=transmission-ref-8`.

@@ -336,6 +336,12 @@
     }
 
     function syncParts(stage, scene) {
+        const timecode = stage.querySelector(".archive-video-time");
+        if (timecode && stage._video) {
+            const duration = stage._video._showDuration;
+            const elapsed = Math.min(duration, Math.max(0, scene.progress * duration));
+            timecode.textContent = "00:" + String(Math.floor(elapsed + 0.000001)).padStart(2, "0") + " / " + String(duration).replace(".", ",") + " s";
+        }
         if (stage._network) {
             const focus = stage._network.focus;
             const poses = focus ? machineFocusPoses(stage._network.manifest,scene.elapsed) : null;
@@ -394,9 +400,61 @@
         });
     }
 
-    function renderArchiveRecord(doc, stage, manifest, element) {
+    function renderTransmissionVideo(stage, scene, manifest, frame, element) {
+                const field = element("div", "ghost-show-video-field archive-video-field");
+                field.setAttribute("inert", "");
+                frame.appendChild(field);
+                const fallback = element("div", "ghost-show-video-fallback", "GHOSTSIGNAL // TRANSMISSION RECORD");
+                field.appendChild(fallback);
+                const asset = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
+                if (asset && asset.available && asset.src === "/static/video/ghostsignal_transmission_video.mp4"
+                        && Number.isFinite(asset.duration_seconds) && asset.duration_seconds > 0) {
+                    const video = element("video", "ghost-show-video");
+                    stage._video = video;
+                    video._showDuration = asset.duration_seconds;
+                    video.muted = true; video.defaultMuted = true;
+                    video.playsInline = true; video.preload = "auto";
+                    video.controls = false; video.tabIndex = -1;
+                    video.disablePictureInPicture = true;
+                    video.disableRemotePlayback = true;
+                    video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback noplaybackrate");
+                    video.setAttribute("disablepictureinpicture", "");
+                    video.setAttribute("disableremoteplayback", "");
+                    video.setAttribute("tabindex", "-1");
+                    video.setAttribute("aria-hidden", "true");
+                    video.oncontextmenu = event => { event.preventDefault(); return false; };
+                    video.setAttribute("playsinline", "");
+                    video.setAttribute("muted", "");
+                    const failed = () => {
+                        if (stage._video !== video) return;
+                        stage._video = null;
+                        video.onloadedmetadata = null; video.onerror = null;
+                        video.pause(); video.removeAttribute("src"); video.load(); video.remove();
+                        fallback.style.display = "";
+                    };
+                    video.onerror = failed;
+                    video.onloadedmetadata = () => {
+                        if (stage._video !== video) return;
+                        syncVideo(stage, {progress: video._showTarget / video._showDuration});
+                        const playing = video.play();
+                        if (playing && playing.catch) playing.catch(() => {
+                            if (stage._video !== video) return;
+                            video._audioBlocked = true; video.muted = true;
+                            const silent = video.play();
+                            if (silent && silent.catch) silent.catch(failed);
+                        });
+                        fallback.style.display = "none";
+                    };
+                    syncVideo(stage, scene);
+                    video.src = asset.src;
+                    field.appendChild(video);
+                }
+    }
+
+    function renderArchiveRecord(doc, stage, manifest, scene, element) {
+        const isVideo = scene.id === "transmission_video";
         const canvas = element("section", "ghost-show-parts archive-scene");
-        canvas.setAttribute("data-state", "record");
+        canvas.setAttribute("data-state", isVideo ? "video" : "record");
         const background = element("div", "background"); background.setAttribute("aria-hidden", "true");
         canvas.appendChild(background);
         const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
@@ -424,14 +482,24 @@
         const heading = element("section", "archive-title");
         heading.appendChild(element("p", "eyebrow", "HISTORIA ZAKOŃCZENIA CYKLU"));
         const title = element("h1", ""), sub = element("span", "title-sub", "TRANSMISJI");
-        title.appendChild(element("span", "", "ZAPIS")); sub.appendChild(element("span", "underscore", "_"));
+        title.appendChild(element("span", "", isVideo ? "REKONSTRUKCJA" : "ZAPIS")); sub.appendChild(element("span", "underscore", "_"));
         title.appendChild(sub); heading.appendChild(title); canvas.appendChild(heading);
         const log = element("aside", "archive-log"), list = element("ol", "");
         log.appendChild(element("p", "section-label", "01 / ODCZYT ARCHIWUM"));
         ["INICJACJA ODCZYTU","SYNCHRONIZACJA OBRAZU","REKONSTRUKCJA TRANSMISJI","ŚLAD SYGNAŁU"].forEach(text => list.appendChild(element("li", "", text)));
         log.appendChild(list); log.appendChild(element("p", "archive-quote", "Z rozproszonych fragmentów powstaje pełny obraz.")); canvas.appendChild(log);
         const center = element("section", "archive-center");
-        center.appendChild(element("p", "archive-caption", "PRZYGOTOWANIE ODCZYTU")); canvas.appendChild(center);
+        if (isVideo) {
+            const shell = element("div", "archive-video-shell");
+            const top = element("div", "video-topline"), bottom = element("div", "video-bottomline");
+            top.appendChild(element("span", "", "ARCHIWALNY ZAPIS")); top.appendChild(element("span", "", "ŹRÓDŁO / 3:2"));
+            shell.appendChild(top);
+            renderTransmissionVideo(stage, scene, manifest, shell, element);
+            bottom.appendChild(element("span", "", "REKONSTRUKCJA / GHOSTSIGNAL"));
+            bottom.appendChild(element("span", "archive-video-time", "")); shell.appendChild(bottom);
+            center.appendChild(shell);
+        }
+        center.appendChild(element("p", "archive-caption", isVideo ? "ODTWORZENIE ARCHIWALNEGO OBRAZU" : "PRZYGOTOWANIE ODCZYTU")); canvas.appendChild(center);
         const data = element("aside", "archive-data"), params = element("dl", "");
         data.appendChild(element("p", "section-label", "02 / ZAPIS OBRAZU"));
         const video = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
@@ -698,7 +766,7 @@
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
         const isHero = /^machine_hero_[1-4]$/.test(scene.id);
-        const isArchive = scene.id === "transmission_quiet";
+        const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video";
         const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
@@ -762,7 +830,7 @@
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
         } else if (isArchive) {
-            renderArchiveRecord(doc, stage, manifest, element);
+            renderArchiveRecord(doc, stage, manifest, scene, element);
         } else if (isHero) {
             renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage);
         } else if (isParts) {
@@ -880,56 +948,7 @@
         } else if (scene.elapsed >= 420) {
             const frame = element("div", "ghost-show-transmission");
             frame.appendChild(element("p", "ghost-show-kicker", "ARCHIWALNY ZAPIS TRANSMISJI"));
-            if (scene.id === "transmission_video") {
-                const field = element("div", "ghost-show-video-field");
-                field.setAttribute("inert", "");
-                frame.appendChild(field);
-                const fallback = element("div", "ghost-show-video-fallback", "GHOSTSIGNAL // TRANSMISSION RECORD");
-                field.appendChild(fallback);
-                const asset = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
-                if (asset && asset.available && asset.src === "/static/video/ghostsignal_transmission_video.mp4"
-                        && Number.isFinite(asset.duration_seconds) && asset.duration_seconds > 0) {
-                    const video = element("video", "ghost-show-video");
-                    stage._video = video;
-                    video._showDuration = asset.duration_seconds;
-                    video.muted = true; video.defaultMuted = true;
-                    video.playsInline = true; video.preload = "auto";
-                    video.controls = false; video.tabIndex = -1;
-                    video.disablePictureInPicture = true;
-                    video.disableRemotePlayback = true;
-                    video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback noplaybackrate");
-                    video.setAttribute("disablepictureinpicture", "");
-                    video.setAttribute("disableremoteplayback", "");
-                    video.setAttribute("tabindex", "-1");
-                    video.setAttribute("aria-hidden", "true");
-                    video.oncontextmenu = event => { event.preventDefault(); return false; };
-                    video.setAttribute("playsinline", "");
-                    video.setAttribute("muted", "");
-                    const failed = () => {
-                        if (stage._video !== video) return;
-                        stage._video = null;
-                        video.onloadedmetadata = null; video.onerror = null;
-                        video.pause(); video.removeAttribute("src"); video.load(); video.remove();
-                        fallback.style.display = "";
-                    };
-                    video.onerror = failed;
-                    video.onloadedmetadata = () => {
-                        if (stage._video !== video) return;
-                        syncVideo(stage, {progress: video._showTarget / video._showDuration});
-                        const playing = video.play();
-                        if (playing && playing.catch) playing.catch(() => {
-                            if (stage._video !== video) return;
-                            video._audioBlocked = true; video.muted = true;
-                            const silent = video.play();
-                            if (silent && silent.catch) silent.catch(failed);
-                        });
-                        fallback.style.display = "none";
-                    };
-                    syncVideo(stage, scene);
-                    video.src = asset.src;
-                    field.appendChild(video);
-                }
-            } else if (scene.id === "terminal_2108") {
+            if (scene.id === "terminal_2108") {
                 const text = ["GHOSTSIGNAL // " + snapshot.signal_public_id,
                     "TRANSMISSION UTC // " + (manifest.signal_sent_at || "—"),
                     "TEMPORAL CHANNEL // 2108", "DESTINATION // " + (history.future_2108_timestamp || "—")].join("\n");
@@ -982,6 +1001,7 @@
         }
         stage._showKey = key;
         syncGlitch();
+        if (isArchive) syncParts(stage, scene);
         animateNetworkEntrance(stage, snapshot, scene);
     }
 

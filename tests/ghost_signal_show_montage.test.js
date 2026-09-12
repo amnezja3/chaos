@@ -81,6 +81,7 @@ try {
         src:'/static/video/ghostsignal_transmission_video.mp4',duration_seconds:38.12});
     seek(435);
     assert(!root.querySelector('.hero-machine'),'video removes hero and its backdrop');
+    assert.strictEqual(root.querySelector('.archive-scene').attrs['data-state'],'video');
     const video = root.querySelector('.ghost-show-video'); assert(video);
     video.duration = 38.12; video.readyState = 1; video.currentTime = 0;
     video.onloadedmetadata();
@@ -89,7 +90,9 @@ try {
     assert.strictEqual(video.tabIndex, -1);
     assert(video.disablePictureInPicture && video.disableRemotePlayback);
     assert(video.attrs.controlslist.includes('nofullscreen'));
-    assert.strictEqual(video.parent.className, 'ghost-show-video-field');
+    assert(video.parent.className.split(' ').includes('ghost-show-video-field'));
+    assert(video.parent.className.split(' ').includes('archive-video-field'));
+    assert.strictEqual(video.parent.parent.className,'archive-video-shell');
     assert.strictEqual(video.parent.attrs.inert, '');
     assert(Math.abs(video.currentTime - 10) < 0.1);
     seek(450);
@@ -362,7 +365,10 @@ try {
     const pulseAnimation={currentTime:0}; archive.getAnimations=()=>[pulseAnimation];
     seek(423);assert.strictEqual(root.querySelector('.archive-scene'),archive);
     assert(Math.abs(pulseAnimation.currentTime-423000)<50,'archive pulse follows show clock');
-    seek(426);assert(!root.querySelector('.archive-scene'));assert(root.querySelector('.ghost-show-video'));
+    seek(426);assert.notStrictEqual(root.querySelector('.archive-scene'),archive);assert(root.querySelector('.ghost-show-video'));
+    assert.strictEqual(root.querySelector('.archive-scene').attrs['data-state'],'video');
+    assert(root.querySelector('.archive-video-time').textContent.startsWith('00:01'));
+    seek(464);assert(!root.querySelector('.archive-scene'));assert(!root.querySelector('.ghost-show-video'));
     seek(422);assert(root.querySelector('.archive-scene'));assert(!root.querySelector('.ghost-show-video'));
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');
