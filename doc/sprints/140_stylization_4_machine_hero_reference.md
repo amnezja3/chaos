@@ -1,6 +1,16 @@
 # 140.stylization.4 — para hero VIREX ORACLE
 
 Status: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+
+Korekta referencji `machine-hero-2`: desktop pokazuje również specjalizację
+i ryzyko skrajne z katalogu, z dodatkowymi akcentami OFS na opisach,
+indeksie i nagłówku komponentów. Na portrait wymuszone dwa wiersze
+VIREX / ORACLE naprawiają odziedziczony układ flex nagłówka.
+Obrys korzysta z ponownego użycia tego samego assetu maszyny; za nim
+znajduje się delikatne światło przesuwające się na desktopie.
+Na mobile światło jest statyczne i słabsze, bez dodatkowych animacji OFS.
+Reduced motion wyłącza nowe animacje. Nadal jest to para do oceny,
+przed wdrożeniem hero maszyn do renderera show.
 Zakres grup 160–300 s i hero części nad panelem zostały zaakceptowane.
 Ta para otwiera hero maszyn w 360–420 s.
 
@@ -20,8 +30,14 @@ dostępne w HTML; widoczne są obrazy i kody. Bez zmiany proporcji assetu.
 
 Opis funkcji i przypisanie V1–V5 pochodzą z katalogu. To rekonstrukcja
 wizualna, nie deklaracja nowej aktywacji lub wysłania sygnału. Reuse
-wallpaper2.jpg, efektów OFS/glitch i animacji oddychania; bez nowych bitmap.
-Tylko zwykły asset maszyny, bez jednoczesnego ładowania wariantu `_active`.
+efektów OFS/glitch i animacji oddychania; bez nowych bitmap.
+W referencji `machine-hero-3` tło zastępuje odpowiedni istniejący asset
+`signal_sends/machine_*_active.png`, pod ciemną nakładką zachowującą kolor
+maszyny. Standardowy glitch mapy pozostaje nad tłem, ze zmianą poziomu
+średni/najwyższy. Na pierwszym planie pozostaje zwykły asset maszyny.
+CSS przypisuje cztery tła przez `data-machine`: `virex_oracle`,
+`echo_libertas`, `phantom_veil`, `sentinel_aegis`; bieżąca para pokazuje VIREX.
+Pozostałe tła zostaną wykorzystane w odrębnych kompozycjach tych maszyn.
 Brak API, danych produkcyjnych, muzyki i triggera w referencji.
 
 Do akceptacji: dominanta i skala maszyny, zachodzenie na typografię,
