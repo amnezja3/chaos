@@ -1,4 +1,8 @@
 .hero-machine{display:block;--hero-accent:#ce777c;--ofs-accent:#93b99f}
+.hero-machine[data-machine="echo_libertas"]{--hero-accent:#c7b978}
+.hero-machine[data-machine="phantom_veil"]{--hero-accent:#78b9ac}
+.hero-machine[data-machine="sentinel_aegis"]{--hero-accent:#8babc6}
+.hero-machine[data-machine="phantom_veil"] .hero-heading h1,.hero-machine[data-machine="sentinel_aegis"] .hero-heading h1{font-size:clamp(60px,12vw,235px)}
 .hero-machine[data-machine="virex_oracle"]{--hero-background:url('../images/ghostnetwork/signal_sends/machine_virex_oracle_active.png')}
 .hero-machine[data-machine="echo_libertas"]{--hero-background:url('../images/ghostnetwork/signal_sends/machine_echo_libertas_active.png')}
 .hero-machine[data-machine="phantom_veil"]{--hero-background:url('../images/ghostnetwork/signal_sends/machine_phantom_veil_active.png')}
@@ -42,6 +46,7 @@
 .hero-machine footer{position:absolute;left:4vw;right:4vw;bottom:max(4vh,env(safe-area-inset-bottom));z-index:10}
 .hero-machine .clock i{width:40.8889%}
 @media(max-aspect-ratio:1/1){
+ .hero-machine[data-machine="phantom_veil"] .hero-heading h1,.hero-machine[data-machine="sentinel_aegis"] .hero-heading h1{font-size:18vw}
  .hero-machine{padding:4.5vh 5.6vw}
  .hero-heading{top:11%;left:6vw}
  .hero-heading h1{font-size:27vw;margin:2vh 0}

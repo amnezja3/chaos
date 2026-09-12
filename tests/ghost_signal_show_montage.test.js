@@ -71,8 +71,11 @@ try {
     assert.strictEqual(root.querySelector('.hero-components').children[1].children.length,1);
     const heroCanvas=root.querySelector('.hero-machine');
     seek(371); assert.strictEqual(root.querySelector('.hero-machine'),heroCanvas,'tick preserves hero DOM');
-    const img=root.querySelector('.ghost-show-hero__image'); assert(img);
-    img.onerror(); assert(!root.querySelector('.ghost-show-hero__image'));
+    const img=root.querySelector('.hero-art'); assert(img);
+    assert(!img.className.split(' ').includes('ghost-show-hero__image'),'legacy dimensions must not override the approved hero');
+    assert(img.className.split(' ').includes('hero-image'));
+    assert(root.querySelector('.hero-outline').className.split(' ').includes('hero-image'),'art and outline share geometry');
+    img.onerror(); assert(!root.querySelector('.hero-art'));
     assert(root.querySelector('.ghost-show-asset-fallback'));
     manifest.assets.push({id:'ghostsignal_transmission_video',available:true,
         src:'/static/video/ghostsignal_transmission_video.mp4',duration_seconds:38.12});
@@ -320,5 +323,30 @@ try {
     seek(722);
     assert(!root.querySelector('.ghost-show-interface'),'signal gate must remove interface layout');
     assert(!root.className.includes('has-interface'));
+    manifest.signal_confirmed=true;
+    const machineCodes=['virex_oracle','echo_libertas','phantom_veil','sentinel_aegis'];
+    catalog.machines.forEach((machine,i)=>{
+        machine.code=machineCodes[i]; machine.name=machine.code.replace('_',' ').toUpperCase();
+        machine.purpose='Purpose '+i; machine.risk_extreme='Risk '+i;
+        catalog.parts.filter(p=>machine.part_codes.includes(p.part_code)).forEach(p=>p.machine_code=machine.code);
+    });
+    manifest.assets=machineCodes.map(code=>({id:'machine_'+code,available:true,src:'/static/images/ghostnetwork/signal_sends/machine_'+code+'.png'}));
+    manifest.scenes=machineCodes.map((_,i)=>({id:'machine_hero_'+(i+1),label:'Hero',start:360+i*15,end:375+i*15}));
+    manifest.scenes.unshift({id:'parts_enter',label:'Parts',start:0,end:360});
+    manifest.scenes.push({id:'transmission_reconstruction',label:'Transmission',start:420,end:900});
+    let previousHero=null;
+    for(const i of [0,1,2,3,2,1,0]) {
+        seek(368+i*15);
+        const hero=root.querySelector('.hero-machine');
+        assert(hero && hero!==previousHero); previousHero=hero;
+        assert.strictEqual(hero.attrs['data-machine'],machineCodes[i]);
+        assert.strictEqual(hero.querySelector('.hero-art').src,manifest.assets[i].src);
+        assert.strictEqual(hero.querySelector('.hero-outline').src,manifest.assets[i].src);
+        const rows=hero.querySelector('.hero-components').children[1].children;
+        assert.deepStrictEqual(rows.map(row=>row.children[1].textContent),catalog.machines[i].part_codes);
+        assert.strictEqual(hero.querySelector('.hero-purpose').children[1].textContent,'Purpose '+i);
+        assert.strictEqual(hero.querySelector('.hero-heading').children[1].children[0].textContent,catalog.machines[i].name.split(' ')[1]);
+    }
+    seek(421); assert(!root.querySelector('.hero-machine'),'transmission cleans up all machine layers');
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

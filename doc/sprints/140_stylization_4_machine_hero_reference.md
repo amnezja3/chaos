@@ -1,6 +1,11 @@
 # 140.stylization.4 — para hero VIREX ORACLE
 
-Status: `REFERENCE ACCEPTED / VIREX RUNTIME IMPLEMENTED / SERVER REVIEW PENDING`.
+Status: `REFERENCE ACCEPTED FOR ALL FOUR / RUNTIME IMPLEMENTED / SERVER REVIEW PENDING`.
+
+Aktualna decyzja autora: para VIREX dotyczy wszystkich czterech maszyn;
+pozostałe realizujemy na tym samym schemacie. Zastępuje to wcześniejsze
+założenie odrębnych kompozycji poniżej. Wszystkie hero 360–420 s są wdrożone
+ze swoimi tłami, obrazami, opisami i komponentami. Odbiór serwerowy otwarty.
 
 Autor zaakceptował wariant 4: ciemny środek tła i płynne rozjaśnienie
 ku bokom. Wdrożono go dla `machine_hero_1` (360–375 s). Referencja i runtime

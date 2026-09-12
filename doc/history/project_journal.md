@@ -1,5 +1,15 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .4: komplet czterech hero
+
+Autor doprecyzował, że para VIREX zatwierdza schemat wszystkich maszyn.
+Wspólny renderer obejmuje teraz sceny 360–420 s, z własnymi grafikami,
+tłami `_active`, opisami katalogowymi, kolorami i częściami każdej maszyny.
+PHANTOM/SENTINEL mają dopasowaną skalę dłuższych nagłówków. Usunięto stary
+renderer hero i konflikt klasy wymuszającej 100% × 100% na obrazie maszyny.
+Test montażu obejmuje cztery hero, przypisania części, seek w obie strony
+i usunięcie warstw przed transmisją. Komplet pozostaje do odbioru serwerowego.
+
 ## 2026-09-12 — .4: VIREX hero w rendererze
 
 Po akceptacji pary v4 wdrożono `machine_hero_1` (360–375 s): wspólny CSS

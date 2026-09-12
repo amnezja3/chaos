@@ -393,9 +393,18 @@
         });
     }
 
-    function renderMachineHero(doc, stage, manifest, layout, element, addImage) {
-        const machine = layout.machines.find(m => m.code === "virex_oracle");
+    function renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage) {
+        const machine = layout.machines[heroIndex];
         if (!machine) { stage.appendChild(element("p", "ghost-show-asset-fallback", "Brak zapisu maszyny.")); return; }
+        const number = "0" + (heroIndex + 1);
+        const labels = {
+            virex_oracle: ["PREDYKCJA I TRASA", "Predykcja i wyznaczanie trasy sygnału."],
+            echo_libertas: ["PRZEKAZ I TRANSMISJA", "Składanie, wzmacnianie i transmisja przekazu."],
+            phantom_veil: ["UKRYCIE I MASKOWANIE", "Ukrywanie źródła, celu i trasy sygnału."],
+            sentinel_aegis: ["INTEGRALNOŚĆ I OCHRONA", "Ochrona integralności sieci i izolacja zagrożeń."]
+        };
+        const label = labels[machine.code] || ["FUNKCJA MASZYNY", machine.purpose || "Brak zapisu."];
+        const names = (machine.name || machine.code).split(" ");
         const canvas = element("section", "ghost-show-parts hero-machine");
         canvas.setAttribute("data-machine", machine.code);
         const background = element("div", "background"); background.setAttribute("aria-hidden", "true");
@@ -411,10 +420,10 @@
         }
         const header = element("header", "");
         header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
-        header.appendChild(element("span", "", "01 / CZTERY MASZYNY")); canvas.appendChild(header);
+        header.appendChild(element("span", "", number + " / CZTERY MASZYNY")); canvas.appendChild(header);
         const heading = element("section", "hero-heading");
-        heading.appendChild(element("p", "eyebrow", "VIREX / PREDYKCJA I TRASA"));
-        const title = element("h1", "", "VIREX"), line = element("span", "", "ORACLE");
+        heading.appendChild(element("p", "eyebrow", names[0] + " / " + label[0]));
+        const title = element("h1", "", names[0]), line = element("span", "", names.slice(1).join(" "));
         line.appendChild(element("span", "underscore", "_")); title.appendChild(line);
         heading.appendChild(title); canvas.appendChild(heading);
         ["hero-aura", "hero-light"].forEach(name => {
@@ -423,13 +432,13 @@
         const asset = (manifest.assets || []).find(a => a.id === "machine_" + machine.code);
         if (asset && asset.available) {
             addImage(canvas, asset.src, "hero-image hero-outline", "");
-            addImage(canvas, asset.src, "hero-image ghost-show-hero__image", machine.name);
+            addImage(canvas, asset.src, "hero-image hero-art", machine.name);
         } else canvas.appendChild(element("p", "ghost-show-asset-fallback", machine.name));
         const purpose = element("section", "hero-purpose");
-        purpose.appendChild(element("p", "hero-index", "01 / " + machine.name));
+        purpose.appendChild(element("p", "hero-index", number + " / " + machine.name));
         purpose.appendChild(element("p", "", machine.purpose || "Brak opisu funkcji w zapisie."));
         const details = element("div", "hero-desktop-details");
-        [["SPECJALIZACJA", "Predykcja i wyznaczanie trasy sygnału."],
+        [["SPECJALIZACJA", label[1]],
             ["RYZYKO SKRAJNE", machine.risk_extreme || "Brak opisu ryzyka w zapisie."]].forEach(row => {
             const p = element("p", ""); p.appendChild(element("b", "", row[0]));
             p.appendChild(element("span", "", row[1])); details.appendChild(p);
@@ -437,7 +446,7 @@
         purpose.appendChild(details);
         purpose.appendChild(element("p", "hero-source", "FUNKCJA KATALOGOWA / REKONSTRUKCJA")); canvas.appendChild(purpose);
         const components = element("section", "hero-components"), list = element("ol", "");
-        components.setAttribute("aria-label", "Części VIREX ORACLE");
+        components.setAttribute("aria-label", "Części " + machine.name);
         components.appendChild(element("p", "hero-components-title", "05 / KOMPONENTY"));
         (machine.part_codes || []).slice(0, 5).forEach(code => {
             const node = layout.nodes.find(n => n.part.part_code === code);
@@ -636,7 +645,7 @@
         }
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
-        const isHero = scene.id === "machine_hero_1";
+        const isHero = /^machine_hero_[1-4]$/.test(scene.id);
         const isParts = PART_SCENES.includes(scene.id) || isHero;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
@@ -700,7 +709,7 @@
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
         } else if (isHero) {
-            renderMachineHero(doc, stage, manifest, layout, element, addImage);
+            renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage);
         } else if (isParts) {
             renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage);
         } else if (scene.elapsed >= 480) {
@@ -813,21 +822,6 @@
                 }
             }
             stage.appendChild(panel);
-        } else if (heroIndex >= 0) {
-            const machine = layout.machines[heroIndex];
-            if (!machine) return;
-            const asset = (manifest.assets || []).find(a => a.id === "machine_" + machine.code);
-            const hero = element("div", "ghost-show-hero");
-            if (asset && asset.available) addImage(hero, asset.src, "ghost-show-hero__image", machine.name);
-            const info = element("div", "ghost-show-hero__info");
-            info.appendChild(element("p", "ghost-show-kicker", "GHOST NETWORK / " + machine.clan_code));
-            info.appendChild(element("h2", "", machine.name));
-            info.appendChild(element("p", "", "PARTS: " + (machine.part_codes || []).join(" · ")));
-            const professions = (manifest.catalog.professions || []).filter(p => p.machine_code === machine.code);
-            info.appendChild(element("p", "", professions.map(p => p.name).join(" / ")));
-            const abilityCodes = new Set(layout.nodes.filter(n => n.part.machine_code === machine.code).map(n => n.part.ability_code));
-            info.appendChild(element("p", "ghost-show-powers", (manifest.catalog.abilities || []).filter(a => abilityCodes.has(a.ability_code)).map(a => a.name).join(" / ")));
-            hero.appendChild(info); stage.appendChild(hero);
         } else if (scene.elapsed >= 420) {
             const frame = element("div", "ghost-show-transmission");
             frame.appendChild(element("p", "ghost-show-kicker", "ARCHIWALNY ZAPIS TRANSMISJI"));
