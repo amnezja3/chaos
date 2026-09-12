@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — pełna końcówka filmu przed błyskiem
+
+ffprobe potwierdza 38,120 s audio/wideo. Usuwanie odtwarzacza na sztywnej
+granicy sceny mogło ucinać końcówkę przy dopuszczalnym opóźnieniu synchronizacji.
+Dodano ograniczone oczekiwanie na ended przy trwającej końcówce, bez seek
+pomijającego efekt. Błysk startuje po niej od pierwszej klatki, muzyka
+wraca w 0,5 s. Dalszy seek i awaria odtwarzacza nie blokują show.
+Pięć zestawów JS PASS, w tym test opóźnionej końcówki i przejścia do błysku.
+
 ## 2026-09-12 — .5: błysk 750 ms i terminal
 
 Po akceptacji flash-ref-2 wdrożono trzy skokowe klatki 50/75/500 ms

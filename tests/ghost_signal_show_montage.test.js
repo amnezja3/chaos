@@ -394,5 +394,18 @@ try {
     seek(463.13);assert.strictEqual(flash.style.opacity,'1');
     manifest.signal_confirmed=false;seek(464);assert(!root.querySelector('.archive-flash'));assert(!root.querySelector('.archive-scene'));
     manifest.signal_confirmed=true;seek(477.1);assert(!root.querySelector('.archive-flash'));
+    seek(463);
+    const tailVideo=root.querySelector('.ghost-show-video');
+    tailVideo.duration=38.12;tailVideo.currentTime=37.8;tailVideo.readyState=2;tailVideo.paused=false;tailVideo.ended=false;
+    seek(463.13);assert.strictEqual(root.querySelector('.ghost-show-video'),tailVideo);
+    assert(!root.querySelector('.archive-flash'),'wait for actual ending before flash');
+    assert.strictEqual(tailVideo.currentTime,37.8,'do not seek away the final effect');
+    tailVideo.currentTime=38.12;tailVideo.ended=true;
+    seek(463.45);assert(!root.querySelector('.ghost-show-video'));
+    assert(root.querySelector('.archive-flash').style.clipPath.includes('1px'),'flash starts from its first frame after ended');
+    seek(463);const stalled=root.querySelector('.ghost-show-video');
+    stalled.duration=38.12;stalled.currentTime=37.9;stalled.readyState=2;stalled.paused=false;stalled.ended=false;
+    seek(463.2);assert.strictEqual(root.querySelector('.ghost-show-video'),stalled);
+    seek(470);assert(!root.querySelector('.ghost-show-video'),'seek past the finale must not wait for a stale player');
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

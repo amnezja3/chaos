@@ -1,5 +1,13 @@
 # .5 — błysk i terminal w ramce transmisji
 
+Korekta VIDEO-TAIL-1: plik ma potwierdzone ffprobe 38,120 s obrazu i audio.
+Poprzednia granica sceny mogła usunąć odtwarzacz opóźniony o dopuszczalne
+0,75 s. Teraz przy odtwarzanej końcówce (pozostało ≤1,5 s) czekamy na
+`ended`, bez seek do granicy. Błysk zaczyna od pierwszej klatki po końcu
+filmu, a muzyka wraca w 0,5 s. Limit oczekiwania to 1,5 s od granicy sceny,
+żeby uszkodzony odtwarzacz nie blokował show. Dalszy seek omija oczekiwanie.
+Końcowy termin show pozostaje bez zmian.
+
 Implementacja zaakceptowanego wariantu flash-ref-2: linia 2 px / 50 ms,
 prostokąt 75% / 75 ms, biel / 500 ms, przyspieszające wygaszenie / 125 ms.
 Łącznie 750 ms od początku `transmission_replay`. Overlay obejmuje cały
@@ -30,10 +38,12 @@ Po PASS:
 pm2 reload chaos &&
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-5-flash-1.html
+  --output static/previews/ghostsignal-stylization-5-video-tail-1.html
 ```
 
-Otwórz `/static/previews/ghostsignal-stylization-5-flash-1.html`.
+Otwórz `/static/previews/ghostsignal-stylization-5-video-tail-1.html`.
+Odtwórz od 07:39 bez dalszego seek i potwierdź pełny efekt końcowy filmu
+przed błyskiem. Przy opóźnieniu filmu błysk może przesunąć się o tę końcówkę.
 Desktop/portrait: odtwórz 07:41–08:00. Błysk zaczyna się w 07:43,12,
 kończy w 07:43,87. Ślad sygnału w 07:46,12 i terminal w 07:49,12
 pozostają w tej samej ramce. W 07:57 wchodzi dotychczasowe potwierdzenie.

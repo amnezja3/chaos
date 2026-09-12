@@ -173,6 +173,7 @@
         if (video) {
             video.onloadedmetadata = null;
             video.onerror = null;
+            video.onended = null;
             video.pause();
             video.removeAttribute("src");
             video.load();
@@ -185,6 +186,7 @@
     function syncVideo(stage, scene) {
         const video = stage._video;
         if (!video) return;
+        if (video._finishingNaturally) return;
         video._showTarget = scene.progress * video._showDuration;
         if (video.readyState >= 1 && Number.isFinite(video.duration)) {
             const target = Math.max(0, Math.min(video.duration - 0.05, video._showTarget));
@@ -557,6 +559,10 @@
                     record:"> ZAPIS TRANSMISJI\nGHOSTSIGNAL // " + (snapshot.signal_public_id || "—") + "\n",
                     trace:"> ŚLAD SYGNAŁU\nTRANSMISSION UTC // " + (manifest.signal_sent_at || "Brak zapisu czasu") + "\n",
                     channelText:"> KANAŁ 2108\nTEMPORAL CHANNEL // 2108\nDESTINATION // " + ((manifest.cycle_history || {}).future_2108_timestamp || "Brak zapisu daty docelowej") + "\n"};
+                if (Number.isFinite(root._videoFinishedAt)) {
+                    stage._archive.start = Math.max(stage._archive.start, root._videoFinishedAt);
+                    root._videoFinishedAt = null;
+                }
             }
             bottom.appendChild(element("span", "", "REKONSTRUKCJA / GHOSTSIGNAL"));
             bottom.appendChild(element("span", "archive-video-time", "")); shell.appendChild(bottom);
@@ -1190,7 +1196,30 @@
             root.classList.add("is-active");
             const phase = phaseAt(snapshot, Date.now(), offsetMs);
             const copy = PHASE_COPY[phase.code] || [phase.label || "GHOSTSIGNAL", "Global transmission in progress"];
-            const scene = sceneAt(snapshot, Date.now(), offsetMs);
+            let scene = sceneAt(snapshot, Date.now(), offsetMs);
+            const previousStage = root.querySelector(".ghost-signal-show__stage");
+            const previousVideo = previousStage && previousStage._video;
+            let finishingVideo = false;
+            if (previousVideo && scene && !scene.blocked && scene.id === "transmission_replay") {
+                const remaining = previousVideo.duration - previousVideo.currentTime;
+                const replay = snapshot.show_manifest.scenes.find(s => s.id === "transmission_replay");
+                const late = scene.elapsed - replay.start;
+                finishingVideo = !previousVideo.ended && previousVideo.readyState >= 2 && !previousVideo.paused
+                    && remaining > 0 && remaining <= 1.5 && late >= 0 && late < 1.5;
+                if (finishingVideo) {
+                    previousVideo._finishingNaturally = true;
+                    previousVideo.onended = render;
+                    const videoScene = snapshot.show_manifest.scenes.find(s => s.id === "transmission_video");
+                    scene = Object.assign({}, scene, {id:videoScene.id, label:videoScene.label,
+                        progress:previousVideo.currentTime / previousVideo._showDuration});
+                } else if (previousVideo._finishingNaturally) {
+                    root._videoFinishedAt = scene.elapsed;
+                    root._videoMusicResume = scene.elapsed;
+                }
+            } else if (previousVideo) previousVideo._finishingNaturally = false;
+            if (scene && scene.id === "transmission_video" && !finishingVideo) {
+                root._videoFinishedAt = null; root._videoMusicResume = null;
+            }
             global.clearTimeout(mediaTimer); mediaTimer = 0;
             const clockStart = Date.parse(snapshot.show_started_at || "");
             const clockEnd = Date.parse(snapshot.show_ends_at || "");
@@ -1201,7 +1230,21 @@
                 if (nextCue) mediaTimer = global.setTimeout(render, Math.max(1, nextCue - clockNow));
             }
             const radio = ownsShowAudio() && global.GhostRadio && global.GhostRadio.syncShow ? global.GhostRadio : null;
-            const audioState = showAudioAt(snapshot, Date.now(), offsetMs);
+            if (finishingVideo) {
+                global.clearTimeout(mediaTimer);
+                mediaTimer = global.setTimeout(render, 25);
+            }
+            let audioNow = Date.now();
+            if (finishingVideo && clockEnd > clockStart) {
+                const videoEnd = snapshot.show_manifest.audio && snapshot.show_manifest.audio.video_end;
+                if (Number.isFinite(videoEnd)) audioNow = clockStart + (videoEnd - .05) * (clockEnd - clockStart) / 900 - offsetMs;
+            }
+            const audioState = showAudioAt(snapshot, audioNow, offsetMs);
+            if (audioState && !finishingVideo && Number.isFinite(root._videoMusicResume)) {
+                const sinceResume = audioState.elapsed - root._videoMusicResume;
+                if (sinceResume >= 0 && sinceResume < .5) audioState.elapsed = 463.12 + sinceResume;
+                else root._videoMusicResume = null;
+            }
             if (radio && radio.syncShow) {
                 if (audioState) radio.syncShow(audioState);
                 else radio.endShow(false);
