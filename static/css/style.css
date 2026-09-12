@@ -1,3 +1,4 @@
+@import url("ofs_ambient_effects.css?v=1");
 @import url("ghost_exchange_charts.css");
 
 body {
@@ -9566,23 +9567,9 @@ form button:hover {
   animation: ofs-fx-failure-burst 620ms steps(3, end) 1;
 }
 
-@keyframes ofs-fx-soft-pulse {
-  0%, 100% { opacity: 0.72; }
-  50% { opacity: 1; }
-}
-@keyframes ofs-fx-line-focus {
-  0%, 24% { opacity: 1; color: #e9ffef; background: color-mix(in srgb, var(--ofs-accent) 12%, transparent); text-shadow: 0 0 7px color-mix(in srgb, var(--ofs-accent) 42%, transparent); }
-  25%, 79% { opacity: 0.62; background: transparent; text-shadow: none; }
-  80% { opacity: 0.94; transform: translateX(1px); filter: contrast(1.35); }
-  82% { transform: translateX(-1px); }
-  84%, 100% { opacity: 0.62; transform: translateX(0); filter: none; }
-}
-@keyframes ofs-fx-icon-live {
-  0%, 87%, 100% { transform: translate(0); filter: none; }
-  89% { transform: translate(1px, -1px); filter: brightness(1.5); }
-  91% { transform: translate(-1px, 1px); }
-  93% { transform: translate(0); }
-}
+
+
+
 @media (prefers-reduced-motion: reduce) {
   .ofs-visual-lift .provisional-app-scene-line,
   .ofs-visual-lift .operation-feedback-line,

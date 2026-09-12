@@ -4,7 +4,7 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE PAIR v4 / DEPTH AND MAP HOVER / AWAITING AUTHOR REVIEW`.
+Realizacja .2: `REFERENCE PAIR v5 / OFS AND BACKGROUND GLITCH / AWAITING AUTHOR REVIEW`.
 Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
 
 ### Pierwsza para .2 — dwadzieścia części
@@ -18,8 +18,10 @@ płaską siatkę na rzecz czterech planów głębi. Każda grupa ma pięć czę�
 jednej maszyny, nieregularnie rozmieszczonych: Virex na pierwszym planie,
 Echo na drugim, Phantom na trzecim, Sentinel w oddali. To propozycja
 kolejności planów do akceptacji, nie hierarchia klanów ani wynik cyklu.
-Skala desktop v4: 28/15/11/7,2% szerokości pola; portrait: 35/19/14/9%.
-Pierwszy plan +40%, ostatni −10% wobec v3. Dodano wolne oddychanie oraz
+Skala desktop v5: 24/15/11/7,2% szerokości pola; portrait: 30/19/14/9%.
+Pierwszy plan +20%, ostatni −10% wobec v3; zastępuje zbyt duże +40% w v4.
+V5 dodaje wspólne efekty OFS i glitch mapy za treścią, jak w .1.
+Dodano wolne oddychanie oraz
 hover/focus przez istniejące klasy i keyframes aktywnej części z mapy.
 Reduced motion wyłącza ruch; interakcja nie zmienia stanów części w grze.
 Pozycje są zapisane, a nie losowane przy każdym renderze. Kody i przypisanie

@@ -26,7 +26,7 @@ footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:c
 .identity{position:absolute;top:8%;left:4%;right:4%;z-index:1;font-size:clamp(10px,.9vw,17px);text-shadow:0 2px 3px #000}
 .identity>span{display:none}.identity b{padding:2px 4px;background:#030907b3;border-left:1px solid var(--clan)}
 .part h2{font-size:clamp(10px,.9vw,17px);min-height:0;line-height:1.2;text-shadow:0 2px 4px #000;background:#03090780;padding:2px 4px}
-[data-depth="1"]{--size:28%;--depth-order:4;--depth-opacity:1}
+[data-depth="1"]{--size:24%;--depth-order:4;--depth-opacity:1}
 [data-depth="2"]{--size:15%;--depth-order:3;--depth-opacity:.88}
 [data-depth="3"]{--size:11%;--depth-order:2;--depth-opacity:.73}
 [data-depth="4"]{--size:7.2%;--depth-order:1;--depth-opacity:.62}
@@ -35,7 +35,7 @@ footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:c
  .parts-scene{gap:1.4vh;grid-template-rows:auto auto minmax(0,1fr) auto}
  .heading{gap:.5vh 3vw}.eyebrow{font-size:clamp(10px,1.9vw,21px)}.twenty{font-size:17vw}.word{font-size:7vw}.deck{font-size:clamp(10px,2vw,22px)}.legend{font-size:clamp(9px,1.8vw,20px);gap:.6vh 2vw}
  .part{left:var(--mx);top:var(--my)}
- [data-depth="1"]{--size:35%}[data-depth="2"]{--size:19%}[data-depth="3"]{--size:14%}[data-depth="4"]{--size:9%}
+ [data-depth="1"]{--size:30%}[data-depth="2"]{--size:19%}[data-depth="3"]{--size:14%}[data-depth="4"]{--size:9%}
 .identity,.part h2{font-size:clamp(10px,2.1vw,23px)}
 }
 /* v3: fixed irregular scatter, object rotation, deliberate foreground overscan. */
@@ -60,6 +60,21 @@ footer{position:relative;z-index:10;background:linear-gradient(0deg,#050907 75%,
 .part:hover .ghostnetwork-part-halo,.part:focus-visible .ghostnetwork-part-halo{display:block}
 .part:hover .ghostnetwork-part-art,.part:focus-visible .ghostnetwork-part-art{filter:drop-shadow(0 0 7px rgba(183,255,53,.9));animation:ghostnetwork-part-active-float 2.8s ease-in-out infinite}
 .part:focus-visible{outline:1px solid #b7ff35;outline-offset:3px}
+/* Same OFS keyframes and map glitch as .1, confined to the reference scene. */
+.parts-scene{--ofs-accent:var(--signal)}
+.parts-scene>.parts-glitch{z-index:-1;mix-blend-mode:screen;opacity:.85}
+.parts-glitch:after{display:none}.parts-glitch .chaos-map-glitch-block{will-change:auto}
+.heading{position:relative;isolation:isolate}
+.heading:before{content:"";position:absolute;inset:-3%;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at 25% 45%,#9bdbac48,transparent 68%);opacity:var(--light,.5);transition:opacity .95s linear}
+.twenty,.word{opacity:calc(.72 + var(--light,.5) * .28);text-shadow:0 0 18px #acd3b53d;transition:opacity .95s linear}
+.identity b{animation:ofs-fx-icon-live 7.6s steps(1,end) infinite paused;animation-delay:calc(var(--fx-clock,0s) - var(--fx-offset,0s));text-shadow:0 0 7px currentColor}
+.part h2{--ofs-accent:var(--clan);animation:ofs-fx-line-focus 12s steps(1,end) infinite paused;animation-delay:calc(var(--fx-clock,0s) - var(--fx-offset,0s))}
+.eyebrow,.deck,.legend span,header{animation:ofs-fx-soft-pulse 5.4s ease-in-out infinite paused;animation-delay:calc(var(--fx-clock,0s) - 1.3s);text-shadow:0 0 9px #a8d9b34d}
+.legend span:nth-child(2n){animation-delay:calc(var(--fx-clock,0s) - 3.9s)}header{animation-delay:calc(var(--fx-clock,0s) - 2.7s)}
 @media(prefers-reduced-motion:reduce){
  .part .ghostnetwork-part-art,.part .ghostnetwork-part-halo{animation:none!important;transition:none!important}
+ .parts-scene>.parts-glitch{display:none}
+ .heading:before,.twenty,.word{transition:none;opacity:1}
+ .heading:before{opacity:.3}
+ .identity b,.part h2,.eyebrow,.deck,.legend span,header{animation:none!important;transform:none!important;filter:none!important;opacity:1;text-shadow:none}
 }

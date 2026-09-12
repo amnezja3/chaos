@@ -1,4 +1,4 @@
-# .2 — canonical positions v4
+# .2 — canonical positions v5
 
 REFERENCE / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW
 
@@ -15,8 +15,8 @@ obiektów w procentach pola części, osobno dla obu formatów.
 Plan 1: Virex / V1–V5; plan 2: Echo / E1–E5; plan 3: Phantom / P1–P5;
 plan 4: Sentinel / S1–S5. Przypisanie planów jest kompozycyjne, nie rankingowe.
 
-Szerokość części względem pola: desktop 28%, 15%, 11%, 7,2%; portrait 35%,
-19%, 14%, 9%. Pierwszy plan +40%, ostatni −10% względem v3; indywidualne
+Szerokość części względem pola: desktop 24%, 15%, 11%, 7,2%; portrait 30%,
+19%, 14%, 9%. Pierwszy plan +20%, ostatni −10% względem v3; indywidualne
 mnożniki i pozycje zachowane. Warstwy bliższe zasłaniają dalsze, kontrast maleje w głąb.
 Rozkład ma wyglądać swobodnie i losowo, ale jest utrwalony dla odtworzenia
 po seek i dla ciągłości między scenami. Bez losowania nowych pozycji co klatkę.
@@ -38,6 +38,14 @@ efekt aktywnej części z mapy: poświata rgba(183,255,53,.9) o promieniu
 ghostnetwork_map.css; obrót assetu jest na osobnym wrapperze.
 Reduced motion wyłącza ruch i puls, pozostawiając statyczne podświetlenie.
 Para czeka na akceptację; transformacje do sieci i reszta .2 nie są wdrożone.
+
+V5 koryguje nadmierne +40% z v4 do +20% względem v3. Dodano wspólny
+glitch mapy w tle (slow 7 s / overloaded 5 s) oraz efekty OFS napisów,
+kodów, legendy i nagłówka. Trzy istniejące keyframes OFS wydzielono bez
+zmian do ofs_ambient_effects.css, importowanego również przez style.css.
+Podgląd ma wyłącznie lokalny zegar dekoracji, startujący od 01:15;
+zatrzymuje timer w tle/po opuszczeniu strony. To nie kontroler show.
+Reduced motion wyłącza glitch i animacje. Układ części pozostaje stały.
 
 | Code | Depth | Desktop X,Y (%) | Portrait X,Y (%) | Machine slot |
 | --- | --- | --- | --- | --- |
