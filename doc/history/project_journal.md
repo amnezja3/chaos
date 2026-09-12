@@ -4596,3 +4596,11 @@ Rozkład jest zapisany dla ciągłości i późniejszego seek. Zaktualizowano
 mapę pozycji; zachowano tożsamość części i przypisanie do maszyn.
 Sprawdzono 20 pozycji, po pięć w grupie i składnię podglądu.
 Para v2 pozostaje do odbioru wizualnego; bez zmian runtime i triggera.
+
+### 2026-09-12 — para .2 v3: nieregularność i wyjście poza kadr
+
+Zgodnie z uwagą autora rozbito regularność rozkładu części. Dodano
+indywidualną skalę i obrót assetów, częściowe wyjście pierwszego planu
+poza boczne krawędzie, przesunięcie skrajnych podpisów do wnętrza oraz
+ochronę dolnego paska. Zachowano cztery grupy i utrwalone pozycje.
+Para v3 oczekuje odbioru wizualnego; runtime pozostaje bez zmian.

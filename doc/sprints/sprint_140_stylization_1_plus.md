@@ -4,7 +4,7 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE PAIR v2 / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW`.
+Realizacja .2: `REFERENCE PAIR v3 / FOREGROUND OVERSCAN / AWAITING AUTHOR REVIEW`.
 Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
 
 ### Pierwsza para .2 — dwadzieścia części
@@ -23,6 +23,12 @@ Pozycje są zapisane, a nie losowane przy każdym renderze. Kody i przypisanie
 maszyn pozostają stałe; indeks ringu nie wyznacza już siatki kadru.
 Pełne nazwy pokazujemy bliżej, kody także w oddali. Akcenty wynikają z klanu.
 Tło jest ponownie użytym wallpaper2.jpg. Bez nowych bitmap i runtime.
+
+Korekta v3 zgodnie z uwagą autora: największe części częściowo wychodzą
+poza kadr, a wszystkie plany mają bardziej nieregularne odstępy, różne
+obroty obrazów i indywidualne mnożniki skali. Skrajne podpisy przesuwamy
+do środka; dolny pasek jest chroniony. To nadal zapisane pozycje do
+odtworzenia, nie losowy układ przy każdym wejściu.
 
 [Mapa canonical positions](140_stylization_2_canonical_positions.md)
 rozpisuje wszystkie 20 pozycji desktop/portrait, kolejność ringu oraz

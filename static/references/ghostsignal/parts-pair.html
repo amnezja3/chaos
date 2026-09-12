@@ -4,14 +4,15 @@
 *{box-sizing:border-box}body{margin:0;background:#080c0b;color:#d9e2db;font:14px/1.6 monospace;padding:24px}h1{font:600 24px/1.3 sans-serif;margin:0}p{color:#97a69c;max-width:900px}a{color:#c3d9cb}main{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(240px,.65fr);gap:24px;align-items:start}figure{margin:0;min-width:0}figcaption{margin:0 0 10px;color:#a0b3a6}.frame{position:relative;overflow:hidden;background:#030806;outline:1px solid #45594b}iframe{position:absolute;top:0;left:0;border:0;transform-origin:top left}@media(max-width:850px){main{grid-template-columns:1fr}}
 </style>
 <h1>140.stylization.2 / DWADZIEŚCIA CZĘŚCI</h1>
-<p>Para referencyjna v2 — cztery plany głębi, po pięć części jednej maszyny.
-Nieregularne, zapisane pozycje; każda dalsza grupa jest mniejsza.
+<p>Para referencyjna v3 — cztery plany głębi, po pięć części jednej maszyny.
+Nieregularne, zapisane pozycje, różne skale i obroty. Pierwszy plan częściowo
+wychodzi poza kadr; każda dalsza grupa jest mniejsza.
 Ta sama scena w 01:15, dwie kompozycje. Bez audio, API i triggera. Tło: wallpaper2.jpg.
 Pomniejszenie poniżej służy wyłącznie prezentacji pełnych canvasów; wewnątrz działa reflow.</p>
-<p><a href="parts.html?v=depth-2" target="_blank" rel="noopener">Otwórz scenę w rozmiarze swojego ekranu</a></p>
+<p><a href="parts.html?v=depth-3" target="_blank" rel="noopener">Otwórz scenę w rozmiarze swojego ekranu</a></p>
 <main>
-<figure><figcaption>DESKTOP / 1920 × 1080</figcaption><div class="frame" data-width="1920" data-height="1080"><iframe src="parts.html?v=depth-2" width="1920" height="1080" title="Referencja desktop 1920 na 1080"></iframe></div></figure>
-<figure><figcaption>PORTRAIT / 1080 × 1920</figcaption><div class="frame" data-width="1080" data-height="1920"><iframe src="parts.html?v=depth-2" width="1080" height="1920" title="Referencja portrait 1080 na 1920"></iframe></div></figure>
+<figure><figcaption>DESKTOP / 1920 × 1080</figcaption><div class="frame" data-width="1920" data-height="1080"><iframe src="parts.html?v=depth-3" width="1920" height="1080" title="Referencja desktop 1920 na 1080"></iframe></div></figure>
+<figure><figcaption>PORTRAIT / 1080 × 1920</figcaption><div class="frame" data-width="1080" data-height="1920"><iframe src="parts.html?v=depth-3" width="1080" height="1920" title="Referencja portrait 1080 na 1920"></iframe></div></figure>
 </main>
 <script>
 function fitReferences(){document.querySelectorAll('.frame').forEach(function(frame){var scale=frame.clientWidth/Number(frame.dataset.width);frame.style.height=Number(frame.dataset.height)*scale+'px';frame.firstElementChild.style.transform='scale('+scale+')';});}

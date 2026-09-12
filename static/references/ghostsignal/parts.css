@@ -21,7 +21,7 @@ footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:c
 /* v2: four stable depth groups, no flat catalog grid. */
 .parts-board{display:block;position:relative;isolation:isolate;overflow:visible}
 .parts-board:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 53% 24%,#a4d1b413,transparent 60%);pointer-events:none}
-.part{position:absolute;left:var(--x);top:var(--y);width:var(--size);transform:translate(-50%,-50%);padding:0;display:flex;flex-direction:column;border:0;background:none;opacity:var(--depth-opacity);z-index:var(--depth-order)}
+.part{position:absolute;left:var(--x);top:var(--y);width:calc(var(--size) * var(--scatter-scale,1));transform:translate(-50%,-50%);padding:0;display:flex;flex-direction:column;border:0;background:none;opacity:var(--depth-opacity);z-index:var(--depth-order)}
 .part:after{display:none}.part img{width:100%;height:auto;aspect-ratio:1;max-width:none;max-height:none;filter:drop-shadow(0 12px 14px #000b)}
 .identity{position:absolute;top:8%;left:4%;right:4%;z-index:1;font-size:clamp(10px,.9vw,17px);text-shadow:0 2px 3px #000}
 .identity>span{display:none}.identity b{padding:2px 4px;background:#030907b3;border-left:1px solid var(--clan)}
@@ -36,5 +36,16 @@ footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:c
  .heading{gap:.5vh 3vw}.eyebrow{font-size:clamp(10px,1.9vw,21px)}.twenty{font-size:17vw}.word{font-size:7vw}.deck{font-size:clamp(10px,2vw,22px)}.legend{font-size:clamp(9px,1.8vw,20px);gap:.6vh 2vw}
  .part{left:var(--mx);top:var(--my)}
  [data-depth="1"]{--size:25%}[data-depth="2"]{--size:19%}[data-depth="3"]{--size:14%}[data-depth="4"]{--size:10%}
- .identity,.part h2{font-size:clamp(10px,2.1vw,23px)}
+.identity,.part h2{font-size:clamp(10px,2.1vw,23px)}
+}
+/* v3: fixed irregular scatter, object rotation, deliberate foreground overscan. */
+.part img{transform:rotate(var(--turn,0deg))}
+.parts-board{clip-path:inset(-4% -6vw -2% 0)}
+.part[data-code="V4"] h2,.part[data-code="V4"] .identity{position:relative;left:-55%;max-width:85%}
+.part[data-code="V4"] .identity{align-self:flex-start;top:12%;margin-bottom:-1.2em}
+footer{position:relative;z-index:10;background:linear-gradient(0deg,#050907 75%,#050907aa);box-shadow:0 -12px 20px #050907}
+@media(max-aspect-ratio:1/1){
+ .parts-board{clip-path:inset(-4% -6vw -1% -6vw)}
+ .part[data-code="V1"] h2{position:relative;left:48%;max-width:85%}
+ .part[data-code="V1"] .identity{left:65%;right:auto}
 }

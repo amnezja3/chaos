@@ -1,6 +1,14 @@
-# .2 — canonical positions v2
+# .2 — canonical positions v3
 
 REFERENCE / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW
+
+Korekta v3: pierwszy plan może częściowo wychodzić poza kadr. V4 wychodzi
+za prawą krawędź w obu formatach, V1 dodatkowo za lewą na portrait.
+W obrębie grup zróżnicowano skalę (mnożnik bazowego rozmiaru) oraz obrót
+samych obrazów. Pozycje, skale i obroty są utrwalone w parts.html.
+Podpisy nie obracają się wraz z assetem, a przy skrajnych elementach są
+przesunięte do wnętrza kadru. Dolny pasek ma własne ciemne pole ponad
+kompozycją. Nieregularność jest reżyserowana, bez losowania przy renderze.
 
 Wersja 2 zastępuje poprzednią płaską siatkę. Pozycje oznaczają środki
 obiektów w procentach pola części, osobno dla obu formatów.
@@ -27,23 +35,23 @@ nie zostały jeszcze zaimplementowane.
 
 | Code | Depth | Desktop X,Y (%) | Portrait X,Y (%) | Machine slot |
 | --- | --- | --- | --- | --- |
-| V1 | 1 | 15, 62 | 20, 56 | 1 |
-| S5 | 4 | 30, 37 | 90, 76 | 5 |
-| E4 | 2 | 82, 19 | 81, 18 | 4 |
-| P3 | 3 | 70, 13 | 34, 9 | 3 |
-| V2 | 1 | 38, 82 | 67, 68 | 2 |
-| E1 | 2 | 12, 36 | 18, 33 | 1 |
-| S4 | 4 | 77, 53 | 56, 59 | 4 |
-| P5 | 3 | 12, 88 | 91, 56 | 5 |
-| V3 | 1 | 67, 70 | 25, 85 | 3 |
-| S2 | 4 | 53, 14 | 71, 8 | 2 |
-| E5 | 2 | 62, 93 | 48, 96 | 5 |
-| P1 | 3 | 25, 19 | 16, 16 | 1 |
-| V4 | 1 | 85, 87 | 76, 89 | 4 |
-| E3 | 2 | 59, 36 | 48, 22 | 3 |
-| S1 | 4 | 35, 9 | 52, 8 | 1 |
-| P4 | 3 | 92, 62 | 15, 72 | 4 |
-| V5 | 1 | 84, 43 | 77, 42 | 5 |
-| S3 | 4 | 60, 55 | 33, 27 | 3 |
-| E2 | 2 | 38, 49 | 46, 45 | 2 |
-| P2 | 3 | 47, 28 | 70, 29 | 2 |
+| V1 | 1 | 8, 61 | -3, 52 | 1 |
+| S5 | 4 | 84, 90 | 90, 89 | 5 |
+| E4 | 2 | 80, 9 | 86, 10 | 4 |
+| P3 | 3 | 32, 8 | 32, 5 | 3 |
+| V2 | 1 | 56, 53 | 64, 66 | 2 |
+| E1 | 2 | 17, 27 | 18, 29 | 1 |
+| S4 | 4 | 48, 70 | 49, 64 | 4 |
+| P5 | 3 | 91, 52 | 91, 56 | 5 |
+| V3 | 1 | 30, 85 | 24, 86 | 3 |
+| S2 | 4 | 65, 10 | 73, 7 | 2 |
+| E5 | 2 | 68, 86 | 62, 91 | 5 |
+| P1 | 3 | 8, 11 | 11, 12 | 1 |
+| V4 | 1 | 104, 73 | 105, 81 | 4 |
+| E3 | 2 | 52, 17 | 51, 17 | 3 |
+| S1 | 4 | 46, 6 | 53, 5 | 1 |
+| P4 | 3 | 10, 82 | 12, 73 | 4 |
+| V5 | 1 | 88, 29 | 86, 35 | 5 |
+| S3 | 4 | 32, 29 | 33, 27 | 3 |
+| E2 | 2 | 38, 44 | 44, 49 | 2 |
+| P2 | 3 | 69, 38 | 70, 29 | 2 |
