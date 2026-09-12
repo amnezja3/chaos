@@ -1,6 +1,11 @@
 # 140.stylization.5 — para zapis / film
 
-Status: `REFERENCE PAIR / AUTHOR REVIEW PENDING`.
+Status: `REFERENCE ACCEPTED / RECORD RUNTIME IMPLEMENTED / SERVER REVIEW PENDING`.
+
+Autor zaakceptował parę słowem „idealnie” i zlecił wdrożenie zapisu.
+`transmission_quiet` (420–425 s) korzysta już z zaakceptowanego układu.
+Wspólny CSS: `static/css/ghost_signal_archive.css`. Film i dalsze sceny
+pozostają w dotychczasowym rendererze. [Wdrożenie i odbiór](../runbooks/deploy_140_stylization_5_archive.md).
 
 [Para desktop 1920×1080 i portrait 1080×1920](../../static/references/ghostsignal/transmission-pair.html).
 Po push/pull: `/static/references/ghostsignal/transmission-pair.html?v=transmission-ref-3`.

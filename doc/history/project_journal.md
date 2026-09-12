@@ -1,5 +1,13 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .5: zaakceptowany zapis w runtime
+
+Wdrożono `transmission_quiet` 420–425 s zgodnie z przyjętą referencją:
+tło archiwum, dopasowana łuna SVG, puls, OFS, glitch i opisy. CSS jest
+wspólny z makietą, fazę animacji przywraca istniejący zegar show.
+Pięć zestawów JS PASS, w tym seek archiwum/film i testy miksu audio.
+Stylizacja filmu i dalsze sceny .5 pozostają do wdrożenia; trigger odłożony.
+
 ## 2026-09-12 — .4: komplet czterech hero
 
 Autor doprecyzował, że para VIREX zatwierdza schemat wszystkich maszyn.

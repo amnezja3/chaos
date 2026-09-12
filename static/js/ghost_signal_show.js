@@ -374,6 +374,7 @@
         }
         const animatedLayers = [stage.querySelector(".parts-records"),
             stage.querySelector(".hero-machine"),
+            stage.querySelector(".archive-scene"),
             stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
@@ -391,6 +392,57 @@
             row.card.setAttribute("aria-hidden", visible ? "false" : "true");
             if (visible && !row.loaded) { row.load(); row.loaded = true; }
         });
+    }
+
+    function renderArchiveRecord(doc, stage, manifest, element) {
+        const canvas = element("section", "ghost-show-parts archive-scene");
+        canvas.setAttribute("data-state", "record");
+        const background = element("div", "background"); background.setAttribute("aria-hidden", "true");
+        canvas.appendChild(background);
+        const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
+        glitch.setAttribute("aria-hidden", "true"); canvas.appendChild(glitch);
+        if (global.ChaosMapGlitch) {
+            let seed = 139140;
+            global.ChaosMapGlitch.seed(glitch, doc, () => {
+                seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+                return seed / 4294967296;
+            });
+        }
+        const svgNode = (tag, attrs) => {
+            const node = doc.createElementNS("http://www.w3.org/2000/svg", tag);
+            Object.keys(attrs).forEach(key => node.setAttribute(key, attrs[key])); return node;
+        };
+        const light = svgNode("svg", {class:"archive-source-light",viewBox:"0 0 1678 937",preserveAspectRatio:"xMidYMid slice","aria-hidden":"true",focusable:"false"});
+        const defs = svgNode("defs", {}), gradient = svgNode("radialGradient", {id:"ghost-show-archive-source-glow"});
+        [["0","#e5ffef",".95"],[".16","#c1edd7",".8"],[".42","#8ccdb6",".32"],["1","#8ccdb6","0"]].forEach(row =>
+            gradient.appendChild(svgNode("stop", {offset:row[0],"stop-color":row[1],"stop-opacity":row[2]})));
+        defs.appendChild(gradient); light.appendChild(defs);
+        light.appendChild(svgNode("circle", {class:"archive-source-pulse",cx:"835",cy:"357",r:"65",fill:"url(#ghost-show-archive-source-glow)"})); canvas.appendChild(light);
+        const header = element("header", "");
+        header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
+        header.appendChild(element("span", "", "ARCHIWUM / REKONSTRUKCJA")); canvas.appendChild(header);
+        const heading = element("section", "archive-title");
+        heading.appendChild(element("p", "eyebrow", "HISTORIA ZAKOŃCZENIA CYKLU"));
+        const title = element("h1", ""), sub = element("span", "title-sub", "TRANSMISJI");
+        title.appendChild(element("span", "", "ZAPIS")); sub.appendChild(element("span", "underscore", "_"));
+        title.appendChild(sub); heading.appendChild(title); canvas.appendChild(heading);
+        const log = element("aside", "archive-log"), list = element("ol", "");
+        log.appendChild(element("p", "section-label", "01 / ODCZYT ARCHIWUM"));
+        ["INICJACJA ODCZYTU","SYNCHRONIZACJA OBRAZU","REKONSTRUKCJA TRANSMISJI","ŚLAD SYGNAŁU"].forEach(text => list.appendChild(element("li", "", text)));
+        log.appendChild(list); log.appendChild(element("p", "archive-quote", "Z rozproszonych fragmentów powstaje pełny obraz.")); canvas.appendChild(log);
+        const center = element("section", "archive-center");
+        center.appendChild(element("p", "archive-caption", "PRZYGOTOWANIE ODCZYTU")); canvas.appendChild(center);
+        const data = element("aside", "archive-data"), params = element("dl", "");
+        data.appendChild(element("p", "section-label", "02 / ZAPIS OBRAZU"));
+        const video = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
+        const duration = video && Number.isFinite(video.duration_seconds) ? String(video.duration_seconds).replace(".", ",") + " s" : "Brak zapisu";
+        [["TRYB","ARCHIWUM"],["FORMAT","720 × 480"],["DŁUGOŚĆ",duration]].forEach(row => {
+            params.appendChild(element("dt", "", row[0])); params.appendChild(element("dd", "", row[1]));
+        });
+        data.appendChild(params);
+        const wave = element("div", "archive-wave"); wave.setAttribute("aria-hidden", "true"); data.appendChild(wave);
+        data.appendChild(element("p", "archive-note", "Historia transmisji. Odtworzenie zapisu.")); canvas.appendChild(data);
+        stage.appendChild(canvas);
     }
 
     function renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage) {
@@ -646,7 +698,8 @@
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
         const isHero = /^machine_hero_[1-4]$/.test(scene.id);
-        const isParts = PART_SCENES.includes(scene.id) || isHero;
+        const isArchive = scene.id === "transmission_quiet";
+        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
@@ -708,6 +761,8 @@
         const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
+        } else if (isArchive) {
+            renderArchiveRecord(doc, stage, manifest, element);
         } else if (isHero) {
             renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage);
         } else if (isParts) {

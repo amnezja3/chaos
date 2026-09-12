@@ -348,5 +348,21 @@ try {
         assert.strictEqual(hero.querySelector('.hero-heading').children[1].children[0].textContent,catalog.machines[i].name.split(' ')[1]);
     }
     seek(421); assert(!root.querySelector('.hero-machine'),'transmission cleans up all machine layers');
+    manifest.scenes.pop();
+    manifest.scenes.push({id:'transmission_quiet',label:'Archive',start:420,end:425},
+        {id:'transmission_video',label:'Video',start:425,end:463.12},
+        {id:'transmission_replay',label:'Replay',start:463.12,end:900});
+    manifest.assets.push({id:'ghostsignal_transmission_video',available:true,src:'/static/video/ghostsignal_transmission_video.mp4',duration_seconds:38.12});
+    seek(421);
+    const archive=root.querySelector('.archive-scene'); assert(archive);
+    assert(!root.querySelector('.ghost-show-video'),'archive must not start video early');
+    assert.strictEqual(archive.querySelector('.archive-source-light').attrs.viewBox,'0 0 1678 937');
+    assert.strictEqual(archive.querySelector('.archive-source-light').attrs.preserveAspectRatio,'xMidYMid slice');
+    assert.strictEqual(archive.querySelector('.archive-source-pulse').attrs.cx,'835');
+    const pulseAnimation={currentTime:0}; archive.getAnimations=()=>[pulseAnimation];
+    seek(423);assert.strictEqual(root.querySelector('.archive-scene'),archive);
+    assert(Math.abs(pulseAnimation.currentTime-423000)<50,'archive pulse follows show clock');
+    seek(426);assert(!root.querySelector('.archive-scene'));assert(root.querySelector('.ghost-show-video'));
+    seek(422);assert(root.querySelector('.archive-scene'));assert(!root.querySelector('.ghost-show-video'));
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');
