@@ -1,6 +1,13 @@
-# .2 — canonical positions v5
+# .2 — canonical positions v6
 
 REFERENCE / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW
+
+V6: podświetlenie hover/focus w prezentacji ograniczono do około 20%
+intensywności v5. Alpha poświaty assetu .9 → .18; kolor obrysu i cieni
+halo ma alpha .2. Halo jest dodatkowo rozmyte o 1 px, aby osłabić widoczny
+kontur przy dużej skali. Nie zmniejszamy opacity samej części. Rytm ruchu
+i pulsowania zachowany, CSS mapy bez zmian. Nadpisuje intensywność opisaną
+niżej dla pierwotnego przeniesienia efektu z mapy.
 
 Korekta v3: pierwszy plan może częściowo wychodzić poza kadr. V4 wychodzi
 za prawą krawędź w obu formatach, V1 dodatkowo za lewą na portrait.

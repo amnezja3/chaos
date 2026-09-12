@@ -56,9 +56,9 @@ footer{position:relative;z-index:10;background:linear-gradient(0deg,#050907 75%,
 .part:not(:hover):not(:focus-visible) .ghostnetwork-part-art{filter:drop-shadow(0 12px 14px #000b);animation-duration:6.8s;animation-delay:-1.1s}
 .part:nth-child(3n):not(:hover):not(:focus-visible) .ghostnetwork-part-art{animation-duration:7.6s;animation-delay:-3.2s}
 .part:nth-child(3n+1):not(:hover):not(:focus-visible) .ghostnetwork-part-art{animation-duration:8.4s;animation-delay:-5.7s}
-.part .ghostnetwork-part-halo{inset:15%;display:none}
+.part .ghostnetwork-part-halo{inset:15%;display:none;color:rgba(183,255,53,.2);filter:blur(1px)}
 .part:hover .ghostnetwork-part-halo,.part:focus-visible .ghostnetwork-part-halo{display:block}
-.part:hover .ghostnetwork-part-art,.part:focus-visible .ghostnetwork-part-art{filter:drop-shadow(0 0 7px rgba(183,255,53,.9));animation:ghostnetwork-part-active-float 2.8s ease-in-out infinite}
+.part:hover .ghostnetwork-part-art,.part:focus-visible .ghostnetwork-part-art{filter:drop-shadow(0 0 7px rgba(183,255,53,.18));animation:ghostnetwork-part-active-float 2.8s ease-in-out infinite}
 .part:focus-visible{outline:1px solid #b7ff35;outline-offset:3px}
 /* Same OFS keyframes and map glitch as .1, confined to the reference scene. */
 .parts-scene{--ofs-accent:var(--signal)}

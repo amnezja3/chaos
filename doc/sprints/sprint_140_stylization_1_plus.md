@@ -4,7 +4,9 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE PAIR v5 / OFS AND BACKGROUND GLITCH / AWAITING AUTHOR REVIEW`.
+Realizacja .2: `REFERENCE PAIR v6 / SOFT HOVER GLOW / AWAITING AUTHOR REVIEW`.
+V6 redukuje łunę hover/focus do około 20% intensywności v5, ze zmiękczeniem
+halo. Skala części, ruch, OFS i glitch pozostają jak w v5; mapa bez zmian.
 Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
 
 ### Pierwsza para .2 — dwadzieścia części
