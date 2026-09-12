@@ -191,6 +191,17 @@
         canvas.setAttribute("data-composition", scene.id);
         const city = make("div", "gsi-city"); city.setAttribute("aria-hidden", "true");
         canvas.appendChild(city);
+        if (global.ChaosMapGlitch) {
+            const glitch = make("div", "chaos-map-glitch-overlay is-visible gsi-glitch");
+            glitch.setAttribute("aria-hidden", "true");
+            // Fixed positions across clients and re-entry; same map block generator.
+            let seed = 139140;
+            global.ChaosMapGlitch.seed(glitch, doc, () => {
+                seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+                return seed / 4294967296;
+            });
+            canvas.appendChild(glitch);
+        }
         canvas.appendChild(make("p", "gsi-tag", "CHAOS / GHOST NETWORK"));
         const message = make("div", "gsi-message");
         message.appendChild(make("p", "gsi-kicker", scene.label));
@@ -261,7 +272,16 @@
         }
         root.style.background = scene.id === "takeover" && !isInterface
             ? "rgba(5,9,13," + (0.15 + scene.progress * 0.8) + ")" : "#05090d";
-        if (stage._showKey === key) { syncVideo(stage, scene); return; }
+        const syncGlitch = () => {
+            const glitch = stage.querySelector(".gsi-glitch");
+            if (glitch) {
+                const high = (Number(scene.elapsed) || 0) % 12 >= 7;
+                glitch.className = "chaos-map-glitch-overlay is-visible gsi-glitch is-slow"
+                    + (high ? " is-heavy is-overloaded" : "");
+                glitch.setAttribute("data-glitch-level", high ? "overloaded" : "slow");
+            }
+        };
+        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); return; }
         clearMontage(stage);
         const element = (tag, className, text) => {
             const node = doc.createElement(tag); node.className = className;
@@ -514,6 +534,7 @@
             }
         }
         stage._showKey = key;
+        syncGlitch();
     }
 
     function showAudioAt(snapshot, now, offset) {

@@ -27,6 +27,14 @@ plików graficznych i zmian audio. Reduced motion daje stałe światło.
 Regresja montage/audio/recovery i syntax PASS; wizualna intensywność
 tej aktualizacji czeka na ocenę autora.
 
+Kolejna uwaga autora: puls był prawie niezauważalny. Zwiększono jego zakres
+i poświatę; do tła .1 dodano istniejący glitch mapy, współdzieląc generator
+18 bloków i style. Show zmienia poziom slow/overloaded w cyklu 7+5 s
+według zegara show. Układ bloków jest deterministyczny; brak dodatkowego
+timera. Glitch pozostaje za treścią i jest wyłączony przy reduced motion.
+21 testów kontraktu mapy oraz siedem zestawów JS PASS. Intensywność i koszt
+renderowania na docelowych urządzeniach pozostają do oceny w podglądzie.
+
 ### Pierwsza para — takeover
 
 [Otwórz desktop 1920×1080 i portrait 1080×1920 obok siebie](../../static/references/ghostsignal/index.html).

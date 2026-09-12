@@ -109,7 +109,7 @@ def main():
     html = """<!doctype html><html lang="pl"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GhostSignal — podgląd operatorski</title>
-<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-1-pulse-1">
+<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-1-glitch-1">
 <style>body{background:#05090d;color:#caffdf}#preview-controls{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#071b13;padding:8px;font:12px monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap}#preview-controls input{width:min(30vw,350px)}#preview-controls select{max-width:40vw}</style>
 <div id="preview-controls"><strong id="preview-source"></strong>
 <button id="export-performance">Raport wydajności</button>
@@ -118,7 +118,9 @@ def main():
 <output id="position">0 s</output><label><input type="checkbox" id="sent" checked>potwierdzony sygnał</label></div>
 <script>window.fetch=()=>Promise.resolve({ok:true,json:()=>Promise.resolve({ok:true,show_active:false})});</script>
 <script src="/static/js/ghost_radio.js?v=radio-show-140-4"></script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-1-pulse-1"></script>
+<link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
+<script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-1-glitch-1"></script>
 <script>
 const manifest = MANIFEST;
 const previewInfo = PREVIEW_INFO;

@@ -4556,3 +4556,13 @@ Dodano puls nagłówka, lokalnej poświaty i podświetlenie aktywnego wiersza.
 Efekty korzystają z czasu istniejącego kontrolera, zachowują fazę po seek,
 reduced motion utrzymuje stałe światło. Bez dodatkowych timerów i assetów.
 Montage/audio/recovery i składnia PASS; intensywność efektów do odbioru.
+
+### 2026-09-12 — mocniejszy puls i glitch mapy w tle .1
+
+Na prośbę autora wzmocniono puls i użyto dokładnego efektu bloków RGB mapy.
+Wydzielono istniejący CSS i generator do map_glitch.css/js, używanych przez
+mapę i show. Sceny .1 przechodzą między slow i overloaded co 7/5 s według
+czasu show; warstwa za tekstem, deterministyczne pozycje, reduced motion
+bez glitcha. 21 testów kontraktu mapy, siedem zestawów JS, syntax i generator
+PASS. Brak nowego kontrolera, timerów i assetów graficznych. Odbiór wizualny
+oraz wydajność na urządzeniach oczekują operatora.

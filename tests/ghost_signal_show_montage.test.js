@@ -1,4 +1,5 @@
 const assert = require('assert');
+require('../static/js/map_glitch.js');
 const {createController} = require('../static/js/ghost_signal_show.js');
 class Node {
     constructor(tag) {
@@ -142,6 +143,7 @@ try {
         assert.strictEqual(canvas.attrs['data-composition'],row[1]);
         assert(root.className.includes('has-interface'));
         assert(root.querySelector('.gsi-title'));
+        assert.strictEqual(root.querySelector('.chaos-map-glitch-field').children.length,18);
         const stage = root.querySelector('.ghost-signal-show__stage');
         const firstLight = Number(stage.style['--gsi-light']);
         assert(firstLight >= 0 && firstLight <= 1);
@@ -152,9 +154,22 @@ try {
         assert(Math.abs(Number(stage.style['--gsi-light'])-firstLight)<.005,'seek restores light phase');
     }
     assert(root.querySelector('.gsi-note').textContent.includes('potwierdzeniu nowego cyklu'));
+    seek(2);
+    const glitch = root.querySelector('.gsi-glitch');
+    assert.strictEqual(glitch.attrs['data-glitch-level'],'slow');
+    const firstPosition = root.querySelector('.chaos-map-glitch-field').children[0].style['--glitch-x'];
+    seek(9);
+    assert.strictEqual(root.querySelector('.gsi-glitch'),glitch);
+    assert.strictEqual(glitch.attrs['data-glitch-level'],'overloaded');
+    seek(13);
+    assert.strictEqual(glitch.attrs['data-glitch-level'],'slow');
+    seek(16);seek(9);
+    assert.strictEqual(root.querySelector('.gsi-glitch').attrs['data-glitch-level'],'overloaded');
+    assert.strictEqual(root.querySelector('.chaos-map-glitch-field').children[0].style['--glitch-x'],firstPosition);
     assert(!root.querySelector('.ghost-show-video'));
     seek(40);
     assert(!root.querySelector('.ghost-show-interface'));
+    assert(!root.querySelector('.gsi-glitch'));
     assert(!root.className.includes('has-interface'));
     seek(721);
     manifest.signal_confirmed=false;

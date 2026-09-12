@@ -6,6 +6,8 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.map_template = Path("templates/map_template.html").read_text(encoding="utf-8")
+        cls.glitch_css = Path("static/css/map_glitch.css").read_text(encoding="utf-8")
+        cls.glitch_js = Path("static/js/map_glitch.js").read_text(encoding="utf-8")
 
     def test_map_loading_uses_glitch_overlay_contract(self):
         self.assertIn("chaos-map-glitch-overlay", self.map_template)
@@ -15,9 +17,12 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("setMapLoadingIntensity", self.map_template)
         self.assertIn("seedMapGlitchBlocks", self.map_template)
         self.assertIn("chaos-map-glitch-block", self.map_template)
-        self.assertIn("--glitch-color", self.map_template)
-        self.assertIn("radial-gradient(circle at 50% 50%", self.map_template)
-        self.assertIn("chaos-map-glitch-overlay.has-map-log::after", self.map_template)
+        self.assertIn("--glitch-color", self.glitch_js)
+        self.assertIn("radial-gradient(circle at 50% 50%", self.glitch_css)
+        self.assertIn("chaos-map-glitch-overlay.has-map-log::after", self.glitch_css)
+        self.assertIn('/static/css/map_glitch.css', self.map_template)
+        self.assertIn('/static/js/map_glitch.js', self.map_template)
+        self.assertIn('window.ChaosMapGlitch.seed(overlay)', self.map_template)
         self.assertNotIn("chaos-map-sync-status__spinner", self.map_template)
 
     def test_map_loading_cleans_ready_state(self):
@@ -36,9 +41,9 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion: reduce", self.map_template)
 
     def test_runtime_loading_effect_never_blocks_map_input(self):
-        styles = self.map_template[
-            self.map_template.index(".chaos-map-glitch-overlay {"):
-            self.map_template.index(".chaos-map-glitch-field {")
+        styles = self.glitch_css[
+            self.glitch_css.index(".chaos-map-glitch-overlay {"):
+            self.glitch_css.index(".chaos-map-glitch-field {")
         ]
         self.assertIn("pointer-events: none;", styles)
         self.assertNotIn("pointer-events: auto;", styles)

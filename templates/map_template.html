@@ -7,7 +7,7 @@
   <meta name="referrer" content="origin">
   <link rel="icon" href="/static/images/chaos_favicon.svg" type="image/svg+xml">
   {{ folium_css|safe }}
-  <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-6-signal-show-stylization-1-pulse-1">
+  <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-6-signal-show-stylization-1-glitch-1">
   <link rel="stylesheet" href="/static/css/blacknet.css">
   <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=interaction-fast-path-1">
   <style>
@@ -142,150 +142,6 @@
       font-size: 10px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-    }
-
-    .chaos-map-glitch-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 719;
-      display: none;
-      overflow: hidden;
-      background: rgba(0, 10, 4, 0.035);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 260ms ease-out, background-color 260ms ease-out;
-      contain: layout paint;
-    }
-
-    .chaos-map-glitch-overlay::before,
-    .chaos-map-glitch-overlay::after {
-      position: absolute;
-      pointer-events: none;
-    }
-
-    .chaos-map-glitch-overlay::before {
-      content: "";
-      inset: 0;
-      opacity: 0;
-      background:
-        radial-gradient(circle at 50% 50%,
-          rgba(0, 0, 0, 0) 0 24%,
-          rgba(38, 0, 8, 0.20) 40%,
-          rgba(18, 0, 5, 0.54) 72%,
-          rgba(0, 0, 0, 0.72) 100%);
-      transition: opacity 260ms ease-out;
-    }
-
-    .chaos-map-glitch-overlay.is-visible {
-      display: block;
-      opacity: 1;
-    }
-
-    .chaos-map-glitch-overlay.is-heavy::before,
-    .chaos-map-glitch-overlay.is-overloaded::before {
-      opacity: 1;
-    }
-
-    .chaos-map-glitch-field {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      overflow: hidden;
-    }
-
-    .chaos-map-glitch-block {
-      position: absolute;
-      left: var(--glitch-x, 50%);
-      top: var(--glitch-y, 50%);
-      width: var(--glitch-w, 22px);
-      height: var(--glitch-h, 14px);
-      opacity: 0;
-      background: var(--glitch-color, rgba(38, 255, 106, 0.5));
-      mix-blend-mode: screen;
-      box-shadow:
-        var(--glitch-rgb-x, 2px) 0 rgba(255, 40, 48, 0.34),
-        calc(var(--glitch-rgb-x, 2px) * -1) 0 rgba(40, 105, 255, 0.34),
-        0 0 10px var(--glitch-glow, rgba(38, 255, 106, 0.22));
-      transform: translateZ(0);
-      animation: chaos-map-glitch-block var(--glitch-duration, 2.4s) steps(1, end) infinite;
-      animation-delay: var(--glitch-delay, 0s);
-      will-change: opacity;
-    }
-
-    .chaos-map-glitch-overlay.is-slow {
-      background: rgba(12, 8, 0, 0.06);
-    }
-
-    .chaos-map-glitch-overlay.is-heavy,
-    .chaos-map-glitch-overlay.is-overloaded {
-      background: rgba(26, 0, 6, 0.22);
-      pointer-events: none;
-    }
-
-    .chaos-map-glitch-overlay.is-slow .chaos-map-glitch-block {
-      animation-duration: calc(var(--glitch-duration, 2.4s) * 0.62);
-    }
-
-    .chaos-map-glitch-overlay.is-heavy .chaos-map-glitch-block,
-    .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block {
-      animation-duration: calc(var(--glitch-duration, 2.4s) * 0.36);
-      --glitch-boost: 1.55;
-      filter: saturate(1.45) contrast(1.18);
-    }
-
-    .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block {
-      --glitch-boost: 1.85;
-    }
-
-    .chaos-map-glitch-overlay.is-heavy .chaos-map-glitch-block:nth-child(2n),
-    .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block:nth-child(2n) {
-      width: calc(var(--glitch-w, 22px) * 1.35);
-      height: calc(var(--glitch-h, 14px) * 1.35);
-    }
-
-    .chaos-map-glitch-overlay.is-heavy .chaos-map-glitch-block:nth-child(3n),
-    .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block:nth-child(3n) {
-      width: calc(var(--glitch-w, 22px) * 1.8);
-      height: calc(var(--glitch-h, 14px) * 1.65);
-    }
-
-    .chaos-map-glitch-overlay::after {
-      content: attr(data-log);
-      display: none;
-      left: auto;
-      top: auto;
-      right: 12px;
-      bottom: 12px;
-      width: auto;
-      max-width: min(280px, calc(100% - 24px));
-      height: auto;
-      padding: 5px 7px;
-      border: 1px solid rgba(38, 255, 106, 0.52);
-      background: rgba(2, 8, 4, 0.82);
-      color: rgba(184, 255, 184, 0.82);
-      font: 700 9px/1.25 monospace;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      box-shadow: 0 0 18px rgba(38, 255, 106, 0.14);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      opacity: 0;
-      transform: translateY(2px);
-      transition: opacity 160ms ease-out, transform 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
-    }
-
-    .chaos-map-glitch-overlay.has-map-log::after {
-      display: block;
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .chaos-map-glitch-overlay.is-heavy.has-map-log::after,
-    .chaos-map-glitch-overlay.is-overloaded.has-map-log::after {
-      border-color: rgba(255, 66, 48, 0.82);
-      color: rgba(255, 216, 148, 0.88);
-      box-shadow: 0 0 18px rgba(255, 44, 48, 0.18);
     }
 
     .chaos-secret-path-overlay {
@@ -970,14 +826,6 @@
       0% { opacity: 0; transform: scale(0.58); }
       18% { opacity: 0.88; }
       100% { opacity: 0; transform: scale(1.35); }
-    }
-
-    @keyframes chaos-map-glitch-block {
-      0%, 70%, 100% { opacity: 0; }
-      72% { opacity: calc(var(--glitch-opacity, 0.42) * var(--glitch-boost, 1)); }
-      76% { opacity: 0; }
-      82% { opacity: calc(var(--glitch-opacity, 0.42) * 0.65 * var(--glitch-boost, 1)); }
-      85% { opacity: 0; }
     }
 
     @keyframes chaos-map-boot-blocks {
@@ -2375,7 +2223,9 @@
 {{ folium_js|safe }}
 <script src="/static/js/ghostnetwork_delta_client.js?v=suite-cutover-1"></script>
 <script src="/static/js/ghost_radio.js?v=radio-show-140-4"></script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-1-pulse-1"></script>
+<link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
+<script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-1-glitch-1"></script>
 <script src="/static/js/map/ghostnetwork.js?v=canvas-interaction-recovery-1"></script>
 
     <script>
@@ -8619,34 +8469,7 @@
             };
 
             window.seedMapGlitchBlocks = function(overlay) {
-                if (!overlay || overlay.querySelector('.chaos-map-glitch-field')) return;
-                const field = document.createElement('div');
-                field.className = 'chaos-map-glitch-field';
-                const colors = [
-                    'rgba(255, 34, 44, 0.42)',
-                    'rgba(38, 255, 106, 0.38)',
-                    'rgba(42, 108, 255, 0.36)',
-                    'rgba(255, 34, 44, 0.30)',
-                    'rgba(38, 255, 106, 0.30)'
-                ];
-                for (let index = 0; index < 18; index += 1) {
-                    const block = document.createElement('i');
-                    block.className = 'chaos-map-glitch-block';
-                    const width = Math.round(8 + Math.random() * 90);
-                    const height = Math.round(5 + Math.random() * 44);
-                    block.style.setProperty('--glitch-x', `${Math.round(Math.random() * 94)}%`);
-                    block.style.setProperty('--glitch-y', `${Math.round(Math.random() * 92)}%`);
-                    block.style.setProperty('--glitch-w', `${width}px`);
-                    block.style.setProperty('--glitch-h', `${height}px`);
-                    block.style.setProperty('--glitch-opacity', (0.16 + Math.random() * 0.36).toFixed(2));
-                    block.style.setProperty('--glitch-duration', `${(1.7 + Math.random() * 2.4).toFixed(2)}s`);
-                    block.style.setProperty('--glitch-delay', `${(-Math.random() * 3.8).toFixed(2)}s`);
-                    block.style.setProperty('--glitch-rgb-x', `${Math.round(1 + Math.random() * 4)}px`);
-                    block.style.setProperty('--glitch-color', colors[index % colors.length]);
-                    block.style.setProperty('--glitch-glow', colors[(index + 1) % colors.length]);
-                    field.appendChild(block);
-                }
-                overlay.appendChild(field);
+                window.ChaosMapGlitch.seed(overlay);
             };
 
             window.ensureMapGlitchOverlay = function() {

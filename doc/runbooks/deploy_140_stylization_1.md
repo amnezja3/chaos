@@ -17,7 +17,9 @@ node tests/ghost_signal_show_montage.test.js &&
 node tests/ghost_signal_show_audio.test.js &&
 node tests/js/test_ghostnetwork_delta_client.js &&
 node tests/js/test_game_sfx.js &&
+node --check static/js/map_glitch.js &&
 node --check static/js/ghost_signal_show.js
+.venv/bin/python -B -m unittest discover -s tests -p test_map_loader_frontend_contract.py
 ```
 
 Po PASS reload aplikacji dla tokenów cache w template'ach; worker nie
@@ -27,12 +29,12 @@ wymaga przeładowania z powodu tej zmiany:
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-1.html
+  --output static/previews/ghostsignal-stylization-1-glitch-1.html
 ```
 
 Przy istniejącym pliku wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-1.html`. Cache CSS/JS:
-`signal-show-stylization-1-pulse-1`. Podgląd używa istniejącego kontrolera,
+`/static/previews/ghostsignal-stylization-1-glitch-1.html`. Cache CSS/JS:
+`signal-show-stylization-1-glitch-1`. Podgląd używa istniejącego kontrolera,
 historycznych danych i prawdziwych mediów; nie emituje sygnału ani restartu.
 
 ## Odbiór siedmiu scen
@@ -59,6 +61,17 @@ Nagłówek i lokalna poświata mają spokojny rytm 5,4 s, a kicker i aktywny
 wiersz rytm 8 s. Nie powinny zanikać treści ani zmieniać się układ.
 Po seek światło wraca do fazy wynikającej z czasu show; reduced motion
 utrzymuje stałe podświetlenie. Istniejący shutdown nadal wygasza scenę.
+
+Aktualizacja glitch: ten sam generator 18 bloków RGB i CSS co na mapie
+zostały wydzielone do map_glitch.js/css, wspólnych dla mapy i show.
+W .1 poziom zmienia się według czasu show: 7 s slow (średni), 5 s overloaded
+(najwyższy), cykl 12 s. Efekt jest za treścią, miesza się z tłem przez screen;
+nie koloruje progressu i nie zmienia danych. Puls nagłówka ma zakres
+opacity .72–1, mocniejszą poświatę oraz podświetlenie aktywnego wiersza.
+Reduced motion wyłącza glitch. Brak skryptu efektu nie blokuje sceny.
+Sprawdź pierwsze 15 s takeover bez przewijania oraz powrót do mapy:
+jej dotychczasowe poziomy i obsługa wejścia powinny działać jak wcześniej.
+Poziomy show są dekoracją, nie raportem rzeczywistego przeciążenia mapy.
 
 Brak settlementu daje jawny komunikat. Brak potwierdzenia sygnału nadal
 blokuje późniejsze sceny. Na końcu podglądu nie oczekujemy restartu gry.

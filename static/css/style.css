@@ -9761,14 +9761,18 @@ form button:hover {
 /* Identity persists; focus, alignment and scale change across compositions. */
 /* OFS-like ambient light: static glow textures, animate their opacity only. */
 .gsi-message { position:relative; isolation:isolate; }
-.gsi-message:before { content:""; position:absolute; inset:-3%; z-index:-1; pointer-events:none; background:radial-gradient(ellipse at 25% 45%,#9bdbac22,transparent 68%); opacity:var(--gsi-light,.5); transition:opacity .95s linear; }
-.gsi-hero { opacity:calc(.86 + var(--gsi-light,.5) * .14); text-shadow:0 0 18px #acd3b51c; transition:opacity .95s linear; }
-.gsi-kicker { opacity:calc(.7 + var(--gsi-line-light,.5) * .3); text-shadow:0 0 9px #95cda83d; transition:opacity .95s linear; }
+.gsi-message:before { content:""; position:absolute; inset:-3%; z-index:-1; pointer-events:none; background:radial-gradient(ellipse at 25% 45%,#9bdbac48,transparent 68%); opacity:var(--gsi-light,.5); transition:opacity .95s linear; }
+.gsi-hero { opacity:calc(.72 + var(--gsi-light,.5) * .28); text-shadow:0 0 18px #acd3b53d; transition:opacity .95s linear; }
+.gsi-kicker { opacity:calc(.6 + var(--gsi-line-light,.5) * .4); text-shadow:0 0 9px #95cda866; transition:opacity .95s linear; }
 .gsi-layers .is-current { position:relative; isolation:isolate; }
-.gsi-layers .is-current:before { content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; background:linear-gradient(90deg,#a8d9b32b,transparent 85%); opacity:var(--gsi-line-light,.5); transition:opacity .95s linear; }
+.gsi-layers .is-current:before { content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; background:linear-gradient(90deg,#a8d9b355,transparent 85%); opacity:var(--gsi-line-light,.5); transition:opacity .95s linear; }
+.ghost-show-interface > .gsi-glitch { z-index:-1; mix-blend-mode:screen; opacity:.85; }
+.ghost-show-interface > .gsi-glitch::after { display:none; }
+.ghost-show-interface .gsi-glitch .chaos-map-glitch-block { will-change:auto; }
 @media(prefers-reduced-motion:reduce) {
  .ghost-signal-show.has-interface .ghost-signal-show__stage { --gsi-light:.4!important; --gsi-line-light:.4!important; }
  .gsi-message:before,.gsi-hero,.gsi-kicker,.gsi-layers .is-current:before { transition:none; }
+ .ghost-show-interface > .gsi-glitch { display:none; }
 }
 .ghost-show-interface[data-composition="network_layer"] { grid-template-columns:25% minmax(0,1fr); }
 .ghost-show-interface[data-composition="network_layer"] .gsi-message { grid-column:2; text-align:right; }
