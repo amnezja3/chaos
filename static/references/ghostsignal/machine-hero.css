@@ -6,7 +6,7 @@ html,body{margin:0;height:100%;background:#050907}
 .hero-machine[data-machine="phantom_veil"]{--hero-background:url('../../images/ghostnetwork/signal_sends/machine_phantom_veil_active.png')}
 .hero-machine[data-machine="sentinel_aegis"]{--hero-background:url('../../images/ghostnetwork/signal_sends/machine_sentinel_aegis_active.png')}
 .hero-machine .background{background-image:var(--hero-background);background-position:center;filter:none}
-.hero-machine:before{background:linear-gradient(#04090766,#04090766),linear-gradient(90deg,#04090799,#04090722 65%),linear-gradient(0deg,#040907,transparent 70%)}
+.hero-machine:before{background:linear-gradient(90deg,#04090766 0%,#040907b8 25%,#040907ed 50%,#040907b8 75%,#04090766 100%),linear-gradient(0deg,#040907,transparent 70%)}
 .hero-heading{position:absolute;left:4vw;top:15vh;z-index:1}
 .hero-heading h1{font-size:clamp(85px,18vw,350px);line-height:.77;letter-spacing:-.045em;color:#c5cec3;margin:3vh 0}
 .hero-heading h1>span{display:block;font-size:.58em;color:#899a8d;letter-spacing:-.025em;margin-top:2vh}
