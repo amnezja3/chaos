@@ -209,8 +209,16 @@ try {
     assert.strictEqual(root.querySelector('.parts-records').children.length,5);
     assert(root.querySelector('.parts-history-note'),'partial history is explicit');
     const firstRecords=root.querySelector('.parts-records');
+    const recordAnimations=[{currentTime:0},{currentTime:0}];
+    firstRecords.getAnimations = options => {
+        assert.strictEqual(options.subtree,true);
+        return recordAnimations;
+    };
     assert(firstRecords.children[0].children[1].textContent.includes('2026-01-20'),'retain actual partial records');
     seek(122); assert.strictEqual(root.querySelector('.parts-records'),firstRecords);
+    recordAnimations.forEach(animation => assert(Math.abs(animation.currentTime-122000)<50));
+    seek(121.5);
+    recordAnimations.forEach(animation => assert(Math.abs(animation.currentTime-121500)<50,'seek restores OFS phase'));
     seek(126); assert.notStrictEqual(root.querySelector('.parts-records'),firstRecords);
     assert(root.querySelector('.parts-records').children[0].children[0].textContent.startsWith('E1'));
     seek(141);

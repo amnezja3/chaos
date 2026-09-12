@@ -28,15 +28,22 @@ Worker nie wymaga reloadu z powodu tej zmiany.
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-2-depth-1.html
+  --output static/previews/ghostsignal-stylization-2-ofs-1.html
 ```
 
 Jeżeli plik już istnieje, wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-2-depth-1.html`.
-Token CSS/JS: `signal-show-stylization-2-depth-1`.
+`/static/previews/ghostsignal-stylization-2-ofs-1.html`.
+Token CSS/JS: `signal-show-stylization-2-ofs-1`.
 Podgląd historyczny czyta bazę, nie wyzwala sygnału ani restartu gry.
 
 ## Odbiór desktop i portrait
+
+Korekta OFS-1 po odbiorze operatora: wiersze historii i stanów mają ramki,
+naprzemienne podświetlenie `ofs-fx-line-focus` i krótkie mignięcia nazw
+`ofs-fx-icon-live`, z przesunięciami faz między pięcioma wierszami.
+Animacje CSS biegną między tickami; istniejący zegar show ustawia ich fazę
+także po seek. Reduced motion pozostawia statyczną ramkę i czytelny tekst.
+Obejrzyj 02:00–02:40 bez przewijania; sprawdź również seek w tej samej grupie.
 
 Sprawdź 1920×1080, 1080×1920 oraz rzeczywisty telefon, zarówno suwakiem,
 jak i odtwarzając granice scen bez przeskakiwania.

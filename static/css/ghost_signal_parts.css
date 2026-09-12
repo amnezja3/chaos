@@ -4,7 +4,10 @@
 .ghost-signal-show .ghost-show-parts .part{pointer-events:auto}
 .ghost-show-parts .parts-history-note,.ghost-show-parts .parts-page{font-size:clamp(10px,.85vw,16px);line-height:1.4;color:#aabdaf;margin-top:1vh}
 .ghost-show-parts .parts-records{list-style:none;padding:0;margin:2vh 0;display:grid;gap:1.1vh;font-size:clamp(10px,.82vw,16px);line-height:1.4;overflow-wrap:anywhere}
+.ghost-show-parts .parts-record{position:relative;isolation:isolate;--ofs-accent:var(--signal);animation:ofs-fx-line-focus 12s steps(1,end) infinite;animation-delay:calc(0s - var(--record-offset,0s))}
+.ghost-show-parts .parts-record:before{content:"";position:absolute;inset:-2px -5px;z-index:-1;pointer-events:none;border:1px solid color-mix(in srgb,var(--ofs-accent) 40%,transparent);border-left:2px solid var(--ofs-accent);box-shadow:inset 0 0 10px color-mix(in srgb,var(--ofs-accent) 10%,transparent);animation:ofs-fx-line-focus 12s steps(1,end) infinite;animation-delay:calc(0s - var(--record-offset,0s))}
 .ghost-show-parts .parts-record b,.ghost-show-parts .parts-record span{display:block}
+.ghost-show-parts .parts-record b{animation:ofs-fx-icon-live 7.6s steps(1,end) infinite;animation-delay:calc(0s - var(--record-offset,0s));text-shadow:0 0 7px color-mix(in srgb,var(--ofs-accent) 42%,transparent)}
 .ghost-show-parts .parts-record span{color:var(--muted)}
 .ghost-show-parts[data-view="records"] .twenty{font-size:7vw}
 .ghost-show-parts[data-view="records"] .word{font-size:3vw;margin-top:1vh}
@@ -148,6 +151,7 @@
 .ghost-show-parts .legend span:nth-child(2n){animation-delay:calc(var(--fx-clock,0s) - 3.9s)}
 .ghost-show-parts header{animation-delay:calc(var(--fx-clock,0s) - 2.7s)}
 @media(prefers-reduced-motion:reduce){
+.ghost-show-parts .parts-record,.ghost-show-parts .parts-record:before,.ghost-show-parts .parts-record b{animation:none!important;transform:none!important;filter:none!important;opacity:1;text-shadow:none}
 .ghost-show-parts .part .ghostnetwork-part-art,.ghost-show-parts .part .ghostnetwork-part-halo{animation:none!important;transition:none!important}
 .ghost-show-parts>.parts-glitch{display:none}
 .ghost-show-parts .heading:before,.ghost-show-parts .twenty,.ghost-show-parts .word{transition:none;opacity:1}

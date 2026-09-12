@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .2: brakujące efekty OFS w historii i stanach
+
+- Operator potwierdził testy .2, wskazując statyczne wiersze dat i nazw.
+  Dotychczas OFS obejmował planszę części i nagłówek, pomijając te rekordy.
+- Dodano ramki oraz istniejące animacje OFS line-focus i icon-live na
+  wierszach/nazwach. Fazy przesunięte, krótkie błyski renderuje CSS między
+  tickami, a synchronizuje istniejący zegar show. Reduced motion obsłużony.
+- Podgląd i token cache: `signal-show-stylization-2-ofs-1`.
+
 ## 2026-09-12 — 140.stylization.2: integracja zaakceptowanej pary v6
 
 - Autor zaakceptował cztery plany części i łunę hover/focus o intensywności

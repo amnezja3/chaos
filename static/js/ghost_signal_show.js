@@ -266,6 +266,14 @@
     const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"];
 
     function syncParts(stage, scene) {
+        const records = stage.querySelector(".parts-records");
+        // Let CSS render short OFS flashes between ticks, while seek/recovery
+        // restores their phase from the existing show clock (no extra timer).
+        if (records && typeof records.getAnimations === "function") {
+            records.getAnimations({subtree: true}).forEach(animation => {
+                animation.currentTime = Math.max(0, Number(scene.elapsed) || 0) * 1000;
+            });
+        }
         (stage._partsRows || []).forEach((row, index) => {
             const visible = scene.id !== "parts_enter" || index < Math.ceil(scene.progress * 20);
             row.card.style.visibility = visible ? "visible" : "hidden";
@@ -319,8 +327,9 @@
                 const time = Date.parse(value || "");
                 return Number.isFinite(time) ? new Date(time).toISOString().replace("T", " ").slice(0, 19) : "brak zapisu";
             };
-            rows.forEach(node => {
+            rows.forEach((node, index) => {
                 const row = element("li", "parts-record");
+                row.style.setProperty("--record-offset", (index * 2.4) + "s");
                 row.appendChild(element("b", "", node.part.part_code + " / " + node.part.name));
                 row.appendChild(element("span", "", scene.id === "history_logs"
                     ? "Odkrycie: " + timestamp(node.history.discovered_at)
