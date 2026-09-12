@@ -1,5 +1,13 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .6: sceny z ekranem
+
+Na polecenie autora wszystkie sceny .6 korzystają z oprawy archiwum.
+Dodano potwierdzenie wysłania, Pro Tools oraz indeks plików/danych finału,
+z publicznych metadanych manifestu. Typewriter i podświetlenia OFS
+odtwarzają fazę po seek. Brak danych nie jest zamieniany na fikcyjny sukces.
+Pięć zestawów JS PASS; odbiór desktop/portrait na serwerze otwarty.
+
 ## 2026-09-12 — pełna końcówka filmu przed błyskiem
 
 ffprobe potwierdza 38,120 s audio/wideo. Usuwanie odtwarzacza na sztywnej

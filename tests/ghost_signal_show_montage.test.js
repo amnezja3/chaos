@@ -123,7 +123,7 @@ try {
     for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
         seek(entry[0]+0.1);
         assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
-            ? '.ghost-show-interface' : '.ghost-show-settlement'), entry[1]);
+            ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
     manifest.signal_confirmed = false;
@@ -393,7 +393,7 @@ try {
     assert(!root.querySelector('.archive-flash-terminal').children[0].textContent.includes('2108-03-04'));
     seek(463.13);assert.strictEqual(flash.style.opacity,'1');
     manifest.signal_confirmed=false;seek(464);assert(!root.querySelector('.archive-flash'));assert(!root.querySelector('.archive-scene'));
-    manifest.signal_confirmed=true;seek(477.1);assert(!root.querySelector('.archive-flash'));
+    manifest.signal_confirmed=true;seek(477.1);assert.strictEqual(root.querySelector('.archive-flash').style.visibility,'hidden');
     seek(463);
     const tailVideo=root.querySelector('.ghost-show-video');
     tailVideo.duration=38.12;tailVideo.currentTime=37.8;tailVideo.readyState=2;tailVideo.paused=false;tailVideo.ended=false;
@@ -407,5 +407,25 @@ try {
     stalled.duration=38.12;stalled.currentTime=37.9;stalled.readyState=2;stalled.paused=false;stalled.ended=false;
     seek(463.2);assert.strictEqual(root.querySelector('.ghost-show-video'),stalled);
     seek(470);assert(!root.querySelector('.ghost-show-video'),'seek past the finale must not wait for a stale player');
+    manifest.scenes.pop();
+    manifest.scenes.push({id:'aftershock',label:'World',start:480,end:760},
+        {id:'pro_tools',label:'Tools',start:760,end:780,requires_signal_sent:true},
+        {id:'file_system',label:'Files',start:780,end:800,requires_signal_sent:true},
+        {id:'blacknet_history',label:'History',start:800,end:900});
+    const screenText=()=>root.querySelector('.archive-flash-terminal').children[0].children.map(n=>n.textContent).join('\n');
+    for(const [second,id] of [[479.5,'signal_confirmation'],[777,'pro_tools'],[797,'file_system']]) {
+        seek(second);const screen=root.querySelector('.archive-scene');
+        assert.strictEqual(screen.attrs['data-screen'],id);
+        assert(root.querySelector('.archive-video-shell'));
+        assert.strictEqual(root.querySelector('.archive-flash').style.visibility,'hidden','screen scenes never replay flash');
+        assert(screenText().length>30);
+        seek(second+.1);assert.strictEqual(root.querySelector('.archive-scene'),screen,'typewriter reuses frame');
+    }
+    seek(479.5);assert(screenText().includes(manifest.signal_sent_at));
+    manifest.cycle_history.settlement={available:false};seek(761);seek(777);
+    assert(screenText().includes('Brak zapisu'),'missing settlement is not reported as zero');
+    seek(760.1);assert(screenText().length<30,'seek resets typed content');
+    manifest.signal_confirmed=false;seek(778);assert(!root.querySelector('.archive-scene'));
+    manifest.signal_confirmed=true;seek(801);assert(!root.querySelector('.archive-flash'));
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

@@ -5,5 +5,10 @@
 .archive-flash-terminal:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 3px,#93b99f06 3px 4px)}
 .archive-flash-terminal pre{position:relative;margin:0;max-width:100%;height:100%;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font:clamp(11px,1.15vw,20px)/1.65 "Courier New",monospace;letter-spacing:.025em;text-shadow:0 0 7px #93b99f30}
 .archive-flash-terminal pre:after{content:"_";color:#dfe6dc;animation:ofs-fx-soft-pulse 1.2s steps(1,end) infinite}
+.archive-screen-line{display:block;min-height:1.65em;padding:0 .4em;border-left:1px solid #93b99f44;animation:ofs-fx-line-focus 12s steps(1,end) infinite paused;animation-delay:calc(var(--fx-clock,0s) - var(--line-offset,0s))}
+.archive-screen-line[hidden]{display:none}
+.archive-screen-heading{color:#dfe6dc;font-weight:bold;text-shadow:0 0 10px #93b99f66}
+.archive-scene[data-screen="signal_confirmation"] .archive-screen-heading{font-size:1.6em;line-height:1.2;padding:.5em .25em}
+.archive-scene[data-screen] .archive-data dd{overflow-wrap:anywhere}
 @media(max-aspect-ratio:1/1){.archive-flash-terminal{padding:3vw}.archive-flash-terminal pre{font-size:clamp(10px,2.6vw,26px);line-height:1.55}}
 @media(prefers-reduced-motion:reduce){.archive-flash-terminal pre:after{animation:none}}

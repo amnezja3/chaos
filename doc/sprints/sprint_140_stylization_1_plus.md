@@ -2,6 +2,12 @@
 
 Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
+Aktualizacja .6: zgodnie z decyzją autora wszystkie sceny terminalowe
+korzystają z zaakceptowanego ekranu archiwum. Potwierdzenie wysłania,
+Pro Tools i pliki/dane wdrożone z typewriterem oraz OFS. Kanał 2108
+pozostaje w tym samym schemacie. Lokalne JS PASS, odbiór runtime otwarty.
+[Procedura .6](../runbooks/deploy_140_stylization_6_screens.md).
+
 Aktualizacja .4 (2026-09-12): zaakceptowana para hero VIREX v4 wdrożona
 do `machine_hero_1` (360–375 s). Lokalne JS i manifest PASS; odbiór runtime
 na serwerze otwarty. [Procedura](../runbooks/deploy_140_stylization_4_virex.md).

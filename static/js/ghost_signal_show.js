@@ -465,6 +465,19 @@
         const start = Number(scene.elapsed) || 0, origin = Date.now();
         const reduced = global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches;
         function draw(elapsed) {
+            if (state.screenRows) {
+                state.flash.style.visibility = "hidden"; state.terminal.hidden = false;
+                const progress = Math.max(0, Math.min(1, (elapsed - state.start) / ((state.end - state.start) * .75)));
+                let remaining = Math.floor(progress * state.screenLength);
+                state.screenRows.forEach(row => {
+                    row.node.textContent = row.text.slice(0, Math.max(0, remaining));
+                    row.node.hidden = remaining <= 0;
+                    row.node.style.setProperty("--fx-clock", -elapsed + "s");
+                    remaining -= row.text.length;
+                });
+                state.output.scrollTop = state.output.scrollHeight;
+                return;
+            }
             const ms = Math.max(0, Math.round((elapsed - state.start) * 1000000) / 1000);
             let opacity = 1, clip = "inset(0)";
             if (ms < 50) clip = "inset(calc(50% - 1px) 0 calc(50% - 1px) 0)";
@@ -502,7 +515,8 @@
     function renderArchiveRecord(doc, root, stage, snapshot, scene, element) {
         const manifest = snapshot.show_manifest;
         const isVideo = scene.id === "transmission_video";
-        const isTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
+        const isScreen = ["signal_confirmation", "pro_tools", "file_system"].includes(scene.id);
+        const isTerminal = isScreen || ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
         const canvas = element("section", "ghost-show-parts archive-scene");
         canvas.setAttribute("data-state", isVideo || isTerminal ? "video" : "record");
         const background = element("div", "background"); background.setAttribute("aria-hidden", "true");
@@ -563,19 +577,66 @@
                     stage._archive.start = Math.max(stage._archive.start, root._videoFinishedAt);
                     root._videoFinishedAt = null;
                 }
+                if (isScreen) {
+                    const state = stage._archive, definition = find(scene.id);
+                    const settlement = (manifest.cycle_history || {}).settlement || {};
+                    const available = !!settlement.available;
+                    const value = key => available && Number.isFinite(settlement[key]) ? String(settlement[key]) : "Brak zapisu";
+                    const signal = snapshot.signal_public_id || "Brak ID sygnału";
+                    const sent = manifest.signal_confirmed && manifest.signal_sent_at;
+                    let rows, label;
+                    if (scene.id === "signal_confirmation") {
+                        label = "POTWIERDZENIE";
+                        rows = [sent ? "GHOSTSIGNAL WYSŁANY" : "OCZEKIWANIE NA POTWIERDZENIE",
+                            "SYGNAŁ / " + signal, "WYSŁANO UTC / " + (sent || "Brak zapisu"),
+                            "KANAŁ / 2108", "CEL / " + ((manifest.cycle_history || {}).future_2108_timestamp || "Brak daty docelowej")];
+                    } else if (scene.id === "pro_tools") {
+                        label = "PRO TOOLS";
+                        rows = ["> TERMINAL / ODCZYT ARCHIWUM", "SYGNAŁ / " + signal,
+                            "WERSJA / " + (snapshot.from_system_version || "—") + " → " + (snapshot.to_system_version || "—"),
+                            "RANKING / " + (manifest.ranking_available ? "DOSTĘPNY" : "Brak zapisu"),
+                            "UCZESTNICY / " + value("players_total"), "NAGRODY / " + value("rewards_total"),
+                            "RSP / " + value("rsp_total"), "> REKONSTRUKCJA WIZUALNA / BOOT W ETAPIE RESTARTU"];
+                    } else {
+                        label = "PLIKI I DANE";
+                        rows = ["> INDEKS ARCHIWUM / " + signal,
+                            "HISTORIA CZĘŚCI / " + ((manifest.cycle_history || {}).available ? "DOSTĘPNA" : "NIEPEŁNY ZAPIS"),
+                            "CZĘŚCI W KATALOGU / " + ((manifest.catalog || {}).parts || []).length,
+                            "TERYTORIA FINAŁU / " + value("territories_total"),
+                            "PUBLIKACJE W PROJEKCJI / " + (available ? (settlement.publications || []).length : "Brak zapisu"),
+                            "ZAKRES / " + (!available ? "Brak zapisu" : settlement.details_truncated ? "OGRANICZONY WYBÓR DANYCH" : "DOSTĘPNE ARCHIWUM FINAŁU"),
+                            "> KONIEC INDEKSU ARCHIWUM"];
+                    }
+                    state.start = definition.start; state.end = definition.end;
+                    state.screenLength = rows.reduce((sum, row) => sum + row.length, 0);
+                    state.screenRows = rows.map((text, index) => {
+                        const node = element("span", "archive-screen-line" + (index === 0 ? " archive-screen-heading" : ""));
+                        node.style.setProperty("--line-offset", index * 1.7 + "s"); output.appendChild(node); return {text, node};
+                    });
+                    state.title.textContent = label;
+                    canvas.setAttribute("data-screen", scene.id);
+                    terminal.setAttribute("aria-label", label);
+                    top.children[0].textContent = label; top.children[1].textContent = "ARCHIWUM / ODCZYT";
+                    Array.from(list.children).forEach((node, index) => {node.textContent = ["ODCZYT ZAPISU", "DANE SYGNAŁU", "REKONSTRUKCJA", "ARCHIWUM"][index];});
+                    if (scene.id !== "signal_confirmation") {
+                        sub.textContent = "ARCHIWUM";
+                        sub.appendChild(element("span", "underscore", "_"));
+                    }
+                }
             }
             bottom.appendChild(element("span", "", "REKONSTRUKCJA / GHOSTSIGNAL"));
             bottom.appendChild(element("span", "archive-video-time", "")); shell.appendChild(bottom);
             center.appendChild(shell);
         }
-        const caption = element("p", "archive-caption", isVideo ? "ODTWORZENIE ARCHIWALNEGO OBRAZU" : "PRZYGOTOWANIE ODCZYTU");
+        const caption = element("p", "archive-caption", isScreen ? "GHOSTNETWORK / ARCHIWUM SYGNAŁU" : isVideo ? "ODTWORZENIE ARCHIWALNEGO OBRAZU" : "PRZYGOTOWANIE ODCZYTU");
         if (stage._archive) stage._archive.caption = caption;
         center.appendChild(caption); canvas.appendChild(center);
         const data = element("aside", "archive-data"), params = element("dl", "");
-        data.appendChild(element("p", "section-label", "02 / ZAPIS OBRAZU"));
+        data.appendChild(element("p", "section-label", isScreen ? "02 / DANE SYGNAŁU" : "02 / ZAPIS OBRAZU"));
         const video = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
         const duration = video && Number.isFinite(video.duration_seconds) ? String(video.duration_seconds).replace(".", ",") + " s" : "Brak zapisu";
-        [["TRYB","ARCHIWUM"],["FORMAT","720 × 480"],["DŁUGOŚĆ",duration]].forEach(row => {
+        (isScreen ? [["TRYB","ARCHIWUM"],["SYGNAŁ",snapshot.signal_public_id || "—"],["KANAŁ","2108"]]
+            : [["TRYB","ARCHIWUM"],["FORMAT","720 × 480"],["DŁUGOŚĆ",duration]]).forEach(row => {
             params.appendChild(element("dt", "", row[0])); params.appendChild(element("dd", "", row[1]));
         });
         data.appendChild(params);
@@ -838,7 +899,8 @@
         const isInterface = !!INTERFACE_SCENES[scene.id];
         const isHero = /^machine_hero_[1-4]$/.test(scene.id);
         const isArchiveTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
-        const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal;
+        const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal
+            || ["signal_confirmation", "pro_tools", "file_system"].includes(scene.id);
         const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
