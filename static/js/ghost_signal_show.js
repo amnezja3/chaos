@@ -97,7 +97,7 @@
 
     // Approved v6 composition; identity is independent of reveal order.
     const PART_POSES = {
-        V1: {"depth":1,"values":[8,61,-3,52,1.27,-13]},
+        V1: {"depth":1,"values":[8,61,-3,52,1.482,-13]},
         S5: {"depth":4,"values":[84,90,90,89,1.03,17]},
         E4: {"depth":2,"values":[80,9,86,10,0.87,11]},
         P3: {"depth":3,"values":[32,8,32,5,1.14,-8]},
@@ -109,7 +109,7 @@
         S2: {"depth":4,"values":[65,10,73,7,0.89,-15]},
         E5: {"depth":2,"values":[68,86,62,91,1.12,24]},
         P1: {"depth":3,"values":[8,11,11,12,1.06,-17]},
-        V4: {"depth":1,"values":[104,73,105,81,1.34,14]},
+        V4: {"depth":1,"values":[104,73,105,81,1.563,14]},
         E3: {"depth":2,"values":[52,17,51,17,1.02,-22]},
         S1: {"depth":4,"values":[46,6,53,5,1.1,9]},
         P4: {"depth":3,"values":[10,82,12,73,0.98,26]},

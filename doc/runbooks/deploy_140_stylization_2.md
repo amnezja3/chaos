@@ -28,15 +28,19 @@ Worker nie wymaga reloadu z powodu tej zmiany.
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-2-detail-1.html
+  --output static/previews/ghostsignal-stylization-2-depth-2.html
 ```
 
 Jeżeli plik już istnieje, wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-2-detail-1.html`.
-Token CSS/JS: `signal-show-stylization-2-detail-1`.
+`/static/previews/ghostsignal-stylization-2-depth-2.html`.
+Token CSS/JS: `signal-show-stylization-2-depth-2`.
 Podgląd historyczny czyta bazę, nie wyzwala sygnału ani restartu gry.
 
 ## Odbiór desktop i portrait
+
+DEPTH-2: skrajne V1/V4 są powiększone do około +40% względem v3;
+pozostałe części pierwszego planu pozostają przy +20%. W 01:15 sprawdź
+oba formaty: wyraźną różnicę rozmiaru, celowy overscan i czytelność podpisów.
 
 DETAIL-1: pierwszy plan V1–V5 korzysta z istniejących plików `superpower/`
 540×540. Łącznie około 1,76 MB, ładowane przy odsłanianiu; dalsze plany
@@ -56,7 +60,7 @@ jak i odtwarzając granice scen bez przeskakiwania.
 | Czas | Scena | Co sprawdzić |
 | --- | --- | --- |
 | 00:30–01:00 | parts_enter | Stopniowe wejście; pozycje nie zmieniają się wraz z kolejnością odkryć |
-| 01:00–01:30 | parts_complete | 20 części w czterech planach; pierwszy +20%, ostatni −10% względem v3 |
+| 01:00–01:30 | parts_complete | 20 części w czterech planach; skrajne V1/V4 +40%, reszta pierwszego +20%, ostatni −10% względem v3 |
 | 01:30–02:00 | connections | Te same adresy, połączenia z archiwum; docelowa stylizacja sieci w .3 |
 | 02:00–02:20 | history_logs | Cztery grupy po pięć rekordów, zmiana co 5 s; daty UTC lub brak zapisu |
 | 02:20–02:40 | part_states | Archiwalny status i czas aktywacji; te same pozycje części |

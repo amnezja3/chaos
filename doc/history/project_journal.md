@@ -1,5 +1,12 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .2: dwa rozmiary pierwszego planu
+
+- Na prośbę autora skrajne V1 i V4 powiększono do około +40% względem v3;
+  V2/V3/V5 pozostają przy +20%. Zmiana w runtime i referencji desktop/portrait.
+- Zachowano pozycje, szczegółowe assety i efekty. Podgląd/cache:
+  `signal-show-stylization-2-depth-2`.
+
 ## 2026-09-12 — .2: szczegółowe assety pierwszego planu
 
 - Zgodnie z sugestią autora V1–V5 używają `superpower/` 540×540 zamiast

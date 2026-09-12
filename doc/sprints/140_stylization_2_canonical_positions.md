@@ -2,6 +2,12 @@
 
 REFERENCE v6 ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING
 
+Korekta DEPTH-2: pierwszy plan ma dwa poziomy powiększenia względem v3.
+Skrajne V1 i V4: około +40%; V2, V3 i V5: nadal +20%.
+Przy zachowaniu bazowej szerokości i nieregularności mnożniki V1/V4
+zmieniono z 1,27/1,34 na 1,482/1,563 (dodatkowo ×1,4/1,2).
+Dotyczy desktop i portrait, referencji i runtime. Adresy części pozostają stałe.
+
 Pierwszy plan V1–V5 używa teraz istniejących obrazów `superpower/` 540×540
 (łącznie 1 760 653 B), zamiast `parts/` 128×128 (245 536 B).
 Pozostałe 15 części zachowuje lekkie pliki `parts/`. Podmiana dotyczy
