@@ -159,6 +159,9 @@
 
     function clearMontage(stage) {
         if (!stage) return;
+        if (stage._networkDetails) stage._networkDetails.dispose();
+        stage._networkDetails = null;
+        stage._network = null;
         const video = stage._video;
         stage._video = null;
         if (video) {
@@ -263,10 +266,43 @@
         stage.appendChild(canvas);
     }
 
-    const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"];
+    const NETWORK_SCENES = ["network_expand", "network_ring", "network_tension", "network_ready"];
+    const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"].concat(NETWORK_SCENES);
+
+    function networkPositions(manifest, scene) {
+        const groups = sceneLayout(manifest, {elapsed: 299});
+        const ring = (manifest.cycle_history || {}).ring_codes || [];
+        const valid = groups.edges.length === 20;
+        const fraction = Math.max(0, Math.min(1, (scene.elapsed - 300) / 20));
+        const blend = fraction * fraction * (3 - 2 * fraction);
+        const positions = {};
+        groups.nodes.forEach(node => {
+            const angle = ring.indexOf(node.part.part_code) * Math.PI * 2 / 20 - Math.PI / 2;
+            const x = node.x / 10, y = node.y / 6;
+            positions[node.part.part_code] = valid ? [x + (50 + Math.cos(angle) * 41 - x) * blend,
+                y + (50 + Math.sin(angle) * 41 - y) * blend] : [x, y];
+        });
+        return positions;
+    }
 
     function syncParts(stage, scene) {
+        if (stage._network) {
+            const positions = networkPositions(stage._network.manifest, scene);
+            (stage._partsRows || []).forEach(row => {
+                const point = positions[row.code];
+                ["--x", "--mx"].forEach(key => row.card.style.setProperty(key, point[0] + "%"));
+                ["--y", "--my"].forEach(key => row.card.style.setProperty(key, point[1] + "%"));
+            });
+            stage._network.links.forEach(link => {
+                const a = positions[link.pair[0]], b = positions[link.pair[1]];
+                link.elements.forEach(element => {
+                    Object.entries({x1:a[0]*10,y1:a[1]*10,x2:b[0]*10,y2:b[1]*10}).forEach(pair => element.setAttribute(pair[0], pair[1]));
+                });
+            });
+            if (stage._networkDetails) stage._networkDetails.resize();
+        }
         const animatedLayers = [stage.querySelector(".parts-records"),
+            stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
         // restores their phase from the existing show clock (no extra timer).
@@ -286,7 +322,10 @@
     }
 
     function renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage) {
-        const canvas = element("section", "ghost-show-parts");
+        const network = NETWORK_SCENES.includes(scene.id);
+        const canvas = element("section", "ghost-show-parts" + (network ? " network-reference" : ""));
+        canvas.setAttribute("data-network-scene", scene.id);
+        if (network) stage._network = {manifest, links: []};
         const recordsView = scene.id === "history_logs" || scene.id === "part_states";
         canvas.setAttribute("data-view", recordsView ? "records" : "parts");
         canvas.appendChild(element("div", "background"));
@@ -305,14 +344,14 @@
         header.appendChild(element("span", "", "CZTERY PLANY / JEDNA SIEĆ"));
         canvas.appendChild(header);
         const heading = element("section", "heading");
-        heading.appendChild(element("p", "eyebrow", scene.id === "history_logs" ? "HISTORIA CZĘŚCI / UTC"
+        heading.appendChild(element("p", "eyebrow", network ? "GHOST NETWORK / TOPOLOGIA" : scene.id === "history_logs" ? "HISTORIA CZĘŚCI / UTC"
             : scene.id === "part_states" ? "STANY CZĘŚCI / ZAPIS CYKLU" : "GHOSTSIGNAL / HISTORIA CZĘŚCI"));
         const title = element("h1", "");
-        title.appendChild(element("span", "twenty", String(layout.nodes.length)));
-        const word = element("span", "word", "CZĘŚCI");
+        title.appendChild(element("span", network ? "word" : "twenty", network ? "JEDNA" : String(layout.nodes.length)));
+        const word = element("span", network ? "twenty" : "word", network ? "SIEĆ" : "CZĘŚCI");
         word.appendChild(element("span", "underscore", "_")); title.appendChild(word);
         heading.appendChild(title);
-        heading.appendChild(element("p", "deck", "CZTERY MASZYNY. JEDNA SIEĆ."));
+        heading.appendChild(element("p", "deck", network ? "CZTERY MASZYNY. " + layout.nodes.length + " WĘZŁÓW." : "CZTERY MASZYNY. JEDNA SIEĆ."));
         const legend = element("div", "legend");
         layout.machines.forEach((machine, index) => {
             const label = element("span", "", "0" + (index + 1) + " / " + machine.name);
@@ -348,11 +387,12 @@
         board.setAttribute("aria-label", "Części w czterech planach");
         // Connections carry the same addresses until the network template (.3).
         // Edges come exclusively from the frozen ring, never a guessed catalog order.
-        if (scene.id === "connections") {
-            [false, true].forEach(portrait => {
+        if (scene.id === "connections" || network) {
+            (network ? [false] : [false, true]).forEach(portrait => {
                 const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
                 svg.setAttribute("class", "parts-edges " + (portrait ? "is-portrait parts-energy-portrait" : "is-desktop parts-energy-desktop"));
                 svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none");
+                if (network) { svg.setAttribute("class", "parts-edges parts-energy-desktop"); svg.setAttribute("preserveAspectRatio", "xMidYMid meet"); }
                 svg.setAttribute("aria-hidden", "true");
                 const defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
                 if (layout.edges.length) svg.appendChild(defs);
@@ -375,6 +415,7 @@
                     });
                     defs.appendChild(gradient);
                     const link = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+                    const dynamic = {pair, elements: [gradient]};
                     link.setAttribute("class", "parts-energy-link");
                     link.style.setProperty("--energy-offset", (index * .73).toFixed(2) + "s");
                     ["glow", "core"].forEach(layer => {
@@ -382,7 +423,9 @@
                         line.setAttribute("class", "parts-energy-" + layer);
                         Object.keys(coordinates).forEach(key => line.setAttribute(key, coordinates[key]));
                         line.setAttribute("stroke", "url(#" + gradientId + ")"); link.appendChild(line);
+                        dynamic.elements.push(line);
                     });
+                    if (network) stage._network.links.push(dynamic);
                     svg.appendChild(link);
                 });
                 board.appendChild(svg);
@@ -396,6 +439,7 @@
             card.setAttribute("data-clan", part.clan_code || "");
             ["--x", "--y", "--mx", "--my", "--scatter-scale", "--turn"].forEach((key, i) =>
                 card.style.setProperty(key, pose.values[i] + (i < 4 ? "%" : i === 5 ? "deg" : "")));
+            if (network) { card.style.setProperty("--scatter-scale", "1"); card.style.setProperty("--turn", "0deg"); }
             card.style.setProperty("--fx-offset", (index * .37).toFixed(2) + "s");
             const identity = element("div", "identity");
             identity.appendChild(element("b", "", part.part_code)); card.appendChild(identity);
@@ -405,12 +449,38 @@
             const halo = element("span", "ghostnetwork-part-halo"); halo.setAttribute("aria-hidden", "true");
             art.appendChild(halo); frame.appendChild(art); card.appendChild(frame);
             card.appendChild(element("h2", "", part.name)); board.appendChild(card);
-            return {card, loaded: false, load: () => addImage(art,
-                "/static/images/ghostnetwork/" + (pose.depth === 1 ? "superpower/" : "parts/")
+            return {card, code:part.part_code, loaded: false, load: () => addImage(art,
+                "/static/images/ghostnetwork/" + (!network && pose.depth === 1 ? "superpower/" : "parts/")
                     + part.part_code.toLowerCase() + "_" + part.icon_key + ".png",
                 "ghostnetwork-part-art", part.name)};
         });
-        canvas.appendChild(board); stage.appendChild(canvas);
+        let field = board;
+        if (network) {
+            field = element("div", "network-field");
+            const square = element("div", "network-square");
+            const center = element("div", "network-center");
+            center.appendChild(element("b", "", String(layout.nodes.length)));
+            center.appendChild(element("span", "", "WĘZŁÓW"));
+            center.appendChild(element("small", "", !layout.edges.length ? "BRAK TOPOLOGII"
+                : scene.id === "network_expand" ? "WSPÓLNA SIEĆ"
+                : scene.id === "network_tension" ? "SYNCHRONIZACJA"
+                : scene.id === "network_ready" ? "GHOST NETWORK / ZAPIS" : "GHOST NETWORK"));
+            square.appendChild(center); square.appendChild(board); field.appendChild(square);
+        }
+        canvas.appendChild(field); stage.appendChild(canvas);
+        if ((network || scene.id === "connections") && global.GhostSignalNetworkDetails) {
+            const catalog = manifest.catalog || {}, details = {};
+            layout.nodes.forEach(node => {
+                const part = node.part;
+                const clan = (catalog.clans || []).find(c => c.code === part.clan_code) || {};
+                const machine = layout.machines.find(m => m.code === part.machine_code) || {};
+                const power = (catalog.abilities || []).find(a => a.ability_code === part.ability_code) || {};
+                details[part.part_code] = {code:part.part_code,name:part.name,clan:clan.name || part.clan_code || "Brak zapisu",
+                    machine:machine.name || "Brak zapisu",power:power.name || "Brak zapisu",description:power.description || "Opis niedostępny w tym zapisie."};
+            });
+            stage._networkDetails = global.GhostSignalNetworkDetails.mount({document:doc,window:global,field,
+                host:doc.getElementById("ghost-signal-show"),square:network,catalog:details,parts:stage._partsRows.map(row => row.card)});
+        }
         syncParts(stage, scene);
     }
 
@@ -1018,7 +1088,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, showAudioAt, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, networkPositions, showAudioAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 

@@ -6,7 +6,11 @@ Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
 Realizacja .2: `IMPLEMENTED / OPERATOR ACCEPTED`.
 Autor potwierdził efekt energetycznych połączeń i przejście dalej.
-Realizacja .3: `REFERENCE PAIR ACCEPTED / IMPLEMENTATION PENDING`.
+Realizacja .3: `IMPLEMENTED / LOCAL TESTS PASS / SERVER REVIEW PENDING`.
+Pięć scen korzysta z istniejącego renderera; kwadratowe pole, energetyczny
+pierścień i tooltip są wspólne z referencją. Rozwinięcie grup jest wyznaczane
+z czasu sceny, a ring wyłącznie z zapisu cyklu.
+[Wdrożenie i odbiór .3](../runbooks/deploy_140_stylization_3.md).
 Końcowa korekta REF-3 dopasowuje tooltip do palety layoutu; koło i szczegóły
 części zostały zaakceptowane przez autora.
 [Para network_ring 05:30](../../static/references/ghostsignal/network-pair.html)

@@ -205,7 +205,7 @@ def build_manifest(facts, scene_snapshot=None):
             "parts": fields(PARTS, ("part_code", "name", "clan_code", "machine_code",
                                     "profession_code", "ability_code", "icon_key")),
             "professions": fields(PROFESSIONS, ("code", "name", "part_code", "machine_code")),
-            "abilities": fields(ABILITIES, ("ability_code", "name")),
+            "abilities": fields(ABILITIES, ("ability_code", "name", "description")),
         },
         "assets": [
             {"id": "machine_" + machine["code"], "kind": "image",

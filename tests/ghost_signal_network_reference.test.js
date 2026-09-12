@@ -5,7 +5,9 @@ assert.strictEqual(Object.keys(JSON.parse(metadata)).length,20);
 class Element {
     constructor(){this.children=[];this.events={};this.attrs={};this.style={setProperty:(k,v)=>{this.style[k]=v;}};}
     addEventListener(k,fn){this.events[k]=fn;}
-    appendChild(node){this.children.push(node);}
+    removeEventListener(k){delete this.events[k];}
+    appendChild(node){this.children.push(node);node.parent=this;}
+    remove(){this.parent.children=this.parent.children.filter(n=>n!==this);}
     replaceChildren(){this.children=[];}
     setAttribute(k,v){this.attrs[k]=v;}
     getAttribute(k){return this.attrs[k];}
@@ -17,9 +19,11 @@ const part=new Element();part.attrs['data-code']='V1';
 const field=new Element();field.clientWidth=280;field.clientHeight=500;field.querySelectorAll=()=>[part];
 const body=new Element(),doc=new Element(),win=new Element();
 Object.assign(doc,{body,activeElement:null,querySelector:()=>field,getElementById:()=>({textContent:metadata}),createElement:()=>new Element()});
-vm.runInNewContext(fs.readFileSync('static/references/ghostsignal/network-details.js','utf8'),{
-    document:doc,window:win,innerWidth:280,innerHeight:650,ResizeObserver:class{observe(){}},JSON,Math
-});
+win.innerWidth=280;win.innerHeight=650;
+let disconnected=false;
+win.ResizeObserver=class{observe(){} disconnect(){disconnected=true;}};
+const helper=require('../static/js/ghost_signal_network_details.js');
+const mounted=helper.mount({document:doc,window:win,field,catalog:JSON.parse(metadata),parts:[part]});
 const tip=body.children[0];
 assert.strictEqual(field.style['--network-size'],'280px');
 field.clientWidth=800;field.clientHeight=450;win.events.resize();
@@ -36,4 +40,6 @@ doc.events.keydown({key:'Escape'});assert(tip.hidden);
 part.events.focus();assert(!tip.hidden);
 doc.events.pointerdown({target:new Element()});assert(tip.hidden);
 assert(!part.attrs['aria-describedby']);
+mounted.dispose();assert(disconnected);assert.strictEqual(body.children.length,0);
+assert.strictEqual(Object.keys(doc.events).length,0);assert.strictEqual(Object.keys(part.events).length,0);
 console.log('Network reference square fit / catalog tooltip / touch / focus / Escape: PASS');

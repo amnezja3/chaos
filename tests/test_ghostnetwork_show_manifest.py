@@ -31,6 +31,11 @@ class ShowManifestTest(unittest.TestCase):
 
     def test_complete_storyboard_and_canonical_machine_relations(self):
         manifest = build_manifest({})
+        from ghostnetwork.catalog import ABILITIES
+        self.assertEqual(
+            {a['ability_code']: a['description'] for a in manifest['catalog']['abilities']},
+            {a['ability_code']: a['description'] for a in ABILITIES},
+        )
         scenes = manifest["scenes"]
         self.assertEqual(len({s["id"] for s in scenes}), len(SCENES))
         self.assertEqual(scenes[0]["start"], 0)

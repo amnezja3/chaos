@@ -1,13 +1,18 @@
 const assert = require('assert');
 require('../static/js/map_glitch.js');
-const {createController} = require('../static/js/ghost_signal_show.js');
+require('../static/js/ghost_signal_network_details.js');
+const {createController,networkPositions} = require('../static/js/ghost_signal_show.js');
 class Node {
     constructor(tag) {
         this.tag = tag; this.children = []; this.attrs = {}; this.className = '';
+        this.clientWidth=640;this.clientHeight=360;this.events={};
         this.style = {setProperty(name, value) {this[name] = value;}};
         this.classList = {add: name => {this.className += ' ' + name;}, remove: name => {this.className = this.className.replace(name, '');}};
     }
     setAttribute(name, value) {this.attrs[name] = value; if (name === 'class') this.className = value;}
+    getAttribute(name) {return this.attrs[name];}
+    addEventListener(type,fn) {this.events[type]=fn;}
+    removeEventListener(type) {delete this.events[type];}
     removeAttribute(name) {delete this.attrs[name]; if (name === 'src') this.src = '';}
     play() {this.played = true; return Promise.resolve();}
     pause() {this.paused = true;}
@@ -242,7 +247,33 @@ try {
     assert(!root.querySelector('.ghost-show-parts'));
     assert.strictEqual(partsStage._partsRows,null);
     assert(!root.className.includes('has-parts'));
+    manifest.scenes = [[0,'takeover'],[30,'parts_enter'],[60,'parts_complete'],[90,'connections'],
+        [120,'history_logs'],[140,'part_states'],[160,'machine_groups'],[300,'network_expand'],
+        [320,'network_ring'],[340,'network_tension'],[350,'network_ready'],[360,'machine_hero_1'],
+        [720,'system_layers']].map((row,i,rows)=>({start:row[0],id:row[1],label:row[1],end:rows[i+1]?rows[i+1][0]:900,requires_signal_sent:row[0]>=720}));
+    const startPositions=networkPositions(manifest,{elapsed:300});
+    const ringPositions=networkPositions(manifest,{elapsed:320});
+    for(const point of Object.values(ringPositions))assert(Math.abs(Math.hypot(point[0]-50,point[1]-50)-41)<.00001);
+    assert.notDeepStrictEqual(startPositions,ringPositions);
+    seek(310);
+    const net=root.querySelector('.network-field');
+    assert.strictEqual(net.style['--network-size'],'360px');
+    const before=root.querySelector('.part').style['--x'];
+    seek(315);assert.strictEqual(root.querySelector('.network-field'),net);
+    assert.notStrictEqual(root.querySelector('.part').style['--x'],before);
+    seek(310);assert.strictEqual(root.querySelector('.part').style['--x'],before,'seek restores geometry');
+    for(const second of [330,345,355]){
+        seek(second);assert(root.querySelector('.network-square'));
+        assert(root.querySelector('.network-tooltip'),'tooltip stays inside locked show root');
+        assert.strictEqual(root.querySelector('.parts-edges').children.length,21);
+        const row=partsStage._partsRows[0],point=ringPositions[row.code];
+        assert(Math.abs(parseFloat(row.card.style['--x'])-point[0])<.0001);
+    }
+    const previousHelper=partsStage._networkDetails;
+    seek(370);assert(!root.querySelector('.network-field'));assert(!root.querySelector('.network-tooltip'));
+    assert.strictEqual(partsStage._networkDetails,null);assert(previousHelper);
     manifest.cycle_history.ring_codes=[];
+    seek(330);assert(root.querySelector('.parts-history-note'));assert.strictEqual(root.querySelector('.parts-edges').children.length,0);
     seek(95);
     assert.strictEqual(root.querySelector('.parts-edges').children.length,0,'never invent a ring');
     seek(721);

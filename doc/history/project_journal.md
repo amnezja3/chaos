@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — 140.stylization.3: integracja sieci
+
+- Zintegrowano connections, network_expand, network_ring, network_tension
+  i network_ready w istniejącym rendererze. Rozwinięcie grup do pierścienia
+  jest funkcją czasu; topologia pochodzi wyłącznie z zamrożonego ringu.
+- Wspólne CSS i pomocnicza obsługa tooltipu/rozmiaru dla referencji i runtime.
+  Kwadratowe pole, dopasowanie do viewport, hover/focus/tap/Escape,
+  cleanup listenerów i observera. Bez nowego kontrolera lub zegara.
+- Manifest rozszerzono o publiczny opis supermocy z katalogu. Bez migracji,
+  ciężkich profili, nowych assetów ani wywołań API tooltipu.
+- Osiem zestawów JS, trzy testy manifestu i izolowany generator PASS.
+  Odbiór wizualny runtime na serwerze otwarty. Runbook: deploy_140_stylization_3.md.
+
 ## 2026-09-12 — .3 REF-3: paleta tooltipu i akceptacja pary
 
 - Tooltip otrzymał przygaszoną szarozieloną paletę layoutu, subtelniejsze
