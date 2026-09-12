@@ -2,6 +2,16 @@
 
 Status: `REFERENCE ACCEPTED / RECORD RUNTIME IMPLEMENTED / SERVER REVIEW PENDING`.
 
+Zapis autor potwierdził jako gotowy. Kolejna para dotyczy filmu:
+[desktop / portrait — rekonstrukcja](../../static/references/ghostsignal/transmission-video-pair.html).
+Adres: `/static/references/ghostsignal/transmission-video-pair.html?v=transmission-ref-5`.
+Otwiera się bezpośrednio w stanie filmu. To samo tło archiwum, tytuł
+REKONSTRUKCJA TRANSMISJI nad centralną ramką, zachowane boczne logi
+i dane pod obrazem na portrait. Pole 3:2 jest ograniczone do 720×480
+oraz dostępnej wysokości kadru. Przyciski nad parą pozwalają wrócić
+do zapisu lub obejrzeć przejście. Film w makiecie jest wyciszony.
+Zmiany layoutu filmu są wyłącznie w CSS referencji; oczekują akceptacji.
+
 Autor zaakceptował parę słowem „idealnie” i zlecił wdrożenie zapisu.
 `transmission_quiet` (420–425 s) korzysta już z zaakceptowanego układu.
 Wspólny CSS: `static/css/ghost_signal_archive.css`. Film i dalsze sceny
