@@ -1,5 +1,15 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — akceptacja .2 i para referencyjna .3
+
+- Autor zaakceptował energetyczne połączenia („to jest to co chcieliśmy
+  uzyskać”) i polecił kontynuację. .2 oznaczono jako OPERATOR ACCEPTED.
+- Przygotowano jedną parę network_ring 05:30: desktop 1920×1080 i portrait
+  1080×1920. Reuse części, połączeń ENERGY-1, OFS, glitch i tła.
+- `static/references/ghostsignal/network-pair.html` czeka na akceptację;
+  plan pięciu scen i przejść zapisano w `140_stylization_3_network_reference.md`.
+- Pozostałe warianty .3 i produkcyjny trigger nie są uruchamiane na tym etapie.
+
 ## 2026-09-12 — .2: energetyczne połączenia
 
 - Na prośbę autora scena connections ma świetlny rdzeń, rozmytą łunę

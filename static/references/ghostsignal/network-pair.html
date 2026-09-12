@@ -1,0 +1,16 @@
+<!doctype html><html lang="pl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>140.stylization.3 — pierwsza para referencyjna</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080c0b;color:#d9e2db;font:14px/1.6 monospace;padding:24px}h1{font:600 24px/1.3 sans-serif;margin:0}p{color:#97a69c;max-width:900px}a{color:#c3d9cb}main{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(240px,.65fr);gap:24px;align-items:start}figure{margin:0;min-width:0}figcaption{margin:0 0 10px;color:#a0b3a6}.frame{position:relative;overflow:hidden;background:#030806;outline:1px solid #45594b}iframe{position:absolute;top:0;left:0;border:0;transform-origin:top left}@media(max-width:850px){main{grid-template-columns:1fr}}
+</style>
+<h1>140.stylization.3 / NETWORK RING</h1>
+<p>Jedna scena network_ring, moment 05:30. Desktop 1920×1080 i portrait 1080×1920. Zachowane kody i kolejność katalogowego pierścienia; energetyczne połączenia, OFS i glitch z zaakceptowanej .2. To referencja kompozycji, bez danych produkcyjnych, audio, API i triggera. Do oceny: proporcje sieci, czytelność kodów i rytm światła.</p>
+<p><a href="network.html?v=network-ref-1" target="_blank" rel="noopener">Otwórz scenę w rozmiarze swojego ekranu</a></p>
+<main>
+<figure><figcaption>DESKTOP / 1920 × 1080</figcaption><div class="frame" data-width="1920" data-height="1080"><iframe src="network.html?v=network-ref-1" width="1920" height="1080" title="Referencja desktop 1920 na 1080"></iframe></div></figure>
+<figure><figcaption>PORTRAIT / 1080 × 1920</figcaption><div class="frame" data-width="1080" data-height="1920"><iframe src="network.html?v=network-ref-1" width="1080" height="1920" title="Referencja portrait 1080 na 1920"></iframe></div></figure>
+</main>
+<script>
+function fitReferences(){document.querySelectorAll('.frame').forEach(function(frame){var scale=frame.clientWidth/Number(frame.dataset.width);frame.style.height=Number(frame.dataset.height)*scale+'px';frame.firstElementChild.style.transform='scale('+scale+')';});}
+window.addEventListener('resize',fitReferences);fitReferences();
+</script></html>

@@ -4,10 +4,14 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE v6 ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING`.
+Realizacja .2: `IMPLEMENTED / OPERATOR ACCEPTED`.
+Autor potwierdził efekt energetycznych połączeń i przejście dalej.
+Realizacja .3: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+[Para network_ring 05:30](../../static/references/ghostsignal/network-pair.html)
+oraz [plan kompozycji i przejść .3](140_stylization_3_network_reference.md).
 V6 redukuje łunę hover/focus do około 20% intensywności v5, ze zmiękczeniem
 halo. Skala części, ruch, OFS i glitch pozostają jak w v5; mapa bez zmian.
-Podsprinty .3–.10 pozostają w backlogu. Autor zaakceptował parę v6 i zlecił
+Podsprinty .4–.10 pozostają w backlogu. Autor zaakceptował parę v6 i zlecił
 implementację słowami „mamy to, możesz implementować”.
 
 ### Implementacja czterech scen .2
@@ -27,7 +31,8 @@ korzystają z istniejących efektów; brak nowego zegara lub kontrolera.
 Progress, dźwięk, muzyka, film i restart pozostają pod istniejącą obsługą show.
 
 [Wdrożenie i odbiór .2](../runbooks/deploy_140_stylization_2.md).
-Odbiór wizualny czterech scen na serwerze pozostaje do wykonania.
+Odbiór .2 potwierdzony przez autora po korektach OFS, assetów,
+dwóch wielkości pierwszego planu i energetycznych połączeń.
 
 ### Pierwsza para .2 — dwadzieścia części
 

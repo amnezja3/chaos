@@ -13,9 +13,10 @@
         part.style.setProperty('--fx-offset', (index * 2.4) + 's');
     });
     const origin = performance.now();
+    const start = Number(scene.getAttribute('data-ambient-start')) || 75;
     let timer = null;
     function tick() {
-        const elapsed = 75 + (performance.now() - origin) / 1000;
+        const elapsed = start + (performance.now() - origin) / 1000;
         scene.style.setProperty('--fx-clock', -elapsed + 's');
         scene.style.setProperty('--light', (0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 5.4)).toFixed(4));
         if (glitch) glitch.className = 'chaos-map-glitch-overlay is-visible parts-glitch is-slow'
