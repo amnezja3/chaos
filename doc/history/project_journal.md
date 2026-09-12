@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .4: VIREX hero w rendererze
+
+Po akceptacji pary v4 wdrożono `machine_hero_1` (360–375 s): wspólny CSS
+referencji/runtime, tło `_active` z ciemnym środkiem, obrys, światło i OFS,
+reflow portrait oraz pięć części z katalogu. Manifest dodaje katalogowe
+opisy funkcji i ryzyka. Istniejący zegar synchronizuje fazę dekoracji;
+seek usuwa poprzedni layout. Bez migracji i triggera.
+Osiem zestawów JS i trzy testy manifestu w izolowanym katalogu PASS.
+Odbiór wizualny runtime na serwerze pozostaje do wykonania według
+`doc/runbooks/deploy_140_stylization_4_virex.md`. Trzy kolejne hero wymagają
+odrębnych kompozycji; .4 pozostaje otwarty.
+
 ## 2026-09-12 — .4: para hero VIREX ORACLE
 
 - Po akceptacji grup części i overscanu autor zlecił parę hero maszyny.

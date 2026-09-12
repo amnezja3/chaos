@@ -2,6 +2,11 @@
 
 Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
+Aktualizacja .4 (2026-09-12): zaakceptowana para hero VIREX v4 wdrożona
+do `machine_hero_1` (360–375 s). Lokalne JS i manifest PASS; odbiór runtime
+na serwerze otwarty. [Procedura](../runbooks/deploy_140_stylization_4_virex.md).
+Echo, Phantom i Sentinel nadal wymagają odrębnych kompozycji hero.
+
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
 Realizacja .2: `IMPLEMENTED / OPERATOR ACCEPTED`.

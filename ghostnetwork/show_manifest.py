@@ -201,7 +201,7 @@ def build_manifest(facts, scene_snapshot=None):
         "cycle_history": scene_snapshot or {"available": False, "reason": "scene_projection_pending"},
         "catalog": {
             "clans": fields(CLANS, ("code", "name", "ui_color_token")),
-            "machines": fields(MACHINES, ("code", "name", "clan_code", "part_codes")),
+            "machines": fields(MACHINES, ("code", "name", "clan_code", "part_codes", "purpose", "risk_extreme")),
             "parts": fields(PARTS, ("part_code", "name", "clan_code", "machine_code",
                                     "profession_code", "ability_code", "icon_key")),
             "professions": fields(PROFESSIONS, ("code", "name", "part_code", "machine_code")),

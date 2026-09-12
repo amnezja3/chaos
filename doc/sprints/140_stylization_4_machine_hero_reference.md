@@ -1,6 +1,14 @@
 # 140.stylization.4 — para hero VIREX ORACLE
 
-Status: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+Status: `REFERENCE ACCEPTED / VIREX RUNTIME IMPLEMENTED / SERVER REVIEW PENDING`.
+
+Autor zaakceptował wariant 4: ciemny środek tła i płynne rozjaśnienie
+ku bokom. Wdrożono go dla `machine_hero_1` (360–375 s). Referencja i runtime
+importują wspólny `static/css/ghost_signal_machine_hero.css`. Renderer
+korzysta z katalogowych opisów, istniejącego zegara, glitchu i panelu audio.
+Manifest udostępnia `purpose` i `risk_extreme`; bez migracji bazy.
+Instrukcja: [wdrożenie VIREX](../runbooks/deploy_140_stylization_4_virex.md).
+Poniższy opis dokumentuje kolejne korekty zaakceptowanej referencji.
 
 Korekta referencji `machine-hero-2`: desktop pokazuje również specjalizację
 i ryzyko skrajne z katalogu, z dodatkowymi akcentami OFS na opisach,

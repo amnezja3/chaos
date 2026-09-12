@@ -44,6 +44,8 @@ class ShowManifestTest(unittest.TestCase):
             self.assertEqual(left["end"], right["start"])
         self.assertEqual(len(manifest["catalog"]["parts"]), 20)
         for machine in manifest["catalog"]["machines"]:
+            self.assertTrue(machine["purpose"])
+            self.assertTrue(machine["risk_extreme"])
             parts = [p for p in manifest["catalog"]["parts"] if p["machine_code"] == machine["code"]]
             self.assertEqual({p["part_code"] for p in parts}, set(machine["part_codes"]))
             self.assertEqual(len(parts), 5)

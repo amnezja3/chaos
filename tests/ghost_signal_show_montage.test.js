@@ -65,12 +65,19 @@ try {
     assert(root.querySelector('.parts-board'));
     seek(370);
     assert(!root.querySelector('.parts-board'));
+    assert.strictEqual(root.querySelector('.hero-machine').attrs['data-machine'],'virex_oracle');
+    assert(root.querySelector('.hero-heading'));
+    assert(root.querySelector('.hero-light'));
+    assert.strictEqual(root.querySelector('.hero-components').children[1].children.length,1);
+    const heroCanvas=root.querySelector('.hero-machine');
+    seek(371); assert.strictEqual(root.querySelector('.hero-machine'),heroCanvas,'tick preserves hero DOM');
     const img=root.querySelector('.ghost-show-hero__image'); assert(img);
     img.onerror(); assert(!root.querySelector('.ghost-show-hero__image'));
     assert(root.querySelector('.ghost-show-asset-fallback'));
     manifest.assets.push({id:'ghostsignal_transmission_video',available:true,
         src:'/static/video/ghostsignal_transmission_video.mp4',duration_seconds:38.12});
     seek(435);
+    assert(!root.querySelector('.hero-machine'),'video removes hero and its backdrop');
     const video = root.querySelector('.ghost-show-video'); assert(video);
     video.duration = 38.12; video.readyState = 1; video.currentTime = 0;
     video.onloadedmetadata();

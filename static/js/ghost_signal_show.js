@@ -373,6 +373,7 @@
             }
         }
         const animatedLayers = [stage.querySelector(".parts-records"),
+            stage.querySelector(".hero-machine"),
             stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
@@ -390,6 +391,62 @@
             row.card.setAttribute("aria-hidden", visible ? "false" : "true");
             if (visible && !row.loaded) { row.load(); row.loaded = true; }
         });
+    }
+
+    function renderMachineHero(doc, stage, manifest, layout, element, addImage) {
+        const machine = layout.machines.find(m => m.code === "virex_oracle");
+        if (!machine) { stage.appendChild(element("p", "ghost-show-asset-fallback", "Brak zapisu maszyny.")); return; }
+        const canvas = element("section", "ghost-show-parts hero-machine");
+        canvas.setAttribute("data-machine", machine.code);
+        const background = element("div", "background"); background.setAttribute("aria-hidden", "true");
+        canvas.appendChild(background);
+        const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
+        glitch.setAttribute("aria-hidden", "true"); canvas.appendChild(glitch);
+        if (global.ChaosMapGlitch) {
+            let seed = 139140;
+            global.ChaosMapGlitch.seed(glitch, doc, () => {
+                seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+                return seed / 4294967296;
+            });
+        }
+        const header = element("header", "");
+        header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
+        header.appendChild(element("span", "", "01 / CZTERY MASZYNY")); canvas.appendChild(header);
+        const heading = element("section", "hero-heading");
+        heading.appendChild(element("p", "eyebrow", "VIREX / PREDYKCJA I TRASA"));
+        const title = element("h1", "", "VIREX"), line = element("span", "", "ORACLE");
+        line.appendChild(element("span", "underscore", "_")); title.appendChild(line);
+        heading.appendChild(title); canvas.appendChild(heading);
+        ["hero-aura", "hero-light"].forEach(name => {
+            const layer = element("div", name); layer.setAttribute("aria-hidden", "true"); canvas.appendChild(layer);
+        });
+        const asset = (manifest.assets || []).find(a => a.id === "machine_" + machine.code);
+        if (asset && asset.available) {
+            addImage(canvas, asset.src, "hero-image hero-outline", "");
+            addImage(canvas, asset.src, "hero-image ghost-show-hero__image", machine.name);
+        } else canvas.appendChild(element("p", "ghost-show-asset-fallback", machine.name));
+        const purpose = element("section", "hero-purpose");
+        purpose.appendChild(element("p", "hero-index", "01 / " + machine.name));
+        purpose.appendChild(element("p", "", machine.purpose || "Brak opisu funkcji w zapisie."));
+        const details = element("div", "hero-desktop-details");
+        [["SPECJALIZACJA", "Predykcja i wyznaczanie trasy sygnału."],
+            ["RYZYKO SKRAJNE", machine.risk_extreme || "Brak opisu ryzyka w zapisie."]].forEach(row => {
+            const p = element("p", ""); p.appendChild(element("b", "", row[0]));
+            p.appendChild(element("span", "", row[1])); details.appendChild(p);
+        });
+        purpose.appendChild(details);
+        purpose.appendChild(element("p", "hero-source", "FUNKCJA KATALOGOWA / REKONSTRUKCJA")); canvas.appendChild(purpose);
+        const components = element("section", "hero-components"), list = element("ol", "");
+        components.setAttribute("aria-label", "Części VIREX ORACLE");
+        components.appendChild(element("p", "hero-components-title", "05 / KOMPONENTY"));
+        (machine.part_codes || []).slice(0, 5).forEach(code => {
+            const node = layout.nodes.find(n => n.part.part_code === code);
+            if (!node) return;
+            const p = node.part, item = element("li", "");
+            addImage(item, "/static/images/ghostnetwork/parts/" + code.toLowerCase() + "_" + p.icon_key + ".png", "", "");
+            item.appendChild(element("b", "", code)); item.appendChild(element("span", "", p.name)); list.appendChild(item);
+        });
+        components.appendChild(list); canvas.appendChild(components); stage.appendChild(canvas);
     }
 
     function renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage) {
@@ -579,7 +636,8 @@
         }
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
-        const isParts = PART_SCENES.includes(scene.id);
+        const isHero = scene.id === "machine_hero_1";
+        const isParts = PART_SCENES.includes(scene.id) || isHero;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
@@ -641,6 +699,8 @@
         const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
+        } else if (isHero) {
+            renderMachineHero(doc, stage, manifest, layout, element, addImage);
         } else if (isParts) {
             renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage);
         } else if (scene.elapsed >= 480) {
