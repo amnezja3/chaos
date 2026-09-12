@@ -2,8 +2,36 @@
 
 Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
-Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / VISUAL ACCEPTANCE PENDING` (2026-09-12).
-Kierunek pary referencyjnej zaakceptowany. Podsprinty .2–.10 pozostają w backlogu.
+Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
+Autor potwierdził kierunek i efekty słowami „mamy to”.
+Realizacja .2: `REFERENCE PAIR v1 / AWAITING AUTHOR REVIEW`.
+Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
+
+### Pierwsza para .2 — dwadzieścia części
+
+[Para desktop 1920×1080 / portrait 1080×1920](../../static/references/ghostsignal/parts-pair.html).
+[Scena w bieżącym viewport](../../static/references/ghostsignal/parts.html).
+Po push/pull: `/static/references/ghostsignal/parts-pair.html`, bez reloadu.
+
+Wybrano parts_complete, statyczny moment referencyjny 01:15. Desktop 5×4
+z dominantą „20 CZĘŚCI” obok katalogu; portrait 4×5 z komunikatem nad
+siatką. Obie kompozycje mają ten sam porządek katalogowego ringu, kody,
+nazwy i istniejące assety części. Akcenty wynikają z kanonicznego klanu.
+Tło jest ponownie użytym wallpaper2.jpg. Bez nowych bitmap i runtime.
+
+[Mapa canonical positions](140_stylization_2_canonical_positions.md)
+rozpisuje wszystkie 20 slotów desktop/portrait, kolejność ringu oraz
+przypisanie do maszyny i slotu 1–5. Część przechodzi we węzeł z tego samego
+środka; późniejsze przemieszczenia do ringu i grup są jawnie zaplanowane.
+W integracji topologia będzie pochodzić z zamrożonego cyklu, a brak historii
+nie zostanie zastąpiony fikcyjnym rekordem.
+
+Do akceptacji: pełny zestaw i czytelność nazw, wielkość części, proporcja
+nagłówka do siatki oraz porządek slotów. Makieta nie podaje dat, aktywacji
+ani wyników produkcyjnego cyklu; czas służy wyłącznie kompozycji.
+Sprawdzono 20 unikalnych kodów, obecność 20 assetów i składnię JS pary.
+Brak automatycznego odbioru wizualnego w przeglądarce. Transformacje, efekty
+OFS i pozostałe sceny .2 rozwijamy po akceptacji tej pary.
 
 ### Implementacja siedmiu scen .1
 

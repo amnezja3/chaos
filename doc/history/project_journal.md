@@ -4575,3 +4575,14 @@ wierszy nie zmieniają semantycznej aktywności; czas wynika z obecnego ticku.
 Reduced motion zachowuje statyczny czytelny tekst. Montage/recovery/audio
 i syntax PASS. Cache i nowy podgląd: stylization-1-ofs-2; odbiór wizualny
 pozostaje u operatora.
+
+### 2026-09-12 — akceptacja .1 i pierwsza para .2
+
+Autor potwierdził „mamy to” dla efektów i kierunku .1, następnie zlecił
+parę referencyjną .2. Przygotowano parts_complete 01:15: desktop 5×4,
+portrait 4×5, 20 kanonicznych części w kolejności katalogowego ringu.
+Źródło: static/references/ghostsignal/parts-pair.html. Tabela slotów i plan
+przejść: doc/sprints/140_stylization_2_canonical_positions.md.
+Reuse 20 assetów części i wallpaper2.jpg; bez dat/stanów produkcji,
+triggera i zmian runtime. Kody/assety oraz składnia pary sprawdzone.
+Para i propozycja pozycji czekają na akceptację przed rozwinięciem .2.
