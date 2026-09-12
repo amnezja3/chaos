@@ -3,6 +3,11 @@ html,body{margin:0;height:100%;background:#050907}
 .archive-scene{display:block;--ofs-accent:#93b99f;padding:4vh 3vw}
 .archive-scene .background{background-image:url('../../images/ghostnetwork/signal_sends/write_signal_scena_bg.png');background-position:center;filter:saturate(.4) brightness(.75);transition:filter .65s}
 .archive-scene[data-state="video"] .background{filter:saturate(.3) brightness(.4)}
+.archive-source-light{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;mix-blend-mode:screen;transition:opacity .65s}
+.archive-source-pulse{transform-box:fill-box;transform-origin:center;animation:archive-source-breathe 3.6s ease-in-out infinite}
+@keyframes archive-source-breathe{0%,100%{opacity:.28;transform:scale(.72)}50%{opacity:.85;transform:scale(1.22)}}
+.archive-scene[data-state="video"] .archive-source-light{opacity:0}
+@media(prefers-reduced-motion:reduce){.archive-source-pulse{opacity:.35}}
 .archive-scene:before{background:radial-gradient(ellipse at 50% 42%,#04090744,#040907bb 75%),linear-gradient(0deg,#040907,transparent 60%)}
 .archive-title{position:absolute;left:4vw;top:13vh;z-index:2}
 .archive-title h1{display:block!important;font-size:clamp(60px,9.8vw,190px);line-height:.85;margin:2vh 0;letter-spacing:-.045em;color:#c5cec3}
