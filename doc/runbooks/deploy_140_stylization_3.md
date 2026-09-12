@@ -1,7 +1,7 @@
 # 140.stylization.3 — wdrożenie i odbiór sieci
 
 Pięć scen zintegrowanych z istniejącym rendererem. Para REF-3 zaakceptowana;
-odbiór runtime na serwerze pozostaje otwarty. Brak migracji i nowych bitmap.
+odbiór runtime potwierdzony przez autora po NETWORK-2 („to jest to”). Brak migracji i nowych bitmap.
 Manifest zawiera dodatkowo publiczny opis supermocy z istniejącego katalogu.
 Trigger pozostaje odłożony do zakończenia stylizacji i montażu .10.
 

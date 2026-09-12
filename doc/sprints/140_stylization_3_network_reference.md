@@ -1,6 +1,9 @@
 # 140.stylization.3 — pierwsza para sieci
 
-Status: `IMPLEMENTED / LOCAL TESTS PASS / SERVER REVIEW PENDING`.
+Status: `IMPLEMENTED / LOCAL TESTS PASS / OPERATOR ACCEPTED`.
+
+Autor potwierdził NETWORK-2 słowami „to jest to”. Formowanie pierścienia
+w 1,5 s zaakceptowane; etap .3 zamknięty. Trigger nadal po pełnej stylizacji.
 
 Integracja: pięć scen w renderMontage/renderParts. Wspólny
 `ghost_signal_network.css` i `ghost_signal_network_details.js` obsługują

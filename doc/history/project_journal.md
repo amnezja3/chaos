@@ -1,5 +1,22 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .4: referencja warstwowej prezentacji grup
+
+- Autor określił kierunek 160–300 s: prezentowana piątka na pierwszym planie,
+  pozostałe części wybledzone w głębi; zachowane połączenia i język .2.
+- Przygotowano jedną parę machine_group_3 / PHANTOM VEIL, 04:15.
+  P1–P5 używają dużych slotów i szczegółowych assetów; pozostałe 15 części
+  pozostaje w sieci. Reuse efektów OFS, glitch, łuny i krawędzi ENERGY-1.
+- Para `machine-focus-pair.html` czeka na odbiór. Integracja 160–300 s
+  musi potem uzgodnić pozycje końcowe z dynamicznym wejściem pierścienia .3.
+
+## 2026-09-12 — akceptacja 140.stylization.3
+
+- Autor potwierdził NETWORK-2: „to jest to”. Etap .3 oznaczono jako
+  OPERATOR ACCEPTED, z dynamicznym formowaniem pierścienia w 1,5 s.
+- Kolejny checkpoint: jedna para referencyjna pierwszej maszyny .4.
+  Produkcyjny trigger pozostaje odłożony do końca stylizacji i montażu.
+
 ## 2026-09-12 — .3 NETWORK-2: dynamiczne formowanie pierścienia
 
 - Skrócono przejście grup → pierścień z 20 do 1,5 sekundy, z szybkim

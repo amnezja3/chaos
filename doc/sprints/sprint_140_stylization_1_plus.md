@@ -6,7 +6,15 @@ Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
 Realizacja .2: `IMPLEMENTED / OPERATOR ACCEPTED`.
 Autor potwierdził efekt energetycznych połączeń i przejście dalej.
-Realizacja .3: `IMPLEMENTED / LOCAL TESTS PASS / SERVER REVIEW PENDING`.
+Realizacja .3: `IMPLEMENTED / LOCAL TESTS PASS / OPERATOR ACCEPTED`.
+Autor zaakceptował finałową korektę NETWORK-2 („to jest to”): pierścień
+formuje się dynamicznie w 1,5 s. Kolejny etap: para referencyjna maszyny .4.
+Realizacja .4: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+Na prośbę autora zakres 160–300 s rozwija chaotyczną, warstwową kompozycję .2:
+prezentowana piątka na pierwszym planie, pozostałe wybledzone w głębi,
+z zachowanymi połączeniami. Wybrano machine_group_3 / PHANTOM VEIL, 04:15.
+[Para referencyjna](../../static/references/ghostsignal/machine-focus-pair.html)
+i [plan grup](140_stylization_4_machine_focus_reference.md).
 Pięć scen korzysta z istniejącego renderera; kwadratowe pole, energetyczny
 pierścień i tooltip są wspólne z referencją. Rozwinięcie grup jest wyznaczane
 z czasu sceny, a ring wyłącznie z zapisu cyklu.
@@ -17,7 +25,7 @@ części zostały zaakceptowane przez autora.
 oraz [plan kompozycji i przejść .3](140_stylization_3_network_reference.md).
 V6 redukuje łunę hover/focus do około 20% intensywności v5, ze zmiękczeniem
 halo. Skala części, ruch, OFS i glitch pozostają jak w v5; mapa bez zmian.
-Podsprinty .4–.10 pozostają w backlogu. Autor zaakceptował parę v6 i zlecił
+Podsprinty .5–.10 pozostają w backlogu. Autor zaakceptował parę v6 i zlecił
 implementację słowami „mamy to, możesz implementować”.
 
 ### Implementacja czterech scen .2
