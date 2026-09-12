@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .4: wdrożenie warstwowych grup 160–300 s
+
+- Po akceptacji pary wdrożono machine_groups i machine_group_1–4 w
+  istniejącym rendererze. Piątka z przodu, pozostałe części wybledzone;
+  wszystkie archiwalne krawędzie zachowane. Wspólny CSS z referencją.
+- Pozycje wynikają z czasu sceny, przełączenie trwa 0,9 s. Zaktualizowano
+  początek network_expand: ostatnia grupa S1–S5 przechodzi do pierścienia
+  w zatwierdzonym czasie 1,5 s, z interpolacją skali i wymiarów pola.
+- Osiem zestawów JS PASS, w tym pięć aktywnych części dla każdej grupy,
+  zachowanie 20 połączeń w obu formatach, seek i ciągłość pozycji do .3.
+- Runbook: deploy_140_stylization_4_focus.md. Odbiór runtime otwarty;
+  hero 360–420 s pozostają dalszym zakresem .4. Bez triggera.
+
 ## 2026-09-12 — .4: referencja warstwowej prezentacji grup
 
 - Autor określił kierunek 160–300 s: prezentowana piątka na pierwszym planie,

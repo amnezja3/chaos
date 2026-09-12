@@ -1,6 +1,14 @@
 # 140.stylization.4 — warstwowa prezentacja grup części
 
-Status: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+Status: `REFERENCE ACCEPTED / 160–300 IMPLEMENTED / SERVER REVIEW PENDING`.
+
+Autor zaakceptował parę słowami „to jest to implementuj”. Pięć scen grup
+wdrożono w istniejącym renderParts, ze wspólnym z parą CSS. Zmiana grup
+wyznacza pozycje z czasu sceny (0,9 s), a energetyczne krawędzie podążają
+za częściami. Pierścień .3 startuje od końcowych pozycji S1–S5; jego wejście
+zachowuje 1,5 s i interpoluje skalę części oraz wymiary pola.
+[Wdrożenie i odbiór](../runbooks/deploy_140_stylization_4_focus.md).
+Hero 360–420 s pozostają dalszym zakresem .4, poza tym wdrożeniem.
 
 Decyzja autora: w 160–300 s wykorzystać zaakceptowaną chaotyczną kompozycję
 części .2. Aktualnie prezentowana piątka na pierwszym planie, pozostałe

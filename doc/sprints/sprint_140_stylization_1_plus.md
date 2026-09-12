@@ -9,7 +9,10 @@ Autor potwierdził efekt energetycznych połączeń i przejście dalej.
 Realizacja .3: `IMPLEMENTED / LOCAL TESTS PASS / OPERATOR ACCEPTED`.
 Autor zaakceptował finałową korektę NETWORK-2 („to jest to”): pierścień
 formuje się dynamicznie w 1,5 s. Kolejny etap: para referencyjna maszyny .4.
-Realizacja .4: `REFERENCE PAIR / AWAITING AUTHOR REVIEW`.
+Realizacja .4: `160–300 IMPLEMENTED / LOCAL JS PASS / SERVER REVIEW PENDING`.
+Para PHANTOM VEIL zaakceptowana i wdrożona dla czterech grup wraz z widokiem
+zbiorczym. Hero 360–420 s pozostają dalszym zakresem .4.
+[Procedura wdrożenia grup](../runbooks/deploy_140_stylization_4_focus.md).
 Na prośbę autora zakres 160–300 s rozwija chaotyczną, warstwową kompozycję .2:
 prezentowana piątka na pierwszym planie, pozostałe wybledzone w głębi,
 z zachowanymi połączeniami. Wybrano machine_group_3 / PHANTOM VEIL, 04:15.

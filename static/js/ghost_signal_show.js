@@ -269,10 +269,36 @@
     }
 
     const NETWORK_SCENES = ["network_expand", "network_ring", "network_tension", "network_ready"];
-    const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"].concat(NETWORK_SCENES);
+    const GROUP_SCENES = ["machine_groups", "machine_group_1", "machine_group_2", "machine_group_3", "machine_group_4"];
+    const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"].concat(NETWORK_SCENES, GROUP_SCENES);
 
-    function networkPositions(manifest, scene) {
+    function machineFocusPoses(manifest, elapsed) {
+        const catalog = manifest.catalog || {}, machines = (catalog.machines || []).slice(0,4);
+        const group = elapsed < 180 ? -1 : Math.min(3, Math.floor((elapsed - 180) / 30));
+        const start = group < 0 ? 160 : 180 + group * 30;
+        const progress = Math.max(0, Math.min(1, (elapsed - start) / .9));
+        const blend = 1 - Math.pow(1 - progress, 3);
+        function pose(part, index) {
+            const base = PART_POSES[part.part_code] || {depth:4,values:[50,50,50,50,1,0]};
+            const codes = (machines[index] || {}).part_codes || [];
+            const slot = codes.indexOf(part.part_code);
+            if (slot >= 0) return {depth:1,values:(PART_POSES["V"+(slot+1)] || base).values,presented:true,slot:slot+1};
+            const previousSlot = ((machines[0] || {}).part_codes || []).indexOf(part.part_code);
+            const address = index > 0 && previousSlot >= 0 ? PART_POSES[codes[previousSlot]] : base;
+            return {depth:(address || base).depth,values:(address || base).values,presented:false,slot:previousSlot+1};
+        }
+        const result = {};
+        (catalog.parts || []).slice(0,20).forEach(part => {
+            const target = pose(part,group), from = pose(part,group-1);
+            result[part.part_code] = Object.assign({}, target, {overview:group<0,
+                values:target.values.map((value,index)=>from.values[index]+(value-from.values[index])*blend)});
+        });
+        return result;
+    }
+
+    function networkPositions(manifest, scene, portrait) {
         const groups = sceneLayout(manifest, {elapsed: 299});
+        const source = machineFocusPoses(manifest,299);
         const ring = (manifest.cycle_history || {}).ring_codes || [];
         const valid = groups.edges.length === 20;
         const fraction = Math.max(0, Math.min(1, (scene.elapsed - 300) / 1.5));
@@ -280,7 +306,8 @@
         const positions = {};
         groups.nodes.forEach(node => {
             const angle = ring.indexOf(node.part.part_code) * Math.PI * 2 / 20 - Math.PI / 2;
-            const x = node.x / 10, y = node.y / 6;
+            const offset = portrait ? 2 : 0;
+            const x = source[node.part.part_code].values[offset], y = source[node.part.part_code].values[offset+1];
             positions[node.part.part_code] = valid ? [x + (50 + Math.cos(angle) * 41 - x) * blend,
                 y + (50 + Math.sin(angle) * 41 - y) * blend] : [x, y];
         });
@@ -290,37 +317,60 @@
     function animateNetworkEntrance(stage, snapshot, scene) {
         if (stage._networkFrame != null && global.cancelAnimationFrame) global.cancelAnimationFrame(stage._networkFrame);
         stage._networkFrame = null;
-        if (!stage._network || scene.elapsed < 300 || scene.elapsed >= 301.5 || !global.requestAnimationFrame) return;
+        const groupStart = scene.elapsed >= 180 && scene.elapsed < 300 ? 180 + Math.floor((scene.elapsed-180)/30)*30 : 300;
+        const end = stage._network && stage._network.focus ? groupStart+.9 : 301.5;
+        if (!stage._network || scene.elapsed < groupStart || scene.elapsed >= end || !global.requestAnimationFrame) return;
         if (global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-            syncParts(stage, Object.assign({}, scene, {elapsed:301.5})); return;
+            syncParts(stage, Object.assign({}, scene, {elapsed:end})); return;
         }
         const origin = Date.now();
         const duration = Date.parse(snapshot.show_ends_at) - Date.parse(snapshot.show_started_at);
         const rate = duration > 0 ? 900000 / duration : 1;
         const frame = () => {
             stage._networkFrame = null;
-            const elapsed = Math.min(301.5, scene.elapsed + (Date.now() - origin) / 1000 * rate);
+            const elapsed = Math.min(end, scene.elapsed + (Date.now() - origin) / 1000 * rate);
             syncParts(stage, Object.assign({}, scene, {elapsed}));
-            if (elapsed < 301.5) stage._networkFrame = global.requestAnimationFrame(frame);
+            if (elapsed < end) stage._networkFrame = global.requestAnimationFrame(frame);
         };
         stage._networkFrame = global.requestAnimationFrame(frame);
     }
 
     function syncParts(stage, scene) {
         if (stage._network) {
-            const positions = networkPositions(stage._network.manifest, scene);
+            const focus = stage._network.focus;
+            const poses = focus ? machineFocusPoses(stage._network.manifest,scene.elapsed) : null;
+            const portrait = global.matchMedia && global.matchMedia("(max-aspect-ratio:1/1)").matches;
+            const positions = focus ? null : networkPositions(stage._network.manifest, scene, portrait);
+            const blend = 1-Math.pow(1-Math.max(0,Math.min(1,(scene.elapsed-300)/1.5)),3);
+            const source = focus ? null : machineFocusPoses(stage._network.manifest,299);
             (stage._partsRows || []).forEach(row => {
-                const point = positions[row.code];
-                ["--x", "--mx"].forEach(key => row.card.style.setProperty(key, point[0] + "%"));
-                ["--y", "--my"].forEach(key => row.card.style.setProperty(key, point[1] + "%"));
+                const point = focus ? poses[row.code].values : [positions[row.code][0],positions[row.code][1],positions[row.code][0],positions[row.code][1]];
+                ["--x","--y","--mx","--my"].forEach((key,index)=>row.card.style.setProperty(key,point[index]+"%"));
+                if (focus) row.card.style.setProperty("--scatter-scale",poses[row.code].values[4]);
+                else {
+                    const pose = source[row.code];
+                    const size = (portrait ? [0,30,14,11,8] : [0,24,11,9,6.5])[pose.depth];
+                    const opacity = pose.presented ? 1 : [0,1,.32,.23,.17][pose.depth];
+                    row.card.style.setProperty("--size",(size+((portrait?10:8)-size)*blend)+"%");
+                    row.card.style.setProperty("--scatter-scale",pose.values[4]+(1-pose.values[4])*blend);
+                    row.card.style.setProperty("--depth-opacity",opacity+(.9-opacity)*blend);
+                }
             });
             stage._network.links.forEach(link => {
-                const a = positions[link.pair[0]], b = positions[link.pair[1]];
+                const offset = link.portrait ? 2 : 0;
+                const a = focus ? poses[link.pair[0]].values.slice(offset,offset+2) : positions[link.pair[0]];
+                const b = focus ? poses[link.pair[1]].values.slice(offset,offset+2) : positions[link.pair[1]];
                 link.elements.forEach(element => {
                     Object.entries({x1:a[0]*10,y1:a[1]*10,x2:b[0]*10,y2:b[1]*10}).forEach(pair => element.setAttribute(pair[0], pair[1]));
                 });
             });
             if (stage._networkDetails) stage._networkDetails.resize();
+            if (!focus && stage._network.square) {
+                const field=stage._network.field,square=stage._network.square;
+                const size=Math.min(field.clientWidth,field.clientHeight);
+                square.style.width=(field.clientWidth+(size-field.clientWidth)*blend)+"px";
+                square.style.height=(field.clientHeight+(size-field.clientHeight)*blend)+"px";
+            }
         }
         const animatedLayers = [stage.querySelector(".parts-records"),
             stage.querySelector(".network-center"),
@@ -344,9 +394,14 @@
 
     function renderParts(doc, stage, manifest, scene, layout, pageIndex, element, addImage) {
         const network = NETWORK_SCENES.includes(scene.id);
-        const canvas = element("section", "ghost-show-parts" + (network ? " network-reference" : ""));
+        const focus = GROUP_SCENES.includes(scene.id);
+        const groupIndex = scene.id === "machine_groups" ? -1 : Number(scene.id.slice(-1))-1;
+        const machine = focus && groupIndex >= 0 ? layout.machines[groupIndex] || {} : {};
+        const focusPoses = focus ? machineFocusPoses(manifest,scene.elapsed) : null;
+        if (focus) layout.nodes.forEach(node=>{node.pose=focusPoses[node.part.part_code];});
+        const canvas = element("section", "ghost-show-parts" + (network ? " network-reference" : focus && groupIndex>=0 ? " machine-focus" : ""));
         canvas.setAttribute("data-network-scene", scene.id);
-        if (network) stage._network = {manifest, links: []};
+        if (network || focus) stage._network = {manifest, focus, links: []};
         const recordsView = scene.id === "history_logs" || scene.id === "part_states";
         canvas.setAttribute("data-view", recordsView ? "records" : "parts");
         canvas.appendChild(element("div", "background"));
@@ -365,20 +420,26 @@
         header.appendChild(element("span", "", "CZTERY PLANY / JEDNA SIEĆ"));
         canvas.appendChild(header);
         const heading = element("section", "heading");
-        heading.appendChild(element("p", "eyebrow", network ? "GHOST NETWORK / TOPOLOGIA" : scene.id === "history_logs" ? "HISTORIA CZĘŚCI / UTC"
+        heading.appendChild(element("p", "eyebrow", focus ? "GHOST NETWORK / " + (groupIndex<0 ? "CZTERY MASZYNY" : "MASZYNA 0"+(groupIndex+1)) : network ? "GHOST NETWORK / TOPOLOGIA" : scene.id === "history_logs" ? "HISTORIA CZĘŚCI / UTC"
             : scene.id === "part_states" ? "STANY CZĘŚCI / ZAPIS CYKLU" : "GHOSTSIGNAL / HISTORIA CZĘŚCI"));
         const title = element("h1", "");
-        title.appendChild(element("span", network ? "word" : "twenty", network ? "JEDNA" : String(layout.nodes.length)));
-        const word = element("span", network ? "twenty" : "word", network ? "SIEĆ" : "CZĘŚCI");
+        title.appendChild(element("span", network ? "word" : "twenty", focus && groupIndex>=0 ? "0"+(groupIndex+1) : network ? "JEDNA" : String(layout.nodes.length)));
+        const word = element("span", network ? "twenty" : "word", focus && groupIndex>=0 ? machine.name || "BRAK ZAPISU" : network ? "SIEĆ" : "CZĘŚCI");
+        if (focus && groupIndex>=0 && machine.name) {
+            word.textContent="";
+            machine.name.split(" ").forEach(name=>word.appendChild(element("span","machine-name-line",name)));
+        }
         word.appendChild(element("span", "underscore", "_")); title.appendChild(word);
         heading.appendChild(title);
-        heading.appendChild(element("p", "deck", network ? "CZTERY MASZYNY. " + layout.nodes.length + " WĘZŁÓW." : "CZTERY MASZYNY. JEDNA SIEĆ."));
+        heading.appendChild(element("p", "deck", focus && groupIndex>=0 ? "PIĘĆ CZĘŚCI. JEDNA MASZYNA." : network ? "CZTERY MASZYNY. " + layout.nodes.length + " WĘZŁÓW." : "CZTERY MASZYNY. JEDNA SIEĆ."));
         const legend = element("div", "legend");
         layout.machines.forEach((machine, index) => {
+            if (focus && groupIndex>=0 && index!==groupIndex) return;
             const label = element("span", "", "0" + (index + 1) + " / " + machine.name);
             label.setAttribute("data-clan", machine.clan_code); legend.appendChild(label);
         });
         heading.appendChild(legend);
+        if (focus && groupIndex>=0) heading.appendChild(element("p","focus-note","Pozostałe części pozostają w sieci."));
         const history = manifest.cycle_history || {};
         if (!history.available) heading.appendChild(element("p", "parts-history-note", "Historia niepełna — pokazujemy dostępny zapis."));
         if (recordsView) {
@@ -408,17 +469,17 @@
         board.setAttribute("aria-label", "Części w czterech planach");
         // Connections carry the same addresses until the network template (.3).
         // Edges come exclusively from the frozen ring, never a guessed catalog order.
-        if (scene.id === "connections" || network) {
+        if (scene.id === "connections" || network || focus) {
             (network ? [false] : [false, true]).forEach(portrait => {
                 const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
                 svg.setAttribute("class", "parts-edges " + (portrait ? "is-portrait parts-energy-portrait" : "is-desktop parts-energy-desktop"));
                 svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none");
-                if (network) { svg.setAttribute("class", "parts-edges parts-energy-desktop"); svg.setAttribute("preserveAspectRatio", "xMidYMid meet"); }
+                if (network) { svg.setAttribute("class", "parts-edges parts-energy-desktop"); svg.setAttribute("preserveAspectRatio", scene.id === "network_expand" ? "none" : "xMidYMid meet"); }
                 svg.setAttribute("aria-hidden", "true");
                 const defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
                 if (layout.edges.length) svg.appendChild(defs);
                 layout.edges.forEach((pair, index) => {
-                    const a = PART_POSES[pair[0]], b = PART_POSES[pair[1]];
+                    const a = focus ? focusPoses[pair[0]] : PART_POSES[pair[0]], b = focus ? focusPoses[pair[1]] : PART_POSES[pair[1]];
                     if (!a || !b) return;
                     const offset = portrait ? 2 : 0;
                     const coordinates = {x1:a.values[offset] * 10,y1:a.values[offset + 1] * 10,
@@ -436,8 +497,8 @@
                     });
                     defs.appendChild(gradient);
                     const link = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-                    const dynamic = {pair, elements: [gradient]};
-                    link.setAttribute("class", "parts-energy-link");
+                    const dynamic = {pair, portrait, elements: [gradient]};
+                    link.setAttribute("class", "parts-energy-link" + (focus && groupIndex>=0 && !a.presented && !b.presented ? " focus-edge-distant" : ""));
                     link.style.setProperty("--energy-offset", (index * .73).toFixed(2) + "s");
                     ["glow", "core"].forEach(layer => {
                         const line = doc.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -446,7 +507,7 @@
                         line.setAttribute("stroke", "url(#" + gradientId + ")"); link.appendChild(line);
                         dynamic.elements.push(line);
                     });
-                    if (network) stage._network.links.push(dynamic);
+                    if (network || focus) stage._network.links.push(dynamic);
                     svg.appendChild(link);
                 });
                 board.appendChild(svg);
@@ -458,6 +519,7 @@
             const card = element("li", "part");
             card.setAttribute("data-code", part.part_code); card.setAttribute("data-depth", pose.depth);
             card.setAttribute("data-clan", part.clan_code || "");
+            if (focus) {card.setAttribute("data-presented",String(pose.presented));card.setAttribute("data-front-slot",pose.slot);}
             ["--x", "--y", "--mx", "--my", "--scatter-scale", "--turn"].forEach((key, i) =>
                 card.style.setProperty(key, pose.values[i] + (i < 4 ? "%" : i === 5 ? "deg" : "")));
             if (network) { card.style.setProperty("--scatter-scale", "1"); card.style.setProperty("--turn", "0deg"); }
@@ -479,6 +541,7 @@
         if (network) {
             field = element("div", "network-field");
             const square = element("div", "network-square");
+            stage._network.square=square;stage._network.field=field;
             const center = element("div", "network-center");
             center.appendChild(element("b", "", String(layout.nodes.length)));
             center.appendChild(element("span", "", "WĘZŁÓW"));
@@ -489,7 +552,7 @@
             square.appendChild(center); square.appendChild(board); field.appendChild(square);
         }
         canvas.appendChild(field); stage.appendChild(canvas);
-        if ((network || scene.id === "connections") && global.GhostSignalNetworkDetails) {
+        if ((network || focus || scene.id === "connections") && global.GhostSignalNetworkDetails) {
             const catalog = manifest.catalog || {}, details = {};
             layout.nodes.forEach(node => {
                 const part = node.part;
@@ -1110,7 +1173,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, networkPositions, showAudioAt, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, networkPositions, machineFocusPoses, showAudioAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 

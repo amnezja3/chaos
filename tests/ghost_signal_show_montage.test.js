@@ -1,7 +1,7 @@
 const assert = require('assert');
 require('../static/js/map_glitch.js');
 require('../static/js/ghost_signal_network_details.js');
-const {createController,networkPositions} = require('../static/js/ghost_signal_show.js');
+const {createController,networkPositions,machineFocusPoses} = require('../static/js/ghost_signal_show.js');
 class Node {
     constructor(tag) {
         this.tag = tag; this.children = []; this.attrs = {}; this.className = '';
@@ -244,14 +244,35 @@ try {
     assert(root.querySelector('.parts-records').children[0].children[1].textContent.includes('consumed'));
     assert(root.querySelector('.parts-records').children[0].children[2].textContent.includes('brak zapisu'));
     seek(161);
-    assert(!root.querySelector('.ghost-show-parts'));
-    assert.strictEqual(partsStage._partsRows,null);
-    assert(!root.className.includes('has-parts'));
+    assert(root.querySelector('.ghost-show-parts'));
+    assert(!root.querySelector('.parts-records'));
     manifest.scenes = [[0,'takeover'],[30,'parts_enter'],[60,'parts_complete'],[90,'connections'],
-        [120,'history_logs'],[140,'part_states'],[160,'machine_groups'],[300,'network_expand'],
+        [120,'history_logs'],[140,'part_states'],[160,'machine_groups'],[180,'machine_group_1'],
+        [210,'machine_group_2'],[240,'machine_group_3'],[270,'machine_group_4'],[300,'network_expand'],
         [320,'network_ring'],[340,'network_tension'],[350,'network_ready'],[360,'machine_hero_1'],
         [720,'system_layers']].map((row,i,rows)=>({start:row[0],id:row[1],label:row[1],end:rows[i+1]?rows[i+1][0]:900,requires_signal_sent:row[0]>=720}));
     const startPositions=networkPositions(manifest,{elapsed:300});
+    const lastGroup=machineFocusPoses(manifest,299);
+    for(const code of Object.keys(startPositions))assert.deepStrictEqual(startPositions[code],lastGroup[code].values.slice(0,2));
+    for(const second of [195,225,255,285]) {
+        seek(second);
+        assert(root.querySelector('.machine-focus'));
+        const shown=partsStage._partsRows.filter(r=>r.card.attrs['data-presented']==='true');
+        assert.strictEqual(shown.length,5);
+        const prefix=['V','E','P','S'][Math.floor((second-180)/30)];
+        assert(shown.every(r=>r.code[0]===prefix));
+        assert(shown.every(r=>r.card.querySelector('.ghostnetwork-part-art').src.includes('/superpower/')));
+        assert.strictEqual(partsStage._network.links.length,40);
+        const count=partsStage._partsRows.filter(r=>r.card.attrs['data-presented']==='false').length;
+        assert.strictEqual(count,15);
+    }
+    seek(240.2);
+    const moving=partsStage._partsRows.find(r=>r.code==='P2');
+    const atStart=moving.card.style['--x'];
+    seek(240.6);assert.notStrictEqual(moving.card.style['--x'],atStart);
+    seek(240.2);assert.strictEqual(moving.card.style['--x'],atStart);
+    const edge=partsStage._network.links.find(e=>e.pair[0]==='P2'&&!e.portrait);
+    assert(Math.abs(edge.elements[0].attrs.x1-parseFloat(atStart)*10)<.001);
     const ringPositions=networkPositions(manifest,{elapsed:320});
     for(const point of Object.values(ringPositions))assert(Math.abs(Math.hypot(point[0]-50,point[1]-50)-41)<.00001);
     assert.notDeepStrictEqual(startPositions,ringPositions);
