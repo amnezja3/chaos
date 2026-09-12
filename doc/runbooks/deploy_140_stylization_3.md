@@ -50,15 +50,20 @@ Po PASS:
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-3-network-1.html
+  --output static/previews/ghostsignal-stylization-3-network-2.html
 ```
 
 Wybierz inną nazwę, jeżeli plik istnieje. Otwórz
-`/static/previews/ghostsignal-stylization-3-network-1.html`.
-Cache: `signal-show-stylization-3-network-1`. Worker nie wymaga reloadu
+`/static/previews/ghostsignal-stylization-3-network-2.html`.
+Cache: `signal-show-stylization-3-network-2`. Worker nie wymaga reloadu
 z powodu tej zmiany. Podgląd historyczny nie wyzwala sygnału ani restartu.
 
 ## Odbiór
+
+NETWORK-2: pierścień formuje się w **1,5 s** (05:00–05:01,5), zamiast
+przez całą 20-sekundową scenę. Szybki start i wyhamowanie ease-out;
+krótkie odświeżanie klatkowe kończy się wraz z wejściem. Seek zachowuje fazę,
+reduced motion od razu pokazuje pierścień. Sprawdź 04:59–05:03.
 
 | Czas | Scena | Sprawdzenie |
 | --- | --- | --- |

@@ -1,5 +1,12 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .3 NETWORK-2: dynamiczne formowanie pierścienia
+
+- Skrócono przejście grup → pierścień z 20 do 1,5 sekundy, z szybkim
+  startem i wyhamowaniem. Timeline sceny pozostaje bez zmian.
+- Odświeżanie klatkowe działa tylko podczas wejścia, według zegara show;
+  sprzątanie przy seek/wyjściu i wariant reduced motion. Regresja JS PASS.
+
 ## 2026-09-12 — 140.stylization.3: integracja sieci
 
 - Zintegrowano connections, network_expand, network_ring, network_tension

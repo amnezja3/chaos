@@ -255,15 +255,22 @@ try {
     const ringPositions=networkPositions(manifest,{elapsed:320});
     for(const point of Object.values(ringPositions))assert(Math.abs(Math.hypot(point[0]-50,point[1]-50)-41)<.00001);
     assert.notDeepStrictEqual(startPositions,ringPositions);
-    seek(310);
+    assert.deepStrictEqual(networkPositions(manifest,{elapsed:301.5}),ringPositions,'ring completes within 1.5 seconds');
+    const networkFrames=new Map();let networkFrameId=0;
+    global.requestAnimationFrame=callback=>{networkFrames.set(++networkFrameId,callback);return networkFrameId;};
+    global.cancelAnimationFrame=id=>networkFrames.delete(id);
+    seek(300.3);
+    assert.strictEqual(networkFrames.size,1);
     const net=root.querySelector('.network-field');
     assert.strictEqual(net.style['--network-size'],'360px');
     const before=root.querySelector('.part').style['--x'];
-    seek(315);assert.strictEqual(root.querySelector('.network-field'),net);
+    seek(300.9);assert.strictEqual(root.querySelector('.network-field'),net);
+    assert.strictEqual(networkFrames.size,1,'tick replaces, never duplicates entrance animation');
     assert.notStrictEqual(root.querySelector('.part').style['--x'],before);
-    seek(310);assert.strictEqual(root.querySelector('.part').style['--x'],before,'seek restores geometry');
+    seek(300.3);assert.strictEqual(root.querySelector('.part').style['--x'],before,'seek restores geometry');
     for(const second of [330,345,355]){
         seek(second);assert(root.querySelector('.network-square'));
+        assert.strictEqual(networkFrames.size,0,'no frame loop after entrance');
         assert(root.querySelector('.network-tooltip'),'tooltip stays inside locked show root');
         assert.strictEqual(root.querySelector('.parts-edges').children.length,21);
         const row=partsStage._partsRows[0],point=ringPositions[row.code];
@@ -281,5 +288,5 @@ try {
     seek(722);
     assert(!root.querySelector('.ghost-show-interface'),'signal gate must remove interface layout');
     assert(!root.className.includes('has-interface'));
-} finally {controller.stop();delete global.GhostRadio;delete global.top;}
+} finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

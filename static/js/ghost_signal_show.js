@@ -159,6 +159,8 @@
 
     function clearMontage(stage) {
         if (!stage) return;
+        if (stage._networkFrame != null && global.cancelAnimationFrame) global.cancelAnimationFrame(stage._networkFrame);
+        stage._networkFrame = null;
         if (stage._networkDetails) stage._networkDetails.dispose();
         stage._networkDetails = null;
         stage._network = null;
@@ -273,8 +275,8 @@
         const groups = sceneLayout(manifest, {elapsed: 299});
         const ring = (manifest.cycle_history || {}).ring_codes || [];
         const valid = groups.edges.length === 20;
-        const fraction = Math.max(0, Math.min(1, (scene.elapsed - 300) / 20));
-        const blend = fraction * fraction * (3 - 2 * fraction);
+        const fraction = Math.max(0, Math.min(1, (scene.elapsed - 300) / 1.5));
+        const blend = 1 - Math.pow(1 - fraction, 3);
         const positions = {};
         groups.nodes.forEach(node => {
             const angle = ring.indexOf(node.part.part_code) * Math.PI * 2 / 20 - Math.PI / 2;
@@ -283,6 +285,25 @@
                 y + (50 + Math.sin(angle) * 41 - y) * blend] : [x, y];
         });
         return positions;
+    }
+
+    function animateNetworkEntrance(stage, snapshot, scene) {
+        if (stage._networkFrame != null && global.cancelAnimationFrame) global.cancelAnimationFrame(stage._networkFrame);
+        stage._networkFrame = null;
+        if (!stage._network || scene.elapsed < 300 || scene.elapsed >= 301.5 || !global.requestAnimationFrame) return;
+        if (global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            syncParts(stage, Object.assign({}, scene, {elapsed:301.5})); return;
+        }
+        const origin = Date.now();
+        const duration = Date.parse(snapshot.show_ends_at) - Date.parse(snapshot.show_started_at);
+        const rate = duration > 0 ? 900000 / duration : 1;
+        const frame = () => {
+            stage._networkFrame = null;
+            const elapsed = Math.min(301.5, scene.elapsed + (Date.now() - origin) / 1000 * rate);
+            syncParts(stage, Object.assign({}, scene, {elapsed}));
+            if (elapsed < 301.5) stage._networkFrame = global.requestAnimationFrame(frame);
+        };
+        stage._networkFrame = global.requestAnimationFrame(frame);
     }
 
     function syncParts(stage, scene) {
@@ -539,7 +560,7 @@
                 glitch.setAttribute("data-glitch-level", high ? "overloaded" : "slow");
             }
         };
-        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); syncParts(stage, scene); return; }
+        if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); syncParts(stage, scene); animateNetworkEntrance(stage, snapshot, scene); return; }
         clearMontage(stage);
         const element = (tag, className, text) => {
             const node = doc.createElement(tag); node.className = className;
@@ -789,6 +810,7 @@
         }
         stage._showKey = key;
         syncGlitch();
+        animateNetworkEntrance(stage, snapshot, scene);
     }
 
     function showAudioAt(snapshot, now, offset) {
