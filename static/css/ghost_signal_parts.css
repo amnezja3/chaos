@@ -132,6 +132,13 @@
 }
 .ghost-show-parts .part img{transform:rotate(var(--turn,0deg))}
 .ghost-show-parts .parts-board{clip-path:inset(-4% -6vw -2% 0)}
+/* The left foreground hero crosses the board boundary into the text column. */
+@media(min-aspect-ratio:1/1){
+ .ghost-show-parts:not(.network-reference) .parts-board{clip-path:inset(-4% -6vw -2% -40vw)}
+ .ghost-show-parts .part[data-code="V1"][data-depth="1"],
+ .ghost-show-parts .part[data-presented="true"][data-front-slot="1"]{z-index:6}
+}
+.ghost-signal-show.has-parts .ghost-signal-show__panel{z-index:20}
 .ghost-show-parts .part[data-code="V4"] h2,.ghost-show-parts .part[data-code="V4"] .identity{position:relative;left:-55%;max-width:85%}
 .ghost-show-parts .part[data-code="V4"] .identity{align-self:flex-start;top:12%;margin-bottom:-1.2em}
 .ghost-show-parts footer{position:relative;z-index:10;background:linear-gradient(0deg,#050907 75%,#050907aa);box-shadow:0 -12px 20px #050907}

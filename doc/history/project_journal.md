@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — hero części nad panelem tekstowym
+
+- Na prośbę autora rozszerzono desktopowy obszar widoczności planszy w lewo.
+  V1 w .2 i lewa część aktywnej piątki w .4 wychodzą nad panel opisowy,
+  bez ostrego obcięcia na granicy planszy. Świadomie dopuszczone zasłanianie opisów.
+- Podniesiono warstwę hero, zachowano pozycje i połączenia. Pasek postępu
+  i przycisk dźwięku pozostają na wierzchu. Wspólne CSS referencji/runtime.
+- Token podglądu: `signal-show-stylization-4-hero-overflow-1`.
+
 ## 2026-09-12 — .4: wdrożenie warstwowych grup 160–300 s
 
 - Po akceptacji pary wdrożono machine_groups i machine_group_1–4 w

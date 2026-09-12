@@ -27,14 +27,21 @@ Po PASS:
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-4-focus-1.html
+  --output static/previews/ghostsignal-stylization-4-hero-overflow-1.html
 ```
 
 Jeśli plik już istnieje, wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-4-focus-1.html`.
-Token CSS/JS: `signal-show-stylization-4-focus-1`. Worker nie wymaga reloadu.
+`/static/previews/ghostsignal-stylization-4-hero-overflow-1.html`.
+Token CSS/JS: `signal-show-stylization-4-hero-overflow-1`. Worker nie wymaga reloadu.
 
 ## Odbiór
+
+HERO-OVERFLOW-1: na desktopie lewa część pierwszego planu może wychodzić
+poza pole części nad czarny panel tekstowy, także kosztem opisów — decyzja
+autora. Dotyczy V1 w .2 i pierwszego slotu prezentowanej piątki w .4.
+Usunięto pionowe obcięcie na granicy planszy; pozycje i krawędzie zachowane.
+Progress i przycisk dźwięku są nad kompozycją. Sprawdź 01:15 i 04:15;
+portrait zachowuje dotychczasowy overscan przy granicy viewport.
 
 | Czas | Scena | Pierwszy plan |
 | --- | --- | --- |

@@ -51,9 +51,13 @@ const manifest = {version:'ghostsignal-show-manifest-v2',nominal_duration_second
         {id:'aftershock',label:'World',start:480,end:900}]};
 let version=0, cycle=1;
 function seek(seconds) {
-    const now=Date.now(); controller.apply({show_active:true,cycle_number:cycle,state_version:++version,
+    const now=Date.now(),clock=Date.now;
+    // A seek is one instant; CPU scheduling must not advance its render clock.
+    Date.now=()=>now;
+    try { controller.apply({show_active:true,cycle_number:cycle,state_version:++version,
         server_now:new Date(now).toISOString(),show_started_at:new Date(now-seconds*1000).toISOString(),
         show_ends_at:new Date(now+(900-seconds)*1000).toISOString(),show_manifest:manifest,signal_public_id:'DEMO'});
+    } finally {Date.now=clock;}
 }
 try {
     seek(45);
