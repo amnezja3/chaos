@@ -209,7 +209,16 @@ try {
     const failed=root.querySelector('.ghostnetwork-part-art'); failed.onerror();
     assert(root.querySelector('.ghost-show-asset-fallback'));
     seek(95);
-    assert.strictEqual(root.querySelector('.parts-edges').children.length,20);
+    const energy=root.querySelector('.parts-edges');
+    assert.strictEqual(energy.children.filter(n=>n.className==='parts-energy-link').length,20);
+    const energyLink=root.querySelector('.parts-energy-link');
+    assert.strictEqual(energyLink.children.length,2,'glow and core follow the same edge');
+    assert.strictEqual(energyLink.children[0].attrs.x1,energyLink.children[1].attrs.x1);
+    assert.strictEqual(energy.children[0].children[0].attrs.gradientUnits,'userSpaceOnUse');
+    const energyAnimation={currentTime:0}; energy.getAnimations=()=>[energyAnimation];
+    seek(96);
+    assert.strictEqual(root.querySelector('.parts-edges'),energy);
+    assert(Math.abs(energyAnimation.currentTime-96000)<50);
     seek(121);
     assert.strictEqual(root.querySelector('.parts-records').children.length,5);
     assert(root.querySelector('.parts-history-note'),'partial history is explicit');

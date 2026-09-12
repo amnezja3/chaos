@@ -28,15 +28,22 @@ Worker nie wymaga reloadu z powodu tej zmiany.
 pm2 reload chaos
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-2-depth-2.html
+  --output static/previews/ghostsignal-stylization-2-energy-1.html
 ```
 
 Jeżeli plik już istnieje, wybierz nową nazwę. Otwórz
-`/static/previews/ghostsignal-stylization-2-depth-2.html`.
-Token CSS/JS: `signal-show-stylization-2-depth-2`.
+`/static/previews/ghostsignal-stylization-2-energy-1.html`.
+Token CSS/JS: `signal-show-stylization-2-energy-1`.
 Podgląd historyczny czyta bazę, nie wyzwala sygnału ani restartu gry.
 
 ## Odbiór desktop i portrait
+
+ENERGY-1: w `connections` (01:30–02:00) archiwalne połączenia mają rdzeń,
+rozmytą łunę i gradient przezroczystości na długości. Każde połączenie
+ma inną fazę 9,6-sekundowego żarzenia i krótkich błysków. Istniejący zegar
+przywraca fazę po seek; reduced motion pozostawia statyczną poświatę.
+Sprawdź ciągłe odtwarzanie przez 10 s, portrait/desktop, seek i brak ringu.
+Efekt jest dekoracją, nie informacją o aktualnym stanie maszyn.
 
 DEPTH-2: skrajne V1/V4 są powiększone do około +40% względem v3;
 pozostałe części pierwszego planu pozostają przy +20%. W 01:15 sprawdź

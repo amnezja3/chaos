@@ -1,5 +1,13 @@
 # CHAOS — Project Journal
 
+## 2026-09-12 — .2: energetyczne połączenia
+
+- Na prośbę autora scena connections ma świetlny rdzeń, rozmytą łunę
+  i zanikanie przestrzenne. Geometria/topologia pozostaje z zamrożonego ringu.
+- Animacja 9,6 s, przesunięte fazy, krótkie błyski; synchronizacja istniejącym
+  zegarem show i statyczny wariant reduced motion. Bez nowego kontrolera.
+- Podgląd/cache: `signal-show-stylization-2-energy-1`.
+
 ## 2026-09-12 — .2: dwa rozmiary pierwszego planu
 
 - Na prośbę autora skrajne V1 i V4 powiększono do około +40% względem v3;

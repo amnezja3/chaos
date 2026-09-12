@@ -266,14 +266,16 @@
     const PART_SCENES = ["parts_enter", "parts_complete", "connections", "history_logs", "part_states"];
 
     function syncParts(stage, scene) {
-        const records = stage.querySelector(".parts-records");
+        const animatedLayers = [stage.querySelector(".parts-records"),
+            stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
         // restores their phase from the existing show clock (no extra timer).
-        if (records && typeof records.getAnimations === "function") {
-            records.getAnimations({subtree: true}).forEach(animation => {
+        animatedLayers.forEach(layer => {
+            if (!layer || typeof layer.getAnimations !== "function") return;
+            layer.getAnimations({subtree: true}).forEach(animation => {
                 animation.currentTime = Math.max(0, Number(scene.elapsed) || 0) * 1000;
             });
-        }
+        });
         (stage._partsRows || []).forEach((row, index) => {
             const visible = scene.id !== "parts_enter" || index < Math.ceil(scene.progress * 20);
             row.card.style.visibility = visible ? "visible" : "hidden";
@@ -349,17 +351,39 @@
         if (scene.id === "connections") {
             [false, true].forEach(portrait => {
                 const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("class", "parts-edges " + (portrait ? "is-portrait" : "is-desktop"));
+                svg.setAttribute("class", "parts-edges " + (portrait ? "is-portrait parts-energy-portrait" : "is-desktop parts-energy-desktop"));
                 svg.setAttribute("viewBox", "0 0 1000 1000"); svg.setAttribute("preserveAspectRatio", "none");
                 svg.setAttribute("aria-hidden", "true");
-                layout.edges.forEach(pair => {
+                const defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+                if (layout.edges.length) svg.appendChild(defs);
+                layout.edges.forEach((pair, index) => {
                     const a = PART_POSES[pair[0]], b = PART_POSES[pair[1]];
                     if (!a || !b) return;
                     const offset = portrait ? 2 : 0;
-                    const line = doc.createElementNS("http://www.w3.org/2000/svg", "line");
-                    line.setAttribute("x1", a.values[offset] * 10); line.setAttribute("y1", a.values[offset + 1] * 10);
-                    line.setAttribute("x2", b.values[offset] * 10); line.setAttribute("y2", b.values[offset + 1] * 10);
-                    svg.appendChild(line);
+                    const coordinates = {x1:a.values[offset] * 10,y1:a.values[offset + 1] * 10,
+                        x2:b.values[offset] * 10,y2:b.values[offset + 1] * 10};
+                    const gradient = doc.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+                    const gradientId = "parts-energy-" + (portrait ? "p-" : "d-") + index;
+                    gradient.setAttribute("id", gradientId);
+                    gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+                    Object.keys(coordinates).forEach(key => gradient.setAttribute(key, coordinates[key]));
+                    // A gap in the glow suggests depth without hiding or inventing links.
+                    [[0,.06],[.18,.8],[.4,.16],[.54,.03],[.73,1],[1,.08]].forEach(values => {
+                        const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
+                        stop.setAttribute("offset", values[0]); stop.setAttribute("stop-color", "#b8f8d5");
+                        stop.setAttribute("stop-opacity", values[1]); gradient.appendChild(stop);
+                    });
+                    defs.appendChild(gradient);
+                    const link = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+                    link.setAttribute("class", "parts-energy-link");
+                    link.style.setProperty("--energy-offset", (index * .73).toFixed(2) + "s");
+                    ["glow", "core"].forEach(layer => {
+                        const line = doc.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("class", "parts-energy-" + layer);
+                        Object.keys(coordinates).forEach(key => line.setAttribute(key, coordinates[key]));
+                        line.setAttribute("stroke", "url(#" + gradientId + ")"); link.appendChild(line);
+                    });
+                    svg.appendChild(link);
                 });
                 board.appendChild(svg);
             });
