@@ -4,7 +4,7 @@ Status: `REFERENCE ACCEPTED / RECORD RUNTIME IMPLEMENTED / SERVER REVIEW PENDING
 
 Zapis autor potwierdził jako gotowy. Kolejna para dotyczy filmu:
 [desktop / portrait — rekonstrukcja](../../static/references/ghostsignal/transmission-video-pair.html).
-Adres: `/static/references/ghostsignal/transmission-video-pair.html?v=transmission-ref-7`.
+Adres: `/static/references/ghostsignal/transmission-video-pair.html?v=transmission-ref-8`.
 Otwiera się bezpośrednio w stanie filmu. To samo tło archiwum, tytuł
 REKONSTRUKCJA TRANSMISJI nad centralną ramką, zachowane boczne logi
 i dane pod obrazem na portrait. Pole 3:2 jest ograniczone do 720×480
@@ -14,7 +14,14 @@ Zmiany layoutu filmu są wyłącznie w CSS referencji; oczekują akceptacji.
 Korekta v6: desktop zachowuje lewy nagłówek i skalę typografii zapisu.
 Korekta v7 zastępuje margines v6: na portrait film ma po 6vw z obu stron,
 wyrównany do tytułu. Warstwa filmu jest nad nagłówkiem i może go przykrywać,
-zgodnie z decyzją autora. Poniższe 3 px dokumentuje wcześniejszy wariant.
+zgodnie z decyzją autora.
+
+Korekta v8: portrait zaakceptowany przez autora, pozostaje bez zmian.
+Desktop ma ramkę szerszą o 30% (limit 744 → 967,2 px) i pole 2:1.
+Obraz wypełnia pole przez centralne kadrowanie `object-fit:cover`, bez
+deformowania proporcji źródła 720×480. Ograniczenie dostępnej wysokości
+nadal obowiązuje. Desktop v8 oczekuje oceny autora.
+Poniższe 3 px dokumentuje wcześniejszy wariant v6.
 Na portrait obraz ma po 3 px marginesu od viewport, bez wewnętrznego
 paddingu ramki. Decyzja autora zastępuje na portrait wcześniejszy limit
 szerokości 720 px; proporcje 3:2 pozostają, bitmapa filmu nie jest zmieniana.

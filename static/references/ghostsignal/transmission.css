@@ -8,6 +8,12 @@ html,body{margin:0;height:100%;background:#050907}
 .archive-scene[data-state="video"] .archive-center{left:22%;right:22%;top:29vh;bottom:17vh;z-index:3}
 .archive-scene[data-state="video"] .archive-video-shell{max-width:min(744px,calc((54vh - 64px)*1.5 + 24px))}
 .archive-scene[data-state="video"] .archive-caption{bottom:-4vh}
+@media(min-aspect-ratio:1001/1000){
+ .archive-scene[data-state="video"] .archive-center{left:18%;right:18%}
+ .archive-scene[data-state="video"] .archive-video-shell{max-width:min(967.2px,calc((54vh - 64px)*2 + 24px))}
+ .archive-scene[data-state="video"] .archive-video-field{max-width:none;aspect-ratio:2/1}
+ .archive-scene[data-state="video"] .archive-video-field video{object-fit:cover;object-position:center}
+}
 @media(max-aspect-ratio:1/1){
  .archive-scene[data-state="video"] .archive-title{left:6vw;right:6vw;top:12vh;text-align:left}
  .archive-scene[data-state="video"] .archive-title h1{font-size:10vw}
