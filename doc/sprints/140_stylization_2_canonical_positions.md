@@ -1,53 +1,49 @@
-# .2 ? pozycje kanoniczne, propozycja do pierwszej pary
+# .2 — canonical positions v2
 
-Status: DRAFT / DO AKCEPTACJI. To plan prezentacji, nie geometria ?wiata.
+REFERENCE / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW
 
-?r?d?o: TOPOLOGY_ANCHOR i PART_DEFINITIONS w ghostnetwork/catalog.py.
-Para: [parts-pair.html](../../static/references/ghostsignal/parts-pair.html).
-Wiersz,kolumna liczone od 1. Desktop 5?4, portrait 4?5.
+Wersja 2 zastępuje poprzednią płaską siatkę. Pozycje oznaczają środki
+obiektów w procentach pola części, osobno dla obu formatów.
+Plan 1: Virex / V1–V5; plan 2: Echo / E1–E5; plan 3: Phantom / P1–P5;
+plan 4: Sentinel / S1–S5. Przypisanie planów jest kompozycyjne, nie rankingowe.
 
-| Indeks ringu | Kod | Nazwa | Desktop W,K | Portrait W,K | Maszyna / slot |
-| --- | --- | --- | --- | --- | --- |
-| 01 | V1 | Ledger Nexus | 1,1 | 1,1 | virex_oracle / 1 |
-| 02 | S5 | Judgment Core | 1,2 | 1,2 | sentinel_aegis / 5 |
-| 03 | E4 | Resonance Beacon | 1,3 | 1,3 | echo_libertas / 4 |
-| 04 | P3 | Paranoia Loop | 1,4 | 1,4 | phantom_veil / 3 |
-| 05 | V2 | Backdoor Forge | 1,5 | 2,1 | virex_oracle / 2 |
-| 06 | E1 | Breach Voice | 2,1 | 2,2 | echo_libertas / 1 |
-| 07 | S4 | Accord Relay | 2,2 | 2,3 | sentinel_aegis / 4 |
-| 08 | P5 | Mirror Kernel | 2,3 | 2,4 | phantom_veil / 5 |
-| 09 | V3 | Mimicry Engine | 2,4 | 3,1 | virex_oracle / 3 |
-| 10 | S2 | Bastion Matrix | 2,5 | 3,2 | sentinel_aegis / 2 |
-| 11 | E5 | Spark Chamber | 3,1 | 3,3 | echo_libertas / 5 |
-| 12 | P1 | Mirage Projector | 3,2 | 3,4 | phantom_veil / 1 |
-| 13 | V4 | Acquisition Drive | 3,3 | 4,1 | virex_oracle / 4 |
-| 14 | E3 | Truth Lens | 3,4 | 4,2 | echo_libertas / 3 |
-| 15 | S1 | Deep Sensor | 3,5 | 4,3 | sentinel_aegis / 1 |
-| 16 | P4 | Fracture Engine | 4,1 | 4,4 | phantom_veil / 4 |
-| 17 | V5 | Probability Core | 4,2 | 5,1 | virex_oracle / 5 |
-| 18 | S3 | Restoration Engine | 4,3 | 5,2 | sentinel_aegis / 3 |
-| 19 | E2 | Influence Relay | 4,4 | 5,3 | echo_libertas / 2 |
-| 20 | P2 | Glitch Reactor | 4,5 | 5,4 | phantom_veil / 2 |
+Szerokość części względem pola: desktop 20%, 15%, 11%, 8%; portrait 25%,
+19%, 14%, 10%. Warstwy bliższe zasłaniają dalsze, a kontrast maleje w głąb.
+Rozkład ma wyglądać swobodnie i losowo, ale jest utrwalony dla odtworzenia
+po seek i dla ciągłości między scenami. Bez losowania nowych pozycji co klatkę.
 
-## Przej?cie mi?dzy stanami
+Transformacja część → węzeł zaczyna się w tym samym środku. Następnie
+węzeł przechodzi na pozycję w ringu zamrożonego cyklu; w makiecie tożsamość
+indeksów wynika z TOPOLOGY_ANCHOR w katalogu. Brak historycznego ring_codes
+w runtime wymaga jawnego fallbacku, nie dopisania połączeń.
+Przejście do grupy i maszyny zachowuje kod, machine_code i slot 1–5.
+Układ docelowy grupy ustalamy z kompozycją maszyny w .4; kolejność odkryć
+może zmieniać odsłanianie, ale nie tożsamość ani adres części.
 
-- Cz??? ? w?ze?: pocz?tkowo ten sam ?rodek slotu; wygaszamy obraz cz??ci,
-  ods?aniamy reprezentacj? w?z?a bez utraty kodu. To?samo?? nie zale?y od indeksu DOM.
-- W?ze? ? ring: proponowany k?t to -90? + 18? ? indeks liczony od zera.
-  P?ynne przej?cie ?rodka slotu do elipsy; reflow ustala osobne promienie
-  dla obu format?w. Nie losujemy nowej topologii.
-- Ring ? grupa: kod prowadzi do swojej maszyny i slotu 1?5 z katalogu.
-  Kolejno?? maszyn: Virex Oracle, Echo Libertas, Phantom Veil, Sentinel Aegis.
-  ?rodek grupy i docelowa pozycja hero zostan? rozpisane z kompozycjami .4;
-  r??ne kompozycje korzystaj? z tego samego mapowania kod ? maszyna ? slot.
-- Historia odkrycia zmienia kolejno?? ods?aniania, nie sta?e adresy slot?w.
-- Seek/reconnect oblicza pozycj? z bie??cego czasu sceny, bez odtwarzania
-  wcze?niejszych animacji; reduced motion pokazuje w?a?ciwy stan statyczny.
+Najdalsze plany pokazują kody; nazwy pozostają w HTML dla dostępności,
+a pełna ekspozycja części będzie rozwijana w kolejnych scenach .2.
+To jedna statyczna para do akceptacji. Ruch, paralaksa i reszta grupy
+nie zostały jeszcze zaimplementowane.
 
-Para u?ywa katalogowego ringu, bez odczytu produkcji. W integracji .2/.3
-uk?ad sieci i jej po??czenia musz? respektowa? zweryfikowany ring_codes
-zamro?onego cyklu. Nie zast?pujemy brakuj?cej historii katalogowym faktem.
-Brak historycznej topologii ma jawny fallback; nie dopisujemy po??cze?.
-
-Nie implementowano jeszcze transformacji ani ca?ej grupy .2. Najpierw
-akceptacja tej jednej pary desktop/portrait i propozycji pozycji.
+| Code | Depth | Desktop X,Y (%) | Portrait X,Y (%) | Machine slot |
+| --- | --- | --- | --- | --- |
+| V1 | 1 | 15, 62 | 20, 56 | 1 |
+| S5 | 4 | 30, 37 | 90, 76 | 5 |
+| E4 | 2 | 82, 19 | 81, 18 | 4 |
+| P3 | 3 | 70, 13 | 34, 9 | 3 |
+| V2 | 1 | 38, 82 | 67, 68 | 2 |
+| E1 | 2 | 12, 36 | 18, 33 | 1 |
+| S4 | 4 | 77, 53 | 56, 59 | 4 |
+| P5 | 3 | 12, 88 | 91, 56 | 5 |
+| V3 | 1 | 67, 70 | 25, 85 | 3 |
+| S2 | 4 | 53, 14 | 71, 8 | 2 |
+| E5 | 2 | 62, 93 | 48, 96 | 5 |
+| P1 | 3 | 25, 19 | 16, 16 | 1 |
+| V4 | 1 | 85, 87 | 76, 89 | 4 |
+| E3 | 2 | 59, 36 | 48, 22 | 3 |
+| S1 | 4 | 35, 9 | 52, 8 | 1 |
+| P4 | 3 | 92, 62 | 15, 72 | 4 |
+| V5 | 1 | 84, 43 | 77, 42 | 5 |
+| S3 | 4 | 60, 55 | 33, 27 | 3 |
+| E2 | 2 | 38, 49 | 46, 45 | 2 |
+| P2 | 3 | 47, 28 | 70, 29 | 2 |

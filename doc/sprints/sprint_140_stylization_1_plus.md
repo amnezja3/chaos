@@ -4,7 +4,7 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
 Realizacja .1: `IMPLEMENTED / LOCAL JS PASS / OPERATOR ACCEPTED` (2026-09-12).
 Autor potwierdził kierunek i efekty słowami „mamy to”.
-Realizacja .2: `REFERENCE PAIR v1 / AWAITING AUTHOR REVIEW`.
+Realizacja .2: `REFERENCE PAIR v2 / FOUR DEPTH PLANES / AWAITING AUTHOR REVIEW`.
 Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
 
 ### Pierwsza para .2 — dwadzieścia części
@@ -13,21 +13,26 @@ Pozostałe sceny .2 oraz podsprinty .3–.10 pozostają w backlogu.
 [Scena w bieżącym viewport](../../static/references/ghostsignal/parts.html).
 Po push/pull: `/static/references/ghostsignal/parts-pair.html`, bez reloadu.
 
-Wybrano parts_complete, statyczny moment referencyjny 01:15. Desktop 5×4
-z dominantą „20 CZĘŚCI” obok katalogu; portrait 4×5 z komunikatem nad
-siatką. Obie kompozycje mają ten sam porządek katalogowego ringu, kody,
-nazwy i istniejące assety części. Akcenty wynikają z kanonicznego klanu.
+Wybrano parts_complete, statyczny moment referencyjny 01:15. Autor odrzucił
+płaską siatkę na rzecz czterech planów głębi. Każda grupa ma pięć części
+jednej maszyny, nieregularnie rozmieszczonych: Virex na pierwszym planie,
+Echo na drugim, Phantom na trzecim, Sentinel w oddali. To propozycja
+kolejności planów do akceptacji, nie hierarchia klanów ani wynik cyklu.
+Skala desktop: 20/15/11/8% szerokości pola; portrait: 25/19/14/10%.
+Pozycje są zapisane, a nie losowane przy każdym renderze. Kody i przypisanie
+maszyn pozostają stałe; indeks ringu nie wyznacza już siatki kadru.
+Pełne nazwy pokazujemy bliżej, kody także w oddali. Akcenty wynikają z klanu.
 Tło jest ponownie użytym wallpaper2.jpg. Bez nowych bitmap i runtime.
 
 [Mapa canonical positions](140_stylization_2_canonical_positions.md)
-rozpisuje wszystkie 20 slotów desktop/portrait, kolejność ringu oraz
+rozpisuje wszystkie 20 pozycji desktop/portrait, kolejność ringu oraz
 przypisanie do maszyny i slotu 1–5. Część przechodzi we węzeł z tego samego
 środka; późniejsze przemieszczenia do ringu i grup są jawnie zaplanowane.
 W integracji topologia będzie pochodzić z zamrożonego cyklu, a brak historii
 nie zostanie zastąpiony fikcyjnym rekordem.
 
 Do akceptacji: pełny zestaw i czytelność nazw, wielkość części, proporcja
-nagłówka do siatki oraz porządek slotów. Makieta nie podaje dat, aktywacji
+nagłówka do przestrzennej kompozycji i rozdzielenie czterech planów. Makieta nie podaje dat, aktywacji
 ani wyników produkcyjnego cyklu; czas służy wyłącznie kompozycji.
 Sprawdzono 20 unikalnych kodów, obecność 20 assetów i składnię JS pary.
 Brak automatycznego odbioru wizualnego w przeglądarce. Transformacje, efekty

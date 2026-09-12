@@ -4586,3 +4586,13 @@ przejść: doc/sprints/140_stylization_2_canonical_positions.md.
 Reuse 20 assetów części i wallpaper2.jpg; bez dat/stanów produkcji,
 triggera i zmian runtime. Kody/assety oraz składnia pary sprawdzone.
 Para i propozycja pozycji czekają na akceptację przed rozwinięciem .2.
+
+### 2026-09-12 — korekta pary .2: cztery plany głębi
+
+Autor wymaga grup części o malejącej skali, swobodnie rozmieszczonych
+na czterech planach. Zastąpiono siatkę kompozycją 4×5 części pogrupowanych
+według maszyn, z osobnymi pozycjami desktop/portrait, skalą i kontrastem.
+Rozkład jest zapisany dla ciągłości i późniejszego seek. Zaktualizowano
+mapę pozycji; zachowano tożsamość części i przypisanie do maszyn.
+Sprawdzono 20 pozycji, po pięć w grupie i składnię podglądu.
+Para v2 pozostaje do odbioru wizualnego; bez zmian runtime i triggera.
