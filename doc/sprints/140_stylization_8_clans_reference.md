@@ -1,6 +1,9 @@
 # .8 — ranking klanów / para referencyjna
 
-Status: PARA ZAAKCEPTOWANA, WDROŻONA. Odbiór runtime klanów pozostaje otwarty.
+Status: ZAMKNIĘTE / PASS użytkownika dla wdrożonej prezentacji klanów.
+Odebrany wariant używa czterech assetów `_logo_pro.png`, które zastąpiły
+opisane niżej wcześniejsze SVG. Nazwy, pozycje, Ghost Score, RSP i liczby
+uczestników korzystają z rankingu finału; podświetlenie listy zgodne ze sceną.
 [Procedura wdrożenia](../runbooks/deploy_140_stylization_8_clans.md).
 
 Wariant clans-ref-2: symbole odtworzone ręcznie jako czyste ścieżki SVG

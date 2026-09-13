@@ -2,10 +2,15 @@
 
 Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
+Bieżący checkpoint: .9 — para publikacji i archiwum, rozpoczęta na polecenie
+użytkownika. [Referencja .9](140_stylization_9_publications_reference.md).
+Statystyki cyklu pozostają otwartym elementem .8.
+
 Checkpoint .8 — nagrody: ZAMKNIĘTY / PASS użytkownika. Scena nagród,
 mobile, dane archiwalne i konfiguracja nowych stawek 800/2000/800 RSP
-odebrane. Gracze/ranking również PASS. Następny checkpoint: para rankingu
-klanów, `static/references/ghostsignal/clans-pair.html?v=clans-ref-1`.
+odebrane. Gracze/ranking również PASS. Checkpoint klanów: ZAMKNIĘTY / PASS
+użytkownika, runtime z czterema logotypami `_pro.png` zaakceptowany.
+[Odbiór klanów](../runbooks/deploy_140_stylization_8_clans.md).
 
 Aktualizacja .7 (2026-09-13): zaakceptowana para world-ref-2 wdrożona
 do sześciu scen map/terytoriów. Wspólny CSS, lokalny glob SVG,

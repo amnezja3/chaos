@@ -1,5 +1,7 @@
 # .8 — klany / wdrożenie
 
+Status: ZAMKNIĘTE / PASS użytkownika po podmianie logotypów na `_pro.png`.
+
 Wariant clans-2: na życzenie użytkownika symbole SVG zastąpiono przygotowanymi
 assetami virex_logo_pro.png, echo_logo_pro.png, mesh_logo_pro.png oraz
 sentinel_logo_pro.png z tego samego katalogu. `object-fit:contain` zachowuje

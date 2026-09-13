@@ -1,5 +1,12 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — .8: zamknięcie checkpointu klanów
+
+Użytkownik potwierdził PASS prezentacji klanów z nowymi assetami
+virex_logo_pro.png, echo_logo_pro.png, mesh_logo_pro.png i sentinel_logo_pro.png.
+Checkpoint zamknięty; nagrody oraz gracze/ranking także mają wcześniejszy PASS.
+Nie uruchamiano produkcyjnego triggera ani pełnego finałowego E2E.
+
 ## 2026-09-13 — .7: glob i archiwalne terytoria
 
 Po akceptacji world-ref-2 wdrożono sześć scen map i rozliczenia świata.
