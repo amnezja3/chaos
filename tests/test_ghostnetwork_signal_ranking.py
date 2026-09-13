@@ -158,14 +158,19 @@ class GhostSignalRankingTest(unittest.TestCase):
                              + ",".join("?" for _ in values) + ")", tuple(values.values()))
             for tag, scope, status, active in [("good", "public", "published", "active"),
                     ("private", "owner", "published", "active"), ("pending", "public", "ready", "active"),
-                    ("invalid", "public", "published", "invalidated")]:
+                    ("invalid", "public", "published", "invalidated"),
+                    ("expired", "public", "published", "expired"),
+                    ("ttl_elapsed", "public", "published", "active"),
+                    ("expired_private", "clan", "published", "expired"),
+                    ("future", "public", "published", "active")]:
                 insert("ghost_narrative_publication_receipts", {"publication_receipt_id": tag, "status": status,
                     "candidate_id": tag, "task_id": tag, "target_medium": "blacknet", "audience_scope": scope})
                 insert("ghost_narrative_medium_records", {"medium_record_id": tag, "publication_receipt_id": tag,
                     "source_event_id": event["event_id"], "source_scope": "ghostnetwork", "title": tag,
                     "body": "excerpt", "target_medium": "blacknet", "audience_scope": scope,
-                    "active_state": active, "published_at": now})
-        self.assertEqual([r["title"] for r in self.repo.list_show_publication_excerpts(cycle["cycle_id"], now)], ["good"])
+                    "active_state": active, "published_at": "2999-01-01T00:00:00Z" if tag == "future" else now,
+                    "valid_until": "2000-01-01T00:00:00Z" if tag in {"expired", "ttl_elapsed", "expired_private"} else ""})
+        self.assertEqual({r["title"] for r in self.repo.list_show_publication_excerpts(cycle["cycle_id"], now)}, {"good", "expired", "ttl_elapsed"})
         self.assertEqual(self.repo.list_show_publication_excerpts("another-cycle", now), [])
 
     def test_production_conflicts_require_archive_reference_and_preexisting_resolution(self):

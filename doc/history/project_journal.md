@@ -1,5 +1,19 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — publikacje archiwalne a TTL bieżącego feedu
+
+Operator potwierdził płynny odsłuch w jednej sesji. Screeny wskazały puste
+Googleplex i BlackNet. Odczyt bazy: show 13 września 11:37:50–11:52:50 UTC,
+zero publikacji w projekcji; najnowsze powiązane publikacje z 9 września,
+wygasłe przed show. Przyczyną odfiltrowania był TTL bieżącego feedu.
+
+Odczyt archiwum cyklu dopuszcza teraz publiczne, opublikowane rekordy
+active/expired sprzed końca show, niezależnie od TTL. Nadal wyklucza
+invalidated, owner/clan, nieopublikowane, inne cykle i późniejsze publikacje.
+Nie reaktywuje wiadomości w feedach i nie zmienia bazy. Historyczny generator
+odtworzy fragmenty przy ponownej generacji HTML. Brak nowych publikacji
+po triggerze pozostaje osobną kwestią do diagnostyki pipeline'u narracji.
+
 ## 2026-09-13 — produkcyjny przebieg 140 i poprawki po odbiorze
 
 Operator potwierdził zakończenie show po triggerze zgodnie z planem (8/10).

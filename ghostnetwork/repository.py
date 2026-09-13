@@ -2605,7 +2605,7 @@ class GhostNetworkRepository:
                 (serialized, _clean(signal_id)))
 
     def list_show_publication_excerpts(self, cycle_id, cutoff):
-        """Published public excerpts at the supplied cutoff; no candidate/CTA/private payload reads."""
+        """Cycle archive at cutoff: public published excerpts survive feed TTL, not invalidation."""
         with self._conn() as conn:
             return self._show_publication_excerpts(conn, cycle_id, cutoff)
 
@@ -2620,10 +2620,10 @@ class GhostNetworkRepository:
             WHERE e.cycle_id=? AND m.source_scope='ghostnetwork'
                 AND m.audience_scope='public' AND m.audience_clan='' AND m.audience_owner=''
                 AND m.target_medium IN ('blacknet', 'googleplex_news')
-                AND m.active_state='active' AND r.status='published'
-                AND m.published_at<=? AND (m.valid_until='' OR m.valid_until>?)
+                AND m.active_state IN ('active','expired') AND r.status='published'
+                AND m.published_at!='' AND m.published_at<=?
             ORDER BY m.published_at DESC, m.medium_record_id DESC LIMIT 6""",
-            (_clean(cycle_id), _clean(cutoff), _clean(cutoff))).fetchall()
+            (_clean(cycle_id), _clean(cutoff))).fetchall()
         return [dict(row) for row in rows]
 
     def get_show_presentation_facts(self, signal_id):
