@@ -69,11 +69,11 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             if (showPlayback !== current) return;
             const t = current.elapsed + (Date.now() - current.anchor) / 1000;
             const start = current.videoStart, end = current.videoEnd;
-            const fadingOut = t >= start && t < start + 0.5;
+            const fadingOut = t >= start && t < start + 3.5;
             const fadingIn = t >= end && t < end + 0.5;
-            current.gain = fadingOut ? (start + 0.5 - t) / 0.5 : fadingIn ? (t - end) / 0.5
-                : t >= start + 0.5 && t < end ? 0 : 1;
-            if (t >= start + 0.5 && t < end) { current.paused = true; current.inVideo = true; current.offset = current.pauseOffset; state.audio.pause(); }
+            current.gain = fadingOut ? (start + 3.5 - t) / 3.5 : fadingIn ? (t - end) / 0.5
+                : t >= start + 3.5 && t < end ? 0 : 1;
+            if (t >= start + 3.5 && t < end) { current.paused = true; current.inVideo = true; current.offset = current.pauseOffset; state.audio.pause(); }
             if (t >= end && current.inVideo) {
                 current.inVideo = false; current.paused = !current.src;
                 current.offset += t - end;
@@ -407,9 +407,9 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             current.offset = Math.max(0, Number(request.offset) || 0);
             current.paused = !!request.paused || !src;
             current.elapsed = Number(request.elapsed) || 0; current.anchor = Date.now();
-            current.pauseOffset = current.offset + Math.max(0, 425.5 - current.elapsed);
+            current.pauseOffset = current.offset + Math.max(0, 428.5 - current.elapsed);
             current.videoStart = 425; current.videoEnd = 463.12;
-            current.inVideo = current.elapsed >= current.videoStart + 0.5 && current.elapsed < current.videoEnd;
+            current.inVideo = current.elapsed >= current.videoStart + 3.5 && current.elapsed < current.videoEnd;
             if (current.src !== src) {
                 current.src = src; current.failed = false; current.playPending = false;
                 state.audio.pause();

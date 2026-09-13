@@ -40,7 +40,7 @@ wyniku nowego triggera z aktualnymi stawkami.
 | --- | --- |
 | 0–160 s | Przejęcie, części, głębia, OFS i połączenia |
 | 160–420 s | Grupy, pierścień, cztery maszyny; brak pozostałości poprzedniej sceny |
-| 420–480 s | Cały film z końcówką, wyciszenie/powrót muzyki po 0,5 s, błysk i ekran 2108 |
+| 420–480 s | Cały film z końcówką; wyciszenie muzyki przez 3,5 s od pierwszej klatki, powrót przez 0,5 s; błysk i ekran 2108 |
 | 480–630 s | Jednokrotny przegląd terytoriów, równe czasy, właściciele i współrzędne |
 | 630–720 s | Nagrody, gracze, avatary, poziomy, klany i aktywne pozycje list |
 | 720–840 s | Ekrany systemowe, publikacje i logi bez scrolli |

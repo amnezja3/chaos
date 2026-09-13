@@ -10,9 +10,11 @@ const snapshot = {show_active:true,signal_public_id:'S1',show_started_at:new Dat
 function at(t) {return showAudioAt(snapshot,t*1000,0);}
 assert.strictEqual(at(203.702813).src,tracks[1].src);
 assert.strictEqual(at(425.25).paused,false);
-assert.strictEqual(at(425.5).paused,true);
+assert.strictEqual(at(425.5).paused,false);
+assert.strictEqual(at(428.49).paused,false);
+assert.strictEqual(at(428.5).paused,true);
 assert.strictEqual(at(463.12).paused,false);
-assert(Math.abs(at(425.5).offset-at(463.12).offset)<1e-8);
+assert(Math.abs(at(428.5).offset-at(463.12).offset)<1e-8);
 assert.strictEqual(at(898).src,'');
 assert.strictEqual(showAudioAt({show_active:false},0,0),null);
 
@@ -54,9 +56,11 @@ const radio=context.GhostRadio;
     assert.strictEqual(audios.length,1,'reuse existing radio element');
     assert.strictEqual(audio.src,tracks[2].src);
     assert(!audio.paused);
-    advance(250);
-    assert(audio.volume>0.35 && audio.volume<0.45,'half gain during 0.5 second overlap');
-    advance(270);
+    advance(1750);
+    assert(audio.volume>0.35 && audio.volume<0.45,'half gain during 3.5 second overlap');
+    radio.syncShow(at(426.75));
+    assert(audio.volume>0.35 && audio.volume<0.45,'recovery retains fade progress');
+    advance(1770);
     assert(audio.paused && audio.volume===0);
     radio.syncShow(at(463.12));
     assert.strictEqual(audio.volume,0);

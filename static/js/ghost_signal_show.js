@@ -1293,7 +1293,7 @@
         if (!snapshot || !snapshot.show_active || !config || !Array.isArray(config.show_tracks)
                 || config.show_tracks.length !== 4 || !Number.isFinite(start) || !(end > start)) return null;
         const elapsed = Math.max(0, (now + (offset || 0) - start) * 900 / (end - start));
-        const pauseAt = 425.5, resumeAt = 463.12;
+        const pauseAt = 428.5, resumeAt = 463.12;
         const position = elapsed < pauseAt ? elapsed : elapsed < resumeAt ? pauseAt : elapsed - (resumeAt - pauseAt);
         let base = 0;
         for (const track of config.show_tracks) {

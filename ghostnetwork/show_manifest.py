@@ -227,5 +227,6 @@ def build_manifest(facts, scene_snapshot=None):
                                    "duration": duration} for i, duration in enumerate(
                                        (203.702813, 210.964875, 234.083250, 211.304438))],
                   "video_start": 425, "video_end": 463.12, "video_audio": True,
-                  "fade_seconds": 0.5, "overlap_video_intro": True},
+                  "fade_seconds": 0.5, "fade_out_seconds": 3.5,
+                  "fade_in_seconds": 0.5, "overlap_video_intro": True},
     }

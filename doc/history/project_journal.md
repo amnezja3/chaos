@@ -1,5 +1,15 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — .10: dłuższe wejście audio filmu
+
+Po odbiorze całości autor wskazał jedną korektę: muzyka show wycisza się
+przez 3,5 s od startu filmu (425–428,5 s), nakładając się na jego ścieżkę.
+Powrót po filmie nadal trwa 0,5 s. Przesunięto punkt zatrzymania playlisty
+oraz offset wznowienia, bez zmiany czasów scen. Muzyka odtwarza dodatkowe
+3 s podczas wejścia, więc koniec playlisty wypada 3 s wcześniej niż dotąd.
+Cache JS show/radio: fade-3500-1. Testy audio (w tym recovery w środku
+wyciszenia), frontend, recovery, manifest i montaż 49 scen PASS.
+
 ## 2026-09-13 — .10: przygotowanie montażu i pary przejścia
 
 Para 415–480 s korzysta z istniejącego renderera show w desktop/portrait:
