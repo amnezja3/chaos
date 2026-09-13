@@ -1,0 +1,47 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GH0ST ADMIN / Zgłoszenia</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;background:#080e0b;color:#c5cec3;font:14px/1.6 monospace}main{max-width:1100px;margin:auto}nav,form{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}a{color:#93b99f}button,input,select{font:inherit;padding:10px;background:#101a14;color:inherit;border:1px solid #93b99f66;max-width:100%}button{cursor:pointer}article{padding:18px;border:1px solid #93b99f44;margin:16px 0;overflow-wrap:anywhere}h2{font-size:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere}small{color:#95a69b}.status{display:flex;gap:10px;align-items:center;flex-wrap:wrap}#notice{min-height:24px}button:focus-visible,a:focus-visible{outline:2px solid #93b99f}
+</style></head><body><main>
+<nav><a href="/admin">Użytkownicy i świat</a><strong>Zgłoszenia błędów</strong><a href="/desktop">Pulpit</a></nav>
+<h1>Zgłoszenia błędów</h1>
+<form id="filters"><input name="search" placeholder="Szukaj w tytule i opisie" aria-label="Szukaj"><select name="status" aria-label="Status"><option value="">Wszystkie statusy</option></select><select name="category" aria-label="Kategoria"><option value="">Wszystkie kategorie</option></select><button>Filtruj / odśwież</button></form>
+<button id="dump">Dump all — pobierz wszystkie zgłoszenia TXT</button>
+<p id="notice" role="status"></p><div id="reports"></div>
+<script id="session-generation-config" type="application/json">{{ generation|tojson }}</script>
+<script src="/static/js/session_generation.js"></script>
+<script>
+const filters=document.getElementById('filters'),notice=document.getElementById('notice'),reports=document.getElementById('reports');
+const make=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
+let statuses=[];
+async function load(){
+ notice.textContent='Ładowanie…';
+ try{
+  const response=await fetch('/api/dev/bug-reports?'+new URLSearchParams(new FormData(filters)),{cache:'no-store'});
+  const data=await response.json();if(!response.ok||!data.success)throw new Error(data.message||'Błąd odczytu');
+  statuses=data.statuses;
+  for(const [name,values] of [['status',statuses],['category',data.categories]]){
+   const select=filters.elements[name];if(select.options.length===1)values.forEach(value=>select.add(new Option(value,value)));
+  }
+  reports.replaceChildren();
+  data.reports.forEach(report=>{
+   const card=make('article');card.append(make('h2','#'+report.id+' / '+report.title));
+   card.append(make('small',report.created_by+' / '+report.created_at+' / '+report.category+' / '+report.severity));
+   card.append(make('pre',report.description));
+   const controls=make('div');controls.className='status';const label=make('label','Status '),select=make('select');
+   statuses.forEach(status=>select.add(new Option(status,status)));select.value=report.status;label.append(select);controls.append(label);
+   const save=make('button','Zapisz status');controls.append(save);card.append(controls);
+   save.onclick=async()=>{save.disabled=true;try{const res=await fetch('/api/dev/bug-reports/'+report.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:select.value})});const result=await res.json();if(!res.ok||!result.success)throw new Error(result.message||'Błąd zapisu');notice.textContent='Zapisano status #'+report.id;}catch(error){notice.textContent=error.message;}finally{save.disabled=false;}};
+   const detail=make('details');detail.append(make('summary','Pełny zapis i kontekst'));detail.append(make('pre',JSON.stringify(report,null,2)));card.append(detail);reports.append(card);
+  });
+  notice.textContent='Wyświetlono: '+data.reports.length+' (maks. 200). Dump all obejmuje wszystkie zgłoszenia i statusy.';
+ }catch(error){notice.textContent=error.message;}
+}
+filters.onsubmit=event=>{event.preventDefault();load();};
+document.getElementById('dump').onclick=async function(){this.disabled=true;try{
+ const response=await fetch('/api/admin/bug-reports/dump',{cache:'no-store'});if(!response.ok)throw new Error('Eksport niedostępny');
+ const url=URL.createObjectURL(await response.blob()),link=make('a');link.href=url;link.download='chaos-bug-reports.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ notice.textContent='Pobrano wszystkie zgłoszenia.';
+}catch(error){notice.textContent=error.message;}finally{this.disabled=false;}};
+load();
+</script></main></body></html>

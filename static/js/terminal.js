@@ -1,4 +1,4 @@
-﻿let terminalCount = 3;
+let terminalCount = 3;
 let topZIndex = 1000;
 let windowSequence = 0;
 let toolbarLauncherApps = [];
@@ -4720,327 +4720,33 @@ function createDevBugReporterApp() {
     app.dataset.app = 'dev-bug-reporter';
     app.dataset.appTitle = 'Dev Bug Reporter';
     app.dataset.appIcon = '\u{1F41E}';
-    const position = findAvailablePosition(920, 620);
-    app.style.top = `${position.top}px`;
-    app.style.left = `${position.left}px`;
-    app.style.width = '920px';
-    app.style.height = '620px';
-    app.innerHTML = `
-        <div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content dev-bug-shell" data-dev-bug-view="list">
-            <div class="dev-bug-toolbar">
-                <input type="search" data-bug-search placeholder="Szukaj zgłoszeń..." />
-                <select data-bug-category-filter>
-                    <option value="">Wszystkie kategorie</option>
-                    ${DEV_BUG_CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
-                </select>
-                <select data-bug-status-filter>
-                    <option value="">Wszystkie statusy</option>
-                    ${DEV_BUG_STATUSES.map(status => `<option value="${status}">${status}</option>`).join('')}
-                </select>
-                <button type="button" data-bug-show-form>Dodaj zgłoszenie</button>
-                <button type="button" data-bug-refresh>Odśwież</button>
-            </div>
-            <div class="dev-bug-message" data-bug-message></div>
-            <div class="dev-bug-layout">
-                <aside class="dev-bug-list" data-bug-list>
-                    <div class="dev-bug-empty">Ładowanie zgłoszeń...</div>
-                </aside>
-                <main class="dev-bug-detail">
-                    <section class="dev-bug-card" data-bug-detail>
-                        <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
-                        <h3>Wybierz zgłoszenie</h3>
-                        <p>Lista jest wspólna dla testerów dev/staging.</p>
-                    </section>
-                    <section class="dev-bug-card dev-bug-form-card" data-bug-form-card>
-                        <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
-                        <h3>Nowe zgłoszenie</h3>
-                        <form data-bug-form>
-                            <label>Tytuł
-                                <input type="text" name="title" required maxlength="160" placeholder="Krótko: co nie działa?" />
-                            </label>
-                            <div class="dev-bug-duplicates" data-bug-duplicates hidden></div>
-                            <label>Opis
-                                <textarea name="description" rows="5" placeholder="Kroki, oczekiwany wynik, aktualny wynik..."></textarea>
-                            </label>
-                            <div class="dev-bug-form-grid">
-                                <label>Kategoria
-                                    <select name="category">
-                                        ${DEV_BUG_CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
-                                    </select>
-                                </label>
-                                <label>Severity
-                                    <select name="severity">
-                                        ${DEV_BUG_SEVERITIES.map(level => `<option value="${level}">${level}</option>`).join('')}
-                                    </select>
-                                </label>
-                            </div>
-                            <button type="submit">Dodaj zgłoszenie</button>
-                        </form>
-                    </section>
-                </main>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(app);
-    makeDraggable(app);
-    registerWindowInTaskbar(app);
-    bringWindowToFront(app);
-    app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
-
-    const state = {
-        reports: [],
-        selectedId: null,
-        appVersion: '',
-        mobileView: 'list',
+    const position = findAvailablePosition(620, 580);
+    Object.assign(app.style, {top: `${position.top}px`, left: `${position.left}px`, width: '620px', height: '580px'});
+    app.innerHTML = `<div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right;cursor:pointer">✖</span></div>
+        <div class="app-content" style="overflow:auto;min-height:0;flex:1;padding:16px">
+        <p>Zgłoś błąd administratorowi. Zgłoszenia są widoczne tylko w panelu admina.</p>
+        <div class="dev-bug-message" role="status"></div>
+        <section class="dev-bug-card dev-bug-form-card"><form>
+        <label>Tytuł<input name="title" required maxlength="160"></label>
+        <label>Opis<textarea name="description" rows="6" placeholder="Kroki, oczekiwany wynik, aktualny wynik…"></textarea></label>
+        <div class="dev-bug-form-grid"><label>Kategoria<select name="category">${DEV_BUG_CATEGORIES.map(value=>`<option>${value}</option>`).join('')}</select></label>
+        <label>Ważność<select name="severity">${DEV_BUG_SEVERITIES.map(value=>`<option>${value}</option>`).join('')}</select></label></div>
+        <button type="submit">Wyślij zgłoszenie</button></form></section></div>`;
+    document.body.appendChild(app);makeDraggable(app);registerWindowInTaskbar(app);bringWindowToFront(app);
+    app.querySelector('.close-btn').onclick=()=>app.remove();
+    const form=app.querySelector('form'),message=app.querySelector('[role="status"]');
+    form.onsubmit=async event=>{
+        event.preventDefault();const button=form.querySelector('button');button.disabled=true;message.textContent='Wysyłanie…';
+        try{
+            const payload=Object.fromEntries(new FormData(form));
+            payload.context=await collectDevBugReporterContext();payload.current_url=location.href;payload.screen=`${innerWidth}x${innerHeight}`;
+            const response=await fetch('/api/dev/bug-reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            const data=await response.json();if(!response.ok||!data.success)throw new Error(data.message||'Błąd zapisu');
+            form.reset();message.textContent='Zgłoszenie #'+data.report.id+' zostało przekazane administratorowi.';
+        }catch(error){message.textContent=error.message;}finally{button.disabled=false;}
     };
-    const shell = app.querySelector('.dev-bug-shell');
-
-    const isDevBugNarrow = () => app.classList.contains('dev-bug-window-narrow')
-        || app.classList.contains('browser-narrow')
-        || window.matchMedia('(max-width: 760px), (max-height: 700px)').matches;
-    const setDevBugView = (view) => {
-        state.mobileView = ["list", "form", "detail"].includes(view) ? view : "list";
-        if (shell) shell.dataset.devBugView = state.mobileView;
-    };
-    const updateDevBugNarrowMode = () => {
-        const rect = app.getBoundingClientRect();
-        app.classList.toggle('dev-bug-window-narrow', rect.width < 760 || rect.height < 620);
-        if (shell) shell.dataset.devBugView = state.mobileView;
-    };
-
-    const setMessage = (message, type = 'info') => {
-        const box = app.querySelector('[data-bug-message]');
-        if (!box) return;
-        box.textContent = message || '';
-        box.dataset.type = type;
-    };
-
-    const renderDetail = (report) => {
-        const detail = app.querySelector('[data-bug-detail]');
-        if (!detail) return;
-        if (!report) {
-            detail.innerHTML = `
-                <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
-                <h3>Wybierz zgłoszenie</h3>
-                <p>Lista jest wspólna dla testerów dev/staging.</p>
-            `;
-            detail.querySelector('[data-bug-back]')?.addEventListener('click', () => setDevBugView('list'));
-            return;
-        }
-        detail.innerHTML = `
-            <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
-            <div class="dev-bug-detail-head">
-                <h3>#${report.id} ${escapeHTML(report.title)}</h3>
-                <select data-bug-status-update>
-                    ${DEV_BUG_STATUSES.map(status => `<option value="${status}" ${status === report.status ? 'selected' : ''}>${status}</option>`).join('')}
-                </select>
-            </div>
-            <div class="dev-bug-meta">
-                <span>${escapeHTML(report.category)}</span>
-                <span>${escapeHTML(report.severity)}</span>
-                <span>${escapeHTML(report.status)}</span>
-                <span>${escapeHTML(report.app_version || state.appVersion || '')}</span>
-            </div>
-            <p class="dev-bug-description">${escapeHTML(report.description || 'Brak opisu.')}</p>
-            <dl class="dev-bug-context">
-                <dt>Autor</dt><dd>${escapeHTML(report.created_by || '-')}</dd>
-                <dt>Utworzono</dt><dd>${escapeHTML(report.created_at || '-')}</dd>
-                <dt>Aktualizacja</dt><dd>${escapeHTML(report.updated_at || '-')}</dd>
-                <dt>URL</dt><dd>${escapeHTML(report.current_url || '-')}</dd>
-                <dt>Ekran</dt><dd>${escapeHTML(report.screen || '-')}</dd>
-            </dl>
-            <h4>Kontekst</h4>
-            ${renderDevBugContextSummary(report.context || {})}
-            <details class="dev-bug-context-json">
-                <summary>Pełny context_json</summary>
-                <textarea readonly>${escapeHTML(JSON.stringify(report.context || {}, null, 2))}</textarea>
-            </details>
-        `;
-        detail.querySelector('[data-bug-back]')?.addEventListener('click', () => setDevBugView('list'));
-        detail.querySelector('[data-bug-status-update]')?.addEventListener('change', async (event) => {
-            await updateBugReportStatus(report.id, event.target.value);
-        });
-    };
-
-    const renderList = () => {
-        const list = app.querySelector('[data-bug-list]');
-        if (!list) return;
-        if (!state.reports.length) {
-            list.innerHTML = '<div class="dev-bug-empty">Brak zgłoszeń dla aktualnych filtrów.</div>';
-            renderDetail(null);
-            return;
-        }
-        if (!state.reports.some(item => item.id === state.selectedId)) {
-            state.selectedId = state.reports[0]?.id || null;
-        }
-        list.innerHTML = state.reports.map(report => `
-            <button type="button" class="dev-bug-list-item ${report.id === state.selectedId ? 'active' : ''}" data-report-id="${report.id}">
-                <strong>${escapeHTML(report.title)}</strong>
-                <span>${escapeHTML(report.category)} / ${escapeHTML(report.severity)} / ${escapeHTML(report.status)}</span>
-                <small>#${report.id} ${escapeHTML(report.updated_at || report.created_at || '')}</small>
-            </button>
-        `).join('');
-        list.querySelectorAll('[data-report-id]').forEach(button => {
-            button.addEventListener('click', () => {
-                state.selectedId = Number(button.dataset.reportId);
-                renderList();
-                setDevBugView('detail');
-            });
-        });
-        renderDetail(state.reports.find(item => item.id === state.selectedId));
-    };
-
-    const loadReports = async () => {
-        const params = new URLSearchParams();
-        const search = app.querySelector('[data-bug-search]')?.value || '';
-        const category = app.querySelector('[data-bug-category-filter]')?.value || '';
-        const status = app.querySelector('[data-bug-status-filter]')?.value || '';
-        if (search) params.set('search', search);
-        if (category) params.set('category', category);
-        if (status) params.set('status', status);
-        setMessage('Ładowanie zgłoszeń...');
-        try {
-            const res = await fetch(`/api/dev/bug-reports?${params.toString()}`);
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                setMessage(data.message || 'Dev Bug Reporter jest niedostępny.', 'error');
-                return;
-            }
-            state.reports = data.reports || [];
-            state.appVersion = data.app_version || '';
-            setMessage(`Zgłoszenia: ${state.reports.length}`, 'success');
-            renderList();
-        } catch (err) {
-            console.error('Dev Bug Reporter load failed:', err);
-            setMessage('Błąd połączenia z Dev Bug Reporter.', 'error');
-        }
-    };
-
-    const updateBugReportStatus = async (reportId, status) => {
-        setMessage('Aktualizacja statusu...');
-        try {
-            const res = await fetch(`/api/dev/bug-reports/${encodeURIComponent(reportId)}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                setMessage(data.message || 'Nie udało się zmienić statusu.', 'error');
-                return;
-            }
-            setMessage(data.message || 'Status zmieniony.', 'success');
-            await loadReports();
-        } catch (err) {
-            console.error('Dev Bug Reporter update failed:', err);
-            setMessage('Błąd aktualizacji statusu.', 'error');
-        }
-    };
-
-    const loadSimilar = async (title) => {
-        const box = app.querySelector('[data-bug-duplicates]');
-        if (!box) return;
-        const clean = String(title || '').trim();
-        if (clean.length < 4) {
-            box.hidden = true;
-            box.innerHTML = '';
-            return;
-        }
-        try {
-            const res = await fetch(`/api/dev/bug-reports/similar?title=${encodeURIComponent(clean)}`);
-            const data = await res.json();
-            const reports = (data.reports || []).slice(0, 4);
-            if (!reports.length) {
-                box.hidden = true;
-                box.innerHTML = '';
-                return;
-            }
-            box.hidden = false;
-            box.innerHTML = `
-                <strong>Możliwe, że taki bug już istnieje.</strong>
-                ${reports.map(item => `<span>#${item.id} ${escapeHTML(item.title)}</span>`).join('')}
-            `;
-        } catch (err) {
-            box.hidden = true;
-        }
-    };
-
-    let debounceTimer = null;
-    app.querySelector('[name="title"]')?.addEventListener('input', (event) => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => loadSimilar(event.target.value), 280);
-    });
-
-    app.querySelector('[data-bug-form]')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const context = await collectDevBugReporterContext();
-        const payload = {
-            title: form.title.value,
-            description: form.description.value,
-            category: form.category.value,
-            severity: form.severity.value,
-            current_url: window.location.href,
-            screen: `${window.innerWidth}x${window.innerHeight}`,
-            context
-        };
-        setMessage('Zapisywanie zgłoszenia...');
-        try {
-            const res = await fetch('/api/dev/bug-reports', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                setMessage(data.message || 'Nie udało się zapisać zgłoszenia.', 'error');
-                return;
-            }
-            form.reset();
-            const dupes = app.querySelector('[data-bug-duplicates]');
-            if (dupes) {
-                dupes.hidden = true;
-                dupes.innerHTML = '';
-            }
-            state.selectedId = data.report?.id || null;
-            setMessage(data.message || 'Zgłoszenie zapisane.', 'success');
-            await loadReports();
-            setDevBugView('detail');
-        } catch (err) {
-            console.error('Dev Bug Reporter create failed:', err);
-            setMessage('Błąd zapisu zgłoszenia.', 'error');
-        }
-    });
-
-    app.querySelector('[data-bug-refresh]')?.addEventListener('click', loadReports);
-    app.querySelector('[data-bug-show-form]')?.addEventListener('click', () => setDevBugView('form'));
-    app.querySelectorAll('[data-bug-back]').forEach(button => {
-        button.addEventListener('click', () => setDevBugView('list'));
-    });
-    app.querySelector('[data-bug-search]')?.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(loadReports, 250);
-    });
-    app.querySelector('[data-bug-category-filter]')?.addEventListener('change', loadReports);
-    app.querySelector('[data-bug-status-filter]')?.addEventListener('change', loadReports);
-
-    updateDevBugNarrowMode();
-    const devBugResizeHandler = () => updateDevBugNarrowMode();
-    window.addEventListener('resize', devBugResizeHandler);
-    let devBugResizeObserver = null;
-    if (window.ResizeObserver) {
-        devBugResizeObserver = new ResizeObserver(updateDevBugNarrowMode);
-        devBugResizeObserver.observe(app);
-    }
-    app.querySelector('.close-btn')?.addEventListener('click', () => {
-        window.removeEventListener('resize', devBugResizeHandler);
-        if (devBugResizeObserver) devBugResizeObserver.disconnect();
-    }, { once: true });
-
-    loadReports();
+    return app;
 }
-
 
 function createTerminal() {
     terminalCount++;

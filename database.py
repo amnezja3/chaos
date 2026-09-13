@@ -4915,6 +4915,17 @@ class DevBugReportStore:
             rows = conn.execute(sql, params).fetchall()
             return [self._row_to_report(row) for row in rows]
 
+    def iter_all_reports(self):
+        """Complete admin export, without the UI list limit."""
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT * FROM dev_bug_reports ORDER BY id")
+            while True:
+                rows = cursor.fetchmany(200)
+                if not rows:
+                    break
+                for row in rows:
+                    yield self._row_to_report(row)
+
     def find_similar(self, title, limit=5):
         words = [
             re_word for re_word in

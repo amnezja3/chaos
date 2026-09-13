@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — zgłoszenia błędów tylko w panelu admina
+
+Dodano zakładkę /admin?tab=bugs z wyszukiwaniem, filtrem kategorii/statusu,
+szczegółami zgłoszenia i zmianą statusu. Dump all pobiera wszystkie rekordy
+w jednym UTF-8 TXT (pełny kontekst, niezależnie od limitu listy 200).
+Aplikacja pulpitu zawiera wyłącznie formularz wysłania, również dla admina.
+Lista, podobne zgłoszenia, PATCH statusu i eksport wymagają konta admin
+po stronie serwera. POST wymusza new i nie zwraca podobnych zgłoszeń.
+Zachowano dotychczasową dostępność formularza dev/staging.
+Panel używa istniejącej obsługi generacji sesji i epoki. 3 izolowane testy
+uprawnień/tworzenia/eksportu PASS (512 rekordów), składnia JS PASS.
+Wdrożenie: pull, pm2 reload chaos, odświeżenie pulpitu. Bez migracji danych.
+
 ## 2026-09-13 — Signal Registry: układ i oprawa show
 
 Registry ma jedną przewijaną powierzchnię: nagłówek, wybór sygnału, opis

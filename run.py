@@ -20677,7 +20677,7 @@ def ghostsignal_request_is_exempt():
     if request.method == "OPTIONS":
         return True
     if request.method in {"GET", "HEAD"} and (
-        request.endpoint == "static" or request.path in {
+        request.endpoint in {"static", "dev_dashboard"} or request.path in {
             "/", "/desktop", "/logout", "/session/recover", "/resources.json",
             "/api/ghostnetwork/show", "/api/state/changes",
         }
@@ -22399,6 +22399,8 @@ def dev_dashboard():
     if not require_dev_admin():
         return jsonify({"success": False, "message": "Dev dashboard wymaga konta admin."}), 403
 
+    if request.args.get("tab") == "bugs":
+        return render_template("admin_bug_reports.html", generation=session_generation_client_context())
     state = build_admin_dashboard_state()
     generation = session_generation_client_context()
     form_generation = html.escape(generation["generation"], quote=True)
@@ -22448,6 +22450,7 @@ def dev_dashboard():
     <a href="/desktop">desktop</a>
     <a href="/api/admin/dashboard">api/admin/dashboard</a>
     <a href="/api/dev/state">api/dev/state</a>
+    <a href="/admin?tab=bugs">Zgłoszenia błędów</a>
   </div>
   <div class="stats">
     <div class="stat"><h3>Użytkownicy</h3><p>{len(state["users"])}</p></div>
@@ -25233,9 +25236,8 @@ def api_profile():
 
 @app.route("/api/dev/bug-reports")
 def api_dev_bug_reports():
-    denied = require_dev_mode()
-    if denied:
-        return denied
+    if not require_dev_admin():
+        return jsonify(success=False, message="Dostęp tylko dla administratora."), 403
 
     reports = dev_bug_report_store.list_reports(
         search=request.args.get("search", ""),
@@ -25254,9 +25256,8 @@ def api_dev_bug_reports():
 
 @app.route("/api/dev/bug-reports/similar")
 def api_dev_bug_report_similar():
-    denied = require_dev_mode()
-    if denied:
-        return denied
+    if not require_dev_admin():
+        return jsonify(success=False, message="Dostęp tylko dla administratora."), 403
 
     return jsonify({
         "success": True,
@@ -25271,6 +25272,7 @@ def api_dev_bug_report_create():
         return denied
 
     data = request.get_json() or {}
+    data["status"] = "new"
     data["context"] = build_dev_bug_server_context(
         session.get("user"),
         client_context=data.get("context"),
@@ -25288,24 +25290,39 @@ def api_dev_bug_report_create():
     return jsonify({
         "success": True,
         "report": report,
-        "similar": dev_bug_report_store.find_similar(report.get("title", "")),
         "message": "Zgloszenie zostalo zapisane.",
     })
 
 
 @app.route("/api/dev/bug-reports/<int:report_id>", methods=["PATCH"])
 def api_dev_bug_report_update(report_id):
-    denied = require_dev_mode()
-    if denied:
-        return denied
+    if not require_dev_admin():
+        return jsonify(success=False, message="Dostęp tylko dla administratora."), 403
+    data = request.get_json() or {}
+    if data.get("status") not in DevBugReportStore.VALID_STATUSES:
+        return jsonify(success=False, message="Nieprawidłowy status."), 400
 
-    report = dev_bug_report_store.update_report(report_id, request.get_json() or {})
+    report = dev_bug_report_store.update_report(report_id, {"status": data["status"]})
     if not report:
         return jsonify({"success": False, "message": "Nie znaleziono zgloszenia."}), 404
     return jsonify({
         "success": True,
         "report": report,
         "message": "Zgloszenie zostalo zaktualizowane.",
+    })
+
+
+@app.route("/api/admin/bug-reports/dump")
+def api_admin_bug_reports_dump():
+    if not require_dev_admin():
+        return jsonify(success=False, message="Dostęp tylko dla administratora."), 403
+    def content():
+        yield "CHAOS / BUG REPORTS / DUMP ALL\n\n"
+        for report in dev_bug_report_store.iter_all_reports():
+            yield "=" * 72 + "\n" + json.dumps(report, ensure_ascii=False, indent=2) + "\n\n"
+    return Response(content(), content_type="text/plain; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="chaos-bug-reports.txt"',
+        "Cache-Control": "no-store",
     })
 
 
