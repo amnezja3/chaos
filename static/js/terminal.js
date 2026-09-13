@@ -8124,15 +8124,19 @@ async function loadGhostSignalArchive(app, signalId = "") {
             <section class="ghostsignal-ranking-grid">
                 <article><h3>GRACZE // SIGNAL ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.players, "rsp_signal", "display_alias_snapshot", "player")}</article>
                 <article><h3>KLANY // SIGNAL ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.clans, "clan_ghost_score", "clan_name_snapshot", "clan")}</article>
+            </section>` : '<div class="ghostnetwork-suite-empty">Brak zakończonego rankingu GhostSignal.</div>';
+        const allTimeMarkup = `
+            <section class="ghostsignal-ranking-grid">
                 <article><h3>GRACZE // ALL-TIME</h3>${rankRows(allTimePayload.players, "ghostnetwork_rsp_total", "display_alias_snapshot", "player")}</article>
                 <article><h3>KLANY // ALL-TIME</h3>${rankRows(allTimePayload.clans, "clan_ghost_score_total", "clan_name_snapshot", "clan")}</article>
-            </section>` : '<div class="ghostnetwork-suite-empty">Brak zakończonego rankingu GhostSignal.</div>';
+            </section>`;
         shell.innerHTML = `
             <header class="ghostnetwork-suite-header"><div><strong>SIGNAL REGISTRY</strong><span>IMMUTABLE // REBUILDABLE</span></div></header>
             <div class="ghostnetwork-suite-toolbar"><button type="button" data-ghostsignal-refresh>ODŚWIEŻ</button></div>
-            <section class="ghostnetwork-suite-list">${rows || '<div class="ghostnetwork-suite-empty">Brak zarchiwizowanych sygnałów.</div>'}</section>
             <section class="ghostnetwork-suite-list">${detailMarkup}</section>
-            ${rankingMarkup}`;
+            ${rankingMarkup}
+            <section class="ghostnetwork-suite-list" aria-label="Wybierz sygnał">${rows || '<div class="ghostnetwork-suite-empty">Brak zarchiwizowanych sygnałów.</div>'}</section>
+            ${allTimeMarkup}`;
         shell.querySelectorAll(".registry-portrait img").forEach(img => img.addEventListener("error", () => {
             if (img.parentElement.classList.contains("is-player") && !img.src.endsWith("/avatar-default.jpg")) {
                 img.src = "/static/images/avatar-default.jpg";
