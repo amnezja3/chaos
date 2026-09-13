@@ -1,5 +1,10 @@
 # 140.stylization.8 — gracze i ranking
 
+Poprawka ranking-2: usunięto dwa operatory `??` nieobsługiwane przez
+serwerowy Node 12.22.9. Jawne sprawdzenie null/undefined zachowuje RSP = 0.
+Pięć zestawów JS ponownie PASS lokalnie (Node 24); test na Node 12 należy
+powtórzyć na serwerze poniższymi poleceniami.
+
 Wdrożony zaakceptowany układ graczy: avatar 2:3, mniejszy nick, klan,
 LVL, RSP i pozycja w rogu avataru zmniejszona o 50%. Wspólny CSS z referencją.
 Obejmuje `players`, `achievements` oraz `player_ranking`. Nagrody i ranking
@@ -41,7 +46,7 @@ pm2 reload chaos &&
 pm2 reload chaos-territory-worker &&
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-8-ranking-1.html
+  --output static/previews/ghostsignal-stylization-8-ranking-2.html
 ```
 
 Oceń desktop i portrait w 11:00–11:40 oraz 14:00–14:15: ramkę 2:3,
