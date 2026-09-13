@@ -54,6 +54,7 @@ class GhostSignalShowTest(unittest.TestCase):
         )
         self.assertTrue(projection["show_active"])
         self.assertEqual(projection["signal_public_id"], "GHOSTSIGNAL-0007")
+        self.assertEqual(projection["cycle_id"], self.cycle["cycle_id"])
         self.assertNotIn("signal_id", projection)
         self.assertNotIn("show_id", projection)
 

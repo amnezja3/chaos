@@ -94,7 +94,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         const current = showPlayback;
         if (state.audio.readyState >= 1 && Number.isFinite(state.audio.duration)) {
             const target = Math.max(0, Math.min(state.audio.duration - 0.05, current.offset));
-            if (Math.abs(state.audio.currentTime - target) > 0.75) state.audio.currentTime = target;
+            if (!state.audio.seeking && Math.abs(state.audio.currentTime - target) > 0.75) state.audio.currentTime = target;
         }
         if (current.paused || current.failed || current.blocked || !current.allowed) {
             state.audio.pause(); return;

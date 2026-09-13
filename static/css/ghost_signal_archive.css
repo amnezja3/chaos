@@ -5,6 +5,7 @@
 .archive-source-pulse{transform-box:fill-box;transform-origin:center;animation:archive-source-breathe 3.6s ease-in-out infinite}
 @keyframes archive-source-breathe{0%,100%{opacity:.28;transform:scale(.72)}50%{opacity:.85;transform:scale(1.22)}}
 .archive-scene[data-state="video"] .archive-source-light{opacity:0}
+.archive-scene[data-state="video"] .archive-source-pulse{animation:none}
 @media(prefers-reduced-motion:reduce){.archive-source-pulse{opacity:.35}}
 .archive-scene:before{background:radial-gradient(ellipse at 50% 42%,#04090744,#040907bb 75%),linear-gradient(0deg,#040907,transparent 60%)}
 .archive-title{position:absolute;left:4vw;top:13vh;z-index:2}

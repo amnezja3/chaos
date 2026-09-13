@@ -95,6 +95,9 @@ try {
     assert.strictEqual(video.parent.parent.className,'archive-video-shell');
     assert.strictEqual(video.parent.attrs.inert, '');
     assert(Math.abs(video.currentTime - 10) < 0.1);
+    video.seeking=true;seek(449);
+    assert(Math.abs(video.currentTime-10)<0.1,'do not restart an unfinished decoder seek');
+    video.seeking=false;
     seek(450);
     assert.strictEqual(root.querySelector('.ghost-show-video'), video);
     assert(Math.abs(video.currentTime - 25) < 0.1);
@@ -353,6 +356,9 @@ try {
     assert(firstRecords.children[0].children[1].textContent.includes('2026-01-20'),'retain actual partial records');
     seek(122); assert.strictEqual(root.querySelector('.parts-records'),firstRecords);
     recordAnimations.forEach(animation => assert(Math.abs(animation.currentTime-122000)<50));
+    recordAnimations.forEach(animation => {animation.currentTime=122900;});
+    seek(123);
+    recordAnimations.forEach(animation => assert.strictEqual(animation.currentTime,122900,'let aligned CSS animations run'));
     seek(121.5);
     recordAnimations.forEach(animation => assert(Math.abs(animation.currentTime-121500)<50,'seek restores OFS phase'));
     seek(126); assert.notStrictEqual(root.querySelector('.parts-records'),firstRecords);

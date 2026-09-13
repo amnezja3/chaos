@@ -1,12 +1,15 @@
 # 140.stylization.10 — montaż i odbiór całości
 
-Status: przygotowane do odbioru. Trigger produkcyjny dopiero po akceptacji
-pełnego przebiegu; ten etap nie uruchamia sygnału ani rollbacku.
+Status: ZAMKNIĘTY / PASS użytkownika, 2026-09-13. Autor zaakceptował całość,
+a następnie korektę audio: wyciszanie 3,5 s od startu filmu, powrót 0,5 s.
+Rollback, trigger i produkcyjny E2E pozostają następnym etapem;
+zamknięcie dokumentacji nie uruchamia tych operacji.
 
 Para przejścia: 415–480 s, ostatnia maszyna → zapis → wideo → błysk →
 kanał 2108 → świat. Korzysta bezpośrednio z renderera show w viewportach
 1920×1080 i 1080×1920. Nie dodaje nowego stylu ani assetów.
-Po akceptacji pary odbiór całego przebiegu na desktopie i telefonie.
+Odbiór show potwierdzony przez autora. Nie dołączono osobnego raportu
+wydajności urządzeń; wyniki testów automatycznych nie są takim pomiarem.
 
 ## Przygotowanie po pobraniu zmian
 

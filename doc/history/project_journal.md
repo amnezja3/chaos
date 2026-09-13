@@ -1,5 +1,32 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — produkcyjny przebieg 140 i poprawki po odbiorze
+
+Operator potwierdził zakończenie show po triggerze zgodnie z planem (8/10).
+Zgłosił brak danych w końcowym „śladzie zapisu”, przerywanie muzyki i niską
+płynność filmu przy dwóch sesjach. Brak raportu pomiarowego: przyczyna
+przycięć i formalny strict postflight/restart ACK pozostają niepotwierdzone.
+
+Uzupełniono cycle_id w produkcyjnej projekcji show (preview już go miał).
+Może to wyjaśniać brak metadanych cyklu; nie dowodzi przyczyny braku treści
+publikacji. Animacje CSS zgodne z zegarem nie są już przestawiane co tick;
+seek/recovery nadal koryguje fazę. Audio/video nie otrzymują kolejnego seeku,
+gdy poprzedni trwa. Ukryte światło archiwum nie animuje się podczas filmu.
+Cleanup poprzednich scen już zwalniał RAF, tooltip i DOM; cache nie usuwano.
+Cache frontend: media-2, archive CSS runtime-3. JS frontend/recovery/manifest/
+montage/audio PASS, 49 scen / 98 granic; 5 testów Python show PASS.
+Poprawki wymagają odsłuchu/oceny płynności po wdrożeniu, bez nowego triggera.
+
+## 2026-09-13 — zamknięcie 140.stylization.10 i stylizacji show
+
+Autor potwierdził „jest dobrze” i zlecił zamknięcie po końcowej korekcie
+wejścia audio filmu. .10 i plan 140.stylization.1+ oznaczono CLOSED / PASS.
+Wyciszanie muzyki trwa 3,5 s od pierwszej klatki, powrót 0,5 s.
+Ostatnia walidacja: JS audio/frontend/recovery/manifest/montage PASS,
+49 scen / 98 granic, 3 testy Python manifestu PASS. Przy zamknięciu zmieniono
+tylko dokumentację. Następny etap to rollback, trigger i produkcyjny E2E;
+żadnej z tych operacji nie wykonano w ramach zamknięcia.
+
 ## 2026-09-13 — .10: dłuższe wejście audio filmu
 
 Po odbiorze całości autor wskazał jedną korektę: muzyka show wycisza się

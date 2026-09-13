@@ -206,7 +206,7 @@
         video._showTarget = scene.progress * video._showDuration;
         if (video.readyState >= 1 && Number.isFinite(video.duration)) {
             const target = Math.max(0, Math.min(video.duration - 0.05, video._showTarget));
-            if (Math.abs(video.currentTime - target) > 0.75) video.currentTime = target;
+            if (!video.seeking && Math.abs(video.currentTime - target) > 0.75) video.currentTime = target;
         }
         if (video.readyState >= 2 && video.paused && !video.ended && !video._showPlayPending) {
             video._showPlayPending = true;
@@ -411,7 +411,10 @@
         animatedLayers.forEach(layer => {
             if (!layer || typeof layer.getAnimations !== "function") return;
             layer.getAnimations({subtree: true}).forEach(animation => {
-                animation.currentTime = Math.max(0, Number(scene.elapsed) || 0) * 1000;
+                const targetTime = Math.max(0, Number(scene.elapsed) || 0) * 1000;
+                if (animation.currentTime === null || Math.abs(animation.currentTime - targetTime) > 250) {
+                    animation.currentTime = targetTime;
+                }
             });
         });
         (stage._partsRows || []).forEach((row, index) => {

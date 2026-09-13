@@ -1,15 +1,21 @@
 # 140.stylization.1+ — stylizacja całego GhostSignal show
 
-Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
+Status: `CLOSED / PASS` — stylizacja i montaż zaakceptowane przez autora 2026-09-13.
+Otwarto 2026-09-11. Poniższe wcześniejsze wpisy opisują historię checkpointów;
+aktualnym statusem jest odbiór całości. Produkcyjny rollback, trigger i E2E
+stanowią następny etap i nie zostały wykonane w ramach tego zamknięcia.
 
 Checkpoint .9 — ZAMKNIĘTY / PASS użytkownika dla publikacji i archiwum.
 Statystyki cyklu przeniesione do szablonu ekranowego również mają PASS;
 domyka to odbiór wyników .8. [Odbiór .9](../runbooks/deploy_140_stylization_9_publications.md).
-Aktualny etap: .10 — montaż, para przejścia 415–480 s przygotowana do odbioru.
+Checkpoint .10 — ZAMKNIĘTY / PASS użytkownika po odbiorze całości
+i końcowej korekcie wyciszania muzyki: 3,5 s od pierwszej klatki filmu,
+powrót 0,5 s po filmie.
 Para: `static/references/ghostsignal/montage-pair.html`; przygotowanie podglądów
 i checkpointy: [runbook .10](../runbooks/deploy_140_stylization_10_montage.md).
-Automatyczna kontrola 49 scen / 98 granic PASS. Akceptacja pary, pełnych
-15 minut z muzyką oraz desktop/mobile pozostaje otwarta przed triggerem.
+Automatyczna kontrola 49 scen / 98 granic PASS. Autor zaakceptował show
+i zlecił zamknięcie. Następny etap: przygotowanie rollbacku, triggera
+i produkcyjnego E2E; raportu wydajności urządzeń nie dołączono do odbioru.
 
 Checkpoint .8 — nagrody: ZAMKNIĘTY / PASS użytkownika. Scena nagród,
 mobile, dane archiwalne i konfiguracja nowych stawek 800/2000/800 RSP

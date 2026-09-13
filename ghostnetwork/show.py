@@ -220,6 +220,7 @@ class GhostSignalShowService:
             "show_active": active,
             "show_time_elapsed": elapsed,
             "signal_public_id": show.get("signal_public_id") or None,
+            "cycle_id": show.get("cycle_id") or None,
             "show_started_at": show.get("show_started_at") or None,
             "show_ends_at": show.get("show_ends_at") or None,
             "server_now": current.isoformat(),
