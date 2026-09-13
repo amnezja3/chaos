@@ -8096,6 +8096,14 @@ async function loadGhostSignalArchive(app, signalId = "") {
                 <p>${escapeHTML(selectedSignal.summary || selectedSignal.status || "Zarchiwizowany sygnał GhostNetwork.")}</p>
                 <small>${escapeHTML(selectedSignal.sent_at || selectedSignal.created_at || "")}</small></div>
             </article>` : '<div class="ghostnetwork-suite-empty">Wybierz zarchiwizowany sygnał.</div>';
+        const registryAvatars = new Map();
+        const registryAvatar = value => /^\/?static\/images\/avatar-(?:frakcja-[1-4]-player-[1-5]\.png|default\.jpg)$/.test(String(value || ""))
+            ? "/" + String(value).replace(/^\//, "") : "";
+        rankings.forEach(ranking => (ranking.players || []).forEach(player => {
+            const avatar = registryAvatar(player.avatar_snapshot);
+            if (avatar && !registryAvatars.has(player.user_id)) registryAvatars.set(player.user_id, avatar);
+        }));
+        const registryClans = ["virex", "echo_freedom", "phantom_mesh", "sentinel_order"];
         const rankRows = (items, valueKey, labelKey, kind) => (Array.isArray(items) ? items : []).slice(0, 10).map(item => {
             const conflictScore = item?.conflict_metrics?.score || 0;
             const nodes = item?.nodes_held ?? item?.nodes_held_total ?? 0;
@@ -8105,7 +8113,12 @@ async function loadGhostSignalArchive(app, signalId = "") {
             const meta = kind === "clan"
                 ? `NODES ${nodes} · TER ${territories} · AREA ${area}${item?.conflict_metrics ? ` · CONFLICT ${conflictScore}` : ""}`
                 : `RSP ${rsp} · NODES ${nodes} · TER ${territories}${item?.conflict_metrics ? ` · CONFLICT ${conflictScore}` : ""}${item?.closer ? " · CLOSER" : ""}`;
-            return `<div class="ghostsignal-ranking-row"><b>#${escapeHTML(item?.rank || "-")}</b><span>${escapeHTML(item?.[labelKey] || "-")}<small>${escapeHTML(meta)}</small></span><strong>${escapeHTML(item?.[valueKey] || 0)}</strong></div>`;
+            const clan = String(item.clan_id || "");
+            const image = kind === "clan"
+                ? (registryClans.includes(clan) ? `/static/images/ghostnetwork/clans/${clan}.svg` : "")
+                : registryAvatar(item.avatar_snapshot) || (labelKey && valueKey === "ghostnetwork_rsp_total" ? registryAvatars.get(item.user_id) : "") || "/static/images/avatar-default.jpg";
+            const portrait = `<span class="registry-portrait ${kind === "clan" ? "is-clan" : "is-player"}" aria-hidden="true">${image ? `<img src="${escapeHTML(image)}" alt="" loading="lazy" decoding="async">` : "≋"}</span>`;
+            return `<div class="ghostsignal-ranking-row"><b>#${escapeHTML(item?.rank || "-")}</b><div class="registry-identity">${portrait}<span>${escapeHTML(item?.[labelKey] || "-")}<small>${escapeHTML(meta)}</small></span></div><strong>${escapeHTML(item?.[valueKey] || 0)}</strong></div>`;
         }).join("");
         const rankingMarkup = selectedRanking ? `
             <section class="ghostsignal-ranking-grid">
@@ -8120,6 +8133,11 @@ async function loadGhostSignalArchive(app, signalId = "") {
             <section class="ghostnetwork-suite-list">${rows || '<div class="ghostnetwork-suite-empty">Brak zarchiwizowanych sygnałów.</div>'}</section>
             <section class="ghostnetwork-suite-list">${detailMarkup}</section>
             ${rankingMarkup}`;
+        shell.querySelectorAll(".registry-portrait img").forEach(img => img.addEventListener("error", () => {
+            if (img.parentElement.classList.contains("is-player") && !img.src.endsWith("/avatar-default.jpg")) {
+                img.src = "/static/images/avatar-default.jpg";
+            } else { img.parentElement.textContent = "≋"; }
+        }));
         shell.querySelector("[data-ghostsignal-refresh]")?.addEventListener("click", () => loadGhostSignalArchive(app, app.dataset.signalId || ""));
         shell.querySelectorAll("[data-ghostsignal-id]").forEach(button => button.addEventListener("click", () => {
             app.dataset.signalId = button.dataset.ghostsignalId || "";
