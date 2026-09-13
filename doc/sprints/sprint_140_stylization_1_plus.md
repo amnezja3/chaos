@@ -2,6 +2,11 @@
 
 Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
+Aktualizacja .7 (2026-09-13): zaakceptowana para world-ref-2 wdrożona
+do sześciu scen map/terytoriów. Wspólny CSS, lokalny glob SVG,
+obszary wyłącznie z archiwum finału. Lokalne JS PASS; odbiór runtime otwarty.
+[Procedura .7](../runbooks/deploy_140_stylization_7_world.md).
+
 Aktualizacja .6: zgodnie z decyzją autora wszystkie sceny terminalowe
 korzystają z zaakceptowanego ekranu archiwum. Potwierdzenie wysłania,
 Pro Tools i pliki/dane wdrożone z typewriterem oraz OFS. Kanał 2108

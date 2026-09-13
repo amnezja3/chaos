@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — .7: glob i archiwalne terytoria
+
+Po akceptacji world-ref-2 wdrożono sześć scen map i rozliczenia świata.
+Wspólny CSS referencji/runtime, lokalny glob Natural Earth, podniesiony
+tytuł, OFS i światło węzłów. Geometria wyłącznie ze snapshotu finału;
+brak danych i niewidoczne obszary oznaczane tekstowo. Usunięto poprzedni
+renderer płaskiej mapy. Pięć zestawów JS PASS, odbiór runtime otwarty.
+Bez nowego podsystemu, migracji i triggera.
+
 ## 2026-09-12 — .6: sceny z ekranem
 
 Na polecenie autora wszystkie sceny .6 korzystają z oprawy archiwum.

@@ -1,6 +1,11 @@
 # .7 — mapa i terytoria: pierwsza para
 
-Status: `REFERENCE / AUTHOR REVIEW PENDING`.
+Status: `REFERENCE ACCEPTED / IMPLEMENTED / SERVER REVIEW PENDING`.
+
+Autor zaakceptował wariant v2 i zlecił implementację. Sześć scen .7
+korzysta z układu referencji i rzeczywistej geometrii archiwum finału.
+Demonstracyjny trójkąt pozostaje wyłącznie w parze referencyjnej.
+[Wdrożenie i odbiór](../runbooks/deploy_140_stylization_7_world.md).
 
 Korekta v2: blok tytułu przesunięty do 9vh, ciaśniejsze odstępy podtytułu
 i hasła. Na desktopie skala tytułu uwzględnia wysokość viewport (26vh),

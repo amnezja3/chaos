@@ -387,6 +387,7 @@
         const animatedLayers = [stage.querySelector(".parts-records"),
             stage.querySelector(".hero-machine"),
             stage.querySelector(".archive-scene"),
+            stage.querySelector(".world-scene"),
             stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
@@ -510,6 +511,81 @@
             else stage._archiveFrame = null;
         }
         stage._archiveFrame = global.requestAnimationFrame(tick);
+    }
+
+    function renderWorld(doc, stage, manifest, scene, pageIndex, element) {
+        const data = (manifest.cycle_history || {}).settlement || {}, available = !!data.available;
+        const names = {aftershock:"PO SYGNALE",world_before:"ZAPIS GRANIC",territory_outcomes:"LOSY TERYTORIÓW",
+            territory_reduction:"ROZLICZENIE",conflict_results:"KONFLIKTY",world_final:"STAN KOŃCOWY"};
+        const canvas = element("section", "ghost-show-parts world-scene");
+        canvas.setAttribute("data-world-scene", scene.id);
+        canvas.setAttribute("data-view", ["aftershock","world_before"].includes(scene.id) ? "territory" : "trace");
+        canvas.appendChild(element("div", "background"));
+        const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
+        glitch.setAttribute("aria-hidden", "true"); canvas.appendChild(glitch);
+        if (global.ChaosMapGlitch) {
+            let seed = 139140;
+            global.ChaosMapGlitch.seed(glitch, doc, () => {seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});
+        }
+        const header=element("header", ""); header.appendChild(element("span","","CHAOS / GHOST NETWORK"));
+        header.appendChild(element("span","","ŚWIAT / ARCHIWUM CYKLU"));canvas.appendChild(header);
+        const heading=element("section","world-title"), title=element("h1","","ŚWIAT"), sub=element("span","",names[scene.id]);
+        heading.appendChild(element("p","eyebrow","GHOSTSIGNAL / KONSEKWENCJE"));
+        sub.appendChild(element("span","underscore","_"));title.appendChild(sub);heading.appendChild(title);
+        heading.appendChild(element("p","world-deck","JEDNA SIEĆ. ŚLAD POZOSTAJE."));canvas.appendChild(heading);
+        const map=element("section","world-map"), base=element("img","world-base");
+        base.alt="Kontury lądów — Europa i Afryka";base.src="/static/images/ghostnetwork/world-globe.svg";
+        base.onerror=()=>{base.remove();map.appendChild(element("p","world-coordinate","Kontury lądów niedostępne."));}; map.appendChild(base);
+        const svgNode=(tag,attrs,parent)=>{const n=doc.createElementNS("http://www.w3.org/2000/svg",tag);Object.keys(attrs).forEach(k=>n.setAttribute(k,attrs[k]));if(parent)parent.appendChild(n);return n;};
+        const svg=svgNode("svg",{class:"world-overlay",viewBox:"0 0 1000 1000",role:"img","aria-label":"Geometria z archiwum finału"},map);
+        const defs=svgNode("defs",{},svg), gradient=svgNode("radialGradient",{id:"world-halo"},defs);
+        [["0","#d6ffe7",".8"],[".3","#94c9ab",".3"],["1","#94c9ab","0"]].forEach(r=>svgNode("stop",{offset:r[0],"stop-color":r[1],"stop-opacity":r[2]},gradient));
+        const layer=svgNode("g",{class:"world-territory"},svg), rad=Math.PI/180,a=30*rad;
+        const project=p=>{const lat=p[1]*rad,lon=(p[0]-15)*rad;return [500+448*Math.cos(lat)*Math.sin(lon),
+            500-448*(Math.cos(a)*Math.sin(lat)-Math.sin(a)*Math.cos(lat)*Math.cos(lon)),Math.sin(a)*Math.sin(lat)+Math.cos(a)*Math.cos(lat)*Math.cos(lon)];};
+        const valid=t=>t.geometry_available && Array.isArray(t.points) && t.points.length>=3 && t.points.length<=32
+            && t.points.every(p=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90);
+        const territories=available?(data.territories||[]).slice(0,40):[], shapes=territories.filter(valid);
+        let outside=0, crossing=0;
+        shapes.forEach((territory,index)=>{
+            const points=territory.points.map(project), all=points.every(p=>p[2]>=0);
+            if(points.every(p=>p[2]<0)){outside++;return;}
+            if(!all)crossing++;
+            let path="",open=false;
+            points.concat([points[0]]).forEach(p=>{if(p[2]<0){open=false;return;}path+=(open?"L":"M")+p[0].toFixed(2)+","+p[1].toFixed(2);open=true;});
+            const polygon=svgNode("path",{d:path+(all?"Z":""),class:all?"":"is-horizon","data-territory":territory.label||""},layer);
+            svgNode("title",{},polygon).textContent=(territory.label||"Terytorium")+" / "+(territory.clan||"Brak klanu");
+            if(index!==pageIndex%Math.max(1,shapes.length))return;
+            points.filter(p=>p[2]>=0).forEach(p=>{
+                svgNode("circle",{cx:p[0],cy:p[1],r:23,class:"world-node-halo"},layer);
+                svgNode("circle",{cx:p[0],cy:p[1],r:7,class:"world-node-ring"},layer);
+                svgNode("circle",{cx:p[0],cy:p[1],r:3.5,class:"world-node-core"},layer);
+            });
+        });
+        map.appendChild(element("p","world-coordinate","GLOBAL OVERVIEW / EUROPA — AFRYKA"));
+        map.appendChild(element("p","world-geometry-note",!available?"OCZEKIWANIE NA ARCHIWUM":!shapes.length?"BRAK GEOMETRII W ZAPISIE":
+            "GEOMETRIA ARCHIWALNA"+(outside?" / POZA KADREM: "+outside:"")+(crossing?" / NA HORYZONCIE: "+crossing:"")));
+        canvas.appendChild(map);
+        const log=element("aside","world-log"), list=element("ol","");
+        log.appendChild(element("p","world-section-label","01 / "+names[scene.id]));
+        const lines=[];
+        if(!available)lines.push("Oczekiwanie na zapis wyników finału.");
+        else if(scene.id==="conflict_results"){
+            const conflicts=(data.conflicts||[]).slice(0,20).concat((data.production_conflicts||[]).slice(0,20));
+            conflicts.slice(pageIndex*4,pageIndex*4+4).forEach(c=>lines.push((c.label||"Konflikt")+" / "+(c.status||"Brak statusu")+(c.resolved_at?" / "+c.resolved_at:"")));
+            if(!conflicts.length)lines.push("Brak szczegółów konfliktów w archiwum.");
+        } else {
+            lines.push("SKONSUMOWANE / "+(Number.isFinite(data.territories_total)?data.territories_total:"Brak zapisu"));
+            if(scene.id==="world_before")lines.push("Granice obszarów objętych finałem.");
+            else if(scene.id==="territory_reduction")lines.push("Brak osobnego zapisu redukcji i zachowanych terytoriów.");
+            else if(scene.id==="world_final")lines.push("Podsumowanie zakresu sygnału.");
+            else if(territories.length){const t=territories[pageIndex%territories.length];lines.push((t.label||"Terytorium")+" / "+(t.clan||"Brak klanu"));}
+            lines.push("GEOMETRIA / "+shapes.length+" Z "+territories.length+" ZAPISÓW");
+        }
+        lines.forEach(text=>list.appendChild(element("li","",text)));log.appendChild(list);
+        log.appendChild(element("p","world-caption",data.territories_truncated||data.details_truncated?"OGRANICZONY WYBÓR ARCHIWUM":"ZAKRES FINAŁU / NIE CAŁY STAN ŚWIATA"));canvas.appendChild(log);
+        const legend=element("aside","world-legend");["OBSZARY FINAŁU","WIERZCHOŁKI ZAPISU"].forEach(text=>{const row=element("span","",text);row.appendChild(element("i",""));legend.appendChild(row);});
+        legend.appendChild(element("p","","KONTURY / NATURAL EARTH"));canvas.appendChild(legend);stage.appendChild(canvas);
     }
 
     function renderArchiveRecord(doc, root, stage, snapshot, scene, element) {
@@ -898,10 +974,11 @@
         const manifest = snapshot.show_manifest;
         const isInterface = !!INTERFACE_SCENES[scene.id];
         const isHero = /^machine_hero_[1-4]$/.test(scene.id);
+        const isWorld = ["aftershock","world_before","territory_outcomes","territory_reduction","conflict_results","world_final"].includes(scene.id);
         const isArchiveTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
         const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal
             || ["signal_confirmation", "pro_tools", "file_system"].includes(scene.id);
-        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive;
+        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
@@ -914,7 +991,8 @@
             clans: Math.ceil((settlement.clans || []).length / 4),
             conflict_results: Math.ceil(((settlement.conflicts || []).length + (settlement.production_conflicts || []).length) / 4),
             googleplex: (settlement.publications || []).filter(p => p.medium === "googleplex_news").length,
-            blacknet_history: (settlement.publications || []).filter(p => p.medium === "blacknet").length};
+            blacknet_history: (settlement.publications || []).filter(p => p.medium === "blacknet").length,
+            territory_outcomes:Math.min(40,(settlement.territories||[]).length)};
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
         const pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
         const key = [snapshot.signal_public_id, isArchiveTerminal ? "archive_terminal" : scene.id, !!manifest.signal_confirmed,
@@ -963,6 +1041,8 @@
         const heroIndex = /^machine_hero_[1-4]$/.test(scene.id) ? Number(scene.id.slice(-1)) - 1 : -1;
         if (isInterface) {
             renderInterface(doc, stage, snapshot, scene);
+        } else if (isWorld) {
+            renderWorld(doc, stage, manifest, scene, pageIndex, element);
         } else if (isArchive) {
             renderArchiveRecord(doc, root, stage, snapshot, scene, element);
         } else if (isHero) {
@@ -977,41 +1057,6 @@
             if (data && data.details_truncated) line("Ograniczony zakres szczegółów — dostępne podsumowanie finału.");
             if (!data || !data.available) {
                 line("Oczekiwanie na zapis wyników finału.");
-            } else if (["aftershock", "world_before", "territory_outcomes", "territory_reduction", "world_final"].includes(scene.id)) {
-                line("Zakres rozliczenia sygnału: " + data.territories_total + " terytoriów skonsumowanych.");
-                if (scene.id === "territory_reduction") {
-                    line("Brak osobnej projekcji terytoriów zredukowanych i zachowanych.");
-                }
-                const shapes = (data.territories || []).slice(0, 40).filter(t => t.geometry_available && t.points.length >= 3);
-                if (shapes.length) {
-                    const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
-                    svg.classList.add("ghost-show-settlement-map");
-                    const points = shapes.flatMap(t => t.points);
-                    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
-                    const minX = Math.min.apply(null, xs), minY = Math.min.apply(null, ys);
-                    const spanX = Math.max(0.0001, Math.max.apply(null, xs) - minX);
-                    const spanY = Math.max(0.0001, Math.max.apply(null, ys) - minY);
-                    const scale = Math.min(900 / spanX, 340 / spanY);
-                    svg.setAttribute("viewBox", "0 0 1000 440");
-                    for (const territory of shapes) {
-                        const polygon = doc.createElementNS("http://www.w3.org/2000/svg", "polygon");
-                        polygon.setAttribute("points", territory.points.map(p =>
-                            (50 + (p[0] - minX) * scale) + "," + (390 - (p[1] - minY) * scale)).join(" "));
-                        polygon.setAttribute("class", scene.id === "world_before" ? "is-before" : "is-consumed");
-                        const title = doc.createElementNS("http://www.w3.org/2000/svg", "title");
-                        title.textContent = territory.label + " / " + territory.clan;
-                        polygon.appendChild(title); svg.appendChild(polygon);
-                    }
-                    panel.appendChild(svg);
-                } else { line("Geometria archiwalna niedostępna — podsumowanie tekstowe."); }
-                line("Mapa schematyczna zakresu finału; poza nim brak projekcji świata.");
-                if (data.territories_truncated) line("Geometria: ograniczony wybór 40 terytoriów.");
-            } else if (scene.id === "conflict_results") {
-                line("Archiwalne konflikty strategiczne: " + data.conflicts_total);
-                const rows = (data.conflicts || []).slice(0, 20).concat((data.production_conflicts || []).slice(0, 20));
-                for (const row of rows.slice(pageIndex * 4, pageIndex * 4 + 4)) line(row.label + " / " + row.status + " / " + (row.resolved_at || ""));
-                line("Strona " + (pageIndex + 1) + " / " + pageCount);
-                line("Podsumowanie obejmuje konflikty wskazane w archiwum finału.");
             } else if (scene.id === "reward_ledger") {
                 line("Nagrody finału: " + data.rewards_total + " / RSP: " + data.rsp_total);
                 const labels = {ghost_signal_node_holder: "Kontrola węzłów", ghost_signal_closer: "Zamknięcie sygnału",
@@ -1129,7 +1174,7 @@
         }
         stage._showKey = key;
         syncGlitch();
-        if (isArchive) syncParts(stage, scene);
+        if (isArchive || isWorld) syncParts(stage, scene);
         syncArchiveFlash(stage, scene);
         animateNetworkEntrance(stage, snapshot, scene);
     }

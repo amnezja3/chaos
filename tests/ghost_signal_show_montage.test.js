@@ -106,7 +106,8 @@ try {
     assert(!root.querySelector('.ghost-show-video'));
     assert.strictEqual(root.querySelector('.ghost-show-video-fallback').style.display, '');
     seek(500);
-    assert(root.querySelector('.ghost-show-settlement'));
+    assert(root.querySelector('.world-scene'));
+    assert.strictEqual(root.querySelector('.world-territory').children.length,0,'no demo triangle without archived geometry');
     assert(!root.querySelector('.ghost-show-video'));
     const stages = [[480,'aftershock'],[495,'world_before'],[525,'territory_outcomes'],[555,'territory_reduction'],
         [585,'conflict_results'],[615,'world_final'],[630,'reward_ledger'],[660,'players'],[680,'achievements'],
@@ -119,11 +120,27 @@ try {
         players_total:1,players:[{alias:'<script>unsafe()</script>',clan:'virex',rsp:7,nodes:1}],
         clans:[],conflicts:[],reward_groups:[],publications:[],rewards_total:1,rsp_total:7};
     seek(500); // Projection arrives during the same scene.
-    assert(root.querySelector('.ghost-show-settlement-map'));
+    assert(root.querySelector('.world-overlay'));
+    assert.strictEqual(root.querySelector('.world-territory').children[0].attrs['data-territory'],'T1');
+    const savedGlobe=root.querySelector('.world-scene');seek(500.2);
+    assert.strictEqual(root.querySelector('.world-scene'),savedGlobe,'ticks do not rebuild land or geometry');
+    const savedTerritories=manifest.cycle_history.settlement.territories;
+    manifest.cycle_history.settlement.territories=[
+        {label:'far',geometry_available:true,points:[[-160,-30],[-150,-30],[-150,-40]]},
+        {label:'invalid',geometry_available:true,points:[[NaN,1],[1,2],[2,3]]},
+        {label:'horizon',geometry_available:true,points:[[20,30],[140,30],[20,40]]}];
+    seek(550);
+    const globePaths=root.querySelector('.world-territory').children.filter(n=>n.tag==='path');
+    assert.strictEqual(globePaths.length,1);
+    assert.strictEqual(globePaths[0].attrs.class,'is-horizon');
+    assert(!globePaths[0].attrs.d.endsWith('Z'),'never fill across hidden hemisphere');
+    assert(root.querySelector('.world-geometry-note').textContent.includes('POZA KADREM: 1'));
+    manifest.cycle_history.settlement.territories=savedTerritories;
     for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
         seek(entry[0]+0.1);
         assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
-            ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene' : '.ghost-show-settlement'), entry[1]);
+            ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene'
+                : entry[0]<630 ? '.world-scene' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
     manifest.signal_confirmed = false;
