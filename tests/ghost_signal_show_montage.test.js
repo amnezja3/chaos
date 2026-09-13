@@ -149,7 +149,7 @@ try {
         seek(entry[0]+0.1);
         assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
             ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene'
-                : entry[0]<630 ? '.world-scene' : ['players','achievements'].includes(entry[1]) ? '.ranking-scene' : '.ghost-show-settlement'), entry[1]);
+                : entry[1]==='reward_ledger' ? '.rewards-scene' : entry[0]<630 ? '.world-scene' : ['players','achievements'].includes(entry[1]) ? '.ranking-scene' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
     manifest.signal_confirmed = false;
@@ -174,6 +174,22 @@ try {
     }
     assert.strictEqual(root.querySelector('.ranking-hero').children[1].src,'/static/images/avatar-default.jpg');
     manifest.cycle_history.settlement.players=savedPlayers;
+    manifest.cycle_history.settlement.reward_groups=[
+        {type:'ghost_signal_node_holder',rsp:0,count:2},
+        {type:'ghost_signal_closer',rsp:7,count:1},
+        {type:'unknown_reward',rsp:3,count:1}];
+    manifest.cycle_history.settlement.rsp_total=10;
+    for(const [time,amount,index] of [[630.1,'0',0],[639.9,'0',0],[640,'7',1],[650,'3',2],[659.9,'3',2]]){
+        seek(time);assert(root.querySelector('.reward-trophy'));
+        assert.strictEqual(root.querySelector('.reward-value').children[0].textContent,amount);
+        const rows=root.querySelector('.reward-ledger').children[1].children;
+        assert.strictEqual(rows.filter(r=>r.attrs['aria-current']==='true').length,1);
+        assert.strictEqual(rows[index].attrs['aria-current'],'true');
+        assert.strictEqual(root.querySelector('.reward-total').children[1].textContent,'10');
+    }
+    manifest.cycle_history.settlement.available=false;seek(660);seek(630);
+    assert.strictEqual(root.querySelector('.reward-total').children[1].textContent,'—');
+    manifest.cycle_history.settlement.available=true;
     const audioCalls = [];
     global.GhostRadio = {syncShow: state => audioCalls.push(state), endShow() {},
         getState: () => ({muted:false,effectiveVolume:0.5}), mute() {}, unlockShow() {}};

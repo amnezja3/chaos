@@ -387,7 +387,7 @@
         const animatedLayers = [stage.querySelector(".parts-records"),
             stage.querySelector(".hero-machine"),
             stage.querySelector(".archive-scene"),
-            stage.querySelector(".world-scene"), stage.querySelector(".ranking-scene"),
+            stage.querySelector(".world-scene"), stage.querySelector(".ranking-scene"), stage.querySelector(".rewards-scene"),
             stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
@@ -511,6 +511,32 @@
             else stage._archiveFrame = null;
         }
         stage._archiveFrame = global.requestAnimationFrame(tick);
+    }
+
+    function renderRewards(doc, stage, manifest, pageIndex, element) {
+        const data=(manifest.cycle_history||{}).settlement||{}, groups=data.available?(data.reward_groups||[]).slice(0,16):[], current=groups[pageIndex];
+        const labels={ghost_signal_node_holder:["KONTROLA WĘZŁÓW","Utrzymanie części sieci do chwili wysłania sygnału."],ghost_signal_closer:["ZAMKNIĘCIE SYGNAŁU","Domknięcie sieci i uruchomienie finału cyklu."],ghost_signal_territory_consumed:["TERYTORIA FINAŁU","Rozliczenie terytoriów objętych wysłaniem sygnału."]};
+        const description=g=>labels[g.type]||["INNA NAGRODA FINAŁU","Dodatkowa kategoria zapisana w archiwum finału."];
+        const value=n=>Number.isFinite(n)&&n>=0?String(n):"—";
+        const canvas=element("section","ghost-show-parts rewards-scene");canvas.appendChild(element("div","background"));
+        const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
+        if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
+        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","","FINAŁ / REJESTR NAGRÓD"));canvas.appendChild(header);
+        const title=element("section","rewards-title");title.appendChild(element("p","eyebrow","WKŁAD POZOSTAWIA ŚLAD"));
+        const h=element("h1","","NAGRODY"),sub=element("span","","FINAŁU");sub.appendChild(element("span","underscore","_"));h.appendChild(sub);title.appendChild(h);title.appendChild(element("p","rewards-deck","JEDEN SYGNAŁ. WSPÓLNY WYNIK."));canvas.appendChild(title);
+        const focus=element("section","reward-focus");focus.appendChild(element("div","focus-corners"));
+        const index=element("p","",current?String(pageIndex+1).padStart(2,"0")+" / "+description(current)[0]:"REJESTR NAGRÓD");index.id="reward-index";focus.appendChild(index);
+        const amount=element("div","reward-value");amount.appendChild(element("strong","",current?value(current.rsp):"—"));amount.appendChild(element("span","","RSP"));focus.appendChild(amount);
+        const meter=element("div","reward-meter"),bar=element("i","");bar.style.width=(current&&Number.isFinite(current.rsp)&&data.rsp_total>0?Math.max(0,Math.min(100,current.rsp/data.rsp_total*100)):0)+"%";meter.appendChild(bar);focus.appendChild(meter);
+        const text=element("p","",current?description(current)[1]:data.available?"Brak szczegółów nagród w zapisie.":"Oczekiwanie na zapis wyników finału.");text.id="reward-description";focus.appendChild(text);
+        focus.appendChild(element("p","reward-count",current?value(current.count)+" ZAPISÓW NAGRÓD":""));canvas.appendChild(focus);
+        const ledger=element("aside","reward-ledger"),label=element("p","section-label");
+        const trophy=doc.createElementNS("http://www.w3.org/2000/svg","svg");Object.entries({class:"reward-trophy",viewBox:"0 0 32 32",fill:"none",stroke:"currentColor","stroke-width":"1.3","stroke-linecap":"round","stroke-linejoin":"round","aria-hidden":"true",focusable:"false"}).forEach(pair=>trophy.setAttribute(pair[0],pair[1]));
+        const path=doc.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("d","M9 4h14v7c0 6-3 9-7 9s-7-3-7-9V4Z M9 7H4v4c0 4 3 6 7 6 M23 7h5v4c0 4-3 6-7 6 M16 20v6 M11 26h10l2 3H9l2-3Z");trophy.appendChild(path);label.appendChild(trophy);label.appendChild(element("span","","01 / ROZLICZENIE FINAŁU"));ledger.appendChild(label);
+        const list=element("ol","");let active;
+        groups.forEach((g,i)=>{const row=element("li","reward-row"+(i===pageIndex?" is-current":"")),line=element("div","");line.appendChild(element("span","",String(i+1).padStart(2,"0")+" / "+description(g)[0]));line.appendChild(element("b","",value(g.rsp)+" RSP"));row.appendChild(line);row.appendChild(element("small","","ZAPISY NAGRÓD / "+value(g.count)));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});ledger.appendChild(list);
+        const total=element("div","reward-total");total.appendChild(element("span","","ŁĄCZNIE / RSP"));total.appendChild(element("strong","",data.available?value(data.rsp_total):"—"));ledger.appendChild(total);ledger.appendChild(element("p","reward-footnote",data.available?value(data.rewards_total)+" ZAPISY NAGRÓD / "+(data.details_truncated?"OGRANICZONY ZAKRES ARCHIWUM":"WYNIK Z ARCHIWUM SYGNAŁU"):"OCZEKIWANIE NA ARCHIWUM"));canvas.appendChild(ledger);stage.appendChild(canvas);
+        if(active&&Number.isFinite(active.offsetTop))list.scrollTop=Math.max(0,active.offsetTop-list.offsetTop-list.clientHeight/2+active.offsetHeight/2);
     }
 
     function renderRanking(doc, stage, manifest, pageIndex, element) {
@@ -1017,7 +1043,8 @@
         const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal
             || ["signal_confirmation", "pro_tools", "file_system"].includes(scene.id);
         const isRanking=["players","achievements","player_ranking"].includes(scene.id);
-        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking;
+        const isRewards=scene.id==="reward_ledger";
+        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking || isRewards;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
@@ -1026,7 +1053,7 @@
             player_ranking: Math.ceil((settlement.players || []).length / 4),
             clan_ranking: Math.ceil((settlement.clans || []).length / 4),
             achievements: Math.ceil((settlement.players || []).length / 4),
-            reward_ledger: Math.ceil((settlement.reward_groups || []).length / 4),
+            reward_ledger: Math.min(16,(settlement.reward_groups || []).length),
             clans: Math.ceil((settlement.clans || []).length / 4),
             conflict_results: Math.ceil(((settlement.conflicts || []).length + (settlement.production_conflicts || []).length) / 4),
             googleplex: (settlement.publications || []).filter(p => p.medium === "googleplex_news").length,
@@ -1097,6 +1124,8 @@
             renderWorld(doc, stage, manifest, scene, pageIndex, element);
         } else if(isRanking){
             renderRanking(doc,stage,manifest,pageIndex,element);
+        } else if(isRewards){
+            renderRewards(doc,stage,manifest,pageIndex,element);
         } else if (isArchive) {
             renderArchiveRecord(doc, root, stage, snapshot, scene, element);
         } else if (isHero) {
@@ -1111,11 +1140,6 @@
             if (data && data.details_truncated) line("Ograniczony zakres szczegółów — dostępne podsumowanie finału.");
             if (!data || !data.available) {
                 line("Oczekiwanie na zapis wyników finału.");
-            } else if (scene.id === "reward_ledger") {
-                line("Nagrody finału: " + data.rewards_total + " / RSP: " + data.rsp_total);
-                const labels = {ghost_signal_node_holder: "Kontrola węzłów", ghost_signal_closer: "Zamknięcie sygnału",
-                    ghost_signal_territory_consumed: "Terytoria finału"};
-                for (const row of (data.reward_groups || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line((labels[row.type] || "Nagroda finału") + " / " + row.count + " / " + row.rsp + " RSP");
             } else if (scene.id === "clans") {
                 line("Clan Ghost Score / " + data.score_policy);
                 for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line(clan.code + " / " + clan.score
@@ -1212,7 +1236,7 @@
         }
         stage._showKey = key;
         syncGlitch();
-        if (isArchive || isWorld || isRanking) syncParts(stage, scene);
+        if (isArchive || isWorld || isRanking || isRewards) syncParts(stage, scene);
         syncArchiveFlash(stage, scene);
         animateNetworkEntrance(stage, snapshot, scene);
     }

@@ -1,6 +1,7 @@
 # 140.stylization.8 — nagrody finału / para referencyjna
 
-Status: DO OCENY desktop + portrait. Scena runtime pozostaje bez zmian.
+Status: ZAAKCEPTOWANA I WDROŻONA. Poprawiono łamanie tytułu na mobile,
+zachowano puchar SVG. [Procedura wdrożenia](../runbooks/deploy_140_stylization_8_rewards.md).
 
 Para: `/static/references/ghostsignal/rewards-pair.html?v=rewards-ref-1`.
 Pełny ekran: `/static/references/ghostsignal/rewards.html?v=rewards-ref-1`.
