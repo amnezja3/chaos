@@ -197,9 +197,9 @@ GHOSTNETWORK_CLAN_REPUTATION_WEIGHTS = {
 }
 
 GHOSTNETWORK_ENDGAME_REWARD_POLICY = {
-    "node_holder_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_NODE_HOLDER_RSP", 8),
-    "closer_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_CLOSER_RSP", 20),
-    "territory_consumed_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_RSP", 8),
+    "node_holder_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_NODE_HOLDER_RSP", 800),
+    "closer_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_CLOSER_RSP", 2000),
+    "territory_consumed_rsp": env_int("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_RSP", 800),
     "territory_role_multipliers": {
         "primary": env_float("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_PRIMARY_MULTIPLIER", 1.0),
         "conflict": env_float("CHAOS_GHOSTNETWORK_SIGNAL_TERRITORY_CONFLICT_MULTIPLIER", 1.0),

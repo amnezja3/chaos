@@ -29,7 +29,7 @@ class HistoricalPreviewTest(unittest.TestCase):
             manifest, report = historical_manifest(self.fixture.db_path, self.signal["cycle_id"])
         self.assertTrue(report["read_only"] and report["projection_reconstructed"])
         self.assertTrue(manifest["signal_confirmed"])
-        self.assertEqual(manifest["cycle_history"]["settlement"]["rsp_total"], 180)
+        self.assertEqual(manifest["cycle_history"]["settlement"]["rsp_total"], 18000)
         self.assertEqual(len(manifest["cycle_history"]["parts"]), 20)
         self.assertNotIn("future_2108_timestamp", manifest["cycle_history"])
         self.assertNotIn("user_id", json.dumps(manifest))

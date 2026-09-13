@@ -105,10 +105,10 @@ class GhostSignalRankingTest(unittest.TestCase):
         self.assertEqual(snapshot["snapshot_schema"], 2)
         self.assertEqual(len(snapshot["parts"]), 20)
         self.assertEqual(sum(row["nodes_held"] for row in snapshot["players"]), 20)
-        self.assertEqual(sum(row["rsp_signal"] for row in snapshot["players"]), 180)
+        self.assertEqual(sum(row["rsp_signal"] for row in snapshot["players"]), 18000)
         self.assertEqual(sum(row["clan_ghost_score"] for row in snapshot["clans"]), 500)
         projection = self.repo.get_signal_show_for_signal(signal["signal_id"])["scene_snapshot"]["settlement"]
-        self.assertEqual(projection["rsp_total"], 180)
+        self.assertEqual(projection["rsp_total"], 18000)
         self.assertEqual(projection["players_total"], 2)
         self.assertNotIn("user_id", dumps_json(projection))
         self.repo.store_show_settlement_scene(signal["signal_id"], {"available": False})
