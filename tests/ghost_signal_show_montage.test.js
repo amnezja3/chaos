@@ -148,7 +148,7 @@ try {
     for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
         seek(entry[0]+0.1);
         assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
-            ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene'
+            ? '.ghost-show-interface' : ['googleplex','blacknet_history'].includes(entry[1]) ? '.publications-scene' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene'
                 : entry[1]==='reward_ledger' ? '.rewards-scene' : entry[0]<630 ? '.world-scene' : ['players','achievements','clans'].includes(entry[1]) ? '.ranking-scene' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
@@ -209,6 +209,23 @@ try {
     manifest.cycle_history.settlement.available=false;seek(720);seek(700);
     assert.strictEqual(root.querySelector('.ranking-title').children[1].textContent,'RANKING');
     manifest.cycle_history.settlement.available=true;
+    manifest.cycle_history.settlement.publications=[
+      {medium:'googleplex_news',title:'First <script>',body:'Original body',published_at:'2026-09-11T07:32:00Z'},
+      {medium:'googleplex_news',title:'Second',body:'Second body',published_at:''},
+      {medium:'blacknet',title:'BlackNet record',body:'Exact archival text',published_at:'2026-09-11T07:33:00Z'}];
+    manifest.scenes.find(s=>s.id==='cycle_statistics').end=880;
+    manifest.scenes.push({id:'archive',label:'archive',start:880,end:900,requires_signal_sent:true});
+    for(const [time,title,body] of [[740.1,'First <script>','Original body'],[749.9,'First <script>','Original body'],[750,'Second','Second body'],[800.1,'BlackNet record','Exact archival text']]){
+      seek(time);assert(root.querySelector('.publications-scene'));
+      const content=root.querySelector('.screen-content');
+      assert.strictEqual(content.children[1].textContent,title);
+      assert.strictEqual(content.children[2].textContent,body);
+      assert.strictEqual(root.querySelector('.publication-index').children[1].children.filter(n=>n.attrs['aria-current']==='true').length,1);
+    }
+    seek(880.1);assert.strictEqual(root.querySelector('.publications-scene').attrs['data-view'],'archive');
+    manifest.cycle_history.settlement.publications=[];seek(740.1);
+    assert(root.querySelector('.publication-dateline').textContent.includes('Brak'));
+    assert(!root.querySelector('.publication-body').textContent.includes('Original body'));
     const audioCalls = [];
     global.GhostRadio = {syncShow: state => audioCalls.push(state), endShow() {},
         getState: () => ({muted:false,effectiveVolume:0.5}), mute() {}, unlockShow() {}};

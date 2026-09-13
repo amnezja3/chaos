@@ -387,7 +387,7 @@
         const animatedLayers = [stage.querySelector(".parts-records"),
             stage.querySelector(".hero-machine"),
             stage.querySelector(".archive-scene"),
-            stage.querySelector(".world-scene"), stage.querySelector(".ranking-scene"), stage.querySelector(".rewards-scene"),
+            stage.querySelector(".world-scene"), stage.querySelector(".ranking-scene"), stage.querySelector(".rewards-scene"), stage.querySelector(".publications-scene"),
             stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
@@ -511,6 +511,29 @@
             else stage._archiveFrame = null;
         }
         stage._archiveFrame = global.requestAnimationFrame(tick);
+    }
+
+    function renderPublications(doc, stage, snapshot, scene, pageIndex, element) {
+        const manifest=snapshot.show_manifest,data=(manifest.cycle_history||{}).settlement||{};
+        const view=scene.id==="googleplex"?"googleplex":scene.id==="blacknet_history"?"blacknet":"archive";
+        const settings={googleplex:["ECHO","SYGNAŁU","GOOGLEPLEX NEWS","googleplex_news"],blacknet:["ŚLAD","W SIECI","BLACKNET / HISTORIA","blacknet"],archive:["ZAPIS","POZOSTAJE","SIGNAL REGISTRY",""]}[view];
+        const records=data.available?(data.publications||[]).filter(p=>p.medium===settings[3]).slice(0,6):[],record=records[pageIndex];
+        const signal=snapshot.signal_public_id||"Brak identyfikatora",cycle=snapshot.cycle_id||"Brak zapisu";
+        const version=(snapshot.from_system_version||"—")+" → "+(snapshot.to_system_version||"—");
+        const canvas=element("section","ghost-show-parts publications-scene");canvas.setAttribute("data-view",view);canvas.appendChild(element("div","background"));
+        const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
+        if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
+        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","",settings[2]));canvas.appendChild(header);
+        const heading=element("section","publication-heading"),title=element("h1","",settings[0]),sub=element("span","",settings[1]);sub.appendChild(element("span","underscore","_"));title.appendChild(sub);heading.appendChild(element("p","eyebrow","SYGNAŁ POZOSTAWIA ŚLAD"));heading.appendChild(title);heading.appendChild(element("p","","JEDEN CYKL. WIĘCEJ NIŻ JEDEN ZAPIS."));canvas.appendChild(heading);
+        const screen=element("article","publication-screen"),top=element("div","screen-top");top.appendChild(element("span","",settings[2]));top.appendChild(element("span","",record?String(pageIndex+1).padStart(2,"0")+" / "+records.length:"ZAPIS CYKLU"));screen.appendChild(top);
+        const content=element("div","screen-content");content.appendChild(element("p","publication-dateline",view==="archive"?"CYKL / "+cycle:record?record.published_at||"Brak daty publikacji":"Brak publikacji w archiwum"));
+        content.appendChild(element("h2","",view==="archive"?signal:record?record.title||"Bez tytułu":"Brak zapisu"));
+        content.appendChild(element("p","publication-body",view==="archive"?(manifest.ranking_available?"Wyniki uczestników i klanów zostały zapisane w archiwum finału. Po restarcie wrócisz do zapisu sygnału z pulpitu.":"Archiwum sygnału. Zapis rankingu nie został jeszcze potwierdzony."):record?record.body||"Brak treści w zapisie.":"Brak publicznej treści w tej projekcji finału."));
+        const signature=element("div","publication-signature");signature.appendChild(element("span","",view==="archive"?version:settings[2]+" / ARCHIWUM"));signature.appendChild(element("span","cursor","▌"));content.appendChild(signature);screen.appendChild(content);
+        const bottom=element("div","screen-bottom");bottom.appendChild(element("span","",view==="archive"?"ARCHIWUM CYKLU":"FRAGMENT PUBLIKACJI"));bottom.appendChild(element("span","",signal));screen.appendChild(bottom);canvas.appendChild(screen);
+        const index=element("aside","publication-index");index.appendChild(element("p","section-label","01 / ŚLADY CYKLU"));const list=element("ol","");
+        [["googleplex","GOOGLEPLEX","PUBLICZNY ZAPIS"],["blacknet","BLACKNET","HISTORIA SYGNAŁU"],["archive","SIGNAL REGISTRY","ARCHIWUM FINAŁU"]].forEach(item=>{const row=element("li",item[0]===view?"active":"",item[1]);row.appendChild(element("small","",item[2]));if(item[0]===view)row.setAttribute("aria-current","true");list.appendChild(row);});index.appendChild(list);
+        const meta=element("dl","");[["SYGNAŁ",signal],["CYKL",cycle],["WERSJA",version]].forEach(pair=>{meta.appendChild(element("dt","",pair[0]));meta.appendChild(element("dd","",pair[1]));});index.appendChild(meta);index.appendChild(element("p","index-note",data.details_truncated?"Ograniczony zakres archiwum.":"Historia zostaje. Świat rusza dalej."));canvas.appendChild(index);stage.appendChild(canvas);
     }
 
     function renderRewards(doc, stage, manifest, pageIndex, element) {
@@ -1051,7 +1074,8 @@
         const isClan=["clans","clan_ranking"].includes(scene.id);
         const isRanking=isClan||["players","achievements","player_ranking"].includes(scene.id);
         const isRewards=scene.id==="reward_ledger";
-        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking || isRewards;
+        const isPublications=["googleplex","blacknet_history","archive"].includes(scene.id);
+        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking || isRewards || isPublications;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
@@ -1063,8 +1087,8 @@
             reward_ledger: Math.min(16,(settlement.reward_groups || []).length),
             clans: Math.ceil((settlement.clans || []).length / 4),
             conflict_results: Math.ceil(((settlement.conflicts || []).length + (settlement.production_conflicts || []).length) / 4),
-            googleplex: (settlement.publications || []).filter(p => p.medium === "googleplex_news").length,
-            blacknet_history: (settlement.publications || []).filter(p => p.medium === "blacknet").length,
+            googleplex: Math.min(6,(settlement.publications || []).filter(p => p.medium === "googleplex_news").length),
+            blacknet_history: Math.min(6,(settlement.publications || []).filter(p => p.medium === "blacknet").length),
             territory_outcomes:Math.min(40,(settlement.territories||[]).length)};
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
         let pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
@@ -1133,6 +1157,8 @@
             renderRanking(doc,stage,manifest,pageIndex,element,isClan);
         } else if(isRewards){
             renderRewards(doc,stage,manifest,pageIndex,element);
+        } else if(isPublications){
+            renderPublications(doc,stage,snapshot,scene,pageIndex,element);
         } else if (isArchive) {
             renderArchiveRecord(doc, root, stage, snapshot, scene, element);
         } else if (isHero) {
@@ -1151,9 +1177,6 @@
                 if (scene.id === "cycle_statistics") {
                     line("Uczestnicy: " + data.players_total + " / nagrody: " + data.rewards_total);
                     line("RSP finału: " + data.rsp_total + " / terytoria: " + data.territories_total);
-                } else if (scene.id === "archive") {
-                    line("SIGNAL REGISTRY / " + snapshot.signal_public_id);
-                    line("Archiwum finału będzie dostępne na pulpicie po restarcie.");
                 } else {
                     line("GHOSTSYSTEM / OCZEKIWANIE NA RESTART");
                     line("Przejście nastąpi po potwierdzeniu nowego cyklu.");
@@ -1170,19 +1193,9 @@
                 };
                 panel.appendChild(element("h2", "", layers[scene.id] || scene.label));
                 line("Rekonstrukcja wizualna — rzeczywisty boot nastąpi według procedury restartu.");
-                if (scene.id === "googleplex" || scene.id === "blacknet_history") {
-                    const medium = scene.id === "googleplex" ? "googleplex_news" : "blacknet";
-                    const records = (data.publications || []).filter(p => p.medium === medium).slice(0, 6);
-                    const index = Math.min(records.length - 1, Math.floor(scene.progress * records.length));
-                    for (const record of records.slice(Math.max(0, index), index + 1)) {
-                        panel.appendChild(element("h3", "", record.title));
-                        line(record.body); line(record.published_at);
-                    }
-                    if (!records.length) line("Brak publicznego zapisu w tej projekcji finału.");
-                } else {
+
                     line("GhostSignal / " + snapshot.signal_public_id);
                     line("Zapisano: " + data.players_total + " uczestników / " + data.rewards_total + " nagród finału.");
-                }
             }
             stage.appendChild(panel);
         } else if (scene.elapsed >= 420) {
@@ -1235,7 +1248,7 @@
         }
         stage._showKey = key;
         syncGlitch();
-        if (isArchive || isWorld || isRanking || isRewards) syncParts(stage, scene);
+        if (isArchive || isWorld || isRanking || isRewards || isPublications) syncParts(stage, scene);
         syncArchiveFlash(stage, scene);
         animateNetworkEntrance(stage, snapshot, scene);
     }

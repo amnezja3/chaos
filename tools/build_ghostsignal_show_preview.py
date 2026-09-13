@@ -130,7 +130,7 @@ def main():
     html = """<!doctype html><html lang="pl"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GhostSignal — podgląd operatorski</title>
-<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-8-clans-2">
+<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-9-publications-1">
 <style>body{background:#05090d;color:#caffdf}#preview-controls{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#071b13;padding:8px;font:12px monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap}#preview-controls input{width:min(30vw,350px)}#preview-controls select{max-width:40vw}</style>
 <div id="preview-controls"><strong id="preview-source"></strong>
 <button id="export-performance">Raport wydajności</button>
@@ -142,7 +142,7 @@ def main():
 <link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
 <script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
 <script src="/static/js/ghost_signal_network_details.js?v=network-runtime-1"></script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-8-clans-2"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-9-publications-1"></script>
 <script>
 const manifest = MANIFEST;
 const previewInfo = PREVIEW_INFO;
@@ -158,7 +158,7 @@ function showAt(seconds) {
  manifest.signal_confirmed=document.getElementById('sent').checked;
  previewController=GhostSignalShow.createController({document,fetch:window.fetch});
  previewController.apply({show_active:true,gameplay_locked:true,cycle_number:0,state_version:1,
-  signal_public_id:previewInfo.public_id,server_now:new Date().toISOString(),
+  signal_public_id:previewInfo.public_id,cycle_id:previewInfo.cycle_id,server_now:new Date().toISOString(),
   show_started_at:new Date(start).toISOString(),show_ends_at:new Date(start+900000).toISOString(),
   show_manifest:manifest,from_system_version:previewInfo.from_version,to_system_version:previewInfo.to_version});
  document.getElementById('position').textContent=seconds+' s'; seek.value=seconds;
