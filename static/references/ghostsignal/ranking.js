@@ -18,6 +18,7 @@
  let selected=0,timer=null;
  function show(index){selected=Math.max(0,Math.min(players.length-1,index));const p=players[selected];
   document.getElementById('player-nick').textContent=p[0];
+  document.getElementById('player-rank-badge').textContent='#'+pad(selected+1);
   const clan=document.getElementById('player-clan');clan.textContent=p[1];const underscore=document.createElement('span');underscore.className='underscore';underscore.textContent='_';clan.appendChild(underscore);
   document.getElementById('player-level').textContent=p[2];document.getElementById('player-rsp').textContent=p[3];
   const avatar=document.getElementById('player-avatar');avatar.src='../../images/avatar-frakcja-'+p[4]+'-player-'+p[5]+'.png';avatar.alt='Avatar / '+p[0];

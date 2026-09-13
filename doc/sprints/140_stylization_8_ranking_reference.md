@@ -2,6 +2,11 @@
 
 Status: REFERENCJA DO OCENY. Nie jest jeszcze podłączona do show.
 
+Korekta ranking-ref-2: wszystkie 20 systemowych avatarów ma 1024 × 1536 px.
+Ramka zachowuje proporcje 2:3 na desktopie i portrait. Nick zmniejszony
+z 12vw do 8vw (portrait z 18vw do 13vw). W prawym górnym rogu avataru
+widnieje numer pozycji #01 itd., aktualizowany razem z podświetleniem listy.
+
 Para: `/static/references/ghostsignal/ranking-pair.html?v=ranking-ref-1`.
 Osobna scena: `/static/references/ghostsignal/ranking.html?v=ranking-ref-1`.
 Desktop 1920 × 1080 i portrait 1080 × 1920, skalowane tak jak wcześniejsze pary.
