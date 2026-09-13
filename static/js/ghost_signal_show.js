@@ -513,11 +513,19 @@
         stage._archiveFrame = global.requestAnimationFrame(tick);
     }
 
+    function publicationPages(data, medium) {
+        const pages=[];
+        (data.available?(data.publications||[]):[]).filter(p=>p.medium===medium).slice(0,6).forEach(record=>{
+            const body=String(record.body||'').slice(0,480), chunks=body.match(/[\s\S]{1,240}/g)||[''];
+            chunks.forEach((text,i)=>pages.push(Object.assign({},record,{body:text,fragment:i+1,fragments:chunks.length})));
+        });
+        return pages;
+    }
     function renderPublications(doc, stage, snapshot, scene, pageIndex, element) {
         const manifest=snapshot.show_manifest,data=(manifest.cycle_history||{}).settlement||{};
-        const view=scene.id==="googleplex"?"googleplex":scene.id==="blacknet_history"?"blacknet":"archive";
-        const settings={googleplex:["ECHO","SYGNAŁU","GOOGLEPLEX NEWS","googleplex_news"],blacknet:["ŚLAD","W SIECI","BLACKNET / HISTORIA","blacknet"],archive:["ZAPIS","POZOSTAJE","SIGNAL REGISTRY",""]}[view];
-        const records=data.available?(data.publications||[]).filter(p=>p.medium===settings[3]).slice(0,6):[],record=records[pageIndex];
+        const view=scene.id==="googleplex"?"googleplex":scene.id==="blacknet_history"?"blacknet":scene.id==="cycle_statistics"?"statistics":"archive";
+        const settings={statistics:["WYNIK","CYKLU","STATYSTYKI CYKLU",""],googleplex:["ECHO","SYGNAŁU","GOOGLEPLEX NEWS","googleplex_news"],blacknet:["ŚLAD","W SIECI","BLACKNET / HISTORIA","blacknet"],archive:["ZAPIS","POZOSTAJE","SIGNAL REGISTRY",""]}[view];
+        const records=publicationPages(data,settings[3]),record=records[pageIndex];
         const signal=snapshot.signal_public_id||"Brak identyfikatora",cycle=snapshot.cycle_id||"Brak zapisu";
         const version=(snapshot.from_system_version||"—")+" → "+(snapshot.to_system_version||"—");
         const canvas=element("section","ghost-show-parts publications-scene");canvas.setAttribute("data-view",view);canvas.appendChild(element("div","background"));
@@ -529,8 +537,17 @@
         const content=element("div","screen-content");content.appendChild(element("p","publication-dateline",view==="archive"?"CYKL / "+cycle:record?record.published_at||"Brak daty publikacji":"Brak publikacji w archiwum"));
         content.appendChild(element("h2","",view==="archive"?signal:record?record.title||"Bez tytułu":"Brak zapisu"));
         content.appendChild(element("p","publication-body",view==="archive"?(manifest.ranking_available?"Wyniki uczestników i klanów zostały zapisane w archiwum finału. Po restarcie wrócisz do zapisu sygnału z pulpitu.":"Archiwum sygnału. Zapis rankingu nie został jeszcze potwierdzony."):record?record.body||"Brak treści w zapisie.":"Brak publicznej treści w tej projekcji finału."));
+        if(view==='statistics'){
+            content.textContent='';
+            content.appendChild(element('p','publication-dateline','ARCHIWUM / '+signal));
+            content.appendChild(element('h2','','Podsumowanie finału'));
+            const stats=element('dl','publication-statistics');
+            [['UCZESTNICY',data.players_total],['NAGRODY',data.rewards_total],['RSP FINAŁU',data.rsp_total],['TERYTORIA',data.territories_total]].forEach(pair=>{
+                stats.appendChild(element('dt','',pair[0]));stats.appendChild(element('dd','',data.available&&Number.isFinite(pair[1])?String(pair[1]):'—'));
+            });content.appendChild(stats);
+        }
         const signature=element("div","publication-signature");signature.appendChild(element("span","",view==="archive"?version:settings[2]+" / ARCHIWUM"));signature.appendChild(element("span","cursor","▌"));content.appendChild(signature);screen.appendChild(content);
-        const bottom=element("div","screen-bottom");bottom.appendChild(element("span","",view==="archive"?"ARCHIWUM CYKLU":"FRAGMENT PUBLIKACJI"));bottom.appendChild(element("span","",signal));screen.appendChild(bottom);canvas.appendChild(screen);
+        const bottom=element("div","screen-bottom");bottom.appendChild(element("span","",view==="archive"?"ARCHIWUM CYKLU":view==="statistics"?"STATYSTYKI CYKLU":record?"FRAGMENT "+record.fragment+" / "+record.fragments:"BRAK PUBLIKACJI"));bottom.appendChild(element("span","",signal));screen.appendChild(bottom);canvas.appendChild(screen);
         const index=element("aside","publication-index");index.appendChild(element("p","section-label","01 / ŚLADY CYKLU"));const list=element("ol","");
         [["googleplex","GOOGLEPLEX","PUBLICZNY ZAPIS"],["blacknet","BLACKNET","HISTORIA SYGNAŁU"],["archive","SIGNAL REGISTRY","ARCHIWUM FINAŁU"]].forEach(item=>{const row=element("li",item[0]===view?"active":"",item[1]);row.appendChild(element("small","",item[2]));if(item[0]===view)row.setAttribute("aria-current","true");list.appendChild(row);});index.appendChild(list);
         const meta=element("dl","");[["SYGNAŁ",signal],["CYKL",cycle],["WERSJA",version]].forEach(pair=>{meta.appendChild(element("dt","",pair[0]));meta.appendChild(element("dd","",pair[1]));});index.appendChild(meta);index.appendChild(element("p","index-note",data.details_truncated?"Ograniczony zakres archiwum.":"Historia zostaje. Świat rusza dalej."));canvas.appendChild(index);stage.appendChild(canvas);
@@ -1074,7 +1091,7 @@
         const isClan=["clans","clan_ranking"].includes(scene.id);
         const isRanking=isClan||["players","achievements","player_ranking"].includes(scene.id);
         const isRewards=scene.id==="reward_ledger";
-        const isPublications=["googleplex","blacknet_history","archive"].includes(scene.id);
+        const isPublications=["googleplex","blacknet_history","archive","cycle_statistics"].includes(scene.id);
         const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking || isRewards || isPublications;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
@@ -1087,8 +1104,8 @@
             reward_ledger: Math.min(16,(settlement.reward_groups || []).length),
             clans: Math.ceil((settlement.clans || []).length / 4),
             conflict_results: Math.ceil(((settlement.conflicts || []).length + (settlement.production_conflicts || []).length) / 4),
-            googleplex: Math.min(6,(settlement.publications || []).filter(p => p.medium === "googleplex_news").length),
-            blacknet_history: Math.min(6,(settlement.publications || []).filter(p => p.medium === "blacknet").length),
+            googleplex: publicationPages(settlement,"googleplex_news").length,
+            blacknet_history: publicationPages(settlement,"blacknet").length,
             territory_outcomes:Math.min(40,(settlement.territories||[]).length)};
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
         let pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
@@ -1108,7 +1125,7 @@
         const key = [snapshot.signal_public_id, isArchiveTerminal ? "archive_terminal" : scene.id, !!manifest.signal_confirmed,
             !!history.settlement,
             pageIndex,
-            ""].join(":");
+            isPublications?JSON.stringify(settlement.publications||[]):""].join(":");
         root.classList.add("has-montage");
         stage.style.setProperty("--scene-progress", scene.progress);
         // Subtle OFS-like light follows the existing server-aligned render tick.

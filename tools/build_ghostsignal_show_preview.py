@@ -61,6 +61,12 @@ def historical_manifest(db_path, cycle_id):
             history.pop("future_2108_timestamp", None)  # Never invent a historical destination date.
         history["settlement"] = stored.get("settlement") or service.build_show_scene(ranking)
         expected = prepare_settlement_scene(ranking)
+        # Publication generation continues after ranking creation. Reconstruct this
+        # presentation leaf at the end of the show without modifying the database.
+        publication_cutoff = show.get("show_ends_at") or ranking.get("created_at")
+        if publication_cutoff:
+            excerpts = repo.list_show_publication_excerpts(cycle_id, publication_cutoff)
+            history["settlement"]["publications"] = prepare_settlement_scene(ranking, excerpts)["publications"]
         # Historical rankings predate visual snapshots. Current visuals are preview-only
         # and explicitly labelled; scores and ordering still come from the validated finale.
         historical_players = (ranking.get("snapshot") or {}).get("players") or []
@@ -130,7 +136,7 @@ def main():
     html = """<!doctype html><html lang="pl"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GhostSignal — podgląd operatorski</title>
-<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-9-publications-1">
+<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-9-publications-2">
 <style>body{background:#05090d;color:#caffdf}#preview-controls{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#071b13;padding:8px;font:12px monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap}#preview-controls input{width:min(30vw,350px)}#preview-controls select{max-width:40vw}</style>
 <div id="preview-controls"><strong id="preview-source"></strong>
 <button id="export-performance">Raport wydajności</button>
@@ -142,7 +148,7 @@ def main():
 <link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
 <script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
 <script src="/static/js/ghost_signal_network_details.js?v=network-runtime-1"></script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-9-publications-1"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-9-publications-2"></script>
 <script>
 const manifest = MANIFEST;
 const previewInfo = PREVIEW_INFO;

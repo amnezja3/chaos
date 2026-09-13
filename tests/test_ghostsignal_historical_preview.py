@@ -48,6 +48,18 @@ class HistoricalPreviewTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ranking_checksum_invalid"):
             historical_manifest(self.fixture.db_path, self.signal["cycle_id"])
 
+    def test_cached_projection_refreshes_publications_through_show_end_read_only(self):
+        from tools.build_ghostsignal_show_preview import HistoricalReader
+        show = self.repo.get_signal_show_for_signal(self.signal["signal_id"])
+        before = hashlib.sha256(Path(self.fixture.db_path).read_bytes()).hexdigest()
+        with patch.object(HistoricalReader, "list_show_publication_excerpts", return_value=[
+            {"target_medium": "googleplex_news", "title": "Late publication", "body": "Published after ranking",
+             "published_at": show["show_ends_at"]}]) as read:
+            manifest, _ = historical_manifest(self.fixture.db_path, self.signal["cycle_id"])
+        self.assertIn(unittest.mock.call(self.signal["cycle_id"], show["show_ends_at"]), read.call_args_list)
+        self.assertEqual(manifest["cycle_history"]["settlement"]["publications"][0]["title"], "Late publication")
+        self.assertEqual(before, hashlib.sha256(Path(self.fixture.db_path).read_bytes()).hexdigest())
+
     def test_inconsistent_cached_projection_is_rejected(self):
         with db_connect(self.fixture.db_path) as conn:
             conn.execute("UPDATE ghost_signal_shows SET scene_snapshot_json=json_set(scene_snapshot_json,'$.settlement.rsp_total',9999)")

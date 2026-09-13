@@ -2605,22 +2605,26 @@ class GhostNetworkRepository:
                 (serialized, _clean(signal_id)))
 
     def list_show_publication_excerpts(self, cycle_id, cutoff):
-        """Published public excerpts at ranking time; no candidate/CTA/private payload reads."""
+        """Published public excerpts at the supplied cutoff; no candidate/CTA/private payload reads."""
         with self._conn() as conn:
-            rows = conn.execute("""SELECT m.target_medium, substr(m.title,1,160) AS title,
-                    substr(m.body,1,480) AS body, m.published_at
-                FROM ghost_narrative_medium_records m
-                JOIN ghost_part_events e ON e.event_id=m.source_event_id
-                JOIN ghost_narrative_publication_receipts r
-                    ON r.publication_receipt_id=m.publication_receipt_id
-                WHERE e.cycle_id=? AND m.source_scope='ghostnetwork'
-                    AND m.audience_scope='public' AND m.audience_clan='' AND m.audience_owner=''
-                    AND m.target_medium IN ('blacknet', 'googleplex_news')
-                    AND m.active_state='active' AND r.status='published'
-                    AND m.published_at<=? AND (m.valid_until='' OR m.valid_until>?)
-                ORDER BY m.published_at DESC, m.medium_record_id DESC LIMIT 6""",
-                (_clean(cycle_id), _clean(cutoff), _clean(cutoff))).fetchall()
-            return [dict(row) for row in rows]
+            return self._show_publication_excerpts(conn, cycle_id, cutoff)
+
+    @staticmethod
+    def _show_publication_excerpts(conn, cycle_id, cutoff):
+        rows = conn.execute("""SELECT m.target_medium, substr(m.title,1,160) AS title,
+                substr(m.body,1,480) AS body, m.published_at
+            FROM ghost_narrative_medium_records m
+            JOIN ghost_part_events e ON e.event_id=m.source_event_id
+            JOIN ghost_narrative_publication_receipts r
+                ON r.publication_receipt_id=m.publication_receipt_id
+            WHERE e.cycle_id=? AND m.source_scope='ghostnetwork'
+                AND m.audience_scope='public' AND m.audience_clan='' AND m.audience_owner=''
+                AND m.target_medium IN ('blacknet', 'googleplex_news')
+                AND m.active_state='active' AND r.status='published'
+                AND m.published_at<=? AND (m.valid_until='' OR m.valid_until>?)
+            ORDER BY m.published_at DESC, m.medium_record_id DESC LIMIT 6""",
+            (_clean(cycle_id), _clean(cutoff), _clean(cutoff))).fetchall()
+        return [dict(row) for row in rows]
 
     def get_show_presentation_facts(self, signal_id):
         """One indexed read; never hydrate signal payload or ranking JSON."""
@@ -6625,6 +6629,19 @@ class GhostNetworkRepository:
             )
             if cursor.rowcount != 1:
                 raise RepositoryIntegrityError("Publication acknowledgement CAS failed")
+            # Refresh only the small presentation leaf after a public publication.
+            # The ranking/reward snapshot remains immutable; no polling/profile reads.
+            if row["target_medium"] in {"googleplex_news", "blacknet"} and row["audience_scope"] == "public" and not row["audience_owner"] and not row["audience_clan"]:
+                show = conn.execute("""SELECT s.signal_id, s.cycle_id FROM ghost_signal_shows s
+                    JOIN ghost_part_events e ON e.cycle_id=s.cycle_id
+                    WHERE e.event_id=? AND s.status='active'
+                    AND json_type(s.scene_snapshot_json,'$.settlement')='object' LIMIT 1""",
+                    (row["source_event_id"],)).fetchone()
+                if show:
+                    excerpts = self._show_publication_excerpts(conn, show["cycle_id"], now_iso)
+                    public = [{"medium": p["target_medium"], "title": p["title"], "body": p["body"], "published_at": p["published_at"]} for p in excerpts]
+                    conn.execute("UPDATE ghost_signal_shows SET scene_snapshot_json=json_set(scene_snapshot_json,'$.settlement.publications',json(?)) WHERE signal_id=?",
+                                 (dumps_json(public), show["signal_id"]))
             return {
                 "receipt": self._narrative_publication_receipt(conn.execute(
                     "SELECT * FROM ghost_narrative_publication_receipts WHERE publication_receipt_id = ?",

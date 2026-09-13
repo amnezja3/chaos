@@ -20,5 +20,10 @@
 @media(prefers-reduced-motion:reduce){.publications-scene *{animation:none!important}}
 
 .ghost-signal-show .publications-scene{padding-bottom:0}
-.publication-screen{max-height:60vh;overflow:auto;scrollbar-width:thin}.publication-screen h2,.publication-body,.screen-top,.screen-bottom{overflow-wrap:anywhere}
+.publication-screen{max-height:60vh;overflow:hidden}.publication-screen h2,.publication-body,.screen-top,.screen-bottom{overflow-wrap:anywhere;min-width:0}
 @media(max-aspect-ratio:1/1){.publication-screen{max-height:40vh}.publication-body,.publications-scene[data-view="blacknet"] .publication-body{font-size:2.4vw}}
+.publication-screen h2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.publication-statistics{display:grid;grid-template-columns:1fr auto;gap:1.4vh 2vw;margin:2vh 0;color:#a1b6a7;font-size:clamp(12px,1vw,20px)}
+.publication-statistics dd{margin:0;color:#d0decf;font-size:1.5em}.publication-statistics dt{align-self:center;letter-spacing:.08em}
+.publications-scene .publication-screen{isolation:isolate}.publications-scene .publication-index{min-width:0}
+@media(max-aspect-ratio:1/1){.publication-statistics{font-size:2.5vw;gap:1vh 3vw}.publication-screen .screen-top,.publication-screen .screen-bottom{flex-wrap:wrap}}

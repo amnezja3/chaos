@@ -226,6 +226,12 @@ try {
     manifest.cycle_history.settlement.publications=[];seek(740.1);
     assert(root.querySelector('.publication-dateline').textContent.includes('Brak'));
     assert(!root.querySelector('.publication-body').textContent.includes('Original body'));
+    manifest.cycle_history.settlement.publications=[{medium:'googleplex_news',title:'Long',body:'A'.repeat(480),published_at:'date'}];
+    seek(750);assert.strictEqual(root.querySelector('.publication-body').textContent.length,240);
+    manifest.cycle_history.settlement.publications[0].body='Updated';seek(750.1);
+    assert.strictEqual(root.querySelector('.publication-body').textContent,'Updated','publication arriving in same scene refreshes content');
+    seek(870.1);assert(root.querySelector('.publication-statistics'));
+    assert.strictEqual(root.querySelector('.publication-statistics').children[1].textContent,'1');
     const audioCalls = [];
     global.GhostRadio = {syncShow: state => audioCalls.push(state), endShow() {},
         getState: () => ({muted:false,effectiveVolume:0.5}), mute() {}, unlockShow() {}};
