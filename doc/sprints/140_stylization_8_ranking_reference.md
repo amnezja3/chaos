@@ -1,6 +1,8 @@
 # 140.stylization.8 — para referencyjna graczy i rankingu
 
-Status: REFERENCJA DO OCENY. Nie jest jeszcze podłączona do show.
+Status: ZAAKCEPTOWANA I WDROŻONA do scen graczy. Numer pozycji zmniejszony
+o dodatkowe 50% zgodnie z ostatnią uwagą. Procedura:
+[wdrożenie rankingu](../runbooks/deploy_140_stylization_8_ranking.md).
 
 Korekta ranking-ref-2: wszystkie 20 systemowych avatarów ma 1024 × 1536 px.
 Ramka zachowuje proporcje 2:3 na desktopie i portrait. Nick zmniejszony
@@ -22,7 +24,7 @@ Referencja zawiera osiem jawnie przykładowych profili z istniejącymi assetami
 widoki (6 s na gracza, jeden przebieg), zatrzymują je lub wybierają kolejną osobę.
 Nie ma odczytów API, audio, zapisów do bazy ani triggera gry.
 
-## Dane do implementacji po akceptacji
+## Ustalenia danych z etapu referencji
 
 - Ranking finału już zapisuje nick, klan, pozycję i RSP za sygnał.
 - Obecny snapshot rankingu nie zawiera avataru i poziomu: trzeba je dodać

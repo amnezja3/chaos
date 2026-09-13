@@ -61,6 +61,21 @@ def historical_manifest(db_path, cycle_id):
             history.pop("future_2108_timestamp", None)  # Never invent a historical destination date.
         history["settlement"] = stored.get("settlement") or service.build_show_scene(ranking)
         expected = prepare_settlement_scene(ranking)
+        # Historical rankings predate visual snapshots. Current visuals are preview-only
+        # and explicitly labelled; scores and ordering still come from the validated finale.
+        historical_players = (ranking.get("snapshot") or {}).get("players") or []
+        missing = [p.get("user_id") for p in historical_players[:20] if not p.get("avatar_snapshot")]
+        current_visuals = service._identity_snapshots(missing) if missing else {}
+        for index, player in enumerate(history["settlement"].get("players", [])[:20]):
+            if index >= len(historical_players):
+                break
+            archived = historical_players[index]
+            if player.get("alias") != (archived.get("display_alias_snapshot") or archived.get("username_snapshot")):
+                continue
+            visual = current_visuals.get(archived.get("user_id")) or archived
+            clean = prepare_settlement_scene({"snapshot": {"players": [visual]}})["players"][0]
+            player.update(avatar=clean["avatar"], level=clean["level"],
+                          visual_source="current_profile" if archived.get("user_id") in current_visuals else "archive")
         # Enrich the local preview only; never rewrite the historical projection.
         owners = {t["label"]: t for t in expected["territories"]}
         for territory in history["settlement"].get("territories", []):
@@ -115,7 +130,7 @@ def main():
     html = """<!doctype html><html lang="pl"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GhostSignal — podgląd operatorski</title>
-<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-7-world-3">
+<link rel="stylesheet" href="/static/css/style.css?v=signal-show-stylization-8-ranking-1">
 <style>body{background:#05090d;color:#caffdf}#preview-controls{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#071b13;padding:8px;font:12px monospace;display:flex;gap:8px;align-items:center;flex-wrap:wrap}#preview-controls input{width:min(30vw,350px)}#preview-controls select{max-width:40vw}</style>
 <div id="preview-controls"><strong id="preview-source"></strong>
 <button id="export-performance">Raport wydajności</button>
@@ -127,7 +142,7 @@ def main():
 <link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
 <script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
 <script src="/static/js/ghost_signal_network_details.js?v=network-runtime-1"></script>
-<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-7-world-3"></script>
+<script src="/static/js/ghost_signal_show.js?v=signal-show-stylization-8-ranking-1"></script>
 <script>
 const manifest = MANIFEST;
 const previewInfo = PREVIEW_INFO;

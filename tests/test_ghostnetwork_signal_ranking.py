@@ -1,5 +1,6 @@
 import os
 import tempfile
+import sqlite3
 import unittest
 from unittest.mock import patch
 from ghostnetwork.show_manifest import prepare_settlement_scene
@@ -22,6 +23,31 @@ class GhostSignalRankingTest(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_visual_snapshot_uses_bounded_leaves_and_projection_filters_urls(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("CREATE TABLE user_identity_projection(username TEXT, display_alias TEXT, clan_code TEXT)")
+            conn.execute("CREATE TABLE users(username TEXT, profile_json TEXT, profile_integrity_status TEXT)")
+            for name, status in [("alpha", "valid"), ("beta", "recovery_required")]:
+                conn.execute("INSERT INTO user_identity_projection VALUES (?, ?, 'virex')", (name, name))
+                conn.execute("INSERT INTO users VALUES (?, ?, ?)", (name, dumps_json({
+                    "avatar": "/static/images/avatar-frakcja-1-player-1.png", "level": 42,
+                    "files": {"private": "not projected"}}), status))
+            with patch("ghostnetwork.ranking.db_connect", return_value=conn):
+                rows = GhostSignalRankingService(self.repo)._identity_snapshots(["alpha", "beta"])
+            self.assertEqual(rows["alpha"]["level_snapshot"], 42)
+            self.assertNotIn("level_snapshot", rows["beta"])
+            projection = prepare_settlement_scene({"snapshot": {"players": [rows["alpha"]]}})
+            self.assertEqual(projection["players"][0]["avatar"], "/static/images/avatar-frakcja-1-player-1.png")
+            self.assertEqual(projection["players"][0]["level"], 42)
+            rows["alpha"].update(avatar_snapshot="https://example.com/tracker.png", level_snapshot=-1)
+            player = prepare_settlement_scene({"snapshot": {"players": [rows["alpha"]]}})["players"][0]
+            self.assertEqual(player["avatar"], "")
+            self.assertIsNone(player["level"])
+        finally:
+            conn.close()
 
     def transmit_cycle(self):
         cycle = GhostCycleService(repository=self.repo).create_cycle()["cycle"]

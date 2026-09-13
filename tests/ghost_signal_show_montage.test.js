@@ -149,7 +149,7 @@ try {
         seek(entry[0]+0.1);
         assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
             ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene'
-                : entry[0]<630 ? '.world-scene' : '.ghost-show-settlement'), entry[1]);
+                : entry[0]<630 ? '.world-scene' : ['players','achievements'].includes(entry[1]) ? '.ranking-scene' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
     manifest.signal_confirmed = false;
@@ -157,7 +157,23 @@ try {
     assert(!root.querySelector('.ghost-show-settlement'));
     manifest.signal_confirmed = true;
     seek(850);
-    assert(root.querySelector('.ghost-show-settlement'));
+    assert(root.querySelector('.ranking-scene'));
+    assert.strictEqual(root.querySelector('.ranking-title').children[1].textContent,'<script>unsafe()</script>');
+    assert.strictEqual(root.querySelector('.ranking-position').children[1].textContent,'#01');
+    const savedPlayers=manifest.cycle_history.settlement.players;
+    manifest.cycle_history.settlement.players=[
+        {alias:'Alpha',clan:'virex',rank:1,rsp:100,level:42,avatar:'/static/images/avatar-frakcja-1-player-1.png'},
+        {alias:'Beta',clan:'echo',rank:2,rsp:50,avatar:'https://example.com/tracker.png'}];
+    for(const [time,name,rank] of [[660.1,'Alpha','#01'],[679.9,'Alpha','#01'],[680,'Beta','#02'],[699.9,'Beta','#02']]){
+        seek(time);
+        assert.strictEqual(root.querySelector('.ranking-title').children[1].textContent,name);
+        assert.strictEqual(root.querySelector('.ranking-position').children[1].textContent,rank);
+        const rows=root.querySelector('.ranking-list').children[1].children;
+        assert.strictEqual(rows.filter(row=>row.attrs['aria-current']==='true').length,1);
+        assert.strictEqual(rows[name==='Alpha'?0:1].attrs['aria-current'],'true');
+    }
+    assert.strictEqual(root.querySelector('.ranking-hero').children[1].src,'/static/images/avatar-default.jpg');
+    manifest.cycle_history.settlement.players=savedPlayers;
     const audioCalls = [];
     global.GhostRadio = {syncShow: state => audioCalls.push(state), endShow() {},
         getState: () => ({muted:false,effectiveVolume:0.5}), mute() {}, unlockShow() {}};

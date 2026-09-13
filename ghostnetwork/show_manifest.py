@@ -2,6 +2,7 @@
 import hashlib
 import json
 import math
+import re
 from datetime import datetime, timedelta, timezone
 from .catalog import CATALOG_VERSION, CLANS, MACHINES, PARTS, PROFESSIONS, ABILITIES
 
@@ -91,6 +92,8 @@ def prepare_settlement_scene(ranking, publications=(), production_conflicts=()):
         "preserved_available": False, "reduced_available": False,
         "players_total": len(players), "players_truncated": len(players) > 20,
         "players": [{"alias": text(p.get("display_alias_snapshot") or p.get("username_snapshot")),
+                     "avatar": text(p.get("avatar_snapshot"), 160) if re.fullmatch(r"/?static/images/avatar-(?:frakcja-[1-4]-player-[1-5]\.png|default\.jpg)", text(p.get("avatar_snapshot"), 160)) else "",
+                     "level": p.get("level_snapshot") if type(p.get("level_snapshot")) is int and 1 <= p["level_snapshot"] <= 999 else None,
                      "clan": text(p.get("clan_id_snapshot")), "rank": number(p.get("rank")),
                      "rsp": number(p.get("rsp_signal")), "nodes": number(p.get("nodes_held")),
                      "closer": bool(p.get("closer"))} for p in players[:20]],

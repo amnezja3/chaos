@@ -387,7 +387,7 @@
         const animatedLayers = [stage.querySelector(".parts-records"),
             stage.querySelector(".hero-machine"),
             stage.querySelector(".archive-scene"),
-            stage.querySelector(".world-scene"),
+            stage.querySelector(".world-scene"), stage.querySelector(".ranking-scene"),
             stage.querySelector(".network-center"),
             stage.querySelector(".parts-energy-desktop"), stage.querySelector(".parts-energy-portrait")];
         // Let CSS render short OFS flashes between ticks, while seek/recovery
@@ -511,6 +511,35 @@
             else stage._archiveFrame = null;
         }
         stage._archiveFrame = global.requestAnimationFrame(tick);
+    }
+
+    function renderRanking(doc, stage, manifest, pageIndex, element) {
+        const data=(manifest.cycle_history||{}).settlement||{}, players=data.available?(data.players||[]).slice(0,20):[];
+        const player=players[pageIndex], canvas=element("section","ghost-show-parts ranking-scene");
+        canvas.appendChild(element("div","background"));
+        const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
+        if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
+        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","","UCZESTNICY / RANKING FINAŁU"));canvas.appendChild(header);
+        const title=element("section","ranking-title");title.appendChild(element("p","eyebrow","ŚLAD GRACZA / GHOSTSIGNAL"));
+        title.appendChild(element("h1","",player?player.alias||"Brak nicku":"RANKING"));
+        const clan=element("p","ranking-clan",player?player.clan||"Brak klanu":"Oczekiwanie na zapis");clan.appendChild(element("span","underscore","_"));title.appendChild(clan);canvas.appendChild(title);
+        if(player){
+            const rank=Number.isFinite(player.rank)&&player.rank>0?player.rank:pageIndex+1;
+            const hero=element("figure","ranking-hero");hero.appendChild(element("div","portrait-light"));
+            const avatar=element("img","");avatar.alt="Avatar / "+(player.alias||"Gracz");
+            const safe=/^\/?static\/images\/avatar-(?:frakcja-[1-4]-player-[1-5]\.png|default\.jpg)$/;
+            avatar.src=safe.test(player.avatar||"")?"/"+player.avatar.replace(/^\//,""):"/static/images/avatar-default.jpg";
+            avatar.onerror=()=>{avatar.onerror=null;avatar.src="/static/images/avatar-default.jpg";};hero.appendChild(avatar);
+            const badge=element("div","ranking-position");badge.appendChild(element("small","","RANKING"));badge.appendChild(element("span","","#"+String(rank).padStart(2,"0")));hero.appendChild(badge);
+            const caption=element("figcaption","",player.visual_source==="current_profile"?"PODGLĄD / AKTUALNY AVATAR I LVL":player.avatar?"PROFIL / ARCHIWUM":"AVATAR / BRAK ZAPISU");hero.appendChild(caption);canvas.appendChild(hero);
+            const stats=element("section","ranking-stats");[["POZIOM",Number.isFinite(player.level)?player.level:"—"],["RSP / SYGNAŁ",player.rsp]].forEach(pair=>{const block=element("div","");block.appendChild(element("span","",pair[0]));block.appendChild(element("strong","",String(pair[1]??"—")));stats.appendChild(block);});canvas.appendChild(stats);
+        }
+        const panel=element("aside","ranking-list");panel.appendChild(element("p","list-title",data.players_truncated?"01 / RANKING — WYBÓR ARCHIWUM":"01 / PEŁNY RANKING"));
+        const list=element("ol","");let active;
+        players.forEach((p,i)=>{const row=element("li","ranking-row"+(i===pageIndex?" is-current":""));row.appendChild(element("span","",String(p.rank||i+1).padStart(2,"0")));const name=element("b","",p.alias||"Brak nicku");name.appendChild(element("small","",p.clan||"Brak klanu"));row.appendChild(name);row.appendChild(element("span","",String(p.rsp??"—")));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});
+        panel.appendChild(list);panel.appendChild(element("p","list-caption","JEDEN SYGNAŁ. WSPÓLNY ZAPIS."));canvas.appendChild(panel);stage.appendChild(canvas);
+        // Keep the highlighted row inside the existing list viewport for larger archives.
+        if(active && Number.isFinite(active.offsetTop))list.scrollTop=Math.max(0,active.offsetTop-list.offsetTop-list.clientHeight/2+active.offsetHeight/2);
     }
 
     function renderWorld(doc, stage, manifest, scene, pageIndex, element) {
@@ -987,7 +1016,8 @@
         const isArchiveTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
         const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal
             || ["signal_confirmation", "pro_tools", "file_system"].includes(scene.id);
-        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld;
+        const isRanking=["players","achievements","player_ranking"].includes(scene.id);
+        const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking;
         if (isParts) root.classList.add("has-parts");
         if (isInterface) root.classList.add("has-interface");
         const history = manifest.cycle_history || {};
@@ -1004,6 +1034,12 @@
             territory_outcomes:Math.min(40,(settlement.territories||[]).length)};
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
         let pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
+        if(isRanking){
+            const count=Math.max(1,Math.min(20,(settlement.players||[]).length));
+            const stages=manifest.scenes.filter(s=>scene.id==="player_ranking"?s.id===scene.id:["players","achievements"].includes(s.id));
+            const start=Math.min(...stages.map(s=>s.start)),end=Math.max(...stages.map(s=>s.end));
+            pageIndex=Math.max(0,Math.min(count-1,Math.floor((scene.elapsed-start)/Math.max(1,end-start)*count)));
+        }
         if(isWorld){
             // One continuous pass across the entire world block, including scene boundaries.
             const worldScenes=manifest.scenes.filter(s=>["aftershock","world_before","territory_outcomes","territory_reduction","conflict_results","world_final"].includes(s.id));
@@ -1059,6 +1095,8 @@
             renderInterface(doc, stage, snapshot, scene);
         } else if (isWorld) {
             renderWorld(doc, stage, manifest, scene, pageIndex, element);
+        } else if(isRanking){
+            renderRanking(doc,stage,manifest,pageIndex,element);
         } else if (isArchive) {
             renderArchiveRecord(doc, root, stage, snapshot, scene, element);
         } else if (isHero) {
@@ -1078,28 +1116,12 @@
                 const labels = {ghost_signal_node_holder: "Kontrola węzłów", ghost_signal_closer: "Zamknięcie sygnału",
                     ghost_signal_territory_consumed: "Terytoria finału"};
                 for (const row of (data.reward_groups || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line((labels[row.type] || "Nagroda finału") + " / " + row.count + " / " + row.rsp + " RSP");
-            } else if (scene.id === "players" || scene.id === "achievements") {
-                line("Uczestnicy: " + data.players_total + (data.players_truncated ? " / wybór pierwszych 20" : ""));
-                const players = (data.players || []).slice(0, 20);
-                const pages = Math.max(1, Math.ceil(players.length / 4));
-                const page = Math.min(pages - 1, Math.floor(scene.progress * pages));
-                line("Strona " + (page + 1) + " / " + pages);
-                for (const player of players.slice(page * 4, page * 4 + 4)) {
-                    line(player.alias + " / " + player.clan + " / " + player.rsp + " RSP / węzły: " + player.nodes
-                        + (player.closer ? " / ZAMKNIĘCIE SYGNAŁU" : ""));
-                }
-                if (scene.id === "achievements") line("Osiągnięcia wynikają z rankingu finału; bez dodatkowych odznak.");
             } else if (scene.id === "clans") {
                 line("Clan Ghost Score / " + data.score_policy);
                 for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line(clan.code + " / " + clan.score
                     + " / uczestnicy: " + clan.members + " / " + clan.rsp + " RSP");
             } else if (scene.elapsed >= 840) {
-                if (scene.id === "player_ranking") {
-                    line("RANKING GRACZY / " + data.players_total);
-                    if (data.players_truncated) line("Wyświetlany jest wybór pierwszych " + (data.players || []).length + " uczestników.");
-                    for (const player of (data.players || []).slice(pageIndex * 4, pageIndex * 4 + 4))
-                        line(player.rank + ". " + player.alias + " / " + player.rsp + " RSP");
-                } else if (scene.id === "clan_ranking") {
+                if (scene.id === "clan_ranking") {
                     line("RANKING KLANÓW / " + data.score_policy);
                     for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4))
                         line(clan.rank + ". " + clan.code + " / " + clan.score);
@@ -1190,7 +1212,7 @@
         }
         stage._showKey = key;
         syncGlitch();
-        if (isArchive || isWorld) syncParts(stage, scene);
+        if (isArchive || isWorld || isRanking) syncParts(stage, scene);
         syncArchiveFlash(stage, scene);
         animateNetworkEntrance(stage, snapshot, scene);
     }

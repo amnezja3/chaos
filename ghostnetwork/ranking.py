@@ -102,6 +102,22 @@ class GhostSignalRankingService:
                 "clan_id_snapshot": clan,
                 "clan_name_snapshot": clan,
             }
+        # Two bounded scalar leaves at finalization only, never hydrate a profile.
+        try:
+            with db_connect(self.repository.db_path) as conn:
+                visual_rows = conn.execute(
+                    "SELECT username, substr(json_extract(profile_json, '$.avatar'), 1, 160) AS avatar, "
+                    "json_extract(profile_json, '$.level') AS level FROM users "
+                    f"WHERE username IN ({placeholders}) AND profile_integrity_status = 'valid' "
+                    "AND json_valid(profile_json)", player_ids,
+                ).fetchall()
+            for row in visual_rows:
+                snapshots[row["username"]]["avatar_snapshot"] = _clean(row["avatar"])
+                level = row["level"]
+                snapshots[row["username"]]["level_snapshot"] = level if isinstance(level, int) and 1 <= level <= 999 else None
+        except Exception:
+            logger = logging.getLogger(__name__)
+            logger.warning("Ranking visual profile leaves unavailable")
         return snapshots
 
     @staticmethod
