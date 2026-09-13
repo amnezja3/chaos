@@ -519,7 +519,7 @@
             territory_reduction:"ROZLICZENIE",conflict_results:"KONFLIKTY",world_final:"STAN KOŃCOWY"};
         const canvas = element("section", "ghost-show-parts world-scene");
         canvas.setAttribute("data-world-scene", scene.id);
-        canvas.setAttribute("data-view", ["aftershock","world_before"].includes(scene.id) ? "territory" : "trace");
+        canvas.setAttribute("data-view", "territory");
         canvas.appendChild(element("div", "background"));
         const glitch = element("div", "chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");
         glitch.setAttribute("aria-hidden", "true"); canvas.appendChild(glitch);
@@ -571,7 +571,8 @@
         if(!available)lines.push("Oczekiwanie na zapis wyników finału.");
         else if(scene.id==="conflict_results"){
             const conflicts=(data.conflicts||[]).slice(0,20).concat((data.production_conflicts||[]).slice(0,20));
-            conflicts.slice(pageIndex*4,pageIndex*4+4).forEach(c=>lines.push((c.label||"Konflikt")+" / "+(c.status||"Brak statusu")+(c.resolved_at?" / "+c.resolved_at:"")));
+            const conflictPage=Math.min(Math.max(0,Math.ceil(conflicts.length/4)-1),Math.floor(scene.progress*Math.max(1,Math.ceil(conflicts.length/4))));
+            conflicts.slice(conflictPage*4,conflictPage*4+4).forEach(c=>lines.push((c.label||"Konflikt")+" / "+(c.status||"Brak statusu")+(c.resolved_at?" / "+c.resolved_at:"")));
             if(!conflicts.length)lines.push("Brak szczegółów konfliktów w archiwum.");
         } else {
             lines.push("SKONSUMOWANE / "+(Number.isFinite(data.territories_total)?data.territories_total:"Brak zapisu"));
@@ -580,6 +581,15 @@
             else if(scene.id==="world_final")lines.push("Podsumowanie zakresu sygnału.");
             else if(territories.length){const t=territories[pageIndex%territories.length];lines.push((t.label||"Terytorium")+" / "+(t.clan||"Brak klanu"));}
             lines.push("GEOMETRIA / "+shapes.length+" Z "+territories.length+" ZAPISÓW");
+        }
+        if(selected){
+            lines.push((selected.label||"Terytorium")+" / KLAN: "+(selected.clan||"Brak zapisu"));
+            lines.push("WŁAŚCICIEL: "+(selected.owner_alias||"Brak zapisu"));
+            if(valid(selected)){
+                const n=selected.points.length;
+                lines.push("ŚREDNIA WIERZCHOŁKÓW / LAT "+(selected.points.reduce((s,p)=>s+p[1],0)/n).toFixed(6)
+                    +" / LON "+(selected.points.reduce((s,p)=>s+p[0],0)/n).toFixed(6));
+            }
         }
         lines.forEach(text=>list.appendChild(element("li","",text)));log.appendChild(list);
         log.appendChild(element("p","world-caption",data.territories_truncated||data.details_truncated?"OGRANICZONY WYBÓR ARCHIWUM":"ZAKRES FINAŁU / NIE CAŁY STAN ŚWIATA"));canvas.appendChild(log);
@@ -993,7 +1003,14 @@
             blacknet_history: (settlement.publications || []).filter(p => p.medium === "blacknet").length,
             territory_outcomes:Math.min(40,(settlement.territories||[]).length)};
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
-        const pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
+        let pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
+        if(isWorld){
+            // One continuous pass across the entire world block, including scene boundaries.
+            const worldScenes=manifest.scenes.filter(s=>["aftershock","world_before","territory_outcomes","territory_reduction","conflict_results","world_final"].includes(s.id));
+            const start=Math.min(...worldScenes.map(s=>s.start)),end=Math.max(...worldScenes.map(s=>s.end));
+            const count=Math.max(1,Math.min(40,(settlement.territories||[]).length));
+            pageIndex=Math.max(0,Math.min(count-1,Math.floor((scene.elapsed-start)/Math.max(1,end-start)*count)));
+        }
         const key = [snapshot.signal_public_id, isArchiveTerminal ? "archive_terminal" : scene.id, !!manifest.signal_confirmed,
             !!history.settlement,
             pageIndex,

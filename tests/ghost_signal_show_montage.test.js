@@ -138,6 +138,12 @@ try {
     seek(481);seek(497);
     assert.strictEqual(root.querySelector('.world-territory').children[0].attrs.d,globePaths[0].attrs.d,
         'location and geographic size do not alter the symbolic outline');
+    manifest.cycle_history.settlement.territories=[0,1,2].map(i=>({label:'T'+i,owner_alias:'Owner'+i,clan:'virex',geometry_available:true,points:[[1,1],[2,1],[2,2]]}));
+    for(const pair of [[480.1,0],[495,0],[525,0],[529.9,0],[530,1],[555,1],[579.9,1],[580,2],[585,2],[615,2],[629.9,2]]){
+        seek(pair[0]);
+        assert.strictEqual(root.querySelector('.world-territory').children[0].attrs['data-territory'],'T'+pair[1],'one equal slot per territory across scene boundaries');
+        assert.strictEqual(root.querySelector('.world-scene').attrs['data-view'],'territory');
+    }
     manifest.cycle_history.settlement.territories=savedTerritories;
     for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
         seek(entry[0]+0.1);

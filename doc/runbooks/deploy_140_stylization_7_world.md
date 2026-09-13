@@ -15,6 +15,16 @@ prezentacji. Kontur ma łunę, wypełnienie i pulsujące wierzchołki.
 Nie pokazuje całego stanu świata ani niezapisanych stanów zachowanych/zredukowanych obszarów.
 Brak geometrii pozostawia glob i tekstowe podsumowanie.
 
+Wariant world-3: cały blok 480–630 s stanowi jeden przebieg terytoriów.
+Każdy zapis dostaje 150/N sekund; zmiana sceny nie resetuje kolejności.
+Wszystkie granice są ciągłe i mają ten sam styl. Log pokazuje klan,
+alias właściciela z rankingu finału oraz średnią współrzędnych wierzchołków
+(LAT/LON, nie lokalizację rysunku na globie). Brak aliasu jest oznaczony.
+Generator podglądu uzupełnia aliasy starszych projekcji tylko w pamięci,
+po sprawdzeniu rankingu i zgodności geometrii; nie zmienia bazy.
+Nowe projekcje zapisują alias od razu. Starsze uruchomione podglądy wymagają
+ponownego wygenerowania. Test sekwencji JS i test projekcji właściciela: PASS.
+
 Po push, na serwerze w repozytorium:
 
 ```bash
@@ -33,7 +43,7 @@ Po PASS:
 pm2 reload chaos &&
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-7-world-2.html
+  --output static/previews/ghostsignal-stylization-7-world-3.html
 ```
 
 Otwórz `/static/previews/ghostsignal-stylization-7-world-1.html`.

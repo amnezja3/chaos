@@ -55,6 +55,8 @@ def prepare_settlement_scene(ranking, publications=(), production_conflicts=()):
     clans = snapshot.get("clans") or []
     conflicts = snapshot.get("conflicts") or []
     shapes = []
+    owner_aliases = {str(p.get("user_id") or ""): text(p.get("display_alias_snapshot") or p.get("username_snapshot"))
+                     for p in players if p.get("user_id")}
     for index, row in enumerate(territories[:40]):
         vertices = row.get("vertices") or []
         # Oversized geometry is omitted, not distorted into a fictitious polygon.
@@ -71,6 +73,7 @@ def prepare_settlement_scene(ranking, publications=(), production_conflicts=()):
                     break
                 points.append([round(lon, 6), round(lat, 6)])
         shapes.append({"label": "T" + str(index + 1), "clan": text(row.get("clan_code")),
+                       "owner_alias": owner_aliases.get(str(row.get("owner_id") or ""), ""),
                        "outcome": "consumed", "area": number(row.get("area_size")),
                        "points": points, "geometry_available": bool(points),
                        "consumed_at": text(row.get("consumed_at"))})

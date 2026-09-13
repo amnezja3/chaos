@@ -103,6 +103,7 @@ class GhostSignalRankingTest(unittest.TestCase):
         projection = prepare_settlement_scene(ranking)
         self.assertEqual(projection["rsp_total"], 7)
         self.assertEqual(len(projection["territories"]), 40)
+        self.assertEqual(projection["territories"][0]["owner_alias"], "Alias")
         self.assertEqual(len(projection["players"]), 20)
         self.assertTrue(projection["territories_truncated"] and projection["players_truncated"])
         self.assertNotIn("private", dumps_json(projection))
