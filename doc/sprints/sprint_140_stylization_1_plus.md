@@ -2,6 +2,11 @@
 
 Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 
+Checkpoint .8 — nagrody: ZAMKNIĘTY / PASS użytkownika. Scena nagród,
+mobile, dane archiwalne i konfiguracja nowych stawek 800/2000/800 RSP
+odebrane. Gracze/ranking również PASS. Następny checkpoint: para rankingu
+klanów, `static/references/ghostsignal/clans-pair.html?v=clans-ref-1`.
+
 Aktualizacja .7 (2026-09-13): zaakceptowana para world-ref-2 wdrożona
 do sześciu scen map/terytoriów. Wspólny CSS, lokalny glob SVG,
 obszary wyłącznie z archiwum finału. Lokalne JS PASS; odbiór runtime otwarty.

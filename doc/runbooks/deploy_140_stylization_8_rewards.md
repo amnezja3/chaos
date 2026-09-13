@@ -1,5 +1,7 @@
 # .8 — nagrody finału
 
+Status: ZAMKNIĘTE — PASS użytkownika, również po ustawieniu nowych stawek.
+
 Zaakceptowana referencja wdrożona w `reward_ledger` (630–660 s).
 Tytuł ma `display:block`, dzięki czemu FINAŁU jest pod NAGRODY również
 na portrait; nadpisuje odziedziczony flex. CSS jest wspólny z referencją.

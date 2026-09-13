@@ -1,0 +1,16 @@
+@import url("../../css/ghost_signal_ranking.css?v=ranking-runtime-1");
+html,body{margin:0;height:100%;background:#050907}
+.clans-scene .ranking-title{width:59vw}.clans-scene .ranking-title h1{display:block;font-size:clamp(44px,7vw,135px);max-width:100%}
+.clans-scene .ranking-clan{font-size:clamp(12px,1.4vw,27px);letter-spacing:.16em}
+.clans-scene .ranking-hero{top:28vh;left:49vw;width:min(32vw,50vh);aspect-ratio:1;height:auto}
+.clans-scene .ranking-hero img{mask-image:none;object-fit:contain}.clans-scene .portrait-light{border-radius:50%;transform:none}
+.clans-scene .ranking-stats{top:55vh;flex-wrap:wrap;gap:2vh 2vw}.clans-scene .ranking-stats strong{font-size:clamp(25px,3vw,58px)}
+.clans-scene .ranking-list{top:30vh}.clans-scene .ranking-row{padding:2vh .7vw}.clans-scene .ranking-position{font-size:clamp(10px,1.2vw,23px)}
+@media(max-aspect-ratio:1/1){
+ .clans-scene .ranking-title{width:88vw}.clans-scene .ranking-title h1{font-size:13vw}.clans-scene .ranking-clan{font-size:2.7vw}
+ .clans-scene .ranking-hero{left:57vw;top:26vh;width:min(55vw,31vh)}
+ .clans-scene .ranking-stats{top:29vh;left:6vw;width:24vw;gap:1.5vh}.clans-scene .ranking-stats strong{font-size:6vw}
+ .clans-scene .ranking-list{top:62vh}.clans-scene .ranking-row{padding:1.7vh 1.5vw}.clans-scene .ranking-position{font-size:2.5vw}
+}
+
+.clans-scene .ranking-hero img{padding:5%;filter:drop-shadow(0 0 8px #a9cbb82b)}
