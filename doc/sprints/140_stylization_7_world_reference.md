@@ -2,8 +2,12 @@
 
 Status: `REFERENCE / AUTHOR REVIEW PENDING`.
 
+Korekta v2: blok tytułu przesunięty do 9vh, ciaśniejsze odstępy podtytułu
+i hasła. Na desktopie skala tytułu uwzględnia wysokość viewport (26vh),
+żeby szeroki, niski ekran nie powodował kolizji z logami na 61vh.
+
 [Desktop 1920×1080 / portrait 1080×1920](../../static/references/ghostsignal/world-pair.html).
-Po push/pull: `/static/references/ghostsignal/world-pair.html?v=world-ref-1`.
+Po push/pull: `/static/references/ghostsignal/world-pair.html?v=world-ref-2`.
 Przyciski „Obszar” i „Ślad obszaru” porównują dwie ekspozycje tych samych
 wierzchołków. To makieta warstw i efektów, nie wynik rozliczenia produkcji.
 
