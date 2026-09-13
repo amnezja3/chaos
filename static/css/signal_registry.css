@@ -106,7 +106,15 @@
     display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;
     overflow:hidden;border:1px solid var(--registry-line);background:#101c16;color:var(--registry-accent);
 }
-.app-window[data-app="ghostsignal-archive"] .registry-portrait.is-player {border-radius:50%;}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row .registry-portrait.is-player {
+    width:44px;height:44px;aspect-ratio:1;flex:0 0 44px;
+    border-radius:50%;overflow:hidden;border:1px solid #85858580;
+    box-shadow:none;filter:none;
+}
+.app-window[data-app="ghostsignal-archive"] .registry-portrait.is-player img {
+    width:100%;height:100%;aspect-ratio:1;border-radius:50%;
+    object-fit:cover;object-position:center;box-shadow:none;filter:none;
+}
 .app-window[data-app="ghostsignal-archive"] .registry-portrait img {display:block;width:100%;height:100%;object-fit:cover;object-position:center 20%;}
 .app-window[data-app="ghostsignal-archive"] .registry-portrait.is-clan img {object-fit:contain;padding:5px;}
 @media(max-width:480px) {
