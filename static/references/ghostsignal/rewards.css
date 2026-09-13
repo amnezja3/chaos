@@ -1,4 +1,6 @@
 @import url("parts.css");
+.reward-ledger .section-label{display:flex;align-items:center;gap:.7em}
+.reward-trophy{width:1.8em;height:1.8em;flex:0 0 auto;color:#a8c6b2;opacity:.5;filter:drop-shadow(0 0 3px #a8c6b226)}
 .rewards-scene{display:block;--ofs-accent:#a8c6b2}
 .rewards-scene .background{filter:grayscale(1) brightness(.16)}
 .rewards-scene:before{background:linear-gradient(90deg,#040907ef,#04090766 65%),linear-gradient(0deg,#040907,transparent 65%)}
