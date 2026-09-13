@@ -7,7 +7,6 @@ import logging
 from collections import defaultdict
 
 from config import GHOSTNETWORK_RANKING_POLICY
-from database import db_connect
 
 
 RANKING_CONTRACT = "ghostsignal-ranking-v2"
@@ -80,7 +79,7 @@ class GhostSignalRankingService:
             return snapshots
         placeholders = ",".join("?" for _ in player_ids)
         try:
-            with db_connect(self.repository.db_path) as conn:
+            with self.repository._conn() as conn:
                 known = conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_identity_projection'"
                 ).fetchone()
@@ -104,7 +103,7 @@ class GhostSignalRankingService:
             }
         # Two bounded scalar leaves at finalization only, never hydrate a profile.
         try:
-            with db_connect(self.repository.db_path) as conn:
+            with self.repository._conn() as conn:
                 visual_rows = conn.execute(
                     "SELECT username, substr(json_extract(profile_json, '$.avatar'), 1, 160) AS avatar, "
                     "json_extract(profile_json, '$.level') AS level FROM users "

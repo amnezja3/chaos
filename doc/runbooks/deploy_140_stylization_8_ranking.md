@@ -1,5 +1,13 @@
 # 140.stylization.8 — gracze i ranking
 
+Poprawka odczytu avataru/LVL w historycznym podglądzie: serwis rankingu
+korzysta z `repository._conn()`, również gdy `HistoricalReader` nie ma
+`db_path`. Wcześniej przechwycony AttributeError pozostawiał oba pola puste.
+Test z rzeczywistym HistoricalReader i `PRAGMA query_only=ON` potwierdza
+odczyt avataru i LVL. 13 testów rankingu/podglądu PASS.
+Po pobraniu poprawki należy ponownie wygenerować HTML; istniejący podgląd
+zawiera stare dane i nie zostanie naprawiony przez samo odświeżenie strony.
+
 Poprawka ranking-2: usunięto dwa operatory `??` nieobsługiwane przez
 serwerowy Node 12.22.9. Jawne sprawdzenie null/undefined zachowuje RSP = 0.
 Pięć zestawów JS ponownie PASS lokalnie (Node 24); test na Node 12 należy
@@ -46,7 +54,7 @@ pm2 reload chaos &&
 pm2 reload chaos-territory-worker &&
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-8-ranking-2.html
+  --output static/previews/ghostsignal-stylization-8-ranking-3.html
 ```
 
 Oceń desktop i portrait w 11:00–11:40 oraz 14:00–14:15: ramkę 2:3,

@@ -35,8 +35,12 @@ class GhostSignalRankingTest(unittest.TestCase):
                 conn.execute("INSERT INTO users VALUES (?, ?, ?)", (name, dumps_json({
                     "avatar": "/static/images/avatar-frakcja-1-player-1.png", "level": 42,
                     "files": {"private": "not projected"}}), status))
-            with patch("ghostnetwork.ranking.db_connect", return_value=conn):
-                rows = GhostSignalRankingService(self.repo)._identity_snapshots(["alpha", "beta"])
+            from tools.build_ghostsignal_show_preview import HistoricalReader
+            conn.commit()
+            conn.execute("PRAGMA query_only=ON")
+            reader = HistoricalReader(conn)
+            self.assertFalse(hasattr(reader, "db_path"))
+            rows = GhostSignalRankingService(reader)._identity_snapshots(["alpha", "beta"])
             self.assertEqual(rows["alpha"]["level_snapshot"], 42)
             self.assertNotIn("level_snapshot", rows["beta"])
             projection = prepare_settlement_scene({"snapshot": {"players": [rows["alpha"]]}})
