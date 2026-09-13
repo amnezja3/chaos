@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — logowanie po restarcie z istniejącą sesją
+
+Naprawiono odrzucanie POST / przez bramkę epoki GhostSystemu przy
+zachowanej zalogowanej sesji. Formularz logowania nie przekazuje nagłówka
+epoki; GET / był wyłączony z blokady, POST / nie. Wyjątek obejmuje teraz
+wyłącznie endpoint index POST, z zachowaniem uwierzytelnienia hasłem.
+Gameplay ze starej epoki nadal zwraca 423. Restart wcześniej się odbył;
+usterka dotyczyła ponownego logowania bez ręcznego logoutu.
+10 izolowanych testów client_restart PASS, w tym poprawne/błędne hasło
+przy istniejącym cookie oraz ochrona starego dokumentu. diff check PASS.
+Wdrożenie: pull i pm2 reload chaos. Bez migracji, rollbacku ani triggera.
+
 ## 2026-09-13 — publikacje archiwalne a TTL bieżącego feedu
 
 Operator potwierdził płynny odsłuch w jednej sesji. Screeny wskazały puste

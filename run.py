@@ -20668,6 +20668,10 @@ def get_ghostsignal_show_service():
 
 
 def ghostsignal_request_is_exempt():
+    # Login authenticates a new document; an existing cookie may still belong
+    # to the previous world. A plain HTML form has no Ghost epoch header.
+    if request.endpoint == "index" and request.method == "POST":
+        return True
     if not str(session.get("user") or "").strip():
         return True
     if request.method == "OPTIONS":

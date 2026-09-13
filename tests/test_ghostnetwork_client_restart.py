@@ -97,6 +97,33 @@ class GhostClientRestartTest(unittest.TestCase):
                 run.g.session_generation_user = "alice"
                 self.assertEqual(run.reject_old_ghostsystem_response(run.jsonify(ok=True)).status_code, 302)
 
+    def test_login_form_with_existing_cookie_does_not_require_old_document_epoch(self):
+        service = Mock()
+        service.restart_projection.return_value = {"epoch": "new-world"}
+        service.gameplay_lock.return_value = {"gameplay_locked": False}
+        with patch.object(run, "get_ghostsignal_show_service", return_value=service):
+            for valid in (True, False):
+                with run.app.test_request_context("/", method="POST", data={"username": "alice", "password": "test"}), \
+                     patch.object(run, "authenticate_user", return_value=valid) as authenticate, \
+                     patch.object(run, "begin_authenticated_session", return_value="new-generation") as begin, \
+                     patch.object(run, "render_template", return_value="invalid credentials"):
+                    run.session["user"] = "alice"
+                    run.g.session_generation_user = "alice"
+                    self.assertIsNone(run.block_gameplay_writes_during_ghostsignal_show())
+                    response = run.app.make_response(run.index())
+                    response = run.reject_old_ghostsystem_response(response)
+                    authenticate.assert_called_once_with("alice", "test")
+                    if valid:
+                        begin.assert_called_once_with("alice")
+                        self.assertEqual(response.status_code, 302)
+                        self.assertIn("/desktop", response.location)
+                    else:
+                        begin.assert_not_called()
+                        self.assertIn("invalid credentials", response.get_data(as_text=True))
+            with run.app.test_request_context("/hack-action", method="POST"):
+                run.session["user"] = "alice"
+                self.assertEqual(run.block_gameplay_writes_during_ghostsignal_show().status_code, 423)
+
     def test_desktop_snapshot_is_bounded_for_small_and_35mb_profiles(self):
         from ghostnetwork import GhostNetworkRepository
         counts = []
