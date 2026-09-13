@@ -1,5 +1,23 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — zegar podróży sygnału
+
+Stopka show pokazuje datę UTC podróży zamiast odliczania T-minus.
+Postęp zegara show interpoluje od signal_sent_at do utrwalonego
+cycle_history.future_2108_timestamp: początek to wysłanie, koniec to odbiór.
+Ta sama proporcja steruje paskiem; synchronizacja scen i audio pozostaje
+oparta na dotychczasowym zegarze serwera. Brak dat w archiwum jest jawny,
+bez generowania daty historycznej. Cache: signal-show-journey-clock-1.
+Walidacja: frontend, recovery, manifest, montage i audio PASS; składnia JS OK.
+Nowy podgląd generować do nowego pliku, np. ghostsignal-journey-clock-1.html.
+
+## 2026-09-13 — .9: odbiór publikacji, archiwum i statystyk
+
+Użytkownik potwierdził PASS wariantu publications-2: dane publikacji,
+strony tekstu bez scrolli oraz statystyki cyklu w szablonie ekranowym.
+Zamknięto .9 i pozostały checkpoint statystyk .8. Następny etap to .10 —
+montaż i odbiór pełnych 15 minut; produkcyjny trigger nadal odłożony.
+
 ## 2026-09-13 — .8: zamknięcie checkpointu klanów
 
 Użytkownik potwierdził PASS prezentacji klanów z nowymi assetami

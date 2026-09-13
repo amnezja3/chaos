@@ -1,5 +1,8 @@
 # .9 — publikacje i archiwum
 
+Status: ZAMKNIĘTE / PASS użytkownika dla wariantu publications-2:
+publikacje, strony tekstu bez scrolli, statystyki w ekranie i archiwum.
+
 Poprawka publications-2: publikacje nie są ograniczone do chwili powstania
 rankingu. Generator ponownie odczytuje publiczne wpisy do show_ends_at,
 również przy istniejącej projekcji settlement. Odczyt zachowuje filtr cyklu,
@@ -53,5 +56,5 @@ powinien dać komunikat, nie demonstracyjną treść.
 Lokalne 5 zestawów JS PASS. Test montażu: filtrowanie źródeł, równy czas,
 zachowanie treści, aktywny indeks, brak publikacji, wejście do archiwum.
 Składnia i diff check PASS. Runtime nie wprowadza ?? ani ?.; lokalny Node 24.
-Odbiór serwerowy publikacji i statystyk pozostaje otwarty. Montaż .10
-pozostaje do wykonania; trigger nie jest uruchamiany.
+Odbiór serwerowy publikacji i statystyk zakończony — PASS użytkownika.
+Montaż .10 pozostaje do wykonania; trigger nie jest uruchamiany.

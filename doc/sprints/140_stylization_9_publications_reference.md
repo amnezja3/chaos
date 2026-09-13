@@ -1,9 +1,8 @@
 # .9 — publikacje i archiwum / para referencyjna
 
-Status: PARA ZAAKCEPTOWANA I WDROŻONA; odbiór runtime otwarty.
+Status: ZAMKNIĘTE / PASS użytkownika dla wdrożonych publikacji i archiwum.
 [Procedura wdrożenia](../runbooks/deploy_140_stylization_9_publications.md).
-Przejście do .9 na polecenie użytkownika; statystyki
-cyklu (cycle_statistics) pozostają otwartym elementem .8.
+Statystyki cyklu (cycle_statistics) w szablonie ekranowym również odebrane — PASS.
 
 Para: `/static/references/ghostsignal/publications-pair.html?v=publications-ref-1`.
 Pełny ekran: `/static/references/ghostsignal/publications.html?v=publications-ref-1`.

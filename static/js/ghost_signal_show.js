@@ -21,6 +21,22 @@
         return Math.max(0, Math.ceil((end - (Number(nowMs || Date.now()) + Number(offsetMs || 0))) / 1000));
     }
 
+    function signalJourneyAt(snapshot, nowMs, offsetMs) {
+        const manifest = snapshot && snapshot.show_manifest || {};
+        const start = Date.parse(snapshot && snapshot.show_started_at || "");
+        const end = Date.parse(snapshot && snapshot.show_ends_at || "");
+        const sent = Date.parse(manifest.signal_sent_at || "");
+        const received = Date.parse((manifest.cycle_history || {}).future_2108_timestamp || "");
+        const now = Number(nowMs === undefined ? Date.now() : nowMs) + Number(offsetMs || 0);
+        const progress = Number.isFinite(start) && end > start && Number.isFinite(now)
+            ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
+        if (!Number.isFinite(sent) || !Number.isFinite(received) || received < sent) {
+            return {progress, label: "SYGNAŁ / BRAK ZAPISU DAT PODRÓŻY"};
+        }
+        const date = new Date(sent + (received - sent) * progress);
+        return {progress, label: date.toISOString().slice(0, 19).replace("T", " ") + " UTC"};
+    }
+
     function phaseAt(snapshot, nowMs, offsetMs) {
         const start = Date.parse(snapshot && snapshot.show_started_at || "");
         const end = Date.parse(snapshot && snapshot.show_ends_at || "");
@@ -1481,10 +1497,11 @@
                 : copy[1];
             root.querySelector(".ghost-signal-show__versions").textContent =
                 `${snapshot.from_system_version || "vN"}  >  ${snapshot.to_system_version || "vNext"}`;
-            root.querySelector(".ghost-signal-show__progress span").style.width =
-                `${Math.max(0, Math.min(100, Number(phase.overall_percent || 0)))}%`;
-            root.querySelector(".ghost-signal-show__time").textContent =
-                `T-${String(secondsRemaining(snapshot, Date.now(), offsetMs)).padStart(3, "0")}s`;
+            const journey = signalJourneyAt(snapshot, Date.now(), offsetMs);
+            root.querySelector(".ghost-signal-show__progress span").style.width = `${journey.progress * 100}%`;
+            const journeyTime = root.querySelector(".ghost-signal-show__time");
+            journeyTime.textContent = journey.label;
+            journeyTime.setAttribute("aria-label", "Aktualna data podróży sygnału: " + journey.label);
             root.classList.add("is-active");
             const fallback = doc.getElementById("ghost-signal-show-fallback");
             if (fallback) fallback.remove();
@@ -1604,7 +1621,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, phaseAt, sceneAt, sceneLayout, networkPositions, machineFocusPoses, showAudioAt, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, signalJourneyAt, phaseAt, sceneAt, sceneLayout, networkPositions, machineFocusPoses, showAudioAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 
