@@ -527,5 +527,23 @@ try {
     seek(760.1);assert(screenText().length<30,'seek resets typed content');
     manifest.signal_confirmed=false;seek(778);assert(!root.querySelector('.archive-scene'));
     manifest.signal_confirmed=true;seek(801);assert(!root.querySelector('.archive-flash'));
+    // Exercise the canonical backend timeline, not the shortened fixtures above.
+    const source=require('fs').readFileSync(require('path').join(__dirname,'../ghostnetwork/show_manifest.py'),'utf8');
+    const canonicalTimeline=source.split('SCENES = (')[1].split('\n)')[0];
+    const cues=Array.from(canonicalTimeline.matchAll(/\(([\d.]+), "([^"]+)", "([^"]+)"\)/g));
+    assert.strictEqual(cues.length,49,'canonical scene count');
+    manifest.scenes=cues.map((m,i)=>({start:Number(m[1]),end:i+1<cues.length?Number(cues[i+1][1]):900,id:m[2],label:m[3]}));
+    for(const entry of manifest.scenes) {
+        for(const second of [entry.start,entry.end-.01]) {
+            seek(second);
+            assert.strictEqual(root.attrs['data-show-scene'],entry.id,'boundary at '+second);
+            assert(!doc.getElementById('ghost-signal-show-fallback'),'renderer failure at '+second);
+            assert(root.className.includes('has-parts')||root.className.includes('has-interface'),'legacy layout at '+second);
+            const stage=root.querySelector('.ghost-signal-show__stage');
+            assert(stage.children.length>0,'empty stage at '+second);
+            if(entry.id!=='transmission_video') assert(!root.querySelector('.ghost-show-video'),'video leaked at '+second);
+        }
+    }
+    console.log('ghost signal full timeline: 49 scenes / 98 boundaries PASS');
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

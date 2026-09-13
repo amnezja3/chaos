@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — .10: przygotowanie montażu i pary przejścia
+
+Para 415–480 s korzysta z istniejącego renderera show w desktop/portrait:
+maszyna, zapis, cały film, błysk, kanał 2108 i wejście świata. Generator
+podglądu obsługuje start fragmentu i ukrycie panelu; czas i wybór sceny
+w panelu aktualizują się podczas odtwarzania. Bez zmiany osi show i audio.
+Dodano runbook odbioru pełnych 15 minut i test 49 kanonicznych scen / 98
+granic. JS frontend/recovery/manifest/montage/audio PASS, 6 testów generatora
+historycznego PASS, składnia skryptów wygenerowanego podglądu PASS.
+Odbiór wizualny i odsłuch na urządzeniach oczekują na autora; trigger odłożony.
+
 ## 2026-09-13 — zegar podróży sygnału
 
 Stopka show pokazuje datę UTC podróży zamiast odliczania T-minus.

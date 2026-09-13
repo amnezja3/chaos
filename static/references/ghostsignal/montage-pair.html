@@ -1,0 +1,17 @@
+<!doctype html><html lang="pl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>140.stylization.10 — montaż / para przejścia</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;background:#080c0b;color:#c5cec3;font:14px/1.6 monospace}h1{font:600 24px sans-serif}a{color:#97b9a4}main{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(240px,.65fr);gap:24px}figure{margin:0;min-width:0}.frame{position:relative;overflow:hidden;outline:1px solid #45594b}iframe{position:absolute;top:0;left:0;border:0;transform-origin:top left}button{font:inherit;background:#0b1711;color:inherit;border:1px solid #667f6e;padding:10px;cursor:pointer}@media(max-width:850px){main{grid-template-columns:1fr}}
+</style>
+<h1>140.stylization.10 / MONTAŻ</h1>
+<p>06:55–08:00: maszyna → zapis → wideo → błysk → kanał 2108 → świat. Istniejący renderer show, dane demo. Para jest bez dźwięku; odsłuch w samodzielnym podglądzie.</p>
+<p><button id="replay">Powtórz przejście od 06:55</button> <a href="/static/previews/ghostsignal-stylization-10.html" target="_blank" rel="noopener">Pełne 15 minut / odsłuch</a></p>
+<main>
+<figure><figcaption>DESKTOP / 1920 × 1080</figcaption><div class="frame" data-width="1920" data-height="1080"><iframe width="1920" height="1080" title="Montaż desktop"></iframe></div></figure>
+<figure><figcaption>PORTRAIT / 1080 × 1920</figcaption><div class="frame" data-width="1080" data-height="1920"><iframe width="1080" height="1920" title="Montaż portrait"></iframe></div></figure>
+</main>
+<script>
+function fit(){document.querySelectorAll('.frame').forEach(function(frame){var scale=frame.clientWidth/Number(frame.dataset.width);frame.style.height=Number(frame.dataset.height)*scale+'px';frame.firstElementChild.style.transform='scale('+scale+')';});}
+function replay(){document.querySelectorAll('iframe').forEach(function(frame){frame.src='/static/previews/ghostsignal-stylization-10.html?start=415&controls=hidden&v='+Date.now();});}
+document.getElementById('replay').onclick=replay;window.addEventListener('resize',fit);fit();replay();
+</script></html>

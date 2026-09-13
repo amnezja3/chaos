@@ -152,6 +152,9 @@ def main():
 <script>
 const manifest = MANIFEST;
 const previewInfo = PREVIEW_INFO;
+const previewParams=new URLSearchParams(location.search);
+const initialSecond=Math.max(0,Math.min(899,Number(previewParams.get('start'))||0));
+if(previewParams.get('controls')==='hidden')document.getElementById('preview-controls').style.display='none';
 document.getElementById('preview-source').textContent=previewInfo.mode==='historical'?'REPLAY / DANE ARCHIWALNE':'PODGLĄD / DANE DEMO';
 let previewController;
 const select=document.getElementById('scene-select'), seek=document.getElementById('seek');
@@ -195,6 +198,13 @@ try{observer=new PerformanceObserver(list=>{for(const task of list.getEntries())
 function sample(){
  const root=document.getElementById('ghost-signal-show');
  if(!root)return;
+ const activeSnapshot=previewController && previewController.snapshot;
+ if(activeSnapshot){const second=Math.max(0,Math.min(900,(Date.now()-Date.parse(activeSnapshot.show_started_at))/1000));
+  document.getElementById('position').textContent=second.toFixed(1)+' / 900 s';
+  if(document.activeElement!==seek)seek.value=Math.min(899,second);
+  const current=manifest.scenes.find(s=>second>=s.start&&second<s.end);
+  if(current && document.activeElement!==select)select.value=current.start;
+ }
  measurement.samples++;
  measurement.max_dom_nodes=Math.max(measurement.max_dom_nodes,root.getElementsByTagName('*').length);
  const scene=root.getAttribute('data-show-scene');
@@ -216,10 +226,10 @@ document.getElementById('export-performance').onclick=()=>{
   heap_bytes:performance.memory?performance.memory.usedJSHeapSize:null,
   resource_transfer_bytes:performance.getEntriesByType('resource').reduce((sum,r)=>sum+(r.transferSize||0),0)});
  const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));
- const a=document.createElement('a');a.href=url;a.download='ghostsignal-140-5-performance.json';a.click();
+ const a=document.createElement('a');a.href=url;a.download='ghostsignal-140-stylization-10-performance.json';a.click();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
-document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{if(window.GhostSignalShowController)window.GhostSignalShowController.stop();showAt(0);},0));
+document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{if(window.GhostSignalShowController)window.GhostSignalShowController.stop();showAt(initialSecond);},0));
 </script></html>""".replace("const previewInfo = PREVIEW_INFO;", "const previewInfo = " + json.dumps(info, ensure_ascii=False).replace("<", "\\u003c") + ";", 1).replace("const manifest = MANIFEST;", "const manifest = " + encoded + ";", 1)
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

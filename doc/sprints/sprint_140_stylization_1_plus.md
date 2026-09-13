@@ -5,7 +5,11 @@ Status: `DRAFT / BACKLOG`, otwarty decyzją autora 2026-09-11.
 Checkpoint .9 — ZAMKNIĘTY / PASS użytkownika dla publikacji i archiwum.
 Statystyki cyklu przeniesione do szablonu ekranowego również mają PASS;
 domyka to odbiór wyników .8. [Odbiór .9](../runbooks/deploy_140_stylization_9_publications.md).
-Następny etap: .10 — ciągły montaż 15 minut i odbiór całości przed triggerem.
+Aktualny etap: .10 — montaż, para przejścia 415–480 s przygotowana do odbioru.
+Para: `static/references/ghostsignal/montage-pair.html`; przygotowanie podglądów
+i checkpointy: [runbook .10](../runbooks/deploy_140_stylization_10_montage.md).
+Automatyczna kontrola 49 scen / 98 granic PASS. Akceptacja pary, pełnych
+15 minut z muzyką oraz desktop/mobile pozostaje otwarta przed triggerem.
 
 Checkpoint .8 — nagrody: ZAMKNIĘTY / PASS użytkownika. Scena nagród,
 mobile, dane archiwalne i konfiguracja nowych stawek 800/2000/800 RSP
