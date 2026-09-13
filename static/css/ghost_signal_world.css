@@ -40,7 +40,6 @@
 
 .world-map .world-base{position:absolute;inset:0;width:100%;height:100%}
 .world-map .world-overlay{position:relative}
-.world-territory path{fill:#98cdb52b;stroke:#c4e4cf;stroke-width:1.6;stroke-linejoin:round}
+.world-territory path{fill:#98cdb52b;stroke:#c4e4cf;stroke-width:1.6;stroke-linejoin:round;filter:drop-shadow(0 0 4px #94c9ab66)}
 .world-scene[data-view="trace"] .world-territory path{fill:#98cdb508;stroke-dasharray:5 8;opacity:.6}
-.world-territory path.is-horizon{fill:none!important}
 .ghost-signal-show .world-scene{padding-bottom:0}

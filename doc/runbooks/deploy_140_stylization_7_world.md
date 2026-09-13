@@ -8,10 +8,11 @@ zewnętrznych requestów i dodatkowych odczytów backendu.
 
 Terytoria pochodzą wyłącznie z istniejącego `cycle_history.settlement`.
 Maksymalnie 40 obszarów, po 3–32 poprawne wierzchołki. Nie ma trójkąta demo.
-Kontury poza półkulą są pomijane i liczone w podpisie; przecinające horyzont
-pozostają bez wypełnienia. Widok Europa/Afryka jest stały, jak w referencji;
-nie powiększamy sztucznie powierzchni małych terytoriów. Nie pokazuje całego
-stanu świata ani niezapisanych stanów zachowanych/zredukowanych obszarów.
+Glob jest wyłącznie scenografią. Aktualne terytorium jest dopasowane do pola
+380 × 380 jednostek SVG, z zachowaniem proporcji i kolejności wierzchołków.
+Lokalizacja i rozmiar geograficzny nie wpływają na jego położenie ani skalę
+prezentacji. Kontur ma łunę, wypełnienie i pulsujące wierzchołki.
+Nie pokazuje całego stanu świata ani niezapisanych stanów zachowanych/zredukowanych obszarów.
 Brak geometrii pozostawia glob i tekstowe podsumowanie.
 
 Po push, na serwerze w repozytorium:
@@ -32,7 +33,7 @@ Po PASS:
 pm2 reload chaos &&
 .venv/bin/python -B tools/build_ghostsignal_show_preview.py \
   --db data/game.sqlite3 --cycle-id ghostnetwork_0001 \
-  --output static/previews/ghostsignal-stylization-7-world-1.html
+  --output static/previews/ghostsignal-stylization-7-world-2.html
 ```
 
 Otwórz `/static/previews/ghostsignal-stylization-7-world-1.html`.

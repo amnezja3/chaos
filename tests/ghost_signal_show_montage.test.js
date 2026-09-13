@@ -129,12 +129,15 @@ try {
         {label:'far',geometry_available:true,points:[[-160,-30],[-150,-30],[-150,-40]]},
         {label:'invalid',geometry_available:true,points:[[NaN,1],[1,2],[2,3]]},
         {label:'horizon',geometry_available:true,points:[[20,30],[140,30],[20,40]]}];
-    seek(550);
+    seek(481);seek(496);
     const globePaths=root.querySelector('.world-territory').children.filter(n=>n.tag==='path');
     assert.strictEqual(globePaths.length,1);
-    assert.strictEqual(globePaths[0].attrs.class,'is-horizon');
-    assert(!globePaths[0].attrs.d.endsWith('Z'),'never fill across hidden hemisphere');
-    assert(root.querySelector('.world-geometry-note').textContent.includes('POZA KADREM: 1'));
+    assert.strictEqual(globePaths[0].attrs['data-territory'],'far');
+    assert.strictEqual(globePaths[0].attrs.d,'M310.00,240.00L690.00,240.00L690.00,620.00Z');
+    manifest.cycle_history.settlement.territories=[{label:'tiny',geometry_available:true,points:[[1,2],[1.001,2],[1.001,1.999]]}];
+    seek(481);seek(497);
+    assert.strictEqual(root.querySelector('.world-territory').children[0].attrs.d,globePaths[0].attrs.d,
+        'location and geographic size do not alter the symbolic outline');
     manifest.cycle_history.settlement.territories=savedTerritories;
     for (const entry of stages.filter(s => s[0] >= 525 && s[0] < 840)) {
         seek(entry[0]+0.1);

@@ -540,31 +540,30 @@
         const svg=svgNode("svg",{class:"world-overlay",viewBox:"0 0 1000 1000",role:"img","aria-label":"Geometria z archiwum finału"},map);
         const defs=svgNode("defs",{},svg), gradient=svgNode("radialGradient",{id:"world-halo"},defs);
         [["0","#d6ffe7",".8"],[".3","#94c9ab",".3"],["1","#94c9ab","0"]].forEach(r=>svgNode("stop",{offset:r[0],"stop-color":r[1],"stop-opacity":r[2]},gradient));
-        const layer=svgNode("g",{class:"world-territory"},svg), rad=Math.PI/180,a=30*rad;
-        const project=p=>{const lat=p[1]*rad,lon=(p[0]-15)*rad;return [500+448*Math.cos(lat)*Math.sin(lon),
-            500-448*(Math.cos(a)*Math.sin(lat)-Math.sin(a)*Math.cos(lat)*Math.cos(lon)),Math.sin(a)*Math.sin(lat)+Math.cos(a)*Math.cos(lat)*Math.cos(lon)];};
+        const layer=svgNode("g",{class:"world-territory"},svg);
         const valid=t=>t.geometry_available && Array.isArray(t.points) && t.points.length>=3 && t.points.length<=32
             && t.points.every(p=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90);
         const territories=available?(data.territories||[]).slice(0,40):[], shapes=territories.filter(valid);
-        let outside=0, crossing=0;
-        shapes.forEach((territory,index)=>{
-            const points=territory.points.map(project), all=points.every(p=>p[2]>=0);
-            if(points.every(p=>p[2]<0)){outside++;return;}
-            if(!all)crossing++;
-            let path="",open=false;
-            points.concat([points[0]]).forEach(p=>{if(p[2]<0){open=false;return;}path+=(open?"L":"M")+p[0].toFixed(2)+","+p[1].toFixed(2);open=true;});
-            const polygon=svgNode("path",{d:path+(all?"Z":""),class:all?"":"is-horizon","data-territory":territory.label||""},layer);
+        const selected=territories[pageIndex%Math.max(1,territories.length)];
+        if(selected && valid(selected)){
+            // The globe is scenery. Fit the archived outline using a uniform scale,
+            // preserving its proportions independently of its geographic location.
+            const territory=selected, xs=territory.points.map(p=>p[0]), ys=territory.points.map(p=>p[1]);
+            const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+            const span=Math.max(maxX-minX,maxY-minY), scale=span>0?380/span:0;
+            const points=territory.points.map(p=>[500+(p[0]-(minX+maxX)/2)*scale,430-(p[1]-(minY+maxY)/2)*scale]);
+            const path=points.map((p,i)=>(i?"L":"M")+p[0].toFixed(2)+","+p[1].toFixed(2)).join("")+"Z";
+            const polygon=svgNode("path",{d:path,"data-territory":territory.label||""},layer);
             svgNode("title",{},polygon).textContent=(territory.label||"Terytorium")+" / "+(territory.clan||"Brak klanu");
-            if(index!==pageIndex%Math.max(1,shapes.length))return;
-            points.filter(p=>p[2]>=0).forEach(p=>{
+            points.forEach(p=>{
                 svgNode("circle",{cx:p[0],cy:p[1],r:23,class:"world-node-halo"},layer);
                 svgNode("circle",{cx:p[0],cy:p[1],r:7,class:"world-node-ring"},layer);
                 svgNode("circle",{cx:p[0],cy:p[1],r:3.5,class:"world-node-core"},layer);
             });
-        });
-        map.appendChild(element("p","world-coordinate","GLOBAL OVERVIEW / EUROPA — AFRYKA"));
-        map.appendChild(element("p","world-geometry-note",!available?"OCZEKIWANIE NA ARCHIWUM":!shapes.length?"BRAK GEOMETRII W ZAPISIE":
-            "GEOMETRIA ARCHIWALNA"+(outside?" / POZA KADREM: "+outside:"")+(crossing?" / NA HORYZONCIE: "+crossing:"")));
+        }
+        map.appendChild(element("p","world-coordinate","GHOSTSIGNAL / KSZTAŁT TERYTORIUM"));
+        map.appendChild(element("p","world-geometry-note",!available?"OCZEKIWANIE NA ARCHIWUM":!selected||!valid(selected)?"BRAK GEOMETRII W ZAPISIE":
+            "GEOMETRIA ARCHIWALNA / WIDOK SYMBOLICZNY"));
         canvas.appendChild(map);
         const log=element("aside","world-log"), list=element("ol","");
         log.appendChild(element("p","world-section-label","01 / "+names[scene.id]));
