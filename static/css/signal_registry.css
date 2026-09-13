@@ -1,0 +1,108 @@
+/* Registry owns one scroll surface; Suite and other app windows stay independent. */
+.app-window[data-app="ghostsignal-archive"] {
+    --registry-ink:#c5cec3;
+    --registry-muted:#95a69b;
+    --registry-accent:#93b99f;
+    --registry-line:#93b99f40;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    overflow:hidden;
+    color:var(--registry-ink);
+    background:#080e0b;
+    border-color:var(--registry-line);
+    box-shadow:0 16px 48px #0009;
+}
+.app-window[data-app="ghostsignal-archive"] .title-bar {
+    flex:none;
+    background:#101813;
+    color:var(--registry-ink);
+    border-bottom:1px solid var(--registry-line);
+}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-archive-shell {
+    display:block;
+    flex:1 1 0;
+    min-height:0;
+    min-width:0;
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scrollbar-color:#738b7b #0b120e;
+    scrollbar-width:thin;
+    padding:clamp(14px,3vw,28px);
+    color:var(--registry-ink);
+    font:14px/1.6 "Courier New",monospace;
+    background:linear-gradient(#080e0bef,#080e0be8),url('../images/wallpaper2.jpg') center/cover;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-archive-shell * {box-sizing:border-box;min-width:0;}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-archive-shell > * {margin:0 0 20px;}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-header,
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-toolbar,
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-card,
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-grid {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    height:auto;
+    max-height:none;
+    overflow:visible;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-header {
+    padding:8px 0 20px;
+    border:0;
+    border-bottom:1px solid var(--registry-line);
+    background:transparent;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-header strong {
+    font:900 clamp(32px,5vw,54px)/.95 Impact,"Arial Narrow",sans-serif;
+    color:var(--registry-ink);
+    letter-spacing:-.025em;
+    overflow-wrap:anywhere;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-header span {
+    margin-top:8px;color:var(--registry-muted);font-size:11px;letter-spacing:.12em;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-list {
+    display:flex;flex-direction:column;gap:10px;overflow:visible;height:auto;max-height:none;
+}
+.app-window[data-app="ghostsignal-archive"] button {
+    display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+    width:100%;padding:12px 14px;min-height:44px;
+    background:#0c1711e6;color:var(--registry-ink);
+    border:1px solid var(--registry-line);border-radius:0;
+    font:inherit;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer;
+}
+.app-window[data-app="ghostsignal-archive"] button:hover {background:#93b99f18;border-color:var(--registry-accent);}
+.app-window[data-app="ghostsignal-archive"] button:focus-visible {outline:2px solid var(--registry-accent);outline-offset:3px;}
+.app-window[data-app="ghostsignal-archive"] button span {font-size:11px;color:var(--registry-muted);}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-card,
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-grid article {
+    padding:16px;border:1px solid var(--registry-line);border-left:2px solid var(--registry-accent);
+    background:#080f0cdb;overflow:visible;max-height:none;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-card-main strong,
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-card-main span,
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row span,
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row span small {
+    overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-card small {color:var(--registry-muted);overflow-wrap:anywhere;}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-card p {margin:8px 0;}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-grid {gap:20px;}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-grid h3 {
+    color:var(--registry-accent);font-size:12px;letter-spacing:.1em;margin:0 0 14px;overflow-wrap:anywhere;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row {
+    grid-template-columns:32px minmax(0,1fr) minmax(48px,auto);
+    gap:10px;padding:12px 0;border-color:var(--registry-line);align-items:start;
+}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row strong {color:var(--registry-ink);text-align:right;overflow-wrap:anywhere;}
+.app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row span small {color:var(--registry-muted);font-size:11px;line-height:1.6;margin-top:5px;}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-status,
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-empty {color:var(--registry-muted);border-color:var(--registry-line);background:#0b1510;overflow-wrap:anywhere;}
+.app-window[data-app="ghostsignal-archive"] .ghostnetwork-suite-status.is-error {color:#dbbd84;}
+@media(max-width:480px) {
+    .app-window[data-app="ghostsignal-archive"] .ghostsignal-archive-shell {padding:14px 12px 28px;font-size:13px;}
+    .app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-grid article {padding:12px;}
+    .app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row {grid-template-columns:26px minmax(0,1fr);gap:4px 8px;}
+    .app-window[data-app="ghostsignal-archive"] .ghostsignal-ranking-row > strong {grid-column:2;text-align:left;}
+}

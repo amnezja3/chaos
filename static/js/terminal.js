@@ -432,7 +432,7 @@ const devBugReporterApp = {
 
 const signalRegistrySystemApp = {
     id: 'signal_registry',
-    icon: '\u25C9',
+    icon: '\u224B',
     label: 'Signal Registry',
     action: () => createGhostSignalArchiveApp()
 };
@@ -8144,7 +8144,7 @@ function createGhostSignalArchiveApp(signalId = "") {
     app.className = "app-window ghostnetwork-suite-window";
     app.dataset.app = "ghostsignal-archive";
     app.dataset.signalId = String(signalId || "");
-    app.dataset.appIcon = "◉";
+    app.dataset.appIcon = "≋";
     app.dataset.appTitle = "Signal Registry";
     const position = findAvailablePosition(760, 560);
     Object.assign(app.style, {top: `${position.top}px`, left: `${position.left}px`, width: "760px", height: "560px"});

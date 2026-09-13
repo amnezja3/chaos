@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-09-13 — Signal Registry: układ i oprawa show
+
+Registry ma jedną przewijaną powierzchnię: nagłówek, wybór sygnału, opis
+i rankingi w jednej kolumnie. Usunięto dziedziczone kolumny karty Suite
+i wewnętrzne scrolle; długie nicki, metadane i daty zawijają się.
+CSS ograniczony do okna Registry: ciemne tło, stonowana zieleń, cienkie ramki
+i typografia show. Na wąskim telefonie wynik przechodzi pod opis gracza.
+Ikona pulpitu i metadanych okna: ≋, zgodnie z decyzją autora.
+Kontrakt frontend Registry i składnia terminal.js PASS; diff check PASS.
+Odbiór wizualny desktop/mobile pozostaje po stronie autora.
+
 ## 2026-09-13 — logowanie po restarcie z istniejącą sesją
 
 Naprawiono odrzucanie POST / przez bramkę epoki GhostSystemu przy
