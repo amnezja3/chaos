@@ -1,6 +1,7 @@
 # .8 — ranking klanów / para referencyjna
 
-Status: DO OCENY. Nagrody i gracze mają PASS; runtime klanów jeszcze bez zmian.
+Status: PARA ZAAKCEPTOWANA, WDROŻONA. Odbiór runtime klanów pozostaje otwarty.
+[Procedura wdrożenia](../runbooks/deploy_140_stylization_8_clans.md).
 
 Wariant clans-ref-2: symbole odtworzone ręcznie jako czyste ścieżki SVG
 na podstawie czterech referencji użytkownika, bez napisów, tkaniny i tła.

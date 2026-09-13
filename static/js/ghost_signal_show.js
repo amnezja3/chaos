@@ -539,14 +539,20 @@
         if(active&&Number.isFinite(active.offsetTop))list.scrollTop=Math.max(0,active.offsetTop-list.offsetTop-list.clientHeight/2+active.offsetHeight/2);
     }
 
-    function renderRanking(doc, stage, manifest, pageIndex, element) {
-        const data=(manifest.cycle_history||{}).settlement||{}, players=data.available?(data.players||[]).slice(0,20):[];
-        const player=players[pageIndex], canvas=element("section","ghost-show-parts ranking-scene");
+    function renderRanking(doc, stage, manifest, pageIndex, element, isClan) {
+        const data=(manifest.cycle_history||{}).settlement||{};
+        const symbols={virex:"virex_logo_pro.png",echo_freedom:"echo_logo_pro.png",phantom_mesh:"mesh_logo_pro.png",sentinel_order:"sentinel_logo_pro.png"};
+        const players=!data.available?[]:isClan?(data.clans||[]).slice(0,8).map(c=>{
+            const catalog=((manifest.catalog||{}).clans||[]).find(item=>item.code===c.code);
+            return {alias:catalog?catalog.name:c.code||"Brak nazwy klanu",clan:"CLAN GHOST SCORE",rank:c.rank,rsp:c.rsp,level:c.score,members:c.members,
+                avatar:Object.prototype.hasOwnProperty.call(symbols,c.code)?"/static/images/ghostnetwork/clans/"+symbols[c.code]:""};
+        }):(data.players||[]).slice(0,20);
+        const player=players[pageIndex], canvas=element("section","ghost-show-parts ranking-scene"+(isClan?" clans-scene":""));
         canvas.appendChild(element("div","background"));
         const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
         if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
-        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","","UCZESTNICY / RANKING FINAŁU"));canvas.appendChild(header);
-        const title=element("section","ranking-title");title.appendChild(element("p","eyebrow","ŚLAD GRACZA / GHOSTSIGNAL"));
+        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","",isClan?"KLANY / RANKING FINAŁU":"UCZESTNICY / RANKING FINAŁU"));canvas.appendChild(header);
+        const title=element("section","ranking-title");title.appendChild(element("p","eyebrow",isClan?"ŚLAD KLANU / GHOSTSIGNAL":"ŚLAD GRACZA / GHOSTSIGNAL"));
         title.appendChild(element("h1","",player?player.alias||"Brak nicku":"RANKING"));
         const clan=element("p","ranking-clan",player?player.clan||"Brak klanu":"Oczekiwanie na zapis");clan.appendChild(element("span","underscore","_"));title.appendChild(clan);canvas.appendChild(title);
         if(player){
@@ -554,15 +560,15 @@
             const hero=element("figure","ranking-hero");hero.appendChild(element("div","portrait-light"));
             const avatar=element("img","");avatar.alt="Avatar / "+(player.alias||"Gracz");
             const safe=/^\/?static\/images\/avatar-(?:frakcja-[1-4]-player-[1-5]\.png|default\.jpg)$/;
-            avatar.src=safe.test(player.avatar||"")?"/"+player.avatar.replace(/^\//,""):"/static/images/avatar-default.jpg";
-            avatar.onerror=()=>{avatar.onerror=null;avatar.src="/static/images/avatar-default.jpg";};hero.appendChild(avatar);
+            avatar.src=isClan?player.avatar:safe.test(player.avatar||"")?"/"+player.avatar.replace(/^\//,""):"/static/images/avatar-default.jpg";
+            avatar.onerror=()=>{avatar.onerror=null;if(isClan){avatar.remove();hero.appendChild(element("p","ranking-missing","Symbol niedostępny"));}else avatar.src="/static/images/avatar-default.jpg";};if(!isClan||player.avatar)hero.appendChild(avatar);else hero.appendChild(element("p","ranking-missing","Brak symbolu klanu"));
             const badge=element("div","ranking-position");badge.appendChild(element("small","","RANKING"));badge.appendChild(element("span","","#"+String(rank).padStart(2,"0")));hero.appendChild(badge);
-            const caption=element("figcaption","",player.visual_source==="current_profile"?"PODGLĄD / AKTUALNY AVATAR I LVL":player.avatar?"PROFIL / ARCHIWUM":"AVATAR / BRAK ZAPISU");hero.appendChild(caption);canvas.appendChild(hero);
-            const stats=element("section","ranking-stats");[["POZIOM",Number.isFinite(player.level)?player.level:"—"],["RSP / SYGNAŁ",player.rsp]].forEach(pair=>{const block=element("div","");block.appendChild(element("span","",pair[0]));block.appendChild(element("strong","",String(pair[1] == null ? "—" : pair[1])));stats.appendChild(block);});canvas.appendChild(stats);
+            const caption=element("figcaption","",isClan?"KLAN / ARCHIWUM":player.visual_source==="current_profile"?"PODGLĄD / AKTUALNY AVATAR I LVL":player.avatar?"PROFIL / ARCHIWUM":"AVATAR / BRAK ZAPISU");hero.appendChild(caption);canvas.appendChild(hero);
+            const stats=element("section","ranking-stats");[[isClan?"GHOST SCORE":"POZIOM",Number.isFinite(player.level)?player.level:"—"],["RSP / SYGNAŁ",player.rsp]].concat(isClan?[["UCZESTNICY",player.members]]:[]).forEach(pair=>{const block=element("div","");block.appendChild(element("span","",pair[0]));block.appendChild(element("strong","",String(pair[1] == null ? "—" : pair[1])));stats.appendChild(block);});canvas.appendChild(stats);
         }
-        const panel=element("aside","ranking-list");panel.appendChild(element("p","list-title",data.players_truncated?"01 / RANKING — WYBÓR ARCHIWUM":"01 / PEŁNY RANKING"));
+        const panel=element("aside","ranking-list");panel.appendChild(element("p","list-title",(!isClan&&data.players_truncated)||data.details_truncated?"01 / RANKING — WYBÓR ARCHIWUM":"01 / PEŁNY RANKING"));
         const list=element("ol","");let active;
-        players.forEach((p,i)=>{const row=element("li","ranking-row"+(i===pageIndex?" is-current":""));row.appendChild(element("span","",String(p.rank||i+1).padStart(2,"0")));const name=element("b","",p.alias||"Brak nicku");name.appendChild(element("small","",p.clan||"Brak klanu"));row.appendChild(name);row.appendChild(element("span","",String(p.rsp == null ? "—" : p.rsp)));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});
+        players.forEach((p,i)=>{const row=element("li","ranking-row"+(i===pageIndex?" is-current":""));row.appendChild(element("span","",String(p.rank||i+1).padStart(2,"0")));const name=element("b","",p.alias||"Brak nicku");if(!isClan)name.appendChild(element("small","",p.clan||"Brak klanu"));row.appendChild(name);row.appendChild(element("span","",String(isClan?(p.level == null?"—":p.level):(p.rsp == null ? "—" : p.rsp))));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});
         panel.appendChild(list);panel.appendChild(element("p","list-caption","JEDEN SYGNAŁ. WSPÓLNY ZAPIS."));canvas.appendChild(panel);stage.appendChild(canvas);
         // Keep the highlighted row inside the existing list viewport for larger archives.
         if(active && Number.isFinite(active.offsetTop))list.scrollTop=Math.max(0,active.offsetTop-list.offsetTop-list.clientHeight/2+active.offsetHeight/2);
@@ -1042,7 +1048,8 @@
         const isArchiveTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
         const isArchive = scene.id === "transmission_quiet" || scene.id === "transmission_video" || isArchiveTerminal
             || ["signal_confirmation", "pro_tools", "file_system"].includes(scene.id);
-        const isRanking=["players","achievements","player_ranking"].includes(scene.id);
+        const isClan=["clans","clan_ranking"].includes(scene.id);
+        const isRanking=isClan||["players","achievements","player_ranking"].includes(scene.id);
         const isRewards=scene.id==="reward_ledger";
         const isParts = PART_SCENES.includes(scene.id) || isHero || isArchive || isWorld || isRanking || isRewards;
         if (isParts) root.classList.add("has-parts");
@@ -1062,8 +1069,8 @@
         const pageCount = Math.max(1, pageCounts[scene.id] || 1);
         let pageIndex = Math.min(pageCount - 1, Math.floor(scene.progress * pageCount));
         if(isRanking){
-            const count=Math.max(1,Math.min(20,(settlement.players||[]).length));
-            const stages=manifest.scenes.filter(s=>scene.id==="player_ranking"?s.id===scene.id:["players","achievements"].includes(s.id));
+            const count=Math.max(1,Math.min(isClan?8:20,(isClan?settlement.clans||[]:settlement.players||[]).length));
+            const stages=manifest.scenes.filter(s=>isClan||scene.id==="player_ranking"?s.id===scene.id:["players","achievements"].includes(s.id));
             const start=Math.min(...stages.map(s=>s.start)),end=Math.max(...stages.map(s=>s.end));
             pageIndex=Math.max(0,Math.min(count-1,Math.floor((scene.elapsed-start)/Math.max(1,end-start)*count)));
         }
@@ -1123,7 +1130,7 @@
         } else if (isWorld) {
             renderWorld(doc, stage, manifest, scene, pageIndex, element);
         } else if(isRanking){
-            renderRanking(doc,stage,manifest,pageIndex,element);
+            renderRanking(doc,stage,manifest,pageIndex,element,isClan);
         } else if(isRewards){
             renderRewards(doc,stage,manifest,pageIndex,element);
         } else if (isArchive) {
@@ -1140,16 +1147,8 @@
             if (data && data.details_truncated) line("Ograniczony zakres szczegółów — dostępne podsumowanie finału.");
             if (!data || !data.available) {
                 line("Oczekiwanie na zapis wyników finału.");
-            } else if (scene.id === "clans") {
-                line("Clan Ghost Score / " + data.score_policy);
-                for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4)) line(clan.code + " / " + clan.score
-                    + " / uczestnicy: " + clan.members + " / " + clan.rsp + " RSP");
             } else if (scene.elapsed >= 840) {
-                if (scene.id === "clan_ranking") {
-                    line("RANKING KLANÓW / " + data.score_policy);
-                    for (const clan of (data.clans || []).slice(pageIndex * 4, pageIndex * 4 + 4))
-                        line(clan.rank + ". " + clan.code + " / " + clan.score);
-                } else if (scene.id === "cycle_statistics") {
+                if (scene.id === "cycle_statistics") {
                     line("Uczestnicy: " + data.players_total + " / nagrody: " + data.rewards_total);
                     line("RSP finału: " + data.rsp_total + " / terytoria: " + data.territories_total);
                 } else if (scene.id === "archive") {

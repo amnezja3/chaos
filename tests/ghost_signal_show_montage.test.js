@@ -149,7 +149,7 @@ try {
         seek(entry[0]+0.1);
         assert(root.querySelector(['system_layers','desktop_assembly','system_ready'].includes(entry[1])
             ? '.ghost-show-interface' : ['pro_tools','file_system'].includes(entry[1]) ? '.archive-scene'
-                : entry[1]==='reward_ledger' ? '.rewards-scene' : entry[0]<630 ? '.world-scene' : ['players','achievements'].includes(entry[1]) ? '.ranking-scene' : '.ghost-show-settlement'), entry[1]);
+                : entry[1]==='reward_ledger' ? '.rewards-scene' : entry[0]<630 ? '.world-scene' : ['players','achievements','clans'].includes(entry[1]) ? '.ranking-scene' : '.ghost-show-settlement'), entry[1]);
         assert(!root.querySelector('.ghost-show-video'));
     }
     manifest.signal_confirmed = false;
@@ -189,6 +189,25 @@ try {
     }
     manifest.cycle_history.settlement.available=false;seek(660);seek(630);
     assert.strictEqual(root.querySelector('.reward-total').children[1].textContent,'—');
+    manifest.cycle_history.settlement.available=true;
+    manifest.catalog=manifest.catalog||{};
+    manifest.catalog.clans=[{code:'virex',name:'VIREX'},{code:'echo_freedom',name:'Echo'}];
+    manifest.cycle_history.settlement.clans=[{code:'virex',rank:1,score:180,rsp:14000,members:3},{code:'echo_freedom',rank:2,score:0,rsp:4800,members:1}];
+    manifest.scenes.find(s=>s.id==='player_ranking').end=855;
+    manifest.scenes.push({id:'clan_ranking',start:855,end:870,label:'clans',requires_signal_sent:true},{id:'cycle_statistics',start:870,end:900,label:'stats',requires_signal_sent:true});
+    for(const [time,name,position,score] of [[700.1,'VIREX','#01','180'],[709.9,'VIREX','#01','180'],[710,'Echo','#02','0'],[855.1,'VIREX','#01','180'],[862.5,'Echo','#02','0']]){
+        seek(time);assert(root.querySelector('.clans-scene'));
+        assert.strictEqual(root.querySelector('.ranking-title').children[1].textContent,name);
+        assert.strictEqual(root.querySelector('.ranking-position').children[1].textContent,position);
+        assert.strictEqual(root.querySelector('.ranking-stats').children[0].children[1].textContent,score);
+        assert.strictEqual(root.querySelector('.ranking-stats').children.length,3);
+        const list=root.querySelector('.ranking-list').children[1];
+        assert.strictEqual(list.children.filter(r=>r.attrs['aria-current']==='true').length,1);
+        const logo=root.querySelector('.ranking-hero').children[1];assert.strictEqual(logo.src,'/static/images/ghostnetwork/clans/'+(name==='VIREX'?'virex':'echo')+'_logo_pro.png');
+    }
+    const logo=root.querySelector('.ranking-hero').children[1];logo.onerror();assert(root.querySelector('.ranking-missing'));
+    manifest.cycle_history.settlement.available=false;seek(720);seek(700);
+    assert.strictEqual(root.querySelector('.ranking-title').children[1].textContent,'RANKING');
     manifest.cycle_history.settlement.available=true;
     const audioCalls = [];
     global.GhostRadio = {syncShow: state => audioCalls.push(state), endShow() {},
