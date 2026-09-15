@@ -4344,7 +4344,7 @@ function openFinancialSnifferApp(payload = {}) {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
-    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "terminal" });
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: "financialSniffer", interface: "window" });
     renderFinancialSnifferResult(app.querySelector('.financial-sniffer-content'), payload);
 }
 
@@ -4667,6 +4667,7 @@ async function usePlayerHackTool(toolId) {
     const panel = getPlayerHackAccessPanel();
     const msg = panel.querySelector('[data-player-hack-message]');
     if (msg) msg.textContent = 'Uruchamianie narzedzia...';
+    let confirmedResult = null;
     try {
         const res = await fetch('/api/player-hack/tool/use', {
             method: 'POST',
@@ -4681,7 +4682,8 @@ async function usePlayerHackTool(toolId) {
             if (msg) msg.textContent = data.error || 'Narzędzie niedostepne.';
             return;
         }
-        if (msg) msg.textContent = data.message || 'Tool placeholder.';
+        confirmedResult = data;
+        if (msg) msg.textContent = data.message || 'Operacja zakończona.';
         if (data.result_type === 'system_logs') {
             openSystemLogReaderApp(data);
         }
@@ -4700,7 +4702,9 @@ async function usePlayerHackTool(toolId) {
         }
         if (data.access) refreshPlayerHackAccess(data.access);
     } catch (err) {
-        if (msg) msg.textContent = 'Blad komunikacji z narzedziem.';
+        if (msg) msg.textContent = confirmedResult
+            ? `${confirmedResult.message || 'Serwer potwierdził operację.'} Nie udało się wyświetlić pełnego wyniku.`
+            : 'Błąd komunikacji z narzędziem. Wynik operacji niepotwierdzony.';
     }
 }
 

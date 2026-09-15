@@ -40,6 +40,15 @@ browser QA ani pełnego E2E. Cache terminal.js podniesiony w trzech dokumentach.
 
 ## 1. Cel i wynik użytkowy
 
+Uzupełnienie checkpointu 15 IX: po zgłoszeniu pustego Financial Sniffera
+naprawiono również niezdefiniowane `id` w jego rendererze. Błąd wyświetlania
+potwierdzonego wyniku nie jest już raportowany jako błąd komunikacji.
+`tests/js/test_player_hack_financial_result.js` sprawdza render, escapowanie,
+błąd renderera, HTTP i sieci oraz brak automatycznego ponowienia; PASS.
+Nie zweryfikowano transakcji ze zrzutu na serwerze ani browser QA.
+Istniejący `refreshToolbarProfile()` po Snifferze nadal wymaga odchudzenia
+w ramach hot path sprintu, z zachowaniem wersjonowania salda.
+
 Domknąć hakowanie obcego gracza, w szczególności intruza z obcego klanu,
 jako jedną spójną mechanikę gameplayu. Gracz ma móc wykryć właściwego intruza,
 wybrać go, przełamać zabezpieczenia dostępnymi aplikacjami, otrzymać czasowy

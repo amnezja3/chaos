@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141: pusty Financial Sniffer i mylący błąd komunikacji
+
+Autor zgłosił puste okno Financial Sniffera i błąd komunikacji. W kodzie
+potwierdzono niezdefiniowane `id` w trace otwarcia okna, przed renderem wyniku.
+Naprawiono identyfikator. Obsługa błędów odróżnia teraz błąd prezentacji po
+potwierdzonym sukcesie od niepotwierdzonego wyniku przy błędzie komunikacji.
+Test JS rzeczywistych funkcji sprawdza wynik, escapowanie, awarię renderera,
+odmowę HTTP i utratę sieci oraz brak automatycznego retry; PASS. Log Reader
+i składnia JS PASS. Cache podniesiony w trzech dokumentach. Bez ponawiania
+transferu, dostępu do produkcji i deployu. Stan konkretnej transakcji ze zrzutu
+nie został sprawdzony. Istniejące odświeżanie profilu paska po wyniku pozostaje
+do odchudzenia w 141; ta poprawka nie zamyka hot path ani pełnego sprintu.
+
 ## 2026-09-15 — 141 rozpoczęty: pierwszy pakiet Player Access / Log Reader
 
 Na polecenie autora rozpoczęto implementację. Panel pokazuje pięć executorów
