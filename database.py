@@ -9862,11 +9862,21 @@ class PlayerHackAccessStore:
         if attacker_username == victim_username:
             raise ValueError("Nie mozna shackowac samego siebie.")
 
-        now_dt = datetime.utcnow()
-        now = now_dt.isoformat(timespec="seconds")
-        hacked_until = (now_dt + timedelta(minutes=access_minutes)).isoformat(timespec="seconds")
-        cooldown_until = (now_dt + timedelta(hours=cooldown_hours)).isoformat(timespec="seconds")
         with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            now_dt = datetime.utcnow()
+            now = now_dt.isoformat(timespec="seconds")
+            existing = conn.execute(
+                """SELECT * FROM player_hack_access
+                   WHERE attacker_username = ? AND victim_username = ?""",
+                (attacker_username, victim_username),
+            ).fetchone()
+            # Retrying capture must preserve both the deadline and usage key.
+            # Serialize this check with the write, including concurrent grants.
+            if existing and existing["hacked_until"] > now:
+                return self._row_to_access(existing)
+            hacked_until = (now_dt + timedelta(minutes=access_minutes)).isoformat(timespec="seconds")
+            cooldown_until = (now_dt + timedelta(hours=cooldown_hours)).isoformat(timespec="seconds")
             cursor = conn.execute(
                 """
                 INSERT INTO player_hack_access

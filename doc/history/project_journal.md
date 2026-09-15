@@ -1,5 +1,32 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — zamknięcie 141.2 i rozpoczęcie 141.3
+
+Na polecenie autora zamknięto 141.2. Dowody: przekazane wyniki migracji
+31 kont / verify READY, lokalne testy oraz odbiór mapy po teleportacji,
+wtargnięciu i objęciu polem; przywrócony alarm również potwierdzony w grze.
+Pozostałe scenariusze ruchu w toku, pełnego audience, recovery i pomiary
+opóźnień przechodzą do 141.7; picker i reguły celu do 141.3. Zamknięcie etapu
+nie oznacza pełnego E2E PASS ani zamknięcia Sprintu 141.
+
+Rozpoczęto 141.3. PlayerHackAccessStore.grant_access zachowuje aktywny grant
+przy retry i równoległych wywołaniach: BEGIN IMMEDIATE obejmuje sprawdzenie
+oraz zapis. Nie zmienia terminów ani access_key, więc nie odnawia prawa do
+ponownego użycia już zużytego narzędzia. Bez odczytu profili i zmiany schematu.
+18 izolowanych testów PASS: cztery nowe testy grantu oraz regresje read paths
+i Intruder Kickera, w tym profile ≥35 MiB, konkurencja i rollback efektów.
+
+To pierwszy lokalny pakiet 141.3, bez deployu. Nadal otwarte: bounded
+mark/picker/security, widoczność i bieżący zasięg, autoryzacja capture,
+cooldown oraz trwałe powiązanie grantu z receipt (także replay po wygaśnięciu).
+
+## 2026-09-15 — 141: alarm wtargnięcia potwierdzony w grze
+
+Autor przekazał komunikat „Obcy gracz na twoim terenie” dla wejścia Dobrego
+Robota i potwierdził „alarm potwierdzony, mamy to”. Poprawka alarmu ma odbiór
+autora w grze. Nie rozszerzamy tego dowodu na wszystkie scenariusze ponownego
+wejścia, równoległości ani pełne zamknięcie Sprintu 141.
+
 ## 2026-09-15 — 141: odbiór mapy i naprawa alarmu wtargnięcia
 
 Autor potwierdził aktualne awatary na mapie po teleportacji, wtargnięciu

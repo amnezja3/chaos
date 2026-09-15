@@ -1,10 +1,13 @@
 # 141.2 — projekcja aktorów mapy i kolejność pozycji
 
-Status: autor wykonał migrację na serwerze 15 IX; verify READY dla 31 kont.
+Status: **141.2 zamknięty na polecenie autora 15 IX**. Autor wykonał migrację
+na serwerze; verify READY dla 31 kont. Potwierdził aktualną mapę po teleportacji,
+wtargnięciu i objęciu polem oraz przywrócony alarm właściciela.
 Dowody i ścieżka backupu: journal, wpis „141.2: migracja projekcji na serwerze”.
 Autor potwierdził również przeładowania chaos oraz trzech workerów: wszystkie
-online, ponowne verify READY, brak brakujących awatarów. Odbiór mapy pozostaje
-otwarty. Szczegóły w journalu: „141.2: przeładowanie procesów i ponowne verify READY”.
+online, ponowne verify READY, brak brakujących awatarów. Pozostałe próby ruchu
+w toku, audience, recovery i pomiary opóźnień przechodzą do 141.7, a picker
+i uprawnienia celu do 141.3. Nie oznacza to pełnego browser E2E PASS.
 
 ## Zmiana
 

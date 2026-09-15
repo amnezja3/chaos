@@ -4,7 +4,18 @@ Data: 2026-09-14. Punkt odniesienia kodu: `96dec35`.
 
 Aktualizacja zakresu: 2026-09-15 — pozycja aktora po teleportacji.
 
-Status: **W REALIZACJI — pierwszy pakiet Player Access / Log Reader wdrożony lokalnie; sprint otwarty**.
+Status: **W REALIZACJI — 141.2 zamknięty decyzją autora; 141.3 rozpoczęty (15 IX)**.
+
+Zamknięcie 141.2 opiera się na wynikach migracji przekazanych przez operatora,
+lokalnych testach oraz odbiorze autora: aktualna mapa po teleportacji, wtargnięciu
+i objęciu polem; alarm właściciela potwierdzony. Nie jest deklaracją pełnego
+browser E2E. Pozostałe próby ruchu w toku, pełnego audience, recovery i pomiary
+opóźnień przechodzą do walidacji 141.7; picker i uprawnienia celu do 141.3.
+
+Pierwszy pakiet 141.3: aktywny grant zachowuje terminy i klucz użycia narzędzi
+przy ponownym/równoległym przyznaniu. Sprawdzenie i zapis są w jednej transakcji.
+To ograniczona naprawa: trwały replay po wygaśnięciu dostępu, cooldown i luka
+grant → receipt operacji nadal wymagają domknięcia razem z autoryzacją capture.
 
 [Audyt z 15 IX](../audits/sprint_141_player_hacking_audit_2026_09_15.md)
 zawiera przegląd kodu i izolowane reprodukcje A01–A08. Uzupełniono pełne
@@ -18,8 +29,9 @@ wtargnięciu i objęciu polem. Zgłoszony brak alarmu właściciela naprawiono
 lokalnie: wspólny atomowy area event + warning, ID per zdarzenie zamiast
 dożywotniej deduplikacji treści, zachowany cooldown 60 s i wykluczenie własnego
 klanu. Static intrusion korzysta z ograniczonej projekcji i również alarmuje.
-18 testów Python i dwa zestawy JS PASS. Bez nowej migracji; odbiór alarmu
-po wdrożeniu pozostaje otwarty. Nie rozszerzać odbioru awatarów na wszystkie
+18 testów Python i dwa zestawy JS PASS. Bez nowej migracji. Autor potwierdził
+alarm w grze po wejściu Dobrego Robota: „alarm potwierdzony, mamy to”.
+Poprawka alarmu odebrana. Nie rozszerzać odbioru awatarów i alarmu na wszystkie
 scenariusze opóźnionych odpowiedzi, ruchu w toku i pełnego audience.
 
 Checkpoint 141.2 — 15 IX: usunięto pełne profile z listy aktorów. Ograniczona
@@ -27,8 +39,8 @@ projekcja pobiera canonical position wraz z wersją, identity/capability i awata
 cel pochodzi z target runtime. JS odrzuca starsze pozycje i snapshot rozpoczęty
 przed nowszą deltą. **Przed uruchomieniem tego pakietu wymagany jest jawny
 backfill projekcji awatarów**: [procedura](../runbooks/sprint_141_2_map_actor_projection.md).
-Nie wykonano go na lokalnej bazie projektu ani na serwerze. Ruch w toku,
-pełne audience i pomiar opóźnień nadal otwarte — nie zamykać 141.2.
+Migrację serwera autor wykonał później 15 IX: 31 projekcji, verify READY.
+Ruch w toku, pełne audience i pomiar opóźnień pozostają w walidacji 141.7.
 Walidacja końcowa tego pakietu: 46 testów Python i trzy zestawy JS PASS.
 
 Odbiór autora 15 IX: Intruder Kicker zadziałał w grze. Arsenal Cleaner
@@ -251,6 +263,9 @@ baseline i lista konkretnych napraw. Nie zakładać numerów błędów bez pomia
 
 ### 141.2 — aktualna pozycja aktora po teleportacji
 
+**ZAMKNIĘTY 15 IX na polecenie autora**, z zakresem dowodów i przekazaniem
+pozostałej walidacji opisanymi na początku dokumentu. Poniżej pierwotny zakres.
+
 Cel: po potwierdzonym teleporcie aktor nie pozostaje bieżącym celem w starej
 lokalizacji. Własna mapa, uprawniony obserwator, Victim Picker i wybór celu
 muszą korzystać ze spójnej, wersjonowanej pozycji i reguł widoczności.
@@ -290,6 +305,10 @@ z kontraktu synchronizacji. Brak starego aktywnego markera, spójny picker i tar
 brak ujawnienia pozycji poza audience oraz zera hot path są warunkiem zamknięcia.
 
 ### 141.3 — wykrycie, wybór, zabezpieczenia i uzyskanie dostępu
+
+**W REALIZACJI od 15 IX.** Pierwsza poprawka chroni aktywny grant przed
+przedłużeniem i zmianą usage key. Nadal otwarte: bounded mark/picker/security,
+bieżące reguły widoczności i zasięgu, walidacja capture oraz trwały replay grantu.
 
 - Jedna tożsamość od klikniętego aktora przez `target_username`/target ID,
   operację i grant aż do wyniku. Nick, tooltip, pozycja i indeks listy
