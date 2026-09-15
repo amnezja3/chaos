@@ -17966,7 +17966,7 @@ def resolve_player_actor_actions(viewer_username, actor_data, relation):
             "Nie mozna przelac HC samemu sobie.",
         ),
         "mark_target": player_actor_action(
-            not is_self and not is_same_clan and combat_hostile and not is_marked_target,
+            not is_self and not is_friend and not is_same_clan and combat_hostile and not is_marked_target,
             "Ten gracz jest juz celem." if is_marked_target else "Cel nie jest aktualnie legalnym przeciwnikiem strategicznym.",
         ),
         "profile": player_actor_action(
@@ -26770,41 +26770,39 @@ def mark_player_target():
     if target_username == viewer_username:
         return jsonify({"success": False, "error": "Nie mozna oznaczyc siebie jako celu."}), 400
 
-    viewer_profile = sync_session_profile(rebuild_territory=False)
-    target_profile = user_store.get_profile(target_username)
-    if not target_profile:
-        return jsonify({"success": False, "error": "Nie ma takiego gracza."}), 404
-
-    is_intruder = any(
-        intruder.get("username") == target_username
-        for intruder in territory_store.list_recent_area_intruders(viewer_username)
-    )
-    context = {
-        "is_friend": mail_store.is_accepted_contact(viewer_username, target_username),
-        "is_intruder": is_intruder,
-    }
-    relation = resolve_player_actor_relation(viewer_profile, target_profile, context)
-    if relation in {"self", "friend", "same_clan"}:
+    actor = next((item for item in build_visible_player_actors(viewer_username)
+                  if item.get("username") == target_username), None)
+    if not actor:
+        return jsonify({"success": False, "error": "Cel nie jest aktualnie widoczny. Odswiez mape.",
+                        "reason": "target_not_visible"}), 409
+    relation = actor.get("relation")
+    if relation in {"self", "friend", "same_clan"} or not actor.get("attackable"):
         return jsonify({
             "success": False,
-            "error": "Nie mozna oznaczac siebie, znajomych ani swojego klanu.",
+            "error": "Cel nie jest dostepnym przeciwnikiem. Nie mozna atakowac siebie, znajomych ani swojego klanu.",
+            "reason": "target_not_attackable",
             "relation": relation,
         }), 403
 
-    position = target_profile.get("curently_possition", {}) or {}
-    lat = position.get("lat")
-    lng = position.get("lng")
-    if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
-        return jsonify({"success": False, "error": "Brak aktualnej pozycji gracza."}), 400
-
-    aimed_target = viewer_profile.get("aimed_target") or {}
+    viewer_profile = identity_projection_store.get_identity(viewer_username)
+    capabilities = capability_projection_store.get_capabilities(viewer_username)
+    position = player_position_store.get(viewer_username)
+    if not viewer_profile or not capabilities or not position:
+        raise ProfileRecoveryRequired("Player target selection projection unavailable")
+    origin = victim_picker_position({"current_position": position})
+    distance = victim_picker_distance(actor, origin)
+    if distance is None or distance > get_player_action_range(capabilities):
+        return jsonify({"success": False, "error": "Cel jest poza zasiegiem. Odswiez mape.",
+                        "reason": "target_out_of_range"}), 409
+    lat, lng = actor["lat"], actor["lng"]
+    aimed_target = player_target_runtime_store.get_active_target(viewer_username)
     already_target = (
         aimed_target.get("target_mode") == "player"
         and aimed_target.get("target_username") == target_username
     )
 
     security_template = resources_store.get("user_security", default={})
-    target_security = dict(target_profile.get("security") or {})
+    target_security = identity_projection_store.get_player_security(target_username)
     if not target_security:
         target_security = {
             key: value
@@ -26812,13 +26810,15 @@ def mark_player_target():
             if isinstance(value, (bool, int))
         }
 
-    label = target_profile.get("nick") or target_username
+    label = actor.get("nick") or target_username
     player_target = {
         "target_mode": "player",
         "target_username": target_username,
         "username": target_username,
-        "nick": target_profile.get("nick") or target_username,
-        "avatar": target_profile.get("avatar", ""),
+        "nick": label,
+        "avatar": actor.get("avatar", ""),
+        "position_version": actor.get("position_version"),
+        "position_updated_at": actor.get("position_updated_at"),
         "relation": relation,
         "lat": float(lat),
         "lng": float(lng),
@@ -26836,18 +26836,16 @@ def mark_player_target():
             "sniff": False,
             "trace": False,
         },
-        # TODO(player-hack): po udanym hacku target_mode=player ma otwierac
-        # galaz narzedzi systemowych z Googleplexa: profil, pliki, maile,
-        # aplikacje i zabezpieczenia, z wymaganiami HC/level/klan/frakcja.
     }
 
-    set_player_aimed_target(
-        viewer_username,
-        viewer_profile,
-        player_target,
-        reason="player_target_mark",
-    )
-    session["profile"] = viewer_profile
+    player_target["target_id"] = build_operation_target_id(player_target)
+    result = upsert_player_aimed_target_runtime(viewer_username, player_target, source="player_target_mark")
+    if result.get("status") in {"invalid", "captured", "selection_changed", "concurrent_change"}:
+        return jsonify({"success": False, "error": "Cel zmienil sie. Odswiez mape.",
+                        "reason": result["status"]}), 409
+    player_target = dict(result.get("target") or player_target)
+    safe_ghostnetwork_on_target_aimed(viewer_username, {**viewer_profile, **capabilities},
+                                    player_target, reason="player_target_mark")
 
     return jsonify({
         "success": True,
@@ -27236,7 +27234,10 @@ def map_player_actors():
     if "user" not in session:
         return jsonify({"error": "Nie jestes zalogowany"}), 401
 
-    viewer_username = session["user"]
+    return jsonify({"player_actors": build_visible_player_actors(session["user"])})
+
+
+def build_visible_player_actors(viewer_username):
     # Snapshot mapy jest read-only. Pelna synchronizacja profilu zapisuje runtime
     # i potrafi blokowac workera dluzej niz budzet odswiezenia aktorow.
     viewer_profile = identity_projection_store.get_identity(viewer_username)
@@ -27435,12 +27436,10 @@ def map_player_actors():
             },
         )
 
-    return jsonify({
-        "player_actors": sorted(
-            actors_by_username.values(),
-            key=lambda actor: (actor.get("relation", ""), actor.get("nick") or actor.get("username") or ""),
-        )
-    })
+    return sorted(
+        actors_by_username.values(),
+        key=lambda actor: (actor.get("relation", ""), actor.get("nick") or actor.get("username") or ""),
+    )
 
 
 @app.route("/api/map/player-areas")

@@ -17,6 +17,18 @@ przy ponownym/równoległym przyznaniu. Sprawdzenie i zapis są w jednej transak
 To ograniczona naprawa: trwały replay po wygaśnięciu dostępu, cooldown i luka
 grant → receipt operacji nadal wymagają domknięcia razem z autoryzacją capture.
 
+Autor potwierdził przejście scenariusza pierwszego pakietu: odliczanie po
+reloadzie, jednokrotne użycie Kickera i rozdzielenie dostępów A/B.
+
+Kolejny pakiet 141.3 (lokalny): wybór celu z mapy używa wspólnej bounded
+projekcji aktorów, canonical position/capability i blokad visibility/range/
+self/friend/clan. Zapis wyłącznie w target runtime zachowuje postęp przy retry.
+Dodano integrity-gated projekcję player_security; **przed uruchomieniem wymaga
+jawnego backfill**. [Procedura i zakres](../runbooks/sprint_141_3_player_target_selection.md).
+49 różnych testów Python PASS (46 w pierwszym przebiegu; po rozszerzeniu
+12 testów selection/identity, w tym trzy dodatkowe). Nadal otwarte: picker,
+alternatywne wejście target security, capture i trwały replay grantu.
+
 [Audyt z 15 IX](../audits/sprint_141_player_hacking_audit_2026_09_15.md)
 zawiera przegląd kodu i izolowane reprodukcje A01–A08. Uzupełniono pełne
 requesty Flask dla pakietu opisanego poniżej. Pozostałe transakcje, baseline
@@ -307,8 +319,10 @@ brak ujawnienia pozycji poza audience oraz zera hot path są warunkiem zamknięc
 ### 141.3 — wykrycie, wybór, zabezpieczenia i uzyskanie dostępu
 
 **W REALIZACJI od 15 IX.** Pierwsza poprawka chroni aktywny grant przed
-przedłużeniem i zmianą usage key. Nadal otwarte: bounded mark/picker/security,
-bieżące reguły widoczności i zasięgu, walidacja capture oraz trwały replay grantu.
+przedłużeniem i zmianą usage key, ma odbiór autora. Drugi pakiet lokalnie
+przenosi mark z mapy na bounded projection i canonical target; wymaga migracji.
+Nadal otwarte: picker i alternatywne wejście security, walidacja capture
+oraz trwały replay grantu. Nie traktować poprawki mark jako bramki wszystkich wejść.
 
 - Jedna tożsamość od klikniętego aktora przez `target_username`/target ID,
   operację i grant aż do wyniku. Nick, tooltip, pozycja i indeks listy

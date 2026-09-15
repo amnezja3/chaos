@@ -2992,6 +2992,20 @@ def _identity_projection_payload(profile):
     }
 
 
+def _bounded_player_security(profile):
+    security = profile.get("security") or {}
+    if not isinstance(security, dict) or len(security) > 129:
+        return None
+    # Resource descriptions are display metadata, not PvP security state.
+    security = {key: value for key, value in security.items() if key != "descriptions"}
+    if (len(security) > 128
+            or any(not isinstance(key, str) or len(key) > 128
+                   or not isinstance(value, (bool, int)) or abs(value) > 2**63 - 1
+                   for key, value in security.items())):
+        return None
+    return dict(security)
+
+
 def _upsert_identity_projection_with_conn(
     conn,
     profile,
@@ -3044,6 +3058,7 @@ def _upsert_identity_projection_with_conn(
     conn.execute("UPDATE user_identity_projection SET desktop_boot_json=? WHERE username=?",
                  (dumps_json({"desktop_settings": profile.get("desktop_settings") or {},
                               "avatar": str(profile.get("avatar") or ""),
+                              "player_security": _bounded_player_security(profile),
                               "respect": profile.get("respect") or 0,
                               "source_profile_revision": revision,
                               "source_profile_checksum": checksum}), username))
@@ -4562,6 +4577,13 @@ class UserIdentityProjectionStore:
             raise ProfileRecoveryRequired("Desktop projection is stale")
         return {**desktop, "identity": identity}
 
+    def get_player_security(self, username):
+        desktop = self.get_desktop_boot(username)
+        security = desktop.get("player_security")
+        if not isinstance(security, dict) or _bounded_player_security({"security": security}) is None:
+            raise ProfileRecoveryRequired("Player security projection migration or recovery required")
+        return dict(security)
+
     def get_identities(self, usernames, max_items=IDENTITY_PROJECTION_MAX_BATCH):
         max_items = self._bounded_limit(max_items)
         ordered = []
@@ -4719,6 +4741,9 @@ class UserIdentityProjectionStore:
                     "username": row["username"],
                     "errors": tuple(errors),
                 })
+                continue
+            if _bounded_player_security(profile) is None:
+                skipped.append({"username": row["username"], "errors": ("player_security_projection_invalid",)})
                 continue
             prepared.append((row, profile))
         if prepared:

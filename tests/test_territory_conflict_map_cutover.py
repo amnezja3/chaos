@@ -365,7 +365,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         capture.assert_not_called()
 
     def test_player_actor_snapshot_projects_current_positions_on_current_territory(self):
-        source = inspect.getsource(run.map_player_actors)
+        source = inspect.getsource(run.build_visible_player_actors)
 
         self.assertIn('actor_profile["current_position"]', source)
         self.assertIn("territory_point_in_polygon_or_boundary", source)

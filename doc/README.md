@@ -52,7 +52,10 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   Pakiet 141.2 usuwa pełne profile ze snapshotu aktorów i dodaje ochronę
   kolejności pozycji. Przed jego uruchomieniem wymagane jest
   [jawne uzupełnienie projekcji awatarów](runbooks/sprint_141_2_map_actor_projection.md).
-  46 testów Python i trzy zestawy JS PASS lokalnie; bez migracji ani deployu.
+  141.2 zamknięty po migracji operatora i odbiorze mapy/alarmu przez autora.
+  W 141.3 grant ma odbiór autora, a nowy lokalny wybór celu z mapy wymaga
+  [uzupełnienia projekcji zabezpieczeń](runbooks/sprint_141_3_player_target_selection.md).
+  Ten backfill nie został wykonany; pozostałe wejścia PvP i capture nadal otwarte.
 
 - Sprinty 139–140 i [`stylizacja .1–.10`](sprints/sprint_140_stylization_1_plus.md)
   są zrealizowane. Autor potwierdził końcowy przebieg show 13 września.

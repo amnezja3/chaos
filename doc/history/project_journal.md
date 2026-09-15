@@ -1,5 +1,33 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141.3: odbiór grantu i bounded wybór celu z mapy
+
+Autor potwierdził scenariusz pierwszego pakietu: dostęp po reloadzie nie
+odnawia licznika ani zużytego Kickera, cele A/B zachowują odrębny stan.
+To odbiór tego scenariusza, nie całego 141.3.
+
+Na polecenie kontynuacji endpoint player-targets/mark przełączono na wspólny
+z mapą build_visible_player_actors. Canonical pozycja, visibility, attackable,
+relacja i zasięg zastępują dawny odczyt profilu i historyczny event intruza.
+Self, friend i własny klan są blokowane; menu friend również wyłącza mark.
+Canonical upsert zachowuje target ID i postęp, bez zapisu profilu/sesji.
+
+Dodano wąską projekcję player_security w desktop_boot_json i walidację
+integrity/revision/checksum. Guarded write aktualizuje ją atomowo; metadata
+descriptions nie są kopiowane. Limity i brak pola oznaczają recovery.
+Migrator rozszerzono o player_security_missing, dry-run i backfill odrzucają
+niepoprawny zakres. Wymagany jawny backfill istniejących kont przed uruchomieniem.
+Nie wykonano go na bazie projektu ani serwera; brak deployu/restartów.
+Procedura: doc/runbooks/sprint_141_3_player_target_selection.md.
+
+Walidacja lokalna: 46 testów selection/map/historyczny cutover/identity PASS;
+po dodaniu trzech scenariuszy ponownie 12 selection/identity PASS, łącznie
+49 różnych testów. Obejmuje ≥35 MiB, zero pełnych odczytów i zapisu profilu,
+retry z zachowaniem postępu, teleport poza widoczność, zasięg, relacje,
+brak projekcji, jawny backfill oraz aktualizację security przy guarded write.
+Otwarte: picker, alternatywne wejście target security, ponowna autoryzacja
+capture oraz trwałe powiązanie grantu z receipt. Nie zamyka całego 141.3.
+
 ## 2026-09-15 — zamknięcie 141.2 i rozpoczęcie 141.3
 
 Na polecenie autora zamknięto 141.2. Dowody: przekazane wyniki migracji

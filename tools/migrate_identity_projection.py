@@ -12,6 +12,7 @@ from database import (
     PROFILE_INTEGRITY_VALID,
     UserIdentityProjectionStore,
     _identity_projection_payload,
+    _bounded_player_security,
     _validate_persisted_profile_row,
 )
 
@@ -69,10 +70,13 @@ def status(db_path):
         columns = {row[1] for row in conn.execute('PRAGMA table_info(user_identity_projection)')}
         avatar_missing = (int(conn.execute("SELECT COUNT(*) FROM user_identity_projection WHERE json_extract(desktop_boot_json, '$.avatar') IS NULL").fetchone()[0])
                           if 'desktop_boot_json' in columns else projected)
+        security_missing = (int(conn.execute("SELECT COUNT(*) FROM user_identity_projection WHERE COALESCE(json_type(desktop_boot_json, '$.player_security'), '') != 'object'").fetchone()[0])
+                            if 'desktop_boot_json' in columns else projected)
     return {
-        "status": "ready" if missing == 0 and stale == 0 and avatar_missing == 0 else "incomplete",
+        "status": "ready" if missing == 0 and stale == 0 and avatar_missing == 0 and security_missing == 0 else "incomplete",
         "users": users, "projected": projected,
         "missing": missing, "stale": stale, "map_avatar_missing": avatar_missing,
+        "player_security_missing": security_missing,
     }
 
 
@@ -96,6 +100,9 @@ def dry_run(db_path, *, after_username="", limit=100):
         profile, errors = _validate_persisted_profile_row(row, row["username"])
         if errors:
             skipped.append({"username": row["username"], "errors": list(errors)})
+            continue
+        if _bounded_player_security(profile) is None:
+            skipped.append({"username": row["username"], "errors": ["player_security_projection_invalid"]})
             continue
         projection = _identity_projection_payload(profile)
         valid.append({
