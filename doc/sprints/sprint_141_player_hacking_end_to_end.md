@@ -394,6 +394,13 @@ oraz trwały replay grantu. Nie traktować poprawki mark jako bramki wszystkich 
 
 ### 141.4 — właściwy katalog i wspólne bramki użycia
 
+Najnowszy checkpoint: autor potwierdził trwałe naliczanie po zakupie, lecz
+licznik odświeżał się dopiero po ponownym otwarciu Google Plexa. Lokalna
+poprawka przekazuje catalog_update z odpowiedzi instalacji przez istniejący
+event apps-projection-updated, aktualizując pamięć katalogu i widok razem
+ze stanem installed. 19 testów Python i dwa zestawy JS PASS. Oczekuje odbioru
+aktualizacji na żywo po wdrożeniu; nie wymaga nowej migracji.
+
 Aktualizacja autora 15 IX: katalog i bramki mają wcześniejszy odbiór podczas
 .2/.3; nie wymagamy ponownego przejścia tego samego gameplayu. Pozostałe
 zgłoszenie dotyczy licznika pobrań zakupionych narzędzi. Poprawka lokalna:

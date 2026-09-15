@@ -1,5 +1,28 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141.4: licznik pobrań w otwartym Google Plexie
+
+Odbiór operatora poprzedniej poprawki częściowy: instalacja i trwały licznik
+działają, ale otwarte okno pokazuje stare 0 nawet po kolejnym wyszukaniu.
+Ponowne otwarcie przeglądarki pokazuje poprawną wartość. Przyczyna: listener
+chaos:apps-projection-updated odświeżał stan installed, korzystając nadal
+z zapamiętanego katalogu bez nowej liczby downloads.
+
+Odpowiedzi install-app (bounded, legacy i replay) przekazują catalog_update
+z kanoniczną wartością licznika. Istniejący proces instalacji przekazuje ją
+do updateAppsView i tego samego eventu co stan zainstalowania. Listener
+aktualizuje katalog przed renderem, również przy innej aktywnej zakładce.
+Wartości są absolutne: retry nie dodaje kolejnego pobrania, starsza odpowiedź
+nie cofa licznika. Aktualizacje scalane są też ze snapshotem katalogu, który
+mógł rozpocząć pobieranie przed zakończeniem zakupu. Bilety nadal wyłączone.
+Nie dodano pollingu ani odczytu profili na potrzeby statystyk. Podniesiono
+wersję terminal.js w trzech szablonach.
+
+Walidacja lokalna: 19 testów Python PASS; test JS eventu/licznika i regresja
+Googleplex search PASS; node --check i git diff --check PASS. Bez deployu.
+Odbiór po wdrożeniu: w otwartym Google Plexie zakup narzędzia zmienia przycisk
+i licznik razem; ponowne wyszukanie zachowuje aktualny wynik bez zamykania okna.
+
 ## 2026-09-15 — 141.4: licznik zakupów narzędzi, bez biletów teleportacyjnych
 
 Autor potwierdził, że katalog/bramki narzędzi były już odebrane podczas .2/.3;

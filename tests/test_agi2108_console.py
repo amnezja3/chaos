@@ -225,6 +225,9 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
                     self.assertFalse(self.inventory.record_catalog_download(app_id, key))
                 self.inventory.uninstall_app('alice', app_id=app_id)
             refreshed = {item['id']: item for item in run.get_app_catalog()}
+            for app_id in tool_ids:
+                self.assertEqual(run.googleplex_download_update(catalog[app_id]),
+                                 {'app_id': app_id, 'downloads': refreshed[app_id]['downloads']})
         reopened = PlayerInventoryStore(self.db_path)
         self.assertEqual(reopened.catalog_download_counts(tool_ids), dict.fromkeys(tool_ids, 2))
         for app_id in tool_ids:
@@ -246,6 +249,7 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
         self.assertTrue(tickets)
         for ticket in tickets:
             self.assertFalse(run.tracks_googleplex_downloads(ticket))
+            self.assertIsNone(run.googleplex_download_update(ticket))
 
     def test_install_endpoint_does_not_read_or_write_heavy_profile(self):
         heavy_profile = {"username": "alice", "blob": "x" * (35 * 1024 * 1024)}

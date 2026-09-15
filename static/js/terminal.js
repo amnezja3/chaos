@@ -8887,6 +8887,7 @@ function createBrowser() {
     updateBrowserNarrowMode();
     let browserNarrowObserver = null;
     let appsProjectionListener = null;
+    const googleplexDownloadUpdates = new Map();
     if (window.ResizeObserver) {
         browserNarrowObserver = new ResizeObserver(updateBrowserNarrowMode);
         browserNarrowObserver.observe(term);
@@ -10432,7 +10433,14 @@ function createBrowser() {
         updateBrowserNarrowMode();
     };
 
-    appsProjectionListener = () => {
+    appsProjectionListener = event => {
+        const update = event?.detail?.catalog_update;
+        if (update && typeof update.app_id === 'string'
+            && Number.isSafeInteger(update.downloads) && update.downloads >= 0) {
+            const downloads = Math.max(googleplexDownloadUpdates.get(update.app_id) || 0, update.downloads);
+            googleplexDownloadUpdates.set(update.app_id, downloads);
+            applyGoogleplexDownloadUpdate(catalog, { app_id: update.app_id, downloads });
+        }
         if (term.isConnected && activeBrowserTab === "googleplex" && search.value.trim()) {
             walletBalance = Number((toolbarProfile || {}).hackcoins ?? walletBalance ?? 0);
             renderBrowserWallet();
@@ -10755,7 +10763,12 @@ function createBrowser() {
             if (!resourcesRes.ok || !Array.isArray(catalogPayload)) {
                 throw new Error(`Googleplex catalog HTTP ${resourcesRes.status}`);
             }
-            catalog = dedupeGoogleplexCatalog(catalogPayload);
+            const refreshedCatalog = dedupeGoogleplexCatalog(catalogPayload);
+            // An install response may have arrived after this snapshot started.
+            googleplexDownloadUpdates.forEach((downloads, app_id) => applyGoogleplexDownloadUpdate(refreshedCatalog, {
+                app_id, downloads
+            }));
+            catalog = refreshedCatalog;
             catalogLoaded = true;
             walletBalance = Number((toolbarProfile || {}).hackcoins ?? walletBalance ?? 0);
             renderBrowserWallet();
@@ -11391,7 +11404,8 @@ function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
                                 files: data.files || {},
                                 app: data.app || null,
                                 app_id: app.id,
-                                reason: "install_response"
+                                reason: "install_response",
+                                catalog_update: data.catalog_update || null
                             });
                         }
                         if (typeof onSettled === "function") onSettled(true, data);
@@ -12126,6 +12140,13 @@ function refreshOpenFileManagersForApps(payload = {}) {
             window.openFolderInManager(terminalId, "tools");
         }
     });
+}
+
+function applyGoogleplexDownloadUpdate(catalog, update) {
+    if (!Array.isArray(catalog) || !update || typeof update.app_id !== 'string'
+        || !Number.isSafeInteger(update.downloads) || update.downloads < 0) return;
+    const item = catalog.find(entry => entry && entry.id === update.app_id);
+    if (item) item.downloads = Math.max(Number(item.downloads) || 0, update.downloads);
 }
 
 async function updateAppsView(payload = {}) {

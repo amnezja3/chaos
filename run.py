@@ -16619,6 +16619,13 @@ def get_app_catalog():
     return catalog
 
 
+def googleplex_download_update(app_data):
+    if not tracks_googleplex_downloads(app_data):
+        return None
+    item = next((item for item in get_app_catalog() if item.get("id") == app_data.get("id")), None)
+    return {"app_id": item["id"], "downloads": int(item.get("downloads") or 0)} if item else None
+
+
 def googleplex_product_catalog():
     return [dict(product) for product in GOOGLEPLEX_EFFECT_PRODUCTS]
 
@@ -29375,6 +29382,7 @@ def install_app():
             return jsonify({
                 "status": "success",
                 "duplicate": duplicate_install,
+                "catalog_update": googleplex_download_update(app_data),
                 "message": "Aplikacja została zainstalowana.",
                 "hackcoins": balance,
                 "price": price,
@@ -29463,6 +29471,7 @@ def install_app():
                 "status": "success",
                 "duplicate": True,
                 "message": "Zakup byl juz zapisany.",
+                "catalog_update": googleplex_download_update(app_data),
                 "hackcoins": canonical_wallet_balance(buyer_username),
                 "price": max(0, int(app_data.get("price") or 0)),
                 "product": existing_receipt if is_product else None,
@@ -29754,6 +29763,7 @@ def install_app():
         return jsonify({
             "status": "success",
             "message": "Aplikacja została zainstalowana.",
+            "catalog_update": googleplex_download_update(app_data),
             "hackcoins": canonical_wallet_balance(buyer_username),
             "price": price,
             "paid_to": payee_username if price > 0 else None,
