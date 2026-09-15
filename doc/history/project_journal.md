@@ -1,5 +1,59 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141.4: licznik zakupów narzędzi, bez biletów teleportacyjnych
+
+Autor potwierdził, że katalog/bramki narzędzi były już odebrane podczas .2/.3;
+nie powtarzamy tego odbioru. Zgłoszona pozostałość: licznik pobrań nie rośnie
+po zakupie narzędzi PvP. Jawna decyzja autora: bilety teleportacyjne wyłączone.
+
+Przyczyna w kodzie: starszy installer pomija narzędzia systemowe przy zapisie
+downloads, bounded installer nie aktualizuje licznika, a katalog systemowy
+odtwarza wartość statyczną. Dodano googleplex_download_counts oraz trwałe
+googleplex_download_receipts. Nowy bounded install zapisuje licznik w tej samej
+transakcji co inventory/payment. Starsza ścieżka systemowa nalicza dopiero po
+udanym zapisie aplikacji; retry potwierdzonej instalacji uzupełnia brakujący
+receipt po ewentualnej awarii między instalacją i licznikiem. Nie jest to
+nowa atomowa transakcja całego starszego zakupu. Sam receipt i przyrost
+licznika są atomowe; ten sam purchase_key nie nalicza drugi raz.
+
+Katalog dokłada ograniczony odczyt liczników do istniejących statystyk.
+Dotychczasowy licznik aplikacji twórców pozostaje w swojej ścieżce.
+Produkty (w tym wszystkie bilety teleportacyjne) nie podlegają temu naliczaniu.
+Uninstall nie zmniejsza pobrań. Nie wykonano masowego odtwarzania historycznych
+zakupów ani odczytu profili na potrzeby statystyk. Wynik widoczny po ponownym
+pobraniu katalogu. Tabele tworzy standardowy init_db po wdrożeniu; bez backfill
+profili i bez ponawiania migracji launchera.
+
+Walidacja lokalna: 19 testów Python PASS (test_agi2108_console,
+test_wallet_runtime_cutover), w tym sześć narzędzi PvP, zapis trwały, retry,
+równoległe zakupy, rollback bounded payment/install, starszy endpoint i bilety.
+git diff --check PASS. Bez deployu/restartów; odbiór licznika na serwerze otwarty.
+
+## 2026-09-15 — 141.3 zamknięty: migracja launchera i odbiór produkcyjny
+
+Operator przekazał git pull do `03b4289` na serwerze oraz wyniki migracji
+`/home/johndoe/app/chaos/data/game.sqlite3`: początkowo launcher_missing = 31,
+pozostałe braki i stale = 0. Pełny dry-run: scanned/valid = 31, skipped = [],
+database_mutated = false. Zatrzymano cztery procesy CHAOS (13/14/17/18).
+Świeży backup SQLite:
+`/home/johndoe/app/chaos/data/backups/game-pre-1413-launcher-20260915T184225153587Z.sqlite3`,
+quick_check = ok. Apply: scanned/projected = 31, skipped = 0.
+Verify przed i po uruchomieniu procesów: ready, users/projected = 31,
+launcher_missing/map_avatar_missing/player_security_missing/missing/stale = 0.
+Końcowa lista PM2: wszystkie cztery procesy online.
+
+Autor: „wszytkie cztery punkty testu pass”. Odbiór obejmuje pojedyncze okno
+narzędzia bez błędu komunikacji, postęp kropek i kolejne uruchomienie,
+kontynuację przez Picker po wyjeździe oraz punkt ryzyka (jeśli wystąpi)
+i brak samoczynnego ponownego otwierania okien. Nie wywodzimy z tego
+potwierdzenia wymuszonego zdarzenia losowego ani pełnego E2E reszty sprintu.
+
+141.3 zamknięty na podstawie wcześniejszych testów lokalnych, wyników
+produkcyjnych przekazanych przez operatora i odbioru autora. Pozostałe etapy
+Sprintu 141 pozostają odrębne. W tej aktualizacji zmieniono tylko dokumentację;
+agent nie wykonywał migracji, restartów ani innych działań produkcyjnych.
+Szczegóły: doc/runbooks/sprint_141_3_launcher_runtime.md.
+
 ## 2026-09-15 — 141.3: launcher i kolejka domknięte lokalnie
 
 Autor potwierdził wdrożenie Pickera/capture, restart chaos (13), następnie

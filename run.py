@@ -16597,11 +16597,26 @@ def creator_system_apps_catalog():
     ]
 
 
+def tracks_googleplex_downloads(item):
+    # Travel tickets and other consumable products are not app downloads.
+    return not is_googleplex_product(item) and (
+        item.get("bounded_install") is True
+        or (is_system_catalog_app(item) and not item.get("ghostlab_generated"))
+    )
+
+
 def get_app_catalog():
     apps = resources_store.get("app_config", default=[]) or []
-    return normalize_app_contracts(
+    catalog = normalize_app_contracts(
         list(apps) + pro_system_tools_catalog() + creator_system_apps_catalog() + googleplex_product_catalog()
     )
+    counts = player_inventory_store.catalog_download_counts(
+        item.get("id") for item in catalog if tracks_googleplex_downloads(item)
+    )
+    for item in catalog:
+        if tracks_googleplex_downloads(item):
+            item["downloads"] = int(item.get("downloads") or 0) + counts.get(item.get("id"), 0)
+    return catalog
 
 
 def googleplex_product_catalog():
@@ -29415,6 +29430,8 @@ def install_app():
             already_owned = installed_item is not None
 
         if existing_receipt:
+            if tracks_googleplex_downloads(app_data):
+                player_inventory_store.record_catalog_download(app_id, purchase_key)
             if is_product:
                 record_storage_delta(
                     buyer_username,
@@ -29693,6 +29710,8 @@ def install_app():
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         })
+        if tracks_googleplex_downloads(app_data):
+            player_inventory_store.record_catalog_download(app_id, purchase_key)
         record_storage_delta(
             buyer_username,
             profile,

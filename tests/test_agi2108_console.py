@@ -189,6 +189,7 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
         self.assertEqual(after["storage"]["used"], 0)
         self.assertFalse(purchasable_catalog["installed"])
         self.assertEqual(purchasable_catalog["install_blocked_reason"], "")
+        self.assertEqual(self.inventory.catalog_download_counts([self.app['id']]), {self.app['id']: 1})
 
     def test_precommit_rejection_rolls_back_payment_and_install(self):
         token = set_request_transaction_precommit_guard(
@@ -204,6 +205,47 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
         self.assertEqual(self.wallet.get_balance("bob"), 25000)
         self.assertEqual(self.wallet.get_balance("admin"), 0)
         self.assertFalse(self.inventory.has_app("bob", "agi2108Console"))
+        self.assertEqual(self.inventory.catalog_download_counts([self.app['id']]), {})
+
+    def test_pvp_downloads_are_persistent_visible_and_do_not_count_retry(self):
+        tool_ids = {'financialSniffer', 'friendKicker', 'systemLogReader',
+                    'arsenalCleaner', 'securityPanelProxy', 'intruderKicker'}
+        with patch.object(run, 'player_inventory_store', self.inventory):
+            catalog = {item['id']: item for item in run.get_app_catalog()}
+            for app_id in tool_ids:
+                tool = catalog[app_id]
+                self.assertTrue(run.tracks_googleplex_downloads(tool))
+                for username in ('alice', 'bob'):
+                    key = f'googleplex:purchase:{username}:{app_id}'
+                    first = self.inventory.install_app(username, tool, purchase_key=key)
+                    retry = self.inventory.install_app(username, tool, purchase_key=key)
+                    self.assertFalse(first['duplicate'])
+                    self.assertTrue(retry['duplicate'])
+                    self.assertTrue(self.inventory.record_catalog_download(app_id, key))
+                    self.assertFalse(self.inventory.record_catalog_download(app_id, key))
+                self.inventory.uninstall_app('alice', app_id=app_id)
+            refreshed = {item['id']: item for item in run.get_app_catalog()}
+        reopened = PlayerInventoryStore(self.db_path)
+        self.assertEqual(reopened.catalog_download_counts(tool_ids), dict.fromkeys(tool_ids, 2))
+        for app_id in tool_ids:
+            self.assertEqual(refreshed[app_id]['downloads'], catalog[app_id]['downloads'] + 2)
+
+    def test_concurrent_purchases_increment_without_lost_update(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(self._purchase, ['alice', 'bob']))
+        self.assertEqual(self.inventory.catalog_download_counts([self.app['id']]), {self.app['id']: 2})
+
+    def test_non_shop_install_does_not_increment_downloads(self):
+        self.inventory.install_app('alice', self.app, purchase_key='fixture-import')
+        self.assertEqual(self.inventory.catalog_download_counts([self.app['id']]), {})
+
+    def test_teleport_tickets_are_excluded(self):
+        tickets = [item for item in run.googleplex_product_catalog()
+                   if item.get('product_type') == 'travel_ticket']
+        self.assertTrue(tickets)
+        for ticket in tickets:
+            self.assertFalse(run.tracks_googleplex_downloads(ticket))
 
     def test_install_endpoint_does_not_read_or_write_heavy_profile(self):
         heavy_profile = {"username": "alice", "blob": "x" * (35 * 1024 * 1024)}

@@ -4,10 +4,17 @@ Data: 2026-09-14. Punkt odniesienia kodu: `96dec35`.
 
 Aktualizacja zakresu: 2026-09-15 — pozycja aktora po teleportacji.
 
-Status: **W REALIZACJI — 141.2 zamknięty; implementacja 141.3 domknięta lokalnie,
-ostatni launcher oczekuje jawnej migracji i odbioru wdrożenia (15 IX)**.
+Status: **W REALIZACJI — 141.2 i 141.3 zamknięte (15 IX)**.
 
-Najnowszy checkpoint: autor potwierdził PASS wdrożonego Pickera/capture po
+Końcowy odbiór 141.3: operator wdrożył `03b4289`, wykonał migrację launchera
+31/31 bez pominięć, a verify przed i po uruchomieniu czterech procesów zwróciło
+READY ze wszystkimi brakami i stale = 0. Autor potwierdził PASS wszystkich
+czterech punktów testu launchera. Szczegóły backupu, wyników operatora i zakresu
+odbioru: [runbook launchera](../runbooks/sprint_141_3_launcher_runtime.md).
+Nie zamyka to pozostałych etapów Sprintu 141. Poniższe checkpointy opisują
+historię implementacji i wcześniejsze bramki migracji, nie aktualne zaległości 141.3.
+
+Historyczny checkpoint przed migracją launchera: autor potwierdził PASS wdrożonego Pickera/capture po
 restarcie procesu 13. Na polecenie „domykaj” przeniesiono player-mode
 `/hack-action` oraz kolejkę uruchomień do lekkich store’ów. Kolejka zachowuje
 kolejność i consumed receipts; ryzyko launchera i warning są atomowe z enqueue.
@@ -386,6 +393,15 @@ oraz trwały replay grantu. Nie traktować poprawki mark jako bramki wszystkich 
   reloadzie; nie wymaga ponownego hacku. Przełączanie celu A/B nie miesza grantów.
 
 ### 141.4 — właściwy katalog i wspólne bramki użycia
+
+Aktualizacja autora 15 IX: katalog i bramki mają wcześniejszy odbiór podczas
+.2/.3; nie wymagamy ponownego przejścia tego samego gameplayu. Pozostałe
+zgłoszenie dotyczy licznika pobrań zakupionych narzędzi. Poprawka lokalna:
+trwały licznik i receipt zakupów systemowych, retry bez ponownego naliczania,
+odczyt katalogu bez ciężkich profili. Bilety teleportacyjne wyłączone na jawne
+polecenie autora. 19 testów Python PASS; oczekuje wdrożenia i odbioru licznika.
+Nie wykonano masowego przeliczenia historycznych zakupów. Nowe tabele tworzy
+init_db; ta zmiana nie wymaga kolejnego backfill launchera.
 
 Docelowy rdzeń istniejących narzędzi do pełnej naprawy:
 

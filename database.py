@@ -1617,6 +1617,22 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS googleplex_download_receipts (
+                purchase_key TEXT PRIMARY KEY,
+                app_id TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS googleplex_download_counts (
+                app_id TEXT PRIMARY KEY,
+                downloads INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS json_resources (
                 key TEXT PRIMARY KEY,
                 source_path TEXT NOT NULL DEFAULT '',
@@ -11702,6 +11718,37 @@ class PlayerInventoryStore:
                 changed += 1
         return changed
 
+    def record_catalog_download(self, app_id, purchase_key, *, conn=None):
+        if conn is None:
+            with db_connect(self.db_path) as transaction:
+                transaction.execute("BEGIN IMMEDIATE")
+                return self.record_catalog_download(app_id, purchase_key, conn=transaction)
+        inserted = conn.execute(
+            "INSERT OR IGNORE INTO googleplex_download_receipts(purchase_key, app_id) VALUES (?, ?)",
+            (purchase_key, app_id),
+        ).rowcount
+        if inserted:
+            conn.execute(
+                """INSERT INTO googleplex_download_counts(app_id, downloads) VALUES (?, 1)
+                   ON CONFLICT(app_id) DO UPDATE SET downloads = downloads + 1""",
+                (app_id,),
+            )
+        return bool(inserted)
+
+    def catalog_download_counts(self, app_ids):
+        ids = sorted({str(value) for value in app_ids if value})
+        counts = {}
+        with db_connect(self.db_path) as conn:
+            for offset in range(0, len(ids), 200):
+                batch = ids[offset:offset + 200]
+                placeholders = ','.join('?' for _ in batch)
+                rows = conn.execute(
+                    f"SELECT app_id, downloads FROM googleplex_download_counts WHERE app_id IN ({placeholders})",
+                    batch,
+                ).fetchall()
+                counts.update({row['app_id']: int(row['downloads']) for row in rows})
+        return counts
+
     def install_app_with_conn(self, conn, username, app, *, purchase_key=""):
         """Install one canonical app inside the caller's transaction.
 
@@ -11811,6 +11858,10 @@ class PlayerInventoryStore:
                 username,
             ),
         )
+        # Same transaction as inventory/payment; the duplicate branch above
+        # never increments. Seed/import and non-shop installs are not downloads.
+        if app.get("bounded_install") is True and purchase_key == f"googleplex:purchase:{username}:{app_id}":
+            self.record_catalog_download(app_id, purchase_key, conn=conn)
         return {
             "app": installed_app,
             "app_id": app_id,

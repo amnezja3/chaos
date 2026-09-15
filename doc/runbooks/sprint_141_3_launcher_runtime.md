@@ -1,9 +1,20 @@
 # 141.3 — domknięcie launchera PvP
 
-Status 15 IX: implementacja lokalna; wymagany jawny backfill istniejących
-kont przed uruchomieniem nowego launchera. Nie wykonano migracji ani deployu.
-Odbiór wcześniejszego pakietu Picker/capture: autor potwierdził PASS po
-wdrożeniu i restarcie procesu 13. Nie rozszerzać tego odbioru na ten pakiet.
+Status 15 IX: **141.3 zamknięty** po migracji operatora i odbiorze autora.
+Wdrożony commit: `03b4289`. Operator przekazał pełny dry-run: 31/31 valid,
+bez pominięć i bez zapisu. Po zatrzymaniu czterech procesów wykonał kopię
+`/home/johndoe/app/chaos/data/backups/game-pre-1413-launcher-20260915T184225153587Z.sqlite3`
+przez SQLite backup API, quick_check = ok. Apply: 31/31, skipped = 0.
+Verify przed i po uruchomieniu procesów: ready, users/projected = 31,
+launcher_missing/map_avatar_missing/player_security_missing/missing/stale = 0.
+Końcowy PM2 potwierdza online procesów 13, 14, 17 i 18.
+Są to wyniki serwera przekazane przez operatora, nie wnioski z lokalnej bazy.
+
+Autor potwierdził PASS wszystkich czterech punktów smoke: pojedyncze okno
+narzędzia bez błędu komunikacji; postęp kropek i kolejne narzędzie;
+kontynuacja przez Victim Picker po wyjeździe celu; punkt dotyczący komunikatu
+ryzyka (jeśli wystąpi) i braku samoczynnego ponownego otwierania okien.
+Nie stanowi to potwierdzenia wymuszonego wystąpienia zdarzenia losowego.
 
 ## Zmiana i kontrakt
 
@@ -94,4 +105,4 @@ mapę i narzędzia PvP; JS zachowuje lifecycle, kolejność pozycji i alarm SFX.
 Końcowy smoke po migracji: uruchomić narzędzie z mapy, sprawdzić jedno okno
 i postęp; po wyjeździe celu kontynuować; potwierdzić warning ryzyka skanowania
 i brak podwójnego uruchomienia. Wcześniejsze zaakceptowane zasady pozostają
-bez zmian. Produkcyjne zamknięcie 141.3 wymaga tego ostatniego odbioru.
+bez zmian. Autor potwierdził powyższy odbiór; 141.3 zamknięty.

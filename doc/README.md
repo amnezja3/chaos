@@ -53,12 +53,11 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   kolejności pozycji. Przed jego uruchomieniem wymagane jest
   [jawne uzupełnienie projekcji awatarów](runbooks/sprint_141_2_map_actor_projection.md).
   141.2 zamknięty po migracji operatora i odbiorze mapy/alarmu przez autora.
-  W 141.3 grant ma odbiór autora, a nowy lokalny wybór celu z mapy wymaga
-  [uzupełnienia projekcji zabezpieczeń](runbooks/sprint_141_3_player_target_selection.md).
-  Backfill security oraz pakiet Picker/capture mają potwierdzenie operatora/autora.
-  Ostatni launcher PvP jest gotowy lokalnie i wymaga
-  [jawnej migracji kolejki oraz historii ryzyka](runbooks/sprint_141_3_launcher_runtime.md)
-  przed przełączeniem procesów; nie wykonano jej na serwerze.
+  141.3 zamknięty: [security i Picker/capture](runbooks/sprint_141_3_player_target_selection.md)
+  oraz [launcher PvP](runbooks/sprint_141_3_launcher_runtime.md) mają odbiór autora.
+  Migracja launchera na serwerze: 31/31, verify READY również po uruchomieniu
+  czterech procesów; cztery punkty smoke PASS. Runbooki zachowują procedury
+  referencyjne, nie są poleceniem ponownej migracji.
 
 - Sprinty 139–140 i [`stylizacja .1–.10`](sprints/sprint_140_stylization_1_plus.md)
   są zrealizowane. Autor potwierdził końcowy przebieg show 13 września.

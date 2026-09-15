@@ -258,6 +258,12 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
         self.assertTrue(transaction_key.startswith("financial_sniffer:"))
 
     def test_googleplex_replay_does_not_charge_twice_or_write_profile_hc(self):
+        self._check_googleplex_purchase()
+
+    def test_system_tool_purchase_and_replay_increment_downloads_once(self):
+        self._check_googleplex_purchase(system_tool=True)
+
+    def _check_googleplex_purchase(self, system_tool=False):
         app = {
             "id": "unit_tool",
             "name": "Unit Tool",
@@ -281,6 +287,9 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
             "system_messages": [],
         }
         balances = {"alice": 100, "admin": 0}
+        if system_tool:
+            app.update(type='pro-system-tool', category='pro-system-tools')
+        initial_count = run.player_inventory_store.catalog_download_counts(['unit_tool']).get('unit_tool', 0)
         manager_updates = []
 
         class FakeManager:
@@ -331,6 +340,8 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
         self.assertTrue(manager_updates)
         self.assertNotIn("hackcoins", manager_updates[0])
         self.assertEqual(profile["apps"][0]["wallet_transaction_key"], "googleplex:purchase:alice:unit_tool")
+        if system_tool:
+            self.assertEqual(run.player_inventory_store.catalog_download_counts(['unit_tool'])['unit_tool'], initial_count + 1)
 
 
 if __name__ == "__main__":
