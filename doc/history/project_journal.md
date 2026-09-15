@@ -1,5 +1,42 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141.3: launcher i kolejka domknięte lokalnie
+
+Autor potwierdził wdrożenie Pickera/capture, restart chaos (13), następnie
+PASS scenariusza w grze. Na polecenie „domykaj” dokończono lokalnie ostatni
+cutover launchera. Player-mode /hack-action używa canonical context,
+zachowuje rozpoczęty cel i security progress także po wyjeździe poza zasięg.
+Self/friend/klan są blokowane; gracz musi być już oznaczony. Prefiks player:
+w target ID wymusza bramkę PvP nawet przy sprzecznej fladze target_mode.
+
+PlayerInventoryStore obsługuje teraz trwałą kolejkę launch entries oraz historię
+ryzyka launchera. Enqueue + risk event + SystemMessageStore warning są atomowe.
+Pobranie kolejki zachowuje kolejność wstawienia, maks. 32 elementy, i trwale
+oznacza consumed receipts; retry nie uruchamia ich ponownie. Pusty polling
+nie czyta profilu ani nie otwiera transakcji zapisu. Kontekst PvP nie zastępuje
+sesji niepełnym profilem. Pozostałe źródła ryzyka i mechaniki POI nie są
+przebudowywane; widoki profilu zachowują historię i dokładają recent risk
+launchera z ograniczonej projekcji.
+
+Nowy licznik migratora: launcher_missing. Jawny backfill importuje stare
+pending launches i risk history, nie zmienia profile_json/revision/checksum.
+Marker migracji zapobiega reimportowi consumed entries. Nowe konta inicjalizują
+runtime przy utworzeniu. Stare konto bez migracji daje recovery, bez fallbacku.
+Procedura: doc/runbooks/sprint_141_3_launcher_runtime.md. Nie wykonano migracji
+bazy projektu/serwera, deployu ani restartów; wymaga tego ostatnie wdrożenie.
+
+Walidacja końcowa: 116 testów Python PASS na ustabilizowanym kodzie; po
+zaostrzeniu interpretacji player: dodatkowo dwa testy bramki/preflight PASS.
+Trzy zestawy JS PASS: gonna-win lifecycle, intrusion alarm SFX i pozycje aktora.
+Nowe testy: dwa profile ≥35 MiB, zero profile_bytes i niezmieniona rewizja,
+pełny launcher poza terytorium, preflight, stare wywołania bez klucza intencji,
+replay, kolejność kolejki, konkurencja, rollback, jawny import i powtórne apply.
+Pierwszy przebieg testów inspekcji źródeł został zakłócony edycją numerów linii
+w trakcie wykonania; powtórzenie całej regresji na stabilnych plikach PASS.
+
+Implementacja 141.3 domknięta lokalnie. Produkcyjne zamknięcie wymaga migracji
+launchera i ostatniego smoke; odbiór wcześniejszych pakietów pozostaje zaliczony.
+
 ## 2026-09-15 — 141.3: techniczny pakiet Picker/capture po odbiorze gameplayu
 
 Autor potwierdził poprawność gameplayu i polecił domknięcie techniczne.

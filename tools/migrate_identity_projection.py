@@ -13,6 +13,7 @@ from database import (
     UserIdentityProjectionStore,
     _identity_projection_payload,
     _bounded_player_security,
+    launcher_migration_errors,
     _validate_persisted_profile_row,
 )
 
@@ -72,11 +73,15 @@ def status(db_path):
                           if 'desktop_boot_json' in columns else projected)
         security_missing = (int(conn.execute("SELECT COUNT(*) FROM user_identity_projection WHERE COALESCE(json_type(desktop_boot_json, '$.player_security'), '') != 'object'").fetchone()[0])
                             if 'desktop_boot_json' in columns else projected)
+        launcher_table = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_launcher_state'").fetchone()
+        launcher_missing = (int(conn.execute("SELECT COUNT(*) FROM users u LEFT JOIN player_launcher_state s ON s.username=u.username WHERE s.username IS NULL").fetchone()[0])
+                            if launcher_table else users)
     return {
-        "status": "ready" if missing == 0 and stale == 0 and avatar_missing == 0 and security_missing == 0 else "incomplete",
+        "status": "ready" if missing == 0 and stale == 0 and avatar_missing == 0 and security_missing == 0 and launcher_missing == 0 else "incomplete",
         "users": users, "projected": projected,
         "missing": missing, "stale": stale, "map_avatar_missing": avatar_missing,
         "player_security_missing": security_missing,
+        "launcher_missing": launcher_missing,
     }
 
 
@@ -103,6 +108,10 @@ def dry_run(db_path, *, after_username="", limit=100):
             continue
         if _bounded_player_security(profile) is None:
             skipped.append({"username": row["username"], "errors": ["player_security_projection_invalid"]})
+            continue
+        launch_errors = launcher_migration_errors(profile)
+        if launch_errors:
+            skipped.append({"username": row["username"], "errors": list(launch_errors)})
             continue
         projection = _identity_projection_payload(profile)
         valid.append({

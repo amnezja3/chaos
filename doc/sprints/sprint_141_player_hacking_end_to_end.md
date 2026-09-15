@@ -4,7 +4,21 @@ Data: 2026-09-14. Punkt odniesienia kodu: `96dec35`.
 
 Aktualizacja zakresu: 2026-09-15 — pozycja aktora po teleportacji.
 
-Status: **W REALIZACJI — 141.2 zamknięty decyzją autora; 141.3 rozpoczęty (15 IX)**.
+Status: **W REALIZACJI — 141.2 zamknięty; implementacja 141.3 domknięta lokalnie,
+ostatni launcher oczekuje jawnej migracji i odbioru wdrożenia (15 IX)**.
+
+Najnowszy checkpoint: autor potwierdził PASS wdrożonego Pickera/capture po
+restarcie procesu 13. Na polecenie „domykaj” przeniesiono player-mode
+`/hack-action` oraz kolejkę uruchomień do lekkich store’ów. Kolejka zachowuje
+kolejność i consumed receipts; ryzyko launchera i warning są atomowe z enqueue.
+Pusty polling nie czyta profilu ani nie bierze writer-locka. Zachowano rozpoczęty
+hack poza widocznością/zasięgiem i dotychczasową ścieżkę wyboru narzędzia.
+**Przed uruchomieniem ostatniego pakietu wymagany jest backfill launchera**:
+[procedura](../runbooks/sprint_141_3_launcher_runtime.md). Nowy licznik
+`launcher_missing` musi spaść do zera. Nie wykonano tego na bazie projektu/serwera.
+Walidacja lokalna końcowego pakietu: 116 testów Python i trzy zestawy JS PASS;
+po ostatnim zaostrzeniu interpretacji player: dodatkowo dwa testy bramki PASS.
+Poniższe wpisy o otwartym launcherze opisują stan historyczny sprzed tej poprawki.
 
 Checkpoint techniczny po odbiorze gameplayu: lokalny pakiet Pickera/capture
 opisany w [runbooku](../runbooks/sprint_141_3_player_target_selection.md).

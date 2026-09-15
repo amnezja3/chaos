@@ -9342,7 +9342,7 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     aimed_target = dict(aimed_target or {})
     if aimed_target and not aimed_target.get("target_id"):
         aimed_target["target_id"] = build_operation_target_id(aimed_target)
-    if find_owned_captured_target_for_runtime_target(username, aimed_target):
+    if aimed_target.get("target_mode") != "player" and find_owned_captured_target_for_runtime_target(username, aimed_target):
         try:
             player_target_runtime_store.mark_captured(username, aimed_target, source=f"{reason}:already_captured")
         except Exception as exc:
@@ -9353,6 +9353,8 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
             result = upsert_player_aimed_target_runtime(username, aimed_target, source=reason)
             aimed_target = dict(result.get("target") or aimed_target)
         except Exception as exc:
+            if aimed_target.get("target_mode") == "player":
+                raise
             print(f"[target runtime] upsert failed user={username} reason={reason} error={exc}", flush=True)
     fields = dict(update_fields or {})
     fields["aimed_target"] = aimed_target
@@ -9585,6 +9587,16 @@ def apply_runtime_stores_to_profile(username, profile):
     profile = profile if isinstance(profile, dict) else {}
     if not username:
         return profile
+
+    existing_risk = profile.setdefault("risk_events", [])
+    if isinstance(existing_risk, list):
+        known = {str(item.get("dedupe_key") or item.get("id") or "")
+                 for item in existing_risk if isinstance(item, dict)}
+        for item in player_inventory_store.launch_risk_events(username):
+            key = str(item.get("dedupe_key") or item.get("id") or "")
+            if key not in known:
+                existing_risk.append(item)
+                known.add(key)
 
     try:
         position_payload = player_position_store.get(username)
@@ -9825,6 +9837,7 @@ def append_risk_event(
             for item in modifiers
             if item.get("message") or item.get("modifier")
         )
+    record["notification_text"] = f"{event_type}: {RISK_EVENT_MESSAGES.get(event_type, 'Operacja wygenerowala ryzyko.')}{modifier_text}"
     append_profile_system_message(
         profile,
         "warning",
@@ -10451,6 +10464,8 @@ def create_operations_for_app_action(profile, username, app, map_action_id, targ
                 continue
             operation = accepted[0]
         except Exception as exc:
+            if target.get("target_mode") == "player":
+                raise
             print(f"[OPERATIONS] store start skipped: {exc}")
         operations.append(operation)
         created.append(operation)
@@ -10531,6 +10546,8 @@ def create_missing_operations_for_app_target(profile, username, app, target):
                 continue
             operation = accepted[0]
         except Exception as exc:
+            if target.get("target_mode") == "player":
+                raise
             print(f"[OPERATIONS] store start skipped: {exc}")
         operations.append(operation)
         created.append(operation)
@@ -18256,6 +18273,7 @@ def load_player_hack_runtime_context(username):
         "current_position": player_position_store.get(username) or {},
         "apps": normalize_app_contracts(player_inventory_store.desktop_apps(username)),
         "aimed_target": player_target_runtime_store.get_active_target(username),
+        "risk_events": player_inventory_store.launch_risk_events(username),
     }
 
 
@@ -23962,6 +23980,32 @@ def hack_action():
     requested_target_mode = data.get("target_mode")
     player_target_profile = None
     player_target_username = str(data.get("target_username") or "").strip()
+    if str(data.get("target_id") or "").startswith("player:"):
+        requested_target_mode = "player"
+        data["target_mode"] = "player"
+        player_target_username = player_target_username or str(data["target_id"])[len("player:"):]
+    player_runtime = None
+    if requested_target_mode == "player":
+        player_runtime = load_player_hack_runtime_context(session.get("user"))
+        current = player_runtime.get("aimed_target") or {}
+        player_target_username = player_target_username or str(current.get("target_username") or "")
+        if current.get("target_mode") != "player" or current.get("target_username") != player_target_username:
+            return jsonify({"success": False, "blocked": True, "reason": "target_selection_changed",
+                            "status": "Najpierw oznacz widocznego gracza w zasiegu."}), 409
+        victim = identity_projection_store.get_identity(player_target_username)
+        if not victim or resolve_player_actor_relation(player_runtime, victim, {
+            "is_friend": mail_store.is_accepted_contact(session["user"], player_target_username)
+        }) in {"self", "friend", "same_clan"}:
+            return jsonify({"success": False, "blocked": True, "reason": "target_not_attackable"}), 403
+        # Continuation follows the canonical selected identity, not stale client coordinates.
+        lat, lng = current["lat"], current["lng"]
+        label = current.get("label") or current.get("name") or player_target_username
+        vulnerability_id = None
+        data["target_id"] = current.get("target_id") or f"player:{player_target_username}"
+        player_runtime["operations"] = player_operation_store.list_active_operations(session["user"], limit=32)
+        if len(player_runtime["operations"]) >= 32:
+            raise ProfileRecoveryRequired("Player operation limit exceeded")
+        player_inventory_store.require_launcher_ready(session["user"])
     selected_app_id = str(data.get("selected_app_id") or "").strip()
     flow_id = str(data.get("_flow_id") or "")[:96]
     client_action_key = str(data.get("_client_action_key") or "")[:220]
@@ -23995,11 +24039,8 @@ def hack_action():
     )
 
     if not selected_app_id:
-        readonly_profile = load_profile_readonly(
-            session.get("user"),
-            strip_sensitive=True,
-            normalize_apps=True,
-            normalize_files=False,
+        readonly_profile = player_runtime if player_runtime is not None else load_profile_readonly(
+            session.get("user"), strip_sensitive=True, normalize_apps=True, normalize_files=False,
         )
         if not readonly_profile:
             return jsonify({
@@ -24029,7 +24070,7 @@ def hack_action():
                     "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
                 }), 403
 
-        preflight_contested_target = find_contested_target(
+        preflight_contested_target = None if player_runtime is not None else find_contested_target(
             session["user"], lat, lng, label,
             target_id=data.get("target_id"),
             conflict_id=data.get("conflict_id"),
@@ -24092,7 +24133,7 @@ def hack_action():
             if not preflight_player_target_username:
                 aimed_player = (readonly_profile.get("aimed_target") or {}).get("target_username")
                 preflight_player_target_username = str(aimed_player or "").strip()
-            preflight_player_profile = user_store.get_profile(preflight_player_target_username)
+            preflight_player_profile = identity_projection_store.get_identity(preflight_player_target_username)
             if not preflight_player_profile:
                 return jsonify({
                     "success": False,
@@ -24111,7 +24152,7 @@ def hack_action():
                     "cooldown_until": cooldown.get("cooldown_until")
                 }), 429
 
-        preflight_foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
+        preflight_foreign_area = None if player_runtime is not None else find_foreign_area_for_point(session["user"], float(lat), float(lng))
         if (
             preflight_foreign_area
             and not preflight_contested_target
@@ -24208,11 +24249,8 @@ def hack_action():
 
     if selected_app_id:
         step_started_at = time.perf_counter()
-        readonly_profile = load_profile_readonly(
-            session.get("user"),
-            strip_sensitive=True,
-            normalize_apps=True,
-            normalize_files=False,
+        readonly_profile = player_runtime if player_runtime is not None else load_profile_readonly(
+            session.get("user"), strip_sensitive=True, normalize_apps=True, normalize_files=False,
         )
         app_flow_debug_timed(
             flow_id,
@@ -24412,7 +24450,7 @@ def hack_action():
     )
 
     step_started_at = time.perf_counter()
-    contested_target = find_contested_target(
+    contested_target = None if player_runtime is not None else find_contested_target(
         session["user"], lat, lng, label,
         target_id=data.get("target_id"),
         conflict_id=data.get("conflict_id"),
@@ -24454,7 +24492,7 @@ def hack_action():
         if not player_target_username:
             aimed_player = (profile.get("aimed_target") or {}).get("target_username")
             player_target_username = str(aimed_player or "").strip()
-        player_target_profile = user_store.get_profile(player_target_username)
+        player_target_profile = identity_projection_store.get_identity(player_target_username)
         if not player_target_profile:
             return jsonify({
                 "success": False,
@@ -24483,7 +24521,7 @@ def hack_action():
     )
 
     step_started_at = time.perf_counter()
-    foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
+    foreign_area = None if player_runtime is not None else find_foreign_area_for_point(session["user"], float(lat), float(lng))
     app_flow_debug_timed(
         flow_id,
         "hack_action_foreign_area_check_done",
@@ -24773,7 +24811,7 @@ def hack_action():
         app_name = str(app.get("name") or "").strip()
         app_id = str(app.get("id") or "").strip()
         receipt_seed = "|".join([
-            str(flow_id or ""),
+            str(flow_id or (os.urandom(16).hex() if not client_action_key else "")),
             str(client_action_key or ""),
             str(selected_app_id or app_id or app_name),
         ])
@@ -24873,7 +24911,7 @@ def hack_action():
             previous_target["target_mode"] = "player"
             previous_target["target_username"] = player_target_username
             previous_target["username"] = player_target_username
-            previous_target["security"] = dict((player_target_profile or {}).get("security") or previous_target.get("security") or {})
+            previous_target["security"] = dict(previous_target.get("security") or {})
         profile["aimed_target"] = previous_target
         app_flow_debug_timed(
             flow_id,
@@ -24942,7 +24980,7 @@ def hack_action():
         elif contested_target:
             aimed_target["security"] = dict(contested_target.get("security") or {})
         elif requested_target_mode == "player":
-            aimed_target["security"] = dict((player_target_profile or {}).get("security") or {})
+            aimed_target["security"] = identity_projection_store.get_player_security(player_target_username)
             if not aimed_target["security"]:
                 aimed_target["security"] = {
                     key: val
@@ -25006,9 +25044,10 @@ def hack_action():
         operations_total=len(profile.get("operations", [])),
     )
 
+    launch_risk = None
     if action == "scan_ports":
         step_started_at = time.perf_counter()
-        append_risk_event(
+        launch_risk = append_risk_event(
             profile,
             "suspicious_network_activity",
             "map_action",
@@ -25043,18 +25082,23 @@ def hack_action():
         target_id=build_operation_target_id(profile.get("aimed_target") or {}),
         allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
     )
-    session["profile"] = profile
+    if player_runtime is None:
+        session["profile"] = profile
     step_started_at = time.perf_counter()
-    set_player_aimed_target(
-        session["user"],
-        profile,
-        profile["aimed_target"],
-        update_fields={
-            "launch_queue": profile["launch_queue"],
-            "risk_events": profile.get("risk_events", []),
-            "system_messages": profile.get("system_messages", []),
-        },
-        reason="hack_action_target_set",
+    if player_runtime is not None:
+        result = upsert_player_aimed_target_runtime(
+            session["user"], profile["aimed_target"], source="hack_action_target_set",
+            expected_target={"target_mode": "player", "target_username": player_target_username,
+                             "target_id": f"player:{player_target_username}"},
+        )
+        if result.get("status") in {"invalid", "captured", "selection_changed", "concurrent_change"}:
+            return jsonify({"success": False, "blocked": True, "reason": "target_selection_changed"}), 409
+        profile["aimed_target"] = dict(result.get("target") or {})
+        safe_ghostnetwork_on_target_aimed(session["user"], profile, profile["aimed_target"], reason="hack_action_target_set")
+    else:
+        set_player_aimed_target(session["user"], profile, profile["aimed_target"], reason="hack_action_target_set")
+    player_inventory_store.commit_launch(
+        session["user"], new_apps, [launch_risk] if launch_risk else [], system_message_store,
     )
     app_flow_debug_timed(
         flow_id,
@@ -29905,7 +29949,7 @@ def launch_queue():
 
     try:
         step_started_at = time.perf_counter()
-        launch_list = user_store.consume_launch_queue(session["user"])
+        launch_list = player_inventory_store.consume_launches(session["user"])
         app_flow_debug_timed(
             flow_id,
             "launch_queue_consume_done",
@@ -29915,6 +29959,8 @@ def launch_queue():
             count=len(launch_list or []),
             apps=launch_list or [],
         )
+    except ProfileRecoveryRequired:
+        raise
     except Exception:
         invalidate_authenticated_session("launch_queue_error")
         return jsonify({"logout": True})

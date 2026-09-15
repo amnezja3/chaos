@@ -1796,6 +1796,19 @@ def init_db(db_path=DB_PATH):
                 PRIMARY KEY (username, receipt_key)
             )
         """)
+        conn.execute("""CREATE TABLE IF NOT EXISTS player_launcher_state (
+            username TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS player_launch_entries (
+            username TEXT NOT NULL, receipt TEXT NOT NULL, payload_json TEXT NOT NULL,
+            consumed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL,
+            PRIMARY KEY(username, receipt))""")
+        conn.execute("""CREATE INDEX IF NOT EXISTS idx_player_launch_pending
+            ON player_launch_entries(username, consumed)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS player_launch_risk_events (
+            username TEXT NOT NULL, event_key TEXT NOT NULL, payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL, PRIMARY KEY(username, event_key))""")
+        conn.execute("""CREATE INDEX IF NOT EXISTS idx_player_launch_risk_recent
+            ON player_launch_risk_events(username, created_at DESC, event_key DESC)""")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS player_hack_tool_usage (
@@ -3016,6 +3029,41 @@ def _bounded_player_security(profile):
     return dict(security)
 
 
+def launcher_migration_errors(profile):
+    queue = profile.get("launch_queue") or []
+    risks = profile.get("risk_events") or []
+    if not isinstance(queue, list) or len(queue) > 1000:
+        return ("launcher_queue_invalid",)
+    if any(not isinstance(item, (dict, str)) or len(dumps_json(item)) > 16384 for item in queue):
+        return ("launcher_entry_invalid",)
+    if not isinstance(risks, list) or any(not isinstance(item, dict) or len(dumps_json(item)) > 65536 for item in risks):
+        return ("launcher_risk_history_invalid",)
+    return ()
+
+
+def _seed_launcher_runtime_with_conn(conn, profile):
+    username = profile.get("username")
+    if conn.execute("SELECT 1 FROM player_launcher_state WHERE username=?", (username,)).fetchone():
+        return
+    if launcher_migration_errors(profile):
+        raise ProfileRecoveryRequired("Launcher migration source invalid")
+    now = utc_now()
+    for item in merge_launch_queue_values([], profile.get("launch_queue", [])):
+        encoded = dumps_json(item)
+        receipt = (item.get("receipt") or item.get("launch_receipt")) if isinstance(item, dict) else None
+        receipt = str(receipt or "legacy:" + hashlib.sha256(encoded.encode()).hexdigest())
+        conn.execute("INSERT OR IGNORE INTO player_launch_entries(username,receipt,payload_json,created_at) VALUES (?,?,?,?)",
+                     (username, receipt, encoded, now))
+    for item in profile.get("risk_events", []) or []:
+        if not isinstance(item, dict):
+            continue
+        encoded = dumps_json(item)
+        key = str(item.get("dedupe_key") or item.get("id") or hashlib.sha256(encoded.encode()).hexdigest())
+        conn.execute("INSERT OR IGNORE INTO player_launch_risk_events VALUES (?,?,?,?)",
+                     (username, key, encoded, str(item.get("created_at") or now)))
+    conn.execute("INSERT INTO player_launcher_state VALUES (?,?)", (username, now))
+
+
 def _upsert_identity_projection_with_conn(
     conn,
     profile,
@@ -3031,6 +3079,8 @@ def _upsert_identity_projection_with_conn(
     checksum = str(source_profile_checksum or "").strip()
     if not username or revision <= 0 or not checksum:
         raise ProfileValidationError(("identity_projection_source_invalid",))
+    if revision == 1:
+        _seed_launcher_runtime_with_conn(conn, profile)
     conn.execute(
         """
         INSERT INTO user_identity_projection (
@@ -4480,6 +4530,9 @@ class UserStore:
             conn.execute("DELETE FROM profile_last_known_good WHERE username = ?", (username,))
             conn.execute("DELETE FROM user_identity_projection WHERE username = ?", (username,))
             conn.execute("DELETE FROM user_capability_projection WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_launcher_state WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_launch_entries WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_launch_risk_events WHERE username = ?", (username,))
             conn.execute(
                 "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
                 (username, username),
@@ -4755,6 +4808,10 @@ class UserIdentityProjectionStore:
             if _bounded_player_security(profile) is None:
                 skipped.append({"username": row["username"], "errors": ("player_security_projection_invalid",)})
                 continue
+            launch_errors = launcher_migration_errors(profile)
+            if launch_errors:
+                skipped.append({"username": row["username"], "errors": launch_errors})
+                continue
             prepared.append((row, profile))
         if prepared:
             with db_connect(self.db_path) as conn:
@@ -4775,6 +4832,7 @@ class UserIdentityProjectionStore:
                         int(row["profile_revision"] or 0),
                         str(row["profile_checksum"] or ""),
                     )
+                    _seed_launcher_runtime_with_conn(conn, profile)
                     projected.append(row["username"])
         return {
             "after_username": cursor,
@@ -11083,6 +11141,63 @@ class PlayerInventoryStore:
         if len(rows) > 1000:
             raise ProfileRecoveryRequired("Desktop application limit exceeded")
         return [loads_json(row["app_json"], {}) for row in rows]
+
+    def require_launcher_ready(self, username, *, conn=None):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as active:
+            if not active.execute("SELECT 1 FROM player_launcher_state WHERE username=?", (username,)).fetchone():
+                raise ProfileRecoveryRequired("Launcher migration required")
+
+    def launch_risk_events(self, username, limit=250):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute("""SELECT payload_json FROM player_launch_risk_events WHERE username=?
+                                   ORDER BY created_at DESC, event_key DESC LIMIT ?""",
+                                (username, max(1, min(250, int(limit))))).fetchall()
+        return [loads_json(row[0], {}) for row in reversed(rows)]
+
+    def commit_launch(self, username, launches, risk_events, message_store):
+        if str(message_store.db_path) != str(self.db_path):
+            raise ValueError("launcher_database_mismatch")
+        if len(launches) > 32 or len(risk_events) > 32:
+            raise ValueError("launcher_batch_limit")
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self.require_launcher_ready(username, conn=conn)
+            for item in launches:
+                receipt = str(item.get("receipt") or "")
+                encoded = dumps_json(item)
+                if not receipt or len(receipt) > 256 or len(encoded) > 16384:
+                    raise ValueError("invalid_launch_receipt")
+                conn.execute("INSERT OR IGNORE INTO player_launch_entries(username,receipt,payload_json,created_at) VALUES (?,?,?,?)",
+                             (username, receipt, encoded, utc_now()))
+            for item in risk_events:
+                key = str(item.get("dedupe_key") or item.get("id") or "")
+                encoded = dumps_json(item)
+                if not key or len(key) > 512 or len(encoded) > 65536:
+                    raise ValueError("invalid_launch_risk_event")
+                added = conn.execute("INSERT OR IGNORE INTO player_launch_risk_events VALUES (?,?,?,?)",
+                                     (username, key, encoded, str(item.get("created_at") or utc_now())))
+                if added.rowcount:
+                    message_store.add_message(username, {
+                        "id": "launch-risk:" + hashlib.sha256(key.encode()).hexdigest(),
+                        "type": "warning", "title": "Risk event",
+                        "text": item.get("notification_text") or item.get("event_type") or "Ryzyko operacji.",
+                    }, conn=conn)
+
+    def consume_launches(self, username):
+        with db_connect(self.db_path) as conn:
+            self.require_launcher_ready(username, conn=conn)
+            if not conn.execute("SELECT 1 FROM player_launch_entries WHERE username=? AND consumed=0 LIMIT 1",
+                                (username,)).fetchone():
+                return []
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self.require_launcher_ready(username, conn=conn)
+            rows = conn.execute("""SELECT receipt, payload_json FROM player_launch_entries
+                                   WHERE username=? AND consumed=0 ORDER BY rowid LIMIT 32""",
+                                (username,)).fetchall()
+            conn.executemany("UPDATE player_launch_entries SET consumed=1 WHERE username=? AND receipt=?",
+                             [(username, row["receipt"]) for row in rows])
+        return [loads_json(row["payload_json"], {}) for row in rows]
 
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path

@@ -55,7 +55,10 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   141.2 zamknięty po migracji operatora i odbiorze mapy/alarmu przez autora.
   W 141.3 grant ma odbiór autora, a nowy lokalny wybór celu z mapy wymaga
   [uzupełnienia projekcji zabezpieczeń](runbooks/sprint_141_3_player_target_selection.md).
-  Ten backfill nie został wykonany; pozostałe wejścia PvP i capture nadal otwarte.
+  Backfill security oraz pakiet Picker/capture mają potwierdzenie operatora/autora.
+  Ostatni launcher PvP jest gotowy lokalnie i wymaga
+  [jawnej migracji kolejki oraz historii ryzyka](runbooks/sprint_141_3_launcher_runtime.md)
+  przed przełączeniem procesów; nie wykonano jej na serwerze.
 
 - Sprinty 139–140 i [`stylizacja .1–.10`](sprints/sprint_140_stylization_1_plus.md)
   są zrealizowane. Autor potwierdził końcowy przebieg show 13 września.

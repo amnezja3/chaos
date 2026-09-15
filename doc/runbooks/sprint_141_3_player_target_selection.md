@@ -1,5 +1,10 @@
 # 141.3 — wybór celu PvP z mapy i projekcja zabezpieczeń
 
+Aktualizacja po odbiorze Pickera/capture: autor potwierdził PASS wdrożonego
+pakietu po restarcie 13. Ostatni launcher jest zaimplementowany lokalnie;
+wymaga [osobnego backfill kolejki](sprint_141_3_launcher_runtime.md) i odbioru
+wdrożenia. Poniższe opisy otwartego launchera są historyczne.
+
 Status 15 IX: operator wykonał backfill 31 kont bez pominięć, verify READY
 przed i po uruchomieniu czterech procesów CHAOS. Autor odebrał wybór celu
 w grze (Neo1/Krymek), blokady znajomego/klanu i zachowanie postępu.
