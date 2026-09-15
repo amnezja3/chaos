@@ -16852,9 +16852,17 @@ def persist_googleplex_product_profile(username, updates, max_attempts=3):
     raise last_conflict
 
 
+PLAYER_HACK_TOOL_IDS = frozenset({
+    "systemLogReader", "securityPanelProxy", "financialSniffer",
+    "friendKicker", "arsenalCleaner",
+})
+
+
 def public_pro_system_tools(profile=None):
     tools = []
     for tool in PRO_SYSTEM_TOOLS:
+        if tool["id"] not in PLAYER_HACK_TOOL_IDS:
+            continue
         item = dict(tool)
         installed = app_is_installed(profile or {}, item.get("id")) if profile else False
         item["installed"] = installed
@@ -17788,8 +17796,14 @@ def serialize_player_hack_access(access):
             "tools": public_pro_system_tools(),
         }
 
-    victim_profile = user_store.get_profile(access.get("victim_username")) or {}
-    attacker_profile = user_store.get_profile(access.get("attacker_username")) or {}
+    victim_profile = identity_projection_store.get_identity(access.get("victim_username"))
+    attacker_identity = identity_projection_store.get_identity(access.get("attacker_username"))
+    if not victim_profile or not attacker_identity:
+        raise ProfileRecoveryRequired("Player access identity projection unavailable")
+    attacker_profile = {"apps": [
+        {"id": tool_id} for tool_id in PLAYER_HACK_TOOL_IDS
+        if player_inventory_store.has_app(access.get("attacker_username"), tool_id)
+    ]}
     seconds_left = max(0, int(access.get("seconds_left") or 0))
     return {
         "active": seconds_left > 0,
@@ -26101,6 +26115,18 @@ def api_wallet_transfer():
     })
 
 
+def validate_player_hack_tool_installation(attacker_username, victim_username, tool_id):
+    """Common bounded gate, including direct security mutation routes."""
+    if not identity_projection_store.get_identity(attacker_username):
+        raise ProfileRecoveryRequired("Player hack identity projection unavailable")
+    if not identity_projection_store.get_identity(victim_username):
+        raise ProfileRecoveryRequired("Player hack victim projection unavailable")
+    if not player_inventory_store.has_app(attacker_username, tool_id):
+        return jsonify({"success": False, "reason": "tool_not_installed",
+                        "error": "Narzedzie nie jest zainstalowane."}), 403
+    return None
+
+
 @app.route("/api/player-hack/access")
 def api_player_hack_access():
     if "user" not in session:
@@ -26121,6 +26147,9 @@ def api_player_hack_tool_use():
     tool = get_pro_system_tool(tool_id)
     if not tool:
         return jsonify({"success": False, "error": "Nie ma takiego narzedzia."}), 404
+    if tool_id not in PLAYER_HACK_TOOL_IDS:
+        return jsonify({"success": False, "reason": "unsupported_player_hack_tool",
+                        "error": "To narzedzie nie obsluguje dostepu do gracza."}), 400
     if not victim_username:
         return jsonify({"success": False, "error": "Brak celu narzedzia."}), 400
 
@@ -26131,33 +26160,12 @@ def api_player_hack_tool_use():
             "error": "Dostep do tego gracza wygasl albo nie istnieje."
         }), 403
 
-    attacker_profile = user_store.get_profile(session["user"]) or {}
-    if not app_is_installed(attacker_profile, tool_id):
-        return jsonify({
-            "success": False,
-            "error": "Narzedzie nie jest zainstalowane."
-        }), 403
+    tool_error = validate_player_hack_tool_installation(session["user"], victim_username, tool_id)
+    if tool_error:
+        return tool_error
 
     if tool_id == "systemLogReader":
-        victim_record = load_profile_write_record(victim_username)
-        victim_profile = (
-            copy.deepcopy(victim_record["profile"]) if victim_record else None
-        )
-        if not victim_profile:
-            return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
-
-        raw_messages = victim_profile.get("system_messages", []) or []
-        safe_logs = []
-        for msg in raw_messages[-5:]:
-            if not isinstance(msg, dict):
-                continue
-            safe_logs.append({
-                "type": str(msg.get("type") or ""),
-                "title": str(msg.get("title") or ""),
-                "text": str(msg.get("text") or ""),
-                "status": str(msg.get("status") or ""),
-                "created_at": str(msg.get("created_at") or ""),
-            })
+        safe_logs = system_message_store.recent_player_hack_logs(victim_username)
         message = (
             "System Log Reader odczytal ostatnie komunikaty ofiary."
             if safe_logs
@@ -26607,12 +26615,8 @@ def api_player_hack_tool_use():
             "access": serialize_player_hack_access(refreshed_access),
         })
 
-    return jsonify({
-        "success": True,
-        "message": f"{tool['name']} przyjete do kolejki. To jest placeholder narzedzia.",
-        "tool": dict(tool),
-        "access": serialize_player_hack_access(access),
-    })
+    return jsonify({"success": False, "reason": "unsupported_player_hack_tool",
+                    "error": "Brak wykonania narzedzia."}), 400
 
 
 @app.route("/api/player-hack/security/update", methods=["POST"])
@@ -26636,6 +26640,9 @@ def api_player_hack_security_update():
             "error": "Dostep do tego gracza wygasl albo nie istnieje."
         }), 403
 
+    tool_error = validate_player_hack_tool_installation(session["user"], victim_username, "securityPanelProxy")
+    if tool_error:
+        return tool_error
     victim_record = load_profile_write_record(victim_username)
     if not victim_record:
         return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
@@ -26689,6 +26696,9 @@ def api_player_hack_security_preset():
             "error": "Dostep do tego gracza wygasl albo nie istnieje."
         }), 403
 
+    tool_error = validate_player_hack_tool_installation(session["user"], victim_username, "securityPanelProxy")
+    if tool_error:
+        return tool_error
     victim_record = load_profile_write_record(victim_username)
     if not victim_record:
         return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404

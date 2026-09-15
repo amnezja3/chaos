@@ -10695,6 +10695,19 @@ class PlayerOperationStore:
 class SystemMessageStore:
     ACTIVE_STATUSES = {"pending", "delivered"}
 
+    def recent_player_hack_logs(self, username):
+        """Bounded read, no consumption, payload hydration or private MailStore data."""
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute("""
+                SELECT substr(type, 1, 80) AS type, substr(title, 1, 256) AS title,
+                       substr(body, 1, 4096) AS text, status, created_at,
+                       length(body) > 4096 OR length(title) > 256 AS truncated
+                FROM system_messages
+                WHERE username = ? AND status IN ('pending', 'delivered', 'consumed')
+                ORDER BY created_at DESC, message_id DESC LIMIT 5
+            """, (str(username or "").strip(),)).fetchall()
+        return [dict(row) for row in reversed(rows)]
+
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         init_db(self.db_path)

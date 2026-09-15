@@ -4,7 +4,39 @@ Data: 2026-09-14. Punkt odniesienia kodu: `96dec35`.
 
 Aktualizacja zakresu: 2026-09-15 — pozycja aktora po teleportacji.
 
-Status: **PLAN — zakres zlecony przez autora; implementacja i odbiór niewykonane**.
+Status: **W REALIZACJI — pierwszy pakiet Player Access / Log Reader wdrożony lokalnie; sprint otwarty**.
+
+[Audyt z 15 IX](../audits/sprint_141_player_hacking_audit_2026_09_15.md)
+zawiera przegląd kodu i izolowane reprodukcje A01–A08. Uzupełniono pełne
+requesty Flask dla pakietu opisanego poniżej. Pozostałe transakcje, baseline
+całej ścieżki i browser E2E nadal otwarte; 141.1 nie ma pełnego zamknięcia PASS.
+
+### Checkpoint implementacji — 15 IX: Player Access i Log Reader
+
+- Panel korzysta tylko z pięciu jawnych executorów post-hack. Suite i inne
+  aplikacje nie trafiają do tej listy; tool/use odrzuca nieobsługiwany tool ID.
+- Odczyt dostępu korzysta z integrity-gated identity obu kont i pięciu
+  indeksowanych sprawdzeń `PlayerInventoryStore.has_app`, bez profili/inventory dump.
+- Jedna bramka instalacji obejmuje tool/use oraz security update/preset;
+  odmowa następuje przed pełnym odczytem do guarded mutacji security.
+- Log Reader czyta pięć najnowszych canonical system messages, bez konsumowania
+  i bez payload JSON. Title do 256 znaków, body do 4096; UI oznacza skrócenie.
+- Naprawiony `id is not defined` w rendererze Log Readera; treść pozostaje escapowana.
+- `tools/run_isolated_tests.py` uruchamia wybrane moduły z cwd, SQLite i sesjami
+  w temp. Nie importować aplikacji do testów z cwd rzeczywistej bazy.
+
+Walidacja: 6 testów pełnych requestów `test_player_hack_read_paths` PASS:
+mały/mały, ≥35 MiB/mały, mały/≥35 MiB, ≥35 MiB/≥35 MiB; błędy instalacji,
+niepasujące narzędzie, niewłaściwa ofiara, expiry, stara generacja i uszkodzona
+projekcja. Test wymusza brak `get_profile`, `get_profile_with_revision` i
+`sync_session_profile`, sprawdza zero profile_bytes oraz brak konsumpcji logów.
+Osobny istniejący test reserve → transfer → complete Financial Sniffer PASS.
+JS `test_player_hack_log_reader` i składnia terminal.js PASS; diff check PASS.
+
+Nie jest to zamknięcie 141.4 ani 141.5: wykonanie pozostałych narzędzi, A01
+Cleaner, atomowość efektów, pozycje 141.2 i responsywność pozostają do naprawy.
+Pozostałe gałęzie tool/use nadal mają ciężkie odczyty. Nie wykonano deployu,
+browser QA ani pełnego E2E. Cache terminal.js podniesiony w trzech dokumentach.
 
 ## 1. Cel i wynik użytkowy
 

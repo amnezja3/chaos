@@ -211,7 +211,8 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
         self.assertEqual(len(profile["market_history"]), 1)
 
     def test_financial_sniffer_reserves_usage_before_canonical_transfer(self):
-        access = {"id": 7, "hacked_until": "2099-01-01T00:00:00"}
+        access = {"id": 7, "hacked_until": "2099-01-01T00:00:00",
+                  "attacker_username": "attacker", "victim_username": "victim"}
         order = []
         pending = {"result": "pending:silent", "amount": 8, "duplicate": False}
         access_store = Mock()
@@ -241,6 +242,8 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
             run.session["user"] = "attacker"
             with patch.object(run, "player_hack_access_store", access_store), \
                     patch.object(run, "wallet_store", wallet), \
+                    patch.object(run.identity_projection_store, "get_identity", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
+                    patch.object(run.player_inventory_store, "has_app", return_value=True), \
                     patch.object(run.user_store, "get_profile", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
                     patch.object(run, "canonical_wallet_balance", side_effect=lambda username: 100 if username == "victim" else 20), \
                     patch.object(run, "app_is_installed", return_value=True), \

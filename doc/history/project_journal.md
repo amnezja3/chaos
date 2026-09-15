@@ -1,5 +1,36 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141 rozpoczęty: pierwszy pakiet Player Access / Log Reader
+
+Na polecenie autora rozpoczęto implementację. Panel pokazuje pięć executorów
+post-hack; inne ID nie dostają sukcesu-placeholdera. Serializacja dostępu
+czyta identity i pojedyncze uprawnienia inventory, bez pełnych profili.
+Wspólna bramka instalacji obejmuje również bezpośrednie security update/preset.
+Log Reader czyta pięć canonical system messages z limitem tekstu, bez konsumpcji;
+naprawiono ReferenceError id w rendererze i oznaczono skrócone logi.
+6 testów pełnych requestów Flask PASS na izolowanej SQLite, z czterema wariantami
+małego/≥35 MiB profilu, guardami generacji/integrity i odmowami użycia.
+Istniejąca regresja reserve/transfer/complete Sniffer PASS; JS Log Reader,
+składnia i diff check PASS. Harness testów ma osobne cwd/DB/sesje w temp.
+Reprodukcje audytu przypięto do d7d477a; aktualny stan sprawdzają regresje.
+Sprint nadal otwarty: pozycje, pozostałe executory (w tym Cleaner), receipts,
+responsywność i pełny odbiór pozostają do wykonania. Bez deployu i zmian produkcji.
+
+## 2026-09-15 — odbiór pkg i rozpoczęcie audytu 141.1
+
+Autor potwierdził działanie komend pkg („super, działa”). To odbiór autora,
+bez rozszerzania na pełny audyt instalatora. Na polecenie rozpoczęto 141.1
+przy czystym HEAD d7d477a. [Raport audytu](../audits/sprint_141_player_hacking_audit_2026_09_15.md)
+zawiera mapę przepływu, katalog, kolejność napraw i brakujące dowody.
+Izolowane próby odtworzyły UnboundLocalError Cleaner po wywołaniu uninstall,
+ReferenceError Log Reader przed renderem, stare pozycje mapy/pickera,
+brak combat context w pickerze, sukces-placeholder i zapis security bez
+lokalnej kontroli instalacji. Próby nie importują aplikacji ani nie otwierają DB.
+Koszt providera serializera sprawdzono z małym i ≥35 MB fixture obu kont;
+nie jest to pełny baseline HTTP/SQLite. Testy JS marker identity i izolacji
+sesji PASS. Pełne 141.1 nadal otwarte: requesty/transakcje, baseline i browser QA
+pozostają niewykonane. Bez napraw gameplayu i działań produkcyjnych.
+
 ## 2026-09-15 — terminal: pkg list-all / search / install
 
 Dodano [komendy pakietów Googleplex](../gameplay/terminal_packages.md).

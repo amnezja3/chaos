@@ -42,9 +42,13 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 - [`Sprint 141 — Control Loop: hakowanie gracza end to end`](sprints/sprint_141_player_hacking_end_to_end.md)
   ma rozpisany zakres na polecenie autora: wykrycie i wybór intruza, przełamanie
   zabezpieczeń, dostęp, kwalifikacja i wykonanie narzędzi, efekty oraz pełny
-  interfejs desktop/mobile. Status PLAN; implementacja i odbiór niewykonane.
+  interfejs desktop/mobile. Status W REALIZACJI: lokalny pakiet Player Access /
+  Log Reader ma testy PASS; pozostałe naprawy i odbiór całej ścieżki otwarte.
+  [Raport audytu 15 IX](audits/sprint_141_player_hacking_audit_2026_09_15.md)
+  dokumentuje reprodukcje wyjątków narzędzi, stare źródła pozycji i luki bramek.
   Od 15 IX obejmuje także osobny etap naprawy starej pozycji aktora po
-  teleportacji; ciężki profil pozostaje hipotezą do zweryfikowania.
+  teleportacji; audyt potwierdził stare źródła współrzędnych, wpływ ciężkiego
+  profilu na czas produkcyjny pozostaje do pomiaru.
 
 - Sprinty 139–140 i [`stylizacja .1–.10`](sprints/sprint_140_stylization_1_plus.md)
   są zrealizowane. Autor potwierdził końcowy przebieg show 13 września.

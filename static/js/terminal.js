@@ -4269,6 +4269,7 @@ function renderSystemLogReaderLogs(container, payload = {}) {
             <footer>
                 ${log.status ? `<span>status: ${escapeHTML(String(log.status))}</span>` : ''}
                 ${log.created_at ? `<span>${escapeHTML(String(log.created_at))}</span>` : ''}
+                ${log.truncated ? '<span>Treść skrócona.</span>' : ''}
             </footer>
         </article>
     `).join('');
@@ -4299,8 +4300,7 @@ function openSystemLogReaderApp(payload = {}) {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
-    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "progressbar_random" });
-    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "window" });
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: "systemLogReader", interface: "window" });
     renderSystemLogReaderLogs(app.querySelector('.system-log-reader-list'), payload);
 }
 
