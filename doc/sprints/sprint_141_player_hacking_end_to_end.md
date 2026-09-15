@@ -52,6 +52,55 @@ browser QA ani pełnego E2E. Cache terminal.js podniesiony w trzech dokumentach.
 
 ## 1. Cel i wynik użytkowy
 
+### Rozszerzenie 15 IX — Intruder Kicker (decyzja autora)
+
+Szóste narzędzie post-hack: `intruderKicker`, kupowane i instalowane przez
+istniejącą ścieżkę Googleplex, również przez terminalowe `pkg`.
+Cena podana przez autora: **7500 HC**. Przyjęte i zakomunikowane założenia
+implementacji: poziom 1, respekt 0, pewne wypchnięcie po spełnieniu warunków,
+jedno użycie na aktywny dostęp PvP. Autor podał cenę; pozostałe parametry
+są założeniami implementacji, a nie osobnym potwierdzeniem balansu.
+
+- Użycie wymaga aktywnego dostępu PvP, instalacji i celu różnego od siebie.
+  Cel musi aktualnie znajdować się na aktywnym/okrążonym, nadal kontrolowanym
+  terytorium właściciela używającego narzędzia. Sam grant nie daje prawa do
+  wyrzucania gracza z dowolnego miejsca mapy.
+- Geometria ma korzystać z istniejącego
+  `resolve_first_respawn_outside_controlled_territory`, z domyślnym marginesem
+  180 m i sprawdzaniem nakładających się kontrolowanych stref. Nie uruchamiać
+  rejestracji, respawnu konta ani innej ścieżki resetującej stan gracza.
+- Źródło bieżącej pozycji i zapis efektu: `PlayerPositionStore`; źródło
+  granic: kanoniczne `player_areas`. Bez pełnego profilu i fallbacku do jego
+  historycznych współrzędnych. Niepełny zestaw geometrii ma kończyć się
+  kontrolowaną odmową, a nie uznaniem nieznanej przestrzeni za wolną.
+- Przed commitem ponownie sprawdzić pozycję/granice/uprawnienia; ruch celu,
+  wygaśnięcie dostępu albo zmiana sesji nie mogą prowadzić do stale overwrite.
+  Receipt, pozycja i trwałe zdarzenia wyniku wymagają atomowości/recovery.
+- Po wypchnięciu intruz otrzymuje wersjonowaną pozycję, właściciel traci
+  nieaktualny marker intruza; pozostałe audience podlegają dotychczasowym
+  regułom widoczności. Bez ujawniania nowej lokalizacji nieuprawnionym graczom.
+  Wiąże się to bezpośrednio z naprawą teleportu w 141.2.
+- Wynik okna: wypchnięto / odmowa z powodem / nieudana próba, jeśli autor
+  ustali losowość. Testować granice, nakładanie, brak własnego terytorium,
+  cel poza terenem, retry, konkurencyjny ruch, utratę delty i heavy profile.
+
+Stan lokalny: katalog Googleplex/Player Access, executor i okno wyniku dodane.
+Zapis pozycji, receiptu z odpowiedzią oraz dwóch delt jest atomowy. Powtórzenie
+zwraca poprzedni wynik bez kolejnego ruchu. W tej samej transakcji sprawdzane
+są instalacja, aktywny grant, aktualna pozycja i geometria. Niepełna geometria
+(limit 1000 osiągnięty lub błędny obszar) blokuje wykonanie. Intruz otrzymuje
+prywatną wersjonowaną pozycję; właściciel zdarzenie usunięcia markera bez nowej
+lokalizacji. Lista aktorów czyta pozycję z PlayerPositionStore, bez fallbacku.
+Jej pozostałe ciężkie odczyty profili nadal wymagają cutover w 141.2.
+
+Walidacja: 7 testów geometrii/rejestracji, 5 testów Kickera (HTTP, dwa profile
+≥35 MiB, rollback delt/pozycji/receiptu, konkurencja, replay, odmowy i odświeżenie
+markera), 10 regresji session precommit PASS. JS wyniku i prywatnego zdarzenia,
+marker hitbox, Financial Sniffer PASS. Brak browser E2E i zakupu na serwerze.
+Otwarte 141.2/141.7: zderzenie z lokalną animacją/już wysłanym commitem travel,
+szersze audience obserwatorów oraz recovery po utracie feedu. Ten checkpoint
+nie zamyka całej synchronizacji pozycji ani Sprintu 141.
+
 Uzupełnienie checkpointu 15 IX: po zgłoszeniu pustego Financial Sniffera
 naprawiono również niezdefiniowane `id` w jego rendererze. Błąd wyświetlania
 potwierdzonego wyniku nie jest już raportowany jako błąd komunikacji.

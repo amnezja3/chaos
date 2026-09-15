@@ -6009,7 +6009,7 @@ class TerritoryStore:
             ).fetchone()
         return dict(row) if row else None
 
-    def list_player_areas(self, username=None, *, limit=None):
+    def list_player_areas(self, username=None, *, limit=None, conn=None):
         query = (
             "SELECT player_areas.*, "
             "COALESCE(territory_area_publications.publication_version, 0) AS publication_version "
@@ -6031,7 +6031,7 @@ class TerritoryStore:
                 raise ValueError("limit must be between 1 and 1000")
             query += " LIMIT ?"
             params.append(bounded_limit)
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             rows = conn.execute(query, params).fetchall()
             return [
                 {
@@ -9806,14 +9806,14 @@ class PlayerHackAccessStore:
                 access["id"] = cursor.lastrowid
             return access
 
-    def get_active_access(self, attacker_username, victim_username=None):
+    def get_active_access(self, attacker_username, victim_username=None, *, conn=None):
         now = utc_now()
         params = [attacker_username, now]
         where = "attacker_username = ? AND hacked_until > ?"
         if victim_username:
             where += " AND victim_username = ?"
             params.append(victim_username)
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 f"""
                 SELECT * FROM player_hack_access
@@ -9849,9 +9849,9 @@ class PlayerHackAccessStore:
     def has_tool_usage(self, access, attacker_username, victim_username, tool_id):
         return self.get_tool_usage(access, attacker_username, victim_username, tool_id) is not None
 
-    def get_tool_usage(self, access, attacker_username, victim_username, tool_id):
+    def get_tool_usage(self, access, attacker_username, victim_username, tool_id, *, conn=None):
         key = self.access_key(access)
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 """
                 SELECT id, access_id, attacker_username, victim_username,
@@ -13824,11 +13824,11 @@ class PlayerPositionStore:
             "updated_at": row["updated_at"],
         }
 
-    def get(self, username):
+    def get(self, username, *, conn=None):
         username = str(username or "").strip()
         if not username:
             return None
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 "SELECT * FROM player_positions WHERE username = ?",
                 (username,),
@@ -13841,14 +13841,16 @@ class PlayerPositionStore:
             return {}
         return {"lat": row["lat"], "lng": row["lng"]}
 
-    def upsert(self, username, position, source="runtime"):
+    def upsert(self, username, position, source="runtime", *, conn=None):
         username = str(username or "").strip()
         normalized = self._normalize(position)
         if not username or not normalized:
             return {"changed": False, "position": {}, "version": 0, "updated_at": ""}
         now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT * FROM player_positions WHERE username = ?",
                 (username,),
@@ -14896,7 +14898,7 @@ class GameStateDeltaBus:
             ).fetchone()
             return int(row["version"] if row else 0)
 
-    def record_change(self, username, scope, change_type, payload=None, entity_id=None, dedupe_key=None, created_at=None):
+    def record_change(self, username, scope, change_type, payload=None, entity_id=None, dedupe_key=None, created_at=None, *, conn=None):
         username = self._clean_text(username)
         scope = self._clean_text(scope)
         change_type = self._clean_text(change_type)
@@ -14914,7 +14916,7 @@ class GameStateDeltaBus:
         entity_id = self._clean_text(entity_id or self._default_entity_id(scope, change_type, payload))
         created_at = self._clean_text(created_at or utc_now())
 
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             if dedupe_key:
                 dedupe_key = self._clean_text(dedupe_key)
             else:

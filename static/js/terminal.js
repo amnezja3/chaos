@@ -4662,6 +4662,18 @@ async function refreshPlayerHackAccess(prefetched = null) {
     }
 }
 
+function openIntruderKickerApp(payload = {}) {
+    const app = document.createElement('div');
+    app.className = 'app-window';
+    Object.assign(app.style, { position: 'absolute', top: '60px', left: '12px',
+        width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100vh - 90px)', overflow: 'auto' });
+    app.innerHTML = `<div class="app-header">Intruder Kicker <button class="close-btn" aria-label="Zamknij">×</button></div>
+        <div style="padding:16px;overflow-wrap:anywhere">${escapeHTML(payload.message || '')}</div>`;
+    document.body.appendChild(app);
+    makeDraggable(app);
+    app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+}
+
 async function usePlayerHackTool(toolId) {
     if (!playerHackAccessState || !playerHackAccessState.active) return;
     const panel = getPlayerHackAccessPanel();
@@ -4684,6 +4696,7 @@ async function usePlayerHackTool(toolId) {
         }
         confirmedResult = data;
         if (msg) msg.textContent = data.message || 'Operacja zakończona.';
+        if (data.result_type === 'intruder_kicker') openIntruderKickerApp(data);
         if (data.result_type === 'system_logs') {
             openSystemLogReaderApp(data);
         }

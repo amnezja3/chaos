@@ -4962,6 +4962,16 @@ def build_dev_bug_server_context(username, client_context=None):
 
 PRO_SYSTEM_TOOLS = [
     {
+        "id": "intruderKicker", "name": "Intruder Kicker", "icon": "🚷",
+        "category": "pro-system-tools", "type": "pro-system-tool",
+        "description": "Wypycha shackowanego intruza poza własne terytorium. Jedno użycie na dostęp PvP.",
+        "price": 7500, "required_level": 1, "required_respect": 0,
+        "allowed_fractions": [], "risk_level": 0, "purchase_account": "admin",
+        "interface": "terminal",
+        "levels": [{"title": "Intruder Kicker", "command": "intruderKicker --player-access",
+                    "logs": ["Uruchamiaj z panelu PLAYER ACCESS na intruzie we własnym terytorium."]}],
+    },
+    {
         "id": "financialSniffer",
         "name": "Financial Sniffer",
         "icon": "\U0001F4B8",
@@ -5642,6 +5652,25 @@ FIRST_RESPAWN_TERRITORY_MARGIN_METERS = max(
         float(os.environ.get("CHAOS_FIRST_RESPAWN_TERRITORY_MARGIN_METERS", "180")),
     ),
 )
+
+
+def resolve_intruder_kicker_position(owner_username, victim_username, position, areas):
+    """Authorize placement on the owner's land, then reuse first-spawn geometry."""
+    owner_username = str(owner_username or "").strip()
+    victim_username = str(victim_username or "").strip()
+    if not owner_username or not victim_username or owner_username == victim_username:
+        return {"position": {}, "adjusted": False, "reason": "invalid_intruder"}
+    origin = PlayerPositionStore._normalize(position)
+    if not origin:
+        return {"position": {}, "adjusted": False, "reason": "invalid_position"}
+    controlled = [area for area in safe_player_areas(areas)
+                  if area.get("status") in {"active", "encircled"}]
+    owner_areas = [area for area in controlled
+                   if area.get("owner_username") == owner_username
+                   and territory_point_in_polygon_or_boundary(origin, area.get("vertices") or [])]
+    if not owner_areas:
+        return {"position": {}, "adjusted": False, "reason": "not_on_owner_territory"}
+    return resolve_first_respawn_outside_controlled_territory(origin, areas=controlled)
 
 
 def resolve_first_respawn_outside_controlled_territory(
@@ -16853,6 +16882,7 @@ def persist_googleplex_product_profile(username, updates, max_attempts=3):
 
 
 PLAYER_HACK_TOOL_IDS = frozenset({
+    "intruderKicker",
     "systemLogReader", "securityPanelProxy", "financialSniffer",
     "friendKicker", "arsenalCleaner",
 })
@@ -26115,6 +26145,52 @@ def api_wallet_transfer():
     })
 
 
+def execute_intruder_kicker(attacker, victim):
+    """Resolve against current canonical state and commit movement/receipt/deltas together."""
+    from database import db_connect
+    tool_id = "intruderKicker"
+    stores = (player_hack_access_store, player_inventory_store, territory_store, delta_bus)
+    if any(os.path.abspath(store.db_path) != os.path.abspath(player_position_store.db_path) for store in stores):
+        raise RuntimeError("Intruder Kicker stores must share a database")
+    with db_connect(player_position_store.db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        access = player_hack_access_store.get_active_access(attacker, victim, conn=conn)
+        if not access or attacker == victim:
+            return {"success": False, "error": "Brak aktywnego dostępu do intruza."}, 403
+        if not player_inventory_store.has_app(attacker, tool_id, conn=conn):
+            return {"success": False, "error": "Narzędzie nie jest zainstalowane."}, 403
+        receipt = player_hack_access_store.get_tool_usage(access, attacker, victim, tool_id, conn=conn)
+        if receipt:
+            result = json.loads(receipt["result"])
+            return {**result, "duplicate": True}, 200
+        current = player_position_store.get(victim, conn=conn)
+        if not current:
+            return {"success": False, "error": "Brak aktualnej pozycji intruza."}, 409
+        areas = territory_store.list_player_areas(limit=1000, conn=conn)
+        if len(areas) >= 1000 or any(normalize_player_area(area) is None for area in areas):
+            return {"success": False, "error": "Nie można potwierdzić pełnych granic terytoriów."}, 409
+        placement = resolve_intruder_kicker_position(attacker, victim, current, areas)
+        if not placement.get("adjusted"):
+            return {"success": False, "reason": placement.get("reason"),
+                    "error": "Cel nie jest intruzem na Twoim terytorium albo brak bezpiecznego punktu."}, 409
+        moved = player_position_store.upsert(victim, placement["position"], source=tool_id, conn=conn)
+        result = {"success": True, "tool_id": tool_id, "result_type": "intruder_kicker",
+                  "message": "Intruder Kicker wyrzucił intruza poza Twoje terytorium.",
+                  "kicked": True}
+        usage = player_hack_access_store.record_tool_usage(
+            access, attacker, victim, tool_id, result=json.dumps(result), amount=1, conn=conn,
+        )
+        key = f"intruder_kicker:{usage['id']}"
+        delta_bus.record_change(victim, "map", "map.player_forced_position", {
+            "username": victim, **moved["position"], "position_version": moved["version"],
+            "position_updated_at": moved["updated_at"], "reason": tool_id,
+        }, entity_id=victim, dedupe_key=f"{key}:position", conn=conn)
+        delta_bus.record_change(attacker, "map", "map.player_actor_removed", {
+            "username": victim, "removed": True, "reason": tool_id,
+        }, entity_id=victim, dedupe_key=f"{key}:owner", conn=conn)
+        return result, 200
+
+
 def validate_player_hack_tool_installation(attacker_username, victim_username, tool_id):
     """Common bounded gate, including direct security mutation routes."""
     if not identity_projection_store.get_identity(attacker_username):
@@ -26163,6 +26239,12 @@ def api_player_hack_tool_use():
     tool_error = validate_player_hack_tool_installation(session["user"], victim_username, tool_id)
     if tool_error:
         return tool_error
+
+    if tool_id == "intruderKicker":
+        result, status = execute_intruder_kicker(session["user"], victim_username)
+        if result.get("success"):
+            result["access"] = serialize_player_hack_access(access)
+        return jsonify(result), status
 
     if tool_id == "systemLogReader":
         safe_logs = system_message_store.recent_player_hack_logs(victim_username)
@@ -27282,11 +27364,7 @@ def map_player_actors():
         actor_username = actor_profile.get("username")
         if not actor_username or actor_username == viewer_username:
             continue
-        position = (
-            actor_profile.get("current_position")
-            or actor_profile.get("curently_possition")
-            or {}
-        )
+        position = player_position_store.get_position(actor_username)
         lat = position.get("lat")
         lng = position.get("lng", position.get("lon"))
         if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):

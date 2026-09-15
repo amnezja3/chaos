@@ -1,5 +1,32 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — Intruder Kicker: implementacja lokalna za 7500 HC
+
+Autor podał cenę 7500 HC. Zakomunikowano założenia: poziom 1, respekt 0,
+pewne wypchnięcie na własnym terenie po hacku, raz na dostęp. Dodano narzędzie
+do wspólnego katalogu (istniejąca instalacja/Googleplex/pkg) i Player Access.
+Executor używa wspólnej geometrii pierwszego respawnu oraz kanonicznej pozycji;
+receipt z wynikiem, ruch i prywatna delta intruza/usunięcie markera właściciela
+mają wspólną transakcję. Replay nie porusza gracza ponownie. Lista aktorów
+przestała brać współrzędne z ciężkiego profilu; jej pozostały cutover jest otwarty.
+5 dedykowanych testów Kickera PASS, 7 geometrii/rejestracji PASS, 10 istniejących
+regresji session precommit PASS. JS Kickera, hitbox i Financial Sniffer PASS.
+Bez deployu, rzeczywistego zakupu lub wyrzucenia gracza i browser E2E.
+Kolizja z kolejką/commitem travel oraz pełne audience/recovery nadal w 141.2.
+
+## 2026-09-15 — 141: Intruder Kicker, reuse geometrii pierwszego respawnu
+
+Autor zlecił narzędzie wypychające intruza poza terytorium właściciela przy
+aktywnym hacku PvP i wybrał zakup/instalację jak innych narzędzi. Cena,
+wymagania i reguła powodzenia oczekują doprecyzowania. Rozszerzono zakres 141.
+Przeczytano hardbugfix pierwszego respawnu z 8 IX; nowa czysta bramka
+`resolve_intruder_kicker_position` sprawdza własność i obecność celu, następnie
+deleguje pozycję do istniejącego resolvera obrzeży. 7 testów geometrii oraz
+rejestracji PASS, w tym nakładanie terenów, self i brak własnego terytorium.
+Nie ma jeszcze podłączenia do runtime/katalogu/UI ani zapisu pozycji.
+Nie wykonano ruchu żadnego gracza ani deployu. Pozostałe prace i kontrakt
+atomowości/synchronizacji zapisano w sprincie; nie oznaczać narzędzia gotowym.
+
 ## 2026-09-15 — 141: Arsenal Cleaner, kanoniczne usunięcie i receipt
 
 Autor zgłosił błąd Cleanera; pozostałe narzędzia wyglądają na działające według

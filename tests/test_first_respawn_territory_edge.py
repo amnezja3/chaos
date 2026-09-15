@@ -31,6 +31,25 @@ class FirstRespawnTerritoryEdgeTest(unittest.TestCase):
         self.assertEqual(origin, result["position"])
         self.assertEqual("free_origin", result["reason"])
 
+    def test_intruder_kicker_reuses_spawn_geometry_outside_overlapping_land(self):
+        areas = [self.area(1, 'owner'), self.area(2, 'neighbor', half_span=0.02)]
+        origin = {'lat': 52.2, 'lng': 21.0}
+        expected = run.resolve_first_respawn_outside_controlled_territory(origin, areas=areas)
+        result = run.resolve_intruder_kicker_position('owner', 'intruder', origin, areas)
+        self.assertEqual(result, expected)
+        self.assertTrue(result['adjusted'])
+        for area in areas:
+            self.assertFalse(run.territory_point_in_polygon_or_boundary(result['position'], area['vertices']))
+
+    def test_intruder_kicker_requires_current_owner_territory(self):
+        origin = {'lat': 52.2, 'lng': 21.0}
+        for areas in ([self.area(1, 'other')], [self.area(1, 'owner', status='consumed')], []):
+            result = run.resolve_intruder_kicker_position('owner', 'intruder', origin, areas)
+            self.assertEqual(result['reason'], 'not_on_owner_territory')
+            self.assertFalse(result['adjusted'])
+        self.assertEqual(run.resolve_intruder_kicker_position('owner', 'owner', origin, [])['reason'], 'invalid_intruder')
+        self.assertEqual(run.resolve_intruder_kicker_position('owner', 'intruder', {}, [])['reason'], 'invalid_position')
+
     def test_spawn_inside_territory_moves_beyond_boundary_margin(self):
         area = self.area(1, "owner")
 

@@ -10169,6 +10169,14 @@
             window.applyMapPlayerActorDelta = function(event) {
                 const payload = (event && event.payload) || event || {};
                 const type = (event && event.type) || payload.type || "";
+                if (type === "map.player_forced_position") {
+                    const self = String((window.profileData || {}).username || '').trim();
+                    if (self !== payload.username) return false;
+                    if (typeof window.setMotorcyclePositionFromSnapshot !== 'function') return false;
+                    return window.setMotorcyclePositionFromSnapshot(
+                        { ...payload, source: 'intruderKicker' }, { authoritative: true }
+                    );
+                }
                 const actor = payload.actor || payload;
                 const key = payload.username || payload.entity_id || actor.username || actor.nick;
                 if (type === "map.player_actor_removed" || payload.removed) {
