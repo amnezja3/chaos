@@ -13,6 +13,15 @@ całej ścieżki i browser E2E nadal otwarte; 141.1 nie ma pełnego zamknięcia 
 
 ### Checkpoint implementacji — 15 IX: Player Access i Log Reader
 
+Odbiór 15 IX po migracji: autor potwierdził aktualne awatary po teleportacji,
+wtargnięciu i objęciu polem. Zgłoszony brak alarmu właściciela naprawiono
+lokalnie: wspólny atomowy area event + warning, ID per zdarzenie zamiast
+dożywotniej deduplikacji treści, zachowany cooldown 60 s i wykluczenie własnego
+klanu. Static intrusion korzysta z ograniczonej projekcji i również alarmuje.
+18 testów Python i dwa zestawy JS PASS. Bez nowej migracji; odbiór alarmu
+po wdrożeniu pozostaje otwarty. Nie rozszerzać odbioru awatarów na wszystkie
+scenariusze opóźnionych odpowiedzi, ruchu w toku i pełnego audience.
+
 Checkpoint 141.2 — 15 IX: usunięto pełne profile z listy aktorów. Ograniczona
 projekcja pobiera canonical position wraz z wersją, identity/capability i awatar;
 cel pochodzi z target runtime. JS odrzuca starsze pozycje i snapshot rozpoczęty

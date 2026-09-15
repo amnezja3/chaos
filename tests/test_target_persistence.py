@@ -1368,11 +1368,13 @@ class GameStateDeltaBusTest(unittest.TestCase):
             def recent_area_event_exists(self, owner_username, actor_username, event_type, area_id=None, seconds=60):
                 return False
 
-            def add_area_event(self, **event):
-                self.events.append(event)
+            def record_intrusion_with_message(self, message_store, **event):
+                self.events.append({**event, "event_type": "intruder_enter", "payload": {"static_sync": True}})
+                return 1
 
         territory = DummyTerritoryStore()
-        with patch.object(run, "user_store", DummyUserStore()), \
+        with patch.object(run.identity_projection_store, "get_identity", return_value={"username": "owner"}), \
+                patch.object(run.identity_projection_store, "map_actor_candidates", return_value=DummyUserStore().list_profiles()[1:]), \
                 patch.object(run, "territory_store", territory), \
                 patch.object(run, "record_map_player_actor_delta") as record_delta:
             synced = run.sync_static_area_intruders_for_owner(

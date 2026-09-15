@@ -1,5 +1,49 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141: odbiór mapy i naprawa alarmu wtargnięcia
+
+Autor potwierdził aktualne awatary na mapie po teleportacji, wtargnięciu
+i objęciu polem; zgłosił brak alarmu u właściciela pola obcego klanu.
+W kodzie wykryto dwa problemy: notify_area_intrusion tworzył komunikat bez ID
+zdarzenia, więc SystemMessageStore deduplikował tę samą treść również po
+konsumpcji poprzedniego alarmu; static intruder sync nie tworzył ostrzeżenia.
+Nie twierdzimy, że migracja spowodowała te istniejące wcześniej luki.
+
+Wspólny zapis area event + system warning jest teraz atomowy, a ID wiadomości
+pochodzi z ID konkretnego area event. Zachowano cooldown 60 s dla owner/actor/area
+i kontrakt system.warning: live, stabilne ID, bez historycznego audio replay.
+Statyczne wykrycie korzysta z bounded identity/position candidates, bez
+list_profiles, z wykluczeniem własnego klanu. Powiadomienie ruchu również
+nie czyta ciężkiego profilu. 17 testów alarm/map/Kicker/historyczny rebuild
+oraz istniejąca regresja deduplikacji wiadomości PASS; JS mostu alarmu i GameSfx
+PASS. Nowy test obejmuje profile ≥35 MiB, ponowne wejście po konsumpcji alarmu,
+konkurencję i rollback. Lokalna naprawa, bez deployu i bez nowej migracji.
+Odbiór przywróconego alarmu w grze pozostaje otwarty.
+
+## 2026-09-15 — 141.2: przeładowanie procesów i ponowne verify READY
+
+Dowód: terminal autora. Po pierwszej próbie przeładowania kilku ID wzrósł
+tylko licznik chaos (13): 107 → 109. Następnie autor osobno wykonał reload
+14, 17 i 18; PM2 potwierdził każdą akcję. Liczniki: territory 23 → 24,
+ollama 4 → 5, narrative publisher 5 → 6. Wszystkie cztery procesy online.
+Ponowne verify: ready, users/projected=31, missing=0, stale=0,
+map_avatar_missing=0. Migracja i przeładowania potwierdzone; odbiór mapy
+w przeglądarce i pozostałe scenariusze 141.2 nadal otwarte.
+
+## 2026-09-15 — 141.2: migracja projekcji na serwerze, verify READY
+
+Dowód: wyniki terminala przekazane przez autora. Checkout po pull: 4914e58;
+cwd procesu PM2 chaos: /home/johndoe/app/chaos; baza data/game.sqlite3.
+Status przed migracją: 31 users/projected, missing=0, stale=0,
+map_avatar_missing=31. Pełny dry-run po jednym koncie: 31 valid, skipped=[],
+database_mutated=false. Kopia przez SQLite backup API:
+data/backups/game-pre-1412-20260915T154546714437Z.sqlite3, quick_check=ok.
+Autor wykonał apply: scanned=31, projected=31, skipped=0. Verify:
+status=ready, users=31, projected=31, missing=0, stale=0, map_avatar_missing=0.
+To potwierdzenie projekcji w chwili verify, nie odbiór runtime ani zamknięcie
+141.2. Przeładowanie procesów na nowy kod i ponowne verify pozostają otwarte;
+stary writer może jeszcze odtworzyć desktop projection bez pola avatar.
+
 ## 2026-09-15 — 141.2: bounded snapshot aktorów i wersje pozycji
 
 Na polecenie kontynuacji usunięto get_profile/list_profiles z map player-actors.

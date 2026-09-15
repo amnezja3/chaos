@@ -1,6 +1,10 @@
 # 141.2 — projekcja aktorów mapy i kolejność pozycji
 
-Status: implementacja lokalna; procedura dla operatora, niewykonana na serwerze.
+Status: autor wykonał migrację na serwerze 15 IX; verify READY dla 31 kont.
+Dowody i ścieżka backupu: journal, wpis „141.2: migracja projekcji na serwerze”.
+Autor potwierdził również przeładowania chaos oraz trzech workerów: wszystkie
+online, ponowne verify READY, brak brakujących awatarów. Odbiór mapy pozostaje
+otwarty. Szczegóły w journalu: „141.2: przeładowanie procesów i ponowne verify READY”.
 
 ## Zmiana
 

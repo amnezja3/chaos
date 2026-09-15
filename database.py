@@ -6156,9 +6156,9 @@ class TerritoryStore:
             ).fetchone()
         return int(row["count"] or 0) if row else 0
 
-    def add_area_event(self, owner_username, actor_username, event_type, area_id=None, lat=None, lng=None, payload=None):
-        with db_connect(self.db_path) as conn:
-            conn.execute(
+    def add_area_event(self, owner_username, actor_username, event_type, area_id=None, lat=None, lng=None, payload=None, *, conn=None):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
+            cursor = conn.execute(
                 """
                 INSERT INTO area_events
                     (area_id, owner_username, actor_username, event_type, lat, lng, payload_json, created_at)
@@ -6175,8 +6175,32 @@ class TerritoryStore:
                     utc_now(),
                 ),
             )
+            return cursor.lastrowid
 
-    def recent_area_event_exists(self, owner_username, actor_username, event_type, area_id=None, seconds=60):
+    def record_intrusion_with_message(self, message_store, *, owner_username, actor_username,
+                                      area_id, lat, lng, actor_nick, area_status="active", source="movement"):
+        """One durable warning per accepted intrusion event, including concurrent producers."""
+        if os.path.abspath(self.db_path) != os.path.abspath(message_store.db_path):
+            raise ValueError("Intrusion stores must share a database")
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if self.recent_area_event_exists(owner_username, actor_username, "intruder_enter",
+                                             area_id=area_id, seconds=60, conn=conn):
+                return None
+            event_id = self.add_area_event(
+                owner_username, actor_username, "intruder_enter", area_id=area_id,
+                lat=lat, lng=lng, payload={"actor_nick": actor_nick, "area_status": area_status,
+                                        "source": source, "static_sync": source != "movement"}, conn=conn,
+            )
+            message_store.add_message(owner_username, {
+                "id": f"area_intrusion:{event_id}", "dedupe_key": f"area_intrusion:{event_id}",
+                "type": "warning", "title": "Obcy gracz na twoim terenie",
+                "text": f"{actor_nick} wszedł na kontrolowany przez Ciebie obszar.",
+                "area_event_id": event_id,
+            }, source="area_intrusion", conn=conn)
+            return event_id
+
+    def recent_area_event_exists(self, owner_username, actor_username, event_type, area_id=None, seconds=60, *, conn=None):
         threshold = (datetime.utcnow() - timedelta(seconds=seconds)).isoformat(timespec="seconds")
         query = """
             SELECT 1
@@ -6191,7 +6215,7 @@ class TerritoryStore:
             query += " AND area_id = ?"
             params.append(area_id)
         query += " LIMIT 1"
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             return conn.execute(query, params).fetchone() is not None
 
     def area_event_exists_with_payload_key(self, owner_username, actor_username, event_type, payload_key, payload_value):
@@ -10818,7 +10842,7 @@ class SystemMessageStore:
         message.setdefault("created_at", row["created_at"])
         return message
 
-    def add_message(self, username, message, source="", ttl_seconds=None):
+    def add_message(self, username, message, source="", ttl_seconds=None, *, conn=None):
         username = self._clean_text(username)
         if not username or not isinstance(message, dict):
             return None, False
@@ -10842,8 +10866,10 @@ class SystemMessageStore:
         source_text = self._clean_text(source or payload.get("source"), "system")
         payload_json = dumps_json(payload)
         duplicate = None
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 """
                 SELECT * FROM system_messages

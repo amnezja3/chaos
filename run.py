@@ -4676,7 +4676,7 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
         return []
 
     try:
-        source_areas = areas if areas is not None else territory_store.list_player_areas()
+        source_areas = areas if areas is not None else territory_store.list_player_areas(owner_username, limit=1000)
         owner_areas = [
             area for area in safe_player_areas(source_areas)
             if area.get("owner_username") == owner_username
@@ -4690,7 +4690,12 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
         return []
 
     try:
-        profiles = user_store.list_profiles()
+        owner_identity = identity_projection_store.get_identity(owner_username)
+        if not owner_identity:
+            raise ProfileRecoveryRequired("Intrusion owner identity unavailable")
+        profiles = identity_projection_store.map_actor_candidates(
+            owner_username, polygons=[area["vertices"] for area in owner_areas],
+        )
     except Exception as exc:
         print(f"[TERRITORY] static intruder profile scan failed for {owner_username}: {exc}", flush=True)
         return []
@@ -4700,6 +4705,10 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
         actor_username = str((actor_profile or {}).get("username") or "").strip()
         if not actor_username or actor_username == owner_username:
             continue
+        if territory_combat_relation(owner_username, actor_username, profile_cache={
+            owner_username: owner_identity, actor_username: actor_profile,
+        }) != "hostile":
+            continue
         position = _profile_map_position(actor_profile)
         if not position:
             continue
@@ -4707,29 +4716,14 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
             if not territory_point_in_polygon_or_boundary(position, area.get("vertices") or []):
                 continue
             area_id = area.get("id")
-            if territory_store.recent_area_event_exists(
-                owner_username,
-                actor_username,
-                "intruder_enter",
-                area_id=area_id,
-                seconds=60,
-            ):
-                break
-            actor_name = actor_profile.get("nick") or actor_username
-            territory_store.add_area_event(
-                owner_username=owner_username,
-                actor_username=actor_username,
-                event_type="intruder_enter",
-                area_id=area_id,
-                lat=position["lat"],
-                lng=position["lng"],
-                payload={
-                    "actor_nick": actor_name,
-                    "area_status": area.get("status", "active"),
-                    "source": reason,
-                    "static_sync": True,
-                },
+            event_id = territory_store.record_intrusion_with_message(
+                system_message_store, owner_username=owner_username, actor_username=actor_username,
+                area_id=area_id, lat=position["lat"], lng=position["lng"],
+                actor_nick=actor_profile.get("nick") or actor_username,
+                area_status=area.get("status", "active"), source=reason or "territory_rebuild",
             )
+            if event_id is None:
+                break
             record_map_player_actor_delta(
                 actor_username,
                 actor_profile,
@@ -16207,34 +16201,19 @@ def notify_area_intrusion(actor_username, lat, lng):
     if not owner_username or owner_username == actor_username:
         return None
 
-    if territory_store.recent_area_event_exists(
-        owner_username,
-        actor_username,
-        "intruder_enter",
-        area_id=area.get("id"),
-        seconds=60
-    ):
-        return area
-
-    actor_profile = user_store.get_profile(actor_username) or {}
-    actor_name = actor_profile.get("nick") or actor_username
-    territory_store.add_area_event(
-        owner_username=owner_username,
-        actor_username=actor_username,
-        event_type="intruder_enter",
-        area_id=area.get("id"),
-        lat=lat,
-        lng=lng,
-        payload={
-            "actor_nick": actor_name,
-            "area_status": area.get("status", "active")
-        }
-    )
-    add_system_message_to_user(
-        owner_username,
-        "warning",
-        "Obcy gracz na twoim terenie",
-        f"{actor_name} wszedł na kontrolowany przez Ciebie obszar."
+    actor_identity = identity_projection_store.get_identity(actor_username)
+    owner_identity = identity_projection_store.get_identity(owner_username)
+    if not actor_identity or not owner_identity:
+        raise ProfileRecoveryRequired("Intrusion identity unavailable")
+    if territory_combat_relation(actor_username, owner_username, profile_cache={
+        actor_username: actor_identity, owner_username: owner_identity,
+    }) != "hostile":
+        return None
+    territory_store.record_intrusion_with_message(
+        system_message_store, owner_username=owner_username, actor_username=actor_username,
+        area_id=area.get("id"), lat=lat, lng=lng,
+        actor_nick=actor_identity.get("nick") or actor_username,
+        area_status=area.get("status", "active"),
     )
     return area
 
