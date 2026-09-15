@@ -1924,6 +1924,7 @@ def init_db(db_path=DB_PATH):
             )
             """
         )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_player_positions_lat_lng ON player_positions(lat, lng)")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS dev_bug_reports (
@@ -3042,6 +3043,7 @@ def _upsert_identity_projection_with_conn(
     )
     conn.execute("UPDATE user_identity_projection SET desktop_boot_json=? WHERE username=?",
                  (dumps_json({"desktop_settings": profile.get("desktop_settings") or {},
+                              "avatar": str(profile.get("avatar") or ""),
                               "respect": profile.get("respect") or 0,
                               "source_profile_revision": revision,
                               "source_profile_checksum": checksum}), username))
@@ -4587,6 +4589,56 @@ class UserIdentityProjectionStore:
         record_hot_path_metric("bounded_identity_count", len(identities))
         return identities
 
+    def map_actor_candidates(self, viewer_username, *, clan_code="", contact_names=(), polygons=()):
+        """Bounded spatial/social selection; never reads profile JSON."""
+        names = sorted({str(name) for name in contact_names if name})
+        polygons = list(polygons)
+        if len(names) > 500 or len(polygons) > 128:
+            raise ProfileRecoveryRequired("Map actor audience limit exceeded")
+        queries, params = [], []
+        if names:
+            queries.append("SELECT username FROM player_positions WHERE username IN (" + ",".join("?" for _ in names) + ")")
+            params.extend(names)
+        if clan_code:
+            queries.append("SELECT username FROM user_identity_projection WHERE clan_code=?")
+            params.append(str(clan_code).strip().lower())
+        for polygon in polygons:
+            if len(polygon) < 3:
+                raise ProfileRecoveryRequired("Invalid map audience geometry")
+            try:
+                lats = [float(point["lat"] if isinstance(point, dict) else point[0]) for point in polygon]
+                lngs = [float(point.get("lng", point.get("lon")) if isinstance(point, dict) else point[1]) for point in polygon]
+            except (TypeError, ValueError, KeyError, IndexError) as exc:
+                raise ProfileRecoveryRequired("Invalid map audience geometry") from exc
+            if not all(math.isfinite(value) for value in lats + lngs):
+                raise ProfileRecoveryRequired("Invalid map audience geometry")
+            queries.append("SELECT username FROM player_positions WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?")
+            params.extend((min(lats), max(lats), min(lngs), max(lngs)))
+        if not queries:
+            return []
+        sql = self._select_sql("p.username IN (" + " UNION ".join(queries) + ") AND p.username != ?")
+        sql = sql.replace("SELECT ", "SELECT json_extract(p.desktop_boot_json, '$.avatar') AS avatar, pos.lat, pos.lng, pos.version AS position_version, pos.updated_at AS position_updated_at, c.player_level, c.source_profile_revision AS capability_revision, c.source_profile_checksum AS capability_checksum, c.projection_version AS capability_projection_version, ", 1)
+        sql = sql.replace("FROM user_identity_projection AS p", "FROM user_identity_projection AS p JOIN player_positions AS pos ON pos.username=p.username LEFT JOIN user_capability_projection AS c ON c.username=p.username")
+        sql += " ORDER BY p.username LIMIT 501"
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(sql, (*params, viewer_username)).fetchall()
+        if len(rows) > 500:
+            raise ProfileRecoveryRequired("Map actor candidate limit exceeded")
+        actors = []
+        for row in rows:
+            identity = self._row_identity(row)
+            if row["avatar"] is None:
+                raise ProfileRecoveryRequired("Map avatar projection migration required")
+            if (row["capability_revision"] != identity["source_profile_revision"]
+                    or row["capability_checksum"] != identity["source_profile_checksum"]
+                    or row["capability_projection_version"] != CAPABILITY_PROJECTION_VERSION):
+                raise ProfileRecoveryRequired("Map actor capability projection is stale")
+            actors.append({**identity, "level": row["player_level"], "avatar": row["avatar"],
+                           "current_position": {"lat": row["lat"], "lng": row["lng"]},
+                           "position_version": row["position_version"],
+                           "position_updated_at": row["position_updated_at"]})
+        return actors
+
     def list_recipient_ids(
         self,
         scope,
@@ -4673,6 +4725,15 @@ class UserIdentityProjectionStore:
             with db_connect(self.db_path) as conn:
                 conn.execute("BEGIN IMMEDIATE")
                 for row, profile in prepared:
+                    current = conn.execute(
+                        "SELECT profile_revision, profile_checksum, profile_integrity_status FROM users WHERE username=?",
+                        (row["username"],),
+                    ).fetchone()
+                    if (not current or current["profile_revision"] != row["profile_revision"]
+                            or current["profile_checksum"] != row["profile_checksum"]
+                            or current["profile_integrity_status"] != PROFILE_INTEGRITY_VALID):
+                        skipped.append({"username": row["username"], "errors": ("profile_changed_during_backfill",)})
+                        continue
                     _upsert_identity_projection_with_conn(
                         conn,
                         profile,

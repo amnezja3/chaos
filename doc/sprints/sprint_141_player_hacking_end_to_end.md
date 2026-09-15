@@ -13,6 +13,20 @@ całej ścieżki i browser E2E nadal otwarte; 141.1 nie ma pełnego zamknięcia 
 
 ### Checkpoint implementacji — 15 IX: Player Access i Log Reader
 
+Checkpoint 141.2 — 15 IX: usunięto pełne profile z listy aktorów. Ograniczona
+projekcja pobiera canonical position wraz z wersją, identity/capability i awatar;
+cel pochodzi z target runtime. JS odrzuca starsze pozycje i snapshot rozpoczęty
+przed nowszą deltą. **Przed uruchomieniem tego pakietu wymagany jest jawny
+backfill projekcji awatarów**: [procedura](../runbooks/sprint_141_2_map_actor_projection.md).
+Nie wykonano go na lokalnej bazie projektu ani na serwerze. Ruch w toku,
+pełne audience i pomiar opóźnień nadal otwarte — nie zamykać 141.2.
+Walidacja końcowa tego pakietu: 46 testów Python i trzy zestawy JS PASS.
+
+Odbiór autora 15 IX: Intruder Kicker zadziałał w grze. Arsenal Cleaner
+wyświetlił dla RUN.BASIC NO CHANGE / SILENT przy szansie 80% i rzucie 90:
+prawidłowa nieudana próba. Udane usunięcie aplikacji ma dowód w testach
+lokalnych, ale nadal czeka na odbiór w grze. Ten odbiór nie zamyka pełnego 141.
+
 Kolejny checkpoint 15 IX — Arsenal Cleaner: A01 usunięty lokalnie przez
 wycofanie zbędnego zapisu ciężkiego profilu, odczyty kanonicznego inventory
 i ograniczonych projekcji statystyk. Uninstall oraz receipt mają wspólną

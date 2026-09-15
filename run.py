@@ -3102,14 +3102,15 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
     if not actor_username or actor_username == viewer_username:
         return None
 
+    actor_desktop = identity_projection_store.get_desktop_boot(actor_username)
+    if "avatar" not in actor_desktop:
+        raise ProfileRecoveryRequired("Map avatar projection migration required")
     try:
-        position = player_position_store.get_position(actor_username) or {}
+        position = player_position_store.get(actor_username) or {}
     except Exception:
         position = {}
-    if not position:
-        position = actor_profile.get("curently_possition", {}) or actor_profile.get("current_position", {}) or {}
-    lat = position.get("lat") if lat is None else lat
-    lng = position.get("lng") if lng is None else lng
+    lat = position.get("lat")
+    lng = position.get("lng")
     if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
         return None
 
@@ -3142,7 +3143,9 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
     actor_data = {
         "username": actor_username,
         "nick": actor_profile.get("nick") or actor_username,
-        "avatar": actor_profile.get("avatar", ""),
+        "avatar": actor_desktop["avatar"],
+        "position_version": position.get("version"),
+        "position_updated_at": position.get("updated_at"),
         "lat": lat,
         "lng": lng,
         "status": context.get("contact_status", ""),
@@ -3201,11 +3204,9 @@ def record_map_player_actor_delta(actor_username, actor_profile=None, change_typ
         return []
 
     try:
-        position = player_position_store.get_position(actor_username) or {}
+        position = player_position_store.get(actor_username) or {}
     except Exception:
         position = {}
-    if not position:
-        position = actor_profile.get("curently_possition", {}) or actor_profile.get("current_position", {}) or {}
     lat = position.get("lat")
     lng = position.get("lng")
     reason = str(reason or "player_actor_changed")
@@ -3228,8 +3229,9 @@ def record_map_player_actor_delta(actor_username, actor_profile=None, change_typ
         payload = {
             "username": actor_username,
             "reason": reason,
+            "position_version": position.get("version"),
         }
-        if actor_payload:
+        if actor_payload and change_type != "map.player_actor_removed":
             payload["actor"] = actor_payload
             payload["lat"] = actor_payload.get("lat")
             payload["lng"] = actor_payload.get("lng")
@@ -7901,7 +7903,7 @@ def territory_viewer_relation(viewer_username, owner_username, profile_cache=Non
     return "intruder"
 
 
-def build_territory_engagement_visibility_context(viewer_username):
+def build_territory_engagement_visibility_context(viewer_username, *, include_ownership=True):
     """Read one canonical visibility context shared by map and control apps."""
     viewer_username = str(viewer_username or "").strip()
     profile_cache = {}
@@ -7932,7 +7934,7 @@ def build_territory_engagement_visibility_context(viewer_username):
         "accepted_contacts": accepted_contacts,
         "engagements": engagements,
         "member_conflict_ids": {str(item) for item in member_conflict_ids if item},
-        "ownership_by_target_id": territory_target_ownership_store.list_map(),
+        "ownership_by_target_id": territory_target_ownership_store.list_map() if include_ownership else {},
     }
 
 
@@ -18007,6 +18009,8 @@ def build_player_actor(viewer_username, actor_data, relation=None, context=None)
         "username": username,
         "nick": nick,
         "avatar": actor_data.get("avatar", ""),
+        "position_version": actor_data.get("position_version"),
+        "position_updated_at": actor_data.get("position_updated_at"),
         "lat": lat,
         "lng": lng,
         "status": actor_data.get("status") or context.get("contact_status") or context.get("status") or "",
@@ -26186,7 +26190,7 @@ def execute_intruder_kicker(attacker, victim):
             "position_updated_at": moved["updated_at"], "reason": tool_id,
         }, entity_id=victim, dedupe_key=f"{key}:position", conn=conn)
         delta_bus.record_change(attacker, "map", "map.player_actor_removed", {
-            "username": victim, "removed": True, "reason": tool_id,
+            "username": victim, "removed": True, "reason": tool_id, "position_version": moved["version"],
         }, entity_id=victim, dedupe_key=f"{key}:owner", conn=conn)
         return result, 200
 
@@ -27256,13 +27260,15 @@ def map_player_actors():
     viewer_username = session["user"]
     # Snapshot mapy jest read-only. Pelna synchronizacja profilu zapisuje runtime
     # i potrafi blokowac workera dluzej niz budzet odswiezenia aktorow.
-    viewer_profile = user_store.get_profile(viewer_username) or {}
+    viewer_profile = identity_projection_store.get_identity(viewer_username)
+    if not viewer_profile:
+        raise ProfileRecoveryRequired("Map viewer identity unavailable")
     actors_by_username = {}
     try:
         pending_contact_names = set(mail_store.list_pending_contact_names(viewer_username))
     except Exception:
         pending_contact_names = set()
-    aimed_target = viewer_profile.get("aimed_target") or {}
+    aimed_target = player_target_runtime_store.get_active_target(viewer_username)
     aimed_player_username = (
         aimed_target.get("target_username")
         if aimed_target.get("target_mode") == "player"
@@ -27271,7 +27277,10 @@ def map_player_actors():
     territory_counts = {}
     viewer_areas = []
     try:
-        for area in territory_store.list_player_areas():
+        areas = territory_store.list_player_areas(limit=1000)
+        if len(areas) >= 1000:
+            raise ProfileRecoveryRequired("Map territory limit exceeded")
+        for area in areas:
             clean_area = normalize_player_area(area)
             if not clean_area:
                 continue
@@ -27280,8 +27289,10 @@ def map_player_actors():
                 territory_counts[owner_username] = territory_counts.get(owner_username, 0) + 1
             if owner_username == viewer_username and clean_area.get("status", "active") == "active":
                 viewer_areas.append(clean_area)
+    except ProfileRecoveryRequired:
+        raise
     except Exception as exc:
-        print(f"Nie udalo sie policzyc terytoriow player_actor: {exc}")
+        raise ProfileRecoveryRequired("Map territory projection unavailable") from exc
 
     def merge_actor(actor_profile, lat, lng, source, extra_context=None):
         if not actor_profile:
@@ -27328,6 +27339,8 @@ def map_player_actors():
             "username": actor_username,
             "nick": actor_profile.get("nick") or actor_username,
             "avatar": actor_profile.get("avatar", ""),
+            "position_version": actor_profile.get("position_version"),
+            "position_updated_at": actor_profile.get("position_updated_at"),
             "lat": lat,
             "lng": lng,
             "status": context.get("contact_status", ""),
@@ -27354,17 +27367,26 @@ def map_player_actors():
     }
     viewer_clan = get_profile_clan(viewer_profile)
     engagement_visibility_context = build_territory_engagement_visibility_context(
-        viewer_username
+        viewer_username, include_ownership=False
     )
 
     # Widocznosc aktora wynika z aktualnej pozycji i aktualnej geometrii, a nie
     # z krotkotrwalego eventu intruder_enter. Dzieki temu rebuild pola ujawnia
     # gracza, ktorego pozycja zostala objeta nowym terytorium.
-    for actor_profile in user_store.list_profiles():
+    polygons = [area["vertices"] for area in viewer_areas]
+    polygons.extend(geometry for engagement in engagement_visibility_context.get("engagements", [])
+                    for geometry in engagement.get("geometry", []))
+    candidates = identity_projection_store.map_actor_candidates(
+        viewer_username, clan_code=viewer_clan, contact_names=accepted_contacts, polygons=polygons,
+    )
+    engagement_visibility_context.setdefault("profile_cache", {}).update(
+        {viewer_username: viewer_profile, **{item["username"]: item for item in candidates}}
+    )
+    for actor_profile in candidates:
         actor_username = actor_profile.get("username")
         if not actor_username or actor_username == viewer_username:
             continue
-        position = player_position_store.get_position(actor_username)
+        position = actor_profile["current_position"]
         lat = position.get("lat")
         lng = position.get("lng", position.get("lon"))
         if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):

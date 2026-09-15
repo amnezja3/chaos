@@ -285,7 +285,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertLess(committed_delta_index, profile_update_index)
 
     def test_duplicate_map_response_can_reconcile_captured_marker(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
         duplicate_index = source.index("if (data.duplicate) {")
@@ -302,7 +302,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertNotIn("rebuild_player_areas_with_territory_delta", source)
 
     def test_worker_conflict_publication_triggers_read_only_marker_recovery(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
         self.assertIn("conflictReason === 'conflict_consolidated'", source)
@@ -312,7 +312,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         )
 
     def test_encirclement_delta_triggers_read_only_marker_recovery(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
         self.assertIn("type === 'territory.encirclement_resolved'", source)
@@ -323,7 +323,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("territoryReason ? `territory_publication:${territoryReason}`", source)
 
     def test_map_has_manual_full_refresh_control(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
         self.assertIn("ManualMapRefreshControl", source)
@@ -367,10 +367,11 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
     def test_player_actor_snapshot_projects_current_positions_on_current_territory(self):
         source = inspect.getsource(run.map_player_actors)
 
-        self.assertIn('actor_profile.get("current_position")', source)
+        self.assertIn('actor_profile["current_position"]', source)
         self.assertIn("territory_point_in_polygon_or_boundary", source)
         self.assertIn("viewer_areas", source)
-        self.assertIn("user_store.list_profiles()", source)
+        self.assertIn("identity_projection_store.map_actor_candidates", source)
+        self.assertNotIn("user_store.list_profiles()", source)
         self.assertNotIn("list_recent_area_intruders", source)
         self.assertNotIn("sync_session_profile", source)
 
@@ -396,8 +397,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
 
         with run.app.test_request_context("/api/map/player-actors"):
             run.session["user"] = "viewer"
-            with mock.patch.object(run.user_store, "get_profile", return_value=viewer), \
-                    mock.patch.object(run.user_store, "list_profiles", return_value=[viewer, legacy_actor]), \
+            with mock.patch.object(run.identity_projection_store, "get_identity", return_value=viewer), \
+                    mock.patch.object(run.identity_projection_store, "map_actor_candidates", return_value=[legacy_actor]), \
                     mock.patch.object(run.mail_store, "list_pending_contact_names", return_value=[]), \
                     mock.patch.object(run.mail_store, "list_accepted_contacts", return_value=[]), \
                     mock.patch.object(run.territory_store, "list_player_areas", return_value=[]), \
@@ -429,8 +430,9 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         }
         viewer = {"username": "viewer", "clan": "Virex"}
 
-        with mock.patch.object(run.player_position_store, "get_position", return_value={}), \
-                mock.patch.object(run.user_store, "get_profile", return_value=viewer), \
+        with mock.patch.object(run.player_position_store, "get", return_value={"lat": 52.2, "lng": 21.1, "version": 2}), \
+                mock.patch.object(run.identity_projection_store, "get_identity", return_value=viewer), \
+                mock.patch.object(run.identity_projection_store, "get_desktop_boot", return_value={"avatar": ""}), \
                 mock.patch.object(run.territory_store, "list_player_areas", return_value=[]):
             payload = run.build_map_player_actor_delta_payload("viewer", actor)
 
@@ -467,7 +469,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("this.src=window.mapAvatarFallbackUrl", self.map_template)
 
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
         self.assertIn("window.territoryConflictRegistry", source)
@@ -519,7 +521,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertNotIn("fillOpacity: 0.12", engagement_renderer)
 
     def test_frontend_keeps_large_valid_territories_and_boots_player_actors(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
         self.assertIn("latSpan <= 2.0 && lngSpan <= 2.0", source)

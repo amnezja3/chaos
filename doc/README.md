@@ -49,6 +49,10 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   Od 15 IX obejmuje także osobny etap naprawy starej pozycji aktora po
   teleportacji; audyt potwierdził stare źródła współrzędnych, wpływ ciężkiego
   profilu na czas produkcyjny pozostaje do pomiaru.
+  Pakiet 141.2 usuwa pełne profile ze snapshotu aktorów i dodaje ochronę
+  kolejności pozycji. Przed jego uruchomieniem wymagane jest
+  [jawne uzupełnienie projekcji awatarów](runbooks/sprint_141_2_map_actor_projection.md).
+  46 testów Python i trzy zestawy JS PASS lokalnie; bez migracji ani deployu.
 
 - Sprinty 139–140 i [`stylizacja .1–.10`](sprints/sprint_140_stylization_1_plus.md)
   są zrealizowane. Autor potwierdził końcowy przebieg show 13 września.

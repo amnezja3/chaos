@@ -10092,9 +10092,22 @@
                 });
             };
 
+            window.playerActorPositionVersions = Object.create(null);
+            window.playerActorChangeSerial = 0;
+            window.acceptPlayerActorPositionVersion = function(key, version) {
+                const incoming = Number(version) || 0;
+                const current = Number(window.playerActorPositionVersions[key]) || 0;
+                if (incoming < current) return false;
+                if (incoming > 0) window.playerActorPositionVersions[key] = incoming;
+                return true;
+            };
+
             window.upsertPlayerActorMarker = function(actor) {
                 const menuActor = freezeMapMenuPayload(actor || {});
                 const key = menuActor.username || menuActor.nick;
+                if (key && !window.acceptPlayerActorPositionVersion(key, menuActor.position_version)) {
+                    return window.playerActorMarkers[key] ? key : null;
+                }
                 const lat = parseFloat(menuActor.lat);
                 const lng = parseFloat(menuActor.lng);
                 if (!key || Number.isNaN(lat) || Number.isNaN(lng)) {
@@ -10167,6 +10180,7 @@
             };
 
             window.applyMapPlayerActorDelta = function(event) {
+                window.playerActorChangeSerial += 1;
                 const payload = (event && event.payload) || event || {};
                 const type = (event && event.type) || payload.type || "";
                 if (type === "map.player_forced_position") {
@@ -10180,6 +10194,7 @@
                 const actor = payload.actor || payload;
                 const key = payload.username || payload.entity_id || actor.username || actor.nick;
                 if (type === "map.player_actor_removed" || payload.removed) {
+                    if (!window.acceptPlayerActorPositionVersion(key, payload.position_version)) return false;
                     return window.removePlayerActorMarker(key);
                 }
                 return Boolean(window.upsertPlayerActorMarker(actor));
@@ -10218,6 +10233,7 @@
                 }
                 const refreshPromise = (async function() {
                     const startedAt = performance.now();
+                    const actorChangeSerial = window.playerActorChangeSerial;
                     const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 45000);
@@ -10247,6 +10263,10 @@
                             actors: Array.isArray(data.player_actors) ? data.player_actors.length : 0,
                             elapsed_ms: Math.round(performance.now() - startedAt)
                         });
+                        if (actorChangeSerial !== window.playerActorChangeSerial) {
+                            // A delta superseded this in-flight snapshot. The next refresh recovers visibility.
+                            return false;
+                        }
                         window.renderPlayerActors(data.player_actors || []);
                         invalidateMapAfterLayerUpdate();
                         return true;

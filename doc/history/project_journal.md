@@ -1,5 +1,28 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141.2: bounded snapshot aktorów i wersje pozycji
+
+Na polecenie kontynuacji usunięto get_profile/list_profiles z map player-actors.
+Kandydaci są wybierani z lekkich tabel przez kontakty, klan i bounding boxy;
+dokładne reguły widoczności pozostają wspólne. Zachowano canonical target,
+pozycję i wersję, dodano awatar do desktop projection. Migrator ma licznik
+brakujących awatarów i recheck CAS przy backfill. Procedura:
+`doc/runbooks/sprint_141_2_map_actor_projection.md`. Wymagana przed nowym runtime;
+nie wykonano migracji bazy projektu/serwera, deployu ani restartu.
+JS chroni przed starszą pozycją oraz snapshotem rozpoczętym przed deltą.
+Walidacja końcowa: 46 testów Python (map hot path, Kicker, historyczny cutover
+konfliktów, identity) PASS; trzy zestawy JS (kolejność, Kicker, hitbox) PASS.
+Testy źródeł mapy dostosowano do canonical store i ścieżek niezależnych od cwd.
+Ruch w toku, pełne audience i browser E2E pozostają w otwartym 141.2.
+
+## 2026-09-15 — odbiór Kickera i nieudanej próby Cleanera
+
+Autor potwierdził: „kicker zadziałal”. Zrzut Arsenal Cleanera dla RUN.BASIC
+pokazuje poprawnie wyświetlony wynik NO CHANGE / SILENT: szansa 80%, rzut 90,
+brak usunięcia aplikacji. To potwierdzenie obsługi nieudanego losowania,
+nie potwierdzenie udanego usunięcia w grze. Odbiór Kickera dotyczy zgłoszonej
+próby; nie zamyka testów konkurencyjnego ruchu, audience ani recovery w 141.2.
+
 ## 2026-09-15 — Intruder Kicker: implementacja lokalna za 7500 HC
 
 Autor podał cenę 7500 HC. Zakomunikowano założenia: poziom 1, respekt 0,

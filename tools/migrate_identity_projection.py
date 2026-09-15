@@ -66,10 +66,13 @@ def status(db_path):
             WHERE p.username IS NULL
             """
         ).fetchone()[0])
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(user_identity_projection)')}
+        avatar_missing = (int(conn.execute("SELECT COUNT(*) FROM user_identity_projection WHERE json_extract(desktop_boot_json, '$.avatar') IS NULL").fetchone()[0])
+                          if 'desktop_boot_json' in columns else projected)
     return {
-        "status": "ready" if missing == 0 and stale == 0 else "incomplete",
+        "status": "ready" if missing == 0 and stale == 0 and avatar_missing == 0 else "incomplete",
         "users": users, "projected": projected,
-        "missing": missing, "stale": stale,
+        "missing": missing, "stale": stale, "map_avatar_missing": avatar_missing,
     }
 
 

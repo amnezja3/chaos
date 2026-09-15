@@ -79,6 +79,9 @@ class IntruderKickerTest(unittest.TestCase):
 
     def test_actor_refresh_uses_canonical_position_after_kick(self):
         self.prepare()
+        record = self.users.get_profile_with_revision('victim')
+        self.users.patch_profile_guarded('victim', {'clan': '', 'ghost_clan_code': ''},
+                                        source='test.map_fixture', expected_revision=record['profile_revision'])
         stale = {'username': 'victim', 'nick': 'Victim', 'clan': 'foreign',
                  'current_position': {'lat': 52.2, 'lng': 21.0}}
         with patch.object(self.users, 'get_profile', return_value={'username': 'attacker', 'clan': 'owner'}), \
