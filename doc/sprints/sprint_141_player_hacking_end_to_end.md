@@ -6,6 +6,24 @@ Aktualizacja zakresu: 2026-09-15 — pozycja aktora po teleportacji.
 
 Status: **W REALIZACJI — 141.2 zamknięty decyzją autora; 141.3 rozpoczęty (15 IX)**.
 
+Checkpoint techniczny po odbiorze gameplayu: lokalny pakiet Pickera/capture
+opisany w [runbooku](../runbooks/sprint_141_3_player_target_selection.md).
+Picker i player-mode gonna-win czytają bounded canonical context; zachowano
+śledzenie aktywnego celu poza widocznością/zasięgiem. Dostęp, terminal target
+i trwały receipt są atomowe. Replay po wygaśnięciu nie przyznaje nowego grantu.
+98 różnych testów Python i dwa zestawy JS PASS. Bez deployu.
+**141.3 nadal otwarty:** `/hack-action` oraz legacy launch queue/risk_events/
+system_messages pozostają sprzężone z profilem i wymagają osobnego cutover.
+Nie usuwać samego zapisu profilu, bo zgubiłoby to kolejkę i zdarzenia ryzyka.
+
+Aktualny odbiór 15 IX: migracja security wykonana przez operatora dla 31 kont,
+verify READY również po uruchomieniu czterech procesów. Autor potwierdził
+wybór intruza, alarm, blokady znajomego/klanu i zachowanie postępu między celami.
+Zatwierdzona zasada: po opuszczeniu terytorium cel znika z mapy, ale pozostaje
+w Victim Pickerze z odległością; rozpoczęty hack można kontynuować również
+poza zasięgiem. Nowe/ponowne oznaczenie wymaga bieżącej widoczności i zasięgu.
+Poniższe wcześniejsze checkpointy lokalne opisują stan sprzed tego odbioru.
+
 Zamknięcie 141.2 opiera się na wynikach migracji przekazanych przez operatora,
 lokalnych testach oraz odbiorze autora: aktualna mapa po teleportacji, wtargnięciu
 i objęciu polem; alarm właściciela potwierdzony. Nie jest deklaracją pełnego
@@ -319,8 +337,8 @@ brak ujawnienia pozycji poza audience oraz zera hot path są warunkiem zamknięc
 ### 141.3 — wykrycie, wybór, zabezpieczenia i uzyskanie dostępu
 
 **W REALIZACJI od 15 IX.** Pierwsza poprawka chroni aktywny grant przed
-przedłużeniem i zmianą usage key, ma odbiór autora. Drugi pakiet lokalnie
-przenosi mark z mapy na bounded projection i canonical target; wymaga migracji.
+przedłużeniem i zmianą usage key, ma odbiór autora. Drugi pakiet przenosi mark
+z mapy na bounded projection i canonical target; migracja i odbiór autora potwierdzone.
 Nadal otwarte: picker i alternatywne wejście security, walidacja capture
 oraz trwały replay grantu. Nie traktować poprawki mark jako bramki wszystkich wejść.
 
@@ -331,9 +349,17 @@ oraz trwały replay grantu. Nie traktować poprawki mark jako bramki wszystkich 
   i reguły zasięgu. Obcy klan nie daje automatycznie prawa atakowania
   niewidocznego konta przez ręcznie wpisany username.
 - Serwer rozstrzyga uprawnienia: self, friend, same clan, widoczność, pozycja,
-  zasięg, aktywny dostęp i cooldown. Uzgodnić i przetestować ich obowiązywanie
-  na etapie wyboru, przełamania i późniejszego użycia; zmiana relacji lub ruch
-  celu nie może korzystać wyłącznie ze starej flagi UI.
+  zasięg, aktywny dostęp i cooldown odpowiednio do etapu. Decyzja autora 15 IX:
+  widoczność i zasięg blokują nowe/ponowne oznaczenie, ale ich utrata nie
+  przerywa rozpoczętego hacku ani nie blokuje jego dokończenia. Kontynuacja
+  wymaga kanonicznego stanu rozpoczętego hacku; nie wystarcza flaga UI lub
+  dowolnie podany username. Zmiana relacji to odrębna walidacja, nieobjęta
+  odbiorem ruchu celu.
+- Po wyjeździe z terytorium aktor znika z mapy, lecz rozpoczęty cel pozostaje
+  w Victim Pickerze z odległością, umożliwiając dalsze namierzanie, otaczanie
+  i dokończenie hacku. Nie usuwać tego wpisu podczas cutover Pickera. Nie
+  utożsamiać uprawnień kontynuacji z prawem nowego oznaczenia ani widocznością
+  markera. Przełączanie widocznych celów zachowuje ich osobny postęp.
 - Dla nieaktualnego intruza, zniknięcia konta, brakującej pozycji i utraty
   możliwości ataku zwracać kontrolowany stan z przyczyną i możliwością odświeżenia.
 - Przypisanie aplikacji przełamujących zabezpieczenia wynika z kontraktu

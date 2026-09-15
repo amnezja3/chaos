@@ -1,5 +1,56 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141.3: techniczny pakiet Picker/capture po odbiorze gameplayu
+
+Autor potwierdził poprawność gameplayu i polecił domknięcie techniczne.
+Lokalnie przeniesiono Picker na bounded identity/capability/inventory/position/
+target, z zachowaniem aktywnego śledzonego celu poza terytorium i zasięgiem.
+Alternatywny map aim dla player używa wspólnej bramki mark. Gonna-win player
+korzysta z małego runtime context, bez pełnych profili ani resetowania sesji
+niepełnym stanem. Pomija nieposiadane pole hacked w odpowiedzi częściowej.
+
+Nowa trwała tabela player_hack_capture_receipts: jedna transakcja recheck
+key/version/progress → grant → terminal target → wynik. Replay po wygaśnięciu
+odświeża czas pozostały, nie grant; przetrwa też awarię przed finish krótkiego
+receipt aplikacji. Zachowano operation_only, cooldown i bieżącą kontrolę relacji.
+97 testów Python PASS; następnie 11 capture/grant PASS z dodatkowym testem
+cooldown (98 różnych testów). Dwa zestawy JS lifecycle/position order PASS.
+Symulowany błąd zapisu odpowiedzi zwraca oczekiwane 500, po czym replay
+odtwarza raz zatwierdzony grant. Nie traktować tego oczekiwanego logu jako
+nieudanej regresji. Zero deployu/migracji/restartów w tym pakiecie.
+
+141.3 pozostaje otwarty: audyt launchera wykazał powiązane zapisy launch_queue,
+risk_events i system_messages w profilu. Samo wyłączenie persist zgubiłoby dane.
+Jeszcze nie przeniesiono /hack-action i consume_launch_queue; zapowiedziana
+projekcja wskaźnika kolejki nie została wdrożona. Szczegóły dalszego cutover
+zapisano w runbooku sprint_141_3_player_target_selection.md. Nowa tabela receiptów
+powstaje przy init schema; ten pakiet nie wymaga ponownego backfill security.
+
+## 2026-09-15 — 141.3: migracja serwera i odbiór Neo1/Krymek
+
+Dowód operatora: pełny dry-run 31 valid, skipped=[], bez zapisu. Cztery
+procesy CHAOS zatrzymane przed backupem/apply. Kopia SQLite backup API:
+`/home/johndoe/app/chaos/data/backups/game-pre-1413-20260915T172109581350Z.sqlite3`,
+quick_check=[ok]. Apply: scanned/projected=31, skipped=0. Verify przed i po
+uruchomieniu chaos, territory-worker, ollama-worker i narrative-publisher:
+READY, users/projected=31, missing/stale/map_avatar_missing/player_security_missing=0.
+PM2 potwierdził restart każdego procesu, wszystkie online. To przekazane
+wyniki serwera, nie wniosek z lokalnej bazy ani pełny audyt zdrowia usług.
+
+Odbiór autora: Krymek wjechał na teren Neo1, pojawił się na mapie i uruchomił
+alarm. Neo1 oznaczył go i zhakował dwie kropki. Po wyjeździe Krymek zniknął
+z mapy, ale Victim Picker utrzymał cel i odległość. Autor zatwierdził ten
+przebieg jako mechanikę: rozpoczęty hack można kontynuować poza terytorium
+i zasięgiem, a Picker umożliwia namierzanie i otaczanie. Nowe/ponowne
+oznaczenie poza zasięgiem pozostaje niemożliwe. Nie naprawiać tego przez
+usunięcie celu z Pickera lub wymaganie widoczności przy kończeniu hacku.
+
+Autor potwierdził blokady znajomego/klanu i osobny zachowany postęp podczas
+przełączania widocznych celów. To odbiór manualny i decyzja mechaniki;
+nie dowodzi kanonicznego źródła odległości Pickera ani zamknięcia jego hot path.
+Pozostają cutover Pickera/alternatywnego security, autoryzacja kontynuacji
+na podstawie canonical state i trwały receipt grantu. 141.3 nadal otwarty.
+
 ## 2026-09-15 — 141.3: odbiór grantu i bounded wybór celu z mapy
 
 Autor potwierdził scenariusz pierwszego pakietu: dostęp po reloadzie nie

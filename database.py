@@ -1786,6 +1786,16 @@ def init_db(db_path=DB_PATH):
             )
             """
         )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS player_hack_capture_receipts (
+                username TEXT NOT NULL,
+                receipt_key TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (username, receipt_key)
+            )
+        """)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS player_hack_tool_usage (
@@ -9879,7 +9889,7 @@ class PlayerHackAccessStore:
             "cooldown_seconds_left": cls._seconds_until(row["cooldown_until"]),
         }
 
-    def grant_access(self, attacker_username, victim_username, access_minutes=5, cooldown_hours=3):
+    def grant_access(self, attacker_username, victim_username, access_minutes=5, cooldown_hours=3, *, conn=None):
         attacker_username = str(attacker_username or "").strip()
         victim_username = str(victim_username or "").strip()
         if not attacker_username or not victim_username:
@@ -9887,8 +9897,10 @@ class PlayerHackAccessStore:
         if attacker_username == victim_username:
             raise ValueError("Nie mozna shackowac samego siebie.")
 
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             now_dt = datetime.utcnow()
             now = now_dt.isoformat(timespec="seconds")
             existing = conn.execute(
@@ -9900,6 +9912,8 @@ class PlayerHackAccessStore:
             # Serialize this check with the write, including concurrent grants.
             if existing and existing["hacked_until"] > now:
                 return self._row_to_access(existing)
+            if existing and existing["cooldown_until"] > now:
+                raise ValueError("player_hack_cooldown")
             hacked_until = (now_dt + timedelta(minutes=access_minutes)).isoformat(timespec="seconds")
             cooldown_until = (now_dt + timedelta(hours=cooldown_hours)).isoformat(timespec="seconds")
             cursor = conn.execute(
@@ -9944,6 +9958,50 @@ class PlayerHackAccessStore:
                 params,
             ).fetchone()
             return self._row_to_access(row)
+
+    def get_capture_receipt(self, username, receipt_key):
+        if not receipt_key:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute("""SELECT target_key, response_json FROM player_hack_capture_receipts
+                                  WHERE username=? AND receipt_key=?""", (username, receipt_key)).fetchone()
+        return {"target_key": row["target_key"], "payload": loads_json(row["response_json"], {})} if row else None
+
+    def complete_capture(self, username, target, expected_version, receipt_key, critical_keys,
+                         target_store, payload_builder, access_minutes=5, cooldown_hours=3):
+        """Commit access, terminal target and a non-expiring result together."""
+        if str(target_store.db_path) != str(self.db_path):
+            raise ValueError("player_capture_database_mismatch")
+        target_key = target_store.target_key(target)
+        victim = str(target.get("target_username") or "")
+        if not receipt_key or not victim or victim == username or target.get("target_mode") != "player":
+            raise ValueError("invalid_player_capture")
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            prior = conn.execute("""SELECT target_key, response_json FROM player_hack_capture_receipts
+                                    WHERE username=? AND receipt_key=?""", (username, receipt_key)).fetchone()
+            if prior:
+                if prior["target_key"] != target_key:
+                    raise ValueError("receipt_target_mismatch")
+                return loads_json(prior["response_json"], {})
+            row = conn.execute("SELECT * FROM player_target_runtime WHERE username=?", (username,)).fetchone()
+            current = target_store._row_payload(row)
+            if (not current or current["target_key"] != target_key
+                    or current["version"] != expected_version
+                    or current["status"] in target_store.TERMINAL_STATUSES):
+                raise ValueError("target_selection_changed")
+            security = current["security"]
+            if (not critical_keys or sum(security.get(key) is False for key in critical_keys) * 100 < 70 * len(critical_keys)
+                    or not all(current["actions_allowed"].get(key) is True
+                               for key in ("scan_ports", "exploit", "sniff", "trace"))):
+                raise ValueError("player_capture_not_complete")
+            access = self.grant_access(username, victim, access_minutes, cooldown_hours, conn=conn)
+            target_store.mark_captured(username, current["target"], source="player_hack_access_granted", conn=conn)
+            payload = payload_builder(access)
+            conn.execute("""INSERT INTO player_hack_capture_receipts
+                            (username, receipt_key, target_key, response_json, created_at) VALUES (?, ?, ?, ?, ?)""",
+                         (username, receipt_key, target_key, dumps_json(payload), utc_now()))
+            return payload
 
     def get_cooldown(self, attacker_username, victim_username):
         now = utc_now()
@@ -13506,8 +13564,8 @@ class PlayerTargetRuntimeStore:
                 "version": version,
             }
 
-    def mark_captured(self, username, target, source=""):
-        return self._terminal_update(username, target, self.STATUS_CAPTURED, "target.captured", source)
+    def mark_captured(self, username, target, source="", *, conn=None):
+        return self._terminal_update(username, target, self.STATUS_CAPTURED, "target.captured", source, conn=conn)
 
     def clear_if_matches(self, username, reference_target, source=""):
         username = self._clean_text(username)
@@ -13545,15 +13603,17 @@ class PlayerTargetRuntimeStore:
             self._record_event(conn, username, "target.cleared", current.get("target_key"), version, {"source": source})
             return True
 
-    def _terminal_update(self, username, target, status, event_type, source=""):
+    def _terminal_update(self, username, target, status, event_type, source="", *, conn=None):
         username = self._clean_text(username)
         target = dict(target or {}) if isinstance(target, dict) else {}
         target_key = self.target_key(target)
         if not username or not target_key:
             return {"changed": False, "target": {}, "status": "invalid", "version": 0}
         now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT * FROM player_target_runtime WHERE username = ?",
                 (username,),

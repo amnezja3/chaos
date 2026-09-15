@@ -17144,6 +17144,8 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_
             if runtime_result.get("target"):
                 profile["aimed_target"] = dict(runtime_result["target"])
         except Exception as exc:
+            if aimed_target.get("target_mode") == "player":
+                raise
             print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
     return changed, marked
 
@@ -17800,6 +17802,17 @@ def serialize_ghostlab_project(project):
     }
 
 
+def refresh_player_capture_response(payload):
+    payload = dict(payload)
+    access = dict(payload.get("player_hack_access") or {})
+    access["seconds_left"] = PlayerHackAccessStore._seconds_until(access.get("hacked_until"))
+    access["cooldown_seconds_left"] = PlayerHackAccessStore._seconds_until(access.get("cooldown_until"))
+    access["active"] = access["seconds_left"] > 0
+    payload["player_hack_access"] = access
+    payload["replayed"] = True
+    return payload
+
+
 def serialize_player_hack_access(access):
     if not access:
         return {
@@ -18201,7 +18214,7 @@ def build_victim_picker_standard_candidates(viewer_profile, origin, action_range
 
 def build_victim_picker_active_target_candidate(viewer_profile, origin, action_range):
     aimed = (viewer_profile or {}).get("aimed_target") or {}
-    if not isinstance(aimed, dict) or not aimed:
+    if not isinstance(aimed, dict) or not aimed or aimed.get("target_mode") == "player":
         return None
 
     try:
@@ -18233,73 +18246,63 @@ def build_victim_picker_active_target_candidate(viewer_profile, origin, action_r
     return candidate
 
 
+def load_player_hack_runtime_context(username):
+    identity = identity_projection_store.get_identity(username)
+    capabilities = capability_projection_store.get_capabilities(username)
+    if not identity or not capabilities:
+        raise ProfileRecoveryRequired("Player runtime projection unavailable")
+    return {
+        **identity, **capabilities,
+        "current_position": player_position_store.get(username) or {},
+        "apps": normalize_app_contracts(player_inventory_store.desktop_apps(username)),
+        "aimed_target": player_target_runtime_store.get_active_target(username),
+    }
+
+
 def build_victim_picker_player_candidates(viewer_username, viewer_profile, origin, action_range):
-    candidates = {}
+    actors = {actor["username"]: actor for actor in build_visible_player_actors(viewer_username)}
     aimed = (viewer_profile or {}).get("aimed_target") or {}
-    aimed_player_username = aimed.get("target_username") if aimed.get("target_mode") == "player" else None
-
-    def add_player_candidate(target_username, source, extra_context=None):
-        target_username = str(target_username or "").strip()
-        if not target_username or target_username == viewer_username or target_username in candidates:
-            return
-        target_profile = user_store.get_profile(target_username)
-        if not target_profile:
-            return
-        position = target_profile.get("curently_possition") or {}
-        context = dict(extra_context or {})
-        context["is_friend"] = bool(context.get("is_friend"))
-        context["is_intruder"] = bool(context.get("is_intruder"))
-        context["is_marked_target"] = bool(aimed_player_username and aimed_player_username == target_username)
-        relation = resolve_player_actor_relation(viewer_profile, target_profile, context)
-        actor = build_player_actor(
-            viewer_username,
-            {
-                "username": target_username,
-                "nick": target_profile.get("nick") or target_username,
-                "avatar": target_profile.get("avatar", ""),
-                "lat": position.get("lat"),
-                "lng": position.get("lng", position.get("lon")),
-                "is_marked_target": context["is_marked_target"],
-            },
-            relation=relation,
-            context=context,
-        )
-        action = (actor.get("actions") or {}).get("mark_target") or {}
-        disabled_reason = action.get("reason") or ""
+    tracked_username = aimed.get("target_username") if aimed.get("target_mode") == "player" else None
+    # The canonical selected target remains trackable after leaving visibility.
+    # It does not grant permission to select an arbitrary invisible account.
+    if tracked_username and tracked_username not in actors:
+        identity = identity_projection_store.get_identity(tracked_username)
+        position = player_position_store.get(tracked_username)
+        if identity and position:
+            actors[tracked_username] = {
+                **identity, **position, "visible": False, "attackable": False,
+                "position_version": position.get("version"),
+                "actions": {},
+            }
+    candidates = []
+    for name, actor in actors.items():
+        active = name == tracked_username
         target = {
-            "target_id": f"player:{target_username}",
-            "target_mode": "player",
-            "target_username": target_username,
-            "username": target_username,
-            "nick": target_profile.get("nick") or target_username,
-            "avatar": target_profile.get("avatar", ""),
-            "relation": relation,
-            "lat": position.get("lat"),
-            "lng": position.get("lng", position.get("lon")),
-            "label": target_profile.get("nick") or target_username,
-            "name": target_profile.get("nick") or target_username,
-            "icon": "\U0001F3AF",
-            "source_type": "player",
-            "generated": True,
-            "security": dict(target_profile.get("security") or {}),
+            **(aimed if active else {}),
+            "target_id": f"player:{name}", "target_mode": "player",
+            "target_username": name, "username": name,
+            "nick": actor.get("nick") or name, "avatar": actor.get("avatar", ""),
+            "lat": actor.get("lat"), "lng": actor.get("lng"),
+            "label": actor.get("nick") or name, "name": actor.get("nick") or name,
+            "icon": "🎯", "source_type": "player", "generated": True,
+            "position_version": actor.get("position_version"),
+            "visible": actor.get("visible", False),
+            "attackable": actor.get("attackable", False),
+            "relation": actor.get("relation"),
         }
-        candidates[target_username] = build_victim_picker_candidate(
-            viewer_profile,
-            target,
-            source,
-            origin=origin,
-            action_range=action_range,
-            can_aim=bool(action.get("enabled")),
-            disabled_reason=disabled_reason,
+        action = (actor.get("actions") or {}).get("mark_target") or {}
+        distance = victim_picker_distance(target, origin)
+        in_range = distance is not None and distance <= action_range
+        candidate = build_victim_picker_candidate(
+            viewer_profile, target, "player.aimed" if active else "player.visible",
+            origin=origin, action_range=action_range,
+            can_aim=bool(action.get("enabled") and in_range),
+            disabled_reason=("out_of_range" if not in_range else action.get("reason") or "target_not_selectable"),
         )
-
-    for contact in mail_store.list_accepted_contacts(viewer_username):
-        add_player_candidate(contact.get("name"), "player.friend", {"is_friend": True})
-    for intruder in territory_store.list_recent_area_intruders(viewer_username):
-        add_player_candidate(intruder.get("username"), "player.intruder", {"is_intruder": True})
-    if aimed_player_username:
-        add_player_candidate(aimed_player_username, "player.aimed", {"is_marked_target": True})
-    return list(candidates.values())
+        candidate["is_aimed"] = active
+        candidate["is_active_target"] = active
+        candidates.append(candidate)
+    return candidates
 
 
 def build_victim_picker_vulnerability_candidates(viewer_username, viewer_profile, origin, action_range):
@@ -23269,6 +23272,9 @@ def map_aim_target():
     if "user" not in session:
         return jsonify({"success": False, "error": "not_logged_in"}), 401
     data = request.get_json(silent=True) or {}
+    if data.get("target_mode") == "player" or str(data.get("target_id") or "").startswith("player:"):
+        name = data.get("target_username") or str(data.get("target_id") or "").removeprefix("player:")
+        return mark_player_target(target_username_override=name)
     try:
         lat = float(data.get("lat"))
         lng = float(data.get("lng", data.get("lon")))
@@ -23415,33 +23421,6 @@ def map_aim_target():
                     "error": "stale_conflict_target",
                     "message": "Ten cel nie nalezy juz do aktywnego konfliktu. Odswiez mape.",
                 }), 409
-
-        if canonical_target is None and requested.get("target_mode") == "player":
-            target_username = str(requested.get("target_username") or "").strip()
-            target_profile = user_store.get_profile(target_username) if target_username else None
-            if target_profile:
-                player_security = dict(target_profile.get("security") or {})
-                if not player_security:
-                    security_template = resources_store.get("user_security", default={})
-                    player_security = {
-                        key: value
-                        for key, value in (security_template or {}).items()
-                        if isinstance(value, (bool, int))
-                    }
-                canonical_target = {
-                    **requested,
-                    "target_id": f"player:{target_username}",
-                    "target_mode": "player",
-                    "target_username": target_username,
-                    "username": target_username,
-                    "security": player_security,
-                }
-            else:
-                return jsonify({
-                    "success": False,
-                    "error": "player_target_not_found",
-                    "message": "Gracz celu nie istnieje.",
-                }), 404
 
         if canonical_target is None:
             security_template = resources_store.get("user_security", default={})
@@ -26757,13 +26736,13 @@ def api_player_hack_security_preset():
 
 
 @app.route("/api/map/player-targets/mark", methods=["POST"])
-def mark_player_target():
+def mark_player_target(target_username_override=None):
     if "user" not in session:
         return jsonify({"success": False, "error": "Nie jestes zalogowany"}), 401
 
     viewer_username = session["user"]
     data = request.get_json() or {}
-    target_username = str(data.get("target_username") or data.get("username") or "").strip()
+    target_username = str(target_username_override or data.get("target_username") or data.get("username") or "").strip()
 
     if not target_username:
         return jsonify({"success": False, "error": "Brak nazwy gracza."}), 400
@@ -26861,19 +26840,8 @@ def victim_picker_candidates():
         return jsonify({"success": False, "error": "not_logged_in"}), 401
 
     username = session["user"]
-    profile = user_store.get_profile(username)
-    if not isinstance(profile, dict):
-        return jsonify({"success": False, "error": "profile_not_found"}), 404
-
-    profile = dict(profile)
-    profile["targets"] = player_marked_target_store.list_targets(username)
-    profile["apps"] = normalize_app_contracts(profile.get("apps", []))
-    active_target = player_target_runtime_store.get_active_target(username)
-    profile["aimed_target"] = (
-        dict(active_target)
-        if victim_picker_valid_coordinates(active_target)
-        else {}
-    )
+    profile = load_player_hack_runtime_context(username)
+    profile["targets"] = player_marked_target_store.list_targets(username, ensure_seeded=False)
     if not victim_picker_app_installed(profile):
         return jsonify({
             "success": False,
@@ -26907,19 +26875,8 @@ def victim_picker_aim():
     if not target_id:
         return jsonify({"success": False, "error": "missing_target_id"}), 400
 
-    profile = user_store.get_profile(username)
-    if not isinstance(profile, dict):
-        return jsonify({"success": False, "error": "profile_not_found"}), 404
-
-    profile = dict(profile)
-    profile["targets"] = player_marked_target_store.list_targets(username)
-    profile["apps"] = normalize_app_contracts(profile.get("apps", []))
-    active_target = player_target_runtime_store.get_active_target(username)
-    profile["aimed_target"] = (
-        dict(active_target)
-        if victim_picker_valid_coordinates(active_target)
-        else {}
-    )
+    profile = load_player_hack_runtime_context(username)
+    profile["targets"] = player_marked_target_store.list_targets(username, ensure_seeded=False)
     if not victim_picker_app_installed(profile):
         return jsonify({
             "success": False,
@@ -26943,16 +26900,16 @@ def victim_picker_aim():
             "candidate": serialize_victim_picker_candidate(candidate),
         }), 409
 
+    if candidate.get("target_mode") == "player":
+        return mark_player_target(target_username_override=(candidate.get("target") or {}).get("target_username"))
     aimed_target = clean_victim_picker_aimed_target(candidate)
     set_player_aimed_target(
         username,
         profile,
         aimed_target,
         reason="victim_picker_aim",
+        persist_profile_projection=False,
     )
-    profile.pop("password", None)
-    profile.pop("salt", None)
-    session["profile"] = profile
     record_map_target_delta(
         username,
         aimed_target,
@@ -30131,6 +30088,11 @@ def gonna_win():
             launch_receipt,
         ])
         gonna_win_receipt_key = "gonna_win:" + hashlib.sha1(receipt_seed.encode("utf-8")).hexdigest()[:32]
+        completed = player_hack_access_store.get_capture_receipt(session["user"], gonna_win_receipt_key)
+        if completed:
+            if expected_target_id and completed["target_key"] != expected_target_id:
+                return jsonify({"success": False, "reason": "receipt_target_mismatch"}), 409
+            return jsonify(refresh_player_capture_response(completed["payload"]))
         state, receipt = app_action_receipt_store.begin(
             gonna_win_receipt_key,
             username=session.get("user"),
@@ -30336,7 +30298,22 @@ def gonna_win():
     # ] # DEV LISTA
 
     step_started_at = time.perf_counter()
-    profile = sync_session_profile(rebuild_territory=False, persist_normalization=False)
+    canonical_target = player_target_runtime_store.get_active_target(session.get("user"))
+    player_flow = canonical_target.get("target_mode") == "player" or expected_target.get("target_mode") == "player"
+    if player_flow:
+        profile = load_player_hack_runtime_context(session.get("user"))
+        profile["operations"] = player_operation_store.list_active_operations(session["user"], limit=32)
+        if len(profile["operations"]) >= 32:
+            raise ProfileRecoveryRequired("Player operation limit exceeded")
+        if canonical_target.get("target_mode") != "player":
+            return jsonify({"success": False, "reason": "target_selection_changed"}), 409
+        victim = identity_projection_store.get_identity(canonical_target.get("target_username"))
+        if (not victim or resolve_player_actor_relation(profile, victim, {
+                "is_friend": mail_store.is_accepted_contact(session["user"], victim.get("username"))
+            }) in {"self", "friend", "same_clan"}):
+            return jsonify({"success": False, "reason": "target_not_attackable"}), 403
+    else:
+        profile = sync_session_profile(rebuild_territory=False, persist_normalization=False)
     app_flow_debug_timed(
         flow_id,
         "gonna_win_sync_session_profile",
@@ -30518,7 +30495,8 @@ def gonna_win():
     )
 
     if operation_only:
-        session["profile"] = profile
+        if not player_flow:
+            session["profile"] = profile
         if target_changed:
             step_started_at = time.perf_counter()
             record_map_target_delta(
@@ -30654,6 +30632,8 @@ def gonna_win():
                 target_id=build_operation_target_id(profile.get("aimed_target") or {}),
             )
         except Exception as exc:
+            if player_flow:
+                raise
             print(f"[target runtime] security update failed user={session.get('user')} error={exc}", flush=True)
     if contest_owner_username and contest_owner_target:
         contest_owner_target["security"] = dict(target_sec)
@@ -30679,7 +30659,8 @@ def gonna_win():
         for k in ["scan_ports", "exploit", "sniff", "trace"]
     )
 
-    session["profile"] = profile
+    if not player_flow:
+        session["profile"] = profile
     rebuilt_areas = None
     territory_defense_swarm_captures = []
     progression = None
@@ -30702,61 +30683,38 @@ def gonna_win():
         )
         if profile["aimed_target"].get("target_mode") == "player":
             victim_username = str(profile["aimed_target"].get("target_username") or profile["aimed_target"].get("username") or "").strip()
-            if not victim_username or not user_store.get_profile(victim_username):
-                payload = {
-                    "success": False,
-                    "message": "Nie mozna utworzyc dostepu: gracz celu nie istnieje."
+            state = player_target_runtime_store.get(session["user"])
+            if not state or state.get("target_key") != build_operation_target_id(profile["aimed_target"]):
+                return jsonify({"success": False, "reason": "target_selection_changed"}), 409
+            capture_key = gonna_win_receipt_key or f"player_capture:{state['target_key']}:{state['version']}"
+            def capture_payload(access):
+                # Runs under the capture writer lock; relation cannot change
+                # between this bounded check and commit.
+                attacker_identity = identity_projection_store.get_identity(session["user"])
+                victim_identity = identity_projection_store.get_identity(victim_username)
+                if (not attacker_identity or not victim_identity or resolve_player_actor_relation(
+                        attacker_identity, victim_identity, {
+                            "is_friend": mail_store.is_accepted_contact(session["user"], victim_username)
+                        }) in {"self", "friend", "same_clan"}):
+                    raise ValueError("target_not_attackable")
+                serialized = serialize_player_hack_access(access)
+                return {
+                    "success": True, "percent_off": round(percent_off, 2),
+                    "captured_target": None, "player_areas_count": None, "progression": None,
+                    "player_hack_access": serialized, "target": None,
+                    "actions_allowed_marked": marked_actions, "created_operations": created_operations,
+                    "message": f"Dostep do {serialized.get('victim_nick') or victim_username} przyznany.",
                 }
-                finish_gonna_win_receipt(payload, status_code=404, status=AppActionReceiptStore.STATUS_FAILED)
-                return jsonify(payload), 404
-
-            access = player_hack_access_store.grant_access(
-                session["user"],
-                victim_username,
-                access_minutes=PLAYER_HACK_ACCESS_MINUTES,
-                cooldown_hours=PLAYER_HACK_COOLDOWN_HOURS,
-            )
-            player_hack_access = serialize_player_hack_access(access)
             try:
-                player_target_runtime_store.mark_captured(
-                    session["user"],
-                    profile.get("aimed_target") or {},
-                    source="player_hack_access_granted",
+                payload = player_hack_access_store.complete_capture(
+                    session["user"], profile["aimed_target"], state["version"], capture_key,
+                    CRITICAL_SECURITY_KEYS, player_target_runtime_store, capture_payload,
+                    access_minutes=PLAYER_HACK_ACCESS_MINUTES, cooldown_hours=PLAYER_HACK_COOLDOWN_HOURS,
                 )
-            except Exception as exc:
-                print(f"[target runtime] player capture mark failed user={session.get('user')} error={exc}", flush=True)
-            profile["aimed_target"] = {}
-            success = True
-            session["profile"] = profile
-            step_started_at = time.perf_counter()
-            app_flow_debug_timed(
-                flow_id,
-                "gonna_win_player_access_runtime_update_done",
-                app_flow_started_at,
-                step_started_at,
-                app_id=app_id,
-            )
-            app_flow_debug(
-                flow_id,
-                "gonna_win_return_player_access",
-                started_at=app_flow_started_at,
-                app_id=app_id,
-                choice_id=choice_id,
-                percent_off=round(percent_off, 2),
-            )
-            payload = {
-                "success": True,
-                "percent_off": round(percent_off, 2),
-                "captured_target": None,
-                "hacked": profile.get("hacked", []),
-                "player_areas_count": None,
-                "progression": None,
-                "player_hack_access": player_hack_access,
-                "target": None,
-                "actions_allowed_marked": marked_actions,
-                "created_operations": created_operations,
-                "message": f"Dostep do {player_hack_access.get('victim_nick') or victim_username} aktywny przez {PLAYER_HACK_ACCESS_MINUTES} min."
-            }
+            except ValueError as exc:
+                payload = {"success": False, "reason": str(exc), "message": "Nie mozna przyznac dostepu."}
+                finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
+                return jsonify(payload), 409
             finish_gonna_win_receipt(payload)
             return jsonify(payload)
 
@@ -31396,7 +31354,8 @@ def gonna_win():
                 print(f"[target runtime] capture mark failed user={session.get('user')} error={exc}", flush=True)
         profile["aimed_target"] = {}
         success = True
-        session["profile"] = profile
+        if not player_flow:
+            session["profile"] = profile
 
         step_started_at = time.perf_counter()
         capture_profile_update = {
@@ -31468,7 +31427,8 @@ def gonna_win():
         # canonical runtime stores. A compatibility profile rewrite for every
         # partial tool result is both redundant and prohibitively expensive on
         # large accounts.
-        session["profile"] = profile
+        if not player_flow:
+            session["profile"] = profile
 
     app_flow_debug(
         flow_id,
@@ -31517,6 +31477,8 @@ def gonna_win():
             "captured_targets": territory_defense_swarm_captures,
         },
     }
+    if player_flow:
+        payload.pop("hacked", None)
     finish_gonna_win_receipt(payload)
     return jsonify(payload)
 

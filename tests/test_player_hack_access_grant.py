@@ -52,6 +52,14 @@ class PlayerHackAccessGrantTest(unittest.TestCase):
             renewed = self.store.grant_access('attacker', 'victim')
         self.assertNotEqual(self.store.access_key(first), self.store.access_key(renewed))
 
+    def test_expired_access_cannot_bypass_active_cooldown(self):
+        first = self.store.grant_access('attacker', 'victim')
+        with patch('database.datetime', wraps=datetime) as clock:
+            clock.utcnow.return_value = datetime.utcnow() + timedelta(minutes=10)
+            with self.assertRaisesRegex(ValueError, 'player_hack_cooldown'):
+                self.store.grant_access('attacker', 'victim')
+        self.assertEqual(self.store.get_active_access('attacker', 'victim')['hacked_until'], first['hacked_until'])
+
 
 if __name__ == '__main__':
     unittest.main()

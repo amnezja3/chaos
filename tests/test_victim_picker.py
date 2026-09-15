@@ -59,7 +59,8 @@ class VictimPickerTest(unittest.TestCase):
             },
         }
 
-        with patch.object(run.mail_store, "list_accepted_contacts", return_value=[]), \
+        with patch.object(run, "build_visible_player_actors", return_value=[]), \
+                patch.object(run.mail_store, "list_accepted_contacts", return_value=[]), \
                 patch.object(run.territory_store, "list_recent_area_intruders", return_value=[]), \
                 patch.object(run.vulnerability_store, "list_active", return_value=[]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=[]):
