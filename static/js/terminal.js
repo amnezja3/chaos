@@ -3526,6 +3526,87 @@ async function handleTerminalGeolocationRequest(content, request = {}) {
     return handleTerminalTeleport(content, { lat, lng, label, accuracy });
 }
 
+async function handleTerminalPkgCommand(value, content) {
+    const match = String(value || '').trim().match(/^pkg(?:\s+(\S+))?(?:\s+([\s\S]*))?$/i);
+    if (!match) return null;
+    const action = String(match[1] || '').toLowerCase();
+    let query = String(match[2] || '').trim();
+    if ((query.startsWith('"') && query.endsWith('"'))
+        || (query.startsWith("'") && query.endsWith("'"))) {
+        query = query.slice(1, -1).trim();
+    }
+    const output = text => appendSystemTerminalOutput(content, escapeHTML(String(text)).replace(/\n/g, '<br>'));
+    if (!['list-all', 'search', 'install'].includes(action)
+        || (action === 'list-all' ? Boolean(query) : !query)) {
+        output('Użycie: pkg list-all | pkg search <nazwa> | pkg install <nazwa lub ID>');
+        return false;
+    }
+    try {
+        const response = await fetch('/resources.json', { cache: 'no-store' });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !Array.isArray(payload)) {
+            output(`pkg: nie udało się pobrać katalogu Googleplex (HTTP ${response.status}).`);
+            return false;
+        }
+        const seen = new Set();
+        const catalog = payload.filter(item => {
+            if (!item || item.published === false || !item.id) return false;
+            const id = String(item.id);
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+        const needle = query.toLowerCase();
+        const matches = catalog.filter(item => action === 'list-all'
+            || String(item.name || '').toLowerCase().includes(needle)
+            || String(item.id).toLowerCase().includes(needle));
+        const describe = item => `${item.name || item.id} [${item.id}] — ${Number(item.price || 0)} HC`;
+        if (action !== 'install') {
+            output(matches.length
+                ? `Googleplex — ${matches.length} pozycji:\n${matches.map(describe).join('\n')}`
+                : (query ? `Brak pozycji w Googleplex: ${query}` : 'Katalog Googleplex jest pusty.'));
+            return true;
+        }
+        // Install only an exact name or ID; partial search must never buy a different item.
+        const byId = catalog.filter(item => String(item.id).toLowerCase() === needle);
+        const exact = byId.length ? byId : catalog.filter(item => String(item.name || '').toLowerCase() === needle);
+        if (exact.length !== 1) {
+            const suggestions = exact.length ? exact : matches;
+            output(`${exact.length ? 'Niejednoznaczna nazwa' : 'Brak dokładnej pozycji w Googleplex'}: ${query}.`
+                + (suggestions.length ? `\nUżyj pełnej nazwy lub ID:\n${suggestions.map(describe).join('\n')}` : ''));
+            return false;
+        }
+        const item = exact[0];
+        if (item.product_type === 'travel_ticket' || item.purchase_confirmation === true) {
+            const accepted = await showGhostDecisionDialog({
+                title: item.product_type === 'travel_ticket' ? 'POTWIERDZENIE PODROZY' : 'POTWIERDZENIE ZAKUPU',
+                message: `Kupić: ${item.name || item.id}?`,
+                details: `${Number(item.price || 0)} HC.` + (item.product_type === 'travel_ticket'
+                    ? ' Zakup wykona teleport do lokalizacji wskazanej przez bilet.' : ''),
+                confirmLabel: 'KUP I ZAINSTALUJ', cancelLabel: 'ANULUJ'
+            });
+            if (!accepted) {
+                output('pkg: zakup anulowany.');
+                return false;
+            }
+        }
+        output(`pkg: uruchamiam instalator Googleplex — ${describe(item)}.`);
+        return await new Promise(resolve => {
+            showInstallAppProgress(item, null, (success, data = {}) => {
+                output(success
+                    ? `pkg: ${data.product ? 'kupiono' : 'zainstalowano'} ${item.name || item.id}.`
+                    : `pkg: ${data.message || (data.reason === 'network_error'
+                        ? 'Błąd połączenia. Wynik zakupu niepotwierdzony; ponów tę samą instalację.'
+                        : 'Instalacja nie powiodła się.')} ${data.reason ? `[${data.reason}]` : ''}`);
+                resolve(Boolean(success));
+            });
+        });
+    } catch (_error) {
+        output('pkg: błąd komunikacji lub sesji. Nie potwierdzono instalacji.');
+        return false;
+    }
+}
+
 async function executeSystemTerminalCommand(value, input, content, { echo = true } = {}) {
     if (echo) {
         appendSystemTerminalCommand(content, value);
@@ -3566,6 +3647,9 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
                 return true;
             }
         }
+
+        const pkgResult = await handleTerminalPkgCommand(value, content);
+        if (pkgResult !== null) return pkgResult;
 
         const res = await fetch('/command', {
             method: 'POST',

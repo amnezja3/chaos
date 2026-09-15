@@ -1,5 +1,66 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — terminal: pkg list-all / search / install
+
+Dodano [komendy pakietów Googleplex](../gameplay/terminal_packages.md).
+Listowanie i wyszukiwanie pobierają istniejący `/resources.json`, bez profilu.
+Instalacja rozpoznaje pełną nazwę lub ID, odrzuca niejednoznaczność i deleguje
+do `showInstallAppProgress` / `/install-app`, z istniejącym kluczem akcji,
+potwierdzeniami wymaganymi przez sklep i aktualizacją projekcji po zakupie.
+Terminal wypisuje wynik, GhostScript czeka na zakończenie instalacji.
+Dodano help i cache-bust terminal.js w trzech wejściach dokumentu.
+Node: test_terminal_pkg, googleplex_runtime_bridge, googleplex_app_purchase_lock
+oraz składnia terminal.js PASS; git diff --check PASS.
+Nie wykonano ręcznego zakupu w przeglądarce, audytu produkcji ani deployu.
+Istniejące gałęzie backendowego instalatora zachowano; brak nowych odczytów
+profili w obsłudze pkg nie jest deklaracją odchudzenia całego instalatora.
+To osobny update terminala; Sprint 141 pozostaje planem.
+
+## 2026-09-15 — Sprint 141: pozycja aktora po teleportacji
+
+Autor zgłosił, że po teleportacji aktor nadal jest widziany w starej pozycji.
+Do [Sprintu 141](../sprints/sprint_141_player_hacking_end_to_end.md) dodano etap
+141.2: diagnostyka i naprawa całej synchronizacji pozycji, od canonical store
+przez projekcje/delty po marker obserwatora, Victim Picker i targetowanie.
+Ciężki profil zapisano jako hipotezę, bez potwierdzenia przyczyny.
+Odbiór obejmuje dwa konta, audience, desktop/mobile, brak starego markera,
+wersjonowanie, replay i pomiary małego/≥35 MB profilu. Pozostałe etapy
+przenumerowano; plan ma teraz siedem checkpointów (141.1–141.7).
+Zmiana wyłącznie dokumentacyjna; reprodukcja, implementacja i testy runtime
+pozostają do wykonania. Nie wykonywano teleportu ani działań produkcyjnych.
+
+## 2026-09-14 — Sprint 141: plan pełnej naprawy hakowania gracza
+
+Na polecenie autora rozpisano
+[Sprint 141 — Control Loop: player hacking end to end](../sprints/sprint_141_player_hacking_end_to_end.md).
+Zakres obejmuje wykrycie intruza z obcego klanu, wybór celu, przełamanie
+zabezpieczeń, trwały dostęp, właściwy katalog narzędzi, ich wykonanie i efekty,
+obsługę błędów oraz panel i okna wyników na desktopie/mobile.
+Plan zawiera sześć checkpointów, macierz pięciu istniejących narzędzi,
+bramki profilu ≥35 MB, integralności, receipts, izolacji sesji i pełnego E2E.
+Statyczny przegląd przy 96dec35 potwierdził wspólny katalog bez kwalifikacji
+do panelu, fallback sukcesu-placeholdera i pełne odczyty profili w tej ścieżce.
+Błędy zgłoszone przez autora nadal wymagają reprodukcji; nie przypisano im
+niepotwierdzonej przyczyny. Status PLAN, bez implementacji i odbioru.
+Zmiana dokumentacyjna; bez uruchamiania gameplayu, testów runtime, migracji,
+restore, triggera, deployu lub restartów. Zachowano wcześniejsze zmiany dokumentów.
+
+## 2026-09-14 — pełne przekazanie do nowego wątku
+
+Dodano aktywny punkt wejścia
+[handoff projektu](../runbooks/handoff_project_2026_09_14.md) oraz
+[mapę ciężkich i lekkich ścieżek](../runbooks/handoff_hotpaths_2026_09_14.md).
+Obejmują architekturę, gameplay, źródła prawdy, profile/CAS/LKG, częściowe
+odpowiedzi i historyczny termin bounceback, regresje mapy i operacji/plików/GX,
+sesje/restart, finalne decyzje show/audio, archiwum, Registry i admin Bug Reports.
+Rozdzielono dowody testowe, odbiory autora i otwartą diagnostykę braku nowych
+publikacji po triggerze. Załącznik zawiera statyczne callsite'y do audytu,
+nie deklaruje usunięcia wszystkich ciężkich odczytów.
+Zaktualizowano indeks: 139–140 nie są już planowanym backlogiem.
+Stare przekazanie zachowano i oznaczono jako historyczne. Kolejny kierunek:
+Control Loop według artefaktów autora. Zmiana wyłącznie dokumentacyjna;
+bez migracji, zmian gameplayu, restartów i triggera.
+
 ## 2026-09-13 — zgłoszenia błędów tylko w panelu admina
 
 Dodano zakładkę /admin?tab=bugs z wyszukiwaniem, filtrem kategorii/statusu,

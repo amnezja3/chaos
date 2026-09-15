@@ -1,6 +1,11 @@
 # Przekazanie pracy do nowego wątku — CHAOS, Sprinty 139–140
 
-Status: `ACTIVE HANDOFF / READ BEFORE ANY CHANGE`
+Status: `HISTORYCZNE PRZEKAZANIE — stan sprzed Sprintów 139–140`
+
+> Aktualny punkt startowy: [pełne przekazanie z 2026-09-14](handoff_project_2026_09_14.md).
+> Sprinty 139–140 są już wykonane. Poniższy backlog i instrukcja rozpoczęcia
+> 139.1 opisują stan z 10 września; nie należy wykonywać ich ponownie.
+> Zachowujemy dokument jako źródło historii, kontraktów i wcześniejszych dowodów.
 
 Data stanu: `2026-09-10`
 

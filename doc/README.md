@@ -5,11 +5,16 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
-1. [`runbooks/handoff_sprints_139_140.md`](runbooks/handoff_sprints_139_140.md) — aktywne przekazanie pracy i zasady wejścia w Sprinty 139–140.
+1. [`Pełne przekazanie projektu — 2026-09-14`](runbooks/handoff_project_2026_09_14.md) — aktualny punkt startowy: architektura, decyzje, stan prac, produkcja i ryzyka.
 2. [`overview/ABOUT_CHAOS.md`](overview/ABOUT_CHAOS.md) — produkt, świat i canon.
 3. [`history/project_journal.md`](history/project_journal.md) — najnowszy stan prac.
 4. [`architecture/profile_hot_path_contract_130_11_plus.md`](architecture/profile_hot_path_contract_130_11_plus.md) — wiążąca bramka wydajności i integralności.
 5. [`history/game_play_180726.md`](history/game_play_180726.md) — chronologia wcześniejszych sprintów.
+
+Do audytu wydajności przeczytaj również
+[`mapę ciężkich i lekkich ścieżek`](runbooks/handoff_hotpaths_2026_09_14.md).
+[`Przekazanie 139–140 z 10 września`](runbooks/handoff_sprints_139_140.md)
+jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 
 ## Struktura
 
@@ -23,6 +28,7 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 - [`systems/incidents-npc/`](systems/incidents-npc/) — gameplay i architektura NPC incidents.
 - [`sprints/`](sprints/) — artefakty realizacji i zamknięcia sprintów.
 - [`audits/`](audits/) — audyty, post-audyty i raporty diagnostyczne.
+- [`hardbugfix/`](hardbugfix/) — przyczyny regresji, naprawy i kontrakty chroniące przed ich powrotem.
 - [`runbooks/`](runbooks/) — instrukcje operatorskie i migracyjne.
 - [`incidents/`](incidents/) — raporty incydentów.
 - [`plans/`](plans/) — plany i propozycje przyszłych zmian.
@@ -30,22 +36,42 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Status bieżący
 
-- Draft [`140.stylization.1+ — stylizacja całego show`](sprints/sprint_140_stylization_1_plus.md)
-  obejmuje późniejszy przegląd i dopracowanie 00–15. Bieżący Sprint 140 buduje
-  szkielet, projekcje danych i synchronizację scen/video/muzyki; oprawa pozostaje
-  otwarta na kolejne iteracje.
-  Plan .1–.10 obowiązuje wraz z
+- [Terminal: pakiety Googleplex](gameplay/terminal_packages.md) — `pkg list-all`,
+  `pkg search <nazwa>` i `pkg install <nazwa lub ID>` przez istniejący instalator.
+
+- [`Sprint 141 — Control Loop: hakowanie gracza end to end`](sprints/sprint_141_player_hacking_end_to_end.md)
+  ma rozpisany zakres na polecenie autora: wykrycie i wybór intruza, przełamanie
+  zabezpieczeń, dostęp, kwalifikacja i wykonanie narzędzi, efekty oraz pełny
+  interfejs desktop/mobile. Status PLAN; implementacja i odbiór niewykonane.
+  Od 15 IX obejmuje także osobny etap naprawy starej pozycji aktora po
+  teleportacji; ciężki profil pozostaje hipotezą do zweryfikowania.
+
+- Sprinty 139–140 i [`stylizacja .1–.10`](sprints/sprint_140_stylization_1_plus.md)
+  są zrealizowane. Autor potwierdził końcowy przebieg show 13 września.
+  Zachowujemy zaakceptowaną oprawę wraz z
   [kontraktem layoutu, responsywności i assetów](sprints/140_stylization_layout_responsive_asset_contract.md):
   wspólna oprawa CSS, reflow desktop/portrait i reuse zasobów CHAOS.
-  Trigger oraz nowy produkcyjny E2E nastąpią po stylizacji.
+  Nie należy ponownie rozpoczynać planu stylizacji ani automatycznie wykonywać triggera.
 
 - Sprint 138.2 zakończył pełny producer-backed production E2E wynikiem `PASS`.
-  Aktywny backlog stanowią
+  Zrealizowane późniejsze etapy opisują
   [`Sprint 139 — natychmiastowy show i restart`](sprints/sprint_139_ghostsignal_activation_restart.md)
   oraz
   [`Sprint 140 — 15-minutowy finał`](sprints/sprint_140_ghostsignal_15_minute_finale.md).
-  Pełny kontekst, reguły pracy i stan wymagający ponownej weryfikacji zawiera
-  [`handoff Sprintów 139–140`](runbooks/handoff_sprints_139_140.md).
+  Aktualny stan i rozróżnienie odbioru wizualnego od formalnego postflight zawiera
+  [`nowe przekazanie`](runbooks/handoff_project_2026_09_14.md).
+
+- Po show naprawiono odczyt wygasłych publicznych publikacji w archiwum oraz
+  logowanie z istniejącą sesją po restarcie. Autor potwierdził poprawki.
+  Brak nowych publikacji po triggerze pozostaje osobnym otwartym punktem
+  diagnostyki workerów/env; historyczne wpisy nie dowodzą działania producerów dziś.
+- Signal Registry ma zaakceptowany układ i oprawę. Ostatnia implementacja
+  (`96dec35`) przenosi listę/statusy bug reportów do admina i dodaje pełny dump TXT;
+  testy PASS, brak osobnego potwierdzenia ręcznego odbioru panelu.
+- Następny kierunek to **Control Loop**, czyli sprinty poprawkowe gameplayu.
+  Pierwszy zakres autor określił jako pełną naprawę hakowania obcego gracza;
+  opisuje go Sprint 141 powyżej. Przekazania z 14 IX zachowują stan sprzed
+  otrzymania tego polecenia.
 
 - Sprinty 130.10-130.12 oraz GhostNetwork Suite 131-135 są zamknięte albo
   przekazane do potwierdzonej walidacji zgodnie z journalem.
@@ -53,8 +79,8 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
   [`sprints/sprint_135_1_ollama_outbox_integration_audit.md`](sprints/sprint_135_1_ollama_outbox_integration_audit.md).
   Przywraca formalnie zamrożony Sprint 84 oraz świadomie odłożony BlackNet AI
   Ecosystem (Sprint 21+), wyznacza jeden canonical outbox oraz roadmap 135.2+.
-  Status: `SPRINT 135.1 — COMPLETE`; canonical transport 135.2 jest
-  `READY FOR SERVER VALIDATION`.
+  Historyczne statusy pośrednie czytaj wraz z późniejszymi wpisami journalu
+  i wynikiem 138.2, nie jako bieżący backlog.
 - Osobne kontrakty realizacyjne:
   [`135.2 — canonical task transport`](sprints/sprint_135_2_canonical_llm_task_transport.md),
   [`135.3 — event producers i Googleplex ingress`](sprints/sprint_135_3_llm_event_producers_googleplex_ingress.md),
@@ -70,8 +96,8 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
   [`138 — GhostNetwork Narrative Publication Lifecycle`](sprints/sprint_138_ghostnetwork_narrative_publication_lifecycle.md).
 - Sprint 135.2 rozszerza SQLite `ghost_narrative_outbox` do jednej kolejki z
   canonical dedupe, claim/lease/CAS, retry/dead-letter i crash recovery. Legacy
-  BlackNet JSON jest tylko eksportem diagnostycznym; Ollama, Inbox, producenci i
-  publikacja pozostają poza zakresem do kolejnych bramek.
+  BlackNet JSON jest tylko eksportem diagnostycznym. Ollama, Inbox, producenci
+  i publikacja zostały rozwinięte w późniejszych etapach wymienionych powyżej.
 - Recovery Trollu2 jest zakończone i nie jest aktywnym backlogiem.
 
 Przenosząc lub dodając dokument, należy zaktualizować ten indeks i wszystkie
