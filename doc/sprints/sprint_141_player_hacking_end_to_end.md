@@ -13,6 +13,18 @@ całej ścieżki i browser E2E nadal otwarte; 141.1 nie ma pełnego zamknięcia 
 
 ### Checkpoint implementacji — 15 IX: Player Access i Log Reader
 
+Kolejny checkpoint 15 IX — Arsenal Cleaner: A01 usunięty lokalnie przez
+wycofanie zbędnego zapisu ciężkiego profilu, odczyty kanonicznego inventory
+i ograniczonych projekcji statystyk. Uninstall oraz receipt mają wspólną
+transakcję z rollback i ochroną przed równoległym podwójnym efektem.
+19 testów read paths/session precommit PASS, w tym udany Cleaner na dwóch
+profilach ≥35 MiB, awaria po uninstall, konkurencja, no-apps i failed roll.
+Pełny lifecycle nadal otwarty: delty pulpitu ofiary, recovery odpowiedzi oraz
+powiadomień po commicie. Nie potwierdzono historycznych efektów błędu na serwerze.
+Autor przekazał pozytywny odbiór pozostałych narzędzi przez graczy; brak znajomych
+pies1 wyjaśnia poprawny wynik Friend Kickera. Bez rozszerzania tego odbioru
+na nieprzetestowane scenariusze ani zamknięcie 141.
+
 - Panel korzysta tylko z pięciu jawnych executorów post-hack. Suite i inne
   aplikacje nie trafiają do tej listy; tool/use odrzuca nieobsługiwany tool ID.
 - Odczyt dostępu korzysta z integrity-gated identity obu kont i pięciu

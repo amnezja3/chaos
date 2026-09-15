@@ -26483,25 +26483,22 @@ def api_player_hack_tool_use():
                 "error": "Arsenal Cleaner byl juz uzyty podczas tego dostepu."
             }), 409
 
-        victim_profile = user_store.get_profile(victim_username)
-        attacker_profile = user_store.get_profile(session["user"])
+        victim_profile = capability_projection_store.get_capabilities(victim_username)
+        attacker_profile = capability_projection_store.get_capabilities(session["user"])
         if not victim_profile:
             return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
         if not attacker_profile:
             return jsonify({"success": False, "error": "Atakujacy nie istnieje."}), 404
 
-        apps = list(victim_profile.get("apps", []) or [])
+        apps = player_inventory_store.desktop_apps(victim_username)
         candidates = [app for app in apps if is_cleanable_app(app)]
 
         if not candidates:
-            player_hack_access_store.record_tool_usage(
-                access,
-                session["user"],
-                victim_username,
-                tool_id,
-                result="no_apps",
-                amount=0,
+            receipt = player_inventory_store.apply_arsenal_cleaner(
+                player_hack_access_store, access, session["user"], victim_username, "", "no_apps",
             )
+            if receipt.get("duplicate"):
+                return jsonify({"success": False, "error": "Arsenal Cleaner byl juz uzyty podczas tego dostepu."}), 409
             refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
             return jsonify({
                 "success": True,
@@ -26527,7 +26524,7 @@ def api_player_hack_tool_use():
         except (TypeError, ValueError):
             attacker_level = 1
         try:
-            attacker_respect = int(attacker_profile.get("respect", 0) or 0)
+            attacker_respect = int(identity_projection_store.get_desktop_boot(session["user"]).get("respect", 0) or 0)
         except (TypeError, ValueError):
             attacker_respect = 0
         try:
@@ -26541,37 +26538,14 @@ def api_player_hack_tool_use():
         risk_level = int(tool.get("risk_level", 4) or 4)
         detected = removed or ((random() * 100) < min(50, 10 + risk_level * 5))
 
+        result = "removed" if removed else ("failed_detected" if detected else "failed_silent")
+        receipt = player_inventory_store.apply_arsenal_cleaner(
+            player_hack_access_store, access, session["user"], victim_username, target_app_id, result,
+        )
+        if receipt.get("duplicate"):
+            return jsonify({"success": False, "error": "Arsenal Cleaner byl juz uzyty podczas tego dostepu."}), 409
+        removed = receipt["result"] == "removed"
         if removed:
-            def app_matches(item):
-                if not isinstance(item, dict):
-                    return False
-                if target_app_id and str(item.get("id") or "").strip() == target_app_id:
-                    return True
-                return app_display_name(item) == target_app_name
-
-            victim_profile["apps"] = [app for app in apps if not app_matches(app)]
-            victim_profile["files"] = remove_app_tool_files(victim_profile.get("files", {}), target_app)
-            canonical_changed = player_inventory_store.uninstall_app(
-                victim_username,
-                app_id=target_app_id,
-            )
-            if canonical_changed:
-                inventory_snapshot = player_inventory_store.snapshot(victim_username)
-                victim_profile["apps"] = list(inventory_snapshot.get("apps") or [])
-                canonical_tools = (
-                    inventory_snapshot.get("files") or {}
-                ).get("tools")
-                if isinstance(canonical_tools, list):
-                    victim_profile.setdefault("files", {})["tools"] = canonical_tools
-            user_store.patch_profile_guarded(
-                victim_username,
-                {
-                    "apps": victim_profile.get("apps", []),
-                    "files": victim_profile.get("files", {}),
-                },
-                source="player_hack.arsenal_cleaner",
-                expected_revision=int(victim_record["profile_revision"]),
-            )
             add_system_message_to_user(
                 victim_username,
                 "warning",
@@ -26591,14 +26565,6 @@ def api_player_hack_tool_use():
             message = "Arsenal Cleaner nie zdolal usunac aplikacji."
             result = "failed_detected" if detected else "failed_silent"
 
-        player_hack_access_store.record_tool_usage(
-            access,
-            session["user"],
-            victim_username,
-            tool_id,
-            result=result,
-            amount=1 if removed else 0,
-        )
         refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
         return jsonify({
             "success": True,

@@ -46,6 +46,11 @@ sprawdzono szczególnie naprawę teleportu po 130.12, marker identity i stores.
 
 ### A01 — Arsenal Cleaner: wyjątek po wywołaniu usunięcia (krytyczne)
 
+Aktualizacja 15 IX: przyczyna wyjątku naprawiona lokalnie. Zamiast patcha
+profilu Cleaner używa canonical uninstall ze wspólną transakcją receiptu.
+Regresje HTTP ≥35 MiB, rollback i konkurencja PASS. Historyczna reprodukcja
+poniżej opisuje stan sprzed naprawy. Pełny lifecycle/delta/recovery nadal otwarty.
+
 `run.py`, `api_player_hack_tool_use`, gałąź `arsenalCleaner`:
 `victim_record` jest przypisany tylko w innej, wcześniej kończącej się gałęzi
 `systemLogReader`. Udana próba Cleaner wywołuje `uninstall_app`, odczytuje

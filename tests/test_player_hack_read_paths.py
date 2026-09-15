@@ -5,7 +5,7 @@ from contextlib import ExitStack
 from unittest.mock import patch
 
 import run
-from database import (UserStore, UserIdentityProjectionStore, PlayerInventoryStore,
+from database import (UserStore, UserIdentityProjectionStore, UserCapabilityProjectionStore, PlayerInventoryStore,
                       PlayerHackAccessStore, SystemMessageStore, db_connect,
                       reset_hot_path_metrics, get_hot_path_metrics, restore_hot_path_metrics)
 from session_generation_fixture import SessionGenerationFixture
@@ -21,10 +21,12 @@ class PlayerHackReadPathsTest(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.users = UserStore(self.path)
         self.identity = UserIdentityProjectionStore(self.path)
+        self.capabilities = UserCapabilityProjectionStore(self.path)
         self.inventory = PlayerInventoryStore(self.path)
         self.access = PlayerHackAccessStore(self.path)
         self.messages = SystemMessageStore(self.path)
         for key, store in [('user_store', self.users), ('identity_projection_store', self.identity),
+                           ('capability_projection_store', self.capabilities),
                            ('player_inventory_store', self.inventory), ('player_hack_access_store', self.access),
                            ('system_message_store', self.messages)]:
             self.stack.enter_context(patch.object(run, key, store))
@@ -70,6 +72,72 @@ class PlayerHackReadPathsTest(unittest.TestCase):
 
     def test_small_accounts(self):
         self.check_http_access_and_logs(False, False)
+
+    def test_cleaner_atomic_uninstall_heavy_profiles_and_retry(self):
+        self.seed(big_attacker=True, big_victim=True)
+        self.inventory.install_app('attacker', {'id': 'arsenalCleaner', 'name': 'Arsenal Cleaner'}, purchase_key='cleaner')
+        target = {'id': 'removable', 'name': 'Removable Tool', 'storage_size': 5}
+        self.inventory.install_app('victim', target, purchase_key='target')
+        payload = {'tool_id': 'arsenalCleaner', 'victim_username': 'victim'}
+        access = self.access.get_active_access('attacker', 'victim')
+        original = self.inventory.uninstall_app
+        def fail_after_uninstall(*args, **kwargs):
+            original(*args, **kwargs)
+            raise RuntimeError('simulated crash before commit')
+        with patch.object(self.inventory, 'uninstall_app', side_effect=fail_after_uninstall):
+            with self.assertRaises(RuntimeError):
+                self.inventory.apply_arsenal_cleaner(self.access, access, 'attacker', 'victim', 'removable', 'removed')
+        self.assertTrue(self.inventory.has_app('victim', 'removable'))
+        self.assertFalse(self.access.has_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner'))
+        with patch.object(self.users, 'get_profile', side_effect=AssertionError('heavy read')), \
+             patch.object(self.users, 'get_profile_with_revision', side_effect=AssertionError('heavy revision')), \
+             patch.object(self.users, 'patch_profile_guarded', side_effect=AssertionError('profile write')), \
+             patch.object(run, 'choice', return_value=target), patch.object(run, 'randint', return_value=1):
+            response = self.client.post('/api/player-hack/tool/use', json=payload)
+            self.assertEqual(response.status_code, 200, response.get_json())
+            self.assertTrue(response.json['removed'])
+            self.assertFalse(self.inventory.has_app('victim', 'removable'))
+            receipt = self.access.get_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner')
+            self.assertEqual((receipt['result'], receipt['amount']), ('removed', 1))
+            self.assertEqual(self.client.post('/api/player-hack/tool/use', json=payload).status_code, 409)
+        replay = self.inventory.apply_arsenal_cleaner(self.access, access, 'attacker', 'victim', 'removable', 'removed')
+        self.assertTrue(replay['duplicate'])
+
+    def test_cleaner_no_apps_and_failed_roll(self):
+        self.seed()
+        self.inventory.install_app('attacker', {'id': 'arsenalCleaner', 'name': 'Arsenal Cleaner'}, purchase_key='cleaner')
+        payload = {'tool_id': 'arsenalCleaner', 'victim_username': 'victim'}
+        # Core apps remain protected even when the canonical inventory contains them.
+        for item in self.inventory.desktop_apps('victim'):
+            self.inventory.uninstall_app('victim', app_id=item['id'])
+        self.inventory.install_app('victim', {'id': 'core-test', 'name': 'Core', 'category': 'core'}, purchase_key='core')
+        response = self.client.post('/api/player-hack/tool/use', json=payload)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertFalse(response.json['removed'])
+        self.assertEqual(response.json['chance'], 0)
+        self.assertTrue(self.inventory.has_app('victim', 'core-test'))
+        with db_connect(self.path) as conn:
+            conn.execute('DELETE FROM player_hack_tool_usage')
+        self.inventory.install_app('victim', {'id': 'target', 'name': 'Target'}, purchase_key='target')
+        with patch.object(run, 'randint', return_value=100), patch.object(run, 'random', return_value=1):
+            response = self.client.post('/api/player-hack/tool/use', json=payload)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertFalse(response.json['removed'])
+        self.assertFalse(response.json['detected'])
+        self.assertTrue(self.inventory.has_app('victim', 'target'))
+
+    def test_cleaner_concurrent_use_removes_only_one_app(self):
+        from concurrent.futures import ThreadPoolExecutor
+        self.seed()
+        for app_id in ('one', 'two'):
+            self.inventory.install_app('victim', {'id': app_id, 'name': app_id}, purchase_key=app_id)
+        access = self.access.get_active_access('attacker', 'victim')
+        def attempt(app_id):
+            return self.inventory.apply_arsenal_cleaner(self.access, access, 'attacker', 'victim', app_id, 'removed')
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(attempt, ('one', 'two')))
+        self.assertEqual(sum(bool(r['duplicate']) for r in results), 1)
+        self.assertEqual(sum(self.inventory.has_app('victim', app_id) for app_id in ('one', 'two')), 1)
 
     def test_heavy_attacker(self):
         self.check_http_access_and_logs(True, False)

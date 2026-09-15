@@ -9,7 +9,7 @@ import sqlite3
 import inspect
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from datetime import datetime, timedelta
 
@@ -9867,11 +9867,13 @@ class PlayerHackAccessStore:
             ).fetchone()
             return dict(row) if row else None
 
-    def record_tool_usage(self, access, attacker_username, victim_username, tool_id, result="", amount=0):
+    def record_tool_usage(self, access, attacker_username, victim_username, tool_id, result="", amount=0, *, conn=None):
         key = self.access_key(access)
         now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 """
                 SELECT id, access_id, attacker_username, victim_username,
@@ -11583,7 +11585,25 @@ class PlayerInventoryStore:
                 continue
         return 0
 
-    def uninstall_app(self, username, app_id="", tool_id=""):
+    def apply_arsenal_cleaner(self, access_store, access, attacker, victim, app_id, result):
+        """Commit the single-use receipt and canonical uninstall together."""
+        if os.path.abspath(self.db_path) != os.path.abspath(access_store.db_path):
+            raise ValueError("Cleaner stores must share a database")
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            receipt = access_store.record_tool_usage(
+                access, attacker, victim, "arsenalCleaner", result=result,
+                amount=1 if result == "removed" else 0, conn=conn,
+            )
+            if receipt.get("duplicate"):
+                return receipt
+            if result == "removed" and not self.uninstall_app(victim, app_id=app_id, conn=conn):
+                conn.execute("UPDATE player_hack_tool_usage SET result='no_apps', amount=0 WHERE id=?",
+                             (receipt["id"],))
+                receipt.update(result="no_apps", amount=0)
+            return receipt
+
+    def uninstall_app(self, username, app_id="", tool_id="", *, conn=None):
         username = self._clean_text(username)
         app_id = self._clean_text(app_id)
         tool_id = self._clean_text(tool_id)
@@ -11591,8 +11611,10 @@ class PlayerInventoryStore:
             return False
         now = utc_now()
         changed = False
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             removed_storage = 0
             tool_rows = {}
             if app_id:

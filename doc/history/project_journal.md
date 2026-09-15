@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-09-15 — 141: Arsenal Cleaner, kanoniczne usunięcie i receipt
+
+Autor zgłosił błąd Cleanera; pozostałe narzędzia wyglądają na działające według
+relacji innych graczy. Brak kontaktów pies1 potwierdza prawidłowość wyniku
+NO CHANGE Friend Kickera. Jest to odbiór graczy, nie pełna walidacja sprintu.
+Usunięto przyczynę A01: zapis profilu z niezdefiniowanym victim_record po
+canonical uninstall. Cleaner czyta bounded inventory (limit 1000), capability
+oraz integrity-gated desktop projection dla respect; nie czyta pełnych profili.
+Receipt i uninstall apps/tool files/storage zatwierdzają się w jednej transakcji.
+Duplikat jest odrzucany przed drugim efektem. Testy rzeczywistych requestów,
+dwóch profili ≥35 MiB, rollback po uninstall, równoległych prób, braku aplikacji
+i nieudanego rzutu PASS. Łącznie 19 testów read paths/session precommit PASS.
+Bez deployu i ingerencji w historyczne skutki zgłoszonego błędu.
+Powiadomienie pozostaje po commicie; crash recovery odpowiedzi/powiadomienia
+oraz natychmiastowe delty pulpitu ofiary wymagają dalszej pracy w 141.
+
 ## 2026-09-15 — 141: pusty Financial Sniffer i mylący błąd komunikacji
 
 Autor zgłosił puste okno Financial Sniffera i błąd komunikacji. W kodzie
