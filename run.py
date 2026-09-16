@@ -17852,6 +17852,17 @@ def refresh_player_capture_response(payload):
     return payload
 
 
+def player_hack_cooldown_response(attacker, victim):
+    cooldown = player_hack_access_store.get_cooldown(attacker, victim)
+    if not cooldown or int(cooldown.get("seconds_left") or 0) > 0:
+        return None
+    seconds = max(0, int(cooldown.get("cooldown_seconds_left") or 0))
+    message = f"Cooldown PvP dla tego gracza. Ponowny hack mozliwy za ok. {max(1, math.ceil(seconds / 60))} min."
+    return {"success": False, "blocked": True, "reason": "player_hack_cooldown",
+            "message": message, "status": message, "error": message,
+            "cooldown_seconds_left": seconds, "cooldown_until": cooldown.get("cooldown_until")}
+
+
 def serialize_player_hack_access(access):
     if not access:
         return {
@@ -24032,6 +24043,9 @@ def hack_action():
             return jsonify({"success": False, "blocked": True, "reason": "target_selection_changed",
                             "status": "Najpierw oznacz widocznego gracza w zasiegu."}), 409
         victim = identity_projection_store.get_identity(player_target_username)
+        cooldown_response = player_hack_cooldown_response(session["user"], player_target_username)
+        if cooldown_response:
+            return jsonify(cooldown_response), 409
         if not victim or resolve_player_actor_relation(player_runtime, victim, {
             "is_friend": mail_store.is_accepted_contact(session["user"], player_target_username)
         }) in {"self", "friend", "same_clan"}:
@@ -27415,6 +27429,9 @@ def build_visible_player_actors(viewer_username):
             },
         )
 
+    cooldowns = player_hack_access_store.visible_cooldowns(viewer_username, actors_by_username)
+    for username, actor in actors_by_username.items():
+        actor["player_hack_cooldown_until"] = cooldowns.get(username)
     return sorted(
         actors_by_username.values(),
         key=lambda actor: (actor.get("relation", ""), actor.get("nick") or actor.get("username") or ""),
@@ -30338,6 +30355,10 @@ def gonna_win():
             raise ProfileRecoveryRequired("Player operation limit exceeded")
         if canonical_target.get("target_mode") != "player":
             return jsonify({"success": False, "reason": "target_selection_changed"}), 409
+        cooldown_response = player_hack_cooldown_response(session["user"], canonical_target.get("target_username"))
+        if cooldown_response:
+            finish_gonna_win_receipt(cooldown_response, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
+            return jsonify(cooldown_response), 409
         victim = identity_projection_store.get_identity(canonical_target.get("target_username"))
         if (not victim or resolve_player_actor_relation(profile, victim, {
                 "is_friend": mail_store.is_accepted_contact(session["user"], victim.get("username"))
@@ -30732,6 +30753,12 @@ def gonna_win():
                 return {
                     "success": True, "percent_off": round(percent_off, 2),
                     "captured_target": None, "player_areas_count": None, "progression": None,
+                    "captured_player": {
+                        "target_mode": "player", "target_username": victim_username,
+                        "target_id": profile["aimed_target"].get("target_id"),
+                        "label": serialized.get("victim_nick") or victim_username,
+                        "player_hack_access_until": serialized.get("hacked_until"),
+                    },
                     "player_hack_access": serialized, "target": None,
                     "actions_allowed_marked": marked_actions, "created_operations": created_operations,
                     "message": f"Dostep do {serialized.get('victim_nick') or victim_username} przyznany.",
@@ -30744,6 +30771,15 @@ def gonna_win():
                 )
             except ValueError as exc:
                 payload = {"success": False, "reason": str(exc), "message": "Nie mozna przyznac dostepu."}
+                if str(exc) == "player_hack_cooldown":
+                    cooldown = player_hack_access_store.get_cooldown(session["user"], victim_username) or {}
+                    seconds = max(0, int(cooldown.get("cooldown_seconds_left") or 0))
+                    payload.update(
+                        blocked=True,
+                        message=f"Cooldown PvP dla tego gracza. Ponowny dostep mozliwy za ok. {max(1, math.ceil(seconds / 60))} min.",
+                        cooldown_seconds_left=seconds,
+                        cooldown_until=cooldown.get("cooldown_until"),
+                    )
                 finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
                 return jsonify(payload), 409
             finish_gonna_win_receipt(payload)

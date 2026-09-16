@@ -8689,6 +8689,7 @@
                 scheduleSnapshot(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS, 500);
                 scheduleSnapshot(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS, 5600);
                 scheduleSnapshot(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS, 8200);
+                scheduleSnapshot(window.updatePlayerCooldownClocks, 1000);
             };
 
             window.bootMapOptionalScopes = function() {
@@ -9999,6 +10000,24 @@
                 lastContextWasMarker = true;
             };
 
+            window.playerCooldownDeadline = function(value) {
+                if (!value) return NaN;
+                const raw = String(value);
+                return Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw : `${raw}Z`);
+            };
+            window.playerCooldownText = function(deadline) {
+                const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                if (!Number.isFinite(seconds) || seconds <= 0) return '';
+                return `CD ${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+            };
+            window.updatePlayerCooldownClocks = function() {
+                document.querySelectorAll('[data-player-cooldown-deadline]').forEach(node => {
+                    const text = window.playerCooldownText(Number(node.dataset.playerCooldownDeadline));
+                    node.textContent = text;
+                    node.hidden = !text;
+                });
+            };
+
             window.buildPlayerActorIcon = function(actor) {
                 const sources = (actor.context && actor.context.sources) || [];
                 const isIntruder = actor.relation === 'intruder' || sources.includes('intruder');
@@ -10006,6 +10025,10 @@
                 const isCrew = actor.relation === 'same_clan' || sources.includes('crew');
                 const isTarget = Boolean(actor.target_status || (actor.context && actor.context.is_marked_target));
                 const markerWidth = 68;
+                const cooldownDeadline = window.playerCooldownDeadline(actor.player_hack_cooldown_until);
+                const cooldownText = window.playerCooldownText(cooldownDeadline);
+                const cooldownBadge = cooldownText
+                    ? `<div data-player-cooldown-deadline="${cooldownDeadline}" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);white-space:nowrap;background:#241600;color:#ffdc64;border:1px solid #ffdc64;padding:2px 4px;font:11px monospace;pointer-events:none;">${cooldownText}</div>` : '';
                 const markerHeight = isTarget ? 76 : 58;
                 const name = window.escapeMapText(actor.nick || actor.username || 'gracz');
                 const color = isIntruder ? '#ff4b4b' : (isCrew ? '#53d8ff' : (isFriend ? '#26ff6a' : '#d8ff80'));
@@ -10024,6 +10047,7 @@
                     html: `
                         <div class="player-actor-marker-hitbox" style="width:${markerWidth}px;height:${markerHeight}px;max-width:${markerWidth}px;max-height:${markerHeight}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;font-family:monospace;color:${color};text-shadow:0 1px 2px #000;">
                             <div class="player-actor-marker-label" style="width:62px;height:16px;line-height:12px;font-size:10px;background:rgba(0,0,0,0.80);padding:1px 4px;border:1px solid ${isTarget ? '#ff1b1b' : color};margin-bottom:2px;color:${isTarget ? '#ffb3b3' : color};text-align:center;">${name}</div>
+                            ${cooldownBadge}
                             ${avatar}
                             ${targetBadge}
                         </div>

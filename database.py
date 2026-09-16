@@ -10082,6 +10082,22 @@ class PlayerHackAccessStore:
                          (username, receipt_key, target_key, dumps_json(payload), utc_now()))
             return payload
 
+    def visible_cooldowns(self, attacker, victims):
+        names = sorted(set(victims))
+        result = {}
+        with db_connect(self.db_path) as conn:
+            for offset in range(0, len(names), 200):
+                batch = names[offset:offset + 200]
+                placeholders = ','.join('?' for _ in batch)
+                rows = conn.execute(
+                    f"""SELECT victim_username, cooldown_until FROM player_hack_access
+                        WHERE attacker_username=? AND victim_username IN ({placeholders})
+                        AND cooldown_until > ? AND hacked_until <= ?""",
+                    (attacker, *batch, utc_now(), utc_now()),
+                ).fetchall()
+                result.update({row['victim_username']: row['cooldown_until'] for row in rows})
+        return result
+
     def get_cooldown(self, attacker_username, victim_username):
         now = utc_now()
         with db_connect(self.db_path) as conn:

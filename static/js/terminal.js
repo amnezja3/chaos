@@ -948,6 +948,9 @@ function toolbarTargetAlreadyCaptured(profile, aimedTarget) {
 }
 
 function getToolbarTargetHackedEffectKey(target) {
+    if (target && target.target_mode === "player" && target.player_hack_access_until) {
+        return `player:${target.target_username}:${target.player_hack_access_until}`;
+    }
     return getTargetFeedbackKey(target)
         || [
             getToolbarTargetCoordKey(target),
@@ -1067,13 +1070,15 @@ function triggerToolbarTargetHackedEffect(target) {
 
 function toolbarResultCapturedTarget(data) {
     if (!data || typeof data !== "object" || data.success !== true) return false;
-    if (!data.captured_target) return false;
+    if (data.captured_player && (data.replayed || data.semantic_success_preserved
+        || !data.player_hack_access?.active)) return false;
+    if (!data.captured_target && !data.captured_player) return false;
     return !hasToolbarAimedTarget(data.target);
 }
 
 function handleToolbarTargetCapturedResult(data) {
     if (!toolbarResultCapturedTarget(data)) return false;
-    const target = data.captured_target;
+    const target = data.captured_player || data.captured_target;
     if (!hasToolbarAimedTarget(target)) return false;
     clearToolbarTargetLocalOverride(target);
     triggerToolbarTargetHackedEffect(target);
@@ -2560,6 +2565,7 @@ function buildApplicationLaunchContext(appData = {}) {
         lng: aimedTarget.lng !== undefined ? aimedTarget.lng : aimedTarget.lon,
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
         target_mode: aimedTarget.target_mode || "",
+        target_username: aimedTarget.target_username || aimedTarget.username || "",
         vulnerability_id: aimedTarget.vulnerability_id || "",
         foreign_area_id: aimedTarget.foreign_area_id || "",
         stable_conflict_id: aimedTarget.stable_conflict_id || "",

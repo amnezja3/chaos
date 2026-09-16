@@ -32,6 +32,19 @@ class PlayerLauncherHotPathTest(unittest.TestCase):
                         'target_id': 'player:victim', 'selected_app_id': 'testScanner',
                         '_client_action_key': 'launch-test', '_flow_id': 'launch-flow'}
 
+    def test_cooldown_blocks_launch_before_queue_or_target_changes(self):
+        self.setup_launcher()
+        self.access.grant_access('attacker', 'victim')
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE player_hack_access SET hacked_until='2000-01-01T00:00:00' WHERE attacker_username='attacker'")
+        before = self.targets.get('attacker')
+        response = self.client.post('/hack-action', json=self.payload)
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertEqual(response.json['reason'], 'player_hack_cooldown')
+        self.assertIn('Cooldown', response.json['status'])
+        self.assertEqual(self.targets.get('attacker'), before)
+        self.assertEqual(self.client.get('/launch-queue').json, [])
+
     def test_heavy_launch_continuation_queue_and_replay_without_profile(self):
         self.setup_launcher(heavy=True)
         self.positions.upsert('victim', {'lat': 53, 'lng': 22})

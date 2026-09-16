@@ -5,6 +5,18 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Belka terminal/pulpit: lokalnie naprawiono utratę loginu w kontekście uruchomienia
+oraz dodano obsługę potwierdzenia captured_player przez istniejącą animację.
+Po wdrożeniu sprawdzić aktualizację kropek, animację przy przyznaniu dostępu
+i brak nadpisania belki po przełączeniu celu w trakcie działania aplikacji.
+Historyczny replay nie animuje ponownie. Odbiór autora pozostaje otwarty.
+
+Cooldown: po zgłoszeniu Xmappera z terminala dodano lokalnie kontrolę przed
+postępem w /gonna-win i przed launcherem w /hack-action oraz odliczanie nad
+widocznym avatarem (czas tylko dla pary obserwator–cel). 20 różnych testów
+Python i trzy zestawy JS PASS. Odbiór tych zmian na mapie/terminalu/pulpicie
+pozostaje otwarty. Nie zerowano cooldownów, nie zmieniono balansu.
+
 Sniffer: autor potwierdził transfer 78 HC SILENT (1783 → 1705 u ofiary,
 44689 po operacji u atakującego) oraz brak drugiego transferu przy ponowieniu.
 Pozostało mylące okno starego wyniku. Poprawka lokalna blokuje zakończone

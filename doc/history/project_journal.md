@@ -1,5 +1,53 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — belka celu PvP po aplikacjach terminala i pulpitu
+
+Diagnoza kodu: buildApplicationLaunchContext nie przenosił target_username,
+choć guard postępu PvP porównuje tę tożsamość. Odpowiedź dla aktualnego gracza
+była odrzucana jako stale_target_response_ignored. Kontekst zachowuje teraz login;
+ruch nie zmienia tożsamości, przełączenie/wyczyszczenie celu nadal blokuje wynik.
+Atomowy capture zwraca osobne captured_player (bez udawania przejęcia terytorium).
+Belka czyści zakończony cel i uruchamia istniejącą animację, deduplikowaną parą
+login–termin grantu. Historyczny replay, wygasły grant i zachowany wcześniejszy
+sukces nie wyzwalają ponownie animacji. Zmieniono wersję zasobu terminal.js.
+Trzy zestawy JS PASS: player_toolbar_result, gonna_win_lifecycle,
+session_generation_isolation. Odbiór wizualny terminal/pulpit po deployu otwarty;
+bez migracji i bez działań na produkcji.
+Python: 14 testów player_hack_completion i player_launcher_hot_path PASS
+w izolowanym katalogu/bazie, w tym capture i replay bez pełnego profilu.
+
+## 2026-09-16 — wspólny cooldown PvP i timer nad avatarem
+
+Autor doprecyzował: Xmapper uruchomiony z terminala pokazał sukces/kropki,
+choć kolejne aplikacje odmawiały grantu z cooldownem. Lokalna poprawka sprawdza
+cooldown na wejściu player-mode /hack-action oraz /gonna-win, przed zmianą
+postępu/kolejką/capture. Odpowiedź ma wspólne reason, blocked, message/status/error
+i termin oraz pozostały czas. Aktywny grant nie jest blokowany przez własny
+cooldown; reguła dokończenia hacku poza terytorium/zasięgiem pozostaje.
+
+Snapshot widocznych aktorów dokłada termin cooldownu wyłącznie dla obserwatora
+i widocznych celów. Zapytania partiami do 200 nazw, bez profili i bez listy
+cooldownów innych atakujących. Mapa pokazuje CD H:MM:SS nad avatarem, czas UTC,
+odświeżanie co sekundę przez istniejący lifecycle timerów mapy. Nakładka nie
+zmienia rozmiaru hitboxu i nie przechwytuje kliknięć. Po wygaśnięciu znika.
+
+Walidacja: 19 testów Python regresji PASS; rozszerzony test niezmienionego
+postępu/izolacji cooldownu PASS oraz nowy test blokady launchera bez wpisu
+kolejki PASS (20 różnych przypadków). Trzy zestawy JS PASS: timer, kolejność
+pozycji, hitbox. Bez deployu/migracji. Wymagany odbiór: mapa, terminal (Xmapper)
+i pulpit w trakcie cooldownu, brak nowych kropek i widoczny licznik.
+
+## 2026-09-16 — odmowa capture PvP: jawny komunikat cooldownu
+
+Autor zgłosił FAILED aplikacji przy hakowaniu graczy. Załączony log jednej
+próby /gonna-win potwierdza HTTP 409, reason=player_hack_cooldown; nie jest
+dowodem awarii wszystkich celów ani odmowy spowodowanej przeglądarką.
+Dotychczasowy komunikat „Nie mozna przyznac dostepu” ukrywał powód odmowy.
+Lokalnie odpowiedź zawiera blocked=true, komunikat cooldownu z pozostałymi
+minutami, cooldown_seconds_left i cooldown_until. Reguł ani terminów nie
+zmieniono, brak resetów/migracji/deployu. Sześć testów Python PASS: odmowa
+capture z czasem, brak odnowienia, współbieżne granty i niezależność celów.
+
 ## 2026-09-16 — Cyberner PASS; Sniffer: transfer PASS, blokada starego wyniku
 
 Autor potwierdził poprawne działanie Cybernera po poprawce obecności.

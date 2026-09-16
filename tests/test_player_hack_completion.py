@@ -46,6 +46,9 @@ class PlayerHackCompletionTest(unittest.TestCase):
             self.assertIn('player_hack_access', response.json)
             self.assertNotIn('hacked', response.json)
             deadline = response.json['player_hack_access']['hacked_until']
+            self.assertEqual(response.json['captured_player']['target_username'], 'victim')
+            self.assertEqual(response.json['captured_player']['player_hack_access_until'], deadline)
+            self.assertIsNone(response.json['captured_target'])
             self.assertEqual(self.targets.get_active_target('attacker'), {})
             with patch('database.datetime', wraps=datetime) as clock:
                 clock.utcnow.return_value = datetime.utcnow() + timedelta(hours=4)
@@ -54,6 +57,27 @@ class PlayerHackCompletionTest(unittest.TestCase):
             self.assertTrue(replay.json['replayed'])
             self.assertFalse(replay.json['player_hack_access']['active'])
             self.assertEqual(replay.json['player_hack_access']['hacked_until'], deadline)
+
+    def test_cooldown_explains_capture_refusal_without_renewing_access(self):
+        self.setup_complete()
+        self.access.grant_access('attacker', 'victim')
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE player_hack_access SET hacked_until=? WHERE attacker_username='attacker'",
+                         ((datetime.utcnow() - timedelta(minutes=1)).isoformat(timespec='seconds'),))
+        before = self.access.get_cooldown('attacker', 'victim')
+        target_before = self.targets.get('attacker')
+        response = self.client.post('/gonna-win', json=self.request)
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertEqual(response.json['reason'], 'player_hack_cooldown')
+        self.assertTrue(response.json['blocked'])
+        self.assertIn('Cooldown PvP', response.json['message'])
+        self.assertGreater(response.json['cooldown_seconds_left'], 0)
+        self.assertEqual(response.json['cooldown_until'], before['cooldown_until'])
+        self.assertIsNone(self.access.get_active_access('attacker', 'victim'))
+        self.assertEqual(self.targets.get('attacker'), target_before)
+        self.assertEqual(self.access.visible_cooldowns('attacker', ['victim']), {'victim': before['cooldown_until']})
+        self.assertEqual(self.access.visible_cooldowns('other', ['victim']), {})
+        self.assertEqual(self.access.visible_cooldowns('attacker', ['other']), {})
 
     def test_rollback_after_access_before_terminal_target(self):
         self.setup_complete()
