@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — Cyberner PASS; Sniffer: transfer PASS, blokada starego wyniku
+
+Autor potwierdził poprawne działanie Cybernera po poprawce obecności.
+Financial Sniffer: 78 HC, SILENT, ofiara 1783 → 1705 HC, atakujący po
+operacji 44689 HC. Autor potwierdził poprawność i brak ponownego pobrania
+przy kolejnym kliknięciu. UI nadal pokazywało poprzedni wynik jako sukces.
+
+Lokalna poprawka: ukończone użycie Sniffera blokuje przycisk w serializacji
+dostępu, również po reloadzie. Bezpośrednie ponowienie zwraca 409
+tool_already_used i aktualny dostęp bez okna starego wyniku. Pending pozostaje
+dostępne dla recovery już rozpoczętej operacji; nie zmieniono wallet receipt
+ani losowania. Dwa testy Python PASS: pending/recovery, brak drugiego transferu,
+blokada po reloadzie oraz reserve → transfer → complete. Bez deployu/migracji.
+Pozostaje odbiór blokady po wdrożeniu; DETECTED nie ma odbioru w tej próbie.
+
 ## 2026-09-16 — Cyberner: online znajomych i licznik WORLD
 
 Autor zgłosił offline aktywnych znajomych i WORLD = 1 przy trzech graczach.

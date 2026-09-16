@@ -17869,6 +17869,14 @@ def serialize_player_hack_access(access):
     ]}
     seconds_left = max(0, int(access.get("seconds_left") or 0))
     tools = public_pro_system_tools(attacker_profile)
+    sniffer_usage = player_hack_access_store.get_tool_usage(
+        access, access.get("attacker_username"), access.get("victim_username"), "financialSniffer"
+    )
+    if sniffer_usage and not str(sniffer_usage.get("result") or "").startswith("pending:"):
+        for tool in tools:
+            if tool.get("id") == "financialSniffer":
+                tool.update(enabled=False, used=True,
+                            disabled_reason="Financial Sniffer byl juz uzyty podczas tego dostepu.")
     if player_hack_access_store.has_tool_usage(
         access, access.get("attacker_username"), access.get("victim_username"), "friendKicker"
     ):
@@ -26372,22 +26380,11 @@ def api_player_hack_tool_use():
                 )
             refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
             return jsonify({
-                "success": True,
-                "duplicate": True,
-                "tool_id": "financialSniffer",
-                "tool": dict(tool),
-                "result_type": "financial_sniffer",
-                "message": (
-                    f"Financial Sniffer przechwycil {final_amount} HC."
-                    if final_amount > 0 else "Financial Sniffer nie znalazl bezpiecznej kwoty do przechwycenia."
-                ),
-                "stolen_amount": final_amount,
-                "currency": "HC",
-                "detected": detected,
-                "victim_balance_after_known": False,
-                "attacker_balance": canonical_wallet_balance(session["user"]),
+                "success": False,
+                "reason": "tool_already_used",
+                "error": "Financial Sniffer byl juz uzyty podczas tego dostepu.",
                 "access": serialize_player_hack_access(refreshed_access),
-            })
+            }), 409
 
         base_min = 5
         base_max = 25

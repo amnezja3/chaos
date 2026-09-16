@@ -108,12 +108,19 @@ class FinalToolTests(PlayerHackReadPathsTest):
             with patch.object(self.messages, 'add_message', side_effect=RuntimeError('notification unavailable')):
                 self.assertEqual(self.use('financialSniffer').status_code, 500)
             self.assertEqual(wallet.balance_store.get_balance('attacker'), before + 8)
+            pending_access = self.client.get('/api/player-hack/access').json
+            self.assertTrue(next(t for t in pending_access['tools'] if t['id'] == 'financialSniffer')['enabled'])
             with patch.object(run, 'randint', side_effect=AssertionError('reroll')):
                 recovered = self.use('financialSniffer')
                 replay = self.use('financialSniffer')
             self.assertEqual(recovered.status_code, 200, recovered.json)
-            self.assertEqual(replay.status_code, 200, replay.json)
-            self.assertTrue(replay.json['duplicate'])
+            self.assertEqual(replay.status_code, 409, replay.json)
+            self.assertEqual(replay.json['reason'], 'tool_already_used')
+            self.assertNotIn('result_type', replay.json)
+            for access in (recovered.json['access'], replay.json['access'], self.client.get('/api/player-hack/access').json):
+                tool = next(t for t in access['tools'] if t['id'] == 'financialSniffer')
+                self.assertFalse(tool['enabled'])
+                self.assertTrue(tool['used'])
             self.assertEqual(wallet.balance_store.get_balance('attacker'), before + 8)
             with db_connect(self.path) as conn:
                 self.assertEqual(conn.execute("SELECT count(*) FROM system_messages WHERE source='financial_sniffer'").fetchone()[0], 1)

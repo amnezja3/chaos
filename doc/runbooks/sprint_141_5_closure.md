@@ -5,6 +5,13 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Sniffer: autor potwierdził transfer 78 HC SILENT (1783 → 1705 u ofiary,
+44689 po operacji u atakującego) oraz brak drugiego transferu przy ponowieniu.
+Pozostało mylące okno starego wyniku. Poprawka lokalna blokuje zakończone
+użycie w panelu i zwraca 409 przy ponowieniu; pending zachowuje recovery.
+Dwa testy Python PASS. Oczekuje odbioru tej blokady, bez nowej migracji.
+Autor potwierdził też PASS poprawki obecności Cybernera.
+
 Uzupełnienie odbioru Friend Kickera: komunikat potwierdzony również w Chrome
 incognito (85%, rzut 33). Wcześniejszy brak w zwykłym profilu Chrome jest
 zależny od konfiguracji/środowiska profilu; dokładna przyczyna nieustalona.
