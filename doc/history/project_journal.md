@@ -1,5 +1,48 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — hasło admina nadpisywane podczas logowania
+
+Zgłoszenie: Ustawienia → Zmień hasło zwraca sukces, ale dla admina nowe hasło
+nie działa. Potwierdzona przyczyna w kodzie: index POST wywołuje
+ensure_dev_admin_account przed uwierzytelnieniem, a helper przywracał hasło
+bootstrapowe istniejącemu kontu. Usunięto reset credentials istniejącego admina;
+hasło startowe jest ustawiane wyłącznie przy tworzeniu konta. Zachowano guarded
+write/CAS oraz dotychczasowe pozostałe pola bootstrapu.
+5 testów test_service_profile_creation PASS na izolowanej bazie. Nowa regresja
+wywołuje rzeczywisty /api/profile/account, potem logowanie nowym hasłem oraz
+nieudaną próbę hasłem startowym; hasło i rewizja pozostają niezmienione.
+Nie odczytywano ani nie zmieniano rzeczywistych haseł. Bez migracji/deployu.
+Po wdrożeniu autor musi ponownie ustawić wybrane hasło; poprawka nie odtwarza
+wcześniejszego hasła nadpisanego przez starą wersję helpera.
+
+## 2026-09-16 — frontend odebrany, wzmocnienie recovery PvP
+
+Autor potwierdził równoległe testy desktop/mobile, dotyk oraz wygląd i zachowanie
+frontendu: wszystkie PASS. Pozostała praca dotyczy odporności mechaniki, nie UI.
+Audyt ujawnił brak powtórnej kontroli grantu/instalacji tuż przed security write
+oraz osobną transakcję powiadomienia Cleanera. Dodano precommit dla obu tras
+security i atomowe powiadomienie Cleanera (jawne ID z receipt), z recheckiem
+grantu i instalacji. CAS/LKG i istniejące guardy sesji pozostają w użyciu.
+Utracona odpowiedź po commit: retry zwraca used, bez ponownego efektu;
+nie odtwarza nowego losowania. Błąd notice przed commit: pełny rollback.
+Walidacja izolowana: 19 różnych testów Python PASS (15 + 4), w tym cztery
+nowe testy z podprzypadkami expiry/uninstall obu tras security, CAS, Cleaner
+rollback/utracona odpowiedź i cofnięcie instalacji. Regresja zawiera istniejące
+recovery Friend/Sniffer, konkurencję Cleanera i 10 testów session precommit.
+Nie wykonywano deployu/restartu/migracji ani rzeczywistego rozłączenia serwera.
+Odbiór frontend/gameplay pozostaje zaliczony; pakiet backendu czeka na wdrożenie.
+
+## 2026-09-16 — odbiór gameplayu 141 po poprawkach końcowych
+
+Autor: „tshark wypadł z arsenału pies4”, „zegary działają”, „gameplay pass”.
+Potwierdzone również jednolite szare przyciski wszystkich sześciu narzędzi.
+Cleaner u S.dogy: szansa 80%, rzut 18, APP REMOVED/DETECTED i notice ofiary;
+odbiór obejmuje aktualizację otwartych Plików i zastępuje poprzedni FAIL.
+Gameplay odebrany. Pozostaje techniczne rozliczenie 141.5 według runbooka;
+nie przypisujemy temu odbiorowi niewykonanych testów recovery, wyścigów,
+macierzy urządzeń ani pomiarów opóźnień. Nie uruchamiano nowych testów w tym
+przeglądzie statusu ani nie wykonywano działań na produkcji.
+
 ## 2026-09-16 — PvP: zegar od grantu, wspólna blokada i live Pliki
 
 Po odbiorze autor zgłosił trzy niespójności. Cooldown widocznych aktorów jest

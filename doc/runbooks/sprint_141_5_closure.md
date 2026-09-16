@@ -5,6 +5,33 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Najnowszy odbiór autora: mobile testowany równolegle z desktopem, dotyk oraz
+wygląd i zachowanie całego frontendu **PASS**. Nie wymagamy ponownego odbioru UI
+ani nie traktujemy braku listy rozdzielczości jako otwartej usterki.
+
+Pakiet odporności backendu, lokalnie: security update/preset ponownie sprawdzają
+ten sam grant i instalację pod writer-lockiem, obok istniejącego CAS i guardów
+sesji. Zmiana uprawnienia daje kontrolowane 409 player_access_changed, bez
+podszywania się pod błąd generacji sesji. Cleaner zapisuje powiadomienie w tej
+samej transakcji co uninstall, event inventory i usage. Grant sprawdzany pod
+lockiem; cofnięcie instalacji przed commit cofa wszystkie efekty.
+19 testów Python PASS: wymuszona awaria powiadomienia, utracona odpowiedź po
+commit, retry bez kolejnego usunięcia, expiry/uninstall dla obu tras security,
+CAS z równoległą zmianą ofiary, regresje Cleanera/Friend/Sniffer i 10 testów
+session-generation precommit. Scenariusze awarii zasymulowane na izolowanych
+bazach; nie są pomiarem rzeczywistego zerwania TCP ani opóźnień produkcji.
+Bez zmiany frontendu/balansu, bez migracji. Pakiet czeka na wdrożenie operatora.
+Starsze checkpointy poniżej nie cofają tych odbiorów i dowodów.
+
+Odbiór autora po ostatnim wdrożeniu: **GAMEPLAY PASS**. Autor potwierdził zegary,
+jednolite blokady sześciu narzędzi i usunięcie TSharka u pies4 (nick S.dogy)
+z otwartych Plików. Screenshot Cleanera: APP REMOVED, DETECTED, 80%, rzut 18;
+powiadomienie ofiary widoczne. Ten odbiór zastępuje poniższe historyczne
+NIEZALICZONY/oczekiwanie dla tych poprawek. Terminal, belka i animacja mają
+wcześniejszy odbiór autora. Nie oznacza to wykonania całej technicznej macierzy
+recovery, wyścigów security, urządzeń ani pomiarów mapy. 141.5 nadal otwarty
+do rozliczenia pozostałych dowodów i końcowego raportu.
+
 Najnowsza poprawka: zegar również podczas aktywnego dostępu i odświeżenie mapy
 po przyznaniu grantu; sześć narzędzi z jednolitym used/disabled przyciskiem;
 Cleaner z atomowym eventem odświeżającym otwarte Pliki ofiary. Log Reader oraz

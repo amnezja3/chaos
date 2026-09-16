@@ -120,6 +120,10 @@ class ProfilePrecommitRejected(ProfileWriteError):
     """Raised when a durable request/session guard rejects a profile commit."""
 
 
+class PlayerHackAccessChanged(ProfileWriteError):
+    """A PvP grant or tool entitlement changed before its effect committed."""
+
+
 class WalletWriteError(ValueError):
     """Base class for controlled canonical-wallet failures."""
 
@@ -11977,13 +11981,16 @@ class PlayerInventoryStore:
                 continue
         return 0
 
-    def apply_arsenal_cleaner(self, access_store, access, attacker, victim, app_id, result):
+    def apply_arsenal_cleaner(self, access_store, access, attacker, victim, app_id, result, *, finalize=None):
         """Commit the single-use receipt and canonical uninstall together."""
         if os.path.abspath(self.db_path) != os.path.abspath(access_store.db_path):
             raise ValueError("Cleaner stores must share a database")
         inventory_deltas = GameStateDeltaBus(self.db_path)
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            current = access_store.get_active_access(attacker, victim, conn=conn)
+            if not current or access_store.access_key(current) != access_store.access_key(access):
+                raise PlayerHackAccessChanged("Player access expired or changed")
             receipt = access_store.record_tool_usage(
                 access, attacker, victim, "arsenalCleaner", result=result,
                 amount=1 if result == "removed" else 0, conn=conn,
@@ -12002,6 +12009,8 @@ class PlayerInventoryStore:
                      "app_id": app_id, "reason": "arsenalCleaner"},
                     entity_id=app_id, dedupe_key=f"cleaner:{receipt['id']}:inventory", conn=conn,
                 )
+            if finalize is not None:
+                finalize(conn, receipt)
             return receipt
 
     def uninstall_app(self, username, app_id="", tool_id="", *, conn=None):

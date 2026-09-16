@@ -107,7 +107,34 @@ class ServiceProfileCreationTests(unittest.TestCase):
         record = self.store.get_profile_with_revision("admin")
         self.assertEqual(2, record["profile_revision"])
         self.assertTrue(record["profile"]["dev_account"])
-        self.assertTrue(self.store.authenticate("admin", "1234"))
+        self.assertTrue(self.store.authenticate("admin", "old-password"))
+        self.assertFalse(self.store.authenticate("admin", "1234"))
+
+    def test_admin_settings_password_survives_login_bootstrap(self):
+        from session_generation_fixture import SessionGenerationFixture
+        fixture = SessionGenerationFixture().start()
+        self.addCleanup(fixture.stop)
+        run.ensure_dev_admin_account()
+        client = run.app.test_client()
+        fixture.authenticate(client, 'admin')
+        with patch.object(run, 'authenticate_user', side_effect=self.store.authenticate):
+            changed = client.post('/api/profile/account', json={
+                'current_password': '1234', 'new_password': 'Isolated-test-6789'})
+            self.assertEqual(changed.status_code, 200, changed.json)
+            self.assertTrue(changed.json['password_changed'])
+            after_change = self.store.get_profile_with_revision('admin')
+            with patch.object(run, 'begin_authenticated_session') as begin:
+                response = run.app.test_client().post('/', data={
+                    'username': 'admin', 'password': 'Isolated-test-6789'})
+                self.assertEqual(response.status_code, 302)
+                begin.assert_called_once_with('admin')
+            # A failed login must not restore the bootstrap password either.
+            with patch.object(run, 'begin_authenticated_session') as begin:
+                run.app.test_client().post('/', data={'username': 'admin', 'password': '1234'})
+                begin.assert_not_called()
+            self.assertFalse(self.store.authenticate('admin', '1234'))
+            self.assertTrue(self.store.authenticate('admin', 'Isolated-test-6789'))
+            self.assertEqual(self.store.get_profile_with_revision('admin'), after_change)
 
     def test_purchase_account_is_full_guarded_create_and_idempotent(self):
         profile = run.ensure_purchase_account_profile("service-payee")

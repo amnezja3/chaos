@@ -18918,19 +18918,13 @@ def ensure_dev_admin_account():
         profile["curently_possition"] = profile.get("curently_possition") or {"lat": 52.2297, "lng": 21.0122}
         profile["inventory"] = profile.get("inventory") or []
         profile["files"] = profile.get("files") or {"download": [], "pictures": [], "social-media": [], "projects": [], "tools": []}
-        password_ready = False
-    else:
-        profile = copy.deepcopy(record["profile"])
-        password_ready = user_store.authenticate("admin", "1234")
-        if password_ready:
-            # Legacy plaintext authentication can upgrade the hash under CAS.
-            record = load_profile_write_record("admin")
-            profile = copy.deepcopy(record["profile"])
-
-    profile["username"] = "admin"
-    if not password_ready:
         profile["password"] = "1234"
         profile["salt"] = ""
+    else:
+        profile = copy.deepcopy(record["profile"])
+
+    profile["username"] = "admin"
+    # Bootstrap must never reset credentials of an existing administrator.
     profile["dev_account"] = True
     profile["level"] = max(int(profile.get("level", 1) or 1), 50)
     profile["respect"] = max(int(profile.get("respect", 0) or 0), 1000)
@@ -26255,6 +26249,26 @@ def execute_intruder_kicker(attacker, victim):
         return result, 200
 
 
+from database import PlayerHackAccessChanged
+
+
+@app.errorhandler(PlayerHackAccessChanged)
+def reject_player_hack_access_changed(_error):
+    return jsonify({"success": False, "reason": "player_access_changed",
+                    "error": "Dostep PvP wygasl, zmienil sie lub narzedzie odinstalowano. Odswiez panel."}), 409
+
+
+def player_hack_write_guard(attacker, victim, tool_id, access):
+    expected_key = player_hack_access_store.access_key(access)
+    def guard(*, conn, **_kwargs):
+        current = player_hack_access_store.get_active_access(attacker, victim, conn=conn)
+        if not current or player_hack_access_store.access_key(current) != expected_key:
+            raise PlayerHackAccessChanged("Player access expired or changed")
+        if not player_inventory_store.has_app(attacker, tool_id, conn=conn):
+            raise PlayerHackAccessChanged("Player tool uninstalled")
+    return guard
+
+
 def validate_player_hack_tool_installation(attacker_username, victim_username, tool_id):
     """Common bounded gate, including direct security mutation routes."""
     if not identity_projection_store.get_identity(attacker_username):
@@ -26580,6 +26594,19 @@ def api_player_hack_tool_use():
         result["access"] = serialize_player_hack_access(player_hack_access_store.get_active_access(attacker, victim_username))
         return jsonify(result)
     if tool_id == "arsenalCleaner":
+        write_guard = player_hack_write_guard(session["user"], victim_username, tool_id, access)
+        def finalize_cleaner(conn, receipt):
+            write_guard(conn=conn)
+            outcome = receipt.get("result")
+            if outcome not in {"removed", "failed_detected"}:
+                return
+            removed_notice = outcome == "removed"
+            system_message_store.add_message(victim_username, {
+                "id": f"arsenal_cleaner:{receipt['id']}:victim",
+                "type": "warning",
+                "title": "Arsenal naruszony" if removed_notice else "Wykryto probe czyszczenia arsenalu",
+                "text": "Jedno z narzedzi zostalo usuniete przez nieznana ingerencje." if removed_notice else "Wykryto probe czyszczenia arsenalu.",
+            }, source="arsenal_cleaner", conn=conn)
         if player_hack_access_store.has_tool_usage(access, session["user"], victim_username, tool_id):
             return already_used_response()
 
@@ -26596,6 +26623,7 @@ def api_player_hack_tool_use():
         if not candidates:
             receipt = player_inventory_store.apply_arsenal_cleaner(
                 player_hack_access_store, access, session["user"], victim_username, "", "no_apps",
+                finalize=finalize_cleaner,
             )
             if receipt.get("duplicate"):
                 return already_used_response()
@@ -26641,27 +26669,15 @@ def api_player_hack_tool_use():
         result = "removed" if removed else ("failed_detected" if detected else "failed_silent")
         receipt = player_inventory_store.apply_arsenal_cleaner(
             player_hack_access_store, access, session["user"], victim_username, target_app_id, result,
+            finalize=finalize_cleaner,
         )
         if receipt.get("duplicate"):
             return already_used_response()
         removed = receipt["result"] == "removed"
         if removed:
-            add_system_message_to_user(
-                victim_username,
-                "warning",
-                "Arsenal naruszony",
-                "Jedno z narzedzi zostalo usuniete przez nieznana ingerencje."
-            )
             message = "Arsenal Cleaner usunal jedno narzedzie ofiary."
             result = "removed"
         else:
-            if detected:
-                add_system_message_to_user(
-                    victim_username,
-                    "warning",
-                    "Wykryto probe czyszczenia arsenalu",
-                    "Wykryto probe czyszczenia arsenalu."
-                )
             message = "Arsenal Cleaner nie zdolal usunac aplikacji."
             result = "failed_detected" if detected else "failed_silent"
 
@@ -26733,6 +26749,7 @@ def api_player_hack_security_update():
         {"security": security},
         source="player_hack.security_update",
         expected_revision=int(victim_record["profile_revision"]),
+        precommit_guard=player_hack_write_guard(session["user"], victim_username, "securityPanelProxy", access),
     )
     refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
     return jsonify({
@@ -26780,6 +26797,7 @@ def api_player_hack_security_preset():
         {"security": security},
         source="player_hack.security_preset",
         expected_revision=int(victim_record["profile_revision"]),
+        precommit_guard=player_hack_write_guard(session["user"], victim_username, "securityPanelProxy", access),
     )
     refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
     return jsonify({
