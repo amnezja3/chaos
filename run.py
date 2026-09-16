@@ -28999,8 +28999,9 @@ def send_chat_message():
         )
         for recipient_name in notification_recipients if created else []:
             try:
+                recipient_peer = username if route["channel"] == "direct" else legacy_peer
                 add_cyberner_notification_to_user(
-                    recipient_name, legacy_scope, legacy_peer, username,
+                    recipient_name, legacy_scope, recipient_peer, username,
                     message_id=(committed_message or {}).get("message_id") or (committed_message or {}).get("id"),
                 )
                 if route["channel"] in {"friends", "direct"}:

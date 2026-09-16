@@ -16,6 +16,7 @@ from database import (
     get_hot_path_metrics,
     reset_hot_path_metrics,
     restore_hot_path_metrics,
+    db_connect,
 )
 from tests.session_generation_fixture import SessionGenerationFixture
 
@@ -131,6 +132,48 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         )
         self.assertEqual(len(self.system_store.consume_pending("bob")), 1)
         self.assertEqual(len(self.system_store.consume_pending("carol")), 1)
+
+    def test_direct_notice_opens_sender_and_reply_reaches_sender(self):
+        alice, bob = self.client_for("alice"), self.client_for("bob")
+        sent = alice.post('/api/chats/messages', json={
+            'scope': 'direct', 'peer': 'bob', 'body': 'hello'})
+        self.assertEqual(sent.status_code, 200, sent.json)
+        notice = self.system_store.consume_pending('bob')[0]
+        self.assertEqual(notice['peer'], 'alice')
+        history = bob.get('/api/chats/messages', query_string={
+            'scope': notice['scope'], 'peer': notice['peer']})
+        self.assertEqual(history.json['messages'][-1]['body'], 'hello')
+        reply = bob.post('/api/chats/messages', json={
+            'scope': notice['scope'], 'peer': notice['peer'], 'body': 'reply'})
+        self.assertEqual(reply.status_code, 200, reply.json)
+        self.assertEqual(self.mail_store.list_messages('alice', 'direct', 'bob')[-1]['body'], 'reply')
+        self.assertTrue(self.mail_store.is_accepted_contact('alice', 'bob'))
+        self.assertFalse(self.mail_store.is_contact('bob', 'bob'))
+        self.assertEqual(self.system_store.consume_pending('alice')[0]['peer'], 'bob')
+
+    def test_self_message_and_contact_are_rejected_without_writes(self):
+        alice = self.client_for('alice')
+        response = alice.post('/api/chats/messages', json={
+            'scope': 'direct', 'peer': ' alice ', 'body': 'self'})
+        self.assertEqual(response.status_code, 400, response.json)
+        self.assertEqual(alice.post('/api/contacts', json={'name': 'alice'}).status_code, 400)
+        with self.assertRaises(ValueError):
+            self.mail_store.add_message('alice', 'direct', 'alice', 'alice', 'self', auto_add_contact=True)
+        self.assertEqual(self.mail_store.list_messages('alice', 'direct', 'alice'), [])
+        self.assertFalse(self.mail_store.is_contact('alice', 'alice'))
+
+    def test_bootstrap_repairs_self_contact_without_deleting_history(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("INSERT INTO contacts(owner_username,contact_name,status,created_at) VALUES ('alice','alice','online','')")
+            conn.execute("INSERT INTO chat_messages(owner_username,scope,peer_name,sender,body,created_at) VALUES ('alice','direct','alice','alice','old self message','')")
+        self.mail_store.add_contact_pair('alice', 'bob')
+        with run.app.test_request_context('/api/mail/bootstrap'):
+            run.session['user'] = 'alice'
+            run.ensure_mail_seed()
+        self.assertFalse(self.mail_store.is_contact('alice', 'alice'))
+        self.assertTrue(self.mail_store.is_accepted_contact('alice', 'bob'))
+        self.assertNotIn('alice', [item['name'] for item in self.mail_store.list_pending_threads('alice')])
+        self.assertEqual(len(self.mail_store.list_messages('alice', 'direct', 'alice')), 1)
 
     def test_world_read_advances_only_viewers_cursor(self):
         self.world_store.add_message("alice", "one", client_message_id="one")

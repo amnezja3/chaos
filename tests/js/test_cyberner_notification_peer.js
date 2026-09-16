@@ -1,0 +1,16 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('static/js/terminal.js', 'utf8');
+const start = source.indexOf('function normalizeCybernerNotificationThread(');
+const end = source.indexOf('function isCybernerThreadCurrentlyOpen(', start);
+const context = vm.createContext({toolbarProfile: {username: 'main'}, CYBERNER_NOTIFICATION_LIBRARY: {unknown: {label: 'Chat'}}});
+vm.runInContext(source.slice(start, end), context);
+const normalize = context.normalizeCybernerNotificationThread;
+assert.equal(normalize({scope: 'direct', peer: 'neo1', sender: 'neo1'}).peer, 'neo1');
+assert.equal(normalize({scope: 'direct', peer: 'main', sender: 'neo1'}).peer, 'neo1');
+assert.equal(normalize({scope: 'direct', peer: 'main', sender: 'main'}), null);
+assert.equal(normalize({scope: 'direct', peer: 'neo1', sender: 'Display alias'}).peer, 'neo1');
+assert.equal(normalize({scope: 'group', peer: 'global', sender: 'neo1'}).peer, 'global');
+assert.equal(normalize({scope: 'channel', peer: 'friends', sender: 'neo1'}).peer, 'friends');
+console.log('Cyberner notification routing: PASS');

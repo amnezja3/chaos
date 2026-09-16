@@ -17642,7 +17642,7 @@ function createEmailClient() {
     };
 
     const openDirectChat = async (name) => {
-        if (!name) return;
+        if (!name || name === currentUser) return;
         currentChat = { scope: "direct", peer: name };
         setActiveThread();
         openMailChatViewIfNarrow();
@@ -18004,7 +18004,13 @@ function formatStorageSize(value, unit = "MB") {
 function normalizeCybernerNotificationThread(message) {
     if (!message || typeof message !== "object") return null;
     const scope = message.scope || (message.channel === "world" ? "group" : "direct");
-    const peer = message.peer || (scope === "group" ? "global" : message.sender || message.title);
+    let peer = message.peer || (scope === "group" ? "global" : message.sender || message.title);
+    const self = String((toolbarProfile || {}).username || "");
+    // Repair notifications queued before recipient-relative direct routing.
+    if (scope === "direct" && self && peer === self) {
+        peer = message.sender;
+        if (!peer || peer === self) return null;
+    }
     const source = message.source || (scope === "group" ? "world" : "player");
     const channel = scope === "group" && peer === "global"
         ? "world"

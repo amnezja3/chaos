@@ -14892,6 +14892,7 @@ class MailStore:
                     AND c.contact_name = m.peer_name
                 WHERE m.owner_username = ?
                     AND m.scope = 'direct'
+                    AND m.peer_name != m.owner_username
                     AND c.id IS NULL
                 GROUP BY m.peer_name
                 ORDER BY last_id DESC
@@ -15031,7 +15032,8 @@ class MailStore:
                 """
                 DELETE FROM contacts
                 WHERE owner_username = ?
-                    AND contact_name NOT IN (SELECT username FROM users)
+                    AND (contact_name = owner_username
+                         OR contact_name NOT IN (SELECT username FROM users))
                 """,
                 (username,),
             )
@@ -15087,6 +15089,8 @@ class MailStore:
         peer_name = "global" if scope == "group" else (peer_name or "").strip()
         if scope in {"direct", "channel"} and not peer_name:
             raise ValueError("Peer name is required.")
+        if scope == "direct" and peer_name == username:
+            raise ValueError("Nie mozesz wyslac wiadomosci do samego siebie.")
 
         with db_connect(self.db_path) as conn:
             accept_pending_contact = False

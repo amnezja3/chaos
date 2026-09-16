@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — Cyberner: rozmówca z powiadomienia i blokada rozmowy ze sobą
+
+Powiadomienie prywatnej wiadomości otrzymywało peer odbiorcy zamiast nadawcy.
+Routing jest teraz względny wobec odbiorcy; frontend koryguje również starsze
+powiadomienia wskazujące własne konto. MailStore blokuje self-DM przed zapisem
+i automatycznym przyjęciem kontaktu. Otwarcie własnego czatu jest blokowane.
+Istniejące błędne self-kontakty usuwa standardowe sprzątanie kontaktów podczas
+inicjalizacji Cybernera; historia pozostaje w bazie, bez self-wątku na liście
+oczekujących. Bez migracji. Zmieniono wersję zasobu terminal.js.
+16 testów Python PASS (routing, odpowiedź, blokada, naprawa kontaktu, presence),
+test JS normalizacji nowych/starych powiadomień PASS i kontrola składni JS PASS.
+Do odbioru po wdrożeniu: kliknięcie powiadomienia na drugim koncie i odpowiedź.
+
 ## 2026-09-16 — refaktoring panelu administracyjnego
 
 Autor potwierdził działanie zmiany profesji po naprawie epoki, następnie zlecił
