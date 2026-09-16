@@ -449,6 +449,11 @@ Docelowy rdzeń istniejących narzędzi do pełnej naprawy:
 
 ### 141.5 — integralność, interfejs i odbiór całej ścieżki PvP
 
+16 IX: autor odebrał okno PvP i uruchomił finalizację. Pierwszy pakiet
+techniczny lokalnie gotowy: bounded odczyty Sniffer/Friend/Security Proxy,
+atomowy Friend Kicker z replay, recovery powiadomień Sniffera i guard requestu
+UI. Szczegóły testów oraz pozostałe luki w runbooku poniżej. Etap nadal otwarty.
+
 Przygotowanie wykonawcze 16 IX: [plan domknięcia i pozostałe dowody](../runbooks/sprint_141_5_closure.md).
 Przegląd kodu potwierdził pełne odczyty w Snifferze, Friend Kickerze i otwarciu
 Security Proxy oraz osobny zapis efektu/usage Friend Kickera. To pozostałe

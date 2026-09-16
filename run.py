@@ -26292,7 +26292,7 @@ def api_player_hack_tool_use():
         })
 
     if tool_id == "securityPanelProxy":
-        victim_profile = user_store.get_profile(victim_username)
+        victim_profile = identity_projection_store.get_identity(victim_username)
         if not victim_profile:
             return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
 
@@ -26304,14 +26304,14 @@ def api_player_hack_tool_use():
             "message": "Security Panel Proxy polaczony z profilem ofiary.",
             "victim_username": victim_username,
             "victim_nick": victim_profile.get("nick") or victim_username,
-            "security": dict(victim_profile.get("security") or {}),
+            "security": identity_projection_store.get_player_security(victim_username),
             "rules": SECURITY_CONFLICTS,
             "access": serialize_player_hack_access(access),
         })
 
     if tool_id == "financialSniffer":
-        victim_profile = user_store.get_profile(victim_username)
-        attacker_profile = user_store.get_profile(session["user"])
+        victim_profile = identity_projection_store.get_identity(victim_username)
+        attacker_profile = capability_projection_store.get_capabilities(session["user"])
         if not victim_profile:
             return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
         if not attacker_profile:
@@ -26322,7 +26322,7 @@ def api_player_hack_tool_use():
         except (TypeError, ValueError):
             attacker_level = 1
         try:
-            attacker_respect = int(attacker_profile.get("respect", 0) or 0)
+            attacker_respect = int(identity_projection_store.get_desktop_boot(session["user"]).get("respect", 0) or 0)
         except (TypeError, ValueError):
             attacker_respect = 0
         victim_balance = canonical_wallet_balance(victim_username)
@@ -26332,6 +26332,13 @@ def api_player_hack_tool_use():
             f"{access_key}:{session['user']}:{victim_username}:{tool_id}".encode("utf-8")
         ).hexdigest()
         transfer_key = f"financial_sniffer:{transfer_key_hash}"
+        def notify_sniffer_detection():
+            system_message_store.add_message(victim_username, {
+                "type": "warning", "title": "Podejrzany ruch finansowy",
+                "text": "Wykryto probe sniffingu finansowego na twoim koncie.",
+                "body": "Wykryto probe sniffingu finansowego na twoim koncie.",
+                "status": "new", "dedupe_key": f"financial_sniffer_detected:{transfer_key}",
+            }, source="financial_sniffer")
         existing_usage = player_hack_access_store.get_tool_usage(
             access,
             session["user"],
@@ -26341,6 +26348,8 @@ def api_player_hack_tool_use():
         if existing_usage and not str(existing_usage.get("result") or "").startswith("pending:"):
             final_amount = int(existing_usage.get("amount") or 0)
             detected = str(existing_usage.get("result") or "") == "detected"
+            if detected:
+                notify_sniffer_detection()
             if final_amount > 0:
                 record_wallet_balance_delta(
                     victim_username,
@@ -26429,6 +26438,8 @@ def api_player_hack_tool_use():
                 reason="financial_sniffer_incoming",
                 dedupe_key=f"wallet:balance:{session['user']}:{transfer_key}:incoming",
             )
+        if detected:
+            notify_sniffer_detection()
         player_hack_access_store.complete_tool_usage(
             access,
             session["user"],
@@ -26437,16 +26448,6 @@ def api_player_hack_tool_use():
             result="detected" if detected else "silent",
             amount=final_amount,
         )
-
-        if detected:
-            system_message_store.add_message(victim_username, {
-                "type": "warning",
-                "title": "Podejrzany ruch finansowy",
-                "text": "Wykryto probe sniffingu finansowego na twoim koncie.",
-                "body": "Wykryto probe sniffingu finansowego na twoim koncie.",
-                "status": "new",
-                "dedupe_key": f"financial_sniffer_detected:{transfer_key}",
-            }, source="financial_sniffer")
 
         refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
         return jsonify({
@@ -26464,128 +26465,73 @@ def api_player_hack_tool_use():
         })
 
     if tool_id == "friendKicker":
-        if player_hack_access_store.has_tool_usage(access, session["user"], victim_username, tool_id):
-            return jsonify({
-                "success": False,
-                "error": "Friend Kicker byl juz uzyty podczas tego dostepu."
-            }), 409
+        attacker = session["user"]
+        capabilities = capability_projection_store.get_capabilities(attacker)
+        desktop = identity_projection_store.get_desktop_boot(attacker)
+        if not capabilities or not identity_projection_store.get_identity(victim_username):
+            return jsonify({"success": False, "error": "Brak gracza."}), 404
+        if any(os.path.abspath(store.db_path) != os.path.abspath(player_hack_access_store.db_path)
+               for store in (mail_store, system_message_store)):
+            raise RuntimeError("Friend Kicker stores must share a database")
 
-        victim_profile = user_store.get_profile(victim_username)
-        attacker_profile = user_store.get_profile(session["user"])
-        if not victim_profile:
-            return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
-        if not attacker_profile:
-            return jsonify({"success": False, "error": "Atakujacy nie istnieje."}), 404
-
-        blocked_contacts = {
-            "",
-            victim_username.lower(),
-            "admin",
-            "system",
-            "googolplex",
-        }
-        contacts = []
-        for contact in mail_store.list_contacts(victim_username):
-            name = str((contact or {}).get("name") or "").strip()
-            if not name or name.lower() in blocked_contacts:
-                continue
-            contacts.append(name)
-
-        if not contacts:
-            player_hack_access_store.record_tool_usage(
-                access,
-                session["user"],
-                victim_username,
-                tool_id,
-                result="no_contacts",
-                amount=0,
-            )
-            refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
-            return jsonify({
-                "success": True,
-                "tool_id": "friendKicker",
-                "tool": dict(tool),
-                "result_type": "friend_kicker",
-                "message": "Brak kontaktow do wypchniecia.",
-                "removed": False,
-                "reason": "Brak kontaktow do wypchniecia.",
-                "target_contact_known": False,
-                "kicked_contact_masked": "",
-                "chance": 0,
-                "roll": 0,
-                "detected": False,
-                "access": serialize_player_hack_access(refreshed_access),
-            })
-
-        kicked_contact = choice(contacts)
-        try:
-            attacker_level = int(attacker_profile.get("level", 1) or 1)
-        except (TypeError, ValueError):
-            attacker_level = 1
-        try:
-            attacker_respect = int(attacker_profile.get("respect", 0) or 0)
-        except (TypeError, ValueError):
-            attacker_respect = 0
-
-        chance = min(85, 35 + attacker_level * 4 + attacker_respect // 10)
-        roll = randint(1, 100)
-        removed = roll <= chance
-        risk_level = int(tool.get("risk_level", 3) or 3)
-        detected = removed or ((random() * 100) < min(45, 8 + risk_level * 5))
-
-        if removed:
-            mail_store.remove_contact(victim_username, kicked_contact)
-            if mail_store.is_contact(kicked_contact, victim_username):
-                mail_store.remove_contact(kicked_contact, victim_username)
-            add_system_message_to_user(
-                victim_username,
-                "warning",
-                "Zaklocenie kontaktow",
-                "Jeden z kontaktow zostal zerwany przez nieznana ingerencje."
-            )
-            add_system_message_to_user(
-                kicked_contact,
-                "info",
-                "Kontakt utracony",
-                "Polaczenie z jednym z graczy zostalo zerwane."
-            )
-            message = "Friend Kicker zerwal jeden kontakt ofiary."
-            result = "removed"
-        else:
+        def execute_friend_kicker(conn):
+            notice_key = hashlib.sha256(
+                f"{player_hack_access_store.access_key(access)}:{attacker}:{victim_username}".encode()
+            ).hexdigest()
+            rows = conn.execute(
+                "SELECT contact_name FROM contacts WHERE owner_username=? ORDER BY id LIMIT 1001",
+                (victim_username,),
+            ).fetchall()
+            if len(rows) > 1000:
+                raise ProfileRecoveryRequired("Friend Kicker contact limit exceeded")
+            blocked = {"", victim_username.lower(), "admin", "system", "googolplex"}
+            contacts = [row["contact_name"] for row in rows if str(row["contact_name"]).lower() not in blocked]
+            payload = {"success": True, "tool_id": tool_id, "result_type": "friend_kicker",
+                       "removed": False, "target_contact_known": False, "kicked_contact_masked": "",
+                       "chance": 0, "roll": 0, "detected": False,
+                       "message": "Brak kontaktow do wypchniecia."}
+            if not contacts:
+                payload["reason"] = payload["message"]
+                return payload
+            contact = choice(contacts)
+            level = int(capabilities.get("level") or 1)
+            respect = int(desktop.get("respect") or 0)
+            chance = min(85, 35 + level * 4 + respect // 10)
+            roll = randint(1, 100)
+            removed = roll <= chance
+            detected = removed or random() * 100 < min(45, 8 + int(tool.get("risk_level", 3) or 3) * 5)
+            if removed:
+                mail_store.remove_contact(victim_username, contact, conn=conn)
+                reverse = conn.execute("SELECT 1 FROM contacts WHERE owner_username=? AND contact_name=?",
+                                       (contact, victim_username)).fetchone()
+                if reverse:
+                    mail_store.remove_contact(contact, victim_username, conn=conn)
+                system_message_store.add_message(contact, {
+                    "dedupe_key": f"friend_kicker:{notice_key}:contact",
+                    "type": "info", "title": "Kontakt utracony",
+                    "text": "Polaczenie z jednym z graczy zostalo zerwane."
+                }, source="friend_kicker", conn=conn)
             if detected:
-                add_system_message_to_user(
-                    victim_username,
-                    "warning",
-                    "Wykryto probe manipulacji kontaktami",
-                    "Wykryto probe manipulacji kontaktami."
-                )
-            message = "Friend Kicker nie zdolal zerwac kontaktu."
-            result = "failed_detected" if detected else "failed_silent"
+                system_message_store.add_message(victim_username, {
+                    "dedupe_key": f"friend_kicker:{notice_key}:victim",
+                    "type": "warning",
+                    "title": "Zaklocenie kontaktow" if removed else "Wykryto probe manipulacji kontaktami",
+                    "text": "Jeden z kontaktow zostal zerwany przez nieznana ingerencje." if removed
+                            else "Wykryto probe manipulacji kontaktami."
+                }, source="friend_kicker", conn=conn)
+            payload.update(removed=removed, chance=chance, roll=roll, detected=detected,
+                           kicked_contact_masked=mask_contact_name(contact) if removed else "",
+                           message="Friend Kicker zerwal jeden kontakt ofiary." if removed
+                                   else "Friend Kicker nie zdolal zerwac kontaktu.")
+            return payload
 
-        player_hack_access_store.record_tool_usage(
-            access,
-            session["user"],
-            victim_username,
-            tool_id,
-            result=result,
-            amount=1 if removed else 0,
-        )
-        refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
-        return jsonify({
-            "success": True,
-            "tool_id": "friendKicker",
-            "tool": dict(tool),
-            "result_type": "friend_kicker",
-            "message": message,
-            "removed": removed,
-            "target_contact_known": False,
-            "kicked_contact_masked": mask_contact_name(kicked_contact) if removed else "",
-            "chance": chance,
-            "roll": roll,
-            "detected": detected,
-            "access": serialize_player_hack_access(refreshed_access),
-        })
-
+        result = player_hack_access_store.commit_tool_result(access, attacker, victim_username,
+                                                            tool_id, execute_friend_kicker)
+        if result is None:
+            return jsonify({"success": False, "error": "Friend Kicker byl juz uzyty podczas tego dostepu."}), 409
+        result["tool"] = dict(tool)
+        result["access"] = serialize_player_hack_access(player_hack_access_store.get_active_access(attacker, victim_username))
+        return jsonify(result)
     if tool_id == "arsenalCleaner":
         if player_hack_access_store.has_tool_usage(access, session["user"], victim_username, tool_id):
             return jsonify({

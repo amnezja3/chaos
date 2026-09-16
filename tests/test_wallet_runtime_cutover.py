@@ -243,6 +243,8 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
             with patch.object(run, "player_hack_access_store", access_store), \
                     patch.object(run, "wallet_store", wallet), \
                     patch.object(run.identity_projection_store, "get_identity", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
+                    patch.object(run.capability_projection_store, "get_capabilities", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
+                    patch.object(run.identity_projection_store, "get_desktop_boot", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
                     patch.object(run.player_inventory_store, "has_app", return_value=True), \
                     patch.object(run.user_store, "get_profile", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
                     patch.object(run, "canonical_wallet_balance", side_effect=lambda username: 100 if username == "victim" else 20), \

@@ -10169,6 +10169,31 @@ class PlayerHackAccessStore:
                 "duplicate": False,
             }
 
+    def commit_tool_result(self, access, attacker, victim, tool_id, execute):
+        """Run an effect and persist its safe response under a single writer lock."""
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = self.get_active_access(attacker, victim, conn=conn)
+            if not current or self.access_key(current) != self.access_key(access):
+                raise ProfilePrecommitRejected("Player access changed")
+            installed = conn.execute(
+                "SELECT 1 FROM player_apps WHERE username=? AND app_id=? AND status != 'uninstalled'",
+                (attacker, tool_id),
+            ).fetchone()
+            if not installed:
+                raise ProfilePrecommitRejected("Player tool uninstalled")
+            receipt = self.record_tool_usage(access, attacker, victim, tool_id,
+                                             result="pending:atomic", conn=conn)
+            if receipt.get("duplicate"):
+                value = str(receipt.get("result") or "")
+                if not value.startswith("response:"):
+                    return None  # Historical receipt cannot reconstruct an old random roll.
+                return {**loads_json(value[len("response:"):], {}), "duplicate": True}
+            payload = execute(conn)
+            conn.execute("UPDATE player_hack_tool_usage SET result=?, amount=? WHERE id=?",
+                         ("response:" + dumps_json(payload), int(bool(payload.get("removed"))), receipt["id"]))
+            return payload
+
     def complete_tool_usage(self, access, attacker_username, victim_username, tool_id, result="", amount=0):
         key = self.access_key(access)
         with db_connect(self.db_path) as conn:
@@ -14957,8 +14982,8 @@ class MailStore:
                 (username,),
             )
 
-    def remove_contact(self, username, contact_name):
-        with db_connect(self.db_path) as conn:
+    def remove_contact(self, username, contact_name, *, conn=None):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             conn.execute(
                 "DELETE FROM contacts WHERE owner_username = ? AND contact_name = ?",
                 (username, contact_name),

@@ -1,5 +1,34 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — odbiór okna PvP i pierwszy pakiet finalizacji 141.5
+
+Autor potwierdził okno zgodnie z założeniami i polecił rozpocząć finalizację.
+Usunięto pełne odczyty z Financial Sniffera, Friend Kickera i otwarcia Security
+Proxy. Friend Kicker zapisuje efekt, powiadomienia oraz pełny bezpieczny wynik
+w jednej transakcji; retry nie losuje ponownie. Sniffer odzyskuje przerwany
+transfer/notification bez powtórnego HC. UI blokuje double click, odrzuca
+odpowiedź poprzedniego dostępu/sesji, obsługuje non-JSON i odblokowuje przyciski.
+
+Walidacja: 51/52 w pierwszej regresji, następnie poprawiono oczekiwanie testu
+wymuszonej awarii (HTTP 500 zamiast wyjątku) i trzy testy finalizacji PASS,
+w tym nowy Sniffer recovery; razem 53 różne przypadki PASS. Osiem zestawów JS
+PASS. Nie wykonano deployu ani nowej migracji. To pakiet finalizacji, nie
+zamknięcie całego sprintu. Pozostałe dowody i ograniczenia zapisano w
+doc/runbooks/sprint_141_5_closure.md.
+
+## 2026-09-16 — nowe ID PM2 po konserwacji serwera
+
+Operator przekazał aktualną listę PM2: chaos = 10, chaos-territory-worker = 11,
+chaos-ollama-worker = 12, chaos-narrative-publisher = 13. Stare ID
+13/14/17/18 są historyczne; szczególnie 13 oznacza teraz publisher, nie web.
+W kolejnych instrukcjach używać nazw procesów i sprawdzać aktualne pm2 list.
+Nie przepisywać historycznych dowodów migracji na nowe numery.
+
+Operator potwierdził git pull 61f0e74 → 8208b7b i restart chaos (10).
+Po restarcie wszystkie cztery procesy na przekazanej liście są online.
+Jest to potwierdzenie wdrożenia okna PvP, nie jego wizualnego odbioru.
+Agent nie wykonywał restartów ani innych działań produkcyjnych.
+
 ## 2026-09-16 — 141.5: Player Access jako standardowe okno aplikacji
 
 Na polecenie autora przeniesiono panel PvP do app-window, z istniejącym

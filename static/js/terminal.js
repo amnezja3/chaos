@@ -4695,7 +4695,16 @@ function openIntruderKickerApp(payload = {}) {
 
 async function usePlayerHackTool(toolId) {
     if (!playerHackAccessState || !playerHackAccessState.active) return;
+    const requestAccess = playerHackAccessState;
+    if (requestAccess.toolInFlight) return;
+    requestAccess.toolInFlight = true;
     const panel = getPlayerHackAccessPanel();
+    const buttons = Array.from(panel.querySelectorAll?.('.player-hack-tool-btn') || []);
+    const disabledBefore = buttons.map(button => button.disabled);
+    buttons.forEach(button => { button.disabled = true; });
+    const currentRequest = () => playerHackAccessState === requestAccess
+        && panel.isConnected !== false
+        && (typeof desktopSessionActive === 'undefined' || desktopSessionActive);
     const msg = panel.querySelector('[data-player-hack-message]');
     if (msg) msg.textContent = 'Uruchamianie narzedzia...';
     let confirmedResult = null;
@@ -4705,10 +4714,15 @@ async function usePlayerHackTool(toolId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 tool_id: toolId,
-                victim_username: playerHackAccessState.victim_username
+                victim_username: requestAccess.victim_username
             })
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!currentRequest()) return;
+        if (!data) {
+            if (msg) msg.textContent = `HTTP ${res.status || 'error'}: nieprawidlowa odpowiedz. Wynik operacji niepotwierdzony.`;
+            return;
+        }
         if (!res.ok || data.success === false) {
             if (msg) msg.textContent = data.error || 'Narzędzie niedostepne.';
             return;
@@ -4734,9 +4748,13 @@ async function usePlayerHackTool(toolId) {
         }
         if (data.access) refreshPlayerHackAccess(data.access);
     } catch (err) {
+        if (!currentRequest()) return;
         if (msg) msg.textContent = confirmedResult
             ? `${confirmedResult.message || 'Serwer potwierdził operację.'} Nie udało się wyświetlić pełnego wyniku.`
             : 'Błąd komunikacji z narzędziem. Wynik operacji niepotwierdzony.';
+    } finally {
+        requestAccess.toolInFlight = false;
+        buttons.forEach((button, index) => { button.disabled = disabledBefore[index]; });
     }
 }
 

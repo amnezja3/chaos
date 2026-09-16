@@ -3,6 +3,46 @@
 Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 Łączy dawne .5–.7. Poprzednie odbiory autora pozostają zaliczone.
 
+## Aktualny checkpoint finalizacji 16 IX
+
+Autor potwierdził poprawne działanie okna PvP zgodnie z założeniami po
+wdrożeniu `8208b7b`. Odbiór okna zaliczony; nie dopisujemy z tego domyślnie
+konkretnych urządzeń, wymiarów ani pomiarów, których autor nie podał.
+
+Pierwszy pakiet finalizacji lokalnie gotowy:
+- Sniffer oraz otwieranie Security Proxy czytają projekcje zamiast profili.
+- Friend Kicker czyta capability/desktop i do 1000 kontaktów (nadmiar fail-closed).
+  Writer-lock obejmuje ponowną kontrolę grantu/instalacji, losowanie, zmianę
+  kontaktów obu stron i ich dotychczasową obsługę historii rozmowy, wiadomości
+  oraz trwały bezpieczny wynik w istniejącym tool usage. Retry odtwarza wynik.
+  Historyczne receipts bez pełnego wyniku nadal zwracają odmowę użycia.
+- Sniffer zapisuje deduplikowane powiadomienie przed complete, a replay
+  potwierdzonego użycia uzupełnia ewentualną brakującą wiadomość. Pending
+  zachowuje wylosowaną kwotę, wallet receipt zapobiega ponownemu transferowi.
+- UI blokuje ponowne kliknięcie w trakcie requestu, ignoruje wynik po zmianie
+  stanu dostępu lub utracie sesji i rozróżnia nie-JSON od potwierdzonego wyniku.
+
+Walidacja: w regresji 52 testów Python 51 PASS, jeden błąd oczekiwania testu
+(Flask zwraca 500 zamiast propagować wymuszony wyjątek). Po poprawce oczekiwania
+trzy testy finalizacji PASS, w tym dodatkowy recovery Sniffera; łącznie 53
+różne przypadki z potwierdzonym PASS. Osiem zestawów JS PASS: cztery okna/wyniki,
+request guard, session isolation, position ordering, gonna-win lifecycle.
+Nowe testy używają profili obu stron ≥35 MiB, awarii po wiadomości/transferze
+i równoległych wywołań. Nie jest to pełna końcowa regresja całego 141.
+
+Bez nowej tabeli/migracji. Bez deployu. Nadal rozliczyć pełny wynik/recovery
+Cleanera (efekt i usage atomowe, powiadomienie poza transakcją), wyścigi
+uprawnień dla wszystkich mutacji security, pozostałą macierz błędów/sesji,
+przeniesione pomiary mapy oraz wspólne operacje/pliki. Poniższa tabela opisuje
+stan wejściowy przeglądu; naprawy powyżej zastępują jej ustalenia dla tego pakietu.
+
+Aktualne procesy po konserwacji serwera 16 IX (lista przekazana przez operatora):
+`chaos` = 10, `chaos-territory-worker` = 11, `chaos-ollama-worker` = 12,
+`chaos-narrative-publisher` = 13. Stare 13/14/17/18 nie są aktualną mapą.
+W poleceniach używać nazw, numery każdorazowo sprawdzać przez pm2 list.
+Operator wdrożył `8208b7b` i zrestartował chaos (10); cztery procesy online.
+Odbiór wizualny okna PvP nadal pozostaje do potwierdzenia.
+
 Decyzja autora 16 IX: panel Player Access ma korzystać ze standardowego okna
 aplikacji i istniejącego mechanizmu okien mobile. Lokalnie podłączono app-window,
 makeDraggable i taskbar/mobile safe mode. Desktop: przesuwanie i zachowanie
