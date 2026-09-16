@@ -1,5 +1,48 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — Cyberner: online znajomych i licznik WORLD
+
+Autor zgłosił offline aktywnych znajomych i WORLD = 1 przy trzech graczach.
+Przegląd kodu: list_contacts zwracało stałe contacts.status, heartbeat działał
+tylko przy bootstrapie Cybernera, a group_active_count liczyło widza i jego
+kontakty w oknie 10 sekund, z zapytaniem per konto. Nie ustalono commitu,
+który wprowadził te zachowania; nie przypisujemy przyczyny samej optymalizacji.
+
+Poprawka: istniejący poll /api/state/changes dotyka mail_presence, również bez
+otwartego komunikatora. Zapis throttlowany do 20 sekund, ważność 90 sekund.
+Kontakty otrzymują live status przez JOIN, WORLD liczy wszystkich aktywnych
+istniejących użytkowników jednym zapytaniem z indeksem last_seen_at. Bez
+pełnych profili, dodatkowego pollingu i masowego backfill. Brak aktywności
+może pozostawić online przez maksymalnie okno ważności plus odświeżenie UI.
+
+Cztery testy izolowane PASS: trzy konta bez wspólnej listy znajomych,
+wygaśnięcie, pominięcie usuniętego konta, throttle, desktop poll bez Cybernera
+i pełnych profili oraz regresja wzajemności kontaktów. Bez deployu. Test
+Financial Sniffera pozostaje do dokończenia po tej zgłoszonej poprawce.
+
+## 2026-09-16 — Friend Kicker: powiadomienie w Chrome incognito PASS
+
+Autor potwierdził wyświetlenie powiadomienia w Chrome incognito; screenshot
+pokazuje komunikat „Zaklocenie kontaktow” u ofiary oraz sukces Friend Kickera
+(85%, rzut 33). Wcześniej potwierdzono Firefox, usunięcie kontaktu i blokadę
+ponownego użycia. Odbiór powiadomienia rozszerzony o Chrome incognito.
+Różnica względem zwykłego profilu Chrome wskazuje na problem zależny od
+tego profilu; konkretnego ustawienia/rozszerzenia nie zidentyfikowano.
+Nie dowodzi to związku z komunikatem o zamkniętym kanale odpowiedzi listenera.
+Kontynuujemy odbiór Financial Sniffera; jego salda i wynik nie są jeszcze
+potwierdzone w bieżącym scenariuszu finalizacji.
+
+## 2026-09-16 — Friend Kicker: odbiór poprawki przez autora
+
+Autor potwierdził po wdrożeniu: kontakt znika niemal w czasie rzeczywistym,
+ponowne użycie w tym samym dostępie jest poprawnie zablokowane, powiadomienie
+pojawiło się w Firefoxie. Screenshot: sukces, szansa 85%, rzut 72; przycisk
+Friend Kickera disabled z informacją o wykorzystaniu. Te punkty mają PASS autora.
+W Chrome komunikatu nie zaobserwowano. Przyczyna pozostaje nieustalona;
+blokada przeglądarki lub lag to hipotezy, nie ustalenia. Nie podano, czy
+przeglądarki odbierały wiadomość dla tego samego konta równocześnie.
+Nie deklarujemy pełnego odbioru dostarczania powiadomień w Chrome.
+
 ## 2026-09-16 — odbiór Friend Kickera: blokada użycia i tożsamość powiadomień
 
 Operator wdrożył 880d7d4 i zrestartował chaos (10). Autor potwierdził usunięcie

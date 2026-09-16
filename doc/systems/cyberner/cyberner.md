@@ -1,5 +1,22 @@
 # Cyberner
 
+## Obecność graczy — poprawka 2026-09-16
+
+Źródłem online/offline jest `mail_presence`, aktualizowane z uwierzytelnionego
+`/api/state/changes` (również przy zamkniętym Cybernerze) oraz bootstrapu
+komunikatora. Ważność obecności: 90 sekund; zapis ograniczony do najwyżej
+jednego na 20 sekund per konto, z odczytem bez writer-locka dla świeżego wpisu.
+Po utracie aktywności status wygasa, więc nie jest to lista samych zalogowanych
+sesji ani natychmiastowy sygnał zamknięcia karty.
+
+Kontakty mają status wyliczany przez JOIN do obecności; historyczne
+`contacts.status` nie jest źródłem live status. WORLD liczy wszystkich
+aktywnych istniejących użytkowników, nie tylko kontakty widza. Indeks czasu
+ogranicza odczyt licznika do okna obecności. Brak skanowania/odczytu profili,
+brak nowego pollingu JS; istniejący bootstrap UI odświeża się co 10 sekund.
+Indeks tworzy standardowe init_db, nie potrzeba backfill profili.
+Walidacja lokalna: cztery testy PASS; odbiór produkcyjny poprawki otwarty.
+
 Cyberner to diegetyczna nazwa komunikatora w CHAOS.
 
 ## Stan runtime po Sprincie 130.8.7

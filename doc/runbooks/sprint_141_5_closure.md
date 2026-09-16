@@ -5,6 +5,18 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Uzupełnienie odbioru Friend Kickera: komunikat potwierdzony również w Chrome
+incognito (85%, rzut 33). Wcześniejszy brak w zwykłym profilu Chrome jest
+zależny od konfiguracji/środowiska profilu; dokładna przyczyna nieustalona.
+Nie traktujemy tej obserwacji jako potwierdzonej awarii dostarczania po stronie
+CHAOS. Następny krok manualny: Financial Sniffer, kwota i salda obu stron.
+
+Końcowy odbiór poprawki Friend Kickera: autor potwierdził usunięcie kontaktu
+niemal w czasie rzeczywistym, blokadę ponownego użycia oraz powiadomienie
+w Firefoxie (85%, rzut 72). Brak komunikatu w Chrome pozostaje obserwacją
+o nieustalonej przyczynie, nie potwierdzoną blokadą przeglądarki. Poniższe
+oczekiwanie na ponowny odbiór jest historyczne dla tych zaliczonych punktów.
+
 Nowszy odbiór Friend Kickera po 880d7d4: kontakt usunięty, wiadomości nie
 zaobserwowano, replay wyniku oceniony jako mylący. Lokalnie poprawiono
 blokadę przycisku/409 po użyciu i jawne ID wiadomości per użycie. Trwały

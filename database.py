@@ -1766,6 +1766,11 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE INDEX IF NOT EXISTS idx_mail_presence_last_seen ON mail_presence(last_seen_at)
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS wallet_transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 from_username TEXT NOT NULL,
@@ -14694,15 +14699,18 @@ class MailStore:
             )
 
     def list_contacts(self, username):
+        threshold = (datetime.utcnow() - timedelta(seconds=90)).isoformat(timespec="seconds")
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT contact_name, status
-                FROM contacts
-                WHERE owner_username = ?
-                ORDER BY contact_name COLLATE NOCASE
+                SELECT c.contact_name,
+                       CASE WHEN p.last_seen_at >= ? THEN 'online' ELSE 'offline' END AS status
+                FROM contacts c
+                LEFT JOIN mail_presence p ON p.username = c.contact_name
+                WHERE c.owner_username = ?
+                ORDER BY c.contact_name COLLATE NOCASE
                 """,
-                (username,),
+                (threshold, username),
             ).fetchall()
             return [{"name": row["contact_name"], "status": row["status"]} for row in rows]
 
@@ -14908,43 +14916,33 @@ class MailStore:
             )
 
     def touch_presence(self, username):
+        if not username:
+            return
+        threshold = (datetime.utcnow() - timedelta(seconds=20)).isoformat(timespec="seconds")
         with db_connect(self.db_path) as conn:
+            if conn.execute("SELECT 1 FROM mail_presence WHERE username=? AND last_seen_at >= ?",
+                            (username, threshold)).fetchone():
+                return
             conn.execute(
                 """
                 INSERT INTO mail_presence (username, last_seen_at)
                 VALUES (?, ?)
                 ON CONFLICT(username) DO UPDATE SET
                     last_seen_at = excluded.last_seen_at
+                WHERE mail_presence.last_seen_at < ?
                 """,
-                (username, utc_now()),
+                (username, utc_now(), threshold),
             )
 
-    def group_active_count(self, username, seconds=10):
+    def group_active_count(self, username, seconds=90):
         threshold = (datetime.utcnow() - timedelta(seconds=seconds)).isoformat(timespec="seconds")
         with db_connect(self.db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT contact_name
-                FROM contacts
-                WHERE owner_username = ?
-                """,
-                (username,),
-            ).fetchall()
-            names = {username}
-            names.update(row["contact_name"] for row in rows if row["contact_name"])
-            active = 0
-            for name in names:
-                row = conn.execute(
-                    """
-                    SELECT 1
-                    FROM mail_presence
-                    WHERE username = ? AND last_seen_at >= ?
-                    """,
-                    (name, threshold),
-                ).fetchone()
-                if row:
-                    active += 1
-            return active
+            return conn.execute(
+                """SELECT count(*) FROM mail_presence p
+                   WHERE p.last_seen_at >= ? AND EXISTS
+                       (SELECT 1 FROM users u WHERE u.username = p.username)""",
+                (threshold,),
+            ).fetchone()[0]
 
     def add_contact(self, username, contact_name, status="offline"):
         contact_name = (contact_name or "").strip()

@@ -21330,6 +21330,7 @@ def api_state_changes():
             "recovery_scopes": recovery_scopes,
         }), 401
 
+    mail_store.touch_presence(username)
     try:
         get_ghostsignal_show_service().deliver_start_to_viewer(delta_bus, username)
     except Exception as exc:
