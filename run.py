@@ -20800,7 +20800,7 @@ def assert_ghostsystem_epoch():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         payload = {}
-    supplied = request.headers.get("X-Chaos-Ghost-Epoch") or request.args.get("_ghost_epoch") or payload.get("_ghost_epoch") or ""
+    supplied = request.headers.get("X-Chaos-Ghost-Epoch") or request.args.get("_ghost_epoch") or payload.get("_ghost_epoch") or request.form.get("_ghost_epoch") or ""
     if supplied != restart["epoch"]:
         raise GhostGameplayLocked({"error": "ghostsystem_restart_required",
             "reason": "document_epoch_replaced", "gameplay_locked": True,
@@ -21270,6 +21270,7 @@ def render_admin_user_card(user):
         <form class="profession-form" method="post" action="/api/admin/users/profession">
           <input type="hidden" name="username" value="{html.escape(str(user.get('username') or ''), quote=True)}">
           <input type="hidden" name="_session_generation" value="{{session_generation}}">
+          <input type="hidden" name="_ghost_epoch" value="{{ghost_epoch}}">
           <label>Profesja
             <select name="profession_code">{profession_options}</select>
           </label>
@@ -22501,8 +22502,9 @@ def dev_dashboard():
     state = build_admin_dashboard_state()
     generation = session_generation_client_context()
     form_generation = html.escape(generation["generation"], quote=True)
+    form_epoch = html.escape(str((get_ghostsignal_show_service().restart_projection() or {}).get("epoch") or ""), quote=True)
     user_cards = "\n".join(
-        render_admin_user_card(user).replace("{session_generation}", form_generation)
+        render_admin_user_card(user).replace("{session_generation}", form_generation).replace("{ghost_epoch}", form_epoch)
         for user in state["users"]
     )
     areas_count = len(state.get("areas") or [])

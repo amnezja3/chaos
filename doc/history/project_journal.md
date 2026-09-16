@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — formularz profesji admina po zmianie epoki GhostSystemu
+
+Zgłoszenie operatora: zmiana profesji zwraca ghostsystem_restart_required /
+document_epoch_replaced. Potwierdzona luka: formularz HTML przesyłał generację
+sesji, ale nie epokę dokumentu; guard odczytywał epokę z nagłówka/query/JSON,
+nie z request.form. Dashboard osadza teraz epokę w ukrytym polu _ghost_epoch,
+a wspólny guard akceptuje to pole jako transport istniejącego tokenu.
+Nie dodano wyjątku dla admina: stara/brakująca epoka i aktywne show nadal
+blokują zapis; uprawnienia, CAS i session precommit pozostają zachowane.
+Walidacja izolowana: 9 testów profesji + 10 client_restart PASS. Nowa regresja
+obejmuje POST formularza po rolloverze oraz odmowy starej epoki i aktywnego show.
+Pierwszy przebieg wymagał poprawienia fixture sesji nowego testu; po poprawce
+9 testów profesji powtórzono z PASS. Bez migracji, deployu, restartu czy triggera.
+Po wdrożeniu trzeba odświeżyć panel admina, by formularz dostał pole epoki.
+Nie ustalano daty pojawienia się usterki ani związku z testami Ollamy.
+
 ## 2026-09-16 — hasło admina nadpisywane podczas logowania
 
 Zgłoszenie: Ustawienia → Zmień hasło zwraca sukces, ale dla admina nowe hasło

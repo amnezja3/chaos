@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 import run
 
@@ -55,6 +55,36 @@ class AdminProfessionChangeTest(unittest.TestCase):
         self.assertIn('value="profit_enforcer" selected', card)
         self.assertNotIn('value="analyzer"', card)
         self.assertIn('name="_session_generation"', card)
+        self.assertIn('name="_ghost_epoch"', card)
+
+    def test_form_after_rollover_requires_current_document_epoch(self):
+        from session_generation_fixture import SessionGenerationFixture
+        fixture = SessionGenerationFixture().start()
+        self.addCleanup(fixture.stop)
+        fixture.authenticate(self.client, 'admin')
+        service = Mock()
+        service.restart_projection.return_value = {'epoch': 'new-world'}
+        service.gameplay_lock.return_value = {'gameplay_locked': False}
+        record = {'state': 'valid', 'profile': self.virex_profile(), 'profile_revision': 7}
+        with patch.object(run, 'get_ghostsignal_show_service', return_value=service), \
+             patch.object(run.user_store, 'get_profile_with_revision', return_value=record), \
+             patch.object(run.user_store, 'save_profile_guarded') as save:
+            for epoch in ('', 'old-world'):
+                response = self.client.post('/api/admin/users/profession', data={
+                    'username': 'player', 'profession_code': 'broker', '_ghost_epoch': epoch})
+                self.assertEqual(response.status_code, 423, response.json)
+                self.assertEqual(response.json['reason'], 'document_epoch_replaced')
+            save.assert_not_called()
+            response = self.client.post('/api/admin/users/profession', data={
+                'username': 'player', 'profession_code': 'broker', '_ghost_epoch': 'new-world'})
+            self.assertEqual(response.status_code, 302, response.json)
+            save.assert_called_once()
+            save.reset_mock()
+            service.gameplay_lock.return_value = {'gameplay_locked': True, 'show_active': True}
+            response = self.client.post('/api/admin/users/profession', data={
+                'username': 'player', 'profession_code': 'broker', '_ghost_epoch': 'new-world'})
+            self.assertEqual(response.status_code, 423)
+            save.assert_not_called()
 
     def test_admin_endpoint_updates_profile_through_guarded_store(self):
         record = {
