@@ -1,5 +1,19 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — widoczność zegara cooldownu PvP
+
+Autor nie widział odliczania. Potwierdzone w kodzie: badge znajdował się poza
+markerem z overflow:hidden, wewnątrz dodatkowo przycinanego hitboxa. Przeniesiono
+zegar poza hitbox i dopuszczono widoczność poza rootem markera. Żółty zegar ma
+większy, pogrubiony tekst; nie przechwytuje kliknięć, rozmiar hitboxa pozostaje
+68×58/76. Delta ruchu zawiera teraz ten sam termin cooldownu dla obserwatora
+co snapshot; nie usuwa odliczania po aktualizacji pozycji. Odczyt ograniczony
+do pary obserwator–aktor, bez ciężkiego profilu.
+Walidacja lokalna: 1 test Python aktualizacji ruchu/wygaśnięcia/izolacji
+obserwatora i 3 zestawy JS (zegar, hitbox, kolejność pozycji) PASS.
+Widoczność w przeglądarce produkcyjnej czeka na odbiór autora; nie resetowano
+cooldownów, nie wykonywano deployu ani migracji.
+
 ## 2026-09-16 — belka celu PvP po aplikacjach terminala i pulpitu
 
 Diagnoza kodu: buildApplicationLaunchContext nie przenosił target_username,

@@ -5,6 +5,12 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Zegar cooldownu: po zgłoszeniu braku widoczności poprawiono przycinanie CSS
+oraz brak terminu w delcie ruchu. Lokalnie 1 Python + 3 zestawy JS PASS.
+Odbiór: na widocznym graczu z trwającym cooldownem żółty CD H:MM:SS nad
+nickiem, odliczanie co sekundę i zachowanie zegara podczas ruchu.
+Nie wymaga zużywania nowego hacku ani oczekiwania na koniec cooldownu.
+
 Belka terminal/pulpit: lokalnie naprawiono utratę loginu w kontekście uruchomienia
 oraz dodano obsługę potwierdzenia captured_player przez istniejącą animację.
 Po wdrożeniu sprawdzić aktualizację kropek, animację przy przyznaniu dostępu

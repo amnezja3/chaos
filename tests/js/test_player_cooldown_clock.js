@@ -14,4 +14,20 @@ ctx.window.updatePlayerCooldownClocks();
 assert(node.hidden);
 assert.equal(ctx.window.playerCooldownText(NaN), '');
 assert(source.includes('scheduleSnapshot(window.updatePlayerCooldownClocks, 1000)'));
+ctx.L = {divIcon: options => options};
+ctx.window.escapeMapText = value => value;
+ctx.window.normalizeMapAvatarUrl = value => value;
+vm.runInContext(source.slice(source.indexOf('window.buildPlayerActorIcon ='), source.indexOf('window.clearPlayerActorMarkerTooltip =')), ctx);
+const icon = ctx.window.buildPlayerActorIcon({username: 'victim', target_status: 'aimed',
+    player_hack_cooldown_until: '2026-09-16T12:00:00'});
+assert(icon.html.includes('CD 1:58:50'));
+assert(icon.html.indexOf('player-actor-cooldown') < icon.html.indexOf('player-actor-marker-hitbox'),
+    'Clock must be outside the clipped clickable hitbox');
+assert.deepEqual(Array.from(icon.iconSize), [68, 76]);
+const rootCss = source.match(/\.player-actor-marker-root\s*\{([^}]+)\}/)[1];
+assert(rootCss.includes('overflow: visible !important'));
+assert(rootCss.includes('pointer-events: none !important'));
+const expired = ctx.window.buildPlayerActorIcon({username: 'victim',
+    player_hack_cooldown_until: '2026-09-16T09:00:00'});
+assert(!expired.html.includes('data-player-cooldown-deadline'));
 console.log('PvP cooldown clock: PASS');

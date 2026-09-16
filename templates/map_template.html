@@ -1285,6 +1285,28 @@
       pointer-events: none;
     }
 
+    .player-actor-marker-root {
+      overflow: visible !important;
+      pointer-events: none !important;
+    }
+
+    .player-actor-cooldown {
+      position: absolute;
+      bottom: calc(100% + 3px);
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      background: #241600;
+      color: #ffdc64;
+      border: 1px solid #ffdc64;
+      border-radius: 3px;
+      padding: 3px 6px;
+      font: bold 12px monospace;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 1px 4px #000;
+      pointer-events: none !important;
+    }
+
     .player-actor-marker-label {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -10028,7 +10050,7 @@
                 const cooldownDeadline = window.playerCooldownDeadline(actor.player_hack_cooldown_until);
                 const cooldownText = window.playerCooldownText(cooldownDeadline);
                 const cooldownBadge = cooldownText
-                    ? `<div data-player-cooldown-deadline="${cooldownDeadline}" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);white-space:nowrap;background:#241600;color:#ffdc64;border:1px solid #ffdc64;padding:2px 4px;font:11px monospace;pointer-events:none;">${cooldownText}</div>` : '';
+                    ? `<div class="player-actor-cooldown" title="Czas do ponownego hakowania" data-player-cooldown-deadline="${cooldownDeadline}">${cooldownText}</div>` : '';
                 const markerHeight = isTarget ? 76 : 58;
                 const name = window.escapeMapText(actor.nick || actor.username || 'gracz');
                 const color = isIntruder ? '#ff4b4b' : (isCrew ? '#53d8ff' : (isFriend ? '#26ff6a' : '#d8ff80'));
@@ -10045,9 +10067,9 @@
                 return L.divIcon({
                     className: isIntruder ? 'area-intruder-marker player-actor-marker-root' : 'friend-player-marker player-actor-marker-root',
                     html: `
+                        ${cooldownBadge}
                         <div class="player-actor-marker-hitbox" style="width:${markerWidth}px;height:${markerHeight}px;max-width:${markerWidth}px;max-height:${markerHeight}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;font-family:monospace;color:${color};text-shadow:0 1px 2px #000;">
                             <div class="player-actor-marker-label" style="width:62px;height:16px;line-height:12px;font-size:10px;background:rgba(0,0,0,0.80);padding:1px 4px;border:1px solid ${isTarget ? '#ff1b1b' : color};margin-bottom:2px;color:${isTarget ? '#ffb3b3' : color};text-align:center;">${name}</div>
-                            ${cooldownBadge}
                             ${avatar}
                             ${targetBadge}
                         </div>

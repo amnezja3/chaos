@@ -3158,12 +3158,16 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
         "target_status": context.get("target_status", ""),
     }
     relation = resolve_player_actor_relation(viewer_profile, actor_profile, context)
-    return build_player_actor(
+    actor = build_player_actor(
         viewer_username,
         actor_data,
         relation=relation,
         context=context,
     )
+    actor["player_hack_cooldown_until"] = player_hack_access_store.visible_cooldowns(
+        viewer_username, [actor_username]
+    ).get(actor_username)
+    return actor
 
 
 def record_map_player_actor_delta(actor_username, actor_profile=None, change_type="map.player_moved",

@@ -40,6 +40,20 @@ class MapActorHotPathTest(unittest.TestCase):
     def test_small(self):
         self.check_snapshot(False, False)
 
+    def test_movement_delta_keeps_viewer_cooldown_without_profile(self):
+        self.prepare()
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE player_hack_access SET hacked_until='2000-01-01T00:00:00', cooldown_until='2099-01-01T00:00:00'")
+        identity = self.identity.get_identity('victim')
+        with patch.object(self.users, 'get_profile', side_effect=AssertionError('full read')):
+            actor = run.build_map_player_actor_delta_payload('attacker', identity)
+        self.assertEqual(actor['player_hack_cooldown_until'], '2099-01-01T00:00:00')
+        self.assertEqual(self.access.visible_cooldowns('unrelated', ['victim']), {})
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE player_hack_access SET cooldown_until='2000-01-01T00:00:00'")
+        actor = run.build_map_player_actor_delta_payload('attacker', identity)
+        self.assertIsNone(actor['player_hack_cooldown_until'])
+
     def test_heavy_viewer(self):
         self.check_snapshot(True, False)
 
