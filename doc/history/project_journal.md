@@ -1,5 +1,30 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — odbiór Friend Kickera: blokada użycia i tożsamość powiadomień
+
+Operator wdrożył 880d7d4 i zrestartował chaos (10). Autor potwierdził usunięcie
+kontaktu (szansa 85%, rzut 48), zgłosił brak powiadomienia i mylące odtwarzanie
+poprzedniego wyniku przy kolejnym kliknięciu. Odbiór tego przypadku częściowy.
+Decyzja autora: narzędzie ma być blokowane po użyciu w bieżącym dostępie.
+
+Poprawka lokalna: serializer dostępu oznacza Friend Kickera jako used/disabled
+na podstawie canonical usage. Ponowne tool/use zwraca 409 tool_already_used
+oraz odświeżony dostęp, bez ponownego okna starego losowania. Trwały wynik
+i atomowość efektu pozostają zachowane w store. Przy odmowie UI aktualizuje
+panel i jego aktualny komunikat. Podniesiono cache terminal.js.
+
+Potwierdzono w kodzie/testach kolizję tożsamości wiadomości o tej samej treści:
+unikalny dedupe_key bez unikalnego message ID może trafić na stary consumed
+rekord. Friend Kicker nadaje teraz jawne ID per grant/atakujący/ofiara/odbiorca.
+Nie potwierdzono odczytem serwera, że właśnie ta kolizja wystąpiła u autora.
+Odbiorcy: ofiara i usunięty kontakt; atakujący ma wynik narzędzia.
+
+Trzy testy Python PASS: rollback/heavy profile/blokada po reload, współbieżność
+oraz dostarczenie przez system-messages po historycznej identycznej wiadomości.
+Trzy zestawy JS PASS: wynik Sniffera, request guard, lifecycle okna; składnia
+i diff check PASS. Bez deployu i migracji. Następny odbiór: nowy dostęp,
+pojedyncze użycie, wiadomości u odbiorców i zablokowany przycisk po reloadzie.
+
 ## 2026-09-16 — odbiór okna PvP i pierwszy pakiet finalizacji 141.5
 
 Autor potwierdził okno zgodnie z założeniami i polecił rozpocząć finalizację.

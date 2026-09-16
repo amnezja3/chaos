@@ -4724,7 +4724,9 @@ async function usePlayerHackTool(toolId) {
             return;
         }
         if (!res.ok || data.success === false) {
-            if (msg) msg.textContent = data.error || 'Narzędzie niedostepne.';
+            if (data.access) refreshPlayerHackAccess(data.access);
+            const currentMessage = panel.querySelector('[data-player-hack-message]');
+            if (currentMessage) currentMessage.textContent = data.error || 'Narzędzie niedostepne.';
             return;
         }
         confirmedResult = data;

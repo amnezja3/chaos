@@ -5,6 +5,13 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Nowszy odbiór Friend Kickera po 880d7d4: kontakt usunięty, wiadomości nie
+zaobserwowano, replay wyniku oceniony jako mylący. Lokalnie poprawiono
+blokadę przycisku/409 po użyciu i jawne ID wiadomości per użycie. Trwały
+receipt pozostaje wewnętrzny, ponowne kliknięcie nie pokazuje starego losowania.
+Trzy testy Python i trzy JS PASS. Oczekuje wdrożenia oraz powtórnego odbioru;
+wcześniejsze opisy replay jako odpowiedzi HTTP sukces są historyczne.
+
 Autor potwierdził poprawne działanie okna PvP zgodnie z założeniami po
 wdrożeniu `8208b7b`. Odbiór okna zaliczony; nie dopisujemy z tego domyślnie
 konkretnych urządzeń, wymiarów ani pomiarów, których autor nie podał.

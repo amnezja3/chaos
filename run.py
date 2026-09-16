@@ -17868,6 +17868,14 @@ def serialize_player_hack_access(access):
         if player_inventory_store.has_app(access.get("attacker_username"), tool_id)
     ]}
     seconds_left = max(0, int(access.get("seconds_left") or 0))
+    tools = public_pro_system_tools(attacker_profile)
+    if player_hack_access_store.has_tool_usage(
+        access, access.get("attacker_username"), access.get("victim_username"), "friendKicker"
+    ):
+        for tool in tools:
+            if tool.get("id") == "friendKicker":
+                tool.update(enabled=False, used=True,
+                            disabled_reason="Friend Kicker byl juz uzyty podczas tego dostepu.")
     return {
         "active": seconds_left > 0,
         "victim_username": access.get("victim_username"),
@@ -17876,7 +17884,7 @@ def serialize_player_hack_access(access):
         "seconds_left": seconds_left,
         "cooldown_until": access.get("cooldown_until"),
         "cooldown_seconds_left": max(0, int(access.get("cooldown_seconds_left") or 0)),
-        "tools": public_pro_system_tools(attacker_profile),
+        "tools": tools,
     }
 
 
@@ -26507,12 +26515,14 @@ def api_player_hack_tool_use():
                 if reverse:
                     mail_store.remove_contact(contact, victim_username, conn=conn)
                 system_message_store.add_message(contact, {
+                    "id": f"friend_kicker:{notice_key}:contact",
                     "dedupe_key": f"friend_kicker:{notice_key}:contact",
                     "type": "info", "title": "Kontakt utracony",
                     "text": "Polaczenie z jednym z graczy zostalo zerwane."
                 }, source="friend_kicker", conn=conn)
             if detected:
                 system_message_store.add_message(victim_username, {
+                    "id": f"friend_kicker:{notice_key}:victim",
                     "dedupe_key": f"friend_kicker:{notice_key}:victim",
                     "type": "warning",
                     "title": "Zaklocenie kontaktow" if removed else "Wykryto probe manipulacji kontaktami",
@@ -26527,8 +26537,10 @@ def api_player_hack_tool_use():
 
         result = player_hack_access_store.commit_tool_result(access, attacker, victim_username,
                                                             tool_id, execute_friend_kicker)
-        if result is None:
-            return jsonify({"success": False, "error": "Friend Kicker byl juz uzyty podczas tego dostepu."}), 409
+        if result is None or result.get("duplicate"):
+            return jsonify({"success": False, "reason": "tool_already_used",
+                            "error": "Friend Kicker byl juz uzyty podczas tego dostepu.",
+                            "access": serialize_player_hack_access(access)}), 409
         result["tool"] = dict(tool)
         result["access"] = serialize_player_hack_access(player_hack_access_store.get_active_access(attacker, victim_username))
         return jsonify(result)

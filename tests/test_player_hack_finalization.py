@@ -40,8 +40,12 @@ class FinalToolTests(PlayerHackReadPathsTest):
             self.assertTrue(first.json['removed'])
             with patch.object(run, 'randint', side_effect=AssertionError('reroll')):
                 retry = self.use()
-            self.assertTrue(retry.json['duplicate'])
-            self.assertEqual(first.json['roll'], retry.json['roll'])
+            self.assertEqual(retry.status_code, 409)
+            self.assertEqual(retry.json['reason'], 'tool_already_used')
+            for state in (first.json['access'], retry.json['access'], self.client.get('/api/player-hack/access').json):
+                tool = next(t for t in state['tools'] if t['id'] == 'friendKicker')
+                self.assertFalse(tool['enabled'])
+                self.assertTrue(tool['used'])
             self.assertFalse(self.mail.is_contact('victim', 'contact'))
             self.assertFalse(self.mail.is_contact('contact', 'victim'))
             security = self.use('securityPanelProxy')
@@ -63,6 +67,33 @@ class FinalToolTests(PlayerHackReadPathsTest):
         self.assertEqual(len(calls), 1)
         self.assertEqual(sum(bool(item.get('duplicate')) for item in results), 1)
         self.assertEqual({item['roll'] for item in results}, {12})
+
+    def test_friend_notifications_deliver_after_identical_old_message_consumed(self):
+        self.prepare()
+        notices = {
+            'victim': {'type': 'warning', 'title': 'Zaklocenie kontaktow',
+                       'text': 'Jeden z kontaktow zostal zerwany przez nieznana ingerencje.'},
+            'contact': {'type': 'info', 'title': 'Kontakt utracony',
+                        'text': 'Polaczenie z jednym z graczy zostalo zerwane.'},
+        }
+        old_ids = {}
+        for username, message in notices.items():
+            self.messages.add_message(username, message, source='friend_kicker')
+            old_ids[username] = self.messages.consume_pending(username)[0]['id']
+        with patch.object(run, 'randint', return_value=1):
+            result = self.use()
+        self.assertEqual(result.status_code, 200, result.json)
+        for username in notices:
+            with self.client.session_transaction() as session:
+                session['user'] = username
+            # Exercise the actual desktop polling handler with its authenticated owner.
+            with run.app.test_request_context('/system-messages'):
+                run.session['user'] = username
+                messages = run.get_system_messages().json
+            self.assertEqual(len(messages), 1)
+            self.assertNotEqual(messages[0]['id'], old_ids[username])
+            self.assertEqual(messages[0]['text'], notices[username]['text'])
+            self.assertEqual(self.messages.consume_pending(username), [])
 
     def test_sniffer_recovery_after_transfer_without_reroll_or_heavy_reads(self):
         self.prepare(heavy=True)
