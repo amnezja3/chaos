@@ -40,6 +40,15 @@ vm.createContext(sandbox);
 vm.runInContext(source.slice(start, end), sandbox);
 
 (async () => {
+    const manager = { files: {tools: ['Removed App.sh'], projects: ['keep.glab']},
+        apps: [{id: 'removed-app', name: 'Removed App'}],
+        installedToolAppsByFile: new Map([['Removed App.sh', {}]]), currentFolder: 'tools' };
+    sandbox.fileManagerInstances.set('open-manager', manager);
+    sandbox.document.getElementById = () => ({});
+    let refreshed = 0;
+    sandbox.openFolderInManager = (id, folder) => {
+        assert.equal(id, 'open-manager'); assert.equal(folder, 'tools'); refreshed++;
+    };
     await sandbox.updateAppsView({
         apps: [],
         files: { tools: [] },
@@ -59,6 +68,10 @@ vm.runInContext(source.slice(start, end), sandbox);
     assert.deepStrictEqual(Array.from(sandbox.toolbarProfile.apps), []);
     assert.deepStrictEqual(Array.from(sandbox.toolbarProfile.files.tools), []);
     assert.strictEqual(sandbox.toolbarProfile.files.projects[0], "keep.glab");
+    assert.equal(refreshed, 1);
+    assert.equal(manager.files.tools.length, 0);
+    assert.equal(manager.installedToolAppsByFile.size, 0);
+    assert.equal(manager.files.projects[0], 'keep.glab');
     console.log("app uninstall runtime tests: OK");
 })().catch(error => {
     console.error(error);

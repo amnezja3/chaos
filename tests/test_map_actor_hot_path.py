@@ -42,6 +42,7 @@ class MapActorHotPathTest(unittest.TestCase):
 
     def test_movement_delta_keeps_viewer_cooldown_without_profile(self):
         self.prepare()
+        self.assertIn('victim', self.access.visible_cooldowns('attacker', ['victim']))
         with db_connect(self.path) as conn:
             conn.execute("UPDATE player_hack_access SET hacked_until='2000-01-01T00:00:00', cooldown_until='2099-01-01T00:00:00'")
         identity = self.identity.get_identity('victim')

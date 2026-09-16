@@ -31,3 +31,15 @@ const expired = ctx.window.buildPlayerActorIcon({username: 'victim',
     player_hack_cooldown_until: '2026-09-16T09:00:00'});
 assert(!expired.html.includes('data-player-cooldown-deadline'));
 console.log('PvP cooldown clock: PASS');
+const terminal = fs.readFileSync('static/js/terminal.js', 'utf8');
+let mapRefreshes = 0;
+const accessCtx = {playerHackAccessState: null,
+    renderPlayerHackAccessPanel(access) { accessCtx.playerHackAccessState = access; },
+    recoverMapDeltaScope() { mapRefreshes++; }};
+vm.createContext(accessCtx);
+vm.runInContext(terminal.slice(terminal.indexOf('async function refreshPlayerHackAccess('),
+    terminal.indexOf('function openIntruderKickerApp(')), accessCtx);
+const grant = {active: true, victim_username: 'victim', hacked_until: '2026-09-16T10:05:00'};
+accessCtx.refreshPlayerHackAccess(grant);
+accessCtx.refreshPlayerHackAccess({...grant});
+assert.equal(mapRefreshes, 1, 'New grant refreshes map immediately, tool responses do not flood it');

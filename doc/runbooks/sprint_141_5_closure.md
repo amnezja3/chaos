@@ -5,6 +5,14 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Najnowsza poprawka: zegar również podczas aktywnego dostępu i odświeżenie mapy
+po przyznaniu grantu; sześć narzędzi z jednolitym used/disabled przyciskiem;
+Cleaner z atomowym eventem odświeżającym otwarte Pliki ofiary. Log Reader oraz
+otwarcie Proxy jednokrotne; akcje wewnątrz otwartego Proxy pozostają dostępne.
+Pending Sniffer zachowuje recovery. 16 testów Python + 4 zestawy JS PASS.
+Do odbioru autora: zegar od początku dostępu, szare przyciski bez logu blokady,
+usunięcie narzędzia w już otwartym folderze tools bez ponownego otwierania.
+
 Cleaner: autor potwierdził efekt i notice, następnie zgłosił pozostały TShark.sh
 bez parametrów. Pełny odbiór NIEZALICZONY. Lokalnie naprawiono usuwanie wpisów
 tools bez app_id przez dokładne aliasy instalacji we wspólnej deinstalacji.

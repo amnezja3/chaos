@@ -13,6 +13,21 @@ from test_ghostnetwork_suite_snapshot import valid_profile
 
 
 class PlayerHackReadPathsTest(unittest.TestCase):
+    def test_read_tools_show_used_buttons_and_reject_repeat(self):
+        self.seed()
+        for tool_id in ('systemLogReader', 'securityPanelProxy'):
+            if not self.inventory.has_app('attacker', tool_id):
+                self.inventory.install_app('attacker', {'id': tool_id, 'name': tool_id}, purchase_key=tool_id)
+            payload = {'tool_id': tool_id, 'victim_username': 'victim'}
+            first = self.client.post('/api/player-hack/tool/use', json=payload)
+            self.assertEqual(first.status_code, 200, first.json)
+            tool = next(t for t in first.json['access']['tools'] if t['id'] == tool_id)
+            self.assertFalse(tool['enabled'])
+            self.assertTrue(tool['used'])
+            second = self.client.post('/api/player-hack/tool/use', json=payload)
+            self.assertEqual(second.status_code, 409)
+            self.assertEqual(second.json['reason'], 'tool_already_used')
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -94,7 +109,13 @@ class PlayerHackReadPathsTest(unittest.TestCase):
                 self.inventory.apply_arsenal_cleaner(self.access, access, 'attacker', 'victim', 'removable', 'removed')
         self.assertTrue(self.inventory.has_app('victim', 'removable'))
         with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM game_state_deltas WHERE username='victim' AND type='apps.app_uninstalled'").fetchone()[0], 0)
             self.assertIsNotNone(conn.execute("SELECT 1 FROM player_tool_files WHERE tool_id='legacy-tool' AND username='victim'").fetchone())
+        self.assertFalse(self.access.has_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner'))
+        with patch('database.GameStateDeltaBus.record_change', side_effect=RuntimeError('delta failure')):
+            with self.assertRaises(RuntimeError):
+                self.inventory.apply_arsenal_cleaner(self.access, access, 'attacker', 'victim', 'removable', 'removed')
+        self.assertTrue(self.inventory.has_app('victim', 'removable'))
         self.assertFalse(self.access.has_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner'))
         with patch.object(self.users, 'get_profile', side_effect=AssertionError('heavy read')), \
              patch.object(self.users, 'get_profile_with_revision', side_effect=AssertionError('heavy revision')), \
@@ -105,6 +126,12 @@ class PlayerHackReadPathsTest(unittest.TestCase):
             self.assertTrue(response.json['removed'])
             self.assertFalse(self.inventory.has_app('victim', 'removable'))
             with db_connect(self.path) as conn:
+                import json
+                event = conn.execute("SELECT payload_json FROM game_state_deltas WHERE username='victim' AND type='apps.app_uninstalled'").fetchone()
+                self.assertIsNotNone(event)
+                projection = json.loads(event['payload_json'])
+                self.assertNotIn('removable', [app['id'] for app in projection['apps']])
+                self.assertNotIn('legacy-tool', [tool.get('id') or tool.get('tool_id') for tool in projection['files']['tools'] if isinstance(tool, dict)])
                 self.assertIsNone(conn.execute("SELECT 1 FROM player_tool_files WHERE tool_id='legacy-tool' AND username='victim'").fetchone())
                 self.assertIsNotNone(conn.execute("SELECT 1 FROM player_tool_files WHERE tool_id='other-tool' AND username='victim'").fetchone())
             receipt = self.access.get_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner')

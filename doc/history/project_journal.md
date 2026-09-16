@@ -1,5 +1,24 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — PvP: zegar od grantu, wspólna blokada i live Pliki
+
+Po odbiorze autor zgłosił trzy niespójności. Cooldown widocznych aktorów jest
+teraz zwracany również podczas aktywnego grantu, a nowy grant odświeża otwarte
+mapy bez czekania na okresowy snapshot. Nie zmienia to widoczności aktorów.
+Wszystkie sześć narzędzi pokazuje po użyciu szary przycisk z opisem w przycisku;
+API odmawia kolejnego uruchomienia przez tool_already_used i zwraca stan dostępu.
+Log Reader i otwarcie Security Panel Proxy zapisują użycie. Akcje security
+w już otwartym panelu pozostają dostępne do wygaśnięcia grantu. Pending Sniffer
+pozostaje wyjątkiem recovery (dokończenie tej samej operacji, bez nowego transferu).
+Cleaner zapisuje event apps.app_uninstalled dla ofiary w tej samej transakcji
+co uninstall i receipt. Istniejący handler odświeża pulpity i otwarte Pliki;
+nie wprowadzono dodatkowego pollingu ani pełnego odczytu profilu.
+Walidacja: 16 różnych testów Python PASS (jeden wymagał aktualizacji historycznego
+oczekiwania replay Kickera, nowy fixture read-tools poprawiono i powtórzono);
+4 zestawy JS PASS. Testy obejmują rollback przy błędzie eventu, brak pliku
+w payloadzie, otwarty manager, blokady i natychmiastowe odświeżenie mapy.
+Bez migracji/deployu/restartów. Odbiór trzech poprawek na produkcji otwarty.
+
 ## 2026-09-16 — Cleaner: historyczny wpis tools zostawał po usunięciu aplikacji
 
 Autor skorygował odbiór: APP REMOVED i powiadomienie poprawne, ale TShark.sh

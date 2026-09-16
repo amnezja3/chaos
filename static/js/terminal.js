@@ -4669,7 +4669,11 @@ function renderPlayerHackAccessPanel(access) {
 
 async function refreshPlayerHackAccess(prefetched = null) {
     if (prefetched) {
+        const newGrant = prefetched.active && prefetched.hacked_until
+            && (prefetched.hacked_until !== playerHackAccessState?.hacked_until
+                || prefetched.victim_username !== playerHackAccessState?.victim_username);
         renderPlayerHackAccessPanel(prefetched);
+        if (newGrant && typeof recoverMapDeltaScope === 'function') recoverMapDeltaScope();
         return prefetched;
     }
     try {
@@ -4701,6 +4705,7 @@ function openIntruderKickerApp(payload = {}) {
 
 async function usePlayerHackTool(toolId) {
     if (!playerHackAccessState || !playerHackAccessState.active) return;
+    if (playerHackAccessState.tools?.find(tool => tool.id === toolId)?.used) return;
     const requestAccess = playerHackAccessState;
     if (requestAccess.toolInFlight) return;
     requestAccess.toolInFlight = true;
@@ -4732,7 +4737,8 @@ async function usePlayerHackTool(toolId) {
         if (!res.ok || data.success === false) {
             if (data.access) refreshPlayerHackAccess(data.access);
             const currentMessage = panel.querySelector('[data-player-hack-message]');
-            if (currentMessage) currentMessage.textContent = data.error || 'Narzędzie niedostepne.';
+            if (currentMessage) currentMessage.textContent = data.reason === 'tool_already_used'
+                ? '' : (data.error || 'Narzędzie niedostepne.');
             return;
         }
         confirmedResult = data;

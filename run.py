@@ -17892,13 +17892,14 @@ def serialize_player_hack_access(access):
             if tool.get("id") == "financialSniffer":
                 tool.update(enabled=False, used=True,
                             disabled_reason="Financial Sniffer byl juz uzyty podczas tego dostepu.")
-    if player_hack_access_store.has_tool_usage(
-        access, access.get("attacker_username"), access.get("victim_username"), "friendKicker"
-    ):
-        for tool in tools:
-            if tool.get("id") == "friendKicker":
-                tool.update(enabled=False, used=True,
-                            disabled_reason="Friend Kicker byl juz uzyty podczas tego dostepu.")
+    for tool in tools:
+        if tool.get("id") == "financialSniffer":
+            continue  # Pending wallet receipts remain recoverable.
+        if player_hack_access_store.has_tool_usage(
+            access, access.get("attacker_username"), access.get("victim_username"), tool["id"]
+        ):
+            tool.update(enabled=False, used=True,
+                        disabled_reason=f"{tool['name']} byl juz uzyty podczas tego dostepu.")
     return {
         "active": seconds_left > 0,
         "victim_username": access.get("victim_username"),
@@ -26303,14 +26304,28 @@ def api_player_hack_tool_use():
     if tool_error:
         return tool_error
 
+    def already_used_response():
+        return jsonify({"success": False, "reason": "tool_already_used",
+                        "access": serialize_player_hack_access(access)}), 409
+
+    if tool_id != "financialSniffer" and player_hack_access_store.has_tool_usage(
+        access, session["user"], victim_username, tool_id
+    ):
+        return already_used_response()
+
     if tool_id == "intruderKicker":
         result, status = execute_intruder_kicker(session["user"], victim_username)
+        if result.get("duplicate"):
+            return already_used_response()
         if result.get("success"):
             result["access"] = serialize_player_hack_access(access)
         return jsonify(result), status
 
     if tool_id == "systemLogReader":
         safe_logs = system_message_store.recent_player_hack_logs(victim_username)
+        usage = player_hack_access_store.record_tool_usage(access, session["user"], victim_username, tool_id, result="read")
+        if usage.get("duplicate"):
+            return already_used_response()
         message = (
             "System Log Reader odczytal ostatnie komunikaty ofiary."
             if safe_logs
@@ -26331,6 +26346,10 @@ def api_player_hack_tool_use():
         if not victim_profile:
             return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
 
+        security = identity_projection_store.get_player_security(victim_username)
+        usage = player_hack_access_store.record_tool_usage(access, session["user"], victim_username, tool_id, result="opened")
+        if usage.get("duplicate"):
+            return already_used_response()
         return jsonify({
             "success": True,
             "tool_id": "securityPanelProxy",
@@ -26339,7 +26358,7 @@ def api_player_hack_tool_use():
             "message": "Security Panel Proxy polaczony z profilem ofiary.",
             "victim_username": victim_username,
             "victim_nick": victim_profile.get("nick") or victim_username,
-            "security": identity_projection_store.get_player_security(victim_username),
+            "security": security,
             "rules": SECURITY_CONFLICTS,
             "access": serialize_player_hack_access(access),
         })
@@ -26562,10 +26581,7 @@ def api_player_hack_tool_use():
         return jsonify(result)
     if tool_id == "arsenalCleaner":
         if player_hack_access_store.has_tool_usage(access, session["user"], victim_username, tool_id):
-            return jsonify({
-                "success": False,
-                "error": "Arsenal Cleaner byl juz uzyty podczas tego dostepu."
-            }), 409
+            return already_used_response()
 
         victim_profile = capability_projection_store.get_capabilities(victim_username)
         attacker_profile = capability_projection_store.get_capabilities(session["user"])
@@ -26582,7 +26598,7 @@ def api_player_hack_tool_use():
                 player_hack_access_store, access, session["user"], victim_username, "", "no_apps",
             )
             if receipt.get("duplicate"):
-                return jsonify({"success": False, "error": "Arsenal Cleaner byl juz uzyty podczas tego dostepu."}), 409
+                return already_used_response()
             refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
             return jsonify({
                 "success": True,
@@ -26627,7 +26643,7 @@ def api_player_hack_tool_use():
             player_hack_access_store, access, session["user"], victim_username, target_app_id, result,
         )
         if receipt.get("duplicate"):
-            return jsonify({"success": False, "error": "Arsenal Cleaner byl juz uzyty podczas tego dostepu."}), 409
+            return already_used_response()
         removed = receipt["result"] == "removed"
         if removed:
             add_system_message_to_user(

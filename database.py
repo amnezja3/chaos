@@ -10092,8 +10092,8 @@ class PlayerHackAccessStore:
                 rows = conn.execute(
                     f"""SELECT victim_username, cooldown_until FROM player_hack_access
                         WHERE attacker_username=? AND victim_username IN ({placeholders})
-                        AND cooldown_until > ? AND hacked_until <= ?""",
-                    (attacker, *batch, utc_now(), utc_now()),
+                        AND cooldown_until > ?""",
+                    (attacker, *batch, utc_now()),
                 ).fetchall()
                 result.update({row['victim_username']: row['cooldown_until'] for row in rows})
         return result
@@ -11429,7 +11429,7 @@ class PlayerInventoryStore:
             )
         return self.snapshot(username)
 
-    def snapshot(self, username):
+    def snapshot(self, username, *, conn=None):
         username = self._clean_text(username)
         if not username:
             return {
@@ -11438,7 +11438,7 @@ class PlayerInventoryStore:
                 "files": {"tools": []},
                 "storage": None,
             }
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             app_rows = conn.execute(
                 """
                 SELECT * FROM player_apps
@@ -11981,6 +11981,7 @@ class PlayerInventoryStore:
         """Commit the single-use receipt and canonical uninstall together."""
         if os.path.abspath(self.db_path) != os.path.abspath(access_store.db_path):
             raise ValueError("Cleaner stores must share a database")
+        inventory_deltas = GameStateDeltaBus(self.db_path)
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             receipt = access_store.record_tool_usage(
@@ -11993,6 +11994,14 @@ class PlayerInventoryStore:
                 conn.execute("UPDATE player_hack_tool_usage SET result='no_apps', amount=0 WHERE id=?",
                              (receipt["id"],))
                 receipt.update(result="no_apps", amount=0)
+            if receipt.get("result") == "removed":
+                snapshot = self.snapshot(victim, conn=conn)
+                inventory_deltas.record_change(
+                    victim, "apps", "apps.app_uninstalled",
+                    {"apps": snapshot["apps"], "files": snapshot["files"],
+                     "app_id": app_id, "reason": "arsenalCleaner"},
+                    entity_id=app_id, dedupe_key=f"cleaner:{receipt['id']}:inventory", conn=conn,
+                )
             return receipt
 
     def uninstall_app(self, username, app_id="", tool_id="", *, conn=None):

@@ -34,5 +34,10 @@ vm.runInContext(source.slice(source.indexOf('async function usePlayerHackTool(')
     resolve({ok: true, json: async () => ({success: true, result_type: 'friend_kicker'})});
     await third;
     assert.equal(opened, 0);
+    ctx.desktopSessionActive = true;
+    ctx.playerHackAccessState = {active: true, victim_username: 'b', tools: [{id: 'friendKicker', used: true}]};
+    const beforeUsed = requests;
+    await ctx.usePlayerHackTool('friendKicker');
+    assert.equal(requests, beforeUsed, 'Used button must not start another request');
     console.log('PvP request guard: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
