@@ -4,7 +4,14 @@ Data: 2026-09-14. Punkt odniesienia kodu: `96dec35`.
 
 Aktualizacja zakresu: 2026-09-15 — pozycja aktora po teleportacji.
 
-Status: **W REALIZACJI — 141.2 i 141.3 zamknięte (15 IX)**.
+Status: **W REALIZACJI — 141.2 i 141.3 zamknięte (15 IX), 141.4 zamknięty (16 IX).
+Pozostaje scalony etap 141.5.**
+
+Decyzja autora 15 IX: dawne etapy 141.5, 141.6 i 141.7 połączone w jeden
+końcowy **141.5 — integralność, interfejs i odbiór całej ścieżki PvP**.
+Zakres pozostaje zachowany, z jednym wspólnym odbiorem. Historyczne odwołania
+do 141.6/141.7 oznaczają teraz odpowiednie części 141.5. Wcześniejsze PASS
+pozostają zaliczone; realizacja obejmuje brakujące punkty i potrzebne regresje.
 
 Końcowy odbiór 141.3: operator wdrożył `03b4289`, wykonał migrację launchera
 31/31 bez pominięć, a verify przed i po uruchomieniu czterech procesów zwróciło
@@ -288,7 +295,7 @@ testy oraz późniejsze sprostowania w journalu. Punkty wejścia:
 
 ## 4. Zakres i kolejność realizacji
 
-Etapy 141.1–141.7 są checkpointami jednego sprintu. Samo zamknięcie panelu
+Etapy 141.1–141.5 są checkpointami jednego sprintu (dawne .5–.7 scalono). Samo zamknięcie panelu
 lub backendu nie oznacza zakończenia Sprintu 141.
 
 ### 141.1 — reprodukcja, pełny przebieg i macierz narzędzi
@@ -394,6 +401,12 @@ oraz trwały replay grantu. Nie traktować poprawki mark jako bramki wszystkich 
 
 ### 141.4 — właściwy katalog i wspólne bramki użycia
 
+**ZAMKNIĘTY 16 IX.** Autor potwierdził: „licznik działa poprawnie : pass”.
+Odbiór zamyka poprawkę aktualizacji licznika w otwartym Google Plexie;
+wcześniejszy odbiór katalogu i bramek pozostaje zaliczony. Wyjątek dla biletów
+teleportacyjnych pozostaje obowiązujący. Poniższe checkpointy opisują historię
+naprawy, a nie aktualnie otwartą bramkę wdrożenia.
+
 Najnowszy checkpoint: autor potwierdził trwałe naliczanie po zakupie, lecz
 licznik odświeżał się dopiero po ponownym otwarciu Google Plexa. Lokalna
 poprawka przekazuje catalog_update z odpowiedzi instalacji przez istniejący
@@ -434,9 +447,23 @@ Docelowy rdzeń istniejących narzędzi do pełnej naprawy:
 - Nieobsługiwany tool ID lub brak executora daje kontrolowaną odmowę;
   usunąć sukces-placeholder z tej ścieżki.
 
-### 141.5 — wykonanie, integralność i wynik obu stron
+### 141.5 — integralność, interfejs i odbiór całej ścieżki PvP
 
-- Każde z pięciu narzędzi przechodzi cały przebieg: request → walidacja → efekt
+Przygotowanie wykonawcze 16 IX: [plan domknięcia i pozostałe dowody](../runbooks/sprint_141_5_closure.md).
+Przegląd kodu potwierdził pełne odczyty w Snifferze, Friend Kickerze i otwarciu
+Security Proxy oraz osobny zapis efektu/usage Friend Kickera. To pozostałe
+prace techniczne, nie cofnięcie zaakceptowanego gameplayu.
+
+Jeden końcowy etap łączy dawne 141.5–141.7. Najpierw zestawić istniejące
+testy i odbiory z poniższymi wymaganiami, następnie naprawić i zweryfikować
+wyłącznie pozostałe luki. Nie otwierać ponownie zaakceptowanej mechaniki.
+Przeniesione próby ruchu w toku, audience, recovery i pomiary opóźnień z 141.2
+należą do końcowej walidacji tego etapu. Status licznika z 141.4 pozostaje
+osobny; scalenie nie jest potwierdzeniem jego odbioru produkcyjnego.
+
+#### Wykonanie, integralność i wynik obu stron
+
+- Każde z sześciu narzędzi, w tym Intruder Kicker, przechodzi cały przebieg: request → walidacja → efekt
   → receipt/wersja → odpowiedź → prezentacja → odczyt kanonicznego stanu.
 - Wynik losowania, wybrany kontakt/aplikacja i kwota wymagają trwałego związania
   z pojedynczym użyciem przed nieodwracalnym efektem. Retry nie losuje ponownie.
@@ -455,7 +482,7 @@ Docelowy rdzeń istniejących narzędzi do pełnej naprawy:
   pełny łańcuch operacja → canonical file → storage → File Manager → GX → HC.
   Dla pozostałych wpisać jawnie „nie dotyczy” z uzasadnieniem, bez fikcyjnego pliku.
 
-### 141.6 — spójny interfejs desktop/mobile i recovery
+#### Spójny interfejs desktop/mobile i recovery
 
 - Responsywność obejmuje wybór gracza, panel hackowania, Player Hack Access,
   wszystkie okna narzędzi, formularze security i wyniki, nie tylko listę przycisków.
@@ -483,12 +510,16 @@ Docelowy rdzeń istniejących narzędzi do pełnej naprawy:
 - Reuse istniejącej oprawy CHAOS. CSS ograniczony do dotkniętych komponentów;
   nie zmieniać zaakceptowanych show, Signal Registry ani globalnego layoutu.
 
-### 141.7 — regresja, pełne E2E i zamknięcie
+#### Regresja, pełne E2E i wspólne zamknięcie
 
 Przeprowadzić automatyczne bramki, scenariusze przeglądarkowe i odbiór autora
 według poniższej macierzy. Po naprawach sporządzić raport: objaw → przyczyna
 → zmiana → dowód → pozostałe ograniczenie. Zaktualizować kontrakty dotkniętych
 obszarów, ten sprint i journal. Nie zamykać funkcji na podstawie samego HTTP 200.
+
+Warunek zamknięcia 141.5: rozliczony zakres wszystkich trzech części,
+uzupełnione brakujące testy i odbiory, raport potwierdzonych wyników oraz
+jawnie opisane ograniczenia. Nie prowadzić osobnych sprintów 141.6 i 141.7.
 
 ## 5. Źródła prawdy i bramka wydajności
 

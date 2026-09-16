@@ -1,5 +1,47 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — 141.5: Player Access jako standardowe okno aplikacji
+
+Na polecenie autora przeniesiono panel PvP do app-window, z istniejącym
+makeDraggable, paskiem aplikacji i mobile safe mode. Nie powstał osobny
+mechanizm mobilny. Panel zachowuje pozycję przy renderach, można go
+minimalizować i przywracać z taskbara. Zawartość przewijana, opisy zawijane,
+kontrolki minimum 44 px. Wygaśnięcie usuwa okno; stary timeout nie usuwa
+nowego dostępu. Podniesiono wersję terminal.js w trzech szablonach.
+Lokalnie cztery testy JS PASS: okno/lifecycle, Intruder Kicker, Financial
+Sniffer i Log Reader; node --check i diff check PASS. Bez deployu oraz
+wizualnego odbioru desktop/mobile. Pozostałe prace techniczne 141.5 otwarte.
+
+## 2026-09-16 — przygotowanie domknięcia 141
+
+Utworzono doc/runbooks/sprint_141_5_closure.md: zaakceptowany zakres .2–.4,
+kolejność pozostałych prac .5, punkty startowe testów i jeden końcowy odbiór.
+Przegląd kodu potwierdził pełne odczyty w Financial Sniffer, Friend Kicker
+i otwarciu Security Proxy. Friend Kicker zmienia kontakty przed osobnym usage;
+skutki przerwania wymagają reprodukcji, nie są potwierdzonym błędem produkcji.
+Istniejące odbiory pozostają zaliczone. Nie uruchomiono nowej pełnej regresji,
+nie zmieniono kodu ani stanu serwera. Sprint pozostaje otwarty do rozliczenia
+technicznych braków oraz desktop/mobile/recovery.
+
+## 2026-09-16 — 141.4 zamknięty: odbiór licznika Pro Tools
+
+Autor potwierdził „licznik działa poprawnie : pass” po poprawce odświeżania
+w otwartym Google Plexie. Wraz z wcześniejszym odbiorem katalogu i bramek
+zamyka to 141.4. Bilety teleportacyjne pozostają wyłączone z naliczania.
+To odbiór autora, nie dodatkowy audyt serwera. Pozostaje scalony etap 141.5
+(dawne .5–.7). Zaktualizowano wyłącznie dokumentację; bez działań produkcyjnych.
+
+## 2026-09-15 — scalenie końcowych etapów 141.5–141.7
+
+Na polecenie autora połączono dawne .5, .6 i .7 w jeden końcowy etap 141.5:
+integralność, interfejs i odbiór całej ścieżki PvP. Zachowano wymagania efektów,
+receipts/recovery, desktop/mobile, regresji i E2E oraz przeniesione próby mapy.
+Wspólny odbiór obejmuje sześć narzędzi, w tym Intruder Kicker. Wcześniejsze
+PASS pozostają zaliczone; praca dotyczy brakujących punktów i potrzebnych
+regresji. Historyczne oznaczenia .6/.7 odnoszą się teraz do części .5.
+Nie zmieniono stanu odbioru licznika w .4. Zmiana planu i dokumentacji,
+bez rozpoczęcia implementacji, deployu ani działań produkcyjnych.
+
 ## 2026-09-15 — 141.4: licznik pobrań w otwartym Google Plexie
 
 Odbiór operatora poprzedniej poprawki częściowy: instalacja i trwały licznik

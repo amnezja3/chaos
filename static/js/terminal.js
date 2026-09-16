@@ -1607,6 +1607,7 @@ function getWindowIcon(win, title) {
 
 function bringWindowToFront(win) {
     if (!win || !win.isConnected) return;
+    if (win.id === 'player-hack-access-panel') win.classList.remove('hidden');
     document.querySelectorAll('.terminal, .app-window').forEach(t => t.classList.remove('active'));
     win.classList.add('active');
     win.style.zIndex = ++topZIndex;
@@ -4573,22 +4574,35 @@ function getPlayerHackAccessPanel() {
     if (!panel) {
         panel = document.createElement('div');
         panel.id = 'player-hack-access-panel';
-        panel.className = 'player-hack-access-panel hidden';
+        panel.className = 'app-window player-hack-access-panel';
+        panel.dataset.appTitle = 'Player Access — PvP';
+        const position = findAvailablePosition();
+        panel.style.left = `${position.left}px`;
+        panel.style.top = `${position.top}px`;
+        panel.innerHTML = `
+            <div class="title-bar"><span>Player Access — PvP</span>
+                <button type="button" data-player-hack-minimize aria-label="Minimalizuj panel PvP" title="Przywróć z paska aplikacji">−</button>
+            </div>
+            <div class="app-content" data-player-hack-content></div>`;
         document.body.appendChild(panel);
+        makeDraggable(panel);
+        panel.querySelector('[data-player-hack-minimize]').addEventListener('click', () => {
+            panel.classList.add('hidden');
+        });
     }
     return panel;
 }
 
 function renderPlayerHackAccessPanel(access) {
-    const panel = getPlayerHackAccessPanel();
     if (!access || !access.active) {
-        panel.classList.add('hidden');
-        panel.innerHTML = '';
+        document.getElementById('player-hack-access-panel')?.remove();
         clearInterval(playerHackAccessTimer);
         playerHackAccessTimer = null;
         playerHackAccessState = null;
         return;
     }
+    const panel = getPlayerHackAccessPanel();
+    const changedVictim = playerHackAccessState?.victim_username !== access.victim_username;
 
     playerHackAccessState = {
         ...access,
@@ -4596,8 +4610,8 @@ function renderPlayerHackAccessPanel(access) {
     };
 
     const tools = Array.isArray(access.tools) ? access.tools : [];
-    panel.classList.remove('hidden');
-    panel.innerHTML = `
+    if (changedVictim) bringWindowToFront(panel);
+    panel.querySelector('[data-player-hack-content]').innerHTML = `
         <div class="player-hack-access-head">
             <span>PLAYER ACCESS</span>
             <strong data-player-hack-countdown>${formatHackAccessTime(playerHackAccessState.seconds_left)}</strong>
@@ -4635,9 +4649,14 @@ function renderPlayerHackAccessPanel(access) {
         const countdown = panel.querySelector('[data-player-hack-countdown]');
         if (countdown) countdown.textContent = formatHackAccessTime(playerHackAccessState.seconds_left);
         if (playerHackAccessState.seconds_left <= 0) {
+            clearInterval(playerHackAccessTimer);
+            playerHackAccessTimer = null;
+            const expiredState = playerHackAccessState;
             const msg = panel.querySelector('[data-player-hack-message]');
             if (msg) msg.textContent = 'Dostep wygasl.';
-            setTimeout(() => renderPlayerHackAccessPanel(null), 1200);
+            setTimeout(() => {
+                if (playerHackAccessState === expiredState) renderPlayerHackAccessPanel(null);
+            }, 1200);
         }
     }, 1000);
 }
