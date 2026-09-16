@@ -1,0 +1,11 @@
+{% extends "admin_base.html" %}
+{% block content %}
+<p class="eyebrow">CONTROL / {{ active_tab }}</p>
+<h1>{{ {'users':'Użytkownicy','territories':'Terytoria','vulnerabilities':'Podatności'}[active_tab] }}</h1>
+<p class="intro">{% if active_tab == 'users' %}Wybierz konto, aby sprawdzić jego zasoby i dostępne ustawienia.{% else %}Przegląd stanu świata. Wyszukaj właściciela lub zgłaszającego.{% endif %}</p>
+<form id="search-form" class="toolbar"><label>Szukaj <input id="search" type="search" maxlength="100" placeholder="Login lub nazwa"></label><button>Wyszukaj</button></form>
+<p id="notice" role="status" aria-live="polite"></p>
+<div class="workspace"><section class="panel" aria-label="Lista"><div id="listing"></div><div class="pager"><button id="prev">← Wstecz</button><span id="page-label"></span><button id="next">Dalej →</button></div></section>
+<section id="detail" class="panel detail" aria-label="Szczegóły użytkownika" {% if active_tab != 'users' %}hidden{% endif %}><p class="empty">Wybierz użytkownika z listy. Dane konta zostaną pobrane dopiero po wyborze.</p></section></div>
+{% endblock %}
+{% block scripts %}<script>window.adminSection={{ active_tab|tojson }};</script><script src="/static/js/admin_panel.js?v=1"></script>{% endblock %}

@@ -45,17 +45,14 @@ class AdminProfessionChangeTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "profession_not_available_for_player_clan"):
             run.build_admin_profession_contract(self.virex_profile(), "analyzer")
 
-    def test_admin_card_renders_clan_scoped_selector_and_generation_guard(self):
-        card = run.render_admin_user_card(
-            run.build_admin_user_snapshot(self.virex_profile())
-        )
-
-        self.assertIn('action="/api/admin/users/profession"', card)
-        self.assertIn('value="broker"', card)
-        self.assertIn('value="profit_enforcer" selected', card)
-        self.assertNotIn('value="analyzer"', card)
-        self.assertIn('name="_session_generation"', card)
-        self.assertIn('name="_ghost_epoch"', card)
+    def test_admin_shell_carries_generation_and_epoch_for_lazy_forms(self):
+        with run.app.test_request_context('/admin'):
+            card = run.render_template('admin_dashboard.html', active_tab='users',
+                generation={'generation': 'test-generation', 'ghost_epoch': 'test-epoch'})
+        self.assertIn('session-generation-config', card)
+        self.assertIn('test-generation', card)
+        self.assertIn('test-epoch', card)
+        self.assertIn('admin_panel.js', card)
 
     def test_form_after_rollover_requires_current_document_epoch(self):
         from session_generation_fixture import SessionGenerationFixture

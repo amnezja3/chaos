@@ -5,6 +5,9 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
+- [Panel administracyjny — layout i odczyty na żądanie](runbooks/admin_panel_lazy_layout.md):
+  cztery sekcje, paginacja, pojedyncze konto i zasoby z kanonicznych store’ów.
+
 1. [`Pełne przekazanie projektu — 2026-09-14`](runbooks/handoff_project_2026_09_14.md) — aktualny punkt startowy: architektura, decyzje, stan prac, produkcja i ryzyka.
 2. [`overview/ABOUT_CHAOS.md`](overview/ABOUT_CHAOS.md) — produkt, świat i canon.
 3. [`history/project_journal.md`](history/project_journal.md) — najnowszy stan prac.

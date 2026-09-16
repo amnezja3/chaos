@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — refaktoring panelu administracyjnego
+
+Autor potwierdził działanie zmiany profesji po naprawie epoki, następnie zlecił
+porządkowanie panelu. Wspólny layout dla użytkowników, terytoriów, podatności
+i zgłoszeń; header 70 px bez hasła, styl transmisji GhostSignal/Bug Reports.
+Usunięto agregowanie wszystkich profili i surowe JSON-y z UI. Lista ma 50
+pozycji na stronę; szczegóły konta i kategorie zasobów są pobierane na żądanie
+z ograniczonych projekcji. Profesja zachowuje guarded write i bramki sesji/epoki.
+16 testów Python i test JS PASS; brak dostępnej przeglądarki uniemożliwił
+wizualny odbiór. Bez migracji/deployu. Kontrakt i ograniczenia:
+[runbook panelu](../runbooks/admin_panel_lazy_layout.md).
+
 ## 2026-09-16 — formularz profesji admina po zmianie epoki GhostSystemu
 
 Zgłoszenie operatora: zmiana profesji zwraca ghostsystem_restart_required /

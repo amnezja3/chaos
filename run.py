@@ -21172,161 +21172,15 @@ def redacted_profile(profile):
     return data
 
 
-def build_admin_user_snapshot(profile):
-    profile = dict(profile or {})
-    hacked = profile.get("hacked", []) or []
-    apps = profile.get("apps", []) or []
-    files = profile.get("files", {}) or {}
-    tools = list(files.get("tools", []) or [])
-    project_files = list(files.get("projects", []) or [])
-    aimed_target = profile.get("aimed_target", {}) or {}
-    try:
-        profession_contract = build_admin_profession_contract(profile)
-    except ValueError:
-        profession_contract = {
-            "clan_code": "", "current_code": "", "choices": [], "selected": None,
-        }
-
-    return {
-        "username": profile.get("username"),
-        "nick": profile.get("nick"),
-        "email": profile.get("email", ""),
-        "clan": get_profile_clan(profile),
-        "fraction": profile.get("fraction", {}),
-        "profession": profession_contract.get("selected"),
-        "profession_choices": profession_contract.get("choices", []),
-        "level": profile.get("level"),
-        "hackcoins": profile.get("hackcoins"),
-        "respect": profile.get("respect"),
-        "exp": profile.get("exp"),
-        "position": profile.get("curently_possition", {}),
-        "territory_stats": profile.get("territory_stats", {}),
-        "aimed_target": aimed_target,
-        "aimed_target_security": aimed_target.get("security", {}),
-        "own_security": profile.get("security", {}),
-        "apps": apps,
-        "tools": tools,
-        "projects": project_files,
-        "targets": profile.get("targets", []) or [],
-        "hacked_targets": hacked,
-        "hacked_targets_security": [
-            {
-                "label": target.get("label"),
-                "name": target.get("name"),
-                "lat": target.get("lat"),
-                "lng": target.get("lng"),
-                "source_type": target.get("source_type"),
-                "security": target.get("security", {}),
-                "actions_allowed": target.get("actions_allowed", {}),
-                "captured_at": target.get("captured_at"),
-            }
-            for target in hacked
-        ],
-        "system_messages": profile.get("system_messages", []) or [],
-        "raw_profile": redacted_profile(profile),
-    }
-
-
 def build_admin_dashboard_state():
-    users = [build_admin_user_snapshot(profile) for profile in user_store.list_profiles()]
-    users.sort(key=lambda item: item.get("username") or "")
+    from admin_panel import page
+    users = page(user_store.db_path, "users")
     return {
         "generated_at": datetime.utcnow().isoformat(timespec="seconds"),
         "logged_as": session.get("user"),
-        "users": users,
-        "areas": territory_store.list_player_areas(),
-        "vulnerabilities": vulnerability_store.list_active(),
+        "users": users["items"],
+        "has_more": users["has_more"],
     }
-
-
-def render_json_block(data):
-    return html.escape(json.dumps(data, ensure_ascii=False, indent=2), quote=False)
-
-
-def render_admin_user_card(user):
-    username = html.escape(str(user.get("username") or ""))
-    nick = html.escape(str(user.get("nick") or ""))
-    clan = html.escape(str(user.get("clan") or "brak"))
-    aimed = user.get("aimed_target") or {}
-    aimed_label = html.escape(str(aimed.get("label") or aimed.get("name") or "brak"))
-    aimed_mode = html.escape(str(aimed.get("target_mode") or "standard"))
-    apps_count = len(user.get("apps") or [])
-    tools_count = len(user.get("tools") or [])
-    hacked_count = len(user.get("hacked_targets") or [])
-    own_security_on = sum(1 for value in (user.get("own_security") or {}).values() if value is True)
-    target_security_on = sum(1 for value in (user.get("aimed_target_security") or {}).values() if value is True)
-    profession = user.get("profession") or {}
-    profession_name = html.escape(str(profession.get("name") or "brak"))
-    profession_options = "".join(
-        '<option value="{code}"{selected}>{name}</option>'.format(
-            code=html.escape(str(item.get("code") or ""), quote=True),
-            name=html.escape(str(item.get("name") or "")),
-            selected=(" selected" if item.get("code") == profession.get("code") else ""),
-        )
-        for item in (user.get("profession_choices") or [])
-    )
-    profession_form = (
-        f"""
-        <form class="profession-form" method="post" action="/api/admin/users/profession">
-          <input type="hidden" name="username" value="{html.escape(str(user.get('username') or ''), quote=True)}">
-          <input type="hidden" name="_session_generation" value="{{session_generation}}">
-          <input type="hidden" name="_ghost_epoch" value="{{ghost_epoch}}">
-          <label>Profesja
-            <select name="profession_code">{profession_options}</select>
-          </label>
-          <button type="submit">Zmień profesję</button>
-        </form>
-        """
-        if profession_options else "<p><b>Profesja:</b> brak skonfigurowanego klanu</p>"
-    )
-
-    return f"""
-    <details class="user-card">
-      <summary>
-        <span class="user-main">{username}</span>
-        <span>{nick}</span>
-        <span>{clan}</span>
-        <span>{profession_name}</span>
-        <span>LVL {user.get("level")}</span>
-        <span>HC {user.get("hackcoins")}</span>
-      </summary>
-      <div class="grid">
-        <section>
-          <h3>Tożsamość GhostNetwork</h3>
-          <p><b>Klan:</b> {clan}</p>
-          <p><b>Aktualna profesja:</b> {profession_name}</p>
-          {profession_form}
-        </section>
-        <section>
-          <h3>Celownik</h3>
-          <p><b>Cel:</b> {aimed_label}</p>
-          <p><b>Tryb:</b> {aimed_mode}</p>
-          <p><b>Aktywne zabezpieczenia celu:</b> {target_security_on}</p>
-          <pre>{render_json_block(aimed)}</pre>
-        </section>
-        <section>
-          <h3>Narzędzia</h3>
-          <p><b>Aplikacje:</b> {apps_count}</p>
-          <p><b>Pliki tools:</b> {tools_count}</p>
-          <pre>{render_json_block({"apps": user.get("apps", []), "tools": user.get("tools", []), "projects": user.get("projects", [])})}</pre>
-        </section>
-        <section>
-          <h3>Security gracza</h3>
-          <p><b>ON:</b> {own_security_on}</p>
-          <pre>{render_json_block(user.get("own_security", {}))}</pre>
-        </section>
-        <section>
-          <h3>Przejęte obiekty</h3>
-          <p><b>Liczba:</b> {hacked_count}</p>
-          <pre>{render_json_block(user.get("hacked_targets_security", []))}</pre>
-        </section>
-      </div>
-      <details>
-        <summary>Pełny profil operacyjny</summary>
-        <pre>{render_json_block(user.get("raw_profile", {}))}</pre>
-      </details>
-    </details>
-    """
 
 
 @app.route("/api/dev/state")
@@ -22432,6 +22286,42 @@ def api_admin_dashboard():
     return jsonify({"success": True, "state": build_admin_dashboard_state()})
 
 
+@app.route("/api/admin/panel/list")
+def api_admin_panel_list():
+    if not require_dev_admin():
+        return jsonify(success=False, error="admin_required"), 403
+    from admin_panel import page
+    section = request.args.get("section", "users")
+    username = request.args.get("username", "")
+    if section in {"apps", "tools", "files", "operations", "captures"}:
+        if not username or not identity_projection_store.get_identity(username):
+            return jsonify(success=False, error="player_not_found"), 404
+    try:
+        result = page(user_store.db_path, section, offset=request.args.get("offset", 0),
+                      search=request.args.get("search", ""), username=username)
+    except ValueError:
+        return jsonify(success=False, error="invalid_admin_query"), 400
+    return jsonify(success=True, **result)
+
+
+@app.route("/api/admin/panel/user")
+def api_admin_panel_user():
+    if not require_dev_admin():
+        return jsonify(success=False, error="admin_required"), 403
+    from admin_panel import user_summary
+    username = request.args.get("username", "")
+    identity = identity_projection_store.get_identity(username)
+    if not identity:
+        return jsonify(success=False, error="player_not_found"), 404
+    profile = {"clan": identity.get("clan_code"), "ghost_profession": identity.get("profession_code")}
+    try:
+        contract = build_admin_profession_contract(profile)
+    except ValueError:
+        contract = {"choices": [], "selected": None}
+    return jsonify(success=True, user=user_summary(user_store.db_path, username),
+                   profession=contract, security=identity_projection_store.get_player_security(username))
+
+
 @app.route("/api/admin/users/profession", methods=["POST"])
 def api_admin_user_profession():
     if not require_dev_admin():
@@ -22497,77 +22387,10 @@ def dev_dashboard():
     if not require_dev_admin():
         return jsonify({"success": False, "message": "Dev dashboard wymaga konta admin."}), 403
 
-    if request.args.get("tab") == "bugs":
-        return render_template("admin_bug_reports.html", generation=session_generation_client_context())
-    state = build_admin_dashboard_state()
     generation = session_generation_client_context()
-    form_generation = html.escape(generation["generation"], quote=True)
-    form_epoch = html.escape(str((get_ghostsignal_show_service().restart_projection() or {}).get("epoch") or ""), quote=True)
-    user_cards = "\n".join(
-        render_admin_user_card(user).replace("{session_generation}", form_generation).replace("{ghost_epoch}", form_epoch)
-        for user in state["users"]
-    )
-    areas_count = len(state.get("areas") or [])
-    vulnerabilities_count = len(state.get("vulnerabilities") or [])
-    return f"""
-<!doctype html>
-<html lang="pl">
-<head>
-  <meta charset="utf-8">
-  <title>GH0ST ADMIN</title>
-  <style>
-    * {{ box-sizing: border-box; }}
-    body {{ margin: 0; padding: 18px; background: #050805; color: #cfff92; font-family: Consolas, monospace; }}
-    a {{ color: #7dff48; text-decoration: none; }}
-    h1, h2, h3 {{ margin: 0 0 10px; color: #f0ffe4; }}
-    p {{ margin: 5px 0; }}
-    pre {{ white-space: pre-wrap; max-height: 360px; overflow: auto; background: #020402; border: 1px solid rgba(125,255,72,.45); padding: 12px; color: #dfffcf; }}
-    .bar {{ display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }}
-    .brand {{ font-size: 22px; font-weight: 800; letter-spacing: .08em; color: #b8ff28; }}
-    .pill {{ border: 1px solid #1db954; padding: 6px 10px; background: rgba(29,185,84,.12); }}
-    .stats {{ display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }}
-    .stat {{ border: 1px solid rgba(125,255,72,.5); background: rgba(29,185,84,.08); padding: 12px; }}
-    .user-card {{ border: 1px solid rgba(125,255,72,.55); background: rgba(0,0,0,.35); margin: 12px 0; }}
-    .user-card > summary {{ cursor: pointer; display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr .6fr .7fr; gap: 10px; padding: 12px; background: rgba(29,185,84,.12); color: #eaffde; }}
-    .user-main {{ color: #b8ff28; font-weight: 800; }}
-    .grid {{ display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 12px; padding: 12px; }}
-    section {{ border: 1px solid rgba(125,255,72,.28); padding: 12px; background: rgba(0,0,0,.25); }}
-    .profession-form {{ display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 12px; }}
-    .profession-form label {{ display: grid; gap: 5px; flex: 1 1 220px; }}
-    .profession-form select, .profession-form button {{ min-height: 36px; border: 1px solid #7dff48; background: #020402; color: #dfffcf; font: inherit; padding: 6px 9px; }}
-    .profession-form button {{ cursor: pointer; color: #b8ff28; }}
-    details details {{ margin: 0 12px 12px; border-top: 1px solid rgba(125,255,72,.25); padding-top: 10px; }}
-    @media (max-width: 900px) {{
-      .stats, .grid, .user-card > summary {{ grid-template-columns: 1fr; }}
-    }}
-  </style>
-</head>
-<body>
-  <div class="bar">
-    <span class="brand">GH0ST ADMIN</span>
-    <span class="pill">admin / 1234</span>
-    <a href="/desktop">desktop</a>
-    <a href="/api/admin/dashboard">api/admin/dashboard</a>
-    <a href="/api/dev/state">api/dev/state</a>
-    <a href="/admin?tab=bugs">Zgłoszenia błędów</a>
-  </div>
-  <div class="stats">
-    <div class="stat"><h3>Użytkownicy</h3><p>{len(state["users"])}</p></div>
-    <div class="stat"><h3>Pola</h3><p>{areas_count}</p></div>
-    <div class="stat"><h3>Podatności</h3><p>{vulnerabilities_count}</p></div>
-    <div class="stat"><h3>Wygenerowano</h3><p>{html.escape(state["generated_at"])}</p></div>
-  </div>
-  <h2>Użytkownicy</h2>
-  {user_cards}
-  <h2>Terytoria</h2>
-  <pre>{render_json_block(state.get("areas", []))}</pre>
-  <h2>Podatności</h2>
-  <pre>{render_json_block(state.get("vulnerabilities", []))}</pre>
-</body>
-</html>
-"""
-
-
+    tab = request.args.get("tab", "users")
+    return render_template("admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
+                           generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs"} else "users")
 
 @app.route("/logout")
 def logout():
