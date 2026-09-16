@@ -5,6 +5,12 @@ Stan 2026-09-16: plan wykonawczy po odbiorze 141.4, nie deklaracja CLOSED.
 
 ## Aktualny checkpoint finalizacji 16 IX
 
+Cleaner: autor potwierdził efekt i notice, następnie zgłosił pozostały TShark.sh
+bez parametrów. Pełny odbiór NIEZALICZONY. Lokalnie naprawiono usuwanie wpisów
+tools bez app_id przez dokładne aliasy instalacji we wspólnej deinstalacji.
+3 testy Python PASS; ponowny odbiór Plików po sukcesie Cleanera wymagany.
+Historyczne pozostałości nie zostały automatycznie usunięte.
+
 Zegar cooldownu: po zgłoszeniu braku widoczności poprawiono przycinanie CSS
 oraz brak terminu w delcie ruchu. Lokalnie 1 Python + 3 zestawy JS PASS.
 Odbiór: na widocznym graczu z trwającym cooldownem żółty CD H:MM:SS nad

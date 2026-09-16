@@ -78,6 +78,11 @@ class PlayerHackReadPathsTest(unittest.TestCase):
         self.inventory.install_app('attacker', {'id': 'arsenalCleaner', 'name': 'Arsenal Cleaner'}, purchase_key='cleaner')
         target = {'id': 'removable', 'name': 'Removable Tool', 'storage_size': 5}
         self.inventory.install_app('victim', target, purchase_key='target')
+        with db_connect(self.path) as conn:
+            conn.execute("INSERT INTO player_tool_files (username, tool_id, app_id, tool_json, version, updated_at) VALUES ('victim', 'legacy-tool', '', ?, 1, '2026-09-16')",
+                         ('{"name":"Removable Tool.sh","file_size":3}',))
+            conn.execute("INSERT INTO player_tool_files (username, tool_id, app_id, tool_json, version, updated_at) VALUES ('victim', 'other-tool', 'other-app', ?, 1, '2026-09-16')",
+                         ('{"name":"Removable Tool.sh","file_size":2}',))
         payload = {'tool_id': 'arsenalCleaner', 'victim_username': 'victim'}
         access = self.access.get_active_access('attacker', 'victim')
         original = self.inventory.uninstall_app
@@ -88,6 +93,8 @@ class PlayerHackReadPathsTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.inventory.apply_arsenal_cleaner(self.access, access, 'attacker', 'victim', 'removable', 'removed')
         self.assertTrue(self.inventory.has_app('victim', 'removable'))
+        with db_connect(self.path) as conn:
+            self.assertIsNotNone(conn.execute("SELECT 1 FROM player_tool_files WHERE tool_id='legacy-tool' AND username='victim'").fetchone())
         self.assertFalse(self.access.has_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner'))
         with patch.object(self.users, 'get_profile', side_effect=AssertionError('heavy read')), \
              patch.object(self.users, 'get_profile_with_revision', side_effect=AssertionError('heavy revision')), \
@@ -97,6 +104,9 @@ class PlayerHackReadPathsTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.get_json())
             self.assertTrue(response.json['removed'])
             self.assertFalse(self.inventory.has_app('victim', 'removable'))
+            with db_connect(self.path) as conn:
+                self.assertIsNone(conn.execute("SELECT 1 FROM player_tool_files WHERE tool_id='legacy-tool' AND username='victim'").fetchone())
+                self.assertIsNotNone(conn.execute("SELECT 1 FROM player_tool_files WHERE tool_id='other-tool' AND username='victim'").fetchone())
             receipt = self.access.get_tool_usage(access, 'attacker', 'victim', 'arsenalCleaner')
             self.assertEqual((receipt['result'], receipt['amount']), ('removed', 1))
             self.assertEqual(self.client.post('/api/player-hack/tool/use', json=payload).status_code, 409)

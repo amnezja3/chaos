@@ -1,5 +1,19 @@
 # CHAOS — Project Journal
 
+## 2026-09-16 — Cleaner: historyczny wpis tools zostawał po usunięciu aplikacji
+
+Autor skorygował odbiór: APP REMOVED i powiadomienie poprawne, ale TShark.sh
+pozostawał w Plikach bez parametrów. Pełny PASS Cleanera cofnięty.
+W kodzie uninstall_app usuwał tools wyłącznie przez app_id; import starszych
+wpisów dopuszcza puste app_id. Wspólna deinstalacja obsługuje teraz dokładne
+nazwy instalacji (name.sh, project_file, file_name) dla takich wpisów, w tej
+samej transakcji co storage i receipt. Pliki z ID innej aplikacji pozostają.
+Trzy testy Cleanera PASS: ciężkie profile bez odczytu, rollback obejmujący
+historyczny plik, ochrona innej aplikacji, retry, konkurencja i nieudany rzut.
+Bez migracji/deployu. Istniejących pozostałości na serwerze nie usuwano;
+poprawka działa przy deinstalacji, nie wykonuje globalnego czyszczenia.
+Ponowny odbiór pełnego usunięcia aplikacji i pliku po wdrożeniu otwarty.
+
 ## 2026-09-16 — widoczność zegara cooldownu PvP
 
 Autor nie widział odliczania. Potwierdzone w kodzie: badge znajdował się poza

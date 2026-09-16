@@ -12033,6 +12033,28 @@ class PlayerInventoryStore:
                     (username, app_id),
                 ).fetchall():
                     tool_rows[str(tool_row["tool_id"])] = tool_row
+                # Legacy tools were imported as filenames without an app_id.
+                # Match only exact installation aliases, never files owned by
+                # another application. Keep deletion/storage/receipt atomic.
+                if row:
+                    app = loads_json(row["app_json"], {})
+                    name = str(app.get("name") or app.get("label") or app_id).strip()
+                    aliases = {f"{name}.sh"} if name else set()
+                    aliases.update(str(app.get(key) or "").strip()
+                                   for key in ("project_file", "file_name"))
+                    aliases.discard("")
+                    for alias in aliases:
+                        for tool_row in conn.execute(
+                            """SELECT tool_id, tool_json FROM player_tool_files
+                               WHERE username=? AND COALESCE(app_id, '')=''
+                               AND (tool_id=? OR json_extract(tool_json, '$.name')=?
+                                    OR json_extract(tool_json, '$.file')=?
+                                    OR json_extract(tool_json, '$.filename')=?
+                                    OR json_extract(tool_json, '$.file_name')=?
+                                    OR json_extract(tool_json, '$.project_file')=?)""",
+                            (username, alias, alias, alias, alias, alias, alias),
+                        ).fetchall():
+                            tool_rows[str(tool_row["tool_id"])] = tool_row
             if tool_id:
                 tool_row = conn.execute(
                     "SELECT tool_id, tool_json FROM player_tool_files WHERE username = ? AND tool_id = ?",
