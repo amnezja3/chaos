@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import run
 import test_player_hack_read_paths as fixtures
-from database import (PlayerScanSnapshotStore, PlayerPositionStore, PlayerOperationStore, PlayerMarkedTargetStore,
+from database import (PlayerScanSnapshotStore, PlayerPositionStore, PlayerOperationStore, PlayerMarkedTargetStore, PlayerTargetRuntimeStore,
                       GameStateDeltaBus, db_connect, reset_hot_path_metrics,
                       get_hot_path_metrics, restore_hot_path_metrics)
 from response_network.camera_contract import camera_marker, CameraContractStore, CameraContractError
@@ -14,6 +14,65 @@ from response_network.camera_contract import camera_marker, CameraContractStore,
 class CameraShutdownContractTest(unittest.TestCase):
     setUp = fixtures.PlayerHackReadPathsTest.setUp
     seed = fixtures.PlayerHackReadPathsTest.seed
+
+    def test_map_desktop_terminal_and_new_scan_share_one_operation(self):
+        self.prepare()
+        runtime = PlayerTargetRuntimeStore(self.path)
+        target = {**self.camera, 'lng': self.camera['lon'], 'scan_id': self.scan['scan_id']}
+        runtime.upsert_aimed('attacker', target)
+        with patch.object(run, 'player_target_runtime_store', runtime), \
+                patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy path')):
+            first = self.client.post('/gonna-win', json={'app_id': 'cam-off', 'launch_source': 'desktop'})
+            self.assertEqual(first.status_code, 200, first.json)
+            original = first.json['created_operations'][0]
+            second = self.client.post('/hack-action', json=self.payload)
+            self.assertEqual(second.status_code, 200, second.json)
+            self.assertEqual(second.json['created_operations'][0], original)
+            newer = self.scans.record('attacker', [self.camera], 52.1, 21.2)
+            third = self.client.post('/hack-action', json={**self.payload, 'scan_id': newer['scan_id']})
+            self.assertEqual(third.json['created_operations'][0], original)
+            fourth = self.client.post('/gonna-win', json={'app_id': 'cam-off', 'launch_source': 'terminal'})
+            self.assertTrue(fourth.json['duplicate'], fourth.json)
+            self.assertEqual(fourth.json['created_operations'][0]['expires_at'], original['expires_at'])
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM player_operations').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT count(*) FROM player_launch_entries').fetchone()[0], 0)
+
+    def test_legacy_operation_at_same_camera_prevents_second_operation(self):
+        self.prepare()
+        old = run.build_operation_instance('attacker', {'id': 'cam-off'}, 'exploit', 'camera_shutdown',
+                                            {**self.camera, 'lng': self.camera['lon']})
+        old['target'].pop('camera_id', None)
+        self.operations.upsert_operations('attacker', [old])
+        response = self.client.post('/hack-action', json=self.payload)
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertTrue(response.json['duplicate'])
+        self.assertEqual(response.json['created_operations'][0]['operation_id'], old['operation_id'])
+
+    def test_map_then_other_desktop_app_keeps_original_timer(self):
+        self.prepare()
+        runtime = PlayerTargetRuntimeStore(self.path)
+        runtime.upsert_aimed('attacker', {**self.camera, 'lng': self.camera['lon'], 'scan_id': self.scan['scan_id']})
+        self.inventory.install_app('attacker', {'id': 'cam-other', 'map_actions': ['camera_shutdown'],
+                                              'target_types': ['camera']}, purchase_key='other-camera')
+        first = self.client.post('/hack-action', json=self.payload).json['created_operations'][0]
+        with patch.object(run, 'player_target_runtime_store', runtime), \
+                patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy path')):
+            response = self.client.post('/gonna-win', json={'app_id': 'cam-other', 'launch_source': 'desktop'})
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertTrue(response.json['duplicate'])
+        self.assertEqual(response.json['created_operations'][0], first)
+
+    def test_old_scan_rejected_with_actionable_message_on_desktop(self):
+        self.prepare()
+        runtime = PlayerTargetRuntimeStore(self.path)
+        target = {**self.camera, 'lng': self.camera['lon']}
+        target.pop('camera_id')
+        runtime.upsert_aimed('attacker', target)
+        with patch.object(run, 'player_target_runtime_store', runtime):
+            response = self.client.post('/gonna-win', json={'app_id': 'cam-off'})
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertIn('nowy scan', response.json['message'])
 
     def prepare(self, big=False):
         self.seed(big_attacker=big)

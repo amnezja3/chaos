@@ -85,5 +85,26 @@ Test integracyjny scan store → mark_target → target-snapshot → shutdown PA
 względem pliku testu, aby działał z izolowanym cwd.
 Po deployu wykonać nowy scan, ponownie oznaczyć kamerę, odświeżyć mapę i użyć
 wyłączenia z jej menu. Nie uzupełniamy starych markerów zgadywanym ID.
-Zgłoszona starsza ścieżka pulpitu nie została w tej poprawce ujednolicona;
-jej powodzenie nie zastępuje odbioru autoryzowanego shutdown z mapy.
+W samej poprawce transportu starsza ścieżka pulpitu nie była ujednolicona;
+uzupełniono to w poprawce deduplikacji poniżej.
+
+### Wspólna deduplikacja mapy, pulpitu i terminala — 17 IX
+
+Autor potwierdził uruchamianie, ale zgłosił drugą operację przy ponowieniu.
+Pulpit/terminal tworzyły operację starszą ścieżką, z innym kluczem celu.
+Teraz `/gonna-win` kieruje narzędzie wyłączające kamerę na kanonicznym celu
+kamery do tej samej autoryzacji/transakcji co mapa, przed odczytem profilu.
+Sprawdza też oczekiwany cel oraz jego niezmienność przy commit. Uruchomienie
+z pulpitu nie dodaje kolejnego startu do kolejki launchera.
+Deduplikacja obejmuje ID kamery, ID w snapshotach i starsze operacje dla
+dokładnie tej samej pozycji. Uwzględnia status i expires_at; nie zależy od
+wybranej aplikacji ani kolejnego scanu. Istniejące duplikaty nie są usuwane.
+Stary marker bez ważnego dowodu jest odrzucany z komunikatem o nowym scanie.
+
+Weryfikacja: 15 testów kamer PASS oraz 7 testów launchera PASS w regresji.
+Nowe scenariusze: desktop → mapa → nowy scan → terminal; mapa → inna aplikacja
+z pulpitu; wcześniejsza operacja bez camera_id; stary scan z pulpitu.
+Po deployu wykonać świeży scan i oznaczyć kamerę bez aktywnej operacji (lub
+wcześniej anulować stare operacje testowe). Uruchomić raz, zapisać timer,
+ponowić z mapy/pulpitu/terminala i po kolejnym scanie. Oczekiwane: jedna
+operacja, ten sam expires_at, bez resetu timera. 142.1 nadal otwarty do odbioru.

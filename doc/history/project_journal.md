@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — 142.1: wspólna deduplikacja wyłączenia kamery
+
+Po potwierdzeniu uruchamiania autor zgłosił powielanie operacji. Pulpit/terminal
+omijały nowy kontrakt i używały innego klucza celu. Skierowano je do wspólnej
+autoryzacji i atomowego shutdown przed wejściem w ciężki runtime profilu.
+Deduplikacja rozpoznaje też stare operacje po pozycji kamery, niezależnie od
+aplikacji/scanu. Stary marker bez dowodu daje czytelny komunikat o nowym scanie.
+15 testów kamer i 7 testów launchera PASS; potwierdzone obie kolejności
+mapa/pulpit, terminal, nowy scan, inna aplikacja i wcześniejsza operacja.
+Istniejące duplikaty pozostają do anulowania lub wygaśnięcia. 142.1 nadal
+otwarty do odbioru gameplayu; przejście do 142.2 wstrzymane.
+
 ## 2026-09-17 — 142.1: poprawka utraty danych kamery w markerach
 
 Autor przekazał żądanie shutdown z camera_id=null i scan_id=null.

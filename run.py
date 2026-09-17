@@ -23824,7 +23824,7 @@ def map_action():
     return jsonify(status=f"Zarejestrowano: {action} dla ({lat}, {lng})")
 
 
-def camera_shutdown_action(data):
+def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=None):
     username = session.get('user')
     if not username:
         return jsonify({'success': False, 'error': 'not_logged_in'}), 401
@@ -23862,6 +23862,11 @@ def camera_shutdown_action(data):
             raise CameraContractError('camera_app_not_authorized')
 
         def guard(conn, current_target):
+            if expected_camera_target is not None:
+                current_aim = player_target_runtime_store.get_active_target(username)
+                if any(current_aim.get(key) != expected_camera_target.get(key)
+                       for key in ('camera_id', 'scan_id', 'target_id')):
+                    raise CameraContractError('camera_target_changed')
             current_position = player_position_store.get(username, conn=conn)
             current_capability = capability_projection_store.get_capabilities(username, conn=conn)
             # A position/capability change requires a fresh request, never a stale grant.
@@ -23880,14 +23885,19 @@ def camera_shutdown_action(data):
             inventory=player_inventory_store, messages=system_message_store, deltas=delta_bus,
             flow_id=str(data.get('_flow_id') or '')[:96],
             request_key=str(data.get('_client_action_key') or '')[:220],
-            operation_template=operation_template, expected_app=selected_app)
+            operation_template=operation_template, expected_app=selected_app,
+            enqueue_launch=enqueue_launch)
         return jsonify({'success': True, 'duplicate': duplicate, 'idempotent_replay': duplicate,
                         'status': 'Kamera zostala czasowo wylaczona.' if not duplicate else 'Operacja kamery jest juz zapisana.',
                         'map_action_id': 'camera_shutdown', 'camera_shutdown': True,
+                        'operation_only': True,
                         'created_operations': [operation], 'added_apps': [selected]})
     except CameraContractError as exc:
+        message = ('Brak aktualnego dowodu scanu tej kamery. Wykonaj nowy scan i ponownie oznacz kamere.'
+                   if str(exc) == 'camera_scan_expired_or_unknown' else
+                   'Nie mozna wylaczyc kamery. Odswiez scan i sprawdz dostepne narzedzie.')
         return jsonify({'success': False, 'blocked': True, 'reason': str(exc),
-                        'status': 'Nie mozna wylaczyc kamery. Odswiez scan i sprawdz dostepne narzedzie.'}), 409
+                        'status': message, 'message': message}), 409
 
 
 @app.route('/hack-action', methods=['POST'])
@@ -30047,6 +30057,26 @@ def gonna_win():
                         'message': 'Potwierdzono zapis operacji kamery.', 'operation': operation,
                         'created_operations': [operation]})
     app_id = data.get("app_id")
+    # Desktop/terminal camera tools must use the same authorization and atomic
+    # deduplication as the map, before entering the legacy profile runtime.
+    if session.get('user') and app_id:
+        from database import db_connect, loads_json
+        with db_connect(player_inventory_store.db_path) as conn:
+            camera_app_row = conn.execute(
+                "SELECT app_json FROM player_apps WHERE username=? AND app_id=? AND status!='uninstalled'",
+                (session['user'], app_id)).fetchone()
+        camera_app = loads_json(camera_app_row['app_json'], {}) if camera_app_row else {}
+        if ('camera_shutdown' in (camera_app.get('operation_types') or [])
+                or 'camera_shutdown' in (camera_app.get('map_actions') or [])):
+            camera_target = player_target_runtime_store.get_active_target(session['user']) or {}
+            if camera_target.get('target_type') == 'camera' or camera_target.get('source_type') == 'camera':
+                expected = data.get('expected_target') or {}
+                if isinstance(expected, dict) and target_has_stable_runtime_identity(expected) and not targets_share_runtime_identity(expected, camera_target):
+                    return jsonify({'success': False, 'blocked': True, 'reason': 'target_selection_changed',
+                                    'message': 'Cel aplikacji zmienil sie. Uruchom narzedzie ponownie.'}), 409
+                return camera_shutdown_action({**camera_target, 'selected_app_id': app_id,
+                                               '_flow_id': data.get('_flow_id')},
+                                              enqueue_launch=False, expected_camera_target=camera_target)
     choice_id = data.get("choice_id", None)
     if isinstance(choice_id, str):
         normalized_choice_id = choice_id.strip()

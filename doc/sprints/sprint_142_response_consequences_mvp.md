@@ -21,7 +21,9 @@ implementacją właściwej policy; testy odbiorowe w sprincie weryfikują napraw
 
 Status: **OTWARTY / PASS GAMEPLAYU COFNIĘTY**, 17 IX 2026. Autor zgłosił,
 brak ID kamery/scanu w żądaniu z mapy. Poprawiono transport tych pól przez
-oznaczanie/wybór celu i snapshot mapy; testy lokalne PASS, odbiór oczekuje.
+oznaczanie/wybór celu i snapshot mapy. Autor potwierdził uruchamianie, ale
+zgłosił duplikację operacji. Ujednolicono shutdown z mapy/pulpitu/terminala
+oraz deduplikację starszych operacji; testy lokalne PASS, ponowny odbiór oczekuje.
 Wcześniejsze wyniki
 testów automatycznych pozostają zapisane, wymagany jest ponowny odbiór.
 

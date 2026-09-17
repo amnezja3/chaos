@@ -63,7 +63,8 @@ class CameraContractStore:
                 if eligible_app(loads_json(r['app_json'], {}))]
 
     def shutdown(self, username, scan_id, camera_id, app_id, *, guard, inventory, messages,
-                 deltas, flow_id='', request_key='', operation_template=None, expected_app=None):
+                 deltas, flow_id='', request_key='', operation_template=None, expected_app=None,
+                 enqueue_launch=True):
         if any(str(store.db_path) != str(self.db_path) for store in (inventory, messages, deltas)):
             raise ValueError('camera_database_mismatch')
         # Stable receipt survives process restarts and different client retry keys.
@@ -86,13 +87,18 @@ class CameraContractStore:
             if existing:
                 return loads_json(existing['operation_json'], {}), True
             active = conn.execute('''SELECT operation_json FROM player_operations
-                WHERE username=? AND target_key=? AND operation_type='camera_shutdown'
-                AND status IN ('start','running') ORDER BY updated_at DESC LIMIT 1''',
-                (username, camera_id)).fetchone()
+                WHERE username=? AND operation_type='camera_shutdown'
+                AND (target_key=? OR json_extract(operation_json, '$.target.camera_id')=?
+                     OR (json_extract(operation_json, '$.target.lat')=?
+                         AND COALESCE(json_extract(operation_json, '$.target.lng'),
+                                      json_extract(operation_json, '$.target.lon'))=?))
+                AND status IN ('start','running')
+                AND julianday(json_extract(operation_json, '$.expires_at')) > julianday(?)
+                ORDER BY updated_at DESC LIMIT 1''',
+                (username, camera_id, camera_id, target['lat'], target['lng'], now.isoformat())).fetchone()
             if active:
                 prior = loads_json(active['operation_json'], {})
-                if str(prior.get('expires_at') or '') > now.isoformat():
-                    return prior, True
+                return prior, True
             if conn.execute('''SELECT count(*) FROM (SELECT 1 FROM player_operations
                 WHERE username=? AND status IN ('start','running') LIMIT 32)''', (username,)).fetchone()[0] >= 32:
                 raise CameraContractError('camera_operation_limit')
@@ -122,7 +128,7 @@ class CameraContractStore:
             inventory.commit_launch(username, [{
                 'receipt': operation_id, 'app_id': app_id, 'name': app.get('name') or app_id,
                 'action': 'camera_shutdown', 'flow_id': flow_id, 'client_action_key': request_key,
-            }], [], messages, conn=conn)
+            }] if enqueue_launch else [], [], messages, conn=conn)
             deltas.record_change(username, 'map', 'map.operations_changed',
                                  {'operation': operation}, entity_id=operation_id,
                                  dedupe_key=operation_id, conn=conn)
