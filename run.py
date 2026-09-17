@@ -2308,13 +2308,13 @@ def enqueue_blacknet_world_narrative_digest(now=None):
 
     blacknet = enqueue_next("blacknet")
     googleplex_news = enqueue_next("googleplex_news")
-    stage_two = {"ok": True, "status": "not_due", "task": None}
+    # The hero and the remaining slots have independent readiness. A busy or
+    # continually refreshed hero must not starve all editorial assignments.
+    # Still enqueue at most one additional task per tick, from a public catalog.
+    stage_two = GoogleplexEditorialProducer(producer.repository).enqueue_next(
+        get_app_catalog(), now=now if isinstance(now, datetime) else None
+    )
     if googleplex_news.get("status") not in {"created", "slot_busy"}:
-        # Bounded public catalog only. Never replace this with account_catalog
-        # or a profile-backed availability projection.
-        stage_two = GoogleplexEditorialProducer(producer.repository).enqueue_next(
-            get_app_catalog(), now=now if isinstance(now, datetime) else None
-        )
         if stage_two.get("status") == "created":
             googleplex_news = stage_two
     return {

@@ -521,6 +521,32 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(result["googleplex_stage_two"]["status"], "created")
         self.assertEqual(len(self.repo.list_narrative_outbox(limit=20)), 1)
 
+    def test_editorial_slots_progress_while_hero_is_created_or_busy(self):
+        catalog = [{'id': 'v_map', 'name': 'V-MAP', 'published': True,
+            'description': 'Skanuje porty.', 'downloads': 15, 'price': 955}]
+        real_slot_check = self.repo.has_open_narrative_slot_assignment
+        hero_busy = [False]
+        def slot_check(medium, slot):
+            return hero_busy[0] if slot == 'gp-home-world-grid' else real_slot_check(medium, slot)
+        with patch.object(run, 'get_ghostnetwork_service', return_value=self.service), \
+             patch.object(run, 'build_blacknet_narrative_source_snapshot', return_value={}), \
+             patch.object(run, 'build_blacknet_world_signals', return_value={'signals': [{'id': 'hero'}]}), \
+             patch.object(run, 'get_app_catalog', return_value=catalog), \
+             patch.object(BlackNetNarrativeProducer, 'enqueue_signal', return_value={'status': 'created', 'task': {}}), \
+             patch.object(self.repo, 'has_open_narrative_slot_assignment', side_effect=slot_check), \
+             patch.object(run.user_store, 'get_profile', side_effect=AssertionError('full profile read')):
+            slots = []
+            for index in range(len(GoogleplexEditorialProducer.STAGE_TWO_SLOTS)):
+                hero_busy[0] = bool(index % 2)
+                result = run.enqueue_blacknet_world_narrative_digest()
+                self.assertEqual(result['googleplex_news']['status'], 'slot_busy' if hero_busy[0] else 'created')
+                self.assertEqual(result['googleplex_stage_two']['status'], 'created')
+                slots.append(result['googleplex_stage_two']['task']['presentation_slot'])
+                self.assertEqual(len(self.repo.list_narrative_outbox(limit=20)), index + 1)
+            self.assertEqual(slots, list(GoogleplexEditorialProducer.STAGE_TWO_SLOTS))
+            run.enqueue_blacknet_world_narrative_digest()
+            self.assertEqual(len(self.repo.list_narrative_outbox(limit=20)), len(slots))
+
     def test_stage_two_unknown_asset_role_and_oversized_copy_fail_closed(self):
         task = GoogleplexEditorialProducer(self.repo).enqueue_next(
             [{"id": "tool", "name": "Tool", "published": True}],
@@ -623,7 +649,8 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(second["status"], "created")
         self.assertEqual(second["googleplex_news"]["status"], "slot_busy")
         tasks = self.repo.list_narrative_outbox(limit=20)
-        self.assertEqual(len(tasks), 3)
+        self.assertEqual(len([t for t in tasks if t['source_scope'] == 'blacknet_world']), 3)
+        self.assertEqual(len([t for t in tasks if t['source_scope'] == 'googleplex_editorial']), 2)
         self.assertTrue(all(len(task["facts"]) == 1 for task in tasks))
 
     def test_stage_two_scheduler_skips_radio_for_hero_and_advances(self):

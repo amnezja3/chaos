@@ -77,7 +77,10 @@ def process_blacknet_narrative_if_due():
         f"status={result.get('status')} receipt_id={result.get('receipt_id') or '-'} "
         f"task_id={((result.get('task') or {}).get('outbox_id') or '-')} "
         f"googleplex_status={(result.get('googleplex_news') or {}).get('status', '-')} "
-        f"googleplex_reason={(result.get('googleplex_news') or {}).get('reason_code', '-')}",
+        f"googleplex_reason={(result.get('googleplex_news') or {}).get('reason_code', '-')} "
+        f"editorial_status={(result.get('googleplex_stage_two') or {}).get('status', '-')} "
+        f"editorial_slot={(((result.get('googleplex_stage_two') or {}).get('task') or {}).get('presentation_slot') or '-')} "
+        f"editorial_task={(((result.get('googleplex_stage_two') or {}).get('task') or {}).get('outbox_id') or '-')}",
         flush=True,
     )
     return result
