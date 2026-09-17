@@ -1,5 +1,31 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — rozpoczęcie 142.2: kamery a inicjacja i eskalacja
+
+Na polecenie autora rozpoczęto 142.2. Sprawdzono istniejące punkty integracji:
+builder operacji, bounded runtime tick, publiczny kalkulator heat i initializer.
+Autor zatwierdził osobny składnik +4, zerowany przez co najmniej jeden ważny
+shutdown własnego gracza przy tym samym obiekcie; bez stackowania i bez
+usuwania istniejącego incydentu/kar. Koniec shutdown przywraca składnik.
+Zaimplementowano trwałą ekspozycję ze scanu, zbiorczy odczyt canonical shutdown,
+meter oraz atomowy zapis zmiany ryzyka i delty mapy w workerze. Snapshot/TTL
+nie nadpisują dowodu trwającej operacji. Naprawiono zachowanie wkładów poniżej
+progu, wkładów innych graczy poza batchem oraz zapis przy sumie heat=100.
+Szczegóły i odbiór: `doc/runbooks/sprint_142_2_camera_risk.md`.
+Izolowane testy ekspozycji, shutdown, metera, inicjalizatora i regresji audytu:
+46/46 PASS (15,880 s), w tym profil 35 MB bez pełnego profile I/O i rollback
+przy awarii delty. `git diff --check` PASS. Bez deployu i odbioru UI.
+
+## 2026-09-17 — 142.1: ponowny odbiór autora PASS, etap zamknięty
+
+Autor potwierdził prawidłowe menu kamer, jedno wyłączenie podczas trwania
+operacji oraz informacyjny toast przy kolejnej próbie; zakończył „mamy pass”.
+Zapisano ponowny odbiór i zamknięto 142.1 po naprawach regresji. Aktualizowano
+też status ponownego odbioru menu w hardbugfixie 138.getway.3.5.
+Autor następnie osobno potwierdził poprawne działanie kropki celu na belce.
+Ten punkt ma potwierdzenie automatyczne i ręczne.
+Następny etap: 142.2, wpływ kamer na inicjację i eskalację incydentów.
+
 ## 2026-09-17 — 142.1: ponowna regresja markerów, postępu i równoległych startów
 
 Autor zgłosił brak kropki celu, dalszą duplikację operacji i okien oraz błędne

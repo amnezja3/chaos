@@ -39,6 +39,9 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 
 ## Status bieżący
 
+- [142.2 — kamery a publiczne ryzyko](runbooks/sprint_142_2_camera_risk.md):
+  zatwierdzone +4/0, trwała ekspozycja, osłona własnego obiektu, delta live;
+  46 testów PASS lokalnie, odbiór po deployu pozostaje otwarty.
 - [Audyt konsekwencji służb — 16 IX](audits/response_consequences_2026_09_16.md):
   szkielet MVP istnieje, ale wymaga naprawy kwalifikacji, źródeł danych i commitów.
   [Sprint 142](sprints/sprint_142_response_consequences_mvp.md) — pełna ścieżka
@@ -47,8 +50,8 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   recydywa, ograniczenia systemowe/ruchu/teleportów i więzienia. Wylogowanie nie
   usuwa incydentów ani automatycznie nie odbywa kary.
   [142.1 — kontrakt kamer](runbooks/sprint_142_1_camera_contract.md): implementacja
-  i testy lokalne zapisane; PASS gameplayu cofnięty przez autora 17 IX 2026.
-  142.1 ponownie otwarty, przejście do 142.2 wstrzymane. 143 pozostaje zaplanowany.
+  i testy lokalne PASS; ponowny odbiór autora PASS 17 IX 2026, etap zamknięty.
+  Następny etap: 142.2. 143 pozostaje zaplanowany.
 
 - [Terminal: pakiety Googleplex](gameplay/terminal_packages.md) — `pkg list-all`,
   `pkg search <nazwa>` i `pkg install <nazwa lub ID>` przez istniejący instalator.

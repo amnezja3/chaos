@@ -228,8 +228,9 @@ class IncidentInitializer:
         candidates = [operation for operation in operations if _is_active_incident_candidate(operation)]
         by_operation_id = {
             _clean(operation.get("operation_id")): operation
-            for operation in candidates
+            for operation in operations
             if _clean(operation.get("operation_id"))
+            and (_operation_meter(operation).get('active_contribution') or 0) > 0
         }
         known_operation_ids = {
             _clean(operation.get("operation_id"))
@@ -274,10 +275,13 @@ class IncidentInitializer:
             if incident.get("incident_id") not in touched_incident_ids and not (incident_operation_ids & known_operation_ids):
                 continue
             refs = []
+            previous_refs = {ref['operation_id']: ref for ref in incident.get('operation_refs', [])}
             for operation_id in incident.get("operation_ids") or []:
                 operation = by_operation_id.get(str(operation_id))
                 if operation:
                     refs.append(_operation_ref(operation))
+                elif operation_id not in known_operation_ids and operation_id in previous_refs:
+                    refs.append(previous_refs[operation_id])
             for operation in candidates:
                 meter_incident_id = _clean(_operation_meter(operation).get("incident_id"))
                 operation_id = _clean(operation.get("operation_id"))

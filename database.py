@@ -10696,6 +10696,7 @@ class PlayerOperationStore:
         operations,
         event_type="operation.runtime_tick",
         record_event=False,
+        on_saved=None,
     ):
         """Atomically persist only projections read at the supplied runtime version."""
         username = self._clean_text(username)
@@ -10749,6 +10750,8 @@ class PlayerOperationStore:
                                      "operation_id": operation_id, "version": version}), now),
                     )
                 accepted.append(operation)
+            if accepted and on_saved:
+                on_saved(conn, accepted)
         return accepted
 
     def upsert_operations(self, username, operations, event_type="operation.upsert", source="", dedupe_key_prefix=""):

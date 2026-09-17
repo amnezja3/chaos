@@ -1,6 +1,11 @@
 # 142.1 — kontrakt scanu i wyłączenia kamer
 
-Aktualny status: **OTWARTY — poprawka regresji 17 IX, odbiór serwerowy wymagany**.
+Aktualny status: **ZAMKNIĘTY / PASS — ponowny odbiór autora 17 IX 2026**.
+Autor potwierdził prawidłowe menu kamer, możliwość wyłączenia tylko raz podczas
+trwania operacji oraz toast informujący o trwającej operacji przy ponowieniu.
+Podsumował odbiór „mamy pass”, a następnie osobno potwierdził poprawne działanie
+kropki celu na belce. Ten punkt ma zarówno potwierdzenie automatyczne, jak i ręczne.
+Poniższe wpisy o cofnięciu PASS i oczekiwaniu na odbiór stanowią historię napraw.
 Po wcześniejszej poprawce autor nadal zgłosił duplikację, brak kropki i złe menu.
 Obecna paczka rozszerza DOM capture binding na oznaczone markery i odtworzone
 ikony, zapisuje exploit dot wraz z operacją oraz deduplikuje także starszego

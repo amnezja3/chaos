@@ -6,10 +6,15 @@ from datetime import datetime, timedelta, timezone
 from database import db_connect, dumps_json, loads_json, utc_now
 
 
+def camera_parent_key(parent):
+    lat, lng = float(parent['lat']), float(parent.get('lng', parent.get('lon')))
+    return str(parent.get('osm_id') or parent.get('node_id') or
+               f"{parent.get('source_type', 'poi')}:{lat:.7f}:{lng:.7f}")
+
+
 def camera_marker(parent, slot=0):
     lat, lng = float(parent['lat']), float(parent.get('lng', parent.get('lon')))
-    parent_id = str(parent.get('osm_id') or parent.get('node_id') or
-                    f"{parent.get('source_type', 'poi')}:{lat:.7f}:{lng:.7f}")
+    parent_id = camera_parent_key(parent)
     digest = hashlib.sha256(f'{parent_id}:{slot}'.encode()).hexdigest()
     angle = int(digest[:8], 16) / 0xffffffff * math.tau
     return {

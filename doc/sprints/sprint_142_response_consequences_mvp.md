@@ -1,8 +1,8 @@
 # Sprint 142 — pełna ścieżka incydentu i konsekwencji MVP
 
 Status: W REALIZACJI; rozszerzony audyt techniczny ukończony 16 IX 2026
-przed rozpoczęciem developmentu. 142.1 ponownie otwarty — autor cofnął PASS
-gameplayu 17 IX 2026. Przejście do 142.2 wstrzymane do wyjaśnienia problemu.
+przed rozpoczęciem developmentu. 142.1 zamknięty po ponownym PASS autora
+17 IX 2026. 142.2: reguły zatwierdzone, implementacja i weryfikacja lokalna.
 Podstawa: [audyt](../audits/response_consequences_2026_09_16.md).
 Zakres zatwierdzony przez autora: scan → kamery → próba wygaszenia → inicjacja
 incydentu → eskalacja → publikacja w mediach gry i BlackNecie → służby →
@@ -19,7 +19,12 @@ implementacją właściwej policy; testy odbiorowe w sprincie weryfikują napraw
 
 ## 142.1 — realizacja kontraktu scanu i autoryzacji
 
-Status: **OTWARTY / PASS GAMEPLAYU COFNIĘTY**, 17 IX 2026. Autor zgłosił,
+Status: **ZAMKNIĘTY / PASS**, ponowny odbiór autora 17 IX 2026.
+Autor potwierdził prawidłowe menu kamer, jedno wyłączenie podczas trwania
+operacji i toast przy ponowieniu, podsumowując odbiór „mamy pass”. Następnie
+osobno potwierdził również poprawne działanie kropki celu na belce.
+
+Historia cofniętego odbioru: autor zgłosił
 brak ID kamery/scanu w żądaniu z mapy. Poprawiono transport tych pól przez
 oznaczanie/wybór celu i snapshot mapy. Autor potwierdził uruchamianie, ale
 zgłosił duplikację operacji. Ujednolicono shutdown z mapy/pulpitu/terminala
@@ -30,7 +35,7 @@ testów automatycznych pozostają zapisane, wymagany jest ponowny odbiór.
 Kolejny odbiór ujawnił nadal duplikację, brak kropki i regresję menu markerów.
 Aktualna poprawka obejmuje DOM binding oznaczonych kamer, atomowy postęp celu,
 wspólną deduplikację starszego writera i okien aplikacji; szczegóły i scenariusz
-ponownego odbioru w runbooku. Poprzednie lokalne PASS nie zamykają etapu.
+ponownego odbioru w runbooku. Etap zamyka dopiero powyższy ponowny PASS autora.
 
 Implementacja i odbiór tej paczki: [runbook 142.1](../runbooks/sprint_142_1_camera_contract.md).
 Kontrakt przejść całego mechanizmu pozostaje opisany w audycie. W tej paczce
@@ -58,6 +63,22 @@ etapów poniżej. PASS tej paczki nie oznacza zamknięcia całego 142.
   parytetu oraz opisem zamierzonej różnicy. Bez kopiowania ciężkich ścieżek.
 
 ## 142.2 — kamery, inicjacja i próba wygaszenia
+
+Status: **IMPLEMENTACJA LOKALNA — 46 TESTÓW PASS, ODBIÓR PRODUKCYJNY PENDING**
+(17 IX 2026). Prześledzono punkt startu operacji,
+bounded worker, kalkulator heat oraz inicjalizator. Autor zatwierdził:
++4 osobnego składnika przy kamerach, wyłączenie jednej zeruje ten
+składnik, bez stackowania; zakres własnych operacji tego samego obiektu;
+istniejący incydent otrzymuje niższy wkład, bez usuwania incydentu/kar;
+po expiry składnik wraca. Reguły zatwierdzone 17 IX 2026.
+
+Integracja ma zapisywać serwerowy kontekst ekspozycji przy tworzeniu operacji
+i zbiorczo odczytywać ważne shutdown dla ograniczonego batcha workera.
+Nowy scan ani TTL obserwacji nie mogą nadpisywać kontekstu działającej operacji.
+142.2 zachowuje wkłady graczy spoza bieżącego batcha i zapisuje zmianę wkładu
+również przy sumie ograniczonej do 100. Pozostałe defekty trwałości/publikacji
+pozostają zakresem 142.3. Kontrakt wdrożenia i odbioru:
+[runbook 142.2](../runbooks/sprint_142_2_camera_risk.md).
 
 Szczegółowy kontrakt kamer znajduje się na końcu dokumentu. Musi obejmować
 zarówno początkowe wzbudzenie, jak i zmianę eskalacji już istniejącego incydentu.
@@ -206,7 +227,8 @@ snapshot TTL/brak snapshotu; restart; sfałszowany ID/off; jednoczesne incydenty
 realny canonical zapis akcji → zmiana heat → utworzenie/brak incydentu → NPC
 → kwalifikacja i kara. Mały profil i >=35 MB, zero full-profile I/O.
 
-Do uzgodnienia przed implementacją: redukcja czy pełne wyzerowanie składnika
-kamerowego; lokalność osłony (konkretny cel czy obszar); czy shutdown jednego
-gracza pomaga innym; zachowanie istniejącego incydentu po wyłączeniu kamery.
-Nie utożsamiać starego -18 ze zatwierdzonym balansem nowej ścieżki.
+Zatwierdzono: +4 przy kamerach i brak ważnego shutdown; jedna wyłączona kamera
+zeruje wyłącznie ten składnik, bez kumulacji. Osłona obejmuje operacje autora
+przy tym samym obiekcie. Nie pomaga innym graczom, nie usuwa incydentu ani kar.
+Wygaśnięcie lub anulowanie shutdown przywraca +4. Stare -18 pozostaje odrębną
+mechaniką i nie jest balansem publicznego metera.

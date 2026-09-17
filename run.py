@@ -58,6 +58,7 @@ from response_network.detection_candidate_store import DetectionCandidateStore
 from response_network.detection_validator import DetectionValidator
 from response_network.consequence_executor import ConsequenceExecutor
 from response_network.camera_contract import CameraContractStore, CameraContractError, camera_marker
+from response_network.camera_exposure import capture_exposure, shutdown_windows, bind_windows
 from response_network.consequence_policy import ConsequencePolicy, CONSEQUENCE_MODE_FULL
 from response_network.npc_capsule_factory import public_capsule_payload
 from response_network.npc_capsule_store import NPCCapsuleStore
@@ -10402,6 +10403,11 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         },
         "risk_state": initial_risk_state_for_operation(operation_type),
     }
+    if operation_type != 'camera_shutdown':
+        operation['camera_exposure'] = capture_exposure(
+            player_operation_store.db_path, username, target_snapshot)
+        if operation['camera_exposure'].get('camera_ids'):
+            bind_windows(operation, shutdown_windows(player_operation_store.db_path, username))
     apply_active_ghostnetwork_ability_to_new_operation(username, operation, now=now)
     update_operation_risk_meter(
         operation, tool=app or {}, target=target_snapshot,
@@ -14752,9 +14758,11 @@ def mark_operation_cleanup_state(operation, now_iso=None):
     return changed
 
 
-def refresh_operation_runtime(operation, now_ts=None, risk_rules=None):
+def refresh_operation_runtime(operation, now_ts=None, risk_rules=None, camera_windows=None):
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     refreshed = dict(operation or {})
+    if camera_windows is not None and refreshed.get('camera_exposure'):
+        bind_windows(refreshed, camera_windows)
     movement_model = refreshed.get("movement_model") or movement_model_for_operation(
         refreshed.get("operation_type"),
         refreshed.get("target_type"),
@@ -14871,18 +14879,32 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
     result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0, "files": 0}
     for username in usernames:
         operations = player_operation_store.list_operations(username, include_terminal=False)
+        camera_windows = (shutdown_windows(player_operation_store.db_path, username)
+                          if any(op.get('camera_exposure', {}).get('camera_ids')
+                                 for op in operations) else [])
         risk_rules = active_ghostnetwork_operation_risk_rules(username, now=now_ts)
         refreshed = []
         for operation in operations:
             projection = refresh_operation_runtime(
-                operation, now_ts=now_ts, risk_rules=risk_rules,
+                operation, now_ts=now_ts, risk_rules=risk_rules, camera_windows=camera_windows,
             )
             if projection.get("status") in OPERATION_TERMINAL_STATUSES:
                 mark_operation_cleanup_state(
                     projection, now_iso=operation_iso_from_ts(now_ts)
                 )
             refreshed.append(projection)
-        accepted = player_operation_store.compare_and_swap_runtime(username, refreshed)
+        previous_cameras = {op['operation_id']: (op.get('operation_risk_meter') or {}).get('camera_state')
+                            for op in operations}
+        def publish_camera_changes(conn, saved):
+            changed_cameras = [op['operation_id'] for op in saved
+                if op.get('camera_exposure', {}).get('known') and
+                previous_cameras.get(op['operation_id']) !=
+                (op.get('operation_risk_meter') or {}).get('camera_state')]
+            if changed_cameras:
+                delta_bus.record_change(username, 'map', 'map.operations_changed',
+                    {'operation_ids': changed_cameras, 'reason': 'camera_risk_changed'}, conn=conn)
+        accepted = player_operation_store.compare_and_swap_runtime(
+            username, refreshed, on_saved=publish_camera_changes)
         if not accepted:
             continue
         result["users"] += 1
@@ -14933,6 +14955,9 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, use
     refreshed_operations = []
     changed = False
     risk_rules = active_ghostnetwork_operation_risk_rules(username, now=now_ts) if username else {}
+    camera_windows = (shutdown_windows(player_operation_store.db_path, username)
+                      if username and any(op.get('camera_exposure', {}).get('camera_ids')
+                                          for op in operations) else None)
 
     for index, operation in enumerate(operations):
         if ensure_vehicle_tracking_checkpoints(operation, now_ts):
@@ -14942,8 +14967,11 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, use
         if ensure_camera_shutdown_state(operation, now_ts):
             changed = True
         refreshed = refresh_operation_runtime(
-            operation, now_ts=now_ts, risk_rules=risk_rules,
+            operation, now_ts=now_ts, risk_rules=risk_rules, camera_windows=camera_windows,
         )
+        if operation.get('camera_shutdown_windows') != refreshed.get('camera_shutdown_windows'):
+            operation['camera_shutdown_windows'] = refreshed.get('camera_shutdown_windows', [])
+            changed = True
         if operation.get("operation_risk_meter") != refreshed.get("operation_risk_meter"):
             operation["operation_risk_meter"] = refreshed.get("operation_risk_meter")
             changed = True
@@ -15199,6 +15227,8 @@ def summarize_operation_for_client(operation):
         "operation_risk_meter": {
             "mode": risk_meter.get("mode"),
             "risk_version": risk_meter.get("risk_version"),
+            "camera_modifier": risk_meter.get("camera_modifier", 0),
+            "camera_state": risk_meter.get("camera_state", {}),
             "current_heat": risk_meter.get("current_heat"),
             "active_contribution": risk_meter.get("active_contribution"),
             "risk_level": risk_meter.get("risk_level"),

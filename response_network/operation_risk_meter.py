@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+from response_network.camera_exposure import camera_state
 
 
 RISK_METER_MODE = "observe"
@@ -139,6 +140,8 @@ def _security_modifier(operation, target=None):
     enabled = 0
     numeric_pressure = 0
     for key, value in security.items():
+        if key == 'camera' and (operation.get('camera_exposure') or {}).get('known'):
+            continue  # Account for verified cameras separately, exactly once.
         if isinstance(value, bool):
             enabled += 1 if value else 0
         elif isinstance(value, (int, float)):
@@ -197,6 +200,8 @@ def _signature(meter):
             "time_heat",
             "tool_modifier",
             "security_modifier",
+            "camera_modifier",
+            "camera_state",
             "conflict_modifier",
             "ability_heat_modifier",
             "current_heat",
@@ -261,6 +266,8 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
     time_heat = _time_heat(operation, now_ts=now_ts)
     tool_modifier = _tool_modifier(operation, tool=tool)
     security_modifier = _security_modifier(operation, target=target)
+    cameras = camera_state(operation, _coerce_datetime(now_ts).timestamp())
+    camera_modifier = cameras['modifier']
     conflict_modifier = _conflict_modifier(operation, conflict=conflict)
     rules = rules if isinstance(rules, dict) else {}
     try:
@@ -270,7 +277,7 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
     ability_heat_modifier = max(-25, min(25, ability_heat_modifier))
     current_heat = _clamp(
         base_heat + time_heat + tool_modifier + security_modifier
-        + conflict_modifier + ability_heat_modifier,
+        + conflict_modifier + ability_heat_modifier + camera_modifier,
         0,
         100,
     )
@@ -292,6 +299,8 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
         "time_heat": time_heat,
         "tool_modifier": tool_modifier,
         "security_modifier": security_modifier,
+        "camera_modifier": camera_modifier,
+        "camera_state": cameras,
         "conflict_modifier": conflict_modifier,
         "ability_heat_modifier": ability_heat_modifier,
         "current_heat": current_heat,
@@ -316,6 +325,7 @@ def calculate_operation_risk(operation, tool=None, target=None, conflict=None, r
             "time_heat",
             "tool_modifier" if tool_modifier else "",
             "security_modifier" if security_modifier else "",
+            "camera_modifier" if camera_modifier else "",
             "conflict_modifier" if conflict_modifier else "",
             "ability_heat_modifier" if ability_heat_modifier else "",
         ],

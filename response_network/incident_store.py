@@ -151,6 +151,8 @@ class IncidentStore:
             },
             "search_radius_m": int(incident.get("search_radius_m") or 0),
             "operation_ids": sorted(str(item) for item in (incident.get("operation_ids") or [])),
+            "operation_refs": sorted(incident.get('operation_refs') or [],
+                                     key=lambda ref: ref.get('operation_id', '')),
             "suspect_refs": incident.get("suspect_refs") or [],
             "territory_refs": incident.get("territory_refs") or [],
             "npc_capsule_ids": incident.get("npc_capsule_ids") or [],
