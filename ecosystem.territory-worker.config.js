@@ -12,6 +12,8 @@ module.exports = {
       watch: false,
       env: {
         PYTHONUNBUFFERED: "1",
+        CHAOS_BLACKNET_NARRATIVE_TICK_SECONDS: "900",
+        CHAOS_NARRATIVE_LEGACY_FILE_QUEUE_ENABLED: "false",
         CHAOS_PROFILE_WRITE_METRICS: "1",
         CHAOS_GHOSTNETWORK_RUNTIME_MODE: "development",
         CHAOS_GHOSTNETWORK_DROPS_ENABLED: "true",

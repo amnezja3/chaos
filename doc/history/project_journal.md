@@ -1,5 +1,30 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — 142.3: recovery publikacji BlackNet/GooglePlex News
+
+Autor potwierdził wszystkie testy gameplay poza mediami. Log produkcyjny
+publishera pokazał `disabled`, podczas gdy territory tworzył zadania. Ecosystemy
+otrzymały jawne włączenie Ollamy i publishera, pusty filtr zdarzenia oraz
+wyłączenie legacy file queue; konfiguracja nie zależy od eksportów shella.
+Wymagane odtworzenie konfiguracji PM2 z plików i `--update-env`, następnie save.
+
+Stare zlecenia incydentów bez incident_context omijały kontrolę canonical
+stanu. Publisher je odrzuca; bounded recovery wycofuje stare/wygasłe źródła
+z kolejki i aktywnych publikacji, zachowując historię i zwalniając slot News.
+Dodano log statusu/reason GooglePlex. Odbiór mediów nadal PENDING po deployu.
+Walidacja: 45 testów publishera/incydentów PASS; po dodaniu indeksu i konfiguracji
+13 testów recovery/PM2/harmonogramu PASS; JS ecosystemów PASS.
+
+## 2026-09-17 — kierunek jazdy Secret Services
+
+Poprawiono orientację sprite'ów NPC: intercept_loop porusza się przeciwnie
+do orbital_search, więc stałe angle + 90 wskazywało tył pojazdu. Kierunek
+uwzględnia teraz prędkość kątową i radialną, także dla spiral_sweep.
+Naprawiono normalizację ujemnych kątów po kolejnych pełnych obrotach.
+Assety pozostają bez zmian. Test JS porównuje orientację z przemieszczeniem:
+720 próbek trzech trajektorii PASS; incident version guard PASS.
+Odbiór wizualny po restarcie chaos i odświeżeniu mapy pozostaje do wykonania.
+
 ## 2026-09-17 — korekta zakresu 142.3: radio odłożone
 
 Na polecenie autora usunięto omyłkowo dodany biuletyn incydentów z radia,

@@ -1179,6 +1179,10 @@ class GhostNetworkRepository:
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_narrative_incident_source ON ghost_narrative_outbox(json_extract(validation_json, '$.incident_context.id'))")
+            conn.execute("""CREATE INDEX IF NOT EXISTS idx_narrative_incident_retirement
+                ON ghost_narrative_outbox(updated_at,outbox_id)
+                WHERE source_scope='blacknet_world' AND narrative_intent='intercepted_incident_alert'
+                AND status IN ('ready','retry_wait','claimed','processing','completed')""")
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_ready
@@ -6384,6 +6388,10 @@ class GhostNetworkRepository:
                 return None
             assignment = loads_json(row["task_validation_json"], {}) or {}
             incident_context = assignment.get('incident_context') or {}
+            if (row['source_scope'] == 'blacknet_world'
+                and (row['narrative_intent'] or assignment.get('narrative_intent')) == 'intercepted_incident_alert'
+                and not incident_context.get('id')):
+                return {'lifecycle_superseded': True}
             if incident_context:
                 incident_head = conn.execute('''SELECT status,expires_at,
                     json_extract(incident_json,'$.publication_version') AS publication_version
@@ -6881,6 +6889,7 @@ class GhostNetworkRepository:
 
     def has_open_narrative_slot_assignment(self, target_medium, slot_id):
         """True while a slot assignment can still produce a publication."""
+        self.retire_stale_incident_narratives()
         with self._conn() as conn:
             row = conn.execute(
                 """
@@ -6911,6 +6920,31 @@ class GhostNetworkRepository:
                 (_clean(target_medium), _clean(slot_id)),
             ).fetchone()
         return bool(row)
+
+    def retire_stale_incident_narratives(self, limit=32):
+        """Bounded retirement of unverifiable/expired incident tasks, preserving history."""
+        now = _iso(self.now())
+        with self.transaction():
+            conn = self._transaction_conn
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='response_incidents'").fetchone():
+                return 0
+            rows = conn.execute('''SELECT o.outbox_id FROM ghost_narrative_outbox o
+                LEFT JOIN response_incidents i ON i.incident_id=json_extract(o.validation_json,'$.incident_context.id')
+                WHERE o.source_scope='blacknet_world' AND o.narrative_intent='intercepted_incident_alert'
+                  AND o.status IN ('ready','retry_wait','claimed','processing','completed')
+                  AND (i.incident_id IS NULL OR i.status IN ('resolved','cancelled','archived')
+                    OR COALESCE(json_extract(i.incident_json,'$.publication_version'),0)
+                       !=COALESCE(json_extract(o.validation_json,'$.incident_context.publication_version'),0)
+                    OR (i.status='cooling' AND julianday(i.expires_at)<=julianday(?)))
+                ORDER BY o.updated_at, o.outbox_id LIMIT ?''', (now, max(1, min(int(limit), 64)))).fetchall()
+            for row in rows:
+                task_id = row['outbox_id']
+                conn.execute('''UPDATE ghost_narrative_outbox SET status='dead_letter',
+                    last_error_code='incident_source_superseded', dead_lettered_at=?, updated_at=?,
+                    claimed_by='', lease_until='' WHERE outbox_id=?''', (now, now, task_id))
+                conn.execute('''UPDATE ghost_narrative_medium_records SET active_state='invalidated',
+                    invalidation_reason='incident_source_superseded' WHERE task_id=? AND active_state='active' ''', (task_id,))
+            return len(rows)
 
     def list_active_narrative_slot_records_for_viewer(
         self, target_medium, owner="", clan="", limit=20

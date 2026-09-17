@@ -8970,7 +8970,7 @@
             };
 
             window.directionFromResponseNpcAngle = function(angleDeg) {
-                const normalized = ((Number(angleDeg || 0) + 360) % 360);
+                const normalized = ((Number(angleDeg || 0) % 360) + 360) % 360;
                 const index = Math.floor(((normalized + 22.5) % 360) / 45);
                 return window.responseNpcDirections[index] || 'down';
             };
@@ -9041,16 +9041,21 @@
                 const angularSpeed = (speed / patrolRadius) * (180 / Math.PI);
                 let angle = phase + (elapsed * angularSpeed);
                 let radius = patrolRadius;
+                let radialSpeed = 0;
+                let angularVelocity = speed / patrolRadius;
                 let animationState = 'patrol';
                 const trajectory = String(data.trajectory_type || 'orbital_search');
 
                 if (trajectory === 'spiral_sweep') {
                     const pulse = (Math.sin(elapsed / 18) + 1) / 2;
                     radius = Math.max(35, patrolRadius * (0.45 + 0.55 * pulse));
+                    if (radius > 35) radialSpeed = patrolRadius * 0.55 * Math.cos(elapsed / 18) / 36;
                     animationState = 'scan';
                 } else if (trajectory === 'intercept_loop') {
                     const pulse = (Math.sin(elapsed / 11) + 1) / 2;
                     radius = Math.max(40, patrolRadius * (0.7 + 0.3 * pulse));
+                    if (radius > 40) radialSpeed = patrolRadius * 0.3 * Math.cos(elapsed / 11) / 22;
+                    angularVelocity *= -1.25;
                     angle = phase - (elapsed * angularSpeed * 1.25);
                     animationState = 'pursuit';
                 }
@@ -9060,7 +9065,10 @@
                 return {
                     lat: projected.lat,
                     lng: projected.lng,
-                    direction: window.directionFromResponseNpcAngle(angle + 90),
+                    // Face the velocity, including reverse orbit and radial motion.
+                    direction: window.directionFromResponseNpcAngle(
+                        angle + Math.atan2(radius * angularVelocity, radialSpeed) * 180 / Math.PI
+                    ),
                     animation_state: animationState
                 };
             };

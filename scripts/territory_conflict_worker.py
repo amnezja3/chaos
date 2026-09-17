@@ -75,7 +75,9 @@ def process_blacknet_narrative_if_due():
     print(
         "[TERRITORY_WORKER] blacknet_narrative "
         f"status={result.get('status')} receipt_id={result.get('receipt_id') or '-'} "
-        f"task_id={((result.get('task') or {}).get('outbox_id') or '-')}",
+        f"task_id={((result.get('task') or {}).get('outbox_id') or '-')} "
+        f"googleplex_status={(result.get('googleplex_news') or {}).get('status', '-')} "
+        f"googleplex_reason={(result.get('googleplex_news') or {}).get('reason_code', '-')}",
         flush=True,
     )
     return result

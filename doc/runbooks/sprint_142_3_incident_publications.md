@@ -63,7 +63,11 @@ faktycznie zakończone operacje mogą doprowadzić do resolved według nowej reg
 Po pobraniu zmian restartować **wszystkie cztery procesy po nazwie**:
 
 ```bash
-pm2 restart chaos chaos-territory-worker chaos-ollama-worker chaos-narrative-publisher
+pm2 startOrRestart ecosystem.web.config.js --update-env
+pm2 startOrRestart ecosystem.territory-worker.config.js --update-env
+pm2 startOrRestart ecosystem.ollama-worker.config.js --update-env
+pm2 startOrRestart ecosystem.narrative-publisher.config.js --update-env
+pm2 save
 pm2 list
 ```
 
@@ -71,12 +75,28 @@ Ograniczyć okno mieszania wersji; podczas kontrolowanego deployu można zatrzym
 te procesy przed aktualizacją. Sam restart weba pozostawia stary worker/metery
 albo stary registry promptów. Odświeżyć kartę gry po deployu.
 
+Nie wystarcza restart po nazwie: log produkcyjny wskazał publisher `disabled`.
+Włączenie Ollamy/publishera, pusty filtr SOURCE_EVENT_ID i wyłączenie legacy queue
+są zapisane jawnie w ecosystemach. Po wdrożeniu oczekiwany log publishera:
+`status=started`, a nie `disabled`. Nie używać jednorazowych exportów w shellu.
+Scheduler loguje również `googleplex_status` i `googleplex_reason`; jego
+interwał w ecosystemie territory wynosi 900 s. Przetwarzanie modelu może
+wydłużyć czas pojawienia się nowego wpisu.
+
+Recovery wycofuje do 32 nieaktualnych zleceń incydentów na przebieg, bez
+kasowania historii i odczytu profili. Brak canonical incident_context w starym
+zleceniu blokuje publikację. Rozwiązane/wygasłe cooling i starsze wersje
+nie zajmują miejsca na nowe zadania GooglePlex i tracą aktywne publikacje.
+
 ## Walidacja i odbiór
 
 Korekta zakresu: radio odłożone na później. Po usunięciu tej ścieżki:
 27 testów publishera PASS i 19 testów incydentów/pipeline PASS;
-kontrola składni odtwarzacza PASS. Punkty 1–2 odebrane przez autora,
-3–4 oczekują; punkt 5 dotyczy wyłącznie BlackNetu i GooglePlex News.
+kontrola składni odtwarzacza PASS. Autor potwierdził już wszystkie punkty
+gameplay oraz kierunek NPC; otwarty punkt 5 dotyczy BlackNetu i GooglePlex News.
+Recovery mediów: 45 testów publishera/incydentów PASS, następnie 13 testów
+recovery/PM2/harmonogramu PASS; test JS ecosystemów PASS także przy starych
+flagach false i filtrze zdarzenia w otoczeniu.
 
 Lokalny wynik 17 IX 2026: **110 testów Python PASS (112,037 s)** przez
 `tools/run_isolated_tests.py`, na tymczasowych bazach poza danymi gry.

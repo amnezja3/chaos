@@ -185,9 +185,14 @@ class IncidentLifecyclePublicationsTest(unittest.TestCase):
         fixture = narrative_fixtures.NarrativePublicationTest()
         fixture.setUp()
         self.addCleanup(fixture.tearDown)
+        store = IncidentStore(fixture.repo.db_path)
+        incident = store.upsert({'incident_id': 'current-incident', 'status': 'active',
+            'level': 2, 'heat': 65, 'center': {'lat': 52.1, 'lng': 21.2}})
         candidate = fixture.accepted_candidate('incident-blacknet', source_scope='blacknet_world',
             task_variant='blacknet_signal_narration', target_medium='blacknet',
-            narrative_intent='intercepted_incident_alert')
+            narrative_intent='intercepted_incident_alert',
+            validation={'incident_context': {'id': incident['incident_id'],
+                        'publication_version': incident['publication_version']}})
         self.assertEqual(candidate['validation_status'], 'accepted')
         result = NarrativePublicationService(fixture.repo).process_once()
         self.assertEqual(result['result'], 'published', result)
