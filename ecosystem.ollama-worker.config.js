@@ -14,6 +14,12 @@ module.exports = {
       // model call (240 s read timeout) finish before PM2 escalates to SIGKILL.
       kill_timeout: 300000,
       env: {
+        CHAOS_NARRATIVE_TTL_URGENT_SECONDS: "1800",
+        CHAOS_NARRATIVE_TTL_NORMAL_SECONDS: "7200",
+        CHAOS_NARRATIVE_TTL_EDITORIAL_SECONDS: "21600",
+        CHAOS_NARRATIVE_PRIORITY_URGENT: "300",
+        CHAOS_NARRATIVE_PRIORITY_NORMAL: "200",
+        CHAOS_NARRATIVE_PRIORITY_EDITORIAL: "100",
         PYTHONUNBUFFERED: "1",
         CHAOS_OLLAMA_WORKER_ENABLED: "true",
         CHAOS_OLLAMA_SOURCE_EVENT_ID: "",

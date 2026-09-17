@@ -9324,7 +9324,7 @@ class TerritoryConflictStore:
                 "target_id": target_id,
             }
 
-    def list_active(self):
+    def list_active(self, limit=None):
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 """
@@ -9332,7 +9332,8 @@ class TerritoryConflictStore:
                 FROM territory_conflicts
                 WHERE status IN ('detected', 'active', 'changing', 'resolving')
                 ORDER BY updated_at DESC, id DESC
-                """
+                """ + (' LIMIT ?' if limit is not None else ''),
+                (max(1, min(int(limit), 256)),) if limit is not None else (),
             ).fetchall()
             return [self._conflict_from_row(conn, row) for row in rows]
 

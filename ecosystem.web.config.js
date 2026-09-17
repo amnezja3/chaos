@@ -7,6 +7,12 @@ module.exports = {
       args: "run:app --bind 127.0.0.1:6666 --workers 4 --timeout 120 --access-logfile - --error-logfile -",
       interpreter: "none",
       env: {
+        CHAOS_NARRATIVE_TTL_URGENT_SECONDS: "1800",
+        CHAOS_NARRATIVE_TTL_NORMAL_SECONDS: "7200",
+        CHAOS_NARRATIVE_TTL_EDITORIAL_SECONDS: "21600",
+        CHAOS_NARRATIVE_PRIORITY_URGENT: "300",
+        CHAOS_NARRATIVE_PRIORITY_NORMAL: "200",
+        CHAOS_NARRATIVE_PRIORITY_EDITORIAL: "100",
         APP_ENV: "staging",
         PORT: "6666",
         CHAOS_OPERATION_FEEDBACK_ENABLED: "1",

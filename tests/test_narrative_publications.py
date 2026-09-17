@@ -316,7 +316,7 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(record["narrative_thread_id"], "ghost-part:public:one")
         self.assertEqual(record["event_family"], "part_activated")
         self.assertEqual(record["significance"], "high")
-        self.assertEqual(record["priority"], 85)
+        self.assertEqual(record["priority"], 285)
         self.assertEqual(record["source_state_version"], 41)
         self.assertEqual(record["presentation_family"], "ghost_activation")
         self.assertEqual(

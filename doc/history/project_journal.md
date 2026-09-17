@@ -1,5 +1,26 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — ważność i priorytety całej kolejki Ollamy
+
+Autor zgłosił publikację starego konfliktu Abacus przy aktualnych incydentach.
+Audyt wykazał brak expires_at zlecenia, istniejące sortowanie priority
+po stronie Ollamy oraz FIFO po stronie publishera. Dodano wspólny deadline,
+kontrolę źródła przed modelem i publikacją, kontrolę wyniku po generacji,
+priorytety klas i wycofywanie zastąpionych wersji. Legacy zadania korzystają
+z oryginalnego czasu utworzenia; replay/retry nie odnawia terminu.
+
+TTL 30 min / 2 h / 6 h oraz priorytety 300 / 200 / 100 są jawne w czterech
+ecosystemach. Konflikty przekazują canonical key/version; źródło narracji
+pobiera maksymalnie 64 aktywne konflikty. Model pozostaje pojedynczy, bez
+przerywania trwającego HTTP. Spóźniony wynik zostaje odrzucony.
+
+Raport read-only: `tools/audit_narrative_freshness.py --db data/game.sqlite3`.
+Szczegóły: `doc/audits/narrative_freshness_priority_2026_09_17.md`.
+Konkretny stan rekordu Abacus na serwerze wymaga tego raportu; odbiór mediów
+pozostaje otwarty. Nie wykonano deployu ani modyfikacji produkcyjnej kolejki.
+Końcowa walidacja: 95 testów Python PASS (84,942 s), izolowane bazy;
+test JS zgodności czterech ecosystemów PASS.
+
 ## 2026-09-17 — 142.3: recovery publikacji BlackNet/GooglePlex News
 
 Autor potwierdził wszystkie testy gameplay poza mediami. Log produkcyjny

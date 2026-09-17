@@ -122,6 +122,7 @@ class NarrativePublicationService:
         return staged
 
     def process_once(self, lease_seconds=60):
+        self.repository.maintain_narrative_freshness()
         self.repository.retire_stale_incident_narratives()
         # Keep writer pressure bounded: stage only a small number of genuinely
         # unstaged candidates per loop, then publish one receipt.  Historical

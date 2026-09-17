@@ -1913,7 +1913,7 @@ def build_blacknet_system_facts(profiles, now_dt):
 
 def build_blacknet_conflict_activity_facts(now_dt):
     try:
-        conflicts = territory_conflict_store.list_active()
+        conflicts = territory_conflict_store.list_active(limit=64)
         if not isinstance(conflicts, list):
             conflicts = []
     except Exception:
@@ -2030,6 +2030,11 @@ def build_blacknet_conflict_activity_facts(now_dt):
                 ],
             },
         ))
+    versions = {str(c.get('conflict_key') or c.get('id') or ''): int(c.get('conflict_version') or 1) for c in active_conflicts}
+    for fact in facts:
+        metadata = fact.get('metadata') or {}
+        metadata['conflict_context'] = [{'key': key, 'version': versions[key]}
+            for key in metadata.get('conflict_keys', []) if key in versions]
     return facts
 
 

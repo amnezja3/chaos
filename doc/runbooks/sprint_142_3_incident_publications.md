@@ -90,6 +90,13 @@ nie zajmują miejsca na nowe zadania GooglePlex i tracą aktywne publikacje.
 
 ## Walidacja i odbiór
 
+Kolejna korekta obejmuje całą ścieżkę zadań Ollamy: expires_at, priorytety klas,
+source key/version, retry bez odnawiania terminu i odrzucenie spóźnionej generacji.
+Kontrakt, limity i diagnostyka:
+[audyt ważności kolejki](../audits/narrative_freshness_priority_2026_09_17.md).
+Schemat outboxu otrzymuje addytywnie expires_at i indeks; legacy kolejka jest
+porządkowana partiami po 32, bez kasowania historycznych rekordów.
+
 Korekta zakresu: radio odłożone na później. Po usunięciu tej ścieżki:
 27 testów publishera PASS i 19 testów incydentów/pipeline PASS;
 kontrola składni odtwarzacza PASS. Autor potwierdził już wszystkie punkty

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import math
+from .task_freshness import deadline as narrative_deadline, priority as narrative_priority, instant as narrative_instant
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
 from sqlite3 import IntegrityError
@@ -904,6 +905,8 @@ class GhostNetworkRepository:
             )
             self._ensure_column(conn, "ghost_narrative_outbox", "cycle_id", "cycle_id TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "ghost_narrative_outbox", "signal_id", "signal_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_narrative_outbox", "expires_at", "expires_at TEXT NOT NULL DEFAULT ''")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_narrative_task_expiry ON ghost_narrative_outbox(status, expires_at, created_at)")
             self._ensure_column(conn, "ghost_narrative_outbox", "audience_owner", "audience_owner TEXT NOT NULL DEFAULT ''")
             self._ensure_column(
                 conn,
@@ -1785,6 +1788,7 @@ class GhostNetworkRepository:
             "source_scope": row["source_scope"] if "source_scope" in keys else "ghostnetwork",
             "source_event_id": row["source_event_id"] if "source_event_id" in keys else row["event_id"],
             "source_receipt_id": row["source_receipt_id"] if "source_receipt_id" in keys else "",
+            "expires_at": row['expires_at'] if 'expires_at' in keys else '',
             "source_app_id": row["source_app_id"] if "source_app_id" in keys else "",
             "cycle_id": row["cycle_id"] if "cycle_id" in keys else "",
             "signal_id": row["signal_id"] if "signal_id" in keys else "",
@@ -4807,7 +4811,8 @@ class GhostNetworkRepository:
             "allowed_asset_roles_json": dumps_json(
                 item.get("allowed_asset_roles") if isinstance(item.get("allowed_asset_roles"), list) else []
             ),
-            "priority": int(item.get("priority") or 0),
+            "priority": narrative_priority(item),
+            "expires_at": narrative_deadline(item, now),
             "attempt_count": attempt_count,
             "max_attempts": max_attempts,
             "claimed_by": "",
@@ -4821,6 +4826,10 @@ class GhostNetworkRepository:
             "dead_lettered_at": dead_lettered_at,
         }
         with self._conn() as conn:
+            if source_scope == 'ghostnetwork' and source_event_id:
+                event = conn.execute('SELECT created_at FROM ghost_part_events WHERE event_id=?', (source_event_id,)).fetchone()
+                if event:
+                    record['expires_at'] = min(record['expires_at'], narrative_deadline(item, event['created_at']))
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO ghost_narrative_outbox (
@@ -4838,7 +4847,7 @@ class GhostNetworkRepository:
                     creative_epoch, editorial_contract_json, allowed_asset_roles_json,
                     priority, attempt_count, max_attempts, claimed_by, claimed_at,
                     lease_until, next_attempt_at, last_error_code, last_error_at,
-                    updated_at, completed_at, dead_lettered_at
+                    updated_at, completed_at, dead_lettered_at, expires_at
                 )
                 VALUES (
                     :outbox_id, :event_id, :cycle_id, :signal_id,
@@ -4855,7 +4864,7 @@ class GhostNetworkRepository:
                     :creative_epoch, :editorial_contract_json, :allowed_asset_roles_json,
                     :priority, :attempt_count, :max_attempts, :claimed_by, :claimed_at,
                     :lease_until, :next_attempt_at, :last_error_code, :last_error_at,
-                    :updated_at, :completed_at, :dead_lettered_at
+                    :updated_at, :completed_at, :dead_lettered_at, :expires_at
                 )
                 """,
                 record,
@@ -4886,6 +4895,16 @@ class GhostNetworkRepository:
                         )
                     return result
                 raise RepositoryIntegrityError("Narrative task identity conflict")
+            if (source_scope == 'blacknet_world' and record['selected_source_ref']
+                and not self._narrative_source_invalid(conn, {**item, 'created_at': now, 'expires_at': record['expires_at']}, now)):
+                older = conn.execute('''SELECT outbox_id FROM ghost_narrative_outbox
+                    WHERE source_scope='blacknet_world' AND target_medium=? AND selected_source_ref=?
+                    AND audience_scope=? AND audience_clan=? AND audience_owner=?
+                    AND outbox_id!=? AND status IN ('ready','retry_wait','claimed','processing') LIMIT 32''',
+                    (target_medium, record['selected_source_ref'], record['audience_scope'],
+                     record['audience_clan'], record['audience_owner'], outbox_id)).fetchall()
+                for prior in older:
+                    self._retire_narrative_task_conn(conn, prior['outbox_id'], now, 'newer_source_queued')
             result = self._narrative_outbox(
                 conn.execute(
                     "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
@@ -5561,6 +5580,7 @@ class GhostNetworkRepository:
         lease_seconds = max(1, min(int(lease_seconds or 60), 3600))
         now_iso = _iso(now if now is not None else self.now())
         lease_until = _iso(_utc_datetime(now_iso) + timedelta(seconds=lease_seconds))
+        self.maintain_narrative_freshness(now=now_iso)
         with self.transaction():
             conn = self._transaction_conn
             self._recover_expired_narrative_leases_conn(conn, now_iso, recovery_limit)
@@ -5617,6 +5637,9 @@ class GhostNetworkRepository:
                 tuple(params),
             ).fetchone()
             if not row:
+                return None
+            if self._narrative_source_invalid(conn, self._narrative_outbox(row), now_iso):
+                self._retire_narrative_task_conn(conn, row['outbox_id'], now_iso, 'source_expired')
                 return None
             cursor = conn.execute(
                 """
@@ -6307,9 +6330,10 @@ class GhostNetworkRepository:
             )
             row = conn.execute(
                 """
-                SELECT * FROM ghost_narrative_publication_receipts
-                WHERE status IN ('ready', 'retry_wait') AND next_attempt_at <= ?
-                ORDER BY created_at, publication_receipt_id LIMIT 1
+                SELECT r.* FROM ghost_narrative_publication_receipts r
+                JOIN ghost_narrative_outbox o ON o.outbox_id=r.task_id
+                WHERE r.status IN ('ready', 'retry_wait') AND r.next_attempt_at <= ?
+                ORDER BY o.priority DESC, r.created_at, r.publication_receipt_id LIMIT 1
                 """,
                 (now_iso,),
             ).fetchone()
@@ -6387,6 +6411,9 @@ class GhostNetworkRepository:
             ):
                 return None
             assignment = loads_json(row["task_validation_json"], {}) or {}
+            task_row = conn.execute('SELECT * FROM ghost_narrative_outbox WHERE outbox_id=?', (row['task_id'],)).fetchone()
+            if self._narrative_source_invalid(conn, self._narrative_outbox(task_row), now_iso):
+                return {'lifecycle_superseded': True}
             incident_context = assignment.get('incident_context') or {}
             if (row['source_scope'] == 'blacknet_world'
                 and (row['narrative_intent'] or assignment.get('narrative_intent')) == 'intercepted_incident_alert'
@@ -6890,6 +6917,7 @@ class GhostNetworkRepository:
     def has_open_narrative_slot_assignment(self, target_medium, slot_id):
         """True while a slot assignment can still produce a publication."""
         self.retire_stale_incident_narratives()
+        self.maintain_narrative_freshness()
         with self._conn() as conn:
             row = conn.execute(
                 """
@@ -6944,6 +6972,92 @@ class GhostNetworkRepository:
                     claimed_by='', lease_until='' WHERE outbox_id=?''', (now, now, task_id))
                 conn.execute('''UPDATE ghost_narrative_medium_records SET active_state='invalidated',
                     invalidation_reason='incident_source_superseded' WHERE task_id=? AND active_state='active' ''', (task_id,))
+            return len(rows)
+
+    @staticmethod
+    def _retire_narrative_task_conn(conn, task_id, now, reason):
+        conn.execute('''UPDATE ghost_narrative_outbox SET status='dead_letter',
+            last_error_code=?, dead_lettered_at=?, updated_at=?, claimed_by='', lease_until=''
+            WHERE outbox_id=?''', (reason, now, now, task_id))
+        conn.execute('''UPDATE ghost_narrative_medium_records SET active_state='invalidated',
+            invalidation_reason=? WHERE task_id=? AND active_state='active' ''', (reason, task_id))
+        conn.execute('''UPDATE ghost_narrative_publication_receipts SET status='dead_letter',
+            last_error_code=?,dead_lettered_at=?,updated_at=?
+            WHERE task_id=? AND status IN ('ready','retry_wait')''', (reason, now, now, task_id))
+
+    def _narrative_source_invalid(self, conn, task, now):
+        if not task or task.get('status') == 'dead_letter':
+            return True
+        expiry = task.get('expires_at') or narrative_deadline(task, task['created_at'])
+        if narrative_instant(expiry) <= narrative_instant(now):
+            return True
+        validation = task.get('validation') or {}
+        if task.get('source_scope') == 'ghostnetwork' and task.get('source_event_id'):
+            event = conn.execute('SELECT created_at FROM ghost_part_events WHERE event_id=?', (task['source_event_id'],)).fetchone()
+            if event and narrative_instant(narrative_deadline(task, event['created_at'])) <= narrative_instant(now):
+                return True
+        context = validation.get('incident_context') or {}
+        if context.get('id'):
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='response_incidents'").fetchone():
+                return True
+            row = conn.execute('SELECT status,expires_at,incident_json FROM response_incidents WHERE incident_id=?', (context['id'],)).fetchone()
+            if not row or row['status'] in {'resolved','cancelled','archived'}:
+                return True
+            if int(loads_json(row['incident_json'], {}).get('publication_version') or 0) != int(context.get('publication_version') or 0):
+                return True
+            if row['status'] == 'cooling' and narrative_instant(row['expires_at']) <= narrative_instant(now):
+                return True
+        if task.get('narrative_intent') == 'intercepted_incident_alert' and not context.get('id'):
+            return True
+        conflicts = validation.get('conflict_context') or []
+        if conflicts:
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='territory_conflicts'").fetchone():
+                return True
+            for expected in conflicts[:8]:
+                row = conn.execute('SELECT status,conflict_version FROM territory_conflicts WHERE conflict_key=?', (expected['key'],)).fetchone()
+                if not row or row['status'] not in {'detected','active','changing','resolving'} or int(row['conflict_version']) != int(expected['version']):
+                    return True
+        elif 'conflict' in str(task.get('narrative_intent') or '') and task.get('source_scope') == 'blacknet_world':
+            return True
+        return False
+
+    def narrative_task_is_current(self, task_id):
+        with self._conn() as conn:
+            row = conn.execute('SELECT * FROM ghost_narrative_outbox WHERE outbox_id=?', (task_id,)).fetchone()
+            return not self._narrative_source_invalid(conn, self._narrative_outbox(row), _iso(self.now()))
+
+    def maintain_narrative_freshness(self, now=None, limit=32):
+        now = _iso(now if now is not None else self.now())
+        bounded = max(1, min(int(limit), 64))
+        with self.transaction():
+            conn = self._transaction_conn
+            legacy = conn.execute('''SELECT * FROM ghost_narrative_outbox WHERE expires_at=''
+                AND status IN ('ready','retry_wait','claimed','processing','completed')
+                ORDER BY created_at LIMIT ?''', (bounded,)).fetchall()
+            for row in legacy:
+                task = self._narrative_outbox(row)
+                conn.execute('UPDATE ghost_narrative_outbox SET expires_at=?,priority=? WHERE outbox_id=?',
+                    (narrative_deadline(task, task['created_at']), narrative_priority(task), row['outbox_id']))
+            rows = conn.execute('''SELECT outbox_id FROM ghost_narrative_outbox
+                WHERE status IN ('ready','retry_wait','claimed','processing','completed')
+                AND expires_at!='' AND julianday(expires_at)<=julianday(?)
+                AND (source_scope='blacknet_world' OR NOT EXISTS (
+                    SELECT 1 FROM ghost_narrative_medium_records m WHERE m.task_id=ghost_narrative_outbox.outbox_id))
+                ORDER BY expires_at LIMIT ?''', (now, bounded)).fetchall()
+            for row in rows:
+                self._retire_narrative_task_conn(conn, row['outbox_id'], now, 'task_expired')
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='territory_conflicts'").fetchone():
+                stale = conn.execute('''SELECT o.outbox_id FROM ghost_narrative_outbox o
+                    WHERE o.source_scope='blacknet_world' AND o.narrative_intent='intercepted_conflict_warning'
+                    AND o.status IN ('ready','retry_wait','claimed','processing','completed')
+                    AND (COALESCE(json_array_length(o.validation_json,'$.conflict_context'),0)=0
+                      OR EXISTS (SELECT 1 FROM json_each(o.validation_json,'$.conflict_context') ref
+                        LEFT JOIN territory_conflicts c ON c.conflict_key=json_extract(ref.value,'$.key')
+                        WHERE c.conflict_key IS NULL OR c.status NOT IN ('detected','active','changing','resolving')
+                        OR c.conflict_version!=json_extract(ref.value,'$.version')))
+                    LIMIT ?''', (bounded,)).fetchall()
+                for row in stale:
+                    self._retire_narrative_task_conn(conn, row['outbox_id'], now, 'conflict_source_superseded')
             return len(rows)
 
     def list_active_narrative_slot_records_for_viewer(

@@ -340,6 +340,8 @@ class OllamaNarrativeWorker:
         self, task, attempt, package, lease_until, model_validation,
         *, error_code="", error_message="",
     ):
+        if not self.repository.narrative_task_is_current(task['outbox_id']):
+            return None
         support = self.narrative_support.apply(
             task, package, model_validation, parse_and_validate_ollama_content
         )
@@ -436,6 +438,9 @@ class OllamaNarrativeWorker:
         )
         if not task:
             return {"result": "idle"}
+        if not self.repository.narrative_task_is_current(task['outbox_id']):
+            self.repository.dead_letter_narrative_task(task['outbox_id'], self.worker_id, task['lease_until'], 'source_expired')
+            return {'result': 'expired', 'task_id': task['outbox_id']}
 
         recovered = self._terminal_candidate_completion(task)
         if recovered:
@@ -575,6 +580,10 @@ class OllamaNarrativeWorker:
             return {"result": "lease_lost", "task_id": task["outbox_id"]}
 
         generation_data = generation.as_dict()
+        if not self.repository.narrative_task_is_current(task['outbox_id']):
+            self._finish_attempt(attempt, status='failed', result='expired', error_code='source_expired', retryable=False, generation=generation_data)
+            self.repository.dead_letter_narrative_task(task['outbox_id'], self.worker_id, heartbeat.lease_until, 'source_expired')
+            return {'result': 'expired', 'task_id': task['outbox_id']}
         validation = parse_and_validate_ollama_content(generation.content, package)
         lease_until = heartbeat.lease_until
         if validation["status"] == "invalid_json" and task["attempt_count"] < 2:

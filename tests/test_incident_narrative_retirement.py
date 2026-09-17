@@ -14,9 +14,17 @@ class IncidentNarrativeRetirementTest(unittest.TestCase):
         self.store = IncidentStore(self.repo.db_path)
 
     def candidate(self, name, validation=None):
-        return self.fixture.accepted_candidate(name, source_scope='blacknet_world',
+        legacy = validation is None
+        if legacy:
+            incident = self.store.upsert({'incident_id': name, 'status': 'active', 'level': 2, 'center': {'lat': 52, 'lng': 21}})
+            validation = {'incident_context': {'id': name, 'publication_version': incident['publication_version']}}
+        result = self.fixture.accepted_candidate(name, source_scope='blacknet_world',
             task_variant='blacknet_signal_narration', target_medium='blacknet',
             narrative_intent='intercepted_incident_alert', validation=validation)
+        if legacy:
+            with self.repo._conn() as conn:
+                conn.execute("UPDATE ghost_narrative_outbox SET validation_json='{}' WHERE outbox_id=?", (result['task_id'],))
+        return result
 
     def test_legacy_incident_without_canonical_context_cannot_publish(self):
         self.candidate('legacy-before-context')

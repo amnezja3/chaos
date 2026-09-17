@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+from .task_freshness import setting, queue_class
 from datetime import datetime, timedelta, timezone
 
 from .repository import (
@@ -319,6 +320,11 @@ class BlackNetNarrativeProducer:
                              'publication_version': incident_metadata.get('incident_publication_version', 0)}
                             if incident_metadata.get('incident_id') else {})
         source_version_payload['incident_context'] = incident_context
+        conflict_context = incident_metadata.get('conflict_context') or []
+        source_version_payload['conflict_context'] = conflict_context
+        freshness_class = queue_class({'source_scope': BLACKNET_SOURCE_SCOPE, 'narrative_intent': narrative_intent})
+        ttl = setting('TTL_' + freshness_class + '_SECONDS', {'URGENT': 1800, 'NORMAL': 7200, 'EDITORIAL': 21600}[freshness_class])
+        source_version_payload['freshness_window'] = int(datetime.now(timezone.utc).timestamp()) // ttl
         narrative_contract = (
             PRODUCT_NARRATIVE_CONTRACT_VERSION
             if narrative_intent == BLACKNET_NARRATIVE_INTENTS["product"]
@@ -379,6 +385,8 @@ class BlackNetNarrativeProducer:
                 "ok": True,
                 "producer": "deterministic_editorial_queue",
                 "incident_context": incident_context,
+                "conflict_context": conflict_context,
+                "source_expires_at": incident_metadata.get('expires_at') or '',
                 "narrative_intent": narrative_intent,
                 "selected_source_ref": fact["fact_id"],
                 "selected_source_version": source_version,
