@@ -66,6 +66,21 @@ class CameraExposureTest(unittest.TestCase):
         self.assertEqual(two['current_heat'], 58)
         self.assertEqual(two['camera_state']['disabled'], 2)
 
+    def test_summary_http_preserves_camera_state_for_shop_operations(self):
+        self.scene()
+        for operation_type in ('device_tracking', 'wifi_scanner', 'generic_trace'):
+            with patch.object(run, 'apply_active_ghostnetwork_ability_to_new_operation'):
+                op = run.build_operation_instance('attacker', {'id': operation_type},
+                    'trace', operation_type, {**self.parent, 'scan_id': self.scan['scan_id']})
+            self.operations.upsert_operations('attacker', [op])
+        response = self.client.get('/api/operations?summary=1')
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(len(response.json['active_operations']), 3)
+        for op in response.json['active_operations']:
+            self.assertEqual(op['operation_risk_meter']['camera_state'],
+                             {'known': True, 'detected': 2, 'disabled': 0, 'modifier': 4})
+            self.assertEqual(op['operation_risk_meter']['camera_modifier'], 4)
+
     def test_existing_incident_survives_reduction_and_partial_actor_batch(self):
         self.scene()
         op = self.operation()
