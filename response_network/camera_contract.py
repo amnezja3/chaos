@@ -62,9 +62,27 @@ class CameraContractStore:
         return [{**loads_json(r['app_json'], {}), 'id': r['app_id']} for r in rows
                 if eligible_app(loads_json(r['app_json'], {}))]
 
+    def active(self, username, target, *, conn=None):
+        if conn is None:
+            with db_connect(self.db_path) as own:
+                return self.active(username, target, conn=own)
+        camera_id = target.get('camera_id') or ''
+        row = conn.execute('''SELECT operation_json FROM player_operations
+            WHERE username=? AND operation_type='camera_shutdown'
+            AND (target_key=? OR json_extract(operation_json, '$.target.camera_id')=?
+                 OR (json_extract(operation_json, '$.target.lat')=?
+                     AND COALESCE(json_extract(operation_json, '$.target.lng'),
+                                  json_extract(operation_json, '$.target.lon'))=?))
+            AND status IN ('start','running')
+            AND julianday(json_extract(operation_json, '$.expires_at')) > julianday(?)
+            ORDER BY updated_at DESC LIMIT 1''',
+            (username, camera_id, camera_id, target['lat'], target['lng'],
+             datetime.now(timezone.utc).isoformat())).fetchone()
+        return loads_json(row['operation_json'], {}) if row else None
+
     def shutdown(self, username, scan_id, camera_id, app_id, *, guard, inventory, messages,
                  deltas, flow_id='', request_key='', operation_template=None, expected_app=None,
-                 enqueue_launch=True):
+                 enqueue_launch=True, on_created=None):
         if any(str(store.db_path) != str(self.db_path) for store in (inventory, messages, deltas)):
             raise ValueError('camera_database_mismatch')
         # Stable receipt survives process restarts and different client retry keys.
@@ -82,23 +100,15 @@ class CameraContractStore:
             if expected_app is not None and {**app, 'id': app_id} != expected_app:
                 raise CameraContractError('camera_app_changed')
             guard(conn, target)
+            active = self.active(username, target, conn=conn)
+            if active:
+                if on_created:
+                    on_created(conn, active)
+                return active, True
             existing = conn.execute('''SELECT operation_json FROM player_operations
                 WHERE username=? AND operation_id=?''', (username, operation_id)).fetchone()
             if existing:
                 return loads_json(existing['operation_json'], {}), True
-            active = conn.execute('''SELECT operation_json FROM player_operations
-                WHERE username=? AND operation_type='camera_shutdown'
-                AND (target_key=? OR json_extract(operation_json, '$.target.camera_id')=?
-                     OR (json_extract(operation_json, '$.target.lat')=?
-                         AND COALESCE(json_extract(operation_json, '$.target.lng'),
-                                      json_extract(operation_json, '$.target.lon'))=?))
-                AND status IN ('start','running')
-                AND julianday(json_extract(operation_json, '$.expires_at')) > julianday(?)
-                ORDER BY updated_at DESC LIMIT 1''',
-                (username, camera_id, camera_id, target['lat'], target['lng'], now.isoformat())).fetchone()
-            if active:
-                prior = loads_json(active['operation_json'], {})
-                return prior, True
             if conn.execute('''SELECT count(*) FROM (SELECT 1 FROM player_operations
                 WHERE username=? AND status IN ('start','running') LIMIT 32)''', (username,)).fetchone()[0] >= 32:
                 raise CameraContractError('camera_operation_limit')
@@ -129,6 +139,8 @@ class CameraContractStore:
                 'receipt': operation_id, 'app_id': app_id, 'name': app.get('name') or app_id,
                 'action': 'camera_shutdown', 'flow_id': flow_id, 'client_action_key': request_key,
             }] if enqueue_launch else [], [], messages, conn=conn)
+            if on_created:
+                on_created(conn, operation)
             deltas.record_change(username, 'map', 'map.operations_changed',
                                  {'operation': operation}, entity_id=operation_id,
                                  dedupe_key=operation_id, conn=conn)

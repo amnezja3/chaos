@@ -1,5 +1,26 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — 142.1: ponowna regresja markerów, postępu i równoległych startów
+
+Autor zgłosił brak kropki celu, dalszą duplikację operacji i okien oraz błędne
+przypisanie menu. Oznaczony marker nie korzystał z DOM capture bindingu
+opisanego w hardbugfixie 138.getway.3.5. Dodano binding także dla oznaczonego
+celu i ponowne podpięcie po zdarzeniu Leaflet `add`; test obcego callbacku
+oraz odtworzenia ikony działa na rzeczywistej funkcji tworzącej marker.
+
+Zapis shutdown obejmuje teraz atomowo exploit dot, runtime celu i deltę.
+Starszy writer operacji otrzymał wspólny klucz deduplikacji kamery po pozycji,
+bez zależności od aplikacji/akcji; normalizacja aplikacji i typu celu poprzedza
+wybór ścieżki pulpitu. Preflight mapy rozpoznaje aktywną operację przed
+otwarciem następnego narzędzia. Okna kamer są deduplikowane po celu, z wyjątkiem
+legalnego uzupełnienia istniejącego okna provisional danymi launchera.
+
+37 różnych testów Python PASS w przebiegach kamer/launchera/risk meter
+(w tym równoległy stary i nowy writer, rollback postępu i odmowa ponownego
+launchu). Cztery skrypty JS PASS: menu/hitbox, okna kamer, transport i delta.
+Składnia JS i diff check PASS. Cache-buster terminal.js: camera-contract-142-1-race-2.
+142.1 pozostaje otwarty do ponownego odbioru; brak nowego PASS serwerowego.
+
 ## 2026-09-17 — 142.1: wspólna deduplikacja wyłączenia kamery
 
 Po potwierdzeniu uruchamiania autor zgłosił powielanie operacji. Pulpit/terminal

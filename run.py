@@ -23849,6 +23849,11 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
         if not apps:
             raise CameraContractError('camera_app_not_authorized')
         if not selected:
+            active = store.active(username, target)
+            if active:
+                return jsonify({'success': True, 'duplicate': True,
+                                'status': 'Kamera jest juz wylaczona. Trwa poprzednia operacja.',
+                                'created_operations': [active]})
             return jsonify({
                 'success': True, 'tool_selection_required': True, 'auto_select': len(apps) == 1,
                 'map_action_id': 'camera_shutdown', 'canonical_action': 'exploit',
@@ -23878,6 +23883,21 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
                 raise CameraContractError('camera_foreign_territory')
 
         selected_app = next(app for app in apps if app['id'] == selected)
+        progressed_target = {}
+        def progress_camera_target(conn, operation):
+            nonlocal progressed_target
+            camera_target = {**target, 'scan_id': scan_id, 'camera_id': camera_id,
+                             'actions_allowed': {'exploit': True}}
+            result = player_target_runtime_store.upsert_aimed(
+                username, camera_target, source='camera_shutdown',
+                expected_target=expected_camera_target, conn=conn)
+            if result.get('status') in ('selection_changed', 'captured'):
+                raise CameraContractError('camera_target_changed')
+            progressed_target = result.get('target') or {}
+            delta_bus.record_change(username, 'map', 'map.target_updated',
+                {'target': progressed_target, 'reason': 'camera_shutdown'},
+                entity_id=progressed_target.get('target_id'),
+                dedupe_key=operation['operation_id'] + ':target', conn=conn)
         operation_template = build_operation_instance(username, selected_app, 'camera_shutdown',
                                                      'camera_shutdown', target)
         operation, duplicate = store.shutdown(
@@ -23886,11 +23906,12 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
             flow_id=str(data.get('_flow_id') or '')[:96],
             request_key=str(data.get('_client_action_key') or '')[:220],
             operation_template=operation_template, expected_app=selected_app,
-            enqueue_launch=enqueue_launch)
+            enqueue_launch=enqueue_launch, on_created=progress_camera_target)
         return jsonify({'success': True, 'duplicate': duplicate, 'idempotent_replay': duplicate,
                         'status': 'Kamera zostala czasowo wylaczona.' if not duplicate else 'Operacja kamery jest juz zapisana.',
                         'map_action_id': 'camera_shutdown', 'camera_shutdown': True,
                         'operation_only': True,
+                        'target': progressed_target or None,
                         'created_operations': [operation], 'added_apps': [selected]})
     except CameraContractError as exc:
         message = ('Brak aktualnego dowodu scanu tej kamery. Wykonaj nowy scan i ponownie oznacz kamere.'
@@ -30065,11 +30086,11 @@ def gonna_win():
             camera_app_row = conn.execute(
                 "SELECT app_json FROM player_apps WHERE username=? AND app_id=? AND status!='uninstalled'",
                 (session['user'], app_id)).fetchone()
-        camera_app = loads_json(camera_app_row['app_json'], {}) if camera_app_row else {}
+        camera_app = normalize_app_contract(loads_json(camera_app_row['app_json'], {})) if camera_app_row else {}
         if ('camera_shutdown' in (camera_app.get('operation_types') or [])
                 or 'camera_shutdown' in (camera_app.get('map_actions') or [])):
             camera_target = player_target_runtime_store.get_active_target(session['user']) or {}
-            if camera_target.get('target_type') == 'camera' or camera_target.get('source_type') == 'camera':
+            if infer_target_type_from_target(camera_target) == 'camera' or camera_target.get('camera_id'):
                 expected = data.get('expected_target') or {}
                 if isinstance(expected, dict) and target_has_stable_runtime_identity(expected) and not targets_share_runtime_identity(expected, camera_target):
                     return jsonify({'success': False, 'blocked': True, 'reason': 'target_selection_changed',

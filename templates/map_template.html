@@ -5461,6 +5461,13 @@
             marker._chaosContextBinding = binding;
             const iconElement = marker.getElement ? marker.getElement() : marker._icon;
             if (iconElement) iconElement._chaosContextBinding = binding;
+            if (typeof marker.on === 'function' && !marker._chaosContextAddBound) {
+                marker._chaosContextAddBound = true;
+                marker.on('add', () => {
+                    const icon = marker.getElement ? marker.getElement() : marker._icon;
+                    if (icon) icon._chaosContextBinding = marker._chaosContextBinding;
+                });
+            }
             ensureMarkerContextMenuDelegation();
             return binding;
         }
@@ -5486,7 +5493,7 @@
                 showVulnerabilityReporterMenu(point.x, point.y, binding.report);
                 return true;
             }
-            if (binding.report) {
+            if (binding.report || binding.source === 'interactiveTargetMarker') {
                 showHackingMenuForMarker(
                     point.x,
                     point.y,
@@ -5594,15 +5601,10 @@
                 })
             }).addTo(map);
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
+            bindMarkerContextSnapshot(marker, markerObj, 'interactiveTargetMarker');
             marker.on('contextmenu', function(e) {
-                if (!isContextEventInsideMarkerHitbox(marker, e, markerObj, 'interactiveTargetMarker')) {
-                    consumeMapContextEvent(e);
-                    showMapMenuFromOriginalContextEvent(e);
-                    return;
-                }
-                consumeMapContextEvent(e);
-                document.querySelectorAll('.context-menu').forEach(el => el.remove());
-                showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label, 'interactiveTargetMarker');
+                const binding = resolveMarkerContextBinding(marker, e, markerObj, 'interactiveTargetMarker');
+                if (binding) showBoundMarkerContextMenu(binding, e);
             });
             aimedTargetMenuSnapshot = {
                 target: markerObj,
@@ -6564,6 +6566,9 @@
             .then(async data => {
                 if (!data) return;
                 if (data.duplicate) {
+                    if (action === 'camera_shutdown') {
+                        addSystemMessage('info', 'Kamera', data.status || 'Operacja kamery juz trwa.');
+                    }
                     if (data.captured_target && typeof window.markMapTargetHacked === 'function') {
                         window.markMapTargetHacked(data.captured_target);
                     }

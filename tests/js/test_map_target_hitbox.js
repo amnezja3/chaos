@@ -102,3 +102,32 @@ assert.strictEqual(
 );
 
 console.log("map target hitbox tests passed");
+
+// Marked cameras must keep the same DOM-owned dispatch as raw scan markers.
+Object.assign(sandbox, {
+    mapTargetDisplayLabel: obj => obj.label,
+    removeScanResultAt() {}, hideDomTargetMarkers() {}, registerTargetMarker() {},
+    isMissingTargetDisplayName: value => !value,
+    rememberTargetLayer: (lat, lng, label, marker) => marker,
+    showHackingMenuForMarker: (x, y, target) => { delegatedTarget = target; },
+});
+sandbox.L.divIcon = options => ({options});
+sandbox.L.marker = (position, options) => ({
+    options, icon: {}, handlers: {},
+    getElement() { return this.icon; },
+    addTo() { return this; }, bindTooltip() { return this; },
+    on(name, callback) { this.handlers[name] = callback; return this; },
+});
+const interactiveStart = template.indexOf('function addInteractiveTargetMarker(');
+const interactiveEnd = template.indexOf('function renderCurrentAimedTargetMarker()', interactiveStart);
+vm.runInContext(template.slice(interactiveStart, interactiveEnd), sandbox);
+const cameraA = sandbox.addInteractiveTargetMarker(52, 21, 'Camera A', 'C', {camera_id: 'A', scan_id: 'scan'});
+const cameraB = sandbox.addInteractiveTargetMarker(53, 22, 'Camera B', 'C', {camera_id: 'B', scan_id: 'scan'});
+cameraB.handlers.contextmenu({originalEvent: {target: {parentNode: cameraA.icon}, clientX: 100, clientY: 80}});
+assert.strictEqual(delegatedTarget.camera_id, 'A');
+cameraA.icon = {};
+cameraA.handlers.add();
+mapContainer.contextHandler({target: {parentNode: cameraA.icon}, clientX: 100, clientY: 80});
+assert.strictEqual(delegatedTarget.camera_id, 'A');
+assert.strictEqual(delegatedTarget.scan_id, 'scan');
+console.log('marked camera DOM dispatch and icon recreation: PASS');

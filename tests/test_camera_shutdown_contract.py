@@ -1,5 +1,6 @@
 import copy
 import unittest
+from threading import Barrier
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
@@ -14,6 +15,61 @@ from response_network.camera_contract import camera_marker, CameraContractStore,
 class CameraShutdownContractTest(unittest.TestCase):
     setUp = fixtures.PlayerHackReadPathsTest.setUp
     seed = fixtures.PlayerHackReadPathsTest.seed
+
+    def test_parallel_legacy_writer_and_camera_writer_cannot_create_two_operations(self):
+        self.prepare()
+        barrier = Barrier(2)
+        legacy = run.build_operation_instance('attacker', {'id': 'other'}, 'exploit', 'camera_shutdown',
+                                             {**self.camera, 'lng': self.camera['lon']})
+        def write_legacy():
+            barrier.wait()
+            return self.operations.upsert_operations('attacker', [legacy])
+        def write_camera():
+            barrier.wait()
+            return CameraContractStore(self.path).shutdown(
+                'attacker', self.scan['scan_id'], self.camera['camera_id'], 'cam-off',
+                guard=lambda conn, target: None, inventory=self.inventory,
+                messages=self.messages, deltas=self.delta)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(write_legacy), pool.submit(write_camera)]
+            for future in futures:
+                future.result()
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM player_operations').fetchone()[0], 1)
+
+    def test_active_camera_preflight_does_not_offer_another_launch(self):
+        self.prepare()
+        first = self.client.post('/hack-action', json=self.payload)
+        self.assertEqual(first.status_code, 200, first.json)
+        response = self.client.post('/hack-action', json={**self.payload, 'selected_app_id': ''})
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertTrue(response.json['duplicate'])
+        self.assertFalse(response.json.get('tool_selection_required', False))
+        self.assertEqual(response.json['created_operations'][0]['expires_at'],
+                         first.json['created_operations'][0]['expires_at'])
+
+    def test_shutdown_commits_exploit_dot_and_legacy_writer_cannot_duplicate(self):
+        self.prepare()
+        response = self.client.post('/hack-action', json=self.payload)
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertTrue(response.json['target']['actions_allowed']['exploit'])
+        self.assertTrue(self.runtime.get_active_target('attacker')['actions_allowed']['exploit'])
+        legacy = run.build_operation_instance('attacker', {'id': 'other-camera-app'}, 'exploit',
+                                             'camera_shutdown', {**self.camera, 'lng': self.camera['lon']})
+        self.assertEqual(self.operations.upsert_operations('attacker', [legacy]), [])
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM player_operations').fetchone()[0], 1)
+
+    def test_progress_write_failure_rolls_back_shutdown(self):
+        self.prepare()
+        with patch.object(self.runtime, 'upsert_aimed', side_effect=RuntimeError('progress failed')):
+            with run.app.test_request_context('/hack-action', json=self.payload):
+                run.session['user'] = 'attacker'
+                with self.assertRaises(RuntimeError):
+                    run.camera_shutdown_action(self.payload)
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM player_operations').fetchone()[0], 0)
+            self.assertEqual(conn.execute('SELECT count(*) FROM player_launch_entries').fetchone()[0], 0)
 
     def test_map_desktop_terminal_and_new_scan_share_one_operation(self):
         self.prepare()
@@ -80,8 +136,10 @@ class CameraShutdownContractTest(unittest.TestCase):
         self.positions = PlayerPositionStore(self.path)
         self.operations = PlayerOperationStore(self.path)
         self.delta = GameStateDeltaBus(self.path)
+        self.runtime = PlayerTargetRuntimeStore(self.path)
         for key, store in [('player_scan_snapshot_store', self.scans), ('player_position_store', self.positions),
-                           ('player_operation_store', self.operations), ('delta_bus', self.delta)]:
+                           ('player_operation_store', self.operations), ('delta_bus', self.delta),
+                           ('player_target_runtime_store', self.runtime)]:
             self.stack.enter_context(patch.object(run, key, store))
         self.stack.enter_context(patch.object(run, 'foreign_territory_action_block', return_value=None))
         self.camera = camera_marker({'lat': 52.1, 'lng': 21.2, 'osm_id': 'node:123'})

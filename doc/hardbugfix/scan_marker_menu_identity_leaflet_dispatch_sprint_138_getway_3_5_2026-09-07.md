@@ -1,5 +1,15 @@
 # Błędna tożsamość menu markerów po dużym skanie
 
+## Regresja zgłoszona 17 IX 2026 — sprint 142.1
+
+Historyczny PASS poniżej dotyczy odbioru 7 IX. Autor ponownie zgłosił złe menu
+kamer po wdrożeniu 142.1. `addInteractiveTargetMarker` nie podpinał capture
+bindingu stosowanego dla markerów surowego scanu. Dodano go oraz ponowne
+wiązanie DOM po Leaflet `add`. Fallback callback rozwiązuje fizycznie kliknięty
+binding zamiast używać bezwarunkowo własnego snapshotu. Test JS obejmuje
+oznaczone kamery A/B, callback B przy kliknięciu A i odtworzenie ikony.
+Lokalnie PASS; **ponowny odbiór serwerowy tej regresji oczekuje**.
+
 **Sprint:** 138.getway.3.5  
 **Data zamknięcia:** 2026-09-07  
 **Severity:** P1  

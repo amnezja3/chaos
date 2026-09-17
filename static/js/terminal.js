@@ -2081,6 +2081,10 @@ function disposeProvisionalApplicationSession(session, reason = "window_closed")
 
 function beginProvisionalLaunch(selection = {}, appData = {}) {
     if (!provisionalAppLaunchFlags.enabled) return null;
+    const cameraKey = cameraApplicationLaunchKey(
+        {...appData, _map_action_id: selection.pending_action?.action}, selection.pending_action || {});
+    const cameraWindow = findCameraApplicationWindow(cameraKey);
+    if (cameraWindow) { bringWindowToFront(cameraWindow); return null; }
     const sessionKey = buildProvisionalLaunchSessionKey(selection, appData);
     const existing = provisionalApplicationSessions.get(sessionKey);
     if (existing && !existing.disposed && existing.appWindow?.isConnected) {
@@ -2109,6 +2113,7 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     appWindow.dataset.appInterface = String(appData.interface || "provisional");
     appWindow.dataset.appFlowId = flowId;
     appWindow.dataset.launchSource = "map";
+    appWindow.dataset.cameraLaunchKey = cameraKey;
     appWindow.dataset.provisionalSessionKey = sessionKey;
     appWindow.dataset.provisionalState = "launching";
     if (window.OperationFeedbackSystem?.buildApplicationBrandModel) {
@@ -2524,6 +2529,20 @@ function resolveApplicationFeedbackAction(appData = {}) {
     return String(mapActions.find(Boolean) || "").trim();
 }
 
+function cameraApplicationLaunchKey(appData = {}, target = {}) {
+    const actions = [...(Array.isArray(appData.map_actions) ? appData.map_actions : []),
+        ...(Array.isArray(appData.operation_types) ? appData.operation_types : []), appData._map_action_id];
+    if (!actions.includes('camera_shutdown')) return '';
+    const lat = Number(target.lat), lng = Number(target.lng ?? target.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+    return `camera:${lat.toFixed(7)}:${lng.toFixed(7)}`;
+}
+
+function findCameraApplicationWindow(key) {
+    if (!key) return null;
+    return Array.from(document.querySelectorAll('.app-window')).find(app => app.dataset.cameraLaunchKey === key) || null;
+}
+
 function launchApplicationFromEntry(appData = {}, source = "desktop_menu") {
     const launchData = {
         ...appData,
@@ -2737,6 +2756,7 @@ function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
     appWindow.dataset.launchQueueKey = context.launch_key || "";
     appWindow.dataset.launchReceipt = context.launch_receipt || "";
     appWindow.dataset.launchSource = context.source || "";
+    appWindow.dataset.cameraLaunchKey = context.camera_launch_key || appWindow.dataset.cameraLaunchKey || '';
     appWindow.dataset.expectedTarget = context.expected_target
         ? JSON.stringify(context.expected_target)
         : "";
@@ -2815,10 +2835,16 @@ function beginApplicationWindowLaunch(id, type) {
 
 function launchApplicationEffect(appData) {
     if (runSystemLauncherApp(appData)) return;
+    const cameraKey = cameraApplicationLaunchKey(appData, (toolbarProfile || {}).aimed_target || {});
+    const cameraWindow = findCameraApplicationWindow(cameraKey);
+    const hydratingCamera = typeof activeProvisionalHydrationSession !== 'undefined'
+        && activeProvisionalHydrationSession?.appWindow === cameraWindow;
+    if (cameraWindow && !hydratingCamera) { bringWindowToFront(cameraWindow); return; }
     const id = appData.id;
     const levels = appData.levels;
     const type = appData.interface;
     const launchContext = buildApplicationLaunchContext(appData);
+    launchContext.camera_launch_key = cameraKey;
     const flowId = launchContext.flow_id;
     window.__lastHackFlowId = flowId;
     appFlowTrace(flowId, "launch_application_effect", {
@@ -12311,6 +12337,9 @@ function updateMapPlayerActorDeltaView(event = {}) {
 }
 
 function updateMapTargetDeltaView(event = {}) {
+    if (event.type === 'map.target_updated' && event.payload?.reason === 'camera_shutdown') {
+        updateToolbarAimedTarget(event.payload.target);
+    }
     if (String(event.type || "") === "map.target_captured") {
         const payload = event.payload || {};
         playAuthoritativeCaptureSfx(payload.target || payload.captured_target || {});

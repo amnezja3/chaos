@@ -27,6 +27,11 @@ oraz deduplikację starszych operacji; testy lokalne PASS, ponowny odbiór oczek
 Wcześniejsze wyniki
 testów automatycznych pozostają zapisane, wymagany jest ponowny odbiór.
 
+Kolejny odbiór ujawnił nadal duplikację, brak kropki i regresję menu markerów.
+Aktualna poprawka obejmuje DOM binding oznaczonych kamer, atomowy postęp celu,
+wspólną deduplikację starszego writera i okien aplikacji; szczegóły i scenariusz
+ponownego odbioru w runbooku. Poprzednie lokalne PASS nie zamykają etapu.
+
 Implementacja i odbiór tej paczki: [runbook 142.1](../runbooks/sprint_142_1_camera_contract.md).
 Kontrakt przejść całego mechanizmu pozostaje opisany w audycie. W tej paczce
 wdrażamy stabilne ID kamer, obserwacje backendu, autoryzowany shutdown,

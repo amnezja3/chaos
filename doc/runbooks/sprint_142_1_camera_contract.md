@@ -1,5 +1,20 @@
 # 142.1 — kontrakt scanu i wyłączenia kamer
 
+Aktualny status: **OTWARTY — poprawka regresji 17 IX, odbiór serwerowy wymagany**.
+Po wcześniejszej poprawce autor nadal zgłosił duplikację, brak kropki i złe menu.
+Obecna paczka rozszerza DOM capture binding na oznaczone markery i odtworzone
+ikony, zapisuje exploit dot wraz z operacją oraz deduplikuje także starszego
+writera operacji i równoległe okna kamery. Cache JS: `camera-contract-142-1-race-2`.
+Walidacja lokalna: 37 różnych testów Python i 4 skrypty JS PASS.
+
+Odbiór tej paczki po deployu: świeży scan → oznaczenie → wyłączenie i kropka
+exploit na belce → szybkie ponowienia mapa/pulpit/terminal (jedna operacja,
+niezmieniony timer, jedno okno na tę kamerę) → kolejny scan i odświeżenie mapy.
+Sprawdzić menu kilku odległych i sąsiadujących kamer po oznaczeniu oraz po
+odświeżeniu: identyfikator celu ma odpowiadać klikniętej ikonie, nie tooltipowi.
+Istniejące duplikaty nie są automatycznie kasowane; na test użyć kamery bez
+aktywnej operacji albo wcześniej anulować stare operacje testowe.
+
 Zakres: stabilna tożsamość kamery, dowód scanu po stronie backendu,
 uprawnienie aplikacji i trwałe wykonanie shutdown. Nie zmienia współczynników
 inicjacji/eskalacji, kar ani publikacji — następne etapy sprintu 142.

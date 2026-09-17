@@ -10552,6 +10552,13 @@ class PlayerOperationStore:
         if status in cls.TERMINAL_STATUSES or cls._is_expired(operation):
             return ""
         operation = operation if isinstance(operation, dict) else {}
+        if cls._operation_type(operation) == 'camera_shutdown':
+            target = operation.get('target') or {}
+            try:
+                return 'camera_shutdown|{:.7f}|{:.7f}'.format(
+                    float(target['lat']), float(target.get('lng', target.get('lon'))))
+            except (KeyError, TypeError, ValueError):
+                return 'camera_shutdown|' + cls._target_key(operation)
         parts = (
             cls._target_key(operation),
             cls._clean_text(operation.get("map_action_id")),
@@ -13673,7 +13680,7 @@ class PlayerTargetRuntimeStore:
                 "version": version, "target": target,
             }
 
-    def upsert_aimed(self, username, target, status=STATUS_AIMED, source="", expected_target=None):
+    def upsert_aimed(self, username, target, status=STATUS_AIMED, source="", expected_target=None, *, conn=None):
         username = self._clean_text(username)
         target = dict(target or {}) if isinstance(target, dict) else {}
         target_key = self.target_key(target)
@@ -13685,7 +13692,7 @@ class PlayerTargetRuntimeStore:
         incoming_progress = self._progress_from_target(target)
         now = utc_now()
 
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 "SELECT * FROM player_target_runtime WHERE username = ?",
                 (username,),
@@ -13764,7 +13771,8 @@ class PlayerTargetRuntimeStore:
             security_json = dumps_json(merged_security)
             actions_json = dumps_json(merged_actions)
             observed_version = int(row["version"] or 0) if row else 0
-            conn.execute("BEGIN IMMEDIATE")
+            if not conn.in_transaction:
+                conn.execute("BEGIN IMMEDIATE")
             latest = conn.execute(
                 "SELECT version FROM player_target_runtime WHERE username = ?",
                 (username,),
