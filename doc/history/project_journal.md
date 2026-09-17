@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — korekta zakresu 142.3: radio odłożone
+
+Na polecenie autora usunięto omyłkowo dodany biuletyn incydentów z radia,
+endpoint, polling, prompt i obsługę medium przez producenta/publishera.
+Radio pozostaje odtwarzaczem. Publikacje incydentów dotyczą BlackNetu oraz
+GooglePlex News; wcześniejsze wpisy o radiu dokumentują wycofaną implementację.
+Gameplay: punkty 1–2 PASS autora, 3–4 oczekują, punkt 5 poprawiono na media
+BlackNet/GooglePlex News. Istniejące historyczne rekordy nie są kasowane.
+Walidacja korekty: 27 testów wspólnego publishera PASS oraz 19 testów
+incydentów/pipeline PASS po ustabilizowaniu zegara testowego; składnia radia PASS.
+
 ## 2026-09-17 — 142.3: cykl i trwała publikacja incydentów
 
 Autor polecił rozpoczęcie .3 i zatwierdził 30 minut cooling po ostatniej

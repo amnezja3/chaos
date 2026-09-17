@@ -94,10 +94,6 @@ def _build_registry():
         "blacknet-world-prompt-v2", Path("blacknet") / "world-digest-v2.md",
     )]
     policies.append(_policy(
-        "blacknet_world", "incident_radio_dispatch", "radio",
-        "incident-radio-prompt-v1", Path("blacknet") / "incident-radio-v1.md",
-    ))
-    policies.append(_policy(
         "blacknet_world", "world_digest", "googleplex_news",
         "googleplex-news-assets-prompt-v8", Path("googleplex") / "news-digest-assets-v8.md",
         ASSET_OUTPUT_SCHEMA_VERSION,

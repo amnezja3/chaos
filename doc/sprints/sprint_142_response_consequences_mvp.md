@@ -53,7 +53,7 @@ etapów poniżej. PASS tej paczki nie oznacza zamknięcia całego 142.
   kompatybilność celu, aktywny dostęp i ograniczenia; recheck przy commit.
   Samo kliknięcie albo deklaracja klienta nie jest dowodem wyłączenia.
 - Wdrożyć decyzje tabeli reuse/adapt/replace z audytu: risk meter i progi,
-  incident initializer, publikacja/delta, bridge BlackNet, media/radio,
+  incident initializer, publikacja/delta, bridge BlackNet, GooglePlex News,
   canonical inventory/wallet, reguły aktywnych części i Super Powers.
   Punkty startowe: `active_ghostnetwork_operation_risk_rules`,
   `ability_heat_modifier`, `publish_incident_actions`,
@@ -98,14 +98,14 @@ Implementacja i instrukcja restartu wszystkich czterech procesów:
 Potwierdzone przed sprintem naprawy: częściowy tick gracza usuwa wkład innych
 graczy we wspólnym incydencie; timeout ostatniej operacji anuluje incydent;
 mapa/BlackNet różnie filtrują expiry; publikacje delty nie mają wspólnego
-commitu z incydentem; brak mostka incydent→radio. Nie kopiować ciężkich
+commitu z incydentem. Radio pozostaje poza zakresem. Nie kopiować ciężkich
 list_active/list_public bez limitu do nowego workera. Szczegóły i testy w audycie.
 
 - Jedno źródło poziomu, heat, przyczyn eskalacji/wygaszania i powiązania
   incydentu z graczem oraz publicznym miejscem. Zmiana kamer wpływa na
   właściwy składnik, nie usuwa niezależnych powodów ryzyka.
 - Prześledzić inicjację, eskalację, cooling i zakończenie, aktualizację NPC,
-  delty mapy, media gry/radio oraz fakty/publikacje BlackNet i ich CTA.
+  delty mapy, GooglePlex News oraz fakty/publikacje BlackNet i ich CTA.
 - Outbox, stabilne event_id i version: retry nie powiela wpisów, późny event
   nie cofa poziomu; restart publishera nadrabia zaległości. Niedostępność
   publikacji/Ollamy nie blokuje mechaniki i nie tworzy powtórnej kary.

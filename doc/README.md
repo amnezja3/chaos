@@ -40,7 +40,7 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 ## Status bieżący
 
 - [142.3 — cykl i publikacja incydentów](runbooks/sprint_142_3_incident_publications.md):
-  zatwierdzone 30 minut cooling, trwała kolejka publikacji, map/NPC i radio;
+  zatwierdzone 30 minut cooling, trwała kolejka publikacji, mapa/NPC i BlackNet/GooglePlex News;
   implementacja lokalna, odbiór produkcyjny otwarty.
 - [142.2 — kamery a publiczne ryzyko](runbooks/sprint_142_2_camera_risk.md):
   zatwierdzone +4/0, trwała ekspozycja, osłona własnego obiektu, delta live;

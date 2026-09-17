@@ -57,5 +57,6 @@ class IncidentPipelineAuditTest(unittest.TestCase):
         repository = Mock()
         repository.enqueue_narrative_task.return_value = {'outbox_id': 'radio-test'}
         result = BlackNetNarrativeProducer(repository).enqueue_signal(snapshot, signal, target_medium='radio')
-        self.assertTrue(result['ok'])
-        self.assertEqual(repository.enqueue_narrative_task.call_args.args[0]['target_medium'], 'radio')
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['reason_code'], 'unsupported_target_medium')
+        repository.enqueue_narrative_task.assert_not_called()

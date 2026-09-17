@@ -148,10 +148,16 @@ class IncidentLifecyclePublicationsTest(unittest.TestCase):
         dispatcher = ResponseDispatcher(NPCCapsuleStore(self.path))
         producer = Mock()
         producer.enqueue_signal.return_value = {'ok': True}
+        fixed_now = self.now
+        class FixedClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls.fromtimestamp(fixed_now.timestamp(), tz=tz)
         with patch.object(run, 'incident_store', self.store), patch.object(run, 'delta_bus', bus), \
              patch.object(run, 'response_dispatcher', dispatcher), \
              patch.object(run, 'BlackNetNarrativeProducer', return_value=producer), \
-             patch.object(run, 'get_ghostnetwork_service'):
+             patch.object(run, 'get_ghostnetwork_service'), \
+             patch.object(run, 'datetime', FixedClock):
             cursor, done = run.deliver_incident_publication(incident, '')
             self.assertFalse(done)
             self.assertEqual(cursor, 'viewer063')
@@ -164,6 +170,7 @@ class IncidentLifecyclePublicationsTest(unittest.TestCase):
             public = first[0]['payload']
             self.assertNotIn('suspect_refs', public)
             self.assertNotIn('operation_ids', public)
+            self.assertEqual({call.kwargs['target_medium'] for call in producer.enqueue_signal.call_args_list}, {'blacknet'})
 
     def test_late_dispatch_cannot_restore_npc_after_resolution(self):
         _, incident = self.incident()
@@ -174,27 +181,27 @@ class IncidentLifecyclePublicationsTest(unittest.TestCase):
         dispatcher.dispatch_incident(incident, now=self.now)
         self.assertEqual(dispatcher.capsule_store.list_by_incident(incident['incident_id']), [])
 
-    def test_radio_candidate_uses_existing_publication_pipeline(self):
+    def test_blacknet_candidate_uses_existing_publication_pipeline(self):
         fixture = narrative_fixtures.NarrativePublicationTest()
         fixture.setUp()
         self.addCleanup(fixture.tearDown)
-        candidate = fixture.accepted_candidate('incident-radio', source_scope='blacknet_world',
-            task_variant='incident_radio_dispatch', target_medium='radio',
+        candidate = fixture.accepted_candidate('incident-blacknet', source_scope='blacknet_world',
+            task_variant='blacknet_signal_narration', target_medium='blacknet',
             narrative_intent='intercepted_incident_alert')
         self.assertEqual(candidate['validation_status'], 'accepted')
         result = NarrativePublicationService(fixture.repo).process_once()
         self.assertEqual(result['result'], 'published', result)
-        self.assertEqual(len(fixture.repo.list_narrative_medium_records('radio', active_only=True)), 1)
+        self.assertEqual(len(fixture.repo.list_narrative_medium_records('blacknet', active_only=True)), 1)
 
-    def test_delayed_radio_cannot_publish_after_incident_closes(self):
+    def test_delayed_blacknet_cannot_publish_after_incident_closes(self):
         fixture = narrative_fixtures.NarrativePublicationTest()
         fixture.setUp()
         self.addCleanup(fixture.tearDown)
         store = IncidentStore(fixture.repo.db_path)
-        incident = store.upsert({'incident_id': 'radio-incident', 'status': 'active',
+        incident = store.upsert({'incident_id': 'blacknet-incident', 'status': 'active',
             'level': 2, 'heat': 65, 'center': {'lat': 52.1, 'lng': 21.2}})
-        fixture.accepted_candidate('delayed-incident-radio', source_scope='blacknet_world',
-            task_variant='incident_radio_dispatch', target_medium='radio',
+        fixture.accepted_candidate('delayed-incident-blacknet', source_scope='blacknet_world',
+            task_variant='blacknet_signal_narration', target_medium='blacknet',
             narrative_intent='intercepted_incident_alert',
             validation={'incident_context': {'id': incident['incident_id'],
                         'publication_version': incident['publication_version']}})
@@ -202,7 +209,7 @@ class IncidentLifecyclePublicationsTest(unittest.TestCase):
         result = NarrativePublicationService(fixture.repo).process_once()
         self.assertEqual(result['result'], 'rejected', result)
         self.assertEqual(result['reason'], 'lifecycle_state_superseded')
-        self.assertEqual(fixture.repo.list_narrative_medium_records('radio'), [])
+        self.assertEqual(fixture.repo.list_narrative_medium_records('blacknet'), [])
 
     def test_concurrent_actors_merge_without_losing_contributions(self):
         a, b = fixtures.operation('parallel-a'), fixtures.operation('parallel-b', owner='bob')

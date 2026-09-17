@@ -4493,7 +4493,7 @@ def deliver_incident_publication(incident, viewer_cursor):
         for signal in signals.get('signals') or []:
             if signal.get('cta_target') != 'incident':
                 continue
-            for medium in ('blacknet', 'radio'):
+            for medium in ('blacknet',):
                 result = producer.enqueue_signal(signals, signal, target_medium=medium)
                 if not result.get('ok'):
                     raise RuntimeError('incident_narrative_enqueue_failed:' + medium)
@@ -4506,16 +4506,6 @@ def process_incident_runtime_tick(now=None):
     actions = incident_initializer.tick_lifecycle(now=now, limit=32)
     publications = IncidentPublicationRelay(incident_store).drain(deliver_incident_publication, now, limit=8)
     return {'lifecycle_changes': len(actions), **publications}
-
-
-@app.route('/api/radio/bulletins')
-def radio_incident_bulletins():
-    if 'user' not in session:
-        return jsonify({'ok': False}), 401
-    records = get_ghostnetwork_service().repository.list_narrative_medium_records(
-        'radio', audience_scope='public', active_only=True, limit=5)
-    return jsonify({'ok': True, 'bulletins': [
-        {'title': row.get('title', ''), 'body': row.get('body', '')} for row in records]})
 
 
 def response_npc_runtime_iso(now=None):

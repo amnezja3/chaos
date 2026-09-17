@@ -43,12 +43,11 @@ starszej wersji incydentu, a mapa chroni również usunięty marker przed późn
 starym eventem. Koniec cooling powoduje usunięcie kapsuł.
 
 BlackNet zachowuje deterministyczne fakty i bezpieczne CTA. Narracja BlackNet
-i radio trafiają do istniejącej kolejki Ollamy/publication receipts. Googleplex
+trafia do istniejącej kolejki Ollamy/publication receipts. Googleplex
 News nadal wybiera kwalifikujące się incydenty przez istniejący scheduler;
 nie każdy incydent musi otrzymać artykuł. Brak odpowiedzi modelu nie wyłącza mapy.
 
-Radio dostaje krótki **tekstowy biuletyn** w swoim oknie; odczyt co 30 sekund,
-tylko gdy okno jest otwarte. To nie synteza głosu ani nowy plik MP3.
+Radio jest poza zakresem 142.3; dodany omyłkowo biuletyn został usunięty.
 Publisher sprawdza canonical wersję publicznego stanu incydentu w transakcji;
 spóźniony wynik nie może publikować zamkniętego/starszego stanu. Nieaktualne
 publikacje są wycofywane z aktywnego widoku przez relay, pozostając w historii.
@@ -74,6 +73,11 @@ albo stary registry promptów. Odświeżyć kartę gry po deployu.
 
 ## Walidacja i odbiór
 
+Korekta zakresu: radio odłożone na później. Po usunięciu tej ścieżki:
+27 testów publishera PASS i 19 testów incydentów/pipeline PASS;
+kontrola składni odtwarzacza PASS. Punkty 1–2 odebrane przez autora,
+3–4 oczekują; punkt 5 dotyczy wyłącznie BlackNetu i GooglePlex News.
+
 Lokalny wynik 17 IX 2026: **110 testów Python PASS (112,037 s)** przez
 `tools/run_isolated_tests.py`, na tymczasowych bazach poza danymi gry.
 Zakres: lifecycle/publications, initializer, pipeline audit, public map,
@@ -86,7 +90,7 @@ aktywnej operacji i spóźniony runtime po canonical anulowaniu.
 Automatyczne testy obejmują: 30-minutowe cooling i brak resetu, operację trwającą
 ponad trzy godziny, reactivation, równoległych aktorów i canonical terminal state,
 atomowy rollback outboxu, recovery publishera, pagination z nowym headem,
-zgodność mapy/BlackNet, fan-out i dedupe, stale NPC, radio do medium record,
+zgodność mapy/BlackNet, fan-out i dedupe, stale NPC, BlackNet do medium record,
 odrzucenie spóźnionego biuletynu oraz brak wywołań pełnych profili.
 Test JS sprawdza starą deltę usunięcia i próbę przywrócenia starego markera.
 
@@ -100,8 +104,9 @@ Gameplay po deployu, krok po kroku:
    znikają, BlackNet nie daje aktywnego CTA do zakończonego incydentu.
 4. Osobny przypadek: operacja powyżej progu podczas cooling ponownie aktywuje
    incydent. Nie mieszać tego z pomiarem nieprzerwanego cooling w punkcie 3.
-5. Po obsłużeniu kolejki narracji otworzyć radio i sprawdzić biuletyn.
-   Czas publikacji zależy od kolejki/modelu. Nie interpretować opóźnienia jako
+5. Sprawdzić publikację incydentu w BlackNecie oraz kwalifikującego się
+   incydentu w GooglePlex News. Czas publikacji zależy od kolejki/modelu i
+   kwalifikacji przez scheduler. Nie interpretować opóźnienia jako
    awarii samego cyklu incydentu. Odbiór wizualny desktop/mobile pozostaje ręczny.
 
 Nie wykonano deployu, produkcyjnego pomiaru p95 ani ręcznej weryfikacji UI.

@@ -278,10 +278,8 @@ class BlackNetNarrativeProducer:
         snapshot = snapshot if isinstance(snapshot, dict) else {}
         signal = signal if isinstance(signal, dict) else {}
         target_medium = _clean(target_medium, "blacknet")
-        if target_medium not in {"blacknet", "googleplex_news", "radio"}:
+        if target_medium not in {"blacknet", "googleplex_news"}:
             return {"ok": False, "status": "rejected", "reason_code": "unsupported_target_medium", "task": None}
-        if target_medium == 'radio' and narrative_intent_for_signal(signal) != 'intercepted_incident_alert':
-            return {'ok': True, 'status': 'ineligible', 'reason_code': 'radio_requires_incident', 'task': None}
         if target_medium == "googleplex_news" and (
             signal.get("signal_type") == "googleplex_product_signal"
             or "googleplex_product_signal" in str(signal.get("fact_id") or "")
@@ -346,8 +344,6 @@ class BlackNetNarrativeProducer:
             if target_medium == "googleplex_news"
             else "blacknet_signal_narration"
         )
-        if target_medium == 'radio':
-            variant = 'incident_radio_dispatch'
         slot_state = (
             self.repository.get_narrative_slot_state(target_medium, presentation_slot)
             if presentation_slot else None

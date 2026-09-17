@@ -817,7 +817,6 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                     <span data-radio-progress-fill></span>
                 </div>
                 <div class="ghost-radio-time" data-radio-time>0:00 / --:--</div>
-                <div data-radio-bulletin hidden aria-live="polite" style="max-height:7em;overflow:auto;white-space:pre-wrap"></div>
                 <div class="ghost-radio-controls">
                     <button type="button" data-radio-action="previous" title="Poprzedni kanal" aria-label="Poprzedni kanal">\u23EE</button>
                     <button type="button" data-radio-action="play" title="Play" aria-label="Play">\u25B6</button>
@@ -834,25 +833,6 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             </div>
         `;
         document.body.appendChild(term);
-        const refreshBulletin = async () => {
-            if (!term.isConnected) return;
-            try {
-                const response = await fetch('/api/radio/bulletins');
-                if (!response.ok) return;
-                const data = await response.json();
-                const bulletin = data.bulletins?.[0];
-                const panel = term.querySelector('[data-radio-bulletin]');
-                if (panel && term.isConnected) {
-                    panel.hidden = !bulletin;
-                    panel.textContent = bulletin ? `${bulletin.title}\n${bulletin.body}` : '';
-                }
-            } catch (error) {
-                console.debug('Radio bulletin unavailable', error);
-            } finally {
-                if (term.isConnected) setTimeout(refreshBulletin, 30000);
-            }
-        };
-        refreshBulletin();
         term.querySelector('.close-btn').addEventListener('click', () => term.remove());
         if (typeof makeDraggable === "function") {
             makeDraggable(term);
