@@ -3529,6 +3529,9 @@
                         target_type: normalized.target_type,
                         osm_id: normalized.osm_id,
                         node_id: normalized.node_id,
+                        camera_id: normalized.camera_id || null,
+                        scan_id: normalized.scan_id || null,
+                        parent_target_id: normalized.parent_target_id || null,
                         location: normalized.location || null,
                         target_mode: normalized.target_mode,
                         target_id: normalized.target_id,
@@ -7137,6 +7140,8 @@
                         osm_id: targetContext?.osm_id || null,
                         node_id: targetContext?.node_id || null,
                         scan_id: targetContext?.scan_id || null,
+                        camera_id: targetContext?.camera_id || null,
+                        parent_target_id: targetContext?.parent_target_id || null,
                         location: targetContext?.location || null
                     })
                 });
@@ -10960,7 +10965,10 @@
             generated,
             target_mode,
             target_username,
-            relation
+            relation,
+            camera_id: labelEl.dataset.cameraId || null,
+            scan_id: labelEl.dataset.scanId || null,
+            parent_target_id: labelEl.dataset.parentTargetId || null
         });
         registerTargetMarker(menuTarget, null, {
             source: 'domTargetMarker',

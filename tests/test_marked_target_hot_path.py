@@ -215,7 +215,7 @@ class MarkTargetEndpointHotPathTests(unittest.TestCase):
 class MarkedTargetFrontendContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = Path("templates/map_template.html").read_text(encoding="utf-8")
+        cls.source = (Path(__file__).resolve().parents[1] / "templates/map_template.html").read_text(encoding="utf-8")
 
     def test_pending_mark_is_independent_from_scan_layers(self):
         clear_start = self.source.index("function clearScanResultLayers()")

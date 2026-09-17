@@ -20501,6 +20501,7 @@ def map_target_client_snapshot(target, captured=False):
         "title", "icon", "source_type", "target_type", "target_mode",
         "target_username", "relation", "generated", "stationary", "osm_id",
         "node_id", "actions_allowed", "security", "captured_at",
+        "camera_id", "scan_id", "parent_target_id",
     )
     payload = {key: copy.deepcopy(target.get(key)) for key in allowed if key in target}
     location = normalize_location(target.get("location"))
@@ -23102,6 +23103,9 @@ def map_view():
                         data-generated="{generated}"
                         data-target-id="{target_id}"
                         data-target-mode="{target_mode}"
+                        data-camera-id="{html.escape(str(profile_aimed_target.get('camera_id') or ''), quote=True)}"
+                        data-scan-id="{html.escape(str(profile_aimed_target.get('scan_id') or ''), quote=True)}"
+                        data-parent-target-id="{html.escape(str(profile_aimed_target.get('parent_target_id') or ''), quote=True)}"
                         data-target-username="{target_username}"
                         data-relation="{target_relation}"
                         data-icon="{text_icon}" 
@@ -23220,6 +23224,8 @@ def map_aim_target():
         "osm_id": str(data.get("osm_id") or "").strip()[:120] or None,
         "node_id": str(data.get("node_id") or "").strip()[:120] or None,
         "scan_id": str(data.get("scan_id") or "").strip()[:64] or None,
+        "camera_id": str(data.get("camera_id") or "").strip()[:100] or None,
+        "parent_target_id": str(data.get("parent_target_id") or "").strip()[:120] or None,
         "target_mode": str(data.get("target_mode") or "standard"),
         "target_id": str(data.get("target_id") or "").strip() or None,
         "vulnerability_id": data.get("vulnerability_id"),
@@ -23407,7 +23413,7 @@ def map_action():
         location = normalize_location(data.get("location"))
         if location:
             target["location"] = location
-        for key in ("osm_id", "node_id", "target_type"):
+        for key in ("osm_id", "node_id", "target_type", "camera_id", "scan_id", "parent_target_id"):
             value = str(data.get(key) or "").strip()[:120]
             if value:
                 target[key] = value

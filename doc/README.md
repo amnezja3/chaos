@@ -47,8 +47,8 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   recydywa, ograniczenia systemowe/ruchu/teleportów i więzienia. Wylogowanie nie
   usuwa incydentów ani automatycznie nie odbywa kary.
   [142.1 — kontrakt kamer](runbooks/sprint_142_1_camera_contract.md): implementacja
-  i testy lokalne oraz odbiór gameplayu autora PASS (17 IX 2026), etap zamknięty.
-  Następny etap: 142.2. 143 pozostaje zaplanowany.
+  i testy lokalne zapisane; PASS gameplayu cofnięty przez autora 17 IX 2026.
+  142.1 ponownie otwarty, przejście do 142.2 wstrzymane. 143 pozostaje zaplanowany.
 
 - [Terminal: pakiety Googleplex](gameplay/terminal_packages.md) — `pkg list-all`,
   `pkg search <nazwa>` i `pkg install <nazwa lub ID>` przez istniejący instalator.

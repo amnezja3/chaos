@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import run
 import test_player_hack_read_paths as fixtures
-from database import (PlayerScanSnapshotStore, PlayerPositionStore, PlayerOperationStore,
+from database import (PlayerScanSnapshotStore, PlayerPositionStore, PlayerOperationStore, PlayerMarkedTargetStore,
                       GameStateDeltaBus, db_connect, reset_hot_path_metrics,
                       get_hot_path_metrics, restore_hot_path_metrics)
 from response_network.camera_contract import camera_marker, CameraContractStore, CameraContractError
@@ -62,6 +62,26 @@ class CameraShutdownContractTest(unittest.TestCase):
             self.assertEqual(response.status_code, 409, response.json)
         with db_connect(self.path) as conn:
             self.assertEqual(conn.execute('SELECT count(*) FROM player_operations').fetchone()[0], 0)
+
+    def test_mark_refresh_then_shutdown_keeps_camera_evidence(self):
+        self.prepare()
+        marked = PlayerMarkedTargetStore(self.path)
+        marked.ensure_seeded('attacker')
+        target = {**self.camera, 'lng': self.camera['lon'], 'scan_id': self.scan['scan_id']}
+        with patch.object(run, 'player_marked_target_store', marked), \
+                patch.object(run.territory_store, 'list_captured_targets', return_value=[]), \
+                patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy path')):
+            response = self.client.post('/map-action', json={**target, 'action': 'mark_target'})
+            self.assertEqual(response.status_code, 200, response.json)
+            refreshed = self.client.get('/api/map/target-snapshot')
+            self.assertEqual(refreshed.status_code, 200, refreshed.json)
+            for restored in (response.json['target'], refreshed.json['targets'][0]):
+                self.assertEqual(restored['camera_id'], target['camera_id'])
+                self.assertEqual(restored['scan_id'], target['scan_id'])
+                result = self.client.post('/hack-action', json={**restored, 'action': 'camera_shutdown',
+                                                               'selected_app_id': 'cam-off'})
+                self.assertEqual(result.status_code, 200, result.json)
+            self.assertTrue(result.json['duplicate'])
 
     def test_selection_uses_canonical_coordinates_and_preserves_evidence(self):
         self.prepare()

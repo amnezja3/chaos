@@ -67,9 +67,23 @@ podstawiania nieużywanej już mutacji pełnego profilu.
 5. Odświeżyć pulpit/mapę: operacja jest nadal widoczna. Anulować ją w centrum
    operacji i sprawdzić koniec aktywnego wyłączenia.
 
-Odbiór gameplayu: **PASS — 17 IX 2026**, potwierdzony przez autora dla wszystkich
-sześciu punktów: nowy scan, wyłączenie i timer live, ponowienie bez duplikacji
-i resetu czasu (również po kolejnym scanie), zachowanie operacji po odświeżeniu,
-anulowanie oraz odmowa poza zasięgiem bez utworzenia operacji.
-142.1 zamknięty. Cały sprint 142 pozostaje otwarty; efekty kamer na incydenty
-weryfikujemy dopiero w 142.2.
+Odbiór gameplayu: **PASS COFNIĘTY — 17 IX 2026** na prośbę autora po zauważeniu
+problemu. 142.1 ponownie otwarty; oczekuje ponownego odbioru poprawki.
+Wcześniejsze wyniki testów automatycznych pozostają historycznym
+potwierdzeniem sprawdzonych scenariuszy, nie zamykają odbioru gameplayu.
+Przejście do 142.2 wstrzymane do wyjaśnienia problemu.
+
+### Poprawka transportu danych kamery — 17 IX
+
+Żądanie autora zawierało `camera_id=null` i `scan_id=null`. Potwierdzono utratę
+danych w oznaczaniu celu, wyborze aktywnego celu i serializerze snapshotu mapy.
+Zachowano camera_id/scan_id/parent_target_id w tych przejściach oraz markerze
+aktywnego celu renderowanym przez backend. Autoryzacja nadal odczytuje dowód
+scanu z bazy; skopiowane metadane same nie uprawniają do shutdown.
+Test integracyjny scan store → mark_target → target-snapshot → shutdown PASS.
+22 testy Python i 2 skrypty JS PASS. Test źródła mapy korzysta ze ścieżki
+względem pliku testu, aby działał z izolowanym cwd.
+Po deployu wykonać nowy scan, ponownie oznaczyć kamerę, odświeżyć mapę i użyć
+wyłączenia z jej menu. Nie uzupełniamy starych markerów zgadywanym ID.
+Zgłoszona starsza ścieżka pulpitu nie została w tej poprawce ujednolicona;
+jej powodzenie nie zastępuje odbioru autoryzowanego shutdown z mapy.

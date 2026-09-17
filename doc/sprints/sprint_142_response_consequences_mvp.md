@@ -1,8 +1,8 @@
 # Sprint 142 — pełna ścieżka incydentu i konsekwencji MVP
 
 Status: W REALIZACJI; rozszerzony audyt techniczny ukończony 16 IX 2026
-przed rozpoczęciem developmentu. 142.1 zamknięty — testy lokalne i odbiór gameplayu
-autora PASS (17 IX 2026). Następny etap: 142.2.
+przed rozpoczęciem developmentu. 142.1 ponownie otwarty — autor cofnął PASS
+gameplayu 17 IX 2026. Przejście do 142.2 wstrzymane do wyjaśnienia problemu.
 Podstawa: [audyt](../audits/response_consequences_2026_09_16.md).
 Zakres zatwierdzony przez autora: scan → kamery → próba wygaszenia → inicjacja
 incydentu → eskalacja → publikacja w mediach gry i BlackNecie → służby →
@@ -19,8 +19,11 @@ implementacją właściwej policy; testy odbiorowe w sprincie weryfikują napraw
 
 ## 142.1 — realizacja kontraktu scanu i autoryzacji
 
-Status: **ZAMKNIĘTY / PASS**, 17 IX 2026. Autor potwierdził wszystkie sześć
-punktów odbioru gameplayu, w tym odtworzenie po odświeżeniu i odmowę poza zasięgiem.
+Status: **OTWARTY / PASS GAMEPLAYU COFNIĘTY**, 17 IX 2026. Autor zgłosił,
+brak ID kamery/scanu w żądaniu z mapy. Poprawiono transport tych pól przez
+oznaczanie/wybór celu i snapshot mapy; testy lokalne PASS, odbiór oczekuje.
+Wcześniejsze wyniki
+testów automatycznych pozostają zapisane, wymagany jest ponowny odbiór.
 
 Implementacja i odbiór tej paczki: [runbook 142.1](../runbooks/sprint_142_1_camera_contract.md).
 Kontrakt przejść całego mechanizmu pozostaje opisany w audycie. W tej paczce

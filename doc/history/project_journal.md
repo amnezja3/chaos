@@ -1,13 +1,24 @@
 # CHAOS — Project Journal
 
-## 2026-09-17 — 142.1: odbiór gameplayu PASS, etap zamknięty
+## 2026-09-17 — 142.1: poprawka utraty danych kamery w markerach
+
+Autor przekazał żądanie shutdown z camera_id=null i scan_id=null.
+Oznaczanie celu, wybór aktywnego celu i serializer snapshotu usuwały potrzebne
+pola. Zachowano je wraz z parent_target_id oraz w markerze aktywnego celu
+renderowanym przez backend. Autoryzacja nadal wymaga własnej ważnej obserwacji.
+22 testy Python oraz testy JS transportu danych kamery i hitboxów mapy PASS.
+Po deployu wymagany nowy scan i ponowne oznaczenie kamery; stare markery nie
+otrzymują domyślnych uprawnień. 142.1 pozostaje otwarty do odbioru gameplayu.
+
+## 2026-09-17 — 142.1: PASS gameplayu cofnięty, etap ponownie otwarty
 
 Autor potwierdził wszystkie sześć punktów testu ręcznego: nowy scan kamer,
 autoryzowane wyłączenie z jedną operacją i timerem live, ponowienia bez
 duplikacji/przedłużenia (także po nowym scanie), odtworzenie po odświeżeniu,
-anulowanie i odmowę poza zasięgiem. W połączeniu z wcześniejszymi testami
-lokalnymi zamyka to 142.1. Cały sprint 142 pozostaje w realizacji.
-Następny etap 142.2 obejmuje wpływ stanu kamer na inicjację i eskalację incydentów.
+anulowanie i odmowę poza zasięgiem. Następnie cofnął to potwierdzenie po
+zauważeniu problemu. 142.1 ponownie otwarty; czekamy na szczegóły problemu,
+diagnozę i ponowny odbiór. Wcześniejsze testy automatyczne pozostają zapisane.
+Przejście do 142.2 wstrzymane. Kod nie został wycofany.
 
 ## 2026-09-16 — 142.1: kontrakt kamer i autoryzowane wyłączenie
 
