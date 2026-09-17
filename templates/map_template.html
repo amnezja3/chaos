@@ -6521,6 +6521,8 @@
                     target_id,
                     conflict_id,
                     target_type: targetContext?.target_type || null,
+                    camera_id: targetContext?.camera_id || null,
+                    scan_id: targetContext?.scan_id || null,
                     osm_id: targetContext?.osm_id || null,
                     node_id: targetContext?.node_id || null,
                     location: targetContext?.location || null,
@@ -7193,6 +7195,8 @@
                             osm_id: obj.osm_id || null,
                             node_id: obj.node_id || null,
                             scan_id: obj.scan_id || data.scan_context?.scan_id || '',
+                            camera_id: obj.camera_id || null,
+                            parent_target_id: obj.parent_target_id || null,
                             location: obj.location || data.scan_context?.location || null,
                             generated: Boolean(obj.generated)
                         };

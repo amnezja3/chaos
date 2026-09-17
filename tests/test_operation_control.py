@@ -1,7 +1,11 @@
 import unittest
+from contextlib import contextmanager
+from tempfile import TemporaryDirectory
+from pathlib import Path
 from unittest.mock import patch
 
 import run
+from database import PlayerInventoryStore, PlayerOperationStore
 from tests.session_generation_fixture import SessionGenerationFixture
 
 
@@ -293,16 +297,28 @@ class OperationControlTest(unittest.TestCase):
         self.assertEqual(payload["active_count"], 1)
         self.assertEqual(payload["operations"][0]["operation_family"], "network")
 
-    def test_single_cancel_uses_existing_helper_and_returns_snapshot(self):
+    @contextmanager
+    def canonical_operations(self, operations):
+        with TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'game.sqlite3')
+            inventory = PlayerInventoryStore(path)
+            store = PlayerOperationStore(path)
+            inventory.seed_from_profile('alice', operation_control_profile())
+            store.upsert_operations('alice', operations, source='test')
+            with patch.object(run, 'player_inventory_store', inventory), \
+                    patch.object(run, 'player_operation_store', store), \
+                    patch.object(run, 'sync_session_profile', side_effect=AssertionError('full profile')), \
+                    patch.object(run, 'UserProfileManager', side_effect=AssertionError('full profile')):
+                yield store
+
+    def test_single_cancel_uses_canonical_store_and_returns_snapshot(self):
         client, headers = self._client_with_user()
         active = operation("op-active", operation_type="vehicle_tracking")
         profile = operation_control_profile()
         profile["operations"] = [active]
         FakeUserProfileManager.updates = []
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run, "refresh_operations_runtime", side_effect=lambda prof, **kwargs: (prof.get("operations", []), False)), \
-                patch.object(run, "UserProfileManager", FakeUserProfileManager):
+        with self.canonical_operations([active]):
             response = client.post("/api/ghost-control/operations/cancel", headers=headers, json={
                 "operation_id": "op-active",
             })
@@ -311,11 +327,11 @@ class OperationControlTest(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["success"])
         self.assertEqual(payload["result"], "cancelled")
-        self.assertEqual(profile["operations"][0]["status"], "cancelled")
+        self.assertEqual(payload['operation']['status'], 'cancelled')
         self.assertEqual(payload["remaining_active"], 0)
-        self.assertEqual(len(FakeUserProfileManager.updates), 1)
+        self.assertEqual(len(FakeUserProfileManager.updates), 0)
 
-    def test_group_cancel_uses_existing_cancel_helper_and_saves_once(self):
+    def test_group_cancel_uses_canonical_store_without_profile_writes(self):
         client, headers = self._client_with_user()
         active = operation("op-active", operation_type="vehicle_tracking")
         done = operation("op-done", operation_type="vehicle_tracking", status="completed")
@@ -323,9 +339,7 @@ class OperationControlTest(unittest.TestCase):
         profile["operations"] = [active, done]
         FakeUserProfileManager.updates = []
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run, "refresh_operations_runtime", side_effect=lambda prof, **kwargs: (prof.get("operations", []), False)), \
-                patch.object(run, "UserProfileManager", FakeUserProfileManager):
+        with self.canonical_operations([active, done]):
             response = client.post("/api/pro-system/operation-control/cancel-group", headers=headers, json={
                 "operation_family": "gps",
                 "operation_ids": ["op-active", "op-done", "missing"],
@@ -336,8 +350,7 @@ class OperationControlTest(unittest.TestCase):
         self.assertEqual(payload["cancelled"], ["op-active"])
         self.assertEqual(payload["already_terminal"], ["op-done"])
         self.assertEqual(payload["not_found"], ["missing"])
-        self.assertEqual(profile["operations"][0]["status"], "cancelled")
-        self.assertEqual(len(FakeUserProfileManager.updates), 1)
+        self.assertEqual(len(FakeUserProfileManager.updates), 0)
         self.assertEqual(payload["remaining_active"], 0)
 
 

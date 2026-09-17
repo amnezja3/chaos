@@ -12514,6 +12514,10 @@ async function applyDelta(event) {
         return true;
     }
     if (event.scope === "map") {
+        if (event.type === "map.operations_changed") {
+            notifyOpenMapsOperationsChanged();
+            return true;
+        }
         updateMapPlayerActorDeltaView(event);
         updateMapTargetDeltaView(event);
         return true;
@@ -12573,6 +12577,7 @@ async function recoverGhostExchangeDeltaScope() {
 }
 
 async function recoverMapDeltaScope() {
+    await notifyOpenMapsOperationsChanged();
     let recovered = false;
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {
@@ -18099,7 +18104,7 @@ function showSystemToast(message, type = 'success') {
         div.tabIndex = 0;
         div.innerHTML = `
             <h4><span class="cyberner-toast-icon">${escapeHTML(notificationConfig.icon)}</span>${escapeHTML(message.title || notificationConfig.label)}</h4>
-            <div>${sanitizeToastHTML(message.text || notificationConfig.text)}</div>
+            <div>${escapeHTML(message.text || notificationConfig.text)}</div>
         `;
         const openToastThread = () => {
             if (cybernerThread && typeof window.openCybernerThread === "function") {

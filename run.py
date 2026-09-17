@@ -57,6 +57,7 @@ from response_network.incident_store import IncidentStore
 from response_network.detection_candidate_store import DetectionCandidateStore
 from response_network.detection_validator import DetectionValidator
 from response_network.consequence_executor import ConsequenceExecutor
+from response_network.camera_contract import CameraContractStore, CameraContractError, camera_marker
 from response_network.consequence_policy import ConsequencePolicy, CONSEQUENCE_MODE_FULL
 from response_network.npc_capsule_factory import public_capsule_payload
 from response_network.npc_capsule_store import NPCCapsuleStore
@@ -16169,13 +16170,16 @@ def cyberner_notification_title(source, scope, peer_name, sender):
     return str(sender or peer_name or "Cyberner")
 
 
-def cyberner_notification_text(source):
+def cyberner_notification_text(source, body=""):
+    preview = " ".join(str(body or "").split())
+    if preview:
+        return preview[:20] + ("..." if len(preview) > 20 else "")
     if source == "world":
         return "Nowa aktywnosc."
     return "Nowa wiadomosc."
 
 
-def add_cyberner_notification_to_user(username, scope, peer_name, sender, message_id=""):
+def add_cyberner_notification_to_user(username, scope, peer_name, sender, message_id="", body=""):
     if not username:
         return False
     if not user_store.has_user(username):
@@ -16195,7 +16199,7 @@ def add_cyberner_notification_to_user(username, scope, peer_name, sender, messag
         "peer": "global" if scope == "group" else peer_name,
         "sender": sender,
         "title": title,
-        "text": cyberner_notification_text(source),
+        "text": cyberner_notification_text(source, body),
         "status": "new",
     }, source="cyberner")
     return bool(message and created)
@@ -16203,7 +16207,7 @@ def add_cyberner_notification_to_user(username, scope, peer_name, sender, messag
 
 def add_cyberner_direct_notification(username, peer_name, sender, subject, body):
     mail_store.add_direct_notification(username, peer_name, sender, subject, body)
-    add_cyberner_notification_to_user(username, "direct", peer_name or sender, sender)
+    add_cyberner_notification_to_user(username, "direct", peer_name or sender, sender, body=body)
     record_mail_thread_update(
         username,
         "direct",
@@ -23625,19 +23629,10 @@ def map_action():
 
                 if source_type.startswith("shop"):
                     # Kamery
-                    camera_count = randint(2, 4)
-                    start_angle = random() * math.tau
+                    camera_count = 2 + int(hashlib.sha256(str(obj.get('osm_id') or obj.get('node_id') or f'{base_lat}:{base_lng}').encode()).hexdigest()[:4], 16) % 3
                     for camera_index in range(camera_count):
-                        angle = start_angle + (math.tau * camera_index / camera_count)
-                        dlat, dlng = radial_jitter(0.00022, 0.00034, angle)
-                        extra.append({
-                            "lat": base_lat + dlat,
-                            "lon": base_lng + dlng,
-                            "name": "Kamera sklepu",
-                            "icon": "📷",
-                            "source_type": source_type,
-                            "generated": True
-                        })
+                        extra.append({**camera_marker(obj, camera_index),
+                                      "name": "Kamera sklepu", "label": "Kamera sklepu"})
                     if 8 <= hour <= 20:
                         client_count = randint(3, 8)
                         start_angle = random() * math.tau
@@ -23654,14 +23649,8 @@ def map_action():
                             })
 
                 elif source_type == "atm":
-                    extra.append({
-                        "lat": base_lat + 0.000015,
-                        "lon": base_lng - 0.000015,
-                        "name": "Kamera bankomatu",
-                        "icon": "📹",
-                        "source_type": source_type,
-                        "generated": True
-                    })
+                    extra.append({**camera_marker(obj), "name": "Kamera bankomatu",
+                                  "label": "Kamera bankomatu", "icon": "📹"})
                     for _ in range(randint(1, 3)):
                         extra.append({
                             "lat": base_lat + jitter(),
@@ -23718,6 +23707,10 @@ def map_action():
                 all_results.extend(extra)
 
         for marker in all_results:
+            if marker.get('source_type') == 'camera' and not marker.get('camera_id'):
+                identity = camera_marker(marker)
+                marker.update({'camera_id': identity['camera_id'], 'target_type': 'camera',
+                               'parent_target_id': identity['parent_target_id']})
             direct_location = project_poi_location(marker.get("tags"))
             location = direct_location or scan_location
             if location:
@@ -23825,10 +23818,78 @@ def map_action():
     return jsonify(status=f"Zarejestrowano: {action} dla ({lat}, {lng})")
 
 
+def camera_shutdown_action(data):
+    username = session.get('user')
+    if not username:
+        return jsonify({'success': False, 'error': 'not_logged_in'}), 401
+    store = CameraContractStore(player_scan_snapshot_store.db_path)
+    scan_id = str(data.get('scan_id') or '')[:100]
+    camera_id = str(data.get('camera_id') or '')[:100]
+    try:
+        target = store.observed(username, scan_id, camera_id)
+        capability = capability_projection_store.get_capabilities(username)
+        if not capability:
+            raise CameraContractError('camera_capability_unavailable')
+        position = player_position_store.get(username)
+        if not position:
+            raise CameraContractError('camera_position_unavailable')
+        distance = Haversine.haversine_distance(position['lat'], position['lng'], target['lat'], target['lng'])
+        if distance > capability['action_range']:
+            raise CameraContractError('camera_out_of_range')
+        if foreign_territory_action_block(username, target['lat'], target['lng']):
+            raise CameraContractError('camera_foreign_territory')
+        apps = store.apps(username)
+        selected = str(data.get('selected_app_id') or '')[:160]
+        if not apps:
+            raise CameraContractError('camera_app_not_authorized')
+        if not selected:
+            return jsonify({
+                'success': True, 'tool_selection_required': True, 'auto_select': len(apps) == 1,
+                'map_action_id': 'camera_shutdown', 'canonical_action': 'exploit',
+                'status': 'Wybierz aplikacje do wylaczenia kamery.',
+                'matching_apps': [serialize_tool_selection_app(app) for app in apps],
+                'pending_action': {**target, 'action': 'camera_shutdown', 'scan_id': scan_id,
+                                   'camera_id': camera_id, '_flow_id': data.get('_flow_id'),
+                                   '_client_action_key': data.get('_client_action_key')},
+            })
+        if selected not in {app['id'] for app in apps}:
+            raise CameraContractError('camera_app_not_authorized')
+
+        def guard(conn, current_target):
+            current_position = player_position_store.get(username, conn=conn)
+            current_capability = capability_projection_store.get_capabilities(username, conn=conn)
+            # A position/capability change requires a fresh request, never a stale grant.
+            if not current_position or current_position['version'] != position['version']:
+                raise CameraContractError('camera_position_changed')
+            if current_capability != capability:
+                raise CameraContractError('camera_capability_changed')
+            if foreign_territory_action_block(username, current_target['lat'], current_target['lng']):
+                raise CameraContractError('camera_foreign_territory')
+
+        selected_app = next(app for app in apps if app['id'] == selected)
+        operation_template = build_operation_instance(username, selected_app, 'camera_shutdown',
+                                                     'camera_shutdown', target)
+        operation, duplicate = store.shutdown(
+            username, scan_id, camera_id, selected, guard=guard,
+            inventory=player_inventory_store, messages=system_message_store, deltas=delta_bus,
+            flow_id=str(data.get('_flow_id') or '')[:96],
+            request_key=str(data.get('_client_action_key') or '')[:220],
+            operation_template=operation_template, expected_app=selected_app)
+        return jsonify({'success': True, 'duplicate': duplicate, 'idempotent_replay': duplicate,
+                        'status': 'Kamera zostala czasowo wylaczona.' if not duplicate else 'Operacja kamery jest juz zapisana.',
+                        'map_action_id': 'camera_shutdown', 'camera_shutdown': True,
+                        'created_operations': [operation], 'added_apps': [selected]})
+    except CameraContractError as exc:
+        return jsonify({'success': False, 'blocked': True, 'reason': str(exc),
+                        'status': 'Nie mozna wylaczyc kamery. Odswiez scan i sprawdz dostepne narzedzie.'}), 409
+
+
 @app.route('/hack-action', methods=['POST'])
 def hack_action():
     app_flow_started_at = time.perf_counter()
     data = request.get_json() or {}
+    if data.get('action') == 'camera_shutdown':
+        return camera_shutdown_action(data)
     action = data['action']
     canonical_action = HACK_ACTION_STEP_ALIASES.get(action, action)
     lat = data['lat']
@@ -29003,6 +29064,7 @@ def send_chat_message():
                 add_cyberner_notification_to_user(
                     recipient_name, legacy_scope, recipient_peer, username,
                     message_id=(committed_message or {}).get("message_id") or (committed_message or {}).get("id"),
+                    body=(committed_message or {}).get("body", body),
                 )
                 if route["channel"] in {"friends", "direct"}:
                     recipient_peer = username if route["channel"] == "direct" else legacy_peer
@@ -29965,6 +30027,19 @@ def capture_same_clan_territory_defense_swarm(
 def gonna_win():
     app_flow_started_at = time.perf_counter()
     data = request.get_json(silent=True) or {}
+    camera_receipt = str(data.get('launch_receipt') or data.get('receipt') or '')
+    if camera_receipt.startswith('camera_off_'):
+        from database import db_connect, loads_json
+        with db_connect(player_operation_store.db_path) as conn:
+            row = conn.execute('''SELECT operation_json FROM player_operations
+                WHERE username=? AND operation_id=? AND operation_type='camera_shutdown' ''',
+                (session.get('user'), camera_receipt)).fetchone()
+        operation = loads_json(row['operation_json'], {}) if row else {}
+        if not operation or operation.get('source_app_id') != data.get('app_id'):
+            return jsonify({'success': False, 'reason': 'camera_receipt_mismatch'}), 409
+        return jsonify({'success': True, 'operation_only': True,
+                        'message': 'Potwierdzono zapis operacji kamery.', 'operation': operation,
+                        'created_operations': [operation]})
     app_id = data.get("app_id")
     choice_id = data.get("choice_id", None)
     if isinstance(choice_id, str):

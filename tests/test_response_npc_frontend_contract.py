@@ -7,12 +7,13 @@ from response_network.npc_capsule_factory import SNIKER_DIRECTIONS_8, VISUAL_FAM
 class ResponseNPCFrontendContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.map_template = Path("templates/map_template.html").read_text(encoding="utf-8")
-        cls.terminal_js = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        cls.root = Path(__file__).resolve().parents[1]
+        cls.map_template = (cls.root / "templates/map_template.html").read_text(encoding="utf-8")
+        cls.terminal_js = (cls.root / "static/js/terminal.js").read_text(encoding="utf-8")
 
     def test_map_uses_existing_sniker_png_contract(self):
-        self.assertIn("actor_type", Path("response_network/npc_capsule_factory.py").read_text(encoding="utf-8"))
-        self.assertIn("response_npc", Path("response_network/npc_capsule_factory.py").read_text(encoding="utf-8"))
+        self.assertIn("actor_type", (self.root / "response_network/npc_capsule_factory.py").read_text(encoding="utf-8"))
+        self.assertIn("response_npc", (self.root / "response_network/npc_capsule_factory.py").read_text(encoding="utf-8"))
         self.assertIn("npc_${family}_${direction}.png", self.map_template)
         for direction in SNIKER_DIRECTIONS_8:
             self.assertIn(direction, self.map_template)

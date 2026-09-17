@@ -1,5 +1,94 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — 142.1: odbiór gameplayu PASS, etap zamknięty
+
+Autor potwierdził wszystkie sześć punktów testu ręcznego: nowy scan kamer,
+autoryzowane wyłączenie z jedną operacją i timerem live, ponowienia bez
+duplikacji/przedłużenia (także po nowym scanie), odtworzenie po odświeżeniu,
+anulowanie i odmowę poza zasięgiem. W połączeniu z wcześniejszymi testami
+lokalnymi zamyka to 142.1. Cały sprint 142 pozostaje w realizacji.
+Następny etap 142.2 obejmuje wpływ stanu kamer na inicjację i eskalację incydentów.
+
+## 2026-09-16 — 142.1: kontrakt kamer i autoryzowane wyłączenie
+
+Po zamkniętym audycie rozpoczęto implementację 142.1. Kamery scanu otrzymują
+stabilną tożsamość, osobny typ i zapis obserwacji backendu. Shutdown korzysta
+z kanonicznej pozycji oraz uprawnień aplikacji; recheck przed commit obejmuje
+pozycję, projekcję capabilities, aplikację i terytorium. Zapis operacji,
+zdarzenia, launchera i delty mapy jest atomowy. Receipt potwierdza wyłącznie
+zapisaną operację kamery, bez modyfikowania innego zaznaczonego celu.
+Nowy scan nie resetuje aktywnego wyłączenia. Zachowano istniejący builder,
+15-minutowy cykl, risk meter i reguły GN. Stan operacji wraca przez delta/recovery.
+
+Weryfikacja: 43 testy regresji Python + 1 test równoległych ponowień PASS;
+3 skrypty JS (delta kamer, cancel dispatch, renderer centrum operacji) PASS,
+kontrola składni terminal.js PASS. Test profilu 35 MiB: pełne odczyty/zapisy
+i profile_bytes = 0 na nowej ścieżce shutdown/potwierdzenia. Dwa stare testy
+anulowania przepisano na obecny canonical store zamiast profilu.
+Nie wykonano deployu ani odbioru produkcyjnego. Wpływ kamer na incydenty
+pozostaje do wdrożenia w 142.2; całość 142 pozostaje otwarta.
+Instrukcja: [runbook 142.1](../runbooks/sprint_142_1_camera_contract.md).
+
+## 2026-09-16 — zamknięcie rozszerzonego audytu przed 142/143
+
+Na żądanie autora wykonano brakującą część audytu przed developmentem:
+scan/autoryzacja shutdown/persist, eskalacja i lifecycle, publikacja mapowa,
+BlackNet/Googleplex News/radio oraz GN Super Powers. Raport zawiera call sites,
+źródła, ciężkie ścieżki i macierz reuse/adapt/replace.
+84 istniejące testy integracji i 10 testów reprodukcji/okien GN PASS.
+Nowe reprodukcje: utrata cudzego wkładu przy ticku jednego gracza, anulowanie
+po timeout, rozbieżne expiry mapa/BlackNet, brak medium radio dla incydentu.
+Pełna ścieżka produktu nadal FAIL z rozpoznanymi przyczynami; audyt wejściowy
+gotowy. Nie wykonano produkcyjnego pomiaru p95 ani wdrożenia. Decyzje balansu
+oddzielone od technicznych ustaleń. Sprinty nie zaczynają się ogólnym audytem.
+
+## 2026-09-16 — zatwierdzony pełny zakres sprintów 142 i 143
+
+142 obejmuje cały istniejący MVP od pierwszego scanu: kamery, uprawnienia
+aplikacji shutdown, wpływ wyłączeń na inicjację i eskalację, media gry i BlackNet,
+służby oraz canonical wykonanie kar. Dodano mapę reuse/adapt/clone dla obecnych
+reguł, w tym aktywnych części/Super Powers, oraz test pełnej ścieżki.
+143 dopiero po PASS 142: wersjonowana tabela konsekwencji, recydywa, blokady
+ruchu/teleportów/Cybernera, ograniczenie aplikacji do Web Dragona i radia,
+więzienia. 5/10/15/20 min to przykładowe czasy do balansu, nie aktywna policy.
+Decyzja autora zastępuje wcześniejszą propozycję upływu kary offline:
+wylogowanie na 2–3 h nie kończy automatycznie kary ani publicznego incydentu.
+Proponowane rozliczanie online wymaga doprecyzowania heartbeat/timeout;
+publiczny incydent zachowuje odrębny cykl i dostępność dla innych graczy.
+Zmiana dokumentacji; bez zmian runtime, deployu i nowych testów wykonania.
+
+## 2026-09-16 — audyt kamer jako źródła incydentów
+
+Rozszerzono audyt i sprint 142 o scan → kamera → shutdown → ryzyko → publiczny
+incydent. Potwierdzono rozdzielenie starego camera_detected (-18) od metera
+publicznych incydentów, brak trwałego powiązania stanów kamer scanu i konieczność
+bounded kontekstu w workerze. 20 testów PASS, w tym 3 nowe reprodukcje audytowe;
+bez zmian runtime i balansu. Szczegóły w uzupełnieniu
+[raportu](../audits/response_consequences_2026_09_16.md).
+
+## 2026-09-16 — zatwierdzony katalog więzień
+
+Dodano `response_network/prison_catalog.py`: 10 miejsc z listy autora,
+wersja 1, niezmienne rekordy, lookup po ID i lista niezależnych słowników.
+Zachowano współrzędne, nazwy, alias Altiplano i pełną nazwę CECOT
+(`full_name`). Brak odczytów DB/profili, migracji i automatycznych sankcji.
+Katalog przygotowany do 143; miejsca zwolnienia i wyroki pozostają odrębnym
+zakresem. Trzy testy integralności/izolacji katalogu PASS.
+
+## 2026-09-16 — audyt konsekwencji Response Network i plany 142–143
+
+Na zlecenie autora prześledzono mapowy probe, endpoint, walidator, policy,
+executor i persistence. Zachowany szkielet nie realizuje kwalifikacji online
+ani 30/80; nadal używa pełnych profili, mutacji inventory w profilu i osobnych
+commitów. Trzy nowe reprodukcje potwierdzają ufanie pozycji klienta,
+nieograniczony historyczny czas i brak ścieżki dla postronnego bez operacji.
+33 testy audytu/starego MVP PASS nie oznaczają produkcyjnego PASS mechanizmu.
+Naprawiono ścieżki odczytu źródeł w teście frontendowym dla izolowanego cwd.
+Bez zmian runtime konsekwencji, bez wykonania kar ani deployu.
+[Raport](../audits/response_consequences_2026_09_16.md),
+[142 — produkcyjny MVP](../sprints/sprint_142_response_consequences_mvp.md),
+[143 — rozbudowa](../sprints/sprint_143_response_consequences_expansion.md).
+
 ## 2026-09-16 — Cyberner: rozmówca z powiadomienia i blokada rozmowy ze sobą
 
 Powiadomienie prywatnej wiadomości otrzymywało peer odbiorcy zamiast nadawcy.

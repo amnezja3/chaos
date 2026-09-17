@@ -2630,6 +2630,16 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS response_camera_observations (
+                username TEXT NOT NULL, scan_id TEXT NOT NULL, camera_id TEXT NOT NULL,
+                marker_json TEXT NOT NULL, expires_at REAL NOT NULL,
+                PRIMARY KEY(username, scan_id, camera_id)
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_camera_observation_expiry ON response_camera_observations(expires_at)")
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS player_operations (
                 operation_id TEXT PRIMARY KEY,
                 username TEXT NOT NULL,
@@ -4876,11 +4886,11 @@ class UserCapabilityProjectionStore:
         self.db_path = db_path
         init_db(self.db_path)
 
-    def get_capabilities(self, username):
+    def get_capabilities(self, username, *, conn=None):
         username = str(username or "").strip()
         if not username:
             return None
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 """
                 SELECT p.*, u.profile_revision AS current_profile_revision,
@@ -9410,6 +9420,7 @@ class PlayerScanSnapshotStore:
         allowed = {
             "label", "name", "icon", "source_type", "target_type",
             "osm_id", "node_id", "location", "generated",
+            "camera_id", "parent_target_id",
         }
         normalized = {key: marker.get(key) for key in allowed if key in marker}
         normalized.update({"lat": lat, "lng": lng, "lon": lng})
@@ -9434,6 +9445,11 @@ class PlayerScanSnapshotStore:
         now = time.time()
         expires_at = now + max(60, int(ttl_seconds or self.DEFAULT_TTL_SECONDS))
         with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM response_camera_observations WHERE rowid IN (SELECT rowid FROM response_camera_observations WHERE expires_at<=? LIMIT 512)", (now,))
+            conn.executemany("""INSERT OR IGNORE INTO response_camera_observations
+                (username,scan_id,camera_id,marker_json,expires_at) VALUES (?,?,?,?,?)""",
+                [(username, scan_id, marker['camera_id'], dumps_json(marker), expires_at)
+                 for marker in normalized if marker.get('camera_id') and marker.get('target_type') == 'camera'])
             conn.execute(
                 "DELETE FROM player_scan_snapshots WHERE expires_at <= ? OR username = ?",
                 (now, username),
@@ -11220,13 +11236,15 @@ class PlayerInventoryStore:
                                 (username, max(1, min(250, int(limit))))).fetchall()
         return [loads_json(row[0], {}) for row in reversed(rows)]
 
-    def commit_launch(self, username, launches, risk_events, message_store):
+    def commit_launch(self, username, launches, risk_events, message_store, *, conn=None):
         if str(message_store.db_path) != str(self.db_path):
             raise ValueError("launcher_database_mismatch")
         if len(launches) > 32 or len(risk_events) > 32:
             raise ValueError("launcher_batch_limit")
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             self.require_launcher_ready(username, conn=conn)
             for item in launches:
                 receipt = str(item.get("receipt") or "")

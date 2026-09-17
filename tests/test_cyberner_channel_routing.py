@@ -140,6 +140,7 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.assertEqual(sent.status_code, 200, sent.json)
         notice = self.system_store.consume_pending('bob')[0]
         self.assertEqual(notice['peer'], 'alice')
+        self.assertEqual(notice['text'], 'hello')
         history = bob.get('/api/chats/messages', query_string={
             'scope': notice['scope'], 'peer': notice['peer']})
         self.assertEqual(history.json['messages'][-1]['body'], 'hello')
@@ -150,6 +151,20 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.assertTrue(self.mail_store.is_accepted_contact('alice', 'bob'))
         self.assertFalse(self.mail_store.is_contact('bob', 'bob'))
         self.assertEqual(self.system_store.consume_pending('alice')[0]['peer'], 'bob')
+
+    def test_notice_preview_length_and_whitespace(self):
+        for body, expected in (
+            ('OK', 'OK'),
+            ('12345678901234567890', '12345678901234567890'),
+            ('123456789012345678901', '12345678901234567890...'),
+            ('  Tak\n  dzięki! ', 'Tak dzięki!'),
+            ('👍' * 21, '👍' * 20 + '...'),
+            ('<b>OK</b>', '<b>OK</b>'),
+        ):
+            with self.subTest(body=body):
+                self.assertEqual(run.cyberner_notification_text('player', body), expected)
+        run.add_cyberner_direct_notification('bob', 'alice', 'Alice', '', 'OK')
+        self.assertEqual(self.system_store.consume_pending('bob')[0]['text'], 'OK')
 
     def test_self_message_and_contact_are_rejected_without_writes(self):
         alice = self.client_for('alice')
