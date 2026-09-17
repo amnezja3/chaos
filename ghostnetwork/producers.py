@@ -320,6 +320,8 @@ class BlackNetNarrativeProducer:
                              'publication_version': incident_metadata.get('incident_publication_version', 0)}
                             if incident_metadata.get('incident_id') else {})
         source_version_payload['incident_context'] = incident_context
+        if incident_context and incident_metadata.get('incident_narrative_version') is not None:
+            incident_context['narrative_version'] = incident_metadata['incident_narrative_version']
         conflict_context = incident_metadata.get('conflict_context') or []
         source_version_payload['conflict_context'] = conflict_context
         freshness_class = queue_class({'source_scope': BLACKNET_SOURCE_SCOPE, 'narrative_intent': narrative_intent})
@@ -336,6 +338,13 @@ class BlackNetNarrativeProducer:
                 HERO_ELIGIBILITY_CONTRACT_VERSION
             )
         source_version_payload["action"] = fixed_action or {}
+        if 'narrative_version' in incident_context:
+            # Map-centre drift must neither supersede a running model call nor
+            # enqueue a second copy of the same report. CTA is refreshed at commit.
+            source_version_payload = {key: source_version_payload[key] for key in (
+                'fact_id', 'narrative_intent', 'narrative_contract', 'freshness_window')}
+            source_version_payload['incident_context'] = {
+                'id': incident_context['id'], 'narrative_version': incident_context['narrative_version']}
         source_version = hashlib.sha1(json.dumps(
             source_version_payload, ensure_ascii=True, sort_keys=True,
             separators=(",", ":"),

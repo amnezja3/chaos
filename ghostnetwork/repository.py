@@ -6419,14 +6419,19 @@ class GhostNetworkRepository:
                 and (row['narrative_intent'] or assignment.get('narrative_intent')) == 'intercepted_incident_alert'
                 and not incident_context.get('id')):
                 return {'lifecycle_superseded': True}
-            if incident_context:
-                incident_head = conn.execute('''SELECT status,expires_at,
-                    json_extract(incident_json,'$.publication_version') AS publication_version
-                    FROM response_incidents WHERE incident_id=?''', (incident_context.get('id'),)).fetchone()
-                if (not incident_head or incident_head['status'] in {'cancelled','resolved','archived'}
-                    or int(incident_head['publication_version'] or 0) != int(incident_context.get('publication_version') or 0)
-                    or (incident_head['status'] == 'cooling' and _iso(incident_head['expires_at']) <= now_iso)):
+            # _narrative_source_invalid above verifies the source under this
+            # transaction, including narrative version and cooling deadline.
+            publication_cta_json = row['cta_payload_json']
+            if incident_context.get('id') and row['cta_action'] == 'focus_map_target':
+                from response_network.incident_navigation import safe_incident_entry_point
+                source_row = conn.execute('SELECT incident_json FROM response_incidents WHERE incident_id=?',
+                    (incident_context['id'],)).fetchone()
+                entry = safe_incident_entry_point(loads_json(source_row['incident_json'], {}))
+                if not entry:
                     return {'lifecycle_superseded': True}
+                payload = loads_json(publication_cta_json, {})
+                payload.update(lat=entry['lat'], lng=entry['lng'])
+                publication_cta_json = dumps_json(payload)
             editorial_contract = loads_json(row["editorial_contract_json"], {}) or {}
             if not isinstance(editorial_contract, dict):
                 editorial_contract = {}
@@ -6627,7 +6632,7 @@ class GhostNetworkRepository:
                     row["source_scope"], row["source_event_id"], row["source_receipt_id"],
                     row["truth_class"], row["title"], row["body"], row["tone"],
                     row["fact_refs_json"], row["cta_ref"], row["cta_action"],
-                    row["cta_payload_json"], row["asset_ref"],
+                    publication_cta_json, row["asset_ref"],
                     presentation_slot,
                     _clean(row["content_kind"] or assignment.get("content_kind")),
                     narrative_intent,
@@ -6832,8 +6837,13 @@ class GhostNetworkRepository:
                     JOIN ghost_narrative_medium_records r ON r.task_id=o.outbox_id
                     WHERE json_extract(o.validation_json,'$.incident_context.id')=?
                     AND r.active_state='active' AND (? OR
-                        COALESCE(json_extract(o.validation_json,'$.incident_context.publication_version'),0)!=?)
-                    LIMIT 100)''', (incident_id, int(resolved), publication_version))
+                        CASE WHEN json_extract(o.validation_json,'$.incident_context.narrative_version') IS NOT NULL
+                        THEN json_extract(o.validation_json,'$.incident_context.narrative_version') !=
+                            COALESCE((SELECT COALESCE(json_extract(i.incident_json,'$.narrative_version'),
+                                json_extract(i.incident_json,'$.publication_version'),0)
+                                FROM response_incidents i WHERE i.incident_id=?), -1)
+                        ELSE COALESCE(json_extract(o.validation_json,'$.incident_context.publication_version'),0)!=? END)
+                    LIMIT 100)''', (incident_id, int(resolved), incident_id, publication_version))
 
     def list_narrative_medium_records(
         self, target_medium, audience_scope=None, audience_clan=None,
@@ -6961,8 +6971,12 @@ class GhostNetworkRepository:
                 WHERE o.source_scope='blacknet_world' AND o.narrative_intent='intercepted_incident_alert'
                   AND o.status IN ('ready','retry_wait','claimed','processing','completed')
                   AND (i.incident_id IS NULL OR i.status IN ('resolved','cancelled','archived')
-                    OR COALESCE(json_extract(i.incident_json,'$.publication_version'),0)
-                       !=COALESCE(json_extract(o.validation_json,'$.incident_context.publication_version'),0)
+                    OR CASE WHEN json_extract(o.validation_json,'$.incident_context.narrative_version') IS NOT NULL
+                       THEN COALESCE(json_extract(i.incident_json,'$.narrative_version'),
+                            json_extract(i.incident_json,'$.publication_version'),0)
+                            !=json_extract(o.validation_json,'$.incident_context.narrative_version')
+                       ELSE COALESCE(json_extract(i.incident_json,'$.publication_version'),0)
+                            !=COALESCE(json_extract(o.validation_json,'$.incident_context.publication_version'),0) END
                     OR (i.status='cooling' AND julianday(i.expires_at)<=julianday(?)))
                 ORDER BY o.updated_at, o.outbox_id LIMIT ?''', (now, max(1, min(int(limit), 64)))).fetchall()
             for row in rows:
@@ -7003,7 +7017,9 @@ class GhostNetworkRepository:
             row = conn.execute('SELECT status,expires_at,incident_json FROM response_incidents WHERE incident_id=?', (context['id'],)).fetchone()
             if not row or row['status'] in {'resolved','cancelled','archived'}:
                 return True
-            if int(loads_json(row['incident_json'], {}).get('publication_version') or 0) != int(context.get('publication_version') or 0):
+            version_key = 'narrative_version' if 'narrative_version' in context else 'publication_version'
+            source = loads_json(row['incident_json'], {})
+            if int(source.get(version_key, source.get('publication_version')) or 0) != int(context.get(version_key) or 0):
                 return True
             if row['status'] == 'cooling' and narrative_instant(row['expires_at']) <= narrative_instant(now):
                 return True

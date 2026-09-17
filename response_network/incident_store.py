@@ -236,6 +236,7 @@ class IncidentStore:
             "incident_id": incident_id,
             "version": int(incident.get("version") or 0),
             "publication_version": int(incident.get('publication_version') or 0),
+            "narrative_version": int(incident.get('narrative_version') or incident.get('publication_version') or 0),
             "status": status,
             "level": int(incident.get("level") or 0),
             "center": {
@@ -309,6 +310,18 @@ class IncidentStore:
             previous_public = existing_incident if existing else {}
             public_changed = any(previous_public.get(key) != incident.get(key) for key in public_fields)
             incident['publication_version'] = int(previous_public.get('publication_version') or 0) + int(public_changed)
+            # The heat-weighted map centre moves even when the underlying
+            # locations and the reportable state remain unchanged. LLM tasks
+            # must survive those map updates, but not a change of source sites.
+            def narrative_state(value):
+                positions = sorted({(ref['position'].get('lat'), ref['position'].get('lng'))
+                    for ref in value.get('operation_refs', [])
+                    if isinstance(ref.get('position'), dict)}, key=str)
+                anchor = positions or value.get('center')
+                return (value.get('status'), value.get('level'), value.get('search_radius_m'), anchor)
+            incident['narrative_version'] = int(previous_public.get('narrative_version')
+                or previous_public.get('publication_version') or 0) + int(
+                    narrative_state(previous_public) != narrative_state(incident))
             incident["created_at"] = created_at
             incident["updated_at"] = updated_at
             incident["expires_at"] = expires_at
