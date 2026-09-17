@@ -135,10 +135,16 @@ class NPCCapsuleStore:
         status = _clean(capsule.get("status"), "active")
 
         with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
             row = conn.execute(
                 "SELECT * FROM response_npc_capsules WHERE capsule_id = ?",
                 (capsule_id,),
             ).fetchone()
+            if capsule.get('incident_version') and conn.execute("SELECT 1 FROM sqlite_master WHERE name='response_incidents'").fetchone():
+                head = conn.execute('SELECT version,status FROM response_incidents WHERE incident_id=?', (incident_id,)).fetchone()
+                if head and (int(head['version']) > int(capsule['incident_version'])
+                             or (head['status'] in {'resolved','cancelled','archived'} and status in ACTIVE_CAPSULE_STATUSES)):
+                    return self._row_to_capsule(row) or {**capsule, 'status': 'removed'}, False
             if row:
                 existing = self._row_to_capsule(row)
                 if capsule_signature(existing) == capsule_signature(capsule) and existing.get("status") == status:
@@ -184,13 +190,15 @@ class NPCCapsuleStore:
             )
             return copy.deepcopy(capsule), True
 
-    def remove_incident(self, incident_id, now=None, reason="incident_resolved"):
+    def remove_incident(self, incident_id, now=None, reason="incident_resolved", incident_version=None):
         removed = []
         now_iso = _iso(now)
         for capsule in self.list_by_incident(incident_id):
             if capsule.get("status") in REMOVED_CAPSULE_STATUSES:
                 continue
             capsule["status"] = "removed"
+            if incident_version is not None:
+                capsule['incident_version'] = incident_version
             capsule["removed_reason"] = _clean(reason, "removed")
             capsule["expires_at"] = now_iso
             saved, changed = self.upsert(capsule, now=now_iso)

@@ -1,7 +1,24 @@
 # 142.2 — kamery a publiczne ryzyko
 
 Reguły zatwierdzone przez autora 17 IX 2026. Implementacja lokalna: **46 testów PASS**;
-odbiór produkcyjny tego etapu jeszcze nie został wykonany.
+odbiór etapu **PASS — 17 IX 2026**.
+
+## Odbiór autora
+
+Po restarcie `chaos-territory-worker` ta sama operacja HalfPrice
+`op_20260917101211_176366` pokazała known=true, detected=2:
+
+| Stan | disabled | camera_modifier |
+| --- | ---: | ---: |
+| Wszystkie kamery aktywne | 0 | 4 |
+| Pierwsza wyłączona | 1 | 0 |
+| Druga wyłączona | 2 | 0 |
+
+Punkty 1–3 potwierdzono odpowiedziami API z produkcji. Punkty 4–6
+(izolacja obiektu/gracza, nowy scan/reconnect, koniec wyłączenia) autor
+potwierdził ręcznie wcześniej. Punkt 7 — zachowanie istniejącego incydentu
+po obniżeniu wkładu — potwierdzony testem Pythonowym, nie ręcznym gameplayem.
+142.2 zamknięty; publikacja i trwałość całej ścieżki pozostają w 142.3.
 
 ## Kontrakt
 
@@ -54,7 +71,18 @@ I/O, delta live oraz rollback i ponowienie po awarii delty.
 
 ## Deploy i odbiór
 
-Brak migracji danych. Standardowy deploy i restart procesu `chaos` po nazwie.
+Brak migracji danych. Po deployu restartować oba procesy po nazwie:
+
+```bash
+pm2 restart chaos chaos-territory-worker
+```
+
+`scripts/territory_conflict_worker.py` importuje `run` przy starcie i wywołuje
+`process_operation_runtime_tick`. Sam restart webowego `chaos` nie aktualizuje
+kalkulatora w workerze. Stary worker może nadpisywać meter bez camera_state,
+co w summary daje pusty obiekt i domyślny camera_modifier=0. To nie jest osłona.
+Po restarcie workera ponownie odczytać istniejącą aktywną operację po kilku
+sekundach. Jeśli ma known=false, do odbioru wykonać nowy scan i nową operację.
 To nie jest zamknięcie całego 142 ani odbiór publikacji/kar z kolejnych etapów.
 
 1. Nowy scan obiektu z kamerami; uruchomić operację przy tym obiekcie.

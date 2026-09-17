@@ -222,6 +222,7 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
                 )
                 self.assertTrue(changed)
                 incident_id = operations[0]["operation_risk_meter"]["incident_id"]
+                run.publish_npc_capsule_actions('main', dispatcher.dispatch_incident(incident_store.get(incident_id)))
                 created_changes = bus.get_changes_since("main", 0)["changes"]
 
                 client = run.app.test_client()
@@ -238,6 +239,9 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
                     now_ts=datetime(2026, 7, 14, 10, 2, tzinfo=timezone.utc).timestamp(),
                     username="main",
                 )
+                self.assertEqual(incident_store.get(incident_id)['status'], 'cooling')
+                initializer.tick_lifecycle(now='2026-07-14T12:00:00+00:00')
+                run.publish_npc_capsule_actions('main', dispatcher.dispatch_incident(incident_store.get(incident_id)))
                 all_changes = bus.get_changes_since("main", 0)["changes"]
 
             self.assertTrue(any(event["type"] == "npc.spawned" for event in created_changes))

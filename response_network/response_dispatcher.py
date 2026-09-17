@@ -51,17 +51,18 @@ class ResponseDispatcher:
         if not incident_id:
             return []
         if str(incident.get("status") or "").lower() in {"cancelled", "resolved", "archived"}:
-            return self.cancel_incident(incident_id, now=now, reason="incident_not_active")
+            return self.cancel_incident(incident_id, now=now, reason="incident_not_active", incident_version=incident.get('version'))
 
         expected = self.capsule_factory.build_for_incident(incident, now=now)
         expected_ids = {capsule.get("capsule_id") for capsule in expected if capsule.get("capsule_id")}
         actions = []
 
         for capsule in expected:
+            capsule['incident_version'] = int(incident.get('version') or 0)
             existing = self.capsule_store.get(capsule.get("capsule_id"))
             if existing and _capsule_runtime_active(existing, now=now):
                 capsule["spawn_at"] = existing.get("spawn_at") or capsule.get("spawn_at")
-                capsule["expires_at"] = existing.get("expires_at") or capsule.get("expires_at")
+                # Incident lifecycle owns the end of the patrol, including cooling.
                 capsule["warning_until"] = existing.get("warning_until") or capsule.get("warning_until")
             saved, changed = self.capsule_store.upsert(capsule, now=now)
             if not changed:
@@ -79,6 +80,7 @@ class ResponseDispatcher:
                 continue
             removed, changed = self.capsule_store.upsert({
                 **capsule,
+                'incident_version': int(incident.get('version') or 0),
                 "status": "removed",
                 "removed_reason": "dispatcher_superseded",
             }, now=now)
@@ -92,9 +94,9 @@ class ResponseDispatcher:
 
         return actions
 
-    def cancel_incident(self, incident_id, now=None, reason="incident_resolved"):
+    def cancel_incident(self, incident_id, now=None, reason="incident_resolved", incident_version=None):
         actions = []
-        for capsule in self.capsule_store.remove_incident(incident_id, now=now, reason=reason):
+        for capsule in self.capsule_store.remove_incident(incident_id, now=now, reason=reason, incident_version=incident_version):
             actions.append({
                 "action": "removed",
                 "capsule_id": capsule.get("capsule_id"),

@@ -1,5 +1,46 @@
 # CHAOS — Project Journal
 
+## 2026-09-17 — 142.3: cykl i trwała publikacja incydentów
+
+Autor polecił rozpoczęcie .3 i zatwierdził 30 minut cooling po ostatniej
+operacji, niezależnie od logowania. Zmieniono inicjalizator na transakcyjny,
+z odczytem członkostwa i przestrzennych kandydatów zamiast listy całego świata.
+Rekalkulacja uwzględnia canonical stan operacji innych graczy. Cooling nie
+resetuje się przy powtórnym ticku; resolved następuje po odrębnym zegarze.
+
+Każdy zapis incydentu zapisuje też trwały head publikacji. Relay używa lease,
+retry, wersji i stron odbiorców; nie wykonuje kar. NPC odrzucają starą wersję,
+mapa pamięta wersję usunięcia, a publisher odrzuca narrację starszego stanu
+incydentu. Dodano radio jako medium producenta incydentów i tekstowy biuletyn
+w istniejącym oknie radia, korzystający ze wspólnego publishera.
+
+Odbiór produkcyjny pozostaje otwarty. Deploy wymaga restartu chaos,
+chaos-territory-worker, chaos-ollama-worker i chaos-narrative-publisher.
+Szczegóły: `doc/runbooks/sprint_142_3_incident_publications.md`.
+
+Walidacja lokalna: 110 testów Python PASS (112,037 s), izolowane bazy;
+test JS wersjonowania markerów oraz kontrola składni radia PASS.
+Aktywna operacja z wkładem 0 podtrzymuje incydent; spóźniony runtime
+nie cofa nowszego canonical anulowania. Brak deployu i produkcyjnego PASS.
+
+## 2026-09-17 — 142.2: odbiór zakończony PASS
+
+Autor potwierdził na tej samej operacji HalfPrice: dwie wykryte kamery,
+disabled 0→1→2 i camera_modifier 4→0→0. Restart territory workera przywrócił
+prawidłowy meter. Punkty 4–6 listy odbioru autor potwierdził wcześniej.
+Punkt 7 (istniejący incydent) ma potwierdzenie automatyczne, nie ręczne.
+Zamknięto 142.2; następny etap 142.3, bez automatycznego rozpoczęcia prac.
+
+## 2026-09-17 — 142.2: korekta instrukcji restartu workera
+
+Odbiór produkcyjny pokazał camera_state={} przy aktualizowanym meterze.
+W przesłanym statusie PM2 zrestartowany był web `chaos`, a territory worker
+pozostawał bez restartu. Worker importuje run przy starcie i sam przelicza
+operacje, więc pozostawiony na starej wersji nadpisuje meter bez pól kamer.
+Poprawiono niepełną instrukcję deployu: restart chaos i chaos-territory-worker.
+Późniejsze odczyty autora po restarcie potwierdziły prawidłowe dane i osłonę;
+wynik końcowy zapisano w odbiorze powyżej.
+
 ## 2026-09-17 — rozpoczęcie 142.2: kamery a inicjacja i eskalacja
 
 Na polecenie autora rozpoczęto 142.2. Sprawdzono istniejące punkty integracji:

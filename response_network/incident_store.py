@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 
 from database import DB_PATH, db_connect, dumps_json, loads_json
@@ -89,6 +90,18 @@ class IncidentStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_response_incident_audit_incident ON response_incident_audit(incident_id, seq)"
             )
+            conn.execute('''CREATE TABLE IF NOT EXISTS response_incident_publications (
+                incident_id TEXT PRIMARY KEY, version INTEGER NOT NULL,
+                delivered_version INTEGER NOT NULL DEFAULT 0,
+                batch_version INTEGER NOT NULL DEFAULT 0,
+                viewer_cursor TEXT NOT NULL DEFAULT '', lease_until TEXT,
+                lease_token TEXT, updated_at TEXT NOT NULL)''')
+            conn.execute('''CREATE INDEX IF NOT EXISTS idx_incident_publication_pending
+                ON response_incident_publications(updated_at, incident_id) WHERE version>delivered_version''')
+            conn.execute('''CREATE TABLE IF NOT EXISTS response_incident_members (
+                operation_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL)''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_incident_members_incident ON response_incident_members(incident_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_incident_center ON response_incidents(status, center_lat, center_lng)')
 
     @staticmethod
     def stable_id(center, operation_id):
@@ -156,26 +169,60 @@ class IncidentStore:
             "suspect_refs": incident.get("suspect_refs") or [],
             "territory_refs": incident.get("territory_refs") or [],
             "npc_capsule_ids": incident.get("npc_capsule_ids") or [],
+            "cooling_since": incident.get('cooling_since'),
+            "expires_at": incident.get('expires_at') if incident.get('status') == 'cooling' else None,
         }
 
-    def get(self, incident_id):
-        with db_connect(self.db_path) as conn:
+    def get(self, incident_id, *, conn=None):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 "SELECT * FROM response_incidents WHERE incident_id = ?",
                 (_clean(incident_id),),
             ).fetchone()
             return self._row_to_incident(row)
 
-    def list_active(self):
-        with db_connect(self.db_path) as conn:
+    def list_active(self, limit=256, *, conn=None):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             rows = conn.execute(
                 """
                 SELECT * FROM response_incidents
                 WHERE status IN ('candidate', 'active', 'escalated', 'cooling')
                 ORDER BY updated_at DESC
-                """
+                LIMIT ?
+                """, (max(1, min(int(limit), 256)),)
             ).fetchall()
             return [self._row_to_incident(row) for row in rows]
+
+    def related(self, operations, *, conn):
+        """Indexed membership/ID and bounded spatial candidates; no world scan."""
+        found = {}
+        for op in operations:
+            assigned = (op.get('operation_risk_meter') or {}).get('incident_id')
+            rows = conn.execute('''SELECT i.* FROM response_incidents i
+                WHERE i.incident_id=? OR i.incident_id IN
+                (SELECT incident_id FROM response_incident_members WHERE operation_id=?)''',
+                (assigned or '', op.get('operation_id') or '')).fetchall()
+            meter = op.get('operation_risk_meter') or {}
+            position = meter.get('position') or op.get('target') or {}
+            if meter.get('incident_crossed') and position.get('lat') is not None:
+                lat, lng = float(position['lat']), float(position.get('lng', position.get('lon')))
+                rows += conn.execute('''SELECT * FROM response_incidents
+                    WHERE status IN ('candidate','active','escalated','cooling')
+                    AND center_lat BETWEEN ? AND ? AND center_lng BETWEEN ? AND ?
+                    ORDER BY updated_at DESC LIMIT 32''',
+                    (lat - .003, lat + .003, lng - .1, lng + .1)).fetchall()
+            for row in rows:
+                item = self._row_to_incident(row)
+                if item['status'] in ACTIVE_INCIDENT_STATUSES:
+                    found[item['incident_id']] = item
+        return list(found.values())
+
+    def lifecycle_batch(self, limit=32):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute('''SELECT * FROM response_incidents
+                WHERE status IN ('candidate','active','escalated','cooling')
+                ORDER BY updated_at, incident_id LIMIT ?''', (max(1, min(limit, 64)),)).fetchall()
+        return [self._row_to_incident(row) for row in rows]
 
     @staticmethod
     def public_payload(incident):
@@ -188,6 +235,7 @@ class IncidentStore:
         return {
             "incident_id": incident_id,
             "version": int(incident.get("version") or 0),
+            "publication_version": int(incident.get('publication_version') or 0),
             "status": status,
             "level": int(incident.get("level") or 0),
             "center": {
@@ -196,17 +244,19 @@ class IncidentStore:
             },
             "search_radius_m": int(incident.get("search_radius_m") or 0),
             "updated_at": incident.get("updated_at"),
-            "expires_at": incident.get("expires_at"),
+            "expires_at": incident.get("expires_at") if status in {'cooling', 'resolved'} else None,
         }
 
-    def list_public(self):
+    def list_public(self, now=None, limit=256):
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 """
                 SELECT * FROM response_incidents
                 WHERE status IN ('candidate', 'active', 'escalated', 'cooling')
+                  AND (status != 'cooling' OR julianday(expires_at) > julianday(?))
                 ORDER BY level DESC, updated_at DESC
-                """
+                LIMIT ?
+                """, (_iso(now), max(1, min(int(limit), 256)))
             ).fetchall()
             incidents = []
             for row in rows:
@@ -217,7 +267,7 @@ class IncidentStore:
                 incidents.append(payload)
             return incidents
 
-    def upsert(self, incident, event_type="incident.updated", now=None):
+    def upsert(self, incident, event_type="incident.updated", now=None, *, conn=None):
         incident = copy.deepcopy(incident if isinstance(incident, dict) else {})
         incident_id = _clean(incident.get("incident_id"))
         if not incident_id:
@@ -232,7 +282,10 @@ class IncidentStore:
         territory_refs = incident.get("territory_refs") if isinstance(incident.get("territory_refs"), list) else []
         npc_capsule_ids = incident.get("npc_capsule_ids") if isinstance(incident.get("npc_capsule_ids"), list) else []
 
-        with db_connect(self.db_path) as conn:
+        own_connection = conn is None
+        with (db_connect(self.db_path) if own_connection else nullcontext(conn)) as conn:
+            if own_connection:
+                conn.execute('BEGIN IMMEDIATE')
             existing = conn.execute(
                 "SELECT * FROM response_incidents WHERE incident_id = ?",
                 (incident_id,),
@@ -240,6 +293,11 @@ class IncidentStore:
             if existing:
                 existing_incident = self._row_to_incident(existing)
                 if self._signature(existing_incident) == self._signature(incident):
+                    conn.execute('''INSERT OR IGNORE INTO response_incident_publications
+                        (incident_id,version,updated_at) VALUES (?,?,?)''',
+                        (incident_id, existing_incident['version'], now_iso))
+                    conn.executemany('INSERT OR IGNORE INTO response_incident_members(operation_id,incident_id) VALUES (?,?)',
+                                     [(op_id, incident_id) for op_id in operation_ids])
                     return existing_incident
                 version = int(existing_incident.get("version") or 0) + 1
                 created_at = existing_incident.get("created_at") or created_at
@@ -247,6 +305,10 @@ class IncidentStore:
                 version = int(incident.get("version") or 1)
 
             incident["version"] = version
+            public_fields = ('status', 'level', 'center', 'search_radius_m')
+            previous_public = existing_incident if existing else {}
+            public_changed = any(previous_public.get(key) != incident.get(key) for key in public_fields)
+            incident['publication_version'] = int(previous_public.get('publication_version') or 0) + int(public_changed)
             incident["created_at"] = created_at
             incident["updated_at"] = updated_at
             incident["expires_at"] = expires_at
@@ -301,6 +363,13 @@ class IncidentStore:
                     dumps_json(incident),
                 ),
             )
+            conn.execute('DELETE FROM response_incident_members WHERE incident_id=?', (incident_id,))
+            conn.executemany('INSERT OR REPLACE INTO response_incident_members(operation_id,incident_id) VALUES (?,?)',
+                             [(op_id, incident_id) for op_id in operation_ids])
+            conn.execute('''INSERT INTO response_incident_publications(incident_id,version,updated_at)
+                VALUES (?,?,?) ON CONFLICT(incident_id) DO UPDATE SET
+                version=excluded.version, updated_at=excluded.updated_at''',
+                (incident_id, version, updated_at))
             return copy.deepcopy(incident)
 
     def cancel(self, incident_id, reason="no_active_operations", now=None):

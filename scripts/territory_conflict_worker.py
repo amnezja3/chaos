@@ -10,7 +10,8 @@ import traceback
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
-os.chdir(PROJECT_ROOT)
+if __name__ == '__main__':
+    os.chdir(PROJECT_ROOT)
 
 import run  # noqa: E402
 
@@ -42,6 +43,7 @@ def process_operation_runtime_if_due():
     if now < _next_operation_runtime_tick_at:
         return {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
     result = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
+    run.process_incident_runtime_tick()
     if result.get("files"):
         print(
             f"[TERRITORY_WORKER] operation_files_finalized={result['files']} "

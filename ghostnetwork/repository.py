@@ -1178,6 +1178,7 @@ class GhostNetworkRepository:
                 WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
                 """
             )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_narrative_incident_source ON ghost_narrative_outbox(json_extract(validation_json, '$.incident_context.id'))")
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_ready
@@ -6382,6 +6383,15 @@ class GhostNetworkRepository:
             ):
                 return None
             assignment = loads_json(row["task_validation_json"], {}) or {}
+            incident_context = assignment.get('incident_context') or {}
+            if incident_context:
+                incident_head = conn.execute('''SELECT status,expires_at,
+                    json_extract(incident_json,'$.publication_version') AS publication_version
+                    FROM response_incidents WHERE incident_id=?''', (incident_context.get('id'),)).fetchone()
+                if (not incident_head or incident_head['status'] in {'cancelled','resolved','archived'}
+                    or int(incident_head['publication_version'] or 0) != int(incident_context.get('publication_version') or 0)
+                    or (incident_head['status'] == 'cooling' and _iso(incident_head['expires_at']) <= now_iso)):
+                    return {'lifecycle_superseded': True}
             editorial_contract = loads_json(row["editorial_contract_json"], {}) or {}
             if not isinstance(editorial_contract, dict):
                 editorial_contract = {}
@@ -6776,6 +6786,19 @@ class GhostNetworkRepository:
                 tuple(ids),
             )
             return int(cursor.rowcount or 0)
+
+    def invalidate_incident_publications(self, incident_id, publication_version, resolved=False):
+        """Retire a bounded page of obsolete public media without reading profiles."""
+        with self._conn() as conn:
+            conn.execute('''UPDATE ghost_narrative_medium_records SET active_state='invalidated',
+                invalidation_reason='incident_state_changed'
+                WHERE medium_record_id IN (
+                    SELECT r.medium_record_id FROM ghost_narrative_outbox o
+                    JOIN ghost_narrative_medium_records r ON r.task_id=o.outbox_id
+                    WHERE json_extract(o.validation_json,'$.incident_context.id')=?
+                    AND r.active_state='active' AND (? OR
+                        COALESCE(json_extract(o.validation_json,'$.incident_context.publication_version'),0)!=?)
+                    LIMIT 100)''', (incident_id, int(resolved), publication_version))
 
     def list_narrative_medium_records(
         self, target_medium, audience_scope=None, audience_clan=None,

@@ -59,6 +59,7 @@ from response_network.detection_validator import DetectionValidator
 from response_network.consequence_executor import ConsequenceExecutor
 from response_network.camera_contract import CameraContractStore, CameraContractError, camera_marker
 from response_network.camera_exposure import capture_exposure, shutdown_windows, bind_windows
+from response_network.incident_publications import IncidentPublicationRelay
 from response_network.consequence_policy import ConsequencePolicy, CONSEQUENCE_MODE_FULL
 from response_network.npc_capsule_factory import public_capsule_payload
 from response_network.npc_capsule_store import NPCCapsuleStore
@@ -2032,8 +2033,9 @@ def build_blacknet_conflict_activity_facts(now_dt):
     return facts
 
 
-def build_blacknet_incident_facts(now_dt):
-    public_incidents = incident_store.list_public()
+def build_blacknet_incident_facts(now_dt, public_incidents=None):
+    if public_incidents is None:
+        public_incidents = incident_store.list_public(now=now_dt)
     if not isinstance(public_incidents, list):
         public_incidents = []
     facts = []
@@ -2076,6 +2078,7 @@ def build_blacknet_incident_facts(now_dt):
             ttl_seconds=ttl_seconds,
             metadata={
                 "incident_id": incident_id,
+                "incident_publication_version": incident.get('publication_version', 0),
                 "entity_id": incident_id,
                 "cta_target_id": incident_id,
                 "hotspot_id": incident_id,
@@ -2107,6 +2110,13 @@ def build_blacknet_world_facts_snapshot(now=None, use_cache=True):
         cached_at = float(BLACKNET_WORLD_FACTS_CACHE.get("cached_at") or 0.0)
         if isinstance(cached, dict) and time.time() - cached_at < BLACKNET_WORLD_FACTS_CACHE_SECONDS:
             snapshot = copy.deepcopy(cached)
+            # Incidents are canonical and cross-process; refresh only this narrow
+            # source instead of invalidating the legacy profile-backed world cache.
+            incident_facts = build_blacknet_incident_facts(blacknet_utc_now())
+            snapshot['facts'] = [fact for fact in snapshot.get('facts', [])
+                                 if fact.get('source_system') != 'incidents'] + incident_facts
+            snapshot['version'] = hashlib.sha1((str(cached.get('version')) + json.dumps(
+                [fact.get('metadata', {}) for fact in incident_facts], sort_keys=True)).encode()).hexdigest()[:16]
             diagnostics = snapshot.setdefault("diagnostics", {})
             diagnostics["cache"] = {
                 "hit": True,
@@ -4440,46 +4450,72 @@ def publish_npc_capsule_actions(username, actions):
 
 
 def publish_incident_actions(username, actions):
-    username = str(username or "").strip()
-    if not username:
-        return []
-    events = []
-    blacknet_invalidated = False
-    for action in actions or []:
-        if not isinstance(action, dict):
-            continue
-        action_type = str(action.get("action") or "").strip()
-        incident_id = str(action.get("incident_id") or "").strip()
-        if not incident_id:
-            continue
-        incident = incident_store.get(incident_id)
-        if not incident:
-            continue
-        capsule_actions = []
-        if action_type == "created":
-            event_type = "incident.created"
-            capsule_actions = response_dispatcher.dispatch_incident(incident)
-        elif action_type == "cancelled":
-            event_type = "incident.resolved"
-            capsule_actions = response_dispatcher.cancel_incident(incident_id, reason="incident_resolved")
-        elif action_type == "recalculated":
-            event_type = "incident.updated"
-            capsule_actions = response_dispatcher.dispatch_incident(incident)
-        else:
-            continue
-        if event_type == "incident.resolved":
-            events.extend(publish_npc_capsule_actions(username, capsule_actions))
-        event = record_incident_delta(username, incident, event_type, reason=action_type)
-        if event:
-            events.append(event)
-            blacknet_invalidated = True
-        if event_type != "incident.resolved":
-            events.extend(publish_npc_capsule_actions(username, capsule_actions))
-    if blacknet_invalidated:
-        BLACKNET_WORLD_FACTS_CACHE["snapshot"] = None
-        BLACKNET_WORLD_FACTS_CACHE["cached_at"] = 0.0
-        BLACKNET_WORLD_SIGNALS_CACHE.clear()
-    return events
+    # The incident transaction already queued its durable publication head.
+    # Delivery belongs to the worker, never to gameplay/profile transactions.
+    return []
+
+
+def deliver_incident_publication(incident, viewer_cursor):
+    """Publish a bounded viewer page; retries use stable entity/version keys."""
+    from database import db_connect
+    now = datetime.now(timezone.utc)
+    latest = incident_store.get(incident['incident_id'])
+    if latest:
+        incident = latest
+    resolved = incident.get('status') in {'cancelled', 'resolved', 'archived'}
+    if resolved:
+        response_dispatcher.cancel_incident(incident['incident_id'], now=now, incident_version=incident['version'])
+    else:
+        response_dispatcher.dispatch_incident(incident_for_response_npc_dispatch(incident, now), now=now)
+    capsules = response_dispatcher.capsule_store.list_by_incident(incident['incident_id'], include_removed=True)
+    payload = IncidentStore.public_payload(incident)
+    payload['removed'] = resolved
+    with db_connect(incident_store.db_path) as conn:
+        viewers = conn.execute('''SELECT username FROM user_identity_projection
+            WHERE username>? ORDER BY username LIMIT 64''', (viewer_cursor,)).fetchall()
+        for viewer in viewers:
+            username = viewer['username']
+            delta_bus.record_change(username, 'incident', 'incident.resolved' if resolved else 'incident.updated',
+                payload, entity_id=incident['incident_id'],
+                dedupe_key=f"incident-public:{incident['incident_id']}:{incident['version']}:{username}", conn=conn)
+            for capsule in capsules:
+                removed = capsule.get('status') not in {'active', 'updated'}
+                public = {**public_capsule_payload(capsule), 'removed': removed}
+                delta_bus.record_change(username, 'npc', 'npc.removed' if removed else 'npc.updated', public,
+                    entity_id=capsule['capsule_id'],
+                    dedupe_key=f"npc-public:{capsule['capsule_id']}:{capsule['version']}:{username}", conn=conn)
+    repository = get_ghostnetwork_service().repository
+    repository.invalidate_incident_publications(incident['incident_id'], incident.get('publication_version', 0), resolved)
+    if not resolved:
+        facts = build_blacknet_incident_facts(now, [payload])
+        signals = build_blacknet_world_signals({'version': str(incident['version']), 'facts': facts}, now=now, limit=1)
+        producer = BlackNetNarrativeProducer(repository)
+        for signal in signals.get('signals') or []:
+            if signal.get('cta_target') != 'incident':
+                continue
+            for medium in ('blacknet', 'radio'):
+                result = producer.enqueue_signal(signals, signal, target_medium=medium)
+                if not result.get('ok'):
+                    raise RuntimeError('incident_narrative_enqueue_failed:' + medium)
+    BLACKNET_WORLD_SIGNALS_CACHE.clear()
+    return (viewers[-1]['username'] if viewers else viewer_cursor), len(viewers) < 64
+
+
+def process_incident_runtime_tick(now=None):
+    now = now or datetime.now(timezone.utc)
+    actions = incident_initializer.tick_lifecycle(now=now, limit=32)
+    publications = IncidentPublicationRelay(incident_store).drain(deliver_incident_publication, now, limit=8)
+    return {'lifecycle_changes': len(actions), **publications}
+
+
+@app.route('/api/radio/bulletins')
+def radio_incident_bulletins():
+    if 'user' not in session:
+        return jsonify({'ok': False}), 401
+    records = get_ghostnetwork_service().repository.list_narrative_medium_records(
+        'radio', audience_scope='public', active_only=True, limit=5)
+    return jsonify({'ok': True, 'bulletins': [
+        {'title': row.get('title', ''), 'body': row.get('body', '')} for row in records]})
 
 
 def response_npc_runtime_iso(now=None):

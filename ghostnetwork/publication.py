@@ -15,7 +15,7 @@ from .ollama_policy import (
 from .llm.registry import resolve_ollama_task_policy
 
 
-SUPPORTED_PUBLICATION_MEDIA = {"blacknet", "googleplex_news", "cyberner"}
+SUPPORTED_PUBLICATION_MEDIA = {"blacknet", "googleplex_news", "cyberner", "radio"}
 SUPPORTED_AUDIENCE_SCOPES = {"public", "clan", "owner"}
 
 

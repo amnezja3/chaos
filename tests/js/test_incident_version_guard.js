@@ -1,0 +1,25 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const source = fs.readFileSync('templates/map_template.html', 'utf8');
+const window = {incidentHotspotLayers: {i: {version: 5}}, incidentVersionHeads: {i: 5}};
+let removed = 0;
+window.removeIncidentHotspot = () => { removed++; delete window.incidentHotspotLayers.i; return true; };
+const ctx = vm.createContext({window});
+const start = source.indexOf('window.applyIncidentDelta = function(event)');
+const end = source.indexOf('\n            };', start) + '\n            };'.length;
+vm.runInContext(source.slice(start, end), ctx);
+assert.equal(window.applyIncidentDelta({type: 'incident.resolved', entity_id: 'i', payload: {version: 4}}), false);
+assert.equal(removed, 0, 'old resolution cannot remove a newer active hotspot');
+window.applyIncidentDelta({type: 'incident.resolved', entity_id: 'i', payload: {version: 6}});
+assert.equal(removed, 1);
+assert.equal(window.incidentVersionHeads.i, 6);
+const renderStart = source.indexOf('window.renderIncidentHotspot = function(incident)');
+const renderEnd = source.indexOf('window.removeIncidentHotspot(incidentId);', renderStart);
+assert(renderStart >= 0 && renderEnd > renderStart);
+window.escapeMapText = String;
+vm.runInContext(source.slice(renderStart, renderEnd) + 'return true; };', ctx);
+assert.equal(window.renderIncidentHotspot({incident_id: 'i', version: 5, center: {lat: 52, lng: 21}}), false,
+             'old update cannot resurrect a resolved incident');
+assert.equal(window.renderIncidentHotspot({incident_id: 'i', version: 7, center: {lat: 52, lng: 21}}), true);
+console.log('incident version guard PASS');

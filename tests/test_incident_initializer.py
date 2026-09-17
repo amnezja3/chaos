@@ -109,10 +109,10 @@ class IncidentInitializerTest(unittest.TestCase):
             update_operation_risk_meter(op, now_ts=ts(10, 50))
             result = initializer.sync_operations([op], now="2026-07-14T10:50:00+00:00")
 
-            self.assertEqual(result["actions"][0]["action"], "cancelled")
+            self.assertEqual(result["actions"][0]["action"], "recalculated")
             self.assertIsNone(op["operation_risk_meter"]["incident_id"])
             incident = store.get(incident_id)
-            self.assertEqual(incident["status"], "cancelled")
+            self.assertEqual(incident["status"], "cooling")
             self.assertEqual(incident["heat"], 0)
             self.assertEqual(incident["operation_ids"], [])
         finally:
@@ -133,7 +133,9 @@ class IncidentInitializerTest(unittest.TestCase):
             events = store.replay(incident_id)
 
             self.assertIn("incident.created", [event["event_type"] for event in events])
-            self.assertIn("incident.cancelled", [event["event_type"] for event in events])
+            self.assertIn("incident.cooling", [event["event_type"] for event in events])
+            initializer.tick_lifecycle(now='2026-07-14T11:20:00+00:00')
+            self.assertEqual(store.get(incident_id)['status'], 'resolved')
         finally:
             self._cleanup(path)
 

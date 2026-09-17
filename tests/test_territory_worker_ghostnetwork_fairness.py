@@ -6,6 +6,9 @@ from scripts import territory_conflict_worker as worker
 
 class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
     def setUp(self):
+        incident_tick = patch.object(worker.run, 'process_incident_runtime_tick', return_value={})
+        self.incident_tick = incident_tick.start()
+        self.addCleanup(incident_tick.stop)
         worker._consecutive_ghostnetwork_jobs = 0
         worker._ghostnetwork_delivery_turn = True
         worker._ghostnetwork_service = None

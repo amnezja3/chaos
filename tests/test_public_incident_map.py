@@ -123,6 +123,8 @@ class PublicIncidentMapTest(unittest.TestCase):
                 )
                 self.assertTrue(changed)
                 incident_id = operations[0]["operation_risk_meter"]["incident_id"]
+                self.assertEqual(bus.get_changes_since('main', 0)['changes'], [])
+                run.record_incident_delta('main', store.get(incident_id), 'incident.created')
                 created_changes = bus.get_changes_since("main", 0)["changes"]
 
                 profile["operations"] = [make_operation(operation_id="op-public", status="cancelled", incident_id=incident_id)]
@@ -133,6 +135,8 @@ class PublicIncidentMapTest(unittest.TestCase):
                     username="main",
                 )
                 self.assertTrue(changed)
+                initializer.tick_lifecycle(now='2026-07-14T12:00:00+00:00')
+                run.record_incident_delta('main', store.get(incident_id), 'incident.resolved')
                 all_changes = bus.get_changes_since("main", 0)["changes"]
 
             self.assertEqual(created_changes[0]["scope"], "incident")

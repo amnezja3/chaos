@@ -2,7 +2,7 @@
 
 Status: W REALIZACJI; rozszerzony audyt techniczny ukończony 16 IX 2026
 przed rozpoczęciem developmentu. 142.1 zamknięty po ponownym PASS autora
-17 IX 2026. 142.2: reguły zatwierdzone, implementacja i weryfikacja lokalna.
+17 IX 2026. 142.2 zamknięty po odbiorze autora; 142.3 w realizacji.
 Podstawa: [audyt](../audits/response_consequences_2026_09_16.md).
 Zakres zatwierdzony przez autora: scan → kamery → próba wygaszenia → inicjacja
 incydentu → eskalacja → publikacja w mediach gry i BlackNecie → służby →
@@ -64,7 +64,7 @@ etapów poniżej. PASS tej paczki nie oznacza zamknięcia całego 142.
 
 ## 142.2 — kamery, inicjacja i próba wygaszenia
 
-Status: **IMPLEMENTACJA LOKALNA — 46 TESTÓW PASS, ODBIÓR PRODUKCYJNY PENDING**
+Status: **ZAMKNIĘTY — PASS AUTORA I TESTÓW AUTOMATYCZNYCH**
 (17 IX 2026). Prześledzono punkt startu operacji,
 bounded worker, kalkulator heat oraz inicjalizator. Autor zatwierdził:
 +4 osobnego składnika przy kamerach, wyłączenie jednej zeruje ten
@@ -87,6 +87,13 @@ narzędzia, skuteczność akcji i powrót kamer do aktywności. Zapisać liczbę
 wykrytych, aktywnych i skutecznie wyłączonych oraz wersję/czas obserwacji.
 
 ## 142.3 — eskalacja, trwałość i publikacja
+
+Status: **IMPLEMENTACJA LOKALNA — ODBIÓR PRODUKCYJNY PENDING** (17 IX).
+Autor zatwierdził 30 minut cooling po zakończeniu ostatniej aktywnej operacji.
+Wylogowanie nie zmienia tego zegara. Nowa operacja powyżej progu aktywuje
+jeszcze niewygaszony incydent. Po cooling następuje resolved.
+Implementacja i instrukcja restartu wszystkich czterech procesów:
+[runbook 142.3](../runbooks/sprint_142_3_incident_publications.md).
 
 Potwierdzone przed sprintem naprawy: częściowy tick gracza usuwa wkład innych
 graczy we wspólnym incydencie; timeout ostatniej operacji anuluje incydent;

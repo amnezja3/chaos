@@ -4,6 +4,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from .incident_store import IncidentStore
+from database import db_connect, loads_json
 
 
 MERGE_RADIUS_M = 260
@@ -94,7 +95,8 @@ def _operation_ref(operation):
         "actor_id": _clean(meter.get("actor_id") or operation.get("owner_username")),
         "target_id": _clean(meter.get("target_id") or operation.get("target_id")),
         "operation_type": _clean(operation.get("operation_type")),
-        "heat": int(meter.get("active_contribution") or meter.get("current_heat") or 0),
+        "heat": int(meter.get("active_contribution", meter.get("current_heat")) or 0),
+        "expires_at": operation.get('expires_at'),
         "risk_version": int(meter.get("risk_version") or 0),
         "position": _operation_position(operation),
     }
@@ -174,12 +176,13 @@ def _build_incident_from_refs(incident_id, refs, now=None, previous=None, territ
         "search_radius_m": DEFAULT_SEARCH_RADIUS_M + (40 * max(0, len(operation_ids) - 1)),
         "created_at": (previous or {}).get("created_at") or _iso(now_dt),
         "updated_at": _iso(now_dt),
-        "expires_at": _iso(now_dt + timedelta(minutes=INCIDENT_TTL_MINUTES)),
+        "expires_at": (previous or {}).get('expires_at') or _iso(now_dt + timedelta(minutes=INCIDENT_TTL_MINUTES)),
         "operation_ids": operation_ids,
         "operation_refs": refs,
-        "suspect_refs": [{"actor_id": actor_id} for actor_id in suspect_ids],
+        "suspect_refs": [{"actor_id": actor_id} for actor_id in sorted(set(suspect_ids) |
+            {ref['actor_id'] for ref in (previous or {}).get('suspect_refs', [])})],
         "territory_refs": _territory_refs(refs, territory_context_reader=territory_context_reader),
-        "npc_capsule_ids": [],
+        "npc_capsule_ids": (previous or {}).get('npc_capsule_ids') or [],
         "seed": (previous or {}).get("seed") or incident_id,
         "visible": False,
         "publication_enabled": False,
@@ -224,20 +227,53 @@ class IncidentInitializer:
         operation["operation_risk_meter"] = meter
 
     def sync_operations(self, operations, now=None):
+        with db_connect(self.incident_store.db_path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            return self._sync_operations(operations, now, conn)
+
+    def _sync_operations(self, operations, now, conn, incidents=None):
         operations = [item for item in (operations or []) if isinstance(item, dict)]
+        now = _iso(now)
+        incidents = incidents if incidents is not None else self.incident_store.related(operations, conn=conn)
+        for incident in incidents:
+            if incident.get('status') == 'cooling' and _coerce_datetime(incident['expires_at']) <= _coerce_datetime(now):
+                incident.update(status='resolved', lifecycle_reason='cooling_elapsed')
+                self.incident_store.upsert(incident, event_type='incident.resolved', now=now, conn=conn)
+        incidents = [i for i in incidents if i.get('status') != 'resolved']
+        # Refresh other actors from canonical rows while holding the incident write lock.
+        incoming_ids = {op.get('operation_id') for op in operations}
+        has_operations = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_operations'").fetchone()
+        if has_operations:
+            for operation in operations:
+                row = conn.execute('SELECT operation_json, version FROM player_operations WHERE operation_id=?',
+                                   (operation.get('operation_id'),)).fetchone()
+                if row and operation.get('_runtime_version') is not None and int(row['version']) > int(operation['_runtime_version']):
+                    operation.clear()
+                    operation.update(loads_json(row['operation_json'], {}))
+                    operation['_runtime_version'] = int(row['version'])
+            for incident in incidents:
+                for op_id in incident.get('operation_ids') or []:
+                    if op_id in incoming_ids:
+                        continue
+                    row = conn.execute('SELECT operation_json FROM player_operations WHERE operation_id=?', (op_id,)).fetchone()
+                    if row:
+                        operations.append(loads_json(row['operation_json'], {}))
+                        incoming_ids.add(op_id)
         candidates = [operation for operation in operations if _is_active_incident_candidate(operation)]
         by_operation_id = {
             _clean(operation.get("operation_id")): operation
             for operation in operations
             if _clean(operation.get("operation_id"))
-            and (_operation_meter(operation).get('active_contribution') or 0) > 0
+            and str(operation.get('status') or '').lower() not in {'cancelled','canceled','completed','timeout','failed','detected','expired','done','resolved'}
+            and (not operation.get('expires_at') or _coerce_datetime(operation['expires_at']) > _coerce_datetime(now))
         }
         known_operation_ids = {
             _clean(operation.get("operation_id"))
             for operation in operations
             if _clean(operation.get("operation_id"))
         }
-        active_incidents = self.incident_store.list_active()
+        candidates = [op for op in candidates if op.get('operation_id') in by_operation_id]
+        active_incidents = incidents
         touched_incident_ids = set()
         actions = []
 
@@ -247,7 +283,7 @@ class IncidentInitializer:
                 continue
             position = _operation_position(operation)
             assigned_id = _clean(_operation_meter(operation).get("incident_id"))
-            incident = self.incident_store.get(assigned_id) if assigned_id else None
+            incident = self.incident_store.get(assigned_id, conn=conn) if assigned_id else None
             if not incident or incident.get("status") not in {"candidate", "active", "escalated", "cooling"}:
                 incident = self._find_merge_target(position, active_incidents)
             if not incident:
@@ -258,7 +294,7 @@ class IncidentInitializer:
                     now=now,
                     territory_context_reader=self.territory_context_reader,
                 )
-                saved = self.incident_store.upsert(incident, event_type="incident.created", now=now)
+                saved = self.incident_store.upsert(incident, event_type="incident.created", now=now, conn=conn)
                 active_incidents.append(saved)
                 self._assign_incident(operation, saved["incident_id"])
                 touched_incident_ids.add(saved["incident_id"])
@@ -270,9 +306,10 @@ class IncidentInitializer:
             if previous_incident_id != incident["incident_id"]:
                 actions.append({"action": "linked", "incident_id": incident["incident_id"], "operation_id": operation_id})
 
-        for incident in self.incident_store.list_active():
+        for incident_entry in active_incidents:
+            incident = self.incident_store.get(incident_entry['incident_id'], conn=conn)
             incident_operation_ids = {str(item) for item in (incident.get("operation_ids") or [])}
-            if incident.get("incident_id") not in touched_incident_ids and not (incident_operation_ids & known_operation_ids):
+            if operations and incident.get("incident_id") not in touched_incident_ids and not (incident_operation_ids & known_operation_ids):
                 continue
             refs = []
             previous_refs = {ref['operation_id']: ref for ref in incident.get('operation_refs', [])}
@@ -281,7 +318,10 @@ class IncidentInitializer:
                 if operation:
                     refs.append(_operation_ref(operation))
                 elif operation_id not in known_operation_ids and operation_id in previous_refs:
-                    refs.append(previous_refs[operation_id])
+                    ref = previous_refs[operation_id]
+                    deadline = ref.get('expires_at') or incident.get('expires_at')
+                    if deadline and _coerce_datetime(deadline) > _coerce_datetime(now):
+                        refs.append(ref)
             for operation in candidates:
                 meter_incident_id = _clean(_operation_meter(operation).get("incident_id"))
                 operation_id = _clean(operation.get("operation_id"))
@@ -289,11 +329,21 @@ class IncidentInitializer:
                     refs.append(_operation_ref(operation))
 
             if not refs:
-                cancelled = self.incident_store.cancel(incident["incident_id"], reason="no_active_operations", now=now)
-                for operation in operations:
-                    if _clean(_operation_meter(operation).get("incident_id")) == incident["incident_id"]:
-                        self._clear_incident(operation)
-                actions.append({"action": "cancelled", "incident_id": incident["incident_id"]})
+                cooling = dict(incident)
+                if cooling.get('status') != 'cooling':
+                    deadlines = [ref.get('expires_at') for ref in previous_refs.values() if ref.get('expires_at')]
+                    ended = max(deadlines, key=_coerce_datetime) if deadlines else now
+                    ended = min(_coerce_datetime(ended), _coerce_datetime(now))
+                    cooling.update(status='cooling', cooling_since=_iso(ended),
+                        expires_at=_iso(ended + timedelta(minutes=30)),
+                        operation_ids=[], operation_refs=[], heat=0,
+                        lifecycle_reason='last_operation_ended')
+                if _coerce_datetime(cooling['expires_at']) <= _coerce_datetime(now):
+                    cooling.update(status='resolved', lifecycle_reason='cooling_elapsed')
+                saved = self.incident_store.upsert(cooling, event_type='incident.' + cooling['status'], now=now, conn=conn)
+                if saved['version'] != incident['version']:
+                    actions.append({'action': 'cancelled' if cooling['status'] == 'resolved' else 'recalculated',
+                                    'incident_id': incident['incident_id']})
                 continue
 
             recalculated = _build_incident_from_refs(
@@ -303,7 +353,7 @@ class IncidentInitializer:
                 previous=incident,
                 territory_context_reader=self.territory_context_reader,
             )
-            saved = self.incident_store.upsert(recalculated, event_type="incident.recalculated", now=now)
+            saved = self.incident_store.upsert(recalculated, event_type="incident.recalculated", now=now, conn=conn)
             for ref in refs:
                 operation = by_operation_id.get(ref.get("operation_id"))
                 if operation:
@@ -319,3 +369,18 @@ class IncidentInitializer:
             "candidates": len(candidates),
             "actions": actions,
         }
+
+    def tick_lifecycle(self, now=None, limit=32):
+        actions = []
+        for selected in self.incident_store.lifecycle_batch(limit):
+            with db_connect(self.incident_store.db_path) as conn:
+                conn.execute('BEGIN IMMEDIATE')
+                incident = self.incident_store.get(selected['incident_id'], conn=conn)
+                if incident['status'] not in {'candidate', 'active', 'escalated', 'cooling'}:
+                    continue
+                result = self._sync_operations([], now, conn, incidents=[incident])
+                actions.extend(result['actions'])
+                # Fair round-robin even when the material state did not change.
+                conn.execute('UPDATE response_incidents SET updated_at=? WHERE incident_id=?',
+                             (_iso(now), incident['incident_id']))
+        return actions
