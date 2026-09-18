@@ -8,6 +8,22 @@ from ghostnetwork.producers import BlackNetNarrativeProducer
 
 
 class IncidentNarrativeRetirementTest(unittest.TestCase):
+    def test_published_incident_outlives_task_deadline_but_not_source(self):
+        incident = self.store.upsert({'incident_id': 'long-running', 'status': 'escalated',
+            'level': 4, 'center': {'lat': 52, 'lng': 21}}, now=self.fixture.clock())
+        candidate = self.candidate('long-running-report', {'incident_context': {
+            'id': incident['incident_id'], 'publication_version': incident['publication_version'],
+            'narrative_version': incident['narrative_version']}})
+        self.assertEqual(NarrativePublicationService(self.repo).process_once()['result'], 'published')
+        self.fixture.clock.advance(1801)
+        self.repo.maintain_narrative_freshness()
+        self.repo.retire_stale_incident_narratives()
+        self.assertEqual(self.repo.get_narrative_outbox(candidate['task_id'])['status'], 'completed')
+        self.assertEqual(len(self.repo.list_narrative_medium_records('blacknet', active_only=True)), 1)
+        self.store.upsert({**incident, 'status': 'resolved'}, now=self.fixture.clock())
+        self.repo.retire_stale_incident_narratives()
+        self.assertEqual(self.repo.list_narrative_medium_records('blacknet', active_only=True), [])
+
     def test_map_drift_during_generation_preserves_news_and_blacknet(self):
         for medium in ('googleplex_news', 'blacknet'):
             with self.subTest(medium=medium):

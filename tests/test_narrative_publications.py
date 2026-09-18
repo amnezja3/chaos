@@ -603,6 +603,23 @@ class NarrativePublicationTest(unittest.TestCase):
             "gp-home-featured"
         ])
 
+    def test_googleplex_hero_does_not_remove_published_product(self):
+        self.test_stage_two_product_publishes_one_slot_with_canonical_commerce_data()
+        client = SequencedAcceptedClient()
+        for version in (0, 1):
+            self.accepted_candidate(
+                'coexisting-hero-' + str(version), source_scope='blacknet_world',
+                task_variant='googleplex_world_dispatch', target_medium='googleplex_news', client=client,
+                validation={'selected_source_ref': 'fact:one',
+                    'presentation_slot': 'gp-home-world-grid', 'expected_slot_version': version})
+            self.assertEqual(NarrativePublicationService(self.repo).process_once()['result'], 'published')
+            active = self.repo.list_active_narrative_slot_records_for_viewer('googleplex_news', owner='alice')
+            snapshot = build_googleplex_news_snapshot(catalog=[], viewer_key='alice',
+                session_generation='one', limit=20, now=self.clock.value)
+            merged = merge_googleplex_news_publications(snapshot, active)
+            self.assertEqual(set(merged['diagnostics']['publication_slot_ids']),
+                {'gp-home-world-grid', 'gp-home-featured'})
+
     def test_googleplex_slot_cas_rejects_stale_assignment(self):
         client = SequencedAcceptedClient()
         assignment = {

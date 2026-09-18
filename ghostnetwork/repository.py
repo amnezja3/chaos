@@ -7054,10 +7054,13 @@ class GhostNetworkRepository:
                 task = self._narrative_outbox(row)
                 conn.execute('UPDATE ghost_narrative_outbox SET expires_at=?,priority=? WHERE outbox_id=?',
                     (narrative_deadline(task, task['created_at']), narrative_priority(task), row['outbox_id']))
+            # A published incident follows its canonical lifecycle. The task
+            # deadline only limits how long we may generate/publish its text;
+            # retirement below/retire_stale_incident_narratives handles sources.
             rows = conn.execute('''SELECT outbox_id FROM ghost_narrative_outbox
                 WHERE status IN ('ready','retry_wait','claimed','processing','completed')
                 AND expires_at!='' AND julianday(expires_at)<=julianday(?)
-                AND (source_scope='blacknet_world' OR NOT EXISTS (
+                AND ((source_scope='blacknet_world' AND narrative_intent!='intercepted_incident_alert') OR NOT EXISTS (
                     SELECT 1 FROM ghost_narrative_medium_records m WHERE m.task_id=ghost_narrative_outbox.outbox_id))
                 ORDER BY expires_at LIMIT ?''', (now, bounded)).fetchall()
             for row in rows:
