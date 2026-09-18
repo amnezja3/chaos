@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 import run
@@ -170,14 +171,25 @@ class DetectionFeedbackShadowTest(unittest.TestCase):
         self.assertEqual(decision["status"], "rejected")
         self.assertEqual(decision["reason"], "passive_or_offline_territory_protected")
 
-    def test_detection_candidate_endpoint_returns_full_response_decision(self):
+    def test_detection_candidate_endpoint_uses_canonical_observation_without_profiles(self):
         incident, capsule, profile, candidate = self._seed_active_scene()
         client = run.app.test_client()
         headers = self.session_generation.authenticate(client, "observer")
 
-        with patch.object(run, "detection_validator", self.validator), \
-                patch.object(run, "load_profile_readonly", return_value=profile), \
-                patch.object(run.user_store, "get_profile", return_value=None):
+        candidate['position_version'] = 5
+        actor = {'session': {'status': 'active', 'updated_at': '2026-07-14T09:00:00+00:00', 'active_revision': 1},
+            'presence': {'last_seen_at': candidate['detected_at']},
+            'position': {**candidate['actor_position'], 'version': 5, 'updated_at': candidate['detected_at']}}
+        with patch.object(run, 'incident_store', self.incident_store), \
+                patch.object(run, 'npc_capsule_store', self.capsule_store), \
+                patch.object(run, 'detection_candidate_store', self.candidate_store), \
+                patch.object(run, 'actor_snapshot', return_value=actor), \
+                patch('response_network.qualification.datetime') as clock, \
+                patch.dict(os.environ, {'CHAOS_RESPONSE_QUALIFICATION_MODE': 'observe'}), \
+                patch.object(run, 'execute_response_network_consequence', side_effect=AssertionError('executor called')), \
+                patch.object(run, "load_profile_readonly", side_effect=AssertionError('profile read')), \
+                patch.object(run.user_store, "get_profile", side_effect=AssertionError('profile read')):
+            clock.now.return_value = datetime.fromisoformat(candidate['detected_at'])
             response = client.post(
                 "/api/map/incidents/detection-candidates",
                 headers=headers,
@@ -187,12 +199,17 @@ class DetectionFeedbackShadowTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertTrue(payload["success"])
-        self.assertEqual(payload["mode"], "full")
-        self.assertEqual(payload["status"], "accepted")
+        self.assertEqual(payload["mode"], "observe")
+        self.assertEqual(payload["status"], "observed", payload)
+        self.assertTrue(payload['qualified'])
         self.assertFalse(payload["penalty_executed"])
         self.assertFalse(payload["consequence_executed"])
-        self.assertEqual(payload["consequence"]["status"], "rejected")
-        self.assertEqual(payload["consequence"]["reason"], "profile_not_found")
+        self.assertIsNone(payload['consequence'])
+
+    def test_executor_entry_is_guarded_before_policy_or_profile(self):
+        with patch.object(run.consequence_policy, 'prepare_intent', side_effect=AssertionError('policy called')), \
+                patch.object(run.user_store, 'get_profile', side_effect=AssertionError('profile read')):
+            self.assertFalse(run.execute_response_network_consequence({'mode': 'full', 'status': 'accepted'})['consequence_executed'])
 
     def test_visible_safe_candidate_is_accepted_without_penalty(self):
         incident, capsule, profile, candidate = self._seed_active_scene()

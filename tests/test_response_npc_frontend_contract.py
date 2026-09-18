@@ -30,7 +30,8 @@ class ResponseNPCFrontendContractTest(unittest.TestCase):
         self.assertIn("response-npc-marker-countdown", self.map_template)
         self.assertIn("response-npc-marker-feedback", self.map_template)
         self.assertIn("applyDetectionFeedbackToNpc", self.map_template)
-        self.assertIn("mode: 'full'", self.map_template)
+        self.assertIn("mode: 'observe'", self.map_template)
+        self.assertIn("position_version: Number(actor.position_version)", self.map_template)
         self.assertIn("is-detected", self.map_template)
         self.assertIn("is-rejected", self.map_template)
 

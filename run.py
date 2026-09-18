@@ -56,6 +56,7 @@ from response_network.incident_initializer import IncidentInitializer
 from response_network.incident_store import IncidentStore
 from response_network.detection_candidate_store import DetectionCandidateStore
 from response_network.detection_validator import DetectionValidator
+from response_network.qualification import DetectionQualification, actor_snapshot, qualification_mode
 from response_network.consequence_executor import ConsequenceExecutor
 from response_network.camera_contract import CameraContractStore, CameraContractError, camera_marker
 from response_network.camera_exposure import capture_exposure, shutdown_windows, bind_windows
@@ -27713,6 +27714,11 @@ def map_incident_npc_capsules():
 
 
 def execute_response_network_consequence(decision):
+    # 142.4: the legacy executor is non-atomic and is not production-safe.
+    # No alternate caller may bypass observation mode and read a full profile.
+    if qualification_mode() in {'observe', 'disabled'}:
+        return {'status': 'observation_only', 'reason': 'executor_hardening_pending',
+                'consequence_executed': False, 'penalty_executed': False}
     intent = consequence_policy.prepare_intent(decision)
     if intent.get("status") != "prepared":
         return intent
@@ -27847,20 +27853,22 @@ def map_incident_detection_candidates():
 
     candidate = dict(payload)
     candidate["observer_username"] = session.get("user")
-    candidate["mode"] = "full"
     try:
-        decision = detection_validator.validate(candidate, profile_loader=load_profile_readonly)
+        decision = DetectionQualification(incident_store, npc_capsule_store,
+            detection_candidate_store,
+            lambda actor: actor_snapshot(player_position_store.db_path, actor)
+        ).qualify(candidate, session.get('user'))
     except Exception as exc:
-        print(f"[DETECTION] full validation failed: {exc}", flush=True)
+        print(f"[DETECTION] qualification unavailable: {type(exc).__name__}", flush=True)
         return jsonify({
             "success": False,
-            "mode": "full",
-            "status": "rejected",
-            "reason": "validation_error",
+            "mode": qualification_mode(),
+            "status": "deferred",
+            "reason": "qualification_unavailable",
         }), 200
 
     consequence = None
-    if decision.get("status") == "accepted":
+    if decision.get("status") == "accepted" and decision.get('mode') == 'full':
         consequence = execute_response_network_consequence(decision)
         if consequence and consequence.get("status") == "executed":
             decision["consequence_executed"] = True
@@ -27868,7 +27876,11 @@ def map_incident_detection_candidates():
 
     return jsonify({
         "success": True,
-        "mode": decision.get("mode") or "full",
+        "mode": decision.get("mode"),
+        "qualified": bool(decision.get('qualified')),
+        "actor_role": decision.get('actor_role'),
+        "presence_class": decision.get('presence_class'),
+        "position_version": decision.get('position_version'),
         "status": decision.get("status") or decision.get("result"),
         "reason": decision.get("reason"),
         "candidate_id": decision.get("candidate_id"),

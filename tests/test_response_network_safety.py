@@ -90,7 +90,7 @@ class ResponseNetworkSafetyFoundationTest(unittest.TestCase):
         self.assertFalse(data["runtime_active"])
 
     def test_fixture_contract_starts_disabled(self):
-        fixture_path = Path("tests/fixtures/response_network/sprint85_safety_foundation.json")
+        fixture_path = Path(__file__).parent / 'fixtures/response_network/sprint85_safety_foundation.json'
         data = json.loads(fixture_path.read_text(encoding="utf-8"))
 
         self.assertEqual(data["schema"], 1)

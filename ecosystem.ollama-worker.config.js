@@ -14,6 +14,7 @@ module.exports = {
       // model call (240 s read timeout) finish before PM2 escalates to SIGKILL.
       kill_timeout: 300000,
       env: {
+        CHAOS_RESPONSE_QUALIFICATION_MODE: "observe",
         CHAOS_NARRATIVE_TTL_URGENT_SECONDS: "1800",
         CHAOS_NARRATIVE_TTL_NORMAL_SECONDS: "7200",
         CHAOS_NARRATIVE_TTL_EDITORIAL_SECONDS: "21600",

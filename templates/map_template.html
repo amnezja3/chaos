@@ -9094,7 +9094,7 @@
                     : '';
                 const feedbackLabel = feedbackStatus === 'accepted'
                     ? 'OK'
-                    : (feedbackStatus === 'rejected' ? '!' : (feedbackStatus === 'expired' ? '-' : ''));
+                    : (feedbackStatus === 'observed' ? 'OBS' : (feedbackStatus === 'rejected' ? '!' : (feedbackStatus === 'expired' ? '-' : '')));
                 return L.divIcon({
                     className: `response-npc-marker-root is-${family} is-${state}${feedbackStatus ? ` is-${feedbackStatus === 'accepted' ? 'detected' : feedbackStatus}` : ''}`,
                     html: `
@@ -9394,6 +9394,7 @@
                     actors.push({
                         actor_id: actorId,
                         operation_id: snapshot.operation_id || snapshot.active_operation_id || null,
+                        position_version: Number(snapshot.position_version) || 0,
                         position: { lat: Number(latLng.lat), lng: Number(latLng.lng) }
                     });
                 });
@@ -9405,6 +9406,7 @@
                         actors.push({
                             actor_id: selfUsername,
                             operation_id: null,
+                            position_version: Number(window.profileData.position_version) || 0,
                             position: { lat: Number(latLng.lat), lng: Number(latLng.lng) }
                         });
                     }
@@ -9425,6 +9427,7 @@
                     npc_id: capsule.npc_id || capsuleId,
                     actor_id: actorId,
                     operation_id: actor.operation_id || null,
+                    position_version: Number(actor.position_version) || 0,
                     tracking_token: capsule.tracking_tokens[0],
                     detected_at: detectedAt.toISOString(),
                     npc_position: {
@@ -9438,7 +9441,7 @@
                     behavior_version: capsule.behavior_version,
                     trajectory_seed: capsule.trajectory_seed,
                     trajectory_phase_deg: capsule.trajectory_phase_deg,
-                    mode: 'full'
+                    mode: 'observe'
                 };
             };
 

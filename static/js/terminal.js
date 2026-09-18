@@ -8766,6 +8766,7 @@ function createBrowser() {
     <div class="browser-nav">
         <button class="nav-btn">${browserUiIcons.back}</button>
         <button class="nav-btn">${browserUiIcons.forward}</button>
+        <button type="button" class="nav-btn browser-refresh-btn" title="Refresh — odśwież stronę" aria-label="Odśwież stronę">&#x21bb;</button>
         <input type="text" value="xhttp://webdragons.hck" readonly class="url-bar">
         <button class="fav-btn" title="Dodaj do ulubionych">${browserUiIcons.favorite}</button>
     </div>
@@ -10985,6 +10986,32 @@ function createBrowser() {
             }
         }
     }
+
+    const browserRefreshButton = term.querySelector('.browser-refresh-btn');
+    browserRefreshButton.addEventListener('click', async () => {
+        if (browserRefreshButton.disabled) return;
+        browserRefreshButton.disabled = true;
+        browserRefreshButton.setAttribute('aria-busy', 'true');
+        try {
+            if (activeBrowserTab === 'blacknet') {
+                await loadBlacknetSignals({ force: true });
+            } else if (activeBrowserTab === 'exchange') {
+                await loadExchange();
+            } else if (search.value.trim()) {
+                catalogLoaded = false;
+                await loadCatalog();
+            } else {
+                rememberGoogleplexHomeScroll();
+                await loadGoogleplexHome({ force: true });
+            }
+        } catch (error) {
+            console.warn('WebDragons refresh failed', error);
+            addSystemMessage('warning', 'WebDragons', 'Nie udało się odświeżyć strony. Spróbuj ponownie.');
+        } finally {
+            browserRefreshButton.disabled = false;
+            browserRefreshButton.removeAttribute('aria-busy');
+        }
+    });
 
     term.querySelectorAll('.browser-tab').forEach(button => {
         button.addEventListener('click', () => switchBrowserTab(button.dataset.browserTab || "googleplex"));

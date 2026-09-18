@@ -1,7 +1,20 @@
 # 142.3 — trwałość i publikacja incydentów
 
-Status: implementacja lokalna, odbiór produkcyjny PENDING. Reguła cyklu
-zatwierdzona przez autora 17 IX 2026.
+Status: PASS autora 18 IX 2026 — potwierdzone hero, produkty i przepływ publikacji.
+Reguła cyklu zatwierdzona przez autora 17 IX 2026. Poniższe wcześniejsze
+opisy lokalnej walidacji są zapisem wdrożenia; nie oznaczają otwartego odbioru.
+
+WebDragons ma przycisk refresh obok strzałek. Pobiera bieżące dane aktywnej
+zakładki, zachowuje wyszukiwanie i blokuje wielokrotne kliknięcia w trakcie
+żądania. News korzysta z istniejącego endpointu bez cache i nie uruchamia
+modelu. Zmieniono wersję assetu terminal.js w trzech szablonach. Walidacja:
+`node --check static/js/terminal.js` oraz `git diff --check` PASS.
+
+Po deployu odświeżyć cały klient raz, aby pobrać przycisk. Następnie przez
+kilka godzin aktywności graczy obserwować rotację, wiek publikacji, kolejkę
+Ollamy i poprawność odnośników za pomocą refreshu w WebDragons. Jakość tekstów,
+deterministyczne wpisy zastępcze i dalsza rotacja narzędzi pozostają w zakresie
+przyszłych sprintów Ollamy. Nie są blokadą 142.3.
 
 ## Cykl
 

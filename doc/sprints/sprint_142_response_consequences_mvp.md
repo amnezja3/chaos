@@ -2,7 +2,7 @@
 
 Status: W REALIZACJI; rozszerzony audyt techniczny ukończony 16 IX 2026
 przed rozpoczęciem developmentu. 142.1 zamknięty po ponownym PASS autora
-17 IX 2026. 142.2 zamknięty po odbiorze autora; 142.3 w realizacji.
+17 IX 2026. 142.2 zamknięty po odbiorze autora; 142.3 PASS autora 18 IX 2026.
 Podstawa: [audyt](../audits/response_consequences_2026_09_16.md).
 Zakres zatwierdzony przez autora: scan → kamery → próba wygaszenia → inicjacja
 incydentu → eskalacja → publikacja w mediach gry i BlackNecie → służby →
@@ -88,7 +88,12 @@ wykrytych, aktywnych i skutecznie wyłączonych oraz wersję/czas obserwacji.
 
 ## 142.3 — eskalacja, trwałość i publikacja
 
-Status: **IMPLEMENTACJA LOKALNA — ODBIÓR PRODUKCYJNY PENDING** (17 IX).
+Status: **ZAMKNIĘTY / PASS AUTORA** (18 IX 2026).
+Potwierdzony przepływ hero i rotacja produktów. Dodano ręczny refresh
+w WebDragons do obserwacji zmian bez zamykania okna. Kolejny etap obserwacyjny:
+kilka godzin aktywności graczy i ocena dynamiki News przy większej liczbie
+zdarzeń. Jakość tekstów, ewentualne deterministyczne treści zastępcze oraz
+dodatkowa rotacja narzędzi należą do przyszłych sprintów Ollamy i nie blokują PASS.
 Autor zatwierdził 30 minut cooling po zakończeniu ostatniej aktywnej operacji.
 Wylogowanie nie zmienia tego zegara. Nowa operacja powyżej progu aktywuje
 jeszcze niewygaszony incydent. Po cooling następuje resolved.
@@ -118,6 +123,11 @@ list_active/list_public bez limitu do nowego workera. Szczegóły i testy w audy
   nie trzymać obiektów wiecznie ani nie kończyć ich razem z sesją gracza.
 
 ## 142.4 — kontrakt kwalifikacji i zabezpieczenie wejścia
+
+Status: **IMPLEMENTACJA LOKALNA / ODBIÓR PRODUKCYJNY PENDING** (18 IX 2026).
+Kontrakt i odbiór: [runbook 142.4](../runbooks/sprint_142_4_detection_qualification.md).
+Produkcyjna ścieżka została przełączona na jawną obserwację: brak losowania,
+wywołań starego executora i kar do czasu uszczelnienia kolejnych etapów.
 
 - Backend ustala aktora, aktualną obecność, pozycję motocykla i jej wersję,
   status incydentu, NPC i tożsamość inicjatora z lekkich store’ów.
