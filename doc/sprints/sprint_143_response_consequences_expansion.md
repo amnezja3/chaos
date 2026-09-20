@@ -13,6 +13,11 @@ w więzieniach z zatwierdzonego katalogu. Wylogowanie nie kasuje sankcji.
 
 ## 143.1 — wersjonowana tabela konsekwencji i recydywa
 
+Aktualizacja 20 IX 2026: bazowa tabela została zatwierdzona przed 142.6
+i zapisana w `config.py: RESPONSE_CONSEQUENCE_TABLE`; przygotowano canonical
+kartotekę. Obowiązuje `doc/runbooks/consequence_table_v1.md`. 143 rozszerza
+tę samą tabelę i executor, nie tworzy osobnej skali więziennej.
+
 Tabela jest konfiguracją backendu, nie zestawem warunków w frontendzie.
 Każda decyzja zapisuje wersję policy, użyte współczynniki i wybrany poziom.
 
@@ -25,16 +30,11 @@ Każda decyzja zapisuje wersję policy, użyte współczynniki i wybrany poziom.
 | Rola gracza | Inicjator/postronny; szansa 80/30 oddzielona od surowości kary |
 | Pozostałe modyfikatory | Wyłącznie zweryfikowane reguły współdzielone z aktywnymi częściami/Super Powers |
 
-Propozycja tabeli do balansu — podane przez autora 5/10/15/20 minut są
-przykładowymi progami; dokładne kryteria, zestawy i czasy zatwierdzić przed
-aktywacją, nie traktować poniższej propozycji jako działającego gameplayu:
-
-| Poziom | Przykładowy czas | Proponowany zestaw |
-|---|---|---|
-| 1 | 5 min | Czasowa blokada ruchu i teleportów |
-| 2 | 10 min | Osadzenie + blokada ruchu i teleportów |
-| 3 | 15 min | Osadzenie + powyższe + blokada Cybernera |
-| 4 | 20 min | Osadzenie + ograniczenie aplikacji do Web Dragona i radia |
+Zatwierdzona drabina: stopień 1 mandat ×1, 2 mandat ×2, 3 jedno narzędzie,
+4 dwa narzędzia, 5 trzy narzędzia + mandat ×3, 6–9 areszt 5/10/15/20 minut.
+Początek: L2→1, L3→3, L4→5, L5→6. Każda wcześniejsza wykonana kara dodaje
+jeden stopień, wspólny licznik gracza; maksimum 9. Szczegółowy zestaw
+ograniczeń aplikacji dla stopni 6–9 wymaga doprecyzowania przed aktywacją.
 
 Recydywa zwiększa surowość według jawnych progów/okna historii i limitów,
 bez wielokrotnego liczenia tego samego spotkania. Jedna kara nie może
@@ -47,7 +47,7 @@ Mały canonical store: sanction_id, actor, encounter/receipt, rodzaj, powód,
 starts_at, duration_seconds, remaining_seconds, rozliczony czas obecności,
 status, wersja, parametry oraz historia zmian. Sam wall-clock expires_at
 nie wystarcza: wylogowanie na 2–3 h nie może automatycznie odbyć wyroku.
-Proponowana realizacja: serwerowe rozliczanie czasu online, pauza offline,
+Zatwierdzona realizacja: serwerowe rozliczanie czasu online, pauza offline,
 kontynuacja po powrocie; granice heartbeat/timeout i wiele kart wymagają
 jednoznacznej reguły. Nie ufać timerowi ani deklaracji online klienta.
 Indeks aktywnych sankcji po graczu; typy movement_block,
@@ -81,7 +81,7 @@ Backendowy stan pozostałej kary, odporny na zmianę zegara klienta, restart
 i disconnect. Jeden idempotentny mechanizm zwolnienia, bounded worker i kontrola
 przy wznowieniu sesji. Bez kar dla nieobecnych z zaległych wykryć.
 
-Do decyzji przed kodem: dokładne progi/czasy tabeli; wybór więzienia; punkt
+Do decyzji przed kodem transportu: wybór więzienia; punkt
 powrotu; łączenie/przedłużanie sankcji i techniczne rozliczanie obecności.
 Odrzucona wcześniejsza propozycja: automatyczne upływanie wyroku w czasie
 offline. Brak nowych kar offline nie usuwa wcześniej nałożonych sankcji.

@@ -58,6 +58,8 @@ from response_network.detection_candidate_store import DetectionCandidateStore
 from response_network.detection_validator import DetectionValidator
 from response_network.qualification import DetectionQualification, actor_snapshot, qualification_mode
 from response_network.encounters import EncounterStore, encounters_enabled
+from response_network.criminal_record import CriminalRecordStore
+from response_network.canonical_executor import CanonicalConsequenceExecutor
 from response_network.consequence_executor import ConsequenceExecutor
 from response_network.camera_contract import CameraContractStore, CameraContractError, camera_marker
 from response_network.camera_exposure import capture_exposure, shutdown_windows, bind_windows
@@ -161,6 +163,10 @@ npc_capsule_store = NPCCapsuleStore()
 response_dispatcher = ResponseDispatcher(npc_capsule_store)
 detection_candidate_store = DetectionCandidateStore()
 response_encounter_store = EncounterStore(incident_store, npc_capsule_store)
+criminal_record_store = CriminalRecordStore()
+response_encounter_store.executor = CanonicalConsequenceExecutor(
+    player_operation_store.db_path, incident_store, npc_capsule_store, criminal_record_store,
+    wallet_balance_store, player_inventory_store, player_operation_store, system_message_store, delta_bus)
 detection_validator = DetectionValidator(
     incident_store,
     npc_capsule_store,
@@ -27886,6 +27892,7 @@ def map_incident_detection_candidates():
         "qualified": bool(decision.get('qualified')),
         "encounter": decision.get('encounter') if decision.get('actor_id') == session.get('user') else None,
         "duplicate_encounter": bool(decision.get('duplicate_encounter')),
+        "execution": decision.get('execution') if decision.get('actor_id') == session.get('user') else None,
         "actor_role": decision.get('actor_role'),
         "presence_class": decision.get('presence_class'),
         "position_version": decision.get('position_version'),
@@ -27906,6 +27913,16 @@ def map_incident_detection_candidates():
             "judgment": bool(consequence.get("judgment")),
         } if isinstance(consequence, dict) else None,
     })
+
+
+@app.get('/api/map/incidents/encounter')
+def map_incident_encounter_result():
+    if not session.get('user'):
+        return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
+    incident_id = str(request.args.get('incident_id') or '').strip()
+    if not incident_id or len(incident_id) > 160:
+        return jsonify({'ok': False, 'error': 'invalid_incident_id'}), 400
+    return jsonify({'ok': True, 'encounter': response_encounter_store.get_result(session['user'], incident_id)})
 
 
 TERRITORY_DEFENSE_CLAN_MARKER_SUFFIXES = {

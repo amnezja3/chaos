@@ -1,7 +1,18 @@
 # 142.5 — trwałe spotkania i losowanie
 
-Status: implementacja lokalna, oczekuje na deploy i odbiór autora.
+Status: **PASS AUTORA — 20 IX 2026**, po wdrożeniu i odbiorze gameplay.
 Reguła zatwierdzona 20 IX 2026: jeden rzut na parę gracz–incydent.
+
+Potwierdzono na incydencie `incident_619b8c4c17e6`:
+
+- main: inicjator, chance 80, roll 100, avoided.
+- pies1: postronny, chance 30, roll 85, avoided.
+- Po reconnect oba wpisy zachowały identyfikatory, rzuty i wyniki.
+- neo1 (Nosik): brak wpisu podczas spotkania offline; po powrocie online
+  przy zamkniętej mapie worker utworzył wpis chance 30, roll 73, avoided.
+  Autor potwierdził, że screen obserwacji pochodził z drugiego konta.
+- Wszystkie wpisy mają execution_status=not_enabled. Odbiór nie włącza kar;
+  wykonanie konsekwencji pozostaje zakresem 142.6.
 
 ## Zachowanie
 
@@ -103,4 +114,4 @@ Obejmują równoczesne zgłoszenia, restart store'u, zmianę patrolu,
 progi 30/31 i 80/81, zapis avoided, rollback błędnego rzutu,
 offline i powrót w innym miejscu, stronicowanie i pomijanie uszkodzonego
 patrolu, prywatność receipt w endpointcie oraz brak wykonania kar.
-Obciążenie produkcyjne i odbiór gameplay pozostają do sprawdzenia po deployu.
+Odbiór gameplay potwierdzony powyżej. Nie stanowi to testu obciążeniowego.

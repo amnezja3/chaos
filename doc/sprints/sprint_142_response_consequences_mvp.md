@@ -146,7 +146,8 @@ wywołań starego executora i kar do czasu uszczelnienia kolejnych etapów.
 
 ## 142.5 — spotkanie i losowanie
 
-Implementacja lokalna 20 IX 2026; odbiór gameplay po deployu pozostaje otwarty.
+**PASS AUTORA — 20 IX 2026.** Potwierdzono role 80/30, trwałość wyników po
+reconnect, brak spotkania offline i detekcję online bez otwartej mapy.
 Instrukcja: `doc/runbooks/sprint_142_5_encounters.md`. Kary nadal wyłączone.
 
 Warunek poprzedzający ten etap: naprawiony kamerowy kontekst incydentu opisany
@@ -167,6 +168,17 @@ poniżej; szansa utworzenia incydentu i szansa kary 30/80 to odrębne etapy.
   pętli wszyscy gracze × wszystkie NPC. Wykorzystać indeks przestrzenny/presence.
 
 ## 142.6 — canonical wykonanie i recovery
+
+Implementacja lokalna 20 IX 2026: executor i recovery gotowe do kontrolowanego
+wdrożenia na `main`; gameplay PASS otwarty. Runbook:
+`doc/runbooks/sprint_142_6_canonical_consequences.md`. Trwały rzut poprzedza
+atomowy commit skutków. Stopnie aresztu czekają na 143 bez zastępczych kar.
+
+20 IX 2026: zatwierdzono wspólną tabelę mandatów, konfiskat i aresztu oraz
+kartotekę gracza. Konfiguracja i mały store są przygotowane; executor ma
+korzystać z nich według `doc/runbooks/consequence_table_v1.md`. Licznik rośnie
+wyłącznie po wykonanej karze, w tej samej transakcji. Brak implementacji
+aresztu nie pozwala automatycznie zastępować go mandatem ani zaliczać wyroku.
 
 - Wąski odczyt identity, position, presence, incident, operation, inventory,
   wallet. Przenieść Judgment/historię kar do osobnego małego store’u.

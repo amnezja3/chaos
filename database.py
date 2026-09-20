@@ -10939,14 +10939,16 @@ class PlayerOperationStore:
                 accepted.append(operation)
         return accepted
 
-    def cancel_operation(self, username, operation_id, cancelled_by="player"):
+    def cancel_operation(self, username, operation_id, cancelled_by="player", *, conn=None):
         username = self._clean_text(username)
         operation_id = self._clean_text(operation_id)
         if not username or not operation_id:
             return None, "missing_operation_id"
         now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT * FROM player_operations WHERE username = ? AND operation_id = ?",
                 (username, operation_id),
@@ -12046,7 +12048,7 @@ class PlayerInventoryStore:
                 finalize(conn, receipt)
             return receipt
 
-    def uninstall_app(self, username, app_id="", tool_id="", *, conn=None):
+    def uninstall_app(self, username, app_id="", tool_id="", *, conn=None, removed_tools=None):
         username = self._clean_text(username)
         app_id = self._clean_text(app_id)
         tool_id = self._clean_text(tool_id)
@@ -12114,6 +12116,10 @@ class PlayerInventoryStore:
                 if tool_row:
                     tool_rows[str(tool_row["tool_id"])] = tool_row
             for selected_tool_id, tool_row in tool_rows.items():
+                if removed_tools is not None:
+                    tool = loads_json(tool_row['tool_json'], {})
+                    removed_tools.append({'tool_id': selected_tool_id,
+                        'name': str(tool.get('name') or tool.get('file_name') or selected_tool_id)})
                 removed_storage += self._inventory_storage_size(
                     loads_json(tool_row["tool_json"], {})
                 )
@@ -12504,6 +12510,7 @@ class WalletBalanceStore:
         peer_username="",
         expected_version=None,
         debit_up_to=False,
+        conn=None,
     ):
         username = self._clean_text(username)
         transaction_key = self._clean_text(transaction_key)
@@ -12540,8 +12547,10 @@ class WalletBalanceStore:
                 raise WalletWriteError("expected_version must be an integer.") from exc
 
         now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             replay = conn.execute(
                 """
                 SELECT amount_delta, balance, version

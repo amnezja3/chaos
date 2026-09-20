@@ -6,7 +6,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from database import DB_PATH, db_connect, dumps_json
+from database import DB_PATH, db_connect, dumps_json, loads_json
+from .canonical_executor import execution_enabled
 from .qualification import DetectionQualification, actor_snapshot, qualification_mode
 from .npc_capsule_factory import position_at
 
@@ -18,6 +19,7 @@ def encounters_enabled():
 class EncounterStore:
     def __init__(self, incidents, capsules, db_path=DB_PATH, roller=None):
         self.incidents, self.capsules, self.db_path = incidents, capsules, db_path
+        self.executor = None
         self.roller = roller or (lambda: secrets.randbelow(100) + 1)
         with db_connect(db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
@@ -30,6 +32,12 @@ class EncounterStore:
                 policy_version TEXT NOT NULL, capsule_id TEXT NOT NULL,
                 qualification_json TEXT NOT NULL, created_at TEXT NOT NULL,
                 UNIQUE(actor_id,incident_id,occurrence))''')
+            fields = {r[1] for r in conn.execute('PRAGMA table_info(response_encounters)')}
+            for name, default in (('execution_json', '{}'), ('execution_checked_at', '')):
+                if name not in fields:
+                    conn.execute(f"ALTER TABLE response_encounters ADD COLUMN {name} TEXT NOT NULL DEFAULT '{default}'")
+            conn.execute('''CREATE INDEX IF NOT EXISTS idx_response_encounter_pending
+                ON response_encounters(execution_checked_at,encounter_id) WHERE execution_status='pending' ''')
             # Indexed round-robin patrol scan; never materialize every NPC.
             columns = {r[1] for r in conn.execute('PRAGMA table_info(response_npc_capsules)')}
             for name in ('detection_scanned_at', 'detection_actor_cursor'):
@@ -40,6 +48,36 @@ class EncounterStore:
                 WHERE status IN ('active','updated')''')
 
     def encounter(self, candidate, observer, *, now=None):
+        result = self._observe(candidate, observer, now=now)
+        receipt = result.get('encounter')
+        if receipt and receipt['execution_status'] == 'pending' and self.executor:
+            try:
+                execution = self.executor.execute(receipt['encounter_id'], candidate, observer, now=now)
+            except Exception as exc:
+                # The roll is already durable. Next fresh detection retries the
+                # transaction; no partial wallet/inventory/history effects survive.
+                print(f'[RESPONSE_EXECUTOR] deferred error={type(exc).__name__}', flush=True)
+                execution = {'status': 'deferred', 'reason': 'execution_retry_required'}
+            result['execution'] = execution
+            if execution['status'] in {'executed', 'no_effect', 'unsupported', 'blocked', 'expired'}:
+                receipt['execution_status'] = execution['status']
+            result['consequence_executed'] = bool(execution.get('consequence_executed'))
+            result['penalty_executed'] = bool(execution.get('penalty_executed'))
+        return result
+
+    def get_result(self, actor, incident_id):
+        """Read-only recovery even after leaving the patrol or closing the source."""
+        with db_connect(self.db_path) as conn:
+            row = conn.execute('''SELECT encounter_id,actor_role,chance,roll,outcome,execution_status,
+                execution_json,created_at FROM response_encounters
+                WHERE actor_id=? AND incident_id=? AND occurrence=1''', (actor,incident_id)).fetchone()
+        if not row:
+            return None
+        result = dict(row)
+        result['execution'] = loads_json(result.pop('execution_json'), {})
+        return result
+
+    def _observe(self, candidate, observer, *, now=None):
         if not encounters_enabled():
             return {'status': 'disabled', 'reason': 'encounters_disabled', 'qualified': False,
                     'consequence_executed': False, 'penalty_executed': False}
@@ -70,7 +108,8 @@ class EncounterStore:
                     'actor_id': actor, 'incident_id': incident, 'occurrence': 1,
                     'actor_role': decision['actor_role'], 'chance': chance, 'roll': roll,
                     'outcome': 'selected' if roll <= chance else 'avoided',
-                    'execution_status': 'not_enabled', 'policy_version': 'encounter-142-5-v1',
+                    'execution_status': ('pending' if roll <= chance and self.executor and execution_enabled(actor)
+                                         else 'not_enabled'), 'policy_version': 'encounter-142-5-v1',
                     'capsule_id': decision['capsule_id'], 'qualification_json': dumps_json(decision),
                     'created_at': now.isoformat()}
                 conn.execute('''INSERT INTO response_encounters (
@@ -79,7 +118,11 @@ class EncounterStore:
                     :encounter_id,:actor_id,:incident_id,:occurrence,:actor_role,:chance,:roll,
                     :outcome,:execution_status,:policy_version,:capsule_id,:qualification_json,:created_at)''', receipt)
                 duplicate = False
-            return {**decision, 'encounter': {key: receipt[key] for key in (
+            execution = loads_json(receipt.get('execution_json', '{}'), {})
+            return {**decision, 'execution': execution,
+                'consequence_executed': bool(execution.get('consequence_executed')),
+                'penalty_executed': bool(execution.get('penalty_executed')),
+                'encounter': {key: receipt[key] for key in (
                 'encounter_id', 'actor_role', 'chance', 'roll', 'outcome', 'execution_status', 'created_at')},
                 'duplicate_encounter': duplicate}
 
@@ -88,6 +131,8 @@ class EncounterStore:
         stats = {'patrols': 0, 'candidates': 0, 'created': 0, 'duplicates': 0}
         if not encounters_enabled():
             return stats
+        if self.executor:
+            self.executor.expire_pending(now=now)
         now = now or datetime.now(timezone.utc)
         patrol_limit = max(1, min(int(patrol_limit), 8))
         actor_limit = max(1, min(int(actor_limit), 32))
@@ -129,7 +174,8 @@ class EncounterStore:
                     WHERE p.lat BETWEEN ? AND ? AND {lng_clause}
                     AND p.username>? AND julianday(h.last_seen_at)>=julianday(?)
                     AND NOT EXISTS (SELECT 1 FROM response_encounters e
-                        WHERE e.actor_id=p.username AND e.incident_id=? AND e.occurrence=1)
+                        WHERE e.actor_id=p.username AND e.incident_id=? AND e.occurrence=1
+                        AND e.execution_status!='pending')
                     ORDER BY p.username LIMIT ?''', (point['lat']-lat_delta, point['lat']+lat_delta,
                     *lng_args, row['detection_actor_cursor'], (now-timedelta(seconds=90)).isoformat(),
                     capsule['incident_id'], actor_limit)).fetchall()

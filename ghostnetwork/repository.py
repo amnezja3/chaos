@@ -2678,9 +2678,9 @@ class GhostNetworkRepository:
             ).fetchone()
             return self._event(row) if row else None
 
-    def get_client_restart(self):
+    def get_client_restart(self, conn=None):
         """Latest committed rollover receipt; never reconstruct from UI state."""
-        with self._conn() as conn:
+        with (self._conn() if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 """SELECT e.* FROM ghost_part_events e
                 JOIN ghost_cycles c ON c.cycle_id = e.cycle_id

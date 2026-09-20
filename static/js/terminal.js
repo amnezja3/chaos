@@ -12218,6 +12218,25 @@ async function rebuildDesktopAppsFromProfile(profilePatch = {}) {
     return allApps;
 }
 
+function applyInventoryRemoval(snapshot, payload) {
+    const removed = new Set(payload.removed_app_ids || []);
+    const tools = payload.removed_tools || [];
+    const ids = new Set(tools.map(tool => String(tool.tool_id)));
+    const names = new Set(tools.map(tool => String(tool.name)));
+    const keepTool = tool => {
+        if (typeof tool === 'string') return !ids.has(tool) && !names.has(tool);
+        if (!tool || typeof tool !== 'object') return true;
+        if (removed.has(tool.app_id)) return false;
+        if (ids.has(String(tool.tool_id || tool.id || ''))) return false;
+        if (tool.app_id) return true;
+        return !names.has(String(tool.name || tool.file_name || tool.file || tool.filename || ''));
+    };
+    return {...snapshot,
+        apps: (snapshot.apps || []).filter(app => !removed.has(app.id || app.app_id)),
+        files: {...(snapshot.files || {}), tools: ((snapshot.files || {}).tools || []).filter(keepTool)}
+    };
+}
+
 function refreshOpenFileManagersForApps(payload = {}) {
     const filesPayload = payload.files && typeof payload.files === "object" ? payload.files : {};
     const tools = Array.isArray(filesPayload.tools) ? filesPayload.tools : null;
@@ -12228,6 +12247,14 @@ function refreshOpenFileManagersForApps(payload = {}) {
         if (!container) {
             fileManagerInstances.delete(terminalId);
             return;
+        }
+        if (Array.isArray(payload.removed_app_ids)) {
+            const next = applyInventoryRemoval({apps: state.apps, files: state.files}, payload);
+            state.apps = next.apps;
+            state.files = next.files;
+            for (const [filename, app] of state.installedToolAppsByFile) {
+                if (payload.removed_app_ids.includes(app.id || app.app_id)) state.installedToolAppsByFile.delete(filename);
+            }
         }
         if (tools) state.files.tools = tools;
         if (apps) {
@@ -12255,9 +12282,10 @@ function applyGoogleplexDownloadUpdate(catalog, update) {
 
 async function updateAppsView(payload = {}) {
     const filesPayload = payload.files && typeof payload.files === "object" ? payload.files : null;
-    const nextProfile = {
+    let nextProfile = {
         ...(toolbarProfile || {})
     };
+    if (Array.isArray(payload.removed_app_ids)) nextProfile = applyInventoryRemoval(nextProfile, payload);
     if (Array.isArray(payload.apps)) nextProfile.apps = payload.apps;
     if (filesPayload) {
         nextProfile.files = {

@@ -39,6 +39,32 @@ def env_csv(name, default=""):
 
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 
+# Approved consequence ladder. Activation belongs to the canonical 142.6
+# executor; configuring a sanction does not enable it. Bump version on rebalance.
+RESPONSE_CONSEQUENCE_TABLE = {
+    "version": "consequences-v1",
+    "incident_entry_stage": {1: None, 2: 1, 3: 3, 4: 5, 5: 6},
+    "max_stage": 9,
+    "history_scope": "player_lifetime",
+    "count_only_executed": True,
+    "fine": {"minimum_hc": 10, "risk_divisor": 2, "balance_cap_percent": 18,
+             "reserve_percent": 10, "reserve_max_hc": 50},
+    "minimum_remaining_operation_tools": 1,
+    "detention": {"requires_online": True, "clock": "online_presence",
+                  "pause_offline": True, "resume_remaining_on_reconnect": True},
+    "stages": {
+        1: {"fine_multiplier": 1, "tools": 0, "detention_minutes": 0},
+        2: {"fine_multiplier": 2, "tools": 0, "detention_minutes": 0},
+        3: {"fine_multiplier": 0, "tools": 1, "detention_minutes": 0},
+        4: {"fine_multiplier": 0, "tools": 2, "detention_minutes": 0},
+        5: {"fine_multiplier": 3, "tools": 3, "detention_minutes": 0},
+        6: {"fine_multiplier": 0, "tools": 0, "detention_minutes": 5},
+        7: {"fine_multiplier": 0, "tools": 0, "detention_minutes": 10},
+        8: {"fine_multiplier": 0, "tools": 0, "detention_minutes": 15},
+        9: {"fine_multiplier": 0, "tools": 0, "detention_minutes": 20},
+    },
+}
+
 
 OPERATION_FEEDBACK_FLAGS = {
     "enabled": env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False),

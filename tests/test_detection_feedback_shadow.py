@@ -228,6 +228,15 @@ class DetectionFeedbackShadowTest(unittest.TestCase):
             self.assertEqual(response.get_json()['encounter'], receipt)
             self.assertFalse(response.get_json()['penalty_executed'])
 
+    def test_encounter_recovery_uses_session_actor_not_query_actor(self):
+        client = run.app.test_client()
+        headers = self.session_generation.authenticate(client, 'observer')
+        with patch.object(run.response_encounter_store, 'get_result', return_value=None) as read, \
+                patch.object(run.response_encounter_store, 'encounter', side_effect=AssertionError('recovery must not execute')):
+            response = client.get('/api/map/incidents/encounter?incident_id=incident-one&actor_id=someone-else', headers=headers)
+        self.assertEqual(response.status_code, 200)
+        read.assert_called_once_with('observer', 'incident-one')
+
     def test_visible_safe_candidate_is_accepted_without_penalty(self):
         incident, capsule, profile, candidate = self._seed_active_scene()
         candidate["candidate_id"] = "candidate-visible-safe"
