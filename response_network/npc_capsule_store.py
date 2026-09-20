@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import nullcontext
 from datetime import datetime, timezone
 
 from database import DB_PATH, db_connect, dumps_json, loads_json
@@ -82,8 +83,8 @@ class NPCCapsuleStore:
         })
         return capsule
 
-    def get(self, capsule_id):
-        with db_connect(self.db_path) as conn:
+    def get(self, capsule_id, *, conn=None):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(
                 "SELECT * FROM response_npc_capsules WHERE capsule_id = ?",
                 (_clean(capsule_id),),

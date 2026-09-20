@@ -5,6 +5,12 @@
  const labels={username:'Login',nick:'Nazwa gracza',clan:'Klan',profession:'Profesja',hackcoins:'Saldo HC',level:'Poziom',respect:'Respekt',lat:'Szerokość',lng:'Długość',storage_capacity:'Pojemność (MB)',storage_used:'Zajęte (MB)',id:'ID',owner:'Właściciel',area_size:'Powierzchnia (m²)',status:'Status',updated_at:'Aktualizacja',label:'Nazwa',name:'Nazwa',reporter:'Zgłaszający',type:'Typ',app_id:'Aplikacja',folder:'Katalog',operation_id:'Operacja',target_key:'Cel',captured_at:'Przejęto'};
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  const value=v=>v===null||v===undefined||v===''?'—':String(v);
+ labels.created_at='Utworzono konto';
+ const createdDate=v=>{
+  if(!v)return 'Brak daty';
+  const raw=String(v).trim(),date=new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)?raw:raw+'Z');
+  return Number.isNaN(date.getTime())?'Brak daty':date.toLocaleString('pl-PL',{timeZone:'Europe/Warsaw',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})+' (Warszawa)';
+ };
  async function request(url,options={}) {
   const response=await fetch(url,{cache:'no-store',...options});
   const data=await response.json().catch(()=>null);
@@ -25,7 +31,12 @@
    listing.replaceChildren();
    if(section==='users'){
     if(!data.items.length)listing.append(node('p','Nie znaleziono użytkowników.'));
-    data.items.forEach(user=>{const b=node('button');b.className='user-row';b.dataset.username=user.username;b.setAttribute('aria-pressed',String(selected===user.username));b.append(node('strong',user.nick||user.username),node('small',`${user.username} / ${user.clan||'bez klanu'}`));b.onclick=()=>loadUser(user.username);listing.append(b);});
+    data.items.forEach(user=>{
+     const b=node('button');b.className=user.is_new?'user-row user-row-new':'user-row';b.dataset.username=user.username;b.setAttribute('aria-pressed',String(selected===user.username));
+     if(user.is_new){const badge=node('span','NOWE · ostatnie 7 dni');badge.className='new-account-badge';b.append(badge);}
+     b.append(node('strong',user.nick||user.username),node('small',`${user.username} / ${user.clan||'bez klanu'}`),node('small',`Utworzono: ${createdDate(user.created_at)}`));
+     b.onclick=()=>loadUser(user.username);listing.append(b);
+    });
    }else listing.append(table(data.items));
    document.getElementById('prev').disabled=offset===0;document.getElementById('next').disabled=!data.has_more;document.getElementById('page-label').textContent=`Strona ${Math.floor(offset/50)+1}`;notice.textContent=`Wyświetlono ${data.items.length} pozycji.`;
   }catch(error){if(serial===listSerial)notice.textContent=error.message;}
@@ -37,7 +48,7 @@
   try{
    const data=await request('/api/admin/panel/user?'+new URLSearchParams({username}));if(serial!==detailSerial)return;
    detail.replaceChildren(node('h2',data.user.nick||username));const fields=node('dl');
-   Object.entries(data.user).forEach(([key,v])=>{fields.append(node('dt',labels[key]||key),node('dd',value(v)));});detail.append(fields);
+   Object.entries(data.user).forEach(([key,v])=>{fields.append(node('dt',labels[key]||key),node('dd',key==='created_at'?createdDate(v):value(v)));});detail.append(fields);
    const settings=node('section');settings.className='settings';settings.append(node('h3','Zarządzanie kontem'));
    if(data.profession.choices.length){
     const form=node('form');form.className='toolbar';const label=node('label','Profesja'),select=node('select');

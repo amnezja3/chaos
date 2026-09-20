@@ -1,7 +1,8 @@
 # 142.4 — kwalifikacja spotkania ze służbami
 
-Implementacja lokalna gotowa do odbioru. Bez PASS gameplayu i bez deployu
-wykonanego przez agenta. Zmiany 142.3/refresh obecne w workspace zachowane.
+Status: **PASS AUTORA — 18 IX 2026**. Po wdrożeniu autor potwierdził OBS
+i brak kar, następnie wszystkie pozostałe scenariusze odbioru. Deploy wykonał
+użytkownik. Tryb obserwacji pozostaje aktywny; zakończenie odbioru nie włącza kar.
 
 ## Tryb i dane
 

@@ -57,6 +57,7 @@ from response_network.incident_store import IncidentStore
 from response_network.detection_candidate_store import DetectionCandidateStore
 from response_network.detection_validator import DetectionValidator
 from response_network.qualification import DetectionQualification, actor_snapshot, qualification_mode
+from response_network.encounters import EncounterStore, encounters_enabled
 from response_network.consequence_executor import ConsequenceExecutor
 from response_network.camera_contract import CameraContractStore, CameraContractError, camera_marker
 from response_network.camera_exposure import capture_exposure, shutdown_windows, bind_windows
@@ -159,6 +160,7 @@ incident_initializer = IncidentInitializer(incident_store, territory_context_rea
 npc_capsule_store = NPCCapsuleStore()
 response_dispatcher = ResponseDispatcher(npc_capsule_store)
 detection_candidate_store = DetectionCandidateStore()
+response_encounter_store = EncounterStore(incident_store, npc_capsule_store)
 detection_validator = DetectionValidator(
     incident_store,
     npc_capsule_store,
@@ -24011,9 +24013,10 @@ def hack_action():
         label = current.get("label") or current.get("name") or player_target_username
         vulnerability_id = None
         data["target_id"] = current.get("target_id") or f"player:{player_target_username}"
-        player_runtime["operations"] = player_operation_store.list_active_operations(session["user"], limit=32)
-        if len(player_runtime["operations"]) >= 32:
-            raise ProfileRecoveryRequired("Player operation limit exceeded")
+        # Only this target is needed for the launcher. A bounded read is not
+        # a gameplay limit; canonical upsert still deduplicates beyond this slice.
+        player_runtime["operations"] = player_operation_store.list_active_operations(
+            session["user"], limit=32, target_key=build_operation_target_id(current))
         player_inventory_store.require_launcher_ready(session["user"])
     selected_app_id = str(data.get("selected_app_id") or "").strip()
     flow_id = str(data.get("_flow_id") or "")[:96]
@@ -27854,10 +27857,13 @@ def map_incident_detection_candidates():
     candidate = dict(payload)
     candidate["observer_username"] = session.get("user")
     try:
-        decision = DetectionQualification(incident_store, npc_capsule_store,
-            detection_candidate_store,
-            lambda actor: actor_snapshot(player_position_store.db_path, actor)
-        ).qualify(candidate, session.get('user'))
+        if encounters_enabled():
+            decision = response_encounter_store.encounter(candidate, session.get('user'))
+        else:
+            decision = DetectionQualification(incident_store, npc_capsule_store,
+                detection_candidate_store,
+                lambda actor: actor_snapshot(player_position_store.db_path, actor)
+            ).qualify(candidate, session.get('user'))
     except Exception as exc:
         print(f"[DETECTION] qualification unavailable: {type(exc).__name__}", flush=True)
         return jsonify({
@@ -27878,6 +27884,8 @@ def map_incident_detection_candidates():
         "success": True,
         "mode": decision.get("mode"),
         "qualified": bool(decision.get('qualified')),
+        "encounter": decision.get('encounter') if decision.get('actor_id') == session.get('user') else None,
+        "duplicate_encounter": bool(decision.get('duplicate_encounter')),
         "actor_role": decision.get('actor_role'),
         "presence_class": decision.get('presence_class'),
         "position_version": decision.get('position_version'),
@@ -30391,9 +30399,8 @@ def gonna_win():
     player_flow = canonical_target.get("target_mode") == "player" or expected_target.get("target_mode") == "player"
     if player_flow:
         profile = load_player_hack_runtime_context(session.get("user"))
-        profile["operations"] = player_operation_store.list_active_operations(session["user"], limit=32)
-        if len(profile["operations"]) >= 32:
-            raise ProfileRecoveryRequired("Player operation limit exceeded")
+        profile["operations"] = player_operation_store.list_active_operations(
+            session["user"], limit=32, target_key=build_operation_target_id(canonical_target))
         if canonical_target.get("target_mode") != "player":
             return jsonify({"success": False, "reason": "target_selection_changed"}), 409
         cooldown_response = player_hack_cooldown_response(session["user"], canonical_target.get("target_username"))

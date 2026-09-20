@@ -8,4 +8,4 @@
 <div class="workspace"><section class="panel" aria-label="Lista"><div id="listing"></div><div class="pager"><button id="prev">← Wstecz</button><span id="page-label"></span><button id="next">Dalej →</button></div></section>
 <section id="detail" class="panel detail" aria-label="Szczegóły użytkownika" {% if active_tab != 'users' %}hidden{% endif %}><p class="empty">Wybierz użytkownika z listy. Dane konta zostaną pobrane dopiero po wyborze.</p></section></div>
 {% endblock %}
-{% block scripts %}<script>window.adminSection={{ active_tab|tojson }};</script><script src="/static/js/admin_panel.js?v=1"></script>{% endblock %}
+{% block scripts %}<script>window.adminSection={{ active_tab|tojson }};</script><script src="/static/js/admin_panel.js?v=2"></script>{% endblock %}

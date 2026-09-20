@@ -108,6 +108,16 @@ class PlayerHackCompletionTest(unittest.TestCase):
         self.assertTrue(response.json['operation_only'])
         self.assertIsNone(self.access.get_active_access('attacker', 'victim'))
 
+    def test_many_territory_operations_do_not_block_player_capture(self):
+        self.setup_complete(heavy=True)
+        self.operations.upsert_operations('attacker', [
+            {'operation_id': f'field-{i}', 'target_id': f'map:field-{i}',
+             'operation_type': 'device_tracking', 'status': 'running'} for i in range(40)])
+        with patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy profile')):
+            response = self.client.post('/gonna-win', json=self.request)
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertIn('player_hack_access', response.json)
+
     def test_failure_after_commit_replays_durable_capture(self):
         self.setup_complete()
         with patch.object(self.receipts, 'finish', side_effect=RuntimeError('response write failed')):

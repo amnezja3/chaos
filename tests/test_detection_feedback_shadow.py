@@ -211,6 +211,23 @@ class DetectionFeedbackShadowTest(unittest.TestCase):
                 patch.object(run.user_store, 'get_profile', side_effect=AssertionError('profile read')):
             self.assertFalse(run.execute_response_network_consequence({'mode': 'full', 'status': 'accepted'})['consequence_executed'])
 
+    def test_encounter_endpoint_returns_receipt_only_to_its_actor(self):
+        client = run.app.test_client()
+        headers = self.session_generation.authenticate(client, 'observer')
+        receipt = {'encounter_id': 'receipt', 'roll': 25, 'outcome': 'selected'}
+        decision = {'status': 'observed', 'mode': 'observe', 'qualified': True,
+            'actor_id': 'someone-else', 'encounter': receipt}
+        with patch.object(run, 'encounters_enabled', return_value=True), \
+                patch.object(run.response_encounter_store, 'encounter', return_value=decision), \
+                patch.object(run, 'execute_response_network_consequence', side_effect=AssertionError('executor called')):
+            response = client.post('/api/map/incidents/detection-candidates', headers=headers, json={})
+            self.assertEqual(response.status_code, 200)
+            self.assertIsNone(response.get_json()['encounter'])
+            decision['actor_id'] = 'observer'
+            response = client.post('/api/map/incidents/detection-candidates', headers=headers, json={})
+            self.assertEqual(response.get_json()['encounter'], receipt)
+            self.assertFalse(response.get_json()['penalty_executed'])
+
     def test_visible_safe_candidate_is_accepted_without_penalty(self):
         incident, capsule, profile, candidate = self._seed_active_scene()
         candidate["candidate_id"] = "candidate-visible-safe"

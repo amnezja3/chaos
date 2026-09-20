@@ -1,6 +1,7 @@
 """142.4: bounded, server-owned detection qualification; no penalty execution."""
 import hashlib
 import os
+from contextlib import nullcontext
 from datetime import datetime, timezone
 
 from database import db_connect
@@ -16,10 +17,12 @@ def qualification_mode():
     return 'observe' if value == 'observe' else 'disabled'
 
 
-def actor_snapshot(db_path, username):
+def actor_snapshot(db_path, username, *, conn=None):
     """Three indexed point reads in one snapshot, never a profile fallback."""
-    with db_connect(db_path) as conn:
-        conn.execute('BEGIN')
+    owned = conn is None
+    with (db_connect(db_path) if owned else nullcontext(conn)) as conn:
+        if owned:
+            conn.execute('BEGIN')
         ownership = conn.execute('SELECT status,updated_at,active_revision FROM account_login_ownership WHERE username_hash=?',
             (username_digest(username),)).fetchone()
         presence = conn.execute('SELECT last_seen_at FROM mail_presence WHERE username=?', (username,)).fetchone()
@@ -34,7 +37,7 @@ class DetectionQualification:
         self.incidents, self.capsules, self.candidates = incidents, capsules, candidates
         self.actor_reader = actor_reader
 
-    def qualify(self, payload, observer, now=None):
+    def qualify(self, payload, observer, now=None, *, record=True):
         now = _coerce_datetime(now or datetime.now(timezone.utc))
         mode = qualification_mode()
         result = {'status': 'rejected', 'reason': '', 'mode': mode,
@@ -145,6 +148,8 @@ class DetectionQualification:
             result['validation_key'] = 'qualification:' + hashlib.sha256(key.encode()).hexdigest()[:32]
             candidate.update(candidate_id=result['validation_key'], validation_key=result['validation_key'],
                 observer_username=observer, mode=mode, actor_position=position, operation_id='')
+            if not record:
+                return result
             stored, created = self.candidates.record(candidate, result, now=now)
             return {**result, 'candidate_id': (stored or candidate)['candidate_id'], 'duplicate': not created}
         except (KeyError, TypeError, ValueError, OverflowError, OSError):

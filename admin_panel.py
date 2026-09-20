@@ -7,7 +7,10 @@ def page(db_path, section, *, offset=0, search="", username=""):
     search = str(search or "")[:100]
     params = []
     if section == "users":
-        query = """SELECT u.username, p.display_alias AS nick, p.clan_code AS clan,
+        query = """SELECT u.username, u.created_at,
+                   COALESCE(julianday(u.created_at) BETWEEN julianday('now','-7 days')
+                       AND julianday('now'), 0) AS is_new,
+                   p.display_alias AS nick, p.clan_code AS clan,
                    p.profession_code AS profession FROM users u
                    LEFT JOIN user_identity_projection p ON p.username=u.username
                    WHERE instr(lower(u.username), lower(?))>0
@@ -59,7 +62,7 @@ def page(db_path, section, *, offset=0, search="", username=""):
 
 def user_summary(db_path, username):
     with db_connect(db_path) as conn:
-        row = conn.execute("""SELECT p.username, p.display_alias AS nick, p.clan_code AS clan,
+        row = conn.execute("""SELECT p.username, u.created_at, p.display_alias AS nick, p.clan_code AS clan,
             p.profession_code AS profession, w.balance AS hackcoins,
             pos.lat, pos.lng, s.capacity AS storage_capacity, s.used AS storage_used,
             c.player_level AS level,

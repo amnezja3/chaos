@@ -10623,22 +10623,26 @@ class PlayerOperationStore:
                 if isinstance(operation, dict)
             ]
 
-    def list_active_operations(self, username, limit=8):
+    def list_active_operations(self, username, limit=8, *, target_key=None):
         """Return a bounded active-operation slice for narrow gameplay hooks."""
         username = self._clean_text(username)
         limit = max(1, min(int(limit or 1), 32))
         if not username:
             return []
         placeholders = ",".join("?" for _ in self.TERMINAL_STATUSES)
+        target_filter = " AND target_key = ?" if target_key is not None else ""
+        params = [username, *sorted(self.TERMINAL_STATUSES)]
+        if target_key is not None:
+            params.append(self._clean_text(target_key))
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 f"""
                 SELECT * FROM player_operations
-                WHERE username = ? AND status NOT IN ({placeholders})
+                WHERE username = ? AND status NOT IN ({placeholders}){target_filter}
                 ORDER BY updated_at, operation_id
                 LIMIT ?
                 """,
-                (username, *sorted(self.TERMINAL_STATUSES), limit),
+                (*params, limit),
             ).fetchall()
         return [
             operation for operation in (self._row_to_operation(row) for row in rows)

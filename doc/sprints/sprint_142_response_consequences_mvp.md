@@ -124,7 +124,9 @@ list_active/list_public bez limitu do nowego workera. Szczegóły i testy w audy
 
 ## 142.4 — kontrakt kwalifikacji i zabezpieczenie wejścia
 
-Status: **IMPLEMENTACJA LOKALNA / ODBIÓR PRODUKCYJNY PENDING** (18 IX 2026).
+Status: **ZAMKNIĘTY / PASS AUTORA** (18 IX 2026).
+Autor potwierdził OBS i brak kar, następnie wszystkie pozostałe scenariusze
+odbioru. Tryb obserwacji pozostaje aktywny; PASS nie włącza egzekucji kar.
 Kontrakt i odbiór: [runbook 142.4](../runbooks/sprint_142_4_detection_qualification.md).
 Produkcyjna ścieżka została przełączona na jawną obserwację: brak losowania,
 wywołań starego executora i kar do czasu uszczelnienia kolejnych etapów.
@@ -144,14 +146,17 @@ wywołań starego executora i kar do czasu uszczelnienia kolejnych etapów.
 
 ## 142.5 — spotkanie i losowanie
 
+Implementacja lokalna 20 IX 2026; odbiór gameplay po deployu pozostaje otwarty.
+Instrukcja: `doc/runbooks/sprint_142_5_encounters.md`. Kary nadal wyłączone.
+
 Warunek poprzedzający ten etap: naprawiony kamerowy kontekst incydentu opisany
 poniżej; szansa utworzenia incydentu i szansa kary 30/80 to odrębne etapy.
 
 - Wprowadzić trwały encounter/receipt oraz pojedynczy serwerowy rzut:
   inicjator 80%, postronny 30%. Rzut i wynik także dla uniknięcia kary zapisane.
-- Proponowana jednostka MVP: raz na gracza i incydent; patrole, karty,
+- Zatwierdzona przez autora 20 IX 2026 jednostka MVP: raz na gracza i incydent; patrole, karty,
   obserwatorzy, retry i reconnect nie tworzą nowego rzutu. Ponowne wejście
-  do tego samego incydentu nie resetuje wyniku. Potwierdzić przed kodowaniem.
+  do tego samego incydentu nie resetuje wyniku.
   Model receipt musi umożliwić odrębne, legalne kolejne zatrzymanie w 143;
   retry nie jest recydywą. Reguła nowego spotkania pozostaje do ustalenia.
 - Incydent musi mieć trwałe przypisanie inicjatora, także po końcu operacji.

@@ -88,6 +88,26 @@ class PlayerLauncherHotPathTest(unittest.TestCase):
         self.assertEqual(self.inventory.consume_launches('attacker'), [])
         self.assertEqual(len(self.inventory.launch_risk_events('attacker')), 1)
 
+    def test_many_operations_do_not_block_map_or_terminal_and_keep_deduplication(self):
+        self.setup_launcher()
+        self.operations.upsert_operations('attacker', [
+            {'operation_id': f'busy-{i}', 'target_id': 'player:victim' if i < 40 else f'map:{i}',
+             'operation_type': f'other-{i}', 'status': 'running'} for i in range(80)])
+        with patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy profile')):
+            response = self.client.post('/hack-action', json=self.payload)
+            self.assertEqual(response.status_code, 200, response.json)
+            target = self.targets.get_active_target('attacker')
+            for receipt in ('desktop-first', 'desktop-second'):
+                response = self.client.post('/gonna-win', json={'app_id': 'testScanner',
+                    'expected_target': target, 'operation_only': True, 'launch_receipt': receipt})
+                self.assertEqual(response.status_code, 200, response.json)
+        with db_connect(self.path) as conn:
+            count = conn.execute("SELECT count(*) FROM player_operations WHERE username='attacker' AND operation_type='port_scan'").fetchone()[0]
+        self.assertEqual(count, 1)
+        selected = self.operations.list_active_operations('attacker', limit=32, target_key='player:victim')
+        self.assertEqual(len(selected), 32)
+        self.assertTrue(all(op['target_id'] == 'player:victim' for op in selected))
+
     def test_explicit_migration_preserves_pending_queue_and_risk_without_replay(self):
         self.setup_launcher()
         profile = valid_profile('legacy')

@@ -44,6 +44,9 @@ def process_operation_runtime_if_due():
         return {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
     result = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
     run.process_incident_runtime_tick()
+    encounters = run.response_encounter_store.scan()
+    if encounters.get('created'):
+        print(f"[TERRITORY_WORKER] response_encounters={encounters}", flush=True)
     if result.get("files"):
         print(
             f"[TERRITORY_WORKER] operation_files_finalized={result['files']} "

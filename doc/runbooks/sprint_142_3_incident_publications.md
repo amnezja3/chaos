@@ -9,6 +9,7 @@ zakładki, zachowuje wyszukiwanie i blokuje wielokrotne kliknięcia w trakcie
 żądania. News korzysta z istniejącego endpointu bez cache i nie uruchamia
 modelu. Zmieniono wersję assetu terminal.js w trzech szablonach. Walidacja:
 `node --check static/js/terminal.js` oraz `git diff --check` PASS.
+Odbiór gameplayowy przycisku refresh WebDragons: **PASS autora, 18 IX 2026**.
 
 Po deployu odświeżyć cały klient raz, aby pobrać przycisk. Następnie przez
 kilka godzin aktywności graczy obserwować rotację, wiek publikacji, kolejkę
