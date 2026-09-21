@@ -456,7 +456,11 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("const markerPoint = map.latLngToContainerPoint([safeLat, safeLng]);", source)
         self.assertIn("Math.min(96, candidate)", source)
         self.assertIn("'hackedTargetMarker'", source)
-        self.assertGreaterEqual(source.count("showMapMenuFromOriginalContextEvent(e);"), 4)
+        # Scan marker handlers were consolidated; three Leaflet handlers remain.
+        # Territory DOM hitboxes are checked separately by the cutover tests.
+        self.assertGreaterEqual(source.count("showMapMenuFromOriginalContextEvent(e);"), 3)
+        self.assertIn("isContextEventInsideMarkerHitbox(contextMarker, e, contextTarget", source)
+        self.assertIn("isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)", source)
         self.assertIn(".target-hacked > *", source)
         self.assertIn("pointer-events: none !important;", source)
 

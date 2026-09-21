@@ -1,6 +1,7 @@
 # Sprint 142 — pełna ścieżka incydentu i konsekwencji MVP
 
-Status: W REALIZACJI; rozszerzony audyt techniczny ukończony 16 IX 2026
+Status: 142.1–142.6 PASS; 142.7 LOKALNY PASS, OCZEKUJE WDROŻENIA I ODBIORU VPS
+(21 IX 2026). Rozszerzony audyt techniczny ukończony 16 IX 2026
 przed rozpoczęciem developmentu. 142.1 zamknięty po ponownym PASS autora
 17 IX 2026. 142.2 zamknięty po odbiorze autora; 142.3 PASS autora 18 IX 2026.
 Podstawa: [audyt](../audits/response_consequences_2026_09_16.md).
@@ -169,8 +170,13 @@ poniżej; szansa utworzenia incydentu i szansa kary 30/80 to odrębne etapy.
 
 ## 142.6 — canonical wykonanie i recovery
 
-Implementacja lokalna 20 IX 2026: executor i recovery gotowe do kontrolowanego
-wdrożenia na `main`; gameplay PASS otwarty. Runbook:
+**PASS AUTORA — 21 IX 2026, kontrolowany odbiór na `main`.** Potwierdzono
+stopnie 1–5: mandaty 30 i 62 HC, konfiskatę jednego i dwóch narzędzi,
+następnie mandat 93 HC z trzema narzędziami. Kartoteka wzrosła do 5;
+avoided i unsupported nie zwiększyły licznika. Potwierdzono trwałość po
+reconnectcie i aktualizację dysku, pulpitu oraz menedżera plików na żywo.
+Ponowna konfiskata Nmap dotyczyła aplikacji ponownie kupionej przez autora.
+Odbiór 142.6 nie zamyka integracji i rolloutu z 142.7. Runbook:
 `doc/runbooks/sprint_142_6_canonical_consequences.md`. Trwały rzut poprzedza
 atomowy commit skutków. Stopnie aresztu czekają na 143 bez zastępczych kar.
 
@@ -194,6 +200,16 @@ aresztu nie pozwala automatycznie zastępować go mandatem ani zaliczać wyroku.
   ofiary aktualizują się przez delty. Reconnect daje ten sam stan.
 
 ## 142.7 — testy całej ścieżki i odbiór
+
+Status: **LOKALNY PASS / GOTOWE DO WDROŻENIA** (21 IX 2026).
+113 różnych testów Python, macierz 90 przypadków kwalifikacji, sześć zestawów
+JS i spójność konfiguracji PASS. Dodano połączony test canonical scanu,
+HTTP shutdown, spadku ryzyka i dalszej eskalacji, publicznego źródła,
+patrolu oraz kary bez otwartej mapy po powrocie online.
+Cztery ecosystemy rozszerzono z main na wszystkie konta (`*`).
+Wdrożenie, potwierdzenie działania na innym koncie, odbiór mobile i obserwacja
+obciążenia VPS pozostają otwarte. Nie oznaczamy całego 142 jako COMPLETE.
+Dowody, ograniczenia i instrukcja: [runbook 142.7](../runbooks/sprint_142_7_integration_rollout.md).
 
 Test integracyjny od realnego scanu i autoryzowanego shutdown, przez różnicę
 inicjacji/eskalacji, publikacje mapowe/media/BlackNet, aż po istniejącą karę
@@ -224,14 +240,16 @@ DoD: wszystkie testy pełnej ścieżki, mapa reuse/adapt/clone, działające
 publikacje i recovery, udokumentowane źródła danych, odbiór realnej kary/live
 na desktop/mobile i powrotu po disconnect, brak niewyjaśnionych prepared.
 
-## Decyzje do zamknięcia przed implementacją
+## Decyzje zamknięte w 142.4–142.6
 
-Propozycje, nie istniejący gameplay: jedna próba na incydent; bierny online
-jako postronny 30%, chyba że chroniony własnym niezwiązanym terytorium;
-timeout sesji jak offline. Wyjaśnić znaczenie gameplayowego „timeoutu”.
-Dla postronnego ustalić wybór konfiskowanego narzędzia (brak użytej operacji),
-kwotę HC i czy kary występują razem. 30/80 to szansa konsekwencji, nie osobny
-rzut dla każdej kary. Zachować stare limity jako punkt wyjścia do uzgodnienia.
+Jeden trwały rzut na gracza i incydent; inicjator 80%, postronny 30%.
+Bierny online podlega kwalifikacji; wygasła sesja i offline jej nie przechodzą.
+30/80 to szansa konsekwencji, nie osobny rzut dla każdej kary. Po skutecznej
+kwalifikacji plan wynika ze wspólnej tabeli i liczby wykonanych kar.
+Kwoty, ochrona zasobów, wybór narzędzi i kary łączone opisane w runbookach
+142.6 i consequence_table_v1. Nie wprowadzono wyjątku własnego terytorium
+z historycznej propozycji. Nowe legalne zatrzymanie w tym samym incydencie,
+więzienia i czas online pozostają decyzjami/implementacją sprintu 143.
 
 Poza zakresem: więzienia, blokady komunikacji, ruchu i teleportów — sprint 143.
 

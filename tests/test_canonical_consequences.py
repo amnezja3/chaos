@@ -126,6 +126,25 @@ class CanonicalConsequencesTest(unittest.TestCase):
         self.assertEqual(result['status'], 'executed')
         self.assertIsNone(result['effects']['cancelled_operation_id'])
 
+    def test_rollout_all_players_does_not_upgrade_old_allowlist_receipts(self):
+        with patch.dict('os.environ', {'CHAOS_RESPONSE_EXECUTION_ACTORS':'alice'}):
+            self.assertEqual(self.encounter('bob')['encounter']['execution_status'], 'not_enabled')
+        self.encounter('bob')  # Wildcard now enabled; same incident must stay untouched.
+        self.assertEqual(self.scalar('SELECT count(*) FROM response_penalty_history'), 0)
+        self.incident = self.incidents.upsert({**self.incident, 'incident_id':'rollout-new'}, now=self.now)
+        from response_network.npc_capsule_factory import NPCCapsuleFactory, position_at
+        self.capsule = NPCCapsuleFactory().build_for_incident(self.incident, now=self.now)[0]
+        self.capsules.upsert(self.capsule, now=self.now)
+        self.now += timedelta(seconds=30)
+        self.point = position_at(self.capsule, self.now)
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE player_positions SET lat=?,lng=? WHERE username='bob'", (self.point['lat'], self.point['lng']))
+            conn.execute("UPDATE mail_presence SET last_seen_at=? WHERE username='bob'", (self.now.isoformat(),))
+        result = self.encounter('bob')
+        self.assertEqual(result['execution']['status'], 'executed')
+        self.assertEqual(result['encounter']['chance'], 30)
+        self.assertEqual(self.scalar('SELECT count(*) FROM response_penalty_history'), 1)
+
     def test_detention_and_protected_inventory_are_not_counted_as_executed(self):
         self.incidents.upsert({**self.incident, 'level':5}, now=self.now)
         self.assertEqual(self.encounter()['execution']['status'], 'unsupported')

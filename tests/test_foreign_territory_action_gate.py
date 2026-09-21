@@ -1,4 +1,5 @@
 import inspect
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -174,7 +175,7 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         self.assertLess(guard, legacy_targets)
 
     def test_frontend_treats_expected_403_as_controlled_system_message(self):
-        with open("templates/map_template.html", encoding="utf-8") as handle:
+        with open(Path(__file__).resolve().parents[1] / "templates/map_template.html", encoding="utf-8") as handle:
             source = handle.read()
 
         self.assertIn("function isForeignTerritoryProtectedResponse", source)

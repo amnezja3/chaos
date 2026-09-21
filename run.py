@@ -15855,12 +15855,24 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
         return normalized
 
     def add_contested_target(conflict, owner_username, target, item=None, extra=None):
+        canonical_target_id = territory_conflict_store.stable_target_id(target)
+        ownership = (visibility_context.get("ownership_by_target_id") or {}).get(
+            canonical_target_id
+        )
+        if ownership:
+            owner_username = ownership.get("owner_username")
         owner_username = str(owner_username or "").strip()
         if not owner_username or owner_username == username:
             return
-        if item and item.get("previous_owner") == username:
-            return
-        if target.get("previous_owner_username") == username:
+        # A captured registry item describes history, not immunity from a
+        # counter-attack. Current ownership decides who may attack it, just as
+        # in project_territory_conflict_snapshot and capture_pillar. Legacy
+        # captured records without an identifiable holder remain fail-closed.
+        if item and (item.get("captured") or item.get("status") == "captured"):
+            holder = str(item.get("captured_by") or item.get("hacked_by") or "").strip()
+            if not ownership and holder != owner_username:
+                return
+        if item is None and target.get("previous_owner_username") == username:
             return
         try:
             lat = float(target.get("lat", (item or {}).get("lat")))
@@ -15881,7 +15893,16 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             return
 
         front_geometries = conflict_front_geometries(conflict)
-        if front_geometries and not any(
+        # The canonical conflict registry also contains boundary-support pillars
+        # outside the overlap (reveal_conflict_targets_for_group). The map keeps
+        # these pillars actionable; reapplying the inner-point geometry rule here
+        # made their aim/hack requests look like protected ordinary territory.
+        # Only a stored conflict item grants this exception, never client hints
+        # or the fallback enumeration of other objects in a foreign cluster.
+        published_pillar = item is not None and str(
+            item.get("node_role") or target.get("node_role") or ""
+        ).lower() == "pillar"
+        if front_geometries and not published_pillar and not any(
             territory_point_in_polygon_or_boundary(
                 {"lat": lat, "lng": lng}, geometry
             )
@@ -15915,11 +15936,7 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             "source_type": target.get("source_type") or "territory_contest",
             **visibility,
         })
-        canonical_target_id = territory_conflict_store.stable_target_id(target)
         target["target_id"] = canonical_target_id
-        ownership = (visibility_context.get("ownership_by_target_id") or {}).get(
-            canonical_target_id
-        )
         target["expected_owner_username"] = (
             ownership.get("owner_username") if ownership else owner_username
         )
@@ -15939,13 +15956,7 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
         for item in conflict.get("targets") or []:
             if not isinstance(item, dict):
                 continue
-            if item.get("captured") or item.get("status") == "captured":
-                continue
             owner_username = str(item.get("owner_username") or item.get("owner") or "").strip()
-            if not owner_username or owner_username == username:
-                continue
-            if item.get("previous_owner") == username:
-                continue
             target = dict(item.get("target") or {})
             add_contested_target(conflict, owner_username, target, item=item)
 

@@ -50,6 +50,37 @@ class ResponseQualificationTest(unittest.TestCase):
         self.assertFalse(result['consequence_executed'])
         self.assertEqual(self.audit.record.call_args.args[0]['operation_id'], '')
 
+    def test_three_services_roles_presence_and_distance_matrix(self):
+        from response_network.npc_capsule_factory import _project_point
+        from response_network.detection_validator import _distance_m
+        original = copy.deepcopy(self.actor)
+        center = {'lat': 52, 'lng': 21}
+        for family in ('police', 'cyberpolice', 'secretservice'):
+            for role in ('initiator', 'bystander'):
+                for state in ('online_active', 'online_inactive', 'offline', 'expired', 'heartbeat_timeout'):
+                    for place, meters in (('inside', 30), ('boundary', 65), ('outside', 66)):
+                        with self.subTest(family=family, role=role, state=state, place=place):
+                            self.actor = copy.deepcopy(original)
+                            self.capsule['visual_family'] = family
+                            self.incident['suspect_refs'] = [{'actor_id':'alice'}] if role == 'initiator' else []
+                            point = _project_point(center, meters, 90)
+                            self.actor['position'].update(point)
+                            self.candidate['actor_position'] = point
+                            # Exact computed boundary avoids a floating-point metre discrepancy.
+                            self.capsule['detection_radius_m'] = _distance_m(center, point) if place == 'boundary' else 65
+                            if state == 'online_inactive':
+                                self.actor['position']['updated_at'] = (self.now-timedelta(hours=3)).isoformat()
+                            elif state in ('offline', 'expired'):
+                                self.actor['session']['status'] = 'logged_out' if state == 'offline' else 'expired'
+                            elif state == 'heartbeat_timeout':
+                                self.actor['presence']['last_seen_at'] = (self.now-timedelta(seconds=91)).isoformat()
+                            result = self.result()
+                            expected = state.startswith('online_') and place != 'outside'
+                            self.assertEqual(result['qualified'], expected, result)
+                            if expected:
+                                self.assertEqual(result['actor_role'], role)
+                                self.assertEqual(result['presence_class'], state)
+
     def test_bystander_and_stationary_online_are_classified(self):
         self.incident['suspect_refs'] = []
         self.actor['position']['updated_at'] = (self.now-timedelta(hours=3)).isoformat()

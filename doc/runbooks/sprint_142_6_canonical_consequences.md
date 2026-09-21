@@ -1,7 +1,9 @@
 # 142.6 — kanoniczne wykonanie kar i recovery
 
-Status: implementacja lokalna i testy PASS, odbiór gameplay otwarty.
-Nie oznacza to wdrożenia ani produkcyjnego PASS.
+Status: testy lokalne PASS; kontrolowany odbiór gameplay na `main` —
+PASS AUTORA 21 IX 2026. Potwierdzono stopnie 1–5, komunikaty, kartotekę,
+trwałość po reconnectcie oraz aktualizację dysku/pulpitu/FM na żywo.
+Pełny odbiór integracyjny i rollout pozostają w 142.7.
 
 ## Wykonanie
 
@@ -71,7 +73,7 @@ nie powoduje odczytu profilu ani częściowego obciążenia; zapisuje blocked.
 
 ## Rollout — najpierw main
 
-W czterech ecosystemach ustawiono:
+Historyczny rollout 142.6 (20 IX): w czterech ecosystemach ustawiono:
 
 ```js
 CHAOS_RESPONSE_QUALIFICATION_MODE: "observe",
@@ -79,6 +81,9 @@ CHAOS_RESPONSE_ENCOUNTERS_ENABLED: "true",
 CHAOS_RESPONSE_EXECUTION_MODE: "enforce",
 CHAOS_RESPONSE_EXECUTION_ACTORS: "main",
 ```
+
+142.7 rozszerza konfigurację na `*`; aktualna instrukcja wdrożenia i odbioru:
+[runbook 142.7](sprint_142_7_integration_rollout.md).
 
 Nazwy oddzielone przecinkami poszerzają test; `*` oznacza wszystkie konta.
 Pusty wykaz nie dopuszcza żadnego konta. Tryb execution observe wyłącza nowe
