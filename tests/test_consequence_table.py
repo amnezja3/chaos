@@ -34,6 +34,38 @@ class ConsequenceTableTest(unittest.TestCase):
         self.assertEqual(fine_amount(0, 100, 3), 0)
         self.assertEqual(fine_amount(100, 100, 0), 0)
 
+    def test_detention_policy_preserves_approved_tiers_and_message_exception(self):
+        plans = [plan_consequence(2, n) for n in range(5, 9)]
+        self.assertEqual([p['bail_hc'] for p in plans],
+                         [250000, 500000, 750000, 1000000])
+        self.assertEqual([p['restrictions']['cyberner_world'] for p in plans],
+                         ['full', 'read_only', 'blocked', 'blocked'])
+        self.assertEqual([p['restrictions']['app_access'] for p in plans],
+                         ['normal', 'normal', 'normal', 'webdragon_radio'])
+        for plan in plans:
+            self.assertEqual(plan['policy_version'], 'consequences-v2')
+            self.assertTrue(plan['restrictions']['movement_blocked'])
+            self.assertTrue(plan['restrictions']['teleport_blocked'])
+            rules = plan['detention_rules']
+            self.assertTrue(rules['block_new_encounters'])
+            self.assertEqual(rules['private_message_allowance'], 1)
+            self.assertEqual(rules['private_channel_scope'], 'all_except_world')
+            self.assertTrue(rules['private_receive_allowed'])
+            self.assertTrue(rules['private_read_allowed'])
+            self.assertEqual(rules['message_allowance_scope'], 'sanction')
+            self.assertEqual(rules['bail_minimum_hc'], 250000)
+            self.assertEqual(rules['bail_payers'], ['prisoner', 'other_player'])
+            self.assertTrue(rules['bail_ends_detention'])
+            self.assertTrue(rules['bail_preserves_criminal_record'])
+            self.assertEqual(rules['prison_selection'], 'random_once_per_sanction')
+            self.assertEqual(rules['release_position'], 'pre_arrest_position')
+        # UI/read consumers must not mutate the policy or another stored plan.
+        plans[-1]['restrictions']['teleport_blocked'] = False
+        plans[-1]['detention_rules']['essential_access'].clear()
+        fresh = plan_consequence(5, 3)
+        self.assertTrue(fresh['restrictions']['teleport_blocked'])
+        self.assertIn('bail', fresh['detention_rules']['essential_access'])
+
     def test_record_counts_execution_once_and_rolls_back_with_transaction(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'record.db')

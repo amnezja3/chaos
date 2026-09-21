@@ -54,4 +54,6 @@ Po wdrożeniu kodu zrestartować web/worker zgodnie z 142.7, odświeżyć mapę,
 kontem robot oznaczyć ten sam POI-6AC002 i wykonać końcowy hack.
 Oczekiwane: brak 403, canonical przejęcie przez robot i normalne przeliczenie
 konfliktu. Nie resetować konfliktu, captured ani ownership ręcznie.
-Status: poprawka lokalna; potwierdzenie gameplay po deployu otwarte.
+Status: **PASS AUTORA — 21 IX 2026**. Po wdrożeniu 5a0e404 autor potwierdził:
+„poszło konflikt rozwiązany bez problemów”. Robot oznaczył i przejął filar;
+konflikt zakończył się bez ręcznego resetowania bazy.

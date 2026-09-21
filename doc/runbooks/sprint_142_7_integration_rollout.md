@@ -1,8 +1,10 @@
 # 142.7 — integracja i rollout wszystkich kont
 
 21 IX 2026. Autor zlecił domknięcie sprintu po kontrolowanym odbiorze 142.6.
-Status: **LOKALNY PASS / GOTOWE DO WDROŻENIA**; wdrożenie i końcowy odbiór
-VPS otwarte. Nie oznacza to produkcyjnego COMPLETE całego 142.
+Status: **WDROŻONY / WYKONANIE POZA MAIN POTWIERDZONE** (21 IX 2026).
+Autor wdrożył 5a0e404 i zrestartował wszystkie cztery procesy z update-env.
+Odbiór mobile, live/reconnect na robot i obserwacja obciążenia VPS nie mają
+jeszcze osobnego potwierdzenia; nie dopisujemy tych wyników automatycznie.
 
 ## Zakres rolloutu
 
@@ -25,6 +27,11 @@ konfiskatą został ponownie kupiony przez autora. Potwierdzone komunikaty,
 trwałość wyników i konfiskaty po reconnectcie, dysk/pulpit/FM na żywo.
 Avoided (85 przy progu 80) nie podniósł licznika; unsupported także nie.
 OBS na już rozliczonym incident_b6bff287b8fe nie tworzył drugiej kary.
+
+Robot: incident_d28d87911fe7, 21 IX 17:02:01 UTC, chance=80, roll=40,
+executed, stage=5, mandat 150 HC i trzy narzędzia (Traceroute, ATM Logs,
+Echo Needle), executed_count=1. Autor potwierdził eskalację L2 do L4 przed
+wykonaniem kary; stopień 5 odpowiada L4 przy pustej kartotece.
 
 ## Wdrożenie po pobraniu kodu
 

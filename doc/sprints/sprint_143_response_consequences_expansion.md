@@ -1,6 +1,9 @@
 # Sprint 143 — tabela konsekwencji, recydywa, ograniczenia i więzienia
 
-Status: ZAPLANOWANY, zależny od produkcyjnego PASS sprintu 142.
+Status: 143.1 ROZPOCZĘTY 21 IX 2026 na polecenie autora „lecimy dalej”.
+Tabela i kartoteka działają już z 142.6; rollout poza main potwierdzony na robot.
+Przygotowanie kontraktu 143 nie zastępuje brakujących potwierdzeń odbioru 142.7.
+Aktywacja aresztu wymaga uzgodnionych reguł i testów kolejnych etapów.
 Rozszerzony audyt wejściowy ukończony przed developmentem; decyzje reuse
 i granice obecnego MVP opisuje [raport](../audits/response_consequences_2026_09_16.md).
 Sprint realizuje nowe sankcje, nie służy odkrywaniu istniejącego mechanizmu.
@@ -12,6 +15,14 @@ i recydywy; blokady ruchu/teleportów/systemu, w tym Cybernera, oraz osadzenie
 w więzieniach z zatwierdzonego katalogu. Wylogowanie nie kasuje sankcji.
 
 ## 143.1 — wersjonowana tabela konsekwencji i recydywa
+
+Stan prac: [kontrakt 143.1](../runbooks/sprint_143_1_detention_policy.md).
+21 IX autor zatwierdził ograniczenia stopni 6–9, losowe więzienie na wyrok,
+powrót do pozycji sprzed aresztu i brak nowych kar w areszcie. Zatwierdzono
+kaucję 250/500/750 tys./1 mln HC, płatną przez aresztowanego lub innego
+gracza, ze zwolnieniem bez kasowania kartoteki. Każdy areszt ma gwarantowaną
+jedną wiadomość prywatną Cybernera na cały wyrok, także na stopniu 6;
+reconnect nie odnawia limitu. Szczegóły zapisano w kontrakcie 143.1.
 
 Aktualizacja 20 IX 2026: bazowa tabela została zatwierdzona przed 142.6
 i zapisana w `config.py: RESPONSE_CONSEQUENCE_TABLE`; przygotowano canonical
@@ -34,12 +45,13 @@ Zatwierdzona drabina: stopień 1 mandat ×1, 2 mandat ×2, 3 jedno narzędzie,
 4 dwa narzędzia, 5 trzy narzędzia + mandat ×3, 6–9 areszt 5/10/15/20 minut.
 Początek: L2→1, L3→3, L4→5, L5→6. Każda wcześniejsza wykonana kara dodaje
 jeden stopień, wspólny licznik gracza; maksimum 9. Szczegółowy zestaw
-ograniczeń aplikacji dla stopni 6–9 wymaga doprecyzowania przed aktywacją.
+ograniczeń aplikacji dla stopni 6–9 zatwierdzono w kontrakcie 143.1.
 
 Recydywa zwiększa surowość według jawnych progów/okna historii i limitów,
 bez wielokrotnego liczenia tego samego spotkania. Jedna kara nie może
-samoczynnie generować kolejnych zatrzymań w więzieniu. Ustalić reset/decay
-recydywy, łączenie kar i maksymalny czas; wykorzystać tabelę reuse z 142.
+samoczynnie generować kolejnych zatrzymań w więzieniu. Zatwierdzono licznik
+lifetime bez resetu/decay, brak dokładania kar podczas aresztu i maksimum
+20 minut online na wyrok; wykorzystać tabelę reuse z 142.
 
 ## 143.2 — trwały model sankcji i czas odbywania
 
@@ -73,8 +85,8 @@ i współrzędnych. `fullName` ujednolicono do `full_name`; alias zachowany.
 `list_prisons()` i `get_prison(id)` zwracają niezależne słowniki bez odczytów
 profilu/bazy. Nieznany ID oznacza KeyError, bez losowego zastępstwa.
 Katalog nie nakłada sankcji, nie publikuje markerów ani nie teleportuje.
-Punkty bezpiecznego zwolnienia pozostają do określenia — podane współrzędne
-są miejscami osadzenia, nie automatycznymi miejscami powrotu.
+Zatwierdzono zwolnienie do zapisanej pozycji sprzed aresztu — współrzędne
+katalogu są miejscami osadzenia, nie miejscami powrotu.
 W jednej transakcji zapisać sankcję, miejsce powrotu, przemieszczenie,
 zatrzymanie jazdy/tras i outbox mapy. Nie resetować przypadkowo PvP/cooldownów.
 Backendowy stan pozostałej kary, odporny na zmianę zegara klienta, restart
@@ -96,8 +108,11 @@ najostrzejszego poziomu gameplay pozostawia Web Dragona i radio; obsługa
 sesji, wyroku, komunikatów systemowych i bezpiecznego wyjścia nadal działa.
 Backend blokuje niedozwolone akcje z mapy, terminala, desktopu i bezpośredniego
 API, także z wcześniej otwartego okna. UI pokazuje powód i pozostały czas.
-Sprecyzować odczyt/wysyłkę i kanały Cybernera; nie tworzyć furtki przez inny
-launcher. Zweryfikować rzeczywistą tożsamość aplikacji Web Dragon w katalogu.
+World: stopień 6 pełny dostęp, 7 odczyt, 8–9 blokada. Wszystko poza World
+jest prywatne: jeden wspólny limit wysłania na wyrok; odbiór i czytanie
+zawsze dostępne, także na stopniu 9. Zachować uprawnienia do rozmów/klanów.
+Nie tworzyć furtki przez inny launcher. Zweryfikować rzeczywistą tożsamość
+aplikacji Web Dragon w katalogu.
 
 ## 143.6 — testy, migracja, odbiór
 

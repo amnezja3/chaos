@@ -1,6 +1,6 @@
 # Sprint 142 — pełna ścieżka incydentu i konsekwencji MVP
 
-Status: 142.1–142.6 PASS; 142.7 LOKALNY PASS, OCZEKUJE WDROŻENIA I ODBIORU VPS
+Status: 142.1–142.6 PASS; 142.7 WDROŻONY, WYKONANIE NA ROBOT POTWIERDZONE
 (21 IX 2026). Rozszerzony audyt techniczny ukończony 16 IX 2026
 przed rozpoczęciem developmentu. 142.1 zamknięty po ponownym PASS autora
 17 IX 2026. 142.2 zamknięty po odbiorze autora; 142.3 PASS autora 18 IX 2026.
@@ -207,8 +207,9 @@ JS i spójność konfiguracji PASS. Dodano połączony test canonical scanu,
 HTTP shutdown, spadku ryzyka i dalszej eskalacji, publicznego źródła,
 patrolu oraz kary bez otwartej mapy po powrocie online.
 Cztery ecosystemy rozszerzono z main na wszystkie konta (`*`).
-Wdrożenie, potwierdzenie działania na innym koncie, odbiór mobile i obserwacja
-obciążenia VPS pozostają otwarte. Nie oznaczamy całego 142 jako COMPLETE.
+Wdrożenie 5a0e404 i wykonanie stopnia 5 na robot potwierdzone 21 IX.
+Odbiór mobile, live/reconnect na robot i obserwacja obciążenia VPS pozostają
+bez osobnego potwierdzenia. Nie oznaczamy tych kryteriów automatycznie PASS.
 Dowody, ograniczenia i instrukcja: [runbook 142.7](../runbooks/sprint_142_7_integration_rollout.md).
 
 Test integracyjny od realnego scanu i autoryzowanego shutdown, przez różnicę
