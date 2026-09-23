@@ -9676,7 +9676,13 @@ def api_response_detention():
     if not session.get('user'):
         return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
     detention_service.advance_actor(session['user'])
-    return jsonify({'ok': True, 'detention': detention_capabilities(session['user'])})
+    state = detention_capabilities(session['user'])
+    result = {'ok': True, 'detention': state}
+    if state and request.args.get('bail_offer') == '1':
+        balance = detention_service.wallet.get_balance(session['user'])
+        result['bail_offer'] = {'actor_id': session['user'], 'balance_hc': balance,
+                               'can_pay': balance >= state['bail_hc']}
+    return jsonify(result)
 
 
 @app.get('/api/response/detention/bail-quote')

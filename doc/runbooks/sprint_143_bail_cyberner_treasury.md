@@ -28,6 +28,24 @@ wpływ na admina, bez debit-only/sink. Nagrody za grę nie są przekierowywane.
 
 ## Wdrożenie
 
+### Własna kaucja przy odmowie akcji
+
+Próba akcji zablokowanej przez areszt (ruch, teleport lub aplikacja/akcja
+niedostępna na danym stopniu) otwiera okno CHAOS. Bieżący kanoniczny portfel
+jest odczytywany przez backend dla zalogowanego gracza. Przycisk
+`ZAPŁAĆ <kwota> HC` pojawia się tylko przy saldzie co najmniej równym kaucji.
+Bez środków gracz widzi kwotę i informację o jednej prywatnej wiadomości
+w Cybernerze; po jej wysłaniu informacja mówi o wykorzystanym limicie.
+Potwierdzenie płatności dotyczy zapisanego ID wyroku. Samo wyświetlenie okna
+niczego nie pobiera, a endpoint płatności ponownie sprawdza stan i saldo.
+Kilka równoczesnych odmów otwiera jedno okno. Odpytywanie w tle nie pokazuje
+okien kaucji. CTA w wiadomościach dla innych graczy pozostaje dostępne.
+Tabela ograniczeń poszczególnych stopni nie została rozszerzona tą zmianą.
+
+Walidacja tej zmiany: trzy testy Python (własne saldo/oferta, autorytatywny
+płatnik, rollback/brak środków) i trzy testy JS (własna kaucja, kaucja
+z wiadomości, most sesji/mapy). Test salda sprawdza próg 249 999 / 250 000 HC.
+
 Po pobraniu zmian uruchomić z katalogu aplikacji:
 
 ```sh

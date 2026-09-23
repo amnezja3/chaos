@@ -217,6 +217,28 @@ class DetentionTransportTest(unittest.TestCase):
         self.assertEqual(self.wallet.get_balance('alice'), 2000000)
         self.assertEqual(self.wallet.get_balance('bob'), 1750000)
 
+    def test_self_bail_offer_uses_own_canonical_balance_at_exact_threshold(self):
+        import run
+        from tests import test_target_persistence as http_fixture
+        self.arrest()
+        http_fixture.setUpModule()
+        self.addCleanup(http_fixture.tearDownModule)
+        with patch.object(run, 'detention_service', self.service):
+            client = run.app.test_client()
+            with client.session_transaction() as session: session['user'] = 'alice'
+            for balance, expected in [(249999,False),(250000,True)]:
+                with db_connect(self.path) as conn:
+                    conn.execute("UPDATE wallet_balances SET balance=? WHERE username='alice'", (balance,))
+                response = client.get('/api/response/detention?bail_offer=1&username=bob&balance=9999999')
+                self.assertEqual(response.status_code,200,response.json)
+                self.assertEqual(response.json['bail_offer'], {'actor_id':'alice','balance_hc':balance,'can_pay':expected})
+            self.assertNotIn('bail_offer',client.get('/api/response/detention').json)
+            bob = run.app.test_client()
+            with bob.session_transaction() as session: session['user'] = 'bob'
+            response = bob.get('/api/response/detention?bail_offer=1&username=alice')
+            self.assertEqual(response.status_code,200,response.json)
+            self.assertNotIn('bail_offer',response.json)
+
     def test_stage_nine_sentence_can_commit_from_detection_request(self):
         import run
         from tests import test_target_persistence as http_fixture

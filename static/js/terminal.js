@@ -2835,7 +2835,7 @@ function beginApplicationWindowLaunch(id, type) {
 
 function launchApplicationEffect(appData) {
     if (window.DetentionUI && !window.DetentionUI.appAllowed(appData.id)) {
-        addSystemMessage('warning', 'Areszt', 'Ta aplikacja jest niedostępna podczas aresztu.');
+        window.DetentionUI.blockedAction();
         return;
     }
     if (runSystemLauncherApp(appData)) return;
@@ -3246,7 +3246,10 @@ function appendTerminalPrompt(content) {
 
 function openSystemAppFromTerminal(appKey) {
     const normalized = String(appKey || '').toLowerCase();
-    if (window.DetentionUI && !window.DetentionUI.appAllowed(normalized)) return false;
+    if (window.DetentionUI && !window.DetentionUI.appAllowed(normalized)) {
+        window.DetentionUI.blockedAction();
+        return false;
+    }
     const existingByKey = {
         map: '.terminal[data-app="map"]',
         browser: '.terminal[data-app="browser"]',
@@ -3363,7 +3366,8 @@ function showGhostDecisionDialog({
     details = "",
     confirmLabel = "OK",
     cancelLabel = "ANULUJ",
-    tone = "lime"
+    tone = "lime",
+    showConfirm = true
 } = {}) {
     return new Promise(resolve => {
         const existing = document.querySelector(".blacknet-decision-backdrop");
@@ -3384,7 +3388,7 @@ function showGhostDecisionDialog({
                 </div>
                 <footer class="blacknet-decision__actions">
                     <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${escapeHTML(cancelLabel)}</button>
-                    <button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${escapeHTML(confirmLabel)}</button>
+                    ${showConfirm ? `<button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${escapeHTML(confirmLabel)}</button>` : ''}
                 </footer>
             </section>
         `;
@@ -3395,7 +3399,7 @@ function showGhostDecisionDialog({
             settled = true;
             document.removeEventListener("keydown", handleKeydown, true);
             backdrop.remove();
-            resolve(Boolean(accepted));
+            resolve(Boolean(accepted && showConfirm));
         };
         const handleKeydown = event => {
             if (event.key === "Escape") {
@@ -3418,7 +3422,7 @@ function showGhostDecisionDialog({
         });
         document.addEventListener("keydown", handleKeydown, true);
         document.body.appendChild(backdrop);
-        const confirmButton = backdrop.querySelector(".blacknet-decision__button.is-confirm");
+        const confirmButton = backdrop.querySelector(showConfirm ? ".blacknet-decision__button.is-confirm" : ".blacknet-decision__button.is-cancel");
         if (confirmButton) requestAnimationFrame(() => confirmButton.focus());
     });
 }

@@ -33,6 +33,13 @@
                 cover = document.createElement('div');
                 cover.className = 'detention-cover';
                 cover.style.cssText = 'position:absolute;inset:0;z-index:9999;background:#071009f5;color:#b8ff86;padding:24px;display:grid;place-content:center;';
+                cover.tabIndex = 0;
+                cover.setAttribute('role', 'button');
+                cover.setAttribute('aria-label', 'Informacja o areszcie i kaucji');
+                cover.onclick = blockedAction;
+                cover.onkeydown = event => {
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); blockedAction(); }
+                };
                 win.appendChild(cover);
             }
             const text = `Areszt — aplikacja niedostępna. Pozostało ${state.remaining_seconds} s online. Web Dragon, radio i prywatny Cyberner pozostają dostępne.`;
@@ -52,6 +59,38 @@
         update((await response.json()).detention);
     }
     let paying = false;
+    async function submitBail(sanctionId) {
+        const paid = await fetch('/api/response/detention/bail', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sanction_id: sanctionId})});
+        const result = await paid.json();
+        if (!paid.ok) throw new Error(result.message || result.error || 'Nie udało się opłacić kaucji.');
+        await refresh();
+        await window.showGhostDecisionDialog({title: 'KAUCJA', showConfirm: false, cancelLabel: 'ZAMKNIJ',
+            message: result.paid ? 'Kaucja opłacona. Gracz został zwolniony. HC trafiły na konto admin.' : 'Wyrok już zakończony. Nie pobrano HC.'});
+    }
+    async function blockedAction() {
+        if (paying) return;
+        paying = true;
+        try {
+            const response = await fetch('/api/response/detention?bail_offer=1');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Nie można pobrać informacji o kaucji.');
+            update(data.detention);
+            if (!data.detention) return;
+            const sentence = data.detention;
+            const canPay = data.bail_offer?.can_pay === true;
+            const amount = Number(sentence.bail_hc).toLocaleString('pl-PL');
+            const communication = sentence.private_messages_remaining > 0
+                ? 'Możesz wysłać jedną wiadomość prywatną w Cybernerze, aby poprosić innego gracza o opłacenie kaucji.'
+                : 'Wiadomość prywatna na ten wyrok została już wykorzystana. Nadal możesz czytać odpowiedzi w Cybernerze.';
+            const accepted = await window.showGhostDecisionDialog({title: 'CHAOS // ARESZT',
+                message: `Ta akcja jest zablokowana podczas aresztu. ${sentence.prison_name || 'Areszt'}. Kaucja: ${amount} HC.`,
+                details: `${canPay ? 'Możesz opłacić kaucję ze swojego konta. Odbiorca: admin.' : 'Nie masz wystarczających HC na samodzielne opłacenie kaucji.'} ${communication}`,
+                showConfirm: canPay, confirmLabel: `ZAPŁAĆ ${amount} HC`, cancelLabel: 'ZAMKNIJ'});
+            if (canPay && accepted) await submitBail(sentence.sanction_id);
+        } catch (error) {
+            await window.showGhostDecisionDialog({title: 'KAUCJA', showConfirm: false, cancelLabel: 'ZAMKNIJ', message: error.message});
+        } finally { paying = false; }
+    }
     async function payBail(notice) {
         if (paying || !notice?.sanction_id || !notice?.actor_id) return;
         paying = true;
@@ -64,11 +103,7 @@
                 message: `Zapłacić ${Number(data.quote.bail_hc).toLocaleString('pl-PL')} HC za zwolnienie gracza ${notice.actor_id}?`,
                 details: `Areszt: ${notice.prison_name}. Odbiorca HC: admin. Kartoteka pozostaje bez zmian.`,
                 confirmLabel: 'OPŁAĆ KAUCJĘ', cancelLabel: 'ANULUJ'})) return;
-            const paid = await fetch('/api/response/detention/bail', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sanction_id: notice.sanction_id})});
-            const result = await paid.json();
-            if (!paid.ok) throw new Error(result.message || result.error || 'Nie udało się opłacić kaucji.');
-            await window.showGhostDecisionDialog({title: 'KAUCJA', confirmLabel: 'OK', cancelLabel: 'ZAMKNIJ', message: result.paid ? 'Kaucja opłacona. Gracz został zwolniony. HC trafiły na konto admin.' : 'Wyrok już zakończony. Nie pobrano HC.'});
-            await refresh();
+            await submitBail(notice.sanction_id);
         } catch (error) {
             await window.showGhostDecisionDialog({title: 'KAUCJA', confirmLabel: 'OK', cancelLabel: 'ZAMKNIJ', message: error.message});
         } finally { paying = false; }
@@ -95,7 +130,7 @@
         button.onclick = () => payBail(notice);
         card.append(text, button); container.appendChild(card);
     }
-    window.DetentionUI = {update, refresh, appAllowed, chatReason, toolbarMarkup, appendNotice, payBail, get state() { return state; }};
+    window.DetentionUI = {update, refresh, appAllowed, chatReason, toolbarMarkup, appendNotice, payBail, blockedAction, get state() { return state; }};
     if (typeof document === 'undefined') return;
     document.addEventListener('DOMContentLoaded', () => {
         new MutationObserver(applyWindows).observe(document.body, {childList: true, subtree: true});

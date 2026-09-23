@@ -76,6 +76,19 @@ bridge.install({
     await global.fetch({ unknownRequestObject: true });
     assert.strictEqual(capturedInit.headers, undefined);
 
+    let bailPrompts = 0;
+    global.parent = {DetentionUI: {blockedAction: async () => {bailPrompts++;}}};
+    forcedResponse = {status:409, headers:matchingHeaders,
+        clone:()=>({json:async()=>({reason:'detention_movement_blocked'})})};
+    const denied = await global.fetch('/map-action',{method:'POST'});
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.strictEqual(denied,forcedResponse,'caller keeps the original response');
+    assert.strictEqual(bailPrompts,1,'iframe denial notifies the desktop');
+    await global.fetch('/api/profile');
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.strictEqual(bailPrompts,1,'background reads do not open a bail prompt');
+    assert.strictEqual(bridge.getState().invalidated,false);
+
     const missingIdentityHeadersResponse = {
         status: 200,
         headers: {

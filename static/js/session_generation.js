@@ -249,9 +249,22 @@
             }
             try {
                 const response = await state.nativeFetch(input, requestInit);
-                return validateResponse(response, requestGeneration, {
+                const validated = validateResponse(response, requestGeneration, {
                     requireIdentityHeaders: responseRequiresIdentityHeaders(input),
                 });
+                // Read a clone: callers still receive the original denial and can
+                // restore their movement/action state. Never prompt on background GETs.
+                const method = String(init.method || input?.method || 'GET').toUpperCase();
+                if (![ 'GET', 'HEAD', 'OPTIONS' ].includes(method)
+                    && [403, 409].includes(validated.status) && typeof validated.clone === 'function') {
+                    validated.clone().json().then(data => {
+                        if (!['detention_movement_blocked', 'detention_app_blocked', 'detention_action_blocked'].includes(data.reason)) return;
+                        if (state.invalidated || state.generation !== requestGeneration) return;
+                        const ui = root.DetentionUI || root.parent?.DetentionUI;
+                        return ui?.blockedAction();
+                    }).catch(() => {});
+                }
+                return validated;
             } finally {
                 if (controller) state.controllers.delete(controller);
             }
