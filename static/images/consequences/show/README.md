@@ -94,6 +94,7 @@ Zakres i kryteria odbioru: [Sprint 143, punkt 143.5a](../../../../doc/sprints/sp
 
 PNG są podłączone przez `static/js/consequence_show.js` do prywatnego,
 jednokrotnego zdarzenia wykonania kary. Obraz zachowuje własne alpha;
-tło osobnej warstwy to `rgba(0,0,0,0.6)`. Widok więzienia używa tej samej
-warstwy przyciemnienia, bez nakładania drugich 60%. Czas show wyznacza SFX.
+tło show przyciemnia mapę do 80% (zmiana autora 24 IX 2026). Na stałym
+przyciemnieniu więzienia 60% dodatkowe 50% daje łącznie 80%. Duży asset
+jest nad drżącym tytułem, w kompozycji Super Powers. Czas show wyznacza SFX.
 Przy zamkniętej mapie nie ma odłożonego odtwarzania; wyrok jest w oknie CHAOS.

@@ -2,6 +2,10 @@
 
 Implementacja lokalna, 23 IX 2026. Nie oznacza wdrożenia ani odbioru wizualnego.
 
+Korekta 24 IX: show korzysta z kompozycji Super Powers — duży asset nad
+drżącym tytułem, efektywne przyciemnienie tła 80%. Stały widok więzienia
+pozostaje przy 60%. SFX/timing bez zmian; test JS odtwarzacza ponownie PASS.
+
 - Prywatna delta powstaje atomowo z wykonaniem kary; claim właściciela receipt
   ma trwałe dedupe między kartami oraz maksymalny wiek 60 s.
 - Stopnie 1–9 mają komplet PNG/SFX. Ponowna kontrola: 9 par, PNG 540×540 RGBA,

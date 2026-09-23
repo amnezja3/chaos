@@ -31,19 +31,20 @@
             if (!variant) { resolve(); return; }
             const effects = receipt.effects || {};
             const overlay = doc.createElement('div');
-            overlay.className = 'chaos-secret-path-overlay is-visible consequence-show';
-            overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);pointer-events:none';
+            overlay.className = 'chaos-ghost-ability-overlay is-visible consequence-show';
+            overlay.style.cssText = '--ability-accent:#9dffb8;--ability-deep:#ff234b;position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.8);pointer-events:none;padding:12px';
             const panel = doc.createElement('div');
-            panel.className = 'chaos-secret-path-panel';
-            panel.style.cssText = 'display:flex;align-items:center;gap:20px;width:min(90vw,920px);padding:20px;max-height:90vh;background:transparent;animation-duration:.15s';
+            panel.className = 'chaos-ghost-ability-panel';
+            panel.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px;width:min(94vw,920px);height:auto;min-height:0;padding:0;max-height:94vh;background:transparent;border:0;box-shadow:none;overflow:visible;text-align:center;animation-duration:.15s';
             const img = doc.createElement('img');
             img.src = `/static/images/consequences/show/${variant[0]}.png`;
-            img.alt = ''; img.style.cssText = 'width:min(42vw,360px);max-height:70vh;object-fit:contain';
+            img.className = 'chaos-ghost-ability-asset';
+            img.alt = ''; img.style.cssText = 'width:min(78vw,58vh,560px);height:min(78vw,58vh,560px);flex-shrink:0;object-fit:contain;image-rendering:auto';
             img.onerror = () => img.remove();
             const text = doc.createElement('div');
             const title = doc.createElement('h2');
-            title.className = 'chaos-secret-path-title'; title.textContent = variant[2];
-            title.style.fontSize = 'clamp(18px,4vw,42px)';
+            title.className = 'chaos-ghost-ability-title'; title.textContent = variant[2];
+            title.style.cssText = 'font-size:clamp(22px,5vw,54px);margin:0 0 10px;overflow-wrap:anywhere';
             const body = doc.createElement('p');
             body.style.cssText = 'color:#c4e6c6;font:700 clamp(12px,2vw,18px) monospace';
             body.textContent = effects.detention_seconds
@@ -61,8 +62,8 @@
             const start = () => {
                 if (done || started) return;
                 started = true; clearTimeout(deadline);
-                // The persistent prison shade already supplies the required 60%.
-                if (doc.querySelector('.detention-map-shade')) overlay.style.background = 'transparent';
+                // Prison already dims by 60%: another 50% gives 80% total, not 92%.
+                if (doc.querySelector('.detention-map-shade')) overlay.style.background = 'rgba(0,0,0,.5)';
                 doc.body.appendChild(overlay);
                 visibilityTimer = setInterval(() => { if (visibleMap() !== doc) finish(); }, 200);
             };

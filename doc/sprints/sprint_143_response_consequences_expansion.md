@@ -148,6 +148,13 @@ aplikacji Web Dragon w katalogu.
 
 ## 143.5a — efekty mapowe przy nadaniu konsekwencji
 
+Aktualizacja wizualna autora 24 IX 2026 (nadrzędna wobec wcześniejszego opisu
+show): kompozycja Super Powers, duży PNG centralnie i drżący tytuł pod nim
+(`chaos-ghost-ability-title`, animacja `ghost-ability-text-quake`). Tło samego
+show przyciemnia mapę do **80%**. Stały widok więzienia nadal ma 60%; podczas
+show dodatkowe 50% daje łącznie 80%, bez podwójnego przygaszenia. SFX oraz
+timing pozostają bez zmian. Układ pionowy skaluje asset do wysokości okna.
+
 Rozszerzenie autora 23 IX 2026: mapa pozostaje dostępna również na stopniu 9.
 Podczas aresztu jest widokiem więzienia: ciemne tło 60%, najbliższy podstawowy
 zoom mapy (pierwszy poziom, `baseZoom`, bez bonusów supermocy), stały fokus na
