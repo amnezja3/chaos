@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 let posts=[], dialogs=[], accepted=true, hold;
-let sentence={sanction_id:'own-sentence',bail_hc:500000,prison_name:'Prison',private_messages_remaining:1};
+let sentence={sanction_id:'own-sentence',duration_seconds:600,bail_hc:500000,prison_name:'Prison',private_messages_remaining:1};
 let canPay=false;
 const context={window:{showGhostDecisionDialog: async opts => {
     dialogs.push(opts);
@@ -19,6 +19,7 @@ const ui=context.window.DetentionUI;
 (async()=>{
     await ui.blockedAction();
     assert.equal(dialogs[0].showConfirm,false);
+    assert(dialogs[0].message.includes('10 min więzienia w zakładzie karnym Prison'));
     assert(dialogs[0].details.includes('jedną wiadomość'));
     assert.equal(posts.length,0,'even an accepted information dialog cannot pay');
     dialogs=[]; sentence={...sentence,private_messages_remaining:0};

@@ -1,7 +1,7 @@
 "use strict";
 
 (function initGameSfxModule(global) {
-    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-ghostnetwork-7";
+    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=consequences-143-5a-1";
     const STORAGE_ENABLED = "chaos_sfx_enabled";
     const STORAGE_VOLUME = "chaos_sfx_volume";
     const DEFAULT_BUS_LIMITS = Object.freeze({
@@ -218,6 +218,9 @@
     function releaseVoice(voice, fadeMs) {
         if (!voice || voice.stopped) return false;
         voice.stopped = true;
+        if (voice.didStart) {
+            try { voice.context?.on_end?.(); } catch (_) { /* Presentation cannot break audio cleanup. */ }
+        }
         if (voice.timeoutId) global.clearTimeout(voice.timeoutId);
         const finish = () => {
             try {
@@ -262,12 +265,13 @@
     }
 
     function createHandle(eventKey) {
-        const pending = { voice: null };
+        const pending = { voice: null, cancelled: false };
         const handle = {
             event_key: String(eventKey || ""),
             voice_id: null,
             started: null,
             stop(options) {
+                pending.cancelled = true;
                 return pending.voice ? releaseVoice(pending.voice, options && options.fade_ms) : false;
             }
         };
@@ -278,6 +282,7 @@
         if (!state.enabled) return Promise.resolve(skipResult(eventKey, "disabled"));
         if (state.volume <= 0) return Promise.resolve(skipResult(eventKey, "muted"));
         return loadManifest().then(manifest => {
+            if (handleState.pending.cancelled) return skipResult(eventKey, "cancelled");
             const entry = manifest.events[eventKey];
             if (!entry) return skipResult(eventKey, "unknown_event");
             cleanupRecent();
@@ -300,6 +305,8 @@
                 gain: clamp(context.gain === undefined ? 1 : context.gain, 0, 1),
                 startedAt: now(),
                 stopped: false,
+                context,
+                didStart: false,
                 audio: new global.Audio(entry.url),
                 duckHandle: null,
                 timeoutId: null
@@ -313,7 +320,13 @@
                 voice.duckHandle = global.GhostRadio.requestDuck(entry.duck_radio, voice.id);
             }
             const onEnded = () => releaseVoice(voice, 0);
+            const onStarted = () => {
+                if (voice.stopped || voice.didStart) return;
+                voice.didStart = true;
+                try { context.on_start?.({duration_seconds: voice.audio.duration}); } catch (_) {}
+            };
             if (typeof voice.audio.addEventListener === "function") {
+                voice.audio.addEventListener("playing", onStarted, { once: true });
                 voice.audio.addEventListener("ended", onEnded, { once: true });
                 voice.audio.addEventListener("loadedmetadata", () => {
                     scheduleVoiceWatchdog(voice, entry);
@@ -327,6 +340,8 @@
             // watchdog when the valid local MP3 is longer than that fallback.
             scheduleVoiceWatchdog(voice, entry);
             return Promise.resolve(voice.audio.play()).then(() => {
+                if (voice.stopped || handleState.pending.cancelled) return skipResult(eventKey, "cancelled");
+                onStarted();
                 if (eventId) state.recentEvents.set(eventId, now());
                 state.cooldowns.set(eventKey, now() + entry.cooldown_ms);
                 state.counters.played += 1;

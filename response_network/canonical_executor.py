@@ -71,6 +71,10 @@ class CanonicalConsequenceExecutor:
                           'consequence_executed': status == 'executed', 'penalty_executed': status == 'executed'}
                 conn.execute('UPDATE response_encounters SET execution_status=?,execution_json=? WHERE encounter_id=?',
                              (status, dumps_json(result), encounter_id))
+                if status == 'executed':
+                    self.deltas.record_change(actor, 'response', 'response.consequence_executed',
+                        {'encounter_id': encounter_id}, entity_id=encounter_id,
+                        dedupe_key=encounter_id + ':consequence-show', conn=conn)
                 return result
 
             restart = self.world.get_client_restart(conn=conn)

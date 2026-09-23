@@ -2296,6 +2296,53 @@
         window.targetMarkers = window.targetMarkers || {};
         const baseZoom = map.getZoom();
         const baseMinZoom = typeof map.getMinZoom === 'function' ? map.getMinZoom() : 1;
+        // 143.5a: a prison viewport, never a gameplay permission bypass.
+        let detentionViewport = null;
+        let detentionViewState = null;
+        let detentionFocusApplying = false;
+        function focusDetentionView() {
+            const point = detentionViewState?.prison_position;
+            if (!detentionViewport || !point || point.lat == null || point.lng == null
+                || !Number.isFinite(Number(point.lat)) || !Number.isFinite(Number(point.lng))) return;
+            if (detentionFocusApplying) return;
+            const center = map.getCenter();
+            if (map.getZoom() === baseZoom && Math.abs(center.lat - Number(point.lat)) < 1e-8
+                && Math.abs(center.lng - Number(point.lng)) < 1e-8) return;
+            detentionFocusApplying = true;
+            try { map.setView([Number(point.lat), Number(point.lng)], baseZoom, {animate: false}); }
+            finally { detentionFocusApplying = false; }
+        }
+        window.applyDetentionView = function (state) {
+            detentionViewState = state;
+            const container = map.getContainer();
+            if (state) {
+                if (!detentionViewport) {
+                    const handlers = ['dragging', 'scrollWheelZoom', 'doubleClickZoom', 'touchZoom', 'boxZoom', 'keyboard'];
+                    detentionViewport = {min: map.getMinZoom(), max: map.getMaxZoom(),
+                        zoomControl: map.zoomControl && map.zoomControl._map === map,
+                        handlers: handlers.filter(key => map[key]?.enabled())};
+                    if (detentionViewport.zoomControl) map.zoomControl.remove();
+                    handlers.forEach(key => map[key]?.disable());
+                    const shade = document.createElement('div');
+                    shade.className = 'detention-map-shade';
+                    shade.style.cssText = 'position:absolute;inset:0;z-index:450;background:rgba(0,0,0,.6);pointer-events:none';
+                    container.appendChild(shade);
+                }
+                map.setMaxZoom(baseZoom); map.setMinZoom(baseZoom);
+                focusDetentionView();
+            } else if (detentionViewport) {
+                const saved = detentionViewport;
+                detentionViewport = null;
+                map.setMinZoom(saved.min); map.setMaxZoom(saved.max);
+                saved.handlers.forEach(key => map[key]?.enable());
+                if (saved.zoomControl) map.zoomControl.addTo(map);
+                container.querySelector('.detention-map-shade')?.remove();
+            }
+        };
+        map.on('moveend zoomend', focusDetentionView);
+        window.setTimeout(() => {
+            try { window.applyDetentionView(window.parent.DetentionUI?.state || null); } catch (_) {}
+        }, 0);
         const MANUAL_MAP_VIEW_STORAGE_KEY = `chaos:map:manual-view:${window.mapViewerUsername || 'anonymous'}`;
 
         function saveManualMapViewport() {

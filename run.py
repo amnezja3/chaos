@@ -9672,6 +9672,18 @@ def detention_movement_error(exc):
                     "position_updated_at": position.get('updated_at') if position else None}), 409
 
 
+@app.post('/api/response/consequence-show/claim')
+def api_response_consequence_show_claim():
+    if not session.get('user'):
+        return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
+    payload = request.get_json(silent=True)
+    encounter_id = payload.get('encounter_id') if isinstance(payload, dict) else None
+    if not isinstance(encounter_id, str) or not 1 <= len(encounter_id) <= 160:
+        return jsonify({'ok': False, 'error': 'invalid_encounter_id'}), 400
+    from response_network.consequence_show import claim
+    return jsonify({'ok': True, 'show': claim(detention_service.db_path, session['user'], encounter_id)})
+
+
 @app.get('/api/response/detention')
 def api_response_detention():
     if not session.get('user'):
@@ -20993,7 +21005,7 @@ def ghostsignal_request_is_exempt():
     if request.method == "OPTIONS":
         return True
     if request.path in {'/api/response/detention', '/api/response/detention/bail-quote',
-                        '/api/response/detention/bail'}:
+                        '/api/response/detention/bail', '/api/response/consequence-show/claim'}:
         return True  # Essential sentence recovery/bail survives the global show.
     if request.method in {"GET", "HEAD"} and (
         request.endpoint in {"static", "dev_dashboard"} or request.path in {

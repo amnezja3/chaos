@@ -58,10 +58,9 @@ consequence_09_detention.mp3
 
 ## Podłączenie w 143.5a
 
-Planowane klucze wspólnego GameSfx: `consequences.stage_01` do
-`consequences.stage_09`, przypisane kolejno do plików z tabeli. Rejestracja
-w `../manifest.v1.json` i wyzwalacze zostaną dodane podczas implementacji show;
-na tym etapie katalog jest miejscem na materiały, nie aktywnym odtwarzaczem.
+Klucze wspólnego GameSfx: `consequence.stage_1` do `consequence.stage_9`,
+przypisane kolejno do plików z tabeli w `../manifest.v1.json`.
+Wyzwalaczem jest prywatna delta wykonania kary, z atomowym claim receipt.
 
 Wykorzystać istniejący `GameSfx`, ustawienia SFX, głośność, wyciszenie,
 odblokowanie audio w przeglądarce i mechanizm przyciszania radia. Bez osobnego
@@ -82,3 +81,10 @@ różnych stopni. Nie odtwarzać dodatkowo tego samego SFX z obsługi komunikatu
 systemowego. Brak/uszkodzenie MP3 lub blokada autoplay nie mogą blokować
 PNG, wykonania kary ani działania gry. Po odblokowaniu audio nie odtwarzać
 zaległych, już zakończonych show.
+## Integracja 143.5a
+
+Pliki są podłączone do `consequence.stage_1`–`consequence.stage_9` we wspólnym
+`manifest.v1.json`, bus `system`. `GameSfx` respektuje mute i głośność;
+start i koniec audio sterują show. Przy braku startu w 1,5 s audio jest anulowane,
+a grafika używa zmierzonej długości MP3 z `static/js/consequence_show.js`.
+Nie skracać show do stałego czasu ani dodawać hold po końcu dźwięku.

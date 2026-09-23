@@ -12379,6 +12379,7 @@ function playCybernerMessageSfx(payload = {}, options = {}) {
 
 function playSystemMessageSfx(message = {}) {
     if (!window.GameSfx || !message || typeof message !== "object") return false;
+    if (message.encounter_id || (message.sanction_id && message.id === message.sanction_id)) return false;
     const messageId = String(message.message_id || message.id || "").trim();
     if (!messageId) return false;
     const type = String(message.type || "").trim().toLowerCase();
@@ -12573,6 +12574,10 @@ async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
     if (rememberProcessedDelta(dedupeKey)) return false;
+    if (event.type === 'response.consequence_executed') {
+        if (stateDeltaSfxPlaybackAllowed) window.ConsequenceShow?.receive(event.payload);
+        return true;
+    }
     if (event.type === 'target.cleared' && event.payload?.reason === 'detention') {
         if (window.DetentionUI?.state) window.clearDetentionTarget();
         renderToolbarStatus();

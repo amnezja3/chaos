@@ -1,7 +1,7 @@
 /* Authoritative capabilities arrive with each state poll; client time never releases. */
 (() => {
     let state = null;
-    const allowed = new Set(['browser', 'webdragon', 'ghost-radio', 'ghost_hack_radio', 'radio', 'email', 'cyberner']);
+    const allowed = new Set(['map', 'browser', 'webdragon', 'ghost-radio', 'ghost_hack_radio', 'radio', 'email', 'cyberner']);
     function appAllowed(id) { return !state || state.app_access !== 'webdragon_radio' || allowed.has(String(id || '').toLowerCase()); }
     function chatReason(channel, sending = true) {
         if (!state) return '';
@@ -53,6 +53,9 @@
         if (state || previous) window.clearDetentionTarget?.();
         if (typeof window.renderToolbarStatus === 'function') window.renderToolbarStatus();
         applyWindows();
+        document.querySelectorAll('iframe').forEach(frame => {
+            try { frame.contentWindow?.applyDetentionView?.(state); } catch (_) {}
+        });
         window.dispatchEvent(new CustomEvent('detention:changed', {detail: state}));
     }
     async function refresh() {
@@ -85,8 +88,8 @@
                 ? 'Możesz wysłać jedną wiadomość prywatną w Cybernerze, aby poprosić innego gracza o opłacenie kaucji.'
                 : 'Wiadomość prywatna na ten wyrok została już wykorzystana. Nadal możesz czytać odpowiedzi w Cybernerze.';
             const accepted = await window.showGhostDecisionDialog({title: 'CHAOS // ARESZT',
-                message: `Ta akcja jest zablokowana podczas aresztu. ${sentence.prison_name || 'Areszt'}. Kaucja: ${amount} HC.`,
-                details: `${canPay ? 'Możesz opłacić kaucję ze swojego konta. Odbiorca: admin.' : 'Nie masz wystarczających HC na samodzielne opłacenie kaucji.'} ${communication}`,
+                message: `Zostałeś skazany na ${Math.ceil(Number(sentence.duration_seconds) / 60)} min więzienia w zakładzie karnym ${sentence.prison_name || 'Areszt'}. Twoje prawa zostały ograniczone na czas odbywania kary.`,
+                details: `${communication} Pozostało ${sentence.remaining_seconds} s online. Kaucja: ${amount} HC. ${canPay ? 'Możesz opłacić kaucję ze swojego konta. Odbiorca: admin.' : 'Nie masz wystarczających HC na samodzielne opłacenie kaucji.'}`,
                 showConfirm: canPay, confirmLabel: `ZAPŁAĆ ${amount} HC`, cancelLabel: 'ZAMKNIJ'});
             if (canPay && accepted) await submitBail(sentence.sanction_id);
         } catch (error) {
@@ -116,7 +119,7 @@
         const remaining = Math.max(0, Number(state.remaining_seconds) || 0);
         const total = Math.max(1, Number(state.duration_seconds) || remaining);
         const time = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
-        return `<span class="system-status-detention" title="Areszt — czas odliczany tylko online">
+        return `<span class="system-status-detention" role="button" tabindex="0" onclick="DetentionUI.blockedAction()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();DetentionUI.blockedAction()}" title="Wyrok i kaucja — czas odliczany tylko online">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-label="Więzienie"><path d="M3 3h18v18H3zM8 3v18M16 3v18M3 9h18M3 16h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
             <span class="detention-status-body"><b>${escape(state.prison_name || 'Areszt')}</b>
             <span class="detention-status-time"><i class="detention-dots" aria-hidden="true">● ● ●</i> ${time}</span>

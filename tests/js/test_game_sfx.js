@@ -174,6 +174,15 @@ const sfx = sandbox.window.GameSfx;
     assert.strictEqual(gameplay.stop(), false);
     assert.strictEqual(sfx.stop("system"), 1);
 
+    const cancelled = sfx.play('test.lore', {event_id: 'cancel-before-manifest'});
+    cancelled.stop();
+    assert.equal((await cancelled.started).reason, 'cancelled');
+    let started = 0, ended = 0;
+    const synced = sfx.play('test.lore', {event_id: 'synced', on_start: () => started++, on_end: () => ended++});
+    assert((await synced.started).ok);
+    assert.equal(started, 1);
+    synced.stop(); synced.stop();
+    assert.equal(ended, 1);
     sfx.setEnabled(false);
     const disabled = await sfx.play("test.lore", {event_id: "event-3"}).started;
     assert.strictEqual(disabled.reason, "disabled");

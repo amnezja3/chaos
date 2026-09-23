@@ -135,7 +135,8 @@ wszystkich ecosystemach; wcześniejsza blokada aktywacji z 143.4 jest zdjęta.
 
 Przygotować rejestr typów sankcji i jeden kontrakt capability. Tabela określa
 dostęp do ruchu, teleportów, Cybernera oraz pozostałych aplikacji. Dla
-najostrzejszego poziomu gameplay pozostawia Web Dragona i radio; obsługa
+najostrzejszego poziomu gameplay pozostawia Web Dragona i radio, a od 143.5a
+także mapę jako zablokowany widok więzienia; obsługa
 sesji, wyroku, komunikatów systemowych i bezpiecznego wyjścia nadal działa.
 Backend blokuje niedozwolone akcje z mapy, terminala, desktopu i bezpośredniego
 API, także z wcześniej otwartego okna. UI pokazuje powód i pozostały czas.
@@ -146,6 +147,30 @@ Nie tworzyć furtki przez inny launcher. Zweryfikować rzeczywistą tożsamość
 aplikacji Web Dragon w katalogu.
 
 ## 143.5a — efekty mapowe przy nadaniu konsekwencji
+
+Rozszerzenie autora 23 IX 2026: mapa pozostaje dostępna również na stopniu 9.
+Podczas aresztu jest widokiem więzienia: ciemne tło 60%, najbliższy podstawowy
+zoom mapy (pierwszy poziom, `baseZoom`, bez bonusów supermocy), stały fokus na
+zapisanej pozycji więzienia, brak oddalania i przesuwania. Po zwolnieniu wraca
+obsługa mapy i autorytatywna pozycja powrotu; dawny cel nie wraca. Dostęp do mapy
+nie odblokowuje skanowania, hakowania, celowania, podróży ani supermocy.
+
+Nie zasłaniać mapy komunikatem „aplikacja niedostępna”. Okno CHAOS wyroku/kaucji
+podaje rzeczywisty czas i nazwę zakładu: „Zostałeś skazany na X min więzienia
+w zakładzie karnym Y. Twoje prawa zostały ograniczone na czas odbywania kary”,
+prawo do jednej wiadomości (lub informację o wykorzystaniu), czas online i kaucję.
+Belka więzienia otwiera to samo okno; przycisk zapłaty tylko przy wystarczającym HC.
+
+Implementacja: prywatna delta `response.consequence_executed` zapisana w tej
+samej transakcji co kara; endpoint claim przyznaje prezentację tylko właścicielowi
+wykonanego receipt, maksymalnie 60 s po wykonaniu, raz w całej bazie. Powtórki,
+historia i początkowa synchronizacja nie odtwarzają show. Widoczny desktop bez
+otwartej mapy pomija PNG/SFX, ale pokazuje okno wyroku; nie odkłada show do później.
+Karty w tle nie przejmują prezentacji. Zamknięcie mapy zatrzymuje trwający efekt.
+Dziewięć mapowań i fallbacki długości są w `static/js/consequence_show.js`,
+SFX w istniejącym manifeście. Audio `playing`/`ended` steruje efektem; brak startu
+w 1,5 s anuluje audio i uruchamia fallback bez późnego replay. Komunikaty kary
+nie dublują systemowego SFX. Odbiór wizualny na wdrożeniu pozostaje wymagany.
 
 Ustalenie autora 23 IX 2026: osobna ciemna warstwa tła ma alpha **60%**
 (`rgba(0,0,0,0.6)`), aby mapa przebijała przez tło. Nie obniżać opacity
@@ -174,7 +199,8 @@ Do każdego stopnia dochodzi osobny SFX MP3 w `static/audio/sfx/consequences/`.
 charakter i zalecane długości. Odtwarzanie przez wspólny GameSfx, zsynchronizowane
 z obrazem po commit kary, z respektowaniem ustawień dźwięku i dedupe receipt.
 Nie dublować dźwięku przez komunikat systemowy; brak MP3/autoplay nie blokuje
-show ani kary. Rejestracja eventów w manifeście i podłączenie w ramach 143.5a.
+show ani kary. Dziewięć eventów `consequence.stage_1`–`consequence.stage_9`
+zarejestrowano w manifeście i podłączono do wykonanych konsekwencji.
 Przewidzieć warianty mandatu/kary finansowej, konfiskaty narzędzi, kary
 łączonej oraz wniosku sądu o areszt. Stopnie 1 i 2 mają odrębne assety,
 podobnie 3, 4, 5 oraz każdy z 6–9. Wariant aresztu podaje czas wynikający

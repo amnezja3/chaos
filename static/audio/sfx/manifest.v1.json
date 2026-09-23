@@ -9,6 +9,15 @@
     "ui": { "max_voices": 3 }
   },
   "events": {
+    "consequence.stage_1": { "file": "consequences/consequence_01_fine.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 6001, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_2": { "file": "consequences/consequence_02_fine.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 4277, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_3": { "file": "consequences/consequence_03_confiscation.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 3728, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_4": { "file": "consequences/consequence_04_confiscation.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 3336, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_5": { "file": "consequences/consequence_05_confiscation_fine.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 4564, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_6": { "file": "consequences/consequence_06_detention.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 2840, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_7": { "file": "consequences/consequence_07_detention.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 2004, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_8": { "file": "consequences/consequence_08_detention.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 8796, "cooldown_ms": 0, "duck_radio": 0.3 },
+    "consequence.stage_9": { "file": "consequences/consequence_09_detention.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 4564, "cooldown_ms": 0, "duck_radio": 0.3 },
     "secret_path.scene_01": { "file": "secret_path/01_target_repaired.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
     "secret_path.scene_02": { "file": "secret_path/02_route_open.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
     "secret_path.scene_03": { "file": "secret_path/03_skill_verified.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },

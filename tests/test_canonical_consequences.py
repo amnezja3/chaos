@@ -74,7 +74,7 @@ class CanonicalConsequencesTest(unittest.TestCase):
         self.assertEqual(self.scalar("SELECT status FROM player_operations WHERE operation_id='related'"), 'cancelled')
         self.assertEqual(self.scalar("SELECT status FROM player_operations WHERE operation_id='unrelated'"), 'running')
         self.assertEqual(self.scalar('SELECT count(*) FROM system_messages'), 1)
-        self.assertEqual(self.scalar('SELECT count(*) FROM game_state_deltas'), 3)
+        self.assertEqual(self.scalar('SELECT count(*) FROM game_state_deltas'), 4)
 
     def test_multitool_confiscation_keeps_last_tool_and_storage_consistent(self):
         self.incidents.upsert({**self.incident, 'level':4}, now=self.now)

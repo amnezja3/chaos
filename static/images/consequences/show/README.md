@@ -1,8 +1,8 @@
 # Consequences Show — assety PNG
 
 Miejsce na grafiki autora do efektów mapowych konsekwencji, sprint **143.5a**.
-Zapisuj gotowe PNG bezpośrednio w tym katalogu. Na tym etapie przygotowano
-kontrakt plików; wrzucenie obrazów nie uruchamia jeszcze show w grze.
+Zapisuj gotowe PNG bezpośrednio w tym katalogu. Dziewięć wariantów jest
+podłączonych do wykonania konsekwencji; sam zapis pliku nie nadaje kary.
 
 Ścieżka repozytorium: `static/images/consequences/show/`.
 Ścieżka HTTP: `/static/images/consequences/show/<nazwa_pliku>.png`.
@@ -86,8 +86,14 @@ po potwierdzeniu commit, dla ukaranego gracza. Retry/reconnect nie odtwarzają
 ponownie tej samej kary. Wariant „wniosek sądu o areszt” jest oprawą zdarzenia,
 nie nową procedurą zatwierdzania ani dodatkowym losowaniem.
 
-Brak PNG nie blokuje kary ani komunikatu systemowego. Przed podłączeniem
-renderer sprawdzi obecność assetów; nie należy zakładać, że wszystkie pliki
-istnieją tylko dlatego, że zostały wymienione w README.
+Brak PNG nie blokuje kary ani komunikatu systemowego: renderer usuwa
+niezaładowany obraz, pozostawiając tekst skutków i SFX.
 
 Zakres i kryteria odbioru: [Sprint 143, punkt 143.5a](../../../../doc/sprints/sprint_143_response_consequences_expansion.md).
+## Integracja 143.5a
+
+PNG są podłączone przez `static/js/consequence_show.js` do prywatnego,
+jednokrotnego zdarzenia wykonania kary. Obraz zachowuje własne alpha;
+tło osobnej warstwy to `rgba(0,0,0,0.6)`. Widok więzienia używa tej samej
+warstwy przyciemnienia, bez nakładania drugich 60%. Czas show wyznacza SFX.
+Przy zamkniętej mapie nie ma odłożonego odtwarzania; wyrok jest w oknie CHAOS.

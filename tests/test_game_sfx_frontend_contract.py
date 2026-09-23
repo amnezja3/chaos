@@ -17,8 +17,8 @@ class GameSfxFrontendContractTest(unittest.TestCase):
 
     def test_sfx_loads_once_before_radio_and_terminal(self):
         self.assertEqual(self.template.count("js/game_sfx.js"), 1)
-        self.assertIn("game_sfx.js') }}?v=sfx-ghostnetwork-7", self.template)
-        self.assertIn("manifest.v1.json?v=sfx-ghostnetwork-7", self.sfx)
+        self.assertIn("game_sfx.js') }}?v=consequences-143-5a-1", self.template)
+        self.assertIn("manifest.v1.json?v=consequences-143-5a-1", self.sfx)
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
         self.assertIn("entry.volume * voice.gain", self.sfx)
@@ -55,7 +55,8 @@ class GameSfxFrontendContractTest(unittest.TestCase):
         }
         self.assertEqual(
             set(self.manifest["events"]),
-            expected_secret_path | expected_capture | expected_messages | expected_ofs | expected_ghostnetwork,
+            expected_secret_path | expected_capture | expected_messages | expected_ofs | expected_ghostnetwork
+            | {f'consequence.stage_{stage}' for stage in range(1, 10)},
         )
         self.assertTrue(all(
             self.manifest["events"][event]["bus"] == "lore"

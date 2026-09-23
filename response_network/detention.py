@@ -26,6 +26,8 @@ class DetentionService:
             raise ValueError('detention_stores_must_share_database')
         self.sanctions = SanctionStore(db_path)
         with db_connect(db_path) as conn:
+            from .consequence_show import ensure_schema
+            ensure_schema(conn)
             conn.execute('''CREATE TABLE IF NOT EXISTS response_detention_transport (
                 sanction_id TEXT PRIMARY KEY, prison_json TEXT NOT NULL,
                 return_lat REAL NOT NULL, return_lng REAL NOT NULL,

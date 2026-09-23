@@ -45,9 +45,19 @@ class DetentionCapabilitiesTest(unittest.TestCase):
                 with db_connect(self.path) as conn:
                     state = snapshot(conn, 'alice')
                     self.assertEqual(state['private_messages_remaining'], 1)
+                    if stage == 9:
+                        from flask import Flask
+                        app = Flask(__name__)
+                        with app.test_request_context('/api/ghostnetwork/snapshot?view=map'):
+                            require_request(conn, 'alice', '/api/ghostnetwork/snapshot', 'GET')
+                        with app.test_request_context('/api/ghostnetwork/snapshot?view=suite'):
+                            with self.assertRaises(DetentionDenied):
+                                require_request(conn, 'alice', '/api/ghostnetwork/snapshot', 'GET')
                     for path, method in [('/api/chats/messages','GET'),('/api/chats/messages','POST'),
                                          ('/api/response/detention/bail','POST'),('/logout','GET'),
-                                         ('/api/radio/channels','GET'),('/api/googleplex/news','GET')]:
+                                         ('/api/radio/channels','GET'),('/api/googleplex/news','GET'),
+                                         ('/map','GET'),('/api/map/player-actors','GET'),
+                                         ('/api/response/consequence-show/claim','POST')]:
                         require_request(conn,'alice',path,method)
                     for path, method in [('/command','POST'),('/gonna-win','POST'),('/hack-action','POST'),
                                          ('/map-action','POST'),('/api/ghostlab/projects','GET'),

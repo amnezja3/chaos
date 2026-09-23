@@ -8,7 +8,7 @@ for (const stage of [6, 7, 8, 9]) {
     ui.update({stage, app_access: stage === 9 ? 'webdragon_radio' : 'normal',
         cyberner_world: stage === 6 ? 'full' : stage === 7 ? 'read_only' : 'blocked',
         private_messages_remaining: 1});
-    for (const id of ['browser','radio','ghost-radio','cyberner','email']) assert(ui.appAllowed(id));
+    for (const id of ['map','browser','radio','ghost-radio','cyberner','email']) assert(ui.appAllowed(id));
     assert.equal(ui.appAllowed('terminal'), stage !== 9);
     assert.equal(ui.chatReason('world') === '', stage === 6);
     assert.equal(ui.chatReason('world', false) === '', stage < 8);

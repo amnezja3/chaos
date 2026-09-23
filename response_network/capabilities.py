@@ -25,7 +25,9 @@ def snapshot(conn, actor):
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='response_detention_transport'").fetchone():
         prison = conn.execute('SELECT prison_json FROM response_detention_transport WHERE sanction_id=?',
                               (row['sanction_id'],)).fetchone()
+    prison_data = json.loads(prison['prison_json']) if prison else {}
     return {'sanction_id': row['sanction_id'], 'stage': plan['stage'],
+            'prison_position': {key: prison_data.get(key) for key in ('lat', 'lng')} if prison else None,
             'prison_name': json.loads(prison['prison_json']).get('name', 'Areszt') if prison else 'Areszt',
             'duration_seconds': (row['duration_ms'] + 999) // 1000,
             'remaining_seconds': (row['remaining_ms'] + 999) // 1000,
@@ -43,6 +45,10 @@ def require_world(conn, actor, *, sending=False):
 
 # Explicit essential/browser/radio surface. Unknown/new routes fail closed at 9.
 READ_PATHS = frozenset({
+    '/map', '/api/map/player-actors', '/api/map/friends', '/api/operations',
+    '/api/map/incidents', '/api/map/incident-npc-capsules', '/api/map/player-areas',
+    '/api/map/clan-vulnerabilities', '/api/map/target-snapshot',
+    '/api/ghostnetwork/ability',
     '/', '/desktop', '/logout', '/session/recover', '/resources.json',
     '/api/state/changes', '/api/profile', '/api/profile/desktop',
     '/system-messages', '/api/mail/bootstrap', '/api/chats/messages', '/friends.json',
@@ -51,7 +57,7 @@ READ_PATHS = frozenset({
     '/api/blacknet/world-facts', '/api/blacknet/world-signals',
     '/api/ghost-exchange', '/api/ghostnetwork/show',
 })
-WRITE_PATHS = frozenset({'/api/response/detention/bail', '/api/chats/messages',
+WRITE_PATHS = frozenset({'/api/response/consequence-show/claim', '/api/response/detention/bail', '/api/chats/messages',
                          '/api/contacts', '/add-system-message', '/api/ghostnetwork/restart/ack',
                          '/api/map/incidents/detection-candidates'})
 
@@ -82,6 +88,10 @@ def require_request(conn, actor, path, method, endpoint=None):
     read = method in {'GET', 'HEAD'}
     if method == 'OPTIONS' or (read and endpoint == 'static'):
         return
+    if read and path == '/api/ghostnetwork/snapshot':
+        from flask import has_request_context, request
+        if has_request_context() and request.args.get('view', 'map') == 'map':
+            return
     if read and (path in READ_PATHS or path.startswith('/api/radio/channel/')):
         return
     if method == 'POST' and path in WRITE_PATHS:
