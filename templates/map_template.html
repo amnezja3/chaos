@@ -6984,6 +6984,27 @@
             return true;
         }
 
+        function handleDetentionTravelDenial(data = {}) {
+            if (data.reason !== 'detention_movement_blocked') return false;
+            const state = window.motorcycleTravelState;
+            if (state) {
+                state.movementEpoch = Number(state.movementEpoch || 0) + 1;
+                state.queue = [];
+                state.pendingBackendTravelCommit = null;
+                state.pendingRouteWaypoints = [];
+                Object.keys(state.travelPulseCleanupById || {}).forEach(finishMotorcycleTravelPulse);
+                hideMotorcycleTravelPhone('detention');
+            }
+            if (data.current_position && typeof window.setMotorcyclePositionFromSnapshot === 'function') {
+                window.setMotorcyclePositionFromSnapshot({ ...data.current_position,
+                    source: 'detention', position_version: data.position_version,
+                    position_updated_at: data.position_updated_at }, { authoritative: true });
+            }
+            const seconds = Math.max(0, Number(data.remaining_seconds) || 0);
+            addSystemMessage('warning', 'Areszt', `${data.message || 'Ruch i teleporty zablokowane.'} Pozostalo: ${Math.ceil(seconds / 60)} min online.`);
+            return true;
+        }
+
         async function flushMotorcycleTravelCommit() {
             const state = window.motorcycleTravelState;
             if (!state || state.pendingBackendTravelCommitInFlight || !state.pendingBackendTravelCommit) return false;
@@ -7009,6 +7030,7 @@
                     })
                 });
                 const data = await res.json();
+                if (handleDetentionTravelDenial(data)) return false;
                 if (!res.ok || data.status === 'too_far') {
                     console.warn('[travel] final route commit rejected', data);
                     return false;
@@ -7152,6 +7174,7 @@
                 });
                 const data = await res.json();
                 if (!res.ok || data.success === false || data.blocked) {
+                    if (handleDetentionTravelDenial(data)) return null;
                     if (handleForeignTerritoryProtectedResponse(res, data)) {
                         if (pendingMarkedTarget) {
                             settlePendingMarkedTarget(pendingMarkedTarget, 'failed', 'TARGET PROTECTED');
@@ -7432,6 +7455,7 @@
         }
 
         async function animateAvatarTravel(marker, from, to, duration = 2000) {
+            const movementEpoch = Number(window.motorcycleTravelState?.movementEpoch || 0);
             window.avatarBikeDirection = null;
             const initialDirection = getBikeDirection(from, to);
             window.avatarBikeDirection = initialDirection;
@@ -7445,6 +7469,10 @@
                 const deltaLng = (to.lng - from.lng) / steps;
 
                 const move = () => {
+                    if (Number(window.motorcycleTravelState?.movementEpoch || 0) !== movementEpoch) {
+                        resolve();
+                        return;
+                    }
                     step++;
                     const newLat = from.lat + deltaLat * step;
                     const newLng = from.lng + deltaLng * step;
@@ -7630,11 +7658,20 @@
                     const point = state.queue.shift();
                     const from = getAvatarVisualPosition();
                     const to = { lat: point.lat, lng: point.lng };
+                    const movementEpoch = Number(state.movementEpoch || 0);
                     if (state.travelPhoneVisible && state.travelPhoneId === point.travel_id) {
                         await waitForMotorcycleTravelPhoneFrame();
                     }
+                    if (Number(state.movementEpoch || 0) !== movementEpoch) {
+                        finishMotorcycleTravelPulse(point.travel_id);
+                        break;
+                    }
                     hideMotorcycleTravelPhone("movement_start");
                     await animateAvatarTravel(marker, from, to, 1500);
+                    if (Number(state.movementEpoch || 0) !== movementEpoch) {
+                        finishMotorcycleTravelPulse(point.travel_id);
+                        break;
+                    }
                     marker.setLatLng([to.lat, to.lng]);
                     const direction = getBikeDirection(from, to);
                     window.avatarBikeDirection = direction;
@@ -10265,9 +10302,27 @@
                     const self = String((window.profileData || {}).username || '').trim();
                     if (self !== payload.username) return false;
                     if (typeof window.setMotorcyclePositionFromSnapshot !== 'function') return false;
-                    return window.setMotorcyclePositionFromSnapshot(
-                        { ...payload, source: 'intruderKicker' }, { authoritative: true }
+                    if (String(payload.reason || '').startsWith('detention_')) {
+                        const state = window.motorcycleTravelState;
+                        if (state) {
+                            const version = Number(payload.position_version) || 0;
+                            if (!version || version <= Number(state.lastDetentionTransportVersion || 0)
+                                || version < Number(state.lastConfirmedVersion || 0)) return false;
+                            state.lastDetentionTransportVersion = version;
+                            state.movementEpoch = Number(state.movementEpoch || 0) + 1;
+                            state.queue = [];
+                            state.pendingBackendTravelCommit = null;
+                            state.pendingRouteWaypoints = [];
+                            Object.keys(state.travelPulseCleanupById || {}).forEach(finishMotorcycleTravelPulse);
+                            hideMotorcycleTravelPhone('detention_transport');
+                        }
+                    }
+                    const applied = window.setMotorcyclePositionFromSnapshot(
+                        { ...payload, source: payload.reason || 'intruderKicker' }, { authoritative: true }
                     );
+                    if (applied && String(payload.reason || '').startsWith('detention_')
+                        && typeof window.focusMapOnMotorcycle === 'function') window.focusMapOnMotorcycle();
+                    return applied;
                 }
                 const actor = payload.actor || payload;
                 const key = payload.username || payload.entity_id || actor.username || actor.nick;

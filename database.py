@@ -3917,6 +3917,8 @@ class UserStore:
                     _run_profile_precommit_guard(
                         precommit_guard, conn, username, current_revision
                     )
+                    from response_network.movement_guard import require_profile_position_allowed
+                    require_profile_position_allowed(conn, username, current_profile, candidate)
                     _write_profile_lkg(
                         conn,
                         username,
@@ -14328,6 +14330,10 @@ class PlayerPositionStore:
         with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
             if owns_connection:
                 conn.execute("BEGIN IMMEDIATE")
+            elif not conn.in_transaction:
+                raise ValueError('position_transaction_required')
+            from response_network.movement_guard import require_movement_allowed
+            require_movement_allowed(conn, username)
             row = conn.execute(
                 "SELECT * FROM player_positions WHERE username = ?",
                 (username,),
@@ -14429,7 +14435,7 @@ class CybernerWorldStore:
         init_db(self.db_path)
 
     def add_message(self, sender_username, body, subject="", client_message_id=None,
-                    message_id=None, created_at=None):
+                    message_id=None, created_at=None, *, conn=None):
         sender_username = str(sender_username or "").strip()
         body = str(body or "").strip()
         if not sender_username:
@@ -14441,7 +14447,7 @@ class CybernerWorldStore:
         message_id = str(message_id or "").strip() or _cyberner_message_id("cyberner_world")
         created_at = str(created_at or "").strip() or utc_now()
 
-        with db_connect(self.db_path) as conn:
+        with (nullcontext(conn) if conn is not None else db_connect(self.db_path)) as conn:
             if client_message_id:
                 existing = conn.execute(
                     """
@@ -14545,7 +14551,7 @@ class CybernerClanStore:
         return normalized
 
     def add_message(self, clan_key, sender_username, body, subject="", client_message_id=None,
-                    message_id=None, created_at=None):
+                    message_id=None, created_at=None, *, conn=None):
         clan_key = self.normalize_clan_key(clan_key)
         sender_username = str(sender_username or "").strip()
         body = str(body or "").strip()
@@ -14558,7 +14564,7 @@ class CybernerClanStore:
         message_id = str(message_id or "").strip() or _cyberner_message_id("cyberner_clan")
         created_at = str(created_at or "").strip() or utc_now()
 
-        with db_connect(self.db_path) as conn:
+        with (nullcontext(conn) if conn is not None else db_connect(self.db_path)) as conn:
             if client_message_id:
                 existing = conn.execute(
                     """
@@ -15122,7 +15128,7 @@ class MailStore:
             messages.reverse()
             return messages
 
-    def add_message(self, username, scope, peer_name, sender, body, subject="", auto_add_contact=False, channel_recipients=None):
+    def add_message(self, username, scope, peer_name, sender, body, subject="", auto_add_contact=False, channel_recipients=None, *, conn=None):
         body = (body or "").strip()
         if not body:
             raise ValueError("Message body is required.")
@@ -15135,7 +15141,7 @@ class MailStore:
         if scope == "direct" and peer_name == username:
             raise ValueError("Nie mozesz wyslac wiadomosci do samego siebie.")
 
-        with db_connect(self.db_path) as conn:
+        with (nullcontext(conn) if conn is not None else db_connect(self.db_path)) as conn:
             accept_pending_contact = False
             if scope == "direct" and auto_add_contact:
                 pending_row = conn.execute(

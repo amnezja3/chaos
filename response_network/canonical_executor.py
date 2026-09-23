@@ -9,6 +9,7 @@ from .qualification import DetectionQualification, actor_snapshot, qualification
 from .consequence_table import fine_amount
 from .detection_validator import _coerce_datetime
 from ghostnetwork.repository import GhostNetworkRepository
+from .detention import DetentionService, detention_enabled
 
 
 def execution_enabled(actor):
@@ -26,6 +27,7 @@ class CanonicalConsequenceExecutor:
         self.incidents, self.capsules, self.records = incidents, capsules, records
         self.wallet, self.inventory, self.operations = wallet, inventory, operations
         self.messages, self.deltas = messages, deltas
+        self.detention = DetentionService(db_path, wallet, messages, deltas)
         self.world = GhostNetworkRepository(db_path=db_path, ensure_schema=False)
         for store in (incidents, capsules, records, wallet, inventory, operations, messages, deltas):
             if os.path.abspath(store.db_path) != os.path.abspath(db_path):
@@ -49,6 +51,8 @@ class CanonicalConsequenceExecutor:
                 return loads_json(row['execution_json'], {}) or {'status': row['execution_status']}
             if row['outcome'] != 'selected':
                 raise ValueError('only_selected_encounter_can_execute')
+            if self.detention.sanctions.active_for(conn, actor):
+                return {'status': 'deferred', 'reason': 'actor_detained'}
             if self.world.get_gameplay_lock(conn=conn):
                 return {'status': 'deferred', 'reason': 'ghostsignal_gameplay_locked'}
             qualifier = DetectionQualification(
@@ -77,7 +81,15 @@ class CanonicalConsequenceExecutor:
             if not plan:
                 return finish('no_effect', 'incident_observation_only')
             if plan['detention_minutes']:
-                return finish('unsupported', 'detention_requires_sprint_143')
+                if not detention_enabled():
+                    return finish('unsupported', 'detention_requires_sprint_143')
+                sanction = self.detention.impose(conn, actor=actor, encounter_id=encounter_id,
+                    incident_id=row['incident_id'], plan=plan, now=now)
+                effects = {'detention_seconds': sanction['duration_ms'] // 1000,
+                           'sanction_id': sanction['sanction_id'], 'fine_hc': 0, 'tool_ids': []}
+                result = finish('executed', 'consequence_applied', effects)
+                self.records.record_executed(conn, encounter_id, plan, effects, now.isoformat())
+                return result
 
             # Indexed member join, never hydrate every operation or profile.
             related = conn.execute('''SELECT o.operation_id,

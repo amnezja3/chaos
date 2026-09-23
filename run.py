@@ -167,6 +167,7 @@ criminal_record_store = CriminalRecordStore()
 response_encounter_store.executor = CanonicalConsequenceExecutor(
     player_operation_store.db_path, incident_store, npc_capsule_store, criminal_record_store,
     wallet_balance_store, player_inventory_store, player_operation_store, system_message_store, delta_bus)
+detention_service = response_encounter_store.executor.detention
 detection_validator = DetectionValidator(
     incident_store,
     npc_capsule_store,
@@ -591,7 +592,11 @@ def cyberner_legacy_scope_peer(route):
 
 def cyberner_unread_counts(username, profile=None, channel_states=None):
     counts = mail_store.unread_counts(username)
-    if cyberner_shared_store_enabled("world"):
+    detention = detention_capabilities(username)
+    world_blocked = bool(detention and detention['cyberner_world'] == 'blocked')
+    if world_blocked:
+        counts['group'] = 0
+    if cyberner_shared_store_enabled("world") and not world_blocked:
         try:
             cursor = cyberner_channel_cursor_store.get(username, "world", "global")
             counts["group"] = cyberner_world_store.count_after(cursor["last_read_message_id"])
@@ -631,6 +636,10 @@ def cyberner_unread_counts(username, profile=None, channel_states=None):
 
 def cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
     channel = route["channel"]
+    if channel == 'world':
+        from database import db_connect
+        with db_connect(detention_service.db_path) as conn:
+            detention_require_world(conn, username)
     if channel == "agi2108":
         records = get_ghostnetwork_service().repository.list_narrative_medium_records(
             "cyberner", audience_scope="owner", audience_owner=username,
@@ -707,21 +716,45 @@ def cyberner_route_recipients(username, profile, route):
 
 
 def cyberner_store_message(username, profile, route, body, subject="", client_message_id=None):
+    from response_network.chat_delivery import deliver
+    channel = route['channel']
+    if channel == 'agi2108':
+        raise ValueError('Kanal AGI 2108 jest tylko do odczytu.')
+    legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
+    recipients = cyberner_message_recipients(username, profile, legacy_scope, legacy_peer) if not cyberner_shared_store_enabled(channel) else []
+    auto_contact = legacy_scope == 'direct' and not mail_store.is_contact(username, legacy_peer)
+    store = cyberner_world_store if channel == 'world' and cyberner_shared_store_enabled(channel) else (
+        cyberner_clan_store if channel == 'clan' and cyberner_shared_store_enabled(channel) else mail_store)
+    # Production stores share a database; transaction must not span separate stores.
+    if os.path.abspath(store.db_path) != os.path.abspath(detention_service.db_path):
+        from database import db_connect
+        with db_connect(detention_service.db_path) as conn:
+            if detention_snapshot(conn, username):
+                raise ValueError('detention_chat_database_mismatch')
+        return _cyberner_store_message(username, profile, route, body, subject, client_message_id)
+    def writer(conn):
+        return _cyberner_store_message(username, profile, route, body, subject, client_message_id,
+                                      conn=conn, recipients=recipients, auto_contact=auto_contact)
+    return deliver(store.db_path, username, route, body, subject, client_message_id, writer)
+
+
+def _cyberner_store_message(username, profile, route, body, subject="", client_message_id=None,
+                            *, conn=None, recipients=None, auto_contact=None):
     channel = route["channel"]
     if channel == "agi2108":
         raise ValueError("Kanal AGI 2108 jest tylko do odczytu.")
     if channel == "world" and cyberner_shared_store_enabled("world"):
         return cyberner_world_store.add_message(
-            username, body, subject=subject, client_message_id=client_message_id
+            username, body, subject=subject, client_message_id=client_message_id, conn=conn
         )
     if channel == "clan" and cyberner_shared_store_enabled("clan"):
         return cyberner_clan_store.add_message(
             route["store_key"], username, body, subject=subject,
-            client_message_id=client_message_id,
+            client_message_id=client_message_id, conn=conn,
         )
 
     legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
-    recipients = cyberner_message_recipients(username, profile, legacy_scope, legacy_peer)
+    recipients = recipients if recipients is not None else cyberner_message_recipients(username, profile, legacy_scope, legacy_peer)
     mail_store.add_message(
         username,
         legacy_scope,
@@ -729,9 +762,14 @@ def cyberner_store_message(username, profile, route, body, subject="", client_me
         username,
         body,
         subject=subject,
-        auto_add_contact=legacy_scope == "direct" and not mail_store.is_contact(username, legacy_peer),
+        auto_add_contact=auto_contact if auto_contact is not None else legacy_scope == "direct" and not mail_store.is_contact(username, legacy_peer),
         channel_recipients=recipients if legacy_scope == "channel" else None,
+        conn=conn,
     )
+    if conn is not None:
+        row = conn.execute('SELECT * FROM chat_messages WHERE owner_username=? AND scope=? AND peer_name=? ORDER BY id DESC LIMIT 1',
+                           (username, legacy_scope, legacy_peer)).fetchone()
+        return dict(row), True
     message = latest_mail_message(username, legacy_scope, legacy_peer)
     return message, True
 
@@ -9571,6 +9609,99 @@ def merge_latest_profile_runtime_fields(username, fields):
     return merged
 
 
+from response_network.movement_guard import MovementBlocked, require_movement_allowed
+from response_network.capabilities import (DetentionDenied, snapshot as detention_snapshot,
+    require_request as detention_require_request, require_world as detention_require_world,
+    world_payload as detention_world_payload)
+
+
+def detention_capabilities(username):
+    from database import db_connect
+    with db_connect(detention_service.db_path) as conn:
+        return detention_snapshot(conn, username)
+
+
+@app.errorhandler(DetentionDenied)
+def detention_capability_error(exc):
+    messages = {
+        'detention_world_blocked': 'World jest niedostępny na tym stopniu aresztu.',
+        'detention_world_read_only': 'W areszcie możesz tylko czytać World.',
+        'private_message_allowance_exhausted': 'Wykorzystano jedną wiadomość prywatną na ten wyrok. Nadal możesz czytać.',
+        'detention_use_private_message': 'Podczas aresztu skorzystaj z jednej wiadomości prywatnej w Cybernerze.',
+        'detention_app_blocked': 'Ten stopień aresztu pozostawia Web Dragona, radio i prywatną komunikację.',
+    }
+    message = messages.get(exc.reason, 'Akcja niedostępna podczas aresztu.')
+    return jsonify({'ok': False, 'success': False, 'error': message, 'message': message,
+                    'reason': exc.reason, 'detention': exc.state}), 403
+
+
+@app.before_request
+def detention_request_gate():
+    if session.get('user'):
+        from database import db_connect
+        with db_connect(detention_service.db_path) as conn:
+            detention_require_request(conn, session['user'], request.path, request.method, request.endpoint)
+
+
+@app.after_request
+def detention_preserve_commit_denial(response):
+    error = getattr(g, 'detention_commit_denied', None)
+    if error:
+        response, status = detention_capability_error(error)
+        response.status_code = status
+    return response
+
+
+@app.errorhandler(MovementBlocked)
+def detention_movement_error(exc):
+    actor = session.get('user')
+    position = player_position_store.get(actor) if actor else None
+    return jsonify({"success": False, "status": "error",
+                    "error": "detention_movement_blocked", "reason": "detention_movement_blocked",
+                    "message": "Areszt blokuje ruch i teleporty.",
+                    "remaining_seconds": exc.remaining_seconds,
+                    "current_position": {"lat": position['lat'], "lng": position['lng']} if position else None,
+                    "position_version": position.get('version') if position else None,
+                    "position_updated_at": position.get('updated_at') if position else None}), 409
+
+
+@app.get('/api/response/detention')
+def api_response_detention():
+    if not session.get('user'):
+        return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
+    detention_service.advance_actor(session['user'])
+    return jsonify({'ok': True, 'detention': detention_capabilities(session['user'])})
+
+
+@app.get('/api/response/detention/bail-quote')
+def api_response_detention_bail_quote():
+    if not session.get('user'):
+        return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
+    actor = str(request.args.get('username') or session['user']).strip()
+    if not actor or len(actor) > 160:
+        return jsonify({'ok': False, 'error': 'invalid_actor'}), 400
+    return jsonify({'ok': True, 'quote': detention_service.quote(actor)})
+
+
+@app.post('/api/response/detention/bail')
+def api_response_detention_bail():
+    if not session.get('user'):
+        return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({'ok': False, 'error': 'invalid_payload'}), 400
+    sanction_id = str(payload.get('sanction_id') or '').strip()
+    if not sanction_id or len(sanction_id) > 160:
+        return jsonify({'ok': False, 'error': 'invalid_sanction_id'}), 400
+    try:
+        result = detention_service.pay_bail(session['user'], sanction_id)
+    except WalletWriteError as exc:
+        return wallet_error_response(exc)
+    except ValueError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 409
+    return jsonify({'ok': True, **result})
+
+
 def normalize_profile_position_update(position, username=None, source="runtime"):
     """Keep legacy and canonical position fields in sync during partial updates."""
     if not isinstance(position, dict):
@@ -9591,8 +9722,9 @@ def normalize_profile_position_update(position, username=None, source="runtime")
                 "position_version": store_result.get("version"),
                 "position_updated_at": store_result.get("updated_at"),
             }
-        except Exception as exc:
-            print(f"[position runtime] store update failed user={username} source={source} error={exc}", flush=True)
+        except Exception:
+            # A denied or failed canonical write must never update legacy position.
+            raise
     result = {
         "curently_possition": dict(normalized),
         "current_position": dict(normalized),
@@ -16846,7 +16978,7 @@ def is_googleplex_product(item):
     return isinstance(item, dict) and bool(item.get("product_type") or item.get("effects"))
 
 
-def apply_googleplex_product_effect(profile, product, username=None):
+def apply_googleplex_product_effect(profile, product, username=None, *, committed_travel=None):
     if not isinstance(profile, dict) or not isinstance(product, dict):
         return {"applied": [], "messages": []}
     effects = product.get("effects")
@@ -16876,11 +17008,15 @@ def apply_googleplex_product_effect(profile, product, username=None):
             city = TRAVEL_CITIES.get(city_key)
             if not city:
                 raise ValueError(f"Nieznane miasto biletu: {city_key}")
-            position_updates = normalize_profile_position_update(
-                {"lat": city["lat"], "lng": city["lng"]},
-                username=username,
-                source="googleplex_travel",
-            )
+            if committed_travel is None:
+                position_updates = normalize_profile_position_update(
+                    {"lat": city["lat"], "lng": city["lng"]},
+                    username=username, source="googleplex_travel",
+                )
+            else:
+                position_updates = normalize_profile_position_update(committed_travel['position'])
+                position_updates.update(position_version=committed_travel.get('version'),
+                                        position_updated_at=committed_travel.get('updated_at'))
             profile.update(position_updates)
             profile["current_city"] = city["name"]
             applied.append({"type": effect_type, "city": city["name"], "lat": city["lat"], "lng": city["lng"]})
@@ -19968,6 +20104,13 @@ def invalidate_authenticated_session(reason="logout", *, durable_already_revoked
             # logout while its durable lineage remains active would allow an
             # older delayed cookie to look valid again.
             raise RuntimeError("Durable session lineage could not be revoked.") from exc
+    if username:
+        try:
+            detention_service.advance_actor(username)
+        except Exception as exc:
+            # Durable session revocation remains authoritative even if recovery
+            # must be retried by the worker. Never resurrect a revoked login.
+            print(f"[DETENTION] logout recovery deferred error={type(exc).__name__}", flush=True)
     g.session_invalidated = True
     _rotate_server_session_id()
     print(
@@ -20076,6 +20219,12 @@ def bind_request_profile_precommit_guard():
     )
     def guarded_commit(*, conn):
         transaction_guard(conn=conn)
+        try:
+            detention_require_request(conn, str(getattr(g, 'session_generation_user', '') or ''),
+                                      request.path, request.method, request.endpoint)
+        except DetentionDenied as exc:
+            g.detention_commit_denied = exc
+            raise
         if not ghostsignal_request_is_exempt():
             try:
                 get_ghostsignal_show_service().assert_gameplay_unlocked(conn)
@@ -20830,6 +20979,9 @@ def ghostsignal_request_is_exempt():
         return True
     if request.method == "OPTIONS":
         return True
+    if request.path in {'/api/response/detention', '/api/response/detention/bail-quote',
+                        '/api/response/detention/bail'}:
+        return True  # Essential sentence recovery/bail survives the global show.
     if request.method in {"GET", "HEAD"} and (
         request.endpoint in {"static", "dev_dashboard"} or request.path in {
             "/", "/desktop", "/logout", "/session/recover", "/resources.json",
@@ -21262,6 +21414,7 @@ def api_state_changes():
         }), 401
 
     mail_store.touch_presence(username)
+    detention_service.advance_actor(username)
     try:
         get_ghostsignal_show_service().deliver_start_to_viewer(delta_bus, username)
     except Exception as exc:
@@ -21271,6 +21424,11 @@ def api_state_changes():
         request.args.get("since", 0),
         request.args.get("limit", GameStateDeltaBus.DEFAULT_QUERY_LIMIT),
     )
+    state = detention_capabilities(username)
+    result['detention'] = state
+    if state and state['cyberner_world'] == 'blocked':
+        result['changes'] = [change for change in result.get('changes', [])
+                             if not detention_world_payload(change.get('payload'))]
     if result.get("recovery_required"):
         result["recovery_scopes"] = recovery_scopes
     return jsonify(result)
@@ -23424,6 +23582,10 @@ def map_action():
         return jsonify({"success": False, "error": "not_logged_in"}), 401
     data = request.get_json(silent=True) or {}
     action = data.get("action")
+    if action == 'travel':
+        from database import db_connect
+        with db_connect(player_position_store.db_path) as travel_guard_conn:
+            require_movement_allowed(travel_guard_conn, session['user'])
     try:
         lat = float(data.get("lat"))
         lng = float(data.get("lng"))
@@ -28974,6 +29136,9 @@ def mail_bootstrap():
         # Bootstrap carries only the preview. Full history belongs to the
         # selected-channel endpoint and cannot delay the whole communicator.
         group_messages = cyberner_list_route_messages(username, world_route, limit=1)
+    except DetentionDenied:
+        group_messages = []
+        channel_states['world'] = {'available': False, 'error': 'detention_world_blocked'}
     except Exception as exc:
         group_messages = []
         channel_states["world"] = {"available": False, "error": "read_failed"}
@@ -28989,6 +29154,7 @@ def mail_bootstrap():
         "unread_counts": cyberner_unread_counts(username, profile, channel_states),
         "group_active_count": group_active_count,
         "channel_states": channel_states,
+        "detention": detention_capabilities(username),
     })
 
 @app.route("/api/contacts", methods=["POST"])
@@ -29221,6 +29387,7 @@ def send_chat_message():
         "message": committed_message,
         "message_id": (committed_message or {}).get("message_id") or (committed_message or {}).get("id"),
         "idempotent_replay": not bool(created),
+        "detention": detention_capabilities(username),
         "channel": route,
         "messages": messages,
         "contacts": mail_store.list_contacts(username),
@@ -29240,6 +29407,9 @@ def get_system_messages():
     # The SQLite store is authoritative after the profile-store migration.
     # Polling must not parse multi-megabyte profile JSON or touch runtime stores.
     new_msgs = system_message_store.consume_pending(session["user"])
+    state = detention_capabilities(session['user'])
+    if state and state['cyberner_world'] == 'blocked':
+        new_msgs = [msg for msg in new_msgs if not detention_world_payload(msg)]
     return jsonify(new_msgs)
 
 @app.route('/add-system-message', methods=['POST'])
@@ -29298,6 +29468,12 @@ def install_app():
         app_data = next((app for app in catalog if app.get("id") == app_id), None)
         if not app_data:
             return jsonify({"status": "error", "reason": "catalog_item_not_found", "message": "App not found"}), 404
+
+        if any(isinstance(effect, dict) and effect.get('type') == 'travel_city'
+               for effect in (app_data.get('effects') or [])):
+            from database import db_connect
+            with db_connect(player_position_store.db_path) as travel_guard_conn:
+                require_movement_allowed(travel_guard_conn, session['user'])
 
         if app_data.get("bounded_install") is True:
             buyer_username = str(session.get("user") or "").strip()
@@ -29530,7 +29706,19 @@ def install_app():
             payee_username = "admin"
             payee_profile = user_store.get_profile(payee_username)
 
-        if price > 0 and payee_username != buyer_username:
+        travel_effects = [effect for effect in (app_data.get('effects') or [])
+                          if isinstance(effect, dict) and effect.get('type') == 'travel_city']
+        committed_travel = None
+        if travel_effects:
+            city = TRAVEL_CITIES.get(str(travel_effects[-1].get('city') or app_data.get('travel_city') or ''))
+            if not city or len(travel_effects) != 1:
+                raise ValueError('invalid_travel_product')
+            from response_network.travel_purchase import purchase_travel
+            payment, committed_travel = purchase_travel(
+                wallet_balance_store, player_position_store, actor=buyer_username,
+                payee=payee_username, price=price, key=purchase_key,
+                note=f"googleplex:{app_id}", destination={'lat': city['lat'], 'lng': city['lng']})
+        elif price > 0 and payee_username != buyer_username:
             if not payee_profile:
                 return jsonify({
                     "status": "error",
@@ -29571,7 +29759,8 @@ def install_app():
                 pass
 
         if is_product:
-            effect_result = apply_googleplex_product_effect(profile, app_data, username=buyer_username)
+            effect_result = apply_googleplex_product_effect(profile, app_data, username=buyer_username,
+                                                            committed_travel=committed_travel)
             purchases = profile.setdefault("googleplex_products", [])
             if not isinstance(purchases, list):
                 purchases = []
@@ -29797,6 +29986,8 @@ def install_app():
             "files": profile.get("files", {}),
         })
 
+    except MovementBlocked as exc:
+        return detention_movement_error(exc)
     except WalletWriteError as exc:
         response, status = wallet_error_response(exc, status_key="message")
         payload = response.get_json() or {}

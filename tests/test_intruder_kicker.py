@@ -7,6 +7,49 @@ import test_first_respawn_territory_edge as respawn
 
 
 class IntruderKickerTest(unittest.TestCase):
+    def detain(self, actor):
+        from datetime import datetime, timezone
+        from database import db_connect
+        from response_network.sanctions import SanctionStore
+        from response_network.consequence_table import plan_consequence
+        sanctions = SanctionStore(self.path)
+        with db_connect(self.path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            sanctions.impose(conn, encounter_id='detention-' + actor, actor_id=actor,
+                incident_id='incident', plan=plan_consequence(5, 0), now=datetime.now(timezone.utc))
+
+    def test_detained_victim_cannot_be_moved_or_consume_kicker(self):
+        self.prepare()
+        self.detain('victim')
+        before = self.positions.get('victim')
+        response = self.use()
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertEqual(response.json['reason'], 'detention_movement_blocked')
+        self.assertEqual(self.positions.get('victim'), before)
+        self.assertEqual(self.deltas.get_changes_since('victim')['changes'], [])
+        access = self.access.get_active_access('attacker', 'victim')
+        self.assertIsNone(self.access.get_tool_usage(access, 'attacker', 'victim', 'intruderKicker'))
+
+    def test_detained_http_teleport_and_ticket_preflight(self):
+        self.prepare()
+        self.positions.upsert('attacker', {'lat': 52., 'lng': 21.})
+        self.detain('attacker')
+        before = self.positions.get('attacker')
+        response = self.client.post('/api/blacknet/cta/teleport', json={'lat': 53, 'lng': 20, 'source': 'terminal'})
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertEqual(response.json['reason'], 'detention_movement_blocked')
+        self.assertEqual(response.json['current_position'], {'lat': 52., 'lng': 21.})
+        response = self.client.post('/map-action', json={'action': 'travel', 'lat': 52.001, 'lng': 21.})
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertEqual(response.json['reason'], 'detention_movement_blocked')
+        product = next(p for p in run.googleplex_product_catalog() if p['id'] == 'ticket_warszawa')
+        with patch.object(run, 'get_app_catalog', return_value=[product]), \
+             patch.object(run.wallet_balance_store, 'transfer', side_effect=AssertionError('must not charge')):
+            response = self.client.post('/install-app', json={'app_id': product['id']})
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertEqual(response.json['reason'], 'detention_movement_blocked')
+        self.assertEqual(self.positions.get('attacker'), before)
+
     seed = read_paths.PlayerHackReadPathsTest.seed
 
     def setUp(self):

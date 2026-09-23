@@ -315,6 +315,21 @@ def canonical_wallet_test_runtime(balances):
 
 
 @contextmanager
+def canonical_travel_test_runtime(balances):
+    from database import db_connect, PlayerPositionStore
+    with tempfile.TemporaryDirectory() as directory:
+        path = os.path.join(directory, 'travel.db')
+        wallet = WalletBalanceStore(path)
+        positions = PlayerPositionStore(path)
+        with db_connect(path) as conn:
+            for username, balance in balances.items():
+                conn.execute("INSERT INTO users(username,profile_json,created_at,updated_at) VALUES (?,'{}','now','now')", (username,))
+                conn.execute("INSERT INTO wallet_balances(username,balance,version,updated_at) VALUES (?,?,1,'now')", (username, balance))
+        with patch.object(run, 'wallet_balance_store', wallet), patch.object(run, 'player_position_store', positions):
+            yield wallet
+
+
+@contextmanager
 def canonical_inventory_test_runtime(profile):
     fd, path = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
@@ -6376,7 +6391,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "neo"
-        with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+        with canonical_travel_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=[product]), \

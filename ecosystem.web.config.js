@@ -11,6 +11,7 @@ module.exports = {
         CHAOS_RESPONSE_ENCOUNTERS_ENABLED: "true",
         CHAOS_RESPONSE_EXECUTION_MODE: "enforce",
         CHAOS_RESPONSE_EXECUTION_ACTORS: "*",
+        CHAOS_RESPONSE_DETENTION_ENABLED: "true", // 143.5 gates installed; applies only to new eligible encounters.
         CHAOS_NARRATIVE_TTL_URGENT_SECONDS: "1800",
         CHAOS_NARRATIVE_TTL_NORMAL_SECONDS: "7200",
         CHAOS_NARRATIVE_TTL_EDITORIAL_SECONDS: "21600",

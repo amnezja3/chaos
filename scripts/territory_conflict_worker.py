@@ -42,6 +42,9 @@ def process_operation_runtime_if_due():
     now = time.monotonic()
     if now < _next_operation_runtime_tick_at:
         return {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
+    detention = run.detention_service.tick()
+    if detention.get('released'):
+        print(f"[TERRITORY_WORKER] detention={detention}", flush=True)
     result = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
     run.process_incident_runtime_tick()
     encounters = run.response_encounter_store.scan()

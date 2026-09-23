@@ -10,6 +10,7 @@ from database import DB_PATH, db_connect, dumps_json, loads_json
 from .canonical_executor import execution_enabled
 from .qualification import DetectionQualification, actor_snapshot, qualification_mode
 from .npc_capsule_factory import position_at
+from .movement_guard import MovementBlocked, require_movement_allowed
 
 
 def encounters_enabled():
@@ -84,6 +85,11 @@ class EncounterStore:
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             now = now or datetime.now(timezone.utc)
+            try:
+                require_movement_allowed(conn, candidate.get('actor_id'))
+            except MovementBlocked:
+                return {'status': 'rejected', 'reason': 'actor_detained', 'qualified': False,
+                        'consequence_executed': False, 'penalty_executed': False}
             qualifier = DetectionQualification(
                 SimpleNamespace(get=lambda key: self.incidents.get(key, conn=conn)),
                 SimpleNamespace(get=lambda key: self.capsules.get(key, conn=conn)), None,

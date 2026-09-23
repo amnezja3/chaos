@@ -46,6 +46,30 @@ def complete_profile(username="alice"):
 
 
 class ProfileManagerWriteGuardTests(unittest.TestCase):
+    def test_detained_legacy_position_write_rejected_without_profile_revision_change(self):
+        from datetime import datetime, timezone
+        from database import PlayerPositionStore
+        from response_network.consequence_table import plan_consequence
+        from response_network.sanctions import SanctionStore
+        from response_network.movement_guard import MovementBlocked
+        profile = complete_profile()
+        profile['curently_possition'] = {'lat': 52., 'lng': 21.}
+        self.store.save_profile_guarded(profile, expected_revision=0, source='test', allow_create=True)
+        positions = PlayerPositionStore(self.store.db_path)
+        positions.upsert('alice', profile['curently_possition'])
+        sanctions = SanctionStore(self.store.db_path)
+        with db_connect(self.store.db_path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            sanctions.impose(conn, encounter_id='e', actor_id='alice', incident_id='i',
+                plan=plan_consequence(5, 0), now=datetime.now(timezone.utc))
+        manager = UserProfileManager('alice', store=self.store, resource_store=FakeResources(profile))
+        before = self.store.get_profile_with_revision('alice')
+        with self.assertRaises(MovementBlocked):
+            manager.update_profile({'curently_possition': {'lat': 53., 'lng': 20.}})
+        after = self.store.get_profile_with_revision('alice')
+        self.assertEqual(after['profile_revision'], before['profile_revision'])
+        self.assertEqual(after['profile'], before['profile'])
+
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp(prefix="chaos_profile_manager_guard_"))
         self.store = UserStore(

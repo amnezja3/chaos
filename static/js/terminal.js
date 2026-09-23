@@ -2834,6 +2834,10 @@ function beginApplicationWindowLaunch(id, type) {
 }
 
 function launchApplicationEffect(appData) {
+    if (window.DetentionUI && !window.DetentionUI.appAllowed(appData.id)) {
+        addSystemMessage('warning', 'Areszt', 'Ta aplikacja jest niedostępna podczas aresztu.');
+        return;
+    }
     if (runSystemLauncherApp(appData)) return;
     const cameraKey = cameraApplicationLaunchKey(appData, (toolbarProfile || {}).aimed_target || {});
     const cameraWindow = findCameraApplicationWindow(cameraKey);
@@ -3242,6 +3246,7 @@ function appendTerminalPrompt(content) {
 
 function openSystemAppFromTerminal(appKey) {
     const normalized = String(appKey || '').toLowerCase();
+    if (window.DetentionUI && !window.DetentionUI.appAllowed(normalized)) return false;
     const existingByKey = {
         map: '.terminal[data-app="map"]',
         browser: '.terminal[data-app="browser"]',
@@ -12857,6 +12862,7 @@ async function pollStateChanges() {
         }
         const data = await res.json();
         if (!desktopSessionActive) return;
+        if (Object.prototype.hasOwnProperty.call(data, 'detention')) window.DetentionUI?.update(data.detention);
         if (data.recovery_required) {
             stateDeltaSfxCatchup = true;
             await recoverDeltaScopes(data.recovery_scopes || [], data.current_version);
@@ -17377,6 +17383,7 @@ function createEmailClient() {
     };
     const isCurrentChatSendable = () => {
         if (!currentChat || !currentChat.scope || !currentChat.peer) return false;
+        if (window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct'))) return false;
         if (currentChat.channel) {
             const channel = currentChannel();
             return !!channel && channel.enabled !== false;
@@ -17390,8 +17397,23 @@ function createEmailClient() {
         messageButton.disabled = !sendable || !hasBody || mailSending;
         messageForm.classList.toggle('is-disabled', !sendable);
         messageForm.classList.toggle('is-sending', mailSending);
-        messageInput.placeholder = sendable ? "Napisz wiadomosc..." : "Ten kanal jest niedostepny.";
+        messageInput.placeholder = window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct')) || (sendable ? "Napisz wiadomosc..." : "Ten kanal jest niedostepny.");
     };
+    const detentionChatChanged = () => {
+        if (!document.body.contains(term)) { window.removeEventListener('detention:changed', detentionChatChanged); return; }
+        updateComposerState();
+        if (window.DetentionUI?.chatReason('world', false)) {
+            groupMessages = [];
+            unreadCounts.group = 0;
+            renderContacts();
+        }
+        if (window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct'), false)) {
+            groupMessages = [];
+            replaceCurrentMessages([]);
+            renderMessages([], true);
+        }
+    };
+    window.addEventListener('detention:changed', detentionChatChanged);
     const updateMailViewportInset = () => {
         let offset = 0;
         if (window.visualViewport && isMailNarrow()) {
@@ -17565,6 +17587,8 @@ function createEmailClient() {
     };
 
     const applyMailDeltaPayload = (payload = {}) => {
+        if (window.DetentionUI?.chatReason('world', false) &&
+            (payload.channel === 'world' || payload.message?.channel === 'world' || payload.scope === 'group' || payload.thread?.scope === 'group')) return;
         latestMailDeltaVersion = Math.max(latestMailDeltaVersion, Number(payload.delta_version || 0));
         if (Array.isArray(payload.channels)) {
             channels = normalizeCybernerChannels(payload.channels);
@@ -17685,6 +17709,13 @@ function createEmailClient() {
 
     const loadMessages = async (options = {}) => {
         if (mailClosed || !document.body.contains(term)) return null;
+        const detentionReason = window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct'), false);
+        if (detentionReason) {
+            replaceCurrentMessages([]);
+            messagesBox.textContent = detentionReason;
+            updateComposerState();
+            return null;
+        }
         const requestKey = `${currentChat.scope}:${currentChat.peer}`;
         const state = requestState.messages;
         if (state.inFlight && state.key === requestKey) return state.inFlight;
@@ -17705,6 +17736,7 @@ function createEmailClient() {
                 if (!res.ok) throw new Error(`Cyberner messages HTTP ${res.status}`);
                 const data = await res.json();
                 if (mailClosed || version !== state.version || requestKey !== `${currentChat.scope}:${currentChat.peer}`) return null;
+                if (window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct'), false)) return null;
                 unreadCounts = data.unread_counts || unreadCounts;
                 groupActiveCount = data.group_active_count ?? groupActiveCount;
                 const responseMessages = startedDeltaVersion < latestMailDeltaVersion
@@ -17776,6 +17808,7 @@ function createEmailClient() {
                 const data = await res.json();
                 if (mailClosed || version !== state.version) return null;
                 currentUser = data.username || currentUser;
+                if (Object.prototype.hasOwnProperty.call(data, 'detention')) window.DetentionUI?.update(data.detention);
                 channels = normalizeCybernerChannels(data.channels);
                 contacts = data.contacts || [];
                 pendingThreads = data.pending_threads || [];
@@ -17904,10 +17937,12 @@ function createEmailClient() {
             const data = await res.json();
             if (data.error) {
                 if (res.status >= 400 && res.status < 500) pendingSend = null;
+                if (Object.prototype.hasOwnProperty.call(data, 'detention')) window.DetentionUI?.update(data.detention);
                 addSystemMessage("warning", "Cyberner", data.error);
                 return;
             }
             if (data.messages) {
+                if (Object.prototype.hasOwnProperty.call(data, 'detention')) window.DetentionUI?.update(data.detention);
                 pendingSend = null;
                 contacts = data.contacts || contacts;
                 pendingThreads = data.pending_threads || pendingThreads;

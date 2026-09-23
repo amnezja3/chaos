@@ -16,7 +16,7 @@ from database import (
 
 
 def load_channel_migration():
-    path = Path("scripts/db_migrations/005_cyberner_channel_stores.py")
+    path = Path(__file__).resolve().parents[1] / "scripts/db_migrations/005_cyberner_channel_stores.py"
     spec = importlib.util.spec_from_file_location("cyberner_channel_migration_005", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -24,7 +24,7 @@ def load_channel_migration():
 
 
 def load_cutover_migration():
-    path = Path("scripts/db_migrations/006_cyberner_channel_cutover.py")
+    path = Path(__file__).resolve().parents[1] / "scripts/db_migrations/006_cyberner_channel_cutover.py"
     spec = importlib.util.spec_from_file_location("cyberner_channel_migration_006", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -32,7 +32,7 @@ def load_cutover_migration():
 
 
 def load_prototype_cleanup_migration():
-    path = Path("scripts/db_migrations/007_cyberner_remove_prototype_messages.py")
+    path = Path(__file__).resolve().parents[1] / "scripts/db_migrations/007_cyberner_remove_prototype_messages.py"
     spec = importlib.util.spec_from_file_location("cyberner_channel_migration_007", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
