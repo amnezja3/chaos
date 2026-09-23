@@ -4,6 +4,7 @@ import copy
 import hashlib
 import math
 from datetime import datetime, timedelta, timezone
+from config import RESPONSE_SERVICE_DETECTION_RADIUS_M
 
 
 BEHAVIOR_VERSION = 1
@@ -251,7 +252,7 @@ class NPCCapsuleFactory:
             origin = _project_point(center, origin_distance, bearing)
             trajectory_type = _trajectory_for(service_type, index)
             patrol_radius = radius + (35 * index)
-            detection_radius = max(55, min(180, 65 + (level * 18) + (service_level * 8)))
+            detection_radius = RESPONSE_SERVICE_DETECTION_RADIUS_M[service_type]
             speed = round(5.5 + service_level + (_stable_float(f"{capsule_seed}:speed", 0.0, 1.6)), 2)
             trajectory_phase = round(_stable_float(f"{capsule_seed}:phase", 0.0, 360.0), 4)
             tracking_token = hashlib.sha1(f"{capsule_id}:tracking".encode("utf-8")).hexdigest()[:24]

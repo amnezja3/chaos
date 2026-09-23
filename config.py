@@ -39,6 +39,14 @@ def env_csv(name, default=""):
 
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 
+# Detection distance from the service vehicle, in metres (24 IX 2026).
+# Runtime family names: cybersecurity=cyberpolice, secret services=secretservice.
+RESPONSE_SERVICE_DETECTION_RADIUS_M = {
+    "police": 300,
+    "cyberpolice": 2000,
+    "secretservice": 39000,
+}
+
 # Approved consequence ladder. Activation belongs to the canonical 142.6
 # executor; configuring a sanction does not enable it. Bump version on rebalance.
 RESPONSE_CONSEQUENCE_TABLE = {

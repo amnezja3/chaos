@@ -105,6 +105,35 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
             self.assertGreater(capsule["detection_radius_m"], 0)
             self.assertEqual(len(capsule["tracking_tokens"]), 1)
 
+    def test_service_radii_and_live_patrol_recalibration(self):
+        expected = {'police': 300, 'cyberpolice': 2000, 'secretservice': 39000}
+        factory = NPCCapsuleFactory()
+        now = datetime.now(timezone.utc)
+        incident = {'incident_id': 'radius-update', 'status': 'active', 'level': 4,
+                    'center': {'lat': 52, 'lng': 21}, 'expires_at': (now + timedelta(minutes=20)).isoformat()}
+        for level in range(1, 6):
+            for capsule in factory.build_for_incident({**incident, 'level': level}, now=now):
+                self.assertEqual(capsule['detection_radius_m'], expected[capsule['service_type']])
+        path = temp_db_path('chaos_radius_update_')
+        try:
+            store = NPCCapsuleStore(db_path=path)
+            dispatcher = ResponseDispatcher(store, factory)
+            old = factory.build_for_incident(incident, now=now)
+            for capsule in old:
+                store.upsert({**capsule, 'detection_radius_m': 180}, now=now)
+            with patch.object(run, 'incident_store') as incidents, patch.object(run, 'npc_capsule_store', store), patch.object(run, 'response_dispatcher', dispatcher):
+                incidents.list_active.return_value = [incident]
+                actions = run.ensure_response_npc_capsules_for_active_incidents()
+                self.assertEqual(len(actions), len(old))
+                self.assertEqual(run.ensure_response_npc_capsules_for_active_incidents(), [])
+            for before in old:
+                after = store.get(before['capsule_id'])
+                self.assertEqual(after['detection_radius_m'], expected[after['service_type']])
+                for key in ('capsule_id', 'spawn_at', 'expires_at', 'tracking_tokens', 'trajectory_seed'):
+                    self.assertEqual(after[key], before[key])
+        finally:
+            if os.path.exists(path): os.remove(path)
+
     def test_position_at_is_deterministic_and_time_based(self):
         capsule = NPCCapsuleFactory().build_for_incident({
             "incident_id": "incident_position",

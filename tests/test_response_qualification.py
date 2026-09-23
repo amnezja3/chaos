@@ -56,14 +56,16 @@ class ResponseQualificationTest(unittest.TestCase):
         self.assertEqual(self.audit.record.call_args.args[0]['operation_id'], '')
 
     def test_three_services_roles_presence_and_distance_matrix(self):
+        from config import RESPONSE_SERVICE_DETECTION_RADIUS_M
         from response_network.npc_capsule_factory import _project_point
         from response_network.detection_validator import _distance_m
         original = copy.deepcopy(self.actor)
         center = {'lat': 52, 'lng': 21}
         for family in ('police', 'cyberpolice', 'secretservice'):
+            radius = RESPONSE_SERVICE_DETECTION_RADIUS_M[family]
             for role in ('initiator', 'bystander'):
                 for state in ('online_active', 'online_inactive', 'offline', 'expired', 'heartbeat_timeout'):
-                    for place, meters in (('inside', 30), ('boundary', 65), ('outside', 66)):
+                    for place, meters in (('inside', radius - 1), ('boundary', radius), ('outside', radius + 1)):
                         with self.subTest(family=family, role=role, state=state, place=place):
                             self.actor = copy.deepcopy(original)
                             self.capsule['visual_family'] = family
@@ -72,7 +74,7 @@ class ResponseQualificationTest(unittest.TestCase):
                             self.actor['position'].update(point)
                             self.candidate['actor_position'] = point
                             # Exact computed boundary avoids a floating-point metre discrepancy.
-                            self.capsule['detection_radius_m'] = _distance_m(center, point) if place == 'boundary' else 65
+                            self.capsule['detection_radius_m'] = _distance_m(center, point) if place == 'boundary' else radius
                             if state == 'online_inactive':
                                 self.actor['position']['updated_at'] = (self.now-timedelta(hours=3)).isoformat()
                             elif state in ('offline', 'expired'):

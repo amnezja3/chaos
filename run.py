@@ -4622,7 +4622,12 @@ def ensure_response_npc_capsules_for_active_incidents(username=None):
             continue
         try:
             existing_capsules = npc_capsule_store.list_by_incident(incident_id)
-            if any(response_npc_capsule_runtime_active(capsule, now_dt) for capsule in existing_capsules):
+            from config import RESPONSE_SERVICE_DETECTION_RADIUS_M
+            active_capsules = [capsule for capsule in existing_capsules
+                               if response_npc_capsule_runtime_active(capsule, now_dt)]
+            if active_capsules and all(
+                    capsule.get('detection_radius_m') == RESPONSE_SERVICE_DETECTION_RADIUS_M.get(capsule.get('service_type'))
+                    for capsule in active_capsules):
                 continue
             runtime_incident = incident_for_response_npc_dispatch(incident, now_dt)
             actions = response_dispatcher.dispatch_incident(runtime_incident, now=response_npc_runtime_iso(now_dt))
