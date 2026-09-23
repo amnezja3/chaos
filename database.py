@@ -10713,6 +10713,9 @@ class PlayerOperationStore:
         accepted = []
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if str(event_type).startswith('operation.ability_'):
+                from response_network.capabilities import require_targeting_allowed
+                require_targeting_allowed(conn, username)
             for incoming in operations or []:
                 if not isinstance(incoming, dict):
                     continue
@@ -13612,6 +13615,8 @@ class PlayerTargetRuntimeStore:
         marker = f"{activation_id}:{mode}"
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            from response_network.capabilities import require_targeting_allowed
+            require_targeting_allowed(conn, username)
             row = conn.execute(
                 "SELECT * FROM player_target_runtime WHERE username = ? LIMIT 1",
                 (username,),
@@ -13714,6 +13719,10 @@ class PlayerTargetRuntimeStore:
         now = utc_now()
 
         with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
+            if not conn.in_transaction:
+                conn.execute('BEGIN IMMEDIATE')
+            from response_network.capabilities import require_targeting_allowed
+            require_targeting_allowed(conn, username)
             row = conn.execute(
                 "SELECT * FROM player_target_runtime WHERE username = ?",
                 (username,),
@@ -14164,12 +14173,17 @@ class PlayerMarkedTargetStore:
         normalized = self.normalize_target(target)
         if not username or normalized is None:
             raise ValueError("A marked target requires username and valid target data.")
+        from response_network.capabilities import require_targeting_allowed
+        with db_connect(self.db_path) as guard_conn:
+            require_targeting_allowed(guard_conn, username)
         self.ensure_seeded(username)
         target_key = normalized["target_id"]
         target_json = dumps_json(normalized)
         now = utc_now()
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            from response_network.capabilities import require_targeting_allowed
+            require_targeting_allowed(conn, username)
             row = conn.execute(
                 """
                 SELECT target_json, status, version, created_at

@@ -7005,6 +7005,19 @@
             return true;
         }
 
+        window.clearDetentionTarget = function () {
+            if (window.profileData) window.profileData.aimed_target = {};
+            if (aimedTargetLayer) removeMapLayerSafe(aimedTargetLayer);
+            aimedTargetLayer = null;
+            aimedTargetMenuSnapshot = null;
+            if (window.ghostAbilityRuntime?.snapshot) {
+                window.ghostAbilityRuntime.snapshot = {...window.ghostAbilityRuntime.snapshot,
+                    active: false, available: false, reason: 'detention_action_blocked'};
+                renderGhostAbilityControl();
+            }
+            if (typeof hideContextMenu === 'function') hideContextMenu();
+        };
+
         async function flushMotorcycleTravelCommit() {
             const state = window.motorcycleTravelState;
             if (!state || state.pendingBackendTravelCommitInFlight || !state.pendingBackendTravelCommit) return false;

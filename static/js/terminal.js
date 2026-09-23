@@ -1128,6 +1128,7 @@ function mergeToolbarTargetProgress(currentTarget, incomingTarget) {
 
 function normalizeToolbarProfileProgress(profile) {
     if (!profile || typeof profile !== "object") return profile;
+    if (window.DetentionUI?.state) return {...profile, aimed_target: {}};
     if (!Object.prototype.hasOwnProperty.call(profile, "aimed_target")) return profile;
     let incomingTarget = profile.aimed_target;
     const localOverride = getActiveToolbarTargetLocalOverride();
@@ -1418,6 +1419,25 @@ function updateToolbarGhostAbilityState(snapshot) {
 }
 
 window.updateToolbarGhostAbilityState = updateToolbarGhostAbilityState;
+
+window.clearDetentionTarget = function () {
+    clearToolbarTargetLocalOverride();
+    toolbarTargetHackedEffect = null;
+    toolbarGhostAbilityState = {active: false};
+    if (toolbarProfile) toolbarProfile = {...toolbarProfile, aimed_target: {}};
+    if (window.profileData) window.profileData.aimed_target = {};
+    window.__pendingApplicationLaunchContext = null;
+    document.querySelectorAll('[data-expected-target]').forEach(appWindow => {
+        if (!appWindow.dataset.expectedTarget) return;
+        appWindow.dataset.expectedTarget = '';
+        disposeOperationFeedbackWindow(appWindow, 'detention_target_cleared');
+        appWindow.querySelector('.close-btn')?.click();
+        appWindow.remove();
+    });
+    document.querySelectorAll('iframe').forEach(frame => {
+        try { frame.contentWindow?.clearDetentionTarget?.(); } catch (_) {}
+    });
+};
 
 function renderToolbarStatus() {
     const strip = document.getElementById('system-status-strip');
@@ -12553,6 +12573,11 @@ async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
     if (rememberProcessedDelta(dedupeKey)) return false;
+    if (event.type === 'target.cleared' && event.payload?.reason === 'detention') {
+        if (window.DetentionUI?.state) window.clearDetentionTarget();
+        renderToolbarStatus();
+        return true;
+    }
 
     if (event.type === "wallet.balance_changed" || (event.scope === "wallet" && event.entity_id === "wallet")) {
         const payload = event.payload || {};

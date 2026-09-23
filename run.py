@@ -9635,6 +9635,7 @@ def detention_capability_error(exc):
         'private_message_allowance_exhausted': 'Wykorzystano jedną wiadomość prywatną na ten wyrok. Nadal możesz czytać.',
         'detention_use_private_message': 'Podczas aresztu skorzystaj z jednej wiadomości prywatnej w Cybernerze.',
         'detention_app_blocked': 'Ten stopień aresztu pozostawia Web Dragona, radio i prywatną komunikację.',
+        'detention_action_blocked': 'Areszt blokuje skanowanie, oznaczanie, użycie celu i supermoce.',
     }
     message = messages.get(exc.reason, 'Akcja niedostępna podczas aresztu.')
     return jsonify({'ok': False, 'success': False, 'error': message, 'message': message,

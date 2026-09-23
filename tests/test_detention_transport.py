@@ -36,6 +36,48 @@ class DetentionTransportTest(unittest.TestCase):
         self.sid = result['execution']['effects']['sanction_id']
         return result
 
+    def test_arrest_clears_target_and_legacy_profile_cannot_restore_after_bail(self):
+        from database import PlayerTargetRuntimeStore, PlayerMarkedTargetStore
+        from response_network.capabilities import DetentionDenied
+        targets = PlayerTargetRuntimeStore(self.path)
+        old = {'target_id':'map:old','lat':52,'lng':21,'label':'Old target'}
+        targets.upsert_aimed('alice', old)
+        self.arrest()
+        self.assertEqual(targets.get_active_target('alice'), {})
+        with self.assertRaises(DetentionDenied): targets.upsert_aimed('alice', old)
+        with self.assertRaises(DetentionDenied): PlayerMarkedTargetStore(self.path).upsert('alice',old)
+        self.service.pay_bail('bob',self.sid,now=self.now)
+        self.assertEqual(targets.seed_from_profile('alice', {'aimed_target':old}), {})
+        self.assertEqual(targets.get_active_target('alice'), {})
+        self.assertTrue(targets.upsert_aimed('alice', {**old,'target_id':'map:new'})['changed'])
+
+    def test_already_running_sentence_clears_old_target_on_tick(self):
+        self.arrest()
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE player_target_runtime SET status='aimed',target_json=? WHERE username='alice'",
+                         (json.dumps({'target_id':'old'}),))
+        self.service.tick(now=self.now)
+        with db_connect(self.path) as conn:
+            row = conn.execute("SELECT status,target_json FROM player_target_runtime WHERE username='alice'").fetchone()
+            self.assertEqual(tuple(row),('cleared','{}'))
+
+    def test_arrest_ends_active_superpower_without_resetting_cooldown(self):
+        from ghostnetwork.repository import GhostNetworkRepository
+        from response_network.capabilities import DetentionDenied
+        repo = GhostNetworkRepository(db_path=self.path)
+        args = dict(player_id='alice',ability_code='insider_feed',cycle_id='cycle',source_part_id='part',
+                    source_part_code='V1',level_snapshot=10,source_state_version=1,
+                    request_key='ability',duration_seconds=300,cooldown_seconds=600,now=self.now)
+        before = repo.activate_ability_window(**args)['window']
+        self.arrest()
+        after = repo.get_latest_ability_window('alice')
+        self.assertEqual(after['cooldown_until'],before['cooldown_until'])
+        from datetime import datetime
+        self.assertLessEqual(datetime.fromisoformat(after['expires_at']),self.now)
+        with self.assertRaises(DetentionDenied): repo.activate_ability_window(**args)
+        with self.assertRaises(DetentionDenied):
+            self.ops.compare_and_swap_runtime('alice', [], event_type='operation.ability_speed')
+
     def presence(self, seconds, status='active', revision=1):
         at = self.now + timedelta(seconds=seconds)
         with db_connect(self.path) as conn:

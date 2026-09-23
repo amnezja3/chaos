@@ -1198,6 +1198,10 @@ class GhostNetworkService:
             and eligible_ability.get("ability_code") in allowed_codes
         ) else None
         window = self.repository.get_latest_ability_window(player_id) if player_id else None
+        from database import db_connect
+        from response_network.capabilities import snapshot as detention_snapshot
+        with db_connect(self.repository.db_path) as detention_conn:
+            detained = detention_snapshot(detention_conn, player_id) is not None
         now_dt = self.repository.now() if now is None else now
         from .repository import _utc_datetime
         current = _utc_datetime(now_dt)
@@ -1226,14 +1230,15 @@ class GhostNetworkService:
             }
         return {
             "ok": True,
-            "available": bool(ability and not cooldown),
-            "active": active,
+            "available": bool(ability and not cooldown and not detained),
+            "active": active and not detained,
             "cooldown": cooldown and not active,
             "ability": public_ability,
             "presentation": self._ability_presentation(ability) if ability else None,
             "window": public_window,
             "reason": (
-                "realizer_unavailable" if eligible_ability and not ability
+                "detention_action_blocked" if detained
+                else "realizer_unavailable" if eligible_ability and not ability
                 else "cooldown" if cooldown and not active
                 else "active" if active
                 else "available" if ability
@@ -1297,6 +1302,10 @@ class GhostNetworkService:
             eligible_ability
             and eligible_ability.get("ability_code") in set(GHOSTNETWORK_ABILITY_ALLOWED_CODES)
         ) else None
+        from database import db_connect
+        from response_network.capabilities import require_targeting_allowed
+        with db_connect(self.repository.db_path) as detention_conn:
+            require_targeting_allowed(detention_conn, player_id)
         replayed = self.repository.get_ability_window_by_request(
             player_id, request_key,
         )

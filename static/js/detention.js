@@ -47,8 +47,10 @@
         });
     }
     function update(next) {
+        const previous = state;
         state = next || null;
         if (typeof document === 'undefined') return;
+        if (state || previous) window.clearDetentionTarget?.();
         if (typeof window.renderToolbarStatus === 'function') window.renderToolbarStatus();
         applyWindows();
         window.dispatchEvent(new CustomEvent('detention:changed', {detail: state}));

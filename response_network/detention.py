@@ -73,12 +73,32 @@ class DetentionService:
         conn.execute('UPDATE response_sanctions SET sample_ms=?,session_revision=? WHERE sanction_id=?',
                      (milliseconds(now), revision, row['sanction_id']))
         self._move(conn, row, returning=False, now=now)
+        self._clear_target(conn, row, now)
         self.messages.add_message(actor, {'id': row['sanction_id'], 'dedupe_key': row['sanction_id'],
             'title': 'Areszt', 'text': f"Areszt: {plan['detention_minutes']} min online. "
                 f"Wiezienie: {prison['name']}. Kaucja: {plan['bail_hc']} HC.",
             'type': 'warning', 'sanction_id': row['sanction_id'], 'created_at': now.isoformat()},
             source='response_network', conn=conn)
         return self.sanctions.get(conn, row['sanction_id'])
+
+    def _clear_target(self, conn, row, now):
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='ghost_ability_windows'").fetchone():
+            conn.execute('''UPDATE ghost_ability_windows SET expires_at=?
+                WHERE player_id=? AND julianday(expires_at)>julianday(?)''',
+                (now.isoformat(), row['actor_id'], now.isoformat()))
+        # Keep a tombstone: deleting the row would allow legacy profile fallback
+        # to resurrect the pre-arrest selection after release.
+        changed = conn.execute('''INSERT INTO player_target_runtime
+            (username,status,version,updated_at) VALUES (?,'cleared',1,?)
+            ON CONFLICT(username) DO UPDATE SET target_key='',target_json='{}',
+            security_json='{}',actions_allowed_json='{}',disarm_progress=0,
+            status='cleared',version=version+1,updated_at=excluded.updated_at
+            WHERE player_target_runtime.status <> 'cleared' OR player_target_runtime.target_json <> '{}' ''',
+            (row['actor_id'], now.isoformat()))
+        if changed.rowcount:
+            self.deltas.record_change(row['actor_id'], 'target', 'target.cleared',
+                {'aimed_target': {}, 'reason': 'detention', 'sanction_id': row['sanction_id']},
+                entity_id=row['actor_id'], dedupe_key=row['sanction_id'] + ':target-cleared', conn=conn)
 
     def _move(self, conn, row, *, returning, now):
         self.sanctions._transaction(conn)
@@ -104,6 +124,7 @@ class DetentionService:
             entity_id=row['actor_id'], dedupe_key=row['sanction_id'] + ':' + source, conn=conn)
 
     def _release(self, conn, row, *, reason, now):
+        self._clear_target(conn, row, now)
         released, changed = self.sanctions.release(conn, row['sanction_id'], reason=reason, now=now)
         if changed:
             self._move(conn, released, returning=True, now=now)
@@ -117,6 +138,7 @@ class DetentionService:
         return released
 
     def _advance(self, conn, row, now):
+        self._clear_target(conn, row, now)
         row = self.sanctions.observe_presence(conn, row['sanction_id'], now=now)
         if row['status'] == 'release_pending':
             row = self._release(conn, row, reason='served', now=now)

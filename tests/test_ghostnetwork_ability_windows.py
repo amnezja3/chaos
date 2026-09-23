@@ -36,6 +36,24 @@ class GhostAbilityWindowTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_detention_suppresses_effect_and_blocks_activation_replay(self):
+        from database import db_connect
+        from response_network.sanctions import SanctionStore
+        from response_network.consequence_table import plan_consequence
+        from response_network.capabilities import DetentionDenied
+        self.assertTrue(self.service.activate_player_ability(self.player,'before')['ok'])
+        store = SanctionStore(self.db_path)
+        with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            store.impose(conn,encounter_id='arrest',actor_id='alice',incident_id='incident',
+                         plan=plan_consequence(2,5),now=self.now)
+        state = self.service.get_player_ability_window_snapshot(self.player)
+        self.assertFalse(state['active'])
+        self.assertFalse(state['available'])
+        self.assertEqual(state['reason'],'detention_action_blocked')
+        for key in ('before','new'):
+            with self.assertRaises(DetentionDenied): self.service.activate_player_ability(self.player,key)
+
     def test_activation_is_durable_idempotent_and_has_cooldown(self):
         first = self.service.activate_player_ability(self.player, "request-1")
         self.assertTrue(first["ok"])

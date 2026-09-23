@@ -3059,6 +3059,8 @@ class GhostNetworkRepository:
         window_id = _hash_id("ghost_ability_window", player_id, request_key)
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            from response_network.capabilities import require_targeting_allowed
+            require_targeting_allowed(conn, player_id)
             existing = conn.execute(
                 "SELECT * FROM ghost_ability_windows WHERE dedupe_key = ? LIMIT 1",
                 (dedupe_key,),

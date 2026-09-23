@@ -52,9 +52,14 @@ class DetentionCapabilitiesTest(unittest.TestCase):
                     for path, method in [('/command','POST'),('/gonna-win','POST'),('/hack-action','POST'),
                                          ('/map-action','POST'),('/api/ghostlab/projects','GET'),
                                          ('/api/new-unclassified-feature','GET')]:
-                        if stage == 9:
+                        if stage == 9 or path in {'/gonna-win','/hack-action','/map-action'}:
                             with self.assertRaises(DetentionDenied): require_request(conn,'alice',path,method)
                         else: require_request(conn,'alice',path,method)
+                    for path in ('/api/map/aim-target','/api/map/player-targets/mark',
+                                 '/api/victim-picker/aim','/api/victim-picker/candidates','/api/player-hack/tool/use',
+                                 '/api/ghostnetwork/ability'):
+                        with self.assertRaises(DetentionDenied):
+                            require_request(conn,'alice',path,'GET' if path.endswith('candidates') else 'POST')
                     for sending in (False, True):
                         if stage >= 8 or (stage == 7 and sending):
                             with self.assertRaises(DetentionDenied): require_world(conn,'alice',sending=sending)
@@ -109,6 +114,24 @@ class DetentionCapabilitiesTest(unittest.TestCase):
             response = client.get('/api/response/detention')
             self.assertEqual(response.status_code,200,response.json)
             self.assertEqual(response.json['detention']['stage'],9)
+
+    def test_stage_six_blocks_scan_mark_aim_runtime_and_superpowers_before_handlers(self):
+        import run
+        from tests import test_target_persistence as http_fixture
+        self.sentence(6)
+        http_fixture.setUpModule(); self.addCleanup(http_fixture.tearDownModule)
+        with patch.object(run,'detention_service',self.service):
+            client = run.app.test_client()
+            with client.session_transaction() as session: session['user']='alice'
+            for path, payload in [('/map-action',{'action':'scan'}),('/map-action',{'action':'mark_target'}),
+                                  ('/map-action',[]),('/api/map/aim-target',{}),('/gonna-win',{}),
+                                  ('/api/ghostnetwork/ability',{}),('/api/map/player-targets/mark',{})]:
+                response = client.post(path,json=payload)
+                self.assertEqual(response.status_code,403,response.json)
+                self.assertEqual(response.json['reason'],'detention_action_blocked')
+            response = client.post('/map-action',json={'action':'travel'})
+            self.assertEqual(response.status_code,409,response.json)
+            self.assertEqual(response.json['reason'],'detention_movement_blocked')
 
     def test_real_cyberner_router_direct_clan_and_world(self):
         import run

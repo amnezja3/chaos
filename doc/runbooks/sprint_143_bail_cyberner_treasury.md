@@ -40,7 +40,22 @@ Potwierdzenie płatności dotyczy zapisanego ID wyroku. Samo wyświetlenie okna
 niczego nie pobiera, a endpoint płatności ponownie sprawdza stan i saldo.
 Kilka równoczesnych odmów otwiera jedno okno. Odpytywanie w tle nie pokazuje
 okien kaucji. CTA w wiadomościach dla innych graczy pozostaje dostępne.
-Tabela ograniczeń poszczególnych stopni nie została rozszerzona tą zmianą.
+Późniejsze ustalenie autora: na każdym stopniu aresztu blokujemy skanowanie,
+oznaczanie kandydatów, namierzanie i wykonanie narzędzi na celu oraz supermoce.
+Blokady obejmują API i zapis kanonicznego celu, także przy wyścigu z zatrzymaniem.
+Zatrzymanie zapisuje pusty cel (`cleared`) — nie usuwa wiersza, żeby stary profil
+nie odtworzył wyboru po zwolnieniu. UI czyści belkę i mapę, zamyka narzędzia
+powiązane z celem. Trwające już areszty są porządkowane przy najbliższym ticku.
+Aktywne okno supermocy wygasa przy zatrzymaniu, a cooldown pozostaje.
+Wykupienie kaucji ani odsiedzenie wyroku nie przywraca celu ani aktywnej mocy.
+Historia efektów wykonanych przed zatrzymaniem pozostaje bez cofania.
+
+Walidacja blokad celu i mocy: 37 testów Python (transport, capabilities,
+tożsamość zapisanego celu i wybrane regresje supermocy) oraz 4 testy JS PASS.
+Pełny moduł `test_target_persistence` nie jest tu oznaczony PASS: próba
+uruchomienia całości w izolowanym katalogu napotkała także błędy dawnych
+testów niezwiązanych z wyborem celu; do weryfikacji tej zmiany uruchomiono
+kompletną klasę `PlayerTargetRuntimeIdentityTest`.
 
 Walidacja tej zmiany: trzy testy Python (własne saldo/oferta, autorytatywny
 płatnik, rollback/brak środków) i trzy testy JS (własna kaucja, kaucja

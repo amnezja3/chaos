@@ -60,6 +60,20 @@ def require_request(conn, actor, path, method, endpoint=None):
     state = snapshot(conn, actor)
     if not state:
         return
+    if path == '/api/ghostnetwork/ability' and method == 'POST':
+        raise DetentionDenied('detention_action_blocked', state)
+    if method != 'OPTIONS' and path in {
+        '/api/map/aim-target', '/api/map/player-targets/mark',
+        '/api/victim-picker/aim', '/api/victim-picker/candidates',
+        '/map-action', '/hack-action', '/gonna-win', '/api/player-hack/tool/use',
+    }:
+        if path == '/map-action':
+            from flask import has_request_context, request
+            payload = request.get_json(silent=True) if has_request_context() else None
+            if isinstance(payload, dict) and payload.get('action') == 'travel':
+                from .movement_guard import require_movement_allowed
+                require_movement_allowed(conn, actor)
+        raise DetentionDenied('detention_action_blocked', state)
     # Contact invitations generate private messages outside the send endpoint.
     if path == '/api/player-contact/request':
         raise DetentionDenied('detention_use_private_message', state)
@@ -73,6 +87,12 @@ def require_request(conn, actor, path, method, endpoint=None):
     if method == 'POST' and path in WRITE_PATHS:
         return
     raise DetentionDenied('detention_app_blocked', state)
+
+
+def require_targeting_allowed(conn, actor):
+    state = snapshot(conn, actor)
+    if state:
+        raise DetentionDenied('detention_action_blocked', state)
 
 
 def world_payload(payload):
