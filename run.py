@@ -635,6 +635,11 @@ def cyberner_unread_counts(username, profile=None, channel_states=None):
 
 
 def cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
+    from response_network.chat_delivery import enrich
+    return enrich(detention_service.db_path, _cyberner_list_route_messages(username, route, limit, after_id, before_id))
+
+
+def _cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
     channel = route["channel"]
     if channel == 'world':
         from database import db_connect
@@ -790,6 +795,7 @@ def canonical_cyberner_message(message, route):
     return {
         "id": message.get("id"),
         "message_id": stable_id,
+        "detention_notice": message.get("detention_notice"),
         "source": route["source"],
         "channel": route["channel"],
         "channel_key": route["channel_key"],
@@ -27958,13 +27964,13 @@ def execute_response_network_consequence(decision):
             hc_confiscation = result.get("hc_confiscation") if isinstance(result.get("hc_confiscation"), dict) else {}
             if result.get("confiscated_hc"):
                 consequence_id = str(result.get("consequence_id") or intent.get("consequence_id") or "").strip()
-                debit_result = wallet_balance_store.debit_up_to(
-                    actor_id,
-                    max(0, int(hc_confiscation.get("amount") or 0)),
-                    transaction_key=f"response_consequence:{consequence_id}",
-                    reason="response_network.hc_confiscation",
-                    source="response_network",
-                )
+                from database import db_connect
+                from response_network.treasury import collect
+                with db_connect(wallet_balance_store.db_path) as conn:
+                    conn.execute('BEGIN IMMEDIATE')
+                    debit_result = collect(wallet_balance_store, delta_bus, conn, actor_id,
+                        max(0, int(hc_confiscation.get("amount") or 0)),
+                        f"response_consequence:{consequence_id}", 'response_network.hc_confiscation', up_to=True)
                 profile["hackcoins"] = int(debit_result.get("balance") or 0)
                 if "wallet" in profile:
                     profile["wallet"] = profile["hackcoins"]

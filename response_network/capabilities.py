@@ -21,7 +21,13 @@ def snapshot(conn, actor):
     plan = json.loads(row['plan_json'])
     used = conn.execute('SELECT 1 FROM response_sanction_messages WHERE sanction_id=?',
                         (row['sanction_id'],)).fetchone()
+    prison = None
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='response_detention_transport'").fetchone():
+        prison = conn.execute('SELECT prison_json FROM response_detention_transport WHERE sanction_id=?',
+                              (row['sanction_id'],)).fetchone()
     return {'sanction_id': row['sanction_id'], 'stage': plan['stage'],
+            'prison_name': json.loads(prison['prison_json']).get('name', 'Areszt') if prison else 'Areszt',
+            'duration_seconds': (row['duration_ms'] + 999) // 1000,
             'remaining_seconds': (row['remaining_ms'] + 999) // 1000,
             'bail_hc': plan['bail_hc'], **plan['restrictions'],
             'private_messages_remaining': 0 if used else 1}

@@ -42,8 +42,7 @@
     function update(next) {
         state = next || null;
         if (typeof document === 'undefined') return;
-        const label = document.getElementById('detention-state');
-        if (label) label.textContent = state ? `Areszt · ${state.remaining_seconds} s online · wiadomość prywatna: ${state.private_messages_remaining}/1` : '';
+        if (typeof window.renderToolbarStatus === 'function') window.renderToolbarStatus();
         applyWindows();
         window.dispatchEvent(new CustomEvent('detention:changed', {detail: state}));
     }
@@ -52,30 +51,53 @@
         if (!response.ok) return;
         update((await response.json()).detention);
     }
-    async function bail() {
-        const target = window.prompt('Login aresztowanego (puste pole — Twój wyrok):', '');
-        if (target === null) return;
+    let paying = false;
+    async function payBail(notice) {
+        if (paying || !notice?.sanction_id || !notice?.actor_id) return;
+        paying = true;
         try {
-            const response = await fetch('/api/response/detention/bail-quote?username=' + encodeURIComponent(target.trim()));
+            const response = await fetch('/api/response/detention/bail-quote?username=' + encodeURIComponent(notice.actor_id));
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || data.error || 'Nie można pobrać kaucji.');
-            if (!data.quote) { window.alert('Ten gracz nie ma aktywnego aresztu.'); return; }
-            if (!window.confirm(`Zapłacić ${data.quote.bail_hc.toLocaleString('pl-PL')} HC za zwolnienie ${target.trim() || 'Ciebie'}?`)) return;
-            const paid = await fetch('/api/response/detention/bail', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sanction_id: data.quote.sanction_id})});
+            if (!data.quote || data.quote.sanction_id !== notice.sanction_id) throw new Error('Ten wyrok już się zakończył. Nie pobrano HC.');
+            if (!await window.showGhostDecisionDialog({title: 'CHAOS // KAUCJA',
+                message: `Zapłacić ${Number(data.quote.bail_hc).toLocaleString('pl-PL')} HC za zwolnienie gracza ${notice.actor_id}?`,
+                details: `Areszt: ${notice.prison_name}. Odbiorca HC: admin. Kartoteka pozostaje bez zmian.`,
+                confirmLabel: 'OPŁAĆ KAUCJĘ', cancelLabel: 'ANULUJ'})) return;
+            const paid = await fetch('/api/response/detention/bail', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sanction_id: notice.sanction_id})});
             const result = await paid.json();
             if (!paid.ok) throw new Error(result.message || result.error || 'Nie udało się opłacić kaucji.');
-            window.alert(result.paid ? 'Kaucja opłacona. Gracz został zwolniony.' : 'Wyrok już zakończony. Nie pobrano HC.');
+            await window.showGhostDecisionDialog({title: 'KAUCJA', confirmLabel: 'OK', cancelLabel: 'ZAMKNIJ', message: result.paid ? 'Kaucja opłacona. Gracz został zwolniony. HC trafiły na konto admin.' : 'Wyrok już zakończony. Nie pobrano HC.'});
             await refresh();
-        } catch (error) { window.alert(error.message); }
+        } catch (error) {
+            await window.showGhostDecisionDialog({title: 'KAUCJA', confirmLabel: 'OK', cancelLabel: 'ZAMKNIJ', message: error.message});
+        } finally { paying = false; }
     }
-    window.DetentionUI = {update, refresh, appAllowed, chatReason, get state() { return state; }};
+    const escape = value => String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    function toolbarMarkup() {
+        if (!state) return '';
+        const remaining = Math.max(0, Number(state.remaining_seconds) || 0);
+        const total = Math.max(1, Number(state.duration_seconds) || remaining);
+        const time = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
+        return `<span class="system-status-detention" title="Areszt — czas odliczany tylko online">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-label="Więzienie"><path d="M3 3h18v18H3zM8 3v18M16 3v18M3 9h18M3 16h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span class="detention-status-body"><b>${escape(state.prison_name || 'Areszt')}</b>
+            <span class="detention-status-time"><i class="detention-dots" aria-hidden="true">● ● ●</i> ${time}</span>
+            <progress max="${total}" value="${Math.min(total, remaining)}" aria-label="Pozostały czas aresztu"></progress></span></span>`;
+    }
+    function appendNotice(container, notice) {
+        if (!notice?.sanction_id || !notice?.actor_id) return;
+        const card = document.createElement('div'); card.className = 'cyberner-detention-notice';
+        const text = document.createElement('p');
+        text.textContent = `CENZURA PROKURATORSKA // Wiadomość ocenzurowana. Nadawca wiadomości przebywa w areszcie ${notice.prison_name} i może wyjść za kaucją.`;
+        const button = document.createElement('button'); button.type = 'button';
+        button.textContent = `Kaucja: ${Number(notice.bail_hc).toLocaleString('pl-PL')} HC`;
+        button.onclick = () => payBail(notice);
+        card.append(text, button); container.appendChild(card);
+    }
+    window.DetentionUI = {update, refresh, appAllowed, chatReason, toolbarMarkup, appendNotice, payBail, get state() { return state; }};
     if (typeof document === 'undefined') return;
     document.addEventListener('DOMContentLoaded', () => {
-        const bar = document.createElement('aside');
-        bar.style.cssText = 'position:fixed;top:4px;right:8px;z-index:100100;background:#071009;color:#caff9b;padding:5px;border:1px solid #59852d;font:12px monospace;max-width:90vw;';
-        const label = document.createElement('span'); label.id = 'detention-state';
-        const button = document.createElement('button'); button.textContent = 'Kaucja'; button.onclick = bail;
-        bar.append(label, button); document.body.appendChild(bar);
         new MutationObserver(applyWindows).observe(document.body, {childList: true, subtree: true});
         refresh().catch(() => {});
     });

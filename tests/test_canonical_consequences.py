@@ -34,6 +34,8 @@ class CanonicalConsequencesTest(unittest.TestCase):
         env.start(); self.addCleanup(env.stop)
         self.incident = self.incidents.upsert({**self.incident, 'heat':60, 'level':2}, now=self.now)
         with db_connect(self.path) as conn:
+            conn.execute("INSERT INTO users(username,profile_json,created_at,updated_at) VALUES ('admin','{}','now','now')")
+            conn.execute("INSERT INTO wallet_balances(username,balance,version,updated_at) VALUES ('admin',0,1,'now')")
             for actor in ('alice','bob'):
                 conn.execute("INSERT INTO users(username,profile_json,created_at,updated_at) VALUES (?,'{}','now','now')", (actor,))
                 conn.execute("INSERT INTO wallet_balances(username,balance,version,updated_at) VALUES (?,10000,1,'now')", (actor,))
@@ -64,14 +66,15 @@ class CanonicalConsequencesTest(unittest.TestCase):
         self.assertTrue(all(r['execution']['status']=='executed' for r in results))
         self.assertEqual(self.roll.call_count, 1)
         self.assertEqual(self.scalar("SELECT balance FROM wallet_balances WHERE username='alice'"), 9970)
-        self.assertEqual(self.scalar('SELECT count(*) FROM wallet_balance_events'), 1)
+        self.assertEqual(self.scalar('SELECT count(*) FROM wallet_balance_events'), 2)
+        self.assertEqual(self.wallet.get_balance('admin'), 30)
         self.assertEqual(self.scalar('SELECT count(*) FROM response_penalty_history'), 1)
         self.assertEqual(self.scalar('SELECT executed_count FROM response_criminal_records'), 1)
         self.assertEqual(self.scalar('SELECT points FROM response_judgment'), 2)
         self.assertEqual(self.scalar("SELECT status FROM player_operations WHERE operation_id='related'"), 'cancelled')
         self.assertEqual(self.scalar("SELECT status FROM player_operations WHERE operation_id='unrelated'"), 'running')
         self.assertEqual(self.scalar('SELECT count(*) FROM system_messages'), 1)
-        self.assertEqual(self.scalar('SELECT count(*) FROM game_state_deltas'), 2)
+        self.assertEqual(self.scalar('SELECT count(*) FROM game_state_deltas'), 3)
 
     def test_multitool_confiscation_keeps_last_tool_and_storage_consistent(self):
         self.incidents.upsert({**self.incident, 'level':4}, now=self.now)
@@ -273,7 +276,7 @@ class CanonicalConsequencesTest(unittest.TestCase):
         self.incidents.upsert({**self.incident, 'status':'resolved'}, now=self.now)
         self.assertEqual(self.store.get_result('alice', self.incident['incident_id'])['execution'], first)
         self.assertIsNone(self.store.get_result('bob', self.incident['incident_id']))
-        self.assertEqual(self.scalar('SELECT count(*) FROM wallet_balance_events'), 1)
+        self.assertEqual(self.scalar('SELECT count(*) FROM wallet_balance_events'), 2)
 
     def test_legacy_judgment_import_is_explicit_and_does_not_fabricate_recidivism(self):
         from tools.migrate_response_judgment import migrate

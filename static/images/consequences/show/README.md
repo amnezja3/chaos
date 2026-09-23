@@ -10,6 +10,7 @@ kontrakt plików; wrzucenie obrazów nie uruchamia jeszcze show w grze.
 Dźwięki MP3 mają te same nazwy bazowe i osobny katalog
 `static/audio/sfx/consequences/`. [README SFX](../../../audio/sfx/consequences/README.md)
 opisuje wszystkie dziewięć plików, charakter dźwięku i zalecane długości.
+Aktualny komplet i pomiary: [audyt 23 IX 2026](../../../../doc/runbooks/sprint_143_5a_asset_audit.md).
 
 ## Nazwy i przypisanie
 
@@ -63,6 +64,22 @@ consequence_09_detention.png
   Nie twórz pustych plików PNG jako placeholderów.
 
 ## Kontrakt uruchomienia — do implementacji w 143.5a
+
+- **Ciemne tło z alpha 60%**, np. `background: rgba(0, 0, 0, 0.6)`.
+  Mapa pozostaje widoczna przez tło (40% przepuszczalności). To krycie
+  osobnej warstwy tła, nie `opacity: 0.6` całego show: PNG i tekst zachowują
+  własną alpha oraz pełną czytelność. Nie wypalać tła w PNG.
+- **Czas show = rzeczywisty czas przypisanego SFX**. Obraz i audio mają
+  wspólny start; wszystkie animacje wejścia/wyjścia mieszczą się w długości
+  dźwięku. Bez dodatkowego hold, dolnego limitu czasu, zapętlania i ucinania
+  dłuższych SFX. Źródłem czasu jest zdekodowane audio w GameSfx.
+- Przy wyciszeniu/blokadzie autoplay zachować długość właściwego MP3,
+  korzystając z metadanych, a przy błędzie ładowania z zapisanej długości
+  tego assetu. Nie odtwarzać dźwięku później ani nie przedłużać show.
+- Dostarczony komplet ma **540×540 px**, nie 1024×1024. Zachować proporcje;
+  preferować wyświetlanie do 540 px szerokości, z dopasowaniem do telefonu.
+  Ładować potrzebną parę PNG/SFX, nie wszystkie dziewięć obrazów przy wejściu
+  na mapę. Obecna waga nie wymaga zmiany plików ani stratnej optymalizacji.
 
 Renderer wybiera obraz po stopniu faktycznie wykonanej kary i uruchamia go
 po potwierdzeniu commit, dla ukaranego gracza. Retry/reconnect nie odtwarzają

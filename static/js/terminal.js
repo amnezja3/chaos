@@ -1480,7 +1480,7 @@ function renderToolbarStatus() {
         ? `<span class="system-status-target is-hacked-clear" role="button" tabindex="0" title="Cel przejety. Belka zaraz wroci do stanu neutralnego."><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(hackedEffect.label))}</em></i></span>`
         : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`);
     strip.innerHTML = `
-        ${targetMarkup}
+        ${window.DetentionUI?.state ? window.DetentionUI.toolbarMarkup() : targetMarkup}
         <span><b>ARS</b> ${arsenalLabel}</span>
         <span><b>HC</b> ${Number(profile.hackcoins || 0)}</span>
         <span><b>LVL</b> ${Number(profile.level || 1)}</span>
@@ -17700,6 +17700,7 @@ function createEmailClient() {
                     <span class="mail-message-body">${escapeHTML(msg.body || "")}</span>
                 </span>
             `;
+            window.DetentionUI?.appendNotice(item.querySelector('.mail-message-content'), msg.detention_notice);
             messagesBox.appendChild(item);
         });
         if (shouldStickToBottom) {

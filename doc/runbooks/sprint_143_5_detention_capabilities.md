@@ -45,17 +45,20 @@ API, terminal i wcześniej otwarte aplikacje. Bramka przed żądaniem oraz przed
 commit chroni przed wyrokiem nadanym w trakcie akcji. Ruch ma dodatkową,
 niezależną bramkę pozycji z 143.3 na każdym stopniu.
 
-`static/js/detention.js` pokazuje czas online i pozostałe wysłanie, blokuje
+`static/js/detention.js` pokazuje więzienie i czas online w miejscu CEL, blokuje
 otwarte niedozwolone okna i przywraca je po zwolnieniu. To prezentacja stanu
 serwera, bez lokalnego zakończenia wyroku według zegara przeglądarki.
 Web Dragon ma tożsamość `browser`; radio `ghost-radio` / `ghost_hack_radio`;
 Cyberner `email` / `cyberner`.
 
-Przycisk **Kaucja** pozwala podać login innego gracza albo zostawić puste pole
-dla własnego wyroku. Najpierw pobiera ofertę z serwera i pokazuje kwotę do
-potwierdzenia. Serwer pobiera pieniądze wyłącznie od zalogowanego płatnika,
+Od 23 IX przycisk **Kaucja** występuje przy wiadomości wysłanej z aresztu,
+pod adnotacją cenzury prokuratorskiej. Pobiera ofertę z serwera i pokazuje
+potwierdzenie CHAOS, związane z konkretnym wyrokiem. Serwer pobiera pieniądze
+wyłącznie od zalogowanego płatnika i przekazuje na konto `admin`,
 według zapisanej kwoty wyroku. Status i opłacenie kaucji są dostępne również
 podczas globalnego show GhostSignal. Nie wymagają uruchomienia portfela.
+Szczegóły i korekta wcześniejszej wpłaty:
+[kaucja, Cyberner i skarbiec](sprint_143_bail_cyberner_treasury.md).
 
 ## Odbiór w grze
 

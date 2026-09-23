@@ -139,8 +139,9 @@ class CanonicalConsequenceExecutor:
                 return finish('no_effect', 'protected_or_empty_resources')
             effects = {'fine_hc': amount, 'tool_ids': [], 'cancelled_operation_id': None}
             if amount:
-                debit = self.wallet.debit(actor, amount, 'consequence:' + encounter_id,
-                    reason='response.fine', source='response_network', expected_version=wallet['version'], conn=conn)
+                from .treasury import collect
+                debit = collect(self.wallet, self.deltas, conn, actor, amount,
+                    'consequence:' + encounter_id, 'response.fine', expected_version=wallet['version'])
                 self.deltas.record_change(actor, 'wallet', 'wallet.balance_changed',
                     {'balance': debit['balance'], 'currency': 'HC'}, entity_id='wallet',
                     dedupe_key=encounter_id + ':wallet', conn=conn)

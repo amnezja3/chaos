@@ -123,6 +123,13 @@ wylogowanie inicjatora nie usuwa publicznego miejsca i jego odbiorców.
 Cybernera, filtrowanie World i interfejs statusu/kaucji. Szczegóły oraz
 scenariusz odbioru: [runbook 143.5](../runbooks/sprint_143_5_detention_capabilities.md).
 Odbiór w grze pozostaje do wykonania; 143.5a jest osobnym zadaniem.
+23 IX: autor potwierdził transport/powrót stopnia 6, zamrożenie czasu offline,
+World read-only i wspólny limit jednej wiadomości na stopniu 7, odbiór odpowiedzi
+oraz zwolnienie za kaucją. Stopnie 8–9 wymagają jeszcze odbioru w grze.
+Po odbiorze zmieniono UX: więzienie/timer/progres w miejscu CEL, kaucja tylko
+przy wiadomości z adnotacją cenzury i potwierdzeniem CHAOS. Opłaty trafiają do
+skarbca `admin`; przygotowano idempotentną korektę wcześniejszej kaucji.
+Wdrożenie i testy: [kaucja, Cyberner i skarbiec](../runbooks/sprint_143_bail_cyberner_treasury.md).
 Po spięciu 143.5 ustawiono `CHAOS_RESPONSE_DETENTION_ENABLED=true` we
 wszystkich ecosystemach; wcześniejsza blokada aktywacji z 143.4 jest zdjęta.
 
@@ -139,6 +146,14 @@ Nie tworzyć furtki przez inny launcher. Zweryfikować rzeczywistą tożsamość
 aplikacji Web Dragon w katalogu.
 
 ## 143.5a — efekty mapowe przy nadaniu konsekwencji
+
+Ustalenie autora 23 IX 2026: osobna ciemna warstwa tła ma alpha **60%**
+(`rgba(0,0,0,0.6)`), aby mapa przebijała przez tło. Nie obniżać opacity
+całego show ani tekstu/PNG. **Cały czas show = czas jego SFX**: wspólny
+start i koniec, animacje wewnątrz długości audio, bez dodatkowego hold
+i narzuconego minimum. Przy mute/autoplay/błędzie audio używać długości
+tego samego pliku z metadanych lub zapisanego fallbacku, bez późnego replay.
+Komplet i pomiary: [audyt assetów 143.5a](../runbooks/sprint_143_5a_asset_audit.md).
 
 Zakres dodany przez autora 22 IX 2026. Wszystkie stopnie konsekwencji 1–9,
 od mandatów po najwyższy areszt, otrzymują osobny asset uruchamiany na mapie

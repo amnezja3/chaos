@@ -28,7 +28,7 @@ class DetentionTransportTest(unittest.TestCase):
         with db_connect(self.path) as conn:
             conn.execute("INSERT INTO response_criminal_records VALUES ('alice',1,?)", (self.now.isoformat(),))
             conn.execute('UPDATE account_login_ownership SET active_revision=1')
-            conn.execute('UPDATE wallet_balances SET balance=2000000')
+            conn.execute("UPDATE wallet_balances SET balance=2000000 WHERE username IN ('alice','bob')")
 
     def arrest(self):
         result = self.store.encounter(self.candidate(), 'alice', now=self.now)
@@ -97,6 +97,7 @@ class DetentionTransportTest(unittest.TestCase):
             results = list(pool.map(lambda payer: self.service.pay_bail(payer, self.sid, now=self.now), ['alice','bob']))
         self.assertEqual(sum(r['paid'] for r in results), 1)
         self.assertEqual(self.wallet.get_balance('alice') + self.wallet.get_balance('bob'), 3750000)
+        self.assertEqual(self.wallet.get_balance('admin'), 250000)
         self.assertEqual(self.positions.get_position('alice'), self.origin)
         with db_connect(self.path) as conn:
             self.assertEqual(conn.execute("SELECT executed_count FROM response_criminal_records WHERE actor_id='alice'").fetchone()[0], 2)
@@ -113,8 +114,51 @@ class DetentionTransportTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.service.pay_bail('alice', self.sid, now=self.now)
         self.assertEqual(self.wallet.get_balance('alice'), 2000000)
+        self.assertEqual(self.wallet.get_balance('admin'), 0)
         self.assertEqual(self.positions.get('alice'), prison)
         self.assertEqual(self.service.quote('alice')['status'], 'active')
+
+    def test_treasury_payer_keeps_money_and_retry_never_charges_again(self):
+        self.arrest()
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE wallet_balances SET balance=500000 WHERE username='admin'")
+        result = self.service.pay_bail('admin', self.sid, now=self.now)
+        self.assertEqual(result['balance'], 500000)
+        self.assertEqual(self.wallet.get_balance('admin'), 500000)
+        self.assertFalse(self.service.pay_bail('bob', self.sid, now=self.now)['paid'])
+        self.assertEqual(self.wallet.get_balance('bob'), 2000000)
+        with db_connect(self.path) as conn:
+            receipt = conn.execute('SELECT * FROM wallet_transactions').fetchone()
+            self.assertEqual((receipt['from_username'], receipt['to_username'], receipt['amount']), ('admin','admin',250000))
+
+    def test_historical_bail_reconciliation_is_verified_and_once(self):
+        from tools.reconcile_bail_treasury import reconcile
+        self.arrest()
+        # Reproduce the previously deployed debit-only implementation.
+        with db_connect(self.path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            self.wallet.debit('bob',250000,'detention_bail:'+self.sid,reason='response.bail',conn=conn)
+            conn.execute('UPDATE response_detention_transport SET bail_payer=?,bail_paid_hc=? WHERE sanction_id=?', ('bob',250000,self.sid))
+            self.service._release(conn,self.service.sanctions.get(conn,self.sid),reason='bail',now=self.now)
+        self.assertEqual(reconcile(self.path,self.sid)['status'],'would_credit')
+        self.assertEqual(self.wallet.get_balance('admin'),0)
+        self.assertEqual(reconcile(self.path,self.sid,True)['status'],'credited')
+        self.assertEqual(reconcile(self.path,self.sid,True)['status'],'already_credited')
+        self.assertEqual(self.wallet.get_balance('admin'),250000)
+        with self.assertRaises(ValueError): reconcile(self.path,'not-a-sentence',True)
+
+    def test_legacy_collection_only_credits_actual_debit_and_replay_once(self):
+        from response_network.treasury import collect
+        for _ in range(2):
+            with db_connect(self.path) as conn:
+                conn.execute('BEGIN IMMEDIATE')
+                result = collect(self.wallet,self.deltas,conn,'bob',3000000,'legacy-test',
+                                 'response_network.hc_confiscation',up_to=True)
+                self.assertEqual(result['amount_delta'],-2000000)
+        self.assertEqual(self.wallet.get_balance('bob'),0)
+        self.assertEqual(self.wallet.get_balance('admin'),2000000)
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM wallet_transactions').fetchone()[0],1)
 
     def test_served_sentence_does_not_charge_bail_and_quote_has_no_coordinates(self):
         self.arrest()

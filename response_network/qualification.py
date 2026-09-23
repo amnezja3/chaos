@@ -61,6 +61,9 @@ class DetectionQualification:
                 return reject('missing_or_invalid_identity')
             candidate[key] = value.strip()
         result.update({key: candidate[key] for key in ('actor_id', 'incident_id', 'capsule_id')})
+        from .treasury import TREASURY
+        if candidate['actor_id'] == TREASURY:
+            return reject('system_treasury_account')
         try:
             if not candidate['detected_at']:
                 return reject('missing_detection_time')

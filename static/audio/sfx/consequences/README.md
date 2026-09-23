@@ -10,8 +10,10 @@ Numery oznaczają stopień konsekwencji, nie poziom incydentu L1–L5.
 
 ## Nazwy, charakter i długość
 
-Długości poniżej to zalecenia produkcyjne dla krótkiego, jednorazowego SFX,
-nie czas wyświetlania całego show ani długość aresztu.
+Długości poniżej są wcześniejszymi wskazówkami produkcyjnymi, a nie limitami.
+Zgodnie z ustaleniem 23 IX 2026 **czas całego show jest równy rzeczywistej
+długości dostarczonego SFX**. Nie zmieniać ani nie przycinać plików do tych
+widełek. Aktualne długości zawiera [audyt assetów](../../../../doc/runbooks/sprint_143_5a_asset_audit.md).
 
 | Stopień | Plik MP3                               | Scena / charakter dźwięku                                                                                                                                                                                                               | Długość |
 | ------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------: |
@@ -66,6 +68,14 @@ odblokowanie audio w przeglądarce i mechanizm przyciszania radia. Bez osobnego
 `new Audio()` omijającego mikser. Start dźwięku razem z właściwym show po
 potwierdzonym wykonaniu kary; trwały identyfikator receipt/sankcji do dedupe.
 Retry, reconnect i odtworzenie historii nie uruchamiają dźwięku ponownie.
+
+Audio i obraz mają jeden start oraz wspólny koniec. Długość zdekodowanego
+audio (np. `AudioBuffer.duration` wspólnego GameSfx) wyznacza cały czas show,
+łącznie z wejściem i wyjściem. Bez stałego timera dla wszystkich stopni,
+minimalnego hold, dodatkowej końcówki po SFX i zapętlenia.
+Wyciszenie/autoplay nie zmienia czasu obrazu: użyć metadanych dźwięku lub
+zapisanej długości właściwego pliku jako fallbacku przy błędzie ładowania.
+Nie czekać bez końca na `ended`, gdy dźwięk nie został odtworzony.
 
 Przy kilku karach skoordynować kolejkę obrazu i dźwięku, aby nie mieszać
 różnych stopni. Nie odtwarzać dodatkowo tego samego SFX z obsługi komunikatu

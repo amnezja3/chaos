@@ -43,6 +43,11 @@ class ResponseQualificationTest(unittest.TestCase):
     def result(self):
         return self.qualifier.qualify(self.candidate, 'observer', self.now)
 
+    def test_treasury_is_not_a_player_candidate(self):
+        self.candidate['actor_id'] = 'admin'
+        self.assertEqual(self.result()['reason'], 'system_treasury_account')
+        self.reader.assert_not_called()
+
     def test_initiator_without_active_operation_is_observed_never_executed(self):
         result = self.result()
         self.assertEqual(result['status'], 'observed')

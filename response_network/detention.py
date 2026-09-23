@@ -191,8 +191,9 @@ class DetentionService:
             if row['status'] == 'released':
                 return {'paid': False, 'reason': 'sentence_served'}
             amount = int(json.loads(row['plan_json'])['bail_hc'])
-            debit = self.wallet.debit(payer, amount, 'detention_bail:' + sanction_id,
-                                      reason='response.bail', source='response_network', conn=conn)
+            from .treasury import collect
+            debit = collect(self.wallet, self.deltas, conn, payer, amount,
+                            'detention_bail:' + sanction_id, 'response.bail')
             self.deltas.record_change(payer, 'wallet', 'wallet.balance_changed',
                 {'balance': debit['balance'], 'currency': 'HC'}, entity_id='wallet',
                 dedupe_key=sanction_id + ':bail', conn=conn)

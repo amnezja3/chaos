@@ -63,6 +63,11 @@ class DetentionCybernerHTTPTest(unittest.TestCase):
         response=alice.post('/api/chats/messages',json=payload)
         self.assertEqual(response.status_code,200,response.json)
         self.assertEqual(response.json['detention']['private_messages_remaining'],0)
+        received = self.client_for('bob').get('/api/chats/messages?scope=direct&peer=alice')
+        notice = next(m for m in received.json['messages'] if m['body']=='please pay bail')['detention_notice']
+        self.assertEqual(notice['actor_id'],'alice')
+        self.assertEqual(notice['bail_hc'],1000000)
+        self.assertTrue(notice['sanction_id'])
         response=alice.post('/api/chats/messages',json=payload)
         self.assertEqual(response.status_code,200,response.json)
         self.assertTrue(response.json['idempotent_replay'])
@@ -73,6 +78,22 @@ class DetentionCybernerHTTPTest(unittest.TestCase):
         response=alice.get('/api/chats/messages?scope=direct&peer=bob')
         self.assertEqual(response.status_code,200,response.json)
         self.assertIn('received after allowance',str(response.json))
+
+    def test_notice_shared_world_and_clan_survives_history_and_cannot_be_forged(self):
+        alice = self.client_for('alice')
+        forged = alice.post('/api/chats/messages',json={'scope':'world','body':'ordinary',
+            'client_message_id':'fake','detention_notice':{'sanction_id':'fake','bail_hc':1}})
+        self.assertEqual(forged.status_code,200,forged.json)
+        self.sentence(6)
+        for scope,peer in [('world','global'),('clan','clan:virex')]:
+            result = alice.post('/api/chats/messages',json={'scope':scope,'peer':peer,'body':'help '+scope,'client_message_id':scope})
+            self.assertEqual(result.status_code,200,result.json)
+            history = alice.get('/api/chats/messages',query_string={'scope':scope,'peer':peer})
+            message = next(m for m in history.json['messages'] if m['body']=='help '+scope)
+            self.assertEqual(message['detention_notice']['bail_hc'],250000)
+            self.assertEqual(message['detention_notice']['actor_id'],'alice')
+            for m in history.json['messages']:
+                if m['body']=='ordinary': self.assertFalse(m.get('detention_notice'))
 
     def test_world_read_only_and_clan_authorization_survive(self):
         self.sentence(7)

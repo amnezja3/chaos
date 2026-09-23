@@ -1178,6 +1178,26 @@ body {
   box-sizing: border-box;
 }
 
+#system-status-strip .system-status-detention {
+  display: flex !important; align-items: center; gap: 7px; min-width: 150px;
+  max-width: 260px; color: #ff5757 !important; border-color: #b52c36 !important;
+  background: #18070bee !important;
+}
+#system-status-strip .detention-status-body { display: grid; min-width: 0; min-height: 0; flex: 1; gap: 2px; padding: 0; border: 0; background: none; color: inherit; }
+.detention-status-body b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#system-status-strip .detention-status-time { font-size: 11px; min-height: 0; min-width: 0; padding: 0; border: 0; background: none; color: inherit; justify-content: space-between; }
+.detention-dots { color: #ff303f; font-style: normal; animation: detention-pulse 1.3s ease-in-out infinite; }
+.detention-status-body progress { width: 100%; height: 4px; border: 0; accent-color: #ff3949; background: #391219; }
+.detention-status-body progress::-webkit-progress-bar { background: #391219; }
+.detention-status-body progress::-webkit-progress-value { background: #ff3949; }
+.detention-status-body progress::-moz-progress-bar { background: #ff3949; }
+.cyberner-detention-notice { margin-top: 8px; padding: 10px; border: 1px solid #b83c40; background: #210a0ee6; color: #ffb6af; }
+.cyberner-detention-notice p { margin: 0 0 8px; font-size: 12px; }
+.cyberner-detention-notice button { color: #ffc46b; background: #171006; border: 1px solid #d59c3d; padding: 7px 12px; cursor: pointer; }
+@keyframes detention-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .detention-dots { animation: none; } }
+@media (max-width: 600px) { #system-status-strip .system-status-detention { min-width: 110px; max-width: 160px; } }
+
 #system-status-strip .system-status-target {
   min-width: 92px;
   max-width: 180px;

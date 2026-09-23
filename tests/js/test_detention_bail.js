@@ -1,0 +1,31 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const notice = {actor_id:'alice',sanction_id:'sentence-1',prison_name:'Prison',bail_hc:250000};
+let calls = [], confirmed = false, quote = {...notice};
+const window = {showGhostDecisionDialog: async opts => opts.confirmLabel === 'OPŁAĆ KAUCJĘ' ? confirmed : true};
+const context = {window, fetch: async (url, opts) => {
+    calls.push({url,opts});
+    return {ok:true,json:async () => url.includes('bail-quote') ? {quote} : url.endsWith('/bail') ? {paid:true} : {detention:null}};
+}};
+vm.runInNewContext(fs.readFileSync('static/js/detention.js','utf8'),context);
+const ui = window.DetentionUI;
+(async () => {
+    await ui.payBail(notice);
+    assert.equal(calls.filter(c=>c.opts?.method==='POST').length,0,'cancel cannot pay');
+    calls=[]; confirmed=true; quote={...notice,sanction_id:'a-new-sentence'};
+    await ui.payBail(notice);
+    assert.equal(calls.filter(c=>c.opts?.method==='POST').length,0,'old message cannot pay a new sentence');
+    calls=[]; quote={...notice};
+    await ui.payBail(notice);
+    const posts=calls.filter(c=>c.opts?.method==='POST');
+    assert.equal(posts.length,1);
+    assert.equal(JSON.parse(posts[0].opts.body).sanction_id,notice.sanction_id);
+    ui.update({prison_name:'<script>bad</script>',remaining_seconds:125,duration_seconds:300});
+    const html=ui.toolbarMarkup();
+    assert(html.includes('2:05'));
+    assert(html.includes('max="300" value="125"'));
+    assert(!html.includes('<script>'));
+    ui.update(null); assert.equal(ui.toolbarMarkup(),'');
+    console.log('detention bail confirmation, stale sentence and toolbar: OK');
+})().catch(err=>{console.error(err);process.exitCode=1;});

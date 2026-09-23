@@ -33,9 +33,34 @@ def deliver(db_path, actor, route, body, subject, client_id, writer):
             if not state['private_messages_remaining']:
                 raise DetentionDenied('private_message_allowance_exhausted', state)
         message, created = writer(conn)
+        message = dict(message)
+        message_id = message.get('message_id') or message.get('delivery_id')
+        if message_id:
+            message['message_id'] = message_id
+        if created and state and message_id:
+            metadata = {key: state[key] for key in ('sanction_id', 'prison_name', 'bail_hc')}
+            metadata['actor_id'] = actor
+            conn.execute('''CREATE TABLE IF NOT EXISTS response_chat_detention (
+                message_id TEXT PRIMARY KEY, metadata_json TEXT NOT NULL)''')
+            conn.execute('INSERT INTO response_chat_detention VALUES (?,?)', (message_id, dumps_json(metadata)))
+            message['detention_notice'] = metadata
         if created and state and route['channel'] != 'world':
             SanctionStore.consume_private_message(conn, state['sanction_id'],
                 message_id='chat_' + secrets.token_hex(24), now=datetime.now(timezone.utc))
         conn.execute('INSERT INTO response_chat_receipts VALUES (?,?,?,?)',
                      (actor, key, fingerprint, dumps_json(message)))
         return message, created
+
+
+def enrich(db_path, messages):
+    """Only enrich messages already authorized by the channel's history reader."""
+    with db_connect(db_path) as conn:
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='response_chat_detention'").fetchone():
+            return messages
+        for message in messages:
+            key = message.get('message_id') or message.get('delivery_id')
+            if key:
+                row = conn.execute('SELECT metadata_json FROM response_chat_detention WHERE message_id=?', (key,)).fetchone()
+                if row:
+                    message['detention_notice'] = json.loads(row['metadata_json'])
+    return messages

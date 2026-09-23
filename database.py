@@ -1677,6 +1677,8 @@ def init_db(db_path=DB_PATH):
         }
         if "read_at" not in columns:
             conn.execute("ALTER TABLE chat_messages ADD COLUMN read_at TEXT")
+        if "delivery_id" not in columns:
+            conn.execute("ALTER TABLE chat_messages ADD COLUMN delivery_id TEXT")
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_chat_messages_thread
@@ -15105,7 +15107,7 @@ class MailStore:
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT id, scope, peer_name, sender, subject, body, created_at
+                SELECT id, scope, peer_name, sender, subject, body, created_at, delivery_id
                 FROM chat_messages
                 WHERE owner_username = ? AND scope = ? AND peer_name = ?
                 ORDER BY id DESC
@@ -15118,6 +15120,7 @@ class MailStore:
                     "id": row["id"],
                     "scope": row["scope"],
                     "peer_name": row["peer_name"],
+                    "message_id": row["delivery_id"],
                     "sender": row["sender"],
                     "subject": row["subject"],
                     "body": row["body"],
@@ -15129,6 +15132,7 @@ class MailStore:
             return messages
 
     def add_message(self, username, scope, peer_name, sender, body, subject="", auto_add_contact=False, channel_recipients=None, *, conn=None):
+        delivery_id = 'chat_' + secrets.token_hex(24)
         body = (body or "").strip()
         if not body:
             raise ValueError("Message body is required.")
@@ -15166,6 +15170,7 @@ class MailStore:
                 """,
                 (username, scope, peer_name, sender, subject, body, utc_now(), utc_now()),
             )
+            conn.execute('UPDATE chat_messages SET delivery_id=? WHERE id=last_insert_rowid()', (delivery_id,))
 
             if scope == "group":
                 rows = conn.execute(
@@ -15192,6 +15197,7 @@ class MailStore:
                         """,
                         (recipient_name, sender, subject, body, utc_now()),
                     )
+                    conn.execute('UPDATE chat_messages SET delivery_id=? WHERE id=last_insert_rowid()', (delivery_id,))
                 return
 
             if scope == "channel":
@@ -15218,6 +15224,7 @@ class MailStore:
                         """,
                         (recipient_name, peer_name, sender, subject, body, utc_now()),
                     )
+                    conn.execute('UPDATE chat_messages SET delivery_id=? WHERE id=last_insert_rowid()', (delivery_id,))
                 return
 
             if scope == "direct" and auto_add_contact:
@@ -15253,6 +15260,7 @@ class MailStore:
                         """,
                         (peer_name, username, sender, subject, body, utc_now()),
                     )
+                    conn.execute('UPDATE chat_messages SET delivery_id=? WHERE id=last_insert_rowid()', (delivery_id,))
 
     def add_direct_notification(self, username, peer_name, sender, subject, body):
         body = (body or "").strip()
