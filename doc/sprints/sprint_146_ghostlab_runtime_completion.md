@@ -1,0 +1,103 @@
+# Sprint 146 — GhostLab: cztery rodziny wykonawcze i domknięcie v1
+
+Status: **ZAPLANOWANY**, 24 IX 2026. Implementacja po PASS Sprintów 144 i 145.
+
+Poprzedni: [145 — pierwsza pełna ścieżka](sprint_145_ghostlab_system_log_reader.md).
+Podstawa: [audyt](../audits/ghostlab_completion_audit_2026_09_24.md).
+
+## Bramka: zero ciężkiego profilu
+
+Wykryte naruszenie naprawiamy od razu w bieżącym etapie, z testem regresji;
+nie odkładamy go do następnego sprintu ani jako długu technicznego.
+
+Obowiązuje [wspólny zakaz ciężkiego profilu](../plans/creator_ghostlab_zero_heavy_profile_contract.md).
+Financial Sniffer używa walletu; Friend Kicker store relacji; Security Panel Proxy
+wąskiego stanu i writera security; Arsenal Cleaner canonical inventory/storage.
+Brak wydzielonego źródła oznacza konieczność jego przygotowania, nie odczyt profilu.
+Każda rodzina musi przejść zero-heavy dla sukcesu, odmowy, retry i notyfikacji;
+wykonawca odziedziczony po starym narzędziu nie jest zwolniony z tej bramki.
+
+## Cel i rezultat
+
+Wszystkie pięć istniejących szablonów GhostLaba daje działające, zakupione i zainstalowane
+narzędzia. Cztery rodziny modyfikujące stan używają wspólnych reguł Player Hack Access
+i canonical zapisów gry. Publikacja aplikacji nie omija reguł aresztu, ochrony zasobów,
+ryzyka, cooldownu ani jednokrotnego wykonania skutków.
+
+## 146.1 — wspólny kontrakt skutków
+
+- Rozszerzyć adapter z 145 o allowlistę kolejnych rodzin; zachować istniejące wykonawce
+  i reguły domenowe zamiast kopiować ich logikę do GhostLaba.
+- Zestawić każde pole blueprintu z rzeczywistym parametrem wykonawcy. Pole nie może
+  obiecywać działania, które jest ignorowane: albo działa, albo jawnie pozostaje
+  nieedytowalne/nieobsługiwane. Udokumentować precedence quality/reliability i limitów.
+- Serwerowe limity w configu; porównać z balansem wbudowanych narzędzi. Zmiany balansu
+  wykraczające poza istniejące reguły przedstawić autorowi przed aktywacją.
+- Receipt obejmuje actor, target, app, artifact, policy, wynik losowania, koszty,
+  efekty i status. Retry/wiele kart nie wykonują skutków ani losowania ponownie.
+- Cooldown/limit użycia nie może być obchodzony przez przemianowanie, republish,
+  nowy build, reinstall ani klon tego samego szablonu; oprzeć klucz na polityce
+  rodziny i dostępu, nie wyłącznie na ID aplikacji.
+- Sprawdzać dostęp, instalację i sankcje przy commit. Awaria nie pozostawia połowy
+  transferu, usunięcia ani aktualizacji. Delta i komunikaty wynikają z zapisanego skutku.
+
+## 146.2 — Financial Sniffer
+
+- Parametry kradzieży, wykrycia i cooldownu ze zweryfikowanego artefaktu, ograniczone
+  serwerową polityką; wspólna księga i atomowy transfer HC.
+- Zdefiniować podstawę procentu, zaokrąglenie i granicę dostępnego salda przez reuse
+  obecnej reguły; żadnych ujemnych sald ani tworzenia/utraty HC przy retry.
+- Jawny odbiorca i powód każdego transferu. Opłaty systemowe, jeśli przewiduje je
+  istniejąca polityka, trafiają do `admin`; nie wprowadzać nowych opłat w tym sprincie.
+- PASS: kontrolowane saldo przed/po obu stronach, zgodny receipt i jedna zmiana
+  mimo powtórzenia requestu; przypadki małego salda, cooldownu i utraty dostępu.
+
+## 146.3 — Friend Kicker
+
+- Dozwolona polityka wyboru kontaktu, prawdopodobieństwo i wykrycie; losowanie raz
+  na wykonanie. Atakujący nie otrzymuje listy prywatnych kontaktów.
+- Spójna zmiana relacji po obu stronach i właściwe komunikaty; pusta lista kontaktów
+  daje jawny wynik bez fikcyjnego sukcesu.
+- PASS: sukces, brak efektu, brak kandydatów i retry; bez naruszenia obcych relacji.
+
+## 146.4 — Security Panel Proxy
+
+- Tylko dozwolone przełączniki boolean i serwerowe presety; reuse `SECURITY_CONFLICTS`.
+- Blueprint nie może definiować dowolnych nazw pól profilu, reguł bypass ani własnej
+  macierzy uprawnień. Kontrola wersji stanu przy współbieżnej zmianie zabezpieczeń.
+- PASS: dozwolona zmiana, konflikt reguł, zabronione pole, wygasły dostęp i równoległa
+  zmiana przez właściciela; brak nadpisania niepowiązanych ustawień.
+
+## 146.5 — Arsenal Cleaner
+
+- Wybór kandydata i ochrona aplikacji według canonical inventory i serwerowej polityki;
+  blueprint nie wyłącza ochrony core/system ani nie wskazuje cudzych ścieżek plików.
+- Spójne usunięcie uprawnionego narzędzia z instalacji, FM, dysku i pulpitu przez
+  istniejącą ścieżkę inventory; właściwa obsługa aktywnej operacji według obecnych reguł.
+- PASS: jeden efekt mimo retry, brak kandydata, chroniona aplikacja, równoczesna
+  konfiskata/uninstall; bez odtworzenia narzędzia po reconnectcie.
+
+## 146.6 — regresja i odbiór GhostLab v1
+
+Macierz dla każdej rodziny: utworzenie → zapis → compile → preview → publish → zakup
+przez drugiego gracza → instalacja → aktywny dostęp → użycie → rzeczywisty skutek.
+Objąć co najmniej trzy konta i dwie sesje, desktop/mobile, restart/reconnect, retry,
+wygaśnięcie dostępu, areszt, konfiskatę, aktualizację i wycofanie produktu.
+
+- Potwierdzić balans i skutki na danych kontrolowanych; zachować dowody przed/po.
+- Wbudowane narzędzia oraz instalator, Googleplex, księga HC i mechanizm konsekwencji
+  muszą przejść odpowiednie regresje. Nie tworzyć podwójnych incydentów od jednego użycia.
+- Aktywacja rodzin osobno przez konfigurację; zmienne procesu w ecosystemach.
+  Runbook rollback wyłącza nowe wykonania, zachowuje historię i uzgadnia rozpoczęte
+  operacje. Nie odwraca automatycznie prawidłowo wykonanych skutków.
+- Zaktualizować dokumentację GhostLaba i statusy UI tak, by „działa” odpowiadało
+  rzeczywiście odebranym szablonom. Pozostałe legacy artefakty pokazują powód blokady.
+
+Sprint jest PASS dopiero po odbiorze wszystkich czterech rodzin i regresji System Log
+Reader. Wtedy zamykamy **ścieżkę narzędzi GhostLab v1**, nie całą roadmapę v2.
+
+## Poza zakresem trzech sprintów
+
+Research Tree, Community/udostępnianie blueprintów, import `.glab`, AI Templates,
+Plugin SDK, dowolny kod użytkownika i osobny Async Operation Runner. Nie są warunkiem
+działania pięciu obecnych szablonów. Nowe assety/show nie są wymagane do odbioru runtime.

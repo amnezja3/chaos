@@ -10,6 +10,8 @@ from .consequence_table import fine_amount
 from .detection_validator import _coerce_datetime
 from ghostnetwork.repository import GhostNetworkRepository
 from .detention import DetentionService, detention_enabled
+from .incident_store import IncidentStore
+from .npc_capsule_factory import public_capsule_payload
 
 
 def execution_enabled(actor):
@@ -65,6 +67,18 @@ class CanonicalConsequenceExecutor:
             incident = self.incidents.get(row['incident_id'], conn=conn)
             plan = self.records.prepare(conn, actor, int(incident['level']))
 
+            def publish_source():
+                # The public fanout is paginated and may reach this actor later
+                # than the executor. Queue both public map sources first, in the
+                # same transaction as effects; never depend on browser ACKs.
+                capsule = self.capsules.get(candidate['capsule_id'], conn=conn)
+                self.deltas.record_change(actor, 'incident', 'incident.updated',
+                    IncidentStore.public_payload(incident), entity_id=incident['incident_id'],
+                    dedupe_key=f"incident-public:{incident['incident_id']}:{incident['version']}:{actor}", conn=conn)
+                self.deltas.record_change(actor, 'npc', 'npc.updated', public_capsule_payload(capsule),
+                    entity_id=capsule['capsule_id'],
+                    dedupe_key=f"npc-public:{capsule['capsule_id']}:{capsule['version']}:{actor}", conn=conn)
+
             def finish(status, reason, effects=None):
                 result = {'status': status, 'reason': reason, 'encounter_id': encounter_id,
                           'plan': plan, 'effects': effects or {}, 'executed_at': now.isoformat(),
@@ -87,6 +101,7 @@ class CanonicalConsequenceExecutor:
             if plan['detention_minutes']:
                 if not detention_enabled():
                     return finish('unsupported', 'detention_requires_sprint_143')
+                publish_source()
                 sanction = self.detention.impose(conn, actor=actor, encounter_id=encounter_id,
                     incident_id=row['incident_id'], plan=plan, now=now)
                 effects = {'detention_seconds': sanction['duration_ms'] // 1000,
@@ -142,6 +157,7 @@ class CanonicalConsequenceExecutor:
             if not amount and not chosen:
                 return finish('no_effect', 'protected_or_empty_resources')
             effects = {'fine_hc': amount, 'tool_ids': [], 'cancelled_operation_id': None}
+            publish_source()
             if amount:
                 from .treasury import collect
                 debit = collect(self.wallet, self.deltas, conn, actor, amount,

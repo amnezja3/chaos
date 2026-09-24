@@ -39,6 +39,18 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 
 ## Status bieżący
 
+- Kreatory gameplayowe — [audyt 24 IX 2026](audits/creators_gameplay_audit_2026_09_24.md),
+  [147 — profil działania i policy poziomu](sprints/sprint_147_creator_gameplay_policy.md),
+  [148 — UX, opłaty i pełny odbiór](sprints/sprint_148_creator_ux_runtime_completion.md).
+  Oba sprinty ZAPLANOWANE; dotyczą Window Maker, AppForge, Button Maker i Term Creator.
+
+- GhostLab — [audyt 24 IX 2026](audits/ghostlab_completion_audit_2026_09_24.md)
+  i trzy kolejne sprinty (144: implementacja lokalna, odbiór otwarty; 145–146: zaplanowane):
+  [144 — poprawność publikacji](sprints/sprint_144_ghostlab_publication_integrity.md),
+  [145 — System Log Reader end to end](sprints/sprint_145_ghostlab_system_log_reader.md),
+  [146 — pozostałe rodziny i domknięcie v1](sprints/sprint_146_ghostlab_runtime_completion.md).
+  Kolejność 144 → 145 → 146; Research/Community/AI pozostają poza zakresem.
+
 - [142.3 — cykl i publikacja incydentów](runbooks/sprint_142_3_incident_publications.md):
   zatwierdzone 30 minut cooling, trwała kolejka publikacji, mapa/NPC i BlackNet/GooglePlex News;
   implementacja lokalna, odbiór produkcyjny otwarty.

@@ -2967,6 +2967,9 @@ _IDENTITY_ORPHAN_COLUMNS = {
     "player_target_runtime": ("username",),
     "player_target_progress": ("username",),
     "player_target_events": ("username",),
+    "ghostlab_projects": ("owner",),
+    "ghostlab_publications": ("owner",),
+    "ghostlab_requests": ("owner",),
     "player_positions": ("username",),
     "player_operations": ("username",),
     "system_messages": ("username",),
@@ -4686,6 +4689,22 @@ class UserIdentityProjectionStore:
             raise ProfileRecoveryRequired("Player security projection migration or recovery required")
         return dict(security)
 
+    def get_creator_identity(self, username):
+        """Identity and respect only; never hydrate desktop/security or user profile."""
+        sql = self._select_sql('p.username = ?').replace('SELECT ', '''SELECT
+            json_extract(p.desktop_boot_json, '$.respect') AS creator_respect,
+            json_extract(p.desktop_boot_json, '$.source_profile_revision') AS desktop_revision,
+            json_extract(p.desktop_boot_json, '$.source_profile_checksum') AS desktop_checksum,
+            ''', 1)
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(sql, (username,)).fetchone()
+        identity = self._row_identity(row)
+        if (not identity or row['desktop_revision'] != identity['source_profile_revision']
+                or row['desktop_checksum'] != identity['source_profile_checksum']
+                or row['creator_respect'] is None):
+            raise ProfileRecoveryRequired('Creator projection migration or recovery required')
+        return {'nick': identity['nick'], 'respect': int(row['creator_respect'])}
+
     def get_identities(self, usernames, max_items=IDENTITY_PROJECTION_MAX_BATCH):
         max_items = self._bounded_limit(max_items)
         ordered = []
@@ -5026,6 +5045,21 @@ class JsonResourceStore:
 
     def set(self, key, value):
         with db_connect(self.db_path) as conn:
+            if key == "app_config":
+                # A legacy catalog writer may hold a snapshot from before a GhostLab
+                # publication. Reapply canonical publications inside the same lock.
+                conn.execute("BEGIN IMMEDIATE")
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='ghostlab_publications'").fetchone():
+                    publications = conn.execute("SELECT app_json FROM ghostlab_publications").fetchall()
+                    value = copy.deepcopy(value)
+                    by_id = {item.get("id"): item for item in value}
+                    for row in publications:
+                        canonical = json.loads(row["app_json"])
+                        incoming = by_id.get(canonical["id"])
+                        if incoming:
+                            canonical["downloads"] = max(int(canonical.get("downloads") or 0), int(incoming.get("downloads") or 0))
+                        by_id[canonical["id"]] = canonical
+                    value = list(by_id.values())
             conn.execute(
                 """
                 INSERT INTO json_resources (key, source_path, value_json, updated_at)

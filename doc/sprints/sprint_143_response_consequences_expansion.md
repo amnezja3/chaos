@@ -1,6 +1,11 @@
 # Sprint 143 — tabela konsekwencji, recydywa, ograniczenia i więzienia
 
-Status: 143.1 ROZPOCZĘTY 21 IX 2026 na polecenie autora „lecimy dalej”.
+Status: **ZAMKNIĘTY decyzją autora 24 IX 2026** („zamykaj 143”).
+143.5a odebrany jako PASS. Ostatnia korekta 143.6 porządkuje dostarczenie
+incydentu/patrolu przed skutkami kary i show; odbiór tej korekty po wdrożeniu
+nie został jeszcze zaraportowany. Wcześniejsze datowane opisy poniżej stanowią
+historię etapów, nie aktualne blokady aktywacji. Zamknięcie nie oznacza osobnego
+potwierdzenia każdej kombinacji urządzeń i scenariuszy testów ręcznych.
 Tabela i kartoteka działają już z 142.6; rollout poza main potwierdzony na robot.
 Przygotowanie kontraktu 143 nie zastępuje brakujących potwierdzeń odbioru 142.7.
 Aktywacja aresztu wymaga uzgodnionych reguł i testów kolejnych etapów.
@@ -148,6 +153,11 @@ aplikacji Web Dragon w katalogu.
 
 ## 143.5a — efekty mapowe przy nadaniu konsekwencji
 
+**PASS — 24 IX 2026.** Autor potwierdził odbiór w grze:
+„143.5a mamy pass, wszystko gra tak jak chcieliśmy”. Odbiór obejmuje finalną
+oprawę Super Powers, duży asset, drżący tytuł, tło show 80% i zaakceptowane
+SFX/timing oraz widok więzienia. Końcowy odbiór całego sprintu pozostaje w 143.6.
+
 Aktualizacja wizualna autora 24 IX 2026 (nadrzędna wobec wcześniejszego opisu
 show): kompozycja Super Powers, duży PNG centralnie i drżący tytuł pod nim
 (`chaos-ghost-ability-title`, animacja `ghost-ability-text-quake`). Tło samego
@@ -177,7 +187,7 @@ Karty w tle nie przejmują prezentacji. Zamknięcie mapy zatrzymuje trwający ef
 Dziewięć mapowań i fallbacki długości są w `static/js/consequence_show.js`,
 SFX w istniejącym manifeście. Audio `playing`/`ended` steruje efektem; brak startu
 w 1,5 s anuluje audio i uruchamia fallback bez późnego replay. Komunikaty kary
-nie dublują systemowego SFX. Odbiór wizualny na wdrożeniu pozostaje wymagany.
+nie dublują systemowego SFX. Odbiór wizualny na wdrożeniu: PASS autora 24 IX 2026.
 
 Ustalenie autora 23 IX 2026: osobna ciemna warstwa tła ma alpha **60%**
 (`rgba(0,0,0,0.6)`), aby mapa przebijała przez tło. Nie obniżać opacity
@@ -230,6 +240,23 @@ Odbiór wizualny wymaga dostarczenia assetów; samo podpięcie identyfikatorów
 nie oznacza ukończenia oprawy.
 
 ## 143.6 — testy, migracja, odbiór
+
+24 IX: zamknięcie na polecenie autora. Kontrola zgłoszenia „kara przed
+pojawieniem się służb”: kwalifikacja respektuje `spawn_at`, ale paginowana
+publikacja publiczna może dotrzeć do gracza później niż prywatna kara.
+Executor zapisuje teraz publiczny incydent i kapsułę patrolu do kolejki
+ukaranego gracza przed skutkami, w tej samej transakcji. Klucze dedupe są
+wspólne z publiczną publikacją; nie ma dodatkowego losowania ani odczytu profilu.
+Show czeka na dwie klatki renderowania mapy (maks. 250 ms), zachowując SFX
+i długość prezentacji. Brak mapy/ACK klienta nie wstrzymuje kary serwerowej.
+To gwarancja kolejności danych, nie obecności pojazdu w aktualnym kadrze:
+zasięg 39 km może obejmować gracza poza widocznym obszarem patrolu, a transport
+do więzienia celowo zmienia fokus. Korekta wymaga restartu web/workera
+i odświeżenia desktopu po wdrożeniu.
+
+Walidacja korekty: 38 testów Pythona (executor, transport/kaucja, claim show)
+PASS; test JS kolejności klatek, fallbacku i synchronizacji SFX PASS.
+Testy zachowują atomowość rollback, dedupe i brak pełnych odczytów profili.
 
 - Każda droga ruchu/teleportu odmawia podczas sankcji, działa po końcu;
   próba bezpośredniego POST nie omija blokady.

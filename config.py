@@ -1,5 +1,11 @@
 import os
 
+# GhostLab 144: bounded canonical project/build retention (no profile fallback).
+GHOSTLAB_MAX_PROJECTS = 100
+GHOSTLAB_MAX_BUILDS = 200
+GHOSTLAB_VISIBLE_BUILD_HISTORY = 20
+GHOSTLAB_MAX_REQUEST_BYTES = 16384
+
 
 def env_bool(name, default=False):
     value = os.environ.get(name)

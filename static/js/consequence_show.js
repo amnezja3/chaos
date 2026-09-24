@@ -72,7 +72,7 @@
                 handle?.stop({fade_ms: 0}); // cancel pending audio: never play after fallback
                 start(); fallbackTimer = setTimeout(finish, variant[1]);
             };
-            const beginAudio = () => {
+            const playAudio = () => {
                 if (visibleMap() !== doc) { finish(); return; }
                 deadline = setTimeout(fallback, 1500);
                 try {
@@ -82,6 +82,19 @@
                     if (!handle) fallback();
                     else Promise.resolve(handle.started).then(result => { if (!result?.ok) fallback(); }, fallback);
                 } catch (_) { fallback(); }
+            };
+            const beginAudio = () => {
+                // Source deltas precede this receipt. Let Leaflet paint them
+                // before covering the map; a stalled frame never blocks a verdict.
+                const view = doc.defaultView;
+                if (!view?.requestAnimationFrame) { playAudio(); return; }
+                let played = false;
+                const ready = () => {
+                    if (played) return;
+                    played = true; clearTimeout(paintDeadline); playAudio();
+                };
+                const paintDeadline = setTimeout(ready, 250);
+                view.requestAnimationFrame(() => view.requestAnimationFrame(ready));
             };
             // Decode the one selected PNG before starting its short soundtrack.
             // Slow/missing assets cannot delay the verdict indefinitely.

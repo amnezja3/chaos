@@ -1,6 +1,8 @@
 # 143.5a — show konsekwencji i widok więzienia
 
-Implementacja lokalna, 23 IX 2026. Nie oznacza wdrożenia ani odbioru wizualnego.
+Implementacja 23 IX 2026; **odbiór w grze PASS — 24 IX 2026**.
+Autor: „143.5a mamy pass, wszystko gra tak jak chcieliśmy”.
+Zamknięcie 143.5a nie zastępuje końcowego odbioru sprintu 143.6.
 
 Korekta 24 IX: show korzysta z kompozycji Super Powers — duży asset nad
 drżącym tytułem, efektywne przyciemnienie tła 80%. Stały widok więzienia
@@ -29,7 +31,8 @@ Po wdrożeniu kodu zrestartować web i territory worker; odświeżyć desktop/ma
 Tabela claim powstaje automatycznie przy inicjalizacji DetentionService.
 Nie resetować kartotek ani nie odtwarzać historycznych kar.
 
-Odbiór w grze:
+Scenariusze odbioru (ogólny PASS autora powyżej; bez osobnej deklaracji
+wykonania każdej kombinacji urządzeń i wariantów):
 
 1. Nowa wykonana kara: jeden właściwy PNG i SFX, bez podwójnego warning audio.
 2. Areszt: przyciemniona mapa więzienia, brak oddalania/przesuwania także na 9;
@@ -37,4 +40,5 @@ Odbiór w grze:
 3. Mute, zamknięta mapa i reconnect: brak opóźnionego SFX/historycznego show;
    komunikat systemowy nadal dostępny. Dwie karty: najwyżej jedno show.
 4. Zwolnienie: powrót do zapisanej pozycji i sterowania, bez przywrócenia celu.
-5. Mobile i odsłuch wszystkich wariantów pozostają do potwierdzenia wizualnego.
+5. Mobile i odsłuch poszczególnych wariantów: szczegółowa macierz urządzeń
+   nie została osobno zaraportowana; można uwzględnić ją w regresji 143.6.

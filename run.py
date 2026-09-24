@@ -124,6 +124,8 @@ ghostsignal_show_db_path = GhostNetworkRepository().db_path
 tag_filters = ["shop", "amenity", "office"]
 fetcher = POIFetcher(tag_filters=tag_filters)
 resources_store = JsonResourceStore()
+from ghostlab_store import GhostLabStore, GhostLabError
+ghostlab_store = GhostLabStore(resources_store.db_path)
 mail_store = MailStore()
 cyberner_world_store = CybernerWorldStore()
 cyberner_clan_store = CybernerClanStore()
@@ -17710,159 +17712,7 @@ def ghostlab_project_slug(name):
     return slug[:48] or "project"
 
 
-def unique_ghostlab_project_slug(base_slug, projects):
-    taken = {str(project.get("slug") or "") for project in projects}
-    slug = base_slug
-    index = 2
-    while slug in taken:
-        suffix = f"_{index}"
-        slug = f"{base_slug[:max(1, 48 - len(suffix))]}{suffix}"
-        index += 1
-    return slug
-
-
-def get_profile_pro_system_projects(profile):
-    files = profile.setdefault("files", {})
-    projects = files.get("pro_system_projects")
-    if not isinstance(projects, list):
-        projects = []
-    files["pro_system_projects"] = projects
-    return files, projects
-
-
-def default_ghostlab_blueprint(template_id):
-    defaults = {
-        "financial_sniffer": {
-            "steal_percent": 8,
-            "detection_percent": 18,
-            "cooldown_minutes": 180,
-            "success_message": "Financial Sniffer przechwycil drobny przeplyw HC.",
-            "failure_message": "Operacja finansowa zostala wygaszona przez zabezpieczenia.",
-            "reward_note": "HC transfer draft",
-        },
-        "friend_kicker": {
-            "success_percent": 45,
-            "detection_percent": 20,
-            "target_policy": "random_contact",
-            "victim_message": "Wykryto probe manipulacji kontaktami.",
-            "contact_message": "Polaczenie z jednym z graczy zostalo zerwane.",
-        },
-        "security_panel_proxy": {
-            "allowed_switches": "boolean_security_only",
-            "presets": "open, low, regular, secure, all",
-            "rules": "apply SECURITY_CONFLICTS",
-            "conflict_matrix": "locked_until_compiler",
-        },
-        "system_log_reader": {
-            "log_limit": 5,
-            "include_type": True,
-            "include_status": True,
-            "include_created_at": True,
-            "redaction_policy": "system_messages_only",
-        },
-        "arsenal_cleaner": {
-            "success_percent": 40,
-            "detection_percent": 22,
-            "target_policy": "random_non_core_app",
-            "protected_apps": "Terminal, Mapa, Browser, Email, Wallet HC, Profil, Pliki",
-            "remove_tools_file": True,
-        },
-    }
-    return dict(defaults.get(str(template_id or ""), {"notes": ""}))
-
-
-def validate_ghostlab_blueprint(template_id, blueprint):
-    errors = []
-    warnings = []
-
-    def number_between(key, label, min_value, max_value):
-        value = blueprint.get(key)
-        if not isinstance(value, (int, float)):
-            errors.append(f"{label} musi byc liczba.")
-            return None
-        if value < min_value or value > max_value:
-            errors.append(f"{label} musi byc w zakresie {min_value}-{max_value}.")
-        return value
-
-    def required_text(key, label, max_len=240):
-        value = str(blueprint.get(key) or "").strip()
-        if not value:
-            errors.append(f"{label} nie moze byc puste.")
-        if len(value) > max_len:
-            errors.append(f"{label} jest za dlugie.")
-        return value
-
-    template_id = str(template_id or "")
-    if template_id == "financial_sniffer":
-        steal = number_between("steal_percent", "Steal %", 1, 8)
-        detection = number_between("detection_percent", "Detection %", 0, 95)
-        cooldown = number_between("cooldown_minutes", "Cooldown", 5, 1440)
-        required_text("success_message", "Success message")
-        required_text("failure_message", "Failure message")
-        required_text("reward_note", "Rewards", 160)
-        if steal and steal > 6:
-            warnings.append("Steal % powyzej 6 zwiekszy balansowe ryzyko w compilerze.")
-        if detection is not None and detection < 10:
-            warnings.append("Detection % ponizej 10 moze zostac podbite w compilerze.")
-        preview = [
-            f"kradziez do {steal or '?'}% salda ofiary",
-            f"wykrycie {detection if detection is not None else '?'}%",
-            f"cooldown {cooldown or '?'} min",
-        ]
-    elif template_id == "friend_kicker":
-        success = number_between("success_percent", "Success %", 1, 85)
-        detection = number_between("detection_percent", "Detection %", 0, 95)
-        required_text("target_policy", "Targets", 80)
-        required_text("victim_message", "Victim system message")
-        required_text("contact_message", "Contact system message")
-        preview = [
-            f"szansa wypchniecia {success or '?'}%",
-            f"wykrycie {detection if detection is not None else '?'}%",
-            "atakujacy nie widzi listy kontaktow",
-        ]
-    elif template_id == "security_panel_proxy":
-        required_text("allowed_switches", "Allowed switches", 120)
-        required_text("presets", "Presets", 160)
-        required_text("rules", "Rules")
-        required_text("conflict_matrix", "Conflict matrix")
-        preview = [
-            "panel zmiany boolean security",
-            "presety beda mapowane w compilerze",
-            "SECURITY_CONFLICTS pozostaje zrodlem zasad",
-        ]
-    elif template_id == "system_log_reader":
-        limit = number_between("log_limit", "Log limit", 1, 5)
-        for key in ("include_type", "include_status", "include_created_at"):
-            if not isinstance(blueprint.get(key), bool):
-                errors.append(f"{key} musi byc boolean.")
-        required_text("redaction_policy", "Redaction policy", 120)
-        preview = [
-            f"odczyt maksymalnie {limit or '?'} system messages",
-            "bez prywatnych maili i chatu",
-            "wynik tylko podczas aktywnego dostepu",
-        ]
-    elif template_id == "arsenal_cleaner":
-        success = number_between("success_percent", "Success %", 1, 80)
-        detection = number_between("detection_percent", "Detection %", 0, 95)
-        required_text("target_policy", "Targets", 100)
-        required_text("protected_apps", "Protected apps")
-        if not isinstance(blueprint.get("remove_tools_file"), bool):
-            errors.append("Remove files/tools entry musi byc boolean.")
-        preview = [
-            f"szansa usuniecia {success or '?'}%",
-            f"wykrycie {detection if detection is not None else '?'}%",
-            "chronione aplikacje nie beda kandydatami",
-        ]
-    else:
-        required_text("notes", "Notes")
-        preview = ["custom draft bez kompilatora"]
-
-    return {
-        "valid": not errors,
-        "errors": errors,
-        "warnings": warnings,
-        "preview": preview,
-    }
+from ghostlab_policy import default_ghostlab_blueprint, validate_ghostlab_blueprint
 
 
 def build_ghostlab_artifact(project, blueprint, version):
@@ -17976,7 +17826,8 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
         "arsenal_cleaner": (14, 220),
     }
     required_level, required_respect = required_defaults.get(template_id, (10, 120))
-    app_id = str(project.get("googleplex_app_id") or f"ghostlab_{project.get('slug')}_{artifact.get('version', 1)}")
+    app_id = str(project.get("googleplex_app_id") or "ghostlab_" + hashlib.sha256(
+        f"{owner_username}:{project.get('id')}".encode()).hexdigest()[:32])
     contract = ghostlab_template_app_contract(template_id)
     app = {
         "id": app_id,
@@ -18047,6 +17898,9 @@ def serialize_ghostlab_project(project):
         "runtime_status": "pending_custom_runtime",
     })
     return {
+        "revision": project.get("revision"),
+        "schema_version": project.get("schema_version", 1),
+        "published_artifact_id": project.get("published_artifact_id"),
         "id": str(project.get("id") or ""),
         "name": str(project.get("name") or "Untitled"),
         "slug": str(project.get("slug") or ghostlab_project_slug(project.get("name"))),
@@ -28599,331 +28453,8 @@ def radio_channels_manifest():
     })
 
 
-@app.route("/api/ghostlab/projects")
-def ghostlab_projects():
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    profile = sync_session_profile()
-    _, projects = get_profile_pro_system_projects(profile)
-    return jsonify({
-        "success": True,
-        "projects": [serialize_ghostlab_project(project) for project in projects],
-    })
-
-
-@app.route("/api/ghostlab/projects", methods=["POST"])
-def ghostlab_create_project():
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    data = request.get_json(silent=True) or {}
-    name = str(data.get("name") or "").strip()
-    template_id = str(data.get("template_id") or "").strip()
-    template_name = str(data.get("template_name") or "").strip()
-    tool_category = str(data.get("tool_category") or "").strip()
-    icon = str(data.get("icon") or "🧪").strip()[:8] or "🧪"
-    if not name:
-        return jsonify({"success": False, "message": "Podaj nazwe projektu."}), 400
-    if len(name) > 64:
-        return jsonify({"success": False, "message": "Nazwa projektu jest za dluga."}), 400
-    if len(template_id) > 64 or len(template_name) > 80 or len(tool_category) > 40:
-        return jsonify({"success": False, "message": "Metadane szablonu sa za dlugie."}), 400
-
-    profile = sync_session_profile()
-    files, projects = get_profile_pro_system_projects(profile)
-    base_slug = ghostlab_project_slug(name)
-    is_template_project = bool(template_id)
-    slug = unique_ghostlab_project_slug(base_slug, projects) if is_template_project else base_slug
-    if not is_template_project and any(str(project.get("slug") or "") == slug for project in projects):
-        return jsonify({"success": False, "message": "Projekt o takiej nazwie juz istnieje."}), 400
-
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    project = {
-        "id": f"glp_{slug}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-        "name": name,
-        "slug": slug,
-        "icon": icon,
-        "tool_category": tool_category,
-        "template_id": template_id,
-        "template_name": template_name,
-        "blueprint": default_ghostlab_blueprint(template_id),
-        "builds": [],
-        "status": "draft",
-        "created_at": now,
-        "updated_at": now,
-    }
-    projects.append(project)
-    files["pro_system_projects"] = projects
-    UserProfileManager(session["user"]).update_profile({"files": files})
-    session["profile"] = sync_session_profile(rebuild_territory=False)
-
-    return jsonify({
-        "success": True,
-        "message": f"Utworzono projekt {name}.",
-        "project": serialize_ghostlab_project(project),
-        "projects": [serialize_ghostlab_project(item) for item in projects],
-    })
-
-
-@app.route("/api/ghostlab/projects/<project_id>", methods=["PATCH"])
-def ghostlab_rename_project(project_id):
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    data = request.get_json(silent=True) or {}
-    name = str(data.get("name") or "").strip()
-    if not name:
-        return jsonify({"success": False, "message": "Podaj nowa nazwe projektu."}), 400
-    if len(name) > 64:
-        return jsonify({"success": False, "message": "Nazwa projektu jest za dluga."}), 400
-
-    profile = sync_session_profile()
-    files, projects = get_profile_pro_system_projects(profile)
-    project = next((item for item in projects if str(item.get("id")) == str(project_id)), None)
-    if not project:
-        return jsonify({"success": False, "message": "Nie znaleziono projektu."}), 404
-
-    slug = ghostlab_project_slug(name)
-    if any(str(item.get("id")) != str(project_id) and str(item.get("slug") or "") == slug for item in projects):
-        return jsonify({"success": False, "message": "Projekt o takiej nazwie juz istnieje."}), 400
-
-    project["name"] = name
-    project["slug"] = slug
-    project["updated_at"] = datetime.utcnow().isoformat(timespec="seconds")
-    files["pro_system_projects"] = projects
-    UserProfileManager(session["user"]).update_profile({"files": files})
-    session["profile"] = sync_session_profile(rebuild_territory=False)
-
-    return jsonify({
-        "success": True,
-        "message": f"Zmieniono nazwe projektu na {name}.",
-        "project": serialize_ghostlab_project(project),
-        "projects": [serialize_ghostlab_project(item) for item in projects],
-    })
-
-
-@app.route("/api/ghostlab/projects/<project_id>/blueprint", methods=["PATCH"])
-def ghostlab_update_project_blueprint(project_id):
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    data = request.get_json(silent=True) or {}
-    blueprint = data.get("blueprint")
-    if not isinstance(blueprint, dict):
-        return jsonify({"success": False, "message": "Blueprint musi byc obiektem."}), 400
-
-    profile = sync_session_profile()
-    files, projects = get_profile_pro_system_projects(profile)
-    project = next((item for item in projects if str(item.get("id")) == str(project_id)), None)
-    if not project:
-        return jsonify({"success": False, "message": "Nie znaleziono projektu."}), 404
-
-    validation = validate_ghostlab_blueprint(project.get("template_id"), blueprint)
-    if not validation["valid"]:
-        return jsonify({
-            "success": False,
-            "message": "Blueprint wymaga poprawek.",
-            "validation": validation,
-        }), 400
-
-    project["blueprint"] = blueprint
-    project["status"] = "draft"
-    project["updated_at"] = datetime.utcnow().isoformat(timespec="seconds")
-    files["pro_system_projects"] = projects
-    UserProfileManager(session["user"]).update_profile({"files": files})
-    session["profile"] = sync_session_profile(rebuild_territory=False)
-
-    return jsonify({
-        "success": True,
-        "message": "Blueprint zapisany jako draft.",
-        "project": serialize_ghostlab_project(project),
-        "validation": validation,
-        "projects": [serialize_ghostlab_project(item) for item in projects],
-    })
-
-
-@app.route("/api/ghostlab/projects/<project_id>/compile", methods=["POST"])
-def ghostlab_compile_project(project_id):
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    data = request.get_json(silent=True) or {}
-    profile = sync_session_profile()
-    files, projects = get_profile_pro_system_projects(profile)
-    project = next((item for item in projects if str(item.get("id")) == str(project_id)), None)
-    if not project:
-        return jsonify({"success": False, "message": "Nie znaleziono projektu."}), 404
-
-    blueprint = data.get("blueprint")
-    if blueprint is None:
-        blueprint = project.get("blueprint") if isinstance(project.get("blueprint"), dict) else {}
-    if not isinstance(blueprint, dict):
-        return jsonify({"success": False, "message": "Blueprint musi byc obiektem."}), 400
-
-    validation = validate_ghostlab_blueprint(project.get("template_id"), blueprint)
-    if not validation["valid"]:
-        return jsonify({
-            "success": False,
-            "message": "Compile zatrzymany. Blueprint wymaga poprawek.",
-            "validation": validation,
-        }), 400
-
-    builds = project.get("builds") if isinstance(project.get("builds"), list) else []
-    version = len(builds) + 1
-    artifact = build_ghostlab_artifact(project, blueprint, version)
-    build = {
-        "version": version,
-        "created_at": artifact["compiled_at"],
-        "status": "compiled",
-        "artifact_id": artifact["artifact_id"],
-        "template_id": artifact["template_id"],
-    }
-    builds.append(build)
-    project["blueprint"] = blueprint
-    project["builds"] = builds
-    project["artifact"] = artifact
-    project["status"] = "compiled"
-    project["updated_at"] = datetime.utcnow().isoformat(timespec="seconds")
-    files["pro_system_projects"] = projects
-    UserProfileManager(session["user"]).update_profile({"files": files})
-    session["profile"] = sync_session_profile(rebuild_territory=False)
-
-    return jsonify({
-        "success": True,
-        "message": f"Build v{version} skompilowany. Artefakt zapisany w projekcie.",
-        "project": serialize_ghostlab_project(project),
-        "build": build,
-        "artifact": artifact,
-        "validation": validation,
-        "projects": [serialize_ghostlab_project(item) for item in projects],
-    })
-
-
-@app.route("/api/ghostlab/projects/<project_id>/export")
-def ghostlab_export_project(project_id):
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    profile = sync_session_profile()
-    _, projects = get_profile_pro_system_projects(profile)
-    project = next((item for item in projects if str(item.get("id")) == str(project_id)), None)
-    if not project:
-        return jsonify({"success": False, "message": "Nie znaleziono projektu."}), 404
-
-    serialized = serialize_ghostlab_project(project)
-    snapshot = {
-        "format": "ghostlab-project",
-        "format_version": 1,
-        "exported_at": datetime.utcnow().isoformat(timespec="seconds"),
-        "owner": session["user"],
-        "project": serialized,
-    }
-    filename = f"{serialized.get('slug') or 'ghost_project'}.glab"
-    body = json.dumps(snapshot, ensure_ascii=False, indent=2)
-    return Response(
-        body,
-        mimetype="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
-@app.route("/api/ghostlab/projects/<project_id>/publisher", methods=["POST"])
-def ghostlab_publish_project(project_id):
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    profile = sync_session_profile()
-    files, projects = get_profile_pro_system_projects(profile)
-    project = next((item for item in projects if str(item.get("id")) == str(project_id)), None)
-    if not project:
-        return jsonify({"success": False, "message": "Nie znaleziono projektu."}), 404
-
-    blueprint = project.get("blueprint") if isinstance(project.get("blueprint"), dict) else {}
-    validation = validate_ghostlab_blueprint(project.get("template_id"), blueprint)
-    if not validation["valid"]:
-        return jsonify({
-            "success": False,
-            "message": "Publisher zatrzymany. Blueprint wymaga poprawek.",
-            "validation": validation,
-        }), 400
-
-    builds = project.get("builds") if isinstance(project.get("builds"), list) else []
-    artifact = project.get("artifact") if isinstance(project.get("artifact"), dict) else {}
-    if not builds or not artifact:
-        return jsonify({
-            "success": False,
-            "message": "Publisher wymaga skompilowanego artefaktu. Uruchom Compile.",
-        }), 400
-
-    app_data = build_ghostlab_googleplex_app(project, session["user"], profile)
-    if not app_data:
-        return jsonify({"success": False, "message": "Nie udalo sie zbudowac rekordu Googleplex."}), 400
-
-    store = resources_store.get("app_config", default=[]) or []
-    existing_same_name = next((
-        app for app in store
-        if str(app.get("id")) != str(app_data["id"])
-        and str(app.get("name") or "").strip().lower() == app_data["name"].strip().lower()
-    ), None)
-    if existing_same_name:
-        return jsonify({
-            "success": False,
-            "message": "W Googleplex istnieje juz aplikacja o takiej nazwie.",
-        }), 400
-
-    replaced = False
-    updated_store = []
-    for app in store:
-        if str(app.get("id")) == str(app_data["id"]):
-            previous_downloads = int(app.get("downloads") or 0)
-            app_data["downloads"] = previous_downloads
-            updated_store.append(app_data)
-            replaced = True
-        else:
-            updated_store.append(app)
-    if not replaced:
-        updated_store.append(app_data)
-    resources_store.set("app_config", updated_store)
-
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    project["googleplex_app_id"] = app_data["id"]
-    project["published_at"] = now
-    project["status"] = "published"
-    project["updated_at"] = now
-    files["pro_system_projects"] = projects
-    UserProfileManager(session["user"]).update_profile({"files": files})
-    session["profile"] = sync_session_profile(rebuild_territory=False)
-
-    return jsonify({
-        "success": True,
-        "message": "Publisher zakonczony. Artefakt trafil do Googleplex jako pro-system-tool.",
-        "project": serialize_ghostlab_project(project),
-        "app": app_data,
-        "projects": [serialize_ghostlab_project(item) for item in projects],
-    })
-
-
-@app.route("/api/ghostlab/projects/<project_id>", methods=["DELETE"])
-def ghostlab_delete_project(project_id):
-    if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
-
-    profile = sync_session_profile()
-    files, projects = get_profile_pro_system_projects(profile)
-    kept = [item for item in projects if str(item.get("id")) != str(project_id)]
-    if len(kept) == len(projects):
-        return jsonify({"success": False, "message": "Nie znaleziono projektu."}), 404
-
-    files["pro_system_projects"] = kept
-    UserProfileManager(session["user"]).update_profile({"files": files})
-    session["profile"] = sync_session_profile(rebuild_territory=False)
-
-    return jsonify({
-        "success": True,
-        "message": "Projekt usuniety.",
-        "projects": [serialize_ghostlab_project(item) for item in kept],
-    })
+from ghostlab_routes import register as register_ghostlab_routes
+register_ghostlab_routes(app, globals())
 
 
 @app.route("/api/apps/generate", methods=["POST"])
@@ -29498,6 +29029,8 @@ def install_app():
         app_data = next((app for app in catalog if app.get("id") == app_id), None)
         if not app_data:
             return jsonify({"status": "error", "reason": "catalog_item_not_found", "message": "App not found"}), 404
+        if app_data.get('published') is False:
+            return jsonify(status='error', reason='publication_withdrawn', message='Aplikacja zostala wycofana ze sprzedazy.'), 409
 
         if any(isinstance(effect, dict) and effect.get('type') == 'travel_city'
                for effect in (app_data.get('effects') or [])):

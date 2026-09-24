@@ -14463,7 +14463,7 @@ async function createButtonMaker() {
 }
 
 const GHOSTLAB_VERSION = "v1.0";
-const GHOSTLAB_VERSION_NAME = "Stable Lab";
+const GHOSTLAB_VERSION_NAME = "Build & Publish / Runtime Pending";
 const GHOSTLAB_ROADMAP = [
     ["v0.1", "Workspace", "done"],
     ["v0.2", "Projects", "done"],
@@ -14503,7 +14503,7 @@ const GHOSTLAB_TEMPLATES = [
         tool_category: "finance",
         recommended_level: 12,
         risk_level: 5,
-        status: "Ready",
+        status: "Blueprint ready / runtime pending",
         description: "Jednorazowa operacja finansowa na aktywnym dostepie do gracza."
     },
     {
@@ -14514,7 +14514,7 @@ const GHOSTLAB_TEMPLATES = [
         tool_category: "social",
         recommended_level: 10,
         risk_level: 4,
-        status: "Ready",
+        status: "Blueprint ready / runtime pending",
         description: "Losowa proba zerwania jednego kontaktu ofiary."
     },
     {
@@ -14525,7 +14525,7 @@ const GHOSTLAB_TEMPLATES = [
         tool_category: "security",
         recommended_level: 15,
         risk_level: 3,
-        status: "Ready",
+        status: "Blueprint ready / runtime pending",
         description: "Zdalny panel ustawien zabezpieczen profilu ofiary."
     },
     {
@@ -14536,7 +14536,7 @@ const GHOSTLAB_TEMPLATES = [
         tool_category: "intel",
         recommended_level: 8,
         risk_level: 2,
-        status: "Ready",
+        status: "Blueprint ready / runtime pending",
         description: "Bezpieczny odczyt ostatnich komunikatow systemowych ofiary."
     },
     {
@@ -14547,7 +14547,7 @@ const GHOSTLAB_TEMPLATES = [
         tool_category: "apps",
         recommended_level: 14,
         risk_level: 5,
-        status: "Ready",
+        status: "Blueprint ready / runtime pending",
         description: "Losowa proba usuniecia aplikacji z arsenalu ofiary."
     }
 ];
@@ -15058,7 +15058,7 @@ function renderGhostLabProjects(root) {
     if (!list || !preview) return;
     if (!ghostLabState.projects.length) {
         list.innerHTML = `<div class="ghostlab-empty"><strong>No GhostLab projects yet.</strong><span>Start from Templates or Ghost Exchange.</span></div>`;
-        preview.textContent = "files.pro_system_projects jest puste.";
+        preview.textContent = "Brak projektow w canonical store GhostLaba.";
         updateGhostLabStatusBar(root);
         return;
     }
@@ -15125,6 +15125,7 @@ function renderGhostLabEditor(root, project) {
                 ${renderGhostLabPublisherPipeline(project)}
             </div>
             <div class="ghostlab-editor-actions">
+                <span data-ghostlab-dirty-state>Zmiany zapisane.</span>
                 <button type="button" data-ghostlab-preview-blueprint title="Validate blueprint and refresh preview. Shortcut: Ctrl+Enter">Validate</button>
                 <button type="button" data-ghostlab-preview-blueprint title="Preview compiled blueprint metadata without saving.">Preview</button>
                 <button type="button" data-ghostlab-save-blueprint title="Save blueprint draft. Shortcut: Ctrl+S">Save Draft</button>
@@ -15132,6 +15133,7 @@ function renderGhostLabEditor(root, project) {
                 <button type="button" data-ghostlab-compile-project title="Compile current validated blueprint. Shortcut: Ctrl+B">Compile</button>
                 <button type="button" data-ghostlab-export-project title="Export project snapshot as .glab file.">Export</button>
                 <button type="button" data-ghostlab-publish-project title="Run Publisher pipeline and send artifact to Googleplex.">Publisher</button>
+                <button type="button" data-ghostlab-withdraw-project>Wycofaj sprzedaz</button>
             </div>
         </section>
     `;
@@ -15143,6 +15145,14 @@ function renderGhostLabEditor(root, project) {
         });
     });
     main.querySelector('[data-ghostlab-save-blueprint]')?.addEventListener('click', () => saveGhostLabBlueprint(root, project.id));
+    main.querySelector('[data-ghostlab-withdraw-project]')?.addEventListener('click', () => withdrawGhostLabProject(root, project));
+    main.querySelectorAll('[data-ghostlab-blueprint-key]').forEach(input => {
+        input.addEventListener('input', () => {
+            const dirty = ghostLabBlueprintDirty(root, project);
+            main.querySelector('[data-ghostlab-dirty-state]').textContent = dirty
+                ? 'Niezapisane zmiany — Save Draft, potem Compile.' : 'Zmiany zapisane.';
+        });
+    });
     main.querySelector('[data-ghostlab-compile-project]')?.addEventListener('click', () => compileGhostLabProject(root, project.id));
     main.querySelector('[data-ghostlab-export-project]')?.addEventListener('click', () => exportGhostLabProject(root, project.id));
     main.querySelector('[data-ghostlab-publish-project]')?.addEventListener('click', () => publishGhostLabProject(root, project.id));
@@ -15157,6 +15167,10 @@ function renderGhostLabEditor(root, project) {
 function renderGhostLabEditorField(field, value) {
     const safeKey = escapeHTML(field.key);
     const safeLabel = escapeHTML(field.label);
+    const policyKeys = new Set(['target_policy', 'allowed_switches', 'presets', 'rules', 'conflict_matrix', 'redaction_policy', 'protected_apps']);
+    if (policyKeys.has(field.key)) {
+        return `<label class="ghostlab-editor-field"><span>${safeLabel} — polityka serwera</span><input readonly data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? '')}"></label>`;
+    }
     if (field.type === "textarea") {
         return `
             <label class="ghostlab-editor-field">
@@ -15203,7 +15217,7 @@ function renderGhostLabPublisherPipeline(project) {
     const hasBlueprint = !!(project?.blueprint && typeof project.blueprint === "object");
     const hasBuild = Array.isArray(project?.builds) && project.builds.length > 0;
     const hasArtifact = !!(project?.artifact && project.artifact.artifact_id);
-    const isPublished = project?.status === "published" || !!project?.googleplex_app_id;
+    const isPublished = project?.status === "published";
     const contract = project?.publisher_contract || {};
     const steps = [
         ["Blueprint", hasBlueprint],
@@ -15213,7 +15227,7 @@ function renderGhostLabPublisherPipeline(project) {
         ["Googleplex", isPublished]
     ];
     return `
-        <strong>Publisher Pipeline</strong>
+        <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong><span>Custom runtime oczekuje. Publikacja nie uruchamia narzedzia.</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
                 <span class="${done ? 'done' : ''}">${escapeHTML(label)}</span>
@@ -15372,6 +15386,46 @@ function refreshGhostLabEditorFeedback(root, project) {
     return validation;
 }
 
+function ghostLabCreateRequestId(root, payload) {
+    const signature = JSON.stringify(payload);
+    if (root._ghostLabCreateSignature !== signature) {
+        root._ghostLabCreateSignature = signature;
+        root._ghostLabCreateRequestId = crypto.randomUUID();
+    }
+    return root._ghostLabCreateRequestId;
+}
+
+async function withdrawGhostLabProject(root, project) {
+    if (!confirm('Wycofac sprzedaz? Zakupione wersje i historia pozostana.')) return;
+    try {
+        const response = await fetch(`/api/ghostlab/projects/${encodeURIComponent(project.id)}/withdraw`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({revision: project.revision})
+        });
+        const data = await response.json();
+        if (!response.ok) { setGhostLabMessage(root, data.message || 'Nie udalo sie wycofac.', 'error'); return; }
+        ghostLabState.projects = data.projects || [];
+        renderGhostLabEditor(root, data.project);
+        setGhostLabMessage(root, data.message, 'info');
+    } catch (error) { setGhostLabMessage(root, 'Brak polaczenia z Publisherem.', 'error'); }
+}
+
+function ghostLabBlueprintDirty(root, project) {
+    const edited = collectGhostLabBlueprint(root);
+    const saved = project?.blueprint || {};
+    return Object.keys(edited).length !== Object.keys(saved).length ||
+        Object.keys(edited).some(key => edited[key] !== saved[key]);
+}
+
+function ghostLabBuildIsCurrent(root, project) {
+    if (ghostLabBlueprintDirty(root, project) ||
+        !project?.artifact?.artifact_id || project.artifact.source_revision !== project.revision) {
+        setGhostLabMessage(root, "Publisher: zapisz zmiany i skompiluj aktualna rewizje.", "error");
+        return false;
+    }
+    return true;
+}
+
 async function saveGhostLabBlueprint(root, projectId) {
     if (!projectId) {
         setGhostLabMessage(root, "Nie wybrano projektu.", "error");
@@ -15388,7 +15442,7 @@ async function saveGhostLabBlueprint(root, projectId) {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/blueprint`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root) })
+            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root), revision: project.revision })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15417,12 +15471,13 @@ async function compileGhostLabProject(root, projectId) {
         setGhostLabMessage(root, "Compile zatrzymany. Popraw bledy blueprintu.", "error");
         return;
     }
+    if (ghostLabBlueprintDirty(root, project)) { setGhostLabMessage(root, "Masz niezapisane zmiany. Uzyj Save Draft przed Compile.", "error"); return; }
     setGhostLabWorking(root, "Compiling...");
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/compile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root) })
+            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root), revision: project.revision })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15483,11 +15538,12 @@ async function publishGhostLabProject(root, projectId) {
         setGhostLabMessage(root, "Publisher zatrzymany. Popraw blueprint.", "error");
         return;
     }
+    if (!ghostLabBuildIsCurrent(root, project)) return;
     setGhostLabWorking(root, "Publishing...");
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/publisher`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({revision: project.revision, artifact_id: project.artifact?.artifact_id})
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15499,7 +15555,7 @@ async function publishGhostLabProject(root, projectId) {
         ghostLabState.activeProjectId = data.project?.id || projectId;
         renderGhostLabEditor(root, data.project);
         setGhostLabMessage(root, data.message || "Publisher zakonczony.", "info");
-        if (typeof window.refreshDesktop === "function") window.refreshDesktop();
+        // Publication changes the catalog, not the player profile or desktop inventory.
     } catch (err) {
         console.warn("GhostLab publisher failed", err);
         setGhostLabMessage(root, "Brak polaczenia z Publisherem.", "error");
@@ -15522,7 +15578,7 @@ async function createGhostLabProject(root) {
         const res = await fetch('/api/ghostlab/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            body: JSON.stringify({ name, request_id: ghostLabCreateRequestId(root, {name}) })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15530,6 +15586,7 @@ async function createGhostLabProject(root) {
             return;
         }
         if (input) input.value = "";
+        root._ghostLabCreateSignature = null;
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = data.project?.id || ghostLabState.selectedProjectId;
         renderGhostLabProjects(root);
@@ -15553,17 +15610,18 @@ async function createGhostLabProjectFromTemplate(root, template) {
         const res = await fetch('/api/ghostlab/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({...payload, request_id: ghostLabCreateRequestId(root, payload)})
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
             setGhostLabMessage(root, data.message || "Nie udalo sie utworzyc projektu z szablonu.", "error");
             return;
         }
+        root._ghostLabCreateSignature = null;
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = data.project?.id || ghostLabState.selectedProjectId;
         activateGhostLabTab(root, "Projects");
-        setGhostLabMessage(root, "Projekt utworzony z szablonu. Edytor bedzie dostepny w GhostLab v0.4.", "info");
+        setGhostLabMessage(root, "Projekt utworzony. Otworz edytor; runtime narzedzia nadal oczekuje.", "info");
     } catch (err) {
         console.warn("GhostLab template project create failed", err);
         setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
@@ -15598,7 +15656,7 @@ async function renameGhostLabProject(root) {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(selected.id)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            body: JSON.stringify({ name, revision: selected.revision })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15626,7 +15684,7 @@ async function deleteGhostLabProject(root) {
     setGhostLabWorking(root, "Deleting project...");
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(selected.id)}`, {
-            method: 'DELETE'
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({revision: selected.revision})
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {

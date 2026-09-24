@@ -18,7 +18,7 @@ function setup(mode='audio', stage=5) {
             audio=opts; return {stop:()=>{stopped++;}, started:mode==='muted'?Promise.resolve({ok:false}):new Promise(()=>{})};
         }}}};
     vm.runInNewContext(source,state);
-    return {state,nodes,timers,get audio(){return audio;},get requests(){return requests;},get stopped(){return stopped;},get dialog(){return dialog;}};
+    return {state,doc,nodes,timers,get audio(){return audio;},get requests(){return requests;},get stopped(){return stopped;},get dialog(){return dialog;}};
 }
 (async()=>{
     const t=setup(); t.state.window.ConsequenceShow.receive({encounter_id:'receipt'}); await flush();
@@ -37,5 +37,15 @@ function setup(mode='audio', stage=5) {
     assert.equal(closed.nodes.length,0); assert.equal(closed.dialog,1,'closed map still receives verdict');
     const hidden=setup(); hidden.state.document.visibilityState='hidden';
     hidden.state.window.ConsequenceShow.receive({encounter_id:'receipt'}); await flush(); assert.equal(hidden.requests,0);
+    const painting=setup(), frames=[];
+    painting.doc.defaultView={requestAnimationFrame: callback=>frames.push(callback)};
+    painting.state.window.ConsequenceShow.receive({encounter_id:'receipt'}); await flush();
+    assert.equal(painting.audio,undefined);
+    frames.shift()(); assert.equal(painting.audio,undefined);
+    frames.shift()(); assert(painting.audio,'audio waits until source markers have had a paint');
+    const stalled=setup(); stalled.doc.defaultView={requestAnimationFrame:()=>{}};
+    stalled.state.window.ConsequenceShow.receive({encounter_id:'receipt'}); await flush();
+    const deadline=[...stalled.timers.values()][0]; assert.equal(deadline.ms,250);
+    deadline.fn(); assert(stalled.audio,'stalled rendering cannot freeze the verdict');
     console.log('consequence audio sync, mute fallback, dedupe and closed map: OK');
 })().catch(error=>{console.error(error);process.exitCode=1;});
