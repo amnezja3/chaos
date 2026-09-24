@@ -15396,7 +15396,12 @@ function ghostLabCreateRequestId(root, payload) {
 }
 
 async function withdrawGhostLabProject(root, project) {
-    if (!confirm('Wycofac sprzedaz? Zakupione wersje i historia pozostana.')) return;
+    if (!await showGhostDecisionDialog({
+        title: 'GHOSTLAB — WYCOFANIE PUBLIKACJI',
+        message: 'Wycofać aplikację ze sprzedaży?',
+        details: 'Zakupione wersje i historia pozostaną.',
+        confirmLabel: 'WYCOFAJ', cancelLabel: 'ANULUJ'
+    })) return;
     try {
         const response = await fetch(`/api/ghostlab/projects/${encodeURIComponent(project.id)}/withdraw`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -15680,7 +15685,11 @@ async function deleteGhostLabProject(root) {
         setGhostLabMessage(root, "Wybierz projekt do usuniecia.", "error");
         return;
     }
-    if (!confirm(`Usunac projekt ${selected.name}?`)) return;
+    if (!await showGhostDecisionDialog({
+        title: 'GHOSTLAB — USUNIĘCIE PROJEKTU',
+        message: `Usunąć projekt ${selected.name}?`,
+        confirmLabel: 'USUŃ', cancelLabel: 'ANULUJ'
+    })) return;
     setGhostLabWorking(root, "Deleting project...");
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(selected.id)}`, {
