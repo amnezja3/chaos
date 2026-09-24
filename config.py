@@ -45,13 +45,22 @@ def env_csv(name, default=""):
 
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 
-# Detection distance from the service vehicle, in metres (24 IX 2026).
+# Patrol area around the incident, NOT the radar around the vehicle.
 # Runtime family names: cybersecurity=cyberpolice, secret services=secretservice.
-RESPONSE_SERVICE_DETECTION_RADIUS_M = {
+RESPONSE_SERVICE_PATROL_RADIUS_M = {
     "police": 300,
     "cyberpolice": 2000,
     "secretservice": 39000,
 }
+
+# Restore the pre-143 short-range radar, independent of the patrol area.
+RESPONSE_DETECTION_RADIUS_MIN_M = 55
+RESPONSE_DETECTION_RADIUS_MAX_M = 180
+
+
+def response_service_detection_radius(incident_level, service_level):
+    return max(RESPONSE_DETECTION_RADIUS_MIN_M, min(RESPONSE_DETECTION_RADIUS_MAX_M,
+        65 + int(incident_level) * 18 + int(service_level) * 8))
 
 # Approved consequence ladder. Activation belongs to the canonical 142.6
 # executor; configuring a sanction does not enable it. Bump version on rebalance.

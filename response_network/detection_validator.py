@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import math
+from config import RESPONSE_DETECTION_RADIUS_MAX_M
 from datetime import datetime, timezone
 
 from .incident_store import ACTIVE_INCIDENT_STATUSES
@@ -299,6 +300,9 @@ class DetectionValidator:
             return self._record(candidate, decision)
 
         detection_radius = max(1.0, float(capsule.get("detection_radius_m") or 65))
+        if detection_radius > RESPONSE_DETECTION_RADIUS_MAX_M:
+            decision = self._decision("rejected", candidate, "capsule_recalibration_required", detected_at=detected_at)
+            return self._record(candidate, decision)
         distance_m = _distance_m(expected_npc, actor_position)
         if distance_m is None or distance_m > (detection_radius + 15):
             decision = self._decision(

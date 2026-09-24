@@ -56,13 +56,13 @@ class ResponseQualificationTest(unittest.TestCase):
         self.assertEqual(self.audit.record.call_args.args[0]['operation_id'], '')
 
     def test_three_services_roles_presence_and_distance_matrix(self):
-        from config import RESPONSE_SERVICE_DETECTION_RADIUS_M
+        from config import response_service_detection_radius
         from response_network.npc_capsule_factory import _project_point
         from response_network.detection_validator import _distance_m
         original = copy.deepcopy(self.actor)
         center = {'lat': 52, 'lng': 21}
         for family in ('police', 'cyberpolice', 'secretservice'):
-            radius = RESPONSE_SERVICE_DETECTION_RADIUS_M[family]
+            radius = response_service_detection_radius(2, 1)
             for role in ('initiator', 'bystander'):
                 for state in ('online_active', 'online_inactive', 'offline', 'expired', 'heartbeat_timeout'):
                     for place, meters in (('inside', radius - 1), ('boundary', radius), ('outside', radius + 1)):
@@ -87,6 +87,15 @@ class ResponseQualificationTest(unittest.TestCase):
                             if expected:
                                 self.assertEqual(result['actor_role'], role)
                                 self.assertEqual(result['presence_class'], state)
+
+    def test_old_patrol_radius_cannot_be_used_as_radar(self):
+        for radius in (300, 2000, 39000):
+            with self.subTest(radius=radius):
+                self.capsule['detection_radius_m'] = radius
+                result = self.result()
+                self.assertFalse(result['qualified'])
+                self.assertEqual(result['reason'], 'capsule_recalibration_required')
+        self.audit.record.assert_not_called()
 
     def test_bystander_and_stationary_online_are_classified(self):
         self.incident['suspect_refs'] = []

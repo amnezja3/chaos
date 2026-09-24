@@ -250,8 +250,10 @@ wspólne z publiczną publikacją; nie ma dodatkowego losowania ani odczytu prof
 Show czeka na dwie klatki renderowania mapy (maks. 250 ms), zachowując SFX
 i długość prezentacji. Brak mapy/ACK klienta nie wstrzymuje kary serwerowej.
 To gwarancja kolejności danych, nie obecności pojazdu w aktualnym kadrze:
-zasięg 39 km może obejmować gracza poza widocznym obszarem patrolu, a transport
-do więzienia celowo zmienia fokus. Korekta wymaga restartu web/workera
+transport do więzienia celowo zmienia fokus. Korekta z 24 IX rozdziela
+promień patrolowania (300 m / 2 km / 39 km) od radaru (maks. 180 m);
+wcześniejsze przypisanie 39 km do radaru było błędem.
+Korekta wymaga restartu web/workera
 i odświeżenia desktopu po wdrożeniu.
 
 Walidacja korekty: 38 testów Pythona (executor, transport/kaucja, claim show)

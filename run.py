@@ -4624,11 +4624,13 @@ def ensure_response_npc_capsules_for_active_incidents(username=None):
             continue
         try:
             existing_capsules = npc_capsule_store.list_by_incident(incident_id)
-            from config import RESPONSE_SERVICE_DETECTION_RADIUS_M
+            from config import RESPONSE_SERVICE_PATROL_RADIUS_M, response_service_detection_radius
             active_capsules = [capsule for capsule in existing_capsules
                                if response_npc_capsule_runtime_active(capsule, now_dt)]
             if active_capsules and all(
-                    capsule.get('detection_radius_m') == RESPONSE_SERVICE_DETECTION_RADIUS_M.get(capsule.get('service_type'))
+                    capsule.get('patrol_radius_m') == RESPONSE_SERVICE_PATROL_RADIUS_M.get(capsule.get('service_type'))
+                    and capsule.get('detection_radius_m') == response_service_detection_radius(
+                        incident.get('level') or 1, capsule.get('service_level') or 1)
                     for capsule in active_capsules):
                 continue
             runtime_incident = incident_for_response_npc_dispatch(incident, now_dt)

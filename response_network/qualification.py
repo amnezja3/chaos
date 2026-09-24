@@ -5,6 +5,7 @@ from contextlib import nullcontext
 from datetime import datetime, timezone
 
 from database import db_connect
+from config import RESPONSE_DETECTION_RADIUS_MAX_M
 from session_generation_store import username_digest
 from .detection_validator import _coerce_datetime, _distance_m, _position
 from .npc_capsule_factory import BEHAVIOR_VERSION, position_at
@@ -139,6 +140,8 @@ class DetectionQualification:
                 return reject('npc_position_mismatch')
             distance = _distance_m(position_at(capsule, now), position)
             radius = float(capsule.get('detection_radius_m') or 0)
+            if radius > RESPONSE_DETECTION_RADIUS_MAX_M:
+                return reject('capsule_recalibration_required', 'deferred')
             if distance is None or not 0 < radius < 100000 or distance > radius:
                 return reject('actor_outside_detection_radius')
             suspects = {ref.get('actor_id') for ref in incident.get('suspect_refs', []) if isinstance(ref, dict)}

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from database import DB_PATH, db_connect, dumps_json, loads_json
+from config import RESPONSE_DETECTION_RADIUS_MAX_M
 from .canonical_executor import execution_enabled
 from .qualification import DetectionQualification, actor_snapshot, qualification_mode
 from .npc_capsule_factory import position_at
@@ -162,7 +163,7 @@ class EncounterStore:
                 continue
             if not (-90 <= lat <= 90 and -180 <= lng <= 180):
                 continue
-            if not math.isfinite(radius) or not 0 < radius < 100000:
+            if not math.isfinite(radius) or not 0 < radius <= RESPONSE_DETECTION_RADIUS_MAX_M:
                 continue
             lat_delta = radius / 110000.0
             lng_delta = min(180, lat_delta / max(.001, abs(math.cos(math.radians(point['lat'])))))
