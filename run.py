@@ -17715,18 +17715,17 @@ def ghostlab_project_slug(name):
 
 
 from ghostlab_policy import default_ghostlab_blueprint, validate_ghostlab_blueprint
+from ghostlab_registry import get_template, artifact_compatible, validate_pro_tool_assignments, field_schema
+
+validate_pro_tool_assignments(PRO_SYSTEM_TOOLS)
 
 
 def build_ghostlab_artifact(project, blueprint, version):
     compiled_at = datetime.utcnow().isoformat(timespec="seconds")
     template_id = str(project.get("template_id") or "custom")
-    contracts = {
-        "financial_sniffer": "financial_sniffer",
-        "friend_kicker": "friend_kicker",
-        "security_panel_proxy": "security_panel",
-        "system_log_reader": "system_logs",
-        "arsenal_cleaner": "arsenal_cleaner",
-    }
+    definition = get_template(template_id)
+    if not definition:
+        raise GhostLabError('unknown_template', 'Nieznany kontrakt szablonu.', 400)
     return {
         "artifact_id": f"{project.get('id')}_build_{version}",
         "project_id": str(project.get("id") or ""),
@@ -17737,63 +17736,22 @@ def build_ghostlab_artifact(project, blueprint, version):
         "template_id": template_id,
         "template_name": str(project.get("template_name") or ""),
         "tool_category": str(project.get("tool_category") or ""),
-        "runtime_contract": contracts.get(template_id, "custom_blueprint"),
+        "runtime_contract": definition["result_type"],
+        "contract_version": definition["contract_version"],
+        "schema_version": definition["schema_version"],
+        "policy_version": definition["policy_version"],
+        "presentation_id": "default",
         "blueprint_snapshot": dict(blueprint),
     }
 
 
 def ghostlab_template_app_contract(template_id):
-    template_id = str(template_id or "")
-    contracts = {
-        "financial_sniffer": {
-            "tool_family": "sniffer",
-            "tool_mode": "desktop",
-            "map_actions": [],
-            "target_types": ["player"],
-            "operation_types": [],
-            "resource_types": ["financial_records", "internal_recon_state"],
-        },
-        "friend_kicker": {
-            "tool_family": "exploit",
-            "tool_mode": "desktop",
-            "map_actions": [],
-            "target_types": ["player"],
-            "operation_types": [],
-            "resource_types": ["internal_recon_state"],
-        },
-        "security_panel_proxy": {
-            "tool_family": "exploit",
-            "tool_mode": "desktop",
-            "map_actions": [],
-            "target_types": ["player"],
-            "operation_types": [],
-            "resource_types": ["internal_recon_state"],
-        },
-        "system_log_reader": {
-            "tool_family": "scanner_recon",
-            "tool_mode": "desktop",
-            "map_actions": [],
-            "target_types": ["player"],
-            "operation_types": [],
-            "resource_types": ["device_logs", "internal_recon_state"],
-        },
-        "arsenal_cleaner": {
-            "tool_family": "exploit",
-            "tool_mode": "desktop",
-            "map_actions": [],
-            "target_types": ["player"],
-            "operation_types": [],
-            "resource_types": ["internal_recon_state"],
-        },
-    }
-    return dict(contracts.get(template_id, {
-        "tool_family": "pro_system_tool",
-        "tool_mode": "desktop",
-        "map_actions": [],
-        "target_types": ["player"],
-        "operation_types": [],
-        "resource_types": ["internal_recon_state"],
-    }))
+    definition = get_template(template_id)
+    if not definition:
+        return {"tool_family": "pro_system_tool", "tool_mode": "desktop", "map_actions": [],
+                "target_types": ["player"], "operation_types": [], "resource_types": ["internal_recon_state"]}
+    return definition['app_contract']
+
 
 
 def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
@@ -17806,28 +17764,10 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
         blueprint = project.get("blueprint") if isinstance(project.get("blueprint"), dict) else {}
 
     template_id = str(project.get("template_id") or artifact.get("template_id") or "custom")
-    risk_defaults = {
-        "financial_sniffer": 5,
-        "friend_kicker": 4,
-        "security_panel_proxy": 3,
-        "system_log_reader": 2,
-        "arsenal_cleaner": 5,
-    }
-    price_defaults = {
-        "financial_sniffer": 4200,
-        "friend_kicker": 3600,
-        "security_panel_proxy": 5200,
-        "system_log_reader": 2800,
-        "arsenal_cleaner": 4700,
-    }
-    required_defaults = {
-        "financial_sniffer": (12, 180),
-        "friend_kicker": (10, 150),
-        "security_panel_proxy": (15, 240),
-        "system_log_reader": (8, 90),
-        "arsenal_cleaner": (14, 220),
-    }
-    required_level, required_respect = required_defaults.get(template_id, (10, 120))
+    definition = get_template(template_id)
+    if not artifact_compatible(artifact, template_id):
+        raise GhostLabError('unsupported_contract_version', 'Skompiluj projekt dla aktualnego kontraktu.')
+    required_level, required_respect = definition['recommended_level'], definition['required_respect']
     app_id = str(project.get("googleplex_app_id") or "ghostlab_" + hashlib.sha256(
         f"{owner_username}:{project.get('id')}".encode()).hexdigest()[:32])
     contract = ghostlab_template_app_contract(template_id)
@@ -17841,11 +17781,11 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
             f"GhostLab Publisher artifact from {project.get('template_name') or template_id}. "
             "Custom runtime zostanie aktywowany w pozniejszym sprincie."
         ),
-        "price": price_defaults.get(template_id, 3000),
+        "price": definition['price'],
         "required_level": required_level,
         "required_respect": required_respect,
         "allowed_fractions": [],
-        "risk_level": risk_defaults.get(template_id, 3),
+        "risk_level": definition['risk_level'],
         "purchase_account": owner_username,
         "creator_username": owner_username,
         "creator_nick": (owner_profile or {}).get("nick") or owner_username,
@@ -17911,6 +17851,7 @@ def serialize_ghostlab_project(project):
         "template_id": str(project.get("template_id") or ""),
         "template_name": str(project.get("template_name") or ""),
         "blueprint": blueprint,
+        "field_schema": field_schema(project.get("template_id")),
         "validation": validation,
         "builds": builds,
         "artifact": artifact,

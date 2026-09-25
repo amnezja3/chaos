@@ -3,7 +3,8 @@
 Status: **ZAPLANOWANY**, 24 IX 2026. Bez rozpoczęcia implementacji.
 Podstawa: [audyt kreatorów](../audits/creators_gameplay_audit_2026_09_24.md).
 Kontynuacja: [148 — UX, wykonanie i opłaty](sprint_148_creator_ux_runtime_completion.md).
-Kolejność po 144–146; reuse fundamentów publikacji z 144, bez przebudowy GhostLaba.
+Kolejność po 144–146 oraz rozszerzeniach 146.1–146.3; reuse fundamentów publikacji
+z 144, bez przebudowy GhostLaba.
 
 ## Bramka: zero ciężkiego profilu
 

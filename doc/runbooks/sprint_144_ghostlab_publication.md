@@ -1,6 +1,10 @@
 # Sprint 144 — implementacja i wdrożenie GhostLaba
 
-24 IX 2026. Zmiany lokalne; brak wdrożenia i odbioru przeglądarkowego na serwerze.
+24 IX 2026. Wdrożono na serwerze; użytkownik potwierdził podstawową ścieżkę
+projekt → compile → publikacja → wycofanie → ponowna publikacja oraz czerwone
+potwierdzenie CHAOS. Migracja main i kolejnych 36 kont zakończona bez błędów;
+oba legacy projekty admina zachowane. Pozostałe przypadki odbioru są otwarte.
+Przed 145 zaplanowano rozszerzenia 144.1 (rejestr) i 144.2 (wspólny kreator).
 Zakres: [plan 144](../sprints/sprint_144_ghostlab_publication_integrity.md).
 Runtime narzędzi pozostaje `pending_custom_runtime` (Sprinty 145–146).
 

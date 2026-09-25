@@ -23,16 +23,29 @@ const context = vm.createContext({
     renderGhostLabEditor: () => {},
     selectedGhostLabProject: () => project,
     console, encodeURIComponent,
+    escapeHTML: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'),
     fetch: async (url, options) => {
         calls.push({url,body:JSON.parse(options.body)});
         return {ok:true,json:async()=>({success:true,project,projects:[project]})};
     },
     window: {refreshDesktop: () => {throw Error('Full desktop refresh forbidden');}},
 });
-for (const name of ['ghostLabBlueprintDirty','ghostLabBuildIsCurrent','publishGhostLabProject','compileGhostLabProject']) {
+for (const name of ['ghostLabBlueprintDirty','ghostLabBuildIsCurrent','publishGhostLabProject','compileGhostLabProject', 'validateGhostLabBlueprint', 'renderGhostLabEditorField']) {
     vm.runInContext(extract(name),context);
 }
 (async () => {
+    const schema = {field_schema: {
+        count: {type:'number',minimum:1,maximum:5,integer:true,editable:true},
+        policy: {type:'string',max_length:20,default:'locked',editable:false}
+    }};
+    assert(context.validateGhostLabBlueprint(schema,{count:2,policy:'locked'}).valid);
+    for (const count of [NaN,Infinity,true,1.5,6]) {
+        assert(!context.validateGhostLabBlueprint(schema,{count,policy:'locked'}).valid);
+    }
+    assert(!context.validateGhostLabBlueprint(schema,{count:2,policy:'forged'}).valid);
+    assert(!context.validateGhostLabBlueprint({},{}).valid);
+    assert.match(context.renderGhostLabEditorField({key:'flag',label:'Flag',type:'checkbox',editable:false},true), /disabled/);
+    assert.match(context.renderGhostLabEditorField({key:'policy',label:'Policy',type:'textarea',editable:false},'locked'), /readonly/);
     blueprint = {log_limit:1};
     await context.publishGhostLabProject({},'p');
     await context.compileGhostLabProject({},'p');

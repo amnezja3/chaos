@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from database import DB_PATH, db_connect
 from config import GHOSTLAB_MAX_PROJECTS, GHOSTLAB_MAX_BUILDS, GHOSTLAB_VISIBLE_BUILD_HISTORY
+from ghostlab_registry import template_available, artifact_compatible
 
 
 def encoded(value):
@@ -144,13 +145,16 @@ class GhostLabStore:
             self.check_revision(project, revision)
             if project['blueprint'] != blueprint:
                 raise GhostLabError('unsaved_blueprint', 'Zapisz blueprint przed kompilacja.')
-            if project.get('artifact', {}).get('source_revision') == revision:
+            if (project.get('artifact', {}).get('source_revision') == revision
+                    and artifact_compatible(project['artifact'], project.get('template_id'))):
                 return project
             version = conn.execute('SELECT coalesce(max(version),0)+1 FROM ghostlab_builds WHERE project_id=?', (project_id,)).fetchone()[0]
             if version > self.MAX_BUILDS:
                 raise GhostLabError('build_limit', 'Limit historii buildow; archiwizacja wymaga administratora.')
             artifact = build(project, blueprint, version)
-            artifact.update(source_revision=revision, input_hash=digest(blueprint), schema_version=1, policy_version=1)
+            artifact.update(source_revision=revision, input_hash=digest(blueprint))
+            artifact.setdefault('schema_version', 1)
+            artifact.setdefault('policy_version', 1)
             conn.execute('INSERT INTO ghostlab_builds(project_id,version,artifact_id,revision,input_hash,artifact_json) VALUES(?,?,?,?,?,?)',
                          (project_id, version, artifact['artifact_id'], revision, artifact['input_hash'], encoded(artifact)))
             project['artifact'] = artifact
@@ -165,6 +169,8 @@ class GhostLabStore:
             conn.execute('BEGIN IMMEDIATE')
             self.ready(conn, owner)
             project = self._get(conn, owner, project_id)
+            if not template_available(project.get('template_id'), 'publication'):
+                raise GhostLabError('template_publication_disabled', 'Publikacja tego szablonu jest wylaczona.')
             self.check_revision(project, revision)
             artifact = project.get('artifact') or {}
             if (not artifact_id or artifact.get('artifact_id') != artifact_id

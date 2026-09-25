@@ -1,10 +1,19 @@
 # Sprint 144 — GhostLab: projekty, buildy i poprawność publikacji
 
-Status: **IMPLEMENTACJA LOKALNA / ODBIÓR OTWARTY**, 24 IX 2026.
-Store, policy, endpointy i formularz wdrożone w lokalnym kodzie. Migracja legacy
-ma dry-run i jawny apply; produkcji nie migrowano. Runbook, testy i ograniczenia:
+Status: **WDROŻONY / ROZSZERZENIA ZAPLANOWANE**, 24 IX 2026.
+Potwierdzono UI main: projekt, trwała nazwa, Compile, Publish, katalog,
+wycofanie i ponowna publikacja oraz czerwone potwierdzenie CHAOS.
+Migracja main i 36 pozostałych kont zakończona bez błędów; dwa stare projekty
+admina zachowane. Dostęp admin/robot potwierdzony przez użytkownika.
+Nie oznacza to potwierdzenia wszystkich przypadków brzegowych odbioru.
+Runbook, testy i ograniczenia:
 [144 — implementacja i wdrożenie](../runbooks/sprint_144_ghostlab_publication.md).
-PASS całego sprintu wymaga jeszcze migracji na kopii danych serwera i odbioru UI.
+Przed 145 dodano [144.1 — rejestr szablonów](sprint_144_1_ghostlab_template_registry.md)
+i [144.2 — wspólny kreator](sprint_144_2_ghostlab_template_authoring.md).
+Po audycie pro-toolsów dodano [144.3 — przypisania i admin](sprint_144_3_pro_tools_glab_alignment.md),
+również jako warunek wejścia do 145.
+To osobne rozszerzenia; historyczne numery sekcji poniżej pozostają bez zmian.
+144.2 domyka też pozostałe testy odbioru bazowego 144.
 
 Podstawa: [audyt GhostLaba](../audits/ghostlab_completion_audit_2026_09_24.md).
 Następny: [145 — System Log Reader end to end](sprint_145_ghostlab_system_log_reader.md).

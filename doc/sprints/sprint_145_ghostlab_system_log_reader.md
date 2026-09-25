@@ -1,8 +1,11 @@
-# Sprint 145 — GhostLab: System Log Reader od projektu do działania
+# Sprint 145 — GhostLab: wspólny runtime i System Log Reader od projektu do działania
 
-Status: **ZAPLANOWANY**, 24 IX 2026. Implementacja po PASS Sprintu 144.
+Status: **ZAPLANOWANY**, aktualizacja 25 IX 2026. Implementacja po PASS rozszerzeń 144.1–144.3.
 
 Poprzedni: [144 — poprawność publikacji](sprint_144_ghostlab_publication_integrity.md).
+Przygotowanie: [144.1 — rejestr](sprint_144_1_ghostlab_template_registry.md),
+[144.2 — wspólny kreator](sprint_144_2_ghostlab_template_authoring.md).
+Bezpośrednia bramka: [144.3 — aktualizacja pro-toolsów i admin](sprint_144_3_pro_tools_glab_alignment.md).
 Następny: [146 — pozostałe rodziny i domknięcie](sprint_146_ghostlab_runtime_completion.md).
 Podstawa: [audyt](../audits/ghostlab_completion_audit_2026_09_24.md).
 
@@ -22,7 +25,14 @@ PASS obejmuje test zero-heavy od zakupu do wyniku i odmowy, bez fallbacku sesji.
 Gracz tworzy System Log Reader w GhostLabie, publikuje go, drugi gracz kupuje
 i instaluje aplikację, a następnie używa jej na celu z aktywnym Player Hack Access.
 Wynikiem są rzeczywiste, dozwolone komunikaty systemowe celu zgodne z blueprintem.
-To pierwsza pełna ścieżka custom runtime; pozostałe cztery rodziny nadal oczekują.
+To pierwsza pełna ścieżka custom runtime; pozostałe pięć rodzin, w tym
+Intruder Kicker dopisany do 144.3, oczekuje na 146.
+Wykonanie korzysta z rejestru z 144.1: wspólny resolver, bramki, receipt i kontrakt
+wyniku oraz osobny wykonawca SystemLogReader. Nie powstaje dedykowana ścieżka
+publikacji/instalacji dla każdego szablonu. Target/access policy pochodzi z definicji;
+Player Hack Access jest wymaganiem tej rodziny, nie wszystkich przyszłych narzędzi
+(np. biletu lub rozszerzenia własnego dysku). Nowe rodziny z kontraktów 144.1
+nie są automatycznie aktywowane w tym sprincie.
 
 ## 145.1 — resolver artefaktu i wspólna bramka wykonania
 
@@ -50,6 +60,10 @@ To pierwsza pełna ścieżka custom runtime; pozostałe cztery rodziny nadal ocz
 
 ## 145.3 — uruchamianie i prezentacja wyniku
 
+- Podłączyć SystemLogReader do dynamicznej listy PvP z 144.3. Sam zainstalowany
+  potomek wystarcza; przycisk używa jego tożsamości i artefaktu, bez wymagania
+  instalacji rodzica. Wspólny limit rodziny obowiązuje także po zmianie produktu.
+
 - Rzeczywisty launcher desktop/mobile dla zakupionej aplikacji GhostLab; nazwa,
   ikona i wersja odpowiadają produktowi, a nie wbudowanemu narzędziu.
 - Wybór celu przez istniejącą ścieżkę Player Hack Access. Brak lub utrata dostępu
@@ -73,6 +87,15 @@ Warunki PASS:
 6. Wbudowany System Log Reader nadal działa zgodnie z dotychczasową polityką.
 
 ## 145.5 — kontrolowana aktywacja
+
+Przed PASS opisać i przetestować jawną aktualizację zainstalowanego produktu:
+wersja zainstalowana vs dostępna, atomowa zamiana artefaktu, wymagania i miejsce
+na dysku, ponowienie bez duplikacji/opłaty oraz niezmienny artefakt trwającej
+operacji. Zmiana ceny katalogowej nie może sama pobierać HC. Jeśli aktualizacja
+ma być płatna, wymaga osobnej jawnej zasady i potwierdzenia przed wdrożeniem;
+nie wprowadzać arbitralnie opłat. Zakup potomka rozlicza canonical autora produktu,
+nie admina tylko dlatego, że pro-tool źródłowy jest systemowy. Sprawdzić księgę,
+retry i brak podwójnego wzrostu licznika pobrań.
 
 Konfiguracja serwerowa ogranicza aktywację do tej rodziny i początkowo kont testowych;
 zmienne wdrożeniowe zapisane w odpowiednich ecosystemach. Runbook zawiera przygotowanie

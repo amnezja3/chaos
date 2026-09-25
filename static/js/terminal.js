@@ -14494,63 +14494,26 @@ const GHOSTLAB_TAB_TOOLTIPS = {
     "Ghost Exchange": "Biblioteka zasobow GhostLab. Community pojawi sie pozniej.",
     Documentation: "Roadmapa, changelog i opis workflow GhostLab."
 };
-const GHOSTLAB_TEMPLATES = [
-    {
-        id: "financial_sniffer",
-        name: "Financial Sniffer",
-        icon: "\u{1F4B8}",
-        category: "finance",
-        tool_category: "finance",
-        recommended_level: 12,
-        risk_level: 5,
-        status: "Blueprint ready / runtime pending",
-        description: "Jednorazowa operacja finansowa na aktywnym dostepie do gracza."
-    },
-    {
-        id: "friend_kicker",
-        name: "Friend Kicker",
-        icon: "\u{1F44B}",
-        category: "social",
-        tool_category: "social",
-        recommended_level: 10,
-        risk_level: 4,
-        status: "Blueprint ready / runtime pending",
-        description: "Losowa proba zerwania jednego kontaktu ofiary."
-    },
-    {
-        id: "security_panel_proxy",
-        name: "Security Panel Proxy",
-        icon: "\u{1F6E1}\uFE0F",
-        category: "security",
-        tool_category: "security",
-        recommended_level: 15,
-        risk_level: 3,
-        status: "Blueprint ready / runtime pending",
-        description: "Zdalny panel ustawien zabezpieczen profilu ofiary."
-    },
-    {
-        id: "system_log_reader",
-        name: "System Log Reader",
-        icon: "\u{1F4DC}",
-        category: "intel",
-        tool_category: "intel",
-        recommended_level: 8,
-        risk_level: 2,
-        status: "Blueprint ready / runtime pending",
-        description: "Bezpieczny odczyt ostatnich komunikatow systemowych ofiary."
-    },
-    {
-        id: "arsenal_cleaner",
-        name: "Arsenal Cleaner",
-        icon: "\u{1F9F9}",
-        category: "apps",
-        tool_category: "apps",
-        recommended_level: 14,
-        risk_level: 5,
-        status: "Blueprint ready / runtime pending",
-        description: "Losowa proba usuniecia aplikacji z arsenalu ofiary."
+let GHOSTLAB_TEMPLATES = [];
+
+async function loadGhostLabTemplates(root) {
+    const main = root.querySelector('[data-ghostlab-main]');
+    const loading = document.createElement('div');
+    loading.className = 'ghostlab-empty';
+    loading.textContent = 'Ladowanie szablonow...';
+    main.replaceChildren(loading);
+    try {
+        const response = await fetch('/api/ghostlab/templates');
+        const data = await response.json();
+        if (!response.ok || !data.success || !Array.isArray(data.templates)) throw new Error('registry');
+        if (!loading.isConnected || !main.contains(loading)) return;
+        GHOSTLAB_TEMPLATES = data.templates;
+        renderGhostLabTab('Templates', root, true);
+    } catch (error) {
+        if (loading.isConnected) loading.textContent = 'Nie udalo sie pobrac szablonow. Otworz ponownie Templates.';
     }
-];
+}
+
 const GHOSTLAB_RESEARCH_BRANCHES = [
     {
         id: "finance",
@@ -14630,43 +14593,6 @@ const GHOSTLAB_EXCHANGE_OFFICIAL = [
     }
 ];
 const GHOSTLAB_TOOL_BLUEPRINT = {};
-const GHOSTLAB_EDITOR_FIELDS = {
-    financial_sniffer: [
-        { key: "steal_percent", label: "Steal %", type: "number" },
-        { key: "detection_percent", label: "Detection %", type: "number" },
-        { key: "cooldown_minutes", label: "Cooldown", type: "number" },
-        { key: "success_message", label: "Success message", type: "textarea" },
-        { key: "failure_message", label: "Failure message", type: "textarea" },
-        { key: "reward_note", label: "Rewards", type: "text" }
-    ],
-    friend_kicker: [
-        { key: "success_percent", label: "Success %", type: "number" },
-        { key: "detection_percent", label: "Detection %", type: "number" },
-        { key: "target_policy", label: "Targets", type: "text" },
-        { key: "victim_message", label: "Victim system message", type: "textarea" },
-        { key: "contact_message", label: "Contact system message", type: "textarea" }
-    ],
-    security_panel_proxy: [
-        { key: "allowed_switches", label: "Allowed switches", type: "text" },
-        { key: "presets", label: "Presets", type: "text" },
-        { key: "rules", label: "Rules", type: "textarea" },
-        { key: "conflict_matrix", label: "Conflict matrix", type: "textarea" }
-    ],
-    system_log_reader: [
-        { key: "log_limit", label: "Log limit", type: "number" },
-        { key: "include_type", label: "Include type", type: "checkbox" },
-        { key: "include_status", label: "Include status", type: "checkbox" },
-        { key: "include_created_at", label: "Include timestamp", type: "checkbox" },
-        { key: "redaction_policy", label: "Redaction policy", type: "text" }
-    ],
-    arsenal_cleaner: [
-        { key: "success_percent", label: "Success %", type: "number" },
-        { key: "detection_percent", label: "Detection %", type: "number" },
-        { key: "target_policy", label: "Targets", type: "text" },
-        { key: "protected_apps", label: "Protected apps", type: "textarea" },
-        { key: "remove_tools_file", label: "Remove files/tools entry", type: "checkbox" }
-    ]
-};
 const ghostLabState = {
     projects: [],
     selectedProjectId: null,
@@ -14785,7 +14711,7 @@ function renderGhostLabWorkspace(root) {
     renderGhostLabTab("Projects", root);
 }
 
-function renderGhostLabTab(tabName, root) {
+function renderGhostLabTab(tabName, root, templatesLoaded = false) {
     const main = root?.querySelector('[data-ghostlab-main]');
     if (!main) return;
     ghostLabState.activeTab = tabName || "Projects";
@@ -14814,6 +14740,7 @@ function renderGhostLabTab(tabName, root) {
         `;
         wireGhostLabProjects(root);
     } else if (tabName === "Templates") {
+        if (!templatesLoaded) { loadGhostLabTemplates(root); return; }
         main.innerHTML = `
             <section class="ghostlab-panel">
                 <header><h3>Templates</h3><span>v0.3 Ready</span></header>
@@ -15095,9 +15022,10 @@ function renderGhostLabEditor(root, project) {
     const main = root?.querySelector('[data-ghostlab-main]');
     if (!main || !project) return;
     ghostLabState.activeProjectId = project.id;
-    const fields = GHOSTLAB_EDITOR_FIELDS[project.template_id] || [
-        { key: "notes", label: "Notes", type: "textarea" }
-    ];
+    const fields = Object.entries(project.field_schema || {}).map(([key, field]) => ({
+        ...field, key, label: field.label || key.replaceAll('_', ' '),
+        type: ({number: 'number', boolean: 'checkbox', string: 'textarea'})[field.type] || 'unsupported'
+    }));
     const blueprint = project.blueprint && typeof project.blueprint === "object" ? project.blueprint : {};
     main.innerHTML = `
         <section class="ghostlab-panel ghostlab-editor">
@@ -15167,8 +15095,7 @@ function renderGhostLabEditor(root, project) {
 function renderGhostLabEditorField(field, value) {
     const safeKey = escapeHTML(field.key);
     const safeLabel = escapeHTML(field.label);
-    const policyKeys = new Set(['target_policy', 'allowed_switches', 'presets', 'rules', 'conflict_matrix', 'redaction_policy', 'protected_apps']);
-    if (policyKeys.has(field.key)) {
+    if (field.editable === false && field.type === 'textarea') {
         return `<label class="ghostlab-editor-field"><span>${safeLabel} — polityka serwera</span><input readonly data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? '')}"></label>`;
     }
     if (field.type === "textarea") {
@@ -15182,15 +15109,16 @@ function renderGhostLabEditorField(field, value) {
     if (field.type === "checkbox") {
         return `
             <label class="ghostlab-editor-field is-check">
-                <input type="checkbox" data-ghostlab-blueprint-key="${safeKey}" ${value ? "checked" : ""}>
+                <input type="checkbox" data-ghostlab-blueprint-key="${safeKey}" ${value ? "checked" : ""} ${field.editable === false ? 'disabled' : ''}>
                 <span>${safeLabel}</span>
             </label>
         `;
     }
+    if (field.type === 'unsupported') return `<p>Nieobslugiwane pole: ${safeLabel}</p>`;
     return `
         <label class="ghostlab-editor-field">
             <span>${safeLabel}</span>
-            <input type="${field.type === "number" ? "number" : "text"}" data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? "")}">
+            <input type="${field.type === "number" ? "number" : "text"}" data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? "")}" ${field.editable === false ? 'readonly' : ''} ${field.type === 'number' ? `min="${Number(field.minimum)}" max="${Number(field.maximum)}" step="${field.integer ? '1' : 'any'}"` : ''}>
         </label>
     `;
 }
@@ -15265,67 +15193,23 @@ function collectGhostLabBlueprint(root) {
 
 function validateGhostLabBlueprint(project, blueprint) {
     const errors = [];
-    const warnings = [];
-    const numberBetween = (key, label, min, max) => {
+    const fields = project.field_schema || {};
+    if (!Object.keys(fields).length) errors.push('Brak obslugi kontraktu szablonu.');
+    if (Object.keys(blueprint).length !== Object.keys(fields).length
+        || Object.keys(blueprint).some(key => !(key in fields))) errors.push('Niezgodne pola blueprintu.');
+    Object.entries(fields).forEach(([key, field]) => {
         const value = blueprint[key];
-        if (typeof value !== "number" || !Number.isFinite(value)) {
-            errors.push(`${label} musi byc liczba.`);
-            return null;
-        }
-        if (value < min || value > max) errors.push(`${label} musi byc w zakresie ${min}-${max}.`);
-        return value;
-    };
-    const requiredText = (key, label, max = 240) => {
-        const value = String(blueprint[key] || "").trim();
-        if (!value) errors.push(`${label} nie moze byc puste.`);
-        if (value.length > max) errors.push(`${label} jest za dlugie.`);
-        return value;
-    };
-
-    switch (project?.template_id) {
-        case "financial_sniffer": {
-            const steal = numberBetween("steal_percent", "Steal %", 1, 8);
-            const detection = numberBetween("detection_percent", "Detection %", 0, 95);
-            numberBetween("cooldown_minutes", "Cooldown", 5, 1440);
-            requiredText("success_message", "Success message");
-            requiredText("failure_message", "Failure message");
-            requiredText("reward_note", "Rewards", 160);
-            if (steal && steal > 6) warnings.push("Steal % powyzej 6 zwiekszy balansowe ryzyko w compilerze.");
-            if (detection !== null && detection < 10) warnings.push("Detection % ponizej 10 moze zostac podbite w compilerze.");
-            break;
-        }
-        case "friend_kicker":
-            numberBetween("success_percent", "Success %", 1, 85);
-            numberBetween("detection_percent", "Detection %", 0, 95);
-            requiredText("target_policy", "Targets", 80);
-            requiredText("victim_message", "Victim system message");
-            requiredText("contact_message", "Contact system message");
-            break;
-        case "security_panel_proxy":
-            requiredText("allowed_switches", "Allowed switches", 120);
-            requiredText("presets", "Presets", 160);
-            requiredText("rules", "Rules");
-            requiredText("conflict_matrix", "Conflict matrix");
-            break;
-        case "system_log_reader":
-            numberBetween("log_limit", "Log limit", 1, 5);
-            ["include_type", "include_status", "include_created_at"].forEach(key => {
-                if (typeof blueprint[key] !== "boolean") errors.push(`${key} musi byc boolean.`);
-            });
-            requiredText("redaction_policy", "Redaction policy", 120);
-            break;
-        case "arsenal_cleaner":
-            numberBetween("success_percent", "Success %", 1, 80);
-            numberBetween("detection_percent", "Detection %", 0, 95);
-            requiredText("target_policy", "Targets", 100);
-            requiredText("protected_apps", "Protected apps");
-            if (typeof blueprint.remove_tools_file !== "boolean") errors.push("Remove files/tools entry musi byc boolean.");
-            break;
-        default:
-            requiredText("notes", "Notes");
-    }
-
-    return { valid: errors.length === 0, errors, warnings };
+        if (field.editable === false && value !== field.default) errors.push(`${key}: polityka serwera.`);
+        if (field.type === 'number') {
+            if (typeof value !== 'number' || !Number.isFinite(value) || value < field.minimum
+                || value > field.maximum || (field.integer && !Number.isInteger(value))) errors.push(`${key}: nieprawidlowa liczba.`);
+        } else if (field.type === 'boolean') {
+            if (typeof value !== 'boolean') errors.push(`${key}: wymagany boolean.`);
+        } else if (field.type === 'string') {
+            if (typeof value !== 'string' || !value.trim() || value.length > field.max_length) errors.push(`${key}: nieprawidlowy tekst.`);
+        } else errors.push(`${key}: nieobslugiwany typ pola.`);
+    });
+    return { valid: errors.length === 0, errors, warnings: [] };
 }
 
 function buildGhostLabBlueprintPreview(project, blueprint, validation) {

@@ -1,4 +1,4 @@
-# Sprint 146 — GhostLab: cztery rodziny wykonawcze i domknięcie v1
+# Sprint 146 — GhostLab: pozostałe rodziny wykonawcze i domknięcie v1
 
 Status: **ZAPLANOWANY**, 24 IX 2026. Implementacja po PASS Sprintów 144 i 145.
 
@@ -19,8 +19,9 @@ wykonawca odziedziczony po starym narzędziu nie jest zwolniony z tej bramki.
 
 ## Cel i rezultat
 
-Wszystkie pięć istniejących szablonów GhostLaba daje działające, zakupione i zainstalowane
-narzędzia. Cztery rodziny modyfikujące stan używają wspólnych reguł Player Hack Access
+Sześć szablonów GhostLaba (pięć istniejących oraz Intruder Kicker dodany do planu
+decyzją użytkownika z 25 IX) daje działające, zakupione i zainstalowane
+narzędzia. Pięć rodzin modyfikujących stan używa wspólnych reguł Player Hack Access
 i canonical zapisów gry. Publikacja aplikacji nie omija reguł aresztu, ochrony zasobów,
 ryzyka, cooldownu ani jednokrotnego wykonania skutków.
 
@@ -28,6 +29,10 @@ ryzyka, cooldownu ani jednokrotnego wykonania skutków.
 
 - Rozszerzyć adapter z 145 o allowlistę kolejnych rodzin; zachować istniejące wykonawce
   i reguły domenowe zamiast kopiować ich logikę do GhostLaba.
+- Rodziny rejestrować przez wspólny kontrakt przygotowany w 144.1–144.2 i wykonany
+  w 145. Nie dodawać osobnych list szablonów ani ścieżek kreatora. Bilety,
+  rozszerzenia dysku i nowe skanery wymagają osobnego zakresu aktywacji;
+  146 uruchamia cztery pierwotnie planowane rodziny oraz Intruder Kicker.
 - Zestawić każde pole blueprintu z rzeczywistym parametrem wykonawcy. Pole nie może
   obiecywać działania, które jest ignorowane: albo działa, albo jawnie pozostaje
   nieedytowalne/nieobsługiwane. Udokumentować precedence quality/reliability i limitów.
@@ -79,6 +84,23 @@ ryzyka, cooldownu ani jednokrotnego wykonania skutków.
 
 ## 146.6 — regresja i odbiór GhostLab v1
 
+### Intruder Kicker — dodatkowa rodzina
+
+- Podłączyć kontrakt intruder_kicker z 144.3 do istniejącego execute_intruder_kicker.
+- Sprawdzić instalację potomka i artefakt oraz aktualny dostęp PvP, relację intruza
+  i własne terytorium. Branding ani parametry klienta nie rozszerzają kwalifikacji.
+- Jedno użycie na dostęp wspólne dla wbudowanego narzędzia i potomstwa;
+  republish, reinstall i klon nie odnawiają limitu. Zachować blokady aresztu.
+- PASS: rzeczywiste wypchnięcie uprawnionego celu, odmowa poza własnym terytorium,
+  wygasły dostęp, retry i zamiana wbudowanego narzędzia na potomka bez drugiego skutku.
+- Cała ścieżka podlega zero-heavy; nie kopiować logiki transportu do GhostLaba.
+
+### Wspólny odbiór
+
+Każda rodzina korzysta z dynamicznego panelu PvP z 144.3: wyłącznie zainstalowane
+produkty, poprawna nazwa/ikona potomka, bez placeholderów nieposiadanych rodziców.
+Testować samo potomstwo oraz kilka produktów jednej rodziny bez obejścia limitów.
+
 Macierz dla każdej rodziny: utworzenie → zapis → compile → preview → publish → zakup
 przez drugiego gracza → instalacja → aktywny dostęp → użycie → rzeczywisty skutek.
 Objąć co najmniej trzy konta i dwie sesje, desktop/mobile, restart/reconnect, retry,
@@ -93,11 +115,18 @@ wygaśnięcie dostępu, areszt, konfiskatę, aktualizację i wycofanie produktu.
 - Zaktualizować dokumentację GhostLaba i statusy UI tak, by „działa” odpowiadało
   rzeczywiście odebranym szablonom. Pozostałe legacy artefakty pokazują powód blokady.
 
-Sprint jest PASS dopiero po odbiorze wszystkich czterech rodzin i regresji System Log
+Sprint jest PASS dopiero po odbiorze wszystkich pięciu rodzin i regresji System Log
 Reader. Wtedy zamykamy **ścieżkę narzędzi GhostLab v1**, nie całą roadmapę v2.
 
 ## Poza zakresem trzech sprintów
 
 Research Tree, Community/udostępnianie blueprintów, import `.glab`, AI Templates,
 Plugin SDK, dowolny kod użytkownika i osobny Async Operation Runner. Nie są warunkiem
-działania pięciu obecnych szablonów. Nowe assety/show nie są wymagane do odbioru runtime.
+działania sześciu zaplanowanych szablonów PvP. Nowe assety/show nie są wymagane do odbioru runtime.
+
+## Kolejne rozszerzenia — osobne sprinty, nie sekcje powyżej
+
+Po bazowym 146: [146.1 — bilety](sprint_146_1_ghostlab_travel_tickets.md) →
+[146.2 — czyszczenie i aktualizacja systemu](sprint_146_2_ghostlab_system_maintenance.md) →
+[146.3 — firmware](sprint_146_3_ghostlab_firmware_maintenance.md) → 147.
+Wspólny branding z 144.2 obejmuje edytowalną ikonę i opis każdego potomka.

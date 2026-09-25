@@ -3,6 +3,7 @@ import json
 from flask import jsonify, request, session
 from ghostlab_store import GhostLabError
 from config import GHOSTLAB_MAX_REQUEST_BYTES
+from ghostlab_registry import get_template, public_templates, template_available
 
 
 def register(app, services):
@@ -42,12 +43,19 @@ def register(app, services):
     def ghostlab_projects():
         return reply(actor())
 
+    @app.get('/api/ghostlab/templates')
+    def ghostlab_templates():
+        actor()
+        return jsonify(success=True, templates=public_templates(), registry_version=1)
+
     @app.post('/api/ghostlab/projects')
     def ghostlab_create_project():
         owner, data = actor(), payload()
         name, template = str(data.get('name') or '').strip(), str(data.get('template_id') or '')
-        if not name or len(name) > 64 or template not in {'', 'financial_sniffer', 'friend_kicker', 'security_panel_proxy', 'system_log_reader', 'arsenal_cleaner'}:
+        if not name or len(name) > 64 or (template and not get_template(template)):
             raise GhostLabError('invalid_project', 'Nieprawidlowa nazwa lub szablon.', 400)
+        if template and not template_available(template, 'creation'):
+            raise GhostLabError('template_creation_disabled', 'Tworzenie tego szablonu jest wylaczone.')
         if any(len(str(data.get(k) or '')) > limit for k, limit in [('template_name',80),('tool_category',40)]):
             raise GhostLabError('invalid_project', 'Metadane sa za dlugie.', 400)
         try:

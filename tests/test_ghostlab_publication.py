@@ -15,6 +15,55 @@ from tools.migrate_ghostlab_projects import migrate_account
 
 
 class GhostLabPublicationTest(unittest.TestCase):
+    def test_registry_endpoint_auth_and_creation_gate(self):
+        import ghostlab_registry as registry
+        original_testing = run.app.testing
+        run.app.testing = True
+        self.addCleanup(setattr, run.app, 'testing', original_testing)
+        client = run.app.test_client()
+        self.assertEqual(client.get('/api/ghostlab/templates').status_code, 401)
+        with client.session_transaction() as sess:
+            sess['user'] = 'alice'
+        definition = registry.get_template('system_log_reader')
+        definition['creation_enabled'] = False
+        with patch.object(run, 'ghostlab_store', self.store), \
+             patch.dict(registry.TEMPLATES, system_log_reader=definition):
+            response = client.post('/api/ghostlab/projects', json={
+                'name': 'Blocked', 'template_id': 'system_log_reader', 'request_id': 'blocked-create'})
+            self.assertEqual(response.status_code, 409, response.json)
+            self.assertEqual(response.json['reason'], 'template_creation_disabled')
+            self.assertEqual(self.store.list('alice'), [])
+
+    def test_registry_contract_upgrade_requires_new_build(self):
+        import ghostlab_registry as registry
+        p = self.compile(self.project())
+        old_artifact = copy.deepcopy(p['artifact'])
+        definition = registry.get_template('system_log_reader')
+        definition['contract_version'] = 2
+        with patch.dict(registry.TEMPLATES, system_log_reader=definition):
+            with self.assertRaises(GhostLabError):
+                self.publish(p)
+            upgraded = self.compile(p)
+            self.assertNotEqual(upgraded['artifact']['artifact_id'], old_artifact['artifact_id'])
+            self.assertEqual(upgraded['artifact']['contract_version'], 2)
+            self.publish(upgraded)
+        with db_connect(self.path) as conn:
+            stored = json.loads(conn.execute('SELECT artifact_json FROM ghostlab_builds WHERE artifact_id=?',
+                                             (old_artifact['artifact_id'],)).fetchone()[0])
+        self.assertEqual(stored, old_artifact)
+
+    def test_publication_gate_preserves_existing_product(self):
+        import ghostlab_registry as registry
+        p = self.compile(self.project())
+        self.publish(p)
+        definition = registry.get_template('system_log_reader')
+        definition['publication_enabled'] = False
+        with patch.dict(registry.TEMPLATES, system_log_reader=definition):
+            with self.assertRaises(GhostLabError) as error:
+                self.publish(p)
+            self.assertEqual(error.exception.reason, 'template_publication_disabled')
+        self.assertEqual(self.store.get('alice', p['id'])['status'], 'published')
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -158,6 +207,11 @@ class GhostLabPublicationTest(unittest.TestCase):
             response = client.post('/api/ghostlab/projects',json=dict(name='HTTP',template_id='system_log_reader',request_id='http-create-1'))
             self.assertEqual(200,response.status_code,response.get_json())
             p = response.get_json()['project']; base='/api/ghostlab/projects/'+p['id']
+            self.assertEqual(p['field_schema']['log_limit']['maximum'], 5)
+            registry_response = client.get('/api/ghostlab/templates')
+            self.assertEqual(200, registry_response.status_code)
+            self.assertEqual(len(registry_response.json['templates']), 5)
+            self.assertTrue(all(not item['runtime_enabled'] for item in registry_response.json['templates']))
             self.assertEqual(200,client.get('/api/ghostlab/projects').status_code)
             response=client.post(base+'/compile',json=dict(revision=p['revision'],blueprint=p['blueprint']))
             self.assertEqual(200,response.status_code,response.get_json()); p=response.get_json()['project']
