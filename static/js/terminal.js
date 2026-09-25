@@ -10113,6 +10113,9 @@ function createBrowser() {
     };
 
     const loadGoogleplexHome = async ({ force = false } = {}) => {
+        if (force && googleplexHomeLoading) {
+            await googleplexHomeLoading.catch(() => {});
+        }
         if (googleplexHomeSnapshot && !force) {
             renderGoogleplexHome();
             return googleplexHomeSnapshot;
@@ -10855,7 +10858,11 @@ function createBrowser() {
         }
     });
 
-    async function loadCatalog() {
+    async function loadCatalog({ force = false } = {}) {
+        if (force) {
+            if (catalogLoading) await catalogLoading.catch(() => {});
+            catalogLoaded = false;
+        }
         if (catalogLoaded) {
             renderCatalog();
             return catalog;
@@ -11027,11 +11034,14 @@ function createBrowser() {
             } else if (activeBrowserTab === 'exchange') {
                 await loadExchange();
             } else if (search.value.trim()) {
-                catalogLoaded = false;
-                await loadCatalog();
+                await loadCatalog({ force: true });
             } else {
                 rememberGoogleplexHomeScroll();
-                await loadGoogleplexHome({ force: true });
+                // Home and search share this window: refresh both snapshots.
+                await Promise.all([
+                    loadGoogleplexHome({ force: true }),
+                    loadCatalog({ force: true })
+                ]);
             }
         } catch (error) {
             console.warn('WebDragons refresh failed', error);
