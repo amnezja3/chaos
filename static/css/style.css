@@ -3836,6 +3836,68 @@ form button:hover {
     padding: 5px;
     cursor: move;
 }
+/* Shared result and installed-app shell for the PvP pro-tools family. */
+.app-window.pro-tool-window {
+    width: 540px;
+    min-height: 0;
+    height: auto;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 80px);
+    box-sizing: border-box;
+    overflow: auto;
+    padding: 0;
+    border: 1px solid #639c30;
+    border-radius: 6px;
+    background: #030b07;
+    color: #dcf5df;
+    box-shadow: 0 16px 48px #000a, 0 0 18px #83ff2414;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.pro-tool-window > :is(.title-bar, .app-header) {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(110deg, #17391c, #0a160e);
+    border-bottom: 1px solid #639c30;
+    color: #ecffe5;
+    font-weight: bold;
+}
+.pro-tool-window :is(.title-bar, .app-header) .close-btn {
+    margin-left: auto;
+    flex: 0 0 36px;
+    text-align: center;
+    padding: 4px;
+    cursor: pointer;
+}
+.pro-tool-window > [class$="-content"] { padding: 18px; }
+.pro-tool-window button, .pro-tool-window .close-btn {
+    box-sizing: border-box;
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid #6eac33;
+    border-radius: 3px;
+    background: #0c200f;
+    color: #dcf5df;
+    font: inherit;
+    cursor: pointer;
+}
+.pro-tool-window button:hover:not(:disabled), .pro-tool-window .close-btn:hover {
+    background: #264e18;
+    border-color: #b8ff63;
+}
+.pro-tool-window button:focus-visible { outline: 2px solid #c2ff83; outline-offset: 3px; }
+.pro-tool-window button:disabled { opacity: .45; cursor: not-allowed; }
+.pro-tool-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.pro-tool-window [class$="-meta"] { flex-wrap: wrap; }
+.pro-tool-window [class$="-details"] { padding: 12px; border: 1px solid #28462e; background: #0b160e; }
+@media (max-width: 600px) {
+    .app-window.pro-tool-window { left: 12px !important; width: calc(100vw - 24px) !important; }
+    .pro-tool-window > [class$="-content"] { padding: 12px; }
+    .pro-tool-window button { min-height: 44px; }
+    .pro-tool-window .security-panel-proxy-list { grid-template-columns: 1fr; }
+}
 .app-content {
     padding: 10px;
 }

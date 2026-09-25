@@ -4313,7 +4313,7 @@ function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
 
 async function openGhostLabInstalledApp(appId) {
     const app = document.createElement('div');
-    app.className = 'app-window system-log-reader-window';
+    app.className = 'app-window pro-tool-window system-log-reader-window';
     const position = findAvailablePosition(520, 420);
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -4335,11 +4335,11 @@ async function openGhostLabInstalledApp(appId) {
             app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
             const tool = data.access?.tools?.find(item => item.id === appId);
             const enabled = data.access?.active && tool?.enabled;
-            body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Dostępna: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
+            body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
                 <p>${escapeHTML(product.runtime_enabled ? (data.access?.active ? 'Cel: ' + (data.access.victim_nick || data.access.victim_username) : 'Uzyskaj dostęp PvP do gracza, a następnie odśwież panel.') : product.disabled_reason)}</p>
-                <button data-run ${enabled ? '' : 'disabled'}>Odczytaj logi celu</button>
+                <div class="pro-tool-actions"><button data-run ${enabled ? '' : 'disabled'}>Odczytaj logi celu</button>
                 <button data-refresh>Odśwież</button>
-                ${data.update_available ? '<button data-update>Aktualizuj bezpłatnie do v' + Number(data.available_version) + '</button>' : ''}
+                ${data.update_available ? '<button data-update>Aktualizuj bezpłatnie do v' + Number(data.available_version) + '</button>' : ''}</div>
                 <p>${tool?.used ? 'Limit tej rodziny został wykorzystany podczas tego dostępu.' : ''}</p>`;
             body.querySelector('[data-refresh]').onclick = () => load();
             body.querySelector('[data-run]').onclick = async event => {
@@ -4393,7 +4393,7 @@ function renderSystemLogReaderLogs(container, payload = {}) {
 
 function openSystemLogReaderApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window system-log-reader-window';
+    app.className = 'app-window pro-tool-window system-log-reader-window';
     const position = findAvailablePosition(520, 420);
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -4449,7 +4449,7 @@ function renderFinancialSnifferResult(container, payload = {}) {
 
 function openFinancialSnifferApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window financial-sniffer-window';
+    app.className = 'app-window pro-tool-window financial-sniffer-window';
     const position = findAvailablePosition(460, 340);
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -4494,7 +4494,7 @@ function renderFriendKickerResult(container, payload = {}) {
 
 function openFriendKickerApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window friend-kicker-window';
+    app.className = 'app-window pro-tool-window friend-kicker-window';
     const position = findAvailablePosition(460, 340);
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -4539,7 +4539,7 @@ function renderArsenalCleanerResult(container, payload = {}) {
 
 function openArsenalCleanerApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window arsenal-cleaner-window';
+    app.className = 'app-window pro-tool-window arsenal-cleaner-window';
     const position = findAvailablePosition(460, 340);
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -4628,7 +4628,7 @@ function renderSecurityPanelProxy(container, payload = {}) {
 
 function openSecurityPanelProxyApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window security-panel-proxy-window';
+    app.className = 'app-window pro-tool-window security-panel-proxy-window';
     const position = findAvailablePosition(620, 520);
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -4818,7 +4818,7 @@ async function refreshPlayerHackAccess(prefetched = null) {
 
 function openIntruderKickerApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window';
+    app.className = 'app-window pro-tool-window';
     Object.assign(app.style, { position: 'absolute', top: '60px', left: '12px',
         width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100vh - 90px)', overflow: 'auto' });
     app.innerHTML = `<div class="app-header">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Intruder Kicker')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <button class="close-btn" aria-label="Zamknij">×</button></div>
@@ -15148,7 +15148,7 @@ function renderGhostLabEditor(root, project) {
                 <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.</small></label>
                 <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
-            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. Runtime oczekuje.</span></div>
+            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
             <h4>Ustawienia funkcji</h4>
             <div class="ghostlab-editor-grid">
                 ${fields.map(field => renderGhostLabEditorField(field, blueprint[field.key])).join("")}
@@ -15171,7 +15171,7 @@ function renderGhostLabEditor(root, project) {
                 <button type="button" data-ghostlab-back-projects title="Return to project manager. Shortcut: Esc">Back to Projects</button>
                 <button type="button" data-ghostlab-compile-project title="Compile current validated blueprint. Shortcut: Ctrl+B">Compile</button>
                 <button type="button" data-ghostlab-export-project title="Export project snapshot as .glab file.">Export</button>
-                <button type="button" data-ghostlab-publish-project title="Run Publisher pipeline and send artifact to Googleplex.">Publisher</button>
+                <button type="button" data-ghostlab-publish-project title="Opublikuj build w Googleplex i udostępnij aktualizację.">Opublikuj build</button>
                 <button type="button" data-ghostlab-withdraw-project>Wycofaj sprzedaz</button>
             </div>
         </section>
@@ -15256,7 +15256,8 @@ function renderGhostLabPublisherPipeline(project) {
     const hasBlueprint = !!(project?.blueprint && typeof project.blueprint === "object");
     const hasBuild = Array.isArray(project?.builds) && project.builds.length > 0;
     const hasArtifact = !!(project?.artifact && project.artifact.artifact_id);
-    const isPublished = project?.status === "published";
+    const isPublished = project?.status === "published" && project?.published_artifact_id === project?.artifact?.artifact_id;
+    const publishedBuild = (project?.builds || []).find(build => build.artifact_id === project.published_artifact_id);
     const contract = project?.publisher_contract || {};
     const steps = [
         ["Blueprint", hasBlueprint],
@@ -15266,7 +15267,10 @@ function renderGhostLabPublisherPipeline(project) {
         ["Googleplex", isPublished]
     ];
     return `
-        <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong><span>Custom runtime oczekuje. Publikacja nie uruchamia narzedzia.</span>
+        <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong>
+        <span>Ostatnio opublikowany build: ${escapeHTML(String(publishedBuild?.version || '—'))}.</span>
+        <span>${contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
+        <span>${isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
                 <span class="${done ? 'done' : ''}">${escapeHTML(label)}</span>

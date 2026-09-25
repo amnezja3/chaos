@@ -6,6 +6,18 @@ function extract(name) {
     return tail.slice(0, end + 1);
 }
 let routed;
+const publisher = {escapeHTML: String};
+vm.createContext(publisher);
+vm.runInContext(extract('renderGhostLabPublisherPipeline'), publisher);
+const compiled = {status: 'compiled', revision: 3, artifact: {artifact_id: 'a3', version: 3},
+    published_artifact_id: 'a2', builds: [{artifact_id: 'a2', version: 2}],
+    publisher_contract: {runtime_status: 'player_hack_access'}};
+const pending = publisher.renderGhostLabPublisherPipeline(compiled);
+assert(pending.includes('Ostatnio opublikowany build: 2'));
+assert(pending.includes('Ten build nie jest opublikowany'));
+assert(pending.includes('Runtime PvP gotowy'));
+assert(!pending.includes('Custom runtime oczekuje'));
+assert(publisher.renderGhostLabPublisherPipeline({...compiled, status: 'published', published_artifact_id: 'a3'}).includes('Publikacja aktualna'));
 const route = {window:{}, openGhostLabInstalledApp:id=>{routed=id;}};
 vm.createContext(route);
 vm.runInContext(extract('launchApplicationEffect'),route);
