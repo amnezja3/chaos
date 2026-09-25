@@ -1,5 +1,5 @@
 const RADIO_BASE_PATH = "/static/mp3/radio/channel";
-const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
+const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
 
 (function initGhostRadioModule() {
     const state = {

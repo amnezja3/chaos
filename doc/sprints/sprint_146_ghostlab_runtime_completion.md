@@ -67,6 +67,11 @@ ryzyka, cooldownu ani jednokrotnego wykonania skutków.
 
 ## 146.4 — Security Panel Proxy
 
+- Odbiór serwerowy po aktywacji runtime potomka: konflikt wersji po zmianie przez
+  ofiarę → Odśwież → aktualny stan → skuteczny kolejny zapis; ponowne otwarcie
+  po zamknięciu okna/odświeżeniu strony bez nowego użycia i bez resetu czasu dostępu.
+  Przeniesione z odbioru 144.3 decyzją użytkownika; marka, instalacja i stan
+  runtime pending potomka mają już PASS, wykonanie tych operacji jeszcze nie.
 - Tylko dozwolone przełączniki boolean i serwerowe presety; reuse `SECURITY_CONFLICTS`.
 - Blueprint nie może definiować dowolnych nazw pól profilu, reguł bypass ani własnej
   macierzy uprawnień. Kontrola wersji stanu przy współbieżnej zmianie zabezpieczeń.

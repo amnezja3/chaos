@@ -1,6 +1,8 @@
 # Sprint 144.3 — pro-toolsy: przypisanie GLab i lista potomstwa w adminie
 
-Status: **IMPLEMENTACJA LOKALNA — ODBIÓR SERWEROWY OTWARTY**, 25 IX 2026.
+Status: **PASS — ZAMKNIĘTY**, 25 IX 2026. Odbiór serwerowy potwierdzony przez użytkownika.
+Runtime potomstwa pozostaje zakresem 145–146; PASS obejmuje kontrakty,
+publikację, instalację, admina, listę PvP i zabezpieczenia wbudowanego Proxy.
 Wdrożenie, migracja i odbiór: [runbook 144.3](../runbooks/sprint_144_3_glab_alignment.md).
 Po [144.1](sprint_144_1_ghostlab_template_registry.md) i
 [144.2](sprint_144_2_ghostlab_template_authoring.md), przed

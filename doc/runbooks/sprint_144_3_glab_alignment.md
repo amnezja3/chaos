@@ -1,6 +1,6 @@
 # Sprint 144.3 — pro-toolsy, admin i PvP
 
-Status: implementacja lokalna; wdrożenie i odbiór produkcyjny otwarte.
+Status: **PASS — ZAMKNIĘTY**, 25 IX 2026. Wdrożenie i odbiór produkcyjny potwierdzone przez użytkownika.
 
 ### Odbiór serwerowy 25 IX 2026
 
@@ -13,7 +13,18 @@ Status: implementacja lokalna; wdrożenie i odbiór produkcyjny otwarte.
 - Wykryto brak możliwości ponownego otwarcia użytego Proxy po zamknięciu okna
   lub odświeżeniu strony. Poprawka dodaje can_reopen i odczyt GET istniejącego
   panelu bez nowego użycia narzędzia; nie resetuje receipt ani czasu dostępu.
-  Ponowne otwarcie i dalszy zapis po odświeżeniu wymagają odbioru serwerowego.
+  Ponowne otwarcie Proxy: PASS potwierdzony przez użytkownika.
+  Pozostałe pięć narzędzi po użyciu pozostaje zablokowanych: PASS.
+  Dalszy zapis po odświeżeniu konfliktu wersji rodzica: PASS potwierdzony przez użytkownika.
+- Potomek Security Panel Proxy: utworzenie/publikacja/instalacja, własna marka
+  na liście PvP i zablokowany runtime: PASS potwierdzony przez użytkownika.
+  Odświeżanie i mutacje potomka będą testowane po wdrożeniu runtime w 146;
+  nie są oznaczone jako wykonane w 144.3.
+- Końcowy odbiór użytkownika: warianty listy PvP PASS, w tym pusty stan,
+  sam potomek oraz rodzic i potomek. Kilku potomków sprawdzono na koncie main: PASS.
+- Potomek Intruder Kicker (IKP_v2): tworzenie/publikacja/instalacja i runtime pending: PASS.
+- Zakup potomka oraz wycofana publikacja z zachowaniem instalacji: PASS.
+- Mobile: PASS. Wszystkie pozostałe po poprzednim odbiorze testy serwerowe potwierdzone.
 
 ## Dostarczone
 
@@ -120,7 +131,8 @@ Testy JS: lifecycle okna, request guard, log reader, financial result, publikacj
 25 IX 2026: regresja Python PASS (36 testów alignment/Intruder/publication/admin,
 następnie 37 testów alignment/AGI/PvP/registry po zabezpieczeniu pierwszeństwa
 kontraktu wbudowanego produktu). Wszystkie pięć wymienionych skryptów JS PASS;
-kontrola składni JS i git diff --check PASS. Odbiór serwerowy i wizualny pozostaje otwarty.
+kontrola składni JS i git diff --check PASS. Odbiór serwerowy i wizualny
+potwierdzono następnie przez użytkownika, zgodnie z wynikami powyżej.
 
 ## Dodanie następnego pro-toola i cofnięcie aktywacji
 

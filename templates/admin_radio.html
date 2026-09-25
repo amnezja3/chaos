@@ -1,0 +1,15 @@
+{% extends "admin_base.html" %}
+{% block content %}
+<p class="eyebrow">CONTROL / RADIO</p>
+<h1>Radio</h1>
+<section class="panel">
+  <h2>Kanał autostartu</h2>
+  <p>Domyślny kanał radia przy uruchomieniu gry. Zmiana obowiązuje przy kolejnym uruchomieniu radia; nie przełącza trwającego odsłuchu.</p>
+  <form id="radio-settings" class="toolbar">
+    <label>Kanał <select id="radio-channel" disabled></select></label>
+    <button id="radio-save" disabled>Zapisz</button>
+  </form>
+  <p id="radio-notice" role="status" aria-live="polite"></p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin_radio.js?v=1"></script>{% endblock %}

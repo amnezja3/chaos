@@ -22457,8 +22457,8 @@ def dev_dashboard():
 
     generation = session_generation_client_context()
     tab = request.args.get("tab", "users")
-    return render_template("admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
-                           generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs", "ghostlab"} else "users")
+    return render_template("admin_radio.html" if tab == "radio" else "admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
+                           generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs", "ghostlab", "radio"} else "users")
 
 @app.route("/logout")
 def logout():
@@ -28384,12 +28384,34 @@ def radio_channels_manifest():
             "sort": channel.get("sort") or "name",
         })
 
+    settings = resources_store.get('radio_settings', default={}) or {}
+    default_channel = settings.get('autostart_channel', 'blacknet_radio_2')
+    if default_channel not in {channel['id'] for channel in channels}:
+        default_channel = 'blacknet_radio_2'
     return jsonify({
         "success": True,
         "channels": channels,
-        "default_channel": "ghost_streem_1",
+        "default_channel": default_channel,
         "count": len(channels),
     })
+
+
+@app.route('/api/admin/radio', methods=['GET', 'POST'])
+def admin_radio_settings():
+    if not require_dev_admin():
+        return jsonify(success=False, message='Brak uprawnień administratora.'), 403
+    manifest = app.make_response(radio_channels_manifest())
+    if manifest.status_code != 200:
+        return manifest
+    data = manifest.get_json()
+    if request.method == 'POST':
+        payload = request.get_json(silent=True)
+        channel_id = payload.get('autostart_channel') if isinstance(payload, dict) else None
+        if not isinstance(channel_id, str) or channel_id not in {c['id'] for c in data['channels']}:
+            return jsonify(success=False, message='Wybierz istniejący kanał radia.'), 400
+        resources_store.set('radio_settings', {'autostart_channel': channel_id})
+        data['default_channel'] = channel_id
+    return jsonify(data)
 
 
 from ghostlab_routes import register as register_ghostlab_routes
