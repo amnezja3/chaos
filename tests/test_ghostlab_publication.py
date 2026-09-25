@@ -15,6 +15,54 @@ from tools.migrate_ghostlab_projects import migrate_account
 
 
 class GhostLabPublicationTest(unittest.TestCase):
+    def test_branding_snapshot_catalog_and_legacy_fallback(self):
+        from ghostlab_branding import project_branding
+        a = self.project(name='Brand A')
+        b = self.project('bob', 'Brand B')
+        a = self.store.update('alice', a['id'], a['revision'], {
+            'icon': '🔭', 'description': 'Opis autora A', 'suggested_price': 1, 'presentation_id': 'default'})
+        b = self.store.update('bob', b['id'], b['revision'], {
+            'icon': '🛰️', 'description': 'Opis autora B', 'suggested_price': 12000, 'presentation_id': 'default'})
+        a, b = self.compile(a), self.compile(b)
+        _, product_a = self.publish(a)
+        _, product_b = self.publish(b)
+        self.assertEqual(product_a['icon'], '🔭')
+        self.assertEqual(product_b['icon'], '🛰️')
+        self.assertEqual(product_a['description'], 'Opis autora A')
+        self.assertEqual(product_b['description'], 'Opis autora B')
+        self.assertGreater(product_a['price'], 1)  # Existing server floor still applies.
+        self.assertGreaterEqual(product_b['price'], 12000)
+        self.assertEqual(product_b['purchase_account'], 'bob')
+        snapshot = copy.deepcopy(a['artifact'])
+        changed = self.store.update('alice', a['id'], a['revision'], {'icon': 'Z', 'description': 'New'})
+        with self.assertRaises(GhostLabError): self.publish(changed)
+        # Builder must use the chosen artifact, not later mutable project metadata.
+        old_product = run.build_ghostlab_googleplex_app(changed, 'alice', self.author)
+        self.assertEqual(old_product['icon'], '🔭')
+        self.assertEqual(old_product['description'], 'Opis autora A')
+        self.assertEqual(changed['artifact'], snapshot)
+        compiled = self.compile(changed)
+        _, new_product = self.publish(compiled)
+        self.assertEqual(new_product['id'], product_a['id'])
+        self.assertEqual(new_product['icon'], 'Z')
+        withdrawn = self.store.withdraw('alice', compiled['id'], compiled['revision'])
+        _, restored = self.publish(withdrawn)
+        self.assertEqual(restored['description'], 'New')
+        legacy = self.project(name='Legacy')
+        self.assertEqual(project_branding(legacy)['icon'], 'G')
+        self.assertTrue(project_branding(legacy)['description'])
+        self.assertNotIn('description', legacy)
+
+    def test_branding_rejects_untrusted_fields_and_values(self):
+        from ghostlab_branding import validate_branding
+        valid = dict(name='App', icon='🧪', description='Own description', suggested_price=None, presentation_id='default')
+        self.assertEqual(validate_branding(valid, 'system_log_reader', run.validate_generated_app_icon), valid)
+        for change in ({'icon':'<script>'}, {'name':''}, {'description':'x'*1001}, {'description':{}},
+                       {'suggested_price':True}, {'suggested_price':1.5}, {'suggested_price':-1},
+                       {'suggested_price':float('inf')}, {'presentation_id':'radar_override'}, {'executor':'injected'}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                validate_branding(dict(valid, **change), 'system_log_reader', run.validate_generated_app_icon)
+
     def test_registry_endpoint_auth_and_creation_gate(self):
         import ghostlab_registry as registry
         original_testing = run.app.testing
@@ -212,12 +260,27 @@ class GhostLabPublicationTest(unittest.TestCase):
             self.assertEqual(200, registry_response.status_code)
             self.assertEqual(len(registry_response.json['templates']), 5)
             self.assertTrue(all(not item['runtime_enabled'] for item in registry_response.json['templates']))
+            brand = dict(p['branding'], icon='🔭', description='My own logs', name='HTTP Brand')
+            response = client.patch(base+'/blueprint', json=dict(revision=p['revision'],blueprint=p['blueprint'],branding=brand))
+            self.assertEqual(response.status_code, 200, response.json)
+            p = response.json['project']
+            self.assertEqual(p['branding'], brand)
+            stale_brand = dict(brand, description='Stale tab')
+            self.assertEqual(client.patch(base+'/blueprint', json=dict(revision=p['revision']-1,
+                blueprint=p['blueprint'], branding=stale_brand)).status_code, 409)
+            self.assertEqual(client.post(base+'/compile', json=dict(revision=p['revision'],
+                blueprint=p['blueprint'], branding=stale_brand)).status_code, 409)
             self.assertEqual(200,client.get('/api/ghostlab/projects').status_code)
             response=client.post(base+'/compile',json=dict(revision=p['revision'],blueprint=p['blueprint']))
             self.assertEqual(200,response.status_code,response.get_json()); p=response.get_json()['project']
             response=client.post(base+'/publisher',json=dict(revision=p['revision'],artifact_id=p['artifact']['artifact_id']))
             self.assertEqual(200,response.status_code,response.get_json())
+            self.assertEqual(response.json['app']['description'], 'My own logs')
+            self.assertEqual(response.json['app']['icon'], '🔭')
             self.assertEqual(200,client.get(base+'/export').status_code)
+            exported = client.get(base+'/export').json['project']
+            self.assertEqual(exported['branding'], brand)
+            self.assertEqual(exported['artifact']['branding_snapshot'], brand)
             self.assertEqual(409,client.patch(base,json=dict(revision=0,name='stale')).status_code)
             self.assertEqual(400,client.patch(base+'/blueprint',json=dict(revision=1,blueprint={'bad':True})).status_code)
             self.assertEqual(409,client.delete(base,json=dict(revision=1)).status_code)

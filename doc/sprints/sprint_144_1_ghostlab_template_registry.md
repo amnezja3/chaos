@@ -1,6 +1,10 @@
 # Sprint 144.1 — GhostLab: wspólny rejestr szablonów systemowych
 
-Status: **IMPLEMENTACJA LOKALNA / ODBIÓR SERWEROWY OTWARTY**, 25 IX 2026.
+Status: **PASS**, 25 IX 2026.
+Odbiór użytkownika: Templates i istniejący Syslog, Compile/Publish bez duplikatu,
+refresh katalogu WebDragona, utworzenie i Compile Friend Kickera, odrzucenie
+success_percent=86 oraz poprawny zapis po przywróceniu wartości. Testy lokalne
+kontraktów i zgodności opisane w runbooku. PASS dotyczy rejestru, nie runtime.
 Rejestr, endpoint, wspólna walidacja/compiler/publisher oraz formularz oparty na
 schemacie zaimplementowane. [Runbook i test serwerowy](../runbooks/sprint_144_1_ghostlab_registry.md).
 Intruder Kicker pozostaje planowany do 144.3; runtime pięciu rodzin nadal pending.

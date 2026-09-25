@@ -2802,6 +2802,7 @@ form button:hover {
 }
 
 .ghostlab-editor-field input,
+.ghostlab-editor-field select,
 .ghostlab-editor-field textarea {
   width: 100%;
   box-sizing: border-box;
@@ -2810,6 +2811,10 @@ form button:hover {
   color: #eaffdf;
   padding: 9px;
   font-family: monospace;
+}
+
+@media (max-width: 600px) {
+  .ghostlab-editor-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .ghostlab-editor-field textarea {

@@ -15031,12 +15031,15 @@ function renderGhostLabProjects(root) {
 function renderGhostLabEditor(root, project) {
     const main = root?.querySelector('[data-ghostlab-main]');
     if (!main || !project) return;
+    root._ghostLabEditingProject = project;
     ghostLabState.activeProjectId = project.id;
     const fields = Object.entries(project.field_schema || {}).map(([key, field]) => ({
         ...field, key, label: field.label || key.replaceAll('_', ' '),
         type: ({number: 'number', boolean: 'checkbox', string: 'textarea'})[field.type] || 'unsupported'
     }));
     const blueprint = project.blueprint && typeof project.blueprint === "object" ? project.blueprint : {};
+    const branding = ghostLabSavedBranding(project);
+    const definition = project.template_definition || {};
     main.innerHTML = `
         <section class="ghostlab-panel ghostlab-editor">
             <header>
@@ -15049,6 +15052,16 @@ function renderGhostLabEditor(root, project) {
                 <span>Status: ${escapeHTML(ghostLabProjectStatusLabel(project.status))}</span>
                 <span>ID: ${escapeHTML(project.id)}</span>
             </div>
+            <h4>Marka Twojej aplikacji</h4>
+            <div class="ghostlab-editor-grid">
+                <label class="ghostlab-editor-field"><span>Nazwa</span><input data-ghostlab-branding="name" maxlength="64" value="${escapeHTML(branding.name)}"></label>
+                <label class="ghostlab-editor-field"><span>Ikona — jeden znak lub emoji</span><input data-ghostlab-branding="icon" maxlength="32" value="${escapeHTML(branding.icon)}"></label>
+                <label class="ghostlab-editor-field"><span>Opis autora</span><textarea data-ghostlab-branding="description" maxlength="1000">${escapeHTML(branding.description)}</textarea></label>
+                <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.</small></label>
+                <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
+            </div>
+            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. Runtime oczekuje.</span></div>
+            <h4>Ustawienia funkcji</h4>
             <div class="ghostlab-editor-grid">
                 ${fields.map(field => renderGhostLabEditorField(field, blueprint[field.key])).join("")}
             </div>
@@ -15084,7 +15097,7 @@ function renderGhostLabEditor(root, project) {
     });
     main.querySelector('[data-ghostlab-save-blueprint]')?.addEventListener('click', () => saveGhostLabBlueprint(root, project.id));
     main.querySelector('[data-ghostlab-withdraw-project]')?.addEventListener('click', () => withdrawGhostLabProject(root, project));
-    main.querySelectorAll('[data-ghostlab-blueprint-key]').forEach(input => {
+    main.querySelectorAll('[data-ghostlab-blueprint-key], [data-ghostlab-branding]').forEach(input => {
         input.addEventListener('input', () => {
             const dirty = ghostLabBlueprintDirty(root, project);
             main.querySelector('[data-ghostlab-dirty-state]').textContent = dirty
@@ -15266,7 +15279,11 @@ function refreshGhostLabEditorFeedback(root, project) {
     if (!validationPanel || !previewPanel) return { valid: true, errors: [], warnings: [] };
     const blueprint = collectGhostLabBlueprint(root);
     const validation = validateGhostLabBlueprint(project, blueprint);
-    const preview = buildGhostLabBlueprintPreview(project, blueprint, validation);
+    const branding = collectGhostLabBranding(root, project);
+    validation.errors.push(...validateGhostLabBranding(branding, project));
+    validation.valid = validation.errors.length === 0;
+    const preview = buildGhostLabBlueprintPreview({...project, name: branding.name}, blueprint, validation);
+    preview.unshift('DEMONSTRACJA — bez wykonania funkcji i kosztów.', `Ikona: ${branding.icon}`, `Opis autora: ${branding.description}`);
     validationPanel.innerHTML = `
         <strong>${validation.valid ? 'VALIDATION OK' : 'VALIDATION ERRORS'}</strong>
         ${validation.errors.length ? `<ul>${validation.errors.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>` : '<span>Blueprint gotowy do zapisu jako draft.</span>'}
@@ -15313,7 +15330,38 @@ function ghostLabBlueprintDirty(root, project) {
     const edited = collectGhostLabBlueprint(root);
     const saved = project?.blueprint || {};
     return Object.keys(edited).length !== Object.keys(saved).length ||
-        Object.keys(edited).some(key => edited[key] !== saved[key]);
+        Object.keys(edited).some(key => edited[key] !== saved[key]) ||
+        JSON.stringify(collectGhostLabBranding(root, project)) !== JSON.stringify(ghostLabSavedBranding(project));
+}
+
+function ghostLabSavedBranding(project) {
+    return project?.branding || {name: project?.name || 'Untitled', icon: project?.icon || '🧪',
+        description: project?.description || '', suggested_price: null, presentation_id: 'default'};
+}
+
+function collectGhostLabBranding(root, project) {
+    const result = {...ghostLabSavedBranding(project)};
+    root?.querySelectorAll?.('[data-ghostlab-branding]').forEach(input => {
+        const key = input.dataset.ghostlabBranding;
+        result[key] = key === 'suggested_price' ? (input.value.trim() === '' ? null : Number(input.value)) : input.value;
+    });
+    return result;
+}
+
+function ghostLabEditorProject(root, projectId) {
+    // Keep the revision displayed in this window, even if another window saved.
+    if (root?._ghostLabEditingProject?.id === projectId) return root._ghostLabEditingProject;
+    return ghostLabState.projects.find(item => item.id === projectId) || selectedGhostLabProject();
+}
+
+function validateGhostLabBranding(branding, project) {
+    const errors = [];
+    if (!branding.name.trim() || branding.name.trim().length > 64) errors.push('Nazwa: od 1 do 64 znaków.');
+    if (!branding.icon.trim() || [...branding.icon].length > 16) errors.push('Wybierz jeden znak lub emoji jako ikonę.');
+    if (branding.description.length > 1000) errors.push('Opis: maksymalnie 1000 znaków.');
+    if (branding.suggested_price !== null && (!Number.isSafeInteger(branding.suggested_price) || branding.suggested_price < 0)) errors.push('Cena: nieujemna całkowita liczba HC.');
+    if (!(project.template_definition?.presentation_ids || ['default']).includes(branding.presentation_id)) errors.push('Niedozwolona prezentacja.');
+    return errors;
 }
 
 function ghostLabBuildIsCurrent(root, project) {
@@ -15330,7 +15378,7 @@ async function saveGhostLabBlueprint(root, projectId) {
         setGhostLabMessage(root, "Nie wybrano projektu.", "error");
         return;
     }
-    const project = ghostLabState.projects.find(item => item.id === projectId) || selectedGhostLabProject();
+    const project = ghostLabEditorProject(root, projectId);
     const validation = refreshGhostLabEditorFeedback(root, project);
     if (!validation.valid) {
         setGhostLabMessage(root, "Popraw bledy walidacji przed zapisem draftu.", "error");
@@ -15341,7 +15389,7 @@ async function saveGhostLabBlueprint(root, projectId) {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/blueprint`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root), revision: project.revision })
+            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root), branding: collectGhostLabBranding(root, project), revision: project.revision })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15364,7 +15412,7 @@ async function compileGhostLabProject(root, projectId) {
         setGhostLabMessage(root, "Nie wybrano projektu.", "error");
         return;
     }
-    const project = ghostLabState.projects.find(item => item.id === projectId) || selectedGhostLabProject();
+    const project = ghostLabEditorProject(root, projectId);
     const validation = refreshGhostLabEditorFeedback(root, project);
     if (!validation.valid) {
         setGhostLabMessage(root, "Compile zatrzymany. Popraw bledy blueprintu.", "error");
@@ -15376,7 +15424,7 @@ async function compileGhostLabProject(root, projectId) {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/compile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root), revision: project.revision })
+            body: JSON.stringify({ blueprint: collectGhostLabBlueprint(root), branding: collectGhostLabBranding(root, project), revision: project.revision })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -15398,6 +15446,10 @@ async function exportGhostLabProject(root, projectId) {
     if (!projectId) {
         setGhostLabMessage(root, "Nie wybrano projektu do exportu.", "error");
         return;
+    }
+    const project = ghostLabEditorProject(root, projectId);
+    if (ghostLabBlueprintDirty(root, project)) {
+        setGhostLabMessage(root, "Zapisz zmiany przed eksportem.", "error"); return;
     }
     setGhostLabWorking(root, "Exporting...");
     try {
@@ -15431,7 +15483,7 @@ async function publishGhostLabProject(root, projectId) {
         setGhostLabMessage(root, "Nie wybrano projektu do Publishera.", "error");
         return;
     }
-    const project = ghostLabState.projects.find(item => item.id === projectId) || selectedGhostLabProject();
+    const project = ghostLabEditorProject(root, projectId);
     const validation = refreshGhostLabEditorFeedback(root, project);
     if (!validation.valid) {
         setGhostLabMessage(root, "Publisher zatrzymany. Popraw blueprint.", "error");
@@ -15453,7 +15505,8 @@ async function publishGhostLabProject(root, projectId) {
         ghostLabState.selectedProjectId = data.project?.id || projectId;
         ghostLabState.activeProjectId = data.project?.id || projectId;
         renderGhostLabEditor(root, data.project);
-        setGhostLabMessage(root, data.message || "Publisher zakonczony.", "info");
+        const priceMessage = Number.isFinite(data.app?.price) ? ` Cena katalogowa: ${data.app.price} HC.` : '';
+        setGhostLabMessage(root, (data.message || "Publisher zakonczony.") + priceMessage, "info");
         // Publication changes the catalog, not the player profile or desktop inventory.
     } catch (err) {
         console.warn("GhostLab publisher failed", err);

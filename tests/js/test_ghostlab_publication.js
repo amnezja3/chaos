@@ -30,7 +30,7 @@ const context = vm.createContext({
     },
     window: {refreshDesktop: () => {throw Error('Full desktop refresh forbidden');}},
 });
-for (const name of ['ghostLabBlueprintDirty','ghostLabBuildIsCurrent','publishGhostLabProject','compileGhostLabProject', 'validateGhostLabBlueprint', 'renderGhostLabEditorField']) {
+for (const name of ['ghostLabSavedBranding','collectGhostLabBranding','ghostLabEditorProject','validateGhostLabBranding','ghostLabBlueprintDirty','ghostLabBuildIsCurrent','publishGhostLabProject','compileGhostLabProject', 'validateGhostLabBlueprint', 'renderGhostLabEditorField']) {
     vm.runInContext(extract(name),context);
 }
 (async () => {
@@ -55,6 +55,16 @@ for (const name of ['ghostLabBlueprintDirty','ghostLabBuildIsCurrent','publishGh
     await context.publishGhostLabProject({},'p');
     assert.equal(calls.length,0,'Old build must not publish');
     project.artifact.source_revision=2;
+    const dirtyRoot = {querySelectorAll: () => [{dataset:{ghostlabBranding:'icon'},value:'X'}]};
+    assert(context.ghostLabBlueprintDirty(dirtyRoot,project));
+    await context.publishGhostLabProject(dirtyRoot,'p');
+    await context.compileGhostLabProject(dirtyRoot,'p');
+    assert.equal(calls.length,0,'Unsaved branding must block publish and compile');
+    const stale = {...project, revision:1};
+    assert.equal(context.ghostLabEditorProject({_ghostLabEditingProject:stale},'p').revision,1,
+        'A stale editor must not borrow the newer shared-state revision');
+    assert.equal(context.validateGhostLabBranding({name:'Name',icon:'X',description:'Desc',suggested_price:null,presentation_id:'default'},project).length,0);
+    assert(context.validateGhostLabBranding({name:'Name',icon:'X',description:'Desc',suggested_price:1.5,presentation_id:'default'},project).length);
     await context.publishGhostLabProject({},'p');
     assert.equal(calls.length,1);
     assert.equal(calls[0].body.revision,2);

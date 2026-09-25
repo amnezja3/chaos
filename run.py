@@ -17716,6 +17716,7 @@ def ghostlab_project_slug(name):
 
 from ghostlab_policy import default_ghostlab_blueprint, validate_ghostlab_blueprint
 from ghostlab_registry import get_template, artifact_compatible, validate_pro_tool_assignments, field_schema
+from ghostlab_branding import project_branding
 
 validate_pro_tool_assignments(PRO_SYSTEM_TOOLS)
 
@@ -17740,7 +17741,8 @@ def build_ghostlab_artifact(project, blueprint, version):
         "contract_version": definition["contract_version"],
         "schema_version": definition["schema_version"],
         "policy_version": definition["policy_version"],
-        "presentation_id": "default",
+        "presentation_id": project_branding(project)['presentation_id'],
+        "branding_snapshot": project_branding(project),
         "blueprint_snapshot": dict(blueprint),
     }
 
@@ -17758,6 +17760,7 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     artifact = project.get("artifact") if isinstance(project.get("artifact"), dict) else {}
     if not artifact:
         return None
+    branding = artifact.get('branding_snapshot') or project_branding(project)
 
     blueprint = artifact.get("blueprint_snapshot")
     if not isinstance(blueprint, dict):
@@ -17773,15 +17776,13 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     contract = ghostlab_template_app_contract(template_id)
     app = {
         "id": app_id,
-        "name": str(project.get("name") or "GhostLab Tool"),
-        "icon": str(project.get("icon") or "🧪"),
+        "name": branding['name'],
+        "icon": branding['icon'],
         "type": "pro-system-tool",
         "category": "pro-system-tools",
-        "description": (
-            f"GhostLab Publisher artifact from {project.get('template_name') or template_id}. "
-            "Custom runtime zostanie aktywowany w pozniejszym sprincie."
-        ),
-        "price": definition['price'],
+        "description": branding['description'],
+        "system_description": definition['description'],
+        "price": definition['price'] if branding['suggested_price'] is None else branding['suggested_price'],
         "required_level": required_level,
         "required_respect": required_respect,
         "allowed_fractions": [],
@@ -17840,6 +17841,10 @@ def serialize_ghostlab_project(project):
         "runtime_status": "pending_custom_runtime",
     })
     return {
+        "branding": project_branding(project),
+        "template_definition": {key: value for key, value in (get_template(project.get('template_id')) or {}).items()
+                                if key in {'description', 'target_kind', 'launch_mode', 'result_type', 'presentation_ids',
+                                           'recommended_level', 'required_respect', 'price', 'runtime_enabled'}},
         "revision": project.get("revision"),
         "schema_version": project.get("schema_version", 1),
         "published_artifact_id": project.get("published_artifact_id"),

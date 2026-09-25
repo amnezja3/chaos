@@ -1,6 +1,10 @@
 # 144.1 — rejestr kontraktów GhostLaba
 
-25 IX 2026. Implementacja lokalna; odbiór serwerowy oczekuje.
+25 IX 2026. **PASS — odbiór serwerowy potwierdzony przez użytkownika.**
+Potwierdzono Templates i istniejący Syslog, ponowną publikację bez duplikatu,
+refresh WebDragona po poprawce, utworzenie/Compile Friend Kickera oraz odmowę
+zapisu success_percent=86 i poprawny zapis po przywróceniu dozwolonej wartości.
+Nie jest to odbiór działania runtime potomstwa.
 
 ## Co zmieniono
 
@@ -64,7 +68,7 @@ w definicji. Nie cofać danych graczy przez odtwarzanie całej bazy.
 ## Testy lokalne
 
 Wynik 25 IX: **23 testy Python PASS**, test JS formularza/publikacji PASS,
-node --check PASS. Odbiór serwerowy jeszcze niewykonany.
+node --check PASS. Wyniki odbioru serwerowego opisane na początku dokumentu.
 
 ```bash
 python -B tools/run_isolated_tests.py tests.test_ghostlab_registry tests.test_ghostlab_publication tests.test_target_persistence.TargetPersistenceHelpersTest.test_ghostlab_published_tool_has_app_contract tests.test_target_persistence.TargetPersistenceHelpersTest.test_ghostlab_published_tool_preserves_requirements_and_googleplex_shape

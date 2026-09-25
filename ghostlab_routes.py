@@ -4,6 +4,7 @@ from flask import jsonify, request, session
 from ghostlab_store import GhostLabError
 from config import GHOSTLAB_MAX_REQUEST_BYTES
 from ghostlab_registry import get_template, public_templates, template_available
+from ghostlab_branding import project_branding, validate_branding
 
 
 def register(app, services):
@@ -29,6 +30,12 @@ def register(app, services):
             raise GhostLabError('invalid_blueprint', '; '.join(result['errors']), 400)
         if compiling and project.get('template_id') in {'', 'custom', None}:
             raise GhostLabError('custom_runtime_unsupported', 'Custom pozostaje szkicem. Uzyj gotowego szablonu.', 400)
+
+    def branding(data, project):
+        try:
+            return validate_branding(data, project.get('template_id'), service('validate_generated_app_icon'))
+        except ValueError as exc:
+            raise GhostLabError('invalid_branding', str(exc), 400) from exc
 
     def reply(owner, project=None, **extra):
         serialize = service('serialize_ghostlab_project')
@@ -66,6 +73,7 @@ def register(app, services):
                     template_name=str(data.get('template_name') or template),
                     tool_category=str(data.get('tool_category') or ''), icon=icon,
                     blueprint=service('default_ghostlab_blueprint')(template))
+        seed.update(project_branding(seed))
         project = service('ghostlab_store').create(owner, seed, data.get('request_id'))
         return reply(owner, project, message='Projekt utworzony.')
 
@@ -84,7 +92,11 @@ def register(app, services):
         owner, data = actor(), payload()
         project = service('ghostlab_store').get(owner, project_id)
         valid(project, data.get('blueprint'))
-        project = service('ghostlab_store').update(owner, project_id, data.get('revision'), {'blueprint': data['blueprint']})
+        changes = {'blueprint': data['blueprint']}
+        if 'branding' in data:
+            changes.update(branding(data['branding'], project))
+            changes['slug'] = service('ghostlab_project_slug')(changes['name'])
+        project = service('ghostlab_store').update(owner, project_id, data.get('revision'), changes)
         return reply(owner, project, message='Draft zapisany. Skompiluj przed publikacja.')
 
     @app.post('/api/ghostlab/projects/<project_id>/compile')
@@ -92,6 +104,8 @@ def register(app, services):
         owner, data = actor(), payload()
         project = service('ghostlab_store').get(owner, project_id)
         valid(project, data.get('blueprint'), compiling=True)
+        if 'branding' in data and branding(data['branding'], project) != project_branding(project):
+            raise GhostLabError('unsaved_branding', 'Zapisz marke produktu przed kompilacja.')
         project = service('ghostlab_store').compile(owner, project_id, data.get('revision'), data['blueprint'], service('build_ghostlab_artifact'))
         return reply(owner, project, artifact=project['artifact'], message='Build gotowy. Runtime nadal oczekuje.')
 
