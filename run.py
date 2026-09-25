@@ -17750,6 +17750,7 @@ def build_ghostlab_artifact(project, blueprint, version):
         "template_name": str(project.get("template_name") or ""),
         "tool_category": str(project.get("tool_category") or ""),
         "runtime_contract": definition["result_type"],
+        "runtime_revision": definition.get('runtime_revision', 0),
         "contract_version": definition["contract_version"],
         "schema_version": definition["schema_version"],
         "policy_version": definition["policy_version"],
@@ -17769,6 +17770,7 @@ def ghostlab_template_app_contract(template_id):
 
 
 def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
+    from ghostlab_products import runtime_status
     artifact = project.get("artifact") if isinstance(project.get("artifact"), dict) else {}
     if not artifact:
         return None
@@ -17809,7 +17811,7 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
         "ghostlab_generated": True,
         "bounded_install": True,
         "glab_contract_version": artifact.get('contract_version', 1),
-        "runtime_status": "pending_custom_runtime",
+        "runtime_status": runtime_status(artifact),
         "source": "ghostlab",
         "source_project_id": str(project.get("id") or ""),
         "source_build_version": artifact.get("version"),
@@ -17822,7 +17824,7 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
                 "command": f"ghostlab-tool --artifact {artifact.get('artifact_id')}",
                 "logs": [
                     "GhostLab artifact installed.",
-                    "Custom pro-system runtime pending.",
+                    "Uruchom produkt z pulpitu lub panelu dostepu PvP.",
                     "Tool metadata available in Googleplex."
                 ]
             }
@@ -17843,6 +17845,7 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
 
 
 def serialize_ghostlab_project(project):
+    from ghostlab_products import runtime_status
     blueprint = project.get("blueprint") if isinstance(project.get("blueprint"), dict) else {}
     validation = validate_ghostlab_blueprint(project.get("template_id"), blueprint)
     builds = project.get("builds") if isinstance(project.get("builds"), list) else []
@@ -17852,7 +17855,7 @@ def serialize_ghostlab_project(project):
         "type": "pro-system-tool",
         "category": "pro-system-tools",
         "map_actions_source": "ghostlab_contract",
-        "runtime_status": "pending_custom_runtime",
+        "runtime_status": runtime_status(artifact),
     })
     return {
         "branding": project_branding(project),
@@ -26242,7 +26245,7 @@ def player_hack_write_guard(attacker, victim, tool_id, access):
         if not player_inventory_store.has_app(attacker, tool_id, conn=conn):
             raise PlayerHackAccessChanged("Player tool uninstalled")
         current_product = resolve(conn, attacker, tool_id, PRO_SYSTEM_TOOLS)
-        if (not current_product or not expected_product
+        if (not current_product or not current_product['runtime_enabled'] or not expected_product
                 or current_product.get('artifact_id') != expected_product.get('artifact_id')
                 or current_product.get('installed_version') != expected_product.get('installed_version')):
             raise PlayerHackAccessChanged('Installed artifact changed')
@@ -26268,6 +26271,40 @@ def resolve_player_hack_product(username, app_id):
         return resolve(conn, username, app_id, PRO_SYSTEM_TOOLS)
 
 
+@app.route('/api/ghostlab/installed/<app_id>', methods=['GET', 'POST'])
+def ghostlab_installed_runtime(app_id):
+    from database import db_connect
+    from ghostlab_runtime import installed_state, update_installed
+    actor = session.get('user')
+    if not actor:
+        return jsonify(success=False, error='Nie jesteś zalogowany.'), 401
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify(success=False, error='Nieprawidłowe żądanie.'), 400
+        def requirements(product, conn):
+            identity = identity_projection_store.get_creator_identity(actor)
+            capabilities = capability_projection_store.get_capabilities(actor, conn=conn)
+            error = validate_app_install_requirements(product, {**identity, **capabilities})
+            if error:
+                raise ValueError(error)
+        try:
+            result = update_installed(actor, app_id, data.get('expected_artifact_id'), data.get('artifact_id'),
+                                      player_inventory_store, PRO_SYSTEM_TOOLS, requirements, delta_bus)
+        except ValueError as error:
+            return jsonify(success=False, error=str(error)), 400
+    else:
+        result = {}
+    with db_connect(player_inventory_store.db_path) as conn:
+        product, available = installed_state(conn, actor, app_id, PRO_SYSTEM_TOOLS)
+    access = player_hack_access_store.get_active_access(actor)
+    return jsonify(success=True, product=product, access=serialize_player_hack_access(access),
+                   available_artifact_id=available['artifact_id'] if available else None,
+                   available_version=available.get('source_build_version') if available else None,
+                   update_available=bool(available and available['artifact_id'] != product['artifact_id']),
+                   update_price_hc=0, **result)
+
+
 @app.route("/api/player-hack/access")
 def api_player_hack_access():
     if "user" not in session:
@@ -26277,12 +26314,29 @@ def api_player_hack_access():
     return jsonify(serialize_player_hack_access(access))
 
 
+@app.after_request
+def log_ghostlab_runtime_response(response):
+    if request.path == '/api/player-hack/tool/use' and request.method == 'POST' and response.status_code >= 400:
+        from ghostlab_runtime import logger
+        data = request.get_json(silent=True)
+        if isinstance(data, dict) and str(data.get('tool_id', '')).startswith('ghostlab_'):
+            result = response.get_json(silent=True) or {}
+            logger.info('GLAB_EXECUTION_DENIED %s', json.dumps({
+                'actor': session.get('user'), 'target': str(data.get('victim_username') or '')[:100],
+                'app': str(data.get('tool_id') or '')[:150], 'artifact': str(data.get('artifact_id') or '')[:150],
+                'status': response.status_code, 'reason': result.get('reason') or 'request_rejected'
+            }))
+    return response
+
+
 @app.route("/api/player-hack/tool/use", methods=["POST"])
 def api_player_hack_tool_use():
     if "user" not in session:
         return jsonify({"success": False, "error": "Nie jestes zalogowany"}), 401
 
     data = request.get_json() or {}
+    if not isinstance(data, dict):
+        return jsonify(success=False, reason='invalid_request', error='Nieprawidłowe żądanie.'), 400
     tool_id = str(data.get("tool_id") or "").strip()
     victim_username = str(data.get("victim_username") or "").strip()
     if get_pro_system_tool(tool_id) and tool_id not in PLAYER_HACK_TOOL_IDS:
@@ -26292,7 +26346,9 @@ def api_player_hack_tool_use():
         return jsonify(success=False, reason='tool_not_installed', error='Brak zainstalowanego narzedzia PvP.'), 403
     if not tool['runtime_enabled']:
         return jsonify(success=False, reason='runtime_pending', error=tool['disabled_reason']), 409
-    if tool_id not in PLAYER_HACK_TOOL_IDS:
+    if tool.get('artifact_id') and data.get('artifact_id') != tool['artifact_id']:
+        return jsonify(success=False, reason='artifact_changed', error='Wersja narzędzia zmieniła się. Odśwież panel.'), 409
+    if tool_id not in PLAYER_HACK_TOOL_IDS and tool.get('template_id') != 'system_log_reader':
         return jsonify({"success": False, "reason": "unsupported_player_hack_tool",
                         "error": "To narzedzie nie obsluguje dostepu do gracza."}), 400
     if not victim_username:
@@ -26314,7 +26370,7 @@ def api_player_hack_tool_use():
                         "access": serialize_player_hack_access(access)}), 409
 
     if tool_id != "financialSniffer" and player_hack_access_store.has_tool_usage(
-        access, session["user"], victim_username, tool_id
+        access, session["user"], victim_username, tool['family_id']
     ):
         return already_used_response()
 
@@ -26326,25 +26382,16 @@ def api_player_hack_tool_use():
             result["access"] = serialize_player_hack_access(access)
         return jsonify(result), status
 
-    if tool_id == "systemLogReader":
-        safe_logs = system_message_store.recent_player_hack_logs(victim_username)
-        usage = player_hack_access_store.record_tool_usage(access, session["user"], victim_username, tool_id, result="read")
-        if usage.get("duplicate"):
+    if tool['family_id'] == 'systemLogReader':
+        from ghostlab_runtime import execute_logs
+        result = execute_logs(session['user'], victim_username, tool, access,
+                              player_hack_access_store, system_message_store,
+                              player_hack_write_guard(session['user'], victim_username, tool_id, access),
+                              PRO_SYSTEM_TOOLS)
+        if result.get('duplicate'):
             return already_used_response()
-        message = (
-            "System Log Reader odczytal ostatnie komunikaty ofiary."
-            if safe_logs
-            else "Brak komunikatow systemowych do odczytu."
-        )
-        return jsonify({
-            "success": True,
-            "tool_id": "systemLogReader",
-            "tool": dict(tool),
-            "result_type": "system_logs",
-            "message": message,
-            "logs": safe_logs,
-            "access": serialize_player_hack_access(access),
-        })
+        result['access'] = serialize_player_hack_access(access)
+        return jsonify(result)
 
     if tool_id == "securityPanelProxy":
         victim_profile = identity_projection_store.get_identity(victim_username)

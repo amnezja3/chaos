@@ -7,6 +7,8 @@ module.exports = {
       args: "run:app --bind 127.0.0.1:6666 --workers 4 --timeout 120 --access-logfile - --error-logfile -",
       interpreter: "none",
       env: {
+        CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",
+        CHAOS_GHOSTLAB_RUNTIME_ACTORS: "main,admin",
         CHAOS_RESPONSE_QUALIFICATION_MODE: "observe",
         CHAOS_RESPONSE_ENCOUNTERS_ENABLED: "true",
         CHAOS_RESPONSE_EXECUTION_MODE: "enforce",

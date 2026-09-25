@@ -107,7 +107,10 @@ def register(app, services):
         if 'branding' in data and branding(data['branding'], project) != project_branding(project):
             raise GhostLabError('unsaved_branding', 'Zapisz marke produktu przed kompilacja.')
         project = service('ghostlab_store').compile(owner, project_id, data.get('revision'), data['blueprint'], service('build_ghostlab_artifact'))
-        return reply(owner, project, artifact=project['artifact'], message='Build gotowy. Runtime nadal oczekuje.')
+        from ghostlab_products import runtime_artifact_ready
+        message = ('Build gotowy do runtime System Log Reader. Dostęp kontroluje konfiguracja serwera.'
+                   if runtime_artifact_ready(project['artifact']) else 'Build gotowy. Runtime nadal oczekuje.')
+        return reply(owner, project, artifact=project['artifact'], message=message)
 
     @app.get('/api/ghostlab/projects/<project_id>/export')
     def ghostlab_export_project(project_id):
@@ -130,7 +133,9 @@ def register(app, services):
                       hackcoins=service('wallet_balance_store').get_balance(owner))
         project, app_data = service('ghostlab_store').publish(owner, project_id, data.get('revision'), data.get('artifact_id'),
                                       service('build_ghostlab_googleplex_app'), author)
-        return reply(owner, project, app=app_data, message='Opublikowano build. Custom runtime nadal oczekuje.')
+        message = ('Opublikowano build System Log Reader. Zainstalowane kopie wymagają jawnej aktualizacji.'
+                   if app_data.get('runtime_status') == 'player_hack_access' else 'Opublikowano build. Custom runtime nadal oczekuje.')
+        return reply(owner, project, app=app_data, message=message)
 
     @app.delete('/api/ghostlab/projects/<project_id>')
     def ghostlab_delete_project(project_id):

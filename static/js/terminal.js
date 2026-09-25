@@ -2858,6 +2858,10 @@ function launchApplicationEffect(appData) {
         window.DetentionUI.blockedAction();
         return;
     }
+    if (appData.ghostlab_generated || String(appData.id || '').startsWith('ghostlab_')) {
+        openGhostLabInstalledApp(appData.id);
+        return;
+    }
     if (runSystemLauncherApp(appData)) return;
     const cameraKey = cameraApplicationLaunchKey(appData, (toolbarProfile || {}).aimed_target || {});
     const cameraWindow = findCameraApplicationWindow(cameraKey);
@@ -4307,6 +4311,56 @@ function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
     disposeProvisionalApplicationSession(appWindow?._provisionalApplicationSession, reason);
 }
 
+async function openGhostLabInstalledApp(appId) {
+    const app = document.createElement('div');
+    app.className = 'app-window system-log-reader-window';
+    const position = findAvailablePosition(520, 420);
+    app.style.top = `${position.top}px`;
+    app.style.left = `${position.left}px`;
+    app.style.maxWidth = 'calc(100vw - 24px)';
+    app.innerHTML = '<div class="title-bar"><span data-title>GhostLab</span><button class="close-btn">×</button></div><div class="system-log-reader-content" data-body>Ładowanie…</div>';
+    document.body.appendChild(app);
+    makeDraggable(app);
+    app.querySelector('.close-btn').onclick = () => app.remove();
+    const body = app.querySelector('[data-body]');
+    let serial = 0;
+    async function load(options) {
+        const requestSerial = ++serial;
+        try {
+            const response = await fetch('/api/ghostlab/installed/' + encodeURIComponent(appId), {cache: 'no-store', ...options});
+            const data = await response.json();
+            if (!app.isConnected || requestSerial !== serial || (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive)) return;
+            if (!response.ok || !data.success) throw Error(data.error || 'Aplikacja niedostępna.');
+            const product = data.product;
+            app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
+            const tool = data.access?.tools?.find(item => item.id === appId);
+            const enabled = data.access?.active && tool?.enabled;
+            body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Dostępna: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
+                <p>${escapeHTML(product.runtime_enabled ? (data.access?.active ? 'Cel: ' + (data.access.victim_nick || data.access.victim_username) : 'Uzyskaj dostęp PvP do gracza, a następnie odśwież panel.') : product.disabled_reason)}</p>
+                <button data-run ${enabled ? '' : 'disabled'}>Odczytaj logi celu</button>
+                <button data-refresh>Odśwież</button>
+                ${data.update_available ? '<button data-update>Aktualizuj bezpłatnie do v' + Number(data.available_version) + '</button>' : ''}
+                <p>${tool?.used ? 'Limit tej rodziny został wykorzystany podczas tego dostępu.' : ''}</p>`;
+            body.querySelector('[data-refresh]').onclick = () => load();
+            body.querySelector('[data-run]').onclick = async event => {
+                event.target.disabled = true;
+                await refreshPlayerHackAccess(data.access);
+                await usePlayerHackTool(appId);
+                if (app.isConnected) await load();
+            };
+            body.querySelector('[data-update]')?.addEventListener('click', event => {
+                event.target.disabled = true;
+                load({method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                    expected_artifact_id: product.artifact_id, artifact_id: data.available_artifact_id
+                })});
+            });
+        } catch (error) {
+            if (app.isConnected && requestSerial === serial) body.textContent = error.message;
+        }
+    }
+    await load();
+}
+
 function formatHackAccessTime(seconds) {
     const safeSeconds = Math.max(0, Number(seconds) || 0);
     const mins = Math.floor(safeSeconds / 60);
@@ -4325,7 +4379,7 @@ function renderSystemLogReaderLogs(container, payload = {}) {
         <article class="system-log-reader-entry ${escapeHTML(String(log.type || 'info'))}">
             <header>
                 <strong>${escapeHTML(String(log.title || 'System'))}</strong>
-                <span>${escapeHTML(String(log.type || 'info'))}</span>
+                ${log.type ? `<span>${escapeHTML(String(log.type))}</span>` : ''}
             </header>
             <p>${escapeHTML(String(log.text || ''))}</p>
             <footer>
@@ -4799,6 +4853,7 @@ async function usePlayerHackTool(toolId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 tool_id: toolId,
+                artifact_id: selectedTool?.artifact_id || null,
                 victim_username: requestAccess.victim_username
             })
         });
@@ -12348,6 +12403,16 @@ async function updateAppsView(payload = {}) {
     };
     if (Array.isArray(payload.removed_app_ids)) nextProfile = applyInventoryRemoval(nextProfile, payload);
     if (Array.isArray(payload.apps)) nextProfile.apps = payload.apps;
+    else if (payload.reason === 'ghostlab_update' && payload.app?.id) {
+        nextProfile.apps = [...(nextProfile.apps || []).filter(app => app.id !== payload.app.id), payload.app];
+        const removed = new Set(payload.removed_tool_ids || []);
+        nextProfile.files = {...(nextProfile.files || {}), tools: [
+            ...(nextProfile.files?.tools || []).filter(tool => typeof tool === 'string' ? !removed.has(tool)
+                : !removed.has(tool.tool_id || tool.id || tool.name)
+                    && tool.app_id !== payload.app.id && tool.source_app_id !== payload.app.id),
+            ...(payload.updated_tools || [])
+        ]};
+    }
     if (filesPayload) {
         nextProfile.files = {
             ...((toolbarProfile || {}).files || {}),
@@ -12356,7 +12421,8 @@ async function updateAppsView(payload = {}) {
     }
     setToolbarProfile(nextProfile);
     await rebuildDesktopAppsFromProfile(nextProfile);
-    refreshOpenFileManagersForApps(payload);
+    refreshOpenFileManagersForApps(payload.reason === 'ghostlab_update'
+        ? {...payload, apps: nextProfile.apps, files: {tools: nextProfile.files?.tools || []}} : payload);
     try {
         window.dispatchEvent(new CustomEvent('chaos:apps-projection-updated', {
             detail: payload

@@ -4,6 +4,7 @@ New logic is implemented in code; the registry only describes allowed contracts.
 Runtime stays unavailable until a registered executor is integrated in 145/146.
 """
 from copy import deepcopy
+import os
 
 TEMPLATES = {'financial_sniffer': {'id': 'financial_sniffer',
                        'name': 'Financial Sniffer',
@@ -275,6 +276,8 @@ TEMPLATES['intruder_kicker'] = {
                      'target_types': ['player'], 'operation_types': [], 'resource_types': ['internal_recon_state']},
 }
 
+TEMPLATES['system_log_reader'].update(executor_id='system_logs_v1', runtime_enabled=True, runtime_revision=1)
+
 PRO_TOOL_GLAB = {
     'financialSniffer': 'financial_sniffer', 'friendKicker': 'friend_kicker',
     'systemLogReader': 'system_log_reader', 'securityPanelProxy': 'security_panel_proxy',
@@ -344,14 +347,21 @@ def validate_fields(template_id, blueprint):
     return errors
 
 
+def runtime_actor_allowed(username):
+    actors = {v.strip() for v in os.environ.get('CHAOS_GHOSTLAB_RUNTIME_ACTORS', '').split(',') if v.strip()}
+    return '*' in actors or username in actors
+
+
 def template_available(template_id, action):
     if action not in ('creation', 'publication', 'runtime'):
         return False
     definition = get_template(template_id)
     if not definition or not definition.get(action + '_enabled'):
         return False
-    # No executor is integrated in 144.1. A config flag alone cannot grant execution.
-    return action != 'runtime'
+    if action != 'runtime':
+        return True
+    return (template_id == 'system_log_reader' and definition.get('executor_id') == 'system_logs_v1'
+            and os.environ.get('CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED', '').lower() in {'1', 'true', 'yes'})
 
 
 def public_templates():
@@ -362,7 +372,7 @@ def public_templates():
         item = get_template(template_id)
         item.pop('executor_id', None)
         item['runtime_enabled'] = template_available(template_id, 'runtime')
-        item['status'] = 'Blueprint ready / runtime pending'
+        item['status'] = 'Runtime: konta aktywowane przez serwer' if item['runtime_enabled'] else 'Blueprint ready / runtime pending'
         result.append(item)
     return result
 

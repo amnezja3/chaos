@@ -154,7 +154,7 @@ class GhostLabPublicationTest(unittest.TestCase):
         p = self.compile(p)
         published, app = self.publish(p)
         self.assertEqual(1,app['metadata']['blueprint']['log_limit'])
-        self.assertEqual('pending_custom_runtime',app['runtime_status'])
+        self.assertEqual('player_hack_access',app['runtime_status'])
         self.assertEqual((published,app),self.publish(published))
 
     def test_publish_owner_collision_and_transaction_rollback(self):

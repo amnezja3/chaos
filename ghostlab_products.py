@@ -1,7 +1,18 @@
 """Installed PvP products resolved from inventory and immutable published builds."""
 import json
 from database import db_connect, ProfileRecoveryRequired
-from ghostlab_registry import get_template, artifact_compatible, template_available, PRO_TOOL_GLAB
+from ghostlab_registry import get_template, artifact_compatible, template_available, PRO_TOOL_GLAB, runtime_actor_allowed, validate_fields
+
+
+def runtime_artifact_ready(artifact):
+    return (artifact.get('template_id') == 'system_log_reader'
+            and artifact.get('runtime_revision') == 1
+            and artifact_compatible(artifact, 'system_log_reader')
+            and not validate_fields('system_log_reader', artifact.get('blueprint_snapshot')))
+
+
+def runtime_status(artifact):
+    return 'player_hack_access' if runtime_artifact_ready(artifact) else 'pending_custom_runtime'
 
 
 def published_product(conn, app_id):
@@ -45,14 +56,26 @@ def resolve(conn, username, app_id, builtins):
         return None
     branding = artifact.get('branding_snapshot') or {}
     compatible = artifact_compatible(artifact, definition['id'])
-    runtime = compatible and template_available(definition['id'], 'runtime')
+    runtime = (runtime_artifact_ready(artifact) and template_available(definition['id'], 'runtime')
+               and runtime_actor_allowed(username))
+    reason = 'Runtime potomka jeszcze niedostępny.'
+    if not compatible:
+        reason = 'Wersja kontraktu niedostępna.'
+    elif definition['id'] == 'system_log_reader':
+        if not runtime_artifact_ready(artifact):
+            reason = 'Build wymaga ponownej kompilacji, publikacji i aktualizacji do runtime.'
+        elif not template_available(definition['id'], 'runtime'):
+            reason = 'Runtime System Log Reader jest wyłączony na serwerze.'
+        elif not runtime_actor_allowed(username):
+            reason = 'Runtime jest dostępny tylko dla aktywowanych kont testowych.'
     return {'id': app_id, 'name': branding.get('name') or artifact.get('project_name') or app_id,
             'icon': branding.get('icon') or definition['icon'],
             'description': branding.get('description') or definition['description'],
             'installed': True, 'enabled': runtime, 'runtime_enabled': runtime,
             'family_id': definition.get('source_tool_id') or definition['id'], 'template_id': definition['id'],
             'artifact_id': artifact_id, 'installed_version': artifact['version'],
-            'disabled_reason': 'Runtime potomka jeszcze niedostępny.' if compatible else 'Wersja kontraktu niedostępna.'}
+            'blueprint': artifact.get('blueprint_snapshot', {}), 'policy_version': artifact.get('policy_version'),
+            'disabled_reason': '' if runtime else reason}
 
 
 def installed_products(db_path, username, builtins):

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from database import DB_PATH, db_connect
 from config import GHOSTLAB_MAX_PROJECTS, GHOSTLAB_MAX_BUILDS, GHOSTLAB_VISIBLE_BUILD_HISTORY
-from ghostlab_registry import template_available, artifact_compatible
+from ghostlab_registry import template_available, artifact_compatible, get_template
 
 
 def encoded(value):
@@ -147,7 +147,9 @@ class GhostLabStore:
             if project['blueprint'] != blueprint:
                 raise GhostLabError('unsaved_blueprint', 'Zapisz blueprint przed kompilacja.')
             if (project.get('artifact', {}).get('source_revision') == revision
-                    and artifact_compatible(project['artifact'], project.get('template_id'))):
+                    and artifact_compatible(project['artifact'], project.get('template_id'))
+                    and project['artifact'].get('runtime_revision', 0)
+                    == (get_template(project.get('template_id')) or {}).get('runtime_revision', 0)):
                 return project
             version = conn.execute('SELECT coalesce(max(version),0)+1 FROM ghostlab_builds WHERE project_id=?', (project_id,)).fetchone()[0]
             if version > self.MAX_BUILDS:
