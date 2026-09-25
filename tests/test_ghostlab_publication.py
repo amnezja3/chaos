@@ -258,7 +258,7 @@ class GhostLabPublicationTest(unittest.TestCase):
             self.assertEqual(p['field_schema']['log_limit']['maximum'], 5)
             registry_response = client.get('/api/ghostlab/templates')
             self.assertEqual(200, registry_response.status_code)
-            self.assertEqual(len(registry_response.json['templates']), 5)
+            self.assertEqual(len(registry_response.json['templates']), 6)
             self.assertTrue(all(not item['runtime_enabled'] for item in registry_response.json['templates']))
             brand = dict(p['branding'], icon='🔭', description='My own logs', name='HTTP Brand')
             response = client.patch(base+'/blueprint', json=dict(revision=p['revision'],blueprint=p['blueprint'],branding=brand))

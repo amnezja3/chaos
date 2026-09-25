@@ -1,6 +1,6 @@
 # Sprint 144.2 — odbiór wspólnego kreatora GhostLab
 
-Status: implementacja lokalna gotowa, odbiór serwerowy otwarty (25 IX 2026).
+Status: **PASS — odbiór serwerowy zamknięty** (25 IX 2026).
 
 Potwierdzenie użytkownika (25 IX 2026): **PASS pierwszego testu** — zmiana
 ikony i opisu, zapis draftu i zachowanie wartości po ponownym otwarciu projektu.
@@ -37,14 +37,15 @@ Potwierdzenie użytkownika (25 IX 2026): **PASS wszystkich pięciu szablonów** 
 Financial Sniffer, Friend Kicker, Security Panel Proxy, System Log Reader
 i Arsenal Cleaner; ścieżka utworzenie → zapis draftu → Compile → Publish.
 Potwierdzenie użytkownika (25 IX 2026): **PASS starych projektów admina**.
-Odbiór mobile: **FAIL** — boczne menu i siatki zachowały układ desktopowy,
+Pierwszy odbiór mobile: **FAIL** — boczne menu i siatki zachowały układ desktopowy,
 ściskając treść i powodując poziome przewijanie.
 Poprawka lokalna: układ zależny od szerokości kontenera GhostLaba (do 760 px),
 menu nad treścią, jednokolumnowe karty/formularze/podglądy, zawijane przyciski
 i długie identyfikatory. Zaktualizowano wersję CSS w obu powłokach gry.
 `git diff --check`: PASS. Przeglądarka narzędziowa niedostępna — brak lokalnego
-potwierdzenia wizualnego. Pozostaje ponowny odbiór Projects, Templates i edytora
-na telefonie oraz po zwężeniu okna na desktopie; sprawdzić zapis draftu.
+potwierdzenia wizualnego.
+Ponowny odbiór użytkownika po poprawce: **PASS mobile** — potwierdzona ścieżka
+Projects → Templates → edytor → zapis draftu. Odbiór 144.2 zamknięty.
 
 ## Zmiana
 
@@ -80,8 +81,8 @@ w 145–146, a lista PvP i panel admina w 144.3.
   `node tests/js/test_ghostlab_publication.js`: PASS.
 - Testy uruchamiane przez `tools/run_isolated_tests.py`, bez inicjalizacji
   aplikacji na bazie roboczej.
-- Odbiór wizualny desktop/mobile i istniejących projektów admina pozostaje
-  do wykonania na serwerze. Automatyczne testy nie zastępują tego odbioru.
+- Odbiór wizualny i projekty admina potwierdzone przez użytkownika na serwerze;
+  mobile uzyskał PASS po poprawce układu. Automatyczne testy nie zastępują tego odbioru.
 
 ## Wdrożenie
 
@@ -114,4 +115,5 @@ Ollamy/terytoriów. Zmiana nie aktualizuje automatycznie zainstalowanych wersji.
    sprawdzić stare projekty admina oraz formularz przy wąskim oknie/mobile.
    Nie migrować ponownie kont. Potwierdzić brak zmian sald i zakupionych wersji.
 
-PASS etapu dopiero po potwierdzeniu odbioru serwerowego przez użytkownika.
+PASS etapu potwierdzony odbiorem użytkownika. Konflikt dwóch okien sprawdzony
+automatycznie; ręcznego testu wielu instancji nie wykonano, jak opisano wyżej.

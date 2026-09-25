@@ -30,6 +30,15 @@ ctx.renderPlayerHackAccessPanel(null);
 assert.equal(node, null, 'inactive access does not create a window');
 ctx.renderPlayerHackAccessPanel(access);
 const first = node;
+ctx.renderPlayerHackAccessPanel({...access,tools:[
+    {id:'missing-parent',name:'Absent parent',installed:false},
+    {id:'child',name:'Own child',icon:'🐍',installed:true,enabled:false,disabled_reason:'Runtime pending'}
+]});
+assert(!node.content.innerHTML.includes('Absent parent'));
+assert(node.content.innerHTML.includes('Own child'));
+assert(node.content.innerHTML.includes('🐍'));
+ctx.renderPlayerHackAccessPanel(access);
+assert(node.content.innerHTML.includes('Brak zainstalowanych'));
 node.style.left = '210px';
 node.minimize.click();
 ctx.renderPlayerHackAccessPanel(access);

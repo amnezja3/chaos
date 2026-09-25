@@ -6,6 +6,7 @@
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  const value=v=>v===null||v===undefined||v===''?'—':String(v);
  labels.created_at='Utworzono konto';
+ if(section==='ghostlab') Object.assign(labels,{created_at:'Utworzono projekt',author:'Autor',template_id:'Szablon',source_tool_id:'Pro-tool źródłowy',downloads:'Pobrania',price_hc:'Cena HC',creation_enabled:'Tworzenie',publication_enabled:'Publikacja',runtime_enabled:'Runtime',contract_version:'Kontrakt',artifact_id:'Build',icon:'Ikona'});
  const createdDate=v=>{
   if(!v)return 'Brak daty';
   const raw=String(v).trim(),date=new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)?raw:raw+'Z');
@@ -26,9 +27,15 @@
  async function loadList(){
   const serial=++listSerial;notice.textContent='Ładowanie listy…';
   try{
-   const data=await request('/api/admin/panel/list?'+new URLSearchParams({section,offset,search:document.getElementById('search').value}));
+   const data=await request('/api/admin/panel/list?'+new URLSearchParams({section,offset,search:document.getElementById('search').value,template_id:document.getElementById('glab-filter')?.value||''}));
    if(serial!==listSerial)return;
    listing.replaceChildren();
+   if(section==='ghostlab'){
+    document.getElementById('glab-templates').replaceChildren(table(data.templates));
+    document.getElementById('glab-non').textContent='Poza GLab: '+data.non_glab.join(', ');
+    const filter=document.getElementById('glab-filter');
+    if(filter.options.length===1)data.templates.forEach(t=>filter.add(new Option(t.name,t.id)));
+   }
    if(section==='users'){
     if(!data.items.length)listing.append(node('p','Nie znaleziono użytkowników.'));
     data.items.forEach(user=>{
@@ -72,6 +79,8 @@
   }catch(error){if(serial===detailSerial)detail.replaceChildren(node('p',error.message));}
  }
  document.getElementById('search-form').onsubmit=e=>{e.preventDefault();offset=0;loadList();};
+ const glabFilter=document.getElementById('glab-filter');
+ if(glabFilter)glabFilter.onchange=()=>{offset=0;loadList();};
  document.getElementById('prev').onclick=()=>{offset=Math.max(0,offset-50);loadList();};document.getElementById('next').onclick=()=>{offset+=50;loadList();};
  loadList();
 })();

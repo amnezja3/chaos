@@ -16803,9 +16803,12 @@ def profile_fraction_values(profile):
 
 
 def pro_system_tools_catalog():
+    from ghostlab_registry import pro_tool_classification
     return [
         {
             **dict(tool),
+            **pro_tool_classification(tool['id']),
+            "bounded_install": True,
             "published": True,
             "downloads": int(tool.get("downloads") or 0),
         }
@@ -16827,15 +16830,24 @@ def creator_system_apps_catalog():
 def tracks_googleplex_downloads(item):
     # Travel tickets and other consumable products are not app downloads.
     return not is_googleplex_product(item) and (
-        item.get("bounded_install") is True
+        item.get("bounded_install") is True or bool(item.get('ghostlab_generated'))
         or (is_system_catalog_app(item) and not item.get("ghostlab_generated"))
     )
 
 
 def get_app_catalog():
     apps = resources_store.get("app_config", default=[]) or []
+    pro_tools = pro_system_tools_catalog()
+    pro_ids = {item['id'] for item in pro_tools}
+    # Code owns builtin contracts; legacy catalog copies only retain download history.
+    for item in pro_tools:
+        item['downloads'] = max([int(item.get('downloads') or 0)] + [
+            int(old.get('downloads') or 0) for old in apps
+            if old.get('id') == item['id']
+        ])
     catalog = normalize_app_contracts(
-        list(apps) + pro_system_tools_catalog() + creator_system_apps_catalog() + googleplex_product_catalog()
+        [item for item in apps if item.get('id') not in pro_ids]
+        + pro_tools + creator_system_apps_catalog() + googleplex_product_catalog()
     )
     counts = player_inventory_store.catalog_download_counts(
         item.get("id") for item in catalog if tracks_googleplex_downloads(item)
@@ -17795,6 +17807,8 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
         "downloads": 0,
         "generated": True,
         "ghostlab_generated": True,
+        "bounded_install": True,
+        "glab_contract_version": artifact.get('contract_version', 1),
         "runtime_status": "pending_custom_runtime",
         "source": "ghostlab",
         "source_project_id": str(project.get("id") or ""),
@@ -17896,32 +17910,29 @@ def serialize_player_hack_access(access):
     if not access:
         return {
             "active": False,
-            "tools": public_pro_system_tools(),
+            "tools": [],
         }
 
     victim_profile = identity_projection_store.get_identity(access.get("victim_username"))
     attacker_identity = identity_projection_store.get_identity(access.get("attacker_username"))
     if not victim_profile or not attacker_identity:
         raise ProfileRecoveryRequired("Player access identity projection unavailable")
-    attacker_profile = {"apps": [
-        {"id": tool_id} for tool_id in PLAYER_HACK_TOOL_IDS
-        if player_inventory_store.has_app(access.get("attacker_username"), tool_id)
-    ]}
+    from ghostlab_products import installed_products
     seconds_left = max(0, int(access.get("seconds_left") or 0))
-    tools = public_pro_system_tools(attacker_profile)
+    tools = installed_products(player_inventory_store.db_path, access.get('attacker_username'), PRO_SYSTEM_TOOLS)
     sniffer_usage = player_hack_access_store.get_tool_usage(
         access, access.get("attacker_username"), access.get("victim_username"), "financialSniffer"
     )
     if sniffer_usage and not str(sniffer_usage.get("result") or "").startswith("pending:"):
         for tool in tools:
-            if tool.get("id") == "financialSniffer":
+            if tool.get("family_id") == "financialSniffer":
                 tool.update(enabled=False, used=True,
                             disabled_reason="Financial Sniffer byl juz uzyty podczas tego dostepu.")
     for tool in tools:
-        if tool.get("id") == "financialSniffer":
+        if tool.get("family_id") == "financialSniffer":
             continue  # Pending wallet receipts remain recoverable.
         if player_hack_access_store.has_tool_usage(
-            access, access.get("attacker_username"), access.get("victim_username"), tool["id"]
+            access, access.get("attacker_username"), access.get("victim_username"), tool["family_id"]
         ):
             tool.update(enabled=False, used=True,
                         disabled_reason=f"{tool['name']} byl juz uzyty podczas tego dostepu.")
@@ -22346,9 +22357,16 @@ def api_admin_panel_list():
             return jsonify(success=False, error="player_not_found"), 404
     try:
         result = page(user_store.db_path, section, offset=request.args.get("offset", 0),
-                      search=request.args.get("search", ""), username=username)
+                      search=request.args.get("search", ""), username=username,
+                      template_id=request.args.get('template_id', ''))
     except ValueError:
         return jsonify(success=False, error="invalid_admin_query"), 400
+    if section == 'ghostlab':
+        from ghostlab_registry import TEMPLATES, PRO_TOOL_GLAB
+        result['templates'] = [{'id': t['id'], 'name': t['name'], 'source_tool_id': t.get('source_tool_id'),
+            'creation_enabled': t['creation_enabled'], 'publication_enabled': t['publication_enabled'],
+            'runtime_enabled': False, 'contract_version': t['contract_version']} for t in TEMPLATES.values()]
+        result['non_glab'] = [key for key, value in PRO_TOOL_GLAB.items() if value is None]
     return jsonify(success=True, **result)
 
 
@@ -22438,7 +22456,7 @@ def dev_dashboard():
     generation = session_generation_client_context()
     tab = request.args.get("tab", "users")
     return render_template("admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
-                           generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs"} else "users")
+                           generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs", "ghostlab"} else "users")
 
 @app.route("/logout")
 def logout():
@@ -25936,34 +25954,14 @@ def update_profile_security():
     key = (data.get("key") or "").strip()
     value = data.get("value")
 
-    profile = sync_session_profile()
-    security = profile.get("security", {})
-
-    if key not in security or not isinstance(security.get(key), bool):
-        return jsonify({"error": "Nieprawidlowa opcja zabezpieczen."}), 400
-
-    if not isinstance(value, bool):
-        return jsonify({"error": "Wartosc musi byc true albo false."}), 400
-
-    security[key] = value
     changed_by_rules = []
-
-    if value:
-        for conflicted_key in SECURITY_CONFLICTS.get(key, []):
-            if isinstance(security.get(conflicted_key), bool) and security.get(conflicted_key):
-                security[conflicted_key] = False
-                changed_by_rules.append(conflicted_key)
-
-    mgr = UserProfileManager(session["user"])
-    mgr.update_profile({"security": security})
-    profile = sync_session_profile()
-
-    return jsonify({
-        "success": True,
-        "security": profile.get("security", {}),
-        "changed_by_rules": changed_by_rules,
-        "rules": SECURITY_CONFLICTS
-    })
+    try:
+        result = player_security_store().update(session['user'],
+            lambda security: change_player_security(security, key, value, changed_by_rules),
+            expected_version=data.get('security_version'))
+    except ValueError as exc:
+        return jsonify(success=False, error=str(exc)), 400
+    return jsonify(success=True, **result, changed_by_rules=changed_by_rules, rules=SECURITY_CONFLICTS)
 
 
 @app.route("/api/profile/desktop", methods=["GET", "POST"])
@@ -26231,12 +26229,21 @@ def reject_player_hack_access_changed(_error):
 
 def player_hack_write_guard(attacker, victim, tool_id, access):
     expected_key = player_hack_access_store.access_key(access)
+    expected_product = resolve_player_hack_product(attacker, tool_id)
     def guard(*, conn, **_kwargs):
+        from ghostlab_products import resolve
+        from response_network.capabilities import require_targeting_allowed
+        require_targeting_allowed(conn, attacker)
         current = player_hack_access_store.get_active_access(attacker, victim, conn=conn)
         if not current or player_hack_access_store.access_key(current) != expected_key:
             raise PlayerHackAccessChanged("Player access expired or changed")
         if not player_inventory_store.has_app(attacker, tool_id, conn=conn):
             raise PlayerHackAccessChanged("Player tool uninstalled")
+        current_product = resolve(conn, attacker, tool_id, PRO_SYSTEM_TOOLS)
+        if (not current_product or not expected_product
+                or current_product.get('artifact_id') != expected_product.get('artifact_id')
+                or current_product.get('installed_version') != expected_product.get('installed_version')):
+            raise PlayerHackAccessChanged('Installed artifact changed')
     return guard
 
 
@@ -26250,6 +26257,13 @@ def validate_player_hack_tool_installation(attacker_username, victim_username, t
         return jsonify({"success": False, "reason": "tool_not_installed",
                         "error": "Narzedzie nie jest zainstalowane."}), 403
     return None
+
+
+def resolve_player_hack_product(username, app_id):
+    from database import db_connect
+    from ghostlab_products import resolve
+    with db_connect(player_inventory_store.db_path) as conn:
+        return resolve(conn, username, app_id, PRO_SYSTEM_TOOLS)
 
 
 @app.route("/api/player-hack/access")
@@ -26269,9 +26283,13 @@ def api_player_hack_tool_use():
     data = request.get_json() or {}
     tool_id = str(data.get("tool_id") or "").strip()
     victim_username = str(data.get("victim_username") or "").strip()
-    tool = get_pro_system_tool(tool_id)
+    if get_pro_system_tool(tool_id) and tool_id not in PLAYER_HACK_TOOL_IDS:
+        return jsonify(success=False, reason='unsupported_player_hack_tool', error='To narzedzie nie obsluguje PvP.'), 400
+    tool = resolve_player_hack_product(session['user'], tool_id)
     if not tool:
-        return jsonify({"success": False, "error": "Nie ma takiego narzedzia."}), 404
+        return jsonify(success=False, reason='tool_not_installed', error='Brak zainstalowanego narzedzia PvP.'), 403
+    if not tool['runtime_enabled']:
+        return jsonify(success=False, reason='runtime_pending', error=tool['disabled_reason']), 409
     if tool_id not in PLAYER_HACK_TOOL_IDS:
         return jsonify({"success": False, "reason": "unsupported_player_hack_tool",
                         "error": "To narzedzie nie obsluguje dostepu do gracza."}), 400
@@ -26331,7 +26349,8 @@ def api_player_hack_tool_use():
         if not victim_profile:
             return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
 
-        security = identity_projection_store.get_player_security(victim_username)
+        security_state = player_security_store().get(victim_username)
+        security = security_state['security']
         usage = player_hack_access_store.record_tool_usage(access, session["user"], victim_username, tool_id, result="opened")
         if usage.get("duplicate"):
             return already_used_response()
@@ -26344,6 +26363,8 @@ def api_player_hack_tool_use():
             "victim_username": victim_username,
             "victim_nick": victim_profile.get("nick") or victim_username,
             "security": security,
+            "security_version": security_state['security_version'],
+            "security_context": player_hack_access_store.access_key(access),
             "rules": SECURITY_CONFLICTS,
             "access": serialize_player_hack_access(access),
         })
@@ -26672,113 +26693,81 @@ def api_player_hack_tool_use():
                     "error": "Brak wykonania narzedzia."}), 400
 
 
-@app.route("/api/player-hack/security/update", methods=["POST"])
-def api_player_hack_security_update():
-    if "user" not in session:
-        return jsonify({"success": False, "error": "Nie jestes zalogowany"}), 401
+def player_security_store():
+    from player_security_store import PlayerSecurityStore
+    return PlayerSecurityStore(user_store.db_path)
 
-    data = request.get_json() or {}
-    victim_username = str(data.get("victim_username") or "").strip()
-    key = str(data.get("key") or "").strip()
-    value = data.get("value")
-    if not victim_username:
-        return jsonify({"success": False, "error": "Brak ofiary."}), 400
-    if not key:
-        return jsonify({"success": False, "error": "Brak klucza zabezpieczenia."}), 400
 
-    access = player_hack_access_store.get_active_access(session["user"], victim_username)
-    if not access:
-        return jsonify({
-            "success": False,
-            "error": "Dostep do tego gracza wygasl albo nie istnieje."
-        }), 403
-
-    tool_error = validate_player_hack_tool_installation(session["user"], victim_username, "securityPanelProxy")
-    if tool_error:
-        return tool_error
-    victim_record = load_profile_write_record(victim_username)
-    if not victim_record:
-        return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
-    victim_profile = copy.deepcopy(victim_record["profile"])
-
-    security = dict(victim_profile.get("security") or {})
-    if key not in security or not isinstance(security.get(key), bool):
-        return jsonify({"success": False, "error": "Nieprawidlowa opcja zabezpieczen."}), 400
-    if not isinstance(value, bool):
-        return jsonify({"success": False, "error": "Wartosc musi byc true albo false."}), 400
-
+def change_player_security(security, key, value, changed):
+    if key not in security or type(security[key]) is not bool or type(value) is not bool:
+        raise ValueError('Nieprawidlowa opcja lub wartosc zabezpieczen.')
     security[key] = value
-    changed_by_rules = []
     if value:
-        for conflicted_key in SECURITY_CONFLICTS.get(key, []):
-            if isinstance(security.get(conflicted_key), bool) and security.get(conflicted_key):
-                security[conflicted_key] = False
-                changed_by_rules.append(conflicted_key)
-
-    user_store.patch_profile_guarded(
-        victim_username,
-        {"security": security},
-        source="player_hack.security_update",
-        expected_revision=int(victim_record["profile_revision"]),
-        precommit_guard=player_hack_write_guard(session["user"], victim_username, "securityPanelProxy", access),
-    )
-    refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
-    return jsonify({
-        "success": True,
-        "security": security,
-        "changed_by_rules": changed_by_rules,
-        "rules": SECURITY_CONFLICTS,
-        "access": serialize_player_hack_access(refreshed_access),
-    })
+        for other in SECURITY_CONFLICTS.get(key, []):
+            if security.get(other) is True:
+                security[other] = False
+                changed.append(other)
+    return security
 
 
-@app.route("/api/player-hack/security/preset", methods=["POST"])
-def api_player_hack_security_preset():
-    if "user" not in session:
-        return jsonify({"success": False, "error": "Nie jestes zalogowany"}), 401
-
-    data = request.get_json() or {}
-    victim_username = str(data.get("victim_username") or "").strip()
-    preset = str(data.get("preset") or "").strip().lower()
-    if not victim_username:
-        return jsonify({"success": False, "error": "Brak ofiary."}), 400
-
-    access = player_hack_access_store.get_active_access(session["user"], victim_username)
+def player_hack_security_mutation(preset=False):
+    if 'user' not in session:
+        return jsonify(success=False, error='Nie jestes zalogowany'), 401
+    data = request.get_json(silent=True) or {}
+    attacker, victim = session['user'], str(data.get('victim_username') or '').strip()
+    tool_id = str(data.get('tool_id') or 'securityPanelProxy')
+    access = player_hack_access_store.get_active_access(attacker, victim) if victim else None
     if not access:
-        return jsonify({
-            "success": False,
-            "error": "Dostep do tego gracza wygasl albo nie istnieje."
-        }), 403
-
-    tool_error = validate_player_hack_tool_installation(session["user"], victim_username, "securityPanelProxy")
-    if tool_error:
-        return tool_error
-    victim_record = load_profile_write_record(victim_username)
-    if not victim_record:
-        return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
-    victim_profile = copy.deepcopy(victim_record["profile"])
-
+        return jsonify(success=False, error='Brak aktywnego dostepu.'), 403
+    product = resolve_player_hack_product(attacker, tool_id)
+    if not product or product['family_id'] != 'securityPanelProxy' or not product['runtime_enabled']:
+        return jsonify(success=False, reason='tool_not_installed', error='Narzedzie niedostepne.'), 403
+    context = player_hack_access_store.access_key(access)
+    if data.get('security_context') != context:
+        return jsonify(success=False, reason='security_context_changed', error='Otworz ponownie panel zabezpieczen.'), 409
+    receipt = player_hack_access_store.get_tool_usage(access, attacker, victim, product['family_id'])
+    if not receipt:
+        return jsonify(success=False, error='Najpierw otworz panel zabezpieczen.'), 403
+    if type(data.get('security_version')) is not int:
+        return jsonify(success=False, error='Brak wersji zabezpieczen. Otworz ponownie panel.'), 409
+    changed = []
+    transform = (lambda security: build_security_preset(security, str(data.get('preset') or '').lower())) if preset else (
+        lambda security: change_player_security(security, str(data.get('key') or ''), data.get('value'), changed))
     try:
-        security = build_security_preset(victim_profile.get("security", {}), preset)
+        result = player_security_store().update(victim, transform,
+            expected_version=data['security_version'], guard=player_hack_write_guard(attacker, victim, tool_id, access))
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+        return jsonify(success=False, error=str(exc)), 400
+    return jsonify(success=True, **result, security_context=context, tool_id=tool_id,
+                   changed_by_rules=changed, rules=SECURITY_CONFLICTS,
+                   access=serialize_player_hack_access(access))
 
-    user_store.patch_profile_guarded(
-        victim_username,
-        {"security": security},
-        source="player_hack.security_preset",
-        expected_revision=int(victim_record["profile_revision"]),
-        precommit_guard=player_hack_write_guard(session["user"], victim_username, "securityPanelProxy", access),
-    )
-    refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
-    return jsonify({
-        "success": True,
-        "security": security,
-        "preset": preset,
-        "rules": SECURITY_CONFLICTS,
-        "access": serialize_player_hack_access(refreshed_access),
-    })
 
+@app.route('/api/player-hack/security/update', methods=['POST'])
+def api_player_hack_security_update():
+    return player_hack_security_mutation()
+
+
+@app.route('/api/player-hack/security', methods=['GET'])
+def api_player_hack_security_read():
+    attacker = session.get('user')
+    if not attacker:
+        return jsonify(success=False, error='Nie jestes zalogowany'), 401
+    victim = str(request.args.get('victim_username') or '')
+    tool_id = str(request.args.get('tool_id') or 'securityPanelProxy')
+    access = player_hack_access_store.get_active_access(attacker, victim) if victim else None
+    product = resolve_player_hack_product(attacker, tool_id)
+    if (not access or not product or product['family_id'] != 'securityPanelProxy' or not product['runtime_enabled']
+            or not player_hack_access_store.has_tool_usage(access, attacker, victim, product['family_id'])):
+        return jsonify(success=False, error='Panel zabezpieczen niedostepny.'), 403
+    return jsonify(success=True, **player_security_store().get(victim), tool=product, tool_id=tool_id,
+                   security_context=player_hack_access_store.access_key(access), victim_username=victim,
+                   access=serialize_player_hack_access(access), rules=SECURITY_CONFLICTS)
+
+
+@app.route('/api/player-hack/security/preset', methods=['POST'])
+def api_player_hack_security_preset():
+    return player_hack_security_mutation(preset=True)
 
 @app.route("/api/map/player-targets/mark", methods=["POST"])
 def mark_player_target(target_username_override=None):
@@ -28977,6 +28966,15 @@ def install_app():
         app_data = next((app for app in catalog if app.get("id") == app_id), None)
         if not app_data:
             return jsonify({"status": "error", "reason": "catalog_item_not_found", "message": "App not found"}), 404
+        canonical_publication = None
+        if app_data.get('ghostlab_generated') or app_id.startswith('ghostlab_'):
+            from database import db_connect
+            from ghostlab_products import published_product
+            with db_connect(player_inventory_store.db_path) as conn:
+                canonical_publication = published_product(conn, app_id)
+            if not canonical_publication:
+                return jsonify(status='error', reason='untrusted_glab_product', message='Brak kanonicznej publikacji.'), 409
+            app_data = dict(canonical_publication, bounded_install=True)
         if app_data.get('published') is False:
             return jsonify(status='error', reason='publication_withdrawn', message='Aplikacja zostala wycofana ze sprzedazy.'), 409
 
@@ -28988,6 +28986,15 @@ def install_app():
 
         if app_data.get("bounded_install") is True:
             buyer_username = str(session.get("user") or "").strip()
+            if is_pro_system_tool(app_data) and (int(app_data.get('required_level') or 1) > 1
+                    or int(app_data.get('required_respect') or 0) > 0 or app_data.get('allowed_fractions')):
+                identity = identity_projection_store.get_creator_identity(buyer_username)
+                capabilities = capability_projection_store.get_capabilities(buyer_username)
+                if not identity or not capabilities:
+                    raise ProfileRecoveryRequired('Install requirements projection unavailable')
+                requirement_error = validate_app_install_requirements(app_data, {**identity, **capabilities})
+                if requirement_error:
+                    return jsonify(status='error', reason='requirements_not_met', message=requirement_error), 400
             purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}"
             price = max(0, int(app_data.get("price") or 0))
             payee_username = str(app_data.get("purchase_account") or "admin").strip() or "admin"
@@ -28995,6 +29002,10 @@ def install_app():
 
             def install_in_purchase(conn, transaction):
                 del transaction
+                if canonical_publication:
+                    current = published_product(conn, app_id)
+                    if not current or current.get('published') is False or current['artifact_id'] != app_data['artifact_id'] or current['price'] != app_data['price']:
+                        raise PlayerHackAccessChanged('Publication changed during purchase')
                 installed.update(player_inventory_store.install_app_with_conn(
                     conn,
                     buyer_username,
@@ -29015,12 +29026,11 @@ def install_app():
                 balance = int(payment.get("source_balance") or 0)
                 payment_duplicate = bool(payment.get("duplicate"))
             else:
-                install_result = player_inventory_store.install_app(
-                    buyer_username,
-                    normalize_app_contract(copy.deepcopy(app_data)),
-                    purchase_key=purchase_key,
-                )
-                installed.update(install_result)
+                from database import db_connect
+                with db_connect(player_inventory_store.db_path) as conn:
+                    conn.execute('BEGIN IMMEDIATE')
+                    install_in_purchase(conn, None)
+                install_result = installed
                 balance = canonical_wallet_balance(buyer_username)
                 payment_duplicate = bool(install_result.get("duplicate"))
 

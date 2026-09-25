@@ -1,6 +1,6 @@
 # Sprint 144.2 — GhostLab: wspólny kreator i przygotowanie do runtime
 
-Status: **IMPLEMENTACJA LOKALNA GOTOWA — ODBIÓR SERWEROWY OTWARTY**, 25 IX 2026. Po PASS [144.1](sprint_144_1_ghostlab_template_registry.md).
+Status: **PASS — ODBIÓR ZAMKNIĘTY**, 25 IX 2026. Po PASS [144.1](sprint_144_1_ghostlab_template_registry.md).
 Wdrożenie i testy: [runbook 144.2](../runbooks/sprint_144_2_ghostlab_authoring.md).
 To rozszerzenie 144, nie dawna sekcja compiler w bazowym planie.
 Następny: [144.3 — aktualizacja pro-toolsów i admin](sprint_144_3_pro_tools_glab_alignment.md), następnie 145.

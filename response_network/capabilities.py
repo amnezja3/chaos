@@ -72,6 +72,7 @@ def require_request(conn, actor, path, method, endpoint=None):
         '/api/map/aim-target', '/api/map/player-targets/mark',
         '/api/victim-picker/aim', '/api/victim-picker/candidates',
         '/map-action', '/hack-action', '/gonna-win', '/api/player-hack/tool/use',
+        '/api/player-hack/security/update', '/api/player-hack/security/preset',
     }:
         if path == '/map-action':
             from flask import has_request_context, request

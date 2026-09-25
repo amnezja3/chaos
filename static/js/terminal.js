@@ -4348,7 +4348,7 @@ function openSystemLogReaderApp(payload = {}) {
     const victimName = access.victim_nick || access.victim_username || 'unknown';
     const secondsLeft = access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0;
     app.innerHTML = `
-        <div class="title-bar">System Log Reader <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'System Log Reader')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="system-log-reader-content">
             <div class="system-log-reader-meta">
                 <span>victim: <b>${escapeHTML(String(victimName))}</b></span>
@@ -4400,7 +4400,7 @@ function openFinancialSnifferApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Financial Sniffer <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Financial Sniffer')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="financial-sniffer-content"></div>
     `;
     document.body.appendChild(app);
@@ -4445,7 +4445,7 @@ function openFriendKickerApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Friend Kicker <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Friend Kicker')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="friend-kicker-content"></div>
     `;
     document.body.appendChild(app);
@@ -4490,7 +4490,7 @@ function openArsenalCleanerApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Arsenal Cleaner <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Arsenal Cleaner')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="arsenal-cleaner-content"></div>
     `;
     document.body.appendChild(app);
@@ -4510,6 +4510,8 @@ function securityPanelProxySetMessage(container, type, message) {
 }
 
 function renderSecurityPanelProxy(container, payload = {}) {
+    container._securityContext = {tool_id: payload.tool_id || 'securityPanelProxy',
+        security_version: payload.security_version, security_context: payload.security_context};
     const app = container.closest('.security-panel-proxy-window') || container;
     const security = payload.security || {};
     const victimUsername = payload.victim_username || app.dataset.victimUsername || '';
@@ -4537,6 +4539,7 @@ function renderSecurityPanelProxy(container, payload = {}) {
             <span>access: <b>${formatHackAccessTime(secondsLeft)}</b></span>
         </div>
         <div class="security-panel-proxy-presets">
+            <button type="button" data-security-refresh ${isExpired ? 'disabled' : ''}>Odśwież</button>
             ${['open', 'low', 'regular', 'secure', 'all'].map(preset => `
                 <button type="button" data-security-preset="${preset}" ${isExpired ? 'disabled' : ''}>${preset}</button>
             `).join('')}
@@ -4552,6 +4555,16 @@ function renderSecurityPanelProxy(container, payload = {}) {
             updateVictimSecurity(victimUsername, toggle.dataset.securityKey, toggle.checked, container);
         });
     });
+    container.querySelector('[data-security-refresh]')?.addEventListener('click', async () => {
+        try {
+            const response = await fetch('/api/player-hack/security?' + new URLSearchParams({
+                victim_username: victimUsername, tool_id: container._securityContext.tool_id
+            }));
+            const data = await response.json();
+            if (!response.ok || !data.success) throw Error(data.error || 'Panel niedostępny.');
+            renderSecurityPanelProxy(container, data);
+        } catch (error) { securityPanelProxySetMessage(container, 'error', error.message); }
+    });
     container.querySelectorAll('[data-security-preset]').forEach(btn => {
         btn.addEventListener('click', () => {
             applyVictimSecurityPreset(victimUsername, btn.dataset.securityPreset, container);
@@ -4566,7 +4579,7 @@ function openSecurityPanelProxyApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Security Panel Proxy <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Security Panel Proxy')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="security-panel-proxy-content"></div>
     `;
     document.body.appendChild(app);
@@ -4581,7 +4594,7 @@ async function updateVictimSecurity(victimUsername, key, value, container) {
         const res = await fetch('/api/player-hack/security/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ victim_username: victimUsername, key, value })
+            body: JSON.stringify({ ...container._securityContext, victim_username: victimUsername, key, value })
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -4597,7 +4610,7 @@ async function updateVictimSecurity(victimUsername, key, value, container) {
         });
     } catch (err) {
         securityPanelProxySetMessage(container, 'error', err.message || 'Blad zapisu.');
-        container.querySelectorAll('button, input').forEach(el => el.disabled = true);
+        container.querySelectorAll('button:not([data-security-refresh]), input').forEach(el => el.disabled = true);
     }
 }
 
@@ -4607,7 +4620,7 @@ async function applyVictimSecurityPreset(victimUsername, preset, container) {
         const res = await fetch('/api/player-hack/security/preset', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ victim_username: victimUsername, preset })
+            body: JSON.stringify({ ...container._securityContext, victim_username: victimUsername, preset })
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -4621,7 +4634,7 @@ async function applyVictimSecurityPreset(victimUsername, preset, container) {
         });
     } catch (err) {
         securityPanelProxySetMessage(container, 'error', err.message || 'Blad presetu.');
-        container.querySelectorAll('button, input').forEach(el => el.disabled = true);
+        container.querySelectorAll('button:not([data-security-refresh]), input').forEach(el => el.disabled = true);
     }
 }
 
@@ -4670,7 +4683,7 @@ function renderPlayerHackAccessPanel(access) {
         seconds_left: Math.max(0, Number(access.seconds_left) || 0)
     };
 
-    const tools = Array.isArray(access.tools) ? access.tools : [];
+    const tools = Array.isArray(access.tools) ? access.tools.filter(tool => tool.installed === true) : [];
     if (changedVictim) bringWindowToFront(panel);
     panel.querySelector('[data-player-hack-content]').innerHTML = `
         <div class="player-hack-access-head">
@@ -4687,11 +4700,11 @@ function renderPlayerHackAccessPanel(access) {
                 const title = disabled ? reason : (tool.description || "");
                 return `
                 <button type="button" class="player-hack-tool-btn" data-tool-id="${escapeHTML(tool.id)}" title="${escapeHTML(title)}" ${disabled ? "disabled" : ""}>
-                    <span>${escapeHTML(tool.name || tool.id)}</span>
+                    <span>${escapeHTML(tool.icon || '')} ${escapeHTML(tool.name || tool.id)}</span>
                     <small>${disabled ? escapeHTML(reason) : `LVL ${Number(tool.required_level || 1)} / ${price} HC`}</small>
                 </button>
             `;
-            }).join('')}
+            }).join('') || '<p>Brak zainstalowanych narzędzi do tego dostępu.</p>'}
         </div>
         <div class="player-hack-access-message" data-player-hack-message></div>
     `;
@@ -4723,6 +4736,7 @@ function renderPlayerHackAccessPanel(access) {
 }
 
 async function refreshPlayerHackAccess(prefetched = null) {
+    const serial = refreshPlayerHackAccess.serial = (refreshPlayerHackAccess.serial || 0) + 1;
     if (prefetched) {
         const newGrant = prefetched.active && prefetched.hacked_until
             && (prefetched.hacked_until !== playerHackAccessState?.hacked_until
@@ -4733,11 +4747,13 @@ async function refreshPlayerHackAccess(prefetched = null) {
     }
     try {
         const res = await fetch('/api/player-hack/access');
+        if (serial !== refreshPlayerHackAccess.serial) return null;
         if (!res.ok) {
             renderPlayerHackAccessPanel(null);
             return null;
         }
         const data = await res.json();
+        if (serial !== refreshPlayerHackAccess.serial) return null;
         renderPlayerHackAccessPanel(data);
         return data;
     } catch (err) {
@@ -4751,7 +4767,7 @@ function openIntruderKickerApp(payload = {}) {
     app.className = 'app-window';
     Object.assign(app.style, { position: 'absolute', top: '60px', left: '12px',
         width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100vh - 90px)', overflow: 'auto' });
-    app.innerHTML = `<div class="app-header">Intruder Kicker <button class="close-btn" aria-label="Zamknij">×</button></div>
+    app.innerHTML = `<div class="app-header">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Intruder Kicker')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <button class="close-btn" aria-label="Zamknij">×</button></div>
         <div style="padding:16px;overflow-wrap:anywhere">${escapeHTML(payload.message || '')}</div>`;
     document.body.appendChild(app);
     makeDraggable(app);
@@ -4828,6 +4844,9 @@ async function usePlayerHackTool(toolId) {
 }
 
 window.refreshPlayerHackAccess = refreshPlayerHackAccess;
+window.addEventListener('chaos:apps-projection-updated', () => {
+    if (playerHackAccessState?.active) refreshPlayerHackAccess();
+});
 
 
 const DEV_BUG_CATEGORIES = ["UI", "Map", "Operations", "Files", "Ghost Exchange", "Googleplex", "Login", "Performance", "Other"];

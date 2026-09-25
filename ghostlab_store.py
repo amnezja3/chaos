@@ -57,6 +57,7 @@ class GhostLabStore:
             conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_legacy_ids (
                 owner TEXT NOT NULL, legacy_id TEXT NOT NULL, project_id TEXT NOT NULL,
                 PRIMARY KEY(owner, legacy_id))''')
+            conn.execute("CREATE INDEX IF NOT EXISTS ghostlab_template_page ON ghostlab_publications(json_extract(app_json,'$.template_id'),app_id)")
             first = conn.execute("INSERT OR IGNORE INTO ghostlab_meta VALUES ('initialized', ?)", (now(),)).rowcount
             if first:
                 # Bounded identity columns only. Existing accounts must be migrated offline.

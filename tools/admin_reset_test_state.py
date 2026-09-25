@@ -189,6 +189,7 @@ def clear_user_relations(conn, username, delete_account=False):
     if table_exists(conn, "kv_store"):
         conn.execute("DELETE FROM kv_store WHERE key = ?", (f"mail_seed:{username}",))
     if delete_account:
+        delete_by_columns(conn, "player_security", username, ["username"])
         conn.execute("DELETE FROM users WHERE username = ?", (username,))
 
 

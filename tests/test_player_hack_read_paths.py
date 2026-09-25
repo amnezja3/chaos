@@ -74,7 +74,7 @@ class PlayerHackReadPathsTest(unittest.TestCase):
             try:
                 response = self.client.get('/api/player-hack/access')
                 self.assertEqual(response.status_code, 200, response.get_json())
-                self.assertEqual({t['id'] for t in response.json['tools']}, run.PLAYER_HACK_TOOL_IDS)
+                self.assertEqual({t['id'] for t in response.json['tools']}, {'systemLogReader'})
                 response = self.client.post('/api/player-hack/tool/use', json={'tool_id': 'systemLogReader', 'victim_username': 'victim'})
                 self.assertEqual(response.status_code, 200, response.get_json())
                 self.assertEqual([m['title'] for m in response.json['logs']], ['3', '4', '5', '6', '7'])

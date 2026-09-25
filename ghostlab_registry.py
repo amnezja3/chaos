@@ -257,6 +257,24 @@ TEMPLATES = {'financial_sniffer': {'id': 'financial_sniffer',
 
 
 # Explicit code-owned classification. Intruder contract is prepared in 144.3.
+TEMPLATES['intruder_kicker'] = {
+    'id': 'intruder_kicker', 'name': 'Intruder Kicker', 'icon': '🚷',
+    'category': 'territory', 'tool_category': 'territory',
+    'description': 'Usuwa intruza z własnego terytorium przy aktywnym dostępie PvP. Jedno użycie rodziny na dostęp.',
+    'recommended_level': 1, 'required_respect': 0, 'risk_level': 0, 'price': 7500,
+    'source_tool_id': 'intruderKicker', 'schema_version': 1, 'policy_version': 1, 'contract_version': 1,
+    'target_kind': 'player', 'launch_mode': 'player_hack_access', 'result_type': 'intruder_kicker',
+    'executor_id': None, 'creation_enabled': True, 'publication_enabled': True, 'runtime_enabled': False,
+    'presentation_ids': ['default'],
+    'fields': {
+        'target_policy': {'type': 'string', 'default': 'intruder_in_own_territory', 'editable': False, 'max_length': 80},
+        'usage_policy': {'type': 'string', 'default': 'once_per_access_family', 'editable': False, 'max_length': 80},
+        'success_message': {'type': 'string', 'default': 'Intruz został usunięty z terytorium.', 'editable': True, 'max_length': 240},
+    },
+    'app_contract': {'tool_family': 'exploit', 'tool_mode': 'desktop', 'map_actions': [],
+                     'target_types': ['player'], 'operation_types': [], 'resource_types': ['internal_recon_state']},
+}
+
 PRO_TOOL_GLAB = {
     'financialSniffer': 'financial_sniffer', 'friendKicker': 'friend_kicker',
     'systemLogReader': 'system_log_reader', 'securityPanelProxy': 'security_panel_proxy',
@@ -265,7 +283,6 @@ PRO_TOOL_GLAB = {
     'ghostnetworkSuite': None, 'agi2108Console': None,
 }
 PLANNED_CONTRACTS = {
-    'intruder_kicker': {'source_tool_id': 'intruderKicker', 'target_kind': 'player', 'launch_mode': 'player_hack_access'},
     'travel_ticket': {'source_tool_id': None, 'target_kind': 'destination', 'launch_mode': 'desktop'},
     'system_maintenance': {'source_tool_id': None, 'target_kind': 'own_system', 'launch_mode': 'desktop'},
     'storage_extension': {'source_tool_id': None, 'target_kind': 'own_storage', 'launch_mode': 'desktop'},
@@ -369,6 +386,15 @@ def validate_pro_tool_assignments(tools):
     for tool_id, template_id in PRO_TOOL_GLAB.items():
         if template_id is None:
             continue
-        definition = get_template(template_id) or PLANNED_CONTRACTS.get(template_id)
+        definition = get_template(template_id)
         if not definition or definition['source_tool_id'] != tool_id:
             raise ValueError('Invalid GLab source binding: ' + tool_id)
+
+
+def pro_tool_classification(tool_id):
+    if tool_id not in PRO_TOOL_GLAB:
+        raise ValueError('Missing GLab classification: ' + tool_id)
+    template_id = PRO_TOOL_GLAB[tool_id]
+    definition = get_template(template_id) or {}
+    return {'glab_enabled': template_id is not None, 'glab_template_id': template_id,
+            'glab_contract_version': definition.get('contract_version')}

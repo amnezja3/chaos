@@ -1,6 +1,7 @@
 # Sprint 144.3 — pro-toolsy: przypisanie GLab i lista potomstwa w adminie
 
-Status: **ZAPLANOWANY**, 25 IX 2026.
+Status: **IMPLEMENTACJA LOKALNA — ODBIÓR SERWEROWY OTWARTY**, 25 IX 2026.
+Wdrożenie, migracja i odbiór: [runbook 144.3](../runbooks/sprint_144_3_glab_alignment.md).
 Po [144.1](sprint_144_1_ghostlab_template_registry.md) i
 [144.2](sprint_144_2_ghostlab_template_authoring.md), przed
 [145](sprint_145_ghostlab_system_log_reader.md).

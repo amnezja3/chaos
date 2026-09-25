@@ -76,3 +76,13 @@ Przed wdrożeniem należy porównać lokalny rejestr z katalogiem serwera, oddzi
 wbudowane produkty, potomstwo graczy i legacy bez pewnego pochodzenia.
 
 Realizacja: [144.3 — aktualizacja pro-toolsów](../sprints/sprint_144_3_pro_tools_glab_alignment.md).
+
+### Aktualizacja po implementacji 144.3
+
+Lokalnie wdrożono klasyfikację 6 GLab / 5 poza GLab, widok admina,
+listę faktycznie zainstalowanych produktów PvP i kontrolę pochodzenia potomstwa.
+Znalezione ciężkie ścieżki instalacji pro-toolsów oraz zapisu zabezpieczeń
+zastąpiono osobnymi magazynami danych i objęto testami regresji.
+Stare kopie wbudowanych produktów w katalogu nie przesłaniają kontraktu z kodu.
+To nie oznacza uruchomienia runtime potomstwa ani zakończenia odbioru serwerowego.
+Migracja zabezpieczeń i odbiór: [runbook 144.3](../runbooks/sprint_144_3_glab_alignment.md).

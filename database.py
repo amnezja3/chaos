@@ -737,6 +737,11 @@ def overlay_canonical_profile_scopes_with_conn(conn, username, profile):
     candidate = copy.deepcopy(profile if isinstance(profile, dict) else {})
     overlaid_scopes = []
 
+    security_row = conn.execute('SELECT security_json FROM player_security WHERE username=?', (username,)).fetchone()
+    if security_row:
+        candidate['security'] = loads_json(security_row['security_json'], {})
+        overlaid_scopes.append('security')
+
     wallet_row = conn.execute(
         "SELECT balance FROM wallet_balances WHERE username = ?",
         (username,),
@@ -1548,6 +1553,14 @@ def init_db(db_path=DB_PATH):
             """
             CREATE INDEX IF NOT EXISTS idx_profile_lkg_revision
             ON profile_last_known_good(profile_revision, created_at)
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_security (
+                username TEXT PRIMARY KEY, security_json TEXT NOT NULL,
+                version INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+            )
             """
         )
         conn.execute(
@@ -3121,6 +3134,10 @@ def _upsert_identity_projection_with_conn(
         raise ProfileValidationError(("identity_projection_source_invalid",))
     if revision == 1:
         _seed_launcher_runtime_with_conn(conn, profile)
+        security = _bounded_player_security(profile)
+        if security is not None:
+            conn.execute('INSERT OR IGNORE INTO player_security VALUES (?,?,1,?)',
+                         (username, dumps_json(security), utc_now()))
     conn.execute(
         """
         INSERT INTO user_identity_projection (
@@ -3385,6 +3402,10 @@ class UserStore:
             raise ProfileRecoveryRequired(
                 f"User '{username}' requires profile recovery."
             )
+        with db_connect(self.db_path) as conn:
+            security_row = conn.execute('SELECT security_json FROM player_security WHERE username=?', (username,)).fetchone()
+            if security_row:
+                profile['security'] = loads_json(security_row['security_json'], {})
         return profile
 
     def get_profile_with_revision(self, username):
@@ -4571,6 +4592,7 @@ class UserStore:
             conn.execute("DELETE FROM player_marked_target_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM profile_last_known_good WHERE username = ?", (username,))
             conn.execute("DELETE FROM user_identity_projection WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_security WHERE username = ?", (username,))
             conn.execute("DELETE FROM user_capability_projection WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launcher_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launch_entries WHERE username = ?", (username,))
@@ -4680,14 +4702,12 @@ class UserIdentityProjectionStore:
                 or desktop.get("source_profile_revision") != identity["source_profile_revision"]
                 or desktop.get("source_profile_checksum") != identity["source_profile_checksum"]):
             raise ProfileRecoveryRequired("Desktop projection is stale")
+        desktop['player_security'] = self.get_player_security(username)
         return {**desktop, "identity": identity}
 
     def get_player_security(self, username):
-        desktop = self.get_desktop_boot(username)
-        security = desktop.get("player_security")
-        if not isinstance(security, dict) or _bounded_player_security({"security": security}) is None:
-            raise ProfileRecoveryRequired("Player security projection migration or recovery required")
-        return dict(security)
+        from player_security_store import PlayerSecurityStore
+        return PlayerSecurityStore(self.db_path).get(username)['security']
 
     def get_creator_identity(self, username):
         """Identity and respect only; never hydrate desktop/security or user profile."""
@@ -5058,6 +5078,8 @@ class JsonResourceStore:
                         incoming = by_id.get(canonical["id"])
                         if incoming:
                             canonical["downloads"] = max(int(canonical.get("downloads") or 0), int(incoming.get("downloads") or 0))
+                            conn.execute('UPDATE ghostlab_publications SET app_json=? WHERE app_id=?',
+                                         (dumps_json(canonical), canonical['id']))
                         by_id[canonical["id"]] = canonical
                     value = list(by_id.values())
             conn.execute(

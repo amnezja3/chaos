@@ -221,7 +221,8 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
                     retry = self.inventory.install_app(username, tool, purchase_key=key)
                     self.assertFalse(first['duplicate'])
                     self.assertTrue(retry['duplicate'])
-                    self.assertTrue(self.inventory.record_catalog_download(app_id, key))
+                    # 144.3: all pro-tools record the receipt atomically with install.
+                    self.assertFalse(self.inventory.record_catalog_download(app_id, key))
                     self.assertFalse(self.inventory.record_catalog_download(app_id, key))
                 self.inventory.uninstall_app('alice', app_id=app_id)
             refreshed = {item['id']: item for item in run.get_app_catalog()}

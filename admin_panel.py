@@ -2,7 +2,7 @@
 from database import db_connect
 
 
-def page(db_path, section, *, offset=0, search="", username=""):
+def page(db_path, section, *, offset=0, search="", username="", template_id=""):
     offset = max(0, min(int(offset), 1000000))
     search = str(search or "")[:100]
     params = []
@@ -17,6 +17,24 @@ def page(db_path, section, *, offset=0, search="", username=""):
                       OR instr(lower(COALESCE(p.display_alias,'')), lower(?))>0
                    ORDER BY u.username"""
         params = [search, search]
+    elif section == "ghostlab":
+        query = """SELECT g.app_id, json_extract(g.app_json,'$.template_id') AS template_id,
+            json_extract(g.app_json,'$.name') AS name, g.owner AS author,
+            json_extract(g.app_json,'$.icon') AS icon,
+            COALESCE(json_extract(g.app_json,'$.downloads'),0) + COALESCE(d.downloads,0) AS downloads,
+            json_extract(p.project_json,'$.created_at') AS created_at,
+            json_extract(g.app_json,'$.price') AS price_hc,
+            CASE WHEN json_extract(g.app_json,'$.published')=1 THEN 'published' ELSE 'withdrawn' END AS status,
+            g.artifact_id FROM ghostlab_publications g
+            JOIN ghostlab_projects p ON p.app_id=g.app_id AND p.owner=g.owner
+            LEFT JOIN googleplex_download_counts d ON d.app_id=g.app_id
+            WHERE (instr(lower(g.owner),lower(?))>0 OR instr(lower(json_extract(g.app_json,'$.name')),lower(?))>0)
+        """
+        params = [search, search]
+        if template_id:
+            query += " AND json_extract(g.app_json,'$.template_id')=?"
+            params.append(template_id)
+        query += " ORDER BY g.app_id"
     elif section == "territories":
         query = """SELECT id, owner_username AS owner, area_size, status,
                    centroid_lat AS lat, centroid_lng AS lng, updated_at
