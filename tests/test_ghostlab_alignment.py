@@ -117,6 +117,23 @@ class GhostLabAlignmentTest(unittest.TestCase):
         self.assertFalse(self.identity.get_player_security('victim')['firewall'])
         self.assertFalse(self.users.get_profile('victim')['security']['firewall'])
 
+    def test_security_reopen_preserves_usage_and_requires_installation(self):
+        self.open_security()
+        access = self.access.get_active_access('attacker', 'victim')
+        before = self.access.get_tool_usage(access, 'attacker', 'victim', 'securityPanelProxy')
+        with self.no_heavy():
+            state = self.client.get('/api/player-hack/access').json
+            tool = next(t for t in state['tools'] if t['id'] == 'securityPanelProxy')
+            self.assertTrue(tool['used'])
+            self.assertTrue(tool['can_reopen'])
+            for _ in range(2):
+                response = self.client.get('/api/player-hack/security?victim_username=victim')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json['result_type'], 'security_panel')
+            self.assertEqual(before, self.access.get_tool_usage(access, 'attacker', 'victim', 'securityPanelProxy'))
+            self.inventory.uninstall_app('attacker', app_id='securityPanelProxy')
+            self.assertEqual(self.client.get('/api/player-hack/security?victim_username=victim').status_code, 403)
+
     def test_security_second_writer_uninstall_and_revocation(self):
         payload = self.open_security()
         self.security.update('victim',lambda s:dict(s,firewall=False))

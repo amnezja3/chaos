@@ -17936,6 +17936,8 @@ def serialize_player_hack_access(access):
         ):
             tool.update(enabled=False, used=True,
                         disabled_reason=f"{tool['name']} byl juz uzyty podczas tego dostepu.")
+            tool['can_reopen'] = (tool['family_id'] == 'securityPanelProxy'
+                                  and tool.get('runtime_enabled') is True and seconds_left > 0)
     return {
         "active": seconds_left > 0,
         "victim_username": access.get("victim_username"),
@@ -26760,7 +26762,7 @@ def api_player_hack_security_read():
     if (not access or not product or product['family_id'] != 'securityPanelProxy' or not product['runtime_enabled']
             or not player_hack_access_store.has_tool_usage(access, attacker, victim, product['family_id'])):
         return jsonify(success=False, error='Panel zabezpieczen niedostepny.'), 403
-    return jsonify(success=True, **player_security_store().get(victim), tool=product, tool_id=tool_id,
+    return jsonify(success=True, result_type='security_panel', **player_security_store().get(victim), tool=product, tool_id=tool_id,
                    security_context=player_hack_access_store.access_key(access), victim_username=victim,
                    access=serialize_player_hack_access(access), rules=SECURITY_CONFLICTS)
 

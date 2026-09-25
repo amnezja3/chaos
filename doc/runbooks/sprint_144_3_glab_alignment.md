@@ -2,6 +2,19 @@
 
 Status: implementacja lokalna; wdrożenie i odbiór produkcyjny otwarte.
 
+### Odbiór serwerowy 25 IX 2026
+
+- Audyt katalogu PASS po usunięciu starego wpisu testowego ghostlab_getsfilen_1
+  (kopia bazy, 1 usunięty wpis, 5 kanonicznych publikacji, brak anomalii).
+- Migracja zabezpieczeń: 37/37 migrated.
+- Admin PASS. Syslog: instalacja → obecny, runtime pending → uninstall → znika: PASS.
+- Blokady aresztu oraz zapis zabezpieczeń zgodny na obu kontach: PASS.
+- Nieaktualna wersja odrzucona jako profile_write_conflict: PASS.
+- Wykryto brak możliwości ponownego otwarcia użytego Proxy po zamknięciu okna
+  lub odświeżeniu strony. Poprawka dodaje can_reopen i odczyt GET istniejącego
+  panelu bez nowego użycia narzędzia; nie resetuje receipt ani czasu dostępu.
+  Ponowne otwarcie i dalszy zapis po odświeżeniu wymagają odbioru serwerowego.
+
 ## Dostarczone
 
 - Jawne przypisanie wszystkich 11 pro-toolsów w kodzie: 6 GLab, 5 non-GLab.

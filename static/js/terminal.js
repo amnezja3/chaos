@@ -4694,14 +4694,14 @@ function renderPlayerHackAccessPanel(access) {
         <div class="player-hack-access-tools">
             ${tools.map(tool => {
                 const installed = tool.installed === true;
-                const disabled = !installed || tool.enabled === false;
+                const disabled = !installed || (tool.enabled === false && !tool.can_reopen);
                 const reason = tool.disabled_reason || "Narzedzie nie jest zainstalowane.";
                 const price = Number(tool.price || tool.price_hc || 0);
                 const title = disabled ? reason : (tool.description || "");
                 return `
                 <button type="button" class="player-hack-tool-btn" data-tool-id="${escapeHTML(tool.id)}" title="${escapeHTML(title)}" ${disabled ? "disabled" : ""}>
                     <span>${escapeHTML(tool.icon || '')} ${escapeHTML(tool.name || tool.id)}</span>
-                    <small>${disabled ? escapeHTML(reason) : `LVL ${Number(tool.required_level || 1)} / ${price} HC`}</small>
+                    <small>${disabled ? escapeHTML(reason) : tool.can_reopen ? 'Otwórz ponownie panel' : `LVL ${Number(tool.required_level || 1)} / ${price} HC`}</small>
                 </button>
             `;
             }).join('') || '<p>Brak zainstalowanych narzędzi do tego dostępu.</p>'}
@@ -4776,7 +4776,8 @@ function openIntruderKickerApp(payload = {}) {
 
 async function usePlayerHackTool(toolId) {
     if (!playerHackAccessState || !playerHackAccessState.active) return;
-    if (playerHackAccessState.tools?.find(tool => tool.id === toolId)?.used) return;
+    const selectedTool = playerHackAccessState.tools?.find(tool => tool.id === toolId);
+    if (selectedTool?.used && !selectedTool.can_reopen) return;
     const requestAccess = playerHackAccessState;
     if (requestAccess.toolInFlight) return;
     requestAccess.toolInFlight = true;
@@ -4791,7 +4792,9 @@ async function usePlayerHackTool(toolId) {
     if (msg) msg.textContent = 'Uruchamianie narzedzia...';
     let confirmedResult = null;
     try {
-        const res = await fetch('/api/player-hack/tool/use', {
+        const res = selectedTool?.can_reopen ? await fetch('/api/player-hack/security?' + new URLSearchParams({
+            tool_id: toolId, victim_username: requestAccess.victim_username
+        })) : await fetch('/api/player-hack/tool/use', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -2,14 +2,15 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync('static/js/terminal.js', 'utf8');
-let resolve, requests = 0, opened = 0;
+let resolve, requests = 0, opened = 0, lastUrl, lastOptions;
 const message = {textContent: ''};
 const button = {disabled: false};
 const panel = {isConnected: true, querySelector: () => message, querySelectorAll: () => [button]};
 const ctx = {
     playerHackAccessState: {active: true, victim_username: 'a'}, desktopSessionActive: true,
     getPlayerHackAccessPanel: () => panel, openFriendKickerApp() { opened++; },
-    fetch() { requests++; return new Promise(done => { resolve = done; }); }
+    URLSearchParams, openSecurityPanelProxyApp() { opened++; },
+    fetch(url, options) { requests++; lastUrl = url; lastOptions = options; return new Promise(done => { resolve = done; }); }
 };
 vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('async function usePlayerHackTool('), source.indexOf('window.refreshPlayerHackAccess')), ctx);
@@ -39,5 +40,12 @@ vm.runInContext(source.slice(source.indexOf('async function usePlayerHackTool(')
     const beforeUsed = requests;
     await ctx.usePlayerHackTool('friendKicker');
     assert.equal(requests, beforeUsed, 'Used button must not start another request');
+    ctx.playerHackAccessState.tools = [{id: 'securityPanelProxy', used: true, can_reopen: true}];
+    const reopen = ctx.usePlayerHackTool('securityPanelProxy');
+    assert(lastUrl.startsWith('/api/player-hack/security?'));
+    assert.equal(lastOptions, undefined, 'Reopen is GET, not a new tool use');
+    resolve({ok: true, json: async () => ({success: true, result_type: 'security_panel'})});
+    await reopen;
+    assert.equal(opened, 1);
     console.log('PvP request guard: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
