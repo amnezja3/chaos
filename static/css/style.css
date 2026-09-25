@@ -2441,6 +2441,8 @@ form button:hover {
 }
 
 .ghostlab-shell {
+  container: ghostlab / inline-size;
+  min-width: 0;
   flex: 1;
   padding: 14px;
   overflow: auto;
@@ -2811,10 +2813,6 @@ form button:hover {
   color: #eaffdf;
   padding: 9px;
   font-family: monospace;
-}
-
-@media (max-width: 600px) {
-  .ghostlab-editor-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .ghostlab-editor-field textarea {
@@ -3349,6 +3347,56 @@ form button:hover {
   margin-top: 5px;
   font-style: normal;
   font-size: 0.78rem;
+}
+
+/* Respond to the application window, not just the desktop viewport. */
+@container ghostlab (max-width: 760px) {
+  .ghostlab-workspace,
+  .ghostlab-top,
+  .ghostlab-onboarding,
+  .ghostlab-template-grid,
+  .ghostlab-actions,
+  .ghostlab-branch-grid,
+  .ghostlab-market-grid,
+  .ghostlab-editor-grid,
+  .ghostlab-editor-meta,
+  .ghostlab-editor-feedback,
+  .ghostlab-contract-preview,
+  .ghostlab-exchange-grid,
+  .ghostlab-exchange-placeholders,
+  .ghostlab-research-layout,
+  .ghostlab-research-grid,
+  .ghostlab-research-stats,
+  .ghostlab-workspace .ghostlab-v2-roadmap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ghostlab-workspace { min-height: 0; }
+  .ghostlab-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ghostlab-main { overflow: visible; }
+  .ghostlab-panel { padding: 10px; }
+  .ghostlab-panel header { flex-wrap: wrap; align-items: flex-start; }
+  .ghostlab-status,
+  .ghostlab-onboarding > button { justify-self: start; }
+  .ghostlab-project-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ghostlab-project-toolbar input { grid-column: 1 / -1; }
+  .ghostlab-project-list button { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .ghostlab-editor-actions button { flex: 1 1 140px; }
+
+  .ghostlab-workspace *,
+  .ghostlab-onboarding *,
+  .ghostlab-status-bar * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ghostlab-editor-field input,
+  .ghostlab-editor-field select,
+  .ghostlab-editor-field textarea { min-width: 0; }
+  .ghostlab-project-list strong,
+  .ghostlab-project-list span,
+  .ghostlab-editor-meta span,
+  .ghostlab-contract-preview span { white-space: normal; }
 }
 
 .ghostlab-docs {
