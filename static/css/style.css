@@ -3894,8 +3894,17 @@ form button:hover {
 .pro-tool-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
 .pro-tool-window [class$="-meta"] { flex-wrap: wrap; }
 .pro-tool-window [class$="-details"] { padding: 12px; border: 1px solid #28462e; background: #0b160e; }
-@media (max-width: 600px) {
-    .app-window.pro-tool-window { left: 12px !important; width: calc(100vw - 24px) !important; }
+@media (max-width: 900px), (max-height: 700px) {
+    .app-window.pro-tool-window {
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-inline: 0 !important;
+        border-left: 0;
+        border-right: 0;
+        border-radius: 0;
+    }
     .pro-tool-window > [class$="-content"] { padding: 12px; }
     .pro-tool-window button { min-height: 44px; }
     .pro-tool-window .security-panel-proxy-list { grid-template-columns: 1fr; }

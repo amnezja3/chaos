@@ -3,7 +3,20 @@ from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from database import db_connect
 from tests import test_canonical_consequences as fixture
-from response_network.criminal_record import CriminalRecordStore, DECAY_MS
+from response_network.criminal_record import CriminalRecordStore, DECAY_MS, reduction_message
+
+
+class ReductionMessageTest(unittest.TestCase):
+    def test_institution_tracks_remaining_burden_and_zero_ends_supervision(self):
+        for level, authority in [(14, 'Prokuratura cyberbezpieczeństwa'),
+                                 (10, 'Prokuratura cyberbezpieczeństwa'),
+                                 (9, 'Centrum cyberbezpieczeństwa'),
+                                 (5, 'Centrum cyberbezpieczeństwa'),
+                                 (4, 'Policja'), (1, 'Policja')]:
+            message = reduction_message(level)
+            self.assertEqual(message['title'], authority)
+            self.assertIn(f'poziomu {level}', message['text'])
+        self.assertIn('dozór zakończony', reduction_message(0)['text'])
 
 
 class CriminalRecordDecayTest(unittest.TestCase):

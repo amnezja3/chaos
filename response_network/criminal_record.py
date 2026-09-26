@@ -7,6 +7,19 @@ from session_generation_store import username_digest
 DECAY_MS = 60 * 60 * 1000
 
 
+def reduction_message(level):
+    """Narrative institution follows the remaining burden, not the incident level."""
+    if level >= 10:
+        authority = 'Prokuratura cyberbezpieczeństwa'
+    elif level >= 5:
+        authority = 'Centrum cyberbezpieczeństwa'
+    else:
+        authority = 'Policja'
+    text = (f'{authority}: dozór zakończony. Historia wyroków pozostaje w kartotece.'
+            if level == 0 else f'{authority}: dozór zredukowany do poziomu {level}.')
+    return {'title': authority, 'text': text}
+
+
 class CriminalRecordStore:
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
@@ -78,7 +91,7 @@ class CriminalRecordStore:
                 (drops, progress, heartbeat, str(session['active_revision']), actor))
             if drops and messages:
                 messages.add_message(actor, {'dedupe_key': f"record-decay:{actor}:{state['executed_count']}:{row['forgiven']+drops}",
-                    'title': 'Kartoteka wygasa', 'text': 'Służby obniżyły priorytet obserwacji. Obciążenie kartoteki spadło o jeden stopień.',
+                    **reduction_message(state['active_burden'] - drops),
                     'type': 'success', 'created_at': now.isoformat()}, source='response_network', conn=conn)
             return {**self.state(conn, actor), 'paused': False}
 

@@ -18,7 +18,10 @@ nie jest dodatkowym pomiarem ruchów myszą ani liczby akcji gameplayowych.
 Integracja używa istniejącego odpytywania delt i stanu aresztu, bez nowego pollera.
 Brak odczytów lub zapisów pełnego profilu. Zmiana kary i reset postępu odbywają się
 w jednej transakcji; wygaszanie również jest serializowane przez SQLite.
-UI pokazuje bieżące obciążenie i minuty do spadku, a komunikat systemowy potwierdza spadek.
+UI nie pokazuje stałego licznika. Każdy spadek generuje pojedynczą wiadomość
+System Messaging wyświetlaną przez istniejący toast. Nadawca zależy od poziomu
+po redukcji: 10+ Prokuratura cyberbezpieczeństwa, 5–9 Centrum cyberbezpieczeństwa,
+1–4 Policja. Przy 0 Policja informuje o zakończeniu dozoru, bez usuwania historii.
 
 ## Wdrożenie i test serwerowy
 

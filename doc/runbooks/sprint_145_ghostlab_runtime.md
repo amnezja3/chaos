@@ -2,6 +2,14 @@
 
 Status: implementacja lokalna; PASS wymaga odbioru serwerowego desktop/mobile.
 
+### Odbiór użytkownika — 26 IX 2026
+
+- PASS: aktualizacja Sysloga do v3, wersja zainstalowana i opublikowana zgodne.
+- PASS: komunikaty runtime, odczyt potomkiem na celu PvP, wspólny limit rodziny,
+  zmiana blueprintu i jawna aktualizacja.
+- Mobile: zgłoszone boczne marginesy okna; poprawka pełnej szerokości przygotowana,
+  ponowny odbiór wizualny pozostaje otwarty.
+
 ## Dostarczone
 
 - Wspólny resolver inventory → produkt → niezmienny opublikowany artefakt.
