@@ -458,6 +458,52 @@ function applyMobileSafeModeToWindow(win) {
     delete win.dataset.mobileSafeMode;
 }
 
+function bindWindowMaximize(term, title) {
+    const maximizeButton = term.querySelector('.browser-maximize-btn');
+    let restoreGeometry = null;
+    const setMaximized = (maximized) => {
+        if (maximized === term.classList.contains('is-window-maximized')) return;
+        if (maximized) {
+            const rect = term.getBoundingClientRect();
+            restoreGeometry = {
+                top: term.style.top || `${rect.top}px`,
+                left: term.style.left || `${rect.left}px`,
+                width: term.style.width || `${rect.width}px`,
+                height: term.style.height || `${rect.height}px`,
+                resize: term.style.resize || ''
+            };
+            term.classList.add('is-window-maximized');
+            term.style.top = '0';
+            term.style.left = '0';
+            term.style.width = '100vw';
+            term.style.height = '100vh';
+            term.style.resize = 'none';
+        } else if (restoreGeometry) {
+            term.classList.remove('is-window-maximized');
+            term.style.top = restoreGeometry.top;
+            term.style.left = restoreGeometry.left;
+            term.style.width = restoreGeometry.width;
+            term.style.height = restoreGeometry.height;
+            term.style.resize = restoreGeometry.resize;
+            restoreGeometry = null;
+        }
+        if (maximizeButton) {
+            maximizeButton.textContent = maximized ? '\u2750' : '\u26F6';
+            maximizeButton.setAttribute('aria-pressed', maximized ? 'true' : 'false');
+            maximizeButton.setAttribute('aria-label', maximized ? `Przywróć okno ${title}` : `Powiększ ${title}`);
+            maximizeButton.title = maximized ? `Przywróć okno ${title}` : `Pełny ekran ${title}`;
+        }
+        bringWindowToFront(term);
+    };
+    maximizeButton?.addEventListener('click', () => {
+        setMaximized(!term.classList.contains('is-window-maximized'));
+    });
+    term.querySelector('.browser-title-bar')?.addEventListener('dblclick', event => {
+        if (event.target.closest('.browser-window-control')) return;
+        setMaximized(!term.classList.contains('is-window-maximized'));
+    });
+}
+
 function makeDraggable(el) {
     if (!el || el.dataset.draggableBound === '1') return;
     el.dataset.draggableBound = '1';
@@ -8906,49 +8952,7 @@ function createBrowser() {
     }
     makeDraggable(term);
 
-    const maximizeButton = term.querySelector('.browser-maximize-btn');
-    let restoreGeometry = null;
-    const setBrowserMaximized = (maximized) => {
-        if (maximized === term.classList.contains('is-window-maximized')) return;
-        if (maximized) {
-            const rect = term.getBoundingClientRect();
-            restoreGeometry = {
-                top: term.style.top || `${rect.top}px`,
-                left: term.style.left || `${rect.left}px`,
-                width: term.style.width || `${rect.width}px`,
-                height: term.style.height || `${rect.height}px`,
-                resize: term.style.resize || ''
-            };
-            term.classList.add('is-window-maximized');
-            term.style.top = '0';
-            term.style.left = '0';
-            term.style.width = '100vw';
-            term.style.height = '100vh';
-            term.style.resize = 'none';
-        } else if (restoreGeometry) {
-            term.classList.remove('is-window-maximized');
-            term.style.top = restoreGeometry.top;
-            term.style.left = restoreGeometry.left;
-            term.style.width = restoreGeometry.width;
-            term.style.height = restoreGeometry.height;
-            term.style.resize = restoreGeometry.resize;
-            restoreGeometry = null;
-        }
-        if (maximizeButton) {
-            maximizeButton.textContent = maximized ? browserUiIcons.restore : browserUiIcons.maximize;
-            maximizeButton.setAttribute('aria-pressed', maximized ? 'true' : 'false');
-            maximizeButton.setAttribute('aria-label', maximized ? 'Przywróć okno WebDragons' : 'Powiększ WebDragons');
-            maximizeButton.title = maximized ? 'Przywróć okno WebDragons' : 'Pełny ekran WebDragons';
-        }
-        bringWindowToFront(term);
-    };
-    maximizeButton?.addEventListener('click', () => {
-        setBrowserMaximized(!term.classList.contains('is-window-maximized'));
-    });
-    term.querySelector('.browser-title-bar')?.addEventListener('dblclick', event => {
-        if (event.target.closest('.browser-window-control')) return;
-        setBrowserMaximized(!term.classList.contains('is-window-maximized'));
-    });
+    bindWindowMaximize(term, 'WebDragons');
 
     // Obsługa wyszukiwania
     const search = term.querySelector(`#${terminalId}-search`);
@@ -15775,15 +15779,19 @@ function createGhostLabHub() {
     term.style.display = 'flex';
     term.style.flexDirection = 'column';
     term.innerHTML = `
-        <div class="title-bar">
-            GhostLab ${GHOSTLAB_VERSION}
-            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
+        <div class="title-bar browser-title-bar">
+            <span class="browser-window-title browser-window-drag-handle" data-window-drag-handle>GhostLab ${GHOSTLAB_VERSION}</span>
+            <span class="browser-window-controls">
+                <button type="button" class="browser-window-control browser-maximize-btn" aria-label="Powiększ GhostLab" title="Pełny ekran GhostLab" aria-pressed="false">\u26F6</button>
+                <button type="button" class="close-btn browser-window-control" aria-label="Zamknij GhostLab" title="Zamknij">\u2716</button>
+            </span>
         </div>
         <div class="ghostlab-shell"></div>
     `;
 
     document.body.appendChild(term);
     makeDraggable(term);
+    bindWindowMaximize(term, 'GhostLab');
     term.addEventListener('mousedown', () => term.focus());
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
     const shell = term.querySelector('.ghostlab-shell');

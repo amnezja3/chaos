@@ -1702,7 +1702,8 @@ body {
   font-size: 0;
 }
 
-.browser-window.is-window-maximized {
+.browser-window.is-window-maximized,
+.ghostlab-window.is-window-maximized {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
