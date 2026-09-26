@@ -1,12 +1,12 @@
-# GhostLab i kreatory — zakaz ciężkiego profilu, Sprinty 144–148
+# GhostLab i kreatory — zakaz ciężkiego profilu, Sprinty 144–152
 
 Status: **wiążący warunek implementacji i PASS**, dopisany 24 IX 2026 po przeglądzie
 planów. Nie jest potwierdzeniem zgodności obecnego kodu. Dotyczy wszystkich etapów
-144–148, również wywoływanych pośrednio istniejących helperów, middleware i workerów.
+144–152, również wywoływanych pośrednio istniejących helperów, middleware i workerów.
 
 ## Zakaz w ścieżkach aplikacji
 
-**Dyspozycja autora dla 144–148: wykrycie → natychmiastowa naprawa.** Jeśli podczas
+**Dyspozycja autora dla 144–152: wykrycie → natychmiastowa naprawa.** Jeśli podczas
 realizacji lub testowania któregokolwiek etapu ujawni się ciężki odczyt, zapis,
 synchronizacja albo fallback profilu w jego ścieżce, naprawić go w tym samym etapie,
 także gdy pochodzi ze starego helpera lub współdzielonego modułu. Nie kończyć na

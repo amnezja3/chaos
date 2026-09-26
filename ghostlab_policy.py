@@ -12,7 +12,7 @@ def validate_ghostlab_blueprint(template_id, blueprint):
     preview = []
     if not errors:
         if definition:
-            preview = [definition['name'], 'Player Hack Access / runtime pending']
+            preview = [definition['name'], 'Player Hack Access / wymagany zgodny build i aktywacja serwerowa']
             preview.extend(f'{key}: {value}' for key, value in blueprint.items()
                            if definition['fields'][key]['editable'])
         else:

@@ -12079,13 +12079,15 @@ class PlayerInventoryStore:
                 continue
         return 0
 
-    def apply_arsenal_cleaner(self, access_store, access, attacker, victim, app_id, result, *, finalize=None):
+    def apply_arsenal_cleaner(self, access_store, access, attacker, victim, app_id, result, *, finalize=None, conn=None, deltas=None):
         """Commit the single-use receipt and canonical uninstall together."""
         if os.path.abspath(self.db_path) != os.path.abspath(access_store.db_path):
             raise ValueError("Cleaner stores must share a database")
-        inventory_deltas = GameStateDeltaBus(self.db_path)
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        inventory_deltas = deltas if deltas is not None else GameStateDeltaBus(self.db_path)
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             current = access_store.get_active_access(attacker, victim, conn=conn)
             if not current or access_store.access_key(current) != access_store.access_key(access):
                 raise PlayerHackAccessChanged("Player access expired or changed")
@@ -12095,18 +12097,27 @@ class PlayerInventoryStore:
             )
             if receipt.get("duplicate"):
                 return receipt
-            if result == "removed" and not self.uninstall_app(victim, app_id=app_id, conn=conn):
+            removed_tools = []
+            if result == "removed" and not self.uninstall_app(
+                    victim, app_id=app_id, conn=conn, removed_tools=removed_tools):
                 conn.execute("UPDATE player_hack_tool_usage SET result='no_apps', amount=0 WHERE id=?",
                              (receipt["id"],))
                 receipt.update(result="no_apps", amount=0)
             if receipt.get("result") == "removed":
-                snapshot = self.snapshot(victim, conn=conn)
                 inventory_deltas.record_change(
                     victim, "apps", "apps.app_uninstalled",
-                    {"apps": snapshot["apps"], "files": snapshot["files"],
+                    {"removed_app_ids": [app_id], "removed_tools": removed_tools,
                      "app_id": app_id, "reason": "arsenalCleaner"},
                     entity_id=app_id, dedupe_key=f"cleaner:{receipt['id']}:inventory", conn=conn,
                 )
+                storage = conn.execute(
+                    "SELECT capacity, used, unit FROM player_storage WHERE username=?", (victim,)
+                ).fetchone()
+                if storage:
+                    inventory_deltas.record_change(
+                        victim, "storage", "storage.used_changed", dict(storage),
+                        dedupe_key=f"cleaner:{receipt['id']}:storage", conn=conn,
+                    )
             if finalize is not None:
                 finalize(conn, receipt)
             return receipt
@@ -12834,6 +12845,7 @@ class WalletBalanceStore:
         debit_up_to=False,
         source="wallet.transfer",
         transaction_callback=None,
+        conn=None,
     ):
         from_username = self._clean_text(from_username)
         to_username = self._clean_text(to_username)
@@ -12855,8 +12867,10 @@ class WalletBalanceStore:
             raise WalletWriteError("Wallet transfer transaction_key is required.")
 
         now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute("BEGIN IMMEDIATE")
             replay = conn.execute(
                 """
                 SELECT id, from_username, to_username, amount,

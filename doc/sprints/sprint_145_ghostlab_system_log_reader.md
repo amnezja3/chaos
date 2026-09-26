@@ -1,6 +1,6 @@
 # Sprint 145 — GhostLab: wspólny runtime i System Log Reader od projektu do działania
 
-Status: **IMPLEMENTACJA — ODBIÓR SERWEROWY OTWARTY**, 25 IX 2026, po PASS 144.1–144.3.
+Status: **ZAMKNIĘTY — PASS**, 26 IX 2026. Odbiór serwerowy desktop/mobile potwierdzony przez użytkownika.
 Wdrożenie i odbiór: [runbook 145](../runbooks/sprint_145_ghostlab_runtime.md).
 
 Poprzedni: [144 — poprawność publikacji](sprint_144_ghostlab_publication_integrity.md).

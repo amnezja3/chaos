@@ -1,9 +1,17 @@
 # Sprint 146 — GhostLab: pozostałe rodziny wykonawcze i domknięcie v1
 
-Status: **ZAPLANOWANY**, 24 IX 2026. Implementacja po PASS Sprintów 144 i 145.
+Status: **PAKIET LOKALNY DO WDROŻENIA**, 26 IX 2026. Odbiór serwerowy otwarty.
+Bez commita, pusha i wdrożenia. [Wspólny runbook i test trzech kont](../runbooks/sprint_146_ghostlab_runtime.md).
 
 Poprzedni: [145 — pierwsza pełna ścieżka](sprint_145_ghostlab_system_log_reader.md).
 Podstawa: [audyt](../audits/ghostlab_completion_audit_2026_09_24.md).
+
+Uzupełnienie 26 IX: [porównanie zakładek Research, Ghost Exchange i Documentation](../audits/ghostlab_tabs_scope_2026_09_26.md).
+146 domyka runtime obecnych rodzin, nie pełną ścieżkę rozwoju laboratorium.
+Research, import/wymiana blueprintów i rozwój wersji są przypisane do GhostLab v2.0:
+[149](sprint_149_ghostlab_v2_research.md) → [150](sprint_150_ghostlab_v2_exchange_import.md) →
+[151](sprint_151_ghostlab_v2_community_versions.md) → [152](sprint_152_ghostlab_v2_completion.md),
+dopiero po PASS kreatorów 147–148. Stan wyjściowy opisuje uzupełnienie audytu.
 
 ## Bramka: zero ciężkiego profilu
 
@@ -119,6 +127,10 @@ wygaśnięcie dostępu, areszt, konfiskatę, aktualizację i wycofanie produktu.
   operacje. Nie odwraca automatycznie prawidłowo wykonanych skutków.
 - Zaktualizować dokumentację GhostLaba i statusy UI tak, by „działa” odpowiadało
   rzeczywiście odebranym szablonom. Pozostałe legacy artefakty pokazują powód blokady.
+- Objąć tym także trzy zakładki: oznaczyć Research/Exchange jako fundament bez
+  mechaniki, poprawić globalne Runtime Pending, kartę Runtime Roadmap i stałe
+  preview w ghostlab_policy. Wymaganie Player Hack Access opisywać per kontrakt,
+  nie dla wszystkich przyszłych szablonów. Odbiór 146 nie zamyka roadmapy v2.
 
 Sprint jest PASS dopiero po odbiorze wszystkich pięciu rodzin i regresji System Log
 Reader. Wtedy zamykamy **ścieżkę narzędzi GhostLab v1**, nie całą roadmapę v2.

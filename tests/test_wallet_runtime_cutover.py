@@ -241,6 +241,10 @@ class WalletRuntimeCutoverTests(unittest.TestCase):
         ):
             run.session["user"] = "attacker"
             with patch.object(run, "player_hack_access_store", access_store), \
+                    patch.object(run, "resolve_player_hack_product", return_value={"id":"financialSniffer", "family_id":"financialSniffer", "runtime_enabled":True}), \
+                    patch.object(run, "db_connect"), \
+                    patch("ghostlab_runtime.financial_cooldown_seconds", return_value=0), \
+                    patch.object(run, "serialize_player_hack_access", return_value={"active":True}), \
                     patch.object(run, "wallet_store", wallet), \
                     patch.object(run.identity_projection_store, "get_identity", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \
                     patch.object(run.capability_projection_store, "get_capabilities", side_effect=lambda username: copy.deepcopy(profiles.get(username))), \

@@ -277,6 +277,14 @@ TEMPLATES['intruder_kicker'] = {
 }
 
 TEMPLATES['system_log_reader'].update(executor_id='system_logs_v1', runtime_enabled=True, runtime_revision=1)
+RUNTIME_FLAGS = {'system_log_reader': 'CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED'}
+for _template in ('financial_sniffer', 'friend_kicker', 'security_panel_proxy', 'arsenal_cleaner', 'intruder_kicker'):
+    TEMPLATES[_template].update(executor_id=_template + '_v1', runtime_enabled=True, runtime_revision=1)
+    RUNTIME_FLAGS[_template] = 'CHAOS_GHOSTLAB_' + _template.upper() + '_RUNTIME_ENABLED'
+# Uninstallation must remove its launcher/tool file as well as the application.
+TEMPLATES['arsenal_cleaner']['fields']['remove_tools_file']['editable'] = False
+# The family cannot shorten the existing three-hour PvP cooldown.
+TEMPLATES['financial_sniffer']['fields']['cooldown_minutes']['minimum'] = 180
 
 PRO_TOOL_GLAB = {
     'financialSniffer': 'financial_sniffer', 'friendKicker': 'friend_kicker',
@@ -360,8 +368,8 @@ def template_available(template_id, action):
         return False
     if action != 'runtime':
         return True
-    return (template_id == 'system_log_reader' and definition.get('executor_id') == 'system_logs_v1'
-            and os.environ.get('CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED', '').lower() in {'1', 'true', 'yes'})
+    return (bool(definition.get('executor_id')) and template_id in RUNTIME_FLAGS
+            and os.environ.get(RUNTIME_FLAGS[template_id], '').lower() in {'1', 'true', 'yes'})
 
 
 def public_templates():

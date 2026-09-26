@@ -1,14 +1,22 @@
 # 145 — System Log Reader: runtime potomstwa
 
-Status: implementacja lokalna; PASS wymaga odbioru serwerowego desktop/mobile.
+Status: **ZAMKNIĘTY — PASS**, 26 IX 2026. Odbiór serwerowy potwierdzony przez użytkownika.
 
 ### Odbiór użytkownika — 26 IX 2026
 
 - PASS: aktualizacja Sysloga do v3, wersja zainstalowana i opublikowana zgodne.
 - PASS: komunikaty runtime, odczyt potomkiem na celu PvP, wspólny limit rodziny,
   zmiana blueprintu i jawna aktualizacja.
-- Mobile: zgłoszone boczne marginesy okna; poprawka pełnej szerokości przygotowana,
-  ponowny odbiór wizualny pozostaje otwarty.
+- PASS: mobile po poprawce pełnej szerokości okna.
+- PASS: zakup za 2825 HC; saldo autora 201076 → 203901. Użytkownik potwierdził
+  jednokrotne obciążenie kupującego oraz wzrost licznika pobrań o 1.
+- PASS: pusty wynik i działanie zainstalowanej aplikacji po wycofaniu publikacji.
+- PASS: odmowa odczytu po wygaśnięciu dostępu, w areszcie i po odinstalowaniu.
+- Poboczna zmiana kartoteki: usunięcie licznika PASS. Toast redukcji dozoru
+  pozostaje w obserwacji użytkownika i nie blokuje zamknięcia 145.
+
+Zamknięcie odbioru nie oznacza zmiany listy kont aktywowanych dla runtime.
+Pozostałe rodziny potomków pozostają zakresem sprintu 146.
 
 ## Dostarczone
 

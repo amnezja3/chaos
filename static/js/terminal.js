@@ -4334,10 +4334,10 @@ async function openGhostLabInstalledApp(appId) {
             const product = data.product;
             app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
             const tool = data.access?.tools?.find(item => item.id === appId);
-            const enabled = data.access?.active && tool?.enabled;
+            const enabled = data.access?.active && (tool?.enabled || tool?.can_reopen);
             body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
                 <p>${escapeHTML(product.runtime_enabled ? (data.access?.active ? 'Cel: ' + (data.access.victim_nick || data.access.victim_username) : 'Uzyskaj dostęp PvP do gracza, a następnie odśwież panel.') : product.disabled_reason)}</p>
-                <div class="pro-tool-actions"><button data-run ${enabled ? '' : 'disabled'}>Odczytaj logi celu</button>
+                <div class="pro-tool-actions"><button data-run ${enabled ? '' : 'disabled'}>${tool?.can_reopen ? 'Otwórz ponownie panel' : product.family_id === 'systemLogReader' ? 'Odczytaj logi celu' : product.family_id === 'securityPanelProxy' ? 'Otwórz panel zabezpieczeń' : 'Uruchom na celu PvP'}</button>
                 <button data-refresh>Odśwież</button>
                 ${data.update_available ? '<button data-update>Aktualizuj bezpłatnie do v' + Number(data.available_version) + '</button>' : ''}</div>
                 <p>${tool?.used ? 'Limit tej rodziny został wykorzystany podczas tego dostępu.' : ''}</p>`;
@@ -4439,6 +4439,7 @@ function renderFinancialSnifferResult(container, payload = {}) {
         </div>
         <p>${escapeHTML(String(payload.message || ''))}</p>
         <div class="financial-sniffer-details">
+            ${payload.reward_note ? `<div>${escapeHTML(String(payload.reward_note))}</div>` : ''}
             <div>Skradziono: <b>${stolen} HC</b></div>
             <div>Detekcja: <b>${detected ? 'tak' : 'nie'}</b></div>
             ${payload.attacker_balance !== undefined ? `<div>Twoje saldo: <b>${Number(payload.attacker_balance || 0)} HC</b></div>` : ''}
@@ -4565,6 +4566,7 @@ function securityPanelProxySetMessage(container, type, message) {
 
 function renderSecurityPanelProxy(container, payload = {}) {
     container._securityContext = {tool_id: payload.tool_id || 'securityPanelProxy',
+        artifact_id: payload.artifact_id || payload.tool?.artifact_id || null,
         security_version: payload.security_version, security_context: payload.security_context};
     const app = container.closest('.security-panel-proxy-window') || container;
     const security = payload.security || {};
@@ -14561,7 +14563,7 @@ async function createButtonMaker() {
 }
 
 const GHOSTLAB_VERSION = "v1.0";
-const GHOSTLAB_VERSION_NAME = "Build & Publish / Runtime Pending";
+const GHOSTLAB_VERSION_NAME = "Build, Publish & PvP Runtime";
 const GHOSTLAB_ROADMAP = [
     ["v0.1", "Workspace", "done"],
     ["v0.2", "Projects", "done"],
@@ -14569,8 +14571,8 @@ const GHOSTLAB_ROADMAP = [
     ["v0.4", "Editors", "done"],
     ["v0.5", "Compiler", "done"],
     ["v0.6", "Publisher", "done"],
-    ["v0.7", "Ghost Exchange", "done"],
-    ["v0.8", "Research Foundation", "done"],
+    ["v0.7", "Ghost Exchange — biblioteka informacyjna", "done"],
+    ["v0.8", "Research — fundament UI bez progresu", "done"],
     ["v1.0", "Stable Lab / Polish", "current"]
 ];
 const GHOSTLAB_V2_ROADMAP = [
@@ -14687,7 +14689,7 @@ const GHOSTLAB_EXCHANGE_OFFICIAL = [
         name: "Runtime Roadmap",
         type: "Documentation",
         status: "planned",
-        description: "Mapa przyszlego custom runtime dla narzedzi publikowanych z GhostLab."
+        description: "Runtime sześciu rodzin PvP. Wykonanie zależy od zgodnego buildu i aktywacji serwerowej."
     }
 ];
 const GHOSTLAB_TOOL_BLUEPRINT = {};
@@ -14901,11 +14903,11 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
             <section class="ghostlab-panel">
                 <header><h3>Documentation</h3><span>${GHOSTLAB_VERSION}</span></header>
                 <div class="ghostlab-docs">
-                    <p>GhostLab jest laboratorium do przyszlego projektowania narzedzi klasy Pro System Tools.</p>
+                    <p>GhostLab służy do projektowania i publikowania narzędzi na kontraktach systemowych.</p>
                     <h4>GhostLab v1.0 - Stable Lab</h4>
                     <p>GhostLab v1.0 domyka pierwszy pelny cykl pracy: Project -> Template -> Editor -> Validate -> Compile -> Publisher -> Googleplex.</p>
-                    <p>AppForge sluzy do prostych aplikacji operacyjnych. GhostLab bedzie srodowiskiem dla narzedzi, ktore dzialaja na shackowanym graczu.</p>
-                    <p>Pro System Tools uruchamiaja sie tylko po Player Hack Access, bo wymagaja aktywnego, czasowego dostepu do profilu ofiary.</p>
+                    <p>AppForge sluzy do prostych aplikacji operacyjnych. GhostLab obsługuje narzędzia PvP; kolejne typy celów wynikają z kontraktu szablonu.</p>
+                    <p>Obecne sześć rodzin PvP wymaga Player Hack Access. Inne szablony, takie jak bilety lub konserwacja, mają własne zasady uruchomienia.</p>
                     <h4>Changelog</h4>
                     <ol>
                         ${GHOSTLAB_ROADMAP.map(([version, name, status]) => `<li class="ghostlab-roadmap-${escapeHTML(status || 'planned')}"><b>${version}</b> ${name} <span>${escapeHTML(status || 'planned')}</span></li>`).join("")}
@@ -15204,6 +15206,9 @@ function renderGhostLabEditor(root, project) {
 }
 
 function renderGhostLabEditorField(field, value) {
+    // Locked policy changes are applied only when the creator explicitly saves
+    // and compiles the draft; historical artifacts are never rewritten.
+    if (field.editable === false) value = field.default;
     const safeKey = escapeHTML(field.key);
     const safeLabel = escapeHTML(field.label);
     if (field.editable === false && field.type === 'textarea') {

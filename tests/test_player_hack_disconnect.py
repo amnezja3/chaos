@@ -16,7 +16,8 @@ class PlayerHackDisconnectTest(unittest.TestCase):
 
     def test_security_write_rechecks_expiry_and_installation(self):
         self.prepare('securityPanelProxy')
-        self.users.patch_profile_guarded('victim', {'security': {'firewall': True}}, source='test.security')
+        security = run.player_security_store()
+        security.update('victim', lambda _: {'firewall': True})
         for route, body in [('update', {'key': 'firewall', 'value': False}),
                             ('preset', {'preset': 'open'})]:
             for revoke in ('expiry', 'uninstall'):
@@ -24,8 +25,10 @@ class PlayerHackDisconnectTest(unittest.TestCase):
                     self.access.grant_access('attacker', 'victim')
                     if not self.inventory.has_app('attacker', 'securityPanelProxy'):
                         self.inventory.install_app('attacker', {'id': 'securityPanelProxy', 'name': 'Proxy'}, purchase_key=f'{route}:{revoke}')
-                    before = self.users.get_profile_with_revision('victim')
-                    original = self.users.patch_profile_guarded
+                    opened = self.client.post('/api/player-hack/tool/use', json={
+                        'tool_id':'securityPanelProxy','victim_username':'victim'}).json
+                    before = security.get('victim')
+                    original = security.update
                     def changed(*args, **kwargs):
                         if revoke == 'expiry':
                             with db_connect(self.path) as conn:
@@ -33,11 +36,15 @@ class PlayerHackDisconnectTest(unittest.TestCase):
                         else:
                             self.inventory.uninstall_app('attacker', 'securityPanelProxy')
                         return original(*args, **kwargs)
-                    with patch.object(self.users, 'patch_profile_guarded', side_effect=changed):
+                    with patch.object(type(security), 'update', side_effect=changed) as writer:
                         response = self.client.post('/api/player-hack/security/' + route,
-                                                    json={'victim_username': 'victim', **body})
+                            json={'victim_username': 'victim', **body,
+                                  'security_version':opened['security_version'],
+                                  'security_context':opened['security_context']})
+                    writer.assert_called_once()
                     self.assertEqual(response.status_code, 409, response.json)
-                    self.assertEqual(self.users.get_profile_with_revision('victim'), before)
+                    self.assertEqual(response.json['reason'], 'player_access_changed')
+                    self.assertEqual(security.get('victim'), before)
                     with db_connect(self.path) as conn:
                         conn.execute('DELETE FROM player_hack_access')
 
@@ -66,18 +73,23 @@ class PlayerHackDisconnectTest(unittest.TestCase):
 
     def test_security_cas_preserves_concurrent_victim_change(self):
         self.prepare('securityPanelProxy')
-        self.users.patch_profile_guarded('victim', {'security': {'firewall': True}}, source='test.security')
-        original = self.users.patch_profile_guarded
-        def concurrent(*args, **kwargs):
-            original('victim', {'nick': 'New nick'}, source='test.concurrent')
-            return original(*args, **kwargs)
-        with patch.object(self.users, 'patch_profile_guarded', side_effect=concurrent):
+        security = run.player_security_store()
+        security.update('victim', lambda _: {'firewall': True, 'vpn_enabled': False})
+        opened = self.client.post('/api/player-hack/tool/use', json={
+            'tool_id':'securityPanelProxy','victim_username':'victim'}).json
+        # A real concurrent writer changes the canonical security revision, not a
+        # legacy profile helper that the runtime must never call.
+        self.users.patch_profile_guarded('victim', {'nick':'New nick'}, source='test.concurrent')
+        security.update('victim', lambda s: dict(s, vpn_enabled=True))
+        with patch.object(self.users, 'patch_profile_guarded', side_effect=AssertionError('heavy write')):
             response = self.client.post('/api/player-hack/security/update', json={
-                'victim_username': 'victim', 'key': 'firewall', 'value': False})
+                'victim_username': 'victim', 'key': 'firewall', 'value': False,
+                'security_version':opened['security_version'], 'security_context':opened['security_context']})
         self.assertEqual(response.status_code, 409, response.json)
         current = self.users.get_profile('victim')
         self.assertEqual(current['nick'], 'New nick')
-        self.assertTrue(current['security']['firewall'])
+        self.assertTrue(security.get('victim')['security']['firewall'])
+        self.assertTrue(security.get('victim')['security']['vpn_enabled'])
 
     def test_cleaner_rechecks_installation_after_preflight(self):
         self.prepare('arsenalCleaner')

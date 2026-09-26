@@ -47,6 +47,16 @@ vm.createContext(ctx); vm.runInContext(extract('openGhostLabInstalledApp'),ctx);
     const update=calls.find(c=>c.options.method==='POST');
     assert.deepEqual(JSON.parse(update.options.body),{expected_artifact_id:'a1',artifact_id:'a2'});
     assert(calls.every(c=>c.url.startsWith('/api/ghostlab/installed/')));
+    state.product.family_id = 'securityPanelProxy';
+    state.access.tools[0] = {id:'ghostlab_child',enabled:false,used:true,can_reopen:true};
+    await ctx.openGhostLabInstalledApp('ghostlab_child');
+    assert(body.innerHTML.includes('Otwórz ponownie panel'));
+    assert(!body.innerHTML.includes('data-run disabled'));
+    state.product.family_id = 'financialSniffer';
+    state.access.tools[0] = {id:'ghostlab_child',enabled:false,used:true};
+    await ctx.openGhostLabInstalledApp('ghostlab_child');
+    assert(body.innerHTML.includes('data-run disabled'));
+    assert(body.innerHTML.includes('Uruchom na celu PvP'));
     let fm;
     const delta = {toolbarProfile:{apps:[{id:'keep'},{id:'child',name:'Old'}],files:{tools:[{app_id:'keep',name:'keep.sh'},{app_id:'child',name:'Old.sh'}]}},
         setToolbarProfile:p=>{delta.toolbarProfile=p;}, rebuildDesktopAppsFromProfile:async()=>{},

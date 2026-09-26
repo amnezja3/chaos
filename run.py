@@ -17927,6 +17927,15 @@ def serialize_player_hack_access(access):
     sniffer_usage = player_hack_access_store.get_tool_usage(
         access, access.get("attacker_username"), access.get("victim_username"), "financialSniffer"
     )
+    if not sniffer_usage and any(t.get('family_id') == 'financialSniffer' for t in tools):
+        from ghostlab_runtime import financial_cooldown_seconds
+        with db_connect(player_hack_access_store.db_path) as conn:
+            cooldown = financial_cooldown_seconds(conn, access['attacker_username'], access['victim_username'])
+        if cooldown:
+            for tool in tools:
+                if tool.get('family_id') == 'financialSniffer' and tool.get('runtime_enabled'):
+                    tool.update(enabled=False, cooldown_seconds=cooldown,
+                        disabled_reason=f'Cooldown rodziny: {cooldown} s.')
     if sniffer_usage and not str(sniffer_usage.get("result") or "").startswith("pending:"):
         for tool in tools:
             if tool.get("family_id") == "financialSniffer":
@@ -26179,7 +26188,44 @@ def api_wallet_transfer():
     })
 
 
-def execute_intruder_kicker(attacker, victim):
+def execute_ghostlab_cleaner(conn, actor, target, product, access):
+    """Use canonical cleaner/uninstall under the caller's family transaction."""
+    rows = conn.execute("SELECT app_json FROM player_apps WHERE username=? AND status!='uninstalled' ORDER BY app_id LIMIT 1001", (target,)).fetchall()
+    if len(rows) > 1000:
+        raise ProfileRecoveryRequired('Arsenal limit exceeded')
+    candidates = [item for row in rows if is_cleanable_app(item := json.loads(row['app_json']))]
+    chance = roll = 0
+    detection_roll = None
+    detected = False
+    selected = {}
+    outcome = 'no_apps'
+    if candidates:
+        selected = choice(candidates)
+        attacker = capability_projection_store.get_capabilities(actor, conn=conn)
+        victim = capability_projection_store.get_capabilities(target, conn=conn)
+        respect = int(identity_projection_store.get_desktop_boot(actor).get('respect') or 0)
+        cap = min(80, max(20, 35 + int(attacker.get('level') or 1)*4 + respect//12 - int(victim.get('level') or 1)*2))
+        chance = min(cap, product['blueprint']['success_percent'])
+        roll = randint(1, 100)
+        detection_roll = random()*100
+        detected = roll <= chance or detection_roll < product['blueprint']['detection_percent']
+        outcome = 'removed' if roll <= chance else ('failed_detected' if detected else 'failed_silent')
+    receipt = player_inventory_store.apply_arsenal_cleaner(player_hack_access_store, access, actor, target,
+        selected.get('id', ''), outcome, conn=conn, deltas=delta_bus)
+    removed = receipt['result'] == 'removed'
+    if detected:
+        system_message_store.add_message(target, {'dedupe_key': f"cleaner:{receipt['id']}:victim",
+            'type': 'warning', 'title': 'Arsenał naruszony',
+            'text': 'Usunięto jedną aplikację.' if removed else 'Wykryto próbę czyszczenia arsenału.'},
+            source='arsenal_cleaner', conn=conn)
+    return dict(success=True, result_type='arsenal_cleaner', removed=removed, detected=detected,
+        chance=chance, roll=roll, detection_roll=detection_roll,
+        removed_app_masked=mask_contact_name(app_display_name(selected)) if removed else '',
+        removed_app_type=str(selected.get('type') or '') if removed else '',
+        message='Usunięto jedną aplikację celu.' if removed else ('Brak aplikacji do wyczyszczenia.' if not candidates else 'Próba nie powiodła się.'))
+
+
+def execute_intruder_kicker(attacker, victim, product=None, expected_access=None):
     """Resolve against current canonical state and commit movement/receipt/deltas together."""
     from database import db_connect
     tool_id = "intruderKicker"
@@ -26191,8 +26237,11 @@ def execute_intruder_kicker(attacker, victim):
         access = player_hack_access_store.get_active_access(attacker, victim, conn=conn)
         if not access or attacker == victim:
             return {"success": False, "error": "Brak aktywnego dostępu do intruza."}, 403
-        if not player_inventory_store.has_app(attacker, tool_id, conn=conn):
+        installed_id = product['id'] if product else tool_id
+        if not player_inventory_store.has_app(attacker, installed_id, conn=conn):
             return {"success": False, "error": "Narzędzie nie jest zainstalowane."}, 403
+        guard = player_hack_write_guard(attacker, victim, installed_id, expected_access or access)
+        guard(conn=conn)
         receipt = player_hack_access_store.get_tool_usage(access, attacker, victim, tool_id, conn=conn)
         if receipt:
             result = json.loads(receipt["result"])
@@ -26211,6 +26260,11 @@ def execute_intruder_kicker(attacker, victim):
         result = {"success": True, "tool_id": tool_id, "result_type": "intruder_kicker",
                   "message": "Intruder Kicker wyrzucił intruza poza Twoje terytorium.",
                   "kicked": True}
+        if product and product.get('artifact_id'):
+            result.update(tool_id=installed_id, message=product['blueprint']['success_message'],
+                execution={'actor': attacker, 'target': victim, 'app': installed_id,
+                           'artifact': product['artifact_id'], 'policy': product['policy_version'],
+                           'family': tool_id, 'status': 'committed'})
         usage = player_hack_access_store.record_tool_usage(
             access, attacker, victim, tool_id, result=json.dumps(result), amount=1, conn=conn,
         )
@@ -26222,10 +26276,13 @@ def execute_intruder_kicker(attacker, victim):
         delta_bus.record_change(attacker, "map", "map.player_actor_removed", {
             "username": victim, "removed": True, "reason": tool_id, "position_version": moved["version"],
         }, entity_id=victim, dedupe_key=f"{key}:owner", conn=conn)
+        guard(conn=conn)
+        if product:
+            result['tool'] = product
         return result, 200
 
 
-from database import PlayerHackAccessChanged
+from database import PlayerHackAccessChanged, db_connect
 
 
 @app.errorhandler(PlayerHackAccessChanged)
@@ -26350,7 +26407,7 @@ def api_player_hack_tool_use():
         return jsonify(success=False, reason='runtime_pending', error=tool['disabled_reason']), 409
     if tool.get('artifact_id') and data.get('artifact_id') != tool['artifact_id']:
         return jsonify(success=False, reason='artifact_changed', error='Wersja narzędzia zmieniła się. Odśwież panel.'), 409
-    if tool_id not in PLAYER_HACK_TOOL_IDS and tool.get('template_id') != 'system_log_reader':
+    if tool['family_id'] not in PLAYER_HACK_TOOL_IDS:
         return jsonify({"success": False, "reason": "unsupported_player_hack_tool",
                         "error": "To narzedzie nie obsluguje dostepu do gracza."}), 400
     if not victim_username:
@@ -26376,13 +26433,49 @@ def api_player_hack_tool_use():
     ):
         return already_used_response()
 
-    if tool_id == "intruderKicker":
-        result, status = execute_intruder_kicker(session["user"], victim_username)
+    if tool['family_id'] == 'financialSniffer' and not player_hack_access_store.has_tool_usage(access, session['user'], victim_username, 'financialSniffer'):
+        from ghostlab_runtime import financial_cooldown_seconds
+        with db_connect(player_hack_access_store.db_path) as conn:
+            cooldown = financial_cooldown_seconds(conn, session['user'], victim_username)
+        if cooldown:
+            return jsonify(success=False, reason='family_cooldown', cooldown_seconds=cooldown,
+                error='Financial Sniffer: trwa cooldown rodziny dla tego celu.'), 409
+
+    if tool['family_id'] == "intruderKicker":
+        result, status = execute_intruder_kicker(session["user"], victim_username, tool, access)
         if result.get("duplicate"):
             return already_used_response()
         if result.get("success"):
             result["access"] = serialize_player_hack_access(access)
         return jsonify(result), status
+
+    if tool.get('artifact_id') and tool['family_id'] in {'financialSniffer', 'securityPanelProxy', 'arsenalCleaner'}:
+        from ghostlab_runtime import commit_mutation, financial_effect, FamilyCooldown
+        actor = session['user']
+        guard = player_hack_write_guard(actor, victim_username, tool_id, access)
+        def execute_child(conn):
+            if tool['family_id'] == 'financialSniffer':
+                caps = capability_projection_store.get_capabilities(actor, conn=conn)
+                desktop = identity_projection_store.get_desktop_boot(actor)
+                return financial_effect(conn, actor=actor, target=victim_username, product=tool, access=access,
+                    access_store=player_hack_access_store, wallet=wallet_balance_store, deltas=delta_bus,
+                    messages=system_message_store, level=int(caps.get('level') or 1),
+                    respect=int(desktop.get('respect') or 0), randint=randint, random=random)
+            if tool['family_id'] == 'securityPanelProxy':
+                return dict(success=True, result_type='security_panel',
+                    message='Panel zabezpieczeń połączony.', victim_username=victim_username,
+                    security_context=player_hack_access_store.access_key(access), rules=SECURITY_CONFLICTS,
+                    **player_security_store().get(victim_username, conn=conn))
+            return execute_ghostlab_cleaner(conn, actor, victim_username, tool, access)
+        try:
+            result = commit_mutation(actor, victim_username, tool, access, player_hack_access_store,
+                                     guard, PRO_SYSTEM_TOOLS, execute_child)
+        except FamilyCooldown as exc:
+            return jsonify(success=False, reason='family_cooldown', error=str(exc)), 409
+        if result.get('duplicate'):
+            return already_used_response()
+        result['access'] = serialize_player_hack_access(access)
+        return jsonify(result)
 
     if tool['family_id'] == 'systemLogReader':
         from ghostlab_runtime import execute_logs
@@ -26564,7 +26657,7 @@ def api_player_hack_tool_use():
             "access": serialize_player_hack_access(refreshed_access),
         })
 
-    if tool_id == "friendKicker":
+    if tool['family_id'] == "friendKicker":
         attacker = session["user"]
         capabilities = capability_projection_store.get_capabilities(attacker)
         desktop = identity_projection_store.get_desktop_boot(attacker)
@@ -26597,9 +26690,14 @@ def api_player_hack_tool_use():
             level = int(capabilities.get("level") or 1)
             respect = int(desktop.get("respect") or 0)
             chance = min(85, 35 + level * 4 + respect // 10)
+            policy = tool.get('blueprint') if tool.get('artifact_id') else None
+            if policy:
+                chance = min(chance, policy['success_percent'])
             roll = randint(1, 100)
             removed = roll <= chance
-            detected = removed or random() * 100 < min(45, 8 + int(tool.get("risk_level", 3) or 3) * 5)
+            detection_chance = policy['detection_percent'] if policy else min(45, 8 + int(tool.get("risk_level", 3) or 3) * 5)
+            detection_roll = random() * 100
+            detected = removed or detection_roll < detection_chance
             if removed:
                 mail_store.remove_contact(victim_username, contact, conn=conn)
                 reverse = conn.execute("SELECT 1 FROM contacts WHERE owner_username=? AND contact_name=?",
@@ -26610,7 +26708,7 @@ def api_player_hack_tool_use():
                     "id": f"friend_kicker:{notice_key}:contact",
                     "dedupe_key": f"friend_kicker:{notice_key}:contact",
                     "type": "info", "title": "Kontakt utracony",
-                    "text": "Polaczenie z jednym z graczy zostalo zerwane."
+                    "text": policy['contact_message'] if policy else "Polaczenie z jednym z graczy zostalo zerwane."
                 }, source="friend_kicker", conn=conn)
             if detected:
                 system_message_store.add_message(victim_username, {
@@ -26618,17 +26716,23 @@ def api_player_hack_tool_use():
                     "dedupe_key": f"friend_kicker:{notice_key}:victim",
                     "type": "warning",
                     "title": "Zaklocenie kontaktow" if removed else "Wykryto probe manipulacji kontaktami",
-                    "text": "Jeden z kontaktow zostal zerwany przez nieznana ingerencje." if removed
-                            else "Wykryto probe manipulacji kontaktami."
+                    "text": policy['victim_message'] if policy else (
+                        "Jeden z kontaktow zostal zerwany przez nieznana ingerencje." if removed
+                        else "Wykryto probe manipulacji kontaktami.")
                 }, source="friend_kicker", conn=conn)
-            payload.update(removed=removed, chance=chance, roll=roll, detected=detected,
+            payload.update(removed=removed, chance=chance, roll=roll, detected=detected, detection_roll=detection_roll,
                            kicked_contact_masked=mask_contact_name(contact) if removed else "",
                            message="Friend Kicker zerwal jeden kontakt ofiary." if removed
                                    else "Friend Kicker nie zdolal zerwac kontaktu.")
             return payload
 
-        result = player_hack_access_store.commit_tool_result(access, attacker, victim_username,
-                                                            tool_id, execute_friend_kicker)
+        if tool.get('artifact_id'):
+            from ghostlab_runtime import commit_mutation
+            result = commit_mutation(attacker, victim_username, tool, access, player_hack_access_store,
+                player_hack_write_guard(attacker, victim_username, tool_id, access), PRO_SYSTEM_TOOLS, execute_friend_kicker)
+        else:
+            result = player_hack_access_store.commit_tool_result(access, attacker, victim_username,
+                                                                tool_id, execute_friend_kicker)
         if result is None or result.get("duplicate"):
             return jsonify({"success": False, "reason": "tool_already_used",
                             "error": "Friend Kicker byl juz uzyty podczas tego dostepu.",
@@ -26773,6 +26877,8 @@ def player_hack_security_mutation(preset=False):
     product = resolve_player_hack_product(attacker, tool_id)
     if not product or product['family_id'] != 'securityPanelProxy' or not product['runtime_enabled']:
         return jsonify(success=False, reason='tool_not_installed', error='Narzedzie niedostepne.'), 403
+    if product.get('artifact_id') and data.get('artifact_id') != product['artifact_id']:
+        return jsonify(success=False, reason='artifact_changed', error='Odśwież panel po zmianie wersji narzędzia.'), 409
     context = player_hack_access_store.access_key(access)
     if data.get('security_context') != context:
         return jsonify(success=False, reason='security_context_changed', error='Otworz ponownie panel zabezpieczen.'), 409
@@ -26789,7 +26895,7 @@ def player_hack_security_mutation(preset=False):
             expected_version=data['security_version'], guard=player_hack_write_guard(attacker, victim, tool_id, access))
     except ValueError as exc:
         return jsonify(success=False, error=str(exc)), 400
-    return jsonify(success=True, **result, security_context=context, tool_id=tool_id,
+    return jsonify(success=True, **result, security_context=context, tool_id=tool_id, artifact_id=product.get('artifact_id'),
                    changed_by_rules=changed, rules=SECURITY_CONFLICTS,
                    access=serialize_player_hack_access(access))
 
@@ -26811,7 +26917,13 @@ def api_player_hack_security_read():
     if (not access or not product or product['family_id'] != 'securityPanelProxy' or not product['runtime_enabled']
             or not player_hack_access_store.has_tool_usage(access, attacker, victim, product['family_id'])):
         return jsonify(success=False, error='Panel zabezpieczen niedostepny.'), 403
-    return jsonify(success=True, result_type='security_panel', **player_security_store().get(victim), tool=product, tool_id=tool_id,
+    with db_connect(player_hack_access_store.db_path) as conn:
+        conn.execute('BEGIN')
+        guard = player_hack_write_guard(attacker, victim, tool_id, access)
+        guard(conn=conn)
+        security_state = player_security_store().get(victim, conn=conn)
+        guard(conn=conn)
+    return jsonify(success=True, result_type='security_panel', **security_state, tool=product, tool_id=tool_id,
                    security_context=player_hack_access_store.access_key(access), victim_username=victim,
                    access=serialize_player_hack_access(access), rules=SECURITY_CONFLICTS)
 

@@ -3,6 +3,11 @@
 Status: **ZAPLANOWANY**, 24 IX 2026. Implementacja po PASS 147.
 Podstawa: [audyt](../audits/creators_gameplay_audit_2026_09_24.md),
 [147 — serwerowy kontrakt](sprint_147_creator_gameplay_policy.md).
+Po PASS 148 rozpoczyna się **GhostLab v2.0**:
+[149 — Research](sprint_149_ghostlab_v2_research.md) →
+[150 — Official Exchange i import](sprint_150_ghostlab_v2_exchange_import.md) →
+[151 — Community i wersje](sprint_151_ghostlab_v2_community_versions.md) →
+[152 — optimizer, zależności, AI/SDK i pełny odbiór](sprint_152_ghostlab_v2_completion.md).
 
 ## Bramka: zero ciężkiego profilu
 

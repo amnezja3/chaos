@@ -5,10 +5,12 @@ from ghostlab_registry import get_template, artifact_compatible, template_availa
 
 
 def runtime_artifact_ready(artifact):
-    return (artifact.get('template_id') == 'system_log_reader'
-            and artifact.get('runtime_revision') == 1
-            and artifact_compatible(artifact, 'system_log_reader')
-            and not validate_fields('system_log_reader', artifact.get('blueprint_snapshot')))
+    template = artifact.get('template_id')
+    definition = get_template(template) or {}
+    return (bool(definition.get('executor_id'))
+            and artifact.get('runtime_revision') == definition.get('runtime_revision')
+            and artifact_compatible(artifact, template)
+            and not validate_fields(template, artifact.get('blueprint_snapshot')))
 
 
 def runtime_status(artifact):
@@ -61,11 +63,11 @@ def resolve(conn, username, app_id, builtins):
     reason = 'Runtime potomka jeszcze niedostępny.'
     if not compatible:
         reason = 'Wersja kontraktu niedostępna.'
-    elif definition['id'] == 'system_log_reader':
+    else:
         if not runtime_artifact_ready(artifact):
             reason = 'Build wymaga ponownej kompilacji, publikacji i aktualizacji do runtime.'
         elif not template_available(definition['id'], 'runtime'):
-            reason = 'Runtime System Log Reader jest wyłączony na serwerze.'
+            reason = 'Runtime tej rodziny jest wyłączony na serwerze.'
         elif not runtime_actor_allowed(username):
             reason = 'Runtime jest dostępny tylko dla aktywowanych kont testowych.'
     return {'id': app_id, 'name': branding.get('name') or artifact.get('project_name') or app_id,
