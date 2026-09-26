@@ -62,7 +62,8 @@
             const start = () => {
                 if (done || started) return;
                 started = true; clearTimeout(deadline);
-                // Prison already dims by 60%: another 50% gives 80% total, not 92%.
+                // Keep 20% of the map visible even over the prison's 60% shade:
+                // .4 * .5 = .2. Outside prison the overlay itself is 80% black.
                 if (doc.querySelector('.detention-map-shade')) overlay.style.background = 'rgba(0,0,0,.5)';
                 doc.body.appendChild(overlay);
                 visibilityTimer = setInterval(() => { if (visibleMap() !== doc) finish(); }, 200);

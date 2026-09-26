@@ -9699,7 +9699,8 @@ def api_response_detention():
         return jsonify({'ok': False, 'error': 'not_logged_in'}), 401
     detention_service.advance_actor(session['user'])
     state = detention_capabilities(session['user'])
-    result = {'ok': True, 'detention': state}
+    record = criminal_record_store.observe(session['user'], messages=system_message_store)
+    result = {'ok': True, 'detention': state, 'criminal_record': record}
     if state and request.args.get('bail_offer') == '1':
         balance = detention_service.wallet.get_balance(session['user'])
         result['bail_offer'] = {'actor_id': session['user'], 'balance_hc': balance,
@@ -21263,6 +21264,7 @@ def api_state_changes():
 
     mail_store.touch_presence(username)
     detention_service.advance_actor(username)
+    criminal_record_store.observe(username, messages=system_message_store)
     try:
         get_ghostsignal_show_service().deliver_start_to_viewer(delta_bus, username)
     except Exception as exc:

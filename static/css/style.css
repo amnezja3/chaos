@@ -3883,6 +3883,8 @@ form button:hover {
     font: inherit;
     cursor: pointer;
 }
+/* The shared ::before supplies the close icon; hide the fallback text. */
+.pro-tool-window .close-btn { font-size: 0; }
 .pro-tool-window button:hover:not(:disabled), .pro-tool-window .close-btn:hover {
     background: #264e18;
     border-color: #b8ff63;

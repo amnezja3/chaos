@@ -33,6 +33,7 @@ class SanctionStore:
                 release_reason TEXT, released_ms INTEGER)''')
             conn.execute('''CREATE UNIQUE INDEX IF NOT EXISTS response_one_open_sanction
                 ON response_sanctions(actor_id) WHERE status IN ('active','release_pending')''')
+            conn.execute('CREATE INDEX IF NOT EXISTS response_release_by_actor ON response_sanctions(actor_id,released_ms)')
             conn.execute('''CREATE TABLE IF NOT EXISTS response_sanction_events (
                 sanction_id TEXT NOT NULL, version INTEGER NOT NULL,
                 kind TEXT NOT NULL, at_ms INTEGER NOT NULL, data_json TEXT NOT NULL,

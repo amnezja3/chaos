@@ -61,7 +61,18 @@
     async function refresh() {
         const response = await fetch('/api/response/detention');
         if (!response.ok) return;
-        update((await response.json()).detention);
+        const data = await response.json();
+        update(data.detention);
+        let badge = document.getElementById('criminal-record-status');
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.id = 'criminal-record-status';
+            badge.style.cssText = 'position:fixed;bottom:64px;right:16px;z-index:999;padding:6px 10px;background:#061109e6;border:1px solid #42632c;color:#c7eab8;font:12px monospace;max-width:calc(100vw - 52px);pointer-events:none';
+            document.body.appendChild(badge);
+        }
+        const record = data.criminal_record;
+        badge.hidden = !record?.active_burden;
+        if (record?.active_burden) badge.textContent = `Kartoteka: ${record.active_burden} · ${record.paused || data.detention ? 'wygaszanie wstrzymane' : 'spadek za ' + Math.ceil(record.remaining_seconds / 60) + ' min spokojnej aktywności'}`;
     }
     let paying = false;
     async function submitBail(sanctionId) {
