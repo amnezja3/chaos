@@ -7,7 +7,7 @@ import run
 class ProfileBootSnapshotContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = Path("run.py").read_text(encoding="utf-8")
+        cls.source = (Path(__file__).resolve().parents[1] / "run.py").read_text(encoding="utf-8")
 
     def test_api_profile_does_not_rebuild_territory(self):
         start = self.source.index('@app.route("/api/profile")')
@@ -46,7 +46,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertEqual("Broker", run.get_profile_profession_display(profile))
 
     def test_profile_window_renders_profession_under_clan(self):
-        terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        terminal = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         start = terminal.index("async function createProfile()")
         end = terminal.index("async function getUserProfile()", start)
         renderer = terminal[start:end]
@@ -133,7 +133,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("create_missing_operations_for_app_target", endpoint)
 
     def test_non_choice_feedback_does_not_reference_choice_variable(self):
-        terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        terminal = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         start = terminal.index("async function notifyGonnaWin(")
         end = terminal.index("function notifyOpenMapsTargetHacked", start)
         helper = terminal[start:end]
@@ -150,7 +150,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertGreaterEqual(helper.count("if cache_in_session:"), 2)
 
     def test_successful_profile_refresh_repairs_toolbar_snapshot(self):
-        terminal_source = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        terminal_source = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         start = terminal_source.index("async function getUserProfile()")
         end = terminal_source.index("function rememberProcessedDelta", start)
         helper = terminal_source[start:end]
@@ -170,7 +170,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("set_profile_session", endpoint)
 
     def test_frontend_coalesces_concurrent_profile_requests(self):
-        terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        terminal = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         declaration = terminal.index("let userProfileRequestPromise = null")
         first_boot_call = terminal.index("const profileData = await getUserProfile()")
         start = terminal.index("async function getUserProfile()")

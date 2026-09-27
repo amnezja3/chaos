@@ -88,7 +88,7 @@ def financial_effect(conn, *, actor, target, product, access, access_store, wall
 
 def installed_state(conn, actor, app_id, builtins):
     from ghostlab_products import published_product, runtime_artifact_ready
-    product = resolve(conn, actor, app_id, builtins)
+    product = resolve(conn, actor, app_id, builtins, launch_modes=('player_hack_access', 'own_system'))
     if not product or not product.get('artifact_id'):
         raise PlayerHackAccessChanged('Installed GhostLab artifact unavailable')
     available = published_product(conn, app_id)

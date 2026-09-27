@@ -4379,6 +4379,10 @@ async function openGhostLabInstalledApp(appId) {
             if (!response.ok || !data.success) throw Error(data.error || 'Aplikacja niedostępna.');
             const product = data.product;
             app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
+            if (product.launch_mode === 'own_system') {
+                await renderGhostLabMaintenance(app, body, data, load);
+                return;
+            }
             const tool = data.access?.tools?.find(item => item.id === appId);
             const enabled = data.access?.active && (tool?.enabled || tool?.can_reopen);
             body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
@@ -12688,6 +12692,10 @@ async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
     if (rememberProcessedDelta(dedupeKey)) return false;
+    if (event.type === 'maintenance.completed') {
+        applyGhostLabMaintenanceResult(event.payload || {});
+        return true;
+    }
     if (event.type === 'response.consequence_executed') {
         if (stateDeltaSfxPlaybackAllowed) window.ConsequenceShow?.receive(event.payload);
         return true;
@@ -14829,26 +14837,29 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
     const main = root?.querySelector('[data-ghostlab-main]');
     if (!main) return;
     ghostLabState.activeTab = tabName || "Projects";
+    root.scrollTop = 0;
+    main.scrollTop = 0;
+    root._ghostLabEditingProject = null;
+    if (tabName !== 'Templates') root._ghostLabNewProjectName = null;
     setGhostLabMessage(root, "", "info");
     updateGhostLabStatusBar(root);
 
     if (tabName === "Projects") {
         main.innerHTML = `
-            <section class="ghostlab-panel">
-                <header><h3>Projects</h3><span>v0.2 / v0.3 templates</span></header>
-                <p>Projekty GhostLab sa zapisywane osobno w files.pro_system_projects, bez mieszania z projektami AppForge.</p>
+            <section class="ghostlab-panel ghostlab-projects-panel">
+                <header><h3>Projects</h3><span>Twoje projekty</span></header>
+                <p>Wybierz projekt, aby zobaczyć szczegóły, lub stwórz nowy na bazie templatki.</p>
                 <div class="ghostlab-project-toolbar">
-                    <input type="text" data-ghostlab-project-name maxlength="64" placeholder="Nazwa projektu">
-                    <button type="button" data-ghostlab-new-project title="Create a new empty GhostLab project.">New Project</button>
+                    <button type="button" data-ghostlab-new-project>New Project</button>
                     <button type="button" data-ghostlab-open-project title="Open selected project in the editor.">Open Project</button>
-                    <button type="button" data-ghostlab-rename-project title="Rename selected project using the name field.">Rename</button>
-                    <button type="button" data-ghostlab-delete-project title="Delete selected GhostLab project.">Delete</button>
                 </div>
-                <div class="ghostlab-project-list" data-ghostlab-project-list>
+                <div class="ghostlab-projects-layout">
+                <div class="ghostlab-project-list" data-ghostlab-project-list aria-label="Projekty">
                     <div class="ghostlab-empty">Ladowanie projektow...</div>
                 </div>
                 <div class="ghostlab-project-preview" data-ghostlab-project-preview>
                     Wybierz projekt, zeby zobaczyc status workspace.
+                </div>
                 </div>
             </section>
         `;
@@ -14857,7 +14868,8 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
         if (!templatesLoaded) { loadGhostLabTemplates(root); return; }
         main.innerHTML = `
             <section class="ghostlab-panel">
-                <header><h3>Templates</h3><span>v0.3 Ready</span></header>
+                <header><h3>${root._ghostLabNewProjectName ? 'Wybierz templatkę' : 'Templates'}</h3><span>${root._ghostLabNewProjectName ? 'Krok 2 z 2' : 'Szablony projektów'}</span></header>
+                ${root._ghostLabNewProjectName ? `<p>Nowy projekt: <strong>${escapeHTML(root._ghostLabNewProjectName)}</strong>. Wybór templatki utworzy projekt i otworzy edytor.</p><div class="ghostlab-project-toolbar"><button type="button" data-ghostlab-change-name>Zmień nazwę</button><button type="button" data-ghostlab-cancel-create>Anuluj</button></div>` : ''}
                 <div class="ghostlab-template-grid">
                     ${GHOSTLAB_TEMPLATES.map(item => `
                         <article class="ghostlab-template-card">
@@ -14873,7 +14885,7 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
                                 <b>LVL ${escapeHTML(String(item.recommended_level))}</b>
                                 <b>Risk ${"★".repeat(item.risk_level)}${"☆".repeat(Math.max(0, 5 - item.risk_level))}</b>
                             </div>
-                            <button type="button" data-ghostlab-create-template="${escapeHTML(item.id)}" title="Create a draft project from this template.">Create Project</button>
+                            <button type="button" data-ghostlab-create-template="${escapeHTML(item.id)}">${root._ghostLabNewProjectName ? 'Wybierz i otwórz projekt' : 'Create Project'}</button>
                         </article>
                     `).join("")}
                     ${GHOSTLAB_TEMPLATES.length ? '' : '<div class="ghostlab-empty">No templates available. Ghost Exchange may provide more later.</div>'}
@@ -15052,6 +15064,8 @@ function handleGhostLabKeyboardShortcut(root, event) {
 function wireGhostLabTemplates(root) {
     const main = root?.querySelector('[data-ghostlab-main]');
     if (!main) return;
+    main.querySelector('[data-ghostlab-change-name]')?.addEventListener('click', () => createGhostLabProject(root));
+    main.querySelector('[data-ghostlab-cancel-create]')?.addEventListener('click', () => activateGhostLabTab(root, 'Projects'));
     main.querySelectorAll('[data-ghostlab-create-template]').forEach(button => {
         button.addEventListener('click', () => {
             const template = GHOSTLAB_TEMPLATES.find(item => item.id === button.dataset.ghostlabCreateTemplate);
@@ -15065,8 +15079,6 @@ function wireGhostLabProjects(root) {
     if (!main) return;
     main.querySelector('[data-ghostlab-new-project]')?.addEventListener('click', () => createGhostLabProject(root));
     main.querySelector('[data-ghostlab-open-project]')?.addEventListener('click', () => openGhostLabProject(root));
-    main.querySelector('[data-ghostlab-rename-project]')?.addEventListener('click', () => renameGhostLabProject(root));
-    main.querySelector('[data-ghostlab-delete-project]')?.addEventListener('click', () => deleteGhostLabProject(root));
     loadGhostLabProjects(root);
 }
 
@@ -15077,6 +15089,7 @@ async function loadGhostLabProjects(root) {
     try {
         const res = await fetch('/api/ghostlab/projects');
         const data = await res.json();
+        if (!list?.isConnected || root.querySelector('[data-ghostlab-project-list]') !== list) return;
         if (!res.ok || data.success === false) {
             setGhostLabMessage(root, data.message || "Nie udalo sie pobrac projektow.", "error");
             return;
@@ -15097,14 +15110,17 @@ function renderGhostLabProjects(root) {
     const list = root?.querySelector('[data-ghostlab-project-list]');
     const preview = root?.querySelector('[data-ghostlab-project-preview]');
     if (!list || !preview) return;
+    const openButton = root.querySelector('[data-ghostlab-open-project]');
+    if (openButton) openButton.disabled = !selectedGhostLabProject();
+    const scrollTop = list.scrollTop;
     if (!ghostLabState.projects.length) {
-        list.innerHTML = `<div class="ghostlab-empty"><strong>No GhostLab projects yet.</strong><span>Start from Templates or Ghost Exchange.</span></div>`;
-        preview.textContent = "Brak projektow w canonical store GhostLaba.";
+        list.innerHTML = `<div class="ghostlab-empty"><strong>Nie masz jeszcze projektów.</strong><span>Wybierz New Project, nadaj nazwę i wybierz templatkę.</span></div>`;
+        preview.textContent = "Tutaj pojawią się szczegóły wybranego projektu.";
         updateGhostLabStatusBar(root);
         return;
     }
     list.innerHTML = ghostLabState.projects.map(project => `
-        <button type="button" class="${project.id === ghostLabState.selectedProjectId ? 'active' : ''}" data-ghostlab-project-id="${escapeHTML(project.id)}">
+        <button type="button" class="${project.id === ghostLabState.selectedProjectId ? 'active' : ''}" aria-pressed="${project.id === ghostLabState.selectedProjectId}" data-ghostlab-project-id="${escapeHTML(project.id)}">
             <strong>${escapeHTML(project.icon || '🧪')} ${escapeHTML(project.name)}</strong>
             <span>${escapeHTML(project.tool_category || 'custom')} / ${escapeHTML(ghostLabProjectStatusLabel(project.status))}</span>
         </button>
@@ -15113,6 +15129,7 @@ function renderGhostLabProjects(root) {
         button.addEventListener('click', () => {
             ghostLabState.selectedProjectId = button.dataset.ghostlabProjectId;
             renderGhostLabProjects(root);
+            Array.from(list.querySelectorAll('[data-ghostlab-project-id]')).find(item => item.dataset.ghostlabProjectId === ghostLabState.selectedProjectId)?.focus({preventScroll: true});
             setGhostLabMessage(root, `Wybrano projekt ${selectedGhostLabProject()?.name || ''}.`, "info");
         });
     });
@@ -15120,15 +15137,13 @@ function renderGhostLabProjects(root) {
     const selected = selectedGhostLabProject();
     preview.innerHTML = selected ? `
         <strong>${escapeHTML(selected.icon || '🧪')} ${escapeHTML(selected.name)}</strong>
-        <span>ID: ${escapeHTML(selected.id)}</span>
-        <span>Slug: ${escapeHTML(selected.slug)}</span>
         <span>Template: ${escapeHTML(selected.template_name || 'custom project')}</span>
         <span>Kategoria: ${escapeHTML(selected.tool_category || '-')}</span>
         <span>Status: ${escapeHTML(ghostLabProjectStatusLabel(selected.status))}</span>
         <span>Builds: ${escapeHTML(String((selected.builds || []).length))}</span>
-        <span>Created: ${escapeHTML(selected.created_at || '-')}</span>
         <span>Updated: ${escapeHTML(selected.updated_at || '-')}</span>
     ` : "Wybierz projekt, zeby zobaczyc status workspace.";
+    list.scrollTop = scrollTop;
     updateGhostLabStatusBar(root);
 }
 
@@ -15255,7 +15270,7 @@ function renderGhostLabEditor(root, project) {
                 <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : ''} step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>${project.template_id === 'travel_ticket' ? 'Bilet kosztuje 5–150 HC. Puste pole: 100 HC. Cena sugerowana powyżej limitu zostanie obniżona do 150 HC.' : 'Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.'}</small></label>
                 <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
-            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
+            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'own_system' ? 'wlasny system' : definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
             <h4>Ustawienia funkcji</h4>
             <div class="ghostlab-editor-grid">
                 ${fields.map(field => renderGhostLabEditorField(field, blueprint[field.key])).join("")}
@@ -15281,6 +15296,11 @@ function renderGhostLabEditor(root, project) {
                 <button type="button" data-ghostlab-publish-project title="Opublikuj build w Googleplex i udostępnij aktualizację.">Opublikuj build</button>
                 <button type="button" data-ghostlab-withdraw-project>Wycofaj sprzedaz</button>
             </div>
+            <section class="ghostlab-danger" aria-label="Danger">
+                <h4>Danger</h4>
+                <p>${project.published_artifact_id || project.published_at ? 'Ten projekt był opublikowany i przechowuje zakupione wersje. Możesz wycofać sprzedaż, ale nie usunąć archiwum.' : 'Usunięcie projektu jest nieodwracalne. Usunięty zostanie szkic wraz z jego buildami; niezapisane zmiany przepadną.'}</p>
+                <button type="button" data-ghostlab-delete-project ${project.published_artifact_id || project.published_at ? 'disabled' : ''}>Delete Project</button>
+            </section>
         </section>
     `;
     if (project.template_id === 'travel_ticket') mountGhostLabTravelPreview(main);
@@ -15293,6 +15313,7 @@ function renderGhostLabEditor(root, project) {
     });
     main.querySelector('[data-ghostlab-save-blueprint]')?.addEventListener('click', () => saveGhostLabBlueprint(root, project.id));
     main.querySelector('[data-ghostlab-withdraw-project]')?.addEventListener('click', () => withdrawGhostLabProject(root, project));
+    main.querySelector('[data-ghostlab-delete-project]')?.addEventListener('click', () => deleteGhostLabProject(root, project));
     main.querySelectorAll('[data-ghostlab-blueprint-key], [data-ghostlab-branding]').forEach(input => {
         input.addEventListener('input', () => {
             const dirty = ghostLabBlueprintDirty(root, project);
@@ -15317,6 +15338,9 @@ function renderGhostLabEditorField(field, value) {
     if (field.editable === false) value = field.default;
     const safeKey = escapeHTML(field.key);
     const safeLabel = escapeHTML(field.label);
+    if (Array.isArray(field.enum)) {
+        return `<label class="ghostlab-editor-field"><span>${safeLabel}</span><select data-ghostlab-blueprint-key="${safeKey}">${field.enum.map(option => `<option value="${escapeHTML(option)}" ${option === value ? 'selected' : ''}>${escapeHTML(option.toUpperCase())}</option>`).join('')}</select></label>`;
+    }
     if (field.editable === false && field.type === 'textarea') {
         return `<label class="ghostlab-editor-field"><span>${safeLabel} — polityka serwera</span><input readonly data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? '')}"></label>`;
     }
@@ -15380,7 +15404,7 @@ function renderGhostLabPublisherPipeline(project) {
     return `
         <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong>
         <span>Ostatnio opublikowany build: ${escapeHTML(String(publishedBuild?.version || '—'))}.</span>
-        <span>${contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
+        <span>${contract.runtime_status === 'own_system' ? 'Runtime wlasnego systemu gotowy; uruchomienie z pulpitu.' : contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
         <span>${project.template_id === 'travel_ticket' ? (isPublished ? 'Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca.' : 'Opublikuj build, aby udostępnić to miejsce w Googleplexie.') : isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
@@ -15433,6 +15457,7 @@ function validateGhostLabBlueprint(project, blueprint) {
             if (typeof value !== 'boolean') errors.push(`${key}: wymagany boolean.`);
         } else if (field.type === 'string') {
             if (typeof value !== 'string' || !value.trim() || value.length > field.max_length) errors.push(`${key}: nieprawidlowy tekst.`);
+            if (Array.isArray(field.enum) && !field.enum.includes(value)) errors.push(`${key}: wybierz systemowy zestaw.`);
         } else errors.push(`${key}: nieobslugiwany typ pola.`);
     });
     return { valid: errors.length === 0, errors, warnings: [] };
@@ -15450,7 +15475,15 @@ function buildGhostLabBlueprintPreview(project, blueprint, validation) {
     } else {
         lines.push(`Latest build: none`);
     }
-    if (project?.template_id === "financial_sniffer") {
+    if (project?.template_id === 'file_cleanup') {
+        lines.push('Czyszczenie własnych, niesprzedawalnych plików; podgląd i potwierdzenie przed usunięciem.');
+        lines.push('Wybrane grupy: ' + Object.keys(blueprint).filter(key => blueprint[key]).join(', '));
+    } else if (project?.template_id === 'system_update') {
+        lines.push('Prezentacja aktualizacji bez zmian parametrów.');
+        lines.push(...Object.values(blueprint));
+    } else if (project?.template_id === 'security_restore') {
+        lines.push('Jednorazowe ustawienie zabezpieczeń własnego konta: ' + String(blueprint.preset).toUpperCase());
+    } else if (project?.template_id === "financial_sniffer") {
         lines.push(`Effect: steal up to ${blueprint.steal_percent || '?'}% HC`);
         lines.push(`Detection: ${blueprint.detection_percent ?? '?'}%`);
         lines.push(`Cooldown: ${blueprint.cooldown_minutes || '?'} min`);
@@ -15725,40 +15758,39 @@ function selectedGhostLabProject() {
     return ghostLabState.projects.find(project => project.id === ghostLabState.selectedProjectId) || null;
 }
 
-async function createGhostLabProject(root) {
-    const input = root?.querySelector('[data-ghostlab-project-name]');
-    const name = (input?.value || "").trim();
-    if (!name) {
-        setGhostLabMessage(root, "Podaj nazwe projektu.", "error");
-        return;
-    }
-    setGhostLabWorking(root, "Creating project...");
-    try {
-        const res = await fetch('/api/ghostlab/projects', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, request_id: ghostLabCreateRequestId(root, {name}) })
-        });
-        const data = await res.json();
-        if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Nie udalo sie utworzyc projektu.", "error");
-            return;
-        }
-        if (input) input.value = "";
-        root._ghostLabCreateSignature = null;
-        ghostLabState.projects = data.projects || [];
-        ghostLabState.selectedProjectId = data.project?.id || ghostLabState.selectedProjectId;
-        renderGhostLabProjects(root);
-        setGhostLabMessage(root, data.message || "Projekt utworzony.", "info");
-    } catch (err) {
-        console.warn("GhostLab create project failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
-    }
+function createGhostLabProject(root) {
+    const main = root?.querySelector('[data-ghostlab-main]');
+    if (!main || root._ghostLabCreating) return;
+    root._ghostLabEditingProject = null;
+    main.innerHTML = `<section class="ghostlab-panel ghostlab-new-project">
+        <header><h3>New Project</h3><span>Krok 1 z 2</span></header>
+        <p>Nadaj nazwę projektu. W kolejnym kroku wybierzesz templatkę.</p>
+        <form data-ghostlab-new-form>
+            <label class="ghostlab-editor-field"><span>Nazwa projektu</span>
+                <input type="text" data-ghostlab-project-name maxlength="64" required autocomplete="off" value="${escapeHTML(root._ghostLabNewProjectName || '')}"></label>
+            <div class="ghostlab-project-toolbar"><button type="submit">Wybierz templatkę</button>
+                <button type="button" data-ghostlab-cancel-create>Anuluj</button></div>
+        </form></section>`;
+    const input = main.querySelector('[data-ghostlab-project-name]');
+    root.scrollTop = 0;
+    input.focus();
+    main.querySelector('[data-ghostlab-cancel-create]').onclick = () => activateGhostLabTab(root, 'Projects');
+    main.querySelector('[data-ghostlab-new-form]').onsubmit = event => {
+        event.preventDefault();
+        const name = input.value.trim();
+        if (!name || name.length > 64) { input.focus(); return; }
+        root._ghostLabNewProjectName = name;
+        activateGhostLabTab(root, 'Templates');
+    };
 }
 
 async function createGhostLabProjectFromTemplate(root, template) {
+    if (root._ghostLabCreating) return;
+    root._ghostLabCreating = true;
+    const buttons = Array.from(root.querySelectorAll('[data-ghostlab-create-template], [data-ghostlab-change-name], [data-ghostlab-cancel-create]'));
+    buttons.forEach(button => button.disabled = true);
     const payload = {
-        name: `${template.name} Project`,
+        name: root._ghostLabNewProjectName || `${template.name} Project`,
         template_id: template.id,
         template_name: template.name,
         tool_category: template.tool_category || template.category,
@@ -15779,11 +15811,18 @@ async function createGhostLabProjectFromTemplate(root, template) {
         root._ghostLabCreateSignature = null;
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = data.project?.id || ghostLabState.selectedProjectId;
-        activateGhostLabTab(root, "Projects");
-        setGhostLabMessage(root, "Projekt utworzony. Otwórz edytor i skonfiguruj produkt.", "info");
+        root._ghostLabNewProjectName = null;
+        ghostLabState.activeTab = 'Projects';
+        root.querySelectorAll('[data-ghostlab-tab]').forEach(button => button.classList.toggle('active', button.dataset.ghostlabTab === 'Projects'));
+        renderGhostLabEditor(root, data.project);
+        root.scrollTop = 0;
+        setGhostLabMessage(root, "Projekt utworzony. Możesz teraz skonfigurować produkt.", "info");
     } catch (err) {
         console.warn("GhostLab template project create failed", err);
         setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
+    } finally {
+        root._ghostLabCreating = false;
+        buttons.forEach(button => button.disabled = false);
     }
 }
 
@@ -15795,57 +15834,29 @@ function openGhostLabProject(root) {
     }
     ghostLabState.activeProjectId = selected.id;
     renderGhostLabEditor(root, selected);
+    root.scrollTop = 0;
     setGhostLabMessage(root, `Otworzono edytor projektu ${selected.name}.`, "info");
 }
 
-async function renameGhostLabProject(root) {
-    const selected = selectedGhostLabProject();
-    const input = root?.querySelector('[data-ghostlab-project-name]');
-    const name = (input?.value || "").trim();
-    if (!selected) {
-        setGhostLabMessage(root, "Wybierz projekt do zmiany nazwy.", "error");
-        return;
-    }
-    if (!name) {
-        setGhostLabMessage(root, "Wpisz nowa nazwe w polu projektu.", "error");
-        return;
-    }
-    setGhostLabWorking(root, "Renaming project...");
-    try {
-        const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(selected.id)}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, revision: selected.revision })
-        });
-        const data = await res.json();
-        if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Nie udalo sie zmienic nazwy.", "error");
-            return;
-        }
-        if (input) input.value = "";
-        ghostLabState.projects = data.projects || [];
-        ghostLabState.selectedProjectId = data.project?.id || selected.id;
-        renderGhostLabProjects(root);
-        setGhostLabMessage(root, data.message || "Projekt zmieniony.", "info");
-    } catch (err) {
-        console.warn("GhostLab rename project failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
-    }
-}
-
-async function deleteGhostLabProject(root) {
-    const selected = selectedGhostLabProject();
+async function deleteGhostLabProject(root, project = root?._ghostLabEditingProject) {
+    const selected = project;
+    if (root._ghostLabDeleting) return;
     if (!selected) {
         setGhostLabMessage(root, "Wybierz projekt do usuniecia.", "error");
         return;
     }
-    if (!await showGhostDecisionDialog({
-        title: 'GHOSTLAB — USUNIĘCIE PROJEKTU',
-        message: `Usunąć projekt ${selected.name}?`,
-        confirmLabel: 'USUŃ', cancelLabel: 'ANULUJ', tone: 'red'
-    })) return;
-    setGhostLabWorking(root, "Deleting project...");
+    if (selected.published_artifact_id || selected.published_at) {
+        setGhostLabMessage(root, 'Opublikowany projekt pozostaje archiwum zakupionych wersji.', 'error');
+        return;
+    }
+    root._ghostLabDeleting = true;
     try {
+        if (!await showGhostDecisionDialog({
+            title: 'GHOSTLAB — USUNIĘCIE PROJEKTU',
+            message: `Usunąć projekt ${selected.name}?`,
+            confirmLabel: 'USUŃ', cancelLabel: 'ANULUJ', tone: 'red'
+        })) return;
+        setGhostLabWorking(root, "Deleting project...");
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(selected.id)}`, {
             method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({revision: selected.revision})
         });
@@ -15856,11 +15867,15 @@ async function deleteGhostLabProject(root) {
         }
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = ghostLabState.projects[0]?.id || null;
-        renderGhostLabProjects(root);
+        if (ghostLabState.activeProjectId === selected.id) ghostLabState.activeProjectId = null;
+        root._ghostLabEditingProject = null;
+        activateGhostLabTab(root, 'Projects');
         setGhostLabMessage(root, data.message || "Projekt usuniety.", "info");
     } catch (err) {
         console.warn("GhostLab delete project failed", err);
         setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
+    } finally {
+        root._ghostLabDeleting = false;
     }
 }
 

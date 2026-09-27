@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import run
 import database
 from database import db_connect
-from ghostlab_registry import RUNTIME_FLAGS, default_blueprint
+from ghostlab_registry import RUNTIME_FLAGS, default_blueprint, get_template
 from tests import test_ghostlab_alignment as fixture
 from tests import test_first_respawn_territory_edge as geometry
 from tests.test_player_hack_read_paths import valid_profile
@@ -219,7 +219,7 @@ class GhostLabMutationRuntimeTest(unittest.TestCase):
         from datetime import datetime, timezone
         from response_network.sanctions import SanctionStore
         from response_network.consequence_table import plan_consequence
-        apps = [self.make(f) for f in RUNTIME_FLAGS if f != 'travel_ticket']
+        apps = [self.make(f) for f in RUNTIME_FLAGS if get_template(f)['launch_mode'] == 'player_hack_access']
         sanctions = SanctionStore(self.path)
         with db_connect(self.path) as conn:
             conn.execute('BEGIN IMMEDIATE')

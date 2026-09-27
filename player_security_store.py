@@ -17,9 +17,11 @@ class PlayerSecurityStore:
             raise ProfileRecoveryRequired('Invalid canonical player security')
         return {'security': security, 'security_version': row['version']}
 
-    def update(self, username, transform, *, expected_version=None, guard=None):
-        with db_connect(self.db_path) as conn:
-            conn.execute('BEGIN IMMEDIATE')
+    def update(self, username, transform, *, expected_version=None, guard=None, conn=None):
+        owns_connection = conn is None
+        with (db_connect(self.db_path) if owns_connection else nullcontext(conn)) as conn:
+            if owns_connection:
+                conn.execute('BEGIN IMMEDIATE')
             current = self.get(username, conn=conn)
             if expected_version is not None and (type(expected_version) is not int or expected_version != current['security_version']):
                 raise ProfileWriteConflict('Security changed; reopen the panel.')

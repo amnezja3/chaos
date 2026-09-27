@@ -2677,7 +2677,7 @@ form button:hover {
 
 .ghostlab-project-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(4, auto);
+  grid-template-columns: repeat(2, max-content);
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -2706,15 +2706,47 @@ form button:hover {
 
 .ghostlab-project-list {
   display: grid;
+  align-content: start;
   gap: 8px;
-  margin-bottom: 12px;
-  max-height: 150px;
-  overflow: auto;
+  min-width: 0;
+  max-height: clamp(320px, 60vh, 760px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 5px;
 }
+
+.ghostlab-projects-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) minmax(220px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.ghostlab-new-project form { max-width: 560px; }
+.ghostlab-new-project .ghostlab-project-toolbar { margin-top: 18px; }
+.ghostlab-project-toolbar button:disabled { opacity: .45; cursor: default; }
+.ghostlab-danger {
+  margin-top: 32px;
+  border: 1px solid #99434b;
+  background: rgba(90, 15, 25, .16);
+  padding: 16px;
+  color: #ffd1d5;
+}
+.ghostlab-danger h4 { margin: 0; color: #ff8793; }
+.ghostlab-danger button {
+  border: 1px solid #df6675;
+  background: #341319;
+  color: #ffe5e8;
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+.ghostlab-danger button:disabled { opacity: .5; cursor: not-allowed; }
+.ghostlab-danger button:focus-visible { outline: 2px solid #ffafba; outline-offset: 3px; }
 
 .ghostlab-project-list button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   text-align: left;
@@ -2747,12 +2779,16 @@ form button:hover {
 
 .ghostlab-project-preview {
   display: grid;
-  gap: 5px;
+  gap: 12px;
   border: 1px solid rgba(120, 255, 68, 0.2);
   background: rgba(0, 0, 0, 0.22);
   color: #bde8c2;
-  padding: 11px;
+  padding: 20px;
   min-height: 84px;
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  align-content: start;
 }
 
 .ghostlab-project-preview strong {
@@ -3381,6 +3417,8 @@ form button:hover {
   .ghostlab-onboarding > button { justify-self: start; }
   .ghostlab-project-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ghostlab-project-toolbar input { grid-column: 1 / -1; }
+  .ghostlab-projects-layout { grid-template-columns: minmax(0, 1fr); }
+  .ghostlab-project-list { max-height: none; overflow: visible; padding-right: 0; scrollbar-gutter: auto; }
   .ghostlab-project-list button { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .ghostlab-editor-actions button { flex: 1 1 140px; }
 

@@ -299,6 +299,33 @@ TEMPLATES['travel_ticket'] = {
 }
 RUNTIME_FLAGS = {'system_log_reader': 'CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED'}
 RUNTIME_FLAGS['travel_ticket'] = 'CHAOS_GHOSTLAB_TRAVEL_RUNTIME_ENABLED'
+MAINTENANCE_FIELDS = {
+    'file_cleanup': {key: {'type': 'boolean', 'label': label, 'default': True, 'editable': True}
+                     for key, label in [('camera', 'Pozostałości skanów kamer'), ('objects', 'Pozostałości skanów obiektów'),
+                                        ('recon', 'Zakończony Recon'), ('system', 'Zbędne artefakty systemowe'),
+                                        ('installers', 'Niepotrzebne instalatory')]},
+    'system_update': {f'log_{i}': {'type': 'string', 'label': f'Komunikat etapu {i}', 'default': message,
+                                  'editable': True, 'max_length': 180}
+                      for i, message in enumerate(['Pobieranie pakietu aktualizacji…', 'Sprawdzanie pakietu…',
+                                                    'Instalowanie aktualizacji…', 'Aktualizacja zakończona.'], 1)},
+    'security_restore': {'preset': {'type': 'string', 'label': 'Systemowy zestaw zabezpieczeń',
+                                    'default': 'regular', 'editable': True, 'max_length': 7,
+                                    'enum': ['open', 'low', 'regular', 'all']}},
+}
+for _id, _name, _icon, _description in [
+    ('file_cleanup', 'File Cleanup', '🧹', 'Usuwa wybrane zbędne, niesprzedawalne pliki własnego systemu.'),
+    ('system_update', 'System Update', '🔄', 'Prezentacja aktualizacji z logami autora; bez zmian parametrów systemu.'),
+    ('security_restore', 'Security Restore', '🛡', 'Jednorazowo ustawia systemowy zestaw zabezpieczeń własnego konta.'),
+]:
+    TEMPLATES[_id] = dict(id=_id, name=_name, icon=_icon, description=_description,
+        category='maintenance', tool_category='maintenance', recommended_level=1, required_respect=0,
+        risk_level=0, price=100, source_tool_id=None, schema_version=1, policy_version=1, contract_version=1,
+        target_kind='own_system', launch_mode='own_system', result_type=_id, executor_id=_id + '_v1',
+        runtime_revision=1, creation_enabled=True, publication_enabled=True, runtime_enabled=True,
+        presentation_ids=['default'], fields=MAINTENANCE_FIELDS[_id],
+        app_contract=dict(tool_family='pro_system_tool', tool_mode='desktop', map_actions=[],
+                          target_types=[], operation_types=[], resource_types=[]))
+    RUNTIME_FLAGS[_id] = 'CHAOS_GHOSTLAB_MAINTENANCE_RUNTIME_ENABLED'
 for _template in ('financial_sniffer', 'friend_kicker', 'security_panel_proxy', 'arsenal_cleaner', 'intruder_kicker'):
     TEMPLATES[_template].update(executor_id=_template + '_v1', runtime_enabled=True, runtime_revision=1)
     RUNTIME_FLAGS[_template] = 'CHAOS_GHOSTLAB_' + _template.upper() + '_RUNTIME_ENABLED'
@@ -315,7 +342,6 @@ PRO_TOOL_GLAB = {
     'ghostnetworkSuite': None, 'agi2108Console': None,
 }
 PLANNED_CONTRACTS = {
-    'system_maintenance': {'source_tool_id': None, 'target_kind': 'own_system', 'launch_mode': 'desktop'},
     'storage_extension': {'source_tool_id': None, 'target_kind': 'own_storage', 'launch_mode': 'desktop'},
     'map_marker_scan': {'source_tool_id': None, 'target_kind': 'map_decoration', 'launch_mode': 'map'},
     'deep_scanner': {'source_tool_id': None, 'target_kind': 'player', 'launch_mode': 'map'},
@@ -370,6 +396,8 @@ def validate_fields(template_id, blueprint):
         elif field['type'] == 'string':
             if not isinstance(value, str) or not value.strip() or len(value) > field['max_length']:
                 errors.append(f'{key}: nieprawidlowy tekst.')
+            elif field.get('enum') and value not in field['enum']:
+                errors.append(f'{key}: wybierz systemowy zestaw.')
         else:
             errors.append(f'{key}: nieobslugiwany typ pola.')
     return errors

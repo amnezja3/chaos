@@ -112,6 +112,8 @@ def register(app, services):
                    if runtime_artifact_ready(project['artifact']) else 'Build gotowy. Runtime nadal oczekuje.')
         if project.get('template_id') == 'travel_ticket':
             message = 'Bilet skompilowany. Po publikacji zakup wykona jedną podróż.'
+        if (get_template(project.get('template_id')) or {}).get('launch_mode') == 'own_system':
+            message = 'Build gotowy. Po instalacji uruchom aplikację na własnym pulpicie.'
         return reply(owner, project, artifact=project['artifact'], message=message)
 
     @app.get('/api/ghostlab/projects/<project_id>/export')
@@ -139,6 +141,8 @@ def register(app, services):
                    if app_data.get('runtime_status') == 'player_hack_access' else 'Opublikowano build. Custom runtime nadal oczekuje.')
         if app_data.get('runtime_status') == 'purchase_travel':
             message = 'Bilet opublikowany. Zakup wykonuje jedną podróż do miejsca z tej wersji.'
+        if app_data.get('runtime_status') == 'own_system':
+            message = 'Opublikowano narzędzie własnego systemu. Zainstalowane kopie wymagają jawnej aktualizacji.'
         return reply(owner, project, app=app_data, message=message)
 
     @app.delete('/api/ghostlab/projects/<project_id>')

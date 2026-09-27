@@ -14,6 +14,8 @@ def runtime_artifact_ready(artifact):
 
 
 def runtime_status(artifact):
+    if (get_template(artifact.get('template_id')) or {}).get('launch_mode') == 'own_system' and runtime_artifact_ready(artifact):
+        return 'own_system'
     if artifact.get('template_id') == 'travel_ticket' and runtime_artifact_ready(artifact):
         return 'purchase_travel'
     return 'player_hack_access' if runtime_artifact_ready(artifact) else 'pending_custom_runtime'
@@ -33,7 +35,7 @@ def published_product(conn, app_id):
     return app
 
 
-def resolve(conn, username, app_id, builtins):
+def resolve(conn, username, app_id, builtins, *, launch_modes=('player_hack_access',)):
     row = conn.execute("SELECT app_json,version FROM player_apps WHERE username=? AND app_id=? AND status!='uninstalled'",
                        (username, app_id)).fetchone()
     if not row:
@@ -56,7 +58,7 @@ def resolve(conn, username, app_id, builtins):
         return None
     artifact = json.loads(source['artifact_json'])
     definition = get_template(artifact.get('template_id'))
-    if not definition or definition['launch_mode'] != 'player_hack_access':
+    if not definition or definition['launch_mode'] not in launch_modes:
         return None
     branding = artifact.get('branding_snapshot') or {}
     compatible = artifact_compatible(artifact, definition['id'])
@@ -78,6 +80,7 @@ def resolve(conn, username, app_id, builtins):
             'installed': True, 'enabled': runtime, 'runtime_enabled': runtime,
             'family_id': definition.get('source_tool_id') or definition['id'], 'template_id': definition['id'],
             'artifact_id': artifact_id, 'installed_version': artifact['version'],
+            'launch_mode': definition['launch_mode'],
             'blueprint': artifact.get('blueprint_snapshot', {}), 'policy_version': artifact.get('policy_version'),
             'disabled_reason': '' if runtime else reason}
 

@@ -1,8 +1,17 @@
 # Sprint 146.1 — GhostLab: bilety do miejsc świata
 
-Status: **ZAIMPLEMENTOWANY LOKALNIE — DO WDROŻENIA I ODBIORU**, 27 IX 2026. Po bazowym 146.
+Status: **ZAMKNIĘTY — PASS**, 27 IX 2026, na podstawie końcowego potwierdzenia użytkownika dla całego Travel Ticket. Po bazowym 146.
 To rozszerzenie, nie sekcja 146.1 w historycznym planie runtime.
 Następny: [146.2 — konserwacja systemu](sprint_146_2_ghostlab_system_maintenance.md).
+
+## Odbiór końcowy
+
+Użytkownik potwierdził: „możemy spokojnie oznaczyć pass dla całego travel template,
+wszystko działa poprawnie teraz”. Zakres zaakceptowany po poprawkach obejmuje
+tworzenie i blueprint, walidację, kompilację, publikację, zakup, przekazanie HC,
+podróż, limit ceny 150 HC, ukrycie współrzędnych w ofercie i potwierdzeniu oraz
+trzy reakcje kupującego. Blokada oceny własnego biletu przez autora jest prawidłowa.
+Odbiór pochodzi od użytkownika; wyniki lokalnych testów pozostają opisane w runbooku.
 
 ## Ustalenia wdrożenia 27 IX
 
@@ -24,7 +33,7 @@ Następny: [146.2 — konserwacja systemu](sprint_146_2_ghostlab_system_maintena
   po wdrożeniu. Nie migrujemy lustrzanych historii z profili ani nie przyznajemy
   na ich podstawie prawa do oceniania.
 - [Runbook wdrożenia i wspólna lista testów](../runbooks/sprint_146_1_ghostlab_travel.md).
-  Lokalne testy nie zastępują odbioru desktop/mobile na serwerze.
+  Zawiera wyniki lokalnych testów i końcowe potwierdzenie odbioru użytkownika.
 
 ## Model przyjęty przez użytkownika
 

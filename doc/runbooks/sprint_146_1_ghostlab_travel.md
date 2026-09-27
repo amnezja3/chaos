@@ -1,10 +1,13 @@
 # Sprint 146.1 — bilety graczy i canonical travel
 
-Stan: bazowy pakiet wdrożony przez użytkownika (`6375f77`, restart PM2).
+Stan: **ZAMKNIĘTY — PASS**, 27 IX 2026, decyzją użytkownika dla całego Travel Ticket.
+Bazowy pakiet wdrożony przez użytkownika (`6375f77`, restart PM2).
 PASS użytkownika: blueprint, walidacja, publikacja, zakup, przekazanie HC,
 realizacja podróży oraz ocena biletu na innym koncie niż autor.
-Poprawki ceny i prywatności współrzędnych przygotowane lokalnie, bez commita/pusha.
-Ich odbiór oraz wizualny desktop/mobile pozostają do wykonania po wdrożeniu poprawki.
+Po poprawkach ceny i prywatności współrzędnych użytkownik potwierdził:
+„wszystko działa poprawnie teraz” i zaakceptował cały szablon jako PASS.
+Limit 150 HC, ukrycie współrzędnych oraz reakcje kupującego wchodzą w zamknięty zakres.
+Poniższa lista pozostaje instrukcją regresji; nie oznacza oczekiwania na odbiór.
 
 ## Co wdrażamy
 
@@ -92,7 +95,8 @@ PASS użytkownika; zgłoszona blokada dotyczyła prawidłowo wykluczonego autora
 
 Wynik 27 IX: **69 testów Python PASS, 6 zestawów Node PASS**. Kontrola składni
 zmienionych plików JS i `git diff --check` również PASS. Testów wizualnych
-w przeglądarce ani testów na produkcyjnym serwerze nie wykonano.
+w przeglądarce ani na produkcyjnym serwerze agent nie wykonywał; końcowy PASS
+działającego szablonu potwierdził użytkownik.
 
 Uruchamiać przez `python -B tools/run_isolated_tests.py`, nigdy import `run`
 z katalogu zawierającego produkcyjną bazę.

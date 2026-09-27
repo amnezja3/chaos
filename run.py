@@ -26402,8 +26402,8 @@ def ghostlab_installed_runtime(app_id):
         result = {}
     with db_connect(player_inventory_store.db_path) as conn:
         product, available = installed_state(conn, actor, app_id, PRO_SYSTEM_TOOLS)
-    access = player_hack_access_store.get_active_access(actor)
-    return jsonify(success=True, product=product, access=serialize_player_hack_access(access),
+    access = player_hack_access_store.get_active_access(actor) if product.get('launch_mode') != 'own_system' else None
+    return jsonify(success=True, product=product, access=serialize_player_hack_access(access) if access else None,
                    available_artifact_id=available['artifact_id'] if available else None,
                    available_version=available.get('source_build_version') if available else None,
                    update_available=bool(available and available['artifact_id'] != product['artifact_id']),
@@ -28614,6 +28614,8 @@ def admin_radio_settings():
 
 from ghostlab_routes import register as register_ghostlab_routes
 register_ghostlab_routes(app, globals())
+from ghostlab_maintenance import register as register_ghostlab_maintenance
+register_ghostlab_maintenance(app, globals())
 from ghostlab_travel import register as register_travel_routes
 register_travel_routes(app, globals())
 

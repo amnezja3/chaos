@@ -2842,6 +2842,12 @@ def init_db(db_path=DB_PATH):
             ON player_data_files(username, operation_id)
             """
         )
+        conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_maintenance_receipts (
+            username TEXT NOT NULL, action_id TEXT NOT NULL, app_id TEXT NOT NULL,
+            result_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(username, action_id))''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS player_data_file_tombstones (
+            username TEXT NOT NULL, file_id TEXT NOT NULL, created_at TEXT NOT NULL,
+            PRIMARY KEY(username, file_id))''')
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_player_data_files_market
@@ -11736,6 +11742,9 @@ class PlayerInventoryStore:
             ).fetchone()
             storage_added = 0
             for file_id, folder, payload_operation_id, payload in prepared:
+                if conn.execute('SELECT 1 FROM player_data_file_tombstones WHERE username=? AND file_id=?',
+                                (username, file_id)).fetchone():
+                    continue
                 existing = conn.execute(
                     "SELECT file_json FROM player_data_files WHERE username = ? AND file_id = ?",
                     (username, file_id),
@@ -12041,6 +12050,20 @@ class PlayerInventoryStore:
             )
             tools = (snapshot.get("files") or {}).get("tools")
             files["tools"] = copy.deepcopy(tools or [])
+            # Legacy snapshots may still contain data removed by maintenance.
+            # Filter only IDs already present in this mirror, in bounded batches.
+            visible_ids = list({self._data_file_id(item) for items in files.values() if isinstance(items, list)
+                                for item in items if isinstance(item, dict) and self._data_file_id(item)})
+            removed_ids = set()
+            with db_connect(self.db_path) as conn:
+                for offset in range(0, len(visible_ids), 500):
+                    batch = visible_ids[offset:offset + 500]
+                    removed_ids.update(row[0] for row in conn.execute(
+                        'SELECT file_id FROM player_data_file_tombstones WHERE username=? AND file_id IN ('
+                        + ','.join('?' for _ in batch) + ')', (username, *batch)))
+            for folder, items in files.items():
+                if isinstance(items, list) and folder != 'tools':
+                    files[folder] = [item for item in items if self._data_file_id(item) not in removed_ids]
             for data_file in self.list_data_files(username):
                 folder = str(data_file.get("file_category") or "system")
                 bucket = files.setdefault(folder, [])
