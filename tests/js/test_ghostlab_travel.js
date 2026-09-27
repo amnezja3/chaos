@@ -23,7 +23,7 @@ const calls = [];
 const context = {document:{createElement:tag => new Node(tag)},encodeURIComponent,
     fetch:async(url,options) => {
         calls.push({url,options});
-        if (options) {
+        if (options?.method === 'POST') {
             const data = JSON.parse(options.body);
             assert.equal(data.receipt,'confirmed-trip');
             state.mine = {reaction:data.reaction,destination_revision:'place-1'};
@@ -42,6 +42,7 @@ vm.runInContext(extract('mountTravelTicketReactions'),context);
     assert(buttons.every(b=>b.disabled),'no trip means no voting');
     assert(card.querySelectorAll('p')[0].textContent.includes('<img onerror=bad>'),'author text stays literal');
     assert.equal(card.querySelectorAll('img').length,0);
+    assert(!card.querySelectorAll('p')[0].textContent.includes('(50, 21)'), 'no coordinates in public ticket text');
     state.reaction_receipt = 'confirmed-trip';
     await card._refreshTravelReactions();
     buttons = card.querySelectorAll('button');
@@ -50,6 +51,11 @@ vm.runInContext(extract('mountTravelTicketReactions'),context);
     assert.equal(card.querySelectorAll('button')[1].attrs['aria-pressed'],'true');
     await card.querySelectorAll('button')[0].events.click();
     assert.equal(Object.values(state.counts).reduce((a,b)=>a+b,0),1);
+    state.reaction_receipt = null;
+    state.reaction_blocked_reason = 'own_ticket';
+    await card._refreshTravelReactions();
+    assert(card.querySelectorAll('button').every(b=>b.disabled));
+    assert(card.querySelectorAll('p').some(p=>p.textContent.includes('Nie możesz ocenić własnego biletu.')));
     assert(calls.every(c=>c.url.startsWith('/api/travel-tickets/')),'feedback never loads a profile');
     const publisher = {escapeHTML:String}; vm.createContext(publisher);
     vm.runInContext(extract('renderGhostLabPublisherPipeline'),publisher);

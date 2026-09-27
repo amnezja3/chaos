@@ -204,3 +204,54 @@ class GhostLabTravelTest(unittest.TestCase):
             admin = page(self.path,'ghostlab',template_id='travel_ticket')['items'][0]
             self.assertIn('Ostrowiec',admin['destination'])
             self.assertIn('happy',admin['reactions'])
+
+    def test_price_cap_existing_publications_and_private_coordinates(self):
+        import json
+        # Simulate the already deployed offer with the old app price floor.
+        legacy = dict(self.offer, price=2225, price_hint=2225)
+        with db_connect(self.path) as conn:
+            conn.execute('UPDATE ghostlab_publications SET app_json=? WHERE app_id=?',
+                (json.dumps(legacy),self.offer['id']))
+            conn.execute("UPDATE json_resources SET value_json=? WHERE key='app_config'",(json.dumps([legacy]),))
+        with self.no_heavy():
+            for path in ('/resources.json','/api/catalog'):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code,200,response.json)
+                item = next(t for t in response.json if t['id']==self.offer['id'])
+                self.assertEqual(item['price'],100)
+                self.assertEqual(item['price_hint'],100)
+                self.assertEqual(set(item['destination']),{'place_name','city','country'})
+                text = json.dumps(item)
+                for secret in ('50.943','21.386','blueprint_snapshot','metadata'):
+                    self.assertNotIn(secret,text)
+            state = self.state()
+            self.assertIn('no-store',state.headers['Cache-Control'])
+            self.assertIn('private',state.headers['Cache-Control'])
+            self.assertNotIn('lat',state.json['offer']['destination'])
+            self.assertNotIn('metadata',state.json['offer'])
+            self.assertEqual(self.buy(offer=legacy).json['reason'],'offer_changed')
+            before = self.wallet.get_balance('attacker')
+            self.assertEqual(self.buy().status_code,200)
+            self.assertEqual(self.wallet.get_balance('attacker'),before-100)
+            # Creator/editor still has the actual location needed to author the ticket.
+            self.assertEqual(self.store.get('victim',self.project['id'])['blueprint']['lat'],50.943)
+        project = dict(self.project)
+        artifact = dict(project['artifact'])
+        artifact['branding_snapshot'] = dict(artifact['branding_snapshot'],suggested_price=9999)
+        project['artifact'] = artifact
+        product = run.build_ghostlab_googleplex_app(project,'victim',{'level':40,'respect':500})
+        self.assertEqual(product['price'],150)
+        from ghostlab_ticket_policy import public_ticket
+        self.assertEqual(run.googleplex_catalog_payload(public_ticket(product), {})['price'],150)
+        self.assertNotIn('metadata',next(t for t in run.get_app_catalog() if t['id']==self.offer['id']))
+        for ticket in run.googleplex_product_catalog():
+            if ticket.get('product_type') == 'travel_ticket':
+                self.assertLessEqual(ticket['price'],150)
+
+    def test_author_has_explicit_rating_explanation(self):
+        self.generation.authenticate(self.client,'victim')
+        response = self.buy()
+        self.assertEqual(response.status_code,200,response.json)
+        self.assertEqual(self.state().json['reaction_blocked_reason'],'own_ticket')
+        self.assertIsNone(self.state().json['reaction_receipt'])
+        self.assertEqual(self.react(response.json['travel']['receipt']).status_code,403)

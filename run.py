@@ -11704,6 +11704,10 @@ def normalize_app_balance_fields(app):
 def enforce_generated_app_price_floor(app):
     if not isinstance(app, dict):
         return app
+    from ghostlab_ticket_policy import is_ticket, ticket_price
+    if is_ticket(app):
+        app['price'] = app['price_hint'] = ticket_price(app)
+        return app
     normalize_app_balance_fields(app)
     current_price = clamp_storage_number(app.get("price"), default=0, minimum=0)
     price_hint = clamp_storage_number(app.get("price_hint"), default=DEFAULT_APP_PRICE_HINT_HC, minimum=5)
@@ -16839,6 +16843,7 @@ def tracks_googleplex_downloads(item):
 
 
 def get_app_catalog():
+    from ghostlab_ticket_policy import is_ticket, ticket_price, public_ticket
     apps = resources_store.get("app_config", default=[]) or []
     pro_tools = pro_system_tools_catalog()
     pro_ids = {item['id'] for item in pro_tools}
@@ -16856,9 +16861,11 @@ def get_app_catalog():
         item.get("id") for item in catalog if tracks_googleplex_downloads(item)
     )
     for item in catalog:
+        if is_ticket(item):
+            item['price'] = item['price_hint'] = ticket_price(item)
         if tracks_googleplex_downloads(item):
             item["downloads"] = int(item.get("downloads") or 0) + counts.get(item.get("id"), 0)
-    return catalog
+    return [public_ticket(item) if is_ticket(item) else item for item in catalog]
 
 
 def googleplex_download_update(app_data):
@@ -16869,7 +16876,9 @@ def googleplex_download_update(app_data):
 
 
 def googleplex_product_catalog():
-    return [dict(product) for product in GOOGLEPLEX_EFFECT_PRODUCTS]
+    from ghostlab_ticket_policy import is_ticket, ticket_price
+    return [dict(product, price=ticket_price(product)) if is_ticket(product) else dict(product)
+            for product in GOOGLEPLEX_EFFECT_PRODUCTS]
 
 
 def storage_upgrade_products_catalog():
@@ -17596,9 +17605,12 @@ def googleplex_buyer_projection(username, *, inventory=False, conn=None):
 
 def googleplex_catalog_payload(app, profile):
     item = dict(app or {})
+    from ghostlab_ticket_policy import is_ticket, ticket_price, public_ticket
     normalize_app_storage_fields(item)
     normalize_app_quality_fields(item)
     normalize_app_balance_fields(item)
+    if is_ticket(item):
+        item['price'] = item['price_hint'] = ticket_price(item)
     item["map_actions"] = [
         str(action).strip()
         for action in as_list(item.get("map_actions"))
@@ -17641,7 +17653,7 @@ def googleplex_catalog_payload(app, profile):
     if not item["install_blocked_reason"] and requirement_error:
         item["install_blocked_reason"] = requirement_error
 
-    return item
+    return public_ticket(item) if is_ticket(item) else item
 
 
 def validate_app_install_requirements(app_data, profile):

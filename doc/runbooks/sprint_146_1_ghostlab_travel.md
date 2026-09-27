@@ -1,7 +1,10 @@
 # Sprint 146.1 — bilety graczy i canonical travel
 
-Stan: przygotowany lokalnie 27 IX 2026. **Bez commita, pusha i wdrożenia.**
-Odbiór gameplay oraz wizualny desktop/mobile pozostaje do wykonania po wdrożeniu.
+Stan: bazowy pakiet wdrożony przez użytkownika (`6375f77`, restart PM2).
+PASS użytkownika: blueprint, walidacja, publikacja, zakup, przekazanie HC,
+realizacja podróży oraz ocena biletu na innym koncie niż autor.
+Poprawki ceny i prywatności współrzędnych przygotowane lokalnie, bez commita/pusha.
+Ich odbiór oraz wizualny desktop/mobile pozostają do wykonania po wdrożeniu poprawki.
 
 ## Co wdrażamy
 
@@ -11,7 +14,11 @@ Save Draft → Validate → Compile → Opublikuj build → Googleplex.
 Podgląd pinezki jest dostępny przed publikacją, bez geokodowania miasta.
 
 Zakup wymaga potwierdzenia oferty i od razu wykonuje jedną podróż. Nie instaluje
-aplikacji ani pliku. Cena podlega obecnej polityce minimum, widocznej w Googleplexie.
+aplikacji ani pliku. Bilety mają osobną cenę **5–150 HC**, domyślnie 100 HC;
+sugerowane 100 HC daje 100 HC, bez mnożnika wyceny aplikacji. Twardy limit 150 HC
+dotyczy też systemowych biletów i już opublikowanych ofert. Istniejący bilet
+twórcy odzyskuje cenę sugerowaną z opublikowanego buildu, bez ponownej kompilacji.
+Nie przeliczamy ani nie zwracamy wcześniejszych opłaconych zakupów.
 Autor otrzymuje płatność w canonical wallet; zakup własnego biletu nie przelewa HC
 samemu sobie. Areszt i brak HC blokują podróż bez pobrania opłaty.
 
@@ -52,7 +59,9 @@ podróże nie zużywają limitów PvP. Zanotować saldo obu kont oraz pozycję B
 
 1. **Tworzenie:** A tworzy Travel Ticket dla znanego punktu, sprawdza pinezkę,
    zapisuje, waliduje, kompiluje i publikuje. Karta pokazuje opis autora,
-   współrzędne, cenę i trzy liczniki początkowo równe zero.
+   nazwę miejsca, cenę i trzy liczniki początkowo równe zero. Współrzędnych nie ma
+   w ofercie, publicznych odpowiedziach API ani potwierdzeniu zakupu. Pozostają
+   w edytorze autora i w danych potrzebnych mapie po udanej podróży.
 2. **Anulowanie:** B anuluje potwierdzenie. Salda i pozycja bez zmian; oceny
    niedostępne. Próba autora ocenienia własnego biletu również niedostępna.
 3. **Zakup:** B potwierdza. Dokładna cena ubywa B i trafia do A, mapa pokazuje
@@ -74,6 +83,12 @@ podróże nie zużywają limitów PvP. Zanotować saldo obu kont oraz pozycję B
    Travel Ticket, autora, miejsce, build i agregaty reakcji.
 
 ## Weryfikacja lokalna
+
+Poprawka po odbiorze: PASS 10 testów biletów (w tym historyczna cena 2225 HC,
+limit 150 HC, usunięcie współrzędnych z katalogu/API i informacja dla autora),
+regresja publikacji i alignment oraz Googleplex News. Testy Node reakcji,
+publikacji, zakupu i mostu podróży również PASS. Oceny kupującego mają dodatkowo
+PASS użytkownika; zgłoszona blokada dotyczyła prawidłowo wykluczonego autora.
 
 Wynik 27 IX: **69 testów Python PASS, 6 zestawów Node PASS**. Kontrola składni
 zmienionych plików JS i `git diff --check` również PASS. Testów wizualnych

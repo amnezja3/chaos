@@ -7,6 +7,7 @@ from ghostlab_store import GhostLabError, encoded, now, digest
 from ghostlab_registry import template_available, runtime_actor_allowed, validate_fields
 from ghostlab_products import published_product, runtime_artifact_ready
 from response_network.movement_guard import require_movement_allowed
+from ghostlab_ticket_policy import ticket_price, public_ticket
 
 
 REACTIONS = ('bad', 'happy', 'very_happy')
@@ -30,6 +31,7 @@ class TravelStore:
             conn.execute('CREATE INDEX IF NOT EXISTS travel_reaction_counts ON travel_reactions(app_id,destination_revision,reaction)')
 
     def offer(self, conn, app_id, system_catalog, cities):
+        artifact = None
         if app_id.startswith('ghostlab_'):
             app = published_product(conn, app_id)
             if not app or app.get('template_id') != 'travel_ticket':
@@ -49,13 +51,13 @@ class TravelStore:
             destination = dict(place_name=city['name'], city=city['name'], country=city['country'], lat=city['lat'], lng=city['lng'])
         if validate_fields('travel_ticket', destination):
             raise GhostLabError('invalid_destination', 'Nieprawidłowe dane miejsca.')
-        return dict(app, destination=destination, destination_revision=digest(destination))
+        return dict(app, price=ticket_price(app, artifact), destination=destination, destination_revision=digest(destination))
 
     def state(self, actor, app_id, system_catalog, cities):
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN')
             offer = self.offer(conn, app_id, system_catalog, cities)
-            return dict(offer=offer, **self.reactions(conn, actor, offer))
+            return dict(offer=public_ticket(offer), **self.reactions(conn, actor, offer))
 
     @staticmethod
     def reactions(conn, actor, offer):
@@ -69,6 +71,7 @@ class TravelStore:
         trip = conn.execute('''SELECT receipt FROM travel_purchases WHERE actor=? AND app_id=?
             AND destination_revision=? ORDER BY created_at DESC LIMIT 1''', (actor,offer['id'],offer['destination_revision'])).fetchone()
         return dict(counts=counts, historical_counts=history, mine=dict(mine) if mine else None,
+                    reaction_blocked_reason='own_ticket' if actor == offer.get('creator_username') else (None if trip else 'travel_required'),
                     reaction_receipt=trip['receipt'] if trip and actor != offer.get('creator_username') else None)
 
     def react(self, actor, app_id, receipt, reaction):
@@ -160,7 +163,9 @@ def register(app, services):
         return session['user']
     @app.get('/api/travel-tickets/<app_id>')
     def travel_ticket_state(app_id):
-        return jsonify(success=True,**services['travel_store'].state(actor(),app_id,services['googleplex_product_catalog'](),services['TRAVEL_CITIES']))
+        response = jsonify(success=True,**services['travel_store'].state(actor(),app_id,services['googleplex_product_catalog'](),services['TRAVEL_CITIES']))
+        response.headers['Cache-Control'] = 'private, no-store'
+        return response
     @app.post('/api/travel-tickets/<app_id>/reaction')
     def travel_ticket_reaction(app_id):
         username=actor()

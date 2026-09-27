@@ -23,7 +23,9 @@ def page(db_path, section, *, offset=0, search="", username="", template_id=""):
             json_extract(g.app_json,'$.icon') AS icon,
             COALESCE(json_extract(g.app_json,'$.downloads'),0) + COALESCE(d.downloads,0) AS downloads,
             json_extract(p.project_json,'$.created_at') AS created_at,
-            json_extract(g.app_json,'$.price') AS price_hc,
+            CASE WHEN json_extract(g.app_json,'$.template_id')='travel_ticket'
+                THEN MIN(150,MAX(5,COALESCE(json_extract(g.app_json,'$.metadata.artifact.branding_snapshot.suggested_price'),100)))
+                ELSE json_extract(g.app_json,'$.price') END AS price_hc,
             json_extract(g.app_json,'$.destination') AS destination,
             CASE WHEN json_extract(g.app_json,'$.published')=1 THEN 'published' ELSE 'withdrawn' END AS status,
             g.artifact_id FROM ghostlab_publications g

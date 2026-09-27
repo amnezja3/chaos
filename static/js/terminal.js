@@ -10388,7 +10388,7 @@ function createBrowser() {
                 : null;
             const isTravelTicket = item.product_type === "travel_ticket" || Boolean(travelEffect);
             const travelDestination = item.destination
-                ? `${item.destination.place_name}, ${item.destination.city}, ${item.destination.country} (${item.destination.lat}, ${item.destination.lng})`
+                ? [item.destination.place_name, item.destination.city, item.destination.country].filter(Boolean).join(', ')
                 : String(travelEffect?.city || item.travel_city || "").trim();
             const canAfford = walletBalance >= price;
             const staleInstalledProjection = !isProduct
@@ -15164,16 +15164,19 @@ function mountTravelTicketReactions(card, item) {
     card.append(panel);
     const choices = [['bad','😠 Zły'], ['happy','🙂 Zadowolony'], ['very_happy','🤩 Bardzo zadowolony']];
     const url = '/api/travel-tickets/' + encodeURIComponent(item.id);
+    let requestSerial = 0;
     const render = async () => {
+        const serial = ++requestSerial;
         panel.textContent = 'Ładowanie reakcji podróżujących…';
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {cache:'no-store'});
             const state = await response.json();
+            if (serial !== requestSerial) return;
             if (!response.ok || !state.success) throw new Error(state.message || 'Reakcje chwilowo niedostępne.');
             panel.replaceChildren();
             const text = document.createElement('p');
             const d = state.offer.destination;
-            text.textContent = `${d.place_name}, ${d.city}, ${d.country} (${d.lat}, ${d.lng}). ${item.ghostlab_generated ? 'Miejsce deklarowane przez autora. ' : ''}Jeden zakup = jedna natychmiastowa podróż.`;
+            text.textContent = `${[d.place_name, d.city, d.country].filter(Boolean).join(', ')}. ${item.ghostlab_generated ? 'Miejsce deklarowane przez autora. ' : ''}Jeden zakup = jedna natychmiastowa podróż.`;
             panel.append(text);
             const summary = document.createElement('p');
             const total = Object.values(state.counts).reduce((a,b) => a+b, 0);
@@ -15204,10 +15207,11 @@ function mountTravelTicketReactions(card, item) {
             panel.append(buttons);
             const info = document.createElement('p');
             const history = Object.values(state.historical_counts).reduce((a,b) => a+b, 0);
-            info.textContent = state.reaction_receipt ? 'Możesz zmienić swoją reakcję; nadal liczony jest jeden głos.' : 'Ocena po odbytej podróży. Autor nie ocenia własnego biletu.';
+            info.textContent = state.reaction_blocked_reason === 'own_ticket' ? 'Nie możesz ocenić własnego biletu.' : state.reaction_receipt ? 'Możesz zmienić swoją reakcję; nadal liczony jest jeden głos.' : 'Ocena będzie dostępna po odbytej podróży.';
             if (history) info.textContent += ' Poprzednie miejsca: ' + choices.map(([key,label]) => `${label}: ${state.historical_counts[key] || 0}`).join(' · ');
             panel.append(info);
         } catch (error) {
+            if (serial !== requestSerial) return;
             panel.textContent = error.message;
             const retry = document.createElement('button');
             retry.textContent = 'Odśwież reakcje';
@@ -15248,7 +15252,7 @@ function renderGhostLabEditor(root, project) {
                 <label class="ghostlab-editor-field"><span>Nazwa</span><input data-ghostlab-branding="name" maxlength="64" value="${escapeHTML(branding.name)}"></label>
                 <label class="ghostlab-editor-field"><span>Ikona — jeden znak lub emoji</span><input data-ghostlab-branding="icon" maxlength="32" value="${escapeHTML(branding.icon)}"></label>
                 <label class="ghostlab-editor-field"><span>Opis autora</span><textarea data-ghostlab-branding="description" maxlength="1000">${escapeHTML(branding.description)}</textarea></label>
-                <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.</small></label>
+                <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : ''} step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>${project.template_id === 'travel_ticket' ? 'Bilet kosztuje 5–150 HC. Puste pole: 100 HC. Cena sugerowana powyżej limitu zostanie obniżona do 150 HC.' : 'Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.'}</small></label>
                 <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
             <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
