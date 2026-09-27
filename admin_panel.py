@@ -24,6 +24,7 @@ def page(db_path, section, *, offset=0, search="", username="", template_id=""):
             COALESCE(json_extract(g.app_json,'$.downloads'),0) + COALESCE(d.downloads,0) AS downloads,
             json_extract(p.project_json,'$.created_at') AS created_at,
             json_extract(g.app_json,'$.price') AS price_hc,
+            json_extract(g.app_json,'$.destination') AS destination,
             CASE WHEN json_extract(g.app_json,'$.published')=1 THEN 'published' ELSE 'withdrawn' END AS status,
             g.artifact_id FROM ghostlab_publications g
             JOIN ghostlab_projects p ON p.app_id=g.app_id AND p.owner=g.owner
@@ -74,7 +75,18 @@ def page(db_path, section, *, offset=0, search="", username="", template_id=""):
         raise ValueError("unknown_admin_section")
     with db_connect(db_path) as conn:
         rows = conn.execute(query + " LIMIT 51 OFFSET ?", (*params, offset)).fetchall()
-    return {"items": [dict(row) for row in rows[:50]], "offset": offset,
+        items = [dict(row) for row in rows[:50]]
+        if section == 'ghostlab':
+            import json
+            from ghostlab_travel import TravelStore
+            from ghostlab_store import digest
+            for item in items:
+                if item['template_id'] == 'travel_ticket' and item.get('destination'):
+                    destination = json.loads(item['destination'])
+                    reactions = TravelStore.reactions(conn, '', dict(id=item['app_id'], destination_revision=digest(destination)))
+                    item['reactions'] = json.dumps(reactions['counts'], ensure_ascii=False)
+                    item['historical_reactions'] = json.dumps(reactions['historical_counts'], ensure_ascii=False)
+    return {"items": items, "offset": offset,
             "has_more": len(rows) > 50, "page_size": 50}
 
 

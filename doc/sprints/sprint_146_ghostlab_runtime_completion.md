@@ -1,7 +1,11 @@
 # Sprint 146 — GhostLab: pozostałe rodziny wykonawcze i domknięcie v1
 
-Status: **PAKIET LOKALNY DO WDROŻENIA**, 26 IX 2026. Odbiór serwerowy otwarty.
-Bez commita, pusha i wdrożenia. [Wspólny runbook i test trzech kont](../runbooks/sprint_146_ghostlab_runtime.md).
+Status: **ZAMKNIĘTY — PASS**, decyzja użytkownika, 26 IX 2026.
+Użytkownik potwierdził transfer HC, zerwanie relacji i komunikaty, zapis Proxy po
+konflikcie/odświeżeniu, usunięcie aplikacji z pulpitu/FM/dysku i wypchnięcie intruza.
+Dodatkową regresję użytkownik przeniósł do ogólnych testów gameplayowych;
+nie blokuje zamknięcia 146 i nie jest oznaczona jako wykonana.
+[Wspólny runbook i przeniesiona checklista](../runbooks/sprint_146_ghostlab_runtime.md).
 
 Poprzedni: [145 — pierwsza pełna ścieżka](sprint_145_ghostlab_system_log_reader.md).
 Podstawa: [audyt](../audits/ghostlab_completion_audit_2026_09_24.md).
@@ -145,5 +149,6 @@ działania sześciu zaplanowanych szablonów PvP. Nowe assety/show nie są wymag
 
 Po bazowym 146: [146.1 — bilety](sprint_146_1_ghostlab_travel_tickets.md) →
 [146.2 — czyszczenie i aktualizacja systemu](sprint_146_2_ghostlab_system_maintenance.md) →
-[146.3 — firmware](sprint_146_3_ghostlab_firmware_maintenance.md) → 147.
+[146.3 — firmware](sprint_146_3_ghostlab_firmware_maintenance.md) →
+[146.4 — DeepScanery](sprint_146_4_ghostlab_deep_scanners.md) → 147.
 Wspólny branding z 144.2 obejmuje edytowalną ikonę i opis każdego potomka.

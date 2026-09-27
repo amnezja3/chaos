@@ -14,6 +14,8 @@ def runtime_artifact_ready(artifact):
 
 
 def runtime_status(artifact):
+    if artifact.get('template_id') == 'travel_ticket' and runtime_artifact_ready(artifact):
+        return 'purchase_travel'
     return 'player_hack_access' if runtime_artifact_ready(artifact) else 'pending_custom_runtime'
 
 

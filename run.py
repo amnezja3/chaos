@@ -126,6 +126,8 @@ fetcher = POIFetcher(tag_filters=tag_filters)
 resources_store = JsonResourceStore()
 from ghostlab_store import GhostLabStore, GhostLabError
 ghostlab_store = GhostLabStore(resources_store.db_path)
+from ghostlab_travel import TravelStore
+travel_store = TravelStore(resources_store.db_path)
 mail_store = MailStore()
 cyberner_world_store = CybernerWorldStore()
 cyberner_clan_store = CybernerClanStore()
@@ -17564,6 +17566,34 @@ def infer_googleplex_app_level(app):
     return "Basic"
 
 
+def googleplex_buyer_projection(username, *, inventory=False, conn=None):
+    """Only catalog requirements, balance and ownership IDs; no profile/files hydration."""
+    from contextlib import nullcontext
+    from database import db_connect
+    with (db_connect(player_inventory_store.db_path) if conn is None else nullcontext(conn)) as conn:
+        if not conn.in_transaction:
+            conn.execute('BEGIN')
+        identity = identity_projection_store.get_creator_identity(username, conn=conn)
+        capabilities = capability_projection_store.get_capabilities(username, conn=conn)
+        balance = conn.execute('SELECT balance FROM wallet_balances WHERE username=?', (username,)).fetchone()
+        if not identity or not capabilities or balance is None:
+            raise ProfileRecoveryRequired('Catalog projections unavailable')
+        result = {**identity, **capabilities, 'hackcoins': balance['balance']}
+        if inventory:
+            apps = conn.execute("SELECT app_id AS id FROM player_apps WHERE username=? AND status='installed' LIMIT 1001", (username,)).fetchall()
+            if len(apps) > 1000:
+                raise ProfileRecoveryRequired('Catalog ownership projection exceeds limit')
+            result['apps'] = [dict(row) for row in apps]
+            for field in ('googleplex_products', 'product_purchases', 'storage_upgrades'):
+                rows = conn.execute('''SELECT json_extract(j.value, '$.id') AS id
+                    FROM player_storage AS s, json_each(s.modifiers_json, ?) AS j
+                    WHERE s.username=? AND j.type='object' LIMIT 1001''', ('$.' + field, username)).fetchall()
+                if len(rows) > 1000:
+                    raise ProfileRecoveryRequired('Catalog purchases projection exceeds limit')
+                result[field] = [dict(row) for row in rows]
+        return result
+
+
 def googleplex_catalog_payload(app, profile):
     item = dict(app or {})
     normalize_app_storage_fields(item)
@@ -17842,6 +17872,10 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     normalize_app_storage_fields(app)
     normalize_app_quality_fields(app)
     enforce_generated_app_price_floor(app)
+    if template_id == 'travel_ticket':
+        app.update(type='product', category='travel', product_type='travel_ticket', consumable=True,
+                   purchase_confirmation=True, destination=dict(blueprint), travel_city=blueprint['city'],
+                   file_size=0, disk_usage=0, install_size=0, levels=[])
     return app
 
 
@@ -17853,8 +17887,8 @@ def serialize_ghostlab_project(project):
     artifact = project.get("artifact") if isinstance(project.get("artifact"), dict) else {}
     publisher_contract = ghostlab_template_app_contract(project.get("template_id") or artifact.get("template_id"))
     publisher_contract.update({
-        "type": "pro-system-tool",
-        "category": "pro-system-tools",
+        "type": "product" if project.get('template_id') == 'travel_ticket' else "pro-system-tool",
+        "category": "travel" if project.get('template_id') == 'travel_ticket' else "pro-system-tools",
         "map_actions_source": "ghostlab_contract",
         "runtime_status": runtime_status(artifact),
     })
@@ -28388,16 +28422,7 @@ def account_catalog():
     """Authenticated Googleplex projection bound to the active login."""
     if "user" not in session:
         return jsonify({"success": False, "error": "not_logged_in"}), 401
-    profile = load_profile_readonly(
-        session.get("user"),
-        strip_sensitive=True,
-        normalize_apps=True,
-        normalize_files=False,
-        overlay_runtime=True,
-    )
-    if not profile:
-        invalidate_authenticated_session("profile_not_found")
-        return jsonify({"success": False, "error": "profile_not_found"}), 401
+    profile = googleplex_buyer_projection(session['user'], inventory=True)
     catalog = [
         googleplex_catalog_payload(app, profile)
         for app in get_app_catalog()
@@ -28577,6 +28602,8 @@ def admin_radio_settings():
 
 from ghostlab_routes import register as register_ghostlab_routes
 register_ghostlab_routes(app, globals())
+from ghostlab_travel import register as register_travel_routes
+register_travel_routes(app, globals())
 
 
 @app.route("/api/apps/generate", methods=["POST"])
@@ -29145,6 +29172,28 @@ def install_app():
 
         data = request.get_json() or {}
         app_id = str(data.get("app_id") or "").strip()
+        system_ticket = next((item for item in googleplex_product_catalog()
+            if item['id'] == app_id and item.get('product_type') == 'travel_ticket'), None)
+        generated_ticket = None
+        if app_id.startswith('ghostlab_'):
+            from database import db_connect
+            from ghostlab_products import published_product
+            with db_connect(travel_store.db_path) as conn:
+                candidate = published_product(conn, app_id)
+                if candidate and candidate.get('template_id') == 'travel_ticket':
+                    generated_ticket = candidate
+        if system_ticket or generated_ticket:
+            def check_travel_requirements(offer, conn):
+                buyer = googleplex_buyer_projection(session['user'], conn=conn)
+                error = validate_app_install_requirements(offer, buyer)
+                if error:
+                    raise GhostLabError('requirements_not_met', error, 400)
+            result = travel_store.purchase(session['user'], app_id, wallet_transaction_key_from_request(data),
+                data.get('expected_artifact_id'), data.get('expected_price'),
+                system_catalog=googleplex_product_catalog(), cities=TRAVEL_CITIES,
+                wallet=wallet_balance_store, positions=player_position_store,
+                deltas=delta_bus, inventory=player_inventory_store, requirements=check_travel_requirements)
+            return jsonify(result)
         store = resources_store.get("app_config", default=[])
         catalog = get_app_catalog()
 
@@ -29163,11 +29212,10 @@ def install_app():
         if app_data.get('published') is False:
             return jsonify(status='error', reason='publication_withdrawn', message='Aplikacja zostala wycofana ze sprzedazy.'), 409
 
-        if any(isinstance(effect, dict) and effect.get('type') == 'travel_city'
-               for effect in (app_data.get('effects') or [])):
-            from database import db_connect
-            with db_connect(player_position_store.db_path) as travel_guard_conn:
-                require_movement_allowed(travel_guard_conn, session['user'])
+        if app_data.get('product_type') == 'travel_ticket' or any(
+                isinstance(effect, dict) and effect.get('type') == 'travel_city'
+                for effect in (app_data.get('effects') or [])):
+            raise GhostLabError('untrusted_travel_product', 'Brak kanonicznego biletu.', 409)
 
         if app_data.get("bounded_install") is True:
             buyer_username = str(session.get("user") or "").strip()
@@ -29412,19 +29460,8 @@ def install_app():
             payee_username = "admin"
             payee_profile = user_store.get_profile(payee_username)
 
-        travel_effects = [effect for effect in (app_data.get('effects') or [])
-                          if isinstance(effect, dict) and effect.get('type') == 'travel_city']
         committed_travel = None
-        if travel_effects:
-            city = TRAVEL_CITIES.get(str(travel_effects[-1].get('city') or app_data.get('travel_city') or ''))
-            if not city or len(travel_effects) != 1:
-                raise ValueError('invalid_travel_product')
-            from response_network.travel_purchase import purchase_travel
-            payment, committed_travel = purchase_travel(
-                wallet_balance_store, player_position_store, actor=buyer_username,
-                payee=payee_username, price=price, key=purchase_key,
-                note=f"googleplex:{app_id}", destination={'lat': city['lat'], 'lng': city['lng']})
-        elif price > 0 and payee_username != buyer_username:
+        if price > 0 and payee_username != buyer_username:
             if not payee_profile:
                 return jsonify({
                     "status": "error",
@@ -29694,6 +29731,8 @@ def install_app():
 
     except MovementBlocked as exc:
         return detention_movement_error(exc)
+    except GhostLabError as exc:
+        return jsonify(status='error', reason=exc.reason, message=str(exc)), exc.status
     except WalletWriteError as exc:
         response, status = wallet_error_response(exc, status_key="message")
         payload = response.get_json() or {}

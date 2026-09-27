@@ -172,7 +172,7 @@ class GhostLabAlignmentTest(unittest.TestCase):
             with patch.object(run,'require_dev_admin',return_value=True):
                 admin=self.client.get('/api/admin/panel/list?section=ghostlab&template_id=friend_kicker')
                 self.assertEqual(admin.status_code,200,admin.json)
-                self.assertEqual(len(admin.json['templates']),6)
+                self.assertEqual(len(admin.json['templates']),7)
                 self.assertEqual(len(admin.json['non_glab']),5)
                 self.assertEqual([item['name'] for item in admin.json['items']],['Second'])
 

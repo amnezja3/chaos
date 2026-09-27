@@ -277,7 +277,28 @@ TEMPLATES['intruder_kicker'] = {
 }
 
 TEMPLATES['system_log_reader'].update(executor_id='system_logs_v1', runtime_enabled=True, runtime_revision=1)
+TEMPLATES['travel_ticket'] = {
+    'id': 'travel_ticket', 'name': 'Travel Ticket', 'icon': '🎫',
+    'category': 'travel', 'tool_category': 'travel',
+    'description': 'Jedna podróż do miejsca autora, wykonywana od razu przy zakupie.',
+    'recommended_level': 1, 'required_respect': 0, 'risk_level': 0, 'price': 100,
+    'source_tool_id': None, 'schema_version': 1, 'policy_version': 1, 'contract_version': 1,
+    'target_kind': 'destination', 'launch_mode': 'purchase_travel', 'result_type': 'travel_ticket',
+    'executor_id': 'travel_ticket_v1', 'runtime_revision': 1,
+    'creation_enabled': True, 'publication_enabled': True, 'runtime_enabled': True,
+    'presentation_ids': ['default'],
+    'fields': {
+        'place_name': {'type': 'string', 'label': 'Nazwa miejsca', 'default': 'Nowe miejsce', 'editable': True, 'max_length': 120},
+        'city': {'type': 'string', 'label': 'Miejscowość', 'default': 'Miejscowość', 'editable': True, 'max_length': 100},
+        'country': {'type': 'string', 'label': 'Kraj', 'default': 'Polska', 'editable': True, 'max_length': 100},
+        'lat': {'type': 'number', 'label': 'Szerokość geograficzna (lat)', 'default': 0, 'editable': True, 'minimum': -90, 'maximum': 90, 'integer': False},
+        'lng': {'type': 'number', 'label': 'Długość geograficzna (lng)', 'default': 0, 'editable': True, 'minimum': -180, 'maximum': 180, 'integer': False},
+    },
+    'app_contract': {'tool_family': 'travel', 'tool_mode': 'desktop', 'map_actions': [],
+                     'target_types': ['destination'], 'operation_types': [], 'resource_types': []},
+}
 RUNTIME_FLAGS = {'system_log_reader': 'CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED'}
+RUNTIME_FLAGS['travel_ticket'] = 'CHAOS_GHOSTLAB_TRAVEL_RUNTIME_ENABLED'
 for _template in ('financial_sniffer', 'friend_kicker', 'security_panel_proxy', 'arsenal_cleaner', 'intruder_kicker'):
     TEMPLATES[_template].update(executor_id=_template + '_v1', runtime_enabled=True, runtime_revision=1)
     RUNTIME_FLAGS[_template] = 'CHAOS_GHOSTLAB_' + _template.upper() + '_RUNTIME_ENABLED'
@@ -294,7 +315,6 @@ PRO_TOOL_GLAB = {
     'ghostnetworkSuite': None, 'agi2108Console': None,
 }
 PLANNED_CONTRACTS = {
-    'travel_ticket': {'source_tool_id': None, 'target_kind': 'destination', 'launch_mode': 'desktop'},
     'system_maintenance': {'source_tool_id': None, 'target_kind': 'own_system', 'launch_mode': 'desktop'},
     'storage_extension': {'source_tool_id': None, 'target_kind': 'own_storage', 'launch_mode': 'desktop'},
     'map_marker_scan': {'source_tool_id': None, 'target_kind': 'map_decoration', 'launch_mode': 'map'},

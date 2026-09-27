@@ -6,6 +6,7 @@
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  const value=v=>v===null||v===undefined||v===''?'—':String(v);
  labels.created_at='Utworzono konto';
+ Object.assign(labels,{destination:'Miejsce autora',reactions:'Reakcje obecnego miejsca',historical_reactions:'Reakcje poprzednich miejsc'});
  if(section==='ghostlab') Object.assign(labels,{created_at:'Utworzono projekt',author:'Autor',template_id:'Szablon',source_tool_id:'Pro-tool źródłowy',downloads:'Pobrania',price_hc:'Cena HC',creation_enabled:'Tworzenie',publication_enabled:'Publikacja',runtime_enabled:'Runtime',contract_version:'Kontrakt',artifact_id:'Build',icon:'Ikona'});
  const createdDate=v=>{
   if(!v)return 'Brak daty';

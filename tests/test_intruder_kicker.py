@@ -45,7 +45,11 @@ class IntruderKickerTest(unittest.TestCase):
         product = next(p for p in run.googleplex_product_catalog() if p['id'] == 'ticket_warszawa')
         with patch.object(run, 'get_app_catalog', return_value=[product]), \
              patch.object(run.wallet_balance_store, 'transfer', side_effect=AssertionError('must not charge')):
-            response = self.client.post('/install-app', json={'app_id': product['id']})
+            from ghostlab_travel import TravelStore
+            from database import WalletBalanceStore
+            with patch.object(run,'travel_store',TravelStore(self.path)), patch.object(run,'wallet_balance_store',WalletBalanceStore(self.path)):
+                response = self.client.post('/install-app', json={'app_id': product['id'],
+                    'client_action_key':'arrest-ticket','expected_price':product['price']})
         self.assertEqual(response.status_code, 409, response.json)
         self.assertEqual(response.json['reason'], 'detention_movement_blocked')
         self.assertEqual(self.positions.get('attacker'), before)

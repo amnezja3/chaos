@@ -110,6 +110,8 @@ def register(app, services):
         from ghostlab_products import runtime_artifact_ready
         message = ('Build gotowy do runtime PvP. Dostęp kontroluje konfiguracja serwera.'
                    if runtime_artifact_ready(project['artifact']) else 'Build gotowy. Runtime nadal oczekuje.')
+        if project.get('template_id') == 'travel_ticket':
+            message = 'Bilet skompilowany. Po publikacji zakup wykona jedną podróż.'
         return reply(owner, project, artifact=project['artifact'], message=message)
 
     @app.get('/api/ghostlab/projects/<project_id>/export')
@@ -135,6 +137,8 @@ def register(app, services):
                                       service('build_ghostlab_googleplex_app'), author)
         message = ('Opublikowano build runtime PvP. Zainstalowane kopie wymagają jawnej aktualizacji.'
                    if app_data.get('runtime_status') == 'player_hack_access' else 'Opublikowano build. Custom runtime nadal oczekuje.')
+        if app_data.get('runtime_status') == 'purchase_travel':
+            message = 'Bilet opublikowany. Zakup wykonuje jedną podróż do miejsca z tej wersji.'
         return reply(owner, project, app=app_data, message=message)
 
     @app.delete('/api/ghostlab/projects/<project_id>')

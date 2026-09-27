@@ -258,7 +258,7 @@ class GhostLabPublicationTest(unittest.TestCase):
             self.assertEqual(p['field_schema']['log_limit']['maximum'], 5)
             registry_response = client.get('/api/ghostlab/templates')
             self.assertEqual(200, registry_response.status_code)
-            self.assertEqual(len(registry_response.json['templates']), 6)
+            self.assertEqual(len(registry_response.json['templates']), 7)
             self.assertTrue(all(not item['runtime_enabled'] for item in registry_response.json['templates']))
             brand = dict(p['branding'], icon='🔭', description='My own logs', name='HTTP Brand')
             response = client.patch(base+'/blueprint', json=dict(revision=p['revision'],blueprint=p['blueprint'],branding=brand))
@@ -295,7 +295,7 @@ class GhostLabPublicationTest(unittest.TestCase):
             database._upsert_identity_projection_with_conn(conn,profile,1,'checksum')
         identity = database.UserIdentityProjectionStore(self.path)
         caps = database.UserCapabilityProjectionStore(self.path)
-        self.assertEqual({'nick':'Creator','respect':456},identity.get_creator_identity('author'))
+        self.assertEqual({'nick':'Creator','clan':'','respect':456},identity.get_creator_identity('author'))
         self.assertEqual(37,caps.get_capabilities('author')['level'])
         with db_connect(self.path) as conn:
             conn.execute("UPDATE users SET profile_revision=2 WHERE username='author'")

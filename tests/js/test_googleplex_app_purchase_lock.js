@@ -3,7 +3,7 @@
 const assert = require("assert");
 const fs = require("fs");
 
-const source = fs.readFileSync("static/js/terminal.js", "utf8");
+const source = fs.readFileSync("static/js/terminal.js", "utf8").replace(/\r\n/g, '\n');
 
 assert.match(source, /item\.purchase_confirmation === true/);
 assert.match(source, /title: "POTWIERDZENIE ZAKUPU"/);
@@ -21,22 +21,22 @@ assert.match(source, /window\.dispatchEvent\(new CustomEvent/);
 assert.match(source, /installed \? "Aplikacja juz kupiona\."/);
 assert.match(source, /gp-search-product gp-search-product--\$\{variant\}\$\{installed \? " is-installed"/);
 assert.match(source, /const dedupeGoogleplexCatalog = payload =>/);
-assert.match(source, /catalog = dedupeGoogleplexCatalog\(catalogPayload\)/);
+assert.match(source, /const refreshedCatalog = dedupeGoogleplexCatalog\(catalogPayload\)/);
 
 const purchaseCallStart = source.indexOf("showInstallAppProgress(\n                    item,");
 const purchaseCallEnd = source.indexOf("\n                );", purchaseCallStart);
 assert.ok(purchaseCallStart >= 0 && purchaseCallEnd > purchaseCallStart);
 const postInstallCall = source.slice(purchaseCallStart, purchaseCallEnd);
 assert.doesNotMatch(postInstallCall, /loadCatalog|getUserProfile|\/api\/profile|\/api\/catalog/);
-assert.match(postInstallCall, /\n                    null,/);
+assert.match(postInstallCall, /isTravelTicket \? async \(\) => \{ await card\._refreshTravelReactions\?\.\(\); \} : null/);
 
 const appsProjectionStart = source.indexOf("async function updateAppsView");
 const appsProjectionEnd = source.indexOf("function updateCybernerDeltaViews", appsProjectionStart);
 const appsProjectionSource = source.slice(appsProjectionStart, appsProjectionEnd);
 assert.doesNotMatch(appsProjectionSource, /fetch\s*\(|\/api\/profile|\/api\/catalog|getUserProfile|refreshToolbarProfile/);
 
-const catalogLoadStart = source.indexOf("async function loadCatalog()");
-const catalogLoadEnd = source.indexOf("async function loadExchange()", catalogLoadStart);
+const catalogLoadStart = source.indexOf("async function loadCatalog(");
+const catalogLoadEnd = source.indexOf("async function loadExchange(", catalogLoadStart);
 const catalogLoadSource = source.slice(catalogLoadStart, catalogLoadEnd);
 assert.match(catalogLoadSource, /fetch\('\/resources\.json'/);
 assert.doesNotMatch(catalogLoadSource, /\/api\/profile|\/api\/catalog|getUserProfile|load_profile/);

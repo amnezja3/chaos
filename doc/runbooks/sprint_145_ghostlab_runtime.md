@@ -13,7 +13,7 @@ Status: **ZAMKNIĘTY — PASS**, 26 IX 2026. Odbiór serwerowy potwierdzony prze
 - PASS: pusty wynik i działanie zainstalowanej aplikacji po wycofaniu publikacji.
 - PASS: odmowa odczytu po wygaśnięciu dostępu, w areszcie i po odinstalowaniu.
 - Poboczna zmiana kartoteki: usunięcie licznika PASS. Toast redukcji dozoru
-  pozostaje w obserwacji użytkownika i nie blokuje zamknięcia 145.
+  również PASS — użytkownik potwierdził komunikat obniżenia poziomu kartoteki.
 
 Zamknięcie odbioru nie oznacza zmiany listy kont aktywowanych dla runtime.
 Pozostałe rodziny potomków pozostają zakresem sprintu 146.

@@ -219,7 +219,7 @@ class GhostLabMutationRuntimeTest(unittest.TestCase):
         from datetime import datetime, timezone
         from response_network.sanctions import SanctionStore
         from response_network.consequence_table import plan_consequence
-        apps = [self.make(f) for f in RUNTIME_FLAGS]
+        apps = [self.make(f) for f in RUNTIME_FLAGS if f != 'travel_ticket']
         sanctions = SanctionStore(self.path)
         with db_connect(self.path) as conn:
             conn.execute('BEGIN IMMEDIATE')

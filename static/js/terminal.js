@@ -10387,7 +10387,9 @@ function createBrowser() {
                 ? item.effects.find(effect => effect && typeof effect === "object" && effect.type === "travel_city")
                 : null;
             const isTravelTicket = item.product_type === "travel_ticket" || Boolean(travelEffect);
-            const travelDestination = String(travelEffect?.city || item.travel_city || "").trim();
+            const travelDestination = item.destination
+                ? `${item.destination.place_name}, ${item.destination.city}, ${item.destination.country} (${item.destination.lat}, ${item.destination.lng})`
+                : String(travelEffect?.city || item.travel_city || "").trim();
             const canAfford = walletBalance >= price;
             const staleInstalledProjection = !isProduct
                 && projectedApps
@@ -10551,6 +10553,7 @@ function createBrowser() {
                     <button class="gp-app-market-footer__action gp-search-product__action" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </footer>
             `;
+            if (isTravelTicket) mountTravelTicketReactions(card, item);
             const installButton = card.querySelector('[data-googleplex-install]');
             let installInFlight = false;
             installButton.addEventListener('click', async () => {
@@ -10590,10 +10593,10 @@ function createBrowser() {
                 installButton.textContent = "INSTALACJA...";
                 showInstallAppProgress(
                     item,
-                    null,
+                    isTravelTicket ? async () => { await card._refreshTravelReactions?.(); } : null,
                     success => {
                         installInFlight = false;
-                        if (!success && installButton.isConnected) {
+                        if ((!success || isTravelTicket) && installButton.isConnected) {
                             installButton.disabled = false;
                             installButton.textContent = buttonLabel;
                         }
@@ -11537,7 +11540,9 @@ function applyGoogleplexTravelToOpenMaps(data = {}) {
 
 function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
     // Okno progressbar (symulacja jak instalator Windows/Linux)
-    const steps = [
+    const steps = app.product_type === 'travel_ticket' ? [
+        `Przygotowanie podróży: ${app.name || 'Bilet'}`
+    ] : [
         `Rozpoczynanie instalacji aplikacji: ${app.name || 'aplikacja'}`,
         `Pobieranie plik\u00f3w...`,
         `Instalacja sk\u0142adnik\u00f3w...`,
@@ -11551,7 +11556,7 @@ function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
     appWindow.style.top = `${position.top}px`;
     appWindow.style.left = `${position.left}px`;
     appWindow.innerHTML = `
-        <div class="title-bar">${escapeHTML(app.name || 'Aplikacja')} - Instalacja <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(app.name || 'Aplikacja')} - ${app.product_type === 'travel_ticket' ? 'Podróż' : 'Instalacja'} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
             <div class="progress-log" style="font-family: monospace; font-size: 13px; margin-bottom: 10px;"></div>
             <div class="progress-bar" style="position: relative; height: 20px; background: #333;">
@@ -11582,7 +11587,9 @@ function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
                 },
                 body: JSON.stringify({
                     app_id: app.id,
-                    client_action_key: installAction.key
+                    client_action_key: installAction.key,
+                    expected_artifact_id: app.artifact_id || null,
+                    expected_price: Number(app.price || 0)
                 })
             })
             .then(async response => ({ response, data: await response.json().catch(() => ({})) }))
@@ -11638,6 +11645,9 @@ function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
                     }, 4000);
                 } else {
                     const diagnostic = googleplexInstallErrorDetails(response, data);
+                    if (['offer_changed','purchase_key_conflict'].includes(diagnostic.reasonCode)) {
+                        try { window.sessionStorage.removeItem(installAction.storageKey); } catch (_err) { /* unavailable storage */ }
+                    }
                     result.innerHTML = `<span style="color:#f33;">\u2716 ${escapeHTML(diagnostic.message)}</span>`;
                     addSystemMessage("danger", "Googleplex", diagnostic.message);
                     console.warn("Googleplex purchase/install rejected", {
@@ -15122,6 +15132,93 @@ function renderGhostLabProjects(root) {
     updateGhostLabStatusBar(root);
 }
 
+function mountGhostLabTravelPreview(main) {
+    const panel = document.createElement('section');
+    panel.className = 'ghostlab-preview-panel';
+    panel.innerHTML = '<p>Miejsce i opis deklaruje autor. Jeden zakup wykonuje od razu jedną podróż. Sprawdź pinezkę przed publikacją.</p><button type="button">Pokaż miejsce na mapie</button><div data-travel-map></div>';
+    main.querySelector('.ghostlab-editor-feedback').before(panel);
+    panel.querySelector('button').addEventListener('click', () => {
+        const read = key => main.querySelector(`[data-ghostlab-blueprint-key="${key}"]`)?.value?.trim();
+        const latText = read('lat'), lngText = read('lng');
+        const lat = Number(latText), lng = Number(lngText);
+        const target = panel.querySelector('[data-travel-map]');
+        if (!latText || !lngText || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+            target.textContent = 'Podaj poprawną szerokość i długość geograficzną.';
+            return;
+        }
+        const frame = document.createElement('iframe');
+        frame.title = 'Podgląd współrzędnych miejsca autora';
+        frame.style.cssText = 'width:100%;height:280px;border:0;margin-top:12px';
+        const bbox = [Math.max(-180,lng-.02), Math.max(-90,lat-.015), Math.min(180,lng+.02), Math.min(90,lat+.015)];
+        frame.src = 'https://www.openstreetmap.org/export/embed.html?' + new URLSearchParams({bbox:bbox.join(','), layer:'mapnik', marker:`${lat},${lng}`});
+        target.replaceChildren(frame);
+    });
+    main.querySelectorAll('[data-ghostlab-blueprint-key]').forEach(input => input.addEventListener('input', () => {
+        panel.querySelector('[data-travel-map]').textContent = 'Dane zmienione — odśwież podgląd miejsca.';
+    }));
+}
+
+function mountTravelTicketReactions(card, item) {
+    const panel = document.createElement('section');
+    panel.className = 'gp-ticket-feedback';
+    card.append(panel);
+    const choices = [['bad','😠 Zły'], ['happy','🙂 Zadowolony'], ['very_happy','🤩 Bardzo zadowolony']];
+    const url = '/api/travel-tickets/' + encodeURIComponent(item.id);
+    const render = async () => {
+        panel.textContent = 'Ładowanie reakcji podróżujących…';
+        try {
+            const response = await fetch(url);
+            const state = await response.json();
+            if (!response.ok || !state.success) throw new Error(state.message || 'Reakcje chwilowo niedostępne.');
+            panel.replaceChildren();
+            const text = document.createElement('p');
+            const d = state.offer.destination;
+            text.textContent = `${d.place_name}, ${d.city}, ${d.country} (${d.lat}, ${d.lng}). ${item.ghostlab_generated ? 'Miejsce deklarowane przez autora. ' : ''}Jeden zakup = jedna natychmiastowa podróż.`;
+            panel.append(text);
+            const summary = document.createElement('p');
+            const total = Object.values(state.counts).reduce((a,b) => a+b, 0);
+            summary.textContent = total ? 'Reakcje dotyczą obecnego miejsca.' : 'Brak ocen obecnego miejsca.';
+            panel.append(summary);
+            const buttons = document.createElement('div');
+            buttons.className = 'gp-ticket-feedback__choices';
+            choices.forEach(([key,label]) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = `${label}: ${state.counts[key] || 0}`;
+                button.setAttribute('aria-pressed', String(state.mine?.reaction === key && state.mine?.destination_revision === state.offer.destination_revision));
+                button.disabled = !state.reaction_receipt;
+                button.addEventListener('click', async () => {
+                    buttons.querySelectorAll('button').forEach(b => { b.disabled = true; });
+                    try {
+                        const result = await fetch(url + '/reaction', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({receipt:state.reaction_receipt,reaction:key})});
+                        const data = await result.json();
+                        if (!result.ok || !data.success) throw new Error(data.message || 'Nie zapisano reakcji.');
+                        await render();
+                    } catch (error) {
+                        summary.textContent = error.message;
+                        buttons.querySelectorAll('button').forEach(b => { b.disabled = !state.reaction_receipt; });
+                    }
+                });
+                buttons.append(button);
+            });
+            panel.append(buttons);
+            const info = document.createElement('p');
+            const history = Object.values(state.historical_counts).reduce((a,b) => a+b, 0);
+            info.textContent = state.reaction_receipt ? 'Możesz zmienić swoją reakcję; nadal liczony jest jeden głos.' : 'Ocena po odbytej podróży. Autor nie ocenia własnego biletu.';
+            if (history) info.textContent += ' Poprzednie miejsca: ' + choices.map(([key,label]) => `${label}: ${state.historical_counts[key] || 0}`).join(' · ');
+            panel.append(info);
+        } catch (error) {
+            panel.textContent = error.message;
+            const retry = document.createElement('button');
+            retry.textContent = 'Odśwież reakcje';
+            retry.addEventListener('click', render);
+            panel.append(retry);
+        }
+    };
+    card._refreshTravelReactions = render;
+    render();
+}
+
 function renderGhostLabEditor(root, project) {
     const main = root?.querySelector('[data-ghostlab-main]');
     if (!main || !project) return;
@@ -15154,7 +15251,7 @@ function renderGhostLabEditor(root, project) {
                 <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.</small></label>
                 <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
-            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
+            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
             <h4>Ustawienia funkcji</h4>
             <div class="ghostlab-editor-grid">
                 ${fields.map(field => renderGhostLabEditorField(field, blueprint[field.key])).join("")}
@@ -15182,6 +15279,7 @@ function renderGhostLabEditor(root, project) {
             </div>
         </section>
     `;
+    if (project.template_id === 'travel_ticket') mountGhostLabTravelPreview(main);
     main.querySelectorAll('[data-ghostlab-preview-blueprint]').forEach(button => {
         button.addEventListener('click', () => {
             setGhostLabWorking(root, "Validating...");
@@ -15278,8 +15376,8 @@ function renderGhostLabPublisherPipeline(project) {
     return `
         <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong>
         <span>Ostatnio opublikowany build: ${escapeHTML(String(publishedBuild?.version || '—'))}.</span>
-        <span>${contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
-        <span>${isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
+        <span>${contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
+        <span>${project.template_id === 'travel_ticket' ? (isPublished ? 'Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca.' : 'Opublikuj build, aby udostępnić to miejsce w Googleplexie.') : isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
                 <span class="${done ? 'done' : ''}">${escapeHTML(label)}</span>
@@ -15294,7 +15392,7 @@ function renderGhostLabPublisherPipeline(project) {
             <span>ops: <b>${escapeHTML((contract.operation_types || []).join(', ') || 'custom runtime')}</b></span>
             <span>data: <b>${escapeHTML((contract.resource_types || []).join(', ') || '-')}</b></span>
         </div>
-        <em>${isPublished ? `Googleplex ID: ${escapeHTML(project.googleplex_app_id || '-')}` : 'Publisher zapisze pro-system-tool w Googleplex po poprawnym buildzie.'}</em>
+        <em>${isPublished ? `Googleplex ID: ${escapeHTML(project.googleplex_app_id || '-')}` : 'Publisher zapisze produkt w Googleplex po poprawnym buildzie.'}</em>
     `;
 }
 
@@ -15364,6 +15462,10 @@ function buildGhostLabBlueprintPreview(project, blueprint, validation) {
         lines.push(`Effect: read ${blueprint.log_limit || '?'} system logs`);
         lines.push(`Includes status: ${blueprint.include_status ? 'yes' : 'no'}`);
         lines.push(`Policy: ${blueprint.redaction_policy || '-'}`);
+    } else if (project?.template_id === "travel_ticket") {
+        lines.push('Jedna podróż natychmiast po zakupie; miejsce deklarowane przez autora.');
+        lines.push(`${blueprint.place_name}, ${blueprint.city}, ${blueprint.country}`);
+        lines.push(`Współrzędne: ${blueprint.lat}, ${blueprint.lng}`);
     } else if (project?.template_id === "arsenal_cleaner") {
         lines.push(`Effect: random non-core app cleanup`);
         lines.push(`Success: ${blueprint.success_percent || '?'}%`);
@@ -15674,7 +15776,7 @@ async function createGhostLabProjectFromTemplate(root, template) {
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = data.project?.id || ghostLabState.selectedProjectId;
         activateGhostLabTab(root, "Projects");
-        setGhostLabMessage(root, "Projekt utworzony. Otworz edytor; runtime narzedzia nadal oczekuje.", "info");
+        setGhostLabMessage(root, "Projekt utworzony. Otwórz edytor i skonfiguruj produkt.", "info");
     } catch (err) {
         console.warn("GhostLab template project create failed", err);
         setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");

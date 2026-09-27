@@ -1,10 +1,43 @@
 # Sprint 146 — jeden pakiet runtime i skoordynowany odbiór
 
-Stan: przygotowanie lokalne, 26 IX 2026. Bez commita, pusha i wdrożenia.
-Odbiór produkcyjny pozostaje otwarty. Ten pakiet obejmuje bazowy sprint 146,
+Stan: **ZAMKNIĘTY — PASS**, decyzja użytkownika, 26 IX 2026.
+Wdrożony przez użytkownika (`bf1f3e9`, restart PM2 potwierdzony).
+Ten pakiet obejmuje bazowy sprint 146,
 nie osobne sprinty 146.1–146.3 (bilety i konserwacja) ani GhostLab v2.0.
 
 ## Zakres pakietu
+
+Odbiór uzupełnienia UI: **PASS użytkownika — pełny ekran GhostLaba**.
+Odbiór przygotowania: **PASS użytkownika — tworzenie, walidacja, kompilacja,
+publikacja, instalacja i przekazanie HC twórcy**. Main ma zainstalowanych rodziców
+i potomków; użytkownik potwierdził przygotowanie okoliczności rundy PvP.
+Odbiór runtime — potwierdzenia użytkownika:
+
+- PASS: stare instalacje FS-player/Katastrator pozostają zablokowane po samej
+  kompilacji/publikacji; bezpłatna aktualizacja instalacji aktywuje opcję w panelu.
+  Katastrator przed aktualizacją: zainstalowana v1, opublikowana v2.
+- PASS: użycie rodzica zmienia stan potomka na wykorzystany wspólny limit rodziny.
+- PASS uruchomienia: FS-player v3 pokazuje wynik 19 HC, bez wykrycia, na celu
+  Pies Pies. Saldo wykonawcy w wyniku: 207515 HC. PASS użytkownika: zgodność
+  transferu po obu stronach, w tym ubytek 19 HC u celu.
+- PASS użytkownika: Katastrator po aktualizacji usuwa kontakt po obu stronach
+  i dostarcza właściwe komunikaty.
+- PASS użytkownika: SPP — konflikt wersji, odświeżenie i skuteczny kolejny zapis.
+- PASS użytkownika: APC — skutki usunięcia zgodne na pulpicie, w FM i na dysku.
+- PASS użytkownika: Enwinenwik — rzeczywiste wypchnięcie intruza.
+
+Główne skutki wszystkich pięciu nowych rodzin mają PASS serwerowy.
+Decyzją użytkownika dodatkowa regresja przechodzi do ogólnych testów gameplayowych
+i nie blokuje zamknięcia sprintu. Nie oznaczamy tych punktów jako wykonane:
+
+1. Reconnect celu: brak odtworzenia usuniętej aplikacji/kontaktu i zachowanie pozycji po wypchnięciu.
+2. Ponowne otwarcie SPP podczas tego samego dostępu, bez resetu czasu.
+3. Aktualizacja zużytego potomka nie odnawia limitu rodziny.
+4. Mobile: dopasowanie okna wyniku i działanie przycisków.
+5. Kontrolny odczyt Sysloga po wdrożeniu 146.
+
+Użytkownik zapisał je do swoich testów gameplayowych; zgłoszone nieprawidłowości
+wrócą jako poprawki. Zamknięcie nie oznacza automatycznie PASS całej macierzy.
 
 Aktywacja potomków Financial Sniffer, Friend Kicker, Security Panel Proxy,
 Arsenal Cleaner i Intruder Kicker; regresja działającego System Log Reader.
@@ -172,4 +205,5 @@ Wynik lokalny 26 IX 2026:
   zapisu profilu. Test walletu dostał aktualną atrapę resolvera produktu.
 - Pięć zestawów JS (runtime, publication, request guard, log reader, inventory
   delta), składnia terminal.js i `git diff --check`: PASS.
-- Desktop/mobile i skutki na serwerze: **DO ODBIORU** według tabeli powyżej.
+- Główne skutki na serwerze: **PASS użytkownika**. Dodatkowe sprawdzenia,
+  w tym mobile i reconnect, przeniesione do ogólnych testów gameplayowych.

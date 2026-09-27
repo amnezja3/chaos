@@ -317,6 +317,7 @@ def canonical_wallet_test_runtime(balances):
 @contextmanager
 def canonical_travel_test_runtime(balances):
     from database import db_connect, PlayerPositionStore
+    from ghostlab_travel import TravelStore
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, 'travel.db')
         wallet = WalletBalanceStore(path)
@@ -325,7 +326,10 @@ def canonical_travel_test_runtime(balances):
             for username, balance in balances.items():
                 conn.execute("INSERT INTO users(username,profile_json,created_at,updated_at) VALUES (?,'{}','now','now')", (username,))
                 conn.execute("INSERT INTO wallet_balances(username,balance,version,updated_at) VALUES (?,?,1,'now')", (username, balance))
-        with patch.object(run, 'wallet_balance_store', wallet), patch.object(run, 'player_position_store', positions):
+        with patch.object(run, 'wallet_balance_store', wallet), patch.object(run, 'player_position_store', positions), \
+                patch.object(run,'travel_store',TravelStore(path)), \
+                patch.object(run,'player_inventory_store',PlayerInventoryStore(path)), \
+                patch.object(run,'delta_bus',GameStateDeltaBus(path)):
             yield wallet
 
 
@@ -6392,7 +6396,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
         with canonical_travel_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
-                patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError('heavy ticket path')), \
+                patch.object(run, "googleplex_buyer_projection", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=[product]), \
                 patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
@@ -6401,24 +6406,25 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             response = client.post("/install-app", json={
                 "app_id": product["id"],
                 "transaction_key": "test:googleplex:ticket_warszawa:1",
+                "expected_price": product['price'],
             })
             replay = client.post("/install-app", json={
                 "app_id": product["id"],
                 "transaction_key": "test:googleplex:ticket_warszawa:1",
+                "expected_price": product['price'],
             })
 
         city = run.TRAVEL_CITIES["Warszawa"]
         data = response.get_json()
         self.assertEqual(data["status"], "success")
-        self.assertEqual(FakeManager.update_attempts, 2)
+        self.assertEqual(FakeManager.update_attempts, 0)
         self.assertEqual(data["travel"]["position"], {"lat": city["lat"], "lng": city["lng"]})
-        self.assertFalse(data["travel"]["duplicate"])
+        self.assertFalse(data["duplicate"])
         replay_data = replay.get_json()
         self.assertTrue(replay_data["duplicate"])
-        self.assertTrue(replay_data["travel"]["duplicate"])
-        self.assertEqual(replay_data["travel"]["receipt"], data["travel"]["receipt"])
-        self.assertEqual(profile["curently_possition"], {"lat": city["lat"], "lng": city["lng"]})
-        self.assertEqual(profile["current_city"], "Warszawa")
+        self.assertIsNone(replay_data["travel"])
+        self.assertEqual(profile["curently_possition"], {"lat": 0, "lng": 0})
+        self.assertIsNone(profile["current_city"])
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
 

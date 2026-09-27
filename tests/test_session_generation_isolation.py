@@ -846,7 +846,8 @@ class SessionGenerationIsolationTests(unittest.TestCase):
     def test_account_catalog_is_readonly_after_generation_validation(self):
         self.seed_session()
         profile = {"username": "alice", "apps": [], "hackcoins": 100}
-        with patch.object(run, "load_profile_readonly", return_value=profile) as readonly, \
+        with patch.object(run, "googleplex_buyer_projection", return_value=profile) as readonly, \
+                patch.object(run, "load_profile_readonly", side_effect=AssertionError("catalog must not hydrate")), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("catalog must not write")), \
                 patch.object(run, "get_app_catalog", return_value=[]):
             response = self.client.get(
@@ -856,13 +857,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertEqual([], response.get_json())
-        readonly.assert_called_once_with(
-            "alice",
-            strip_sensitive=True,
-            normalize_apps=True,
-            normalize_files=False,
-            overlay_runtime=True,
-        )
+        readonly.assert_called_once_with("alice", inventory=True)
 
     def test_non_admin_cannot_delete_another_account(self):
         self.seed_session()

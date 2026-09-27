@@ -4709,21 +4709,21 @@ class UserIdentityProjectionStore:
         from player_security_store import PlayerSecurityStore
         return PlayerSecurityStore(self.db_path).get(username)['security']
 
-    def get_creator_identity(self, username):
+    def get_creator_identity(self, username, *, conn=None):
         """Identity and respect only; never hydrate desktop/security or user profile."""
         sql = self._select_sql('p.username = ?').replace('SELECT ', '''SELECT
             json_extract(p.desktop_boot_json, '$.respect') AS creator_respect,
             json_extract(p.desktop_boot_json, '$.source_profile_revision') AS desktop_revision,
             json_extract(p.desktop_boot_json, '$.source_profile_checksum') AS desktop_checksum,
             ''', 1)
-        with db_connect(self.db_path) as conn:
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
             row = conn.execute(sql, (username,)).fetchone()
         identity = self._row_identity(row)
         if (not identity or row['desktop_revision'] != identity['source_profile_revision']
                 or row['desktop_checksum'] != identity['source_profile_checksum']
                 or row['creator_respect'] is None):
             raise ProfileRecoveryRequired('Creator projection migration or recovery required')
-        return {'nick': identity['nick'], 'respect': int(row['creator_respect'])}
+        return {'nick': identity['nick'], 'clan': identity['clan'], 'respect': int(row['creator_respect'])}
 
     def get_identities(self, usernames, max_items=IDENTITY_PROJECTION_MAX_BATCH):
         max_items = self._bounded_limit(max_items)
