@@ -27,6 +27,11 @@ function applyGhostLabMaintenanceResult(result) {
     }
 }
 
+function ghostLabSecurityChangeLog(changes) {
+    const value = item => item === true ? 'ON' : item === false ? 'OFF' : String(item);
+    return changes.map(change => `${change.key}: ${value(change.before)} → ${value(change.after)}`).join('\n');
+}
+
 async function renderGhostLabMaintenance(app, body, data, reload) {
     const product = data.product;
     const endpoint = '/api/ghostlab/installed/' + encodeURIComponent(product.id) + '/maintenance';
@@ -50,7 +55,9 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
     if (!product.runtime_enabled) return;
     let plan;
     try {
-        const response = await fetch(endpoint, {cache: 'no-store'});
+        const selection = product.template_id === 'security_restore' && app._ghostLabSecurityPreset
+            ? '?preset=' + encodeURIComponent(app._ghostLabSecurityPreset) : '';
+        const response = await fetch(endpoint + selection, {cache: 'no-store'});
         plan = await response.json();
         if (!response.ok || !plan.success) throw Error(plan.error || 'Brak podglądu.');
     } catch (error) { log.textContent = error.message; return; }
@@ -59,16 +66,30 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
     if (preview.kind === 'file_cleanup') {
         view.innerHTML = `<p>Do usunięcia: ${Number(preview.count)} plików, ${Number(preview.size)} MB (maks. 250 na operację).</p>
             <details><summary>Zakres czyszczenia</summary><ul>${preview.files.map(f => `<li>${escapeHTML(f.name)} — ${Number(f.size)} MB</li>`).join('')}</ul></details>`;
-        run.textContent = preview.count ? 'Wyczyść pliki' : 'Sprawdź system';
+        run.textContent = preview.count ? 'Wyczyść pliki' : 'System jest czysty';
     } else if (preview.kind === 'security_restore') {
-        view.textContent = 'Zestaw: ' + preview.preset.toUpperCase() + '. Jednorazowa zmiana własnych zabezpieczeń.';
+        app._ghostLabSecurityPreset = preview.preset;
+        view.innerHTML = `<p>Wybierz poziom zabezpieczeń własnego systemu.</p><div class="pro-tool-actions ghostlab-security-presets" role="group" aria-label="Poziom zabezpieczeń">
+            ${(preview.presets || ['open', 'low', 'regular', 'all']).map(preset => `<button type="button" data-maintenance-preset="${escapeHTML(preset)}" aria-pressed="${preset === preview.preset}">${escapeHTML(preset[0].toUpperCase() + preset.slice(1))}</button>`).join('')}</div>
+            <p>Zestaw: <b>${escapeHTML(preview.preset.toUpperCase())}</b></p><pre data-maintenance-changes style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>`;
+        view.querySelector('[data-maintenance-changes]').textContent = preview.changes?.length
+            ? 'Planowane zmiany:\n' + ghostLabSecurityChangeLog(preview.changes) : preview.message;
+        view.querySelectorAll('[data-maintenance-preset]').forEach(button => {
+            button.onclick = () => {
+                app._ghostLabSecurityPreset = button.dataset.maintenancePreset;
+                return renderGhostLabMaintenance(app, body, data, reload);
+            };
+        });
         run.textContent = 'Przywróć zabezpieczenia';
     } else {
-        view.textContent = 'Prezentacja pobierania i instalowania aktualizacji. Bez bonusów do parametrów.';
-        run.textContent = 'Rozpocznij aktualizację systemu';
+        view.textContent = preview.installed ? preview.message
+            : 'Pobierz i zainstaluj tę wersję aktualizacji systemu. Bez bonusów do parametrów.';
+        run.textContent = preview.installed ? 'System jest aktualny' : 'Pobierz i zainstaluj aktualizację';
     }
-    run.disabled = false;
+    run.disabled = preview.can_execute === false;
+    if (preview.message) log.textContent = preview.message;
     run.onclick = async () => {
+        if (preview.can_execute === false) return;
         const buttons = Array.from(body.querySelectorAll('button'));
         buttons.forEach(b => b.disabled = true);
         let committed = false;
@@ -95,11 +116,17 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
             if (!response.ok || !result.success) throw Error(result.error || 'Operacja nie powiodła się.');
             committed = true;
             if (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive) return;
-            if (!result.duplicate) applyGhostLabMaintenanceResult(result);
+            if (!result.duplicate && !result.already_installed) applyGhostLabMaintenanceResult(result);
             progress.value = 100;
             log.textContent += (result.duplicate ? 'Zapisany wynik poprzedniego żądania: ' : '') + result.message + '\nOdśwież podgląd przed kolejnym uruchomieniem.';
-            if (Array.isArray(result.changed) && result.changed.length) {
-                log.textContent += '\n' + result.changed.map(key => `${key}: ${result.security[key] === true ? 'ON' : result.security[key] === false ? 'OFF' : result.security[key]}`).join('\n');
+            if (Array.isArray(result.changes) && result.changes.length) {
+                log.textContent += '\nZapisane zmiany:\n' + ghostLabSecurityChangeLog(result.changes);
+            }
+            if (preview.kind === 'system_update') {
+                view.textContent = 'System jest aktualny — ta wersja została już zainstalowana.';
+                run.textContent = 'System jest aktualny';
+            } else if (preview.kind === 'security_restore') {
+                view.querySelector('[data-maintenance-changes]').textContent = 'Zabezpieczenia są zgodne z wybranym zestawem.';
             }
         } catch (error) {
             log.textContent = error.message + '\nMożesz ponowić to samo żądanie lub odświeżyć podgląd.';

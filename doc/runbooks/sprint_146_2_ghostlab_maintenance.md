@@ -25,8 +25,8 @@ pm2 logs chaos --lines 60 --nostream
 ```
 
 Standardowa kopia bazy przed deployem. Inicjalizacja SQLite tworzy automatycznie
-`ghostlab_maintenance_receipts` i `player_data_file_tombstones`; nie ma migracji
-profili ani przepisywania katalogu. Obie tabele są wymagane dla idempotencji
+`ghostlab_maintenance_receipts`, `ghostlab_system_updates` i `player_data_file_tombstones`; nie ma migracji
+profili ani przepisywania katalogu. Tabele są wymagane dla idempotencji
 i ochrony przed ponownym pojawieniem się usuniętych danych.
 Szablony można publikować od razu. Pliki JS mają nową wersję cache na obu desktopach.
 
@@ -72,10 +72,21 @@ przywracają usuniętych identyfikatorów. Otwarty FM i zajętość dysku otrzym
 Aktualizacja systemu jest prezentacją: 4 logi autora, po maks. 180 znaków,
 600 ms na etap, pasek progresu. Logi są zwykłym tekstem. Nie wykonują HTML,
 komend ani instalacji OS; nie zmieniają dysku, HC, zasięgu ani zabezpieczeń.
-Przycisk aktualizacji zainstalowanej aplikacji jest osobny.
+Przycisk aktualizacji zainstalowanej aplikacji jest osobny. Każdy artefakt aktualizacji
+można wykonać tylko raz na konto i produkt. Po wykonaniu okno pokazuje „System jest
+aktualny” i blokuje ponowne pobieranie, także po odświeżeniu, restarcie i reinstalacji.
+Nowa publikacja autora udostępnia nową wersję aplikacji; po jej jawnej aktualizacji
+można wykonać nowy pakiet. Stan wykonania, wynik i delta są zapisywane atomowo;
+dwa różne podglądy nie pozwalają zainstalować tego samego artefaktu dwukrotnie.
+Śledzenie wersji obowiązuje od tej poprawki. Starsze wyniki prezentacji nie zawierały
+identyfikatora artefaktu, więc nie przypisujemy im wstecz niepotwierdzonej wersji.
 
-Security Restore: autor wybiera `OPEN`, `LOW`, `REGULAR` lub `ALL` z listy.
-Preset widoczny przed potwierdzeniem. Istniejący systemowy generator zestawów
+Security Restore: autor wybiera domyślny preset. Użytkownik ma w aplikacji przyciski
+`Open`, `Low`, `Regular`, `All` i może zmienić zestaw przed wykonaniem.
+Wybór pobiera nowy podpisany podgląd z wersją security i różnicami przed/po.
+Po zapisie log pokazuje rzeczywiste zmiany, np. `firewall: OFF → ON`.
+Przy zgodnym stanie przycisk wykonania jest nieaktywny; nadal można wybrać inny
+zestaw lub odświeżyć po zmianie ustawień. Istniejący systemowy generator zestawów
 działa wyłącznie na dostępnych kluczach; wynik przechodzi macierz konfliktów.
 `ALL` nie pozostawia jednocześnie włączonych sprzecznych ustawień.
 Zmiana manualna/Proxy po podglądzie powoduje konflikt wersji i wymaga odświeżenia.
@@ -97,8 +108,10 @@ Wystarczą autor i drugie konto kupującego; nie trzeba odnawiać dostępu PvP.
    znów można usunąć. Ponowienie tego samego żądania nie dubluje efektu.
 5. System Update: kolejne logi/pasek, brak zmian parametrów. Tekst `<b>test</b>`
    pokazuje się dosłownie. Zamknięcie podczas animacji przerywa przygotowanie.
-6. Security Restore: opublikuj kolejno cztery presety, aktualizując aplikację u kupującego.
-   Sprawdź stan w otwartym profilu, konflikty i ponowne wykonanie bez zmian.
+6. System Update: ponownie otwórz aplikację — system aktualny, pobieranie zablokowane.
+   Nowy build i publikacja autora → aktualizacja aplikacji → nowy pakiet do wykonania.
+   Security Restore: wybierz kolejno cztery presety bez ponownej publikacji.
+   Sprawdź podgląd różnic, log przed/po, stan w otwartym profilu, konflikty i blokadę zbędnej operacji.
    Zmień ręcznie zabezpieczenie po podglądzie — zapis ma odmówić; odśwież i wykonaj.
 7. Wycofaj publikację: posiadana wersja działa. Odinstaluj: wykonanie jest blokowane.
    Areszt: wykonanie blokowane. Zmieniony build: stary podgląd nie działa po aktualizacji.
@@ -121,6 +134,11 @@ Wystarczą autor i drugie konto kupującego; nie trzeba odnawiać dostępu PvP.
   odbioru nie była dostępna w sesji przygotowującej zmianę.
 
 ## Weryfikacja lokalna
+
+Poprawka trwałego stanu i presetów: **25 testów backendu PASS** (18 maintenance,
+7 registry), testy JS maintenance, runtime i publication: PASS. Pokrycie obejmuje
+reinstalację, nowy opublikowany build, dwa równoległe podglądy aktualizacji,
+rollback, oddzielenie kont/produktów, wybór czterech presetów i logi przed/po.
 
 Wynik 27 IX 2026: **PASS** — 14 testów nowego wykonawcy, wymieniona poniżej
 regresja GLab i 5 skryptów Node (w tym `test_consequence_inventory_delta.js`).

@@ -2845,6 +2845,9 @@ def init_db(db_path=DB_PATH):
         conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_maintenance_receipts (
             username TEXT NOT NULL, action_id TEXT NOT NULL, app_id TEXT NOT NULL,
             result_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(username, action_id))''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_system_updates (
+            username TEXT NOT NULL, app_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
+            installed_at TEXT NOT NULL, PRIMARY KEY(username, app_id, artifact_id))''')
         conn.execute('''CREATE TABLE IF NOT EXISTS player_data_file_tombstones (
             username TEXT NOT NULL, file_id TEXT NOT NULL, created_at TEXT NOT NULL,
             PRIMARY KEY(username, file_id))''')

@@ -12,6 +12,16 @@ from response_network.capabilities import require_targeting_allowed
 
 TERMINAL = {'cancelled', 'canceled', 'done', 'completed', 'failed', 'expired', 'timeout', 'resolved', 'detected'}
 OBJECT_FOLDERS = {'gps', 'device', 'personal', 'atm', 'financial', 'credentials', 'network', 'vehicle', 'audio'}
+SECURITY_PRESETS = ('open', 'low', 'regular', 'all')
+
+
+def security_changes(before, after):
+    return [dict(key=key, before=value, after=after[key]) for key, value in before.items() if value != after[key]]
+
+
+def update_installed(conn, actor, app_id, artifact_id):
+    return conn.execute('SELECT installed_at FROM ghostlab_system_updates WHERE username=? AND app_id=? AND artifact_id=?',
+                        (actor, app_id, artifact_id)).fetchone()
 
 
 def cleanup_category(file, folder):
@@ -104,17 +114,28 @@ def register(app, services):
                 security = PlayerSecurityStore(services['player_inventory_store'].db_path)
                 if request.method == 'GET':
                     plan = dict(actor=actor, app=app_id, artifact=product['artifact_id'], action_id=uuid.uuid4().hex)
-                    preview = dict(kind=kind)
+                    preview = dict(kind=kind, can_execute=True)
                     if kind == 'file_cleanup':
                         files = candidates(conn, actor, blueprint, services['is_ghost_exchange_sellable'])
                         plan['files'] = [[f['id'], f['version']] for f in files]
                         preview.update(files=files, count=len(files), size=sum(f['size'] for f in files))
+                        preview.update(can_execute=bool(files), message='' if files else 'System jest już czysty — nie ma czego usuwać.')
                     elif kind == 'security_restore':
                         state = security.get(actor, conn=conn)
                         plan['security_version'] = state['security_version']
-                        preview['preset'] = blueprint['preset']
+                        preset = request.args.get('preset', blueprint['preset'])
+                        if preset not in SECURITY_PRESETS:
+                            raise ValueError('Wybierz Open, Low, Regular lub All.')
+                        plan['preset'] = preset
+                        after = restore_preset(state['security'], preset, services['build_security_preset'], services['SECURITY_CONFLICTS'])
+                        changes = security_changes(state['security'], after)
+                        preview.update(preset=preset, presets=list(SECURITY_PRESETS), changes=changes, can_execute=bool(changes),
+                                       message='' if changes else 'Zabezpieczenia są już zgodne z wybranym zestawem.')
                     else:
+                        installed = update_installed(conn, actor, app_id, product['artifact_id'])
                         preview['logs'] = [blueprint[f'log_{i}'] for i in range(1, 5)]
+                        preview.update(can_execute=not bool(installed), installed=bool(installed),
+                                       message='System jest aktualny — ta wersja została już zainstalowana.' if installed else '')
                     return jsonify(success=True, preview=preview, token=signer().dumps(plan))
                 token = body.get('token')
                 if not isinstance(token, str) or len(token) > 100000:
@@ -126,7 +147,10 @@ def register(app, services):
                                      (actor, plan['action_id'])).fetchone()
                 if saved:
                     return jsonify(**dict(json.loads(saved[0]), duplicate=True))
-                result = dict(success=True, kind=kind, action_id=plan['action_id'], duplicate=False)
+                if kind == 'system_update' and update_installed(conn, actor, app_id, product['artifact_id']):
+                    return jsonify(success=True, kind=kind, already_installed=True, can_execute=False,
+                                   message='System jest aktualny — ta wersja została już zainstalowana.')
+                result = dict(success=True, kind=kind, artifact_id=product['artifact_id'], action_id=plan['action_id'], duplicate=False)
                 if kind == 'file_cleanup':
                     approved = {key: version for key, version in plan['files']}
                     files = [f for f in candidates(conn, actor, blueprint, services['is_ghost_exchange_sellable'])
@@ -149,16 +173,22 @@ def register(app, services):
                         message=f'Usunięto {len(files)} plików. Zwolniono {size} MB.' if files else
                         ('Zakres zmienił się — odśwież podgląd.' if approved else 'System jest już czysty — nie ma czego usuwać.'))
                 elif kind == 'security_restore':
+                    preset = plan.get('preset', blueprint['preset'])
+                    if preset not in SECURITY_PRESETS:
+                        raise ValueError('Wybierz Open, Low, Regular lub All.')
                     before = security.get(actor, conn=conn)['security']
-                    state = security.update(actor, lambda s: restore_preset(s, blueprint['preset'],
+                    state = security.update(actor, lambda s: restore_preset(s, preset,
                         services['build_security_preset'], services['SECURITY_CONFLICTS']),
                         expected_version=plan['security_version'], conn=conn)
                     changed = [key for key in before if before[key] != state['security'][key]]
-                    result.update(**state, changed=changed, preset=blueprint['preset'],
-                        message=f'Zestaw {blueprint["preset"].upper()}: zmieniono {len(changed)} ustawień.' if changed else
+                    result.update(**state, changed=changed, changes=security_changes(before, state['security']), preset=preset,
+                        message=f'Zestaw {preset.upper()}: zmieniono {len(changed)} ustawień.' if changed else
                         'Zabezpieczenia są już zgodne z wybranym zestawem.')
                 else:
-                    result['message'] = 'Prezentacja aktualizacji zakończona. Parametry systemu pozostają bez zmian.'
+                    conn.execute('INSERT INTO ghostlab_system_updates VALUES (?,?,?,?)',
+                                 (actor, app_id, product['artifact_id'], utc_now()))
+                    result.update(installed=True, can_execute=False,
+                                  message='Aktualizacja zainstalowana. System jest aktualny.')
                 require_targeting_allowed(conn, actor)
                 conn.execute('INSERT INTO ghostlab_maintenance_receipts VALUES (?,?,?,?,?)',
                              (actor, plan['action_id'], app_id, json.dumps(result, ensure_ascii=False), utc_now()))

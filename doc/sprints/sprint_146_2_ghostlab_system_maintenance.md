@@ -66,6 +66,10 @@ nazwą, ikoną i opisem. To nie Arsenal Cleaner atakujący inną osobę.
   zabezpieczeń i instalacji rzeczywistych aktualizacji systemu operacyjnego.
 - Nie mylić tego przebiegu z aktualizacją wersji zakupionego produktu ani
   z ryzykownym firmware'em i trwałymi ulepszeniami z 146.3.
+- Wykonanie konkretnej wersji zapisuje się trwale na konto i produkt. Ta sama
+  wersja nie może być ponownie pobrana po odświeżeniu ani reinstalacji; okno pokazuje
+  „System jest aktualny”. Nowy pakiet odblokowuje nowa publikacja autora i jawna
+  aktualizacja zakupionej aplikacji do tego artefaktu.
 
 Czasy animacji i ewentualne cooldowny nie zostały jeszcze określone liczbowo.
 Nie stanowią zgody na dodatkowe opłaty za uruchomienie ani bonusy statystyk.
@@ -84,6 +88,9 @@ Autor branduje produkt; nie definiuje dowolnych pól profilu ani reguł uprawnie
   nie dodawać SECURE do tej grupy. Wybrany zestaw musi być jawny przed operacją.
   Nie odtwarzać historycznej konfiguracji gracza ani nie czytać ciężkiego profilu.
   ALL również respektuje systemową macierz konfliktów i dostępne uprawnienia.
+- Preset autora jest domyślny. Gracz wybiera `Open`, `Low`, `Regular`, `All`
+  przyciskami w aplikacji. Podgląd i log wykonania pokazują zmiany przed/po.
+  Stan już zgodny z wybranym zestawem blokuje zbędne ponawianie operacji.
 - Operacja sprawdza wersję aktualnych zabezpieczeń przed zapisem. Równoległa
   zmiana przez gracza lub Proxy nie może zostać po cichu nadpisana starym stanem.
 - Raport pokazuje faktycznie przywrócone ustawienia, brak potrzebnych zmian

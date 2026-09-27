@@ -250,6 +250,86 @@ class MaintenanceTest(unittest.TestCase):
                 self.assertEqual(wallet.get_balance('victim'), balance)
             self.assertEqual(wallet.get_balance('attacker'), before + sum(p['price'] for p in products))
 
+    def test_update_once_per_artifact_survives_reinstall_and_new_version_unlocks(self):
+        self.make('system_update')
+        old_artifact = self.app['artifact_id']
+        with self.no_heavy():
+            first = self.preview()
+            second = self.preview()
+            self.assertTrue(first['preview']['can_execute'])
+            self.assertTrue(self.execute(first).json['installed'])
+            self.assertTrue(self.execute(first).json['duplicate'])
+            self.assertTrue(self.execute(second).json['already_installed'])
+            self.assertFalse(self.preview()['preview']['can_execute'])
+            self.inventory.uninstall_app('attacker', app_id=self.app['id'])
+            self.inventory.install_app('attacker', self.app, purchase_key='reinstall')
+            self.assertFalse(self.preview()['preview']['can_execute'])
+            with db_connect(self.path) as conn:
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM ghostlab_system_updates').fetchone()[0], 1)
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM ghostlab_maintenance_receipts').fetchone()[0], 1)
+        p = self.store.update('attacker', self.project['id'], self.project['revision'],
+                              {'blueprint': dict(self.project['blueprint'], log_1='New version')})
+        p = self.store.compile('attacker', p['id'], p['revision'], p['blueprint'], run.build_ghostlab_artifact)
+        p, app = self.store.publish('attacker', p['id'], p['revision'], p['artifact']['artifact_id'],
+                                    run.build_ghostlab_googleplex_app, {'level': 40, 'respect': 500})
+        with self.no_heavy():
+            self.assertFalse(self.preview()['preview']['can_execute'], 'publication alone does not replace installed artifact')
+            response = self.client.post('/api/ghostlab/installed/' + app['id'], json={
+                'expected_artifact_id': old_artifact, 'artifact_id': app['artifact_id']})
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertTrue(self.preview()['preview']['can_execute'])
+            self.assertTrue(self.execute(self.preview()).json['installed'])
+
+    def test_update_state_rolls_back_and_is_private_to_account_and_product(self):
+        self.make('system_update')
+        plan = self.preview()
+        with patch.object(run.delta_bus, 'record_change', side_effect=RuntimeError('rollback')):
+            self.assertEqual(self.execute(plan).status_code, 500)
+        self.assertTrue(self.preview()['preview']['can_execute'])
+        self.execute(plan)
+        self.inventory.install_app('victim', self.app, purchase_key='victim-test')
+        self.generation.authenticate(self.client, 'victim')
+        self.assertTrue(self.preview()['preview']['can_execute'])
+        self.execute(self.preview())
+        _, _, other = self.product('Other update', 'system_update')
+        self.generation.authenticate(self.client, 'attacker')
+        self.url = '/api/ghostlab/installed/' + other['id'] + '/maintenance'
+        self.assertTrue(self.preview()['preview']['can_execute'])
+
+    def test_security_user_selects_signed_preset_and_sees_actual_changes(self):
+        self.make('security_restore')
+        self.security.update('attacker', lambda _: {'firewall': False, 'file_indexing': False, 'heap_protection': False})
+        with self.no_heavy():
+            for preset in ('all', 'low', 'regular', 'open'):
+                response = self.client.get(self.url + '?preset=' + preset)
+                self.assertEqual(response.status_code, 200, response.json)
+                preview = response.json['preview']
+                self.assertEqual(preview['preset'], preset)
+                self.assertEqual(preview['presets'], ['open', 'low', 'regular', 'all'])
+                result = self.client.post(self.url, json={'token': response.json['token'], 'preset': 'forged'})
+                self.assertEqual(result.status_code, 200, result.json)
+                self.assertEqual(result.json['preset'], preset)
+                self.assertEqual(result.json['changes'], preview['changes'])
+                self.assertFalse(self.client.get(self.url + '?preset=' + preset).json['preview']['can_execute'])
+            self.assertEqual(self.client.get(self.url + '?preset=secure').status_code, 400)
+            self.assertEqual(self.client.get(self.url + '?preset=unknown').status_code, 400)
+
+    def test_two_update_previews_concurrently_install_once(self):
+        self.make('system_update')
+        plans = [self.preview(), self.preview()]
+        clients = [run.app.test_client(), run.app.test_client()]
+        with self.client.session_transaction() as state:
+            session_copy = dict(state)
+        for client in clients:
+            with client.session_transaction() as state:
+                state.update(session_copy)
+            client.environ_base.update(self.client.environ_base)
+        with self.no_heavy(), ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda pair: pair[0].post(self.url, json={'token': pair[1]['token']}), zip(clients, plans)))
+        self.assertEqual([r.status_code for r in results], [200, 200])
+        self.assertEqual(sum(bool(r.json.get('already_installed')) for r in results), 1)
+        self.assertFalse(self.preview()['preview']['can_execute'])
+
 
 if __name__ == '__main__':
     unittest.main()

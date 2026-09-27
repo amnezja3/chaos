@@ -308,7 +308,7 @@ MAINTENANCE_FIELDS = {
                                   'editable': True, 'max_length': 180}
                       for i, message in enumerate(['Pobieranie pakietu aktualizacji…', 'Sprawdzanie pakietu…',
                                                     'Instalowanie aktualizacji…', 'Aktualizacja zakończona.'], 1)},
-    'security_restore': {'preset': {'type': 'string', 'label': 'Systemowy zestaw zabezpieczeń',
+    'security_restore': {'preset': {'type': 'string', 'label': 'Domyślny zestaw zabezpieczeń (gracz może wybrać inny)',
                                     'default': 'regular', 'editable': True, 'max_length': 7,
                                     'enum': ['open', 'low', 'regular', 'all']}},
 }
