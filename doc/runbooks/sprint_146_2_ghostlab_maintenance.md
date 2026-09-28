@@ -1,6 +1,9 @@
 # Sprint 146.2 — własny system
 
-Pakiet do wdrożenia, 27 IX 2026. PASS w grze pozostaje do potwierdzenia.
+Stan: **ZAMKNIĘTY — PASS**, 27 IX 2026, na podstawie potwierdzenia użytkownika:
+„mamy pass dla 146.2”. Odbiór obejmuje trzy szablony, trwały stan aktualizacji,
+wybór presetów security z logami zmian oraz UX projektów i mobile.
+Poniższe instrukcje i checklisty pozostają do regresji; nie oznaczają oczekiwania na odbiór.
 
 ## Zawartość
 
@@ -145,8 +148,8 @@ regresja GLab i 5 skryptów Node (w tym `test_consequence_inventory_delta.js`).
 Dodatkowo PASS: canonical consequences, finalizacja PvP, wallet runtime cutover
 oraz 17 testów boot/profile. Test boot/profile używa teraz ścieżek względem pliku
 testowego, dzięki czemu działa z izolowanego katalogu runnera.
-Kontrola składni JS i `git diff --check`: PASS. Test wizualny desktop/mobile
-oraz odbiór gameplayowy pozostają krokami operatora po wdrożeniu.
+Kontrola składni JS i `git diff --check`: PASS. Odbiór końcowy w grze potwierdził
+użytkownik po wdrożeniu; agent nie wykonywał osobnego testu wizualnego w przeglądarce.
 
 Backend przez izolowany runner: `tests.test_ghostlab_maintenance` oraz regresja
 registry, alignment, publication, runtime, mutation_runtime i travel.

@@ -111,6 +111,8 @@ def register(app, services):
                 if not product or not product['runtime_enabled']:
                     return jsonify(success=False, error='Narzędzie niezainstalowane lub runtime wyłączony.'), 403
                 kind, blueprint = product['template_id'], product['blueprint']
+                if kind not in {'file_cleanup', 'system_update', 'security_restore'}:
+                    return jsonify(success=False, error='Niewłaściwy wykonawca szablonu.'), 400
                 security = PlayerSecurityStore(services['player_inventory_store'].db_path)
                 if request.method == 'GET':
                     plan = dict(actor=actor, app=app_id, artifact=product['artifact_id'], action_id=uuid.uuid4().hex)

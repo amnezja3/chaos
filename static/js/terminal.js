@@ -4380,6 +4380,10 @@ async function openGhostLabInstalledApp(appId) {
             const product = data.product;
             app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
             if (product.launch_mode === 'own_system') {
+                if (product.template_id === 'firmware_update') {
+                    await renderGhostLabFirmware(app, body, data, load);
+                    return;
+                }
                 await renderGhostLabMaintenance(app, body, data, load);
                 return;
             }
@@ -11542,7 +11546,18 @@ function applyGoogleplexTravelToOpenMaps(data = {}) {
     return true;
 }
 
-function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
+async function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
+    if (app.template_id === 'firmware_update') {
+        try {
+            const quote = await confirmFirmwarePurchase(app.id);
+            if (!quote) { if (onSettled) onSettled(false); return; }
+            app = {...app, artifact_id: quote.artifact_id, price: quote.price};
+        } catch (error) {
+            if (onSettled) onSettled(false);
+            await showGhostDecisionDialog({title: 'FIRMWARE', message: error.message, confirmLabel: 'ZAMKNIJ'});
+            return;
+        }
+    }
     // Okno progressbar (symulacja jak instalator Windows/Linux)
     const steps = app.product_type === 'travel_ticket' ? [
         `Przygotowanie podróży: ${app.name || 'Bilet'}`
@@ -12692,6 +12707,11 @@ async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
     if (rememberProcessedDelta(dedupeKey)) return false;
+    if (event.type === 'firmware.result') {
+        syncFirmwareCrash();
+        if (event.payload?.storage) updateStorageView(event.payload.storage);
+        return true;
+    }
     if (event.type === 'maintenance.completed') {
         applyGhostLabMaintenanceResult(event.payload || {});
         return true;
@@ -15483,6 +15503,10 @@ function buildGhostLabBlueprintPreview(project, blueprint, validation) {
         lines.push(...Object.values(blueprint));
     } else if (project?.template_id === 'security_restore') {
         lines.push('Jednorazowe ustawienie zabezpieczeń własnego konta: ' + String(blueprint.preset).toUpperCase());
+    } else if (project?.template_id === 'firmware_update') {
+        lines.push(`Szansa powodzenia: ${blueprint.success_percent}%. Sukces: +${blueprint.disk_mb} MB dysku i +${blueprint.scan_m} m skanu.`);
+        lines.push('Jeden zakup = jedna próba. Porażka: crash pulpitu i restart. Cooldown po obu wynikach: 24 h.');
+        lines.push('Trwałe bonusy kumulują się do 2 TB dysku i 30 km zasięgu skanu.');
     } else if (project?.template_id === "financial_sniffer") {
         lines.push(`Effect: steal up to ${blueprint.steal_percent || '?'}% HC`);
         lines.push(`Detection: ${blueprint.detection_percent ?? '?'}%`);

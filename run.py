@@ -20123,6 +20123,8 @@ def bind_request_profile_precommit_guard():
     )
     def guarded_commit(*, conn):
         transaction_guard(conn=conn)
+        from ghostlab_firmware import guard as firmware_guard
+        firmware_guard(conn, str(getattr(g, 'session_generation_user', '') or ''))
         try:
             detention_require_request(conn, str(getattr(g, 'session_generation_user', '') or ''),
                                       request.path, request.method, request.endpoint)
@@ -20884,7 +20886,8 @@ def ghostsignal_request_is_exempt():
     if request.method == "OPTIONS":
         return True
     if request.path in {'/api/response/detention', '/api/response/detention/bail-quote',
-                        '/api/response/detention/bail', '/api/response/consequence-show/claim'}:
+                        '/api/response/detention/bail', '/api/response/consequence-show/claim',
+                        '/api/firmware/state', '/api/firmware/restart'}:
         return True  # Essential sentence recovery/bail survives the global show.
     if request.method in {"GET", "HEAD"} and (
         request.endpoint in {"static", "dev_dashboard"} or request.path in {
@@ -21472,7 +21475,11 @@ def api_ghostnetwork_ability():
         return jsonify({"ok": False, "error": "projection_recovery_required"}), 409
     if not identity or not capabilities:
         return jsonify({"ok": False, "error": "projection_unavailable"}), 409
-    player_context = {**identity, **capabilities, "player_id": username}
+    from ghostlab_firmware import scan_range as firmware_scan_range
+    from database import db_connect
+    with db_connect(player_inventory_store.db_path) as conn:
+        firmware_range = firmware_scan_range(conn, username, capabilities['action_range'])
+    player_context = {**identity, **capabilities, "player_id": username, "action_range": firmware_range}
     service = get_ghostnetwork_service()
     if request.method == "GET":
         snapshot = service.get_player_ability_window_snapshot(player_context)
@@ -23596,6 +23603,10 @@ def map_action():
         ava_lat = position["lat"]
         ava_lng = position["lng"]
         action_range = int(capabilities["action_range"])
+        from ghostlab_firmware import scan_range as firmware_scan_range
+        from database import db_connect
+        with db_connect(player_inventory_store.db_path) as conn:
+            action_range = firmware_scan_range(conn, session['user'], action_range)
         scan_range_effect.update({
             "base_range_m": action_range,
             "effective_range_m": action_range,
@@ -23603,7 +23614,7 @@ def map_action():
         if GHOSTNETWORK_ABILITIES_ENABLED and identity:
             try:
                 player_context = {
-                    **identity, **capabilities, "player_id": session["user"],
+                    **identity, **capabilities, "player_id": session["user"], "action_range": action_range,
                 }
                 scan_range_effect = get_ghostnetwork_service().active_scan_range_effect(
                     player_context,
@@ -28616,6 +28627,8 @@ from ghostlab_routes import register as register_ghostlab_routes
 register_ghostlab_routes(app, globals())
 from ghostlab_maintenance import register as register_ghostlab_maintenance
 register_ghostlab_maintenance(app, globals())
+from ghostlab_firmware import register as register_ghostlab_firmware
+register_ghostlab_firmware(app, globals())
 from ghostlab_travel import register as register_travel_routes
 register_travel_routes(app, globals())
 
@@ -29192,10 +29205,13 @@ def install_app():
         if app_id.startswith('ghostlab_'):
             from database import db_connect
             from ghostlab_products import published_product
-            with db_connect(travel_store.db_path) as conn:
+            with db_connect(player_inventory_store.db_path) as conn:
                 candidate = published_product(conn, app_id)
                 if candidate and candidate.get('template_id') == 'travel_ticket':
                     generated_ticket = candidate
+                if candidate and candidate.get('template_id') == 'firmware_update':
+                    from ghostlab_firmware import purchase as purchase_firmware
+                    return jsonify(purchase_firmware(session['user'], app_id, data, globals()))
         if system_ticket or generated_ticket:
             def check_travel_requirements(offer, conn):
                 buyer = googleplex_buyer_projection(session['user'], conn=conn)

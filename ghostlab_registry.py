@@ -326,6 +326,16 @@ for _id, _name, _icon, _description in [
         app_contract=dict(tool_family='pro_system_tool', tool_mode='desktop', map_actions=[],
                           target_types=[], operation_types=[], resource_types=[]))
     RUNTIME_FLAGS[_id] = 'CHAOS_GHOSTLAB_MAINTENANCE_RUNTIME_ENABLED'
+TEMPLATES['firmware_update'] = dict(TEMPLATES['system_update'], id='firmware_update',
+    name='Firmware Update', icon='💾', result_type='firmware_update', executor_id='firmware_update_v1',
+    risk_level=5, description='Jedna zakupiona próba flashowania. Sukces trwale zwiększa dysk i zasięg skanu; porażka wymaga restartu. Cooldown 24 h po obu wynikach.',
+    fields={key: dict(type='number', label=label, default=default, editable=True,
+                     minimum=minimum, maximum=maximum, integer=True)
+            for key, label, default, minimum, maximum in [
+                ('success_percent', 'Szansa powodzenia (%)', 50, 20, 80),
+                ('disk_mb', 'Przyrost dysku (MB)', 100, 50, 200),
+                ('scan_m', 'Przyrost zasięgu skanu (m)', 50, 10, 100)]})
+RUNTIME_FLAGS['firmware_update'] = 'CHAOS_GHOSTLAB_FIRMWARE_RUNTIME_ENABLED'
 for _template in ('financial_sniffer', 'friend_kicker', 'security_panel_proxy', 'arsenal_cleaner', 'intruder_kicker'):
     TEMPLATES[_template].update(executor_id=_template + '_v1', runtime_enabled=True, runtime_revision=1)
     RUNTIME_FLAGS[_template] = 'CHAOS_GHOSTLAB_' + _template.upper() + '_RUNTIME_ENABLED'

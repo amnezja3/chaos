@@ -2848,6 +2848,18 @@ def init_db(db_path=DB_PATH):
         conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_system_updates (
             username TEXT NOT NULL, app_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
             installed_at TEXT NOT NULL, PRIMARY KEY(username, app_id, artifact_id))''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_firmware_state (
+            username TEXT PRIMARY KEY, scan_bonus INTEGER NOT NULL DEFAULT 0,
+            cooldown_until REAL NOT NULL DEFAULT 0, crash_id TEXT NOT NULL DEFAULT '',
+            restart_after REAL NOT NULL DEFAULT 0)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_firmware_attempts (
+            receipt TEXT PRIMARY KEY, username TEXT NOT NULL, app_id TEXT NOT NULL,
+            artifact_id TEXT NOT NULL, price INTEGER NOT NULL, offer_json TEXT NOT NULL,
+            result_json TEXT, created_at TEXT NOT NULL)''')
+        conn.execute('''CREATE UNIQUE INDEX IF NOT EXISTS firmware_one_pending
+            ON ghostlab_firmware_attempts(username) WHERE result_json IS NULL''')
+        conn.execute('''CREATE INDEX IF NOT EXISTS firmware_actor_history
+            ON ghostlab_firmware_attempts(username, created_at)''')
         conn.execute('''CREATE TABLE IF NOT EXISTS player_data_file_tombstones (
             username TEXT NOT NULL, file_id TEXT NOT NULL, created_at TEXT NOT NULL,
             PRIMARY KEY(username, file_id))''')

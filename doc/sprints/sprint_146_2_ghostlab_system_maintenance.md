@@ -1,14 +1,18 @@
 # Sprint 146.2 — GhostLab: konserwacja własnego systemu
 
-Status: **PAKIET DO WDROŻENIA — ODBIÓR W GRZE DO WYKONANIA**, 27 IX 2026. Po [146.1](sprint_146_1_ghostlab_travel_tickets.md).
+Status: **ZAMKNIĘTY — PASS**, 27 IX 2026. Po [146.1](sprint_146_1_ghostlab_travel_tickets.md).
 Następny: [146.3 — firmware](sprint_146_3_ghostlab_firmware_maintenance.md).
+
+Odbiór całego sprintu potwierdzony przez użytkownika: „mamy pass dla 146.2”.
+Obejmuje trzy szablony konserwacji, trwały stan aktualizacji, wybór presetów
+security i logi zmian oraz poprawki UX projektów i widoku mobile.
 
 Implementacja: `file_cleanup`, `system_update`, `security_restore`. Wspólna flaga
 `CHAOS_GHOSTLAB_MAINTENANCE_RUNTIME_ENABLED=true`; aktualna lista runtime `*` obejmuje wszystkich graczy.
 Instrukcja wdrożenia, mapowanie kategorii i testy: [runbook 146.2](../runbooks/sprint_146_2_ghostlab_maintenance.md).
 Bez dodatkowej opłaty i cooldownu za uruchomienie; zakup/instalacja według istniejącej polityki aplikacji.
 Animacja ma etapy po 600 ms: 4 logi aktualizacji (maks. 180 znaków każdy), 2 etapy pozostałych operacji.
-Zmiany przygotowane lokalnie, bez commita i pusha przez agenta.
+Poniższy zakres i scenariusze PASS pozostają dokumentacją regresji.
 
 ## Cel
 

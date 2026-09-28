@@ -63,6 +63,8 @@ WRITE_PATHS = frozenset({'/api/response/consequence-show/claim', '/api/response/
 
 
 def require_request(conn, actor, path, method, endpoint=None):
+    if (method in {'GET', 'HEAD'} and path == '/api/firmware/state') or (method == 'POST' and path == '/api/firmware/restart'):
+        return  # Account recovery never grants gameplay access or shortens detention.
     state = snapshot(conn, actor)
     if not state:
         return
