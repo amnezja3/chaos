@@ -31,7 +31,7 @@ const calls=[]; let used;
 const state={success:true,product:{name:'Own Reader',icon:'X',installed_version:1,artifact_id:'a1',runtime_enabled:true},
     available_artifact_id:'a2',available_version:2,update_available:true,
     access:{active:true,victim_username:'target',tools:[{id:'ghostlab_child',enabled:true}]}};
-const ctx={document:{createElement:()=>app,body:{appendChild(){}}},findAvailablePosition:()=>({top:0,left:0}),
+const ctx={window:{},document:{createElement:()=>app,body:{appendChild(){}}},findAvailablePosition:()=>({top:0,left:0}),
     makeDraggable(){},escapeHTML:String,encodeURIComponent,desktopSessionActive:true,
     fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>state};},
     refreshPlayerHackAccess:async()=>{},usePlayerHackTool:async id=>{used=id;}};

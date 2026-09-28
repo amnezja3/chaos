@@ -2852,6 +2852,9 @@ def init_db(db_path=DB_PATH):
             username TEXT PRIMARY KEY, scan_bonus INTEGER NOT NULL DEFAULT 0,
             cooldown_until REAL NOT NULL DEFAULT 0, crash_id TEXT NOT NULL DEFAULT '',
             restart_after REAL NOT NULL DEFAULT 0)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_scanner_leases (
+            username TEXT PRIMARY KEY, generation TEXT NOT NULL, window_id TEXT NOT NULL,
+            token TEXT NOT NULL, app_id TEXT NOT NULL, artifact_id TEXT NOT NULL, expires REAL NOT NULL)''')
         conn.execute('''CREATE TABLE IF NOT EXISTS ghostlab_firmware_attempts (
             receipt TEXT PRIMARY KEY, username TEXT NOT NULL, app_id TEXT NOT NULL,
             artifact_id TEXT NOT NULL, price INTEGER NOT NULL, offer_json TEXT NOT NULL,

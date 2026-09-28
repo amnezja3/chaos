@@ -336,6 +336,12 @@ TEMPLATES['firmware_update'] = dict(TEMPLATES['system_update'], id='firmware_upd
                 ('disk_mb', 'Przyrost dysku (MB)', 100, 50, 200),
                 ('scan_m', 'Przyrost zasięgu skanu (m)', 50, 10, 100)]})
 RUNTIME_FLAGS['firmware_update'] = 'CHAOS_GHOSTLAB_FIRMWARE_RUNTIME_ENABLED'
+from ghostlab_scanner_catalog import fields as scanner_fields, menu_length
+TEMPLATES['deep_scanner'] = dict(TEMPLATES['system_update'], id='deep_scanner', name='Deep Scanner', icon='🔎',
+    category='intel', tool_category='intel', result_type='deep_scanner', executor_id='deep_scanner_v1',
+    description='Nakładka na domyślne Skanuj. Działa tylko przy otwartym oknie; jedna aktywna aplikacja.',
+    fields=scanner_fields())
+RUNTIME_FLAGS['deep_scanner'] = 'CHAOS_GHOSTLAB_SCANNER_RUNTIME_ENABLED'
 for _template in ('financial_sniffer', 'friend_kicker', 'security_panel_proxy', 'arsenal_cleaner', 'intruder_kicker'):
     TEMPLATES[_template].update(executor_id=_template + '_v1', runtime_enabled=True, runtime_revision=1)
     RUNTIME_FLAGS[_template] = 'CHAOS_GHOSTLAB_' + _template.upper() + '_RUNTIME_ENABLED'
@@ -354,7 +360,6 @@ PRO_TOOL_GLAB = {
 PLANNED_CONTRACTS = {
     'storage_extension': {'source_tool_id': None, 'target_kind': 'own_storage', 'launch_mode': 'desktop'},
     'map_marker_scan': {'source_tool_id': None, 'target_kind': 'map_decoration', 'launch_mode': 'map'},
-    'deep_scanner': {'source_tool_id': None, 'target_kind': 'player', 'launch_mode': 'map'},
 }
 
 
@@ -404,8 +409,11 @@ def validate_fields(template_id, blueprint):
             if type(value) is not bool:
                 errors.append(f'{key}: wymagany boolean.')
         elif field['type'] == 'string':
-            if not isinstance(value, str) or not value.strip() or len(value) > field['max_length']:
+            if (not isinstance(value, str) or (not value.strip() and not field.get('allow_empty'))
+                    or (menu_length(value) if field.get('unicode_scalars') else len(value)) > field['max_length']):
                 errors.append(f'{key}: nieprawidlowy tekst.')
+            elif field.get('unicode_scalars') and (len(value) > 96 or not value.strip().isprintable()):
+                errors.append(f'{key}: niedozwolone znaki nazwy.')
             elif field.get('enum') and value not in field['enum']:
                 errors.append(f'{key}: wybierz systemowy zestaw.')
         else:

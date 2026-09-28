@@ -44,6 +44,7 @@ async function syncFirmwareCrash() {
             return;
         }
         if (old?.dataset.crashId === state.crash_id) return;
+        window.DeepScanner?.stop();
         old?.remove();
         const overlay = document.createElement('section');
         overlay.id = 'firmware-crash';

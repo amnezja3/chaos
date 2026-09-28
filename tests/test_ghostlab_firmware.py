@@ -62,10 +62,14 @@ class FirmwareTest(unittest.TestCase):
 
     def test_failure_crash_guard_restart_and_retry(self):
         receipt = self.buy()
+        with db_connect(self.path) as conn:
+            conn.execute("INSERT INTO ghostlab_scanner_leases VALUES ('attacker','gen','window','token','app','artifact',9999999999)")
         with self.no_heavy(), patch.object(firmware.secrets, 'randbelow', return_value=9999):
             result = self.flash(receipt)
             self.assertEqual(result.status_code, 200, result.json)
             self.assertFalse(result.json['succeeded'])
+            with db_connect(self.path) as conn:
+                self.assertIsNone(conn.execute("SELECT 1 FROM ghostlab_scanner_leases WHERE username='attacker'").fetchone())
             self.assertEqual(result.json['disk_mb'], 0)
             self.assertTrue(self.flash(receipt).json['duplicate'])
             self.assertEqual(self.client.get('/api/player-hack/access').status_code, 423)

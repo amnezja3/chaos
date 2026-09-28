@@ -1,6 +1,6 @@
 # Sprint 146.3 — GhostLab: konserwacja firmware i domknięcie nowych szablonów
 
-Status: **PAKIET WDROŻENIOWY PRZYGOTOWANY — ODBIÓR GAMEPLAY PRZED NAMI**, 28 IX 2026. Po [146.2](sprint_146_2_ghostlab_system_maintenance.md).
+Status: **ZAMKNIĘTY — PASS**, 28 IX 2026. Po [146.2](sprint_146_2_ghostlab_system_maintenance.md).
 Następny: [146.4 — DeepScanery](sprint_146_4_ghostlab_deep_scanners.md).
 
 Implementacja: `firmware_update`, zakup jednej próby, trwałe bonusy, 24 h cooldownu
@@ -8,7 +8,10 @@ po obu wynikach i crash pulpitu z lokalnym restartem (8 s przygotowania).
 Limity dysku stosują istniejące jednostki: 2 TB = 2 097 152 MB.
 [Runbook i testy gameplayowe](../runbooks/sprint_146_3_ghostlab_firmware.md).
 [Instrukcja rozszerzania szablonów](../plans/ghostlab_template_extension_guide.md).
-Odbiór wizualny desktop/mobile po wdrożeniu; nie oznaczać sprintu PASS przed nim.
+Odbiór użytkownika: „zakup, instalacja, użycie sukcess, crash, aktualizacja - pass”.
+Potwierdzone w grze: zakup, instalacja, udane flashowanie, crash i aktualizacja.
+Pozostałe scenariusze runbooka stanowią checklistę regresji; nie oznaczamy ich
+osobno jako ręcznie przetestowanych na podstawie tego zgłoszenia.
 
 ## Cel i zakres
 

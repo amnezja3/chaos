@@ -1,14 +1,18 @@
 # Sprint 146.4 — GhostLab: DeepScanery w menu mapy
 
-Status: **ZAPLANOWANY**, zakres użytkownika, 26 IX 2026.
+Status: **146.4.1 — implementacja gotowa do odbioru w grze; 146.4.2 — zaplanowany**, 28 IX 2026.
+Runbook: [wdrożenie i testy pierwszego etapu](../runbooks/sprint_146_4_1_ghostlab_deep_scanners.md).
 Po [146.3 — firmware](sprint_146_3_ghostlab_firmware_maintenance.md).
 Następny: [147 — kreatory](sprint_147_creator_gameplay_policy.md).
 
 ## Cel
 
-Potomek DeepScanera zastępuje prezentację domyślnego skanera z menu pustego
-pola mapy. Przykład: „🪮 Czesacz” zamiast „🔎 Skanuj”. Zachowuje istniejącą
-logikę wykrywania; twórca personalizuje nazwę, ikonę, animację i komunikaty.
+Potomek DeepScanera jest wizualną i funkcjonalną nakładką na domyślne `Skanuj`,
+dostępne od początku gry bez instalowania aplikacji. Obejmuje wszystkie istniejące
+wejścia do tego skanu, w tym menu pustego pola, terytoriów i konfliktów.
+Przykład: „🪮 Czesacz” zamiast „🔎 Skanuj”. Zachowuje istniejącą logikę wykrywania;
+twórca personalizuje nazwę, ikonę, animację, wyróżnienie przycisku i komunikaty.
+Nie tworzymy drugiego mechanizmu skanowania ani wymogu instalacji dla zwykłego skanu.
 To osobny kontrakt GLab, bez pozycji na liście narzędzi PvP.
 
 **Warunek obowiązkowy: wpływ na menu mapy, animację i komunikaty istnieje
@@ -20,19 +24,100 @@ modyfikująca DeepScan/menu mapy; uruchomienie drugiej jest blokowane.**
 
 | Pole | Kontrakt |
 |---|---|
-| Nazwa | Maksymalnie 12 widocznych znaków po przycięciu białych znaków, walidacja klient/serwer zgodna dla Unicode. |
+| Nazwa | Maksymalnie 12 znaków Unicode po przycięciu białych znaków i normalizacji NFC; walidacja klient/serwer zgodna. |
 | Ikona | Osobna ikona/emoji według wspólnego brandingu GLab; nie wlicza się do 12 znaków nazwy. |
 | Opis | Własny opis produktu w Googleplexie. |
 | Animacja | Jedna z systemowej allowlisty: regular, pulse, wave, viewfinder, direct. |
+| SFX skanera | Obowiązkowy wybór istniejącego assetu z systemowego katalogu dźwięków skanowania, zgodnego z wybraną animacją. Każda templatka ma poprawny domyślny SFX. |
+| Ramka | Wybór wariantu ramki z systemowego katalogu prezentacji. |
+| Kolor ramki | Wybór systemowego koloru akcentu; bez wklejania CSS. |
+| Kolor przycisku | Niezależny wybór z systemowej palety, z zachowaniem czytelnego tekstu i focusu. |
+| Logi działania | Wybór gotowych wpisów/presetów narracyjnych i podmiana ich tekstu; wpis jest przypisany do systemowego etapu/zdarzenia. |
+| Warningi i statusy | Katalog dopuszczonych warningów i statusów pasujących do mechaniki, m.in. 300 i 403; bez 500 i dowolnych kodów wpisywanych przez autora. |
 | Dodatkowe retry API | Opcjonalnie +1, +2 lub +3 ponowienia ponad bazową politykę skanu; brak zmiany = 0. |
 | Wydłużenie timeoutu | Opcjonalnie do +10 sekund ponad bazowy timeout API skanu; brak zmiany = 0. |
 | Komunikat bez wykrycia | Np. „Naładuj baterię” lub „Spróbuj jeszcze raz za chwilę”. |
 | Komunikat sukcesu | Np. „Coś jest, znajdź ten przeklęty marker”. Pod nim pozostaje systemowy wynik, np. „Wykryto 16 obiektów”. |
 | Komunikat błędu API | Np. „Problemy z siecią, ktoś może zagłuszać sygnał. Bądź czujny”. |
 
-Komunikaty są opcjonalne; puste pole daje aktualny tekst systemowy.
+Własne komunikaty są opcjonalne; puste pole używa wybranego presetu systemowego.
 Ustalić krótkie limity długości spójne z istniejącymi toastami. Brak HTML/JS,
 własnego CSS, zewnętrznych skryptów lub dowolnych animacji twórcy.
+
+Nazwa przycisku ma osobny, ograniczony slot obok ikony: maksimum 12 znaków
+Unicode po NFC. Sam limit znaków nie wystarcza przy szerokich glifach — szerokość slotu
+jest ograniczona CSS, z bezpiecznym przycięciem i pełną nazwą dostępną dla
+czytnika ekranu/tooltipu. Ikona, ramka i akcent nie rozszerzają menu.
+
+## Podział na dwa wdrożenia
+
+### 146.4.1 — deployment i działająca nakładka
+
+- Pełny kontrakt rodziny DeepScanerów: branding, ramka/kolory, logi, wzorzec
+  animacji, SFX, retry/timeout, walidacja, kompilacja i wersjonowany artefakt.
+- Integracja GhostLab → publikacja → Googleplex → zakup/HC twórcy → instalacja
+  → uruchomienie → aktualizacja; widok potomków w adminie i runbook wdrożenia.
+- Nakładka na wszystkie istniejące wejścia domyślnego skanu, zarządzanie aktywnym
+  oknem, blokada drugiej aplikacji i pełne sprzątanie po zamknięciu/utracie instalacji.
+- Działający pionowy przebieg z co najmniej kompletnym zestawem `regular`:
+  animacja, rzeczywisty asset SFX, ramka/kolory oraz logi i poprawny wynik systemowy.
+  Selektory oferują tylko gotowe zestawy; brak martwych opcji i fikcyjnych assetów.
+- Wdrożona polityka retry/timeout, obsługa błędów, uprawnień, firmware i zero-heavy.
+  Testy integracyjne, transakcyjne i odbiór podstawowego przebiegu desktop/mobile.
+
+### 146.4.2 — katalog efektów i prezentacja skanerów
+
+- Dokończenie i dopracowanie wszystkich pięciu wzorców: regular, pulse, wave,
+  viewfinder, direct; systemowe zestawy CSS ramki/przycisku i akcentów.
+- Przygotowanie rzeczywistych, specjalnych assetów SFX dla katalogu skanowania,
+  dobór zgodnych par animacja/dźwięk, wyrównanie głośności i synchronizacja.
+- Rozbudowanie katalogu logów, warningów, dopuszczonych statusów i presetów narracji.
+- Podgląd w GhostLabie korzystający z tego samego renderera co mapa; osobny
+  przycisk odsłuchu SFX. Demonstracja nie wykonuje skanu ani nie aktywuje nakładki.
+- Dopracowanie przebiegu start/praca/wynik/przerwanie, czytelności menu, mobile,
+  reduced motion, wyciszenia i sprzątania wszystkich animacji oraz dźwięków.
+- Odbiór każdego wariantu osobno i regresja pełnego deploymentu z 146.4.1.
+
+Cały 146.4 otrzymuje PASS dopiero po obu częściach. 147 pozostaje następny po nich.
+Druga część rozwija stabilny kontrakt i katalog pierwszej, bez tworzenia drugiego
+mechanizmu skanowania lub resetowania zakupów i instalacji.
+
+## Narracja i katalog logów
+
+Twórca buduje charakter aplikacji z elementów przygotowanych przez system:
+wybiera logi i ich kolejność w obrębie etapu oraz może podmienić tekst. Definicja
+wpisu katalogu określa identyfikator, etap, kategorię (np. informacja/warning/status),
+warunek wyświetlenia i ewentualny dozwolony kod. Autor nie zmienia warunku ani
+rzeczywistego wyniku operacji. Ustalić skończoną liczbę wpisów i limit tekstu
+spójny z toastami; nie emitować nieskończonego strumienia lub powielonych logów retry.
+
+Statusy 300, 403 i podobne są elementami dopuszczonego katalogu prezentacji,
+dobranymi do konkretnych stanów mechaniki. Nie wysyłamy fikcyjnych odpowiedzi HTTP
+ani nie przedstawiamy narracyjnego kodu jako rzeczywistego statusu API.
+Nie wyświetlać komunikatu o odmowie przy udanym skanie tylko dlatego, że autor
+wybrał taki log. `500` nie jest opcją katalogu autora; rzeczywista awaria backendu
+nadal kończy operację komunikatem systemowym o błędzie i zachowuje diagnostykę.
+Teksty narracyjne nie sterują retry, dostępem, naliczaniem kosztów ani wynikiem.
+
+## Katalog SFX i cykl życia dźwięku
+
+- Każda templatka DeepScanera musi zawierać wybór `sfx_id`, obok `pattern_id`.
+  Katalog mapuje identyfikator na kontrolowany asset i zgodne wzorce; brak uploadów,
+  zewnętrznych URL-i i dowolnych ścieżek od twórcy. Sprawdzać zgodność przy
+  walidacji/kompilacji oraz uruchomieniu. Domyślny wybór jest rzeczywistym assetem.
+- Autor może wybrać pasujący dźwięk z katalogu, a nie tylko odziedziczyć sztywno
+  jeden dźwięk całej rodziny. Assety i ich identyfikatory podlegają wersjonowaniu;
+  opublikowane produkty nie mogą tracić dźwięku przez usunięcie używanego pliku.
+- Reużyć systemową obsługę SFX i ustawienia wyciszenia/głośności. Obowiązkowe pole
+  w templatce nie oznacza przymusowego odtwarzania użytkownikowi z wyłączonym audio.
+  Brak zgody przeglądarki na audio lub błąd assetu nie blokuje skanu ani wyniku.
+- Dźwięk odpowiada rzeczywistemu cyklowi skanu. Jedna operacja nie uruchamia
+  nakładających się dźwięków przez retry ani wiele otwartych map. Odsłuch w edytorze
+  ma osobny cykl życia i nie uruchamia się automatycznie przy zmianie pola.
+- Koniec/przerwanie skanu, zamknięcie aplikacji/mapy, uninstall, wylogowanie,
+  zmiana sesji lub crash pulpitu zatrzymują dźwięk i anulują zaplanowane odtworzenia.
+  Spóźniony callback nie wznawia audio zamkniętego skanera. Powrót do domyślnego
+  skanera przywraca także jego dotychczasową politykę dźwięku.
 
 ## Podłączenie istniejącego skanu
 
@@ -43,6 +128,9 @@ efekt obsługują `ensureMapScanOverlay`, `beginMapScanEffect` oraz
 API i odróżnić sukces, pusty wynik, odmowę i awarię.
 
 - Zastąpić nazwę/ikonę istniejącej pozycji menu, bez dodawania drugiej akcji skanu.
+  Zinwentaryzować także menu terytoriów i konfliktów oraz pozostałe wejścia do
+  domyślnego `Skanuj`; wszystkie korzystają z tej samej aktywnej nakładki.
+  Nie podmieniać odrębnych skanów specjalistycznych tylko na podstawie nazwy.
   „Podróżuj”, „Wyczyść skan” i „Pobierz teleport” pozostają istniejącymi akcjami.
 - Samo zainstalowanie lub wybranie produktu nie aktywuje jego wpływu.
   Aktywacja następuje po uruchomieniu jego okna, a nie przez trwałe ustawienie
@@ -112,8 +200,15 @@ jego warstwy/lifecycle, a brakujące cztery warianty wykonać w kodzie.
 | viewfinder | Narożniki celownika obejmujące obszar skanu, ruch linii przeszukiwania i krótkie potwierdzenie zakończenia. |
 | direct | Wąska wiązka przesuwająca się kierunkowo po obszarze skanu; wyłącznie prezentacja, bez zawężenia wykrywania. |
 
-- Wszystkie warianty w stylu CHAOS, z jednolitą paletą i czytelną mapą pod efektem.
+- Wszystkie warianty w stylu CHAOS, z systemową paletą do wyboru i czytelną mapą pod efektem.
   Nie zmieniają zasięgu ani nie sugerują wykrycia obiektu przed odpowiedzią serwera.
+- Przygotować spójne systemowe zestawy prezentacji dla rodziny templatek:
+  wzorzec efektu mapy oraz odpowiadające mu klasy CSS wyróżnienia przycisku skanu
+  (tło/obramowanie/akcent, hover/focus i stan pracy). Wybór wzorca podłącza cały
+  zestaw bazowy, nie tylko animację. Ramkę, kolor ramki/przycisku oraz zgodny SFX
+  twórca dobiera z katalogu; nazwa i ikona pozostają jego brandingiem.
+  CSS ograniczyć do pozycji skanu i jej efektu; pozostałe akcje menu bez zmian.
+  Po zamknięciu aplikacji usunąć także klasy wyróżnienia i przywrócić styl systemowy.
 - Źródło/obszar animacji odpowiada rzeczywistemu źródłu/obszarowi obecnego skanu.
   Nakładka nie przechwytuje kliknięć i nie zmienia geometrii ani warstw wyników.
 - Wspólny renderer z wyborem pattern_id z allowlisty i wspólnymi operacjami
@@ -173,11 +268,21 @@ wykryte naruszenia naprawiamy w tym etapie.
   i uruchamia okno skanera. Nazwa/ikona w menu odpowiadają aktywnej wersji produktu.
 - Instalacja bez otwarcia okna nie zmienia mapy. Otwarcie aktywuje wpływ;
   zamknięcie usuwa go we wszystkich mapach i przywraca domyślny skaner.
+- Menu pustego pola, terytorium i konfliktu: ta sama nazwa/ikona, wyróżnienie CSS
+  i wzorzec aktywnej aplikacji; po zamknięciu pełny powrót do domyślnego `Skanuj`.
+  Konto bez żadnej aplikacji DeepScanera nadal może wykonywać zwykły skan.
 - Drugi DeepScaner nie uruchamia się, dopóki pierwszy jest otwarty. Sprawdzić
   wszystkie launchery, szybkie/równoczesne otwieranie oraz brak duplikatu tego
   samego okna. Po zamknięciu pierwszego drugi daje się uruchomić.
 - Limit 12 znaków także z polskimi znakami i emoji; brak pustych nazw i HTML/JS.
 - Wszystkie pięć animacji: sukces, brak trafień, timeout/błąd i cleanup.
+- Wybór i podmiana logów, warningów/statusów: prawidłowy etap, brak 500 w katalogu,
+  brak fikcyjnych wyników lub podmiany rzeczywistej odmowy API.
+- Ramka, jej kolor, kolor przycisku oraz slot nazwy: brak rozjechanego menu
+  pustego pola/terytorium/konfliktu, także dla szerokich znaków na mobile.
+- Każda templatka ma działający domyślny SFX i wybór zgodnego assetu z katalogu.
+  Odsłuch, audio przy skanie, wyciszenie, blokada autoplay, błędny asset, retry,
+  wiele map i zamknięcie/crash: brak blokady skanu i osieroconych dźwięków.
 - Retry: 0/+1/+2/+3, sukces po ponowieniu, wyczerpanie prób oraz brak ponawiania
   wyniku pustego i odmów. Timeout: baza oraz +10 s, odrzucenie wartości ponad limit.
   Retry nie powiela kosztów, cooldownu, konsekwencji ani wyników; zamknięcie

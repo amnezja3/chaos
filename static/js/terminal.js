@@ -59,6 +59,7 @@ function teardownDesktopForInvalidatedSession() {
     if (desktopSessionTeardownComplete) return false;
     desktopSessionTeardownComplete = true;
     desktopSessionActive = false;
+    window.DeepScanner?.stop();
 
     // Do not let an idempotency key survive an authoritative identity change.
     // session_generation.js clears all user-scoped sessionStorage as a second
@@ -4358,6 +4359,7 @@ function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
 }
 
 async function openGhostLabInstalledApp(appId) {
+    if (window.DeepScanner?.focus(appId)) return;
     const app = document.createElement('div');
     app.className = 'app-window pro-tool-window system-log-reader-window';
     const position = findAvailablePosition(520, 420);
@@ -4367,7 +4369,7 @@ async function openGhostLabInstalledApp(appId) {
     app.innerHTML = '<div class="title-bar"><span data-title>GhostLab</span><button class="close-btn">×</button></div><div class="system-log-reader-content" data-body>Ładowanie…</div>';
     document.body.appendChild(app);
     makeDraggable(app);
-    app.querySelector('.close-btn').onclick = () => app.remove();
+    app.querySelector('.close-btn').onclick = () => { if (window.DeepScanner?.owns(app)) window.DeepScanner.stop(); app.remove(); };
     const body = app.querySelector('[data-body]');
     let serial = 0;
     async function load(options) {
@@ -4380,6 +4382,10 @@ async function openGhostLabInstalledApp(appId) {
             const product = data.product;
             app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
             if (product.launch_mode === 'own_system') {
+                if (product.template_id === 'deep_scanner') {
+                    await window.DeepScanner.render(app, body, data, load);
+                    return;
+                }
                 if (product.template_id === 'firmware_update') {
                     await renderGhostLabFirmware(app, body, data, load);
                     return;
@@ -12737,6 +12743,7 @@ async function applyDelta(event) {
     }
     if (event.scope === "apps" || String(event.type || "").startsWith("apps.")) {
         await updateAppsView(event.payload || {});
+        window.DeepScanner?.inventory(toolbarProfile?.apps);
         return true;
     }
     if (event.scope === "mail" || String(event.type || "").startsWith("mail.")) {
@@ -15324,6 +15331,7 @@ function renderGhostLabEditor(root, project) {
         </section>
     `;
     if (project.template_id === 'travel_ticket') mountGhostLabTravelPreview(main);
+    if (project.template_id === 'deep_scanner') mountGhostLabScannerPreview(main);
     main.querySelectorAll('[data-ghostlab-preview-blueprint]').forEach(button => {
         button.addEventListener('click', () => {
             setGhostLabWorking(root, "Validating...");
@@ -15476,7 +15484,9 @@ function validateGhostLabBlueprint(project, blueprint) {
         } else if (field.type === 'boolean') {
             if (typeof value !== 'boolean') errors.push(`${key}: wymagany boolean.`);
         } else if (field.type === 'string') {
-            if (typeof value !== 'string' || !value.trim() || value.length > field.max_length) errors.push(`${key}: nieprawidlowy tekst.`);
+            if (typeof value !== 'string' || (!value.trim() && !field.allow_empty)
+                || (field.unicode_scalars ? Array.from(value.trim().normalize('NFC')).length : value.length) > field.max_length) errors.push(`${key}: nieprawidlowy tekst.`);
+            if (field.unicode_scalars && typeof value === 'string' && (value.length > 96 || /[\p{C}\p{Z}]/u.test(value.trim().replaceAll(" ", "")))) errors.push(`${key}: niedozwolone znaki nazwy.`);
             if (Array.isArray(field.enum) && !field.enum.includes(value)) errors.push(`${key}: wybierz systemowy zestaw.`);
         } else errors.push(`${key}: nieobslugiwany typ pola.`);
     });
@@ -15495,7 +15505,10 @@ function buildGhostLabBlueprintPreview(project, blueprint, validation) {
     } else {
         lines.push(`Latest build: none`);
     }
-    if (project?.template_id === 'file_cleanup') {
+    if (project?.template_id === 'deep_scanner') {
+        lines.push(`Nakładka: ${blueprint.menu_name}, efekt ${blueprint.pattern_id}, SFX ${blueprint.sfx_id}.`);
+        lines.push(`Retry API +${blueprint.extra_retries}, timeout +${blueprint.extra_timeout} s. Aktywna tylko przy otwartym oknie.`);
+    } else if (project?.template_id === 'file_cleanup') {
         lines.push('Czyszczenie własnych, niesprzedawalnych plików; podgląd i potwierdzenie przed usunięciem.');
         lines.push('Wybrane grupy: ' + Object.keys(blueprint).filter(key => blueprint[key]).join(', '));
     } else if (project?.template_id === 'system_update') {

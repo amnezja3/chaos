@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-6-signal-show-media-2-registry-3">
   <link rel="stylesheet" href="/static/css/blacknet.css">
   <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=interaction-fast-path-1">
+  <link rel="stylesheet" href="/static/css/ghostlab_scanner.css?v=146-4-1">
+  <script src="/static/js/ghostlab_scanner_map.js?v=146-4-1"></script>
   <style>
     .context-menu {
       position: absolute;
@@ -643,58 +645,6 @@
     .chaos-map-boot-overlay.is-overloaded .chaos-map-boot-panel {
       border-color: rgba(255, 221, 102, 0.78);
       box-shadow: 0 0 36px rgba(255, 88, 88, 0.16);
-    }
-
-    .chaos-map-scan-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 720;
-      display: none;
-      overflow: hidden;
-      background:
-        linear-gradient(90deg, rgba(38, 255, 106, 0.06), transparent 22%, transparent 78%, rgba(38, 255, 106, 0.05)),
-        repeating-linear-gradient(0deg, rgba(38, 255, 106, 0.055) 0 1px, transparent 1px 18px),
-        repeating-linear-gradient(90deg, rgba(38, 255, 106, 0.04) 0 1px, transparent 1px 22px);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 160ms ease;
-    }
-
-    .chaos-map-scan-overlay.is-visible {
-      display: block;
-      opacity: 1;
-    }
-
-    .chaos-map-scan-overlay::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: -18%;
-      width: 18%;
-      background: linear-gradient(90deg, transparent, rgba(38, 255, 106, 0.18), rgba(184, 255, 40, 0.12), transparent);
-      filter: blur(1px);
-      animation: chaos-map-scan-sweep 1.25s linear infinite;
-    }
-
-    .chaos-map-scan-overlay::after {
-      content: attr(data-label);
-      position: absolute;
-      right: 14px;
-      bottom: 14px;
-      padding: 4px 7px;
-      border: 1px solid rgba(38, 255, 106, 0.45);
-      background: rgba(3, 10, 6, 0.72);
-      color: rgba(184, 255, 184, 0.82);
-      font-family: monospace;
-      font-size: 10px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    @keyframes chaos-map-scan-sweep {
-      from { transform: translateX(0); }
-      to { transform: translateX(660%); }
     }
 
     .travel-destination-pulse {
@@ -5883,7 +5833,7 @@
             menu.style.left = `${x}px`;
 
             
-            let html = `<div onclick="closeMenus(); mapAction('scan', ${lat}, ${lng})">🔎 Skanuj</div>`;
+            let html = `<div data-default-scan role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="closeMenus(); mapAction('scan', ${lat}, ${lng})">🔎 Skanuj</div>`;
             
             html += `
                 <div onclick="closeMenus(); mapAction('travel', ${lat}, ${lng})">🚲 Podróżuj</div>
@@ -5895,6 +5845,7 @@
             html += `<div onclick="copyTeleportCommandFromMap(${lat}, ${lng}); closeMenus();">Pobierz teleport</div>`;
             menu.innerHTML = html;
             document.body.appendChild(menu);
+            window.DeepScannerMap?.paintMenus();
         }
 
 
@@ -7173,6 +7124,13 @@
             const finishScanEffect = action === 'scan'
                 ? beginMapScanEffect('Skanowanie mapy')
                 : null;
+            const scannerJob = action === 'scan' ? window.DeepScannerMap?.begin(window.mapScanEffectState.element, () => {
+                finishScanEffect?.();
+                if (!window.mapScanEffectState.active) {
+                    clearTimeout(window.mapScanEffectState.hideTimer);
+                    window.mapScanEffectState.element?.classList.remove('is-visible');
+                }
+            }) : null;
             let finishTravelPulse = null;
             let pendingMarkedTarget = null;
             try {
@@ -7216,6 +7174,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action,
+                        deep_scanner_token: scannerJob?.token || null,
                         lat,
                         lng,
                         label,
@@ -7234,6 +7193,9 @@
                 });
                 const data = await res.json();
                 if (!res.ok || data.success === false || data.blocked) {
+                    if (data.reason === 'scanner_inactive') window.DeepScannerMap?.stop();
+                    const narrative = action === 'scan' && res.status === 403 ? window.DeepScannerMap?.log(scannerJob,'denied') : '';
+                    if (narrative) addSystemMessage('warning','Skaner',window.escapeMapText(narrative));
                     if (handleDetentionTravelDenial(data)) return null;
                     if (handleForeignTerritoryProtectedResponse(res, data)) {
                         if (pendingMarkedTarget) {
@@ -7241,7 +7203,7 @@
                         }
                         return null;
                     }
-                    throw new Error(data.status || data.message || data.error || 'Operacja mapy nie powiodla sie.');
+                    throw Object.assign(new Error(data.status || data.message || data.error || 'Operacja mapy nie powiodla sie.'), {serverDenial:true});
                 }
                 
                 if (data.status === "too_far") {
@@ -7252,7 +7214,11 @@
                     // location.reload();
                     return;
                 }
-                addSystemMessage("success", "🗺️ Mapa", data.status);
+                const phase = action === 'scan' ? data.scan_outcome : null;
+                const narrative = phase ? window.DeepScannerMap?.log(scannerJob,phase === 'api_error' ? 'error' : phase) : '';
+                const scanText = narrative ? window.escapeMapText(narrative) + '<br>' + data.status : data.status;
+                addSystemMessage(phase === 'api_error' ? 'danger' : phase === 'denied' ? 'warning' : 'success', "🗺️ Mapa", scanText);
+                if (phase === 'api_error' || phase === 'denied') return data;
 
                 if (action === 'mark_target') {
                     const markedTarget = normalizeMapMenuTarget(data.target || {
@@ -7405,9 +7371,12 @@
                 if (action === 'travel' && typeof window.hideMotorcycleTravelPhone === 'function') {
                     window.hideMotorcycleTravelPhone("request_failed");
                 }
-                addSystemMessage("danger", "🖥️ Połączenie", "❌ Błąd połączenia");
+                const narrative = action === 'scan' && !err.serverDenial ? window.DeepScannerMap?.log(scannerJob,'error') : '';
+                const failure = err.serverDenial ? window.escapeMapText(err.message) : '❌ Błąd połączenia';
+                addSystemMessage('danger', '🖥️ Połączenie', narrative ? window.escapeMapText(narrative) + '<br>' + failure : failure);
                 console.error(err);
             } finally {
+                scannerJob?.dispose();
                 finishMapScanEffectAfterPaint(finishScanEffect);
                 if (typeof finishTravelPulse === 'function') {
                     finishTravelPulse();

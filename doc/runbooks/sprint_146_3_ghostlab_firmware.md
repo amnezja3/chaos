@@ -1,7 +1,10 @@
 # Sprint 146.3 — firmware: wdrożenie i testy
 
-Status: pakiet przygotowany lokalnie, 28 IX 2026. Odbiór gameplay/UI po wdrożeniu.
-Bez commita i pusha w ramach przygotowania pakietu.
+Status: **ZAMKNIĘTY — PASS**, 28 IX 2026.
+Użytkownik potwierdził w grze: zakup, instalację, użycie zakończone sukcesem,
+crash oraz aktualizację. Zgłoszenie: „zakup, instalacja, użycie sukcess, crash,
+aktualizacja - pass”. Poniższe kroki zostają jako instrukcja i checklista regresji;
+nie są deklaracją osobnego ręcznego PASS dla wszystkich wariantów.
 
 ## Kontrakt
 
@@ -112,4 +115,5 @@ node tests/js/test_googleplex_app_purchase_lock.js
 ```
 
 Test JS weryfikuje interakcje, nie zastępuje wizualnego odbioru w przeglądarce.
-Odbiór wyglądu crasha i układu mobile pozostaje w powyższej checkliście gameplayowej.
+Crash został potwierdzony przez użytkownika. Osobnego wyniku dla wariantu mobile
+nie podano; pozostaje on w checkliście regresji.

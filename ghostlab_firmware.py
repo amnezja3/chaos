@@ -155,6 +155,8 @@ def execute(actor, app_id, receipt, services):
         disk = gains['disk_mb'] if succeeded else 0
         scan = gains['scan_m'] if succeeded else 0
         crash_id = '' if succeeded else receipt
+        if crash_id:
+            conn.execute('DELETE FROM ghostlab_scanner_leases WHERE username=?', (actor,))
         conn.execute('''INSERT INTO ghostlab_firmware_state VALUES (?,?,?,?,?)
             ON CONFLICT(username) DO UPDATE SET scan_bonus=excluded.scan_bonus,
             cooldown_until=excluded.cooldown_until, crash_id=excluded.crash_id, restart_after=excluded.restart_after''',

@@ -23710,6 +23710,7 @@ def map_action():
         if distance > action_range:
             return jsonify({
                 "status": "🔍 Skanowanie nie udane! Nie jesteś w zasięgu.",
+                "scan_outcome": "denied",
                 "markers": [],
                 "scan_context": {
                     "distance_m": int(round(distance)),
@@ -23728,10 +23729,17 @@ def map_action():
         all_results = []
 
         try:
-            fetched_results = fetcher.get_all(lat=lat, lon=lng, result_limit=60)
+            scanner_options = None
+            if data.get('deep_scanner_token'):
+                from ghostlab_scanner import scan_options, generation as scanner_generation
+                scanner_options = scan_options(player_inventory_store.db_path, session['user'], scanner_generation(), data['deep_scanner_token'])
+            fetched_results = fetcher.get_all(lat=lat, lon=lng, result_limit=60, **({'scan_options': scanner_options} if scanner_options else {}))
+        except GhostLabError:
+            raise
         except Exception as e:
             return jsonify({
                 "status": f"Nie udało się pobrać danych mapy: {e}",
+                "scan_outcome": "api_error",
                 "markers": []
             })
         scan_location_context = infer_scan_location(fetched_results)
@@ -23883,6 +23891,7 @@ def map_action():
 
         return jsonify({
             "status": f"🔍 Zeskanowano {len(all_results)} nowych obiektów.",
+            "scan_outcome": "success" if all_results else "empty",
             "markers": all_results,
             "scan_context": {
                 **scan_location_context,
@@ -28629,6 +28638,8 @@ from ghostlab_maintenance import register as register_ghostlab_maintenance
 register_ghostlab_maintenance(app, globals())
 from ghostlab_firmware import register as register_ghostlab_firmware
 register_ghostlab_firmware(app, globals())
+from ghostlab_scanner import register as register_ghostlab_scanner
+register_ghostlab_scanner(app, globals())
 from ghostlab_travel import register as register_travel_routes
 register_travel_routes(app, globals())
 

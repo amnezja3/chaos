@@ -3,6 +3,7 @@ import os
 import re
 import threading
 import time
+from email.utils import parsedate_to_datetime
 from typing import Dict, List
 
 import overpy
@@ -50,7 +51,14 @@ class POIFetcher:
 out center;
 """
 
-    def _fetch(self, lat: float, lon: float, result_limit: int = 0) -> overpy.Result:
+    def _fetch(self, lat: float, lon: float, result_limit: int = 0, scan_options=None) -> overpy.Result:
+        options = scan_options or {}
+        extra = options.get('extra_retries', 0)
+        timeout_extra = options.get('extra_timeout', 0)
+        if type(extra) is not int or not 0 <= extra <= 3 or type(timeout_extra) is not int or not 0 <= timeout_extra <= 10:
+            raise ValueError('Invalid scanner retry policy')
+        live = options.get('still_active', lambda: True)
+        deadline = time.monotonic() + 110
         query = self._build_query(lat, lon, result_limit)
         cache_key = (round(float(lat), 4), round(float(lon), 4), self.radius, tuple(self.tag_filters))
         now = time.monotonic()
@@ -59,22 +67,40 @@ out center;
         if cached and now - cached[0] <= self.cache_ttl:
             print(f"Overpass cache hit: {cache_key[:2]}")
             return cached[1]
-        endpoints_to_try = self.endpoints[:self.endpoint_limit]
+        base_endpoints = self.endpoints[:self.endpoint_limit]
+        endpoints_to_try = base_endpoints + [self.endpoints[i % len(self.endpoints)] for i in range(extra)]
         headers = {
             "User-Agent": "haos-game-dev/0.1",
             "Accept": "application/json,text/plain,*/*",
         }
 
         for i, endpoint in enumerate(endpoints_to_try):
+            if not live():
+                raise RuntimeError('Nakładka skanera została zamknięta lub wygasła.')
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            delay = 0.25
             try:
                 print(f"Overpass try {i + 1}: {endpoint}")
                 response = requests.post(
                     endpoint,
                     data={"data": query},
                     headers=headers,
-                    timeout=self.request_timeout,
+                    timeout=min(self.request_timeout + timeout_extra, remaining),
                 )
                 if response.status_code != 200:
+                    if response.status_code not in {429, 502, 503, 504}:
+                        raise ValueError(f'HTTP {response.status_code}: skan odrzucony przez API.')
+                    retry_after = response.headers.get('Retry-After')
+                    if retry_after:
+                        try:
+                            delay = max(delay, float(retry_after))
+                        except ValueError:
+                            try:
+                                delay = max(delay, parsedate_to_datetime(retry_after).timestamp() - time.time())
+                            except (ValueError, TypeError, OverflowError):
+                                pass
                     error_text = response.text.replace("\n", " ")[:300]
                     raise RuntimeError(f"HTTP {response.status_code}: {error_text}")
 
@@ -85,10 +111,16 @@ out center;
                 return result
             except requests.Timeout:
                 print(f"Overpass timeout: {endpoint}")
-            except Exception as e:
+            except (requests.ConnectionError, RuntimeError) as e:
                 print(f"Overpass error on try {i + 1}: {e}")
             if i + 1 < len(endpoints_to_try):
-                time.sleep(0.25)
+                if delay >= deadline - time.monotonic():
+                    break  # Never ignore Retry-After in order to fit another attempt.
+                end_wait = time.monotonic() + delay
+                while time.monotonic() < end_wait:
+                    if not live():
+                        raise RuntimeError('Nakładka skanera została zamknięta lub wygasła.')
+                    time.sleep(min(0.1, max(0, end_wait - time.monotonic())))
 
         if cached and now - cached[0] <= self.stale_cache_ttl:
             print(f"Overpass stale cache fallback: {cache_key[:2]}")
@@ -96,8 +128,8 @@ out center;
         raise Exception("All Overpass endpoints failed. Try again later.")
 
     def _categorize_data(self, result: overpy.Result):
-        self.data_by_category = {tag: [] for tag in self.tag_filters}
-        self.data_by_category["other"] = []
+        categories = {tag: [] for tag in self.tag_filters}
+        categories["other"] = []
 
         elements = [
             *(("node", item) for item in getattr(result, "nodes", []) or []),
@@ -127,28 +159,29 @@ out center;
                 if "=" in tag:
                     key, value = tag.split("=", 1)
                     if element.tags.get(key) == value:
-                        self.data_by_category[tag].append(entry)
+                        categories[tag].append(entry)
                         matched = True
                         break
                 elif tag in element.tags:
-                    self.data_by_category[tag].append(entry)
+                    categories[tag].append(entry)
                     matched = True
                     break
 
             if not matched:
-                self.data_by_category["other"].append(entry)
+                categories["other"].append(entry)
+        self.data_by_category = categories  # Legacy diagnostic view only; request results stay local.
+        return categories
 
-    def get_all_categories(self, lat: float, lon: float, result_limit: int = 60) -> Dict[str, List[Dict]]:
+    def get_all_categories(self, lat: float, lon: float, result_limit: int = 60, scan_options=None) -> Dict[str, List[Dict]]:
         print(f"POI scan for point {lat}, {lon} (local limit: {result_limit})")
-        result = self._fetch(lat, lon, result_limit)
-        self._categorize_data(result)
+        result = self._fetch(lat, lon, result_limit, scan_options=scan_options)
+        categories = self._categorize_data(result)
         if result_limit > 0:
-            for category, items in self.data_by_category.items():
-                self.data_by_category[category] = items[:result_limit]
-        return self.data_by_category
+            categories = {category: items[:result_limit] for category, items in categories.items()}
+        return categories
 
-    def get_all(self, lat: float, lon: float, result_limit: int = 60) -> List[Dict]:
-        categories = self.get_all_categories(lat, lon, result_limit)
+    def get_all(self, lat: float, lon: float, result_limit: int = 60, scan_options=None) -> List[Dict]:
+        categories = self.get_all_categories(lat, lon, result_limit, scan_options=scan_options)
         items = []
         seen = set()
 
@@ -166,8 +199,7 @@ out center;
 
     def get_category(self, category: str, lat: float, lon: float, result_limit: int = 10) -> List[Dict]:
         print(f"POI category '{category}' for point {lat}, {lon} (local limit: {result_limit})")
-        self.get_all_categories(lat, lon, result_limit)
-        return self.data_by_category.get(category, [])
+        return self.get_all_categories(lat, lon, result_limit).get(category, [])
 
     def summary(self) -> Dict[str, int]:
         return {cat: len(items) for cat, items in self.data_by_category.items()}
