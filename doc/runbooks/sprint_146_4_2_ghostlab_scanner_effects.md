@@ -2,6 +2,14 @@
 
 ## Rozbudowane pokazy skanu — 30 IX 2026
 
+Korekta po zrzucie autora: wszystkie pięć wzorów używa delikatniejszej palety
+światła (55–58% krycia linii, 9% wypełnień), przyciemnienie mapy ograniczono
+do około 3,5%. Zmniejszono poświatę, grubość promienia i narożników, zagęszczenie
+smug oraz szerokość linii viewfindera. Podpis trybu jest mniejszy i przeniesiony
+obok kontrolek zoomu, zamiast centralnego ciemnego banera. Sprawdzono bursztynowy
+kolor ze zrzutu na jasnym i ciemnym tle Leaflet, desktop/mobile, reduced motion
+i wygaszenie scen. Wersja zasobów: `146-4-2-show-2`.
+
 Autor potwierdził mechanikę wszystkich skanerów. Odbiór estetyki nadal otwarty.
 Wspólna scena mapy i podglądu zawiera siedem stałych warstw CSS: siatkę,
 aperturę, echo, smugę, celownik, wskaźnik pracy i podpis trybu.

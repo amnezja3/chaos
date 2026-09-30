@@ -1,4 +1,4 @@
-﻿const {spawn}=require('node:child_process');
+const {spawn}=require('node:child_process');
 const readline=require('node:readline');
 const server=spawn('cmd.exe',['/d','/c','npx.cmd','-y','@playwright/mcp@latest','--config','C:/Users/aimse/.codex/playwright-mcp.json'],{windowsHide:true,stdio:['pipe','pipe','pipe']});
 let serial=0;const pending=new Map();
@@ -33,8 +33,8 @@ for(const pattern of ['regular','pulse','wave','viewfinder','direct']) {
  const box=card.lastElementChild; const map=L.map(box).setView([52,21],12);
  box.style.background='repeating-linear-gradient(30deg,#d4d1ba 0 45px,#faf9f2 46px 52px,#bfcbb4 53px 90px)';
  const overlay=document.createElement('div');overlay.className='chaos-map-scan-overlay deep-scanner-styled is-visible';overlay.dataset.scannerPattern=pattern;overlay.dataset.label='Test mapy Leaflet';overlay.style.cssText='--scanner-frame:#b6ff54;--scanner-button:#b6ff54';box.append(overlay);
- DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'cyan',button_color:'cyan'});
- DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'cyan',button_color:'cyan'});
+ DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'amber',button_color:'amber'});
+ DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'amber',button_color:'amber'});
  if(overlay.querySelectorAll('.deep-scanner-scene').length!==1 || overlay.querySelector('.deep-scanner-scene').children.length!==7) throw Error('scene duplicated');
  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
  for(const animation of overlay.getAnimations({subtree:true})) {animation.pause();animation.currentTime=800;}
