@@ -102,7 +102,7 @@
             && !path.startsWith("/")
             && !path.includes("..")
             && !path.includes("\\")
-            && /^[a-zA-Z0-9/_ .-]+\.mp3$/i.test(path);
+            && /^[a-zA-Z0-9/_ .-]+\.(?:mp3|wav)$/i.test(path);
     }
 
     function normalizeManifest(payload) {

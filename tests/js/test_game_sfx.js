@@ -123,6 +123,8 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 const sfx = sandbox.window.GameSfx;
+const scannerManifest = JSON.parse(fs.readFileSync('static/audio/sfx/manifest.v1.json', 'utf8'));
+for (const key of ['scanner.regular.sweep', 'scanner.regular.ping']) manifest.events[key] = scannerManifest.events[key];
 
 (async function run() {
     await sfx.init();
@@ -183,6 +185,15 @@ const sfx = sandbox.window.GameSfx;
     assert.equal(started, 1);
     synced.stop(); synced.stop();
     assert.equal(ended, 1);
+    for (const key of ['scanner.regular.sweep', 'scanner.regular.ping']) {
+        const sound = sfx.play(key, {event_id: key});
+        assert.equal((await sound.started).ok, true, 'real scanner manifest must reach Audio.play');
+        sound.stop();
+    }
+    const invalidWav = sfx._normalizeManifestForTest({schema:1,base_path:'/static/audio/sfx',events:{
+        traversal:{file:'../secret.wav'},remote:{file:'https://example.test/a.wav'},unsupported:{file:'scanner/a.html'}
+    }});
+    assert.equal(Object.keys(invalidWav.events).length, 0);
     sfx.setEnabled(false);
     const disabled = await sfx.play("test.lore", {event_id: "event-3"}).started;
     assert.strictEqual(disabled.reason, "disabled");

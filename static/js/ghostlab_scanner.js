@@ -45,8 +45,9 @@
         const saved = snapshot();
         if (!saved) return null;
         global.GameSfx?.unlock();
-        const audio = jobs.size === 0 ? global.GameSfx?.play(saved.presentation.sfx_event,{event_id:crypto.randomUUID()}) : null;
-        const job = {saved, map, overlay, token:saved.token, done:false,
+        const id = crypto.randomUUID();
+        const audio = jobs.size === 0 ? global.GameSfx?.play(saved.presentation.sfx_event,{event_id:id}) : null;
+        const job = {id, saved, map, overlay, token:saved.token, done:false,
             live() {return !this.done && snapshot() === saved;},
             dispose() {
                 if (this.done) return;

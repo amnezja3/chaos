@@ -15,6 +15,7 @@
     global.DeepScannerMap={paintMenus,
         begin(overlay, cancel) {return controller()?.begin(global,overlay,cancel) || null;},
         log(job,phase) {return job?.live() ? job.saved.presentation.logs[phase] : '';},
+        messageKey(job,phase) {return job?.live() ? `scanner:${job.id}:${phase}` : undefined;},
         stop() {controller()?.stop();}
     };
     global.addEventListener('deep-scanner-change',paintMenus);

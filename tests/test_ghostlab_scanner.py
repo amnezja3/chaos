@@ -33,6 +33,20 @@ class ScannerTest(unittest.TestCase):
         with self.client.session_transaction() as session:
             return str(session['session_generation'])
 
+    def test_repeated_scan_text_deduplicates_only_within_one_scan(self):
+        payload = dict(type='success', title='Scanner', text='Found 16 objects')
+        def send(key=None):
+            body = dict(payload, **({'dedupe_key':key} if key else {}))
+            response = self.client.post('/add-system-message', json=body)
+            self.assertEqual(response.status_code, 200, response.json)
+            return response.json.get('duplicate', False)
+        with self.no_heavy():
+            self.assertFalse(send('scanner:scan-one:success'))
+            self.assertTrue(send('scanner:scan-one:success'))
+            self.assertFalse(send('scanner:scan-two:success'))
+            self.assertFalse(send())
+            self.assertTrue(send())
+
     def test_activation_single_window_release_and_zero_heavy(self):
         with self.no_heavy():
             first = self.activate()

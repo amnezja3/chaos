@@ -53,6 +53,11 @@ function fixture() {
     vm.createContext(adapter);vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner_map.js','utf8'),adapter);
     mapWindow.DeepScannerMap.paintMenus();assert.equal(button.children[1].textContent,'<Czesacz>','author name is text, not HTML');
     presentation=null;mapWindow.DeepScannerMap.paintMenus();assert.equal(button.textContent,'🔎 Skanuj');
+    const firstScan={id:'scan-one',live:()=>true},secondScan={id:'scan-two',live:()=>true};
+    const key=mapWindow.DeepScannerMap.messageKey;
+    assert.equal(key(firstScan,'success'),key(firstScan,'success'),'same response remains deduplicated');
+    assert.notEqual(key(firstScan,'success'),key(secondScan,'success'),'next scan can repeat the same text');
+    assert.equal(key(null,'success'),undefined,'ordinary messages keep their existing deduplication');
     const source=fs.readFileSync('templates/map_template.html','utf8');
     const start=source.indexOf('async function mapAction('),tail=source.slice(start),end=tail.slice(1).search(/\n        (?:async )?function /);
     new vm.Script(tail.slice(0,end+1));
