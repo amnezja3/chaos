@@ -71,7 +71,7 @@ function fixture() {
     const overlay=mapDocument.createElement('div');overlay.className='chaos-map-scan-overlay';
     const visual=f.api.begin({},overlay,()=>{}),visual2=f.api.begin({},overlay,()=>{});
     assert.equal(overlay.children.length,1,'reuse one bounded scene');
-    assert.equal(overlay.children[0].children.length,7);
+    assert.equal(overlay.children[0].children.length,8);
     assert.equal(overlay.children[0].ownerDocument,mapDocument);
     visual.dispose();assert.equal(overlay.children.length,1);
     visual2.dispose();assert.equal(overlay.children.length,0,'dispose removes all show layers');

@@ -35,7 +35,7 @@ for(const pattern of ['regular','pulse','wave','viewfinder','direct']) {
  const overlay=document.createElement('div');overlay.className='chaos-map-scan-overlay deep-scanner-styled is-visible';overlay.dataset.scannerPattern=pattern;overlay.dataset.label='Test mapy Leaflet';overlay.style.cssText='--scanner-frame:#b6ff54;--scanner-button:#b6ff54';box.append(overlay);
  DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'amber',button_color:'amber'});
  DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'amber',button_color:'amber'});
- if(overlay.querySelectorAll('.deep-scanner-scene').length!==1 || overlay.querySelector('.deep-scanner-scene').children.length!==7) throw Error('scene duplicated');
+ if(overlay.querySelectorAll('.deep-scanner-scene').length!==1 || overlay.querySelector('.deep-scanner-scene').children.length!==8) throw Error('scene duplicated');
  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
  for(const animation of overlay.getAnimations({subtree:true})) {animation.pause();animation.currentTime=800;}
  const cs=getComputedStyle(overlay,'::before');
@@ -45,6 +45,9 @@ for(const pattern of ['regular','pulse','wave','viewfinder','direct']) {
 return results;
 }`});
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-after.png'});
+await call('browser_evaluate',{function:`() => {for(const e of document.querySelectorAll('.scanner-show-illumination'))e.style.backdropFilter='none';return 'filter comparison';}`});
+await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-no-backdrop.png'});
+await call('browser_evaluate',{function:`() => {for(const e of document.querySelectorAll('.scanner-show-illumination'))e.style.removeProperty('backdrop-filter');return 'filter restored';}`});
 await call('browser_evaluate',{function:`() => {for(const el of document.querySelectorAll('.chaos-map-scan-overlay')) for(const animation of el.getAnimations({subtree:true})) animation.currentTime=1600; return 'phase 1600ms';}`});
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-show-phase2.png'});
 await call('browser_resize',{width:390,height:844});

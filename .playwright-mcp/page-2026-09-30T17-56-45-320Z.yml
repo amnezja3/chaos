@@ -1,0 +1,25 @@
+- main "CHAOS login gate" [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Ghost System / secure entry
+      - heading "CHAOS" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Cyber Hacking Adventure Of Senses. Wejdz do pulpitu operatora, wybierz cel, uruchom narzedzia i pozwol, zeby mapa zaczela mowic danymi.
+    - generic "System status" [ref=e8]:
+      - generic [ref=e9]: Signal online
+      - generic [ref=e10]: Ghost Gate armed
+      - generic [ref=e11]: Cyberner standby
+  - generic [ref=e13]:
+    - heading "Autoryzacja operatora" [level=2] [ref=e14]
+    - generic [ref=e15]:
+      - text: Login
+      - textbox "Login" [ref=e16]:
+        - /placeholder: operator
+    - generic [ref=e17]:
+      - text: Haslo
+      - textbox "Haslo" [ref=e18]:
+        - /placeholder: klucz dostepu
+    - button "Zaloguj" [ref=e19] [cursor=pointer]
+    - paragraph [ref=e20]:
+      - text: Nie masz konta?
+      - link "Zainicjuj profil operatora" [ref=e21] [cursor=pointer]:
+        - /url: /register

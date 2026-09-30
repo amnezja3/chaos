@@ -2,6 +2,17 @@
 
 ## Rozbudowane pokazy skanu — 30 IX 2026
 
+Korekta światła (`146-4-2-map-light-1`): regular odzyskuje miękki gradient
+o intensywności domyślnego skanu. Wszystkie wzory otrzymują ósmą, maskowaną
+warstwę miejscowego rozjaśnienia obrazu (`backdrop-filter`: jasność, kontrast,
+nasycenie). To rozszerzenie oryginalnego gradientu, nie mechanizm istniejący
+w domyślnym skanerze. Usunięto przyciemnienie całej mapy, sztuczną siatkę oraz
+kolorowe kurtyny pomocnicze. Viewfinder zachowuje ramkę, z jednym pasmem światła.
+Brak kopiowania kafelków i dodatkowych żądań sieciowych; reduced motion wyłącza
+warstwę światła. Playwright: wszystkie wzory na Leaflet, desktop/mobile,
+ciemne/jasne tło, brak błędów konsoli. Porównanie zrzutów z filtrem włączonym
+i wyłączonym potwierdziło zmianę jasności podłoża w każdym z pięciu wzorów.
+
 Korekta po zrzucie autora: wszystkie pięć wzorów używa delikatniejszej palety
 światła (55–58% krycia linii, 9% wypełnień), przyciemnienie mapy ograniczono
 do około 3,5%. Zmniejszono poświatę, grubość promienia i narożników, zagęszczenie

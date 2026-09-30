@@ -86,7 +86,7 @@
                 scene = element.ownerDocument.createElement('div');
                 scene.className = 'deep-scanner-scene';
                 scene.setAttribute('aria-hidden', 'true');
-                for (const part of ['grid','aperture','echo','wake','reticle','rail','caption']) {
+                for (const part of ['illumination','grid','aperture','echo','wake','reticle','rail','caption']) {
                     const layer = element.ownerDocument.createElement('div');
                     layer.className = 'scanner-show-' + part;
                     scene.appendChild(layer);

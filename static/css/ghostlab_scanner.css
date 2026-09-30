@@ -76,14 +76,14 @@
 .chaos-map-scan-overlay[data-scanner-pattern="regular"]::before {background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--scanner-frame) 22%,transparent),transparent)}
 .chaos-map-scan-overlay[data-scanner-pattern="pulse"]::before {
   top:var(--scanner-y);left:var(--scanner-x);bottom:auto;width:max(200cqw,200cqh);height:max(200cqw,200cqh);
-  border:2px solid currentColor;border-radius:50%;box-sizing:border-box;
-  background:radial-gradient(circle,transparent 46%,currentColor 46.2%,transparent 46.6%);
+  border:0;border-radius:50%;box-sizing:border-box;
+  background:radial-gradient(circle,transparent 37%,color-mix(in srgb,var(--scanner-frame) 12%,transparent) 46%,transparent 52%);
   animation:scanner-pulse 2.4s ease-out infinite;
 }
 @keyframes scanner-pulse {0%{transform:translate(-50%,-50%) scale(.02);opacity:.95}65%{opacity:.8}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
 .chaos-map-scan-overlay[data-scanner-pattern="wave"]::before {
   top:-15%;left:0;bottom:auto;width:100%;height:30%;
-  background:linear-gradient(0deg,currentColor,transparent 12%,transparent 30%,color-mix(in srgb,currentColor 12%,transparent),transparent);
+  background:linear-gradient(0deg,transparent,color-mix(in srgb,var(--scanner-frame) 18%,transparent),rgba(184,255,40,.12),transparent);
   animation:scanner-wave 2.4s linear infinite;
 }
 @keyframes scanner-wave {from{transform:translateY(0);opacity:.9}to{transform:translateY(390%);opacity:.65}}
@@ -96,8 +96,7 @@
     linear-gradient(currentColor,currentColor) left top/2px 30px no-repeat,
     linear-gradient(currentColor,currentColor) right top/2px 30px no-repeat,
     linear-gradient(currentColor,currentColor) left bottom/2px 30px no-repeat,
-    linear-gradient(currentColor,currentColor) right bottom/2px 30px no-repeat,
-    linear-gradient(transparent 49.5%,currentColor 50%,transparent 50.5%) center/100% 200%;
+    linear-gradient(currentColor,currentColor) right bottom/2px 30px no-repeat;
   animation:scanner-viewfinder 2.4s ease-in-out infinite;
 }
 @keyframes scanner-viewfinder {0%,100%{transform:scale(.94);background-position-y:top,top,bottom,bottom,top,top,bottom,bottom,0%;opacity:.85}50%{transform:scale(1);background-position-y:top,top,bottom,bottom,top,top,bottom,bottom,100%;opacity:1}}
@@ -245,4 +244,69 @@
   [data-scanner-pattern="pulse"] .scanner-show-echo,[data-scanner-pattern="pulse"] .scanner-show-wake {display:none}
   [data-scanner-pattern="wave"] .scanner-show-echo,[data-scanner-pattern="wave"] .scanner-show-wake {top:40%}
   [data-scanner-pattern="direct"] .scanner-show-wake {transform:rotate(-25deg);opacity:.5}
+}
+/* Map light, not a painted film: the feathered mask reveals local contrast
+   from the actual backdrop. No tile copies, canvas reads or extra requests. */
+.chaos-map-scan-overlay.deep-scanner-styled,
+.chaos-map-scan-overlay.deep-scanner-styled:not([data-scanner-pattern="regular"]) {
+  background:transparent;
+  box-shadow:none;
+}
+.chaos-map-scan-overlay.deep-scanner-styled::before,
+.chaos-map-scan-overlay.deep-scanner-styled:not([data-scanner-pattern="regular"])::before {
+  filter:blur(1px);
+  box-shadow:none;
+}
+.chaos-map-scan-overlay[data-scanner-pattern="regular"]::before {
+  /* Same soft envelope and opacity as the built-in scan. */
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--scanner-frame) 18%,transparent),rgba(184,255,40,.12),transparent);
+}
+.scanner-show-illumination {
+  inset:0;
+  background:color-mix(in srgb,var(--scanner-frame) 4%,transparent);
+  -webkit-backdrop-filter:brightness(1.2) contrast(1.12) saturate(1.12);
+  backdrop-filter:brightness(1.2) contrast(1.12) saturate(1.12);
+  mask-repeat:no-repeat;
+}
+[data-scanner-pattern="regular"] .scanner-show-illumination {
+  mask-image:linear-gradient(90deg,transparent,black 48%,black 52%,transparent);
+  mask-size:18% 100%;
+  animation:scanner-light-line 1.25s linear infinite;
+}
+@keyframes scanner-light-line {from{mask-position:-22% 0}to{mask-position:122% 0}}
+[data-scanner-pattern="pulse"] .scanner-show-illumination {
+  mask-image:radial-gradient(circle,transparent 37%,#0008 42%,black 46%,transparent 52%);
+  inset:auto;left:var(--scanner-x);top:var(--scanner-y);
+  width:max(200cqw,200cqh);height:max(200cqw,200cqh);
+  animation:scanner-pulse 2.4s ease-out infinite;
+}
+[data-scanner-pattern="wave"] .scanner-show-illumination {
+  mask-image:linear-gradient(0deg,transparent,black 45%,black 55%,transparent);
+  mask-size:100% 30%;
+  animation:scanner-light-wave 2.4s linear infinite;
+}
+@keyframes scanner-light-wave {from{mask-position:0 -21.4286%}to{mask-position:0 145.7143%}}
+[data-scanner-pattern="viewfinder"] .scanner-show-illumination {
+  inset:12% 12% 20%;
+  mask-image:linear-gradient(0deg,transparent,black,transparent);
+  mask-size:100% 32%;
+  animation:scanner-light-wave 2.4s ease-in-out infinite alternate;
+}
+[data-scanner-pattern="direct"] .scanner-show-illumination {
+  inset:auto;left:var(--scanner-x);top:var(--scanner-y);
+  width:max(200cqw,200cqh);height:max(200cqw,200cqh);
+  margin-top:calc(max(200cqw,200cqh) / -2);transform-origin:left center;
+  mask-image:conic-gradient(from 75deg at 0% 50%,transparent,black 13deg,black 15deg,transparent 19deg);
+  animation:scanner-direct 2.4s ease-in-out infinite;
+}
+/* Instruments stay secondary to the illuminated geography. */
+.scanner-show-grid {display:none}
+[data-scanner-pattern="regular"] .scanner-show-wake {display:none}
+[data-scanner-pattern="wave"] .scanner-show-echo,
+[data-scanner-pattern="wave"] .scanner-show-wake,
+[data-scanner-pattern="direct"] .scanner-show-wake {background:none}
+.scanner-show-aperture {opacity:.4}
+.scanner-show-rail {opacity:.35}
+@media(prefers-reduced-motion:reduce) {
+  .scanner-show-illumination {display:none}
 }
