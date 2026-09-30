@@ -1,5 +1,20 @@
 # 146.4.2 — katalog Deep Scannerów
 
+## Poprawka czytelności mapy (30 IX 2026)
+
+Po zgłoszeniu słabo widocznych efektów na mapie wzmocniono kontrast czterech
+nowych wzorów: ciemny obrys, wyższa nieprzezroczystość i grubsze narożniki
+viewfindera. Pulse/direct skalują geometrię do kontenera nakładki, wspólnie
+dla mapy i podglądu; usunięto osobny rozmiar pulse w podglądzie. Regular
+pozostaje bez zmian. Zaktualizowano wersję CSS w obu pulpitach i mapie.
+
+Playwright MCP / Chromium: pięć wzorów na izolowanych mapach Leaflet 1.9.3,
+z CSS aplikacji, stylami map_template i Bootstrapem Folium, na jasnym tle
+testowym — widoczne efekty i narożniki; desktop 1440 px i mobile 390 px.
+Konsola: 0 błędów. Testy JS lifecycle i preview: PASS. Test nie obejmował
+zalogowanego konta ani rzeczywistego żądania skanu. Nie odtworzono chowania
+nakładki pod warstwami; pełna przyczyna zgłoszenia z gry pozostaje niepotwierdzona.
+
 Status: implementacja lokalna gotowa do wdrożenia; odbiór wyglądu i odsłuchu
 w grze oczekuje. 146.4.1 ma końcowy PASS autora z 30 IX 2026.
 
