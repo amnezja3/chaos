@@ -2857,6 +2857,76 @@ form button:hover {
   resize: vertical;
 }
 
+.ghostlab-document-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin: 14px 0 24px;
+  min-width: 0;
+}
+.ghostlab-document-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #355d3f;
+}
+.ghostlab-document-tabs button {
+  padding: 10px 20px;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #a6c4ad;
+  font: inherit;
+  cursor: pointer;
+}
+.ghostlab-document-tabs button[aria-selected="true"] {
+  background: #102518;
+  color: #dcffe3;
+  border-bottom-color: #71f397;
+}
+.ghostlab-document-tabs button:focus-visible {
+  outline: 2px solid #71f397;
+  outline-offset: -3px;
+}
+.ghostlab-document-surface {
+  height: clamp(300px, 50vh, 640px);
+  min-width: 0;
+  border: 1px solid #355d3f;
+  background: #020b06;
+  overflow: hidden;
+}
+.ghostlab-document-surface [role="tabpanel"] {
+  box-sizing: border-box;
+  height: 100%;
+  margin: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.ghostlab-document-surface article { padding: 18px; }
+.ghostlab-document-surface textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: #eaffdf;
+  padding: 18px;
+  font: inherit;
+  line-height: 1.6;
+  overflow: auto;
+}
+.ghostlab-document-help { color: #9bbca4; line-height: 1.5; }
+.ghostlab-document-workspace > .ghostlab-editor-field { align-content: start; }
+.ghostlab-document-workspace select { height: auto; min-height: 40px; }
+.ghostlab-document-editor .ghostlab-editor-feedback { grid-template-columns: minmax(0, 1fr); }
+.ghostlab-document-editor [hidden] { display: none !important; }
+@media (max-width: 600px) {
+  .ghostlab-document-surface { height: clamp(260px, 45vh, 420px); }
+  .ghostlab-document-surface article,
+  .ghostlab-document-surface textarea { padding: 12px; }
+}
+
 .ghostlab-editor-field.is-check {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -4084,6 +4154,51 @@ form button:hover {
 }
 .file-manager-file:hover {
     color: #e6e6e6;
+}
+/* .lab and PTK entries are keyboard-accessible buttons, not native form controls. */
+button.file-manager-file {
+    appearance: none;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 4px 8px;
+    padding: 10px;
+    margin: 0;
+    border: 1px solid #24452d;
+    background: #08130c;
+    color: #d8ffe1;
+    font-family: inherit;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    text-align: left;
+}
+button.file-manager-file > .file-manager-icon {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    padding-top: 1px;
+    font-size: 0.75rem;
+}
+button.file-manager-file > .file-manager-name,
+button.file-manager-file > .file-manager-name:not(:first-of-type) {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    color: #d8ffe1;
+}
+button.file-manager-file > small {
+    grid-column: 2;
+    min-width: 0;
+    color: #94b99e;
+    font-size: 0.7rem;
+    overflow-wrap: anywhere;
+}
+button.file-manager-file:hover {
+    background: #102719;
+    border-color: #4b965e;
+}
+button.file-manager-file:focus-visible {
+    outline: 2px solid #71f397;
+    outline-offset: -2px;
 }
 .file-manager-row-match {
     background: rgba(0, 255, 102, 0.08);

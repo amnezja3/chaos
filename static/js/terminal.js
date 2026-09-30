@@ -15341,6 +15341,7 @@ function renderGhostLabEditor(root, project) {
             </section>
         </section>
     `;
+    if (project.template_id === 'ptk_document') mountGhostLabDocumentEditor(root, main, project);
     if (project.template_id === 'travel_ticket') mountGhostLabTravelPreview(main);
     if (project.template_id === 'deep_scanner') mountGhostLabScannerPreview(main, project);
     main.querySelectorAll('[data-ghostlab-preview-blueprint]').forEach(button => {
@@ -15369,6 +15370,61 @@ function renderGhostLabEditor(root, project) {
     });
     refreshGhostLabEditorFeedback(root, project);
     updateGhostLabStatusBar(root);
+}
+
+function mountGhostLabDocumentEditor(root, main, project) {
+    const editor = main.querySelector('.ghostlab-editor');
+    editor.classList.add('ghostlab-document-editor');
+    const title = main.querySelector('[data-ghostlab-branding="name"]').closest('label');
+    title.querySelector('span').textContent = 'Tytuł dokumentu';
+    const content = main.querySelector('[data-ghostlab-blueprint-key="content"]');
+    const visibility = main.querySelector('[data-ghostlab-blueprint-key="visibility"]').closest('label');
+    visibility.querySelector('span').textContent = 'Publikacja';
+    const oldFields = content.closest('.ghostlab-editor-grid');
+    const oldHeading = oldFields.previousElementSibling;
+    const section = document.createElement('section');
+    section.className = 'ghostlab-document-workspace';
+    const prefix = `ptk-${project.id}`;
+    section.innerHTML = `<div class="ghostlab-document-tabs" role="tablist" aria-label="Treść dokumentu">
+        <button type="button" role="tab" id="${escapeHTML(prefix)}-markdown-tab" aria-controls="${escapeHTML(prefix)}-markdown" data-ptk-tab="markdown">Markdown</button>
+        <button type="button" role="tab" id="${escapeHTML(prefix)}-render-tab" aria-controls="${escapeHTML(prefix)}-render" data-ptk-tab="render">Render</button>
+        </div><div class="ghostlab-document-surface">
+        <div role="tabpanel" id="${escapeHTML(prefix)}-markdown" aria-labelledby="${escapeHTML(prefix)}-markdown-tab" data-ptk-panel="markdown"></div>
+        <article role="tabpanel" id="${escapeHTML(prefix)}-render" aria-labelledby="${escapeHTML(prefix)}-render-tab" data-ptk-panel="render" class="file-manager-markdown" tabindex="0" hidden></article>
+        </div><small class="ghostlab-document-help">Markdown · maks. 6000 znaków. Render pokazuje formatowanie czytnika PTK. HTML i linki pozostają tekstem.</small>`;
+    section.prepend(title);
+    section.querySelector('[data-ptk-panel="markdown"]').append(content);
+    content.setAttribute('aria-label', 'Treść dokumentu w Markdown');
+    content.spellcheck = false;
+    section.append(visibility);
+    oldFields.remove();
+    oldHeading.remove();
+    editor.querySelector('header').after(section);
+    editor.querySelector('h4').textContent = 'Ustawienia dokumentu';
+    const render = section.querySelector('[data-ptk-panel="render"]');
+    const refresh = () => { render.innerHTML = renderFileManagerMarkdown(content.value); };
+    const select = (tab, focus = false) => {
+        root._ghostLabDocumentView = {projectId: project.id, tab};
+        section.querySelectorAll('[data-ptk-tab]').forEach(button => {
+            const active = button.dataset.ptkTab === tab;
+            button.setAttribute('aria-selected', String(active));
+            button.tabIndex = active ? 0 : -1;
+            if (active && focus) button.focus();
+        });
+        section.querySelectorAll('[data-ptk-panel]').forEach(panel => { panel.hidden = panel.dataset.ptkPanel !== tab; });
+        if (tab === 'render') refresh();
+    };
+    section.querySelectorAll('[data-ptk-tab]').forEach(button => {
+        button.addEventListener('click', () => select(button.dataset.ptkTab));
+        button.addEventListener('keydown', event => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            select(event.key === 'Home' ? 'markdown' : event.key === 'End' ? 'render' :
+                button.dataset.ptkTab === 'markdown' ? 'render' : 'markdown', true);
+        });
+    });
+    content.addEventListener('input', refresh);
+    select(root._ghostLabDocumentView?.projectId === project.id ? root._ghostLabDocumentView.tab : 'markdown');
 }
 
 function renderGhostLabEditorField(field, value) {
@@ -15586,9 +15642,7 @@ function refreshGhostLabEditorFeedback(root, project) {
         <strong>Blueprint Preview</strong>
         <pre>${escapeHTML(preview.join("\n"))}</pre>
     `;
-    if (project.template_id === 'ptk_document') {
-        previewPanel.innerHTML += `<article class="file-manager-markdown">${renderFileManagerMarkdown(blueprint.content)}</article>`;
-    }
+    previewPanel.hidden = project.template_id === 'ptk_document';
     return validation;
 }
 
