@@ -38,8 +38,8 @@ assert.doesNotMatch(appsProjectionSource, /fetch\s*\(|\/api\/profile|\/api\/cata
 const catalogLoadStart = source.indexOf("async function loadCatalog(");
 const catalogLoadEnd = source.indexOf("async function loadExchange(", catalogLoadStart);
 const catalogLoadSource = source.slice(catalogLoadStart, catalogLoadEnd);
-assert.match(catalogLoadSource, /fetch\('\/resources\.json'/);
-assert.doesNotMatch(catalogLoadSource, /\/api\/profile|\/api\/catalog|getUserProfile|load_profile/);
+assert.match(catalogLoadSource, /fetch\('\/api\/catalog'/);
+assert.doesNotMatch(catalogLoadSource, /\/api\/profile|getUserProfile|load_profile/);
 assert.match(catalogLoadSource, /toolbarProfile \|\| \{\}\)\.hackcoins/);
 
 console.log("Googleplex app purchase lock tests: OK");

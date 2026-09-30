@@ -31,7 +31,12 @@ class GhostLabTravelTest(unittest.TestCase):
             CHAOS_GHOSTLAB_RUNTIME_ACTORS='attacker,victim,admin'))
         for username in ('attacker','victim','admin'):
             profile = dict(valid_profile(username), level=40, respect=500)
-            self.users.save_profile(profile)
+            record = self.users.get_profile_with_revision(username)
+            if record:
+                profile = dict(record['profile'], level=40, respect=500)
+            self.users.save_profile_guarded(profile, source='test.ghostlab_travel',
+                expected_revision=record['profile_revision'] if record else 0,
+                allow_create=record is None)
             self.inventory.seed_from_profile(username, profile)
         with db_connect(self.path) as conn:
             conn.execute("UPDATE ghostlab_migrations SET status='complete'")

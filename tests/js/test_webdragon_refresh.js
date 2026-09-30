@@ -12,7 +12,10 @@ const context = vm.createContext({
     dedupeGoogleplexCatalog: value => value,
     toolbarProfile:{}, walletBalance:0, renderBrowserWallet(){}, renderCatalog(){},
     pendingGoogleplexSearch:'', browserQueries:{}, activeBrowserTab:'googleplex', search:{value:''},
-    fetch: () => new Promise(resolve => requests.push(resolve)),
+    fetch: url => {
+        assert.equal(url, '/api/catalog', 'Clan offers require the authenticated catalog');
+        return new Promise(resolve => requests.push(resolve));
+    },
     term:{querySelector:()=>button},
     loadGoogleplexHome:async options=>{assert.equal(options.force,true);homeCalls++;},
     rememberGoogleplexHomeScroll(){}, console,

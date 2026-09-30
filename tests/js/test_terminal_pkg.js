@@ -86,7 +86,7 @@ const run = command => sandbox.handleTerminalPkgCommand(command, {});
     payload = [];
     assert.strictEqual(await run('pkg list-all'), true);
     assert.ok(output.at(-1).includes('pusty'));
-    assert.ok(calls.every(url => url === '/resources.json'), 'no full profile or alternate installation API');
+    assert.ok(calls.every(url => url === '/api/catalog'), 'no full profile or alternate installation API');
     const dispatcher = source.slice(end, source.indexOf('function attachSystemTerminalInputHandler', end));
     assert.ok(dispatcher.indexOf('await handleTerminalPkgCommand') < dispatcher.indexOf("fetch('/command'"));
     console.log('Terminal pkg tests: OK');

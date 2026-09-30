@@ -90,9 +90,9 @@ class DocumentStore:
                         deltas.record_change(username, 'wallet', 'wallet.balance_changed',
                             {'balance':balance[0], 'currency':'HC'}, dedupe_key=receipt+':'+username, conn=conn)
                 services['system_message_store'].add_message(owner, {
-                    'id':receipt, 'title':'Dokument PTK', 'text':'Pobrano dokument do Pliki → Dokumenty.',
+                    'id':receipt, 'title':'Dokument PTK', 'text':'Pobrano dokument do Pliki → Plexcak.',
                     'type':'success'}, conn=conn)
             balance = conn.execute('SELECT balance FROM wallet_balances WHERE username=?', (owner,)).fetchone()
         return dict(status='success', duplicate=bool(previous), hackcoins=balance[0] if balance else 0,
                     product={'id':app_id, 'product_type':'ptk_document'}, document_id=app['artifact_id'],
-                    message='Dokument jest dostępny w Pliki → Dokumenty.')
+                    message='Dokument jest dostępny w Pliki → Plexcak.')

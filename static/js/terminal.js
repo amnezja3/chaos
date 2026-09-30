@@ -3657,7 +3657,7 @@ async function handleTerminalPkgCommand(value, content) {
         return false;
     }
     try {
-        const response = await fetch('/resources.json', { cache: 'no-store' });
+        const response = await fetch('/api/catalog', { cache: 'no-store' });
         const payload = await response.json().catch(() => null);
         if (!response.ok || !Array.isArray(payload)) {
             output(`pkg: nie udało się pobrać katalogu Googleplex (HTTP ${response.status}).`);
@@ -10975,7 +10975,7 @@ function createBrowser() {
         }
         if (catalogLoading) return catalogLoading;
         catalogLoading = (async () => {
-            const resourcesRes = await fetch('/resources.json', {
+            const resourcesRes = await fetch('/api/catalog', {
                 credentials: 'same-origin',
                 cache: 'no-store'
             });
@@ -11640,7 +11640,7 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
                     const storageLine = hasStorageInfo
                         ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
                         : '';
-                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${data.document_id ? 'Dokument pobrany do Pliki → Dokumenty PTK.' : isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
+                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${data.document_id ? 'Dokument pobrany do Pliki → Plexcak.' : isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
                         setToolbarProfile({
                             ...toolbarProfile,
@@ -15402,7 +15402,12 @@ function mountGhostLabDocumentEditor(root, main, project) {
     editor.querySelector('header').after(section);
     editor.querySelector('h4').textContent = 'Ustawienia dokumentu';
     const render = section.querySelector('[data-ptk-panel="render"]');
-    const refresh = () => { render.innerHTML = renderFileManagerMarkdown(content.value); };
+    let renderedSource = null;
+    const refresh = () => {
+        if (render.hidden || renderedSource === content.value) return;
+        renderedSource = content.value;
+        render.innerHTML = renderFileManagerMarkdown(renderedSource);
+    };
     const select = (tab, focus = false) => {
         root._ghostLabDocumentView = {projectId: project.id, tab};
         section.querySelectorAll('[data-ptk-tab]').forEach(button => {
@@ -15500,7 +15505,7 @@ function renderGhostLabPublisherPipeline(project) {
     return `
         <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong>
         <span>Ostatnio opublikowany build: ${escapeHTML(String(publishedBuild?.version || '—'))}.</span>
-        <span>${contract.runtime_status === 'document' ? 'Dokument PTK: pobierz z Googleplexa i otw?rz w Pliki ? Dokumenty PTK.' : contract.runtime_status === 'own_system' ? 'Runtime wlasnego systemu gotowy; uruchomienie z pulpitu.' : contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
+        <span>${contract.runtime_status === 'document' ? 'Dokument PTK: pobierz z Googleplexa i otw?rz w Pliki ? Plexcak.' : contract.runtime_status === 'own_system' ? 'Runtime wlasnego systemu gotowy; uruchomienie z pulpitu.' : contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
         <span>${project.template_id === 'ptk_document' ? 'Nowe wydanie wymaga osobnego pobrania. Poprzednie kopie pozostaj? u czytelnik?w.' : project.template_id === 'travel_ticket' ? (isPublished ? 'Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca.' : 'Opublikuj build, aby udostępnić to miejsce w Googleplexie.') : isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
@@ -16597,7 +16602,7 @@ async function createFileManager(options = {}) {
     ];
     const folderLabels = {
         ghostlab: 'GhostLab',
-        documents: 'Dokumenty PTK',
+        documents: 'Plexcak',
         tools: 'Tools',
         gps: 'Sledzenie',
         device: 'Urzadzenia',
@@ -16719,6 +16724,8 @@ async function createFileManager(options = {}) {
         const nodes = [];
         while (walker.nextNode()) nodes.push(walker.currentNode);
         nodes.forEach(node => {
+            // Authored documents are immutable content, not legacy UI labels.
+            if (node.parentElement?.closest('.file-manager-markdown')) return;
             let value = node.nodeValue || '';
             replacements.forEach(([pattern, replacement]) => {
                 value = value.replace(pattern, replacement);
