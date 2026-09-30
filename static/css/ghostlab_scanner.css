@@ -310,3 +310,40 @@
 @media(prefers-reduced-motion:reduce) {
   .scanner-show-illumination {display:none}
 }
+/* Viewfinder: full-map light, inset optics converging on the requested point. */
+.chaos-map-scan-overlay[data-scanner-pattern="viewfinder"] {
+  --viewfinder-x:clamp(20%,var(--scanner-x),80%);
+  --viewfinder-y:clamp(20%,var(--scanner-y),80%);
+}
+[data-scanner-pattern="viewfinder"] .scanner-show-illumination {inset:0}
+.chaos-map-scan-overlay.deep-scanner-styled[data-scanner-pattern="viewfinder"]::before {
+  color:var(--scanner-frame);
+  filter:drop-shadow(0 1px 1px #00150eaa);
+  animation:scanner-viewfinder-focus 3.2s ease-in-out infinite;
+}
+@keyframes scanner-viewfinder-focus {
+  0%,100% {left:12%;top:12%;width:76%;height:68%;transform:none;opacity:.8}
+  50% {left:calc(var(--viewfinder-x) - 12%);top:calc(var(--viewfinder-y) - 12%);width:24%;height:24%;transform:none;opacity:1}
+}
+[data-scanner-pattern="viewfinder"] .scanner-show-aperture,
+[data-scanner-pattern="viewfinder"] .scanner-show-reticle {
+  --scanner-ink:var(--scanner-frame);
+  opacity:.85;
+  filter:drop-shadow(0 1px 1px #00150e99);
+  animation:scanner-viewfinder-optics 3.2s ease-in-out infinite;
+}
+[data-scanner-pattern="viewfinder"] .scanner-show-reticle {animation-name:scanner-viewfinder-reticle}
+[data-scanner-pattern="viewfinder"] .scanner-show-echo {opacity:.5}
+@keyframes scanner-viewfinder-optics {
+  0%,100% {left:50%;top:46%;transform:translate(-50%,-50%) scale(1) rotate(0deg)}
+  50% {left:var(--viewfinder-x);top:var(--viewfinder-y);transform:translate(-50%,-50%) scale(.48) rotate(60deg)}
+}
+@keyframes scanner-viewfinder-reticle {
+  0%,100% {left:50%;top:46%;transform:translate(-50%,-50%) scale(1.15)}
+  50% {left:var(--viewfinder-x);top:var(--viewfinder-y);transform:translate(-50%,-50%) scale(.65)}
+}
+@media(prefers-reduced-motion:reduce) {
+  .chaos-map-scan-overlay.deep-scanner-styled[data-scanner-pattern="viewfinder"]::before {opacity:.85}
+  [data-scanner-pattern="viewfinder"] .scanner-show-aperture,
+  [data-scanner-pattern="viewfinder"] .scanner-show-reticle {left:var(--viewfinder-x);top:var(--viewfinder-y);transform:translate(-50%,-50%)}
+}

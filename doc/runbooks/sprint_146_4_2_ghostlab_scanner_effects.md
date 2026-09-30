@@ -2,6 +2,13 @@
 
 ## Rozbudowane pokazy skanu — 30 IX 2026
 
+Viewfinder (`146-4-2-viewfinder-1`): łuna obejmuje cały kadr mapy, a ramka
+i optyka pozostają wewnątrz z marginesami. Cykl 3,2 s zwęża ramkę z 76×68%
+do 24×24% wokół punktu skanu i rozszerza ją ponownie; skrajny punkt jest
+ograniczony do bezpiecznego wnętrza, żeby narożniki nie znikały poza mapą.
+Celownik i przesłona podążają tym samym cyklem. Kontrast optyki podniesiony,
+reduced motion pozostawia statyczny wariant. Pozostałe wzory bez zmian.
+
 Korekta światła (`146-4-2-map-light-1`): regular odzyskuje miękki gradient
 o intensywności domyślnego skanu. Wszystkie wzory otrzymują ósmą, maskowaną
 warstwę miejscowego rozjaśnienia obrazu (`backdrop-filter`: jasność, kontrast,

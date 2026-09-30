@@ -55,6 +55,20 @@ await call('browser_evaluate',{function:`async () => {document.body.style.gridTe
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-mobile.png',fullPage:true});
 await call('browser_evaluate',{function:`() => {for(const el of document.querySelectorAll('.leaflet-container'))el.style.background='repeating-linear-gradient(30deg,#101e26 0 45px,#344955 46px 52px,#1b2e33 53px 90px)';return 'dark map';}`});
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-show-dark.png',fullPage:true});
+await call('browser_evaluate',{function:`() => {
+const el=document.querySelector('[data-scanner-pattern="viewfinder"]');
+el.style.setProperty('--scanner-x','2px');el.style.setProperty('--scanner-y','2px');
+const frames=[];
+for(const time of [0,1600,3200]) {
+ for(const animation of el.getAnimations({subtree:true}))animation.currentTime=time;
+ const c=getComputedStyle(el,'::before'),light=el.querySelector('.scanner-show-illumination');
+ if(parseFloat(c.left)<8 || parseFloat(c.top)<8)throw Error('Viewfinder lost its margins');
+ if(Math.abs(light.getBoundingClientRect().width-el.clientWidth)>1 || Math.abs(light.getBoundingClientRect().height-el.clientHeight)>1)throw Error('Light is not full-frame');
+ frames.push({time,width:parseFloat(c.width),left:parseFloat(c.left),top:parseFloat(c.top)});
+}
+if(frames[1].width>=frames[0].width/2 || Math.abs(frames[2].width-frames[0].width)>1)throw Error('Focus cycle failed');
+return {viewfinderFocusAndMargins:'PASS',frames};
+}`});
 await call('browser_run_code_unsafe',{code:`async (page) => {await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(200);return await page.evaluate(()=>{const count=[...document.querySelectorAll('.chaos-map-scan-overlay')].reduce((n,e)=>n+e.getAnimations({subtree:true}).length,0);if(count)throw Error('Reduced motion still animates: '+count);return {reducedMotion:true,animations:count};});}`});
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-show-reduced.png',fullPage:true});
 await call('browser_evaluate',{function:`() => {for(const el of document.querySelectorAll('.chaos-map-scan-overlay'))el.classList.remove('is-visible'); const visible=[...document.querySelectorAll('.deep-scanner-scene')].filter(e=>getComputedStyle(e).display!=='none');if(visible.length)throw Error('Hidden scan kept visible layers');return 'hidden scenes PASS';}`});
