@@ -1,6 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 function fixture() {
     let posts=[],stops=0,plays=0,callbacks=[],fail=false, now=1000;
+    let sequence=0, audioContext=null;
+    const timers=new Map();
     const nodes={};
     const node=s=>nodes[s] ||= {textContent:'',isConnected:true,addEventListener(_,fn){this.onclick=fn;}};
     const app={isConnected:true,style:{},scrollIntoView(){},querySelector(){return {focus(){}};}};
@@ -8,17 +10,20 @@ function fixture() {
     const presentation={app_id:'one',artifact_id:'build1',name:'Scanner',menu_name:'Czesacz',icon:'X',
         sfx_event:'scanner.regular.sweep',frame_id:'double',frame_color:'cyan',button_color:'amber',logs:{start:'Start'}};
     const ctx={console,Date:{now:()=>now},Set,Map,encodeURIComponent,desktopSessionActive:true,
-        escapeHTML:String,crypto:{randomUUID:()=> 'window-id'},clearInterval(){},
+        escapeHTML:String,crypto:{randomUUID:()=> 'id-'+(++sequence)},clearInterval(){},
+        setTimeout:(fn,delay)=>{const id=++sequence;timers.set(id,{fn,delay});return id;},
+        clearTimeout:id=>timers.delete(id),
         setInterval:fn=>{callbacks.push(fn);return callbacks.length;},
         MutationObserver:class {observe(){}},document:{body:{}},
         fetch:async(url,options)=>{posts.push({url,body:JSON.parse(options.body)});
             if(fail) throw Error('offline');
             return {ok:true,json:async()=>({success:true,token:'token-one',ttl:35,presentation})};},
-        window:{addEventListener(){},GameSfx:{unlock(){},play(){plays++;return {stop(){stops++;}};}}}};
+        window:{addEventListener(){},GameSfx:{unlock(){},play(_,context){plays++;audioContext=context;return {stop(){stops++;context.on_end?.();}};}}}};
     vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner.js','utf8'),ctx);
     const api=ctx.window.DeepScanner;
     const data={product:{id:'one',runtime_enabled:true,description:'safe',installed_version:1}};
-    return {ctx,api,app,body,data,posts,callbacks,nodes,plays:()=>plays,stops:()=>stops,
+    return {ctx,api,app,body,data,posts,callbacks,nodes,timers,ended:()=>audioContext.on_end(),plays:()=>plays,stops:()=>stops,
+        tick(){const [id,timer]=timers.entries().next().value;timers.delete(id);now+=timer.delay;timer.fn();},
         fail:()=>fail=true,expire:()=>now+=36000,render:()=>api.render(app,body,data,()=>{})};
 }
 (async()=>{
@@ -30,6 +35,16 @@ function fixture() {
     f.api.stop();assert(!job.live());assert.equal(f.stops(),1);job.dispose();assert.equal(f.stops(),1);
     assert.equal(f.posts.at(-1).body.release,true);
     assert(!concurrent.live());
+
+    f=fixture();await f.render();const long=f.api.begin({},null,()=>{});
+    const parallel=f.api.begin({},null,()=>{});
+    for(let i=0;i<3;i++){f.ended();assert.equal([...f.timers.values()][0].delay,250);f.tick();}
+    assert.equal(f.plays(),4,'sound repeats throughout a long scan');
+    long.dispose();assert.equal(f.stops(),0,'other map still scanning keeps the shared audio');
+    f.ended();parallel.dispose();assert.equal(f.timers.size,0,'completion cancels pending repeat');
+    assert.equal(f.stops(),1);
+    f=fixture();await f.render();f.api.begin({},null,()=>{});f.ended();f.api.stop();
+    assert.equal(f.timers.size,0,'closing app during the pause prevents late playback');
 
     f=fixture();await f.render();f.app.isConnected=false;assert.equal(f.api.snapshot(),null);
     f=fixture();await f.render();f.expire();assert.equal(f.api.snapshot(),null);

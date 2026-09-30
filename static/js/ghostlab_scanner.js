@@ -4,6 +4,35 @@
     const jobs = new Set();
     const maps = new Set();
     const palette = {green:'#b6ff54',cyan:'#65eaff',amber:'#ffcd67',violet:'#d0a2ff'};
+    let scanAudio = null;
+    function stopScanAudio() {
+        const old = scanAudio;
+        scanAudio = null;
+        if (!old) return;
+        clearTimeout(old.timer);
+        old.handle?.stop({fade_ms:80});
+    }
+    function startScanAudio(saved) {
+        if (scanAudio || !global.GameSfx) return;
+        const loop = {timer:null,handle:null};
+        scanAudio = loop;
+        const live = () => scanAudio === loop && jobs.size > 0 && snapshot() === saved;
+        const schedule = delay => {
+            if (!live()) return;
+            clearTimeout(loop.timer);
+            loop.timer = setTimeout(play,delay);
+        };
+        function play() {
+            if (!live()) return;
+            loop.handle = global.GameSfx.play(saved.presentation.sfx_event,{
+                event_id:crypto.randomUUID(),
+                on_end:() => schedule(250)
+            });
+            // Muting or a temporarily occupied voice slot must not end the scan loop.
+            loop.handle?.started?.then(result => {if (!result.ok) schedule(1000);}, () => schedule(1000));
+        }
+        play();
+    }
     async function post(url, body) {
         const response = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true});
         const data = await response.json();
@@ -16,6 +45,7 @@
     function stop() {
         const old = current;
         current = null;
+        stopScanAudio();
         clearInterval(heartbeat); heartbeat = null;
         jobs.forEach(job => job.dispose()); jobs.clear();
         changed();
@@ -46,17 +76,18 @@
         if (!saved) return null;
         global.GameSfx?.unlock();
         const id = crypto.randomUUID();
-        const audio = jobs.size === 0 ? global.GameSfx?.play(saved.presentation.sfx_event,{event_id:id}) : null;
         const job = {id, saved, map, overlay, token:saved.token, done:false,
             live() {return !this.done && snapshot() === saved;},
             dispose() {
                 if (this.done) return;
-                this.done = true; audio?.stop({fade_ms:80}); jobs.delete(this);
+                this.done = true; jobs.delete(this);
+                if (!jobs.size) stopScanAudio();
                 if (overlay) {overlay.classList.remove('deep-scanner-styled');overlay.style.removeProperty('--scanner-frame');overlay.style.removeProperty('--scanner-button');}
                 cancelEffect?.();
             }};
         if (overlay) {style(overlay,saved.presentation); overlay.dataset.label=saved.presentation.logs.start;}
         jobs.add(job);
+        startScanAudio(saved);
         return job;
     }
     function inventory(apps) {

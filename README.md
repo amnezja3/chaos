@@ -39,6 +39,9 @@ World Object
 
 ## Current Features
 
+Status reviewed: **30 September 2026**. Gameplay acceptance and pending work are
+tracked separately in the [project journal](doc/history/project_journal.md).
+
 - Browser desktop styled as an in-game operating system.
 - Login, onboarding, profile, wallet, email, terminal, file manager and app launcher.
 - Real map integration with POI scanning.
@@ -46,16 +49,23 @@ World Object
 - Friends, contacts, private chat and group chat MVP.
 - Player actors on the map with contextual actions.
 - Territory and conflict mechanics in active development.
-- SQLite-backed profile/game state.
+- SQLite-backed game state with dedicated inventory, wallet, security, session and operation stores; bounded reads and deltas on migrated gameplay paths.
 - Googleplex app store.
-- GhostLab IDE concept for creating pro-system tools.
+- GhostLab IDE: template selection, blueprint validation, compilation, versioned publication, purchases, creator payments, installation and explicit free updates.
 - Pro-system tools for hacked player targets:
   - System Log Reader
   - Security Panel Proxy
   - Financial Sniffer
   - Friend Kicker
   - Arsenal Cleaner
-- Full Sprint 0 design documentation for gameplay contracts.
+  - Intruder Kicker
+- GhostLab descendants of all six PvP tool families, with shared family usage limits.
+- Player-created travel tickets: immediate single journey, creator-defined destinations, price capped at 150 HC, hidden destination coordinates in ticket flows and three post-travel reactions from customers.
+- Own-system maintenance templates: safe cleanup of unsellable files, once-per-version system updates and Open/Low/Regular/All security restoration with change logs.
+- Risky firmware updates: creator-configured success chance and bounded disk/scan-range gains, crash/restart on failure and a 24-hour cooldown after either outcome.
+- Deep Scanner overlays for the default map scanner: branding, log presets, bounded retries/timeouts and one active application. Stage 1 gameplay is accepted except for audio and repeated-message fixes awaiting retest.
+- Incident consequences, detention, prisons and criminal-record reduction notifications; individual outstanding acceptance checks remain documented.
+- GhostNetwork and GhostSignal finale implementation; production finale trigger/E2E remains a separate acceptance gate.
 
 ## Design Direction
 
@@ -78,12 +88,16 @@ Important design principles:
 
 ## Documentation
 
-Sprint 0 is closed and defines the contracts for future implementation.
+Sprint 0 and the original Sprint 1–20 roadmap are historical design references.
+For current work, start with the status and roadmap below.
 
 Start with the complete [`doc/README.md`](doc/README.md) documentation index.
 
 Key documents:
 
+- [Project journal](doc/history/project_journal.md) — dated progress, acceptance and unresolved checks.
+- [Deep Scanner stage 1 deployment and tests](doc/runbooks/sprint_146_4_1_ghostlab_deep_scanners.md).
+- [Profile hot-path contract](doc/architecture/profile_hot_path_contract_130_11_plus.md) — performance and persistence requirements.
 - [`doc/overview/name_of_game.md`](doc/overview/name_of_game.md) - name, acronym and theme.
 - [`doc/gameplay/gameplay_terms.md`](doc/gameplay/gameplay_terms.md) - shared vocabulary.
 - [`doc/gameplay/source_type_mapping.md`](doc/gameplay/source_type_mapping.md) - map source type to target type mapping.
@@ -120,7 +134,11 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-Install dependencies as needed. The dependency list is still being formalized.
+Install the declared Python dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
+```
 
 Run the app:
 
@@ -134,12 +152,19 @@ Open:
 http://127.0.0.1:5000
 ```
 
-Developer test account, if present in the local database:
+Accounts and game state depend on the local database; there is no guaranteed
+shared test account. `python run.py` starts the development server, not the
+production worker setup. Deployment procedures live in `doc/runbooks/`.
 
-```text
-admin
-1234
+Run targeted backend tests with isolated temporary runtime data:
+
+```powershell
+python -B tools/run_isolated_tests.py tests.test_ghostlab_scanner
+node tests/js/test_ghostlab_scanner.js
+node tests/js/test_game_sfx.js
 ```
+
+Node.js is used for the JavaScript test scripts.
 
 ## Repository Status
 
@@ -152,34 +177,31 @@ Expect:
 - rough edges in UI,
 - prototype mechanics becoming formal systems over time.
 
-The current priority is implementing the Sprint 1+ roadmap after closing Sprint 0 documentation.
+The current priority is completing Deep Scanner acceptance and its effect catalog,
+then the gameplay creators and GhostLab v2.0. A prepared fix is not a production PASS.
 
 ## Roadmap Snapshot
 
-Sprint 1+ focuses on implementing the core gameplay loop:
+| Sprint | Scope | Status as of 30 September 2026 |
+|---|---|---|
+| 143 | Consequences, detention and prisons | Closed by author; the final 143.6 delivery-order correction has no separate reported acceptance. |
+| 144.1–144.3 | GhostLab registry, authoring and product alignment | PASS. |
+| 145 | System Log Reader runtime | Closed / PASS, desktop and mobile. |
+| 146 | Remaining PvP descendants | Closed by author; additional regression checks moved to general gameplay testing. |
+| 146.1 | Travel tickets | Closed / PASS. |
+| 146.2 | Three maintenance templates | Closed / PASS. |
+| 146.3 | Firmware | Purchase, installation, success, crash and update PASS. |
+| [146.4](doc/sprints/sprint_146_4_ghostlab_deep_scanners.md) | Deep Scanners | Stage 1 otherwise PASS; WAV playback and per-scan message deduplication fixed locally, awaiting game retest. Stage 2 effect catalog pending. |
+| [147](doc/sprints/sprint_147_creator_gameplay_policy.md) | Creator gameplay profiles and level policy | Planned after 146.4. |
+| [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Creator UX, fees and runtime completion | Planned after 147. |
+| [149](doc/sprints/sprint_149_ghostlab_v2_research.md) | GhostLab v2.0 Research | Planned after creator sprints 147–148. |
+| [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Planned. |
+| [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Planned. |
+| [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Planned. |
 
-1. Map Action Router + App Contract Runtime
-2. Tool Selection UX
-3. Operation Core
-4. Active Operations and Active Map Objects
-5. Movement Refresh Engine
-6. Vehicle Tracking + GPS Logs
-7. Device Intelligence
-8. Camera Stream + Camera Shutdown
-9. Audio / Microphone Sniffer
-10. ATM + Persistent Sniffer
-11. File Inventory
-12. Ghost Exchange
-13. Sale Flow + Mail + HC
-14. Risk MVP
-15. Support Operations
-16. Operation Lifecycle
-17. Resource Completeness + Pricing
-18. Googleplex Progression
-19. Integration Playtest
-20. Gameplay Loop Closure v1
-
-See [`doc/history/game_play_260626.md`](doc/history/game_play_260626.md) for the full roadmap.
+Research, Exchange and Documentation roadmap descriptions are not evidence of
+completed runtime. Their remaining scope is explicitly assigned to 149–152.
+See the [documentation index](doc/README.md) for sprint contracts and runbooks.
 
 ## License
 

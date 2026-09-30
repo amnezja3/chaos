@@ -8,7 +8,7 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 - [Panel administracyjny — layout i odczyty na żądanie](runbooks/admin_panel_lazy_layout.md):
   cztery sekcje, paginacja, pojedyncze konto i zasoby z kanonicznych store’ów.
 
-1. [`Pełne przekazanie projektu — 2026-09-14`](runbooks/handoff_project_2026_09_14.md) — aktualny punkt startowy: architektura, decyzje, stan prac, produkcja i ryzyka.
+1. [`Pełne przekazanie projektu — 2026-09-14`](runbooks/handoff_project_2026_09_14.md) — baza architektury i procedur; stan sprintów uzupełnia journal z 30 IX.
 2. [`overview/ABOUT_CHAOS.md`](overview/ABOUT_CHAOS.md) — produkt, świat i canon.
 3. [`history/project_journal.md`](history/project_journal.md) — najnowszy stan prac.
 4. [`architecture/profile_hot_path_contract_130_11_plus.md`](architecture/profile_hot_path_contract_130_11_plus.md) — wiążąca bramka wydajności i integralności.
@@ -39,26 +39,39 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 
 ## Status bieżący
 
+Aktualizacja 30 IX 2026: [podsumowanie i odbiory](history/project_journal.md).
+Najbliżej: retest dźwięku/wiadomości 146.4.1 → 146.4.2 → 147 → 148 → 149–152.
+
 - Kreatory gameplayowe — [audyt 24 IX 2026](audits/creators_gameplay_audit_2026_09_24.md),
   [147 — profil działania i policy poziomu](sprints/sprint_147_creator_gameplay_policy.md),
   [148 — UX, opłaty i pełny odbiór](sprints/sprint_148_creator_ux_runtime_completion.md).
   Oba sprinty ZAPLANOWANE; dotyczą Window Maker, AppForge, Button Maker i Term Creator.
 
-- GhostLab — [audyt 24 IX 2026](audits/ghostlab_completion_audit_2026_09_24.md)
-  i trzy kolejne sprinty (144: implementacja lokalna, odbiór otwarty; 145–146: zaplanowane):
-  [144 — poprawność publikacji](sprints/sprint_144_ghostlab_publication_integrity.md),
-  [145 — System Log Reader end to end](sprints/sprint_145_ghostlab_system_log_reader.md),
-  [146 — pozostałe rodziny i domknięcie v1](sprints/sprint_146_ghostlab_runtime_completion.md).
-  Kolejność 144 → 145 → 146; Research/Community/AI pozostają poza zakresem.
+- GhostLab: 144.1–144.3 PASS, [145](sprints/sprint_145_ghostlab_system_log_reader.md)
+  zamknięty / PASS, [bazowy 146](sprints/sprint_146_ghostlab_runtime_completion.md)
+  zamknięty decyzją autora; dodatkowe regresje przeniesione do testów gameplayowych.
+  [146.1 — bilety](sprints/sprint_146_1_ghostlab_travel_tickets.md),
+  [146.2 — konserwacja](sprints/sprint_146_2_ghostlab_system_maintenance.md) i
+  [146.3 — firmware](sprints/sprint_146_3_ghostlab_firmware_maintenance.md): zamknięte / PASS.
+- [146.4 — Deep Scannery](sprints/sprint_146_4_ghostlab_deep_scanners.md):
+  etap 1 odebrany poza dźwiękiem i powtarzającymi się komunikatami; poprawki lokalne
+  przeszły testy i oczekują odbioru w grze. Etap 2 katalogu efektów zaplanowany.
+  [Runbook wdrożenia i testów](runbooks/sprint_146_4_1_ghostlab_deep_scanners.md).
+- GhostLab v2.0 dopiero po kreatorach 147–148:
+  [149 — Research](sprints/sprint_149_ghostlab_v2_research.md),
+  [150 — Exchange/import](sprints/sprint_150_ghostlab_v2_exchange_import.md),
+  [151 — Community/wersje](sprints/sprint_151_ghostlab_v2_community_versions.md),
+  [152 — optimizer, zależności i AI/SDK](sprints/sprint_152_ghostlab_v2_completion.md).
+  Wszystkie cztery zaplanowane; opisy zakładek nie oznaczają gotowego runtime.
 
 - [142.3 — cykl i publikacja incydentów](runbooks/sprint_142_3_incident_publications.md):
   zatwierdzone 30 minut cooling, trwała kolejka publikacji, mapa/NPC i BlackNet/GooglePlex News;
-  implementacja lokalna, odbiór produkcyjny otwarty.
+  PASS autora 18 IX według aktualnego kontraktu 142.
 - [142.2 — kamery a publiczne ryzyko](runbooks/sprint_142_2_camera_risk.md):
   zatwierdzone +4/0, trwała ekspozycja, osłona własnego obiektu, delta live;
   46 testów PASS lokalnie i odbiór autora PASS; etap zamknięty 17 IX.
-- [Audyt konsekwencji służb — 16 IX](audits/response_consequences_2026_09_16.md):
-  szkielet MVP istnieje, ale wymaga naprawy kwalifikacji, źródeł danych i commitów.
+- [Audyt konsekwencji służb — 16 IX](audits/response_consequences_2026_09_16.md)
+  dokumentuje historyczny punkt wejścia, nie obecny status implementacji.
   [Sprint 142](sprints/sprint_142_response_consequences_mvp.md) — pełna ścieżka
   scan → kamery → wygaszanie/inicjacja → eskalacja → media/BlackNet → konsekwencje MVP;
   [Sprint 143](sprints/sprint_143_response_consequences_expansion.md) — tabela kar,
@@ -66,7 +79,9 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
   usuwa incydentów ani automatycznie nie odbywa kary.
   [142.1 — kontrakt kamer](runbooks/sprint_142_1_camera_contract.md): implementacja
   i testy lokalne PASS; ponowny odbiór autora PASS 17 IX 2026, etap zamknięty.
-  Następny etap: 142.3. 143 pozostaje zaplanowany.
+  142.1–142.6 PASS; 142.7 wdrożony z wykonaniem potwierdzonym na robot,
+  pozostałe bramki według kontraktu. 143 zamknięty decyzją autora 24 IX;
+  osobny odbiór końcowej korekty 143.6 nie został zaraportowany.
 
 - [Terminal: pakiety Googleplex](gameplay/terminal_packages.md) — `pkg list-all`,
   `pkg search <nazwa>` i `pkg install <nazwa lub ID>` przez istniejący instalator.

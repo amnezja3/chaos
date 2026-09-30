@@ -1,5 +1,95 @@
 # CHAOS — Project Journal
 
+## 2026-09-30 — uzupełnienie journalu i aktualny punkt prac
+
+Ten wpis uzupełnia zaległość od 17 IX na podstawie dokumentów sprintów oraz
+potwierdzeń autora w grze. Wcześniejsze wpisy pozostają historią; przygotowanie
+zmiany i PASS testów lokalnych nie oznaczają automatycznie wdrożenia ani odbioru.
+
+### 146.4.1 — odbiór Deep Scannerów i dwie poprawki
+
+Autor potwierdził pozostały zakres pierwszego etapu jako PASS, zgłaszając brak
+dźwięku skanu i odsłuchu w GLabie oraz pomijanie powtarzających się komunikatów.
+Odtwarzacz akceptował wyłącznie MP3, przez co odrzucał oba rzeczywiste WAV
+z katalogu regular. Dodano obsługę WAV z zachowaniem walidacji ścieżek.
+Wiadomości skanera otrzymują klucz zdarzenia i fazy: kolejny skan może pokazać
+identyczną treść, powtórzenie tej samej odpowiedzi pozostaje deduplikowane.
+Zwykłe wiadomości zachowują dotychczasowe zasady.
+
+Testy GameSfx i lifecycle skanera oraz test backendu deduplikacji PASS.
+Podbito wersje skryptów w obu pulpitach i mapie. Poprawki są lokalne,
+bez commita/pusha w tej sesji; odsłuch i dwa kolejne skany oczekują odbioru
+po wdrożeniu. Nie zamykamy całego 146.4 na podstawie częściowego PASS.
+
+Etap 146.4.1 zawiera nakładkę na istniejące Skanuj, nazwę do 12 znaków Unicode,
+ikonę, ramki/kolory, logi, regular i dwa SFX. Jedna aktywna aplikacja wpływa
+na menu pustego pola, terytoriów i konfliktów tylko przy otwartym oknie.
+Polityka opublikowanego artefaktu ogranicza dodatkowe retry do 3 i timeout do
++10 s; zamknięcie kończy nakładkę, a przyszłe retry sprawdzają aktywację.
+Pozostałe efekty pulse/wave/viewfinder/direct i dopracowanie katalogu to 146.4.2.
+[Runbook i testy](../runbooks/sprint_146_4_1_ghostlab_deep_scanners.md).
+
+### 27–28 IX — rodziny własnego systemu i podróże
+
+- **146.1 — Travel Ticket: zamknięty / PASS.** Twórcy budują katalog miejsc;
+  zakup realizuje jedną podróż od razu. Cena ma limit 150 HC, współrzędne są
+  ukryte w standardowym przebiegu biletu. Trzy reakcje są dostępne po podróży
+  na koncie klienta; ocena własnego biletu jest zablokowana. Autor potwierdził
+  pełny odbiór po korektach ceny i prezentacji.
+- **146.2 — konserwacja: PASS.** Czyszczenie usuwa kwalifikujące się pliki
+  niesprzedawalne; ponowne uruchomienie bez nowych plików zwraca czysty system.
+  Aktualizacja systemu jest jednorazowa dla wersji, kolejna wymaga publikacji
+  nowego buildu. Przywracanie ochrony udostępnia Open/Low/Regular/All i logi zmian.
+  Uporządkowano projekty GLab: lista/podgląd, mobile z jednym scrollem,
+  New Project → templatka → edytor oraz usuwanie w strefie Danger.
+- **146.3 — firmware: PASS zakupu, instalacji, sukcesu, crasha i aktualizacji.**
+  Szansa 20–80%, przyrost 50–200 MB i 10–100 m, cooldown minimum 24 h po obu
+  wynikach. Limity końcowe: dysk 2 TB i zasięg 30 km. Niepowodzenie uruchamia
+  efekty crasha i wymaga restartu; kolejna próba wymaga ponownego zakupu.
+
+### 25–26 IX — GhostLab od publikacji do runtime PvP
+
+144.1–144.3 odebrane jako PASS: rejestr, authoring, przypisania narzędzi,
+migracja i lista potomków. Usunięto jeden historyczny testowy wpis bez
+kanonicznej publikacji, po wykonaniu kopii; kolejny audyt nie wykazał anomalii.
+
+**145 zamknięty / PASS**: Syslog od projektu do odczytu na celu, wspólne limity
+rodziny, wersje i jawne bezpłatne aktualizacje, publikacja/wycofanie, zakup
+i HC twórcy oraz mobile. Potwierdzono też fullscreen GLaba i wiadomość
+o obniżeniu kartoteki. Powiadomienie zastępuje licznik; instytucja zależy
+od poziomu dozoru. Radio otrzymało drugi kanał autostartu i ustawienie w adminie.
+
+**Bazowy 146 zamknięty decyzją autora.** Potomkowie Financial Sniffer,
+Friend Kicker, Security Panel Proxy, Arsenal Cleaner i Intruder Kicker
+uzupełniają System Log Reader. Potwierdzono skutki finansowe po stronie celu,
+usunięcie kontaktu po obu stronach i komunikaty, konflikt → odświeżenie → zapis
+Proxy, porządek pulpitu/FM/dysku po Cleanerze oraz wypchnięcie intruza.
+Historyczne instalacje wymagają compile → publish → jawnej aktualizacji;
+sama kompilacja nie zastępuje zainstalowanego artefaktu. Dodatkową regresję
+autor przeniósł do ogólnych testów gameplayowych. Runtime rodzin udostępniono
+ogółowi graczy, nie tylko admin/main.
+
+### 18–24 IX — konsekwencje i granice wcześniejszych odbiorów
+
+Według aktualnego kontraktu 142: etapy 142.1–142.6 mają PASS; 142.7 jest wdrożony
+i ma potwierdzone wykonanie na robot, ale nie wszystkie końcowe potwierdzenia.
+**143 zamknięty decyzją autora 24 IX**, z PASS dla 143.5a. Korekta kolejności
+dostarczenia incydentu/patrolu przed skutkami i show w 143.6 pozostaje bez
+osobnego zgłoszonego odbioru. Nie rozszerzamy tych potwierdzeń na wszystkie
+kombinacje urządzeń i scenariuszy. Szczegóły w kontraktach
+[142](../sprints/sprint_142_response_consequences_mvp.md) i
+[143](../sprints/sprint_143_response_consequences_expansion.md).
+
+### Kolejność następnych prac
+
+Po dokończeniu 146.4: **147 → 148** dla Window Maker, AppForge, Button Maker
+i Term Creator, następnie **GhostLab v2.0: 149 → 150 → 151 → 152**.
+Research, Official Exchange/import, Community/wersje oraz optimizer,
+zależności i AI/SDK mają osobne sprinty. Opisy zakładek nie są deklaracją
+gotowości tych funkcji. Podstawa: [audyt zakładek](../audits/ghostlab_tabs_scope_2026_09_26.md).
+Produkcyjny trigger i końcowy E2E GhostSignal pozostają osobną bramką;
+akceptacja stylizacji nie zastępuje jej wykonania.
+
 ## 2026-09-17 — ważność i priorytety całej kolejki Ollamy
 
 Autor zgłosił publikację starego konfliktu Abacus przy aktualnych incydentach.
