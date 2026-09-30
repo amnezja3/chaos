@@ -1,6 +1,9 @@
 # 146.4.1 — Deep Scanner: wdrożenie i odbiór
 
-Status: implementacja pierwszego etapu, odbiór w grze oczekuje.
+Status: **ZAMKNIĘTY / PASS autora**, 30 IX 2026, po poprawkach WAV,
+wiadomości kolejnych skanów i powtarzania SFX do końca animacji.
+Poniższy opis zachowuje zakres pierwszego deploymentu; rozszerza go
+[146.4.2](sprint_146_4_2_ghostlab_scanner_effects.md).
 Zakres: [146.4](../sprints/sprint_146_4_ghostlab_deep_scanners.md).
 
 ## Co trafia do wdrożenia

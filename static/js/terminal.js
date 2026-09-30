@@ -15331,7 +15331,7 @@ function renderGhostLabEditor(root, project) {
         </section>
     `;
     if (project.template_id === 'travel_ticket') mountGhostLabTravelPreview(main);
-    if (project.template_id === 'deep_scanner') mountGhostLabScannerPreview(main);
+    if (project.template_id === 'deep_scanner') mountGhostLabScannerPreview(main, project);
     main.querySelectorAll('[data-ghostlab-preview-blueprint]').forEach(button => {
         button.addEventListener('click', () => {
             setGhostLabWorking(root, "Validating...");
@@ -15367,7 +15367,7 @@ function renderGhostLabEditorField(field, value) {
     const safeKey = escapeHTML(field.key);
     const safeLabel = escapeHTML(field.label);
     if (Array.isArray(field.enum)) {
-        return `<label class="ghostlab-editor-field"><span>${safeLabel}</span><select data-ghostlab-blueprint-key="${safeKey}">${field.enum.map(option => `<option value="${escapeHTML(option)}" ${option === value ? 'selected' : ''}>${escapeHTML(option.toUpperCase())}</option>`).join('')}</select></label>`;
+        return `<label class="ghostlab-editor-field"><span>${safeLabel}</span><select data-ghostlab-blueprint-key="${safeKey}">${field.enum.map(option => `<option value="${escapeHTML(option)}" ${option === value ? 'selected' : ''}>${escapeHTML(field.option_labels?.[option] || option.toUpperCase())}</option>`).join('')}</select></label>`;
     }
     if (field.editable === false && field.type === 'textarea') {
         return `<label class="ghostlab-editor-field"><span>${safeLabel} — polityka serwera</span><input readonly data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? '')}"></label>`;
@@ -15490,6 +15490,9 @@ function validateGhostLabBlueprint(project, blueprint) {
             if (Array.isArray(field.enum) && !field.enum.includes(value)) errors.push(`${key}: wybierz systemowy zestaw.`);
         } else errors.push(`${key}: nieobslugiwany typ pola.`);
     });
+    if (project.template_id === 'deep_scanner' && !fields.sfx_id?.pattern_options?.[blueprint.pattern_id]?.includes(blueprint.sfx_id)) {
+        errors.push('sfx_id: wybierz dźwięk zgodny z animacją.');
+    }
     return { valid: errors.length === 0, errors, warnings: [] };
 }
 

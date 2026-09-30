@@ -418,6 +418,10 @@ def validate_fields(template_id, blueprint):
                 errors.append(f'{key}: wybierz systemowy zestaw.')
         else:
             errors.append(f'{key}: nieobslugiwany typ pola.')
+    if template_id == 'deep_scanner':
+        from ghostlab_scanner_catalog import SOUND_PATTERNS
+        if not isinstance(blueprint.get('sfx_id'), str) or SOUND_PATTERNS.get(blueprint['sfx_id']) != blueprint.get('pattern_id'):
+            errors.append('sfx_id: wybierz dźwięk zgodny z animacją.')
     return errors
 
 

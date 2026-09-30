@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="/static/css/style.css?v=ghost-ability-impact-6-signal-show-media-2-registry-3">
   <link rel="stylesheet" href="/static/css/blacknet.css">
   <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=interaction-fast-path-1">
-  <link rel="stylesheet" href="/static/css/ghostlab_scanner.css?v=146-4-1">
-  <script src="/static/js/ghostlab_scanner_map.js?v=146-4-1-fix-2"></script>
+  <link rel="stylesheet" href="/static/css/ghostlab_scanner.css?v=146-4-2">
+  <script src="/static/js/ghostlab_scanner_map.js?v=146-4-2"></script>
   <style>
     .context-menu {
       position: absolute;
@@ -7131,6 +7131,11 @@
                     window.mapScanEffectState.element?.classList.remove('is-visible');
                 }
             }) : null;
+            if (scannerJob && window.mapScanEffectState.element) {
+                const point = map.latLngToContainerPoint([lat,lng]);
+                window.mapScanEffectState.element.style.setProperty('--scanner-x', `${point.x}px`);
+                window.mapScanEffectState.element.style.setProperty('--scanner-y', `${point.y}px`);
+            }
             let finishTravelPulse = null;
             let pendingMarkedTarget = null;
             try {

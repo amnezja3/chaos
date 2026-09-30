@@ -61,3 +61,60 @@
       to { transform: translateX(660%); }
     }
 
+/* All patterns share the request-owned overlay and never intercept map input. */
+.chaos-map-scan-overlay.deep-scanner-styled {--scanner-x:50%;--scanner-y:50%;color:var(--scanner-frame);background:repeating-linear-gradient(0deg,transparent 0 23px,#89d99a0a 23px 24px)}
+.chaos-map-scan-overlay.deep-scanner-styled::before {filter:none;will-change:transform,opacity}
+.chaos-map-scan-overlay[data-scanner-pattern="regular"]::before {background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--scanner-frame) 22%,transparent),transparent)}
+.chaos-map-scan-overlay[data-scanner-pattern="pulse"]::before {
+  top:var(--scanner-y);left:var(--scanner-x);bottom:auto;width:140vmax;height:140vmax;
+  border:2px solid currentColor;border-radius:50%;box-sizing:border-box;
+  background:radial-gradient(circle,transparent 46%,currentColor 46.2%,transparent 46.6%);
+  animation:scanner-pulse 2.4s ease-out infinite;
+}
+@keyframes scanner-pulse {0%{transform:translate(-50%,-50%) scale(.02);opacity:.55}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+.chaos-map-scan-overlay[data-scanner-pattern="wave"]::before {
+  top:-30%;left:0;bottom:auto;width:100%;height:30%;
+  background:linear-gradient(0deg,currentColor,transparent 12%,transparent 30%,color-mix(in srgb,currentColor 12%,transparent),transparent);
+  animation:scanner-wave 2.4s linear infinite;
+}
+@keyframes scanner-wave {from{transform:translateY(0);opacity:.6}to{transform:translateY(440%);opacity:.15}}
+.chaos-map-scan-overlay[data-scanner-pattern="viewfinder"]::before {
+  top:12%;left:12%;bottom:auto;width:76%;height:68%;box-sizing:border-box;
+  background:linear-gradient(currentColor,currentColor) left top/28px 2px no-repeat,
+    linear-gradient(currentColor,currentColor) right top/28px 2px no-repeat,
+    linear-gradient(currentColor,currentColor) left bottom/28px 2px no-repeat,
+    linear-gradient(currentColor,currentColor) right bottom/28px 2px no-repeat,
+    linear-gradient(currentColor,currentColor) left top/2px 28px no-repeat,
+    linear-gradient(currentColor,currentColor) right top/2px 28px no-repeat,
+    linear-gradient(currentColor,currentColor) left bottom/2px 28px no-repeat,
+    linear-gradient(currentColor,currentColor) right bottom/2px 28px no-repeat,
+    linear-gradient(transparent 48%,currentColor 50%,transparent 52%) center/100% 200%;
+  animation:scanner-viewfinder 2.4s ease-in-out infinite;
+}
+@keyframes scanner-viewfinder {0%,100%{transform:scale(.94);background-position-y:top,top,bottom,bottom,top,top,bottom,bottom,0%;opacity:.45}50%{transform:scale(1);background-position-y:top,top,bottom,bottom,top,top,bottom,bottom,100%;opacity:.7}}
+.chaos-map-scan-overlay[data-scanner-pattern="direct"]::before {
+  top:var(--scanner-y);left:var(--scanner-x);bottom:auto;width:100vmax;height:3px;
+  transform-origin:left center;box-shadow:0 0 12px currentColor;
+  background:linear-gradient(90deg,currentColor,transparent 75%);
+  animation:scanner-direct 2.4s ease-in-out infinite;
+}
+@keyframes scanner-direct {0%,100%{transform:rotate(-145deg);opacity:.3}50%{transform:rotate(35deg);opacity:.65}}
+.context-menu [data-default-scan][data-scanner-pattern="pulse"] {border-radius:14px;box-shadow:inset 0 0 12px #b6ff5418}
+.context-menu [data-default-scan][data-scanner-pattern="wave"] {background:linear-gradient(110deg,#081a12,#164039,#081a12)}
+.context-menu [data-default-scan][data-scanner-pattern="viewfinder"] {outline:1px dashed var(--scanner-frame);outline-offset:-5px}
+.context-menu [data-default-scan][data-scanner-pattern="direct"] {box-shadow:inset 5px 0 var(--scanner-frame)}
+.context-menu [data-default-scan][data-scanner-busy="true"] {background-color:#254331;text-decoration:underline;text-underline-offset:4px}
+.deep-scanner-preview-map {height:clamp(180px,28vh,300px);isolation:isolate}
+.deep-scanner-preview .chaos-map-scan-overlay[data-scanner-pattern="pulse"]::before {width:700px;height:700px}
+.deep-scanner-preview-controls {display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.deep-scanner-preview-controls button,.deep-scanner-preview-controls select {max-width:100%;min-height:40px}
+.deep-scanner-preview-result {overflow-wrap:anywhere;min-height:3em}
+@media(max-width:600px){.chaos-map-scan-overlay::after{right:8px;bottom:8px;font-size:11px;max-width:calc(100% - 32px)}}
+@media(prefers-reduced-motion:reduce){
+  .chaos-map-scan-overlay.deep-scanner-styled::before {animation:none!important;transform:none!important;will-change:auto;opacity:.25}
+  .chaos-map-scan-overlay[data-scanner-pattern="pulse"]::before {width:160px;height:160px;left:var(--scanner-x)!important;transform:translate(-50%,-50%)!important}
+  .chaos-map-scan-overlay[data-scanner-pattern="wave"]::before {top:40%;left:0!important}
+  .chaos-map-scan-overlay[data-scanner-pattern="viewfinder"]::before {left:12%!important}
+  .chaos-map-scan-overlay[data-scanner-pattern="direct"]::before {left:var(--scanner-x)!important}
+}
+

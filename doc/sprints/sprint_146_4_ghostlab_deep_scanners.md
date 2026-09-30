@@ -1,7 +1,8 @@
 # Sprint 146.4 — GhostLab: DeepScanery w menu mapy
 
-Status: **146.4.1 — implementacja gotowa do odbioru w grze; 146.4.2 — zaplanowany**, 28 IX 2026.
+Status: **146.4.1 — ZAMKNIĘTY / PASS autora; 146.4.2 — implementacja gotowa do odbioru**, 30 IX 2026.
 Runbook: [wdrożenie i testy pierwszego etapu](../runbooks/sprint_146_4_1_ghostlab_deep_scanners.md).
+Etap 2: [katalog efektów, SFX i odbiór](../runbooks/sprint_146_4_2_ghostlab_scanner_effects.md).
 Po [146.3 — firmware](sprint_146_3_ghostlab_firmware_maintenance.md).
 Następny: [147 — kreatory](sprint_147_creator_gameplay_policy.md).
 

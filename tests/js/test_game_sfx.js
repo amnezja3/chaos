@@ -124,7 +124,7 @@ vm.runInContext(source, sandbox);
 
 const sfx = sandbox.window.GameSfx;
 const scannerManifest = JSON.parse(fs.readFileSync('static/audio/sfx/manifest.v1.json', 'utf8'));
-for (const key of ['scanner.regular.sweep', 'scanner.regular.ping']) manifest.events[key] = scannerManifest.events[key];
+for (const key of Object.keys(scannerManifest.events).filter(key => key.startsWith('scanner.'))) manifest.events[key] = scannerManifest.events[key];
 
 (async function run() {
     await sfx.init();
@@ -185,7 +185,7 @@ for (const key of ['scanner.regular.sweep', 'scanner.regular.ping']) manifest.ev
     assert.equal(started, 1);
     synced.stop(); synced.stop();
     assert.equal(ended, 1);
-    for (const key of ['scanner.regular.sweep', 'scanner.regular.ping']) {
+    for (const key of Object.keys(scannerManifest.events).filter(key => key.startsWith('scanner.'))) {
         const sound = sfx.play(key, {event_id: key});
         assert.equal((await sound.started).ok, true, 'real scanner manifest must reach Audio.play');
         sound.stop();

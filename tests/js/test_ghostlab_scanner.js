@@ -55,14 +55,14 @@ function fixture() {
     f=fixture();f.app.isConnected=false;await f.render();assert.equal(f.api.snapshot(),null);assert(f.posts.at(-1).body.release);
 
     const manifest=JSON.parse(fs.readFileSync('static/audio/sfx/manifest.v1.json'));
-    for(const id of ['scanner.regular.sweep','scanner.regular.ping']) {
+    for(const id of Object.keys(manifest.events).filter(key=>key.startsWith('scanner.'))) {
         const event=manifest.events[id];assert(event);
         const path='static/audio/sfx/'+event.file;const wav=fs.readFileSync(path);
         assert.equal(wav.toString('ascii',0,4),'RIFF');assert.equal(wav.toString('ascii',8,12),'WAVE');
         assert(wav.length>40000,'real nonempty sound asset');
     }
     let presentation={icon:'X',menu_name:'<Czesacz>',logs:{success:'Found'}};
-    const button={classList:{remove(){}},removeAttribute(){},replaceChildren(){this.children=[];},append(...nodes){this.children=nodes;}};
+    const button={classList:{remove(){}},removeAttribute(){},setAttribute(){},replaceChildren(){this.children=[];},append(...nodes){this.children=nodes;}};
     const mapWindow={parent:{DeepScanner:{snapshot:()=>presentation ? {presentation}:null,style(){}}},addEventListener(){}};
     const adapter={window:mapWindow,document:{querySelectorAll:()=>[button],createElement:()=>({setAttribute(){}})}};
     vm.createContext(adapter);vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner_map.js','utf8'),adapter);

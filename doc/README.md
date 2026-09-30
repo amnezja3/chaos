@@ -40,7 +40,7 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 ## Status bieżący
 
 Aktualizacja 30 IX 2026: [podsumowanie i odbiory](history/project_journal.md).
-Najbliżej: retest dźwięku/wiadomości 146.4.1 → 146.4.2 → 147 → 148 → 149–152.
+Najbliżej: odbiór katalogu 146.4.2 → 147 → 148 → 149–152. 146.4.1 zamknięty / PASS.
 
 - Kreatory gameplayowe — [audyt 24 IX 2026](audits/creators_gameplay_audit_2026_09_24.md),
   [147 — profil działania i policy poziomu](sprints/sprint_147_creator_gameplay_policy.md),
@@ -54,9 +54,9 @@ Najbliżej: retest dźwięku/wiadomości 146.4.1 → 146.4.2 → 147 → 148 →
   [146.2 — konserwacja](sprints/sprint_146_2_ghostlab_system_maintenance.md) i
   [146.3 — firmware](sprints/sprint_146_3_ghostlab_firmware_maintenance.md): zamknięte / PASS.
 - [146.4 — Deep Scannery](sprints/sprint_146_4_ghostlab_deep_scanners.md):
-  etap 1 odebrany poza dźwiękiem i powtarzającymi się komunikatami; poprawki lokalne
-  przeszły testy i oczekują odbioru w grze. Etap 2 katalogu efektów zaplanowany.
-  [Runbook wdrożenia i testów](runbooks/sprint_146_4_1_ghostlab_deep_scanners.md).
+  etap 1 zamknięty / PASS po poprawkach dźwięku i komunikatów. Etap 2: pięć efektów,
+  dziesięć SFX i wspólny podgląd przygotowane lokalnie; odbiór w grze oczekuje.
+  [Runbook katalogu i testów](runbooks/sprint_146_4_2_ghostlab_scanner_effects.md).
 - GhostLab v2.0 dopiero po kreatorach 147–148:
   [149 — Research](sprints/sprint_149_ghostlab_v2_research.md),
   [150 — Exchange/import](sprints/sprint_150_ghostlab_v2_exchange_import.md),

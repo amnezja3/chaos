@@ -1,5 +1,8 @@
 import os
 import unittest
+import json
+import wave
+from pathlib import Path
 from unittest.mock import patch, Mock
 import requests
 import run
@@ -9,6 +12,7 @@ from ghostlab_registry import default_blueprint, validate_fields
 from ghostlab_store import GhostLabError
 from tests import test_ghostlab_alignment as fixture
 from poiFetchClass import POIFetcher
+from ghostlab_scanner_catalog import PATTERNS, SOUNDS, SOUND_PATTERNS, presentation
 
 
 class ScannerTest(unittest.TestCase):
@@ -143,7 +147,7 @@ class ScannerTest(unittest.TestCase):
     def test_schema_author_cannot_supply_css_urls_or_unready_effects(self):
         base = default_blueprint('deep_scanner')
         self.assertFalse(validate_fields('deep_scanner', base))
-        for key, value in [('pattern_id','pulse'), ('sfx_id','https://example.test/a.wav'),
+        for key, value in [('pattern_id','unavailable'), ('sfx_id','https://example.test/a.wav'),
                            ('frame_color','red;display:none'), ('success_log','500'), ('extra_retries',4),
                            ('extra_timeout',11), ('extra_retries',True), ('menu_name','a'*13), ('menu_name','a\nb')]:
             with self.subTest(key=key, value=value):
@@ -151,6 +155,39 @@ class ScannerTest(unittest.TestCase):
         for key, value in [('success_log','300'), ('denied_log','403'), ('menu_name','ą'*12),
                            ('extra_retries',3), ('extra_timeout',10), ('success_text','')]:
             self.assertFalse(validate_fields('deep_scanner', dict(base, **{key:value})))
+
+    def test_all_patterns_compile_update_activate_and_preserve_regular(self):
+        self.stack.enter_context(patch.object(run,'delta_bus',GameStateDeltaBus(self.path)))
+        old = self.app['artifact_id']
+        for pattern in PATTERNS:
+            sfx = next(key for key in SOUNDS if SOUND_PATTERNS[key] == pattern)
+            p = self.store.get('attacker',self.project['id'])
+            p = self.store.update('attacker',p['id'],p['revision'],{'blueprint':dict(p['blueprint'],pattern_id=pattern,sfx_id=sfx)})
+            p = self.store.compile('attacker',p['id'],p['revision'],p['blueprint'],run.build_ghostlab_artifact)
+            p, app = self.store.publish('attacker',p['id'],p['revision'],p['artifact']['artifact_id'],run.build_ghostlab_googleplex_app,{'level':40,'respect':500})
+            with self.no_heavy():
+                update = self.client.post('/api/ghostlab/installed/'+app['id'],json={'expected_artifact_id':old,'artifact_id':app['artifact_id']})
+                self.assertEqual(update.status_code,200,update.json)
+                result = self.activate()
+                self.assertEqual(result['presentation']['pattern_id'],pattern)
+                self.assertEqual(result['presentation']['sfx_event'],SOUNDS[sfx])
+            old = app['artifact_id']
+
+
+class ScannerCatalogTest(unittest.TestCase):
+    def test_all_assets_and_compatible_pairs(self):
+        root=Path(__file__).resolve().parents[1]
+        manifest=json.loads((root/'static/audio/sfx/manifest.v1.json').read_text(encoding='utf8'))
+        base=default_blueprint('deep_scanner')
+        self.assertEqual(len(SOUNDS),10)
+        for sound,event in SOUNDS.items():
+            for pattern in PATTERNS:
+                errors=validate_fields('deep_scanner',dict(base,sfx_id=sound,pattern_id=pattern))
+                self.assertEqual(not errors,SOUND_PATTERNS[sound]==pattern,(sound,pattern,errors))
+            with wave.open(str(root/'static/audio/sfx'/manifest['events'][event]['file']),'rb') as audio:
+                self.assertEqual(audio.getnchannels(),1)
+                self.assertEqual(audio.getsampwidth(),2)
+                self.assertAlmostEqual(audio.getnframes()/audio.getframerate(),2.4)
 
 
 class ScannerUpstreamTest(unittest.TestCase):

@@ -63,7 +63,7 @@ tracked separately in the [project journal](doc/history/project_journal.md).
 - Player-created travel tickets: immediate single journey, creator-defined destinations, price capped at 150 HC, hidden destination coordinates in ticket flows and three post-travel reactions from customers.
 - Own-system maintenance templates: safe cleanup of unsellable files, once-per-version system updates and Open/Low/Regular/All security restoration with change logs.
 - Risky firmware updates: creator-configured success chance and bounded disk/scan-range gains, crash/restart on failure and a 24-hour cooldown after either outcome.
-- Deep Scanner overlays for the default map scanner: branding, log presets, bounded retries/timeouts and one active application. Stage 1 gameplay is accepted except for audio and repeated-message fixes awaiting retest.
+- Deep Scanner overlays for the default map scanner: branding, log presets, bounded retries/timeouts and one active application. Stage 1 is accepted; the complete five-pattern effect catalog is prepared for gameplay acceptance.
 - Incident consequences, detention, prisons and criminal-record reduction notifications; individual outstanding acceptance checks remain documented.
 - GhostNetwork and GhostSignal finale implementation; production finale trigger/E2E remains a separate acceptance gate.
 
@@ -191,7 +191,7 @@ then the gameplay creators and GhostLab v2.0. A prepared fix is not a production
 | 146.1 | Travel tickets | Closed / PASS. |
 | 146.2 | Three maintenance templates | Closed / PASS. |
 | 146.3 | Firmware | Purchase, installation, success, crash and update PASS. |
-| [146.4](doc/sprints/sprint_146_4_ghostlab_deep_scanners.md) | Deep Scanners | Stage 1 otherwise PASS; WAV playback and per-scan message deduplication fixed locally, awaiting game retest. Stage 2 effect catalog pending. |
+| [146.4](doc/sprints/sprint_146_4_ghostlab_deep_scanners.md) | Deep Scanners | Stage 1 closed / PASS. Stage 2: five effects, ten SFX and shared preview implemented locally; visual/audio gameplay acceptance pending. |
 | [147](doc/sprints/sprint_147_creator_gameplay_policy.md) | Creator gameplay profiles and level policy | Planned after 146.4. |
 | [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Creator UX, fees and runtime completion | Planned after 147. |
 | [149](doc/sprints/sprint_149_ghostlab_v2_research.md) | GhostLab v2.0 Research | Planned after creator sprints 147–148. |

@@ -3,20 +3,21 @@
     let current = null, heartbeat = null;
     const jobs = new Set();
     const maps = new Set();
+    const previews = new Set();
     const palette = {green:'#b6ff54',cyan:'#65eaff',amber:'#ffcd67',violet:'#d0a2ff'};
     let scanAudio = null;
     function stopScanAudio() {
         const old = scanAudio;
         scanAudio = null;
         if (!old) return;
-        clearTimeout(old.timer);
-        old.handle?.stop({fade_ms:80});
+        old.stop();
     }
-    function startScanAudio(saved) {
-        if (scanAudio || !global.GameSfx) return;
-        const loop = {timer:null,handle:null};
-        scanAudio = loop;
-        const live = () => scanAudio === loop && jobs.size > 0 && snapshot() === saved;
+    function soundLoop(event, isLive) {
+        const loop = {timer:null,handle:null,stopped:false,stop() {
+            if (this.stopped) return;
+            this.stopped=true;clearTimeout(this.timer);this.handle?.stop({fade_ms:80});
+        }};
+        const live = () => !loop.stopped && isLive();
         const schedule = delay => {
             if (!live()) return;
             clearTimeout(loop.timer);
@@ -24,7 +25,7 @@
         };
         function play() {
             if (!live()) return;
-            loop.handle = global.GameSfx.play(saved.presentation.sfx_event,{
+            loop.handle = global.GameSfx?.play(event,{
                 event_id:crypto.randomUUID(),
                 on_end:() => schedule(250)
             });
@@ -32,6 +33,11 @@
             loop.handle?.started?.then(result => {if (!result.ok) schedule(1000);}, () => schedule(1000));
         }
         play();
+        return loop;
+    }
+    function startScanAudio(saved) {
+        if (scanAudio || !global.GameSfx) return;
+        scanAudio = soundLoop(saved.presentation.sfx_event, () => jobs.size > 0 && snapshot() === saved);
     }
     async function post(url, body) {
         const response = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true});
@@ -46,6 +52,7 @@
         const old = current;
         current = null;
         stopScanAudio();
+        previews.forEach(dispose => dispose());
         clearInterval(heartbeat); heartbeat = null;
         jobs.forEach(job => job.dispose()); jobs.clear();
         changed();
@@ -67,6 +74,7 @@
     }
     function style(element, p) {
         element.classList.add('deep-scanner-styled');
+        element.dataset.scannerPattern = ['regular','pulse','wave','viewfinder','direct'].includes(p.pattern_id) ? p.pattern_id : 'regular';
         element.dataset.scannerFrame = p.frame_id;
         element.style.setProperty('--scanner-frame',palette[p.frame_color] || palette.green);
         element.style.setProperty('--scanner-button',palette[p.button_color] || palette.green);
@@ -82,12 +90,18 @@
                 if (this.done) return;
                 this.done = true; jobs.delete(this);
                 if (!jobs.size) stopScanAudio();
-                if (overlay) {overlay.classList.remove('deep-scanner-styled');overlay.style.removeProperty('--scanner-frame');overlay.style.removeProperty('--scanner-button');}
+                if (overlay && !Array.from(jobs).some(job => job.overlay === overlay)) {
+                    overlay.classList.remove('deep-scanner-styled');
+                    delete overlay.dataset.scannerPattern;delete overlay.dataset.scannerFrame;
+                    for(const key of ['--scanner-frame','--scanner-button','--scanner-x','--scanner-y']) overlay.style.removeProperty(key);
+                }
                 cancelEffect?.();
+                changed();
             }};
         if (overlay) {style(overlay,saved.presentation); overlay.dataset.label=saved.presentation.logs.start;}
         jobs.add(job);
         startScanAudio(saved);
+        changed();
         return job;
     }
     function inventory(apps) {
@@ -121,31 +135,69 @@
             changed();
         } catch(error) {status.textContent=error.message;}
     }
-    global.DeepScanner = {snapshot,stop,begin,render,style,inventory,
+    global.DeepScanner = {snapshot,stop,begin,render,style,inventory,soundLoop,
+        registerPreview(dispose) {previews.add(dispose);return () => previews.delete(dispose);},
+        busy:() => jobs.size > 0,
         owns:app => current?.app === app,
         focus(id) {const s=snapshot();if (s?.presentation.app_id!==id) return false;
             s.app.style.display='';s.app.scrollIntoView({block:'nearest'});s.app.querySelector('button')?.focus();return true;},
         attach(map) {maps.add(map);return () => {maps.delete(map);jobs.forEach(job => {if (job.map===map) job.dispose();});}},
-        async previewSound(id) {global.GameSfx?.unlock();return global.GameSfx?.play('scanner.regular.'+(id==='regular_ping'?'ping':'sweep'));}
+        async previewSound(id) {
+            const variants={regular:['sweep','ping'],pulse:['sonar','heartbeat'],wave:['tide','ripple'],viewfinder:['focus','tracking'],direct:['beam','radar']};
+            const [pattern,variant]=String(id).split('_');
+            if (!variants[pattern]?.includes(variant)) return null;
+            global.GameSfx?.unlock();return global.GameSfx?.play(`scanner.${pattern}.${variant}`);
+        }
     };
     global.addEventListener('pagehide',stop);
     global.addEventListener('DOMContentLoaded', () => new MutationObserver(() => {if (current && !current.app.isConnected) stop();}).observe(document.body,{childList:true,subtree:true}));
 })(window);
 
-function mountGhostLabScannerPreview(main) {
+function mountGhostLabScannerPreview(main, project) {
     const panel=document.createElement('section');panel.className='deep-scanner-preview';
-    panel.innerHTML='<p>DEMONSTRACJA — bez skanowania i aktywacji aplikacji.</p><div class="deep-scanner-preview-map"><div class="chaos-map-scan-overlay" data-label="Skanowanie mapy"></div></div><button type="button" data-visual>Podgląd regular</button> <button type="button" data-audio>Odsłuch SFX</button>';
+    panel.innerHTML='<p>DEMONSTRACJA — bez skanowania, kosztów i aktywacji aplikacji.</p><div class="deep-scanner-preview-map"><div class="chaos-map-scan-overlay"></div></div><div class="deep-scanner-preview-controls"><button type="button" data-visual>Podgląd efektu i SFX (6 s)</button><button type="button" data-audio>Odsłuch SFX</button><button type="button" data-stop>Zatrzymaj</button><select aria-label="Wynik demonstracji" data-result><option value="success">Wykrycie</option><option value="empty">Brak trafień</option><option value="error">Błąd API</option><option value="denied">Odmowa</option></select></div><p class="deep-scanner-preview-result" aria-live="polite" data-preview-log></p>';
     const preview = main.querySelector('[data-ghostlab-preview-panel]');
     if (preview) preview.after(panel); else main.appendChild(panel);
-    let sound=null,timer=null;
-    panel.querySelector('[data-visual]').onclick=()=>{
-        const effect=panel.querySelector('.chaos-map-scan-overlay');
-        const value=key=>main.querySelector(`[data-ghostlab-blueprint-key="${key}"]`)?.value;
-        DeepScanner.style(effect,{frame_id:value('frame_id'),frame_color:value('frame_color'),button_color:value('button_color')});
-        effect.dataset.label=value('start_text') || 'Skanowanie mapy';
-        effect.classList.add('is-visible');clearTimeout(timer);timer=setTimeout(()=>effect.classList.remove('is-visible'),2400);
+    let sound=null,timer=null,active=false,serial=0;
+    const input=key=>main.querySelector(`[data-ghostlab-blueprint-key="${key}"]`);
+    const value=key=>input(key)?.value;
+    const schema=project.field_schema;
+    const effect=panel.querySelector('.chaos-map-scan-overlay'),log=panel.querySelector('[data-preview-log]');
+    const text=phase=>value(phase+'_text')?.trim() || schema[phase+'_log'].option_labels[value(phase+'_log')];
+    const stop=()=>{serial++;active=false;sound?.stop();sound=null;clearTimeout(timer);effect.classList.remove('is-visible');};
+    const sync=()=>{
+        stop();
+        const select=input('sfx_id'),previous=select.value;
+        select.replaceChildren();
+        for(const id of schema.sfx_id.pattern_options[value('pattern_id')] || []) {
+            const option=document.createElement('option');option.value=id;option.textContent=id.replaceAll('_',' ');select.append(option);
+        }
+        if(Array.from(select.options).some(option=>option.value===previous))select.value=previous;
+        log.textContent='Wybrany efekt: '+value('pattern_id')+'. Podgląd nie wykonuje zapytań API.';
     };
-    panel.querySelector('[data-audio]').onclick=async()=>{sound?.stop();const id=main.querySelector('[data-ghostlab-blueprint-key="sfx_id"]')?.value;sound=await DeepScanner.previewSound(id);if (!panel.isConnected) sound?.stop();};
-    const observer=new MutationObserver(()=>{if (!panel.isConnected) {sound?.stop();clearTimeout(timer);observer.disconnect();}});
+    input('pattern_id').addEventListener('change',sync);
+    main.querySelectorAll('[data-ghostlab-blueprint-key]').forEach(field=>field.addEventListener('input',stop));
+    sync();
+    panel.querySelector('[data-visual]').onclick=()=>{
+        stop();active=true;
+        DeepScanner.style(effect,{pattern_id:value('pattern_id'),frame_id:value('frame_id'),frame_color:value('frame_color'),button_color:value('button_color')});
+        effect.dataset.label=text('start');effect.classList.add('is-visible');log.textContent=text('start');
+        window.GameSfx?.unlock();
+        sound=DeepScanner.soundLoop(schema.sfx_id.sound_events[value('sfx_id')],()=>active && panel.isConnected);
+        timer=setTimeout(()=>{
+            const phase=panel.querySelector('[data-result]').value;
+            stop();
+            const system={success:'Przykład: wykryto 16 obiektów.',empty:'Przykład: wykryto 0 obiektów.',error:'Przykład: skan nieukończony — błąd API.',denied:'Przykład: operacja niedostępna.'};
+            log.textContent=text(phase)+' — '+system[phase];
+        },6000);
+    };
+    panel.querySelector('[data-stop]').onclick=()=>{stop();log.textContent='Demonstracja przerwana.';};
+    panel.querySelector('[data-audio]').onclick=async()=>{
+        stop();const ownSerial=serial;
+        const handle=await DeepScanner.previewSound(value('sfx_id'));
+        if(!panel.isConnected || ownSerial!==serial)handle?.stop();else sound=handle;
+    };
+    const detach=DeepScanner.registerPreview(stop);
+    const observer=new MutationObserver(()=>{if (!panel.isConnected) {stop();detach();observer.disconnect();}});
     observer.observe(document.body,{childList:true,subtree:true});
 }

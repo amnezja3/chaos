@@ -4,12 +4,15 @@
     function paintMenus() {
         const p=controller()?.snapshot()?.presentation;
         document.querySelectorAll('[data-default-scan]').forEach(button=>{
-            button.classList.remove('deep-scanner-styled');button.removeAttribute('style');button.removeAttribute('data-scanner-frame');
+            button.classList.remove('deep-scanner-styled');button.removeAttribute('style');button.removeAttribute('data-scanner-frame');button.removeAttribute('data-scanner-pattern');
+            button.removeAttribute('aria-busy');button.removeAttribute('data-scanner-busy');
             button.replaceChildren();
             if (!p) {button.textContent='🔎 Skanuj';button.removeAttribute('title');return;}
             const icon=document.createElement('span'),label=document.createElement('span');
             icon.textContent=p.icon;icon.setAttribute('aria-hidden','true');label.textContent=p.menu_name;label.className='deep-scanner-label';
             button.append(icon,label);button.title=p.menu_name;controller().style(button,p);
+            const busy=Boolean(controller().busy?.());
+            button.setAttribute('aria-busy',String(busy));button.setAttribute('data-scanner-busy',String(busy));
         });
     }
     global.DeepScannerMap={paintMenus,

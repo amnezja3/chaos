@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-09-30 — PASS 146.4.1 i pakiet 146.4.2
+
+Autor potwierdził końcowy PASS pierwszego etapu po naprawieniu obsługi WAV,
+powtarzalnych komunikatów i pętli dźwięku przez cały skan. Na jego polecenie
+rozpoczęto drugi etap: pulse, wave, viewfinder i direct uzupełniają regular.
+Każdy wzór ma dwa zgodne SFX; stare identyfikatory i artefakty pozostają ważne.
+Edytor filtruje dźwięki według animacji, a walidacja serwera pilnuje zgodności.
+Wspólny renderer i pętla SFX obsługują mapę oraz sześci sekundowy podgląd
+bez zapytań skanu, z demonstracjami wyników i przyciskiem zatrzymania.
+
+43 testy backendu oraz sześć zestawów JS PASS. Pakiet pozostaje lokalny,
+bez commita/pusha. Browser nie był dostępny: wygląd desktop/mobile, intensywność
+efektów i odsłuch wszystkich wariantów czekają na odbiór autora.
+[Runbook 146.4.2](../runbooks/sprint_146_4_2_ghostlab_scanner_effects.md).
+Cały 146.4 pozostaje otwarty do tego odbioru; potem 147–148 i GLab v2.0.
+
 ## 2026-09-30 — uzupełnienie journalu i aktualny punkt prac
 
 Ten wpis uzupełnia zaległość od 17 IX na podstawie dokumentów sprintów oraz

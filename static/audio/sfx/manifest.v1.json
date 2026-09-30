@@ -9,6 +9,14 @@
     "ui": { "max_voices": 3 }
   },
   "events": {
+    "scanner.pulse.sonar": {"file":"scanner/pulse_sonar_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.pulse.heartbeat": {"file":"scanner/pulse_heartbeat_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.wave.tide": {"file":"scanner/wave_tide_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.wave.ripple": {"file":"scanner/wave_ripple_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.viewfinder.focus": {"file":"scanner/viewfinder_focus_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.viewfinder.tracking": {"file":"scanner/viewfinder_tracking_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.direct.beam": {"file":"scanner/direct_beam_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
+    "scanner.direct.radar": {"file":"scanner/direct_radar_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
     "scanner.regular.sweep": {"file":"scanner/regular_sweep_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
     "scanner.regular.ping": {"file":"scanner/regular_ping_v1.wav","bus":"gameplay","priority":45,"volume":0.6,"max_duration_ms":2500,"cooldown_ms":0,"duck_radio":0.8},
     "consequence.stage_1": { "file": "consequences/consequence_01_fine.mp3", "bus": "system", "priority": 95, "volume": 0.9, "max_duration_ms": 6001, "cooldown_ms": 0, "duck_radio": 0.3 },
