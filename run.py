@@ -29269,7 +29269,6 @@ def install_app():
                 requirement_error = validate_app_install_requirements(app_data, {**identity, **capabilities})
                 if requirement_error:
                     return jsonify(status='error', reason='requirements_not_met', message=requirement_error), 400
-            purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}"
             price = max(0, int(app_data.get("price") or 0))
             payee_username = str(app_data.get("purchase_account") or "admin").strip() or "admin"
             installed = {}
@@ -29287,26 +29286,26 @@ def install_app():
                     purchase_key=purchase_key,
                 ))
 
-            if price > 0 and payee_username != buyer_username:
-                payment = wallet_balance_store.transfer(
-                    buyer_username,
-                    payee_username,
-                    price,
-                    transaction_key=purchase_key,
-                    note=f"googleplex:{app_id}",
-                    source="googleplex.bounded_install",
-                    transaction_callback=install_in_purchase,
-                )
-                balance = int(payment.get("source_balance") or 0)
-                payment_duplicate = bool(payment.get("duplicate"))
-            else:
-                from database import db_connect
-                with db_connect(player_inventory_store.db_path) as conn:
-                    conn.execute('BEGIN IMMEDIATE')
-                    install_in_purchase(conn, None)
-                install_result = installed
-                balance = canonical_wallet_balance(buyer_username)
-                payment_duplicate = bool(install_result.get("duplicate"))
+            from database import db_connect
+            with db_connect(player_inventory_store.db_path) as purchase_conn:
+                purchase_conn.execute('BEGIN IMMEDIATE')
+                purchase_key = player_inventory_store.app_purchase_key(
+                    buyer_username, app_id, conn=purchase_conn)
+                if price > 0 and payee_username != buyer_username:
+                    payment = wallet_balance_store.transfer(
+                        buyer_username, payee_username, price,
+                        transaction_key=purchase_key,
+                        note=f"googleplex:{app_id}",
+                        source="googleplex.bounded_install",
+                        transaction_callback=install_in_purchase,
+                        conn=purchase_conn,
+                    )
+                    balance = int(payment.get("source_balance") or 0)
+                    payment_duplicate = bool(payment.get("duplicate"))
+                else:
+                    install_in_purchase(purchase_conn, None)
+                    balance = canonical_wallet_balance(buyer_username)
+                    payment_duplicate = bool(installed.get("duplicate"))
 
             inventory = player_inventory_store.snapshot(buyer_username)
             storage = inventory.get("storage") or {}
@@ -29326,6 +29325,12 @@ def install_app():
                 "storage_over_limit": int(storage.get("used") or 0) > int(storage.get("capacity") or 0),
             }
             if not duplicate_install:
+                if price > 0 and payee_username != buyer_username:
+                    add_cyberner_direct_notification(
+                        payee_username, "Googolplex", "Googolplex",
+                        "Wpłata za aplikację",
+                        f"{buyer_username} kupił aplikację {app_data['name']} za {price} HackCoinów.",
+                    )
                 storage_added = int(installed.get("storage_added") or 0)
                 record_storage_delta(
                     buyer_username,
@@ -29401,6 +29406,8 @@ def install_app():
             client_key = wallet_transaction_key_from_request(data)
             key_digest = hashlib.sha256(client_key.encode("utf-8")).hexdigest()
             purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}:{key_digest}"
+        elif not is_product:
+            purchase_key = player_inventory_store.app_purchase_key(buyer_username, app_id)
         else:
             purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}"
 

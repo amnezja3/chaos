@@ -126,3 +126,122 @@
   .chaos-map-scan-overlay[data-scanner-pattern="direct"]::before {left:var(--scanner-x)!important}
 }
 
+/* 146.4.2 — scanner instrument show. Each scene belongs to the active request. */
+.chaos-map-scan-overlay.deep-scanner-styled {
+  container-type:size;
+  --scanner-dim:color-mix(in srgb,var(--scanner-frame) 22%,transparent);
+  --scanner-light:color-mix(in srgb,var(--scanner-frame) 65%,white);
+  background-color:#00100d38;
+  box-shadow:inset 0 0 55px #00100da6,inset 0 0 2px var(--scanner-frame);
+}
+.chaos-map-scan-overlay.deep-scanner-styled::after {
+  z-index:3;right:16px;bottom:16px;max-width:calc(100% - 150px);
+  padding:8px 12px;border-width:0 0 0 2px;background:#00150ee8;
+  font:11px/1.5 monospace;letter-spacing:.07em;text-shadow:0 0 8px var(--scanner-frame);
+}
+.deep-scanner-scene {display:none;position:absolute;inset:0;overflow:hidden;pointer-events:none;color:var(--scanner-frame)}
+.chaos-map-scan-overlay.is-visible.deep-scanner-styled .deep-scanner-scene {display:block}
+.deep-scanner-scene > div {position:absolute;box-sizing:border-box;pointer-events:none}
+.scanner-show-grid {
+  inset:0;opacity:.25;
+  background:linear-gradient(var(--scanner-dim) 1px,transparent 1px) 50% 50%/48px 48px,
+    linear-gradient(90deg,var(--scanner-dim) 1px,transparent 1px) 50% 50%/48px 48px;
+  mask-image:radial-gradient(ellipse,black,transparent 75%);
+}
+.scanner-show-caption {
+  top:18px;left:50%;transform:translateX(-50%);white-space:nowrap;
+  padding:6px 14px;color:var(--scanner-light);background:#00150ee6;
+  border-top:1px solid var(--scanner-frame);font:10px/1.4 monospace;letter-spacing:.2em;
+  box-shadow:0 3px 18px #0005;
+}
+.scanner-show-caption::before {content:'';display:inline-block;width:5px;height:5px;margin-right:9px;background:currentColor;box-shadow:0 0 8px currentColor;animation:scanner-show-breathe 2.4s ease-in-out infinite}
+.scanner-show-rail {
+  left:16px;bottom:19px;width:100px;height:16px;
+  border-block:1px solid var(--scanner-dim);
+  background:repeating-linear-gradient(90deg,var(--scanner-frame) 0 2px,transparent 2px 7px) left center/100% 6px no-repeat;
+  mask-image:linear-gradient(90deg,transparent,black 35%,transparent);mask-size:200% 100%;
+  animation:scanner-show-rail 2.4s linear infinite;
+}
+.scanner-show-reticle {
+  left:var(--scanner-x);top:var(--scanner-y);width:30px;height:30px;transform:translate(-50%,-50%);
+  background:linear-gradient(var(--scanner-light),var(--scanner-light)) center/1px 100% no-repeat,
+    linear-gradient(90deg,var(--scanner-light),var(--scanner-light)) center/100% 1px no-repeat;
+  filter:drop-shadow(0 1px 1px #00100d);opacity:.85;
+}
+.scanner-show-reticle::after {content:'';position:absolute;inset:10px;border:1px solid var(--scanner-light);border-radius:50%;box-shadow:0 0 12px var(--scanner-frame)}
+.scanner-show-aperture,.scanner-show-echo,.scanner-show-wake {display:none}
+@keyframes scanner-show-breathe {0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes scanner-show-rail {from{mask-position:100% 0}to{mask-position:-100% 0}}
+@keyframes scanner-show-orbit {from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+/* Line scanner: a fine leading edge, textured light curtain and trailing pass. */
+.chaos-map-scan-overlay[data-scanner-pattern="regular"]::before {
+  background:linear-gradient(90deg,transparent,var(--scanner-dim) 60%,var(--scanner-frame) 94%,var(--scanner-light) 95%,transparent 97%);
+  filter:drop-shadow(0 0 5px var(--scanner-frame));
+}
+[data-scanner-pattern="regular"] .scanner-show-wake {
+  display:block;top:0;bottom:0;left:-18%;width:18%;
+  background:repeating-linear-gradient(0deg,transparent 0 7px,var(--scanner-dim) 7px 8px);
+  animation:chaos-map-scan-sweep 1.25s linear infinite;animation-delay:-.14s;
+}
+/* Sonar: staggered wavefronts and a calibrated ring around the scan origin. */
+[data-scanner-pattern="pulse"] .scanner-show-aperture {
+  display:block;left:var(--scanner-x);top:var(--scanner-y);width:116px;height:116px;border-radius:50%;
+  border:1px solid var(--scanner-dim);outline:1px dashed var(--scanner-frame);outline-offset:8px;
+  background:repeating-conic-gradient(var(--scanner-frame) 0deg 1deg,transparent 1deg 15deg);
+  mask-image:radial-gradient(circle,transparent 58%,black 59%,black 65%,transparent 66%);
+  animation:scanner-show-orbit 16s linear infinite;
+}
+[data-scanner-pattern="pulse"] .scanner-show-echo,[data-scanner-pattern="pulse"] .scanner-show-wake {
+  display:block;left:var(--scanner-x);top:var(--scanner-y);width:max(200cqw,200cqh);height:max(200cqw,200cqh);
+  border:2px solid var(--scanner-frame);border-radius:50%;box-shadow:inset 0 0 24px var(--scanner-dim),0 0 8px var(--scanner-dim);
+  animation:scanner-pulse 2.4s ease-out infinite;animation-delay:-.8s;
+}
+[data-scanner-pattern="pulse"] .scanner-show-wake {animation-delay:-1.6s;border-width:1px}
+/* Spectrum wave: crossing curtains with fine interference lines. */
+[data-scanner-pattern="wave"] .scanner-show-echo,[data-scanner-pattern="wave"] .scanner-show-wake {
+  display:block;left:-10%;top:-15%;width:120%;height:30%;
+  background:repeating-linear-gradient(0deg,transparent 0 5px,var(--scanner-dim) 6px 7px),linear-gradient(0deg,var(--scanner-frame),transparent 6%);
+  mask-image:linear-gradient(0deg,black,transparent);transform-origin:center;
+  animation:scanner-show-wave 3.6s ease-in-out infinite alternate;
+}
+[data-scanner-pattern="wave"] .scanner-show-wake {animation-delay:-1.8s;opacity:.5}
+@keyframes scanner-show-wave {from{transform:translateY(20%) skewY(-8deg)}to{transform:translateY(290%) skewY(8deg)}}
+/* Optical scanner: an iris, a calibration scale and the moving focus frame. */
+[data-scanner-pattern="viewfinder"] .scanner-show-aperture {
+  display:block;left:50%;top:46%;width:min(48cqw,48cqh);height:min(48cqw,48cqh);border-radius:50%;
+  border:1px solid var(--scanner-frame);outline:1px dashed var(--scanner-dim);outline-offset:9px;
+  background:conic-gradient(transparent 0deg 30deg,var(--scanner-frame) 30deg 70deg,transparent 70deg 210deg,var(--scanner-frame) 210deg 250deg,transparent 250deg);
+  mask-image:radial-gradient(circle,transparent 62%,black 63%);
+  animation:scanner-show-orbit 9.6s linear infinite;
+}
+[data-scanner-pattern="viewfinder"] .scanner-show-echo {
+  display:block;left:8%;right:8%;top:46%;height:10px;opacity:.7;
+  background:repeating-linear-gradient(90deg,var(--scanner-frame) 0 1px,transparent 1px 12px);
+  mask-image:linear-gradient(90deg,black,transparent 35%,transparent 65%,black);
+}
+[data-scanner-pattern="viewfinder"] .scanner-show-reticle {left:50%;top:46%;width:44px;height:44px}
+/* Directional scanner: a cone of light follows the beam from the same origin. */
+[data-scanner-pattern="direct"] .scanner-show-wake {
+  display:block;left:var(--scanner-x);top:var(--scanner-y);width:max(200cqw,200cqh);height:max(200cqw,200cqh);
+  margin-top:calc(max(200cqw,200cqh) / -2);transform-origin:left center;
+  background:conic-gradient(from 78deg at 0% 50%,transparent,var(--scanner-dim) 10deg,var(--scanner-frame) 12deg,transparent 13deg);
+  mask-image:radial-gradient(circle at left center,black,transparent 65%);
+  animation:scanner-direct 2.4s ease-in-out infinite;
+}
+[data-scanner-pattern="direct"] .scanner-show-aperture {
+  display:block;left:var(--scanner-x);top:var(--scanner-y);width:74px;height:74px;border:1px dashed var(--scanner-frame);border-radius:50%;
+  box-shadow:0 0 0 7px #00100d44,inset 0 0 20px var(--scanner-dim);
+  animation:scanner-show-orbit 12s linear infinite reverse;
+}
+@media(max-width:600px) {
+  .scanner-show-caption {top:12px;font-size:9px;letter-spacing:.1em;padding:5px 8px}
+  .scanner-show-rail {width:52px;left:10px;bottom:15px}
+  .chaos-map-scan-overlay.deep-scanner-styled::after {right:10px;bottom:10px;max-width:calc(100% - 86px);font-size:10px;padding:6px 8px}
+}
+@media(prefers-reduced-motion:reduce) {
+  .deep-scanner-scene *,.deep-scanner-scene *::before {animation:none!important}
+  .scanner-show-aperture {transform:translate(-50%,-50%)}
+  [data-scanner-pattern="pulse"] .scanner-show-echo,[data-scanner-pattern="pulse"] .scanner-show-wake {display:none}
+  [data-scanner-pattern="wave"] .scanner-show-echo,[data-scanner-pattern="wave"] .scanner-show-wake {top:40%}
+  [data-scanner-pattern="direct"] .scanner-show-wake {transform:rotate(-25deg);opacity:.5}
+}

@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 class Node {
-    constructor(){this.value='';this.options=[];this.dataset={};this.isConnected=true;this.events={};this.children={};this.classes=new Set();this.classList={add:k=>this.classes.add(k),remove:k=>this.classes.delete(k)};this.style={setProperty(){},removeProperty(){}};}
+    constructor(){this.value='';this.options=[];this.dataset={};this.isConnected=true;this.events={};this.children={};this.classes=new Set();this.classList={add:k=>this.classes.add(k),remove:k=>this.classes.delete(k),contains:k=>this.classes.has(k)};this.style={setProperty(){},removeProperty(){}};}
     addEventListener(key,fn){(this.events[key] ||= []).push(fn);}
     emit(key){for(const fn of this.events[key] || [])fn();}
     querySelector(key){return this.children[key] ||= new Node();}

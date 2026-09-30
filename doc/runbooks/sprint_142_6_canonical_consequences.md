@@ -7,6 +7,24 @@ Pełny odbiór integracyjny i rollout pozostają w 142.7.
 
 ## Wykonanie
 
+### Poprawka ponownego zakupu po konfiskacie — 30 IX 2026
+
+Stały klucz `googleplex:purchase:<gracz>:<app>` powodował odtworzenie instalacji
+bez nowej opłaty: portfel rozpoznawał dawną transakcję jako retry. Zakup po
+usunięciu aplikacji otrzymuje teraz klucz z kolejną wersją instalacji, odczytaną
+z kanonicznego wpisu `player_apps` o statusie `uninstalled`. Istniejąca instalacja
+zachowuje swój klucz dla retry. Pozostałości plików FM nie decydują o płatności.
+
+Ścieżka bounded wybiera klucz, wykonuje transfer i instaluje w jednej transakcji.
+Nowe zakupy ponownie liczą pobranie i wysyłają powiadomienie o sprzedaży do
+Cybernera twórcy. Poprawka obejmuje również starszą ścieżkę aplikacji twórców.
+Nie zmienia biletów ani produktów jednorazowych. Bez migracji i bez automatycznej
+korekty historycznych zakupów, które wcześniej przeszły bez opłaty.
+
+Regresja: `tests.test_googleplex_repurchase` — zakup, retry, kanoniczne usunięcie,
+ponowny zakup, oba salda, wywołania powiadomień, brak środków oraz równoczesne
+retry w ścieżce bounded. Bazy testowe są izolowane.
+
 Nowy `CanonicalConsequenceExecutor` korzysta z tabeli `RESPONSE_CONSEQUENCE_TABLE`
 i `CriminalRecordStore`. Stary executor mutujący profile pozostaje zablokowany.
 

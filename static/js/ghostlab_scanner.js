@@ -78,6 +78,24 @@
         element.dataset.scannerFrame = p.frame_id;
         element.style.setProperty('--scanner-frame',palette[p.frame_color] || palette.green);
         element.style.setProperty('--scanner-button',palette[p.button_color] || palette.green);
+        if (element.classList.contains('chaos-map-scan-overlay')) {
+            let scene = element.querySelector('.deep-scanner-scene');
+            if (!scene) {
+                // Use the map's document when decorating an iframe. Fixed, bounded
+                // layers: no particle timers, canvas loop or fabricated detections.
+                scene = element.ownerDocument.createElement('div');
+                scene.className = 'deep-scanner-scene';
+                scene.setAttribute('aria-hidden', 'true');
+                for (const part of ['grid','aperture','echo','wake','reticle','rail','caption']) {
+                    const layer = element.ownerDocument.createElement('div');
+                    layer.className = 'scanner-show-' + part;
+                    scene.appendChild(layer);
+                }
+                element.appendChild(scene);
+            }
+            const modes = {regular:'LINE / SWEEP',pulse:'PULSE / SONAR',wave:'WAVE / SPECTRUM',viewfinder:'VIEWFINDER / OPTICS',direct:'DIRECT / BEAM'};
+            scene.querySelector('.scanner-show-caption').textContent = modes[element.dataset.scannerPattern];
+        }
     }
     function begin(map, overlay, cancelEffect) {
         const saved = snapshot();
@@ -93,6 +111,7 @@
                 if (overlay && !Array.from(jobs).some(job => job.overlay === overlay)) {
                     overlay.classList.remove('deep-scanner-styled');
                     delete overlay.dataset.scannerPattern;delete overlay.dataset.scannerFrame;
+                    overlay.querySelector('.deep-scanner-scene')?.remove();
                     for(const key of ['--scanner-frame','--scanner-button','--scanner-x','--scanner-y']) overlay.style.removeProperty(key);
                 }
                 cancelEffect?.();

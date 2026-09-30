@@ -54,6 +54,29 @@ function fixture() {
     f=fixture();await f.render();const map={};const detach=f.api.attach(map);f.api.begin(map,null,()=>{});detach();assert.equal(f.stops(),1);
     f=fixture();f.app.isConnected=false;await f.render();assert.equal(f.api.snapshot(),null);assert(f.posts.at(-1).body.release);
 
+    // The map lives in a different document: build its scene there, once,
+    // and retain it until the last request using that overlay is disposed.
+    const mapDocument={createElement(){
+        const element={ownerDocument:mapDocument,className:'',children:[],dataset:{},
+            style:{setProperty(){},removeProperty(){}},setAttribute(){},
+            appendChild(child){child.parent=this;this.children.push(child);},
+            querySelector(selector){return this.children.find(child=>child.className===selector.slice(1)) || null;},
+            remove(){this.parent.children=this.parent.children.filter(child=>child!==this);}};
+        element.classList={contains:name=>element.className.split(' ').includes(name),
+            add:name=>{if(!element.classList.contains(name))element.className+=' '+name;},
+            remove:name=>{element.className=element.className.split(' ').filter(c=>c!==name).join(' ');}};
+        return element;
+    }};
+    f=fixture();await f.render();
+    const overlay=mapDocument.createElement('div');overlay.className='chaos-map-scan-overlay';
+    const visual=f.api.begin({},overlay,()=>{}),visual2=f.api.begin({},overlay,()=>{});
+    assert.equal(overlay.children.length,1,'reuse one bounded scene');
+    assert.equal(overlay.children[0].children.length,7);
+    assert.equal(overlay.children[0].ownerDocument,mapDocument);
+    visual.dispose();assert.equal(overlay.children.length,1);
+    visual2.dispose();assert.equal(overlay.children.length,0,'dispose removes all show layers');
+    assert(!overlay.classList.contains('deep-scanner-styled'));
+
     const manifest=JSON.parse(fs.readFileSync('static/audio/sfx/manifest.v1.json'));
     for(const id of Object.keys(manifest.events).filter(key=>key.startsWith('scanner.'))) {
         const event=manifest.events[id];assert(event);

@@ -25,6 +25,7 @@ return ['regular','pulse','wave','viewfinder','direct'].map(p=>{el.dataset.scann
 }`});
 await call('browser_evaluate',{function:`async () => {
 const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js';document.head.append(script);await new Promise(resolve=>script.onload=resolve);
+const scannerScript=document.createElement('script');scannerScript.src='/static/js/ghostlab_scanner.js';document.head.append(scannerScript);await new Promise(resolve=>scannerScript.onload=resolve);
 document.body.innerHTML='';document.body.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px;background:#17201c;height:auto;overflow:auto';
 const results=[];
 for(const pattern of ['regular','pulse','wave','viewfinder','direct']) {
@@ -32,6 +33,9 @@ for(const pattern of ['regular','pulse','wave','viewfinder','direct']) {
  const box=card.lastElementChild; const map=L.map(box).setView([52,21],12);
  box.style.background='repeating-linear-gradient(30deg,#d4d1ba 0 45px,#faf9f2 46px 52px,#bfcbb4 53px 90px)';
  const overlay=document.createElement('div');overlay.className='chaos-map-scan-overlay deep-scanner-styled is-visible';overlay.dataset.scannerPattern=pattern;overlay.dataset.label='Test mapy Leaflet';overlay.style.cssText='--scanner-frame:#b6ff54;--scanner-button:#b6ff54';box.append(overlay);
+ DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'cyan',button_color:'cyan'});
+ DeepScanner.style(overlay,{pattern_id:pattern,frame_id:'single',frame_color:'cyan',button_color:'cyan'});
+ if(overlay.querySelectorAll('.deep-scanner-scene').length!==1 || overlay.querySelector('.deep-scanner-scene').children.length!==7) throw Error('scene duplicated');
  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
  for(const animation of overlay.getAnimations({subtree:true})) {animation.pause();animation.currentTime=800;}
  const cs=getComputedStyle(overlay,'::before');
@@ -41,9 +45,16 @@ for(const pattern of ['regular','pulse','wave','viewfinder','direct']) {
 return results;
 }`});
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-after.png'});
+await call('browser_evaluate',{function:`() => {for(const el of document.querySelectorAll('.chaos-map-scan-overlay')) for(const animation of el.getAnimations({subtree:true})) animation.currentTime=1600; return 'phase 1600ms';}`});
+await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-show-phase2.png'});
 await call('browser_resize',{width:390,height:844});
 await call('browser_evaluate',{function:`async () => {document.body.style.gridTemplateColumns='1fr'; window.dispatchEvent(new Event('resize')); return [...document.querySelectorAll('.chaos-map-scan-overlay')].map(el=>({pattern:el.dataset.scannerPattern,width:el.getBoundingClientRect().width,effectWidth:getComputedStyle(el,'::before').width}));}`});
 await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-mobile.png',fullPage:true});
+await call('browser_evaluate',{function:`() => {for(const el of document.querySelectorAll('.leaflet-container'))el.style.background='repeating-linear-gradient(30deg,#101e26 0 45px,#344955 46px 52px,#1b2e33 53px 90px)';return 'dark map';}`});
+await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-show-dark.png',fullPage:true});
+await call('browser_run_code_unsafe',{code:`async (page) => {await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(200);return await page.evaluate(()=>{const count=[...document.querySelectorAll('.chaos-map-scan-overlay')].reduce((n,e)=>n+e.getAnimations({subtree:true}).length,0);if(count)throw Error('Reduced motion still animates: '+count);return {reducedMotion:true,animations:count};});}`});
+await call('browser_take_screenshot',{type:'png',filename:'.playwright-mcp/scanner-show-reduced.png',fullPage:true});
+await call('browser_evaluate',{function:`() => {for(const el of document.querySelectorAll('.chaos-map-scan-overlay'))el.classList.remove('is-visible'); const visible=[...document.querySelectorAll('.deep-scanner-scene')].filter(e=>getComputedStyle(e).display!=='none');if(visible.length)throw Error('Hidden scan kept visible layers');return 'hidden scenes PASS';}`});
 await call('browser_console_messages',{level:'error'});
 await call('browser_close',{});
 console.log('PLAYWRIGHT MCP SMOKE PASS');

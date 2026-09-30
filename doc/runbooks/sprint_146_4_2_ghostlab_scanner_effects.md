@@ -1,5 +1,29 @@
 # 146.4.2 — katalog Deep Scannerów
 
+## Rozbudowane pokazy skanu — 30 IX 2026
+
+Autor potwierdził mechanikę wszystkich skanerów. Odbiór estetyki nadal otwarty.
+Wspólna scena mapy i podglądu zawiera siedem stałych warstw CSS: siatkę,
+aperturę, echo, smugę, celownik, wskaźnik pracy i podpis trybu.
+
+- Regular: świetlna kurtyna z ostrą krawędzią i teksturowanym śladem.
+- Pulse: przesunięte w czasie echa sonaru i obrotowa podziałka przy źródle.
+- Wave: krzyżujące się, pochylane fale z liniami interferencji.
+- Viewfinder: narożniki, ruchoma linia, obrotowa przesłona i podziałka optyczna.
+- Direct: promień, stożek światła i pierścień przy źródle skanu.
+
+Kolory nadal pochodzą z blueprintu. To dekoracja aktywnego żądania: brak
+fikcyjnych trafień, procentów postępu, dodatkowych zapytań czy timerów cząstek.
+Scena tworzona jest w dokumencie mapy i usuwana po ostatnim korzystającym z niej
+żądaniu. Dźwięk zachowuje dotychczasową pętlę. Reduced motion wyłącza animacje.
+
+Weryfikacja: Playwright MCP / Chromium na izolowanych mapach Leaflet,
+1440 i 390 px, jasne i ciemne tło, dwie fazy animacji, pojedyncza scena po
+powtórnym dekorowaniu, ukrywanie po skanie, reduced motion (0 animacji),
+konsola (0 błędów). Testy JS lifecycle, preview oraz GameSfx: PASS.
+Nie zastępuje to estetycznego odbioru w grze. Zaktualizowano cache CSS/JS;
+po wdrożeniu odświeżyć pulpit i otworzyć ponownie mapę, bez rekompilacji produktu.
+
 ## Poprawka czytelności mapy (30 IX 2026)
 
 Po zgłoszeniu słabo widocznych efektów na mapie wzmocniono kontrast czterech

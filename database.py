@@ -11924,6 +11924,26 @@ class PlayerInventoryStore:
                 counts.update({row['app_id']: int(row['downloads']) for row in rows})
         return counts
 
+    def app_purchase_key(self, username, app_id, *, conn=None):
+        """Keep retries on one receipt, but charge for a new installation.
+
+        Confiscation/uninstall retains a versioned tombstone in player_apps.
+        File-manager entries are not purchase identities.
+        """
+        if conn is None:
+            with db_connect(self.db_path) as connection:
+                return self.app_purchase_key(username, app_id, conn=connection)
+        base = f"googleplex:purchase:{username}:{app_id}"
+        row = conn.execute(
+            "SELECT app_json, status, version FROM player_apps WHERE username=? AND app_id=?",
+            (username, app_id),
+        ).fetchone()
+        if not row:
+            return base
+        if row['status'] == 'uninstalled':
+            return f"{base}:installation:{int(row['version']) + 1}"
+        return str(loads_json(row['app_json'], {}).get('wallet_transaction_key') or base)
+
     def install_app_with_conn(self, conn, username, app, *, purchase_key=""):
         """Install one canonical app inside the caller's transaction.
 
@@ -12035,7 +12055,10 @@ class PlayerInventoryStore:
         )
         # Same transaction as inventory/payment; the duplicate branch above
         # never increments. Seed/import and non-shop installs are not downloads.
-        if app.get("bounded_install") is True and purchase_key == f"googleplex:purchase:{username}:{app_id}":
+        shop_key = f"googleplex:purchase:{username}:{app_id}"
+        if app.get("bounded_install") is True and (
+            purchase_key == shop_key or purchase_key.startswith(shop_key + ':installation:')
+        ):
             self.record_catalog_download(app_id, purchase_key, conn=conn)
         return {
             "app": installed_app,
