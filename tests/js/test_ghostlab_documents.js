@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('static/js/terminal.js', 'utf8');
+const start = source.indexOf('function renderFileManagerMarkdown(markdown) {');
+const end = source.indexOf('async function createFileManager(', start);
+const context = vm.createContext({escapeHTML: text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))});
+vm.runInContext(source.slice(start,end),context);
+const rendered = context.renderFileManagerMarkdown('# Żółw\n\n**Porada**\n- lista\n```\n<script>alert(1)</script>\n```\n<img src=x onerror=alert(1)>\n[klik](javascript:alert(1))');
+assert(rendered.includes('<h2>Żółw</h2>'));
+assert(rendered.includes('<strong>Porada</strong>'));
+assert(rendered.includes('<li>lista</li>'));
+assert(rendered.includes('&lt;script&gt;'));
+assert(!rendered.includes('<script>'));
+assert(!rendered.includes('<img'));
+assert(!rendered.includes('href='));
+console.log('PTK shared Markdown renderer: PASS');

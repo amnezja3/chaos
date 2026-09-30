@@ -14,6 +14,8 @@ def runtime_artifact_ready(artifact):
 
 
 def runtime_status(artifact):
+    if artifact.get('template_id') == 'ptk_document' and runtime_artifact_ready(artifact):
+        return 'document'
     if (get_template(artifact.get('template_id')) or {}).get('launch_mode') == 'own_system' and runtime_artifact_ready(artifact):
         return 'own_system'
     if artifact.get('template_id') == 'travel_ticket' and runtime_artifact_ready(artifact):

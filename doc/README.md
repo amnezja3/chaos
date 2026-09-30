@@ -40,7 +40,9 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 ## Status bieżący
 
 Aktualizacja 30 IX 2026: [podsumowanie i odbiory](history/project_journal.md).
-Najbliżej: odbiór katalogu 146.4.2 → 147 → 148 → 149–152. 146.4.1 zamknięty / PASS.
+Pakiet do odbioru: [146.5 — domknięcie GhostLab 1.0](sprints/sprint_146_5_ghostlab_v1_completion.md),
+[wdrożenie i testy](runbooks/sprint_146_5_ghostlab_completion.md)
+→ 147 → 148 → 149–152. Cały 146.4 zamknięty / PASS autora.
 
 - Kreatory gameplayowe — [audyt 24 IX 2026](audits/creators_gameplay_audit_2026_09_24.md),
   [147 — profil działania i policy poziomu](sprints/sprint_147_creator_gameplay_policy.md),
@@ -54,8 +56,7 @@ Najbliżej: odbiór katalogu 146.4.2 → 147 → 148 → 149–152. 146.4.1 zamk
   [146.2 — konserwacja](sprints/sprint_146_2_ghostlab_system_maintenance.md) i
   [146.3 — firmware](sprints/sprint_146_3_ghostlab_firmware_maintenance.md): zamknięte / PASS.
 - [146.4 — Deep Scannery](sprints/sprint_146_4_ghostlab_deep_scanners.md):
-  etap 1 zamknięty / PASS po poprawkach dźwięku i komunikatów. Etap 2: pięć efektów,
-  dziesięć SFX i wspólny podgląd przygotowane lokalnie; odbiór w grze oczekuje.
+  oba etapy zamknięte / PASS, łącznie z poświatą mapy i ostatnią korektą viewfindera.
   [Runbook katalogu i testów](runbooks/sprint_146_4_2_ghostlab_scanner_effects.md).
 - GhostLab v2.0 dopiero po kreatorach 147–148:
   [149 — Research](sprints/sprint_149_ghostlab_v2_research.md),

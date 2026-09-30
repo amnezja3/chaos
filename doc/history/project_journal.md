@@ -1,5 +1,48 @@
 # CHAOS — Project Journal
 
+## 2026-09-30 — implementacja 146.5, PTK globalne i klanowe
+
+Dodano projekcję `.lab` w File Managerze, otwieranie projektu po ID z ochroną
+niezapisanych zmian oraz komunikat o braku zainstalowanego GhostLaba. Terminal
+rozstrzyga kolizje przez jawne ID, nie pierwszy wynik nazwy. PTK wspiera publikację
+globalną i klanową, kanoniczne płatności, niezmienne zakupione wydania i czytnik
+Markdown. Nowe publikacje bez rodzica PvP akceptują 0 HC jako Open Source;
+historyczne ceny pozostają bez zmian. Wycofanie zachowuje kopie wszystkich rodzin.
+
+Testy backendu obejmują płatności i retry, rollback, brak środków, dostęp klanowy,
+niezmienność wydań PTK, brak narzędzia GLab, ceny historyczne oraz zachowanie
+zainstalowanych kopii każdej rodziny po wycofaniu. JS: projekty, publikacja,
+launcher, podróże, blokada zakupów i wspólny renderer Markdown. Playwright MCP
+na izolowanych kontach autora/czytelnika: utworzenie, kompilacja, publikacja,
+bezpłatne pobranie, odczyt mobile, ochrona niezapisanych zmian i HTML jako tekst.
+
+PTK: 25 HC domyślnie, maks. 100 HC; 0 HC bezpłatnie. Globalna publikacja albo
+klan przypisany przez serwer. Opuszczenie klanu nie usuwa już nabytych dokumentów.
+FM pokazuje polecenia `run ID`, `open ID.lab` i `open ID.ptk`. Podgląd dokumentu
+w edytorze i czytnik FM korzystają z tego samego renderera.
+
+Odczytowy audyt lokalnej archiwalnej bazy wykazał zaległe migracje GLaba i
+powtarzające się nazwy starszych aplikacji kreatorskich; nie zmieniono tych danych.
+Raport trzeba wykonać na bazie docelowej — lokalny wynik nie opisuje produkcji.
+Procedura i ograniczenia: [runbook](../runbooks/sprint_146_5_ghostlab_completion.md).
+Status: **pakiet do odbioru**, bez commita/pusha i automatycznego wdrożenia.
+PASS autora oraz osobny test zakupu po konfiskacie nadal pozostają otwarte.
+
+## 2026-09-30 — PASS 146.4 i plan domknięcia GhostLab 1.0
+
+Autor zaakceptował mechanikę oraz końcowy wygląd wszystkich Deep Scannerów,
+w tym pełnokadrową łunę i skupiającą się optykę viewfindera. 146.4 zamknięty.
+Zakup po konfiskacie nadal oczekuje na okoliczność testową i PASS gameplayowy;
+nie jest objęty potwierdzeniem skanerów.
+
+Przed kreatorami 147–148 dodano [146.5](../sprints/sprint_146_5_ghostlab_v1_completion.md):
+osobny katalog projektów `.lab`, otwieranie ich w GLabie, kasowanie wyłącznie
+w Danger, komendy terminalowe i audyt kolizji nazw, dokumenty Markdown `.ptk`
+publikowane jako pliki do pobrania oraz jawne 0 HC / Open Source dla templatek
+bez rodzica PvP. Brak zainstalowanego GhostLaba ma wyświetlać komunikat o braku
+narzędzia, zachowując projekt. To plan, nie wdrożenie; widełki PTK i kontrakt
+kolizji nazw wymagają doprecyzowania przed aktywacją. Następnie 147 → 148 → 149–152.
+
 ## 2026-09-30 — PASS 146.4.1 i pakiet 146.4.2
 
 Autor potwierdził końcowy PASS pierwszego etapu po naprawieniu obsługi WAV,

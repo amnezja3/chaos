@@ -3258,6 +3258,8 @@ function attachTerminalInputHandler(input, content) {
             if (data.openSystemApp) {
                 openSystemAppFromTerminal(data.openSystemApp);
             }
+            if (data.openGhostLabFile) await openGhostLabFile(data.openGhostLabFile);
+            if (data.openGhostLabDocument) { await createFileManager(); await window.runFile('documents', data.openGhostLabDocument); }
 
             if (data.logout) {
                 setTimeout(() => {
@@ -3815,6 +3817,8 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
         if (data.openSystemApp) {
             openSystemAppFromTerminal(data.openSystemApp);
         }
+        if (data.openGhostLabFile) await openGhostLabFile(data.openGhostLabFile);
+        if (data.openGhostLabDocument) { await createFileManager(); await window.runFile('documents', data.openGhostLabDocument); }
 
         if (data.logout) {
             setTimeout(() => {
@@ -10413,7 +10417,7 @@ function createBrowser() {
                 ? (installed ? "Aplikacja juz kupiona." : (staleInstalledProjection ? "" : item.install_blocked_reason || ""))
                 : item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
-            const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
+            const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (item.open_source ? 'Pobierz bezpłatnie' : item.template_id === 'ptk_document' ? 'Kup i pobierz' : isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
             const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
             const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
             const fileSize = Number(item.file_size || 0);
@@ -10467,6 +10471,8 @@ function createBrowser() {
                 label: "Tier",
                 value: item.balance_tier || item.app_level || "Basic"
             });
+            if (item.open_source) coreParameterRows.push({key: 'open-source', label: 'Dostęp', value: 'Open Source · bezpłatnie'});
+            if (item.template_id === 'ptk_document') coreParameterRows.push({key: 'audience', label: 'Publikacja', value: item.visibility === 'clan' ? 'Tylko dla klanu' : 'Globalnie'});
             const technicalParameterRows = [
                 { key: "map", label: "Map", values: googleplexList(item.map_actions) },
                 { key: "ops", label: "Ops", values: googleplexList(item.operation_types) },
@@ -11565,7 +11571,7 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
         }
     }
     // Okno progressbar (symulacja jak instalator Windows/Linux)
-    const steps = app.product_type === 'travel_ticket' ? [
+    const steps = app.product_type === 'ptk_document' ? ['Pobieranie dokumentu PTK do File Managera...'] : app.product_type === 'travel_ticket' ? [
         `Przygotowanie podróży: ${app.name || 'Bilet'}`
     ] : [
         `Rozpoczynanie instalacji aplikacji: ${app.name || 'aplikacja'}`,
@@ -11634,7 +11640,7 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
                     const storageLine = hasStorageInfo
                         ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
                         : '';
-                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
+                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${data.document_id ? 'Dokument pobrany do Pliki → Dokumenty PTK.' : isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
                         setToolbarProfile({
                             ...toolbarProfile,
@@ -15106,7 +15112,7 @@ function wireGhostLabProjects(root) {
     if (!main) return;
     main.querySelector('[data-ghostlab-new-project]')?.addEventListener('click', () => createGhostLabProject(root));
     main.querySelector('[data-ghostlab-open-project]')?.addEventListener('click', () => openGhostLabProject(root));
-    loadGhostLabProjects(root);
+    root._ghostLabLoading = loadGhostLabProjects(root);
 }
 
 async function loadGhostLabProjects(root) {
@@ -15277,6 +15283,11 @@ function renderGhostLabEditor(root, project) {
     const blueprint = project.blueprint && typeof project.blueprint === "object" ? project.blueprint : {};
     const branding = ghostLabSavedBranding(project);
     const definition = project.template_definition || {};
+    const priceHelp = definition.source_tool_id
+        ? 'Puste pole: cena szablonu. Potomki narzędzi PvP zachowują minimalną wycenę, także dla 0 HC.'
+        : 'Puste pole: dotychczasowa cena domyślna. Wpisz 0, aby udostępnić bezpłatnie jako Open Source.' +
+          (project.template_id === 'ptk_document' ? ' Dokument PTK: domyślnie 25 HC, maksymalnie 100 HC.' :
+           project.template_id === 'travel_ticket' ? ' Płatny bilet: 5–150 HC, domyślnie 100 HC.' : '');
     main.innerHTML = `
         <section class="ghostlab-panel ghostlab-editor">
             <header>
@@ -15294,10 +15305,10 @@ function renderGhostLabEditor(root, project) {
                 <label class="ghostlab-editor-field"><span>Nazwa</span><input data-ghostlab-branding="name" maxlength="64" value="${escapeHTML(branding.name)}"></label>
                 <label class="ghostlab-editor-field"><span>Ikona — jeden znak lub emoji</span><input data-ghostlab-branding="icon" maxlength="32" value="${escapeHTML(branding.icon)}"></label>
                 <label class="ghostlab-editor-field"><span>Opis autora</span><textarea data-ghostlab-branding="description" maxlength="1000">${escapeHTML(branding.description)}</textarea></label>
-                <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : ''} step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>${project.template_id === 'travel_ticket' ? 'Bilet kosztuje 5–150 HC. Puste pole: 100 HC. Cena sugerowana powyżej limitu zostanie obniżona do 150 HC.' : 'Puste pole: cena szablonu. System stosuje minimalną wycenę, także dla 0 HC. Cenę końcową sprawdzisz po publikacji.'}</small></label>
+                <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : project.template_id === 'ptk_document' ? 'max="100"' : ''} step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>${escapeHTML(priceHelp)}</small></label>
                 <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
-            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'own_system' ? 'wlasny system' : definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
+            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'own_system' ? 'wlasny system' : definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'document' ? 'Dokument PTK w File Managerze.' : definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'document' ? 'Dokument gotowy do publikacji i pobrania.' : definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
             <h4>Ustawienia funkcji</h4>
             <div class="ghostlab-editor-grid">
                 ${fields.map(field => renderGhostLabEditorField(field, blueprint[field.key])).join("")}
@@ -15376,7 +15387,8 @@ function renderGhostLabEditorField(field, value) {
         return `
             <label class="ghostlab-editor-field">
                 <span>${safeLabel}</span>
-                <textarea data-ghostlab-blueprint-key="${safeKey}">${escapeHTML(value ?? "")}</textarea>
+                <textarea data-ghostlab-blueprint-key="${safeKey}" maxlength="${Number(field.max_length || 6000)}">${escapeHTML(value ?? "")}</textarea>
+                ${field.key === 'content' ? '<small>Markdown, maks. 6000 znaków. Nagłówki, listy, pogrubienia i bloki kodu. HTML i linki pozostają tekstem.</small>' : ''}
             </label>
         `;
     }
@@ -15432,8 +15444,8 @@ function renderGhostLabPublisherPipeline(project) {
     return `
         <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong>
         <span>Ostatnio opublikowany build: ${escapeHTML(String(publishedBuild?.version || '—'))}.</span>
-        <span>${contract.runtime_status === 'own_system' ? 'Runtime wlasnego systemu gotowy; uruchomienie z pulpitu.' : contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
-        <span>${project.template_id === 'travel_ticket' ? (isPublished ? 'Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca.' : 'Opublikuj build, aby udostępnić to miejsce w Googleplexie.') : isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
+        <span>${contract.runtime_status === 'document' ? 'Dokument PTK: pobierz z Googleplexa i otw?rz w Pliki ? Dokumenty PTK.' : contract.runtime_status === 'own_system' ? 'Runtime wlasnego systemu gotowy; uruchomienie z pulpitu.' : contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
+        <span>${project.template_id === 'ptk_document' ? 'Nowe wydanie wymaga osobnego pobrania. Poprzednie kopie pozostaj? u czytelnik?w.' : project.template_id === 'travel_ticket' ? (isPublished ? 'Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca.' : 'Opublikuj build, aby udostępnić to miejsce w Googleplexie.') : isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
                 <span class="${done ? 'done' : ''}">${escapeHTML(label)}</span>
@@ -15574,6 +15586,9 @@ function refreshGhostLabEditorFeedback(root, project) {
         <strong>Blueprint Preview</strong>
         <pre>${escapeHTML(preview.join("\n"))}</pre>
     `;
+    if (project.template_id === 'ptk_document') {
+        previewPanel.innerHTML += `<article class="file-manager-markdown">${renderFileManagerMarkdown(blueprint.content)}</article>`;
+    }
     return validation;
 }
 
@@ -15916,6 +15931,28 @@ async function deleteGhostLabProject(root, project = root?._ghostLabEditingProje
         setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
     } finally {
         root._ghostLabDeleting = false;
+    }
+}
+
+async function openGhostLabFile(projectId) {
+    try {
+        const response = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/open`);
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Nie można otworzyć projektu.');
+        const existing = document.querySelector('.terminal[data-app="ghostlab"] .ghostlab-shell');
+        if (existing?._ghostLabEditingProject && ghostLabBlueprintDirty(existing, existing._ghostLabEditingProject)) {
+            bringWindowToFront(existing.closest('.terminal'));
+            setGhostLabMessage(existing, 'Masz niezapisane zmiany. Zapisz je przed otwarciem innego projektu.', 'error');
+            return;
+        }
+        const term = createGhostLabHub();
+        const root = term.querySelector('.ghostlab-shell');
+        await root._ghostLabLoading;
+        ghostLabState.selectedProjectId = data.project.id;
+        ghostLabState.activeProjectId = data.project.id;
+        renderGhostLabEditor(root, data.project);
+    } catch (error) {
+        addSystemMessage('warning', 'GhostLab', error.message);
     }
 }
 
@@ -16379,6 +16416,77 @@ window.openToolSelectionForMapAction = async function(payload) {
     });
 };
 
+function renderFileManagerMarkdown(markdown) {
+    const renderMarkdownInline = (text) => {
+        return escapeHTML(text)
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>');
+    };
+    const renderDocument = (markdown) => {
+        const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
+        let html = '';
+        let listOpen = false;
+        let codeOpen = false;
+        const closeList = () => {
+            if (listOpen) {
+                html += '</ul>';
+                listOpen = false;
+            }
+        };
+        const closeCode = () => {
+            if (codeOpen) {
+                html += '</code></pre>';
+                codeOpen = false;
+            }
+        };
+
+        lines.forEach(rawLine => {
+            const line = rawLine || '';
+            const trimmed = line.trim();
+            if (trimmed.startsWith('```')) {
+                closeList();
+                if (codeOpen) closeCode();
+                else {
+                    html += '<pre><code>';
+                    codeOpen = true;
+                }
+                return;
+            }
+            if (codeOpen) {
+                html += `${escapeHTML(line)}\n`;
+                return;
+            }
+            if (!trimmed) {
+                closeList();
+                return;
+            }
+            const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+            if (heading) {
+                closeList();
+                const level = Math.min(4, heading[1].length + 1);
+                html += `<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`;
+                return;
+            }
+            const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+            if (bullet) {
+                if (!listOpen) {
+                    html += '<ul>';
+                    listOpen = true;
+                }
+                html += `<li>${renderMarkdownInline(bullet[1])}</li>`;
+                return;
+            }
+            closeList();
+            html += `<p>${renderMarkdownInline(trimmed)}</p>`;
+        });
+
+        closeList();
+        closeCode();
+        return html;
+    };
+    return renderDocument(markdown);
+}
+
 async function createFileManager(options = {}) {
     // Jeden FileManager na raz
     const existing = document.querySelector(`.terminal[data-app="files"]`);
@@ -16425,6 +16533,8 @@ async function createFileManager(options = {}) {
         'system',
         'market',
         'projects',
+        'ghostlab',
+        'documents',
         'download',
         'pictures',
         'social-media',
@@ -16432,6 +16542,8 @@ async function createFileManager(options = {}) {
         'tips-tricks'
     ];
     const folderLabels = {
+        ghostlab: 'GhostLab',
+        documents: 'Dokumenty PTK',
         tools: 'Tools',
         gps: 'Sledzenie',
         device: 'Urzadzenia',
@@ -16517,73 +16629,6 @@ async function createFileManager(options = {}) {
         const docs = fileManagerStaticDocs[folderName] || [];
         return docs.find(item => String(item.name || '') === String(filename || '')) || null;
     };
-    const renderMarkdownInline = (text) => {
-        return escapeHTML(text)
-            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>');
-    };
-    const renderFileManagerMarkdown = (markdown) => {
-        const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
-        let html = '';
-        let listOpen = false;
-        let codeOpen = false;
-        const closeList = () => {
-            if (listOpen) {
-                html += '</ul>';
-                listOpen = false;
-            }
-        };
-        const closeCode = () => {
-            if (codeOpen) {
-                html += '</code></pre>';
-                codeOpen = false;
-            }
-        };
-
-        lines.forEach(rawLine => {
-            const line = rawLine || '';
-            const trimmed = line.trim();
-            if (trimmed.startsWith('```')) {
-                closeList();
-                if (codeOpen) closeCode();
-                else {
-                    html += '<pre><code>';
-                    codeOpen = true;
-                }
-                return;
-            }
-            if (codeOpen) {
-                html += `${escapeHTML(line)}\n`;
-                return;
-            }
-            if (!trimmed) {
-                closeList();
-                return;
-            }
-            const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
-            if (heading) {
-                closeList();
-                const level = Math.min(4, heading[1].length + 1);
-                html += `<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`;
-                return;
-            }
-            const bullet = trimmed.match(/^[-*]\s+(.+)$/);
-            if (bullet) {
-                if (!listOpen) {
-                    html += '<ul>';
-                    listOpen = true;
-                }
-                html += `<li>${renderMarkdownInline(bullet[1])}</li>`;
-                return;
-            }
-            closeList();
-            html += `<p>${renderMarkdownInline(trimmed)}</p>`;
-        });
-
-        closeList();
-        closeCode();
-        return html;
-    };
     const getFileOperationType = (fileEntry) => {
         if (!fileEntry || typeof fileEntry !== 'object') return '';
         const metadata = fileEntry.metadata || {};
@@ -16660,13 +16705,22 @@ async function createFileManager(options = {}) {
         term.remove();
     });
 
-    // Pobierz dane profilu
-    const profileData = await getUserProfile();
+    // GLab files and PTK use canonical inventory; legacy folders load on demand.
+    const inventoryResponse = await fetch('/api/ghostlab/file-manager');
+    const profileData = inventoryResponse.ok ? await inventoryResponse.json() : null;
     if (!profileData || !profileData.files) {
         addSystemMessage("danger", "\u{1F4C2} Pliki", "\u2716 B\u0142\u0105d \u0142adowania plik\u00f3w");
         return;
     }
     const files = profileData.files;
+    for (const [folder, endpoint] of [['ghostlab', 'files'], ['documents', 'documents']]) {
+        try {
+            const response = await fetch(`/api/ghostlab/${endpoint}`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Nie można wczytać katalogu.');
+            files[folder] = data.files || [];
+        } catch (error) { addSystemMessage('warning', 'Pliki', error.message); files[folder] = []; }
+    }
     if (!Array.isArray(files.projects)) files.projects = [];
     systemDirs.forEach(dir => {
         if (!Array.isArray(files[dir])) files[dir] = [];
@@ -16721,10 +16775,24 @@ async function createFileManager(options = {}) {
         });
     }
 
-    window.openFolderInManager = (id, folderName) => {
+    window.openFolderInManager = async (id, folderName) => {
         const container = document.getElementById(`${id}-content`);
         const state = fileManagerInstances.get(id);
         if (state) state.currentFolder = folderName;
+        if (folderName === 'ghostlab' || folderName === 'documents') {
+            try {
+                const response = await fetch(`/api/ghostlab/${folderName === 'ghostlab' ? 'files' : 'documents'}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Błąd katalogu.');
+                if (!container.isConnected || state?.currentFolder !== folderName) return;
+                files[folderName] = data.files || [];
+            } catch (error) { addSystemMessage('warning', 'Pliki', error.message); return; }
+        } else if (!['tools', 'about', 'tips-tricks'].includes(folderName)) {
+            // Creator and gameplay folders retain their existing representation until their cutover.
+            const legacy = await getUserProfile();
+            if (!container.isConnected || state?.currentFolder !== folderName) return;
+            files[folderName] = legacy?.files?.[folderName] || [];
+        }
         const fileList = files[folderName] || [];
         const renderedToolAppIds = new Set();
 
@@ -16783,6 +16851,7 @@ async function createFileManager(options = {}) {
                     : '';
                 const toolContractLine = toolMeta ? `
                     <span class="file-manager-tool-meta">
+                        ${toolMeta.ghostlab_generated ? `Terminal: run ${escapeHTML(toolMeta.id)}<br>` : ''}
                         ${escapeHTML(toolMeta.tool_family || toolMeta.type || 'tool')} / ${escapeHTML(toolMeta.tool_mode || toolMeta.scanner_mode || 'desktop')}
                         | Q ${escapeHTML(String(toolMeta.quality_score || 0))}/100
                         | P ${escapeHTML(String(toolMeta.power_score || 0))}/100
@@ -16806,6 +16875,13 @@ async function createFileManager(options = {}) {
                         </span>
                     </div>
                 `;
+            } else if (folderName === 'ghostlab' || folderName === 'documents') {
+                // IDs are server-owned; the user-provided title is text, never executable markup.
+                list += `<div class="file-manager-row file-manager-row-dark"><button type="button" class="file-manager-file"
+                    onclick="window.runFile('${folderName}','${escapeHTML(fileEntry.id)}')">
+                    <span class="file-manager-icon">${folderName === 'ghostlab' ? 'LAB' : 'PTK'}</span>
+                    <span class="file-manager-name">${escapeHTML(filename)}</span>
+                    <small>Terminal: open ${escapeHTML(fileEntry.id)}.${folderName === 'ghostlab' ? 'lab' : 'ptk'}</small></button></div>`;
             } else if (folderName === "projects") {
                 list += `
                     <div class="file-manager-row file-manager-row-dark">
@@ -16914,6 +16990,22 @@ async function createFileManager(options = {}) {
 
     // Klik w dowolny plik — symulacja otwarcia/uruchomienia
     window.runFile = async (folderName, filename) => {
+        if (folderName === 'ghostlab') { await openGhostLabFile(filename); return; }
+        if (folderName === 'documents') {
+            try {
+                const response = await fetch(`/api/ghostlab/documents/${encodeURIComponent(filename)}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Nie można otworzyć dokumentu.');
+                const doc = data.document;
+                const container = document.getElementById(`${terminalId}-content`);
+                container.innerHTML = `<div class="file-manager-header"><button class="file-manager-back-btn"
+                    onclick="window.openFolderInManager('${terminalId}', 'documents')">Wróć</button></div>
+                    <div class="file-manager-document-shell"><div class="file-manager-document-meta">
+                    Materiał gracza: ${escapeHTML(doc.author)} · ${escapeHTML(doc.title)} · v${Number(doc.version)}
+                    </div><article class="file-manager-markdown">${renderFileManagerMarkdown(doc.content)}</article></div>`;
+            } catch (error) { addSystemMessage('warning', 'Dokument PTK', error.message); }
+            return;
+        }
         const staticDoc = getStaticDocFile(folderName, filename);
         if (staticDoc) {
             const container = document.getElementById(`${terminalId}-content`);

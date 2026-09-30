@@ -363,6 +363,21 @@ PLANNED_CONTRACTS = {
 }
 
 
+TEMPLATES['ptk_document'] = dict(TEMPLATES['system_update'], id='ptk_document',
+    name='Dokument PTK', icon='📖', category='intel', tool_category='intel',
+    description='Autorski materiał Markdown do czytania w File Managerze.',
+    target_kind='document', launch_mode='document', result_type='ptk_document',
+    executor_id='ptk_document_v1', price=25, recommended_level=1, required_respect=0,
+    fields={'visibility': {'type':'string', 'default':'global', 'editable':True,
+                           'max_length':10, 'enum':['global', 'clan'],
+                           'option_labels':{'global':'Globalnie', 'clan':'Tylko dla klanu'}},
+            'content': {'type':'string', 'default':'# Mój poradnik\n\nTreść autora.',
+                       'editable':True, 'max_length':6000}},
+    app_contract={'tool_family':'pro_system_tool', 'tool_mode':'desktop', 'map_actions':[],
+                  'target_types':[], 'operation_types':[], 'resource_types':[]})
+RUNTIME_FLAGS['ptk_document'] = 'CHAOS_GHOSTLAB_PTK_ENABLED'
+
+
 def get_template(template_id):
     return deepcopy(TEMPLATES.get(str(template_id or '')))
 

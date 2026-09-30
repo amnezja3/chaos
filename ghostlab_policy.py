@@ -12,7 +12,8 @@ def validate_ghostlab_blueprint(template_id, blueprint):
     preview = []
     if not errors:
         if definition:
-            preview = [definition['name'], ('Jedna podróż od razu przy zakupie. Miejsce deklarowane przez autora.'
+            preview = [definition['name'], ('Dokument autora: pobranie do File Managera i odczyt zakupionej wersji.'
+                       if definition['launch_mode'] == 'document' else 'Jedna podróż od razu przy zakupie. Miejsce deklarowane przez autora.'
                        if definition['launch_mode'] == 'purchase_travel' else
                        'Własny system / uruchomienie z pulpitu' if definition['launch_mode'] == 'own_system' else
                        'Player Hack Access / wymagany zgodny build i aktywacja serwerowa')]

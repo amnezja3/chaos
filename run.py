@@ -128,6 +128,8 @@ from ghostlab_store import GhostLabStore, GhostLabError
 ghostlab_store = GhostLabStore(resources_store.db_path)
 from ghostlab_travel import TravelStore
 travel_store = TravelStore(resources_store.db_path)
+from ghostlab_documents import DocumentStore
+document_store = DocumentStore(resources_store.db_path)
 mail_store = MailStore()
 cyberner_world_store = CybernerWorldStore()
 cyberner_clan_store = CybernerClanStore()
@@ -11704,6 +11706,9 @@ def normalize_app_balance_fields(app):
 def enforce_generated_app_price_floor(app):
     if not isinstance(app, dict):
         return app
+    from ghostlab_pricing import apply_price
+    if apply_price(app):
+        return app
     from ghostlab_ticket_policy import is_ticket, ticket_price
     if is_ticket(app):
         app['price'] = app['price_hint'] = ticket_price(app)
@@ -17609,6 +17614,8 @@ def googleplex_catalog_payload(app, profile):
     normalize_app_storage_fields(item)
     normalize_app_quality_fields(item)
     normalize_app_balance_fields(item)
+    from ghostlab_pricing import apply_price
+    apply_price(item)
     if is_ticket(item):
         item['price'] = item['price_hint'] = ticket_price(item)
     item["map_actions"] = [
@@ -17653,6 +17660,9 @@ def googleplex_catalog_payload(app, profile):
     if not item["install_blocked_reason"] and requirement_error:
         item["install_blocked_reason"] = requirement_error
 
+    if item.get('template_id') == 'ptk_document':
+        from ghostlab_documents import public_document
+        return public_document(item)
     return public_ticket(item) if is_ticket(item) else item
 
 
@@ -17799,6 +17809,7 @@ def build_ghostlab_artifact(project, blueprint, version):
         "policy_version": definition["policy_version"],
         "presentation_id": project_branding(project)['presentation_id'],
         "branding_snapshot": project_branding(project),
+        "glab_price_policy": 1,
         "blueprint_snapshot": dict(blueprint),
     }
 
@@ -17818,6 +17829,9 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     if not artifact:
         return None
     branding = artifact.get('branding_snapshot') or project_branding(project)
+    from terminals.commands import reserved_launch_name
+    if reserved_launch_name(branding['name']):
+        raise GhostLabError('reserved_publication_name', 'Ta nazwa jest komendą systemową. Wybierz inną nazwę produktu.')
 
     blueprint = artifact.get("blueprint_snapshot")
     if not isinstance(blueprint, dict):
@@ -17852,6 +17866,7 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
         "downloads": 0,
         "generated": True,
         "ghostlab_generated": True,
+        "glab_price_policy": artifact.get('glab_price_policy', 0),
         "bounded_install": True,
         "glab_contract_version": artifact.get('contract_version', 1),
         "runtime_status": runtime_status(artifact),
@@ -17888,6 +17903,14 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
         app.update(type='product', category='travel', product_type='travel_ticket', consumable=True,
                    purchase_confirmation=True, destination=dict(blueprint), travel_city=blueprint['city'],
                    file_size=0, disk_usage=0, install_size=0, levels=[])
+    if template_id == 'ptk_document':
+        visibility = blueprint['visibility']
+        clan = (owner_profile or {}).get('clan_code') or ''
+        if visibility == 'clan' and not clan:
+            raise GhostLabError('clan_required', 'Do publikacji klanowej musisz należeć do klanu.')
+        app.update(type='product', category='documents', product_type='ptk_document',
+                   visibility=visibility, publication_clan=clan if visibility == 'clan' else '',
+                   file_size=0, disk_usage=0, install_size=0, levels=[])
     return app
 
 
@@ -17908,7 +17931,7 @@ def serialize_ghostlab_project(project):
         "branding": project_branding(project),
         "template_definition": {key: value for key, value in (get_template(project.get('template_id')) or {}).items()
                                 if key in {'description', 'target_kind', 'launch_mode', 'result_type', 'presentation_ids',
-                                           'recommended_level', 'required_respect', 'price', 'runtime_enabled'}},
+                                           'recommended_level', 'required_respect', 'price', 'runtime_enabled', 'source_tool_id'}},
         "revision": project.get("revision"),
         "schema_version": project.get("schema_version", 1),
         "published_artifact_id": project.get("published_artifact_id"),
@@ -22561,6 +22584,43 @@ def session_recover():
 def command():
     data = request.json
     user_input = data.get("input", "")
+    # GhostLab launches need only installed identities, not a hydrated profile.
+    if session.get('user'):
+        import shlex
+        from database import db_connect
+        try:
+            tokens = shlex.split(str(user_input).strip())
+        except ValueError:
+            tokens = []
+        if len(tokens) == 2 and tokens[0].lower() == 'open' and tokens[1].endswith('.ptk'):
+            artifact_id = tokens[1][:-4]
+            document_store.read(session['user'], artifact_id)
+            return jsonify(openGhostLabDocument=artifact_id)
+        if len(tokens) == 2 and tokens[0].lower() == 'open' and tokens[1].endswith('.lab'):
+            if not player_inventory_store.has_app(session['user'], 'ghost_lab'):
+                return jsonify(response='Brak narzędzia GhostLab. Zainstaluj je, aby otworzyć projekt.')
+            project_id = tokens[1][:-4]
+            ghostlab_store.get(session['user'], project_id)
+            return jsonify(openGhostLabFile=project_id)
+        query = tokens[1] if len(tokens) == 2 and tokens[0].lower() == 'run' else str(user_input).strip()
+        from terminals.commands import reserved_launch_name
+        if len(tokens) == 1 and reserved_launch_name(query):
+            query = ''  # Built-in commands keep their meaning; run <ID> remains explicit.
+        with db_connect(player_inventory_store.db_path) as conn:
+            rows = conn.execute('''SELECT app_id, json_extract(app_json,'$.name') AS name FROM player_apps
+                WHERE username=? AND status!='uninstalled' LIMIT 1001''', (session['user'],)).fetchall()
+            if len(rows) > 1000:
+                raise ProfileRecoveryRequired('Terminal application limit exceeded')
+            matches = [r for r in rows if r['app_id'].casefold() == query.casefold()]
+            matches = matches or [r for r in rows if str(r['name']).casefold() == query.casefold()]
+            if len(matches) > 1:
+                return jsonify(response='Niejednoznaczna nazwa. Użyj run <ID>: ' + ', '.join(r['app_id'] for r in matches))
+            if matches and (matches[0]['app_id'].startswith('ghostlab_') or matches[0]['app_id'] == 'ghost_lab'):
+                installed = conn.execute('SELECT app_json FROM player_apps WHERE username=? AND app_id=?',
+                                         (session['user'],matches[0]['app_id'])).fetchone()
+                launch = json.loads(installed[0])
+                return jsonify(runApp=True, applicationId=launch['id'], applicationEffect=launch,
+                               consoleEffect='Uruchamianie aplikacji ' + launch['name'])
     flow_id = request.headers.get("X-Hack-Flow-Id", "")
     skip_map_runtime = bool(
         data.get("skip_map_runtime")
@@ -28436,9 +28496,10 @@ def withdraw_vulnerability(report_id):
 @app.route("/resources.json")
 def resources():
     """Public, non-personalized catalog; never reads an account profile."""
+    from ghostlab_documents import visible
     catalog = []
     for app in get_app_catalog():
-        if not app.get("published", True):
+        if not app.get("published", True) or not visible(app):
             continue
         item = googleplex_catalog_payload(app, {})
         item.pop("can_afford", None)
@@ -28455,11 +28516,20 @@ def account_catalog():
     if "user" not in session:
         return jsonify({"success": False, "error": "not_logged_in"}), 401
     profile = googleplex_buyer_projection(session['user'], inventory=True)
+    from ghostlab_documents import visible
+    from database import db_connect
+    with db_connect(document_store.db_path) as conn:
+        row = conn.execute('SELECT clan_code FROM user_identity_projection WHERE username=?', (session['user'],)).fetchone()
+        clan = row[0] if row else ''
+        owned_documents = {r[0] for r in conn.execute('SELECT artifact_id FROM ghostlab_document_copies WHERE owner=?', (session['user'],))}
     catalog = [
         googleplex_catalog_payload(app, profile)
         for app in get_app_catalog()
-        if app.get("published", True)
+        if app.get("published", True) and visible(app, clan)
     ]
+    for item in catalog:
+        if item.get('template_id') == 'ptk_document' and item.get('artifact_id') in owned_documents:
+            item.update(installed=True, install_blocked_reason='To wydanie jest już w Dokumentach PTK.')
 
     return jsonify(catalog)
 
@@ -28482,8 +28552,9 @@ def api_googleplex_news():
             "message": "Ten widok Googleplex News nie jest jeszcze dostępny.",
         }), 400
     try:
+        from ghostlab_documents import visible
         snapshot = build_googleplex_news_snapshot(
-            catalog=get_app_catalog(),
+            catalog=[item for item in get_app_catalog() if visible(item)],
             viewer_key=username,
             session_generation=str(getattr(g, "session_generation", "") or ""),
             limit=request.args.get("limit", 20),
@@ -29218,6 +29289,8 @@ def install_app():
             from ghostlab_products import published_product
             with db_connect(player_inventory_store.db_path) as conn:
                 candidate = published_product(conn, app_id)
+                if candidate and candidate.get('template_id') == 'ptk_document':
+                    return jsonify(document_store.purchase(session['user'], app_id, data, globals()))
                 if candidate and candidate.get('template_id') == 'travel_ticket':
                     generated_ticket = candidate
                 if candidate and candidate.get('template_id') == 'firmware_update':

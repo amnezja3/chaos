@@ -228,7 +228,8 @@ def _format_help():
         "  exit                 close terminal window",
         "  logout               logout from game",
         "",
-        "Tip: run an installed app by typing its name or id.",
+        "Tip: run an installed app by typing its name or run <ID>.",
+        "GhostLab project: open <project-ID>.lab (requires installed GhostLab).",
     ])
 
 
@@ -521,6 +522,11 @@ def _builtin_command(tokens, original_text, profile):
     return None
 
 
+def reserved_launch_name(name):
+    name = str(name).strip().lower()
+    return ' ' not in name and (name in {'run', 'open'} or _builtin_command([name], name, {}) is not None)
+
+
 def interpret_command(text, user_profile):
     original_text = str(text or "").strip()
     lowered = original_text.lower()
@@ -537,20 +543,23 @@ def interpret_command(text, user_profile):
     if len(tokens) == 3 and tokens[0].lower() == "sudo" and tokens[1].lower() == "userdel":
         return {"confirm_userdel": tokens[2]}
 
+    if len(tokens) == 1 and reserved_launch_name(tokens[0]):
+        builtin = _builtin_command(tokens, original_text, profile)
+        if builtin is not None:
+            return builtin
+
     # Dokladna nazwa lub ID zainstalowanej aplikacji ma pierwszenstwo przed
     # komendami wbudowanymi. Inaczej aplikacje takie jak "Log Runner" albo
     # "Status Window" sa przechwytywane przez builtiny `log` / `status` i
     # nigdy nie trafiaja do launch queue.
-    matching_app = next(
-        (
-            app for app in _apps(profile)
-            if str(app.get("name", "")).lower() == lowered
-            or str(app.get("id", "")).lower() == lowered
-        ),
-        None
-    )
-    if matching_app:
-        return {"runApp": matching_app["id"]}
+    # IDs are stable, explicit launch aliases even after a rename or name collision.
+    launch_name = tokens[1] if len(tokens) == 2 and tokens[0].lower() == 'run' else original_text
+    by_id = [a for a in _apps(profile) if str(a.get('id', '')).casefold() == launch_name.casefold()]
+    matches = by_id or [a for a in _apps(profile) if str(a.get('name', '')).casefold() == launch_name.casefold()]
+    if len(matches) > 1:
+        return {'response': 'Niejednoznaczna nazwa. Użyj run <ID>: ' + ', '.join(str(a['id']) for a in matches)}
+    if matches:
+        return {'runApp': matches[0]['id']}
 
     builtin = _builtin_command(tokens, original_text, profile)
     if builtin is not None:

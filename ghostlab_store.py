@@ -148,6 +148,8 @@ class GhostLabStore:
                 raise GhostLabError('unsaved_blueprint', 'Zapisz blueprint przed kompilacja.')
             if (project.get('artifact', {}).get('source_revision') == revision
                     and artifact_compatible(project['artifact'], project.get('template_id'))
+                    and ((get_template(project.get('template_id')) or {}).get('source_tool_id')
+                         or project['artifact'].get('glab_price_policy') == 1)
                     and project['artifact'].get('runtime_revision', 0)
                     == (get_template(project.get('template_id')) or {}).get('runtime_revision', 0)):
                 return project
@@ -184,6 +186,11 @@ class GhostLabStore:
             if not row or json.loads(row['artifact_json']) != artifact:
                 raise GhostLabError('artifact_mismatch', 'Niezgodny artefakt.')
             app = builder(project, owner, author)
+            if app.get('template_id') == 'ptk_document' and app.get('visibility') == 'clan':
+                clan = conn.execute('SELECT clan_code FROM user_identity_projection WHERE username=?', (owner,)).fetchone()
+                if not clan or not clan[0]:
+                    raise GhostLabError('clan_required', 'Do publikacji klanowej musisz należeć do klanu.')
+                app['publication_clan'] = clan[0]
             resource = conn.execute("SELECT value_json FROM json_resources WHERE key='app_config'").fetchone()
             catalog = json.loads(resource['value_json']) if resource else []
             previous = next((a for a in catalog if a.get('id') == app['id']), None)

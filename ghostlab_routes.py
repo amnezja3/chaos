@@ -50,6 +50,55 @@ def register(app, services):
     def ghostlab_projects():
         return reply(actor())
 
+    @app.get('/api/ghostlab/files')
+    def ghostlab_files():
+        # Project files are owner-scoped references, never mutable inventory copies.
+        from database import db_connect
+        owner = actor()
+        store = service('ghostlab_store')
+        with db_connect(store.db_path) as conn:
+            store.ready(conn, owner)
+            rows = conn.execute('''SELECT id, revision,
+                json_extract(project_json,'$.name') AS name
+                FROM ghostlab_projects WHERE owner=? AND deleted=0 ORDER BY updated_at DESC LIMIT 101''',
+                (owner,)).fetchall()
+        return jsonify(success=True, files=[dict(id=r['id'], name=r['name'] + '.lab',
+            revision=r['revision'], read_only=True) for r in rows])
+
+    @app.get('/api/ghostlab/file-manager')
+    def ghostlab_file_manager():
+        # Opening the manager for .lab / PTK must not hydrate the legacy profile.
+        from database import db_connect
+        owner = actor()
+        with db_connect(service('player_inventory_store').db_path) as conn:
+            rows = conn.execute("SELECT app_json FROM player_apps WHERE username=? AND status!='uninstalled' LIMIT 1001", (owner,)).fetchall()
+            tools = conn.execute('SELECT tool_json FROM player_tool_files WHERE username=? LIMIT 1001', (owner,)).fetchall()
+            storage = conn.execute('SELECT capacity,used,unit FROM player_storage WHERE username=?', (owner,)).fetchone()
+        if len(rows) > 1000 or len(tools) > 1000:
+            raise GhostLabError('inventory_limit', 'Ekwipunek przekracza limit widoku.')
+        if not storage:
+            raise GhostLabError('inventory_unavailable', 'Brak kanonicznego ekwipunku.')
+        return jsonify(apps=[json.loads(r[0]) for r in rows], files={'tools':[json.loads(r[0]) for r in tools]},
+            storage_capacity=storage['capacity'], storage_used=storage['used'], storage_unit=storage['unit'],
+            storage_over_limit=storage['used'] > storage['capacity'])
+
+    @app.get('/api/ghostlab/documents')
+    def ghostlab_documents():
+        return jsonify(success=True, files=service('document_store').files(actor()))
+
+    @app.get('/api/ghostlab/documents/<artifact_id>')
+    def ghostlab_document(artifact_id):
+        return jsonify(success=True, document=service('document_store').read(actor(), artifact_id))
+
+    @app.get('/api/ghostlab/projects/<project_id>/open')
+    def ghostlab_open_file(project_id):
+        owner = actor()
+        if not service('player_inventory_store').has_app(owner, 'ghost_lab'):
+            raise GhostLabError('ghostlab_not_installed',
+                'Brak narzędzia GhostLab. Zainstaluj je, aby otworzyć projekt.', 403)
+        project = service('ghostlab_store').get(owner, project_id)
+        return jsonify(success=True, project=service('serialize_ghostlab_project')(project))
+
     @app.get('/api/ghostlab/templates')
     def ghostlab_templates():
         actor()
@@ -114,6 +163,8 @@ def register(app, services):
             message = 'Bilet skompilowany. Po publikacji zakup wykona jedną podróż.'
         if (get_template(project.get('template_id')) or {}).get('launch_mode') == 'own_system':
             message = 'Build gotowy. Po instalacji uruchom aplikację na własnym pulpicie.'
+        if project.get('template_id') == 'ptk_document':
+            message = 'Dokument skompilowany. Po publikacji będzie dostępny do pobrania.'
         return reply(owner, project, artifact=project['artifact'], message=message)
 
     @app.get('/api/ghostlab/projects/<project_id>/export')
@@ -135,6 +186,11 @@ def register(app, services):
             raise GhostLabError('creator_projection_unavailable', 'Brak projekcji poziomu autora.')
         author = dict(nick=identity['nick'], level=capabilities['level'], respect=identity['respect'],
                       hackcoins=service('wallet_balance_store').get_balance(owner))
+        if project.get('template_id') == 'ptk_document':
+            from database import db_connect
+            with db_connect(service('ghostlab_store').db_path) as conn:
+                row = conn.execute('SELECT clan_code FROM user_identity_projection WHERE username=?', (owner,)).fetchone()
+            author['clan_code'] = row[0] if row else ''
         project, app_data = service('ghostlab_store').publish(owner, project_id, data.get('revision'), data.get('artifact_id'),
                                       service('build_ghostlab_googleplex_app'), author)
         message = ('Opublikowano build runtime. Zainstalowane kopie wymagają jawnej aktualizacji.'
@@ -143,6 +199,8 @@ def register(app, services):
             message = 'Bilet opublikowany. Zakup wykonuje jedną podróż do miejsca z tej wersji.'
         if app_data.get('runtime_status') == 'own_system':
             message = 'Opublikowano narzędzie własnego systemu. Zainstalowane kopie wymagają jawnej aktualizacji.'
+        if app_data.get('runtime_status') == 'document':
+            message = 'Dokument opublikowany. Czytelnicy pobierają konkretne wydanie do File Managera.'
         return reply(owner, project, app=app_data, message=message)
 
     @app.delete('/api/ghostlab/projects/<project_id>')
