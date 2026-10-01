@@ -2899,7 +2899,8 @@ form button:hover {
   height: 100%;
   margin: 0;
   overflow: auto;
-  overscroll-behavior: contain;
+  /* Continue scrolling the GhostLab view at either end of the document. */
+  overscroll-behavior: auto;
 }
 .ghostlab-document-surface article { padding: 18px; }
 .ghostlab-document-surface textarea {
