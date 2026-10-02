@@ -17449,18 +17449,6 @@ MAP_TILE_SCHEMES = {
         "attr": "OpenStreetMap contributors",
         "zoom_offset": 0,
     },
-    "carto_light": {
-        "label": "Carto Light",
-        "tiles": "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        "attr": "OpenStreetMap contributors, CARTO",
-        "zoom_offset": 0,
-    },
-    "carto_dark": {
-        "label": "Carto Dark",
-        "tiles": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        "attr": "OpenStreetMap contributors, CARTO",
-        "zoom_offset": 0,
-    },
     "opentopo": {
         "label": "OpenTopo",
         "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
@@ -22902,20 +22890,6 @@ def map_view():
     #     tiles='https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg',
     #     attr='Map tiles by Stamen Design, CC BY 3.0 — Map data © OpenStreetMap contributors',
     #     name='Watercolor'
-    # ).add_to(m)
-
-    # # CartoDB Positron (jasna)
-    # folium.TileLayer(
-    #     tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    #     attr='©OpenStreetMap, ©CartoDB',
-    #     name='Jasna'
-    # ).add_to(m)
-
-    # # CartoDB Dark Matter (ciemna)
-    # folium.TileLayer(
-    #     tiles='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    #     attr='©OpenStreetMap, ©CartoDB',
-    #     name='Ciemna'
     # ).add_to(m)
 
     # # Dodaj kontrolkę do zmiany warstwy

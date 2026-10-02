@@ -11822,8 +11822,6 @@ function createSettings() {
     ];
     const mapSchemeOptions = [
         { id: "osm", label: "OSM", color: "#8bd37f" },
-        { id: "carto_light", label: "Carto Light", color: "#d7e3da" },
-        { id: "carto_dark", label: "Carto Dark", color: "#15202b" },
         { id: "opentopo", label: "OpenTopo", color: "#d6b46a" },
     ];
     const currentWallpaper = desktopSettings.wallpaper || "";
