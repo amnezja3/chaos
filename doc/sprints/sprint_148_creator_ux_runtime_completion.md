@@ -1,123 +1,100 @@
-# Sprint 148 — kreatory: prosty UX, rozliczenie użycia i pełny odbiór
+﻿# Sprint 148 — prosty UX, edycja projektów i bezpłatne aktualizacje
 
-Status: **ZAPLANOWANY**, 24 IX 2026. Implementacja po PASS 147.
-Podstawa: [audyt](../audits/creators_gameplay_audit_2026_09_24.md),
-[147 — serwerowy kontrakt](sprint_147_creator_gameplay_policy.md).
-Po PASS 148 rozpoczyna się **GhostLab v2.0**:
-[149 — Research](sprint_149_ghostlab_v2_research.md) →
-[150 — Official Exchange i import](sprint_150_ghostlab_v2_exchange_import.md) →
-[151 — Community i wersje](sprint_151_ghostlab_v2_community_versions.md) →
-[152 — optimizer, zależności, AI/SDK i pełny odbiór](sprint_152_ghostlab_v2_completion.md).
+Status: **ZAPLANOWANY — nowe założenia 1 X 2026**, implementacja po PASS 147.
+Kontrakt: [147](sprint_147_creator_gameplay_policy.md).
+Zastępuje wcześniejszą wieloetapową ścieżkę; kreatory mają być prostsze od GhostLaba.
 
-## Bramka: zero ciężkiego profilu
+## 148.1 — jeden główny krok i końcowy edytor
 
-Wykryte naruszenie naprawiamy od razu w bieżącym etapie, z testem regresji;
-nie odkładamy go do następnego sprintu ani jako długu technicznego.
+**Nazwa + ikona + akcja/opcja mapy + czy tworzyć plik → generacja przez system
+→ interfejs i publikacja.** Bez kolejnych formularzy rodzin, flag, plików i warunków.
 
-Obowiązuje [wspólny zakaz ciężkiego profilu](../plans/creator_ghostlab_zero_heavy_profile_contract.md).
-Wizard i podgląd używają małych endpointów, nie pełnego `/profile`. Zakup, instalacja,
-przycisk, płatność i efekt korzystają z canonical stores i receipts; po wykonaniu
-UI odświeża tylko właściwe zakresy. Nie wolno zapisywać ani synchronizować ciężkiego
-profilu użytkownika, celu czy twórcy. Odbiór wszystkich czterech kreatorów zawiera
-pomiar zero-heavy dla całej ścieżki wraz z middleware, błędami i retry.
+Po generacji otwiera się odpowiednik ostatniego kroku obecnego kreatora. Preview,
+opis oferty, cena i publikacja są na tym ekranie, nie w serii obowiązkowych kroków.
+Pokazać realnie wylosowaną moc osobno od maksimum dostępnego dla poziomu.
 
-## Rezultat
+| Kreator | Końcowy edytor |
+| --- | --- |
+| Term Creator | Lista wielu komend i odpowiadających outputów. Tekst nie jest wykonywalnym kodem. |
+| Window Maker | Pierwszy ekran, logi i przyciski powiązane z systemowymi akcjami. |
+| Button Choice / Button Maker | Prompt i zestaw opcji. `effect` widoczny dla wszystkich, działający dopiero od progu i po walidacji. |
+| AppForge | Postęp i treści wyniku istniejącego typu aplikacji; ta sama prosta ścieżka i systemowo losowana moc. |
 
-Gracz rozumie, co tworzy, gdzie uruchomi aplikację, co zmieni i jaki otrzyma wynik.
-Nie konfiguruje macierzy ryzyka. Cztery kreatory różnią się prezentacją, korzystając
-z jednego kontraktu gameplayowego. Opłata za użycie przycisku rzeczywiście trafia
-od użytkownika do twórcy, zgodnie z widoczną ceną i bez podwójnych obciążeń.
+Warianty tekstów nie losują ponownie mocy. Preview nie wykonuje operacji ani
+nie pobiera HC. Bezpieczne renderowanie; autorytatywny wynik pochodzi z backendu.
 
-## 148.1 — skrócona wspólna ścieżka
+## 148.2 — ponowne otwarcie i edycja projektu
 
-Docelowe kroki:
+- Plik w katalogu twórcy otwiera istniejący projekt we właściwym kreatorze.
+  Zachować ID projektu i produktu. Usuwanie/wycofanie jest osobną akcją.
+  Brak kreatora daje komunikat, nie usuwa projektu ani nie instaluje automatycznie.
+- Po publikacji można poprawiać literówki, nazwę/tytuł, opis, ikonę, logi,
+  outputy i prezentację oferty. Przeznaczenie, tworzenie plików, mechaniki,
+  moc, efekty, sposób działania oraz ceny są zablokowane także w API.
+- Zmiana prezentacji komend/przycisków nie dodaje nowej akcji, płatności lub efektu.
+  Edytor zachowuje ich powiązanie z zamrożoną mechaniką.
+- Zapis szkicu zachowuje ten sam projekt; publikacja poprawki zastępuje ofertę
+  pod tym samym ID. Nie powstaje drugi projekt ani duplikat w Googleplexie.
+- Kontrola własności i rewizji, ochrona niezapisanych zmian. Dwie karty nie
+  nadpisują sobie po cichu wersji. Nazwa jest prezentacją, a ID tożsamością.
 
-1. **Pomysł:** nazwa, ikona, opis, rodzina i konkretny cel aplikacji.
-2. **Działanie:** wybór jednego zgodnego profilu/celu; opis startu, efektu i wyniku.
-   Jeśli start wynika jednoznacznie z profilu, system ustawia go automatycznie.
-3. **Wygląd:** treść charakterystyczna dla kreatora.
-4. **Podgląd i możliwości:** zachowany preview oraz czytelne podsumowanie poziomu,
-   dostępnego wpływu, warunków, ryzyka i ograniczeń; bez technicznych checkboxów.
-5. **Publikacja:** dane katalogowe, sugerowana i zatwierdzona cena zakupu,
-   ewentualne ceny użycia, końcowy przegląd i publikacja.
+## 148.3 — AKTUALIZACJA dla nabywcy
 
-Stan i walidacja pochodzą z katalogu/quote backendu. Zmiana rodziny lub celu usuwa
-sprzeczne ustawienia i wyjaśnia zmianę. Niedostępne możliwości mają krótki opis
-progu poziomu. Nie pokazywać surowych map_actions, operation_types ani flag.
+- Zakupiona kopia pozostaje niezmienna do świadomej aktualizacji przez użytkownika.
+  Googleplex pokazuje wersję zainstalowaną/dostępną oraz **AKTUALIZACJA**.
+- Nowe wydanie tej samej aplikacji jest dla wcześniejszego nabywcy bezpłatne.
+  Bez kolejnego obciążenia HC, fikcyjnego przychodu twórcy i duplikatu instalacji.
+- Retry aktualizacji jest idempotentne; docelowa wersja jest jednoznaczna również
+  przy konkurencyjnej publikacji. Aktualizacja nie resetuje cooldownów i limitów.
+- Wycofanie zachowuje kupione kopie. Aktualizacja nie może omijać pierwszego
+  zakupu ani konfiskaty. Przed wdrożeniem dopiąć te stany do istniejącego kontraktu.
 
-## 148.2 — gdzie uruchomić i czego oczekiwać
+## 148.4 — wiedza i wykonanie gameplayowe
 
-- Nazwy dla gracza: „Z menu obiektu na mapie” i „Z pulpitu na oznaczonym celu”.
-  Mapa to miejsce wyboru celu, desktop to okno narzędzia; wyjaśnić to na przykładzie.
-- Jeśli profil dopuszcza obie drogi, prowadzą do tego samego executora, warunków
-  i ceny. Nie są dwiema osobnymi możliwościami gameplayowymi.
-- Każdy profil pokazuje krótko: cel, co zrobi, co powstanie, co może zablokować
-  akcję, jakie pozostawia ryzyko. Bez obietnic funkcji nieobecnych w backendzie.
-- Brak celu, utrata dostępu, konflikt ustawień, areszt i konfiskata mają spójne
-  komunikaty. Podgląd aplikacji nie wykonuje mutacji ani nie pobiera HC.
+- Przygotować materiały szkoleniowe PTK w Googleplexie o zatwierdzonych efektach,
+  wartościach i przykładach. Materiał uczy, nie przyznaje uprawnień.
+- Button Choice wyjaśnia brak wpływu effect poniżej progu (roboczo LVL 100).
+  Inne kreatory nie dają ręcznego pola. Losowe maksimum od LVL 40 to inna mechanika.
+- Mapa wskazuje cel; aplikacja uruchamia przypisany executor. Brak celu,
+  utrata dostępu, areszt, konfiskata i niezgodność wersji mają spójne komunikaty.
+- Output, log i animacja nie udają skutku niezapisanego przez backend.
+  Pełny pasek potężnego narzędzia sprawdzać na rzeczywistym stanie celu.
 
-## 148.3 — cztery formy prezentacji
+## 148.5 — rozliczenie opcji Button Choice
 
-| Kreator | Kontrola autora | Ograniczenie systemowe |
-| --- | --- | --- |
-| AppForge | Kroki postępu i treści wyniku | Animacja nie nadaje sukcesu; decyduje backend. |
-| Window Maker | Tytuł, lista logów, opcjonalne przyciski | Nazwane akcje z katalogu, bez dowolnych flag; brak przycisków ma jawne zachowanie, bez ukrytego auto-hacku. |
-| Button Maker | Tytuł, opis, label, effect, sugerowana price każdej opcji | Effect w profilu/policy; widoczna końcowa opłata za użycie. |
-| Term Creator | Wiele par komenda–output | Zachować losowanie pary i animację; komenda jest prezentacją, nie wykonywalnym kodem użytkownika. |
+- Osobno pokazywać cenę zakupu i użycia. Przed kliknięciem znana kwota i odbiorca;
+  zero oznacza bezpłatność. Backend pobiera cenę, autora i efekt z zainstalowanej wersji.
+- Pierwsza publikacja zamraża ceny. Poprawki interfejsu nie przeliczają opłat.
+- Jedno użycie to jeden receipt, transfer i efekt; retry/timeout/reconnect
+  odtwarza wynik. Kolejne świadome użycie ma nową tożsamość.
+- Odmowa walidacji, brak HC/celu/dostępu i błąd przed wykonaniem nie pobierają HC.
+  Regułę opłaty za wykonaną, ale nieskuteczną próbę zatwierdzić przed aktywacją
+  i jawnie pokazać w UI; nie uznawać starej propozycji za zatwierdzoną.
+- Transfer i efekt są atomowe albo mają trwałą finalizację/odzyskiwanie.
+  Obsłużyć równoległe wydatki, użycie własnej aplikacji bez sztucznego przychodu
+  i brak odbiorcy. Proponowany fallback admin pozostaje do potwierdzenia,
+  nigdy ciche zniszczenie HC. Naprawić stare fixture zamiast osłabiać walidację.
 
-Wariant tekstowy Term Creatora nie losuje ponownie efektu operacji. Treści autora
-są bezpiecznie renderowane, a autorytatywny wynik wyraźnie oddzielony od narracji.
-Window Maker bez własnych przycisków może być widokiem informacyjnym; sposób
-uruchomienia gameplayowego profilu musi pozostać widoczny w podglądzie.
+## Bramka i PASS
 
-## 148.4 — opłata Button Makera za każde użycie
+Obowiązuje [zero ciężkiego profilu](../plans/creator_ghostlab_zero_heavy_profile_contract.md).
+Osobny magazyn projektów, małe projekcje, kanoniczne inventory/wallet i receipts;
+bez ciężkiego profilu autora, klienta czy celu także na błędach/retry.
+Naruszenia naprawiać w bieżącym etapie.
 
-- Przed kliknięciem widać końcową kwotę HC i odbiorcę; zero oznacza „Bezpłatnie”.
-  Cena zakupu aplikacji jest prezentowana osobno.
-- Backend pobiera opcję, cenę, autora i efekt z zainstalowanej wersji, nigdy
-  z klienta. Nie wolno zmienić kwoty po akceptacji bez ponownego potwierdzenia.
-- Jedno zaakceptowane użycie = jeden receipt, jeden transfer, jeden efekt.
-  Retry/timeout/reconnect zwracają ten sam wynik. Nowe użycie ma nową tożsamość
-  i ponownie podlega cenie, limitom oraz cooldownom.
-- Proponowana reguła rozliczenia: odmowa walidacji, brak HC/celu/dostępu lub
-  błąd techniczny przed wykonaniem nie pobierają opłaty. Prawidłowo wykonana próba
-  gameplayowa jest płatna także przy losowym braku efektu; tę regułę pokazać w UI
-  i zatwierdzić przy odbiorze policy przed aktywacją płatności.
-- Wspólna księga HC i atomowy transfer do twórcy z efektem albo trwały mechanizm
-  odzyskiwania/finalizacji dla executora wieloetapowego; brak sukcesu zapisu
-  jednego elementu nie może zostawiać drugiego bez rozliczenia.
-- Obsłużyć użycie własnej aplikacji (brak sztucznego przychodu), brak odbiorcy,
-  zmianę ceny wersji i konkurencyjne wydatki. Proponowany fallback dla brakującego
-  odbiorcy: konto `admin` zgodnie z zasadą systemowego skarbca, z jawnym powodem
-  w księdze; nigdy ciche zniszczenie HC. Brak konta skarbca blokuje transakcję.
+Macierz czterech kreatorów: proste utworzenie → generacja → końcowy edytor →
+publikacja → zakup na innym koncie → użycie → ponowne otwarcie projektu → korekta
+prezentacji → ta sama oferta → stara kopia bez zmian → bezpłatna AKTUALIZACJA.
+Sprawdzić brak duplikatów, oba salda i historię wersji.
 
-## 148.5 — regresje i migracja UI
+Testy obejmują blokadę zmian mechaniki/ceny także przez API, zachowanie losowania,
+różne moce na tym samym poziomie, próg effect, XMappera, zgodne cele/executory,
+pliki i progres, free/min/max, retry, awarie, dwie karty, wycofanie, desktop/mobile
+oraz klawiaturę. Wymagany odbiór gameplayowy, nie tylko wygląd formularza.
 
-- Naprawić fixture czterech istniejących testów kończących się
-  `payment_recipient_unavailable`, zapewniając canonical konta i salda;
-  nie wyłączać zabezpieczeń płatniczych dla uzyskania PASS.
-- Pełna macierz czterech kreatorów: utworzenie → preview → quote → publikacja →
-  zakup przez innego gracza → instalacja → wybór celu → użycie → zapisany efekt/wynik.
-- Pokryć obiekt/filar, kamerę, venue/Wi-Fi/mikrofon i obsługiwane cele specjalne
-  przez poprawne profile. Nie wymagać, by jedna aplikacja obsługiwała wszystkie.
-- Testy poziomów poniżej progu i L40; rzeczywisty progres celu, pliki/operacje
-  i wpływ na ryzyko incydentu. Sukces prezentacji nie zastępuje tych dowodów.
-- Testy płatności: free, min/max, korekta sugestii, brak HC, autor=wykonawca,
-  fallback admin, retry, dwie karty, awaria i aktualizacja aplikacji.
-- Desktop/mobile, klawiatura, zachowanie danych formularza, wielokrotne wejście
-  w preview. Starsze aplikacje mają jawny status kompatybilności i nie znikają.
+Kontrolowane wdrożenie z configiem i runbookiem. Rollback zachowuje projekty,
+wersje, receipts i poprawne rozliczenia; nie przelicza kupionych narzędzi.
 
-## 148.6 — wdrożenie i PASS
-
-Kontrolowane włączenie nowego kontraktu i czterech formularzy, potem płatnych opcji
-po potwierdzeniu księgi na kontach testowych. Zmienne procesów w ecosystemach,
-policy i cenniki w backendowym configu. Cofnięcie aktywacji zachowuje opublikowane
-wersje i receipts; nie cofa samoczynnie poprawnych transferów/skutków.
-
-PASS: gracz bez znajomości kluczy runtime tworzy aplikację o jednym celu;
-L40 daje pełny dopuszczony wpływ; backend odrzuca obejścia; wszystkie cztery
-prezentacje uruchamiają deklarowane efekty; każda płatna opcja ma zgodny receipt
-i saldo obu stron. Odbiór ręczny i testy wymagane, nie sam wygląd formularza.
-
-Poza zakresem: kursy efektów w Googleplexie, nowe rodziny gameplayowe, dowolny kod,
-GhostLab Research/Community/AI oraz zmiana reguł incydentów i aresztu.
+Po PASS: **149 — Research → 150 — Exchange/import → 151 — Community/wersje
+→ 152 — domknięcie GhostLab v2.0**. Poza zakresem: dowolny kod gracza,
+nowe zasady aresztu i incydentów oraz funkcje GhostLab v2.0.

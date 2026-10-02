@@ -13258,10 +13258,10 @@ async function createAppForge() {
 }
 
 async function getCreatorSecurityKeys() {
-    const profileData = await getUserProfile();
-    return Object.entries((profileData && profileData.security) || {})
-        .filter(([, value]) => typeof value !== 'object')
-        .map(([key]) => key);
+    const response = await fetch('/api/creators/policy', {cache: 'no-store'});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Brak polityki kreatora.');
+    return data.security_keys;
 }
 
 function creatorCheckboxGroup(keys, fieldName) {
@@ -16848,6 +16848,12 @@ async function createFileManager(options = {}) {
                 if (!container.isConnected || state?.currentFolder !== folderName) return;
                 files[folderName] = data.files || [];
             } catch (error) { addSystemMessage('warning', 'Pliki', error.message); return; }
+        } else if (folderName === 'projects') {
+            const response = await fetch('/api/creators/files', {cache: 'no-store'});
+            const data = await response.json();
+            if (!response.ok) { addSystemMessage('warning', 'Projekty', data.message); return; }
+            if (!container.isConnected || state?.currentFolder !== folderName) return;
+            files.projects = data.files || [];
         } else if (!['tools', 'about', 'tips-tricks'].includes(folderName)) {
             // Creator and gameplay folders retain their existing representation until their cutover.
             const legacy = await getUserProfile();

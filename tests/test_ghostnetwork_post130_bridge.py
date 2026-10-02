@@ -10,7 +10,7 @@ from database import (
     GhostNetworkDeltaDeliveryJobStore,
     GhostNetworkTerritoryJobStore,
     PlayerMarkedTargetStore,
-    ProfileWriteConflict,
+    ProfileWriteConflict, UserStore, TerritoryProgressionReceiptStore, UserIdentityProjectionStore,
 )
 from ghostnetwork import GhostCycleService, GhostDropPolicy, GhostNetworkRepository, GhostNetworkService
 from ghostnetwork.ollama_policy import build_ollama_task_package
@@ -62,6 +62,17 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             repository=self.repo,
             drop_policy=GhostDropPolicy(enabled=True, chance=1.0),
         )
+        from tests.test_hot_path_recovery import complete_profile
+        self.users = UserStore(self.db_path, seed_path=self.db_path + '.missing')
+        for name in ('alice', 'part-owner'):
+            self.users.save_profile(dict(complete_profile(name), respect=100))
+        self.progression = TerritoryProgressionReceiptStore(self.db_path)
+        self.progression_patch = patch.object(run, 'territory_progression_receipt_store', self.progression)
+        self.progression_patch.start()
+        self.addCleanup(self.progression_patch.stop)
+        self.identity_patch = patch.object(run, 'identity_projection_store', UserIdentityProjectionStore(self.db_path))
+        self.identity_patch.start()
+        self.addCleanup(self.identity_patch.stop)
         self.job_store = GhostNetworkTerritoryJobStore(db_path=self.db_path)
         self.delivery_store = GhostNetworkDeltaDeliveryJobStore(db_path=self.db_path)
         self.player = {"player_id": "alice", "username": "alice", "clan_code": "virex"}
@@ -465,236 +476,51 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         self.assertEqual(publication[0]["owner_username"], "foreign-owner")
         self.assertEqual(publication[0]["owner_clan"], "sentinel_order")
 
-    def test_public_reward_event_loads_full_record_before_guarded_save(self):
-        identity_projection = {
-            "username": "alice",
-            "clan": "virex",
-            "profession": "broker",
-        }
-        persisted_profile = {
-            "username": "alice",
-            "clan": "virex",
-            "profession": "broker",
-            "level": 37,
-            "hackcoins": 84512,
-            "respect": 900,
-            "apps": [{"id": "established-app"}],
-            "tools": [{"id": "established-tool"}],
-            "custom_profile_state": {"must": "survive"},
-        }
-        event = {
-            "event_id": "activation:alice:full-profile-regression",
-            "event_type": "ghost.part_activated",
-            "cycle_id": self.repo.get_active_cycle()["cycle_id"],
-            "part_id": self.part["part_id"],
-            "player_id": "alice",
-            "audience_scope": "public",
-            "payload": {"player_id": "alice"},
-        }
-        service = MagicMock()
-        received_profiles = []
-        saved_profiles = []
-        persisted_record = {
-            "profile": dict(persisted_profile),
-            "profile_revision": 42,
-            "checksum": "profile-checksum",
-        }
-
-        def handle_reward(_event, profile, apply):
-            self.assertFalse(apply)
-            received_profiles.append(profile)
-            return {
-                "ok": True,
-                "created": {"reward": {"reward_id": "reward-full-profile"}},
-                "applied": None,
-            }
-
-        def project_reward(profile, reward_id):
-            self.assertEqual(reward_id, "reward-full-profile")
-            profile["respect"] += 5
-            return {
-                "ok": True,
-                "status": "projected",
-                "profile_changed": True,
-                "requires_finalize": True,
-            }
-
-        service.handle_reward_event.side_effect = handle_reward
-        service.project_reward_to_profile.side_effect = project_reward
-        service.finalize_projected_reward.return_value = {
-            "ok": True,
-            "status": "applied",
-        }
-        def capture_guarded_save(record, profile, source):
-            saved_profiles.append({
-                "record": record,
-                "profile": dict(profile),
-                "source": source,
-            })
-            return {"applied": True, "profile_revision": 43}
-
-        with patch.object(
-            run,
-            "identity_projection_store",
-            FakeIdentityProjection({"alice": identity_projection}),
-        ), patch.object(
-            run.user_store,
-            "get_profile",
-            side_effect=AssertionError("identity projection must not load reward profile"),
-        ), patch.object(
-            run.user_store,
-            "save_profile",
-            side_effect=AssertionError("legacy full save must not run"),
-        ), patch.object(
-            run,
-            "load_profile_write_record",
-            return_value=persisted_record,
-        ) as load_record, patch.object(
-            run,
-            "save_profile_write_record",
-            side_effect=capture_guarded_save,
-        ) as guarded_save, patch.object(
-            run,
-            "enqueue_ghostnetwork_event_delta",
-            return_value={"ok": True},
-        ):
-            run.apply_ghostnetwork_runtime_result(service, event)
-
-        load_record.assert_called_once_with("alice")
-        guarded_save.assert_called_once()
-        self.assertEqual(received_profiles[0]["level"], 37)
-        self.assertIs(saved_profiles[0]["record"], persisted_record)
-        self.assertEqual(saved_profiles[0]["source"], "ghostnetwork.runtime_reward")
-        saved_profile = saved_profiles[0]["profile"]
-        self.assertEqual(saved_profile["hackcoins"], 84512)
-        self.assertEqual(saved_profile["apps"], [{"id": "established-app"}])
-        self.assertEqual(saved_profile["tools"], [{"id": "established-tool"}])
-        self.assertEqual(saved_profile["custom_profile_state"], {"must": "survive"})
-        self.assertEqual(saved_profile["respect"], 905)
-        self.assertNotIn("level", identity_projection)
-        service.finalize_projected_reward.assert_called_once_with(
-            received_profiles[0],
-            reward_id="reward-full-profile",
-        )
-
-    def test_reward_cas_failure_stays_pending_and_retry_applies_once(self):
-        event = {
-            "event_id": "activation:alice:cas-retry",
-            "event_type": "ghost.part_activated",
-            "cycle_id": self.repo.get_active_cycle()["cycle_id"],
-            "part_id": "part-cas-retry",
-            "player_id": "alice",
-            "clan_code": "virex",
-            "audience_scope": "player",
-            "payload": {"player_id": "alice", "score": 10},
-        }
-        durable = {
-            "record": {
-                "profile": {"username": "alice", "respect": 100},
-                "profile_revision": 7,
-            },
-            "fail_once": True,
-        }
-
-        def load_record(_username):
-            return {
-                **durable["record"],
-                "profile": copy.deepcopy(durable["record"]["profile"]),
-            }
-
-        def guarded_save(record, profile, _source):
-            if durable["fail_once"]:
-                durable["fail_once"] = False
-                raise ProfileWriteConflict("fault-injected CAS loss")
-            durable["record"] = {
-                "profile": copy.deepcopy(profile),
-                "profile_revision": int(record["profile_revision"]) + 1,
-            }
-            return {"applied": True, **durable["record"]}
-
-        patches = (
-            patch.object(run, "load_profile_write_record", side_effect=load_record),
-            patch.object(run, "save_profile_write_record", side_effect=guarded_save),
-            patch.object(run, "enqueue_ghostnetwork_event_delta", return_value={"ok": True}),
-        )
-        with patches[0], patches[1], patches[2]:
-            with self.assertRaises(ProfileWriteConflict):
-                run.apply_ghostnetwork_runtime_result(self.service, event)
-            reward = self.repo.list_rewards(player_id="alice", limit=10)[0]
-            self.assertEqual(reward["status"], "pending")
-            self.assertEqual(durable["record"]["profile"]["respect"], 100)
-
+    def test_public_reward_event_preserves_profile_payload(self):
+        from database import db_connect
+        event = dict(event_id='bounded-public', event_type='ghost.part_activated',
+            cycle_id=self.repo.get_active_cycle()['cycle_id'], part_id='bounded-part',
+            player_id='alice', clan_code='virex', payload=dict(score=10))
+        with db_connect(self.db_path) as conn:
+            before = tuple(conn.execute("SELECT profile_json,profile_checksum FROM users WHERE username='alice'").fetchone())
+        with patch.object(run, 'load_profile_write_record', side_effect=AssertionError('heavy')), \
+             patch.object(run, 'save_profile_write_record', side_effect=AssertionError('heavy')), \
+             patch.object(run, 'enqueue_ghostnetwork_event_delta', return_value={}):
             run.apply_ghostnetwork_runtime_result(self.service, event)
-            after_retry = copy.deepcopy(durable["record"]["profile"])
+        with db_connect(self.db_path) as conn:
+            after = tuple(conn.execute("SELECT profile_json,profile_checksum FROM users WHERE username='alice'").fetchone())
+        self.assertEqual(before, after)
+        self.assertGreater(self.progression.progression.get('alice')['respect'], 100)
+
+    def test_reward_ledger_failure_stays_pending_and_retry_applies_once(self):
+        event = dict(event_id='bounded-failure', event_type='ghost.part_activated',
+            cycle_id=self.repo.get_active_cycle()['cycle_id'], part_id='bounded-failure-part',
+            player_id='alice', clan_code='virex', payload=dict(score=10))
+        with patch.object(run, 'enqueue_ghostnetwork_event_delta', return_value={}):
+            with patch.object(self.progression.progression, 'award', side_effect=ProfileWriteConflict('failure')):
+                with self.assertRaises(ProfileWriteConflict):
+                    run.apply_ghostnetwork_runtime_result(self.service, event)
+            self.assertEqual(self.progression.progression.get('alice')['respect'], 100)
+            self.assertEqual(self.repo.list_rewards(player_id='alice', limit=10)[0]['status'], 'pending')
             run.apply_ghostnetwork_runtime_result(self.service, event)
-
-        reward = self.repo.get_reward(reward["reward_id"])
-        self.assertEqual(reward["status"], "applied")
-        self.assertGreater(after_retry["respect"], 100)
-        self.assertEqual(durable["record"]["profile"]["respect"], after_retry["respect"])
-        self.assertEqual(len(after_retry["ghostnetwork_reward_history"]), 1)
-        reputation = self.repo.get_clan_reputation("virex")
-        self.assertEqual(reputation["parts_activated"], 1)
-
-    def test_reward_crash_after_profile_save_retries_without_double_rsp(self):
-        event = {
-            "event_id": "activation:alice:post-save-crash",
-            "event_type": "ghost.part_activated",
-            "cycle_id": self.repo.get_active_cycle()["cycle_id"],
-            "part_id": "part-post-save-crash",
-            "player_id": "alice",
-            "clan_code": "virex",
-            "audience_scope": "player",
-            "payload": {"player_id": "alice", "score": 10},
-        }
-        durable = {
-            "profile": {"username": "alice", "respect": 200},
-            "revision": 11,
-        }
-
-        def load_record(_username):
-            return {
-                "profile": copy.deepcopy(durable["profile"]),
-                "profile_revision": durable["revision"],
-            }
-
-        def guarded_save(record, profile, _source):
-            durable["profile"] = copy.deepcopy(profile)
-            durable["revision"] = int(record["profile_revision"]) + 1
-            return {
-                "applied": True,
-                "profile": copy.deepcopy(profile),
-                "profile_revision": durable["revision"],
-            }
-
-        with patch.object(run, "load_profile_write_record", side_effect=load_record), \
-                patch.object(run, "save_profile_write_record", side_effect=guarded_save), \
-                patch.object(run, "enqueue_ghostnetwork_event_delta", return_value={"ok": True}), \
-                patch.object(
-                    self.service,
-                    "finalize_projected_reward",
-                    side_effect=RuntimeError("fault-injected post-save crash"),
-                ):
-            with self.assertRaises(RuntimeError):
-                run.apply_ghostnetwork_runtime_result(self.service, event)
-
-        saved_once = copy.deepcopy(durable["profile"])
-        reward = self.repo.list_rewards(player_id="alice", limit=10)[0]
-        self.assertEqual(reward["status"], "pending")
-        self.assertGreater(saved_once["respect"], 200)
-        self.assertEqual(len(saved_once["ghostnetwork_reward_history"]), 1)
-
-        with patch.object(run, "load_profile_write_record", side_effect=load_record), \
-                patch.object(run, "save_profile_write_record", side_effect=guarded_save) as save_mock, \
-                patch.object(run, "enqueue_ghostnetwork_event_delta", return_value={"ok": True}):
+            after = self.progression.progression.get('alice')
             run.apply_ghostnetwork_runtime_result(self.service, event)
+        self.assertEqual(after, self.progression.progression.get('alice'))
+        self.assertEqual(self.repo.get_clan_reputation('virex')['parts_activated'], 1)
 
-        self.assertEqual(save_mock.call_count, 0)
-        self.assertEqual(durable["profile"]["respect"], saved_once["respect"])
-        self.assertEqual(len(durable["profile"]["ghostnetwork_reward_history"]), 1)
-        self.assertEqual(self.repo.get_reward(reward["reward_id"])["status"], "applied")
-        reputation = self.repo.get_clan_reputation("virex")
-        self.assertEqual(reputation["parts_activated"], 1)
+    def test_reward_crash_after_ledger_commit_retries_without_double_rsp(self):
+        event = dict(event_id='bounded-crash', event_type='ghost.part_activated',
+            cycle_id=self.repo.get_active_cycle()['cycle_id'], part_id='bounded-crash-part',
+            player_id='alice', clan_code='virex', payload=dict(score=10))
+        with patch.object(run, 'enqueue_ghostnetwork_event_delta', return_value={}):
+            with patch.object(self.service, 'finalize_projected_reward', side_effect=RuntimeError('crash')):
+                with self.assertRaises(RuntimeError):
+                    run.apply_ghostnetwork_runtime_result(self.service, event)
+            after = self.progression.progression.get('alice')
+            self.assertGreater(after['respect'], 100)
+            run.apply_ghostnetwork_runtime_result(self.service, event)
+        self.assertEqual(after, self.progression.progression.get('alice'))
+        self.assertEqual(self.repo.get_clan_reputation('virex')['parts_activated'], 1)
 
     def test_territory_publication_does_not_require_username_inside_profile_json(self):
         areas = [self.area("foreign-owner", 1)]

@@ -101,22 +101,27 @@ class GhostSignalRankingService:
                 "clan_id_snapshot": clan,
                 "clan_name_snapshot": clan,
             }
-        # Two bounded scalar leaves at finalization only, never hydrate a profile.
+        # Read only small projections; finalization must not scan profile blobs.
         try:
+            from player_progression import projection_values
             with self.repository._conn() as conn:
                 visual_rows = conn.execute(
-                    "SELECT username, substr(json_extract(profile_json, '$.avatar'), 1, 160) AS avatar, "
-                    "json_extract(profile_json, '$.level') AS level FROM users "
-                    f"WHERE username IN ({placeholders}) AND profile_integrity_status = 'valid' "
-                    "AND json_valid(profile_json)", player_ids,
+                    "SELECT p.username,p.player_level, "
+                    "substr(json_extract(i.desktop_boot_json, '$.avatar'),1,160) AS avatar "
+                    "FROM user_capability_projection p "
+                    "JOIN user_identity_projection i USING(username) JOIN users u USING(username) "
+                    f"WHERE p.username IN ({placeholders}) AND u.profile_integrity_status='valid' "
+                    "AND p.source_profile_revision=u.profile_revision "
+                    "AND i.source_profile_revision=u.profile_revision "
+                    "AND p.source_profile_checksum=u.profile_checksum "
+                    "AND i.source_profile_checksum=u.profile_checksum", player_ids,
                 ).fetchall()
-            for row in visual_rows:
-                snapshots[row["username"]]["avatar_snapshot"] = _clean(row["avatar"])
-                level = row["level"]
-                snapshots[row["username"]]["level_snapshot"] = level if isinstance(level, int) and 1 <= level <= 999 else None
+                for row in visual_rows:
+                    level, _ = projection_values(conn, row['username'], level=row['player_level'])
+                    snapshots[row['username']]['avatar_snapshot'] = _clean(row['avatar'])
+                    snapshots[row['username']]['level_snapshot'] = level if isinstance(level, int) and 1 <= level <= 999 else None
         except Exception:
-            logger = logging.getLogger(__name__)
-            logger.warning("Ranking visual profile leaves unavailable")
+            logging.getLogger(__name__).warning('Ranking visual projections unavailable')
         return snapshots
 
     @staticmethod

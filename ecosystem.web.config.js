@@ -7,6 +7,8 @@ module.exports = {
       args: "run:app --bind 127.0.0.1:6666 --workers 4 --timeout 120 --access-logfile - --error-logfile -",
       interpreter: "none",
       env: {
+        // Keep disabled until the 147 runtime/capture gate and 148 editor pass.
+        CHAOS_CREATORS_V2_ENABLED: "false",
         CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",
         CHAOS_GHOSTLAB_TRAVEL_RUNTIME_ENABLED: "true",
         CHAOS_GHOSTLAB_MAINTENANCE_RUNTIME_ENABLED: "true",

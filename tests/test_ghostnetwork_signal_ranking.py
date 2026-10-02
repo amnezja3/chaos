@@ -28,13 +28,17 @@ class GhostSignalRankingTest(unittest.TestCase):
         conn = sqlite3.connect(":memory:")
         conn.row_factory = sqlite3.Row
         try:
-            conn.execute("CREATE TABLE user_identity_projection(username TEXT, display_alias TEXT, clan_code TEXT)")
-            conn.execute("CREATE TABLE users(username TEXT, profile_json TEXT, profile_integrity_status TEXT)")
+            from player_progression import SCHEMA
+            conn.execute(SCHEMA)
+            conn.execute("CREATE TABLE user_identity_projection(username TEXT, display_alias TEXT, clan_code TEXT, desktop_boot_json TEXT, source_profile_revision INTEGER, source_profile_checksum TEXT)")
+            conn.execute("CREATE TABLE user_capability_projection(username TEXT, player_level INTEGER, source_profile_revision INTEGER, source_profile_checksum TEXT)")
+            # No profile_json column: even a hidden fallback must fail this test.
+            conn.execute("CREATE TABLE users(username TEXT, profile_integrity_status TEXT, profile_revision INTEGER, profile_checksum TEXT)")
             for name, status in [("alpha", "valid"), ("beta", "recovery_required")]:
-                conn.execute("INSERT INTO user_identity_projection VALUES (?, ?, 'virex')", (name, name))
-                conn.execute("INSERT INTO users VALUES (?, ?, ?)", (name, dumps_json({
-                    "avatar": "/static/images/avatar-frakcja-1-player-1.png", "level": 42,
-                    "files": {"private": "not projected"}}), status))
+                conn.execute("INSERT INTO user_identity_projection VALUES (?, ?, 'virex', ?, 1, 'valid')",
+                    (name, name, dumps_json(dict(avatar='/static/images/avatar-frakcja-1-player-1.png'))))
+                conn.execute("INSERT INTO user_capability_projection VALUES (?,42,1,'valid')", (name,))
+                conn.execute("INSERT INTO users VALUES (?,?,1,'valid')", (name, status))
             from tools.build_ghostsignal_show_preview import HistoricalReader
             conn.commit()
             conn.execute("PRAGMA query_only=ON")

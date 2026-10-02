@@ -1,113 +1,153 @@
-# Sprint 147 — kreatory: jedno przeznaczenie i serwerowa polityka możliwości
+﻿# Sprint 147 — prosty kreator, losowana moc i trwała mechanika
 
-Status: **ZAPLANOWANY**, 24 IX 2026. Bez rozpoczęcia implementacji.
-Podstawa: [audyt kreatorów](../audits/creators_gameplay_audit_2026_09_24.md).
-Kontynuacja: [148 — UX, wykonanie i opłaty](sprint_148_creator_ux_runtime_completion.md).
-Kolejność po 144–146 oraz rozszerzeniach 146.1–146.5, w tym
-[domknięciu GhostLab 1.0](sprint_146_5_ghostlab_v1_completion.md); reuse fundamentów publikacji
-z 144, bez przebudowy GhostLaba.
+Status: **W TRAKCIE — rozpoczęty 1 X 2026**. Fundament backendu zaimplementowany;
+pełny runtime, migracja i odbiór pozostają otwarte. Nie jest to pakiet do wdrożenia ani PASS.
+Po PASS [146.5](sprint_146_5_ghostlab_v1_completion.md); kontynuacja:
+[148 — UX, edycja i aktualizacje](sprint_148_creator_ux_runtime_completion.md).
+Zastępuje wcześniejszy model automatycznej pełnej mocy od LVL 40.
+Historyczna podstawa: [audyt kreatorów](../audits/creators_gameplay_audit_2026_09_24.md).
 
-## Bramka: zero ciężkiego profilu
+## Cel i prosty kontrakt
 
-Wykryte naruszenie naprawiamy od razu w bieżącym etapie, z testem regresji;
-nie odkładamy go do następnego sprintu ani jako długu technicznego.
+Kreatory mają być prostsze od GhostLaba: gracze tworzą dużo aktywnych narzędzi
+na własny użytek, dla innych i dla zabawy. Zdobywanie, poznawanie i dobór narzędzi
+są częścią rozgrywki, a mocny produkt może być wartościowym wynikiem tworzenia.
 
-Obowiązuje [wspólny zakaz ciężkiego profilu](../plans/creator_ghostlab_zero_heavy_profile_contract.md).
-Policy/quote/preview/generator pobierają poziom i wymagane dane autora z małej
-projekcji; zakaz `user_store.get_profile()` i `sync_session_profile()` także wewnątrz
-quality/price. Projekty kreatorów przechodzą do wydzielonego zapisu zamiast
-`profile.files.projects`. „Profil działania” to przepis aplikacji, nie profil gracza.
-PASS wymaga testów zero-heavy również na błędnym payloadzie i brakujących danych.
+**Nazwa + ikona + akcja/opcja mapy + czy tworzyć plik → system generuje parametry
+→ końcowy edytor interfejsu i publikacji.** Bez dawnej serii formularzy technicznych.
 
-## Rezultat
+## 147.1 — system dobiera mechanikę
 
-Każdy z czterech kreatorów produkuje aplikację o jednym konkretnym przeznaczeniu:
-**rodzina → cel → start → efekt → wynik**. Autor ustala nazwę, ikonę, opis,
-cel, rodzinę, informacje katalogowe, treści prezentacji i sugerowane ceny.
-Backend ustala dopuszczone możliwości, moc, warunki i profil ryzyka.
+- Wersjonowany katalog mapuje akcję na rodzinę, cel, executor, warunki, możliwości
+  i pliki. Autor wybiera tworzenie pliku tak/nie; właściwe typy przypisuje system.
+  Niezgodne połączenia są walidowane, a nie po cichu zmieniane.
+- Pokazywać tylko działające akcje. Uwzględnić istniejące scan/recon, exploit,
+  implant, sniff, śledzenie, kamery, audio/mikrofon, Wi-Fi i pliki zgodnie z audytem.
+- Jedna aplikacja ma spójne przeznaczenie; wiele komend lub przycisków nie nadaje
+  niepowiązanych zdolności. Brak executora nie może być zastąpiony obietnicą w opisie.
+- **XMapper zostaje.** Według testów autora hakuje kropkę exploita i cały pasek
+  zabezpieczeń. Zachować to w regresji; gracze mają móc tworzyć równie mocne
+  narzędzia w odpowiednich profilach. Nie osłabiać go przy migracji.
 
-## 147.1 — wspólny katalog profili działania
+## 147.2 — poziom wyznacza maksimum, losowanie rzeczywistą moc
 
-- Wersjonowany katalog łączy rodzinę, semantyczną grupę celu, dozwolony sposób
-  uruchomienia, akcję, executor, efekty i wynik/pliki. Nie generować niezależnych
-  kombinacji z szerokich list map_actions/operation_types/resource_types.
-- Jeden produkt ma jeden profil działania. Przyciski mogą proponować warianty tego
-  samego celu, ale nie dodają kolejnych niepowiązanych zastosowań.
-- Obiekty świata: POI/serwer/router/filar tylko jako zgodne techniczne warianty
-  danego profilu. Kamery, miejsca/venue i cele specjalne mają własne profile.
-- Katalog uwzględnia istniejące wykonawce: scan/recon, exploit, implant, sniff,
-  śledzenie ruchu/urządzenia/pojazdu, stream i zakłócenie kamery, audio/mikrofon,
-  Wi-Fi i pliki. Pokazywać tylko faktycznie zaimplementowane kombinacje.
-- Sporządzić mapowanie włączenia i wyłączenia kamer na realny stan i ryzyko
-  incydentu; brakujący executor nie może być zastąpiony obietnicą w opisie.
+- Poziom pobiera backend z małej projekcji. Wyznacza sufit, nie gwarantowany wynik.
+- Punkty odniesienia: **LVL 30 — maksimum około 95%; LVL 40 — możliwe 100%**.
+  Zatwierdzona 1 X tabela w configu: L1=25%, L10=50%, L20=75%, L30=95%, L40+=100%,
+  interpolacja liniowa między progami (wynik całkowity zaokrąglany w dół).
+  Dawna formuła `min(level,40)/40` nie odpowiada nowym ustaleniom.
+- Po ustaleniu sufitu system losuje realną moc, np. 50%, 70% lub maksimum.
+  Startowa szansa maksymalnego wariantu: **50/50**, konfigurowalna do późniejszego
+  strojenia. Druga gałąź losuje wyłącznie poniżej maksimum, żeby nie zwiększać
+  faktycznej szansy ponad config. Zatwierdzone minimum słabszej gałęzi: 20%;
+  losowanie jednostajne całkowite do sufitu minus jeden punkt procentowy.
+- Parametry są generowane raz i zapisywane z ID generacji, poziomem autora oraz
+  wersją policy. Retry, zapis, preview, publikacja i korekta tekstu nie losują ponownie.
+  Nowy projekt jest nową próbą; nie dodawać nieuzgodnionych opłat za losowanie.
+- Awans autora nie wzmacnia istniejącego produktu w tle. UI odróżnia sufit od wyniku.
+- Moc to wpływ we właściwej mechanice; dla zgodnego exploita 100% może rozbroić
+  cały pasek. To nie to samo co szansa wygenerowania wariantu czy niezawodność użycia.
+  Nie omija dostępu, aresztu, własności, warunków celu i ryzyka incydentu.
 
-## 147.2 — możliwości od poziomu twórcy
+## 147.3 — ręczny effect tylko w Button Choice
 
-- Osobna, konfigurowalna i wersjonowana policy dla tych czterech kreatorów.
-  Backend pobiera poziom autora; klient nie podaje wiążącego poziomu ani mocy.
-- Poziom 40 i wyższy: 100% możliwości oraz dopuszczonego wpływu w wybranym profilu.
-  Respekt i bogactwo nie pozwalają wcześniej obejść progów poziomu.
-- Przed kodowaniem executorów przygotować tabelę L1–L40: wpływ procentowy,
-  odblokowane możliwości, ograniczenia, warunki celu i ekspozycja. Roboczy wariant
-  wpływu to min(level,40)/40; dokładne progi odblokowań i balans do przeglądu autora,
-  nie są zatwierdzone samym zapisaniem planu.
-- Oddzielić moc, dozwolone efekty, niezawodność i ryzyko użycia. L40 nie oznacza
-  zerowego ryzyka, ominięcia aresztu, własności, dostępu ani gwarancji przejęcia
-  każdego obiektu. Scanner osiąga pełny odczyt, nie przejmuje celu jako exploit.
-- Proponowany kontrakt: poziom i policy zapisywane przy publikacji; awans autora
-  wymaga świadomej nowej wersji produktu, nie zmienia kupionych aplikacji w tle.
-  Jawnie opisać aktualizację istniejącej instalacji.
-- Docelowe pola techniczne wylicza backend; przesłane ręcznie przez klienta
-  sprzeczne uprawnienia/efekty są odrzucane, także dla payloadu custom/bez rodziny.
+- Button Choice (obecny Button Maker) pokazuje pole `effect` wszystkim graczom.
+  Wartość działa dopiero od wysokiego poziomu; roboczy próg **LVL 100** jest
+  konfigurowalny, zgodnie z przykładem autora.
+- Poniżej progu wpis nie nadaje efektu; UI jasno to wyjaśnia. Obowiązuje zwykła
+  systemowa generacja. Powyżej progu serwer waliduje identyfikator, typ, zakres,
+  zgodność z przeznaczeniem i uprawnieniami. Nieznany efekt daje czytelny błąd.
+- Jest to wewnętrzny hakerski input, nie dowolny kod ani niekontrolowane klucze
+  zabezpieczeń. Potężne efekty mogą umożliwiać narzędzia podobne do XMappera.
+- Katalog musi określać, które zatwierdzone efekty ustalają wynik bezpośrednio,
+  a które korzystają z losowania. Ustalić to przed implementacją, bez utożsamiania
+  progu LVL 40 na losowe maksimum z progiem dostępu do ręcznego efektu.
+- Term Creator, Window Maker i AppForge nie mają ręcznego `effect`; ich moc ustala
+  system i losowanie. Backend odrzuca próby przemycenia efektu w innym polu.
+- Weryfikować poziom autora przy zatwierdzaniu mechaniki, nie poziom późniejszego
+  kupującego. Zwykłe wymagania używania narzędzia pozostają niezależne.
 
-## 147.3 — semantyka efektu, ryzyka i progresu
+## 147.4 — wiedza w obiegu gry
 
-- Wycofać autorstwo ręcznych macierzy requires_off/interferes_with/disables/affects
-  w nowym kontrakcie. Rozdzielić warunki uruchomienia od faktycznej zmiany celu.
-- Wspólny wynik zawiera: wykonana akcja, zmienione parametry, pliki/operacje,
-  przyczyna odmowy, stan zabezpieczeń i ewentualne przejęcie. Log autora nie jest
-  dowodem wykonania efektu.
-- Zbudować reprodukcję „wszystkie opcje, pasek nie dochodzi do 100%” na kontrolowanym
-  celu. Uzgodnić źródło progresu z executorami, a nie z animacją.
-- Test L40 dla profilu rozbrajania: osiągnięcie pełnego deklarowanego wpływu przy
-  spełnionych warunkach; osobny test odmowy i profilu odczytowego bez przejęcia.
-- Ryzyko incydentu integruje istniejące kamery, ekspozycję i służby; jedna akcja
-  nie tworzy zdublowanych zdarzeń. Backend uwzględnia aktualny kontekst świata.
+Materiały szkoleniowe i PTK dostępne w Googleplexie uczą zatwierdzonych wartości
+`effect` i ich zastosowań. Gracz zdobywa wiedzę i buduje zaawansowane narzędzia.
+To część 147–148, nie wyłączenie z zakresu. Reuse obiegu PTK; materiał nie nadaje
+uprawnień i nie zastępuje walidacji. Przykłady muszą odpowiadać realnym executorom.
 
-## 147.4 — efekty przycisków, akcje i wycena
+## 147.5 — projekt, publikacja i zamrożona logika
 
-- Button Maker zachowuje effect, lecz pola, typy i zakresy wynikają z profilu
-  i poziomu. Nie dopuszczać arbitralnego security key lub wartości poza policy.
-- Window Maker otrzymuje mały katalog nazwanych akcji; `run_generated` oznacza
-  uruchomienie tego profilu, `close` zamknięcie. Nieznane identyfikatory (np.
-  rank_generated) wymagają mapowania lub błędu, nie domyślnej mutacji celu.
-- Rozdzielić cenę zakupu i cenę pojedynczego użycia opcji. Dla obu jawne zero
-  oznacza bezpłatność danej czynności; darmowy zakup nie znaczy darmowe użycia.
-- Dla ceny dodatniej funkcja quote ogranicza sugestię do [minimum, maksimum]
-  zależnych od profilu, zatwierdzonego efektu i mocy. Ujemne/niefinitywne wartości
-  odrzucać. Dokładne widełki w configu, do kalibracji z autorem przed aktywacją.
-- Quote pokazuje sugerowaną i końcową cenę oraz powód korekty. Ceny opcji nie wolno
-  wyprowadzać z arbitralnego tekstu autora ani losować w momencie płatności.
+- Projekt i produkt mają trwałe ID. Pierwsza publikacja zamraża przeznaczenie,
+  tworzenie/typy plików, mechaniki, moc, efekty, sposób działania i cenę.
+  Także ceny płatnych opcji należą do zablokowanego kontraktu.
+- Później edytowalne są tylko elementy prezentacyjne: nazwa/tytuł, opis, ikona,
+  logi, outputy, etykiety i prezentacja oferty. Serwer stosuje listę dozwolonych
+  zmian i porównuje logikę z pierwszym opublikowanym kontraktem.
+- Zmiana tekstu komendy lub przycisku nie zmienia akcji, efektu ani ceny.
+  Nowa mechanika wymaga nowego projektu, nie aktualizacji istniejącego produktu.
+- Nowe wydanie zastępuje ofertę pod tym samym ID. Stare instalacje pozostają
+  niezmienne; dotychczasowy nabywca ma bezpłatną **AKTUALIZACJĘ**. UX dopina 148.
 
-## 147.5 — wersjonowanie i kompatybilność
+## 147.6 — ceny, wykonanie, kompatybilność
 
-- Zrobić inwentaryzację istniejących aplikacji; dry-run kwalifikuje je do profilu
-  albo zgłasza niejednoznaczność. Nie zmieniać masowo efektów, cen i możliwości
-  kupionych produktów bez raportu migracji i jasnego kontraktu dla graczy.
-- Oddzielić legacy od nowego generatora. Nie pozwalać tworzyć nowych aplikacji
-  starym payloadem omijającym policy. Istniejące niebezpieczne efekty muszą mieć
-  kontrolę wykonania i czytelny powód blokady, nie cichy bypass kompatybilności.
-- Reuse spójnej publikacji z 144; zachować tożsamość autora, instalacje i zakupione
-  wersje. Nie zmieniać globalnie formuł GhostLaba bez osobnej decyzji.
+- Rozdzielić zakup i opłatę użycia; jawne zero oznacza bezpłatność danej czynności.
+  Quote przed pierwszą publikacją wyznacza cenę w systemowych widełkach. Korekta
+  wyglądu ani awans autora jej później nie przeliczają. Odrzucać błędne kwoty.
+- Wynik wynika z zapisanego stanu celu, plików i progresu, nie narracji autora.
+  Nie dublować incydentów; rozliczenia użycia dopina 148.
+- Inwentaryzacja i dry-run legacy: zachować ID, instalacje i XMappera. Nie losować
+  na nowo parametrów kupionych aplikacji. Niejednoznaczne kontrakty zgłaszać do
+  przeglądu. Nowe produkty nie mogą omijać policy starym payloadem.
+- Nie zmieniać reguł GhostLaba przy okazji przebudowy kreatorów.
 
-## 147.6 — warunki PASS
+## Bramka i PASS
 
-Testy poziomów 1/39/40/41 oraz granic wszystkich unlocków; monotoniczne możliwości,
-brak wpływu respektu/HC na obejście poziomu, odrzucanie podrobionych pól. Testy
-jednego profilu, kombinacji niedozwolonych i wszystkich wspieranych par cel/akcja.
-Testy quote: zero, poniżej minimum, w przedziale, powyżej maksimum, wartości błędne.
-Test progresu oparty na zapisanym stanie, nie wyłącznie tekstach i animacji.
+Obowiązuje [zero ciężkiego profilu](../plans/creator_ghostlab_zero_heavy_profile_contract.md).
+Projekty w osobnym magazynie, nie `profile.files.projects`; generator, quote,
+publikacja i błędy korzystają z małych projekcji. Naruszenia naprawiać od razu.
 
-Dostarczyć katalog, tabelę policy, fixture z canonical odbiorcą płatności oraz
-raport migracji i runbook rollback. Nowego formularza i pobierania opłat nie
-aktywować przed gotowością Sprintu 148; istniejąca gra zachowuje spójny kontrakt.
+Testy: granice 30/39/40/41 i progu effect (roboczo 99/100/101), obie gałęzie
+losowania, sufit, brak automatycznego maksimum i rerollu przy retry/edycji,
+podrobiony poziom/moc/efekt, niedozwolone kombinacje, rzeczywisty cały pasek,
+regresja XMappera, blokada logiki/cen po publikacji i zachowanie kupionych wersji.
+Rozkład testować kontrolowanym źródłem losowym, nie przypadkowym trafieniem.
+
+Dostarczyć config, katalog, kontrakt wersji, raport migracji i runbook rollback.
+Aktywację nowego UX oraz płatnych opcji skoordynować z 148.
+
+## Stan prac 1 X 2026
+
+Dodano `creator_policy.py`, `creator_store.py` i `creator_routes.py`: katalog recept,
+progi mocy, losowanie raz na ID żądania, walidację effect, osobny zapis projektów,
+niezmienne wydania i edycję prezentacyjną z kontrolą rewizji. Lista projektów ma
+małą projekcję i strony po 100 pozycji. API nowej ścieżki jest za wyłączoną domyślnie
+flagą `CHAOS_CREATORS_V2_ENABLED`; nie włączać jej przed domknięciem runtime.
+
+Naprawione znalezione ciężkie zależności: jakość legacy generatora czyta małe
+projekcje i wallet, publikacja/wycofanie nie zapisują `profile.files`, bootstrap
+kluczy kreatora i katalog projektów FM mają osobne endpointy. Katalog nakłada
+kanoniczne publikacje kreatorów na legacy, zachowując ID istniejących aplikacji.
+
+Weryfikacja: 9 nowych testów backendu (policy/store/requesty, zero-heavy,
+współbieżny retry, wersje, zapis pełnego wyłączenia zabezpieczeń do target store),
+istniejący test JS kontraktu kreatora oraz kontrola składni JS przeszły.
+Przypadkowe szersze uruchomienie importowanych klas ujawniło osobny FAIL fixture
+`test_security_migration_idempotent_missing_fails_closed` (seedowane konta w raporcie
+migracji); nie należy uznawać całego starszego zestawu za zielony.
+
+Kontynuacja: efekt zainstalowanego kontraktu jest podłączony do `/gonna-win`,
+z walidacją celu i indeksu opcji przed mutacją. Dodano ścisłą walidację prezentacji,
+quote (puste = cena systemowa, jawne 0 = gratis), konfigurację cen i efektów opcji
+przed pierwszą publikacją oraz ich blokadę po publikacji. Konfiguracja nie losuje
+ponownie mocy. Narzędzie `creator_migration.py` ma operatorski dry-run i import
+snapshotów historycznych publikacji z kontrolą powtórzeń. Zachowuje ceny, ID
+i efekty; nie migruje jeszcze legacy projektów do nowego edytora.
+
+Przeszło 18 nowych testów i 3 wybrane regresje starego runtime. Test requestu
+potwierdza zapis pełnego paska i kropki exploit, z pozostałymi akcjami nieaktywnymi;
+izoluje stary loader i nie potwierdza zero-heavy pełnego przejęcia ani XMappera.
+Dodano [runbook](../runbooks/sprint_147_creators.md) z migracją, rollbackiem i odbiorem.
+
+Otwarte w 147: ciężkie zależności przejęcia/progresji/właściciela i workerów,
+pozostałe executory z plikami, rzeczywista regresja XMappera, pełna migracja projektów
+i odbiór zakupów. Te prace nie są przeniesione do długu ani objęte PASS.
+Materiały szkoleniowe i końcowa ścieżka edytora/aktualizacji wymagają koordynacji z 148.

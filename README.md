@@ -192,9 +192,9 @@ then the gameplay creators and GhostLab v2.0. A prepared fix is not a production
 | 146.2 | Three maintenance templates | Closed / PASS. |
 | 146.3 | Firmware | Purchase, installation, success, crash and update PASS. |
 | [146.4](doc/sprints/sprint_146_4_ghostlab_deep_scanners.md) | Deep Scanners | Closed / author PASS, including final viewfinder effects. |
-| [146.5](doc/sprints/sprint_146_5_ghostlab_v1_completion.md) | GhostLab 1.0: .lab, terminal, global/clan PTK and free products | Package ready for acceptance; backend/JS and isolated Playwright checks. [Deployment checklist](doc/runbooks/sprint_146_5_ghostlab_completion.md). Gameplay PASS pending. |
-| [147](doc/sprints/sprint_147_creator_gameplay_policy.md) | Creator gameplay profiles and level policy | Planned after 146.5. |
-| [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Creator UX, fees and runtime completion | Planned after 147. |
+| [146.5](doc/sprints/sprint_146_5_ghostlab_v1_completion.md) | GhostLab 1.0: .lab, terminal, global/clan PTK and free products | **PASS — 2026-10-01**, accepted by the author. GhostLab 1.0 complete, including PTK editor scrolling, Plexcak and clan catalog visibility. [Runbook](doc/runbooks/sprint_146_5_ghostlab_completion.md). |
+| [147](doc/sprints/sprint_147_creator_gameplay_policy.md) | Simplified creators, level-capped random power and validated Button Choice effects | **In progress — 2026-10-02.** Creator contracts, canonical progression and capture/worker cutover integrated locally, including crash-safe GhostNetwork reward receipts. Explicit offline migrations required; remaining recipe/UX gates keep the new flow disabled and the full sprint not deployment-ready. [Runbook](doc/runbooks/sprint_147_creators.md). |
+| [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Final-screen creator UX, project editing, free updates and runtime settlement | Planned after 147; revised 2026-10-01. Same product ID, presentation-only revisions, immutable installed copies. |
 | [149](doc/sprints/sprint_149_ghostlab_v2_research.md) | GhostLab v2.0 Research | Planned after creator sprints 147–148. |
 | [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Planned. |
 | [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Planned. |

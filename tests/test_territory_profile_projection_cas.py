@@ -20,76 +20,20 @@ def profile_record(revision, **updates):
 
 
 class TerritoryProfileProjectionCasTest(unittest.TestCase):
-    def test_capture_owner_loss_projection_rebases_instead_of_false_409(self):
-        target = {
-            "target_id": "pillar-1", "lat": 52.1, "lng": 21.2,
-            "label": "Conflict Pillar",
-        }
-        fresh_hacked = [{"target_id": "pillar-2", "lat": 52.2, "lng": 21.3}]
-        records = [
-            profile_record(30, aimed_target=target, hacked=[target], nick="before"),
-            profile_record(31, aimed_target=target, hacked=[target], nick="concurrent"),
-        ]
-        applied_profile = copy.deepcopy(records[-1]["profile"])
-        applied_profile.update({
-            "aimed_target": {},
-            "hacked": fresh_hacked,
-            "captured_targets_source": "sqlite",
-        })
+    def test_capture_owner_loss_does_not_write_profile(self):
+        target = dict(target_id='pillar-1', lat=52., lng=21.)
+        with patch.object(run.player_target_runtime_store, 'clear_if_matches', return_value=True) as clear, \
+             patch.object(run, 'load_profile_write_record', side_effect=AssertionError('heavy read')), \
+             patch.object(run.user_store, 'patch_profile_guarded', side_effect=AssertionError('heavy write')):
+            result = run.project_lost_territory_after_capture('alice', target)
+        self.assertTrue(result['applied'])
+        self.assertTrue(result['runtime_cleared'])
+        clear.assert_called_once_with('alice', target, source='territory_capture_owner_loss')
 
-        with patch.object(
-            run.player_target_runtime_store, "clear_if_matches", return_value=True
-        ), patch.object(
-            run.territory_store, "list_captured_targets", return_value=fresh_hacked
-        ), patch.object(
-            run, "load_profile_write_record", side_effect=records
-        ), patch.object(
-            run.user_store, "patch_profile_guarded",
-            side_effect=[
-                ProfileWriteConflict("concurrent writer"),
-                {"applied": True, "profile": applied_profile, "profile_revision": 32},
-            ],
-        ) as guarded_patch:
-            result = run.project_lost_territory_after_capture("alice", target)
-
-        self.assertTrue(result["applied"])
-        self.assertFalse(result["deferred"])
-        self.assertTrue(result["runtime_cleared"])
-        self.assertEqual(2, guarded_patch.call_count)
-        self.assertEqual(
-            [item.kwargs["expected_revision"] for item in guarded_patch.call_args_list],
-            [30, 31],
-        )
-        for item in guarded_patch.call_args_list:
-            self.assertEqual(
-                set(item.args[1]),
-                {"aimed_target", "hacked", "captured_targets_source"},
-            )
-            self.assertNotIn("nick", item.args[1])
-
-    def test_capture_owner_loss_projection_defers_exhausted_cas_after_canonical_commit(self):
-        target = {
-            "target_id": "pillar-1", "lat": 52.1, "lng": 21.2,
-            "label": "Conflict Pillar",
-        }
-        records = [profile_record(revision, aimed_target=target, hacked=[target])
-                   for revision in (40, 41, 42)]
-
-        with patch.object(
-            run.player_target_runtime_store, "clear_if_matches", return_value=True
-        ), patch.object(
-            run.territory_store, "list_captured_targets", return_value=[]
-        ), patch.object(
-            run, "load_profile_write_record", side_effect=records
-        ), patch.object(
-            run.user_store, "patch_profile_guarded",
-            side_effect=ProfileWriteConflict("busy profile writer"),
-        ) as guarded_patch:
-            result = run.project_lost_territory_after_capture("alice", target)
-
-        self.assertFalse(result["applied"])
-        self.assertTrue(result["deferred"])
-        self.assertEqual(3, guarded_patch.call_count)
+    def test_capture_owner_loss_store_failure_is_retryable(self):
+        with patch.object(run.player_target_runtime_store, 'clear_if_matches', side_effect=RuntimeError('busy')):
+            with self.assertRaises(RuntimeError):
+                run.project_lost_territory_after_capture('alice', dict(target_id='pillar-1'))
 
     def test_controlled_recovery_conflict_consolidation_has_no_reward_or_profile_side_effect(self):
         conflict = {
@@ -231,148 +175,37 @@ class TerritoryProfileProjectionCasTest(unittest.TestCase):
         target_clear.assert_not_called()
         finish.assert_called_once_with("recovery-job-1", "worker", ok=True)
 
-    def test_rebuild_projection_reloads_and_retries_normal_cas_conflict(self):
-        abandoned = {"target_id": "target-a", "lat": 52.0, "lng": 21.0}
-        fresh = [{"target_id": "target-b", "lat": 52.1, "lng": 21.1}]
-        records = [
-            profile_record(4, aimed_target=abandoned),
-            profile_record(5, aimed_target=abandoned, nick="concurrent-one"),
-            profile_record(6, aimed_target=abandoned, nick="concurrent-two"),
-        ]
-        applied_profile = copy.deepcopy(records[-1]["profile"])
-        applied_profile.update({
-            "aimed_target": {},
-            "hacked": fresh,
-            "captured_targets_source": "sqlite",
-        })
+    def test_rebuild_worker_uses_only_canonical_context(self):
+        with patch.object(run.territory_store, 'claim_rebuild_job', return_value=dict(job_id='job-1', owner_username='alice', target={})), \
+             patch.object(run.territory_progression_receipt_store.progression, 'get', return_value=dict(level=3)), \
+             patch.object(run.player_target_runtime_store, 'clear_if_matches', return_value=True), \
+             patch.object(run, 'rebuild_player_areas_with_territory_delta', return_value=[]), \
+             patch.object(run.territory_store, 'list_player_areas', return_value=[]), \
+             patch.object(run, 'detect_territory_conflicts', return_value=[]), \
+             patch.object(run, 'load_profile_write_record', side_effect=AssertionError('heavy read')), \
+             patch.object(run.user_store, 'patch_profile_guarded', side_effect=AssertionError('heavy write')), \
+             patch.object(run.territory_store, 'finish_rebuild_job') as finish:
+            result = run.process_territory_rebuild_job('worker')
+        self.assertTrue(result['ok'], result)
+        finish.assert_called_once_with('job-1', 'worker', ok=True)
 
-        with patch.object(
-            run.territory_store, "claim_rebuild_job",
-            return_value={
-                "job_id": "job-1", "owner_username": "alice",
-                "target": abandoned, "reason": "abandon",
-            },
-        ), patch.object(
-            run, "load_profile_write_record", side_effect=records
-        ), patch.object(
-            run.player_target_runtime_store, "clear_if_matches", return_value=True
-        ), patch.object(
-            run, "rebuild_player_areas_with_territory_delta", return_value=[]
-        ), patch.object(
-            run.territory_store, "list_player_areas", return_value=[]
-        ), patch.object(
-            run, "detect_territory_conflicts", return_value=[]
-        ), patch.object(
-            run.territory_store, "list_captured_targets", return_value=fresh
-        ), patch.object(
-            run.user_store,
-            "patch_profile_guarded",
-            side_effect=[
-                ProfileWriteConflict("concurrent writer"),
-                {"applied": True, "profile": applied_profile, "profile_revision": 7},
-            ],
-        ) as guarded_patch, patch.object(
-            run.territory_store, "finish_rebuild_job", return_value=True
-        ) as finish:
-            result = run.process_territory_rebuild_job("worker")
+    def test_conflict_finalize_refreshes_only_scoped_stats(self):
+        with patch.object(run.territory_conflict_store, 'get_by_key', return_value=dict(participants=['alice'])), \
+             patch.object(run.territory_progression_receipt_store.progression, 'get', return_value=dict(level=3)), \
+             patch.object(run.territory_store, 'list_player_areas', return_value=[]), \
+             patch.object(run, 'refresh_canonical_territory_stats', return_value=dict(level=3)) as refresh, \
+             patch.object(run, 'load_profile_write_record', side_effect=AssertionError('heavy read')), \
+             patch.object(run, 'notify_encircled_area_owners'):
+            result = run.finalize_conflict_rebuild_profiles('conflict-1')
+        refresh.assert_called_once_with('alice', [])
+        self.assertEqual(result, [dict(username='alice', areas=0, levels_gained=0)])
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(guarded_patch.call_count, 2)
-        self.assertEqual(
-            [item.kwargs["expected_revision"] for item in guarded_patch.call_args_list],
-            [5, 6],
-        )
-        for item in guarded_patch.call_args_list:
-            self.assertEqual(
-                set(item.args[1]),
-                {"aimed_target", "hacked", "captured_targets_source"},
-            )
-            self.assertNotIn("nick", item.args[1])
-        finish.assert_called_once_with("job-1", "worker", ok=True)
-
-    def test_conflict_finalize_projection_retries_without_full_profile_save(self):
-        areas = [{"id": 1, "owner_username": "alice", "vertices": []}]
-        fresh = [{"target_id": "target-c"}]
-        records = [
-            profile_record(10, nick="before"),
-            profile_record(11, nick="concurrent-one"),
-            profile_record(12, nick="concurrent-two"),
-        ]
-        applied_profile = copy.deepcopy(records[-1]["profile"])
-        applied_profile.update({
-            "hacked": fresh,
-            "captured_targets_source": "sqlite",
-            "territory_stats": {"effective_area": 12.0},
-            "exp": "12 m2",
-        })
-
-        def refresh(profile, _areas):
-            profile["territory_stats"] = {"effective_area": 12.0}
-            profile["exp"] = "12 m2"
-            return profile
-
-        with patch.object(
-            run.territory_conflict_store, "get_by_key",
-            return_value={"participants": ["alice"], "last_actor_username": ""},
-        ), patch.object(
-            run, "load_profile_write_record", side_effect=records
-        ), patch.object(
-            run.territory_store, "list_player_areas", return_value=areas
-        ), patch.object(
-            run.territory_store, "list_captured_targets", return_value=fresh
-        ), patch.object(
-            run, "refresh_territory_stats_snapshot", side_effect=refresh
-        ), patch.object(
-            run.user_store,
-            "patch_profile_guarded",
-            side_effect=[
-                ProfileWriteConflict("concurrent writer"),
-                {"applied": True, "profile": applied_profile, "profile_revision": 13},
-            ],
-        ) as guarded_patch, patch.object(
-            run, "notify_encircled_area_owners"
-        ):
-            summaries = run.finalize_conflict_rebuild_profiles("conflict-1")
-
-        self.assertEqual(summaries, [{"username": "alice", "areas": 1, "levels_gained": 0}])
-        self.assertEqual(guarded_patch.call_count, 2)
-        self.assertEqual(
-            [item.kwargs["expected_revision"] for item in guarded_patch.call_args_list],
-            [11, 12],
-        )
-        for item in guarded_patch.call_args_list:
-            self.assertEqual(
-                set(item.args[1]),
-                {"hacked", "captured_targets_source", "territory_stats", "exp"},
-            )
-            self.assertNotIn("nick", item.args[1])
-
-    def test_clear_aimed_projection_has_no_undefined_revision_and_retries(self):
-        target = {"target_id": "target-a", "lat": 52.0, "lng": 21.0}
-        records = [
-            profile_record(20, aimed_target=target),
-            profile_record(21, aimed_target=target),
-        ]
-        with patch.object(
-            run.player_target_runtime_store, "clear_if_matches", return_value=False
-        ), patch.object(
-            run, "load_profile_write_record", side_effect=records
-        ), patch.object(
-            run.user_store,
-            "patch_profile_guarded",
-            side_effect=[
-                ProfileWriteConflict("concurrent writer"),
-                {"applied": True, "profile": profile_record(22)["profile"], "profile_revision": 22},
-            ],
-        ) as guarded_patch:
-            cleared = run.clear_aimed_target_if_matches("alice", target)
-
-        self.assertTrue(cleared)
-        self.assertEqual(guarded_patch.call_count, 2)
-        self.assertEqual(
-            [item.kwargs["expected_revision"] for item in guarded_patch.call_args_list],
-            [20, 21],
-        )
+    def test_clear_aimed_uses_canonical_selection_only(self):
+        target = dict(target_id='pillar-1')
+        with patch.object(run.player_target_runtime_store, 'clear_if_matches', return_value=True) as clear, \
+             patch.object(run, 'load_profile_write_record', side_effect=AssertionError('heavy read')):
+            self.assertTrue(run.clear_aimed_target_if_matches('alice', target))
+        clear.assert_called_once_with('alice', target, source='clear_aimed_target')
 
 
 if __name__ == "__main__":

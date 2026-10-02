@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import database
 import run
-from database import TerritoryProgressionReceiptStore, UserStore, WalletBalanceStore
+from database import TerritoryProgressionReceiptStore, UserStore, WalletBalanceStore, db_connect
 
 
 class TerritoryProgressionReceiptTests(unittest.TestCase):
@@ -93,13 +93,14 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
         self.assertTrue(replay["duplicate"])
         self.assertEqual(14, profile["respect"])
         self.assertEqual(3, profile["level"])
-        self.assertEqual(1, len(profile["system_messages"]))
+        with db_connect(self.db_path) as conn:
+            self.assertEqual(1, conn.execute("SELECT count(*) FROM system_messages WHERE username='alice'").fetchone()[0])
         self.assertEqual(before["profile_revision"] + 1, after["profile_revision"])
         self.assertTrue(after["checksum_valid"])
         self.assertEqual(before["profile_revision"], lkg["profile_revision"])
         self.assertTrue(lkg["checksum_valid"])
 
-    def test_settle_overlays_canonical_wallet_inside_writer_transaction(self):
+    def test_settle_preserves_canonical_wallet_without_touching_profile(self):
         WalletBalanceStore(self.db_path).recovery_set_balance(
             "alice",
             733,
@@ -107,17 +108,8 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
             reason="test.recovery",
         )
         receipt = self.receipts.ensure("capture:canonical", "alice", {})
-        original_overlay = database.overlay_canonical_profile_scopes_with_conn
-        observed_transactions = []
-
-        def observed_overlay(conn, username, profile):
-            observed_transactions.append(conn.in_transaction)
-            return original_overlay(conn, username, profile)
-
-        with patch(
-            "database.overlay_canonical_profile_scopes_with_conn",
-            side_effect=observed_overlay,
-        ):
+        with patch.object(self.users,'get_profile',side_effect=AssertionError('heavy profile')), \
+                patch('database.overlay_canonical_profile_scopes_with_conn',side_effect=AssertionError('full overlay')):
             result = self.receipts.settle(
                 receipt["receipt_id"],
                 {"respect_gain": 1, "levels_gained": 0},
@@ -126,10 +118,8 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
             )
 
         self.assertTrue(result["ok"])
-        self.assertEqual([True], observed_transactions)
-        self.assertEqual(("wallet",), result["canonical_overlays"])
-        self.assertEqual(733, result["profile"]["hackcoins"])
-        self.assertEqual(733, self.users.get_profile("alice")["hackcoins"])
+        with db_connect(self.db_path) as conn:
+            self.assertEqual(733, conn.execute("SELECT balance FROM wallet_balances WHERE username='alice'").fetchone()[0])
 
     def test_strategic_settlement_combines_encirclement_and_conflicts_once(self):
         receipt = self.receipts.ensure(

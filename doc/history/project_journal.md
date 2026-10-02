@@ -1,5 +1,128 @@
 # CHAOS — Project Journal
 
+## 2026-10-02 — 147, domknięcie zależności przejęć i workerów
+
+Przejęcia korzystają z kanonicznych instalacji, celu, operacji i progresji.
+Usunięto powielone odczyty/zapisy całego profilu po utracie punktu, otoczeniu
+oraz przy finalizacji geometrii. Audiencja klanowa i ranking używają projekcji.
+GhostNetwork ma trwałe receipts i statystyki; awaria po wypłacie RSP nie powoduje
+ponownej wypłaty. Grupowe rozliczenie przejęć zapisuje wszystkie receipts atomowo.
+
+Wyniki audytu zastosowano w tym etapie: jawna migracja zamiast lazy importu,
+kontrola gotowości przed mutacją, retry błędów store’ów, brak sukcesu tylko
+w pamięci oraz test wykrywający również ciężki SQL przechwycony przez hooki.
+
+**123 testy PASS** w końcowych zestawach (67 + 55 + 1), bez pominięć: wykonanie
+kreatorów, pełne przejęcie i utrata cudzego punktu, workery konfliktów, nagród i
+operacji, rollback grupy receipts, migracja historycznej wypłaty, profilowi
+writerzy, ranking i kamery. Pozostałe recepty/UX oraz produkcyjny snapshot
+XMappera pozostają oddzielnymi bramkami całego 147.
+
+[Runbook i wymagania migracji](../runbooks/sprint_147_creators.md).
+Aktualna migracja progresji obejmuje też historię GhostNetwork. Wymaga zatrzymania
+starych writerów i pokrycia wszystkich uczestników gry; oznaczone cele wymagają
+migracji swoim narzędziem. Bez wdrożenia, migracji produkcyjnej, commita i pusha.
+Flaga nowego kreatora pozostaje wyłączona.
+
+## 2026-10-02 — 147, audyt i integracja progresji
+
+Po warunkowej zgodzie autora wykonano audyt ryzyka i zastosowano jego wyniki w
+tym etapie. Podłączono checkpointy do odczytów, guarded writers i małych projekcji.
+Obie metody rozliczania nagród terytorialnych delegują do transakcyjnego ledgera,
+bez pełnego profilu. Zachowano ochronę sesji przed commitem. Naprawiono ryzyko
+utraty nagrody wpadającej podczas retry zapisu RSP oraz obsługę tworzenia/usuwania kont.
+
+Włączono wcześniej pominięty test zgodności. Końcowa regresja: **80 testów PASS,
+bez pominięć**, łącznie z testami ochrony sesji, strategicznego rozliczenia bez
+ciężkiego profilu i kreatorów. Dwa nieaktualne oczekiwania security potwierdzono
+na HEAD i skorygowano bez osłabiania walidacji.
+
+[Audyt i ograniczenia](../audits/sprint_147_progression_risk_2026_10_02.md).
+Cały 147 nadal wymaga domknięcia requestu przejęcia i workerów. Flaga tworzenia
+pozostaje wyłączona; istniejące konta wymagają migracji przy zatrzymanych writerach
+przed przyszłym wdrożeniem. Bez wdrożenia, commita i pusha.
+
+## 2026-10-01 — 147, izolowany magazyn progresji
+
+Przygotowano `player_progression.py`: transakcyjny zapis nagrody, receipt i komunikatów,
+checkpointy zgodności oraz małe odczyty LVL/RSP. Dodano osobną migrację offline z
+dry-run i kontrolą rewizji. Testy izolowane obejmują ponowienia, współbieżność,
+rollback oraz brak danych wymagający recovery.
+
+Automatyczna kontrola dwukrotnie odrzuciła integrację globalnego `database.py`
+ze względu na zakres i ryzyko niespójności/podwójnych nagród. Patch nie został
+zastosowany. Test zgodności późniejszego zapisu profilu jest jawnie pominięty do
+czasu integracji. [Zakres do zatwierdzenia](../plans/sprint_147_progression_cutover.md).
+Moduł nie jest podłączony do runtime; 147 nadal bez gotowości do wdrożenia i PASS.
+
+## 2026-10-01 — kontynuacja 147, efekt runtime i przygotowanie migracji
+
+Podłączono wylosowaną moc do `/gonna-win`: efekt pochodzi z zainstalowanego
+kontraktu. Walidacja typu celu i opcji poprzedza zmianę kropek i start operacji.
+Doprecyzowano typy danych edytora, unikalność komend i nazw Unicode. Przed
+publikacją można skonfigurować cenę oraz efekty/ceny opcji Button Choice;
+publikacja blokuje te zmiany, a konfiguracja nie ponawia losowania.
+
+Pusta cena korzysta z wyceny systemowej, jawne zero pozostaje darmowe. Dodano
+operatorski dry-run/import historycznych publikacji z receiptami. Import
+zachowuje snapshot produktu i nie przywraca wycofanej oferty przy ponowieniu;
+nie jest jeszcze migracją legacy projektów do nowego edytora.
+
+Przeszło 18 testów nowych modułów/API i 3 wybrane regresje starszego runtime,
+test JS kreatorów oraz kontrola składni. Test nowego efektu wykonuje rzeczywisty
+request i zapis target store, lecz izoluje stary loader profilu. Nie potwierdza
+zero-heavy przejęcia. Po dodaniu walidacji celu/opcji ponownie sprawdzono ten request.
+
+Dodano [runbook 147](../runbooks/sprint_147_creators.md) z bramkami, migracją,
+rollbackiem i skoordynowanym odbiorem. **Pakiet nie jest gotowy do wdrożenia**:
+pełny profil pozostaje w finalizacji przejęcia/progresji i helperach właściciela.
+Problem pozostaje do naprawy w 147. Flaga nowej ścieżki jest jawnie wyłączona
+w konfiguracji PM2; brak commita i pusha.
+
+## 2026-10-01 — rozpoczęcie 147, backend kreatorów
+
+Autor zatwierdził tabelę sufitów L1/10/20/30/40 = 25/50/75/95/100%, interpolację
+i słabszą gałąź od 20% do wartości poniżej sufitu. Dodano policy, osobny magazyn
+projektów/wydań, idempotentną generację oraz API edycji prezentacyjnej. Nowa ścieżka
+pozostaje wyłączona do ukończenia integracji executorów i wspólnego odbioru.
+
+Usunięto ciężki profil z generatora jakości, publikacji/wycofania, pobierania
+kluczy kreatora i listy projektów FM. Dziewięć nowych testów backendu i istniejący
+test JS kreatora przeszły. Pełny runtime `/gonna-win`, migracja i regresja XMappera
+pozostają pracą w bieżącym 147; nie oznaczono PASS ani gotowości do wdrożenia.
+
+## 2026-10-01 — nowe założenia kreatorów 147–148
+
+Przepisano plany pod prostą ścieżkę: nazwa, ikona, akcja mapy i tworzenie pliku,
+potem systemowa generacja oraz końcowy edytor interfejsu/publikacji. Poziom określa
+sufit, a losowanie realną moc; początkowa szansa maksimum to konfigurowalne 50/50.
+LVL 30 daje orientacyjny sufit 95%, LVL 40 możliwość 100%, nie gwarancję.
+XMapper zachowuje działanie. Ręczny effect pozostaje tylko w Button Choice,
+widoczny wszystkim i aktywny od progu (roboczo LVL 100), z walidacją serwera
+i materiałami szkoleniowymi PTK w Googleplexie.
+
+Projekt można ponownie otworzyć w kreatorze. Po publikacji edytowalna jest
+prezentacja, a mechanika i ceny pozostają zamrożone. Poprawka zastępuje ofertę
+pod tym samym ID; starsze kopie pozostają bez zmian do bezpłatnej AKTUALIZACJI.
+Edycja nie losuje ponownie mocy. To zmiana planu, nie implementacja ani PASS.
+
+## 2026-10-01 — PASS 146.5, GhostLab 1.0 zamknięty
+
+Autor zatwierdził zamknięcie sprintu 146.5. Domknięto integrację GhostLab ↔
+File Manager ↔ terminal, projekty `.lab`, publikacje PTK globalne/klanowe,
+bezpłatne produkty Open Source i zachowanie nabytych kopii po wycofaniu oferty.
+
+Końcowe poprawki obejmują styl pozycji FM, folder **Plexcak /documents**,
+edytor Markdown/Render z tytułem i treścią przed ustawieniami oraz publikację
+globalnie/klan pod edytorem. Googleplex i terminal korzystają z katalogu konta,
+żeby członkowie klanu widzieli przeznaczone dla nich oferty. Usunięto blokadę
+przekazywania scrolla z edytora i podglądu; 16 scenariuszy Playwright z kółkiem
+i gestami dotykowymi przeszło.
+
+Następny etap: **147 → 148 (kreatory) → 149–152 (GhostLab v2.0)**.
+Osobny test gameplayowy zakupu po konfiskacie pozostaje otwarty zgodnie
+z wcześniejszym ustaleniem; PASS 146.5 nie dopisuje mu osobnego potwierdzenia.
+
 ## 2026-09-30 — implementacja 146.5, PTK globalne i klanowe
 
 Dodano projekcję `.lab` w File Managerze, otwieranie projektu po ID z ochroną

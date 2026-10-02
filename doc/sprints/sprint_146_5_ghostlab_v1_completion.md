@@ -1,15 +1,18 @@
 # Sprint 146.5 — domknięcie GhostLab 1.0
 
-Status: **PAKIET DO ODBIORU**, przygotowany i sprawdzony lokalnie 30 IX 2026.
+Status: **PASS — zamknięty 1 X 2026**, na podstawie akceptacji autora.
 Pakiet i scenariusz odbioru: [runbook 146.5](../runbooks/sprint_146_5_ghostlab_completion.md).
-Nie oznacza wdrożenia produkcyjnego ani PASS gameplayowego.
+GhostLab 1.0 zamknięty. Następny sprint: **147** (aplikacje kreatorskie).
+Odbiór obejmuje końcowe poprawki edytora PTK (Markdown/Render i przekazywanie
+scrolla), katalog **Plexcak /documents** oraz widoczność ofert klanowych
+w uwierzytelnionym katalogu Googleplexa i terminala.
 
 Doprecyzowania autora: PTK można publikować globalnie lub tylko dla swojego klanu.
 Wycofanie dowolnej aplikacji ze sprzedaży zachowuje wszystkie zainstalowane kopie.
 Kopie PTK pozostają czytelne również po wycofaniu oferty i zmianie klanu czytelnika.
 Przyjęte ceny PTK: domyślnie 25 HC, maksymalnie 100 HC, jawne 0 = Open Source.
 
-Kolejność: **146.4 PASS → 146.5 → 147 → 148 → GhostLab v2.0 (149–152)**.
+Kolejność: **146.4 PASS → 146.5 PASS → 147 → 148 → GhostLab v2.0 (149–152)**.
 Jeden sprint, kolejne etapy odbioru. Kreatory aplikacji zaczynają się dopiero
 po domknięciu ścieżki GhostLab ↔ File Manager ↔ terminal.
 
@@ -97,8 +100,8 @@ Pełny audyt nazw, komend i ścieżek otwierania jest zadaniem etapu 1, nie goto
 - Ponownie użyć czytnika PTK: bez wykonywania HTML, skryptów i osadzonych akcji;
   zweryfikować escaping, linki, bloki kodu, listy, Unicode i długie teksty.
   Limity rozmiaru i obsługiwany podzbiór MD są jawne w edytorze.
-- Zakup/pobranie zapisuje receipt i plik `.ptk` w **Dokumenty** (proponowane
-  `documents`) w FM. Powiązanie z publikacją, autorem i konkretną wersją;
+- Zakup/pobranie zapisuje receipt i plik `.ptk` w **Plexcak /documents**
+  w FM. Powiązanie z publikacją, autorem i konkretną wersją;
   treść nie trafia do publicznego payloadu oferty płatnego dokumentu.
 - Kliknięcie pliku otwiera czytnik, także na mobile. Treść pochodzi z kupionej
   wersji; nowa publikacja nie podmienia jej bez jawnej aktualizacji.

@@ -6,6 +6,7 @@ from unittest.mock import patch
 import run
 from database import (
     PlayerMarkedTargetStore,
+    TerritoryProgressionReceiptStore,
     TerritoryConflictStore,
     TerritoryStore,
     TerritoryTargetOwnershipStore,
@@ -140,7 +141,7 @@ class TerritoryControlTest(unittest.TestCase):
             with patch.object(run, "record_territory_areas_delta", return_value=[]), \
                     patch.object(run, "record_territory_encirclement_delta", return_value=[]), \
                     patch.object(run, "record_territory_conflict_delta", return_value=[]), \
-                    patch.object(run, "load_profile_readonly", return_value={"level": 3}):
+                    patch.object(run, "territory_player_level", return_value=3):
                 result = run.TerritoryEncirclementResolver(
                     store, conflict_store, ownership_store=ownership,
                 ).resolve_encirclement(
@@ -161,6 +162,7 @@ class TerritoryControlTest(unittest.TestCase):
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "user_store", local_users), \
+                    patch.object(run, "territory_progression_receipt_store", TerritoryProgressionReceiptStore(str(path))), \
                     patch.object(run, "player_marked_target_store", marked_targets), \
                     patch.object(run.player_target_runtime_store, "clear_if_matches"), \
                     patch.object(run, "record_territory_areas_delta", return_value=[]), \
@@ -965,7 +967,7 @@ class TerritoryControlTest(unittest.TestCase):
             with patch.object(run, "record_territory_areas_delta", return_value=[]), \
                     patch.object(run, "record_territory_encirclement_delta", return_value=[]), \
                     patch.object(run, "record_territory_conflict_delta", return_value=[]), \
-                    patch.object(run, "load_profile_readonly", return_value={"level": 3}):
+                    patch.object(run, "territory_player_level", return_value=3):
                 resolver = run.TerritoryEncirclementResolver(store, conflict_store)
                 result = resolver.resolve_encirclement(
                     attacker_area["id"],
@@ -1002,7 +1004,7 @@ class TerritoryControlTest(unittest.TestCase):
             self.assertEqual(rewarded_profile["level"], 5)
             self.assertEqual(rewarded_profile["respect"], 6)
 
-            with patch.object(run, "load_profile_readonly", return_value={"level": 3}):
+            with patch.object(run, "territory_player_level", return_value=3):
                 repeated = run.TerritoryEncirclementResolver(store, conflict_store).detect_encircled_clusters(apply=True)
             self.assertEqual(repeated, [])
             self.assertEqual({target["label"] for target in store.list_captured_targets("bob")}, {"B-outside"})

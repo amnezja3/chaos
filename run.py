@@ -126,6 +126,8 @@ fetcher = POIFetcher(tag_filters=tag_filters)
 resources_store = JsonResourceStore()
 from ghostlab_store import GhostLabStore, GhostLabError
 ghostlab_store = GhostLabStore(resources_store.db_path)
+from creator_store import CreatorStore
+creator_store = CreatorStore(resources_store.db_path)
 from ghostlab_travel import TravelStore
 travel_store = TravelStore(resources_store.db_path)
 from ghostlab_documents import DocumentStore
@@ -3499,132 +3501,44 @@ def build_ghostnetwork_territory_publication():
     return events
 
 
+def settle_ghostnetwork_reward(service, reward):
+    from ghost_reward_projection import settle
+    return settle(territory_progression_receipt_store.progression, service, reward)
+
+
 def apply_ghostnetwork_runtime_result(service, result, timings=None):
-    timings = timings if isinstance(timings, dict) else None
     events = collect_ghostnetwork_domain_events(result)
-    reward_results = []
-    # Audience projections intentionally contain only identity fields.  Keep
-    # them separate from mutable reward profiles: an identity projection must
-    # never become the input of a full UserStore.save_profile() write.
-    profile_cache = {}
-    profile_records = {}
-    if timings is not None:
-        # Broad audiences are resolved durably by the delta delivery worker.
-        # The request path must never materialize or truncate the account set.
-        timings["audience_profiles"] = 0
-    dirty_profiles = set()
-    rewards_to_finalize = []
-    pipeline_ms = reward_ms = narrative_ms = delta_ms = finalization_ms = 0.0
-    player_ids = {
-        str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "").strip()
-        for event in events
-    }
-    for player_id in sorted(player_ids - {""}):
-        if player_id not in profile_cache:
-            record = load_profile_write_record(player_id)
-            profile_records[player_id] = record
-            profile_cache[player_id] = (
-                copy.deepcopy(record["profile"]) if record else {}
-            )
-    pipeline_outcomes = [
-        ("lifecycle", str(event.get("event_type") or "").removeprefix("ghost.part_"), event.get("cycle_id") or "")
-        for event in events
-        if str(event.get("event_type") or "").startswith("ghost.part_")
-    ]
-    repository_started = time.perf_counter()
-    if events:
-        with service.repository.transaction():
-            if pipeline_outcomes:
-                phase_started = time.perf_counter()
-                service.repository.record_pipeline_outcomes(pipeline_outcomes)
-                pipeline_ms = time.perf_counter() - phase_started
-            for event in events:
-                player_id = str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "")
-                profile = profile_cache.get(player_id, {}) if player_id else {}
-                phase_started = time.perf_counter()
-                # Reward creation is durable but remains pending until its
-                # profile projection has passed the guarded CAS write below.
-                # This ordering closes both crash windows: a failed CAS leaves
-                # a retryable pending reward, while a crash after profile save
-                # is healed from the reward_key receipt without adding RSP a
-                # second time.
-                reward = service.handle_reward_event(event, profile=profile, apply=False)
-                created = reward.get("created") if isinstance(reward, dict) else None
-                reward_entry = created.get("reward") if isinstance(created, dict) else None
-                if player_id and isinstance(reward_entry, dict):
-                    record = profile_records.get(player_id)
-                    if not record:
-                        raise ProfileRecoveryRequired(
-                            "GhostNetwork reward profile has no guarded read record."
-                        )
-                    projection = service.project_reward_to_profile(
-                        profile,
-                        reward_id=reward_entry.get("reward_id"),
-                    )
-                    reward["projection"] = projection
-                    if not projection.get("ok"):
-                        raise ProfileRecoveryRequired(
-                            "GhostNetwork reward profile projection was rejected: "
-                            + str(projection.get("status") or "unknown")
-                        )
-                    if projection.get("profile_changed"):
-                        dirty_profiles.add(player_id)
-                    if projection.get("requires_finalize"):
-                        rewards_to_finalize.append((player_id, reward_entry["reward_id"], reward))
-                reward_ms += time.perf_counter() - phase_started
-                reward_results.append(reward)
-    repository_transaction_ms = time.perf_counter() - repository_started
-    narrative_results = []
+    rewards = []
+    outcomes = [
+        ('lifecycle', str(event.get('event_type') or '').removeprefix('ghost.part_'), event.get('cycle_id') or '')
+        for event in events if str(event.get('event_type') or '').startswith('ghost.part_')]
+    # Finish the GhostNetwork transaction before opening the player ledger writer.
+    with service.repository.transaction():
+        if outcomes:
+            service.repository.record_pipeline_outcomes(outcomes)
+        for event in events:
+            name = str(event.get('player_id') or (event.get('payload') or {}).get('player_id') or '')
+            identity = identity_projection_store.get_identity(name) if name else {}
+            rewards.append(service.handle_reward_event(event, profile=identity or {}, apply=False))
+    for reward in rewards:
+        entry = (reward.get('created') or {}).get('reward') if isinstance(reward, dict) else None
+        if entry:
+            reward['applied'] = settle_ghostnetwork_reward(service, entry)
+    narratives = []
     for event in events:
-        phase_started = time.perf_counter()
         try:
             narrative = service.publish_narrative_event(event)
         except Exception as exc:
-            narrative = {
-                "ok": False,
-                "event_id": str(event.get("event_id") or ""),
-                "errors": [{"reason": "producer_failed", "error": str(exc)[:160]}],
-                "outbox": [],
-            }
-        narrative_ms += time.perf_counter() - phase_started
-        narrative_results.append(narrative)
-    if isinstance(result, dict):
-        result["narrative_tasks"] = narrative_results
-    for event in events:
-        phase_started = time.perf_counter()
+            narrative = dict(ok=False, event_id=str(event.get('event_id') or ''),
+                             errors=[dict(reason='producer_failed', error=str(exc)[:160])], outbox=[])
+        narratives.append(narrative)
         enqueue_ghostnetwork_event_delta(event)
-        delta_ms += time.perf_counter() - phase_started
-    phase_started = time.perf_counter()
-    for player_id in sorted(dirty_profiles):
-        record = profile_records.get(player_id)
-        save_profile_write_record(
-            record,
-            profile_cache[player_id],
-            "ghostnetwork.runtime_reward",
-        )
-    profile_save_ms = time.perf_counter() - phase_started
-    phase_started = time.perf_counter()
-    for player_id, reward_id, reward_result in rewards_to_finalize:
-        finalized = service.finalize_projected_reward(
-            profile_cache[player_id],
-            reward_id=reward_id,
-        )
-        if not finalized.get("ok"):
-            raise ProfileRecoveryRequired(
-                "GhostNetwork reward finalization was rejected: "
-                + str(finalized.get("status") or "unknown")
-            )
-        reward_result["applied"] = finalized
-    finalization_ms = time.perf_counter() - phase_started
-    if timings is not None:
-        timings["pipeline_outcomes"] = int(pipeline_ms * 1000)
-        timings["reward_handlers"] = int(reward_ms * 1000)
-        timings["reward_repository_transaction"] = int(repository_transaction_ms * 1000)
-        timings["narrative_enqueue"] = int(narrative_ms * 1000)
-        timings["delta_enqueue"] = int(delta_ms * 1000)
-        timings["reward_profile_save"] = int(profile_save_ms * 1000)
-        timings["reward_finalization"] = int(finalization_ms * 1000)
-    return reward_results
+    if isinstance(result, dict):
+        result['narrative_tasks'] = narratives
+    if isinstance(timings, dict):
+        timings['audience_profiles'] = 0
+        timings['reward_profile_save'] = 0
+    return rewards
 
 
 def process_ghostnetwork_pending_reward_projection(
@@ -3665,8 +3579,19 @@ def process_ghostnetwork_pending_reward_projection(
             "reason": "reward_player_missing",
         }
 
-    loader = profile_loader or load_profile_write_record
-    saver = profile_saver or save_profile_write_record
+    if profile_loader is None and profile_saver is None:
+        try:
+            settled = settle_ghostnetwork_reward(service, reward)
+        except Exception as exc:
+            release(str(exc)[:500] or exc.__class__.__name__)
+            raise
+        return dict(settled, processed=1, reward_id=reward.get('reward_id'),
+                    reward_key=reward.get('reward_key'), player_id=player_id,
+                    attempt_count=int(reward.get('projection_attempt_count') or 0))
+    if profile_loader is None or profile_saver is None:
+        release('incomplete_legacy_adapter')
+        raise ValueError('An explicit legacy adapter requires both loader and saver')
+    loader, saver = profile_loader, profile_saver
     try:
         record = loader(player_id)
     except Exception as exc:
@@ -4170,18 +4095,19 @@ def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflic
 
 
 def territory_engagement_audience(engagement):
-    """Participants plus their current crew; social friendship grants no audience."""
-    participants = {str(item) for item in (engagement or {}).get("participant_usernames") or [] if item}
-    participant_clans = {
-        get_profile_clan(user_store.get_profile(username) or {})
-        for username in participants
-    }
-    participant_clans.discard("")
+    """Resolve the audience from indexed clan membership, never profile payloads."""
+    participants = {str(item) for item in (engagement or {}).get('participant_usernames') or [] if item}
+    clans = {get_profile_clan(identity_projection_store.get_identity(name) or {}) for name in participants}
     audience = set(participants)
-    if participant_clans:
-        for username, profile in user_store.list_profile_entries():
-            if get_profile_clan(profile or {}) in participant_clans and username:
-                audience.add(str(username))
+    for clan in clans - {''}:
+        cursor = ''
+        while True:
+            batch = identity_projection_store.list_recipient_ids(
+                'clan', clan_code=clan, after_username=cursor, limit=100)
+            if not batch:
+                break
+            audience.update(batch)
+            cursor = batch[-1]
     return sorted(audience)
 
 
@@ -5972,7 +5898,7 @@ def detect_multi_conflict_candidates(snapshots, profile_lookup=None,
     rebuild or publish a delta. Persistent engagements belong to 130.8.5.2.
     """
     snapshots = list(snapshots or [])
-    profile_lookup = profile_lookup or (lambda username: user_store.get_profile(username) or {})
+    profile_lookup = profile_lookup or (lambda username: identity_projection_store.get_identity(username) or {})
     eligible_fronts = []
     skipped_snapshots = []
     legacy_multi = []
@@ -6770,7 +6696,7 @@ def restore_territory_reconcile_targets(conflict_id=None):
             restored.append(territory_conflict_store.stable_target_id(recovered))
         if not restored:
             continue
-        profile = user_store.get_profile(owner) or {}
+        profile = capability_projection_store.get_capabilities(owner) or {}
         rebuild_player_areas_with_territory_delta(
             owner,
             profile.get("level", 1),
@@ -6970,7 +6896,7 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
             phase_started = time.perf_counter()
             if effective_rebuild_participants:
                 for participant in sorted(set(conflict.get("participants") or [])):
-                    profile = user_store.get_profile(participant) or {}
+                    profile = capability_projection_store.get_capabilities(participant) or {}
                     if not profile:
                         continue
                     rebuild_player_areas_with_territory_delta(
@@ -7250,28 +7176,10 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
             profile = {"level": recovery_level}
             abandoned_target = {}
         else:
-            profile_record = load_profile_write_record(username)
-            profile = (
-                copy.deepcopy(profile_record["profile"]) if profile_record else {}
-            )
+            profile = territory_progression_receipt_store.progression.get(username)
             abandoned_target = job_target
-            aimed_target = profile.get("aimed_target") or {}
-            if aimed_target and abandoned_target and targets_share_selection_identity(
-                aimed_target, abandoned_target
-            ):
-                profile["aimed_target"] = {}
-            try:
-                player_target_runtime_store.clear_if_matches(
-                    username,
-                    abandoned_target,
-                    source="territory_rebuild_job",
-                )
-            except Exception as exc:
-                print(
-                    f"[TERRITORY_REBUILD_JOB] aimed_target_clear_failed "
-                    f"job_id={claim['job_id']} user={username} error={exc}",
-                    flush=True,
-                )
+            player_target_runtime_store.clear_if_matches(
+                username, abandoned_target, source='territory_rebuild_job')
         areas = rebuild_player_areas_with_territory_delta(
             username,
             profile.get("level", 1),
@@ -7287,30 +7195,6 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
                 conflict.get("conflict_id") or conflict.get("id"),
                 reason=f"rebuild_job:{claim['job_id']}",
                 requested_version=conflict.get("conflict_version"),
-            )
-        fresh_targets = (
-            [] if controlled_recovery else territory_store.list_captured_targets(username)
-        )
-
-        def rebuild_projection(current_profile):
-            updates = {
-                "hacked": fresh_targets,
-                "captured_targets_source": "sqlite",
-            }
-            current_aimed = current_profile.get("aimed_target") or {}
-            if (
-                current_aimed
-                and abandoned_target
-                and targets_share_selection_identity(current_aimed, abandoned_target)
-            ):
-                updates["aimed_target"] = {}
-            return updates
-
-        if profile_record and not controlled_recovery:
-            patch_profile_projection_with_retry(
-                username,
-                rebuild_projection,
-                "territory.rebuild_profile_projection",
             )
         territory_store.finish_rebuild_job(claim["job_id"], lease_owner, ok=True)
         return {
@@ -7353,68 +7237,23 @@ def finalize_conflict_rebuild_profiles(conflict_id):
     ) if actor_username else []
     summaries = []
     for username in sorted(set(conflict.get("participants") or [])):
-        initial_record = load_profile_write_record(username)
-        if not initial_record:
-            continue
-        profile = copy.deepcopy(initial_record["profile"])
+        profile = territory_progression_receipt_store.progression.get(username)
         areas = territory_store.list_player_areas(username)
         refresh_stats = True
         if username == actor_username:
             if pending_actor_receipts:
                 progression = finalize_territory_progression_receipt(
-                    pending_actor_receipts[0],
-                    areas,
+                    pending_actor_receipts[0], areas,
+                    coalesced_receipts=[item['receipt_id'] for item in pending_actor_receipts[1:]],
                 )
-                profile_record = load_profile_write_record(username)
-                if not profile_record:
-                    continue
-                profile = copy.deepcopy(profile_record["profile"])
+                profile = territory_progression_receipt_store.progression.get(username)
                 refresh_stats = False
-                # Several captures may be consolidated into one geometry publish.
-                # Reward the aggregate delta once; consume later receipts with a
-                # zero delta so retries cannot replay the same field growth.
-                for extra_receipt in pending_actor_receipts[1:]:
-                    extra_settlement = territory_progression_receipt_store.settle(
-                        extra_receipt.get("receipt_id"),
-                        {
-                            "area_gain": 0, "effective_gain": 0,
-                            "respect_gain": 0, "levels_gained": 0,
-                            "coalesced_into": pending_actor_receipts[0].get("receipt_id"),
-                        },
-                        profile.get("territory_stats") or {},
-                        profile.get("exp"),
-                    )
-                    if not extra_settlement.get("ok"):
-                        raise RuntimeError(
-                            "territory_progression_settle_failed:"
-                            + str(extra_settlement.get("reason") or "unknown")
-                        )
             else:
                 progression = {"levels_gained": 0, "respect_gain": 0}
         else:
             progression = {"levels_gained": 0}
-        fresh_targets = territory_store.list_captured_targets(username)
-
-        def conflict_projection(current_profile):
-            current_profile["hacked"] = fresh_targets
-            updates = {
-                "hacked": fresh_targets,
-                "captured_targets_source": "sqlite",
-            }
-            if refresh_stats:
-                refresh_territory_stats_snapshot(current_profile, areas)
-                updates["territory_stats"] = current_profile.get("territory_stats") or {}
-                updates["exp"] = current_profile.get("exp")
-            return updates
-
-        projection_result = patch_profile_projection_with_retry(
-            username,
-            conflict_projection,
-            "territory.conflict_finalize_profile",
-        )
-        if not projection_result:
-            continue
-        profile = copy.deepcopy(projection_result["profile"])
+        if refresh_stats:
+            profile = refresh_canonical_territory_stats(username, areas)
         levels_gained = int((progression or {}).get("levels_gained") or 0)
         if levels_gained:
             rebuild_player_areas_with_territory_delta(
@@ -7440,7 +7279,7 @@ def finalize_conflict_rebuild_profiles(conflict_id):
 def rebuild_conflict_polygons(participants, actor_username=None, source_event="conflict_rebuild"):
     rebuilt = {}
     for participant in sorted({name for name in (participants or []) if name}):
-        participant_profile = user_store.get_profile(participant) or {}
+        participant_profile = capability_projection_store.get_capabilities(participant) or {}
         if not participant_profile:
             continue
         rebuilt[participant] = rebuild_player_areas_with_territory_delta(
@@ -8471,18 +8310,9 @@ class TerritoryEncirclementResolver:
         return settled
 
     def _sync_profile_captured_targets(self, username):
-        try:
-            result = patch_profile_projection_with_retry(
-                username,
-                lambda _profile: {
-                    "hacked": self.store.list_captured_targets(username),
-                    "captured_targets_source": "sqlite",
-                },
-                "territory.encirclement_profile_projection",
-            )
-            return bool(result)
-        except Exception:
-            return False
+        # The transfer already committed TerritoryStore rows; readers consume
+        # that canonical scope. No full-profile compatibility mirror is needed.
+        return True
 
     def _close_conflicts(self, attacker, defender, captured_objects):
         closed = []
@@ -8513,28 +8343,15 @@ class TerritoryEncirclementResolver:
 
 
 def territory_player_level(username):
-    try:
-        profile = load_profile_readonly(
-            username,
-            strip_sensitive=True,
-            normalize_apps=False,
-            normalize_files=False,
-        )
-    except Exception:
-        profile = None
-    if not isinstance(profile, dict):
-        try:
-            profile = user_store.get_profile(username) or {}
-        except Exception:
-            profile = {}
-    try:
-        return max(1, int((profile or {}).get("level") or 1))
-    except (TypeError, ValueError):
-        return 1
+    capabilities = capability_projection_store.get_capabilities(username)
+    if not capabilities:
+        raise ProfileRecoveryRequired("Territory capability projection unavailable")
+    return max(1, int(capabilities['level']))
 
 
 def resolve_territory_encirclements_after_change(actor_username=None, changed_territory_id=None, reason="territory_rebuild"):
-    resolver = TerritoryEncirclementResolver(territory_store, territory_conflict_store)
+    resolver = TerritoryEncirclementResolver(territory_store, territory_conflict_store,
+        progression_store=territory_progression_receipt_store, ownership_store=territory_target_ownership_store)
     return resolver.detect_encircled_clusters(
         changed_territory_id=changed_territory_id,
         actor_username=actor_username,
@@ -8544,7 +8361,8 @@ def resolve_territory_encirclements_after_change(actor_username=None, changed_te
 
 
 def reconcile_territory_encirclements():
-    resolver = TerritoryEncirclementResolver(territory_store, territory_conflict_store)
+    resolver = TerritoryEncirclementResolver(territory_store, territory_conflict_store,
+        progression_store=territory_progression_receipt_store, ownership_store=territory_target_ownership_store)
     return resolver.detect_encircled_clusters(apply=False, reason="reconcile")
 
 
@@ -8655,96 +8473,16 @@ def filter_targets_by_position(targets, reference_target, match_label=False):
 
 
 def clear_aimed_target_if_matches(username, reference_target):
-    runtime_cleared = False
-    try:
-        if player_target_runtime_store.clear_if_matches(username, reference_target, source="clear_aimed_target"):
-            runtime_cleared = True
-    except Exception as exc:
-        print(f"[target runtime] clear failed user={username} error={exc}", flush=True)
-    def clear_projection(current_profile):
-        aimed = current_profile.get("aimed_target") or {}
-        if not aimed or not targets_share_selection_identity(aimed, reference_target):
-            return {}
-        return {"aimed_target": {}}
-
-    projection = patch_profile_projection_with_retry(
-        username,
-        clear_projection,
-        "target.clear_aimed_projection",
-    )
-    return bool(runtime_cleared or (projection and projection.get("applied")))
+    return bool(player_target_runtime_store.clear_if_matches(
+        username, reference_target, source='clear_aimed_target'))
 
 
 def project_lost_territory_after_capture(username, reference_target):
-    """Refresh the previous owner's compatibility projection after capture.
-
-    TerritoryStore and PlayerTargetRuntimeStore are authoritative here. The
-    profile is only a projection, so a concurrent profile writer must be
-    rebased instead of turning an already committed ownership transfer into a
-    false HTTP 409.
-    """
-    runtime_cleared = False
-    try:
-        runtime_cleared = bool(player_target_runtime_store.clear_if_matches(
-            username,
-            reference_target,
-            source="territory_capture_owner_loss",
-        ))
-    except Exception as exc:
-        print(f"[target runtime] owner loss clear failed user={username} error={exc}", flush=True)
-
-    projection_state = {"removed_from_profile": False}
-
-    def owner_projection(current_profile):
-        current_hacked = current_profile.get("hacked") or []
-        _remaining, removed = filter_targets_by_position(
-            current_hacked,
-            reference_target,
-            match_label=True,
-        )
-        if not removed:
-            _remaining, removed = filter_targets_by_position(
-                current_hacked,
-                reference_target,
-                match_label=False,
-            )
-        projection_state["removed_from_profile"] = bool(removed)
-        updates = {
-            "hacked": territory_store.list_captured_targets(username),
-            "captured_targets_source": "sqlite",
-        }
-        aimed = current_profile.get("aimed_target") or {}
-        if aimed and targets_share_selection_identity(aimed, reference_target):
-            updates["aimed_target"] = {}
-        return updates
-
-    try:
-        projection = patch_profile_projection_with_retry(
-            username,
-            owner_projection,
-            "territory.capture_owner_loss_projection",
-        )
-    except ProfileWriteConflict as exc:
-        # The canonical transfer has already committed. A conflict rebuild or
-        # the next snapshot read can repair this compatibility mirror; it must
-        # not make the attacker repeat an already successful final action.
-        print(
-            "[TERRITORY_OWNER_PROFILE_SYNC_DEFERRED] "
-            f"user={username} reason=profile_write_conflict error={exc}",
-            flush=True,
-        )
-        return {
-            "applied": False,
-            "deferred": True,
-            "runtime_cleared": runtime_cleared,
-            **projection_state,
-        }
-    return {
-        "applied": bool(projection and projection.get("applied")),
-        "deferred": False,
-        "runtime_cleared": runtime_cleared,
-        **projection_state,
-    }
+    """Clear only canonical selection; captured targets already belong to TerritoryStore."""
+    cleared = player_target_runtime_store.clear_if_matches(
+        username, reference_target, source="territory_capture_owner_loss")
+    return dict(applied=True, deferred=False, runtime_cleared=bool(cleared),
+                removed_from_profile=False)
 
 
 def infer_target_type_from_target(target):
@@ -9293,36 +9031,12 @@ def find_canonical_ghostnetwork_capture(player_id, target_id):
 
 def build_ghostnetwork_runtime_coordinator(service=None):
     service = service or get_ghostnetwork_service()
-    profile_records = {}
-
-    def load_profile(player_id):
-        record = load_profile_write_record(player_id)
-        profile_records[str(player_id or "")] = record
-        return copy.deepcopy(record["profile"]) if record else {}
-
-    def save_profile(profile):
-        player_id = str((profile or {}).get("username") or "").strip()
-        record = profile_records.get(player_id)
-        if not record:
-            raise ProfileRecoveryRequired(
-                "GhostNetwork reward profile has no guarded read record."
-            )
-        save_profile_write_record(
-            record,
-            profile,
-            "ghostnetwork.capture_reward",
-        )
-
-    def publish(effect, outcome):
-        player_id = effect.get("player_id") or ""
-        current_profile = user_store.get_profile(player_id) or effect.get("player") or {}
-        return publish_ghostnetwork_delta_result(player_id, current_profile, outcome)
-
     return GhostRuntimeCoordinator(
         service=service,
-        profile_loader=load_profile,
-        profile_saver=save_profile,
-        delta_publisher=publish,
+        profile_loader=lambda name: identity_projection_store.get_identity(name) or {},
+        reward_settler=lambda reward: settle_ghostnetwork_reward(service, reward),
+        delta_publisher=lambda effect, outcome: publish_ghostnetwork_delta_result(
+            effect.get('player_id') or '', effect.get('player') or {}, outcome),
         captured_target_reader=find_canonical_ghostnetwork_capture,
     )
 
@@ -10740,9 +10454,7 @@ def create_missing_operations_for_app_target(profile, username, app, target):
                 continue
             operation = accepted[0]
         except Exception as exc:
-            if target.get("target_mode") == "player":
-                raise
-            print(f"[OPERATIONS] store start skipped: {exc}")
+            raise
         operations.append(operation)
         created.append(operation)
 
@@ -11705,6 +11417,10 @@ def normalize_app_balance_fields(app):
 
 def enforce_generated_app_price_floor(app):
     if not isinstance(app, dict):
+        return app
+    if app.get('creator_contract_version') == 1:
+        app['price'] = app['creator_contract']['price']
+        app['price_hint'] = app['price']
         return app
     from ghostlab_pricing import apply_price
     if apply_price(app):
@@ -16850,6 +16566,9 @@ def tracks_googleplex_downloads(item):
 def get_app_catalog():
     from ghostlab_ticket_policy import is_ticket, ticket_price, public_ticket
     apps = resources_store.get("app_config", default=[]) or []
+    by_id = {item.get('id'): item for item in apps}
+    by_id.update({item['id']: item for item in creator_store.catalog()})
+    apps = list(by_id.values())
     pro_tools = pro_system_tools_catalog()
     pro_ids = {item['id'] for item in pro_tools}
     # Code owns builtin contracts; legacy catalog copies only retain download history.
@@ -17443,9 +17162,7 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_
             if runtime_result.get("target"):
                 profile["aimed_target"] = dict(runtime_result["target"])
         except Exception as exc:
-            if aimed_target.get("target_mode") == "player":
-                raise
-            print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
+            raise
     return changed, marked
 
 
@@ -19441,16 +19158,15 @@ def apply_territory_progression(profile, areas, previous_stats=None,
     }
 
 
-def finalize_territory_progression_receipt(receipt, areas):
+def finalize_territory_progression_receipt(receipt, areas, *, coalesced_receipts=()):
     """Settle exactly one capture reward from its immutable pre-capture baseline."""
     if not receipt:
         return {"levels_gained": 0, "respect_gain": 0, "reason": "receipt_missing"}
     if receipt.get("status") == TerritoryProgressionReceiptStore.STATUS_APPLIED:
         return dict(receipt.get("result") or {})
     username = str(receipt.get("actor_username") or "")
-    profile = user_store.get_profile(username) or {}
-    if not profile:
-        return {"levels_gained": 0, "respect_gain": 0, "reason": "profile_missing"}
+    profile = territory_progression_receipt_store.progression.get(username)
+    profile['hacked'] = territory_store.list_captured_targets(username)
     baseline_stats = dict((receipt.get("baseline") or {}).get("territory_stats") or {})
     baseline_clusters = list((receipt.get("baseline") or {}).get("cluster_snapshots") or [])
     progression_target = dict((receipt.get("baseline") or {}).get("target") or {})
@@ -19470,6 +19186,7 @@ def finalize_territory_progression_receipt(receipt, areas):
         calculation_profile.get("territory_stats") or {},
         calculation_profile.get("exp"),
         system_messages=new_messages,
+        coalesced_receipts=coalesced_receipts,
     )
     if not settled.get("ok"):
         return {
@@ -19495,6 +19212,14 @@ def finalize_territory_progression_receipt(receipt, areas):
         flush=True,
     )
     return result
+
+
+def refresh_canonical_territory_stats(username, areas):
+    targets = territory_store.list_captured_targets(username)
+    def calculate(current):
+        current['hacked'] = targets
+        return refresh_territory_stats_snapshot(current, areas)
+    return territory_progression_receipt_store.progression.refresh_stats(username, calculate)
 
 
 def refresh_territory_stats_snapshot(profile, areas):
@@ -19558,7 +19283,7 @@ def refresh_stale_territory_polygons(areas):
         if not first_rebuild_for_process and not looks_fragmented and not looks_convex_trimmed:
             continue
 
-        owner_profile = user_store.get_profile(owner) or {}
+        owner_profile = capability_projection_store.get_capabilities(owner) or {}
         rebuild_player_areas_with_territory_delta(
             owner,
             owner_profile.get("level", 1),
@@ -19774,7 +19499,7 @@ def build_generated_app(data, creator_username, creator_nick):
         raise ValueError("Nieprawidlowy interface aplikacji.")
 
     slug = slugify_app_name(name)
-    app_id = f"user_{creator_username}_{slug}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    app_id = f"user_{creator_username}_{slug}_{secrets.token_hex(16)}"
     description = str(data.get("description", "")).strip() or "Aplikacja wygenerowana przez gracza."
     price = max(0, int(data.get("price") or 0))
     app_type = str(data.get("type", "custom")).strip() or "custom"
@@ -19841,7 +19566,11 @@ def build_generated_app(data, creator_username, creator_nick):
     if target_types:
         app["target_types"] = target_types
 
-    creator_profile = user_store.get_profile(creator_username) or {}
+    capabilities = capability_projection_store.get_capabilities(creator_username)
+    if not capabilities:
+        raise ProfileRecoveryRequired('Creator level projection unavailable')
+    creator_profile = {**identity_projection_store.get_creator_identity(creator_username),
+                       **capabilities, 'hackcoins': canonical_wallet_balance(creator_username)}
     app.update(build_generated_app_quality_fields(creator_profile, app))
     app = normalize_app_contract(app, infer_legacy=tool_family not in CREATOR_EXPLICIT_TOOL_FAMILIES)
     normalize_app_storage_fields(app)
@@ -28715,37 +28444,80 @@ from ghostlab_travel import register as register_travel_routes
 register_travel_routes(app, globals())
 
 
+def quote_creator_price(contract, requested):
+    """Freeze a quote once; explicit zero remains free, blank uses system pricing."""
+    from creator_policy import price
+    if requested is not None:
+        return price(requested)
+    seed = dict(contract, creator_power=contract['power'], quality_score=contract['power'])
+    normalize_app_storage_fields(seed)
+    return price(infer_app_price_hint(seed))
+
+
+def build_creator_edition(project, version):
+    contract, view = project['contract'], project['presentation']
+    name = str(view.get('name') or '').strip()
+    if not name or len(name) > 80 or ';' in name:
+        raise ValueError('Nieprawidlowa nazwa aplikacji.')
+    icon = validate_generated_app_icon(view.get('icon'))
+    product = {key: copy.deepcopy(contract[key]) for key in (
+        'type', 'tool_family', 'tool_mode', 'map_actions', 'target_types', 'operation_types', 'resource_types')}
+    product.update(id=project['app_id'], name=name, icon=icon,
+        creator_username=project['owner'], creator_nick=project['owner'],
+        description=view.get('description', ''), generated=True, published=True,
+        project_file=project['id'] + '.sh', interface=contract['interface'],
+        creator_contract_version=1, creator_contract=copy.deepcopy(contract),
+        creator_project_id=project['id'], version=version, creator_power=contract['power'],
+        quality_score=contract['power'], reliability=100, price=contract['price'],
+        price_hint=contract['price'], open_source=contract['price'] == 0,
+        requires_off=[], interferes_with=[], disables=[], affects=[], detects=[])
+    title = view.get('title') or name
+    if contract['interface'] == 'terminal':
+        product['levels'] = view.get('commands') or [{'command':'run', 'logs':['Uruchomiono narzedzie.']}]
+    elif contract['interface'] == 'window':
+        product['levels'] = [dict(title=title, list=view.get('logs', []),
+            buttons=[dict(label=label, action='run_generated') for label in view.get('button_labels', ['Uruchom'])])]
+    elif contract['interface'] == 'button_choices':
+        labels = view.get('option_labels', ['Wykonaj'])
+        options = contract.get('options') or [dict(effect=contract['effect'], price=0) for _ in labels]
+        if len(options) != len(labels):
+            raise ValueError('Liczba etykiet musi odpowiadac liczbie skonfigurowanych opcji.')
+        product['levels'] = [dict(title=title, text=view.get('prompt', ''),
+            options=[dict(id=i, label=label, effect=options[i]['effect'], price=options[i]['price'])
+                     for i, label in enumerate(labels)])]
+    else:
+        product['levels'] = [dict(title=title, steps=view.get('steps', ['Uruchamianie...']),
+            result_success=view.get('result_success', 'Operacja wykonana.'),
+            result_failure=view.get('result_failure', 'Operacja odrzucona.'))]
+    normalize_app_storage_fields(product)
+    return product
+
+
+from creator_routes import register as register_creator_routes
+register_creator_routes(app, globals())
+
+
 @app.route("/api/apps/generate", methods=["POST"])
 def generate_app():
     if "user" not in session:
         return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
 
-    profile = sync_session_profile()
     creator_username = session["user"]
-    creator_nick = profile.get("nick") or creator_username
+    from config import env_bool
+    if env_bool('CHAOS_CREATORS_V2_ENABLED', False):
+        return jsonify(success=False, message='Uzyj nowego kreatora projektow.', reason='legacy_creation_disabled'), 409
+    creator_nick = identity_projection_store.get_creator_identity(creator_username).get('nick') or creator_username
 
     try:
         app_data = build_generated_app(request.get_json() or {}, creator_username, creator_nick)
     except (TypeError, ValueError) as e:
         return jsonify({"success": False, "message": str(e)}), 400
 
-    store = resources_store.get("app_config", default=[])
+    store = get_app_catalog()
     if any(app.get("name", "").lower() == app_data["name"].lower() for app in store):
         return jsonify({"success": False, "message": "Aplikacja o takiej nazwie juz istnieje."}), 400
 
-    store.append(app_data)
-    resources_store.set("app_config", store)
-
-    files = profile.get("files", {})
-    projects = files.get("projects", [])
-    project_file = app_data["project_file"]
-    if project_file not in projects:
-        projects.append(project_file)
-    files["projects"] = projects
-
-    mgr = UserProfileManager(creator_username)
-    mgr.update_profile({"files": files})
-    sync_session_profile()
+    creator_store.publish_legacy(creator_username, app_data)
 
     return jsonify({
         "success": True,
@@ -28760,7 +28532,7 @@ def remove_generated_app(project_file):
         return jsonify({"success": False, "message": "Nie jestes zalogowany."}), 401
 
     username = session["user"]
-    store = resources_store.get("app_config", default=[])
+    store = get_app_catalog()
     app_data = next((
         app for app in store
         if app.get("project_file") == project_file and app.get("creator_username") == username
@@ -28769,16 +28541,7 @@ def remove_generated_app(project_file):
     if not app_data:
         return jsonify({"success": False, "message": "Nie znaleziono projektu autora."}), 404
 
-    store = [app for app in store if app.get("id") != app_data.get("id")]
-    resources_store.set("app_config", store)
-
-    profile = sync_session_profile()
-    files = profile.get("files", {})
-    projects = files.get("projects", [])
-    files["projects"] = [item for item in projects if item != project_file]
-    mgr = UserProfileManager(username)
-    mgr.update_profile({"files": files})
-    sync_session_profile()
+    creator_store.withdraw(username, project_file, legacy=app_data)
 
     return jsonify({
         "success": True,
@@ -30168,7 +29931,7 @@ def capture_same_clan_territory_defense_swarm(
                 attacker_username,
                 committed,
                 match_label=False,
-                source="territory_defense_swarm_capture",
+                source="territory_defense_swarm_capture", ensure_seeded=False,
             )
             try:
                 player_target_runtime_store.mark_captured(
@@ -30498,7 +30261,15 @@ def gonna_win():
             }) in {"self", "friend", "same_clan"}):
             return jsonify({"success": False, "reason": "target_not_attackable"}), 403
     else:
-        profile = sync_session_profile(rebuild_territory=False, persist_normalization=False)
+        if not player_marked_target_store.is_seeded(session['user']):
+            raise ProfileRecoveryRequired('Marked target migration required')
+        profile = load_player_hack_runtime_context(session['user'])
+        profile.update(territory_progression_receipt_store.progression.get(session['user']))
+        profile['hacked'] = territory_store.list_captured_targets(session['user'])
+        profile['targets'] = player_marked_target_store.list_targets(session['user'], ensure_seeded=False)
+        profile['operations'] = player_operation_store.list_active_operations(
+            session['user'], limit=32, target_key=build_operation_target_id(canonical_target))
+        profile['system_messages'] = []
     app_flow_debug_timed(
         flow_id,
         "gonna_win_sync_session_profile",
@@ -30519,6 +30290,8 @@ def gonna_win():
     contest_owner_username = aimed.get("contest_owner_username") if aimed.get("target_mode") == "territory_contest" else None
     contest_owner_target = None
     if contest_owner_username:
+        # Fail before ownership/security mutations if the defender is unmigrated.
+        territory_progression_receipt_store.progression.get(contest_owner_username)
         contest_owner_target = find_captured_target_for_owner(
             contest_owner_username,
             aimed.get("lat"),
@@ -30602,6 +30375,20 @@ def gonna_win():
         )
         finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
         return jsonify(payload), 409
+
+    # Validate the choice before marking an action or starting an operation.
+    # Power comes from the installed immutable edition, not current author LVL.
+    from creator_policy import runtime_effect
+    try:
+        if app.get('creator_contract_version'):
+            creator_targets = (app.get('creator_contract') or {}).get('target_types') or []
+            if infer_target_type_from_target(aimed) not in creator_targets:
+                raise ValueError('To narzedzie nie obsluguje wybranego typu celu.')
+        creator_effect = runtime_effect(app, target_sec, choice_id, operation_only=operation_only)
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
+        payload = {"success": False, "reason": "invalid_creator_contract", "message": str(exc)}
+        finish_gonna_win_receipt(payload, status_code=400, status=AppActionReceiptStore.STATUS_FAILED)
+        return jsonify(payload), 400
 
     step_started_at = time.perf_counter()
     target_changed, marked_actions = apply_app_map_actions_to_aimed_target(
@@ -30719,7 +30506,12 @@ def gonna_win():
 
     step_started_at = time.perf_counter()
     required_off_state = {"satisfied": True, "active": [], "invalid": [], "absent": []}
-    if choice_id is None:
+    if creator_effect is not None:
+        required_off_state = resolve_app_required_off_state(target_sec, app.get("requires_off", []))
+        if required_off_state["satisfied"]:
+            target_sec.update(creator_effect)
+            success = True
+    elif choice_id is None:
         required_off = app.get("requires_off", [])
         required_off_state = resolve_app_required_off_state(target_sec, required_off)
         all_off = required_off_state["satisfied"]
@@ -30731,8 +30523,10 @@ def gonna_win():
                     target_sec[key] = False
             success = True
     else:
-        options = app.get("levels", [])[0].get("options", [])
         try:
+            options = app.get("levels", [])[0].get("options", [])
+            if isinstance(choice_id, bool) or int(choice_id) < 0:
+                raise ValueError('Invalid choice')
             choi = options[int(choice_id)]
             effect = choi.get("effect", {})
             for k, v in effect.items():
@@ -31244,7 +31038,7 @@ def gonna_win():
             session["user"],
             captured_target,
             match_label=False,
-            source="gonna_win_capture",
+            source="gonna_win_capture", ensure_seeded=False,
         )
         profile["targets"] = player_marked_target_store.list_targets(
             session["user"], ensure_seeded=False,
@@ -31360,10 +31154,7 @@ def gonna_win():
             areas=len(rebuilt_areas or []),
         )
         if contest_owner_username and contest_owner_username != session["user"]:
-            owner_record = load_profile_write_record(contest_owner_username)
-            owner_profile = (
-                copy.deepcopy(owner_record["profile"]) if owner_record else {}
-            )
+            owner_profile = territory_progression_receipt_store.progression.get(contest_owner_username)
             step_started_at = time.perf_counter()
             owner_areas = (
                 territory_store.list_player_areas(contest_owner_username)
@@ -31375,24 +31166,7 @@ def gonna_win():
                 )
             )
             if not defer_conflict_rebuild:
-                refresh_territory_stats_snapshot(owner_profile, owner_areas)
-                try:
-                    patch_profile_projection_with_retry(
-                        contest_owner_username,
-                        lambda current_profile: {
-                            "territory_stats": refresh_territory_stats_snapshot(
-                                current_profile, owner_areas
-                            ).get("territory_stats", {}),
-                            "exp": current_profile.get("exp"),
-                        },
-                        "territory.owner_loss_projection",
-                    )
-                except ProfileWriteConflict as exc:
-                    print(
-                        "[TERRITORY_OWNER_STATS_SYNC_DEFERRED] "
-                        f"user={contest_owner_username} reason=profile_write_conflict error={exc}",
-                        flush=True,
-                    )
+                refresh_canonical_territory_stats(contest_owner_username, owner_areas)
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_owner_rebuild_deferred" if defer_conflict_rebuild
@@ -31452,7 +31226,7 @@ def gonna_win():
             )
         )
         if not defer_conflict_rebuild:
-            persisted_progression_profile = user_store.get_profile(session["user"]) or {}
+            persisted_progression_profile = territory_progression_receipt_store.progression.get(session["user"])
             for progression_key in (
                 "level", "respect", "exp", "territory_stats", "system_messages"
             ):
@@ -31558,46 +31332,8 @@ def gonna_win():
             session["profile"] = profile
 
         step_started_at = time.perf_counter()
-        capture_profile_update = {
-            "hacked": hacked_targets,
-            "targets": profile.get("targets", []),
-            "aimed_target": {},
-            "captured_targets_source": "sqlite",
-            "system_messages": profile["system_messages"],
-            "operations": profile.get("operations", []),
-        }
-        if not defer_conflict_rebuild:
-            capture_profile_update.update({
-                "level": profile["level"],
-                "respect": profile["respect"],
-                "exp": profile["exp"],
-                "territory_stats": profile["territory_stats"],
-            })
-        if defer_conflict_rebuild:
-            # The conflict worker owns the durable profile mirror after a pillar
-            # transfer. The request has already committed the captured target,
-            # target runtime state and rebuild job. Serializing the complete,
-            # often very large profile here can outlive the Gunicorn timeout
-            # after the gameplay transaction has succeeded.
-            print(
-                "[TERRITORY_CAPTURE_PROFILE_SYNC_DEFERRED] "
-                f"user={session.get('user')} conflicts="
-                f"{[item.get('conflict_id') or item.get('id') for item in captured_conflicts]}",
-                flush=True,
-            )
-        else:
-            try:
-                user_store.patch_profile_guarded(
-                    session["user"],
-                    capture_profile_update,
-                    source="gonna_win.capture_profile",
-                )
-            except ProfileWriteConflict as exc:
-                print(
-                    "[TERRITORY_CAPTURE_PROFILE_SYNC_DEFERRED] "
-                    f"user={session.get('user')} reason=profile_write_conflict error={exc}",
-                    flush=True,
-                )
+        # Ownership, selection, operations and progression are already canonical.
+        # Do not serialize a compatibility profile after a committed capture.
         app_flow_debug_timed(
             flow_id,
             "gonna_win_capture_profile_update_deferred" if defer_conflict_rebuild

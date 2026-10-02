@@ -9,13 +9,14 @@ class GhostRuntimeCoordinator:
     TERMINAL_OUTCOMES = {"discovered", "already_discovered"}
 
     def __init__(self, service=None, profile_loader=None, profile_saver=None,
-                 delta_publisher=None, captured_target_reader=None):
+                 delta_publisher=None, captured_target_reader=None, reward_settler=None):
         self.service = service or GhostNetworkService()
         self.repository = self.service.repository
         self.profile_loader = profile_loader
         self.profile_saver = profile_saver
         self.delta_publisher = delta_publisher
         self.captured_target_reader = captured_target_reader
+        self.reward_settler = reward_settler
 
     def enqueue_capture(self, capture_key, player, target, operation=None, result=None,
                         reservation_id=""):
@@ -141,6 +142,10 @@ class GhostRuntimeCoordinator:
             created = result.get("created") if isinstance(result, dict) else None
             reward = created.get("reward") if isinstance(created, dict) else None
             if isinstance(reward, dict):
+                if self.reward_settler:
+                    result['applied'] = self.reward_settler(reward)
+                    results.append(result)
+                    continue
                 projection = self.service.project_reward_to_profile(
                     profile,
                     reward_id=reward.get("reward_id"),

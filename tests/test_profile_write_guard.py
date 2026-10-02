@@ -412,7 +412,9 @@ class ProfileWriteGuardTests(unittest.TestCase):
         record = self.store.get_profile_with_revision("alice")
         lkg_before = self.store.get_last_known_good("alice")
         candidate = record["profile"]
-        candidate.pop("security")
+        # Security is restored from its canonical store. Remove a required field
+        # that has no canonical overlay to exercise invalid candidate rejection.
+        candidate.pop("desktop_settings")
 
         with self.assertRaises(ProfileValidationError):
             self.store.save_profile_guarded(
@@ -424,7 +426,7 @@ class ProfileWriteGuardTests(unittest.TestCase):
         current = self.store.get_profile_with_revision("alice")
         lkg_after = self.store.get_last_known_good("alice")
         self.assertEqual(1, current["profile_revision"])
-        self.assertIn("security", current["profile"])
+        self.assertIn("desktop_settings", current["profile"])
         self.assertEqual(lkg_before["checksum"], lkg_after["checksum"])
 
     def test_destructive_multi_scope_drop_requires_reset_receipt(self):
@@ -548,7 +550,7 @@ class ProfileWriteGuardTests(unittest.TestCase):
         )
 
         saved = result["profile"]
-        self.assertEqual(("wallet", "inventory"), result["canonical_overlays"])
+        self.assertEqual(("security", "wallet", "inventory"), result["canonical_overlays"])
         self.assertEqual(777, saved["hackcoins"])
         self.assertEqual(["canonical-app"], [item["id"] for item in saved["apps"]])
         self.assertEqual(["canonical.sh"], [item["tool_id"] for item in saved["files"]["tools"]])

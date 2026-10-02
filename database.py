@@ -736,6 +736,8 @@ def overlay_canonical_profile_scopes_with_conn(conn, username, profile):
     username = str(username or "").strip()
     candidate = copy.deepcopy(profile if isinstance(profile, dict) else {})
     overlaid_scopes = []
+    from player_progression import overlay as overlay_progression
+    overlay_progression(conn, username, candidate)
 
     security_row = conn.execute('SELECT security_json FROM player_security WHERE username=?', (username,)).fetchone()
     if security_row:
@@ -1496,6 +1498,11 @@ def _bootstrap_wallet_canonical_rows(conn):
 
 def init_db(db_path=DB_PATH):
     with db_connect(db_path) as conn:
+        from player_progression import SCHEMA
+        conn.execute(SCHEMA)
+        from ghost_reward_projection import SCHEMAS
+        for statement in SCHEMAS:
+            conn.execute(statement)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -2988,6 +2995,9 @@ def init_db(db_path=DB_PATH):
 
 
 _IDENTITY_ORPHAN_COLUMNS = {
+    "player_progression": ("username",),
+    "player_ghost_reward_state": ("username",),
+    "player_ghost_reward_receipts": ("username",),
     # Canonical economy/inventory rows must never be inherited by a newly
     # registered account which happens to reuse an old login.
     "wallet_balances": ("username",),
@@ -3150,6 +3160,8 @@ def _upsert_identity_projection_with_conn(
     updated_at=None,
 ):
     """Update identity in the same transaction as its guarded profile write."""
+    from player_progression import sync_profile_stats
+    sync_profile_stats(conn, profile)
     payload = _identity_projection_payload(profile)
     username = payload["username"]
     revision = int(source_profile_revision or 0)
@@ -3201,6 +3213,7 @@ def _upsert_identity_projection_with_conn(
                               "avatar": str(profile.get("avatar") or ""),
                               "player_security": _bounded_player_security(profile),
                               "respect": profile.get("respect") or 0,
+                              "territory_progression_checkpoint": profile.get("territory_progression_checkpoint") or {},
                               "source_profile_revision": revision,
                               "source_profile_checksum": checksum}), username))
 
@@ -3390,6 +3403,7 @@ class UserStore:
         if not username:
             return None
         with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN')
             row = conn.execute(
                 """
                 SELECT profile_json, profile_revision, profile_integrity_status
@@ -3397,6 +3411,7 @@ class UserStore:
                 """,
                 (username,),
             ).fetchone()
+            progression_row = conn.execute('SELECT * FROM player_progression WHERE username=?', (username,)).fetchone()
         if not row:
             return None
         raw_profile = row["profile_json"]
@@ -3430,6 +3445,8 @@ class UserStore:
             security_row = conn.execute('SELECT security_json FROM player_security WHERE username=?', (username,)).fetchone()
             if security_row:
                 profile['security'] = loads_json(security_row['security_json'], {})
+        from player_progression import overlay_row
+        overlay_row(profile, progression_row)
         return profile
 
     def get_profile_with_revision(self, username):
@@ -3438,6 +3455,7 @@ class UserStore:
         if not username:
             return None
         with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN')
             row = conn.execute(
                 """
                 SELECT profile_json, profile_revision, profile_schema_version,
@@ -3448,6 +3466,7 @@ class UserStore:
                 """,
                 (username,),
             ).fetchone()
+            progression_row = conn.execute('SELECT * FROM player_progression WHERE username=?', (username,)).fetchone()
         if not row:
             return None
         record_hot_path_metric("profile_full_read")
@@ -3479,6 +3498,9 @@ class UserStore:
             errors.append("profile_integrity_status_invalid")
         if not checksum_valid:
             errors.append("profile_checksum_mismatch")
+        if state == 'valid':
+            from player_progression import overlay_row
+            overlay_row(profile, progression_row)
         return {
             "state": state,
             "profile": copy.deepcopy(profile) if profile is not None else None,
@@ -3554,7 +3576,7 @@ class UserStore:
         ):
             raise ValueError("expected_revision must be an integer or None.")
         forbidden_keys = {
-            "username", "password", "salt",
+            "username", "password", "salt", "territory_progression_checkpoint",
         }.union(_PROFILE_INTERNAL_KEYS)
         rejected_keys = sorted(str(key) for key in set(updates).intersection(forbidden_keys))
         if rejected_keys:
@@ -3576,6 +3598,7 @@ class UserStore:
         try:
             prepared = None
             max_attempts = 3 if expected_revision is None else 1
+            progression_marker_at_start = None
             for attempt in range(max_attempts):
                 # Parse, overlay, validate, checksum and serialize before taking
                 # SQLite's process-wide writer lock. The revision/checksum pair
@@ -3613,8 +3636,17 @@ class UserStore:
                         )
 
                     candidate = copy.deepcopy(current_profile)
+                    from player_progression import overlay
+                    overlay(read_conn, username, candidate)
+                    current_progression_marker = candidate.get('territory_progression_checkpoint') or {}
+                    if progression_marker_at_start is None:
+                        progression_marker_at_start = dict(current_progression_marker)
                     for key, value in updates.items():
                         candidate[str(key)] = copy.deepcopy(value)
+                        reward_key = {'level':'level_gain','respect':'respect_gain'}.get(key)
+                        if reward_key and type(value) in (int, float):
+                            candidate[str(key)] += (current_progression_marker.get(reward_key,0)
+                                                    - progression_marker_at_start.get(reward_key,0))
                     candidate, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
                         read_conn, username, candidate
                     )
@@ -3933,6 +3965,8 @@ class UserStore:
                             PROFILE_VALIDATION_VERSION,
                         ),
                     )
+                    from player_progression import seed
+                    seed(conn, candidate)
                     _upsert_identity_projection_with_conn(
                         conn, candidate, revision, checksum, updated_at=now
                     )
@@ -4327,6 +4361,8 @@ class UserStore:
                     PROFILE_VALIDATION_VERSION,
                 ),
             )
+            from player_progression import seed
+            seed(conn, profile)
             _upsert_identity_projection_with_conn(
                 conn, profile, next_revision, checksum, updated_at=now
             )
@@ -4618,6 +4654,9 @@ class UserStore:
             conn.execute("DELETE FROM user_identity_projection WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_security WHERE username = ?", (username,))
             conn.execute("DELETE FROM user_capability_projection WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_progression WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_ghost_reward_state WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_ghost_reward_receipts WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launcher_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launch_entries WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launch_risk_events WHERE username = ?", (username,))
@@ -4717,7 +4756,11 @@ class UserIdentityProjectionStore:
 
     def get_desktop_boot(self, username):
         with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN')
             row = conn.execute(self._select_sql("p.username = ?", desktop=True), (username,)).fetchone()
+            from player_progression import projection_values
+            raw_desktop = loads_json(row['desktop_boot_json'], {}) if row else {}
+            _, current_respect = projection_values(conn, username, respect=int(raw_desktop.get('respect') or 0))
         identity = self._row_identity(row)
         if not identity or row["desktop_boot_json"] is None:
             raise ProfileRecoveryRequired("Desktop projection migration required")
@@ -4727,6 +4770,7 @@ class UserIdentityProjectionStore:
                 or desktop.get("source_profile_checksum") != identity["source_profile_checksum"]):
             raise ProfileRecoveryRequired("Desktop projection is stale")
         desktop['player_security'] = self.get_player_security(username)
+        desktop['respect'] = current_respect
         return {**desktop, "identity": identity}
 
     def get_player_security(self, username):
@@ -4741,13 +4785,17 @@ class UserIdentityProjectionStore:
             json_extract(p.desktop_boot_json, '$.source_profile_checksum') AS desktop_checksum,
             ''', 1)
         with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
+            if not conn.in_transaction:
+                conn.execute('BEGIN')
             row = conn.execute(sql, (username,)).fetchone()
+            from player_progression import projection_values
+            _, current_respect = projection_values(conn, username, respect=int(row['creator_respect'] or 0) if row else 0)
         identity = self._row_identity(row)
         if (not identity or row['desktop_revision'] != identity['source_profile_revision']
                 or row['desktop_checksum'] != identity['source_profile_checksum']
                 or row['creator_respect'] is None):
             raise ProfileRecoveryRequired('Creator projection migration or recovery required')
-        return {'nick': identity['nick'], 'clan': identity['clan'], 'respect': int(row['creator_respect'])}
+        return {'nick': identity['nick'], 'clan': identity['clan'], 'respect': current_respect}
 
     def get_identities(self, usernames, max_items=IDENTITY_PROJECTION_MAX_BATCH):
         max_items = self._bounded_limit(max_items)
@@ -4958,6 +5006,8 @@ class UserCapabilityProjectionStore:
         if not username:
             return None
         with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
+            if not conn.in_transaction:
+                conn.execute('BEGIN')
             row = conn.execute(
                 """
                 SELECT p.*, u.profile_revision AS current_profile_revision,
@@ -4970,6 +5020,8 @@ class UserCapabilityProjectionStore:
                 """,
                 (username,),
             ).fetchone()
+            from player_progression import projection_values
+            current_level, _ = projection_values(conn, username, level=max(1, int(row['player_level'] or 1)) if row else 1)
         if not row:
             return None
         if (
@@ -4985,7 +5037,7 @@ class UserCapabilityProjectionStore:
             raise ProfileRecoveryRequired(
                 f"Capability projection for '{username}' is stale or invalid."
             )
-        level = max(1, int(row["player_level"] or 1))
+        level = current_level
         scan_bonus = max(0, int(row["scan_range_bonus"] or 0))
         zoom_bonus = max(0, int(row["map_zoom_bonus"] or 0))
         return {
@@ -6867,6 +6919,8 @@ class TerritoryProgressionReceiptStore:
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         init_db(self.db_path)
+        from player_progression import PlayerProgressionStore
+        self.progression = PlayerProgressionStore(self.db_path)
 
     @staticmethod
     def _row(row):
@@ -6972,336 +7026,17 @@ class TerritoryProgressionReceiptStore:
             ).fetchone())
 
     def settle(self, receipt_id, progression, territory_stats, exp_value,
-               system_messages=None):
-        """Apply reward deltas and receipt state in one SQLite transaction."""
-        receipt_id = str(receipt_id or "").strip()
-        for _attempt in range(3):
-            with db_connect(self.db_path) as conn:
-                receipt = conn.execute(
-                "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
-                (receipt_id,),
-                ).fetchone()
-            if not receipt:
-                return {"ok": False, "reason": "receipt_not_found"}
-            if receipt["status"] == self.STATUS_APPLIED:
-                return {
-                    "ok": True, "duplicate": True,
-                    "result": loads_json(receipt["result_json"], {}),
-                }
-            if receipt["status"] != self.STATUS_PENDING:
-                return {"ok": False, "reason": "receipt_not_pending"}
-            with db_connect(self.db_path) as conn:
-                user_row = conn.execute(
-                    """
-                    SELECT profile_json, profile_revision, profile_checksum,
-                           profile_integrity_status
-                    FROM users WHERE username = ?
-                    """,
-                    (receipt["actor_username"],),
-                ).fetchone()
-            if not user_row:
-                return {"ok": False, "reason": "profile_not_found"}
-            original_profile_json = user_row["profile_json"]
-            original_profile, parse_errors = _parse_profile_json_strict(
-                original_profile_json
-            )
-            original_validation = (
-                validate_profile_candidate(original_profile, receipt["actor_username"])
-                if original_profile is not None
-                else {"valid": False, "errors": parse_errors}
-            )
-            if (
-                user_row["profile_integrity_status"] != PROFILE_INTEGRITY_VALID
-                or not original_validation["valid"]
-                or profile_payload_checksum(original_profile)
-                != str(user_row["profile_checksum"] or "")
-            ):
-                return {"ok": False, "reason": "profile_recovery_required"}
-            original_revision = int(user_row["profile_revision"] or 0)
-            profile = copy.deepcopy(original_profile)
-            profile["respect"] = int(profile.get("respect", 0) or 0) + int(
-                (progression or {}).get("respect_gain") or 0
-            )
-            profile["level"] = int(profile.get("level", 1) or 1) + int(
-                (progression or {}).get("levels_gained") or 0
-            )
-            profile["territory_stats"] = copy.deepcopy(territory_stats or {})
-            profile["exp"] = str(exp_value or profile.get("exp") or "")
-            if system_messages:
-                profile.setdefault("system_messages", []).extend(
-                    copy.deepcopy(system_messages)
-                )
-            result_json = dumps_json(progression or {})
-            now = utc_now()
-            with db_connect(self.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                current = conn.execute(
-                    "SELECT status, result_json FROM territory_progression_receipts WHERE receipt_id = ?",
-                    (receipt_id,),
-                ).fetchone()
-                if not current:
-                    return {"ok": False, "reason": "receipt_not_found"}
-                if current["status"] == self.STATUS_APPLIED:
-                    return {"ok": True, "duplicate": True, "result": loads_json(current["result_json"], {})}
-                if current["status"] != self.STATUS_PENDING:
-                    return {"ok": False, "reason": "receipt_not_pending"}
-                profile, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
-                    conn, receipt["actor_username"], profile
-                )
-                validation = validate_profile_candidate(
-                    profile, receipt["actor_username"]
-                )
-                if not validation["valid"]:
-                    return {"ok": False, "reason": "profile_recovery_required"}
-                profile_json = dumps_json(profile)
-                profile_checksum = profile_payload_checksum(profile)
-                _run_profile_precommit_guard(
-                    None, conn, receipt["actor_username"], original_revision
-                )
-                updated = conn.execute(
-                    """
-                    UPDATE users
-                    SET profile_json = ?, updated_at = ?, profile_revision = ?,
-                        profile_schema_version = ?, profile_checksum = ?,
-                        profile_integrity_status = ?, profile_validation_version = ?
-                    WHERE username = ? AND profile_revision = ? AND profile_json = ?
-                    """,
-                    (
-                        profile_json,
-                        now,
-                        original_revision + 1,
-                        PROFILE_SCHEMA_VERSION,
-                        profile_checksum,
-                        PROFILE_INTEGRITY_VALID,
-                        PROFILE_VALIDATION_VERSION,
-                        receipt["actor_username"],
-                        original_revision,
-                        original_profile_json,
-                    ),
-                )
-                if updated.rowcount != 1:
-                    continue
-                _upsert_identity_projection_with_conn(
-                    conn,
-                    profile,
-                    original_revision + 1,
-                    profile_checksum,
-                    updated_at=now,
-                )
-                _write_profile_lkg(
-                    conn,
-                    receipt["actor_username"],
-                    original_profile,
-                    original_revision,
-                    "prewrite:territory_progression.settle",
-                    now,
-                )
-                applied = conn.execute(
-                """
-                UPDATE territory_progression_receipts
-                SET status = 'applied', result_json = ?, updated_at = ?, applied_at = ?
-                WHERE receipt_id = ? AND status = 'pending'
-                """,
-                    (result_json, now, now, receipt_id),
-                )
-                if applied.rowcount != 1:
-                    raise RuntimeError("territory receipt CAS failed after profile update")
-            return {
-                "ok": True, "duplicate": False,
-                "result": copy.deepcopy(progression or {}),
-                "profile": profile,
-                "profile_revision": original_revision + 1,
-                "canonical_overlays": tuple(canonical_overlays),
-            }
-        return {"ok": False, "reason": "profile_changed"}
+               system_messages=None, *, coalesced_receipts=()):
+        """Settle canonical rewards without hydrating or rewriting a profile."""
+        return self.progression.settle(receipt_id, progression, territory_stats,
+                                       exp_value, messages=system_messages or (), coalesced_receipts=coalesced_receipts)
 
     def settle_strategic(self, receipt_id, encirclement=None,
                          conflict_resolutions=None, system_messages=None):
-        """Atomically settle strategic territory rewards from the current LVL."""
-        receipt_id = str(receipt_id or "").strip()
-        encirclement = copy.deepcopy(encirclement or {})
-        conflict_resolutions = copy.deepcopy(conflict_resolutions or [])
-        for _attempt in range(3):
-            with db_connect(self.db_path) as conn:
-                receipt = conn.execute(
-                "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
-                (receipt_id,),
-                ).fetchone()
-            if not receipt:
-                return {"ok": False, "reason": "receipt_not_found"}
-            if receipt["status"] == self.STATUS_APPLIED:
-                return {
-                    "ok": True, "duplicate": True,
-                    "result": loads_json(receipt["result_json"], {}),
-                }
-            if receipt["status"] != self.STATUS_PENDING:
-                return {"ok": False, "reason": "receipt_not_pending"}
-            with db_connect(self.db_path) as conn:
-                user_row = conn.execute(
-                    """
-                    SELECT profile_json, profile_revision, profile_checksum,
-                           profile_integrity_status
-                    FROM users WHERE username = ?
-                    """,
-                    (receipt["actor_username"],),
-                ).fetchone()
-            if not user_row:
-                return {"ok": False, "reason": "profile_not_found"}
-
-            original_profile_json = user_row["profile_json"]
-            original_profile, parse_errors = _parse_profile_json_strict(
-                original_profile_json
-            )
-            original_validation = (
-                validate_profile_candidate(original_profile, receipt["actor_username"])
-                if original_profile is not None
-                else {"valid": False, "errors": parse_errors}
-            )
-            if (
-                user_row["profile_integrity_status"] != PROFILE_INTEGRITY_VALID
-                or not original_validation["valid"]
-                or profile_payload_checksum(original_profile)
-                != str(user_row["profile_checksum"] or "")
-            ):
-                return {"ok": False, "reason": "profile_recovery_required"}
-            original_revision = int(user_row["profile_revision"] or 0)
-            profile = copy.deepcopy(original_profile)
-            level_before = max(1, int(profile.get("level", 1) or 1))
-            transferred_pillars = max(
-                0, int(encirclement.get("transferred_pillar_count") or 0)
-            )
-            encirclement_levels = 1 if encirclement.get("awarded") else 0
-            encirclement_respect = transferred_pillars if encirclement_levels else 0
-            normalized_resolutions = []
-            seen_resolution_keys = set()
-            for item in conflict_resolutions:
-                conflict_id = str((item or {}).get("conflict_id") or "").strip()
-                resolution_version = int((item or {}).get("resolution_version") or 0)
-                reward_key = f"conflict:{conflict_id}:{resolution_version}"
-                if not conflict_id or reward_key in seen_resolution_keys:
-                    continue
-                seen_resolution_keys.add(reward_key)
-                normalized_resolutions.append({
-                    "reward_key": reward_key,
-                    "conflict_id": conflict_id,
-                    "resolution_version": resolution_version,
-                    "level_before": level_before,
-                    "levels_gained": 1,
-                    "respect_gain": level_before,
-                })
-
-            levels_gained = encirclement_levels + len(normalized_resolutions)
-            respect_gain = encirclement_respect + sum(
-                item["respect_gain"] for item in normalized_resolutions
-            )
-            result = {
-                "territory_progression": {
-                    "respect_gain": 0,
-                    "levels_gained": 0,
-                },
-                "encirclement": {
-                    "reward_key": str(encirclement.get("reward_key") or "encirclement"),
-                    "levels_gained": encirclement_levels,
-                    "transferred_pillar_count": transferred_pillars,
-                    "respect_gain": encirclement_respect,
-                },
-                "conflict_resolutions": normalized_resolutions,
-                "totals": {
-                    "respect_gain": respect_gain,
-                    "levels_gained": levels_gained,
-                    "level_before": level_before,
-                    "level_after": level_before + levels_gained,
-                },
-            }
-            profile["respect"] = int(profile.get("respect", 0) or 0) + respect_gain
-            profile["level"] = level_before + levels_gained
-            if system_messages:
-                profile.setdefault("system_messages", []).extend(
-                    copy.deepcopy(system_messages)
-                )
-            result_json = dumps_json(result)
-            now = utc_now()
-            with db_connect(self.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                current = conn.execute(
-                    "SELECT status, result_json FROM territory_progression_receipts WHERE receipt_id = ?",
-                    (receipt_id,),
-                ).fetchone()
-                if not current:
-                    return {"ok": False, "reason": "receipt_not_found"}
-                if current["status"] == self.STATUS_APPLIED:
-                    return {"ok": True, "duplicate": True, "result": loads_json(current["result_json"], {})}
-                if current["status"] != self.STATUS_PENDING:
-                    return {"ok": False, "reason": "receipt_not_pending"}
-                profile, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
-                    conn, receipt["actor_username"], profile
-                )
-                validation = validate_profile_candidate(
-                    profile, receipt["actor_username"]
-                )
-                if not validation["valid"]:
-                    return {"ok": False, "reason": "profile_recovery_required"}
-                profile_json = dumps_json(profile)
-                profile_checksum = profile_payload_checksum(profile)
-                _run_profile_precommit_guard(
-                    None, conn, receipt["actor_username"], original_revision
-                )
-                updated = conn.execute(
-                    """
-                    UPDATE users
-                    SET profile_json = ?, updated_at = ?, profile_revision = ?,
-                        profile_schema_version = ?, profile_checksum = ?,
-                        profile_integrity_status = ?, profile_validation_version = ?
-                    WHERE username = ? AND profile_revision = ? AND profile_json = ?
-                    """,
-                    (
-                        profile_json,
-                        now,
-                        original_revision + 1,
-                        PROFILE_SCHEMA_VERSION,
-                        profile_checksum,
-                        PROFILE_INTEGRITY_VALID,
-                        PROFILE_VALIDATION_VERSION,
-                        receipt["actor_username"],
-                        original_revision,
-                        original_profile_json,
-                    ),
-                )
-                if updated.rowcount != 1:
-                    continue
-                _upsert_identity_projection_with_conn(
-                    conn,
-                    profile,
-                    original_revision + 1,
-                    profile_checksum,
-                    updated_at=now,
-                )
-                _write_profile_lkg(
-                    conn,
-                    receipt["actor_username"],
-                    original_profile,
-                    original_revision,
-                    "prewrite:territory_progression.settle_strategic",
-                    now,
-                )
-                applied = conn.execute(
-                """
-                UPDATE territory_progression_receipts
-                SET status = 'applied', result_json = ?, updated_at = ?, applied_at = ?
-                WHERE receipt_id = ? AND status = 'pending'
-                """,
-                    (result_json, now, now, receipt_id),
-                )
-                if applied.rowcount != 1:
-                    raise RuntimeError("strategic territory receipt CAS failed after profile update")
-            return {
-                "ok": True, "duplicate": False,
-                "result": copy.deepcopy(result),
-                "profile": profile,
-                "profile_revision": original_revision + 1,
-                "canonical_overlays": tuple(canonical_overlays),
-            }
-        return {"ok": False, "reason": "profile_changed"}
+        from player_progression import strategic_reward
+        return self.progression.settle(receipt_id,
+            lambda actor: strategic_reward(actor['level'], encirclement, conflict_resolutions),
+            messages=system_messages or ())
 
 
 class TerritoryTargetOwnershipStore:
@@ -14368,12 +14103,15 @@ class PlayerMarkedTargetStore:
             "version": version,
         }
 
-    def remove_matching(self, username, target, match_label=False, source="target.captured"):
+    def remove_matching(self, username, target, match_label=False, source="target.captured", *, ensure_seeded=True):
         username = self._clean_username(username)
         normalized = self.normalize_target(target)
         if not username or normalized is None:
             return 0
-        self.ensure_seeded(username)
+        if ensure_seeded:
+            self.ensure_seeded(username)
+        elif not self.is_seeded(username):
+            raise ProfileRecoveryRequired('Marked target migration required')
         wanted_key = normalized["target_id"]
         wanted_lat = round(float(normalized["lat"]), 5)
         wanted_lng = round(float(normalized["lng"]), 5)

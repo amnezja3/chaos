@@ -1,7 +1,13 @@
 # Sprint 146.5 — pakiet GhostLab 1.0
 
-Stan: implementacja i testy lokalne; odbiór gameplayowy autora przed zamknięciem.
+Stan: **PASS — zamknięty 1 X 2026**, odbiór zaakceptowany przez autora.
 Bez automatycznego commita, pushowania ani wdrożenia produkcyjnego.
+
+Końcowe poprawki: pełnej szerokości edytor Markdown/Render, wybór globalnie/klan
+pod edytorem, folder **Plexcak /documents** i uwierzytelniony katalog ofert
+w WebDragonie oraz terminalu. Przewijanie pola przechodzi na widok GhostLaba,
+gdy treść jest krótka albo osiągnięto jej początek/koniec; 16 scenariuszy
+Playwright dla kółka i dotyku przeszło. GhostLab 1.0 zamknięty; dalej sprint 147.
 
 Weryfikacja lokalna 30 IX: testy completion/publication/alignment, regresja firmware,
 runtime i zakupów po konfiskacie; sześć zestawów JS (w tym Markdown). Playwright MCP
@@ -25,7 +31,7 @@ testowy zamknięte po kontroli. Te wyniki nie zastępują PASS autora w grze.
   w publicznym katalogu/newsach; zakup wymaga aktualnego członkostwa w tym klanie.
 - Każde pobranie kupuje konkretny build; powtórzenie nie pobiera ponownie HC.
   Nowy build wymaga osobnego świadomego pobrania. Stare wydania pozostają w
-  Dokumentach PTK, również po wycofaniu i opuszczeniu klanu. Limit 1000 wydań/konto.
+  katalogu Plexcak, również po wycofaniu i opuszczeniu klanu. Limit 1000 wydań/konto.
   PTK jest wirtualnym plikiem wskazującym artefakt, bez launchera i narzutu aplikacji.
 - Cena PTK: domyślnie 25 HC, dodatnia do 100 HC, zero bezpłatne. Wszystkie
   templatki bez rodzica PvP wspierają jawne zero / Open Source. Pusta cena zachowuje
