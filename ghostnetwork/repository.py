@@ -4413,6 +4413,27 @@ class GhostNetworkRepository:
             ).fetchone()
             return self._event(row)
 
+    def runtime_event_cursor(self):
+        with self._conn() as conn:
+            row = conn.execute('SELECT event_id FROM ghost_part_events ORDER BY rowid DESC LIMIT 1').fetchone()
+            return str(row[0]) if row else ''
+
+    def runtime_events_after(self, cursor, through, limit=250):
+        """Persist event IDs, resolve row order afresh (also safe after VACUUM).
+
+        Covers events sharing a state_version or changing cycle. Missing anchors
+        must not silently reset the replay window.
+        """
+        with self._conn() as conn:
+            anchor = conn.execute('SELECT rowid FROM ghost_part_events WHERE event_id=?', (cursor,)).fetchone() if cursor else None
+            end = conn.execute('SELECT rowid FROM ghost_part_events WHERE event_id=?', (through,)).fetchone()
+            if (cursor and anchor is None) or end is None:
+                raise RuntimeError('GhostNetwork replay anchor missing')
+            rows = conn.execute('SELECT rowid AS runtime_cursor, * FROM ghost_part_events '
+                                'WHERE rowid>? AND rowid<=? ORDER BY rowid LIMIT ?',
+                                (int(anchor[0]) if anchor else 0, int(end[0]), max(1, min(int(limit), 250)))).fetchall()
+            return [(str(row['event_id']), self._event(row)) for row in rows]
+
     def list_events_after(self, cycle_id, state_version=0, limit=250):
         cycle_id = _clean(cycle_id)
         if not cycle_id:

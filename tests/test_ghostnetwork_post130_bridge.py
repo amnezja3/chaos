@@ -481,6 +481,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         event = dict(event_id='bounded-public', event_type='ghost.part_activated',
             cycle_id=self.repo.get_active_cycle()['cycle_id'], part_id='bounded-part',
             player_id='alice', clan_code='virex', payload=dict(score=10))
+        event = self.repo.append_event(**event)
         with db_connect(self.db_path) as conn:
             before = tuple(conn.execute("SELECT profile_json,profile_checksum FROM users WHERE username='alice'").fetchone())
         with patch.object(run, 'load_profile_write_record', side_effect=AssertionError('heavy')), \
@@ -496,6 +497,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         event = dict(event_id='bounded-failure', event_type='ghost.part_activated',
             cycle_id=self.repo.get_active_cycle()['cycle_id'], part_id='bounded-failure-part',
             player_id='alice', clan_code='virex', payload=dict(score=10))
+        event = self.repo.append_event(**event)
         with patch.object(run, 'enqueue_ghostnetwork_event_delta', return_value={}):
             with patch.object(self.progression.progression, 'award', side_effect=ProfileWriteConflict('failure')):
                 with self.assertRaises(ProfileWriteConflict):
@@ -512,6 +514,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         event = dict(event_id='bounded-crash', event_type='ghost.part_activated',
             cycle_id=self.repo.get_active_cycle()['cycle_id'], part_id='bounded-crash-part',
             player_id='alice', clan_code='virex', payload=dict(score=10))
+        event = self.repo.append_event(**event)
         with patch.object(run, 'enqueue_ghostnetwork_event_delta', return_value={}):
             with patch.object(self.service, 'finalize_projected_reward', side_effect=RuntimeError('crash')):
                 with self.assertRaises(RuntimeError):

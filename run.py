@@ -3391,6 +3391,20 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
     return published
 
 
+def replay_ghostnetwork_territory_events(service, claim, lease_owner, timings):
+    started = time.perf_counter()
+    store = ghostnetwork_territory_job_store
+    cursor = store.event_cursor(claim['job_id'], lease_owner)
+    through = service.repository.runtime_event_cursor()
+    while cursor != through:
+        rows = service.repository.runtime_events_after(cursor, through)
+        if not rows:
+            raise RuntimeError('GhostNetwork event history missing before replay completed')
+        apply_ghostnetwork_runtime_result(service, [event for _, event in rows], timings=timings)
+        cursor = store.event_cursor(claim['job_id'], lease_owner, advance_to=rows[-1][0])
+    timings['events_rewards'] = timings.get('events_rewards', 0) + int((time.perf_counter() - started) * 1000)
+
+
 def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300, service=None):
     """Apply one canonical territory publication outside request-serving processes."""
     claim = ghostnetwork_territory_job_store.claim(lease_owner, lease_seconds=lease_seconds)
@@ -3402,10 +3416,13 @@ def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300, service=N
         phase_started = time.perf_counter()
         service = service or GhostNetworkService()
         timings["service_init"] = int((time.perf_counter() - phase_started) * 1000)
+        ghostnetwork_territory_job_store.event_cursor(
+            claim['job_id'], lease_owner, initial_cursor=service.repository.runtime_event_cursor())
+        replay_ghostnetwork_territory_events(service, claim, lease_owner, timings)
         if claim["job_kind"] == "areas":
             result = bridge_ghostnetwork_territory_publication(
                 reason=claim.get("reason") or "territory_job", service=service,
-                timings=timings,
+                timings=timings, defer_runtime=True,
             )
         elif claim["job_kind"] == "conflict":
             phase_started = time.perf_counter()
@@ -3415,18 +3432,23 @@ def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300, service=N
                 raise RuntimeError(f"canonical conflict snapshot missing: {claim['reference_id']}")
             result = bridge_ghostnetwork_conflict_publication(
                 snapshot, reason=claim.get("reason") or "territory_conflict_job",
-                service=service, timings=timings,
+                service=service, timings=timings, defer_runtime=True,
             )
         else:
             raise RuntimeError(f"unsupported job kind: {claim['job_kind']}")
         if isinstance(result, dict) and result.get("ok") is False:
             raise RuntimeError(str(result.get("reason") or result.get("error") or "bridge failed"))
+        replay_ghostnetwork_territory_events(service, claim, lease_owner, timings)
+        readiness_started = time.perf_counter()
+        result['endgame'] = maybe_finalize_ghostnetwork_cycle(service, result)
+        timings['readiness'] = int((time.perf_counter() - readiness_started) * 1000)
+        replay_ghostnetwork_territory_events(service, claim, lease_owner, timings)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         ghostnetwork_territory_job_store.finish(
             claim["job_id"], lease_owner, ok=True, processing_ms=elapsed_ms
         )
         return {
-            **claim, "ok": True, "result": result,
+            **claim, "ok": True, "error": "", "result": result,
             "elapsed_ms": elapsed_ms,
             "timings_ms": {**timings, "total": elapsed_ms},
             "queue": ghostnetwork_territory_job_store.diagnostics(),
@@ -3507,7 +3529,14 @@ def settle_ghostnetwork_reward(service, reward):
 
 
 def apply_ghostnetwork_runtime_result(service, result, timings=None):
-    events = collect_ghostnetwork_domain_events(result)
+    events = []
+    for reference in collect_ghostnetwork_domain_events(result):
+        # Narrative reports echo event_id/type but omit cycle and audience.
+        # Always resolve the original event, including its original cycle.
+        event = service.repository.get_event(reference['event_id'])
+        if not event or not event.get('cycle_id'):
+            raise RuntimeError(f"Canonical GhostNetwork event missing: {reference['event_id']}")
+        events.append(event)
     rewards = []
     outcomes = [
         ('lifecycle', str(event.get('event_type') or '').removeprefix('ghost.part_'), event.get('cycle_id') or '')
@@ -4025,7 +4054,7 @@ def advance_ghostnetwork_endgame_once(service=None, trigger_result=None):
 
 
 def bridge_ghostnetwork_territory_publication(reason="territory_publication", service=None,
-                                               timings=None, resolve_conflicts=False):
+                                               timings=None, resolve_conflicts=False, defer_runtime=False):
     try:
         timings = timings if isinstance(timings, dict) else {}
         phase_started = time.perf_counter()
@@ -4041,6 +4070,8 @@ def bridge_ghostnetwork_territory_publication(reason="territory_publication", se
             resolve_conflicts=resolve_conflicts,
         )
         timings["reconcile"] = int((time.perf_counter() - phase_started) * 1000)
+        if defer_runtime:
+            return report
         phase_started = time.perf_counter()
         report["rewards"] = apply_ghostnetwork_runtime_result(service, report, timings=timings)
         timings["events_rewards"] = int((time.perf_counter() - phase_started) * 1000)
@@ -4054,7 +4085,7 @@ def bridge_ghostnetwork_territory_publication(reason="territory_publication", se
 
 
 def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflict", service=None,
-                                              timings=None):
+                                              timings=None, defer_runtime=False):
     try:
         timings = timings if isinstance(timings, dict) else {}
         phase_started = time.perf_counter()
@@ -4066,7 +4097,7 @@ def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflic
         if status in {"resolved", "closed"}:
             return bridge_ghostnetwork_territory_publication(
                 reason=f"{reason}:resolved", service=service, timings=timings,
-                resolve_conflicts=True,
+                resolve_conflicts=True, defer_runtime=defer_runtime,
             )
         phase_started = time.perf_counter()
         reports = []
@@ -4085,7 +4116,8 @@ def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflic
                 "pillar_count": len(vertices),
                 "has_polygon": True,
             })
-            apply_ghostnetwork_runtime_result(service, report, timings=timings)
+            if not defer_runtime:
+                apply_ghostnetwork_runtime_result(service, report, timings=timings)
             reports.append(report)
         timings["conflict_reconcile"] = int((time.perf_counter() - phase_started) * 1000)
         return {"ok": True, "status": "contested", "reports": reports}
@@ -4677,7 +4709,15 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
         return []
 
     try:
-        source_areas = areas if areas is not None else territory_store.list_player_areas(owner_username, limit=1000)
+        source_areas = areas
+        if source_areas is None or any(isinstance(area, dict) and area.get('id') is None for area in source_areas):
+            # A just-built polygon lacks the persisted area ID needed by intrusion receipts.
+            source_areas = territory_store.list_player_areas(owner_username, limit=1000)
+        # Fresh geometry from build_player_areas has no owner field yet.
+        # The owner-scoped caller supplies it; never override an explicit owner.
+        source_areas = [dict(area, owner_username=owner_username)
+                        if isinstance(area, dict) and not any(area.get(key) for key in ('owner_username', 'owner', 'login'))
+                        else area for area in source_areas]
         owner_areas = [
             area for area in safe_player_areas(source_areas)
             if area.get("owner_username") == owner_username

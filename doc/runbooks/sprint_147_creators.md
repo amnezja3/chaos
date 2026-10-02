@@ -155,7 +155,71 @@ Zakresy: progresja i writers, polityka/migracja/API kreatorów, pełne przejęci
 scoped runtime, kontrola terytorium, finalizacja konfliktu, GhostNetwork bridge,
 ranking, operacje i ekspozycja kamer. To nie jest PASS całego sprintu 147.
 
-## Poprawka zapisu pulpitu po migracji
+## Kontrola konfliktu i naprawa dostarczania GhostNetwork
+
+Operator potwierdził gameplay punktów, terytorium do nagrody x3 i konfliktu.
+Log konfliktu potwierdza `respect_gain=25`, `levels_gained=1`, `status=applied`,
+`duplicate=False`, publikację zwycięzcy `main` oraz brak kolejnego awansu przy
+ponownym przeliczeniu. Wystąpił jednak świeży błąd dostarczania zdarzenia GN:
+`GhostNetwork delivery requires event_id and cycle_id`. Końcowe `ok=True` i pusta
+kolejka starej wersji nie dowodzą dostarczenia wszystkich zdarzeń.
+
+Przyczyna: rekurencyjny kolektor widział także raporty narracji zawierające
+event_id/event_type, ale bez cycle_id. Runtime pobiera teraz pełny kanoniczny
+rekord po event_id. Nie dopisuje aktualnego cyklu do starego zdarzenia. Hipoteza
+operatora o konflikcie/markerze z poprzedniego cyklu nie jest potwierdzona przez
+ten log; regresja obejmuje zachowanie oryginalnego cyklu i brak reaktywacji
+historycznej części po rozstrzygnięciu starego konfliktu.
+
+Worker zapisuje kursor ID zdarzenia przed zmianą stanu, odtwarza trwałe zdarzenia
+partiami po 250 i przesuwa kursor dopiero po rozliczeniu/dostarczeniu całej partii.
+Retry po wypłacie korzysta z istniejących receipts. Rozpoczęte zadania z kursorem
+nie są pomijane przy łączeniu kolejki. Sukces nie zwraca już starego pola error.
+Nowa tabela `ghostnetwork_territory_event_cursors` powstaje przez init_db; nie
+wymaga ponowienia migracji progresji. Nie usuwać historii zdarzeń użytej jako
+kotwica niedokończonego zadania.
+
+Ostrzeżenia o obszarach miały też konkretną ścieżkę: świeża geometria zwracana
+przez build_player_areas nie ma jeszcze owner_username ani identyfikatora zapisanego
+obszaru. Synchronizacja intruzów pobiera kanoniczne obszary właściciela, gdy brak ID;
+brakującego właściciela uzupełnia z kontekstu, nie nadpisując jawnego właściciela.
+Nie usuwa obszarów i nie zmienia progów aproksymacji dużych skupisk punktów.
+
+Wdrożyć web oraz territory-worker z tej samej wersji; zrestartować oba przez
+odpowiednie konfiguracje PM2 z --update-env. Gameplay nie wymaga ponownej migracji.
+Już zakończone zadania starej wersji nie mają kursora i nie są masowo odtwarzane.
+Dla okna czasowego rozstrzygnięcia uruchomić odczytowy audyt:
+
+```bash
+.venv/bin/python tools/audit_ghostnetwork_delivery.py --since '<czas-z-offsetem>' --until '<czas-z-offsetem>'
+```
+
+Daty ISO wymagają strefy, np. `2026-10-02T18:00:00+02:00`. Audyt porównuje
+kanoniczne event_id/cycle_id z kolejką dostarczeń, nie importuje run.py i nie
+migruje bazy. Brak delivery jest kandydatem do sprawdzenia, nie dowodem utraty
+nagrody; `truncated=true` wymaga węższego okna. Najpierw przejrzeć wskazane ID,
+potem ewentualnie odtworzyć wyłącznie potwierdzone brakujące zdarzenia.
+
+Weryfikacja: zestaw 51 testów backendu PASS (bridge, dostarczenia i retry,
+historyczny cykl, audyt tylko do odczytu, scoped capture i fairness workera).
+Dodatkowe 8 testów PASS po korekcie identyfikacji świeżych obszarów (7 powtórzonych
+testów przejęć i 1 nowy): łącznie 52 różne testy.
+Bez testu na produkcyjnej historii; wdrożenie nie odtwarza automatycznie zadań
+oznaczonych jako zakończone przez poprzedni kod.
+
+## Poprawka zapisu pulpitu po migracji — szczegóły
+
+Kontrola logów operatora z 2026-10-02: zadania obszarów `kot1` kończą się
+`ok=True`, kolejka ma głębokość 0. Zapis pulpitu zwraca 200 bez `PROFILE_WRITE`.
+Wyciąg HTTP z 17:47–17:48 nie zawiera samego żądania przejęcia; gameplay PASS
+pochodzi z potwierdzenia operatora. Pozostają odczyty `/api/profile` i zgłoszenia
+`remote_anomaly` dla dwóch wcześniejszych konfliktów, bez ownership mismatches.
+
+Pierwszy start weba o 17:06:30 ujawnił wyścig dodawania `desktop_settings_json`
+przez procesy Gunicorn (`duplicate column name`). Kolejny start oraz restart
+o 17:34 przebiegły bez tego błędu. Poprawka inicjalizacji toleruje wyłącznie
+potwierdzony duplikat właściwej kolumny TEXT; inne błędy SQL nadal przerywają start.
+Nie wymaga ponowienia migracji progresji ani zmian istniejących danych.
 
 Świeże logi ujawniły równoległe zapisy `api.profile.desktop`, konflikty rewizji
 i zapisy bez zmian. Endpoint zapisuje teraz wyłącznie niezależną kolumnę

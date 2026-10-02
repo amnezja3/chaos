@@ -1501,6 +1501,25 @@ def _bootstrap_wallet_canonical_rows(conn):
         _wallet_bootstrap_user_with_conn(conn, row)
 
 
+def _ensure_desktop_projection_columns(conn):
+    """Allow concurrent worker startup; suppress only a verified duplicate DDL."""
+    for column in ('desktop_boot_json', 'desktop_settings_json'):
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(user_identity_projection)')}
+        if column in columns:
+            continue
+        try:
+            conn.execute(f'ALTER TABLE user_identity_projection ADD COLUMN {column} TEXT')
+        except sqlite3.OperationalError as exc:
+            # Another process can add it after our PRAGMA and before ALTER.
+            # Lock, corruption and other migration failures must still propagate.
+            if str(exc).lower() != f'duplicate column name: {column}':
+                raise
+            columns = {row[1]: row[2].upper() for row in conn.execute(
+                'PRAGMA table_info(user_identity_projection)')}
+            if columns.get(column) != 'TEXT':
+                raise
+
+
 def init_db(db_path=DB_PATH):
     with db_connect(db_path) as conn:
         from player_progression import SCHEMA
@@ -1595,11 +1614,7 @@ def init_db(db_path=DB_PATH):
             ON user_identity_projection(clan_code, username)
             """
         )
-        identity_columns = {row[1] for row in conn.execute("PRAGMA table_info(user_identity_projection)")}
-        if "desktop_boot_json" not in identity_columns:
-            conn.execute("ALTER TABLE user_identity_projection ADD COLUMN desktop_boot_json TEXT")
-        if "desktop_settings_json" not in identity_columns:
-            conn.execute("ALTER TABLE user_identity_projection ADD COLUMN desktop_settings_json TEXT")
+        _ensure_desktop_projection_columns(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS user_capability_projection (
@@ -2489,6 +2504,8 @@ def init_db(db_path=DB_PATH):
             )
             """
         )
+        conn.execute('''CREATE TABLE IF NOT EXISTS ghostnetwork_territory_event_cursors (
+            job_id TEXT PRIMARY KEY, event_cursor TEXT NOT NULL)''')
         ghost_job_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(ghostnetwork_territory_jobs)").fetchall()
@@ -5446,16 +5463,22 @@ class GhostNetworkTerritoryJobStore:
                     """SELECT * FROM ghostnetwork_territory_jobs
                        WHERE status = 'pending' AND job_kind = 'areas'
                          AND attempts < 5 AND next_attempt_at <= ?
+                         AND NOT EXISTS (SELECT 1 FROM ghostnetwork_territory_event_cursors c
+                                         WHERE c.job_id = ghostnetwork_territory_jobs.job_id)
                        ORDER BY created_at DESC, job_id DESC LIMIT 1""",
                     (now_ts,),
                 ).fetchone()
-                if latest_area:
+                has_cursor = conn.execute('SELECT 1 FROM ghostnetwork_territory_event_cursors WHERE job_id=?',
+                                          (row['job_id'],)).fetchone()
+                if latest_area and not has_cursor:
                     row = latest_area
                 superseded = conn.execute(
                     """UPDATE ghostnetwork_territory_jobs
                        SET status = 'complete', error = ?, updated_at = ?, finished_at = ?
                        WHERE status = 'pending' AND job_kind = 'areas'
-                         AND attempts < 5 AND next_attempt_at <= ? AND job_id != ?""",
+                         AND attempts < 5 AND next_attempt_at <= ? AND job_id != ?
+                         AND NOT EXISTS (SELECT 1 FROM ghostnetwork_territory_event_cursors c
+                                         WHERE c.job_id = ghostnetwork_territory_jobs.job_id)""",
                     (f"coalesced_into:{row['job_id']}", now, now, now_ts, row["job_id"]),
                 )
                 coalesced_jobs = int(superseded.rowcount or 0)
@@ -5474,6 +5497,27 @@ class GhostNetworkTerritoryJobStore:
                 "SELECT * FROM ghostnetwork_territory_jobs WHERE job_id = ?", (row["job_id"],)
             ).fetchone()
             return {**dict(claimed), "coalesced_jobs": coalesced_jobs}
+
+    def event_cursor(self, job_id, lease_owner, initial_cursor=None, advance_to=None):
+        """A durable pre-transition cursor survives crashes and job coalescing."""
+        with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            claimed = conn.execute("SELECT 1 FROM ghostnetwork_territory_jobs WHERE job_id=? "
+                                   "AND lease_owner=? AND status='processing' AND lease_until>?",
+                                   (job_id, lease_owner, time.time())).fetchone()
+            if not claimed:
+                raise RuntimeError('GhostNetwork territory job lease lost')
+            if initial_cursor is not None:
+                conn.execute('INSERT OR IGNORE INTO ghostnetwork_territory_event_cursors VALUES (?,?)',
+                             (job_id, str(initial_cursor)))
+            if advance_to is not None:
+                conn.execute('UPDATE ghostnetwork_territory_event_cursors SET event_cursor=? WHERE job_id=?',
+                             (str(advance_to), job_id))
+            row = conn.execute('SELECT event_cursor FROM ghostnetwork_territory_event_cursors WHERE job_id=?',
+                               (job_id,)).fetchone()
+            if row is None:
+                raise RuntimeError('GhostNetwork territory event cursor missing')
+            return str(row[0])
 
     def finish(self, job_id, lease_owner, ok=True, error="", processing_ms=0):
         now = utc_now()
