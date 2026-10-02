@@ -1,0 +1,33 @@
+'use strict';
+const fs = require('fs'), vm = require('vm'), assert = require('assert');
+const source = fs.readFileSync('static/js/terminal.js', 'utf8');
+const start = source.indexOf('let desktopSettingsWriteQueue');
+const end = source.indexOf('function sendDesktopSettingsBeacon', start);
+const calls = [];
+const context = {desktopSessionActive: true, console, fetch: (url, options) =>
+    new Promise((resolve, reject) => calls.push({url, data: JSON.parse(options.body), resolve, reject}))};
+vm.createContext(context);
+vm.runInContext(source.slice(start, end), context);
+(async () => {
+    const input = {wallpaper: 'wall-1'};
+    const first = context.postDesktopSettings(input);
+    input.wallpaper = 'wall-3';
+    const second = context.postDesktopSettings({auto_fullscreen: true});
+    await Promise.resolve();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].data.wallpaper, 'wall-1');
+    calls[0].resolve({ok: true});
+    await first;
+    await Promise.resolve();
+    assert.equal(calls.length, 2);
+    calls[1].reject(new Error('test network failure'));
+    await second;
+    const third = context.postDesktopSettings({wallpaper: 'wall-2'});
+    await Promise.resolve();
+    calls[2].resolve({ok: true});
+    assert.equal((await third).ok, true);
+    context.desktopSessionActive = false;
+    assert.equal(await context.postDesktopSettings({}), null);
+    assert.equal(calls.length, 3);
+    console.log('Desktop settings queue: PASS');
+})().catch(error => { console.error(error); process.exitCode = 1; });

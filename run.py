@@ -25882,21 +25882,8 @@ def update_profile_desktop():
             return jsonify({"error": "Nieprawidlowy schemat mapy."}), 400
         changes["map_tile_scheme"] = map_tile_scheme
 
-    def desktop_projection(current_profile):
-        settings = normalize_desktop_settings(current_profile.get("desktop_settings"))
-        settings.update(copy.deepcopy(changes))
-        return {"desktop_settings": settings}
-
-    projection = patch_profile_projection_with_retry(
-        username,
-        desktop_projection,
-        "api.profile.desktop",
-    )
-    if not projection:
-        invalidate_authenticated_session("profile_not_found")
-        return jsonify({"error": "Brak danych uzytkownika"}), 401
-    settings = normalize_desktop_settings(
-        (projection.get("profile") or {}).get("desktop_settings")
+    settings = identity_projection_store.update_desktop_settings(
+        username, changes, normalize=normalize_desktop_settings,
     )
     session.pop("profile", None)
     return jsonify({"success": True, "desktop_settings": settings})

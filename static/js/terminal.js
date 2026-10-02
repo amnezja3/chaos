@@ -640,14 +640,21 @@ function mergeDesktopSettings(partial = {}) {
     return desktopSettings;
 }
 
+let desktopSettingsWriteQueue = Promise.resolve();
+
 function postDesktopSettings(settings) {
-    if (!desktopSessionActive) return Promise.resolve(null);
-    return fetch('/api/profile/desktop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-        keepalive: true
-    }).catch(err => console.warn("Nie udało się zapisać pulpitu:", err));
+    const payload = JSON.stringify(settings);
+    const write = desktopSettingsWriteQueue.then(() => {
+        if (!desktopSessionActive) return null;
+        return fetch('/api/profile/desktop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true
+        });
+    });
+    desktopSettingsWriteQueue = write.catch(() => null);
+    return write.catch(err => console.warn("Nie udało się zapisać pulpitu:", err));
 }
 
 function sendDesktopSettingsBeacon(partial = {}) {
@@ -703,14 +710,15 @@ function reloadOpenMapWindowsForSettings() {
 
 function saveDesktopSettingsNow(partial = {}) {
     clearTimeout(desktopSaveTimer);
-    return postDesktopSettings(mergeDesktopSettings(partial));
+    mergeDesktopSettings(partial);
+    return postDesktopSettings(partial);
 }
 
 function saveDesktopSettings(partial = {}) {
     mergeDesktopSettings(partial);
     clearTimeout(desktopSaveTimer);
     desktopSaveTimer = setTimeout(() => {
-        saveDesktopSettingsNow();
+        saveDesktopSettingsNow(desktopSettings);
     }, 350);
 }
 
@@ -11958,7 +11966,6 @@ function createSettings() {
             const mapTileScheme = btn.dataset.mapScheme || "osm";
             setStatus("Zapisuje schemat mapy...", "loading");
             const response = await postDesktopSettings({
-                ...desktopSettings,
                 map_tile_scheme: mapTileScheme
             });
             if (response && !response.ok) {
@@ -12016,7 +12023,6 @@ function createSettings() {
     term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {
         setAutoFullscreenEnabled(event.target.checked);
         saveDesktopSettingsNow({ auto_fullscreen: event.target.checked });
-        sendDesktopSettingsBeacon({ auto_fullscreen: event.target.checked });
         syncChaosFullscreenRuntime();
         setStatus(event.target.checked ? "Auto fullscreen wlaczony. Kliknij w gre, aby aktywowac." : "Auto fullscreen wylaczony.", "success");
         if (event.target.checked) {

@@ -143,11 +143,41 @@ finalizacja przejęć zużywa grupę receipts w jednej transakcji. Nie uruchamia
 starego workera lub adaptera wypłat po migracji. Stare mirrory `hacked` i
 `aimed_target` nie są autorytetem; czytniki używają kanonicznych magazynów.
 
-Weryfikacja dotyczy backendu na izolowanych bazach SQLite. Nie wykonywano migracji
-produkcyjnej, wdrożenia, testu przeglądarkowego ani zmiany flagi nowego kreatora.
+Pierwotna weryfikacja dotyczyła backendu na izolowanych bazach SQLite.
+2026-10-02 operator potwierdził migrację produkcyjną 37 kont, komplet oznaczonych
+celów i projekcji runtime, niezmienione metadane profili oraz `quick_check: OK`.
+Po ponownym uruchomieniu usług HTTP odpowiada 200. Flaga nowego kreatora pozostaje
+wyłączona; nie oznacza to PASS całego sprintu.
 
 Końcowa weryfikacja cutoveru: **123 testy PASS, bez pominięć** (zestawy 67 + 55
 oraz dodatkowy test pełnego przejęcia cudzego punktu). `git diff --check` czysty.
 Zakresy: progresja i writers, polityka/migracja/API kreatorów, pełne przejęcia,
 scoped runtime, kontrola terytorium, finalizacja konfliktu, GhostNetwork bridge,
 ranking, operacje i ekspozycja kamer. To nie jest PASS całego sprintu 147.
+
+## Poprawka zapisu pulpitu po migracji
+
+Świeże logi ujawniły równoległe zapisy `api.profile.desktop`, konflikty rewizji
+i zapisy bez zmian. Endpoint zapisuje teraz wyłącznie niezależną kolumnę
+`user_identity_projection.desktop_settings_json`. Nie czyta ani nie przepisuje
+`users.profile_json`, nie podnosi rewizji profilu i nie tworzy LKG. Powtórzenie
+tych samych ustawień nie wykonuje UPDATE. Częściowe zmiany są scalane w transakcji,
+a kontrola sesji przed commit pozostaje aktywna.
+
+Kolumna jest dodawana przez standardowe `init_db` przy starcie. Do pierwszej
+zmiany używana jest istniejąca, zweryfikowana projekcja pulpitu. Nie trzeba
+powtarzać migracji progresji ani skanować profili. Odczyty profilu i pulpitu
+uwzględniają nowe ustawienia, a przebudowa projekcji ich nie nadpisuje.
+
+Frontend kolejkuje zapisy, wysyła zmienione pola i nie dubluje przełączenia
+fullscreen przez fetch oraz beacon. Oba szablony pulpitu mają nowy klucz cache JS.
+Po wdrożeniu zrestartować web z `--update-env` i odświeżyć otwarte pulpity.
+Sprawdzić zachowanie tapety, układu ikon, fullscreen i stylu mapy po przeładowaniu.
+Zmiany ustawień nie powinny generować `PROFILE_WRITE` z `api.profile.desktop`.
+To nie usuwa niezależnych, pozostałych odczytów `/api/profile`.
+
+Weryfikacja poprawki: **49 testów Python PASS** (13 dla pulpitu/projekcji/pollingu
+oraz 36 dla ochrony profilu i progresji), test kolejki Node PASS, kontrola składni
+JS i `git diff --check` PASS. Playwright potwierdził kolejność trzech zapisów
+z maksymalnie jednym aktywnym żądaniem w izolowanym teście z atrapą fetch.
+Nie jest to test pełnego pulpitu zalogowanego gracza na produkcji.

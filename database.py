@@ -739,6 +739,11 @@ def overlay_canonical_profile_scopes_with_conn(conn, username, profile):
     from player_progression import overlay as overlay_progression
     overlay_progression(conn, username, candidate)
 
+    desktop_row = conn.execute('SELECT desktop_settings_json FROM user_identity_projection WHERE username=?', (username,)).fetchone()
+    if desktop_row and desktop_row['desktop_settings_json'] is not None:
+        candidate['desktop_settings'] = loads_json(desktop_row['desktop_settings_json'], {})
+        overlaid_scopes.append('desktop_settings')
+
     security_row = conn.execute('SELECT security_json FROM player_security WHERE username=?', (username,)).fetchone()
     if security_row:
         candidate['security'] = loads_json(security_row['security_json'], {})
@@ -1593,6 +1598,8 @@ def init_db(db_path=DB_PATH):
         identity_columns = {row[1] for row in conn.execute("PRAGMA table_info(user_identity_projection)")}
         if "desktop_boot_json" not in identity_columns:
             conn.execute("ALTER TABLE user_identity_projection ADD COLUMN desktop_boot_json TEXT")
+        if "desktop_settings_json" not in identity_columns:
+            conn.execute("ALTER TABLE user_identity_projection ADD COLUMN desktop_settings_json TEXT")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS user_capability_projection (
@@ -3412,6 +3419,7 @@ class UserStore:
                 (username,),
             ).fetchone()
             progression_row = conn.execute('SELECT * FROM player_progression WHERE username=?', (username,)).fetchone()
+            desktop_row = conn.execute('SELECT desktop_settings_json FROM user_identity_projection WHERE username=?', (username,)).fetchone()
         if not row:
             return None
         raw_profile = row["profile_json"]
@@ -3447,6 +3455,8 @@ class UserStore:
                 profile['security'] = loads_json(security_row['security_json'], {})
         from player_progression import overlay_row
         overlay_row(profile, progression_row)
+        if desktop_row and desktop_row['desktop_settings_json'] is not None:
+            profile['desktop_settings'] = loads_json(desktop_row['desktop_settings_json'], {})
         return profile
 
     def get_profile_with_revision(self, username):
@@ -3467,6 +3477,7 @@ class UserStore:
                 (username,),
             ).fetchone()
             progression_row = conn.execute('SELECT * FROM player_progression WHERE username=?', (username,)).fetchone()
+            desktop_row = conn.execute('SELECT desktop_settings_json FROM user_identity_projection WHERE username=?', (username,)).fetchone()
         if not row:
             return None
         record_hot_path_metric("profile_full_read")
@@ -3501,6 +3512,8 @@ class UserStore:
         if state == 'valid':
             from player_progression import overlay_row
             overlay_row(profile, progression_row)
+            if desktop_row and desktop_row['desktop_settings_json'] is not None:
+                profile['desktop_settings'] = loads_json(desktop_row['desktop_settings_json'], {})
         return {
             "state": state,
             "profile": copy.deepcopy(profile) if profile is not None else None,
@@ -4728,7 +4741,7 @@ class UserIdentityProjectionStore:
     @staticmethod
     def _select_sql(where_sql, desktop=False):
         return f"""
-            SELECT {"p.desktop_boot_json," if desktop else ""}
+            SELECT {"p.desktop_boot_json, p.desktop_settings_json," if desktop else ""}
                    p.username, p.display_alias, p.clan_code, p.profession_code,
                    p.source_profile_revision, p.source_profile_checksum,
                    p.projection_version, p.updated_at,
@@ -4769,9 +4782,39 @@ class UserIdentityProjectionStore:
                 or desktop.get("source_profile_revision") != identity["source_profile_revision"]
                 or desktop.get("source_profile_checksum") != identity["source_profile_checksum"]):
             raise ProfileRecoveryRequired("Desktop projection is stale")
+        if row['desktop_settings_json'] is not None:
+            desktop['desktop_settings'] = loads_json(row['desktop_settings_json'], {})
         desktop['player_security'] = self.get_player_security(username)
         desktop['respect'] = current_respect
         return {**desktop, "identity": identity}
+
+    def update_desktop_settings(self, username, changes, *, normalize):
+        """Write only canonical settings; no profile revision, checksum or LKG.
+
+        NULL uses the validated boot projection until the first actual change.
+        Legacy projection rebuilds never overwrite this independent column.
+        """
+        with db_connect(self.db_path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute(self._select_sql("p.username = ?", desktop=True), (username,)).fetchone()
+            identity = self._row_identity(row)
+            if not identity:
+                raise ProfileRecoveryRequired("Desktop identity projection missing")
+            boot = loads_json(row['desktop_boot_json'], {})
+            if (not isinstance(boot, dict)
+                    or boot.get('source_profile_revision') != identity['source_profile_revision']
+                    or boot.get('source_profile_checksum') != identity['source_profile_checksum']):
+                raise ProfileRecoveryRequired("Desktop projection is stale")
+            raw = (loads_json(row['desktop_settings_json'], None)
+                   if row['desktop_settings_json'] is not None else boot.get('desktop_settings', {}))
+            if not isinstance(raw, dict):
+                raise ProfileRecoveryRequired("Invalid desktop settings")
+            current = normalize(raw)
+            settings = normalize({**current, **changes})
+            if settings != current:
+                conn.execute('UPDATE user_identity_projection SET desktop_settings_json=? WHERE username=?',
+                             (dumps_json(settings), username))
+            return settings
 
     def get_player_security(self, username):
         from player_security_store import PlayerSecurityStore
