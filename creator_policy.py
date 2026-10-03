@@ -2,6 +2,7 @@
 import copy
 import math
 import secrets
+import re
 
 import config
 
@@ -15,6 +16,48 @@ SECURITY_KEYS = (
     'background_injection', 'memory_guard', 'vpn_blocker',
 )
 WORLD = ['poi', 'server', 'router', 'pillar']
+EFFECT_BOOLEAN_KEYS = frozenset(SECURITY_KEYS) | {
+    'browser_history_log', 'file_indexing', 'file_visibility',
+    'storage_integrity', 'unencrypted_access',
+}
+
+
+def parse_effect(value):
+    """Parse assignments as data, never executable Python/JS or expressions."""
+    if value is None or value == '':
+        return {}
+    if isinstance(value, str):
+        if len(value) > 6000:
+            raise ValueError('Effect przekracza limit 6000 znaków.')
+        value = value.strip()
+        if not value:
+            return {}
+        if value == 'security.clear':
+            return {key: False for key in SECURITY_KEYS}
+        result = {}
+        for assignment in value.split(','):
+            match = re.fullmatch(r'\s*([a-z_]+)\s*=\s*(true|false|[0-9]+)\s*', assignment)
+            if not match:
+                raise ValueError('Nieprawidłowa składnia effect. Użyj np. risk_level=10,firewall=false.')
+            key, raw = match.groups()
+            if key in result:
+                raise ValueError('Powtórzony klucz effect: ' + key)
+            if len(raw) > 3 and raw not in ('true', 'false'):
+                raise ValueError('Wartość liczbowa effect poza zakresem.')
+            result[key] = True if raw == 'true' else False if raw == 'false' else int(raw)
+        value = result
+    if not isinstance(value, dict) or len(value) > len(EFFECT_BOOLEAN_KEYS) + 1:
+        raise ValueError('Effect wymaga listy przypisań klucz=wartość.')
+    for key, item in value.items():
+        if key in EFFECT_BOOLEAN_KEYS:
+            if type(item) is not bool:
+                raise ValueError(f'{key}: użyj true (ON) albo false (OFF).')
+        elif key == 'risk_level':
+            if type(item) is not int or not 0 <= item <= 100:
+                raise ValueError('risk_level: wymagana liczba całkowita od 0 do 100.')
+        else:
+            raise ValueError('Nieznany klucz effect: ' + str(key))
+    return dict(value)
 
 
 def recipe(action, family, kind, targets, operation=None, resources=(), keys=()):
@@ -28,7 +71,7 @@ RECIPES = {
     'exploit': recipe('exploit', 'exploit', 'exploit', WORLD, keys=SECURITY_KEYS),
     'scan_ports': recipe('scan_ports', 'scanner_recon', 'scanner', WORLD,
                          resources=['internal_recon_state']),
-    'trace': recipe('trace', 'scanner_recon', 'tracker', WORLD, 'generic_trace', ['gps_logs']),
+    'trace': recipe('trace', 'scanner_recon', 'tracker', WORLD, 'generic_trace', ['location_history']),
     'trace_gps': recipe('trace_gps', 'scanner_recon', 'tracker', ['vehicle'], 'vehicle_tracking', ['gps_logs']),
     'trace_device': recipe('trace_device', 'scanner_recon', 'tracker', ['person', 'phone'], 'device_tracking', ['device_logs']),
     'scan_hotspots': recipe('scan_hotspots', 'scanner_recon', 'scanner', ['venue'], 'wifi_scanner', ['wifi_networks']),
@@ -75,19 +118,9 @@ def validate_effect(value, *, action, interface, level):
         if value:
             raise ValueError('Reczny effect jest dostepny tylko w Button Choice.')
         return {}
-    if level < config.CREATOR_EFFECT_MIN_LEVEL:
-        return {}  # Visible draft text has no authority below the unlock level.
-    if not value:
-        return {}
-    if action != 'exploit':
-        raise ValueError('Ten profil nie obsluguje recznej zmiany zabezpieczen.')
-    if value == 'security.clear':
-        return {key: False for key in SECURITY_KEYS}
-    if not isinstance(value, dict) or not value:
-        raise ValueError('Nieznany effect. Uzyj security.clear lub zatwierdzonych kluczy.')
-    if any(key not in SECURITY_KEYS or val is not False for key, val in value.items()):
-        raise ValueError('Effect moze wylaczac tylko zatwierdzone zabezpieczenia.')
-    return dict(value)
+    parsed = parse_effect(value)
+    # Syntax is validated even below the unlock level; only authority is gated.
+    return parsed if level >= config.CREATOR_EFFECT_MIN_LEVEL else {}
 
 
 def generate_contract(data, level, rng=None):
@@ -113,10 +146,10 @@ def generate_contract(data, level, rng=None):
 
 def security_effect(contract, security):
     """Deterministic target-relative influence; rendering/retries cannot reroll it."""
+    if contract.get('effect'):
+        return parse_effect(contract['effect'])
     if contract['action'] != 'exploit':
         return {}
-    if contract.get('effect'):
-        return {key: value for key, value in contract['effect'].items() if key in security}
     keys = [key for key in contract['security_keys'] if type(security.get(key)) is bool]
     # A partial tool never silently gets 100% due to rounding on a small target.
     count = len(keys) if contract['power'] == 100 else math.floor(len(keys) * contract['power'] / 100)
@@ -144,9 +177,12 @@ def configure_draft(contract, changes, level):
         for index, option in enumerate(options):
             if not isinstance(option, dict) or set(option) - {'effect', 'price'}:
                 raise ValueError('Opcja moze okreslac tylko effect i cene uzycia.')
-            validated.append(dict(id=index, price=price(option.get('price')),
-                effect=validate_effect(option.get('effect'), action=contract['action'],
-                    interface=contract['interface'], level=level)))
+            try:
+                validated.append(dict(id=index, price=price(option.get('price')),
+                    effect=validate_effect(option.get('effect'), action=contract['action'],
+                        interface=contract['interface'], level=level)))
+            except ValueError as error:
+                raise ValueError(f'Opcja {index + 1}: {error}') from error
         result['options'] = validated
     return result
 
@@ -201,7 +237,7 @@ def validate_presentation(interface, value):
             raise ValueError('Wymagany niepusty tekst.')
 
     def texts(items, required=False, limit=6000):
-        if not isinstance(items, list) or len(items) > 32 or (required and not items):
+        if not isinstance(items, list) or len(items) > (32 if required else 256) or (required and not items):
             raise ValueError('Wymagana lista maksymalnie 32 pozycji.')
         for item in items:
             text(item, limit, required)

@@ -99,6 +99,7 @@ class GhostNetworkHostileTakeoverTest(unittest.TestCase):
         import run
 
         inventory = PlayerInventoryStore(self.db_path)
+        inventory.seed_from_profile('alice', dict(files={}, apps=[], storage_capacity=2048, storage_used=0))
         operation = self.operation("op-final", status="completed")
         operation["ability_application_keys"] = ["window-v4:file_yield"]
         operation["file_yield_provenance"] = {

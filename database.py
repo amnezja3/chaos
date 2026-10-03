@@ -610,6 +610,12 @@ class InstrumentedConnection(sqlite3.Connection):
         return False
 
 
+def wallet_reserved(conn, username):
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wallet_holds'").fetchone():
+        return 0
+    return int(conn.execute('SELECT coalesce(sum(amount),0) FROM wallet_holds WHERE username=?', (username,)).fetchone()[0])
+
+
 def utc_now():
     return datetime.utcnow().isoformat(timespec="seconds")
 
@@ -910,8 +916,68 @@ def ensure_password_hash(profile):
     return profile
 
 
+_runtime_transaction = ContextVar('runtime_transaction', default=None)
+
+
+class _RuntimeConnection:
+    """Nested stores may flush, but cannot commit the outer gameplay unit."""
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, sql, parameters=(), /):
+        statement = str(sql).strip().rstrip(';').upper()
+        if statement in ('BEGIN', 'BEGIN IMMEDIATE', 'BEGIN TRANSACTION'):
+            return self.connection.execute('SELECT 1')
+        if statement in ('COMMIT', 'END', 'ROLLBACK'):
+            raise RuntimeError('Transaction boundaries belong to the gameplay coordinator')
+        return self.connection.execute(sql, parameters)
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        raise RuntimeError('Use the nested store context to roll back')
+
+    def close(self):
+        pass
+
+    def __getattr__(self, name):
+        if name in ('executescript', 'cursor'):
+            raise RuntimeError('Unscoped SQL is not allowed in a gameplay transaction')
+        return getattr(self.connection, name)
+
+
+@contextmanager
+def atomic_runtime_transaction(db_path):
+    """Opt-in: join bounded stores in one transaction, isolated per request/thread."""
+    if _runtime_transaction.get() is not None:
+        raise RuntimeError('A gameplay transaction is already active')
+    with db_connect(db_path) as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        token = _runtime_transaction.set((os.path.normcase(os.path.abspath(db_path)), conn))
+        try:
+            yield conn
+        finally:
+            _runtime_transaction.reset(token)
+
+
 @contextmanager
 def db_connect(db_path=DB_PATH, *, enforce_request_guard=True):
+    active = _runtime_transaction.get()
+    if active is not None:
+        path, conn = active
+        if os.path.normcase(os.path.abspath(db_path)) != path:
+            raise RuntimeError('Gameplay transaction cannot access another database')
+        savepoint = 'runtime_' + secrets.token_hex(8)
+        conn.execute('SAVEPOINT ' + savepoint)
+        try:
+            yield _RuntimeConnection(conn)
+            conn.execute('RELEASE SAVEPOINT ' + savepoint)
+        except Exception:
+            conn.execute('ROLLBACK TO SAVEPOINT ' + savepoint)
+            conn.execute('RELEASE SAVEPOINT ' + savepoint)
+            raise
+        return
     global _WAL_CONFIGURED
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path, timeout=15, factory=InstrumentedConnection)
@@ -9786,9 +9852,13 @@ class WalletStore:
             })
 
         balance = self.balance_store.get_balance(username)
+        with db_connect(self.db_path) as conn:
+            reserved = wallet_reserved(conn, username)
         ledger = self.ledger_store.list_events(username, limit=limit)
         return {
             "balance": balance,
+            "reserved": reserved,
+            "available": max(0, balance - reserved),
             "currency": "HC",
             "transactions": transactions,
             "ledger": ledger,
@@ -11570,7 +11640,7 @@ class PlayerInventoryStore:
             if payload_operation_id:
                 payload["source_operation_id"] = payload_operation_id
             prepared.append((file_id, folder, payload_operation_id, payload))
-        if not username or not prepared:
+        if not username or (not prepared and not isinstance(finalized_operation, dict)):
             return []
         now = utc_now()
         inserted = []
@@ -12535,10 +12605,11 @@ class WalletBalanceStore:
                     f"Expected wallet version {expected_version}, current is {version_before}."
                 )
             applied_delta = requested_delta
-            if requested_delta < 0 and balance_before + requested_delta < 0:
+            available = max(0, balance_before - wallet_reserved(conn, username))
+            if requested_delta < 0 and available + requested_delta < 0:
                 if not debit_up_to:
                     raise WalletInsufficientFunds("Brak srodkow.")
-                applied_delta = -balance_before
+                applied_delta = -available
             if applied_delta == 0:
                 _wallet_record_balance_event_with_conn(
                     conn,
@@ -12817,10 +12888,11 @@ class WalletBalanceStore:
             source_before = max(0, int(source_row["balance"] or 0))
             target_before = max(0, int(target_row["balance"] or 0))
             actual_amount = requested_amount
-            if actual_amount > source_before:
+            available = max(0, source_before - wallet_reserved(conn, from_username))
+            if actual_amount > available:
                 if not debit_up_to:
                     raise WalletInsufficientFunds("Brak srodkow.")
-                actual_amount = source_before
+                actual_amount = available
             if actual_amount == 0:
                 source_version = int(source_row["version"] or 0)
                 target_version = int(target_row["version"] or 0)

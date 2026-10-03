@@ -5,13 +5,36 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import Mock
 
-from creator_policy import (generate_contract, power_cap, roll_power, security_effect,
+from creator_policy import (generate_contract, power_cap, roll_power, security_effect, configure_draft,
                             validate_effect, validate_presentation, runtime_effect)
 from creator_store import CreatorStore
 from ghostlab_store import GhostLabError
 
 
 class CreatorPolicyTest(unittest.TestCase):
+    def test_assignment_syntax_boolean_states_and_each_option_level_gate(self):
+        data = dict(name='Buttons', icon='X', interface='button_choices', action='exploit', creates_file=False)
+        contract = generate_contract(data, 40)
+        changes = {'options': [{'effect': 'risk_level=10,firewall=false', 'price': 0},
+                               {'effect': 'firewall=true,vpn_enabled=false', 'price': 0}]}
+        low = configure_draft(contract, changes, 99)
+        self.assertEqual([o['effect'] for o in low['options']], [{}, {}])
+        high = configure_draft(contract, changes, 100)
+        app = dict(creator_contract_version=1, creator_contract=high, levels=[{'options': [{}, {}]}])
+        self.assertEqual(runtime_effect(app, {'firewall': True}, 0), {'risk_level': 10, 'firewall': False})
+        self.assertEqual(runtime_effect(app, {'firewall': False}, 1), {'firewall': True, 'vpn_enabled': False})
+
+    def test_bad_assignments_rejected_even_below_level_threshold(self):
+        invalid = ['firewall', 'firewall=false,', 'firewall=false,firewall=true',
+                   'firewall=1', 'firewall=ON', 'firewall=False', 'risk_level=true',
+                   'risk_level=101', 'risk_level=-1', 'risk_level=1.5',
+                   'hackcoins=100', '__proto__=false', 'firewall=eval(1)',
+                   'firewall=false;alert(1)', ['firewall=false'], {'firewall': []}]
+        for level in (99, 100):
+            for value in invalid:
+                with self.subTest(level=level, value=value), self.assertRaises(ValueError):
+                    validate_effect(value, action='exploit', interface='button_choices', level=level)
+
     def test_approved_caps_and_both_rolls(self):
         for level, cap in [(1,25),(10,50),(20,75),(30,95),(40,100),(100,100)]:
             self.assertEqual(power_cap(level), cap)

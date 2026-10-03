@@ -5,7 +5,7 @@ import uuid
 import config
 from database import db_connect
 from ghostlab_store import GhostLabError, encoded, digest, now
-from creator_policy import generate_contract, validate_presentation, configure_draft
+from creator_policy import generate_contract, validate_presentation, configure_draft, parse_effect
 
 
 class CreatorStore:
@@ -17,6 +17,15 @@ class CreatorStore:
                 input_hash TEXT NOT NULL, revision INTEGER NOT NULL, project_json TEXT NOT NULL,
                 UNIQUE(owner,request_id))''')
             conn.execute('CREATE INDEX IF NOT EXISTS creator_owner ON creator_projects(owner,id)')
+            conn.execute('''CREATE TABLE IF NOT EXISTS wallet_holds (
+                receipt_key TEXT PRIMARY KEY, username TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>0))''')
+            conn.execute('CREATE INDEX IF NOT EXISTS wallet_hold_owner ON wallet_holds(username)')
+            conn.execute('''CREATE TABLE IF NOT EXISTS creator_option_pending (
+                receipt_key TEXT PRIMARY KEY, username TEXT NOT NULL, recipient TEXT NOT NULL,
+                amount INTEGER NOT NULL, operations_json TEXT NOT NULL)''')
+            conn.execute('''CREATE TABLE IF NOT EXISTS creator_option_receipts (
+                receipt_key TEXT PRIMARY KEY, request_hash TEXT NOT NULL,
+                response_json TEXT NOT NULL, status_code INTEGER NOT NULL)''')
             conn.execute('''CREATE TABLE IF NOT EXISTS creator_editions (
                 project_id TEXT NOT NULL, version INTEGER NOT NULL, revision INTEGER NOT NULL,
                 app_json TEXT NOT NULL, PRIMARY KEY(project_id,version), UNIQUE(project_id,revision))''')
@@ -80,6 +89,9 @@ class CreatorStore:
             if type(revision) is not int or project['revision'] != revision:
                 raise GhostLabError('revision_conflict', 'Projekt zmienil sie. Odswiez edytor.')
             changes = validate_presentation(project['contract']['interface'], presentation)
+            if project.get('legacy_snapshot') and 'commands' in changes:
+                if len(changes['commands']) != len(project['presentation']['commands']):
+                    raise ValueError('Nie mozna zmieniac liczby historycznych etapow.')
             if project['version']:
                 for key in ('button_labels', 'option_labels'):
                     if key in changes and len(changes[key]) != len(project['presentation'].get(key, ['Uruchom'])):
@@ -113,10 +125,19 @@ class CreatorStore:
             previous = conn.execute('SELECT app_json FROM creator_editions WHERE project_id=? AND revision=?',
                                     (project_id, revision)).fetchone()
             if previous:
-                return json.loads(previous[0])
+                edition = json.loads(previous[0])
+                if project.get('legacy_snapshot'):
+                    edition['version'] = edition.get('version') or project['version']
+                return edition
             if project['version'] >= config.CREATOR_MAX_VERSIONS:
                 raise GhostLabError('version_limit', 'Osiagnieto limit wydan.')
             version = project['version'] + 1
+            parse_effect(project['contract'].get('effect'))
+            for index, option in enumerate([] if project.get('legacy_snapshot') else project['contract'].get('options', [])):
+                try:
+                    parse_effect(option.get('effect'))
+                except ValueError as error:
+                    raise ValueError(f'Opcja {index + 1}: {error}') from error
             app = builder(project, version)
             if app.get('id') != project['app_id'] or app.get('creator_username') != owner:
                 raise ValueError('Niezgodna tozsamosc produktu.')
@@ -160,6 +181,12 @@ class CreatorStore:
             return [row[0] for row in conn.execute('''SELECT project_file FROM creator_publications
                 WHERE owner=? AND json_extract(app_json,'$.published')=1 LIMIT ?''',
                                                   (owner, config.CREATOR_MAX_PROJECTS))]
+
+    def project_files(self, owner):
+        with db_connect(self.db_path) as conn:
+            return [row[0] for row in conn.execute(
+                "SELECT COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh') FROM creator_projects WHERE owner=? ORDER BY id LIMIT ?",
+                (owner, config.CREATOR_MAX_PROJECTS))]
 
     def withdraw(self, owner, project_file, legacy=None):
         with db_connect(self.db_path) as conn:

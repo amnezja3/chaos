@@ -221,6 +221,10 @@ def record_wallet_balance_delta(username, balance=None, reason="", entity_id="wa
         "balance": balance,
         "currency": "HC",
     }
+    from database import db_connect, wallet_reserved
+    with db_connect(wallet_balance_store.db_path) as conn:
+        payload['reserved'] = wallet_reserved(conn, username)
+    payload['available'] = max(0, balance - payload['reserved'])
     if reason:
         payload["reason"] = str(reason)
     try:
@@ -5433,6 +5437,12 @@ VEHICLE_TRACKING_CHECKPOINT_INTERVAL_SECONDS = 15 * 60
 CAMERA_STREAM_FRAGMENT_INTERVAL_SECONDS = 5 * 60
 
 SOURCE_TYPE_TARGET_TYPES = {
+    "poi": "poi",
+    "server": "server",
+    "router": "router",
+    "pillar": "pillar",
+    "phone": "phone",
+    "venue": "venue",
     "camera": "camera",
     "person": "person",
     "atm": "atm",
@@ -10311,6 +10321,8 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         "operation_type": operation_type,
         "owner_username": username,
         "source_app_id": app.get("id") or app.get("name") or "",
+        "creator_creates_file": (app.get('creator_contract') or {}).get('creates_file')
+            if app.get('creator_contract_version') else None,
         "source_app_name": app.get("name") or app.get("id") or "",
         "map_action_id": map_action_id,
         "target_id": target_id,
@@ -11458,6 +11470,8 @@ def normalize_app_balance_fields(app):
 def enforce_generated_app_price_floor(app):
     if not isinstance(app, dict):
         return app
+    if app.get('creator_legacy_project'):
+        return app  # Adopted historical price is frozen, including explicit zero.
     if app.get('creator_contract_version') == 1:
         app['price'] = app['creator_contract']['price']
         app['price_hint'] = app['price']
@@ -13386,6 +13400,8 @@ def build_vehicle_tracking_gps_file(operation):
 
 
 def finalize_vehicle_tracking_file(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "vehicle_tracking":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -13505,6 +13521,8 @@ def build_device_intelligence_file(operation):
 
 
 def finalize_device_tracking_file(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "device_tracking":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -13876,6 +13894,8 @@ def build_financial_records_file(operation):
 
 
 def finalize_atm_log_extraction_files(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "atm_log_extraction":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -14148,6 +14168,8 @@ def build_sniffer_system_state_file(operation):
 
 
 def finalize_persistent_sniffer_files(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "persistent_sniffer":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -14244,6 +14266,8 @@ GENERIC_TRACE_RESOURCE_TYPES = ["location_history", "internal_recon_state"]
 
 
 def operation_declared_resources(operation, allowed, fallback):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return []
     resource_buffer = operation.get("resource_buffer") or {}
     declared = [
         str(item).strip()
@@ -14339,7 +14363,9 @@ def build_audio_interference_file(operation):
     duration = operation_duration_from_timestamps(operation)
     line_count = max(3, min(12, duration // 180 or 3))
     lines = [
-        {"timestamp": operation.get("started_at"), "speaker": "unknown", "text": "fragment zakloconego strumienia audio"}
+        {"timestamp": operation.get("started_at"), "speaker": "unknown", "text":
+         "fragment przechwyconego strumienia audio" if operation.get('operation_type') == 'microphone_sniffer'
+         else "fragment zakloconego strumienia audio"}
         for _ in range(line_count)
     ]
     completeness_percent = clamp_int(42 + min(35, line_count * 5), default=60)
@@ -14503,6 +14529,8 @@ def append_operation_file_reference(operation, file_entry):
 
 
 def finalize_camera_stream_file(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "camera_stream":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -14554,6 +14582,8 @@ def finalize_camera_stream_file(profile, operation):
 
 
 def finalize_wifi_scanner_files(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "wifi_scanner":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -14579,7 +14609,9 @@ def finalize_wifi_scanner_files(profile, operation):
 
 
 def finalize_audio_interference_files(profile, operation):
-    if operation.get("operation_type") != "audio_interference":
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
+    if operation.get("operation_type") not in {"audio_interference", "microphone_sniffer"}:
         return False
     if operation.get("status") not in {"completed", "timeout"}:
         return False
@@ -14604,6 +14636,8 @@ def finalize_audio_interference_files(profile, operation):
 
 
 def finalize_vehicle_ecu_files(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "vehicle_ecu":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -14629,6 +14663,8 @@ def finalize_vehicle_ecu_files(profile, operation):
 
 
 def finalize_generic_trace_file(profile, operation):
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return False
     if operation.get("operation_type") != "generic_trace":
         return False
     if operation.get("status") not in {"completed", "timeout"}:
@@ -14747,16 +14783,28 @@ def finalize_operation_files_bounded(username, operation):
     """
     if not username or not isinstance(operation, dict):
         return []
+    if operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        return []
     if operation.get("status") not in OPERATION_FINALIZABLE_STATUSES:
         return []
     artifact_state = operation.setdefault("artifact_state", {})
+    if operation.get('creator_creates_file') is False or operation.get('creator_payment_pending') or (operation.get('creator_payment_settled') or {}).get('success') is False:
+        if not artifact_state.get('finalized_at'):
+            artifact_state.update(finalized_at=runtime_file_now(), file_ids=[], file_count=0)
+            player_inventory_store.append_data_files(username, [],
+                operation_id=str(operation.get('operation_id') or ''), finalized_operation=operation)
+        return []
     if artifact_state.get("finalized_at"):
         return player_inventory_store.list_data_files(
             username,
             operation_id=str(operation.get("operation_id") or ""),
         )
-    inventory = player_inventory_store.snapshot(username)
-    storage = inventory.get("storage") if isinstance(inventory.get("storage"), dict) else {}
+    from database import db_connect
+    with db_connect(player_inventory_store.db_path) as conn:
+        row = conn.execute('SELECT capacity,used,unit FROM player_storage WHERE username=?', (username,)).fetchone()
+    if row is None:
+        raise ProfileRecoveryRequired('Operation storage projection unavailable')
+    storage = dict(row)
     projection = {
         "username": username,
         "operations": [operation],
@@ -14816,6 +14864,12 @@ def finalize_operation_files_bounded(username, operation):
 
 def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=None):
     """Advance canonical operation/incident projections without loading profiles."""
+    from creator_payments import settle_pending
+    def report_payment_failure(key, error):
+        print(f'[CREATOR_PAYMENT] receipt={key[-12:]} retry_pending type={type(error).__name__}', flush=True)
+
+    settle_pending(player_inventory_store, wallet_balance_store, delta_bus, finalize_operation_files_bounded,
+                   on_error=report_payment_failure)
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     usernames = player_operation_store.list_runtime_usernames(
         limit=limit_users,
@@ -14892,6 +14946,8 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
                 continue
             finalized = finalize_operation_files_bounded(username, operation)
             result["files"] += len(finalized)
+    settle_pending(player_inventory_store, wallet_balance_store, delta_bus, finalize_operation_files_bounded,
+                   on_error=report_payment_failure)
     return result
 
 
@@ -23833,11 +23889,45 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
                 raise CameraContractError('camera_foreign_territory')
 
         selected_app = next(app for app in apps if app['id'] == selected)
+        creator_effect = {}
+        if selected_app.get('creator_contract_version'):
+            if enqueue_launch:
+                # The map opens the creator UI; only its final action may
+                # execute an option or charge for the immediate shutdown.
+                from database import atomic_runtime_transaction
+                launch = {
+                    'receipt': 'creator_camera_' + hashlib.sha256(
+                        f"{username}:{scan_id}:{camera_id}:{selected}:{data.get('_client_action_key', '')}".encode()
+                    ).hexdigest()[:32],
+                    'app_id': selected, 'name': selected_app.get('name') or selected,
+                    'action': 'camera_shutdown', 'flow_id': data.get('_flow_id') or '',
+                    'client_action_key': data.get('_client_action_key') or '',
+                }
+                with atomic_runtime_transaction(player_inventory_store.db_path) as conn:
+                    store.observed(username, scan_id, camera_id, conn=conn)
+                    guard(conn, target)
+                    if selected_app not in store.apps(username):
+                        raise CameraContractError('camera_app_changed')
+                    aimed = player_target_runtime_store.upsert_aimed(username,
+                        {**target, 'scan_id': scan_id, 'camera_id': camera_id},
+                        source='creator_camera_launcher', conn=conn).get('target') or {}
+                    player_inventory_store.commit_launch(username, [launch], [], system_message_store, conn=conn)
+                return jsonify(success=True, status='Wybierz akcję w aplikacji.',
+                    target=aimed, added_apps=[launch], created_operations=[], map_action_id='camera_shutdown')
+            from creator_policy import runtime_effect
+            try:
+                creator_effect = runtime_effect(selected_app,
+                    (expected_camera_target or {}).get('security') or {}, data.get('choice_id'))
+            except (ValueError, TypeError, KeyError, IndexError) as exc:
+                return jsonify(success=False, reason='invalid_creator_contract', message=str(exc)), 400
         progressed_target = {}
         def progress_camera_target(conn, operation):
             nonlocal progressed_target
             camera_target = {**target, 'scan_id': scan_id, 'camera_id': camera_id,
                              'actions_allowed': {'exploit': True}}
+            if creator_effect:
+                camera_target['security'] = {
+                    **((expected_camera_target or {}).get('security') or {}), **creator_effect}
             result = player_target_runtime_store.upsert_aimed(
                 username, camera_target, source='camera_shutdown',
                 expected_target=expected_camera_target, conn=conn)
@@ -23856,7 +23946,8 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
             flow_id=str(data.get('_flow_id') or '')[:96],
             request_key=str(data.get('_client_action_key') or '')[:220],
             operation_template=operation_template, expected_app=selected_app,
-            enqueue_launch=enqueue_launch, on_created=progress_camera_target)
+            enqueue_launch=enqueue_launch, on_created=progress_camera_target,
+            progress_on_replay=not bool(selected_app.get('creator_contract_version')))
         return jsonify({'success': True, 'duplicate': duplicate, 'idempotent_replay': duplicate,
                         'status': 'Kamera zostala czasowo wylaczona.' if not duplicate else 'Operacja kamery jest juz zapisana.',
                         'map_action_id': 'camera_shutdown', 'camera_shutdown': True,
@@ -23933,6 +24024,21 @@ def hack_action():
             session["user"], limit=32, target_key=build_operation_target_id(current))
         player_inventory_store.require_launcher_ready(session["user"])
     selected_app_id = str(data.get("selected_app_id") or "").strip()
+    creator_launch_profile = None
+    if player_runtime is None:
+        from database import db_connect, loads_json
+        with db_connect(player_inventory_store.db_path) as conn:
+            selected_row = conn.execute(
+                """SELECT app_json FROM player_apps WHERE username=? AND status='installed'
+                   AND (app_id=? OR ?='') AND json_extract(app_json,'$.creator_contract_version') IS NOT NULL
+                   LIMIT 1""",
+                (session.get('user'), selected_app_id, selected_app_id)).fetchone()
+        if selected_row and loads_json(selected_row['app_json'], {}).get('creator_contract_version'):
+            creator_launch_profile = load_player_hack_runtime_context(session['user'])
+            creator_launch_profile.update(territory_progression_receipt_store.progression.get(session['user']))
+            creator_launch_profile['targets'] = player_marked_target_store.list_targets(session['user'], ensure_seeded=False)
+            creator_launch_profile['hacked'] = territory_store.list_captured_targets(session['user'])
+            creator_launch_profile['operations'] = []
     flow_id = str(data.get("_flow_id") or "")[:96]
     client_action_key = str(data.get("_client_action_key") or "")[:220]
     hack_action_idempotency_key = None
@@ -23965,7 +24071,7 @@ def hack_action():
     )
 
     if not selected_app_id:
-        readonly_profile = player_runtime if player_runtime is not None else load_profile_readonly(
+        readonly_profile = creator_launch_profile if creator_launch_profile is not None else player_runtime if player_runtime is not None else load_profile_readonly(
             session.get("user"), strip_sensitive=True, normalize_apps=True, normalize_files=False,
         )
         if not readonly_profile:
@@ -24121,7 +24227,8 @@ def hack_action():
                 "canonical_action": canonical_action
             }), 409
 
-        if len(preflight_matched_apps) > 1 or PROVISIONAL_APP_LAUNCH_ENABLED:
+        if (len(preflight_matched_apps) > 1 or PROVISIONAL_APP_LAUNCH_ENABLED
+                or any(item.get('creator_contract_version') for item in preflight_matched_apps)):
             auto_select = len(preflight_matched_apps) == 1
             app_flow_debug(
                 flow_id,
@@ -24175,7 +24282,7 @@ def hack_action():
 
     if selected_app_id:
         step_started_at = time.perf_counter()
-        readonly_profile = player_runtime if player_runtime is not None else load_profile_readonly(
+        readonly_profile = creator_launch_profile if creator_launch_profile is not None else player_runtime if player_runtime is not None else load_profile_readonly(
             session.get("user"), strip_sensitive=True, normalize_apps=True, normalize_files=False,
         )
         app_flow_debug_timed(
@@ -24788,6 +24895,7 @@ def hack_action():
         keys=len(security_template or {}),
     )
 
+    defer_creator_execution = bool(matched_apps and matched_apps[0].get('creator_contract_version'))
     previous_target = profile.get("aimed_target", {})
     step_started_at = time.perf_counter()
     try:
@@ -24821,8 +24929,9 @@ def hack_action():
         if "actions_allowed" not in previous_target:
             previous_target["actions_allowed"] = {}
 
-        previous_target["actions_allowed"][action] = True
-        previous_target["actions_allowed"][canonical_action] = True
+        if not defer_creator_execution:
+            previous_target["actions_allowed"][action] = True
+            previous_target["actions_allowed"][canonical_action] = True
         if vulnerability_report:
             previous_target["target_mode"] = "vulnerability"
             previous_target["vulnerability_id"] = vulnerability_report.get("id")
@@ -24898,8 +25007,9 @@ def hack_action():
         build_started_at = time.perf_counter()
         apply_target_display_label(aimed_target)
 
-        aimed_target["actions_allowed"][action] = True
-        aimed_target["actions_allowed"][canonical_action] = True
+        if not defer_creator_execution:
+            aimed_target["actions_allowed"][action] = True
+            aimed_target["actions_allowed"][canonical_action] = True
 
         if vulnerability_report:
             aimed_target["security"] = dict(vulnerability_report.get("security") or {})
@@ -24943,7 +25053,7 @@ def hack_action():
     )
 
     step_started_at = time.perf_counter()
-    created_operations = create_operations_for_app_action(
+    created_operations = [] if defer_creator_execution else create_operations_for_app_action(
         profile,
         session["user"],
         matched_apps[0] if matched_apps else {},
@@ -24971,7 +25081,7 @@ def hack_action():
     )
 
     launch_risk = None
-    if action == "scan_ports":
+    if action == "scan_ports" and not defer_creator_execution:
         step_started_at = time.perf_counter()
         launch_risk = append_risk_event(
             profile,
@@ -25008,7 +25118,7 @@ def hack_action():
         target_id=build_operation_target_id(profile.get("aimed_target") or {}),
         allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
     )
-    if player_runtime is None:
+    if player_runtime is None and creator_launch_profile is None:
         session["profile"] = profile
     step_started_at = time.perf_counter()
     if player_runtime is not None:
@@ -25022,7 +25132,8 @@ def hack_action():
         profile["aimed_target"] = dict(result.get("target") or {})
         safe_ghostnetwork_on_target_aimed(session["user"], profile, profile["aimed_target"], reason="hack_action_target_set")
     else:
-        set_player_aimed_target(session["user"], profile, profile["aimed_target"], reason="hack_action_target_set")
+        set_player_aimed_target(session["user"], profile, profile["aimed_target"], reason="hack_action_target_set",
+                               persist_profile_projection=not defer_creator_execution)
     player_inventory_store.commit_launch(
         session["user"], new_apps, [launch_risk] if launch_risk else [], system_message_store,
     )
@@ -28456,6 +28567,9 @@ def quote_creator_price(contract, requested):
 
 
 def build_creator_edition(project, version):
+    if project.get('legacy_snapshot'):
+        from creator_legacy import build
+        return build(project, version)
     contract, view = project['contract'], project['presentation']
     name = str(view.get('name') or '').strip()
     if not name or len(name) > 80 or ';' in name:
@@ -29964,6 +30078,23 @@ def capture_same_clan_territory_defense_swarm(
 
 @app.route('/gonna-win', methods=['POST'])
 def gonna_win():
+    from creator_payments import execute
+    from flask import make_response
+    data = request.get_json(silent=True) or {}
+    if session.get('user') and isinstance(data, dict) and data.get('app_id'):
+        try:
+            result = execute(session['user'], data, player_inventory_store, wallet_balance_store,
+                             delta_bus, _gonna_win_runtime, make_response)
+            if result is not None:
+                return result
+        except GhostLabError as error:
+            return jsonify(success=False, reason=error.reason, message=str(error)), error.status
+        except ValueError as error:
+            return jsonify(success=False, reason='invalid_option_payment', message=str(error)), 400
+    return _gonna_win_runtime()
+
+
+def _gonna_win_runtime():
     app_flow_started_at = time.perf_counter()
     data = request.get_json(silent=True) or {}
     camera_receipt = str(data.get('launch_receipt') or data.get('receipt') or '')
@@ -29976,7 +30107,7 @@ def gonna_win():
         operation = loads_json(row['operation_json'], {}) if row else {}
         if not operation or operation.get('source_app_id') != data.get('app_id'):
             return jsonify({'success': False, 'reason': 'camera_receipt_mismatch'}), 409
-        return jsonify({'success': True, 'operation_only': True,
+        return jsonify({'success': True, 'operation_only': True, 'duplicate': True,
                         'message': 'Potwierdzono zapis operacji kamery.', 'operation': operation,
                         'created_operations': [operation]})
     app_id = data.get("app_id")
@@ -29998,7 +30129,7 @@ def gonna_win():
                     return jsonify({'success': False, 'blocked': True, 'reason': 'target_selection_changed',
                                     'message': 'Cel aplikacji zmienil sie. Uruchom narzedzie ponownie.'}), 409
                 return camera_shutdown_action({**camera_target, 'selected_app_id': app_id,
-                                               '_flow_id': data.get('_flow_id')},
+                                               '_flow_id': data.get('_flow_id'), 'choice_id': data.get('choice_id')},
                                               enqueue_launch=False, expected_camera_target=camera_target)
     choice_id = data.get("choice_id", None)
     if isinstance(choice_id, str):
@@ -31416,6 +31547,17 @@ def gonna_win():
     }
     if player_flow:
         payload.pop("hacked", None)
+    creator_contract = app.get('creator_contract') or {}
+    if success and app.get('creator_contract_version') and creator_contract.get('action') == 'scan_ports' and creator_contract.get('creates_file'):
+        report_key = hashlib.sha256(json.dumps([session['user'], app_id, app.get('version'),
+            launch_receipt or build_operation_target_id(aimed)], ensure_ascii=False).encode()).hexdigest()[:32]
+        report = normalize_runtime_file_entry(dict(id='creator_recon_' + report_key,
+            name='recon_' + report_key + '.state', file_category='system', file_size=1,
+            preview_mode='operation_state', resource_types=['internal_recon_state'],
+            sellable=False, market_status='not_listed',
+            metadata={'target': copy.deepcopy(aimed), 'security': copy.deepcopy(target_sec),
+                      'source_app_id': app_id, 'source_version': app.get('version')}), 'system')
+        payload['created_files'] = player_inventory_store.append_data_files(session['user'], [report])
     finish_gonna_win_receipt(payload)
     return jsonify(payload)
 

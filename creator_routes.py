@@ -6,6 +6,19 @@ from ghostlab_store import GhostLabError
 
 
 def register(app, services):
+    creator_apps = {'terminal': 'termcreator', 'window': 'windowmaker',
+                    'button_choices': 'buttonmaker', 'progressbar_random': 'appforge'}
+
+    def require_creator(interface):
+        app_id = creator_apps.get(interface)
+        if not app_id or not services['player_inventory_store'].has_app(owner(), app_id):
+            raise GhostLabError('creator_not_installed', 'Brak narzędzia kreatorskiego. Zainstaluj odpowiedni kreator.', 403)
+
+    def owned_project(project_id):
+        project = store().get(owner(), project_id)
+        require_creator(project['contract']['interface'])
+        return project
+
     def owner():
         if not session.get('user'):
             raise GhostLabError('not_logged_in', 'Zaloguj sie.', 401)
@@ -47,10 +60,38 @@ def register(app, services):
             raise GhostLabError('projection_unavailable', 'Brak projekcji poziomu.', 503)
         level = capabilities['level']
         return jsonify(success=True, enabled=config.env_bool('CHAOS_CREATORS_V2_ENABLED', False),
+            installed_interfaces=[kind for kind, app_id in creator_apps.items()
+                                  if services['player_inventory_store'].has_app(owner(), app_id)],
             recipes=RECIPES, security_keys=SECURITY_KEYS, level=level, power_cap=power_cap(level),
             maximum_chance=config.CREATOR_MAX_POWER_CHANCE,
             effect_min_level=config.CREATOR_EFFECT_MIN_LEVEL,
             effect_enabled=level >= config.CREATOR_EFFECT_MIN_LEVEL)
+
+    @app.route('/api/creators/installed/<app_id>', methods=['GET', 'POST'])
+    @guard
+    def creator_installed(app_id):
+        from database import db_connect
+        from creator_updates import view, update
+        enabled()
+        if request.method == 'POST':
+            data = payload()
+            result = update(owner(), app_id, data.get('expected_version'), data.get('version'),
+                            services['player_inventory_store'], services['delta_bus'])
+        else:
+            with db_connect(services['player_inventory_store'].db_path) as conn:
+                result = view(conn, owner(), app_id)
+        return jsonify(success=True, **result)
+
+    @app.get('/api/creators/installed/<app_id>/options/<choice>')
+    @guard
+    def creator_option_quote(app_id, choice):
+        from database import db_connect
+        from creator_payments import option_quote
+        with db_connect(services['player_inventory_store'].db_path) as conn:
+            quote = option_quote(conn, owner(), app_id, choice)
+        if quote is None:
+            raise ValueError('To nie jest wersjonowana opcja Button Choice.')
+        return jsonify(success=True, quote=quote)
 
     @app.get('/api/creators/files')
     @guard
@@ -60,6 +101,7 @@ def register(app, services):
         files = {item['project_file'] for item in catalog if item.get('creator_username') == owner()
                  and item.get('project_file') and item.get('published', True) and not item.get('ghostlab_generated')}
         files.update(store().files(owner()))
+        files.update(store().project_files(owner()))
         return jsonify(success=True, files=sorted(files))
 
     @app.get('/api/creators/projects')
@@ -75,6 +117,7 @@ def register(app, services):
     def creator_create():
         enabled()
         data = payload()
+        require_creator(data.get('interface'))
         request_id = data.pop('request_id', None)
         name = data.get('name')
         if not isinstance(name, str) or not name.strip() or len(name) > 80 or ';' in name:
@@ -91,12 +134,27 @@ def register(app, services):
     @guard
     def creator_get(project_id):
         enabled()
-        return jsonify(success=True, project=store().get(owner(), project_id))
+        return jsonify(success=True, project=owned_project(project_id))
+
+    @app.get('/api/creators/project-file')
+    @guard
+    def creator_project_file():
+        from database import db_connect
+        enabled()
+        filename = str(request.args.get('name', ''))[:250]
+        with db_connect(store().db_path) as conn:
+            rows = conn.execute("""SELECT id FROM creator_projects WHERE owner=? AND
+                (id || '.sh'=? OR json_extract(project_json,'$.legacy_project_file')=?) LIMIT 2""",
+                (owner(), filename, filename)).fetchall()
+        if len(rows) != 1:
+            raise GhostLabError('project_not_migrated', 'Projekt wymaga migracji lub sprawdzenia przez administratora.', 409)
+        return jsonify(success=True, project=owned_project(rows[0]['id']))
 
     @app.patch('/api/creators/projects/<project_id>')
     @guard
     def creator_edit(project_id):
         enabled()
+        owned_project(project_id)
         data = payload()
         if set(data) != {'revision', 'presentation'}:
             raise ValueError('Dozwolona jest tylko edycja prezentacji.')
@@ -109,6 +167,7 @@ def register(app, services):
     @guard
     def creator_configure(project_id):
         enabled()
+        owned_project(project_id)
         data = payload()
         if set(data) != {'revision', 'configuration'}:
             raise ValueError('Wymagana rewizja i konfiguracja projektu.')
@@ -125,7 +184,7 @@ def register(app, services):
         data = payload()
         if set(data) != {'revision'}:
             raise ValueError('Publikacja przyjmuje tylko rewizje projektu.')
-        project = store().get(owner(), project_id)
+        project = owned_project(project_id)
         reserved = [item.get('name', '') for item in services['get_app_catalog']()
                     if item.get('id') != project['app_id']]
         product = store().publish(owner(), project_id, data['revision'],

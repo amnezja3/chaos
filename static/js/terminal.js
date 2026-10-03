@@ -8803,6 +8803,26 @@ function app_button_choices(id, levels) {
     const buttons = app.querySelectorAll('.choice-btn');
     const resultBox = app.querySelector('.choice-result');
 
+    if (String(id).startsWith('creator_')) {
+        buttons.forEach(async button => {
+            button.disabled = true;
+            try {
+                const response = await fetch(`/api/creators/installed/${encodeURIComponent(id)}/options/${encodeURIComponent(button.dataset.optId)}`, {cache: 'no-store'});
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || 'Nie można odczytać ceny opcji.');
+                const quote = data.quote;
+                const label = document.createElement('small');
+                label.style.display = 'block';
+                label.textContent = quote.price ? `${quote.price} HC tylko za sukces → ${quote.recipient}` : 'Użycie bezpłatne';
+                button.appendChild(label);
+                if (quote.price && quote.asynchronous) {
+                    label.textContent = `Rezerwacja ${quote.price} HC · opłata po sukcesie → ${quote.recipient}`;
+                    button.disabled = false;
+                } else { button.disabled = false; }
+            } catch (error) { resultBox.textContent = error.message; }
+        });
+    }
+
     buttons.forEach(btn => {
         btn.addEventListener('click', async () => {
             if (btn.disabled || btn.classList.contains("is-loading")) return;
@@ -8823,6 +8843,9 @@ function app_button_choices(id, levels) {
 
                 addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
                 resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
+                if (response.option_payment?.reserved > 0) {
+                    resultBox.textContent = `Operacja uruchomiona. Zarezerwowano ${response.option_payment.reserved} HC; opłata zostanie pobrana tylko po sukcesie.`;
+                }
                 resultBox.style.color = success ? "#0f0" : "#f33";
                 if (success) {
                     appFlowTrace(app.dataset.appFlowId, "app_option_success", {
@@ -10582,6 +10605,7 @@ function createBrowser() {
                 </footer>
             `;
             if (isTravelTicket) mountTravelTicketReactions(card, item);
+            if (installed && (item.creator_contract_version || item.creator_legacy_project)) window.CreatorEditor.mountUpdate(card, appId);
             const installButton = card.querySelector('[data-googleplex-install]');
             let installInFlight = false;
             installButton.addEventListener('click', async () => {
@@ -11308,7 +11332,7 @@ async function loadWalletState(container = document.querySelector('.terminal[dat
             setWalletMessage(container, "error", data.error || "Nie udalo sie pobrac portfela.");
             return null;
         }
-        container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}`;
+        container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}${data.reserved ? ` · rezerwacja: ${Number(data.reserved)} HC · dostępne: ${Number(data.available)} HC` : ''}`;
         renderWalletHistory(container, data.ledger || data.transactions || []);
         setWalletMessage(container, "", "");
         return data;
@@ -11493,7 +11517,7 @@ async function submitWalletTransfer(container = document.querySelector('.termina
         container.querySelector('[data-wallet-amount]').value = "";
         container.querySelector('[data-wallet-note]').value = "";
         clearWalletTransferActionKey(transferAction, container);
-        container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}`;
+        container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}${data.reserved ? ` · rezerwacja: ${Number(data.reserved)} HC · dostępne: ${Number(data.available)} HC` : ''}`;
         renderWalletHistory(container, data.ledger || data.transactions || (data.transaction ? [data.transaction] : []));
         setWalletMessage(container, "success", "Przelew wykonany.");
         updateWalletBalanceView(data.balance, data.currency || "HC");
@@ -12312,7 +12336,7 @@ function rememberProcessedDelta(key) {
     return false;
 }
 
-function updateWalletBalanceView(balance, currency = "HC") {
+function updateWalletBalanceView(balance, currency = "HC", reserved = 0) {
     const normalizedBalance = Number(balance || 0);
     setToolbarProfile({
         ...(toolbarProfile || {}),
@@ -12320,7 +12344,7 @@ function updateWalletBalanceView(balance, currency = "HC") {
     });
 
     document.querySelectorAll('[data-wallet-balance]').forEach(node => {
-        node.textContent = `Saldo: ${normalizedBalance} ${currency || 'HC'}`;
+        node.textContent = `Saldo: ${normalizedBalance} ${currency || 'HC'}${reserved ? ` · rezerwacja: ${Number(reserved)} HC · dostępne: ${Math.max(0, normalizedBalance - Number(reserved))} HC` : ''}`;
     });
     document.querySelectorAll('.googolplex-wallet').forEach(node => {
         node.textContent = `HackCoiny: ${normalizedBalance}`;
@@ -12454,7 +12478,7 @@ async function updateAppsView(payload = {}) {
     };
     if (Array.isArray(payload.removed_app_ids)) nextProfile = applyInventoryRemoval(nextProfile, payload);
     if (Array.isArray(payload.apps)) nextProfile.apps = payload.apps;
-    else if (payload.reason === 'ghostlab_update' && payload.app?.id) {
+    else if (['ghostlab_update', 'creator_update'].includes(payload.reason) && payload.app?.id) {
         nextProfile.apps = [...(nextProfile.apps || []).filter(app => app.id !== payload.app.id), payload.app];
         const removed = new Set(payload.removed_tool_ids || []);
         nextProfile.files = {...(nextProfile.files || {}), tools: [
@@ -12472,7 +12496,7 @@ async function updateAppsView(payload = {}) {
     }
     setToolbarProfile(nextProfile);
     await rebuildDesktopAppsFromProfile(nextProfile);
-    refreshOpenFileManagersForApps(payload.reason === 'ghostlab_update'
+    refreshOpenFileManagersForApps(['ghostlab_update', 'creator_update'].includes(payload.reason)
         ? {...payload, apps: nextProfile.apps, files: {tools: nextProfile.files?.tools || []}} : payload);
     try {
         window.dispatchEvent(new CustomEvent('chaos:apps-projection-updated', {
@@ -12744,7 +12768,7 @@ async function applyDelta(event) {
 
     if (event.type === "wallet.balance_changed" || (event.scope === "wallet" && event.entity_id === "wallet")) {
         const payload = event.payload || {};
-        updateWalletBalanceView(payload.balance, payload.currency || "HC");
+        updateWalletBalanceView(payload.balance, payload.currency || "HC", payload.reserved || 0);
         return true;
     }
     if (event.type === "storage.used_changed" || event.type === "storage.capacity_changed" || event.scope === "storage") {
@@ -13226,6 +13250,7 @@ function createAppForgeLegacy() {
 }
 
 async function createAppForge() {
+    if (await window.CreatorEditor?.launch('progressbar_random')) return;
     if (document.querySelector(`.terminal[data-app="appforge"]`)) return;
 
     const keys = await getCreatorSecurityKeys();
@@ -14518,6 +14543,7 @@ function wireCreatorSubmit(term, buildExtraPayload) {
 }
 
 async function createTermCreator() {
+    if (await window.CreatorEditor?.launch('terminal')) return;
     if (document.querySelector(`.terminal[data-app="termcreator"]`)) return;
     const keys = await getCreatorSecurityKeys();
     const term = creatorBaseWindow('TermCreator', 'terminal');
@@ -14552,6 +14578,7 @@ async function createTermCreator() {
 }
 
 async function createWindowMaker() {
+    if (await window.CreatorEditor?.launch('window')) return;
     if (document.querySelector(`.terminal[data-app="windowmaker"]`)) return;
     const keys = await getCreatorSecurityKeys();
     const term = creatorBaseWindow('WindowMaker', 'window');
@@ -14586,6 +14613,7 @@ async function createWindowMaker() {
 }
 
 async function createButtonMaker() {
+    if (await window.CreatorEditor?.launch('button_choices')) return;
     if (document.querySelector(`.terminal[data-app="buttonmaker"]`)) return;
     const keys = await getCreatorSecurityKeys();
     const term = creatorBaseWindow('ButtonMaker', 'button_choices');
@@ -17061,6 +17089,15 @@ async function createFileManager(options = {}) {
 
     // Klik w dowolny plik — symulacja otwarcia/uruchomienia
     window.runFile = async (folderName, filename) => {
+        if (folderName === 'projects') {
+            try {
+                const response = await fetch('/api/creators/project-file?name=' + encodeURIComponent(filename), {cache: 'no-store'});
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Nie można otworzyć projektu.');
+                await window.CreatorEditor.launch(data.project.contract.interface, data.project.id);
+            } catch (error) { addSystemMessage('warning', 'Projekt', error.message); }
+            return;
+        }
         if (folderName === 'ghostlab') { await openGhostLabFile(filename); return; }
         if (folderName === 'documents') {
             try {

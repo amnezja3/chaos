@@ -18,6 +18,7 @@ from database import (
     ProfilePrecommitRejected,
     TerritoryStore,
     UserStore,
+    UserIdentityProjectionStore,
     WalletBalanceStore,
     db_connect,
     reset_request_transaction_precommit_guard,
@@ -70,6 +71,10 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         self.operation_store = PlayerOperationStore(self.db_path)
         self.wallet_store = WalletBalanceStore(self.db_path)
         self.inventory_store = PlayerInventoryStore(self.db_path)
+        self.identity_store = UserIdentityProjectionStore(self.db_path)
+        identity_patch = patch.object(run, "identity_projection_store", self.identity_store)
+        identity_patch.start()
+        self.addCleanup(identity_patch.stop)
         self.profiles = {
             "alice": complete_profile("alice"),
             "victim": complete_profile("victim"),
@@ -134,7 +139,13 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         before = self.user_store.get_profile_with_revision("alice")
         lkg_before = self.user_store.get_last_known_good("alice")
 
-        def record_after_replacement(username):
+        with db_connect(self.db_path) as conn:
+            settings_before = conn.execute(
+                "SELECT desktop_settings_json FROM user_identity_projection WHERE username='alice'"
+            ).fetchone()[0]
+        update_settings = self.identity_store.update_desktop_settings
+
+        def record_after_replacement(username, changes, **kwargs):
             # The request has already observed generation A. Move the same
             # durable lineage to B immediately before the bounded projection
             # writer obtains its transaction and runs the central hook.
@@ -144,11 +155,11 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
                 "alice",
                 reason="concurrent_login_b",
             )
-            return self.user_store.get_profile_with_revision(username)
+            return update_settings(username, changes, **kwargs)
 
         with patch.object(
-            run,
-            "load_profile_write_record",
+            self.identity_store,
+            "update_desktop_settings",
             side_effect=record_after_replacement,
         ):
             response = self.client.post(
@@ -168,6 +179,11 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         self.assertEqual(before["checksum"], after["checksum"])
         self.assertEqual(before["profile"], after["profile"])
         self.assertEqual(lkg_before, lkg_after)
+        with db_connect(self.db_path) as conn:
+            settings_after = conn.execute(
+                "SELECT desktop_settings_json FROM user_identity_projection WHERE username='alice'"
+            ).fetchone()[0]
+        self.assertEqual(settings_before, settings_after)
 
     def test_uninstall_started_by_a_rolls_back_when_login_b_replaces_session(self):
         lineage = "uninstall-browser"
@@ -353,15 +369,13 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         self._seed_client(lineage, generation)
         output = io.StringIO()
 
+        # Credentials remain a guarded profile write. Desktop settings now use
+        # a bounded projection and must not emit full-profile write telemetry.
         with patch.dict(os.environ, {"CHAOS_PROFILE_WRITE_METRICS": "1"}), \
-                patch.object(
-                    run,
-                    "UserProfileManager",
-                    side_effect=lambda username: self._manager(username),
-                ), redirect_stdout(output):
+                redirect_stdout(output):
             response = self.client.post(
-                "/api/profile/desktop",
-                json={"wallpaper": "wall-1"},
+                "/api/profile/account",
+                json={"email": "alice-updated@example.test"},
                 headers={
                     run.SESSION_GENERATION_HEADER: generation,
                     "X-Request-Id": request_id,

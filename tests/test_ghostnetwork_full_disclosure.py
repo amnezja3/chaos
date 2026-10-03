@@ -154,6 +154,7 @@ class GhostNetworkFullDisclosureTest(unittest.TestCase):
         import run
 
         inventory = PlayerInventoryStore(self.db_path)
+        inventory.seed_from_profile('echo', dict(files={}, apps=[], storage_capacity=2048, storage_used=0))
         operation = self.operation("op-final", status="completed")
         GhostAbilityProductionRealizer._apply_data_quality_to_row(operation, {
             "window_id": "window-final", "ability_code": "full_disclosure",

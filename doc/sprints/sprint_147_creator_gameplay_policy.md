@@ -69,10 +69,10 @@ są częścią rozgrywki, a mocny produkt może być wartościowym wynikiem twor
 
 ## 147.4 — wiedza w obiegu gry
 
-Materiały szkoleniowe i PTK dostępne w Googleplexie uczą zatwierdzonych wartości
-`effect` i ich zastosowań. Gracz zdobywa wiedzę i buduje zaawansowane narzędzia.
-To część 147–148, nie wyłączenie z zakresu. Reuse obiegu PTK; materiał nie nadaje
-uprawnień i nie zastępuje walidacji. Przykłady muszą odpowiadać realnym executorom.
+Nie przygotowujemy systemowych treści szkoleniowych. Gracze samodzielnie odkrywają
+`effect`, np. korzystając z nazw zabezpieczeń i placeholdera. Mogą dzielić się
+wiedzą przez istniejący obieg PTK GhostLaba; jest to przykład użycia, nie warunek
+dostępu do efektów. Materiał nie nadaje uprawnień i nie zastępuje walidacji.
 
 ## 147.5 — projekt, publikacja i zamrożona logika
 

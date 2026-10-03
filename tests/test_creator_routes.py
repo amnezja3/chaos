@@ -18,6 +18,9 @@ class CreatorRoutesTest(unittest.TestCase):
 
     def prepare(self):
         self.users.save_profile(dict(read_tests.valid_profile('attacker'),level=40,respect=500))
+        self.inventory.seed_from_profile('attacker', read_tests.valid_profile('attacker'))
+        for creator_id in ('termcreator', 'windowmaker', 'buttonmaker', 'appforge'):
+            self.inventory.install_app('attacker', {'id': creator_id, 'name': creator_id}, purchase_key=creator_id)
         self.store=CreatorStore(self.path)
         self.stack.enter_context(patch.object(run,'creator_store',self.store))
         self.stack.enter_context(patch.object(run,'resources_store',JsonResourceStore(self.path)))
@@ -62,6 +65,69 @@ class CreatorRoutesTest(unittest.TestCase):
             self.assertEqual(self.client.post('/api/creators/projects',json=dict(data,power=100)).status_code,400)
             with patch.dict(os.environ,CHAOS_CREATORS_V2_ENABLED='false'):
                 self.assertEqual(self.client.post('/api/creators/projects',json=data).status_code,409)
+
+    def test_draft_file_reopen_missing_creator_and_revision_conflict(self):
+        data = self.prepare()
+        with self.no_heavy():
+            project = self.client.post('/api/creators/projects', json=data).json['project']
+            base = '/api/creators/projects/' + project['id']
+            self.assertIn(project['id'] + '.sh', self.client.get('/api/creators/files').json['files'])
+            self.assertEqual(self.client.get(base).json['project'], project)
+            update = {'revision': 1, 'presentation': {'description': 'Correction'}}
+            self.assertEqual(self.client.patch(base, json=update).status_code, 200)
+            self.assertEqual(self.client.patch(base, json=update).status_code, 409)
+            self.inventory.uninstall_app('attacker', app_id='termcreator')
+            self.assertEqual(self.client.get(base).status_code, 403)
+            self.assertEqual(self.client.post('/api/creators/projects', json=data).status_code, 403)
+            self.assertEqual(len(self.store.list('attacker')), 1)
+
+    def test_invalid_button_effect_rejected_without_partial_configuration(self):
+        data = dict(self.prepare(), interface='button_choices')
+        with self.no_heavy():
+            project = self.client.post('/api/creators/projects', json=data).json['project']
+            base = '/api/creators/projects/' + project['id']
+            response = self.client.patch(base + '/configuration', json={'revision': 1,
+                'configuration': {'options': [{'effect': 'firewall=false'}, {'effect': 'firewall=bad'}]}})
+            self.assertEqual(response.status_code, 400, response.json)
+            self.assertIn('Opcja 2', response.json['message'])
+            self.assertEqual(self.client.get(base).json['project'], project)
+            self.assertEqual(self.store.catalog(), [])
+
+    def test_free_update_preserves_old_edition_retries_and_rejects_confiscation(self):
+        import json
+        data = self.prepare()
+        self.stack.enter_context(patch.object(run, 'delta_bus', GameStateDeltaBus(self.path)))
+        with self.no_heavy():
+            project = self.client.post('/api/creators/projects', json=data).json['project']
+            base = '/api/creators/projects/' + project['id']
+            old = self.client.post(base + '/publish', json={'revision': 1}).json['app']
+            self.inventory.install_app('attacker', old, purchase_key='original-purchase')
+            self.client.patch(base, json={'revision': 1, 'presentation': {'description': 'New description', 'name': 'Renamed'}})
+            new = self.client.post(base + '/publish', json={'revision': 2}).json['app']
+            def installed():
+                with db_connect(self.path) as conn:
+                    return json.loads(conn.execute('SELECT app_json FROM player_apps WHERE username=? AND app_id=?', ('attacker', old['id'])).fetchone()[0])
+            self.assertEqual(installed()['version'], 1)
+            endpoint = '/api/creators/installed/' + old['id']
+            self.assertTrue(self.client.get(endpoint).json['update_available'])
+            with db_connect(self.path) as conn:
+                before = conn.execute('SELECT count(*) FROM wallet_transactions').fetchone()[0]
+            self.assertEqual(self.client.post(endpoint, json={'expected_version': 1, 'version': 3}).status_code, 409)
+            result = self.client.post(endpoint, json={'expected_version': 1, 'version': 2})
+            self.assertEqual(result.status_code, 200, result.json)
+            self.assertFalse(result.json['duplicate'])
+            self.assertEqual(installed()['version'], 2)
+            self.assertEqual(installed()['wallet_transaction_key'], 'original-purchase')
+            self.assertEqual(installed()['creator_contract'], old['creator_contract'])
+            self.assertTrue(self.client.post(endpoint, json={'expected_version': 1, 'version': 2}).json['duplicate'])
+            with db_connect(self.path) as conn:
+                self.assertEqual(conn.execute('SELECT count(*) FROM wallet_transactions').fetchone()[0], before)
+                self.assertEqual(conn.execute('SELECT count(*) FROM player_tool_files WHERE username=? AND app_id=?', ('attacker', old['id'])).fetchone()[0], 1)
+            self.store.withdraw('attacker', new['project_file'])
+            self.assertFalse(self.client.get(endpoint).json['update_available'])
+            self.assertEqual(installed()['version'], 2)
+            self.inventory.uninstall_app('attacker', app_id=old['id'])
+            self.assertEqual(self.client.post(endpoint, json={'expected_version': 1, 'version': 2}).status_code, 409)
 
     def test_maximum_effect_persists_full_security_bar_without_profile(self):
         self.prepare()

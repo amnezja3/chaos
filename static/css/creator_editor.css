@@ -1,0 +1,16 @@
+.creator-v2 { max-width: calc(100vw - 16px); max-height: calc(100dvh - 40px); }
+.creator-v2 .creator-workspace { overflow: auto; overscroll-behavior: auto; min-height: 0; }
+.creator-v2 .appforge-form { position: static; height: auto; width: 100%; box-sizing: border-box; overflow: visible; display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.creator-v2 label { display: flex; flex-direction: column; gap: 5px; color: #acf9b6; }
+.creator-v2 input, .creator-v2 textarea, .creator-v2 select, .creator-v2 button {
+    box-sizing: border-box; max-width: 100%; padding: 10px; color: #d7ffdb;
+    background: #05140b; border: 1px solid #376442; font: inherit;
+}
+.creator-v2 input[type=checkbox] { align-self: flex-start; width: 20px; height: 20px; }
+.creator-v2 textarea { resize: vertical; overscroll-behavior: auto; touch-action: auto; }
+.creator-v2 button { cursor: pointer; margin: 3px; }
+.creator-v2 button:hover, .creator-v2 button:focus-visible { border-color: #70ed88; background: #153b22; }
+.creator-v2 :disabled { opacity: .6; cursor: default; }
+.creator-v2 fieldset { min-width: 0; border: 1px solid #294d34; margin: 8px 0; }
+.creator-v2-preview { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+@media (max-width: 650px) { .creator-v2 { left: 8px !important; top: 8px !important; } }

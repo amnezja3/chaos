@@ -1,5 +1,29 @@
 # CHAOS — Project Journal
 
+## 2026-10-03 — 148, pakiet do kontrolowanego wdrożenia
+
+Uproszczone edytory czterech kreatorów, ponowne otwieranie projektu z FM,
+wersjonowanie prezentacji i jawna bezpłatna aktualizacja są przygotowane lokalnie.
+Mapa nie wykonuje nowej aplikacji przed wyborem akcji. Rozliczenia płatnych opcji
+są atomowe; operacje w tle rezerwują HC i rozliczają tylko skuteczne zakończenie.
+Poprawiono finalizację podsłuchu, zasoby trace, klasyfikację celów i izolację
+awarii rozliczeń workera. Ścieżki testowe blokują ciężki profil.
+
+Migracja historycznych projektów zachowuje dokładne definicje, ID i ceny;
+XMapper nie jest konwertowany na nowe losowanie ani nowy executor. Na pełnej
+kopii bazy: 13 projektów, bezpieczne ponowienie, niezmienione metadane profili,
+instalacje i katalog, quick_check OK. Zgodność aktualizacji potwierdzona dla
+95 zainstalowanych historycznych kopii. Różnica licznika pobrań nie blokuje
+aktualizacji; zmiana mechaniki ją blokuje.
+
+Playwright sprawdził rzeczywisty edytor i API w izolowanym hoście komponentowym:
+historyczna v1 → edycja → publikacja v2, stara instalacja nadal v1 →
+AKTUALIZACJA 0 HC → v2. Brak błędu JS, jedynie favicon 404.
+To nie zastępuje produkcyjnego odbioru całych pętli gameplayowych.
+
+Kod bez commita/pushu i bez zmian produkcyjnych. Flaga wymaga jawnej aktywacji
+po migracji. [Procedura wdrożenia i wyłączenia edytora](../runbooks/sprint_148_creators.md).
+
 ## 2026-10-02 — 147, domknięcie zależności przejęć i workerów
 
 Przejęcia korzystają z kanonicznych instalacji, celu, operacji i progresji.

@@ -1,6 +1,9 @@
 ﻿# Sprint 148 — prosty UX, edycja projektów i bezpłatne aktualizacje
 
-Status: **ZAPLANOWANY — nowe założenia 1 X 2026**, implementacja po PASS 147.
+Status: **GOTOWY DO KONTROLOWANEGO WDROŻENIA — 3 X 2026**.
+Pełne pętle gameplayowe 147–148 zostaną odebrane po wdrożeniu kompletu.
+Flaga `CHAOS_CREATORS_V2_ENABLED` wymaga jawnej aktywacji po migracji historycznych projektów.
+Postęp implementacji i wykonane testy: [runbook 148](../runbooks/sprint_148_creators.md).
 Kontrakt: [147](sprint_147_creator_gameplay_policy.md).
 Zastępuje wcześniejszą wieloetapową ścieżkę; kreatory mają być prostsze od GhostLaba.
 
@@ -51,8 +54,16 @@ nie pobiera HC. Bezpieczne renderowanie; autorytatywny wynik pochodzi z backendu
 
 ## 148.4 — wiedza i wykonanie gameplayowe
 
-- Przygotować materiały szkoleniowe PTK w Googleplexie o zatwierdzonych efektach,
-  wartościach i przykładach. Materiał uczy, nie przyznaje uprawnień.
+- Nie tworzymy treści szkoleniowych. PTK z GhostLaba to opcjonalny sposób,
+  w jaki gracze mogą dzielić się własną wiedzą; mogą też samodzielnie odkrywać
+  przypisania na podstawie nazw zabezpieczeń i placeholdera.
+- Każda opcja Button Choice ma własny `effect`, np. `risk_level=10,firewall=false`.
+  Od LVL 100 autora wskazane wartości ustawiają stan bez losowania: ON = `true`,
+  OFF = `false`. Poniżej progu poprawny wpis nie nadaje ręcznej mocy.
+  Serwer sprawdza składnię również poniżej progu, klucze i typy oraz ponownie
+  waliduje efekty przed publikacją. Nieznane klucze, powtórzenia, wyrażenia,
+  nieprawidłowe typy i zakresy są błędem, a nie wykonywalnym kodem.
+  Aktualny zakres liczbowy `risk_level` w walidatorze: liczba całkowita 0–100.
 - Button Choice wyjaśnia brak wpływu effect poniżej progu (roboczo LVL 100).
   Inne kreatory nie dają ręcznego pola. Losowe maksimum od LVL 40 to inna mechanika.
 - Mapa wskazuje cel; aplikacja uruchamia przypisany executor. Brak celu,
@@ -68,12 +79,16 @@ nie pobiera HC. Bezpieczne renderowanie; autorytatywny wynik pochodzi z backendu
 - Jedno użycie to jeden receipt, transfer i efekt; retry/timeout/reconnect
   odtwarza wynik. Kolejne świadome użycie ma nową tożsamość.
 - Odmowa walidacji, brak HC/celu/dostępu i błąd przed wykonaniem nie pobierają HC.
-  Regułę opłaty za wykonaną, ale nieskuteczną próbę zatwierdzić przed aktywacją
-  i jawnie pokazać w UI; nie uznawać starej propozycji za zatwierdzoną.
+  **Zatwierdzone 2 X: opłata wyłącznie za skuteczną próbę.** Nieskuteczna próba
+  jest bezpłatna. Regułę pokazać przed użyciem opcji.
 - Transfer i efekt są atomowe albo mają trwałą finalizację/odzyskiwanie.
+  Operacje bez natychmiastowego efektu rezerwują cenę podczas działania;
+  transfer następuje przy skutecznej finalizacji, a anulowanie/niepowodzenie
+  zwalnia rezerwację. UI rozróżnia saldo, rezerwację i dostępne HC.
   Obsłużyć równoległe wydatki, użycie własnej aplikacji bez sztucznego przychodu
-  i brak odbiorcy. Proponowany fallback admin pozostaje do potwierdzenia,
-  nigdy ciche zniszczenie HC. Naprawić stare fixture zamiast osłabiać walidację.
+  i brak odbiorcy. **Zatwierdzone 2 X: jeśli konto autora nie istnieje,
+  odbiorcą zostaje admin.** Brak także konta admin wymaga odmowy bez pobrania HC;
+  nigdy cichego zniszczenia HC. Naprawić stare fixture zamiast osłabiać walidację.
 
 ## Bramka i PASS
 

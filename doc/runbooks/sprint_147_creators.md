@@ -37,10 +37,13 @@ Zmiana tej konfiguracji nigdy nie losuje ponownie mocy.
 2. **Pozostałe executory i pliki.** Zweryfikować każdą receptę od instalacji przez
    uruchomienie do skutku, rezultatów, ryzyka i błędów z blokadą ciężkiego profilu.
    Test pojedynczego efektu zabezpieczeń nie zastępuje tej bramki.
-3. **Legacy/XMapper.** Import zachowuje dokładny snapshot, ale nie przekształca
-   historycznego projektu do nowego edytowalnego kontraktu. Potrzebna regresja
-   rzeczywistego XMappera i raport z docelowego katalogu; definicji tego produktu
-   nie ma w repozytoryjnym `static/app_config.json`.
+3. **Legacy/XMapper — audyt kopii produkcyjnej PASS 2 X.** Import 13 publikacji
+   zachował dokładne snapshoty i zainstalowane kopie; powtórzenie było
+   idempotentne. Rzeczywisty XMapper przeszedł dwa testy HTTP przejęcia
+   (zwykłego i konfliktowego), z blokadą ciężkiego profilu.
+   [Raport i granice potwierdzenia](../audits/sprint_147_legacy_snapshot_2026_10_02.md).
+   Import nie przekształca historycznego projektu do nowego edytowalnego
+   kontraktu i nie został wykonany na serwerze. Rozliczenia pozostają w bramce 4.
 4. **Wersje i rozliczenia.** Odbiór instalacji, kopii starszej wersji i niezmienności
    ceny na rzeczywistym zakupie; płatne opcje i przycisk aktualizacji skoordynować
    z 148. Nowy edytor oraz materiały szkoleniowe PTK pozostają częścią 147–148.

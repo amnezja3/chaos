@@ -59,7 +59,7 @@ class CameraContractStore:
     def apps(self, username):
         with db_connect(self.db_path) as conn:
             rows = conn.execute('''SELECT app_id, app_json FROM player_apps WHERE username=?
-                AND status!='uninstalled' AND EXISTS
+                AND status='installed' AND EXISTS
                 (SELECT 1 FROM json_each(player_apps.app_json, '$.map_actions')
                  WHERE value='camera_shutdown') ORDER BY app_id LIMIT 65''', (username,)).fetchall()
         if len(rows) > 64:
@@ -87,7 +87,7 @@ class CameraContractStore:
 
     def shutdown(self, username, scan_id, camera_id, app_id, *, guard, inventory, messages,
                  deltas, flow_id='', request_key='', operation_template=None, expected_app=None,
-                 enqueue_launch=True, on_created=None):
+                 enqueue_launch=True, on_created=None, progress_on_replay=True):
         if any(str(store.db_path) != str(self.db_path) for store in (inventory, messages, deltas)):
             raise ValueError('camera_database_mismatch')
         # Stable receipt survives process restarts and different client retry keys.
@@ -98,7 +98,7 @@ class CameraContractStore:
             conn.execute('BEGIN IMMEDIATE')
             target = self.observed(username, scan_id, camera_id, conn=conn)
             row = conn.execute('''SELECT app_json FROM player_apps WHERE username=?
-                AND app_id=? AND status!='uninstalled' ''', (username, app_id)).fetchone()
+                AND app_id=? AND status='installed' ''', (username, app_id)).fetchone()
             if not row or not eligible_app(loads_json(row['app_json'], {})):
                 raise CameraContractError('camera_app_not_authorized')
             app = loads_json(row['app_json'], {})
@@ -107,7 +107,7 @@ class CameraContractStore:
             guard(conn, target)
             active = self.active(username, target, conn=conn)
             if active:
-                if on_created:
+                if on_created and progress_on_replay:
                     on_created(conn, active)
                 return active, True
             existing = conn.execute('''SELECT operation_json FROM player_operations
