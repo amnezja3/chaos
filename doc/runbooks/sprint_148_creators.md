@@ -1,5 +1,32 @@
 # Sprint 148 — stan przygotowania
 
+## Poprawki po pierwszym odbiorze produkcyjnym — 3 X
+
+- Migracja produkcyjna: 13 `adopted`, ponowny odczyt 13 `already_adopted`.
+  Backup: `game-before-148-20261003T063959798885Z.sqlite3`, 37 kont, quick_check OK.
+  Po rozruchu web odpowiedział HTTP 200 w 0,026 s. Błąd workera w logu był z 26 IX.
+- Audyt `gx` na serwerze: instalacja i operacja mają `creates_file=false`, brak
+  zasobów, finalizacja timeout zapisana z file_count=0. Nie jest to utrata pliku.
+- Nowy edytor: wybór ikon z pakietu, jeden grafem w polu, przyciski przeznaczenia
+  i zapisu pliku, jawne TAK/NIE także po generacji, potwierdzenia CHAOS.
+- FM wyświetla nazwę/ikonę projektu przy zachowaniu stabilnej tożsamości pliku.
+  Katalogi danych czytają kanoniczne player_data_files bez pełnego profilu.
+- Launcher /command pomija sync_session_profile dla nowych i adoptowanych
+  kreatorów. Usunięto potwierdzony ciężki odczyt; czas produkcyjnego pickera
+  wymaga ponownego pomiaru po wdrożeniu poprawki.
+- Zbieranie danych bez pliku nie uruchamia operacji. Bez bezpośredniego efektu
+  próba kończy się odmową przed zmianą celu i rozliczeniem. Historyczne aplikacje
+  zachowują działanie; efekty niezależne od plików (np. kamera) pozostają aktywne.
+- Weryfikacja komponentowa Playwright: 75 ikon, limit jednego grafemu, ATM
+  creates_file=true oraz atm_dump odczytane z API, dialog CHAOS, jasny hover
+  rgb(239,255,242), brak poziomego przepełnienia przy 390 px. To nie jest pełny
+  produkcyjny test mapy; testowy host zgłaszał jedynie brak favicon po poprawieniu
+  obsługi query string zasobów. Backend: 28 testów tras i płatności PASS przed
+  dodaniem blokady pustych operacji. Po dodaniu blokady 28 z 29 testów polityki
+  i płatności przeszło od razu; macierz wymagała wskazania prawidłowej opcji
+  Button Choice w fixture. Jej osobne ponowienie PASS: cztery interfejsy ATM
+  odrzucają wykonanie bez pliku i nie zapisują operacji. Kontrakt JS PASS.
+
 3 X 2026: pakiet przygotowany do kontrolowanego wdrożenia z migracją offline.
 Nie jest to produkcyjny PASS gameplayowy. Użytkownik odebrał dotychczasowy
 gameplay 147; pełny odbiór pętli następuje po wdrożeniu kompletu 148.

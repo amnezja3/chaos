@@ -397,6 +397,8 @@ class CreatorPaymentsTest(unittest.TestCase):
                     key = action + '-' + interface
                     contract = generate_contract(dict(name=key, icon='X', interface=interface,
                         action=action, creates_file=False), 100)
+                    if interface == 'button_choices':
+                        contract['options'] = [{'price': 0, 'effect': {}}]
                     product = run.build_creator_edition(dict(contract=contract,
                         presentation=dict(name=key, icon='X'), id=key,
                         app_id='creator_' + key, owner='victim'), 1)
@@ -414,6 +416,13 @@ class CreatorPaymentsTest(unittest.TestCase):
                         self.assertFalse(response.json['target']['actions_allowed'].get(action, False))
                         self.assertTrue(response.json['target']['security']['firewall'])
                         self.assertEqual(run.player_operation_store.list_operations('attacker'), [])
+                        if action == 'atm_logs':
+                            executed = self.client.post('/gonna-win', json=dict(app_id=product['id'],
+                                expected_target=target, launch_receipt='fileless-' + key,
+                                **({'choice_id': 0} if interface == 'button_choices' else {})))
+                            self.assertEqual(executed.status_code, 400, executed.json)
+                            self.assertIn('wyłączone tworzenie pliku', executed.json['message'])
+                            self.assertEqual(run.player_operation_store.list_operations('attacker'), [])
 
     def test_recipe_executors_produce_declared_files_without_heavy_profile(self):
         from creator_policy import generate_contract, RECIPES
@@ -453,6 +462,13 @@ class CreatorPaymentsTest(unittest.TestCase):
                         self.assertTrue(files, action)
                         resources = {resource for item in files for resource in item.get('resource_types', [])}
                         self.assertTrue(resources.intersection(recipe['resource_types']), (action, resources))
+                        if action == 'atm_logs':
+                            response = self.client.get('/api/ghostlab/file-manager/folders/atm')
+                            self.assertEqual(response.status_code, 200, response.json)
+                            self.assertTrue(response.json['files'])
+                            self.assertTrue(any(item.get('operation_id') == operation['operation_id']
+                                or item.get('source_operation_id') == operation['operation_id']
+                                for item in response.json['files']))
                     else:
                         self.assertEqual(files, [])
                     self.assertEqual(run.finalize_operation_files_bounded('attacker', operation), files)

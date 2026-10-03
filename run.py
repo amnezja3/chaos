@@ -10366,6 +10366,9 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
 
 
 def create_operations_for_app_action(profile, username, app, map_action_id, target):
+    from creator_policy import fileless_data_operation
+    if fileless_data_operation(app or {}):
+        return []
     normalized_app = normalize_app_contract(app or {})
     operation_types = [
         str(operation_type).strip()
@@ -22421,19 +22424,21 @@ def command():
             query = ''  # Built-in commands keep their meaning; run <ID> remains explicit.
         with db_connect(player_inventory_store.db_path) as conn:
             rows = conn.execute('''SELECT app_id, json_extract(app_json,'$.name') AS name FROM player_apps
-                WHERE username=? AND status!='uninstalled' LIMIT 1001''', (session['user'],)).fetchall()
+                WHERE username=? AND status='installed' LIMIT 1001''', (session['user'],)).fetchall()
             if len(rows) > 1000:
                 raise ProfileRecoveryRequired('Terminal application limit exceeded')
             matches = [r for r in rows if r['app_id'].casefold() == query.casefold()]
             matches = matches or [r for r in rows if str(r['name']).casefold() == query.casefold()]
             if len(matches) > 1:
                 return jsonify(response='Niejednoznaczna nazwa. Użyj run <ID>: ' + ', '.join(r['app_id'] for r in matches))
-            if matches and (matches[0]['app_id'].startswith('ghostlab_') or matches[0]['app_id'] == 'ghost_lab'):
+            if matches:
                 installed = conn.execute('SELECT app_json FROM player_apps WHERE username=? AND app_id=?',
                                          (session['user'],matches[0]['app_id'])).fetchone()
                 launch = json.loads(installed[0])
-                return jsonify(runApp=True, applicationId=launch['id'], applicationEffect=launch,
-                               consoleEffect='Uruchamianie aplikacji ' + launch['name'])
+                if (launch.get('creator_contract_version') or launch.get('creator_legacy_project')
+                        or launch['id'].startswith('ghostlab_') or launch['id'] == 'ghost_lab'):
+                    return jsonify(runApp=True, applicationId=launch['id'], applicationEffect=launch,
+                                   consoleEffect='Uruchamianie aplikacji ' + launch['name'])
     flow_id = request.headers.get("X-Hack-Flow-Id", "")
     skip_map_runtime = bool(
         data.get("skip_map_runtime")
@@ -30510,13 +30515,15 @@ def _gonna_win_runtime():
 
     # Validate the choice before marking an action or starting an operation.
     # Power comes from the installed immutable edition, not current author LVL.
-    from creator_policy import runtime_effect
+    from creator_policy import runtime_effect, fileless_data_operation
     try:
         if app.get('creator_contract_version'):
             creator_targets = (app.get('creator_contract') or {}).get('target_types') or []
             if infer_target_type_from_target(aimed) not in creator_targets:
                 raise ValueError('To narzedzie nie obsluguje wybranego typu celu.')
         creator_effect = runtime_effect(app, target_sec, choice_id, operation_only=operation_only)
+        if fileless_data_operation(app) and not creator_effect:
+            raise ValueError('To narzędzie ma wyłączone tworzenie pliku. Operacja zbierania danych nie zostanie uruchomiona.')
     except (ValueError, TypeError, KeyError, IndexError) as exc:
         payload = {"success": False, "reason": "invalid_creator_contract", "message": str(exc)}
         finish_gonna_win_receipt(payload, status_code=400, status=AppActionReceiptStore.STATUS_FAILED)

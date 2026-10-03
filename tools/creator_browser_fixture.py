@@ -1,4 +1,4 @@
-"""Isolated component host for Playwright; no production writes. Port 8878."""
+"""Isolated component host for Playwright; no production writes. Port 8989."""
 import json
 import os
 import sys
@@ -27,8 +27,13 @@ project_id = adopt(fixture.store, [app], ['attacker'], apply=True)[0]['project_i
 fixture.inventory.install_app('attacker', app, purchase_key='browser-original')
 source = (root / 'static/js/terminal.js').read_text(encoding='utf-8')
 base = source[source.index('function creatorBaseWindow('):source.index('function wireCreatorSubmit(')]
+base += source[source.index('const SYSTEM_ICON_LIBRARY ='):source.index('];', source.index('const SYSTEM_ICON_LIBRARY =')) + 2]
+base += source[source.index('function insertIconAtCursor('):source.index('function creatorBaseWindow(')]
+base += source[source.index('function showGhostDecisionDialog('):source.index('async function handleTerminalTeleport(')]
+base += source[source.index('function escapeHTML('):source.index('function sanitizeToastHTML(')]
 html = '''<!doctype html><meta charset="utf-8"><title>148 legacy editor fixture</title>
 <link rel="stylesheet" href="/static/css/creator_editor.css">
+<link rel="stylesheet" href="/static/css/style.css">
 <style>body{background:#001009;color:#cfc}.terminal{position:absolute;overflow:auto}
 .creator-workspace{height:90%;overflow:auto}input,textarea{background:#021;color:#cfc}</style>
 <script>function findAvailablePosition(){return {top:5,left:5}}function makeDraggable(){}
@@ -42,7 +47,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.split('?')[0] == '/':
             code, body, content_type = 200, html.encode(), 'text/html; charset=utf-8'
         elif self.path.startswith('/static/'):
-            path = root / self.path.lstrip('/')
+            path = root / self.path.split('?')[0].lstrip('/')
             code, body, content_type = 200, path.read_bytes(), 'text/css' if path.suffix == '.css' else 'application/javascript'
         else:
             raw = self.rfile.read(int(self.headers.get('Content-Length', '0')))
@@ -57,8 +62,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    server = HTTPServer(('127.0.0.1', 8878), Handler)
-    print('READY 148 LEGACY http://127.0.0.1:8878', flush=True)
+    server = HTTPServer(('127.0.0.1', 8989), Handler)
+    print('READY 148 LEGACY http://127.0.0.1:8989', flush=True)
     try:
         server.serve_forever()
     finally:

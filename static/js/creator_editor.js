@@ -1,5 +1,6 @@
 /* Creator projects: system-owned mechanics, editable presentation. */
 window.CreatorEditor = (() => {
+    const actionIcons = {exploit: '💥', scan_ports: '🛠️', trace: '📍', trace_gps: '📍', trace_device: '📡', scan_hotspots: '📶', camera_stream: '🎥', camera_shutdown: '❌', install_sniffer: '🐛', sniff: '📡', mic_sniff: '🎙️', atm_logs: '📊', audio_hack: '🔊', car_hack: '🚗'};
     const names = {terminal: 'TermCreator', window: 'WindowMaker', button_choices: 'ButtonMaker', progressbar_random: 'AppForge'};
     const labels = {exploit: 'Exploit', scan_ports: 'Skan portów', trace: 'Śledzenie', trace_gps: 'GPS pojazdu', trace_device: 'Śledzenie urządzenia', scan_hotspots: 'Hotspoty', camera_stream: 'Obraz kamery', camera_shutdown: 'Wyłączenie kamery', install_sniffer: 'Instalacja sniffera', sniff: 'Sniffer', mic_sniff: 'Podsłuch', atm_logs: 'Logi bankomatu', audio_hack: 'Zakłócenie audio', car_hack: 'System pojazdu'};
     async function api(path, method = 'GET', body) {
@@ -29,15 +30,12 @@ window.CreatorEditor = (() => {
         const form = term.querySelector('form');
         let project = null, dirty = false, busy = false;
         const close = term.querySelector('.close-btn');
-        close.addEventListener('click', event => {
-            if (busy || (dirty && !confirm('Odrzucić niezapisane zmiany?'))) { event.stopImmediatePropagation(); }
+        const discard = () => showGhostDecisionDialog({title: 'KREATOR', message: 'Odrzucić niezapisane zmiany?', confirmLabel: 'ODRZUĆ', cancelLabel: 'WRÓĆ DO EDYCJI'});
+        close.addEventListener('click', async event => {
+            if (!busy && !dirty) return;
+            event.stopImmediatePropagation();
+            if (!busy && await discard()) term.remove();
         }, true);
-        const beforeUnload = event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } };
-        window.addEventListener('beforeunload', beforeUnload);
-        const observer = new MutationObserver(() => {
-            if (!term.isConnected) { window.removeEventListener('beforeunload', beforeUnload); observer.disconnect(); }
-        });
-        observer.observe(document.body, {childList: true});
         form.addEventListener('input', () => { dirty = true; });
         form.addEventListener('submit', event => event.preventDefault());
         let status;
@@ -54,7 +52,7 @@ window.CreatorEditor = (() => {
             const enabled = controls.filter(el => !el.disabled);
             enabled.forEach(el => { el.disabled = true; });
             try { await work(); } catch (error) { status.textContent = error.message; }
-            finally { busy = false; term.removeAttribute('aria-busy'); enabled.forEach(el => { el.disabled = false; }); }
+            finally { busy = false; term.removeAttribute('aria-busy'); enabled.forEach(el => { el.disabled = el.dataset.unavailable === 'true'; }); }
         }
         function button(text, work, parent = form) {
             const el = node('button', text, parent); el.type = 'button';
@@ -67,21 +65,48 @@ window.CreatorEditor = (() => {
             if (multiline) input.rows = 4;
             return input;
         }
+        function iconField(value) {
+            const group = node('div', undefined, form);
+            group.className = 'appforge-icon-row';
+            const input = field('Ikona — jeden znak lub emoji', value, false, group);
+            input.name = 'icon'; input.maxLength = 16;
+            node('span', value, group).className = 'appforge-icon-preview';
+            setupIconPicker(form, value);
+            input.addEventListener('input', () => {
+                input.value = creatorIconGraphemes(input.value).slice(0, 1).join('');
+                group.querySelector('.appforge-icon-preview').textContent = validateCreatorIcon(input, value);
+            });
+            return input;
+        }
         function lines(input) { return input.value.split('\n').map(s => s.trim()).filter(Boolean); }
         async function home() {
             reset('Nowe narzędzie'); dirty = false;
             const name = field('Nazwa', ''); name.maxLength = 80;
-            const icon = field('Ikona', '🛠️'); icon.maxLength = 16;
-            const label = node('label', 'Akcja na mapie', form);
-            const select = node('select', undefined, label);
-            Object.keys(policy.recipes).forEach(key => { const option = node('option', labels[key] || key, select); option.value = key; });
-            const creates = field('Tworzy plik'); creates.type = 'checkbox';
-            const fileState = () => { creates.disabled = !policy.recipes[select.value].resource_types.length; if (creates.disabled) creates.checked = false; };
-            select.addEventListener('change', fileState); fileState();
+            const icon = iconField('🛠️');
+            node('p', 'Przeznaczenie — akcja na mapie', form);
+            const choices = node('div', undefined, form); choices.className = 'creator-v2-choices';
+            let selected = Object.keys(policy.recipes)[0], createsFile = false;
+            const actionButtons = Object.keys(policy.recipes).map(key => {
+                const el = button(`${actionIcons[key] || ''} ${labels[key] || key}`, () => { selected = key; dirty = true; refresh(); }, choices);
+                el.dataset.action = key; return el;
+            });
+            const file = button('Tworzy plik', () => { createsFile = !createsFile; dirty = true; refresh(); });
+            const fileNote = node('p', '', form);
+            function refresh() {
+                actionButtons.forEach(el => el.setAttribute('aria-pressed', String(el.dataset.action === selected)));
+                const resources = policy.recipes[selected].resource_types;
+                file.disabled = !resources.length;
+                file.dataset.unavailable = String(file.disabled);
+                if (file.disabled) createsFile = false;
+                file.setAttribute('aria-pressed', String(createsFile));
+                file.textContent = `${actionIcons[selected] || '📄'} Tworzy plik: ` + (createsFile ? 'TAK' : 'NIE');
+                fileNote.textContent = createsFile ? 'Plik powstanie po skutecznym zakończeniu operacji.' : 'To narzędzie nie zapisuje pliku.';
+            }
+            refresh();
             // Retain the request identity and payload after a lost response: no second roll.
             let pending;
             button('Generuj narzędzie', async () => {
-                pending ||= {name: name.value, icon: icon.value, action: select.value, creates_file: creates.checked, interface: kind, request_id: crypto.randomUUID()};
+                pending ||= {name: name.value, icon: icon.value, action: selected, creates_file: createsFile, interface: kind, request_id: crypto.randomUUID()};
                 try { project = (await api('projects', 'POST', pending)).project; }
                 catch (error) { if (error.status >= 400 && error.status < 500) pending = undefined; throw error; }
                 dirty = false; edit();
@@ -91,7 +116,7 @@ window.CreatorEditor = (() => {
             async function page(after = '') {
                 const data = await api('projects' + (after ? '?after=' + encodeURIComponent(after) : ''));
                 data.projects.filter(p => p.interface === kind).forEach(p => button(`${p.icon} ${p.name} · v${p.version}`, async () => {
-                    if (dirty && !confirm('Odrzucić niezapisane zmiany?')) return;
+                    if (dirty && !await discard()) return;
                     project = (await api('projects/' + encodeURIComponent(p.id))).project; dirty = false; edit();
                 }, list));
                 if (data.next_cursor) { const more = button('Więcej projektów', async () => { more.remove(); await page(data.next_cursor); }, list); }
@@ -103,8 +128,13 @@ window.CreatorEditor = (() => {
             reset('Interfejs i publikacja');
             const c = project.contract, p = project.presentation;
             node('p', c.legacy ? `Projekt historyczny · oryginalna mechanika · wersja ${project.version}` : `Moc: ${c.power}% · maksimum przy generacji: ${c.power_cap}% · ${labels[c.action] || c.action} · wersja ${project.version}`, form);
+            if (!c.legacy) {
+                const fileSummary = node('p', `${actionIcons[c.action] || '📄'} Tworzy plik: ${c.creates_file ? 'TAK — po zakończeniu operacji' : 'NIE'}`, form);
+                fileSummary.className = 'creator-file-summary';
+                fileSummary.dataset.createsFile = String(c.creates_file);
+            }
             const name = field('Nazwa', p.name); name.maxLength = 80;
-            const icon = field('Ikona', p.icon); icon.maxLength = 16;
+            const icon = iconField(p.icon);
             const title = field('Tytuł interfejsu', p.title || p.name);
             const description = field('Opis w Googleplexie', p.description || '', true);
             const price = field('Cena zakupu HC (0 = Open Source)', c.price); price.type = 'number'; price.min = '0'; price.step = '1'; price.disabled = !!project.version;
@@ -123,7 +153,7 @@ window.CreatorEditor = (() => {
                 buttons = field('Przyciski — jeden na linię', (p.button_labels || ['Uruchom']).join('\n'), true);
             } else if (kind === 'button_choices') {
                 prompt = field('Prompt', p.prompt || '', true);
-                node('p', c.legacy ? 'Historyczne efekty i ceny pozostają bez zmian. Możesz edytować etykiety i komunikaty.' : `Effect działa od LVL ${policy.effect_min_level}. ${policy.effect_enabled ? 'Możesz użyć zatwierdzonych efektów, np. security.clear.' : 'Na Twoim poziomie wpisany effect nie zmieni działania.'}`, form);
+                node('p', c.legacy ? 'Historyczne efekty i ceny pozostają bez zmian. Możesz edytować etykiety i komunikaty.' : `Effect działa od LVL ${policy.effect_min_level}. ${policy.effect_enabled ? 'Możesz użyć zatwierdzonych przypisań, np. firewall=false.' : 'Na Twoim poziomie wpisany effect nie zmieni działania.'}`, form);
                 const add = (label = 'Wykonaj', option = {}) => {
                     const group = node('fieldset', undefined, list);
                     const effectText = Object.entries(option.effect || {}).map(([key, value]) => `${key}=${value}`).join(',');
@@ -174,14 +204,14 @@ window.CreatorEditor = (() => {
                 preview.textContent = [view.title, view.description, view.prompt, ...(view.logs || view.steps || view.option_labels || []), ...(view.commands || []).flatMap(cmd => ['$ ' + cmd.command, ...cmd.logs]), view.result_success, view.result_failure].filter(Boolean).join('\n');
             });
             button('Odczytaj zapisany projekt', async () => {
-                if (dirty && !confirm('Odrzucić niezapisane zmiany?')) return;
+                if (dirty && !await discard()) return;
                 project = (await api('projects/' + encodeURIComponent(project.id))).project; dirty = false; edit();
             });
-            button('Lista projektów', async () => { if (!dirty || confirm('Odrzucić niezapisane zmiany?')) await home(); });
+            button('Lista projektów', async () => { if (!dirty || await discard()) await home(); });
             node('p', project.version ? 'Mechanika, efekty i ceny opublikowanej aplikacji są zablokowane.' : 'Po pierwszej publikacji mechanika i ceny zostaną zablokowane.', form);
         }
         term.addEventListener('creator:open', event => action(async () => {
-            if (dirty && !confirm('Odrzucić niezapisane zmiany?')) return;
+            if (dirty && !await discard()) return;
             project = (await api('projects/' + encodeURIComponent(event.detail))).project;
             dirty = false; edit();
         }));

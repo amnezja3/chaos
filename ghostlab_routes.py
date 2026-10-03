@@ -82,6 +82,22 @@ def register(app, services):
             storage_capacity=storage['capacity'], storage_used=storage['used'], storage_unit=storage['unit'],
             storage_over_limit=storage['used'] > storage['capacity'])
 
+    @app.get('/api/ghostlab/file-manager/folders/<folder>')
+    def gameplay_folder(folder):
+        from database import db_connect
+        owner = actor()
+        allowed = {'gps', 'device', 'audio', 'camera', 'atm', 'credentials',
+                   'financial', 'personal', 'network', 'vehicle'}
+        if folder not in allowed:
+            raise GhostLabError('invalid_folder', 'Nieznany katalog.', 404)
+        with db_connect(service('player_inventory_store').db_path) as conn:
+            rows = conn.execute('''SELECT file_json FROM player_data_files
+                WHERE username=? AND folder=? ORDER BY created_at,file_id LIMIT 1001''',
+                (owner, folder)).fetchall()
+        if len(rows) > 1000:
+            raise GhostLabError('inventory_limit', 'Katalog przekracza limit widoku.')
+        return jsonify(files=[json.loads(row[0]) for row in rows])
+
     @app.get('/api/ghostlab/documents')
     def ghostlab_documents():
         return jsonify(success=True, files=service('document_store').files(actor()))

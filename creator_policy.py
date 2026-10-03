@@ -86,6 +86,13 @@ RECIPES = {
 }
 
 
+def fileless_data_operation(app):
+    contract = app.get('creator_contract') or {}
+    return bool(app.get('creator_contract_version') and contract.get('creates_file') is False
+                and contract.get('action') in {'trace', 'trace_gps', 'trace_device', 'scan_hotspots',
+                    'install_sniffer', 'sniff', 'mic_sniff', 'atm_logs'})
+
+
 def power_cap(level):
     if type(level) is not int or level < 1:
         raise ValueError('Brak prawidlowego poziomu autora.')

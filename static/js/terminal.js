@@ -16886,6 +16886,13 @@ async function createFileManager(options = {}) {
             if (!response.ok) { addSystemMessage('warning', 'Projekty', data.message); return; }
             if (!container.isConnected || state?.currentFolder !== folderName) return;
             files.projects = data.files || [];
+            state.creatorProjectMetadata = data.metadata || {};
+        } else if (['gps', 'device', 'audio', 'camera', 'atm', 'credentials', 'financial', 'personal', 'network', 'vehicle'].includes(folderName)) {
+            const response = await fetch(`/api/ghostlab/file-manager/folders/${encodeURIComponent(folderName)}`, {cache: 'no-store'});
+            const data = await response.json();
+            if (!response.ok) { addSystemMessage('warning', 'Pliki', data.message); return; }
+            if (!container.isConnected || state?.currentFolder !== folderName) return;
+            files[folderName] = data.files || [];
         } else if (!['tools', 'about', 'tips-tricks'].includes(folderName)) {
             // Creator and gameplay folders retain their existing representation until their cutover.
             const legacy = await getUserProfile();
@@ -16982,12 +16989,13 @@ async function createFileManager(options = {}) {
                     <span class="file-manager-name">${escapeHTML(filename)}</span>
                     <small>Terminal: open ${escapeHTML(fileEntry.id)}.${folderName === 'ghostlab' ? 'lab' : 'ptk'}</small></button></div>`;
             } else if (folderName === "projects") {
+                const projectMeta = state.creatorProjectMetadata?.[filename] || {};
                 list += `
                     <div class="file-manager-row file-manager-row-dark">
-                        <span class="file-manager-file" onclick="window.runFile('${folderName}','${filename}')">
-                            <span class="file-manager-icon">${fileManagerUiIcons.project}</span>
-                            <span class="file-manager-name">${filename}</span>
-                            <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.removeProjectFromGoogleplex('${filename}')">
+                        <span class="file-manager-file" onclick="window.runFile('${folderName}',decodeURIComponent('${encodeURIComponent(filename).replace(/'/g, '%27')}'))">
+                            <span class="file-manager-icon">${escapeHTML(projectMeta.icon || fileManagerUiIcons.project)}</span>
+                            <span class="file-manager-name">${escapeHTML(projectMeta.name || filename)}</span>
+                            <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.removeProjectFromGoogleplex(decodeURIComponent('${encodeURIComponent(filename).replace(/'/g, '%27')}'))">
                                 Wycofaj
                             </button>
                         </span>

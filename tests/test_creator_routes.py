@@ -53,10 +53,24 @@ class CreatorRoutesTest(unittest.TestCase):
             self.assertEqual(updated.json['app']['creator_contract'],original['creator_contract'])
             self.assertEqual(len(self.store.catalog()),1)
             self.assertIn(original['project_file'],self.client.get('/api/creators/files').json['files'])
+            metadata = self.client.get('/api/creators/files').json['metadata'][original['project_file']]
+            self.assertEqual(metadata, {'name': 'Creator test.sh', 'icon': 'X'})
             with self.client.session_transaction() as session:
                 session['user']='intruder'
             # Store ownership separately, session-generation middleware also guards the HTTP request.
             self.assertEqual(self.store.list('intruder'),[])
+
+    def test_creator_command_launch_does_not_hydrate_profile(self):
+        data = self.prepare()
+        project = self.client.post('/api/creators/projects', json=data).json['project']
+        product = self.client.post('/api/creators/projects/' + project['id'] + '/publish',
+                                  json={'revision': 1}).json['app']
+        self.inventory.install_app('attacker', product, purchase_key='launch-regression')
+        with self.no_heavy(), patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy launcher')):
+            for source, command in [('terminal', 'run "Creator test"'), ('launch_queue', 'Creator test')]:
+                response = self.client.post('/command', json={'input': command, 'source': source})
+                self.assertEqual(response.status_code, 200, response.json)
+                self.assertEqual(response.json['applicationId'], product['id'])
 
     def test_flag_disables_old_payload_and_invalid_new_inputs(self):
         data=self.prepare()

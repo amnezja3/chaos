@@ -9,8 +9,14 @@
 .creator-v2 input[type=checkbox] { align-self: flex-start; width: 20px; height: 20px; }
 .creator-v2 textarea { resize: vertical; overscroll-behavior: auto; touch-action: auto; }
 .creator-v2 button { cursor: pointer; margin: 3px; }
-.creator-v2 button:hover, .creator-v2 button:focus-visible { border-color: #70ed88; background: #153b22; }
+.creator-v2 .appforge-form button:hover, .creator-v2 .appforge-form button:focus-visible { color: #effff2 !important; border-color: #70ed88; background: #153b22; }
 .creator-v2 :disabled { opacity: .6; cursor: default; }
 .creator-v2 fieldset { min-width: 0; border: 1px solid #294d34; margin: 8px 0; }
 .creator-v2-preview { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 @media (max-width: 650px) { .creator-v2 { left: 8px !important; top: 8px !important; } }
+
+.creator-v2-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.creator-v2 .appforge-form button[aria-pressed=true] { color: #effff2; background: #204b29; border-color: #92ff77; box-shadow: inset 3px 0 #92ff77; }
+.creator-v2 .appforge-icon-row { position: relative; }
+.creator-v2 .appforge-icon-picker { position: static; max-height: 180px; overflow: auto; }
+.creator-v2 .appforge-icon-picker[hidden] { display: none; }

@@ -188,6 +188,16 @@ class CreatorStore:
                 "SELECT COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh') FROM creator_projects WHERE owner=? ORDER BY id LIMIT ?",
                 (owner, config.CREATOR_MAX_PROJECTS))]
 
+    def project_file_metadata(self, owner):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute("""SELECT
+                COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh') AS filename,
+                json_extract(project_json,'$.presentation.name') AS name,
+                json_extract(project_json,'$.presentation.icon') AS icon
+                FROM creator_projects WHERE owner=? ORDER BY id LIMIT ?""",
+                (owner, config.CREATOR_MAX_PROJECTS)).fetchall()
+        return {row['filename']: {'name': row['name'] + '.sh', 'icon': row['icon']} for row in rows}
+
     def withdraw(self, owner, project_file, legacy=None):
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')

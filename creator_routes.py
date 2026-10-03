@@ -102,7 +102,10 @@ def register(app, services):
                  and item.get('project_file') and item.get('published', True) and not item.get('ghostlab_generated')}
         files.update(store().files(owner()))
         files.update(store().project_files(owner()))
-        return jsonify(success=True, files=sorted(files))
+        metadata = {item['project_file']: {'name': item.get('name', '') + '.sh', 'icon': item.get('icon', '')}
+                    for item in catalog if item.get('creator_username') == owner() and item.get('project_file')}
+        metadata.update(store().project_file_metadata(owner()))
+        return jsonify(success=True, files=sorted(files), metadata=metadata)
 
     @app.get('/api/creators/projects')
     @guard
