@@ -412,6 +412,8 @@ class CreatorPaymentsTest(unittest.TestCase):
                         response = self.client.post('/hack-action', json=dict(target,
                             action=action, selected_app_id=product['id'], _client_action_key=key))
                         self.assertEqual(response.status_code, 200, response.json)
+                        self.assertEqual(response.json['applicationEffect']['id'], product['id'])
+                        self.assertEqual(response.json['applicationEffect']['levels'], product['levels'])
                         self.assertEqual(response.json['created_operations'], [])
                         self.assertFalse(response.json['target']['actions_allowed'].get(action, False))
                         self.assertTrue(response.json['target']['security']['firewall'])

@@ -61,6 +61,16 @@ marker.getElement = () => null;
 assert.strictEqual(sandbox.renderMotorcycleMarkerVisual("down"), true);
 assert.strictEqual(iconReplacements, 1, "missing Leaflet DOM may be repaired with one canonical icon mount");
 
+sandbox.window.avatarBikeDirection = 'left';
+for (const travel of [{animating: true}, {queue: [{}]}, {travelPhoneVisible: true}]) {
+    sandbox.window.motorcycleTravelState = travel;
+    sandbox.updateAvatarDirection({lat: 53, lng: 21});
+    assert.strictEqual(sandbox.window.avatarBikeDirection, 'left', 'cursor must not steer active travel');
+}
+sandbox.window.motorcycleTravelState = {animating: false, queue: [], travelPhoneVisible: false};
+sandbox.updateAvatarDirection({lat: 53, lng: 21});
+assert.strictEqual(sandbox.window.avatarBikeDirection, 'up', 'cursor steering returns when parked');
+
 const movementStart = source.indexOf("function updateAvatarDirection");
 const movementEnd = source.indexOf("function addLiveMarker", movementStart);
 const movementSource = source.slice(movementStart, movementEnd);

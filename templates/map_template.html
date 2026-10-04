@@ -7476,6 +7476,8 @@
         }
 
         function updateAvatarDirection(targetLatLng) {
+            const travel = window.motorcycleTravelState;
+            if (travel && (travel.animating || travel.queue?.length || travel.travelPhoneVisible)) return;
             const marker = window.avatarMarkerRef;
             if (!marker || !targetLatLng) return;
             const current = marker.getLatLng();
@@ -7511,10 +7513,9 @@
                     const newLat = from.lat + deltaLat * step;
                     const newLng = from.lng + deltaLng * step;
                     marker.setLatLng([newLat, newLng]);
-                    const direction = getBikeDirection(
-                        { lat: newLat, lng: newLng },
-                        to
-                    );
+                    // A straight travel segment keeps its heading through arrival.
+                    // Recomputing at the destination yields a zero vector ("right").
+                    const direction = initialDirection;
                     if (window.avatarBikeDirection !== direction) {
                         window.avatarBikeDirection = direction;
                         renderMotorcycleMarkerVisual(direction);

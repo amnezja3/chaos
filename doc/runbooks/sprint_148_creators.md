@@ -1,5 +1,24 @@
 # Sprint 148 — stan przygotowania
 
+## Odbiór ATM i poprawki pickera — 4 X
+
+Użytkownik potwierdził plik ATM, kompletowanie paczek i sprzedaż 42 MB za 414 HC.
+Ta ścieżka gameplayowa ma PASS; nie oznacza to odbioru wszystkich kreatorów.
+
+Pole ikony i przycisk palety mają po 44×44 px, w jednym rzędzie. Playwright
+potwierdził układ przy 390 px oraz wybór ikony z pakietu.
+
+Dla nowych kreatorów odpowiedź wyboru narzędzia zawiera kanoniczną zainstalowaną
+definicję aplikacji. Picker buduje interfejs bez oczekiwania na cykliczną kolejkę
+i dodatkowe /command. Spóźniona kolejka lub powtórzona odpowiedź nie budują okna
+ponownie, a status booting nie nadpisuje zakończonego przekazania.
+
+Macierz backendu (52 kombinacje akcji/interfejsów) oraz bezprofilowy launcher
+przeszły testy. Test JS sprawdza ponowienia i zamknięte okno. Playwright sprawdził
+przekazanie do rzeczywistego renderera app_window w izolowanym komponencie
+z zastąpioną obsługą okien: tytuł, logi i przycisk powstają raz i pozostają
+po spóźnionej odpowiedzi kolejki. Pełna ścieżka mapy na produkcji wymaga odbioru.
+
 ## Poprawki po pierwszym odbiorze produkcyjnym — 3 X
 
 - Migracja produkcyjna: 13 `adopted`, ponowny odczyt 13 `already_adopted`.

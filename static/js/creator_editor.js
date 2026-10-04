@@ -66,6 +66,7 @@ window.CreatorEditor = (() => {
             return input;
         }
         function iconField(value) {
+            node('p', 'Ikona — jeden znak lub emoji', form);
             const group = node('div', undefined, form);
             group.className = 'appforge-icon-row';
             const input = field('Ikona — jeden znak lub emoji', value, false, group);

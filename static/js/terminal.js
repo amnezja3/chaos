@@ -1898,6 +1898,7 @@ function buildProvisionalLaunchSessionKey(selection = {}, appData = {}) {
 
 function updateProvisionalApplicationSession(session, state, message = "") {
     if (!session || session.disposed) return;
+    if (session.runtimeHydrated && ['launching', 'booting'].includes(state)) return;
     session.state = state;
     const appWindow = session.appWindow;
     if (!appWindow || !appWindow.isConnected) return;
@@ -2578,11 +2579,15 @@ function finishApplicationRenderWindow(app, hydrated) {
 
 function hydrateProvisionalApplicationSession(session, appData, item = {}) {
     if (!session || session.disposed || !session.appWindow?.isConnected) return "tombstoned";
+    if (session.runtimeHydrated) return "hydrated";
     bindProvisionalApplicationReceipt(session, item);
     activeProvisionalHydrationSession = session;
     try {
         launchApplicationEffect(appData);
-        if (activeProvisionalHydrationSession === session) activeProvisionalHydrationSession = null;
+        if (activeProvisionalHydrationSession === session) {
+            throw new Error('Nie utworzono interfejsu aplikacji.');
+        }
+        session.runtimeHydrated = true;
         return "hydrated";
     } catch (error) {
         activeProvisionalHydrationSession = null;
@@ -2590,6 +2595,26 @@ function hydrateProvisionalApplicationSession(session, appData, item = {}) {
         console.error("[app launch] Hydration failed", error);
         return "failed";
     }
+}
+
+function launchConfirmedPickerApplication(data, session, app, flowId) {
+    const product = data.applicationEffect;
+    if (!product || product.id !== app.id || !product.creator_contract_version) return false;
+    const raw = (data.added_apps || []).find(item => (item.app_id || item.id || item.name) === app.id);
+    if (!raw) return false;
+    const item = normalizeLaunchQueueItem(raw);
+    if (data.target) updateToolbarAimedTarget(data.target);
+    const payload = {...product, _flow_id: flowId, _source: 'launch_queue',
+        _launch_receipt: item.receipt, _launch_key: item.receipt,
+        _map_action_id: item.action, _client_action_key: item.client_action_key};
+    if (session) {
+        const outcome = hydrateProvisionalApplicationSession(session, payload, item);
+        if (outcome === 'failed') return false;
+        shouldSkipLaunchQueueReceipt(item.receipt, item);
+        return true;
+    }
+    if (!shouldSkipLaunchQueueReceipt(item.receipt, item)) launchApplicationEffect(payload);
+    return true;
 }
 
 function resolveApplicationFeedbackAction(appData = {}) {
@@ -16298,6 +16323,7 @@ async function selectMapActionTool(appId) {
             return;
         }
         if (data.duplicate) {
+            launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
             updateProvisionalApplicationSession(
                 provisionalSession,
                 "booting",
@@ -16329,6 +16355,7 @@ async function selectMapActionTool(appId) {
                 actions_allowed: data.target.actions_allowed || null
             });
         }
+        launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
         addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
         if (typeof notifyOpenMapsOperationsChanged === "function") {
             await notifyOpenMapsOperationsChanged();

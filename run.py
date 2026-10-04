@@ -25188,6 +25188,7 @@ def hack_action():
 
     response_payload = {
         "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
+        "applicationEffect": matched_apps[0] if defer_creator_execution else None,
         "target": profile["aimed_target"],
         "added_apps": new_apps,
         "created_operations": accepted_created_operations,
