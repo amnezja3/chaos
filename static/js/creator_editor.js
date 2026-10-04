@@ -2,7 +2,21 @@
 window.CreatorEditor = (() => {
     const actionIcons = {exploit: '💥', scan_ports: '🛠️', trace: '📍', trace_gps: '📍', trace_device: '📡', scan_hotspots: '📶', camera_stream: '🎥', camera_shutdown: '❌', install_sniffer: '🐛', sniff: '📡', mic_sniff: '🎙️', atm_logs: '📊', audio_hack: '🔊', car_hack: '🚗'};
     const names = {terminal: 'TermCreator', window: 'WindowMaker', button_choices: 'ButtonMaker', progressbar_random: 'AppForge'};
-    const labels = {exploit: 'Exploit', scan_ports: 'Skan portów', trace: 'Śledzenie', trace_gps: 'GPS pojazdu', trace_device: 'Śledzenie urządzenia', scan_hotspots: 'Hotspoty', camera_stream: 'Obraz kamery', camera_shutdown: 'Wyłączenie kamery', install_sniffer: 'Instalacja sniffera', sniff: 'Sniffer', mic_sniff: 'Podsłuch', atm_logs: 'Logi bankomatu', audio_hack: 'Zakłócenie audio', car_hack: 'System pojazdu'};
+    const labels = {exploit: 'Zainstaluj exploit', scan_ports: 'Przeskanuj porty', trace: 'Namierz cel', trace_gps: 'Śledź GPS', trace_device: 'Śledź urządzenie', scan_hotspots: 'Wykryj hotspoty', camera_stream: 'Podgląd obrazu', camera_shutdown: 'Wyłącz kamerę', install_sniffer: 'Zainstaluj sniffer', sniff: 'Śledź ruch', mic_sniff: 'Podsłuchuj rozmowę', atm_logs: 'Przejmij logi transakcji', audio_hack: 'Przejmij odtwarzacz audio', car_hack: 'Przejmij system pokładowy'};
+    const mapObjects = {
+        exploit: 'Sklepy, parkingi i inne obiekty ogólne',
+        scan_ports: 'Sklepy, parkingi i inne obiekty ogólne',
+        trace: 'Sklepy, parkingi i inne obiekty ogólne',
+        sniff: 'Sklepy, parkingi i inne obiekty ogólne',
+        trace_gps: 'Samochody', car_hack: 'Samochody',
+        trace_device: 'Osoby — klienci, goście, osoby przy bankomacie',
+        mic_sniff: 'Osoby — klienci, goście, osoby przy bankomacie',
+        scan_hotspots: 'Restauracje, kawiarnie, bary i fast food',
+        audio_hack: 'Restauracje, kawiarnie, bary i fast food',
+        camera_stream: 'Kamery sklepów i bankomatów',
+        camera_shutdown: 'Kamery sklepów i bankomatów',
+        atm_logs: 'Bankomaty', install_sniffer: 'Bankomaty'
+    };
     async function api(path, method = 'GET', body) {
         const response = await fetch('/api/creators/' + path, {method, cache: 'no-store', headers: {'Content-Type': 'application/json'}, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
         const data = await response.json();
@@ -94,17 +108,23 @@ window.CreatorEditor = (() => {
             const actionButtons = Object.keys(policy.recipes).map(key => {
                 const el = button('', () => { selected = key; dirty = true; refresh(); }, choices);
                 node('span', actionIcons[key] || '◇', el).className = 'creator-action-icon';
-                node('span', labels[key] || key, el).className = 'creator-action-label';
-                el.title = labels[key] || key;
+                const caption = node('span', undefined, el); caption.className = 'creator-action-caption';
+                node('span', labels[key] || key, caption).className = 'creator-action-label';
+                node('small', mapObjects[key] || '', caption).className = 'creator-action-objects';
+                el.title = `${labels[key] || key} — ${mapObjects[key] || ''}`;
                 node('span', '›', el).className = 'creator-action-arrow';
                 el.dataset.action = key; return el;
             });
+            const selection = node('p', '', form);
+            selection.className = 'creator-action-selection';
+            selection.setAttribute('aria-live', 'polite');
             const file = button('Tworzy plik', () => { createsFile = !createsFile; dirty = true; refresh(); });
             file.className = 'creator-v2-file-toggle';
             const fileNote = node('p', '', form);
             fileNote.className = 'creator-v2-file-note';
             function refresh() {
                 actionButtons.forEach(el => el.setAttribute('aria-pressed', String(el.dataset.action === selected)));
+                selection.textContent = `${actionIcons[selected]} ${labels[selected]} · Menu mapy: ${mapObjects[selected]}`;
                 const resources = policy.recipes[selected].resource_types;
                 const required = policy.recipes[selected].requires_file === true;
                 file.disabled = required || !resources.length;

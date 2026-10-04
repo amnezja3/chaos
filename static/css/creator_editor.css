@@ -47,6 +47,10 @@
 .creator-v2-choices button { display: grid; grid-template-columns: 42px 1fr 16px; align-items: center; gap: 10px; text-align: left; min-height: 44px; padding: 4px 12px 4px 0; }
 .creator-action-icon { text-align: center; font-size: 22px; border-right: 1px solid #006e634f; }
 .creator-action-arrow { color: #00e2dc; font-size: 24px; }
+.creator-action-caption { display: grid; min-width: 0; gap: 4px; }
+.creator-action-label, .creator-action-objects { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.creator-action-objects { color: #93c7d7; font-size: 11px; font-weight: normal; }
+.creator-action-selection { overflow-wrap: anywhere; }
 .creator-v2 .appforge-form button[aria-pressed=true] { background: linear-gradient(90deg, #216d3977, #004c2d99); border-color: #98ff8a; box-shadow: inset 4px 0 #98ff8a, 0 0 12px #75ff6520; }
 .creator-v2 .creator-v2-file-toggle { text-align: left; padding: 14px 18px; }
 .creator-v2-file-toggle::after { content: ''; float: right; width: 42px; height: 22px; border: 1px solid #00bda9; border-radius: 20px; background: radial-gradient(circle at 11px 50%, #6b92a8 0 8px, transparent 9px); }
