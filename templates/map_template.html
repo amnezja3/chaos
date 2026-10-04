@@ -5892,7 +5892,7 @@
 
             const safeLabel = window.escapeMapText ? window.escapeMapText(label) : label;
             const header = document.createElement('div');
-            header.innerHTML = `<strong>${iconEmoji} ${safeLabel}</strong>`;
+            header.innerHTML = `<strong>${String(label).startsWith(iconEmoji) ? '' : iconEmoji + ' '}${safeLabel}</strong>`;
             menu.appendChild(header);
 
             const separator = document.createElement('hr');
@@ -6019,7 +6019,7 @@
             const heading = document.createElement('button');
             heading.type = 'button';
             heading.className = 'context-menu-target-heading';
-            heading.innerHTML = `${safeIcon} ${safeLabel}`;
+            heading.innerHTML = `${String(label || '').startsWith(iconEmoji) ? '' : safeIcon + ' '}${safeLabel}`;
             heading.title = 'Ustaw jako aktywny cel';
             heading.addEventListener('click', (event) => {
                 event.preventDefault();

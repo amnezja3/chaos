@@ -102,7 +102,7 @@ class ScanMarkerCategoriesTest(unittest.TestCase):
                  ({'amenity': 'restaurant'}, 'Gość restauracji', ['trace_device', 'mic_sniff']),
                  ({'amenity': 'atm'}, 'Test', ['atm_logs', 'install_sniffer']),
                  ({'amenity': 'atm'}, 'Kamera bankomatu', ['camera_stream', 'camera_shutdown']),
-                 ({'amenity': 'parking'}, 'Auto: 🚘 Tesla', ['car_hack', 'trace_gps']),
+                 ({'amenity': 'parking'}, '🚘 Tesla', ['car_hack', 'trace_gps']),
                  ({'shop': 'books'}, 'Test', ['scan_ports', 'exploit', 'sniff', 'trace']),
                  ({'amenity': 'bicycle_parking'}, 'Stacja rowerowa', ['scan_ports', 'exploit', 'sniff', 'trace']),
                  ({'amenity': 'parcel_locker'}, 'Kuriero-bot', ['scan_ports', 'exploit', 'sniff', 'trace']),

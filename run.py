@@ -23730,7 +23730,7 @@ def map_action():
                         extra.append({
                             "lat": base_lat + dlat,
                             "lon": base_lng + dlng,
-                            "name": f"Auto: {b}",
+                            "name": b,
                             "icon": b.split()[0],
                             "source_type": "vehicle",
                             "generated": True
