@@ -94,7 +94,8 @@ window.CreatorEditor = (() => {
             const actionButtons = Object.keys(policy.recipes).map(key => {
                 const el = button('', () => { selected = key; dirty = true; refresh(); }, choices);
                 node('span', actionIcons[key] || '◇', el).className = 'creator-action-icon';
-                node('span', labels[key] || key, el);
+                node('span', labels[key] || key, el).className = 'creator-action-label';
+                el.title = labels[key] || key;
                 node('span', '›', el).className = 'creator-action-arrow';
                 el.dataset.action = key; return el;
             });

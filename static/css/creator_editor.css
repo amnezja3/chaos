@@ -66,7 +66,8 @@
     .creator-v2 .creator-v2-hero h3 { font-size: 22px; }
     .creator-v2 .creator-v2-emblem { flex-basis: 44px; height: 44px; font-size: 28px; }
     .creator-v2-choices { gap: 6px; }
-    .creator-v2-choices button { grid-template-columns: 28px 1fr; gap: 4px; padding-right: 4px; font-size: 12px; }
+    .creator-v2-choices button { grid-template-columns: 28px minmax(0, 1fr); min-width: 0; gap: 4px; padding-right: 4px; font-size: 12px; }
+    .creator-action-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .creator-action-arrow { display: none; }
     .creator-v2-projects { grid-template-columns: 1fr; }
 }

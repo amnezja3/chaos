@@ -8630,11 +8630,21 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
             status: response.status,
             elapsed_ms: Math.round(performance.now() - startedAt),
             success: Boolean(data.success),
+            reason: data.reason || data.error || '',
+            message: data.success ? '' : (data.message || ''),
             duplicate: Boolean(data.duplicate),
             idempotent_replay: Boolean(data.idempotent_replay),
             captured: Boolean(data.captured_target),
             created_operations: (data.created_operations || []).map(op => op && op.operation_id)
         });
+        if (!response.ok && response.status !== 409) {
+            console.warn('[gonna-win] Odrzucone wykonanie aplikacji', {
+                app_id: appId, choice_id: choiceId, flow_id: flowId,
+                http_status: response.status,
+                reason: data.reason || data.error || '',
+                message: data.message || ''
+            });
+        }
         if (response.status === 409) {
             console.warn('[gonna-win] Kontrolowany konflikt stanu', {
                 app_id: appId,
