@@ -67,6 +67,21 @@ def register(app, services):
             effect_min_level=config.CREATOR_EFFECT_MIN_LEVEL,
             effect_enabled=level >= config.CREATOR_EFFECT_MIN_LEVEL)
 
+    @app.get('/api/creators/installed/<app_id>/runtime')
+    @guard
+    def creator_installed_runtime(app_id):
+        import json
+        from database import db_connect
+        # Read the owner's installed snapshot, never the publication or full profile.
+        with db_connect(services['player_inventory_store'].db_path) as conn:
+            row = conn.execute(
+                "SELECT app_json FROM player_apps WHERE username=? AND app_id=? AND status='installed'",
+                (owner(), app_id)).fetchone()
+        if not row:
+            raise GhostLabError('not_installed', 'Brak zainstalowanej aplikacji.', 404)
+        product = json.loads(row[0])
+        return jsonify(success=True, applicationEffect=product)
+
     @app.route('/api/creators/installed/<app_id>', methods=['GET', 'POST'])
     @guard
     def creator_installed(app_id):

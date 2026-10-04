@@ -2597,19 +2597,34 @@ function hydrateProvisionalApplicationSession(session, appData, item = {}) {
     }
 }
 
-function launchConfirmedPickerApplication(data, session, app, flowId) {
-    const product = data.applicationEffect;
-    if (!product || product.id !== app.id || !product.creator_contract_version) return false;
+async function launchConfirmedPickerApplication(data, session, app, flowId) {
+    // System launchers have their own window lifecycle; keep their queue path.
+    if (app.interface && !['window', 'terminal', 'button_choices', 'progressbar_random'].includes(app.interface)) return false;
+    if (session?.disposed || session?.runtimeHydrated) return true;
+    let product = data.applicationEffect;
+    if (!product || product.id !== app.id || !Array.isArray(product.levels)) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+            const response = await fetch('/api/creators/installed/' + encodeURIComponent(app.id) + '/runtime',
+                {cache: 'no-store', signal: controller.signal});
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.message || 'Brak danych aplikacji.');
+            product = result.applicationEffect;
+        } finally { clearTimeout(timeout); }
+    }
+    if (!product || product.id !== app.id) throw new Error('Nieprawidlowy identyfikator aplikacji.');
     const raw = (data.added_apps || []).find(item => (item.app_id || item.id || item.name) === app.id);
-    if (!raw) return false;
-    const item = normalizeLaunchQueueItem(raw);
+    const item = raw ? normalizeLaunchQueueItem(raw) : {receipt: session?.receipt,
+        action: session?.action, client_action_key: session?.clientActionKey};
+    if (!item.receipt) throw new Error('Brak potwierdzenia uruchomienia aplikacji.');
     if (data.target) updateToolbarAimedTarget(data.target);
     const payload = {...product, _flow_id: flowId, _source: 'launch_queue',
         _launch_receipt: item.receipt, _launch_key: item.receipt,
         _map_action_id: item.action, _client_action_key: item.client_action_key};
     if (session) {
         const outcome = hydrateProvisionalApplicationSession(session, payload, item);
-        if (outcome === 'failed') return false;
+        if (outcome === 'failed') throw new Error('Nie utworzono interfejsu aplikacji.');
         shouldSkipLaunchQueueReceipt(item.receipt, item);
         return true;
     }
@@ -16323,7 +16338,7 @@ async function selectMapActionTool(appId) {
             return;
         }
         if (data.duplicate) {
-            launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
+            await launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
             updateProvisionalApplicationSession(
                 provisionalSession,
                 "booting",
@@ -16355,7 +16370,7 @@ async function selectMapActionTool(appId) {
                 actions_allowed: data.target.actions_allowed || null
             });
         }
-        launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
+        await launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
         addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
         if (typeof notifyOpenMapsOperationsChanged === "function") {
             await notifyOpenMapsOperationsChanged();
@@ -16372,7 +16387,7 @@ async function selectMapActionTool(appId) {
         updateProvisionalApplicationSession(
             provisionalSession,
             "failed",
-            "Blad polaczenia podczas uruchamiania aplikacji."
+            err?.name === 'AbortError' ? 'Przekroczono czas pobierania interfejsu.' : (err?.message || 'Blad uruchamiania aplikacji.')
         );
         hackFlowDebug(selection ? getHackFlowId(selection) : "", "desktop", "tool_picker_error", {
             message: err && err.message ? err.message : String(err)

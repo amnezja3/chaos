@@ -1,5 +1,25 @@
 # Sprint 148 — stan przygotowania
 
+## Dalsza korekta przekazania i layoutu — 4 X
+
+Po ponownym zgłoszeniu zawieszenia nie uznajemy pickera za odebrany.
+Przekazanie obsługuje teraz także starsze interfejsy. Gdy odpowiedź pickera nie
+zawiera definicji, pobiera pojedynczy snapshot zainstalowanej aplikacji przez
+`/api/creators/installed/<app_id>/runtime`, z limitem 15 s, bez pełnego profilu
+i bez uruchamiania komendy. Błąd przestaje być ignorowany; pokazuje stan failed.
+Odczyt respektuje właściciela i status instalacji, nie pobiera nowej publikacji.
+
+Kreator otrzymał szerszy turkusowy layout, nagłówek, siatkę akcji, wyróżniony
+przełącznik pliku i generowanie oraz karty projektów. Reguły i pola pozostają
+bez zmian. Cache JS/CSS podniesiony do 148-4.
+
+Weryfikacja: 11 testów tras oraz 23 kontraktów przekazania, test JS ponowień,
+braku definicji i odmowy dostępu. Playwright: desktop 1280 px, mobile 390 px
+bez poziomego overflow, ikona 44 px, paleta i wybór pliku ATM. Komponentowy test
+z prawdziwym endpointem i rendererem app_window zbudował interfejs starszej
+aplikacji raz. Obsługa okien była zastąpiona w tym teście; pełnego zawieszenia
+produkcyjnego nie odtworzono. To nie jest PASS pełnego pickera/OFS.
+
 ## Odbiór ATM i poprawki pickera — 4 X
 
 Użytkownik potwierdził plik ATM, kompletowanie paczek i sprzedaż 42 MB za 414 HC.

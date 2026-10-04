@@ -72,6 +72,20 @@ class CreatorRoutesTest(unittest.TestCase):
                 self.assertEqual(response.status_code, 200, response.json)
                 self.assertEqual(response.json['applicationId'], product['id'])
 
+    def test_installed_runtime_uses_owner_snapshot_without_profile(self):
+        self.prepare()
+        product = dict(id='legacy-runtime', name='Legacy', interface='window',
+                       levels=[{'title': 'Installed version'}])
+        self.inventory.install_app('attacker', product, purchase_key='runtime-test')
+        with self.no_heavy(), patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy')):
+            response = self.client.get('/api/creators/installed/legacy-runtime/runtime')
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertEqual(response.json['applicationEffect']['levels'], product['levels'])
+            self.assertEqual(self.client.get('/api/creators/installed/missing/runtime').status_code, 404)
+            self.inventory.seed_from_profile('other', read_tests.valid_profile('other'))
+            self.inventory.install_app('other', dict(product, id='private-app'), purchase_key='private')
+            self.assertEqual(self.client.get('/api/creators/installed/private-app/runtime').status_code, 404)
+
     def test_flag_disables_old_payload_and_invalid_new_inputs(self):
         data=self.prepare()
         with self.no_heavy():

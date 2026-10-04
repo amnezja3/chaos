@@ -26,3 +26,47 @@
 .creator-v2 .appforge-icon-preview { display: none; }
 .creator-v2 .appforge-icon-row .appforge-icon-picker-toggle { grid-column: 2; grid-row: 1; width: 44px; height: 44px; margin: 0; }
 .creator-v2 .appforge-icon-row .appforge-icon-picker { grid-column: 1 / -1; width: min(360px, calc(100vw - 80px)); }
+
+/* One scrolling workspace; the same controls and workflow in a wider toolbench. */
+.creator-v2 { width: min(1060px, calc(100vw - 32px)) !important; border: 1px solid #00c4c8; border-radius: 5px; background: #001411; color: #d7faff; box-shadow: 0 12px 48px #0009; }
+.creator-v2 .title-bar { background: #001d23; border-bottom: 1px solid #008f96; color: #e4ffff; }
+.creator-v2 .creator-workspace { background: radial-gradient(ellipse at top right, #004a4928, transparent 65%), repeating-linear-gradient(90deg, transparent 0 39px, #00d0b807 39px 40px), #00100d; }
+.creator-v2 .appforge-form { padding: 24px 30px; gap: 14px; }
+.creator-v2 .appforge-form > p { margin: 0; color: #93c7d7; line-height: 1.5; }
+.creator-v2 .appforge-form > [role=status]:empty { display: none; }
+.creator-v2 .creator-v2-hero { display: flex; align-items: center; gap: 22px; padding: 0 0 20px; border-bottom: 1px solid #087c74; }
+.creator-v2 .creator-v2-emblem { display: grid; place-items: center; flex: 0 0 62px; height: 62px; border: 1px solid #00d4b8; border-radius: 4px; color: #00edc3; font-size: 40px; }
+.creator-v2 .creator-v2-hero h3 { margin: 0 0 8px; font: 28px/1.2 system-ui, sans-serif; color: #efffff; }
+.creator-v2 .creator-v2-hero p { margin: 0; font-size: 12px; color: #7acfe7; letter-spacing: .08em; }
+.creator-v2 label { color: #e0f4f4; gap: 8px; }
+.creator-v2 input, .creator-v2 textarea, .creator-v2 select, .creator-v2 button { border-color: #008c80; border-radius: 3px; background: #001713b8; color: #e1fbfa; }
+.creator-v2 input:focus, .creator-v2 textarea:focus { outline: 2px solid #39ead3; outline-offset: 2px; }
+.creator-v2 button { margin: 0; }
+.creator-v2 .appforge-form button:hover, .creator-v2 .appforge-form button:focus-visible { background: #06463f; border-color: #33e6cb; color: #fff !important; }
+.creator-v2-choices { gap: 8px 14px; }
+.creator-v2-choices button { display: grid; grid-template-columns: 42px 1fr 16px; align-items: center; gap: 10px; text-align: left; min-height: 44px; padding: 4px 12px 4px 0; }
+.creator-action-icon { text-align: center; font-size: 22px; border-right: 1px solid #006e634f; }
+.creator-action-arrow { color: #00e2dc; font-size: 24px; }
+.creator-v2 .appforge-form button[aria-pressed=true] { background: linear-gradient(90deg, #216d3977, #004c2d99); border-color: #98ff8a; box-shadow: inset 4px 0 #98ff8a, 0 0 12px #75ff6520; }
+.creator-v2 .creator-v2-file-toggle { text-align: left; padding: 14px 18px; }
+.creator-v2-file-toggle::after { content: ''; float: right; width: 42px; height: 22px; border: 1px solid #00bda9; border-radius: 20px; background: radial-gradient(circle at 11px 50%, #6b92a8 0 8px, transparent 9px); }
+.creator-v2-file-toggle[aria-pressed=true]::after { background: radial-gradient(circle at 31px 50%, #74ffac 0 8px, transparent 9px); }
+.creator-v2 .appforge-form > .creator-v2-file-note { font-size: 12px; margin-top: -8px; }
+.creator-v2 .appforge-form .creator-v2-generate { background: linear-gradient(#1df5ce, #00bb99); color: #00241e; border-color: #37ffda; font-weight: bold; min-height: 44px; }
+.creator-v2-generate::before { content: '+ '; font-size: 22px; }
+.creator-v2 .appforge-form h4 { margin: 8px 0 0; border-top: 1px solid #078d7d; padding-top: 16px; color: #dffeff; }
+.creator-v2-projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.creator-v2-projects button { text-align: left; min-height: 64px; padding: 16px; overflow-wrap: anywhere; }
+.creator-v2 .appforge-form::after { content: 'CHAOS // TOOLBUILDER'; border-top: 1px solid #087c74; padding-top: 16px; color: #00d9cf; font-size: 11px; letter-spacing: .1em; }
+.creator-v2 .appforge-icon-row .appforge-icon-picker { width: min(620px, calc(100vw - 96px)); border: 1px solid #00bba7; border-radius: 4px; padding: 10px; background: #001511; }
+@media (max-width: 650px) {
+    .creator-v2 { width: calc(100vw - 16px) !important; }
+    .creator-v2 .appforge-form { padding: 16px 12px; gap: 12px; }
+    .creator-v2 .creator-v2-hero { gap: 12px; }
+    .creator-v2 .creator-v2-hero h3 { font-size: 22px; }
+    .creator-v2 .creator-v2-emblem { flex-basis: 44px; height: 44px; font-size: 28px; }
+    .creator-v2-choices { gap: 6px; }
+    .creator-v2-choices button { grid-template-columns: 28px 1fr; gap: 4px; padding-right: 4px; font-size: 12px; }
+    .creator-action-arrow { display: none; }
+    .creator-v2-projects { grid-template-columns: 1fr; }
+}

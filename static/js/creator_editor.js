@@ -41,7 +41,11 @@ window.CreatorEditor = (() => {
         let status;
         function reset(title) {
             form.replaceChildren();
-            node('h3', title, form);
+            const hero = node('header', undefined, form); hero.className = 'creator-v2-hero';
+            node('span', '▣', hero).className = 'creator-v2-emblem';
+            const heading = node('div', undefined, hero);
+            node('h3', title, heading);
+            node('p', names[kind] + ' / CHAOS TOOLBUILDER', heading);
             status = node('p', '', form); status.setAttribute('role', 'status');
         }
         async function action(work) {
@@ -88,11 +92,16 @@ window.CreatorEditor = (() => {
             const choices = node('div', undefined, form); choices.className = 'creator-v2-choices';
             let selected = Object.keys(policy.recipes)[0], createsFile = false;
             const actionButtons = Object.keys(policy.recipes).map(key => {
-                const el = button(`${actionIcons[key] || ''} ${labels[key] || key}`, () => { selected = key; dirty = true; refresh(); }, choices);
+                const el = button('', () => { selected = key; dirty = true; refresh(); }, choices);
+                node('span', actionIcons[key] || '◇', el).className = 'creator-action-icon';
+                node('span', labels[key] || key, el);
+                node('span', '›', el).className = 'creator-action-arrow';
                 el.dataset.action = key; return el;
             });
             const file = button('Tworzy plik', () => { createsFile = !createsFile; dirty = true; refresh(); });
+            file.className = 'creator-v2-file-toggle';
             const fileNote = node('p', '', form);
+            fileNote.className = 'creator-v2-file-note';
             function refresh() {
                 actionButtons.forEach(el => el.setAttribute('aria-pressed', String(el.dataset.action === selected)));
                 const resources = policy.recipes[selected].resource_types;
@@ -111,9 +120,10 @@ window.CreatorEditor = (() => {
                 try { project = (await api('projects', 'POST', pending)).project; }
                 catch (error) { if (error.status >= 400 && error.status < 500) pending = undefined; throw error; }
                 dirty = false; edit();
-            });
+            }).classList.add('creator-v2-generate');
             node('h4', 'Zapisane projekty', form);
             const list = node('div', '', form);
+            list.className = 'creator-v2-projects';
             async function page(after = '') {
                 const data = await api('projects' + (after ? '?after=' + encodeURIComponent(after) : ''));
                 data.projects.filter(p => p.interface === kind).forEach(p => button(`${p.icon} ${p.name} · v${p.version}`, async () => {
