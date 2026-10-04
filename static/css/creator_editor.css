@@ -60,7 +60,9 @@
 .creator-v2 .appforge-form::after { content: 'CHAOS // TOOLBUILDER'; border-top: 1px solid #087c74; padding-top: 16px; color: #00d9cf; font-size: 11px; letter-spacing: .1em; }
 .creator-v2 .appforge-icon-row .appforge-icon-picker { width: min(620px, calc(100vw - 96px)); border: 1px solid #00bba7; border-radius: 4px; padding: 10px; background: #001511; }
 @media (max-width: 650px) {
-    .creator-v2 { width: calc(100vw - 16px) !important; }
+    .terminal.creator-window.creator-v2 { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; max-width: 100vw !important; max-height: 100dvh !important; margin: 0 !important; border-radius: 0; resize: none; box-sizing: border-box; display: flex !important; flex-direction: column; }
+    .creator-v2 .title-bar { flex: 0 0 auto; }
+    .creator-v2 .creator-workspace { flex: 1 1 auto; height: auto; min-height: 0; }
     .creator-v2 .appforge-form { padding: 16px 12px; gap: 12px; }
     .creator-v2 .creator-v2-hero { gap: 12px; }
     .creator-v2 .creator-v2-hero h3 { font-size: 22px; }

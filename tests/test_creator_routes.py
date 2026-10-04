@@ -152,10 +152,46 @@ class CreatorRoutesTest(unittest.TestCase):
                 self.assertEqual(conn.execute('SELECT count(*) FROM wallet_transactions').fetchone()[0], before)
                 self.assertEqual(conn.execute('SELECT count(*) FROM player_tool_files WHERE username=? AND app_id=?', ('attacker', old['id'])).fetchone()[0], 1)
             self.store.withdraw('attacker', new['project_file'])
+            self.assertEqual(self.client.get('/api/creators/projects').json['projects'], [])
+            self.assertNotIn(new['project_file'], self.client.get('/api/creators/files').json['files'])
+            self.assertEqual(self.client.post(base + '/publish', json={'revision': 2}).status_code, 404)
             self.assertFalse(self.client.get(endpoint).json['update_available'])
             self.assertEqual(installed()['version'], 2)
             self.inventory.uninstall_app('attacker', app_id=old['id'])
             self.assertEqual(self.client.post(endpoint, json={'expected_version': 1, 'version': 2}).status_code, 409)
+
+    def test_fileless_atm_cannot_be_published(self):
+        data = self.prepare()
+        data.update(action='atm_logs', creates_file=False)
+        with self.no_heavy():
+            # Emulate a draft saved before mandatory-file generation was introduced.
+            from creator_policy import RECIPES
+            with patch.dict(RECIPES['atm_logs'], requires_file=False):
+                project = self.client.post('/api/creators/projects', json=data).json['project']
+            response = self.client.post('/api/creators/projects/' + project['id'] + '/publish', json={'revision': 1})
+            self.assertEqual(response.status_code, 400, response.json)
+            self.assertIn('Tworzy plik: TAK', response.json['message'])
+            self.assertEqual(self.store.catalog(), [])
+            withdrawn = self.client.delete('/api/apps/generated/' + project['id'] + '.sh')
+            self.assertEqual(withdrawn.status_code, 200, withdrawn.json)
+            self.assertEqual(self.client.get('/api/creators/projects').json['projects'], [])
+            self.assertNotIn(project['id'] + '.sh', self.client.get('/api/creators/files').json['files'])
+
+    def test_fileless_button_options_require_effect_for_every_choice(self):
+        data = self.prepare()
+        data.update(action='atm_logs', creates_file=False, interface='button_choices')
+        from creator_policy import RECIPES
+        with patch.dict(RECIPES['atm_logs'], requires_file=False):
+            project = self.client.post('/api/creators/projects', json=data).json['project']
+        project = self.store.configure('attacker', project['id'], 1,
+            {'effect': 'firewall=false', 'options': [{'effect': '', 'price': 0}]}, 100)
+        with self.assertRaises(ValueError):
+            self.store.publish('attacker', project['id'], project['revision'], run.build_creator_edition)
+        project = self.store.configure('attacker', project['id'], project['revision'],
+            {'options': [{'effect': 'firewall=false', 'price': 0}]}, 100)
+        product = self.store.publish('attacker', project['id'], project['revision'], run.build_creator_edition)
+        self.assertTrue(product['published'])
+        self.assertFalse(product['creator_contract']['creates_file'])
 
     def test_maximum_effect_persists_full_security_bar_without_profile(self):
         self.prepare()

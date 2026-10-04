@@ -9,6 +9,10 @@ from creator_policy import generate_contract, validate_presentation, configure_d
 
 
 class CreatorStore:
+    ACTIVE_PROJECT = """COALESCE(json_extract(project_json,'$.withdrawn'),0)=0 AND NOT EXISTS (SELECT 1 FROM creator_publications p
+        WHERE p.owner=creator_projects.owner
+        AND p.app_id=json_extract(creator_projects.project_json,'$.app_id')
+        AND json_extract(p.app_json,'$.published')=0)"""
     def __init__(self, db_path):
         self.db_path = db_path
         with db_connect(db_path) as conn:
@@ -35,7 +39,7 @@ class CreatorStore:
             conn.execute('CREATE INDEX IF NOT EXISTS creator_publication_owner ON creator_publications(owner,project_file)')
 
     def _get(self, conn, owner, project_id):
-        row = conn.execute('SELECT project_json FROM creator_projects WHERE owner=? AND id=?',
+        row = conn.execute('SELECT project_json FROM creator_projects WHERE owner=? AND id=? AND ' + self.ACTIVE_PROJECT,
                            (owner, project_id)).fetchone()
         if not row:
             raise GhostLabError('project_not_found', 'Brak projektu autora.', 404)
@@ -53,7 +57,7 @@ class CreatorStore:
                 json_extract(project_json,'$.presentation.icon') AS icon,
                 json_extract(project_json,'$.contract.interface') AS interface,
                 json_extract(project_json,'$.version') AS version
-                FROM creator_projects WHERE owner=? AND id>? ORDER BY id LIMIT 100''',
+                FROM creator_projects WHERE owner=? AND id>? AND ''' + self.ACTIVE_PROJECT + ' ORDER BY id LIMIT 100',
                 (owner, after)).fetchall()
         return [dict(row) for row in rows]
 
@@ -69,7 +73,7 @@ class CreatorStore:
                 if previous['input_hash'] != signature:
                     raise GhostLabError('request_conflict', 'Ten identyfikator nalezy do innej generacji.')
                 return self._get(conn, owner, previous['id'])
-            if conn.execute('SELECT count(*) FROM creator_projects WHERE owner=?', (owner,)).fetchone()[0] >= config.CREATOR_MAX_PROJECTS:
+            if conn.execute('SELECT count(*) FROM creator_projects WHERE owner=? AND ' + self.ACTIVE_PROJECT, (owner,)).fetchone()[0] >= config.CREATOR_MAX_PROJECTS:
                 raise GhostLabError('project_limit', 'Osiagnieto limit projektow.')
             contract = generate_contract(data, level, rng)
             if quote is not None:
@@ -122,6 +126,13 @@ class CreatorStore:
             project = self._get(conn, owner, project_id)
             if type(revision) is not int or project['revision'] != revision:
                 raise GhostLabError('revision_conflict', 'Projekt zmienil sie.')
+            from creator_policy import fileless_data_operation
+            contract = project['contract']
+            if fileless_data_operation({'creator_contract_version': contract.get('policy_version'), 'creator_contract': contract}):
+                effects = ([option.get('effect') for option in contract['options']]
+                           if 'options' in contract else [contract.get('effect')])
+                if not effects or not all(effects):
+                    raise ValueError('Ta aplikacja zbiera dane, ale ma wyłączone tworzenie pliku. Utwórz nowe narzędzie z opcją Tworzy plik: TAK albo skonfiguruj effect dla każdej opcji Button Choice.')
             previous = conn.execute('SELECT app_json FROM creator_editions WHERE project_id=? AND revision=?',
                                     (project_id, revision)).fetchone()
             if previous:
@@ -185,7 +196,7 @@ class CreatorStore:
     def project_files(self, owner):
         with db_connect(self.db_path) as conn:
             return [row[0] for row in conn.execute(
-                "SELECT COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh') FROM creator_projects WHERE owner=? ORDER BY id LIMIT ?",
+                "SELECT COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh') FROM creator_projects WHERE owner=? AND " + self.ACTIVE_PROJECT + " ORDER BY id LIMIT ?",
                 (owner, config.CREATOR_MAX_PROJECTS))]
 
     def project_file_metadata(self, owner):
@@ -194,7 +205,7 @@ class CreatorStore:
                 COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh') AS filename,
                 json_extract(project_json,'$.presentation.name') AS name,
                 json_extract(project_json,'$.presentation.icon') AS icon
-                FROM creator_projects WHERE owner=? ORDER BY id LIMIT ?""",
+                FROM creator_projects WHERE owner=? AND """ + self.ACTIVE_PROJECT + " ORDER BY id LIMIT ?",
                 (owner, config.CREATOR_MAX_PROJECTS)).fetchall()
         return {row['filename']: {'name': row['name'] + '.sh', 'icon': row['icon']} for row in rows}
 
@@ -203,9 +214,21 @@ class CreatorStore:
             conn.execute('BEGIN IMMEDIATE')
             row = conn.execute('SELECT app_json FROM creator_publications WHERE owner=? AND project_file=?',
                                (owner, project_file)).fetchone()
+            project_row = conn.execute("""SELECT id,project_json FROM creator_projects WHERE owner=?
+                AND COALESCE(json_extract(project_json,'$.legacy_project_file'),id || '.sh')=?""",
+                (owner, project_file)).fetchone()
             app = json.loads(row[0]) if row else legacy
+            if not app and project_row:
+                project = json.loads(project_row['project_json'])
+                app = dict(id=project['app_id'], name=project['presentation']['name'], creator_username=owner)
             if not app or app.get('creator_username') != owner:
                 raise GhostLabError('project_not_found', 'Brak projektu autora.', 404)
             app = dict(app, published=False)
-            self._publish(conn, owner, app)
+            if row or legacy:
+                self._publish(conn, owner, app)
+            if project_row:
+                project = json.loads(project_row['project_json'])
+                project['withdrawn'] = True
+                conn.execute('UPDATE creator_projects SET project_json=? WHERE id=?',
+                             (encoded(project), project_row['id']))
             return app

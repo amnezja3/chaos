@@ -397,6 +397,8 @@ class CreatorPaymentsTest(unittest.TestCase):
                     key = action + '-' + interface
                     contract = generate_contract(dict(name=key, icon='X', interface=interface,
                         action=action, creates_file=False), 100)
+                    # Previously installed fileless editions retain their immutable contract.
+                    contract.update(creates_file=False, resource_types=[])
                     if interface == 'button_choices':
                         contract['options'] = [{'price': 0, 'effect': {}}]
                     product = run.build_creator_edition(dict(contract=contract,

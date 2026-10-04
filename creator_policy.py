@@ -86,11 +86,16 @@ RECIPES = {
 }
 
 
+FILE_REQUIRED_ACTIONS = frozenset({'trace', 'trace_gps', 'trace_device', 'scan_hotspots',
+    'install_sniffer', 'sniff', 'mic_sniff', 'atm_logs'})
+for _action, _recipe in RECIPES.items():
+    _recipe['requires_file'] = _action in FILE_REQUIRED_ACTIONS
+
+
 def fileless_data_operation(app):
     contract = app.get('creator_contract') or {}
     return bool(app.get('creator_contract_version') and contract.get('creates_file') is False
-                and contract.get('action') in {'trace', 'trace_gps', 'trace_device', 'scan_hotspots',
-                    'install_sniffer', 'sniff', 'mic_sniff', 'atm_logs'})
+                and contract.get('action') in FILE_REQUIRED_ACTIONS)
 
 
 def power_cap(level):
@@ -142,7 +147,7 @@ def generate_contract(data, level, rng=None):
     result = copy.deepcopy(RECIPES[action])
     if data['creates_file'] and not result['resource_types']:
         raise ValueError('Ta akcja nie tworzy pliku.')
-    result.update(interface=interface, creates_file=data['creates_file'],
+    result.update(interface=interface, creates_file=data['creates_file'] or result['requires_file'],
                   price=price(data.get('price')), effect=validate_effect(data.get('effect'),
                     action=action, interface=interface, level=level))
     result.update(roll_power(level, rng))

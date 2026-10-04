@@ -12,6 +12,19 @@ from ghostlab_store import GhostLabError
 
 
 class CreatorPolicyTest(unittest.TestCase):
+    def test_required_files_are_enforced_for_every_interface(self):
+        from creator_policy import FILE_REQUIRED_ACTIONS, INTERFACES
+        for action in FILE_REQUIRED_ACTIONS:
+            for interface in INTERFACES:
+                with self.subTest(action=action, interface=interface):
+                    contract = generate_contract(dict(name='Tool', icon='X', action=action,
+                        interface=interface, creates_file=False), 100)
+                    self.assertTrue(contract['creates_file'])
+                    self.assertTrue(contract['resource_types'])
+        optional = generate_contract(dict(name='Tool', icon='X', action='camera_stream',
+            interface='window', creates_file=False), 40)
+        self.assertFalse(optional['creates_file'])
+
     def test_assignment_syntax_boolean_states_and_each_option_level_gate(self):
         data = dict(name='Buttons', icon='X', interface='button_choices', action='exploit', creates_file=False)
         contract = generate_contract(data, 40)

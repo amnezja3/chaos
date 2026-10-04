@@ -1,5 +1,31 @@
 # Sprint 148 — stan przygotowania
 
+## Obowiązkowy plik przy zbieraniu danych — 4 X
+
+Nowe generacje dla ATM, trace/GPS, śledzenia urządzenia, hotspotów, instalacji
+sniffera, sniffowania i podsłuchu mają zawsze `creates_file=true`. Katalog polityki
+udostępnia `requires_file`; edytor pokazuje nieaktywny przełącznik TAK i wyjaśnienie.
+Generator wymusza tę wartość także dla żądania API z `creates_file=false`, zachowując
+przypisane zasoby. Exploit zachowuje nieaktywne NIE, a zapis opcjonalny (np. obraz
+kamery) pozostaje wyborem. Istniejące kontrakty i instalacje nie są przepisywane.
+25 testów polityki/tras oraz Playwright (ATM, exploit, trace i opcjonalna kamera): OK.
+
+## Wycofanie projektu i odbiór gx — 4 X
+
+`gx` ma zbieranie logów ATM z `creates_file=false`. Odmowa wykonania jest
+zamierzoną blokadą pustej operacji, a reinstalacja nie zmienia kontraktu.
+Publikacja konfiguracji zbierającej dane bez pliku jest teraz odrzucana wcześniej;
+wyjątek stanowią opcje Button Choice z własnym zatwierdzonym efektem dla każdej opcji.
+
+Wycofanie usuwa ofertę oraz widoczność projektu w FM i kreatorze, blokuje edycję
+i ponowną publikację. Archiwum wydań i zainstalowane snapshoty pozostają bez zmian;
+nie ma dostępnej aktualizacji wycofanego produktu. Dotyczy też wcześniej wycofanych
+ofert. Nieopublikowany szkic można wycofać z FM bez tworzenia wpisu w katalogu.
+
+Mobile: kreator wypełnia cały viewport, także ponad historycznymi regułami CSS
+z marginesem 8 px. Playwright sprawdził 320, 390 i 650 px oraz przewijanie formularza.
+48 testów tras, polityki, migracji, starych aplikacji i rozliczeń przeszło lokalnie.
+
 ## Dalsza korekta przekazania i layoutu — 4 X
 
 Po ponownym zgłoszeniu zawieszenia nie uznajemy pickera za odebrany.

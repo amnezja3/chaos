@@ -106,12 +106,14 @@ window.CreatorEditor = (() => {
             function refresh() {
                 actionButtons.forEach(el => el.setAttribute('aria-pressed', String(el.dataset.action === selected)));
                 const resources = policy.recipes[selected].resource_types;
-                file.disabled = !resources.length;
+                const required = policy.recipes[selected].requires_file === true;
+                file.disabled = required || !resources.length;
                 file.dataset.unavailable = String(file.disabled);
-                if (file.disabled) createsFile = false;
+                if (required) createsFile = true;
+                else if (!resources.length) createsFile = false;
                 file.setAttribute('aria-pressed', String(createsFile));
                 file.textContent = `${actionIcons[selected] || '📄'} Tworzy plik: ` + (createsFile ? 'TAK' : 'NIE');
-                fileNote.textContent = createsFile ? 'Plik powstanie po skutecznym zakończeniu operacji.' : 'To narzędzie nie zapisuje pliku.';
+                fileNote.textContent = required ? 'Ta akcja wymaga pliku. Zapis jest obowiązkowy po skutecznym zakończeniu operacji.' : (createsFile ? 'Plik powstanie po skutecznym zakończeniu operacji.' : 'To narzędzie nie zapisuje pliku.');
             }
             refresh();
             // Retain the request identity and payload after a lost response: no second roll.

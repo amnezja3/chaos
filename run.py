@@ -28659,14 +28659,14 @@ def remove_generated_app(project_file):
         if app.get("project_file") == project_file and app.get("creator_username") == username
     ), None)
 
-    if not app_data:
-        return jsonify({"success": False, "message": "Nie znaleziono projektu autora."}), 404
-
-    creator_store.withdraw(username, project_file, legacy=app_data)
+    try:
+        app_data = creator_store.withdraw(username, project_file, legacy=app_data)
+    except GhostLabError as error:
+        return jsonify(success=False, reason=error.reason, message=str(error)), error.status
 
     return jsonify({
         "success": True,
-        "message": f"Wycofano {app_data['name']} z Googleplex. Zainstalowane kopie pozostaja aktywne."
+        "message": f"Wycofano {app_data['name']} z Googleplex i listy projektów. Zainstalowane kopie pozostają bez zmian."
     })
 
 @app.route("/files/<folder>")
