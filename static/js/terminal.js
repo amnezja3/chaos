@@ -16823,7 +16823,7 @@ async function createFileManager(options = {}) {
             Menedżer plików
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
-        <div style="padding: 10px; background: #111; color: #0f0; flex:1; overflow-y:auto; font-family: monospace;" id="${terminalId}-content">
+        <div class="file-manager-workspace" style="flex:1; overflow-y:auto; font-family: monospace;" id="${terminalId}-content">
             <div class="app-load-panel">
                 <div class="app-load-panel__title">Ladowanie plikow...</div>
                 <div class="app-load-panel__bar"><span></span></div>
@@ -16839,6 +16839,12 @@ async function createFileManager(options = {}) {
     const fileManagerClose = term.querySelector('.close-btn');
     if (fileManagerClose) fileManagerClose.textContent = 'x';
     const fileManagerContent = document.getElementById(`${terminalId}-content`);
+    fileManagerContent.addEventListener('keydown', event => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('.file-manager-file[role="button"]')) {
+            event.preventDefault();
+            event.target.click();
+        }
+    });
     const fileManagerObserver = new MutationObserver(() => polishFileManagerText(fileManagerContent));
     term._fileManagerObserver = fileManagerObserver;
     if (fileManagerContent) {
@@ -16910,12 +16916,14 @@ async function createFileManager(options = {}) {
     function renderFolders() {
         const foldersDiv = document.getElementById(`${terminalId}-folders`);
         foldersDiv.innerHTML = '';
+        foldersDiv.className = 'file-manager-folders';
         systemDirs.forEach(dir => {
-            const folder = document.createElement('div');
+            const folder = document.createElement('button');
+            folder.type = 'button';
+            folder.className = 'file-manager-folder';
             const folderLabel = getFolderLabel(dir);
-            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">📂 <b>${dir}</b></span>`;
-            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">📂 <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
-            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">[DIR] <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
+            folder.innerHTML = `<span class="file-manager-folder-icon" aria-hidden="true">📂</span><span><b>${escapeHTML(folderLabel)}</b><small>/${escapeHTML(dir)}</small></span><span aria-hidden="true">›</span>`;
+            folder.addEventListener('click', () => window.openFolderInManager(terminalId, dir));
             foldersDiv.appendChild(folder);
         });
     }
@@ -17133,6 +17141,10 @@ async function createFileManager(options = {}) {
             ${selectionHeader}
             <div class="file-manager-list">${list}</div>
         `;
+        container.querySelectorAll('.file-manager-file:not(button)').forEach(entry => {
+            entry.tabIndex = 0;
+            entry.setAttribute('role', 'button');
+        });
     };
 
     window.renderFoldersRoot = (id) => {

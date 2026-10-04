@@ -246,6 +246,7 @@ window.CreatorEditor = (() => {
             label.textContent = `Zainstalowana: v${data.installed_version} · dostępna: ${data.available_version ? 'v' + data.available_version : 'wycofana'}`;
             if (!data.update_available) return;
             const button = node('button', 'AKTUALIZACJA · 0 HC', card); button.type = 'button';
+            button.className = 'gp-app-market-footer__action gp-search-product__action';
             button.addEventListener('click', async () => {
                 button.disabled = true;
                 try {
