@@ -1,4 +1,5 @@
 import unittest
+import math
 from unittest.mock import patch
 from contextlib import ExitStack
 from datetime import datetime
@@ -51,6 +52,22 @@ class ScanMarkerCategoriesTest(unittest.TestCase):
         self.assertEqual(markers[0]['source_type'], 'parking')
         self.assertNotEqual(markers[0]['target_type'], 'vehicle')
         self.assertEqual(len([m for m in markers if m['target_type'] == 'vehicle']), 4)
+
+    def test_people_and_cars_keep_clearance_from_parent_even_at_minimum_random(self):
+        for tags, child_type in [({'amenity': 'parking'}, 'vehicle'),
+                                 ({'amenity': 'restaurant'}, 'person'),
+                                 ({'shop': 'clothes'}, 'person')]:
+            with self.subTest(tags=tags), patch.object(run, 'random', return_value=0):
+                markers = self.scan(tags)
+                children = [m for m in markers if m['generated'] and m['target_type'] == child_type]
+                self.assertGreaterEqual(len(children), 2)
+                for child in children:
+                    distance = math.hypot(child['lat'] - 52., child['lon'] - 21.)
+                    self.assertGreaterEqual(distance, .00036 - 1e-10)
+                    self.assertLessEqual(distance, .00058 + 1e-10)
+                for index, child in enumerate(children):
+                    for other in children[index + 1:]:
+                        self.assertGreater(math.hypot(child['lat'] - other['lat'], child['lon'] - other['lon']), .0002)
 
     def test_wash_and_bicycle_parking_are_not_cars(self):
         for category in ('car_wash', 'bicycle_parking'):

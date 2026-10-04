@@ -23697,10 +23697,14 @@ def map_action():
                     })
 
                 elif source_type == "restaurant":
-                    for _ in range(randint(2, 5)):
+                    guest_count = randint(2, 5)
+                    start_angle = random() * math.tau
+                    for guest_index in range(guest_count):
+                        angle = start_angle + math.tau * guest_index / guest_count
+                        dlat, dlng = radial_jitter(0.00036, 0.00058, angle)
                         extra.append({
-                            "lat": base_lat + jitter(),
-                            "lon": base_lng + jitter(),
+                            "lat": base_lat + dlat,
+                            "lon": base_lng + dlng,
                             "name": "Gość restauracji",
                             "icon": "🧑‍🍳",
                             "source_type": "person",
@@ -23719,10 +23723,13 @@ def map_action():
 
                 elif source_type == "parking":
                     brands = ["🚗 Audi", "🚙 VW", "🚘 Tesla", "🚕 Mercedes"]
-                    for b in brands:
+                    start_angle = random() * math.tau
+                    for car_index, b in enumerate(brands):
+                        angle = start_angle + math.tau * car_index / len(brands)
+                        dlat, dlng = radial_jitter(0.00036, 0.00058, angle)
                         extra.append({
-                            "lat": base_lat + jitter(0.0002),
-                            "lon": base_lng + jitter(0.0002),
+                            "lat": base_lat + dlat,
+                            "lon": base_lng + dlng,
                             "name": f"Auto: {b}",
                             "icon": b.split()[0],
                             "source_type": "vehicle",
