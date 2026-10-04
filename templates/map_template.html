@@ -5979,8 +5979,10 @@
                 ];
             }
             // SAMOCHODY
-            // (["auto", "tesla", "vw", "car", "parking"].some(t => source.includes(t) || name.includes(t)))
-            else if (name.includes("auto") || name.includes("tesla") || name.includes("vw") || targetSourceType.includes("car") || targetSourceType.includes("parking")) {
+            // A parking or car wash is a place, not a vehicle. Legacy generated
+            // parking cars retain their old source_type, hence the narrow fallback.
+            else if (["car", "vehicle"].includes(targetSourceType)
+                || (menuTarget.generated && targetSourceType === "parking" && name.startsWith("auto:"))) {
                 actions = [
                     { label: "🚗 Przejmij system pokładowy", action: "car_hack" },
                     { label: "📍 Śledź GPS", action: "trace_gps" }

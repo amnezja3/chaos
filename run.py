@@ -121,7 +121,7 @@ app = Flask(__name__)
 # Ensure once during application startup; request readers never migrate schema.
 ghostsignal_show_db_path = GhostNetworkRepository().db_path
 
-tag_filters = ["shop", "amenity", "office"]
+tag_filters = ["shop", "amenity", "office", "healthcare", "atm=yes", "man_made=surveillance"]
 fetcher = POIFetcher(tag_filters=tag_filters)
 resources_store = JsonResourceStore()
 from ghostlab_store import GhostLabStore, GhostLabError
@@ -5449,6 +5449,8 @@ SOURCE_TYPE_TARGET_TYPES = {
     "car": "vehicle",
     "vehicle": "vehicle",
     "parking": "vehicle_source",
+    "car_wash": "venue",
+    "bicycle_parking": "venue",
     "restaurant": "venue",
     "bar": "venue",
     "cafe": "venue",
@@ -23535,7 +23537,10 @@ def map_action():
         """
         # Lista par (tag_key, tag_value, emoji, source_type), w kolejności ważności
         priority_map = [
+            ("amenity", "atm", "🏧", "atm"),
             ("atm", "yes", "🏧", "atm"),
+            ("amenity", "parking", "🅿️", "parking"),
+            ("man_made", "surveillance", "📷", "camera"),
             ("amenity", "bank", "🏦", "bank"),
             ("amenity", "restaurant", "🍽️", "restaurant"),
             ("amenity", "cafe", "☕", "cafe"),
@@ -23555,6 +23560,7 @@ def map_action():
             ("shop", "books", "📚", "shop_books"),
             ("shop", "clothes", "👕", "shop_clothes"),
             ("shop", "electronics", "💻", "shop_electronics"),
+            ("shop", None, "🏪", "shop"),
             ("internet_access", None, "📡", "internet_access"),
             ("office", None, "🏢", "office"),
             ("healthcare", "dentist", "🦷", "dentist"),
@@ -23612,8 +23618,7 @@ def map_action():
         for fetched in [fetched_results]:
             for obj in fetched:
                 key = (obj["lat"], obj["lon"])
-                if key in existing_targets:
-                    continue
+                already_marked = key in existing_targets
 
                 tags = obj.get("tags", {})
                 icon = "📍"
@@ -23625,7 +23630,8 @@ def map_action():
                 icon, source_type = aiat
 
                 obj["generated"] = False  # oryginał
-                all_results.append(obj)
+                if not already_marked:
+                    all_results.append(obj)
 
                 # 🧠 GENEROWANE OBIEKTY
                 extra = []
@@ -23660,7 +23666,7 @@ def map_action():
                                 "lon": base_lng + dlng,
                                 "name": "Klient",
                                 "icon": "🧍",
-                                "source_type": source_type,
+                                "source_type": "person",
                                 "generated": True
                             })
 
@@ -23673,7 +23679,7 @@ def map_action():
                             "lon": base_lng + jitter(),
                             "name": "Osoba przy bankomacie",
                             "icon": "🧍",
-                            "source_type": source_type,
+                            "source_type": "person",
                             "generated": True
                         })
 
@@ -23694,7 +23700,7 @@ def map_action():
                             "lon": base_lng + jitter(),
                             "name": "Gość restauracji",
                             "icon": "🧑‍🍳",
-                            "source_type": source_type,
+                            "source_type": "person",
                             "generated": True
                         })
 
@@ -23716,13 +23722,15 @@ def map_action():
                             "lon": base_lng + jitter(0.0002),
                             "name": f"Auto: {b}",
                             "icon": b.split()[0],
-                            "source_type": source_type,
+                            "source_type": "vehicle",
                             "generated": True
                         })
 
-                all_results.extend(extra)
+                all_results.extend(marker for marker in extra
+                                   if (marker['lat'], marker['lon']) not in existing_targets)
 
         for marker in all_results:
+            marker['target_type'] = infer_target_type_from_target(marker)
             if marker.get('source_type') == 'camera' and not marker.get('camera_id'):
                 identity = camera_marker(marker)
                 marker.update({'camera_id': identity['camera_id'], 'target_type': 'camera',
