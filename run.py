@@ -5448,7 +5448,7 @@ SOURCE_TYPE_TARGET_TYPES = {
     "atm": "atm",
     "car": "vehicle",
     "vehicle": "vehicle",
-    "parking": "vehicle_source",
+    "parking": "venue",
     "car_wash": "venue",
     "bicycle_parking": "venue",
     "restaurant": "venue",
@@ -8546,6 +8546,13 @@ def infer_target_type_from_target(target):
         return "pillar"
 
     source_type = str(target.get("source_type") or "").strip()
+    if target.get('generated'):
+        name = str(target.get('name') or target.get('label') or '').strip().casefold()
+        if source_type == 'parking' and name.startswith('auto:'):
+            return 'vehicle'
+        if (source_type.startswith('shop') or source_type in {'atm', 'restaurant'}) and name in {
+                'klient', 'osoba przy bankomacie', 'gość restauracji'}:
+            return 'person'
     if source_type.startswith("shop"):
         return "venue"
     return SOURCE_TYPE_TARGET_TYPES.get(source_type, "poi")
@@ -23538,7 +23545,6 @@ def map_action():
         # Lista par (tag_key, tag_value, emoji, source_type), w kolejności ważności
         priority_map = [
             ("amenity", "atm", "🏧", "atm"),
-            ("atm", "yes", "🏧", "atm"),
             ("amenity", "parking", "🅿️", "parking"),
             ("man_made", "surveillance", "📷", "camera"),
             ("amenity", "bank", "🏦", "bank"),
@@ -23564,6 +23570,7 @@ def map_action():
             ("internet_access", None, "📡", "internet_access"),
             ("office", None, "🏢", "office"),
             ("healthcare", "dentist", "🦷", "dentist"),
+            ("atm", "yes", "🏧", "atm"),
         ]
 
         for key, expected_value, icon, source in priority_map:
@@ -23646,8 +23653,15 @@ def map_action():
                     distance = min_offset + random() * (max_offset - min_offset)
                     return math.sin(angle) * distance, math.cos(angle) * distance
 
-                
-                hour = datetime.now().hour
+                def append_atm_scene(atm):
+                    extra.append({**camera_marker(atm), "name": "Kamera bankomatu",
+                                  "label": "Kamera bankomatu", "icon": "📹"})
+                    for _ in range(randint(1, 3)):
+                        extra.append({
+                            "lat": atm['lat'] + jitter(), "lon": atm['lon'] + jitter(),
+                            "name": "Osoba przy bankomacie", "icon": "🧍",
+                            "source_type": "person", "generated": True})
+
 
                 if source_type.startswith("shop"):
                     # Kamery
@@ -23655,33 +23669,22 @@ def map_action():
                     for camera_index in range(camera_count):
                         extra.append({**camera_marker(obj, camera_index),
                                       "name": "Kamera sklepu", "label": "Kamera sklepu"})
-                    if 8 <= hour <= 20:
-                        client_count = randint(3, 8)
-                        start_angle = random() * math.tau
-                        for client_index in range(client_count):
-                            angle = start_angle + (math.tau * client_index / client_count)
-                            dlat, dlng = radial_jitter(0.00036, 0.00058, angle)
-                            extra.append({
-                                "lat": base_lat + dlat,
-                                "lon": base_lng + dlng,
-                                "name": "Klient",
-                                "icon": "🧍",
-                                "source_type": "person",
-                                "generated": True
-                            })
-
-                elif source_type == "atm":
-                    extra.append({**camera_marker(obj), "name": "Kamera bankomatu",
-                                  "label": "Kamera bankomatu", "icon": "📹"})
-                    for _ in range(randint(1, 3)):
+                    client_count = randint(3, 8)
+                    start_angle = random() * math.tau
+                    for client_index in range(client_count):
+                        angle = start_angle + (math.tau * client_index / client_count)
+                        dlat, dlng = radial_jitter(0.00036, 0.00058, angle)
                         extra.append({
-                            "lat": base_lat + jitter(),
-                            "lon": base_lng + jitter(),
-                            "name": "Osoba przy bankomacie",
+                            "lat": base_lat + dlat,
+                            "lon": base_lng + dlng,
+                            "name": "Klient",
                             "icon": "🧍",
                             "source_type": "person",
                             "generated": True
                         })
+
+                elif source_type == "atm":
+                    append_atm_scene(obj)
 
                 elif source_type == "bicycle_parking":
                     extra.append({
@@ -23725,6 +23728,15 @@ def map_action():
                             "source_type": "vehicle",
                             "generated": True
                         })
+
+                # An ATM attached to a shop/bank must not replace its parent scene.
+                if tags.get('atm') == 'yes' and source_type != 'atm':
+                    parent_key = obj.get('osm_id') or obj.get('node_id') or f'{base_lat}:{base_lng}'
+                    atm = dict(lat=base_lat + .00012, lon=base_lng + .00012,
+                               name='Bankomat', icon='🏧', source_type='atm', generated=True,
+                               osm_id=f'attached-atm:{parent_key}', parent_target_id=str(parent_key))
+                    extra.append(atm)
+                    append_atm_scene(atm)
 
                 all_results.extend(marker for marker in extra
                                    if (marker['lat'], marker['lon']) not in existing_targets)
@@ -30524,11 +30536,10 @@ def _gonna_win_runtime():
 
     # Validate the choice before marking an action or starting an operation.
     # Power comes from the installed immutable edition, not current author LVL.
-    from creator_policy import runtime_effect, fileless_data_operation
+    from creator_policy import runtime_effect, fileless_data_operation, supports_target_type
     try:
         if app.get('creator_contract_version'):
-            creator_targets = (app.get('creator_contract') or {}).get('target_types') or []
-            if infer_target_type_from_target(aimed) not in creator_targets:
+            if not supports_target_type(app.get('creator_contract') or {}, infer_target_type_from_target(aimed)):
                 raise ValueError('To narzedzie nie obsluguje wybranego typu celu.')
         creator_effect = runtime_effect(app, target_sec, choice_id, operation_only=operation_only)
         if fileless_data_operation(app) and not creator_effect:

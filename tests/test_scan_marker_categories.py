@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 from contextlib import ExitStack
+from datetime import datetime
 
 import run
 from tests.test_player_hack_read_paths import PlayerHackReadPathsTest
@@ -9,9 +10,11 @@ from tests.test_player_hack_read_paths import PlayerHackReadPathsTest
 class ScanMarkerCategoriesTest(unittest.TestCase):
     setUp = PlayerHackReadPathsTest.setUp
 
-    def scan(self, tags, marked=()):
+    def scan(self, tags, marked=(), hour=12):
         poi = dict(lat=52.0, lon=21.0, name='Test', osm_id=123, tags=tags)
         with ExitStack() as stack:
+            clock = stack.enter_context(patch.object(run, 'datetime', wraps=datetime))
+            clock.now.return_value = datetime(2026, 10, 4, hour, 0)
             for obj, method, result in [
                 (run.player_position_store, 'get_position', {'lat': 52., 'lng': 21.}),
                 (run.capability_projection_store, 'get_capabilities', {'action_range': 5000}),
@@ -31,7 +34,7 @@ class ScanMarkerCategoriesTest(unittest.TestCase):
         for tags in ({'amenity': 'atm'}, {'amenity': 'bank', 'atm': 'yes'}):
             with self.subTest(tags=tags):
                 markers = self.scan(tags)
-                self.assertEqual(markers[0]['source_type'], 'atm')
+                self.assertTrue(any(m['source_type'] == 'atm' for m in markers))
                 camera = next(m for m in markers if m['source_type'] == 'camera')
                 self.assertEqual(camera['target_type'], 'camera')
                 self.assertTrue(camera['camera_id'])
@@ -58,6 +61,60 @@ class ScanMarkerCategoriesTest(unittest.TestCase):
         camera = self.scan({'man_made': 'surveillance'})[0]
         self.assertEqual(camera['target_type'], 'camera')
         self.assertTrue(camera['camera_id'])
+
+    def test_shop_clients_and_cameras_survive_every_hour_and_attached_atm(self):
+        for hour in (0, 7, 8, 20, 21, 23):
+            for tags in ({'shop': 'clothes'}, {'shop': 'convenience', 'atm': 'yes'}):
+                with self.subTest(hour=hour, tags=tags):
+                    markers = self.scan(tags, hour=hour)
+                    clients = [m for m in markers if m['name'] == 'Klient']
+                    self.assertGreaterEqual(len(clients), 3)
+                    self.assertLessEqual(len(clients), 8)
+                    self.assertTrue(all(m['target_type'] == 'person' for m in clients))
+                    cameras = [m for m in markers if m['name'] == 'Kamera sklepu']
+                    self.assertGreaterEqual(len(cameras), 2)
+                    self.assertLessEqual(len(cameras), 4)
+                    if tags.get('atm'):
+                        self.assertTrue(any(m['name'] == 'Kamera bankomatu' for m in markers))
+                        camera_ids = [m['camera_id'] for m in markers if m['source_type'] == 'camera']
+                        self.assertEqual(len(camera_ids), len(set(camera_ids)))
+
+    def test_all_scene_types_match_their_creator_actions(self):
+        from creator_policy import RECIPES, supports_target_type
+        cases = [({'shop': 'books'}, 'Klient', ['trace_device', 'mic_sniff']),
+                 ({'amenity': 'restaurant'}, 'Gość restauracji', ['trace_device', 'mic_sniff']),
+                 ({'amenity': 'atm'}, 'Test', ['atm_logs', 'install_sniffer']),
+                 ({'amenity': 'atm'}, 'Kamera bankomatu', ['camera_stream', 'camera_shutdown']),
+                 ({'amenity': 'parking'}, 'Auto: 🚘 Tesla', ['car_hack', 'trace_gps']),
+                 ({'shop': 'books'}, 'Test', ['scan_ports', 'exploit', 'sniff', 'trace']),
+                 ({'amenity': 'bicycle_parking'}, 'Stacja rowerowa', ['scan_ports', 'exploit', 'sniff', 'trace']),
+                 ({'amenity': 'parcel_locker'}, 'Kuriero-bot', ['scan_ports', 'exploit', 'sniff', 'trace']),
+                 ({'amenity': 'car_wash'}, 'Test', ['scan_ports', 'exploit', 'sniff', 'trace']),
+                 ({'amenity': 'parking'}, 'Test', ['scan_ports', 'exploit', 'sniff', 'trace'])]
+        for tags, name, actions in cases:
+            with self.subTest(tags=tags, name=name):
+                marker = next(m for m in self.scan(tags) if m['name'] == name)
+                for action in actions:
+                    self.assertTrue(supports_target_type(RECIPES[action], marker['target_type']), (action, marker))
+
+    def test_marked_shop_keeps_its_scene(self):
+        markers = self.scan({'shop': 'clothes'}, [{'lat': 52., 'lng': 21.}], hour=23)
+        self.assertTrue(any(m['name'] == 'Klient' for m in markers))
+        self.assertTrue(any(m['name'] == 'Kamera sklepu' for m in markers))
+        self.assertFalse(any(not m['generated'] for m in markers))
+
+    def test_legacy_markers_and_editions_keep_correct_target_support(self):
+        from creator_policy import supports_target_type
+        for source, name, expected in [('shop_clothes', 'Klient', 'person'),
+                ('atm', 'Osoba przy bankomacie', 'person'),
+                ('restaurant', 'Gość restauracji', 'person'),
+                ('parking', 'Auto: 🚘 Tesla', 'vehicle')]:
+            self.assertEqual(run.infer_target_type_from_target(dict(source_type=source, name=name, generated=True)), expected)
+        self.assertTrue(supports_target_type({'action': 'scan_ports', 'target_types': ['poi']}, 'venue'))
+        self.assertTrue(supports_target_type({'action': 'install_sniffer', 'target_types': ['poi']}, 'atm'))
+        self.assertFalse(supports_target_type({'action': 'atm_logs', 'target_types': ['atm']}, 'venue'))
+        self.assertFalse(supports_target_type({'action': 'car_hack', 'target_types': ['vehicle']}, 'venue'))
+        self.assertFalse(supports_target_type({'action': 'scan_ports', 'target_types': ['poi']}, 'person'))
 
 
 if __name__ == '__main__':

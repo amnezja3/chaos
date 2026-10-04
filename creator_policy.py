@@ -15,7 +15,7 @@ SECURITY_KEYS = (
     'kernel_guard', 'system_integrity_check', 'heap_protection', 'memory_lock',
     'background_injection', 'memory_guard', 'vpn_blocker',
 )
-WORLD = ['poi', 'server', 'router', 'pillar']
+WORLD = ['poi', 'server', 'router', 'pillar', 'venue']
 EFFECT_BOOLEAN_KEYS = frozenset(SECURITY_KEYS) | {
     'browser_history_log', 'file_indexing', 'file_visibility',
     'storage_integrity', 'unencrypted_access',
@@ -77,7 +77,7 @@ RECIPES = {
     'scan_hotspots': recipe('scan_hotspots', 'scanner_recon', 'scanner', ['venue'], 'wifi_scanner', ['wifi_networks']),
     'camera_stream': recipe('camera_stream', 'scanner_recon', 'scanner', ['camera'], 'camera_stream', ['camera_dump']),
     'camera_shutdown': recipe('camera_shutdown', 'exploit', 'camera_tool', ['camera'], 'camera_shutdown'),
-    'install_sniffer': recipe('install_sniffer', 'sniffer', 'sniffer', WORLD, 'persistent_sniffer', ['credentials']),
+    'install_sniffer': recipe('install_sniffer', 'sniffer', 'sniffer', WORLD + ['atm'], 'persistent_sniffer', ['credentials']),
     'sniff': recipe('sniff', 'sniffer', 'sniffer', WORLD, 'persistent_sniffer', ['credentials']),
     'mic_sniff': recipe('mic_sniff', 'sniffer', 'sniffer', ['person', 'phone', 'venue'], 'microphone_sniffer', ['audio_transcript']),
     'atm_logs': recipe('atm_logs', 'sniffer', 'sniffer', ['atm'], 'atm_log_extraction', ['atm_dump']),
@@ -90,6 +90,20 @@ FILE_REQUIRED_ACTIONS = frozenset({'trace', 'trace_gps', 'trace_device', 'scan_h
     'install_sniffer', 'sniff', 'mic_sniff', 'atm_logs'})
 for _action, _recipe in RECIPES.items():
     _recipe['requires_file'] = _action in FILE_REQUIRED_ACTIONS
+
+
+def supports_target_type(contract, target_type):
+    targets = contract.get('target_types') or []
+    if target_type in targets:
+        return True
+    # Existing editions called these generic places POI. Keep their original
+    # purpose usable after classification becomes more precise, without rewriting them.
+    if 'poi' in targets:
+        if target_type == 'venue' and contract.get('action') in {'scan_ports', 'exploit', 'sniff', 'trace', 'install_sniffer'}:
+            return True
+        if target_type == 'atm' and contract.get('action') == 'install_sniffer':
+            return True
+    return False
 
 
 def fileless_data_operation(app):

@@ -5972,7 +5972,8 @@
                 ];
             }
             // OSOBY
-            else if (name.includes("osoba") || name.includes("klient") || targetSourceType.includes("person")) {
+            else if (name.includes("osoba") || name.includes("klient") || targetSourceType.includes("person")
+                || (menuTarget.generated && name === "gość restauracji")) {
                 actions = [
                     { label: "📡 Śledź urządzenie", action: "trace_device" },
                     { label: "🎙️ Podsłuchuj rozmowę", action: "mic_sniff" }

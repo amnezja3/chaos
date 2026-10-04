@@ -12,4 +12,16 @@ assert(actions({source_type: 'parking', name: 'Auto: Tesla', generated: true}).i
 assert(actions({source_type: 'camera', name: 'Kamera bankomatu'}).includes('camera_shutdown'));
 assert(actions({source_type: 'atm', name: 'Bankomat'}).includes('atm_logs'));
 assert(actions({source_type: 'person', name: 'Gość restauracji'}).includes('trace_device'));
+assert(actions({source_type: 'restaurant', name: 'Gość restauracji', generated: true}).includes('trace_device'));
+for (const target of [
+    {source_type: 'person', name: 'Klient', generated: true},
+    {source_type: 'person', name: 'Osoba przy bankomacie', generated: true},
+    {source_type: 'shop_clothes', name: 'Klient', generated: true}
+]) assert.deepStrictEqual(actions(target), ['trace_device', 'mic_sniff']);
+for (const source_type of ['shop', 'shop_clothes', 'bank', 'car_wash', 'parking', 'bicycle_parking', 'parcel_locker']) {
+    assert.deepStrictEqual(actions({source_type, name: 'Test'}), ['scan_ports', 'exploit', 'sniff', 'trace']);
+}
+for (const source_type of ['restaurant', 'bar', 'cafe', 'fast_food']) {
+    assert.deepStrictEqual(actions({source_type, name: 'Test'}), ['scan_hotspots', 'audio_hack']);
+}
 console.log('scan marker actions: OK');
