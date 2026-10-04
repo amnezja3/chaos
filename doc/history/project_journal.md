@@ -1,5 +1,51 @@
 # CHAOS — Project Journal
 
+## 2026-10-04 — Sprint 148 PASS, odbiór kreatorów i spójności mapy
+
+Autor potwierdził: „super 148 mamy pass”. Sprint zamknięty po wdrożeniu,
+poprawkach i odbiorze gameplayowym. Ten wpis aktualizuje wcześniejszy status
+pakietu oczekującego na wdrożenie; wcześniejsze wpisy pozostają historią prac.
+
+Migracja produkcyjna objęła 13 historycznych projektów: `adopted`, a przy
+ponowieniu `already_adopted`. Przed migracją operator wykonał kopię bazy
+i potwierdził 37 kont oraz `quick_check: OK`.
+
+Domknięty zakres:
+
+- Uproszczone edytory TermCreator, WindowMaker, ButtonMaker i AppForge,
+  ponowne otwieranie projektów, edycja prezentacji i wersjonowana publikacja.
+  Zainstalowane edycje pozostają niezmienione do jawnej bezpłatnej aktualizacji;
+  wycofanie oferty zachowuje kopie użytkowników.
+- Poprawki przejścia picker → aplikacja → właściwy interfejs oraz walidacji
+  kontraktu. Akcje wymagające zasobu mają obowiązkowe tworzenie pliku,
+  bez możliwości odłączenia go w kreatorze.
+- Layout kreatorów, kompaktowy wybór ikony, komunikaty CHAOS, pełna szerokość
+  na mobile, czytelne przyciski i styl aktualizacji Googleplex oraz odświeżony FM.
+- Scenariusze skanowania i kategorie celów: klienci sklepów, goście restauracji,
+  samochody, kamery, bankomaty i obiekty ogólne. Parking i myjnia nie są pojazdem.
+  Przywrócono klientów poza dawnym ograniczeniem godzinowym oraz generowanie
+  sceny przy już oznaczonym obiekcie. Samochody i goście mają minimalny dystans
+  od markera nadrzędnego, tak jak klienci sklepów. Nazwy aut to ikona i marka,
+  bez „Auto:” i bez dublowania ikony w nagłówku menu.
+- Wszystkie 14 nazw i ikon akcji kreatora odpowiada menu mapy. Opisy wskazują
+  obiekty, np. hotspoty/audio dla restauracji, kawiarni i barów. Na mobile długie
+  etykiety kończą się „…”, a pełny opis wybranej akcji jest pod listą.
+
+Potwierdzenie operatora obejmuje zapis, publikację, zakup, instalację i start
+narzędzi z terminala, pulpitu i pickera oraz pętlę logów ATM: powstanie plików,
+kompletowanie paczek i sprzedaż w Ghost Exchange. Przekazany wynik sprzedaży:
+42 MB / 414 HC. Autor potwierdził też poprawne rozmieszczenie markerów.
+
+Weryfikacja lokalna ostatnich poprawek: 10 testów scenariuszy skanowania PASS,
+test akcji markerów JS PASS, zgodność 14 nazw/ikon z menu mapy oraz kontrola
+składni JS. Playwright w izolowanym hoście kreatora potwierdził wybór hotspotów
+i audio, pełny opis oraz ellipsis przy szerokości 390 px; bez błędów JS w tej
+sesji. Test komponentowy nie oznacza osobnego pełnego E2E każdej recepty.
+PASS sprintu zapisano na podstawie końcowej akceptacji autora.
+
+[Runbook 148](../runbooks/sprint_148_creators.md) pozostaje procedurą wdrożenia
+i migracji. Następny zaplanowany etap: 149 — GhostLab v2.0 Research.
+
 ## 2026-10-03 — 148, pakiet do kontrolowanego wdrożenia
 
 Uproszczone edytory czterech kreatorów, ponowne otwieranie projektu z FM,

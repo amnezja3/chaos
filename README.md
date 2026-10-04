@@ -39,7 +39,7 @@ World Object
 
 ## Current Features
 
-Status reviewed: **30 September 2026**. Gameplay acceptance and pending work are
+Status reviewed: **4 October 2026**. Gameplay acceptance and pending work are
 tracked separately in the [project journal](doc/history/project_journal.md).
 
 - Browser desktop styled as an in-game operating system.
@@ -51,6 +51,9 @@ tracked separately in the [project journal](doc/history/project_journal.md).
 - Territory and conflict mechanics in active development.
 - SQLite-backed game state with dedicated inventory, wallet, security, session and operation stores; bounded reads and deltas on migrated gameplay paths.
 - Googleplex app store.
+- Simplified TermCreator, WindowMaker, ButtonMaker and AppForge editors: map-action selection, system-generated mechanics, editable projects and versioned publication. **Sprint 148 accepted by the author on 4 October 2026.**
+- Installed creator editions remain unchanged until an explicit free update; withdrawal preserves installed copies. File-producing actions require file creation, with the ATM file → batch → Ghost Exchange sale loop confirmed in gameplay.
+- Creator action names and icons match all 14 map-menu actions, with object descriptions and mobile-friendly labels. Scan scenes distinguish people, vehicles, cameras, ATMs and venues; cars and restaurant guests spawn at a minimum distance from their parent marker.
 - GhostLab IDE: template selection, blueprint validation, compilation, versioned publication, purchases, creator payments, installation and explicit free updates.
 - Pro-system tools for hacked player targets:
   - System Log Reader
@@ -194,7 +197,7 @@ then the gameplay creators and GhostLab v2.0. A prepared fix is not a production
 | [146.4](doc/sprints/sprint_146_4_ghostlab_deep_scanners.md) | Deep Scanners | Closed / author PASS, including final viewfinder effects. |
 | [146.5](doc/sprints/sprint_146_5_ghostlab_v1_completion.md) | GhostLab 1.0: .lab, terminal, global/clan PTK and free products | **PASS — 2026-10-01**, accepted by the author. GhostLab 1.0 complete, including PTK editor scrolling, Plexcak and clan catalog visibility. [Runbook](doc/runbooks/sprint_146_5_ghostlab_completion.md). |
 | [147](doc/sprints/sprint_147_creator_gameplay_policy.md) | Simplified creators, level-capped random power and validated Button Choice effects | Backend and progression migration deployed; gameplay confirmation recorded. Sprint 148 completes the creator editor, legacy projects and runtime rollout. [Runbook](doc/runbooks/sprint_147_creators.md). |
-| [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Final-screen creator UX, project editing, free updates and runtime settlement | **Prepared for controlled deployment — 2026-10-03.** Four creator editors, historical-project adoption, immutable installed editions, explicit free updates and success-only settlement. Offline migration required; production gameplay acceptance remains open. [Deployment runbook](doc/runbooks/sprint_148_creators.md). |
+| [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Final-screen creator UX, project editing, free updates and runtime settlement | **PASS — 2026-10-04**, accepted by the author after rollout and gameplay checks. Historical projects adopted; creator UX, launch flow, required files, updates and map-action consistency completed. [Deployment runbook](doc/runbooks/sprint_148_creators.md). |
 | [149](doc/sprints/sprint_149_ghostlab_v2_research.md) | GhostLab v2.0 Research | Planned after creator sprints 147–148. |
 | [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Planned. |
 | [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Planned. |
