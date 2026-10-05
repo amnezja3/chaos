@@ -395,9 +395,9 @@ const catalogSource = terminalSource.slice(renderStart, renderEnd);
 
 // Data selection remains unchanged: Home for empty query, all public catalog
 // entries for /all, deterministic /all ranking and source order for queries.
-assert.match(catalogSource, /if \(!query\)[\s\S]*renderGoogleplexHome\(\)/);
+assert.match(catalogSource, /if \(!query && !selectedCategory\)[\s\S]*renderGoogleplexHome\(\)/);
 assert.match(catalogSource, /const showAll = query === "\/all"/);
-assert.match(catalogSource, /beginGoogleplexCatalogView\(showAll \? "all" : `query:\$\{query\}`\)/);
+assert.match(catalogSource, /beginGoogleplexCatalogView\(`\$\{selectedCategory\}:/);
 assert.match(catalogSource, /settleCatalogScroll\(\)/);
 assert.match(
     catalogSource,

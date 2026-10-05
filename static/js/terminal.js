@@ -9163,6 +9163,12 @@ function createBrowser() {
             <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
             <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
             <button type="button" class="browser-tab" data-browser-tab="blacknet">BlackNet</button>
+            <label class="gp-category-filter">Kategoria
+                <select aria-label="Kategoria produktów Googleplex">
+                    <option value="">Wszystkie kategorie</option>
+                    ${(googleplexSearchPresentation?.categories || []).map(category => `<option value="${category.id}">${category.label}</option>`).join('')}
+                </select>
+            </label>
         </div>
         <input type="text" id="${terminalId}-search" placeholder="Szukaj aplikacji...  /all - pokaz wszystkie" class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid">
@@ -9351,7 +9357,7 @@ function createBrowser() {
         item.app_level,
         item.product_type,
         item.travel_city,
-        ...googleplexList(item.effects).map(effect => `${effect?.type || ''} ${effect?.value || effect?.city || ''}`),
+        ...(Array.isArray(item.effects) ? item.effects : []).map(effect => `${effect?.type || ''} ${effect?.value ?? effect?.city ?? ''}`),
         ...googleplexList(item.map_actions),
         ...googleplexList(item.operation_types),
         ...googleplexList(item.resource_types),
@@ -10553,7 +10559,8 @@ function createBrowser() {
         const rawQuery = search.value.trim();
         const query = rawQuery.toLowerCase();
         const showAll = query === "/all";
-        if (!query) {
+        const selectedCategory = term.querySelector('.gp-category-filter select').value;
+        if (!query && !selectedCategory) {
             renderGoogleplexHome();
             if (!googleplexHomeSnapshot && !googleplexHomeLoading && !googleplexHomeError) {
                 loadGoogleplexHome().catch(() => {});
@@ -10563,23 +10570,23 @@ function createBrowser() {
         }
 
         rememberGoogleplexHomeScroll();
-        const settleCatalogScroll = beginGoogleplexCatalogView(showAll ? "all" : `query:${query}`);
+        const settleCatalogScroll = beginGoogleplexCatalogView(`${selectedCategory}:${showAll ? "all" : `query:${query}`}`);
 
         if (!catalogLoaded) {
             results.innerHTML = '<div class="googolplex-empty">Synchronizacja katalogu Googleplex...</div>';
             settleCatalogScroll();
             loadCatalog().catch(error => {
                 console.warn('Googleplex catalog lazy load failed', error);
-                if (activeBrowserTab === "googleplex" && search.value.trim()) {
+                if (activeBrowserTab === "googleplex" && (search.value.trim() || selectedCategory)) {
                     results.innerHTML = '<div class="googolplex-empty">Nie udało się pobrać katalogu.</div>';
                 }
             });
             return;
         }
 
-        const filteredMatches = showAll
-            ? catalog.filter(item => item && typeof item === "object")
-            : catalog.filter(item => googleplexSearchText(item).includes(query));
+        const filteredMatches = catalog.filter(item => googleplexSearchPresentation?.matchesSearch
+            ? googleplexSearchPresentation.matchesSearch(item, query, selectedCategory)
+            : item && (showAll || googleplexSearchText(item).includes(query)));
         const matches = showAll
             ? filteredMatches.slice().sort((left, right) => {
                 const downloadsDelta = Number(right.downloads || 0) - Number(left.downloads || 0);
@@ -10589,7 +10596,7 @@ function createBrowser() {
             : filteredMatches;
         results.innerHTML = '';
         if (matches.length === 0) {
-            results.innerHTML = '<div class="googolplex-empty">Brak aplikacji do pokazania.</div>';
+            results.innerHTML = '<div class="googolplex-empty">Brak pasujących produktów. Zmień kategorię lub wpisane hasło.</div>';
             settleCatalogScroll();
             updateBrowserNarrowMode();
             return;
@@ -11312,6 +11319,7 @@ function createBrowser() {
             browserQueries[activeBrowserTab] = search.value;
         }
         activeBrowserTab = tabName;
+        term.querySelector('.gp-category-filter').hidden = tabName !== 'googleplex';
         if (tabName !== "googleplex") {
             googleplexRenderedViewKey = `tab:${tabName}`;
         }
@@ -11334,15 +11342,17 @@ function createBrowser() {
         } else {
             title.innerHTML = '<span class="gp-brand-lockup"><img src="/static/images/googleplx/brand/googleplex-news-wordmark.svg" alt="Googleplex News"></span>';
             renderBrowserWallet();
-            search.placeholder = "Szukaj aplikacji...  /all - pokaz wszystkie";
+            search.placeholder = "Szukaj nazwy, kategorii lub działania… /all — wszystkie";
             renderCatalog();
-            if (!search.value.trim()) {
+            if (!search.value.trim() && !term.querySelector('.gp-category-filter select').value) {
                 loadGoogleplexHome({ force: true }).catch(() => {});
             }
         }
     }
 
     const browserRefreshButton = term.querySelector('.browser-refresh-btn');
+    term.querySelector('.gp-category-filter select').addEventListener('change', renderCatalog);
+    search.placeholder = "Szukaj nazwy, kategorii lub działania… /all — wszystkie";
     browserRefreshButton.addEventListener('click', async () => {
         if (browserRefreshButton.disabled) return;
         browserRefreshButton.disabled = true;
@@ -18020,7 +18030,18 @@ function createEmailClient() {
     const replaceCurrentMessages = (messages) => {
         currentMessages = [];
         messageIds.clear();
-        (Array.isArray(messages) ? messages : []).forEach(message => {
+        let bounded = Array.isArray(messages) ? messages : [];
+        if (currentChat.channel === 'world' || currentChat.scope === 'group' || currentChat.scope === 'world') {
+            bounded = bounded.slice(-100);
+            const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            const recent = bounded.filter(message => {
+                let stamp = String(message.created_at || '');
+                if (stamp && !/(Z|[+-]\d{2}:\d{2})$/i.test(stamp)) stamp += 'Z';
+                return Date.parse(stamp) >= cutoff;
+            });
+            bounded = recent.length ? recent : bounded.slice(-10);
+        }
+        bounded.forEach(message => {
             const messageId = messageStableId(message);
             if (messageId && messageIds.has(messageId)) return;
             if (messageId) messageIds.add(messageId);
@@ -18033,6 +18054,7 @@ function createEmailClient() {
         if (messageId && messageIds.has(messageId)) return false;
         if (messageId) messageIds.add(messageId);
         currentMessages.push(message);
+        replaceCurrentMessages(currentMessages);
         return true;
     };
     const mergeMessages = (...collections) => {

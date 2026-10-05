@@ -655,8 +655,15 @@ def _cyberner_list_route_messages(username, route, limit=100, after_id=None, bef
     channel = route["channel"]
     if channel == 'world':
         from database import db_connect
+        from cyberner_history import world_history
         with db_connect(detention_service.db_path) as conn:
             detention_require_world(conn, username)
+        if cyberner_shared_store_enabled('world'):
+            history = cyberner_world_store.list_messages(limit=100)
+        else:
+            legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
+            history = mail_store.list_messages(username, legacy_scope, legacy_peer, limit=100)
+        return world_history(history, limit=limit, after_id=after_id, before_id=before_id)
     if channel == "agi2108":
         records = get_ghostnetwork_service().repository.list_narrative_medium_records(
             "cyberner", audience_scope="owner", audience_owner=username,
@@ -686,8 +693,6 @@ def _cyberner_list_route_messages(username, route, limit=100, after_id=None, bef
         except (TypeError, ValueError):
             raise ValueError("Nieprawidlowy kursor kanalu AGI 2108.")
         return messages[:max(1, min(int(limit or 100), 100))]
-    if channel == "world" and cyberner_shared_store_enabled("world"):
-        return cyberner_world_store.list_messages(after_id=after_id, before_id=before_id, limit=limit)
     if channel == "clan" and cyberner_shared_store_enabled("clan"):
         return cyberner_clan_store.list_messages(
             route["store_key"], after_id=after_id, before_id=before_id, limit=limit
