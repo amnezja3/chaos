@@ -18,6 +18,15 @@ MAX_EXACT_AREA_TARGETS = 32
 MAX_EXACT_AREA_TRIANGLES = 1200
 
 
+def is_territory_anchor(target):
+    """Mobile/generated scene objects never become territory pillars."""
+    target = target or {}
+    source = str(target.get('source_type') or '').strip().lower()
+    if source in {'car', 'vehicle', 'person', 'player'} or target.get('target_mode') == 'player':
+        return False
+    return not target.get('generated', False) and bool(target.get('stationary', True))
+
+
 def distance_meters(a, b):
     lat1 = math.radians(float(a["lat"]))
     lon1 = math.radians(float(a.get("lng", a.get("lon"))))

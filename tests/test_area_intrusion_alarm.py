@@ -64,6 +64,23 @@ class AreaIntrusionAlarmTest(unittest.TestCase):
         with db_connect(self.path) as conn:
             self.assertEqual(conn.execute("SELECT count(*) FROM area_events WHERE event_type='intruder_enter'").fetchone()[0], 1)
 
+    def test_rebuild_does_not_repeat_existing_presence_after_cooldown(self):
+        self.setup_intruder()
+        self.enter()
+        self.messages.consume_pending('attacker')
+        with db_connect(self.path) as conn:
+            conn.execute("UPDATE area_events SET created_at='2000-01-01T00:00:00'")
+        rebuilt = dict(self.area, id=999)
+        self.assertEqual(run.sync_static_area_intruders_for_owner(
+            'attacker', [rebuilt], previous_areas=[self.area]), [])
+        self.assertEqual(self.messages.consume_pending('attacker'), [])
+
+    def test_expansion_around_previously_outside_player_still_warns(self):
+        self.setup_intruder()
+        self.assertEqual(len(run.sync_static_area_intruders_for_owner(
+            'attacker', [self.area], previous_areas=[])), 1)
+        self.assertEqual(len(self.messages.consume_pending('attacker')), 1)
+
     def test_message_failure_rolls_back_intrusion_event(self):
         self.setup_intruder()
         with patch.object(self.messages, 'add_message', side_effect=RuntimeError('write failure')):

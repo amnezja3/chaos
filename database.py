@@ -14,6 +14,7 @@ from contextvars import ContextVar
 from datetime import datetime, timedelta
 
 from territory_geometry import build_player_areas as build_canonical_player_areas
+from territory_geometry import is_territory_anchor
 
 
 DB_PATH = os.path.join("data", "game.sqlite3")
@@ -6039,7 +6040,7 @@ class TerritoryStore:
         normalized["lon"] = float(lng)
         normalized["lat"] = float(normalized.get("lat"))
         generated = bool(normalized.get("generated", False))
-        stationary = bool(normalized.get("stationary", not generated))
+        stationary = is_territory_anchor(normalized)
         normalized["owner_username"] = username
         normalized["stationary"] = stationary
         normalized.setdefault("captured_at", now)
@@ -6381,6 +6382,7 @@ class TerritoryStore:
             target
             for target in self.list_captured_targets(username, stationary=True)
             if target.get("lat") is not None and target.get("lng") is not None
+            and is_territory_anchor(target)
         ]
 
         def log_approximation(reason, target_count, limit):

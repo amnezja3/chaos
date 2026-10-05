@@ -6,6 +6,8 @@ Dokumenty te są niezależne od `project_journal.md`.
 
 ## Artefakty
 
+- [Przejęcie samochodu — powtarzane alarmy intruzów i efekty terytorialne (2026-10-05)](vehicle_capture_territory_side_effects_2026-10-05.md)
+- [Ollama — limit CPU usługi, runtime i utrwalenie po restarcie (2026-10-05)](ollama_cpu_quota_2026-10-05.md)
 - [Pre-polish 138 — przywracanie fokusu mapy na motocykl](motorcycle_focus_map_control_pre_polish_2026-09-08.md)
 - [Pre-polish 138 — pierwszy respawn wewnątrz kontrolowanego terytorium](first_respawn_inside_foreign_territory_pre_polish_2026-09-08.md)
 - [Pre-polish 138 — utrata częściowego postępu celu po zmianie zaznaczenia](partial_target_progress_lost_on_switch_pre_polish_2026-09-08.md)

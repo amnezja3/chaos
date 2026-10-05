@@ -9,6 +9,27 @@ from database import TerritoryProgressionReceiptStore, UserStore, WalletBalanceS
 
 
 class TerritoryProgressionReceiptTests(unittest.TestCase):
+    def test_mobile_capture_cannot_claim_concurrent_territory_growth(self):
+        from territory_geometry import is_territory_anchor
+        for target in ({'source_type': 'vehicle'}, {'source_type': 'car', 'stationary': True},
+                       {'source_type': 'person'}, {'source_type': 'parking', 'generated': True}):
+            self.assertFalse(is_territory_anchor(target))
+            baseline = run.build_territory_progression_baseline(
+                {'level': 2}, [], target=target)
+            receipt = self.receipts.ensure('mobile:' + str(target), 'alice', baseline)
+            before = self.receipts.progression.get('alice')
+            with patch.object(run, 'territory_progression_receipt_store', self.receipts), \
+                 patch.object(run, 'apply_territory_progression', side_effect=AssertionError('mobile growth')):
+                result = run.finalize_territory_progression_receipt(receipt, [{'area_size': 999999}])
+            after = self.receipts.progression.get('alice')
+            self.assertEqual(result['respect_gain'], 0)
+            self.assertEqual(result['levels_gained'], 0)
+            for key in ('level', 'respect', 'territory_stats', 'exp'):
+                self.assertEqual(after[key], before[key])
+            self.assertEqual(self.receipts.progression.messages.consume_pending('alice'), [])
+        self.assertTrue(is_territory_anchor({'source_type': 'parking'}))
+        self.assertTrue(is_territory_anchor({'source_type': 'shop'}))
+
     def setUp(self):
         handle, self.db_path = tempfile.mkstemp(suffix=".sqlite3")
         os.close(handle)

@@ -1,5 +1,14 @@
 # CHAOS — Project Journal
 
+## 2026-10-05 — Hardbugfix: ograniczenie CPU Ollamy
+
+Operator zastosował `sudo systemctl set-property --runtime ollama.service CPUQuota=300%`
+po stwierdzeniu konieczności ograniczenia obciążenia przez Ollamę.
+Zapisano [artefakt incydentu](../hardbugfix/ollama_cpu_quota_2026-10-05.md)
+z obserwacjami, zakresem limitu, procedurą utrwalenia i weryfikacji.
+Potwierdzono zastosowanie runtime; trwała konfiguracja i pomiary po zmianie
+pozostają niepotwierdzone. Nie zmieniano kodu inferencji ani danych aplikacji.
+
 ## 2026-10-04 — Sprint 148 PASS, odbiór kreatorów i spójności mapy
 
 Autor potwierdził: „super 148 mamy pass”. Sprint zamknięty po wdrożeniu,

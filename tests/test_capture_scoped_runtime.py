@@ -119,13 +119,30 @@ class CaptureScopedRuntimeTest(unittest.TestCase):
     def test_contested_capture_and_owner_loss_without_full_profile(self):
         self.capture(contested=True)
 
-    def capture(self, contested=False):
+    def test_vehicle_capture_does_not_rebuild_or_reward_territory(self):
+        before = self.progression.get('attacker')
+        with patch.object(run, 'rebuild_player_areas_with_territory_delta',
+                          side_effect=AssertionError('vehicle rebuilt territory')), \
+             patch.object(run, 'discover_and_queue_new_territory_conflicts',
+                          side_effect=AssertionError('vehicle discovered conflicts')):
+            self.capture(vehicle=True)
+        after = self.progression.get('attacker')
+        self.assertEqual(before['level'], after['level'])
+        self.assertEqual(before['respect'], after['respect'])
+        self.assertFalse(run.territory_store.list_captured_targets('attacker')[0]['stationary'])
+
+    def capture(self, contested=False, vehicle=False):
         target = dict(target_id='poi:test', target_mode='standard', label='Test',
                       lat=52., lng=21., source_type='poi',
                       security={key: True for key in SECURITY_KEYS},
                       actions_allowed=dict(scan_ports=True, sniff=True, trace=True, exploit=False))
         app = dict(id='legacy-xmapper', name='XMapper', interface='choice',
                    map_actions=['exploit'], levels=[dict(options=[dict(label='Hack', effect={key: False for key in SECURITY_KEYS})])])
+        if vehicle:
+            # Older saved markers can lack generated; source identity still
+            # must prevent a car becoming a stationary territory anchor.
+            target.update(source_type='vehicle', label='VW')
+            app['map_actions'] = ['car_hack']
         if contested:
             self.users.save_profile(read_tests.valid_profile('victim'))
             run.territory_store.save_captured_target('victim', target)

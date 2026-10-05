@@ -116,6 +116,7 @@ from googleplex_news import (
     merge_googleplex_news_publications,
 )
 from territory_geometry import polygons_intersect as canonical_polygons_intersect
+from territory_geometry import is_territory_anchor
 
 app = Flask(__name__)
 # Ensure once during application startup; request readers never migrate schema.
@@ -4712,7 +4713,7 @@ def _profile_map_position(profile):
     return {"lat": lat, "lng": lng}
 
 
-def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="territory_rebuild"):
+def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="territory_rebuild", previous_areas=None):
     owner_username = str(owner_username or "").strip()
     if not owner_username:
         return []
@@ -4762,6 +4763,14 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
         position = _profile_map_position(actor_profile)
         if not position:
             continue
+        # A rebuild is not movement: an actor already inside the old geometry
+        # has not entered again, even if row IDs changed or the cooldown expired.
+        if previous_areas is not None and any(
+            area.get('status', 'active') == 'active'
+            and territory_point_in_polygon_or_boundary(position, area.get('vertices') or [])
+            for area in previous_areas
+        ):
+            continue
         for area in owner_areas:
             if not territory_point_in_polygon_or_boundary(position, area.get("vertices") or []):
                 continue
@@ -4802,9 +4811,10 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
 
 def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild",
                                                resolve_encirclements=True):
+    previous_areas = territory_store.list_player_areas(username)
     areas = territory_store.rebuild_player_areas(username, player_level)
     record_territory_areas_delta(username, areas, reason=reason)
-    sync_static_area_intruders_for_owner(username, areas, reason=reason)
+    sync_static_area_intruders_for_owner(username, areas, reason=reason, previous_areas=previous_areas)
     if resolve_encirclements and not str(reason or "").startswith("territory_encirclement"):
         try:
             resolve_territory_encirclements_after_change(
@@ -8243,6 +8253,8 @@ class TerritoryEncirclementResolver:
 
         attacker_level = territory_player_level(attacker_username)
         defender_level = territory_player_level(defender_username)
+        previous_attacker_areas = self.store.list_player_areas(attacker_username)
+        previous_defender_areas = self.store.list_player_areas(defender_username)
         attacker_areas = self.store.rebuild_player_areas(attacker_username, attacker_level)
         defender_areas = self.store.rebuild_player_areas(defender_username, defender_level)
         record_territory_areas_delta(attacker_username, attacker_areas, reason="territory_encirclement_attacker")
@@ -8251,11 +8263,13 @@ class TerritoryEncirclementResolver:
             attacker_username,
             attacker_areas,
             reason="territory_encirclement_attacker",
+            previous_areas=previous_attacker_areas,
         )
         sync_static_area_intruders_for_owner(
             defender_username,
             defender_areas,
             reason="territory_encirclement_defender",
+            previous_areas=previous_defender_areas,
         )
         self._sync_profile_captured_targets(attacker_username)
         self._sync_profile_captured_targets(defender_username)
@@ -19161,6 +19175,7 @@ def build_territory_progression_baseline(profile, areas, target=None):
             "lat": (target or {}).get("lat"),
             "lng": (target or {}).get("lng", (target or {}).get("lon")),
             "target_id": (target or {}).get("target_id"),
+            "territory_anchor": is_territory_anchor(target),
         },
         "level": get_player_level(profile),
         "captured_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
@@ -19291,6 +19306,17 @@ def finalize_territory_progression_receipt(receipt, areas, *, coalesced_receipts
         return dict(receipt.get("result") or {})
     username = str(receipt.get("actor_username") or "")
     profile = territory_progression_receipt_store.progression.get(username)
+    if (receipt.get('baseline') or {}).get('target', {}).get('territory_anchor') is False:
+        # A mobile capture may coincide with another capture/worker rebuild.
+        # Never attribute that unrelated area gain to this receipt.
+        settled = territory_progression_receipt_store.settle(
+            receipt.get('receipt_id'),
+            dict(area_gain=0, effective_gain=0, respect_gain=0, levels_gained=0,
+                 reason='non_territory_target'),
+            None, None,
+        )
+        return dict(settled.get('result') or dict(levels_gained=0, respect_gain=0),
+                    duplicate=bool(settled.get('duplicate')))
     profile['hacked'] = territory_store.list_captured_targets(username)
     baseline_stats = dict((receipt.get("baseline") or {}).get("territory_stats") or {})
     baseline_clusters = list((receipt.get("baseline") or {}).get("cluster_snapshots") or [])
@@ -30942,7 +30968,7 @@ def _gonna_win_runtime():
         captured_target["lon"] = float(captured_lng)
         captured_target["owner_username"] = session["user"]
         captured_target["captured_at"] = datetime.utcnow().isoformat(timespec="seconds")
-        captured_target["stationary"] = not bool(captured_target.get("generated", False))
+        captured_target["stationary"] = is_territory_anchor(captured_target)
         if not captured_target.get("target_id"):
             captured_target["target_id"] = build_operation_target_id(captured_target)
         progression_baseline = build_territory_progression_baseline(
@@ -31329,7 +31355,7 @@ def _gonna_win_runtime():
         step_started_at = time.perf_counter()
         rebuilt_areas = (
             territory_store.list_player_areas(session["user"])
-            if defer_conflict_rebuild
+            if defer_conflict_rebuild or not captured_target['stationary']
             else rebuild_player_areas_with_territory_delta(
                 session["user"],
                 profile.get("level", 1),
@@ -31448,7 +31474,7 @@ def _gonna_win_runtime():
                 user=session["user"],
                 areas=len(rebuilt_areas or []),
             )
-        if not captured_conflicts:
+        if not captured_conflicts and captured_target['stationary']:
             step_started_at = time.perf_counter()
             discovered_conflicts = discover_and_queue_new_territory_conflicts(session["user"])
             if discovered_conflicts:
