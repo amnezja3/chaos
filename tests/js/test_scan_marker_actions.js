@@ -25,3 +25,9 @@ for (const source_type of ['restaurant', 'bar', 'cafe', 'fast_food']) {
     assert.deepStrictEqual(actions({source_type, name: 'Test'}), ['scan_hotspots', 'audio_hack']);
 }
 console.log('scan marker actions: OK');
+assert.deepStrictEqual(actions({source_type: 'phone', name: 'Telefon'}), ['trace_device', 'mic_sniff']);
+for (const name of ['Kamera sklep', 'Klient cafe', 'Osoba bar']) {
+    assert.deepStrictEqual(actions({source_type: 'shop', name}), ['scan_ports', 'exploit', 'sniff', 'trace']);
+}
+assert.deepStrictEqual(actions({source_type: ' Camera ', name: 'Test'}), ['camera_stream', 'camera_shutdown']);
+assert.deepStrictEqual(actions({source_type: 'shop_camera', name: 'Test'}), ['scan_ports', 'exploit', 'sniff', 'trace']);

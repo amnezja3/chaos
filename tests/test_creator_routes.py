@@ -16,6 +16,51 @@ class CreatorRoutesTest(unittest.TestCase):
     setUp = read_tests.PlayerHackReadPathsTest.setUp
     no_heavy = alignment_tests.GhostLabAlignmentTest.no_heavy
 
+    def test_all_creator_actions_have_same_picker_and_runtime_target_rules(self):
+        from creator_policy import RECIPES, supports_target_type
+        from response_network.camera_contract import eligible_app
+        world = {'poi', 'server', 'router', 'pillar', 'venue'}
+        expected = {
+            'exploit': world, 'scan_ports': world, 'trace': world, 'sniff': world,
+            'install_sniffer': world | {'atm'},
+            'car_hack': {'vehicle'}, 'trace_gps': {'vehicle'},
+            'trace_device': {'person', 'phone'}, 'mic_sniff': {'person', 'phone', 'venue'},
+            'camera_stream': {'camera'}, 'camera_shutdown': {'camera'},
+            'atm_logs': {'atm'}, 'scan_hotspots': {'venue'}, 'audio_hack': {'venue'},
+        }
+        products = []
+        for action in RECIPES:
+            contract = generate_contract(dict(action=action, interface='window', creates_file=False), 40)
+            products.append(dict(contract, id=action, creator_contract_version=1, creator_contract=contract))
+        for action, types in expected.items():
+            for target_type in world | {'vehicle', 'person', 'phone', 'camera', 'atm', 'player'}:
+                with self.subTest(action=action, target_type=target_type):
+                    matched, _ = run.get_apps_for_target_action(products, action, {'source_type': target_type})
+                    self.assertEqual([p['id'] for p in matched], [action] if target_type in types else [])
+                    product = next(p for p in products if p['id'] == action)
+                    self.assertEqual(supports_target_type(product['creator_contract'], target_type), target_type in types)
+        self.assertEqual([p['id'] for p in products if eligible_app(p)], ['camera_shutdown'])
+
+    def test_picker_respects_creator_purpose_and_target_without_breaking_legacy(self):
+        def tool(action):
+            contract = generate_contract(dict(action=action, interface='window', creates_file=False), 40)
+            return dict(contract, id=action, creator_contract_version=1, creator_contract=contract)
+        exploit, vehicle, audio = map(tool, ('exploit', 'car_hack', 'audio_hack'))
+        legacy = dict(id='xmapper', type='exploit_suite', map_actions=['exploit'])
+        cases = [
+            ([exploit], 'car_hack', 'vehicle', []),
+            ([exploit, legacy], 'car_hack', 'vehicle', ['xmapper']),
+            ([exploit, vehicle], 'car_hack', 'vehicle', ['car_hack']),
+            ([vehicle], 'car_hack', 'car_wash', []),
+            ([exploit, audio], 'audio_hack', 'restaurant', ['audio_hack']),
+            ([exploit], 'exploit', 'shop', ['exploit']),
+            ([exploit], 'exploit', 'vehicle', []),
+        ]
+        for apps, action, source_type, expected in cases:
+            with self.subTest(action=action, source_type=source_type, expected=expected):
+                matched, _ = run.get_apps_for_target_action(apps, action, {'source_type': source_type})
+                self.assertEqual([app['id'] for app in matched], expected)
+
     def prepare(self):
         self.users.save_profile(dict(read_tests.valid_profile('attacker'),level=40,respect=500))
         self.inventory.seed_from_profile('attacker', read_tests.valid_profile('attacker'))

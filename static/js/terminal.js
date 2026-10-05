@@ -1524,6 +1524,9 @@ function renderToolbarStatus() {
             && Date.parse(toolbarGhostAbilityState.expiresAt) > Date.now()
         );
         const targetIcon = String(aimedTarget.icon || "🎯");
+        const labelText = String(targetLabel).trim();
+        const targetDisplayLabel = labelText.startsWith(targetIcon + ' ')
+            ? labelText.slice(targetIcon.length).trimStart() : labelText;
         const targetClasses = [
             "system-status-target",
             "is-aimed",
@@ -1550,7 +1553,7 @@ function renderToolbarStatus() {
         ].filter(Boolean).join(" ");
         const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
         const title = toolbarTargetTruthRefreshing ? "Sprawdzam zrodlo prawdy celu..." : `Cel na celowniku: ${escapeHTML(String(targetLabel))}. Kliknij, aby odswiezyc.`;
-        return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b class="target-status-icon" aria-hidden="true">${escapeHTML(targetIcon)}</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
+        return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b class="target-status-icon" aria-hidden="true">${escapeHTML(targetIcon)}</b><i class="target-status-body"><em>${escapeHTML(targetDisplayLabel)}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
     })() : (hackedEffect
         ? `<span class="system-status-target is-hacked-clear" role="button" tabindex="0" title="Cel przejety. Belka zaraz wroci do stanu neutralnego."><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(hackedEffect.label))}</em></i></span>`
         : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`);

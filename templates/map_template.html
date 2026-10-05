@@ -5952,8 +5952,11 @@
             menu.style.left = `${x}px`;
 
             // Ustal typ celu
-            const targetSourceType = (menuTarget.source_type || "").toLowerCase();
-            const name = (menuTarget.name || "").toLowerCase();
+            const targetSourceType = (menuTarget.source_type || "").trim().toLowerCase();
+            const name = (menuTarget.name || menuTarget.label || "").trim().toLowerCase();
+            const legacyPerson = menuTarget.generated
+                && (targetSourceType.startsWith('shop') || ['atm', 'restaurant'].includes(targetSourceType))
+                && ['klient', 'osoba przy bankomacie', 'gość restauracji'].includes(name);
 
             let actions = [];
             if (menuTarget.target_mode === "player") {
@@ -5965,15 +5968,14 @@
                 ];
             }
             // KAMERY
-            else if (name.includes("kamera") || targetSourceType.includes("camera")) {
+            else if (targetSourceType === "camera") {
                 actions = [
                     { label: "🎥 Podgląd obrazu", action: "camera_stream" },
                     { label: "❌ Wyłącz kamerę", action: "camera_shutdown" }
                 ];
             }
             // OSOBY
-            else if (name.includes("osoba") || name.includes("klient") || targetSourceType.includes("person")
-                || (menuTarget.generated && name === "gość restauracji")) {
+            else if (["person", "phone"].includes(targetSourceType) || legacyPerson) {
                 actions = [
                     { label: "📡 Śledź urządzenie", action: "trace_device" },
                     { label: "🎙️ Podsłuchuj rozmowę", action: "mic_sniff" }
@@ -5990,14 +5992,14 @@
                 ];
             }
             // BANKOMATY
-            else if (targetSourceType.includes("atm")) {
+            else if (targetSourceType === "atm") {
                 actions = [
                     { label: "📊 Przejmij logi transakcji", action: "atm_logs" },
                     { label: "🐛 Zainstaluj sniffer", action: "install_sniffer" }
                 ];
             }
             // RESTAURACJE, KAWIARNIE
-            else if (["restaurant", "bar", "cafe", "fast_food"].some(t => targetSourceType.includes(t))) {
+            else if (["restaurant", "bar", "cafe", "fast_food"].includes(targetSourceType)) {
                 actions = [
                     { label: "📶 Wykryj hotspoty", action: "scan_hotspots" },
                     { label: "🔊 Przejmij odtwarzacz audio", action: "audio_hack" }

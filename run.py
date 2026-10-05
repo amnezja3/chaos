@@ -8545,7 +8545,7 @@ def infer_target_type_from_target(target):
     if target_mode in {"territory_contest", "vulnerability"}:
         return "pillar"
 
-    source_type = str(target.get("source_type") or "").strip()
+    source_type = str(target.get("source_type") or "").strip().lower()
     if target.get('generated'):
         name = str(target.get('name') or target.get('label') or '').strip().casefold()
         if source_type == 'parking' and name.startswith('auto:'):
@@ -17186,8 +17186,32 @@ def get_apps_for_map_action(apps, map_action_id, allow_legacy_fallback=True):
     return [], "none"
 
 
+def get_apps_for_target_action(apps, action, target):
+    """Use creator runtime restrictions before offering or accepting a tool."""
+    from creator_policy import supports_target_type
+    target_type = infer_target_type_from_target(target)
+    eligible = []
+    for app in apps:
+        if app.get('creator_contract_version'):
+            contract = app.get('creator_contract') or {}
+            if contract.get('action') != action or not supports_target_type(contract, target_type):
+                continue
+        eligible.append(app)
+    matched, source = get_apps_for_map_action(eligible, action)
+    canonical = HACK_ACTION_STEP_ALIASES.get(action, action)
+    if not matched and canonical != action:
+        # Historical applications retain their generic-action compatibility;
+        # a new creator's immutable purpose must never be expanded this way.
+        legacy = [app for app in eligible if not app.get('creator_contract_version')]
+        matched, source = get_apps_for_map_action(legacy, canonical)
+    return matched, source
+
+
 def serialize_tool_selection_app(app):
     name = str(app.get("name") or app.get("id") or "").strip()
+    # Creator project_file is a stable internal key, not a display filename.
+    tool_file = (f"{name}.sh" if app.get("creator_project_id") and name else
+                 app.get("file_name") or app.get("project_file") or (f"{name}.sh" if name else ""))
     return {
         "id": app.get("id"),
         "name": name,
@@ -17198,7 +17222,7 @@ def serialize_tool_selection_app(app):
         "operation_types": as_list(app.get("operation_types")),
         "resource_types": as_list(app.get("resource_types")),
         "target_types": as_list(app.get("target_types")),
-        "tool_file": app.get("file_name") or app.get("project_file") or (f"{name}.sh" if name else ""),
+        "tool_file": tool_file,
         "description": app.get("description", ""),
         "file_size": app.get("file_size"),
         "disk_usage": app.get("disk_usage") or app.get("install_size"),
@@ -24247,9 +24271,8 @@ def hack_action():
             }), 403
 
         preflight_apps = normalize_app_contracts(readonly_profile.get("apps", []))
-        preflight_matched_apps, preflight_match_source = get_apps_for_map_action(preflight_apps, action)
-        if not preflight_matched_apps and canonical_action != action:
-            preflight_matched_apps, preflight_match_source = get_apps_for_map_action(preflight_apps, canonical_action)
+        preflight_matched_apps, preflight_match_source = get_apps_for_target_action(
+            preflight_apps, action, {**data, **preflight_target_snapshot})
 
         if not preflight_matched_apps:
             return jsonify({
@@ -24329,9 +24352,7 @@ def hack_action():
         )
         step_started_at = time.perf_counter()
         readonly_apps = normalize_app_contracts((readonly_profile or {}).get("apps", []))
-        early_matched_apps, _ = get_apps_for_map_action(readonly_apps, action)
-        if not early_matched_apps and canonical_action != action:
-            early_matched_apps, _ = get_apps_for_map_action(readonly_apps, canonical_action)
+        early_matched_apps, _ = get_apps_for_target_action(readonly_apps, action, data)
         early_selected_app = next(
             (
                 app for app in early_matched_apps
@@ -24623,9 +24644,7 @@ def hack_action():
     step_started_at = time.perf_counter()
     installed_apps = normalize_app_contracts(profile.get("apps", []))
     profile["apps"] = installed_apps
-    matched_apps, match_source = get_apps_for_map_action(installed_apps, action)
-    if not matched_apps and canonical_action != action:
-        matched_apps, match_source = get_apps_for_map_action(installed_apps, canonical_action)
+    matched_apps, match_source = get_apps_for_target_action(installed_apps, action, data)
     app_flow_debug_timed(
         flow_id,
         "hack_action_full_app_match_done",
