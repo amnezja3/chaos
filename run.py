@@ -23637,7 +23637,8 @@ def map_action():
                 icon, source_type = aiat
 
                 obj["generated"] = False  # oryginał
-                if not already_marked:
+                # Saved cameras still need fresh scan evidence after its TTL.
+                if not already_marked or source_type == 'camera':
                     all_results.append(obj)
 
                 # 🧠 GENEROWANE OBIEKTY
@@ -23746,7 +23747,8 @@ def map_action():
                     append_atm_scene(atm)
 
                 all_results.extend(marker for marker in extra
-                                   if (marker['lat'], marker['lon']) not in existing_targets)
+                                   if marker.get('source_type') == 'camera'
+                                   or (marker['lat'], marker['lon']) not in existing_targets)
 
         for marker in all_results:
             marker['target_type'] = infer_target_type_from_target(marker)

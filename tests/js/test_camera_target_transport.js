@@ -12,7 +12,7 @@ function payload(functionName, values) {
     return JSON.parse(vm.runInNewContext(source.slice(body + 'body: '.length, end + 2), values));
 }
 const shared = {action: 'mark_target', lat: 52, lng: 21, label: 'Kamera', icon: 'camera',
-    sourceType: 'camera', name: 'Kamera', generated: true, targetContext: target};
+    sourceType: 'camera', name: 'Kamera', generated: true, targetContext: target, scannerJob: null};
 for (const body of [
     payload('async function mapAction(', shared),
     payload('async function aimMapTargetOnly(', {normalized: target}),

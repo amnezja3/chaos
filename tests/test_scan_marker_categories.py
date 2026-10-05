@@ -53,6 +53,18 @@ class ScanMarkerCategoriesTest(unittest.TestCase):
         self.assertNotEqual(markers[0]['target_type'], 'vehicle')
         self.assertEqual(len([m for m in markers if m['target_type'] == 'vehicle']), 4)
 
+    def test_rescan_keeps_marked_cameras_for_fresh_evidence(self):
+        for tags in ({'shop': 'clothes'}, {'amenity': 'atm'}, {'man_made': 'surveillance'}):
+            with self.subTest(tags=tags):
+                first = self.scan(tags)
+                cameras = [m for m in first if m['target_type'] == 'camera']
+                self.assertTrue(cameras)
+                marked = [{'lat': m['lat'], 'lng': m['lon']} for m in first]
+                refreshed = self.scan(tags, marked)
+                renewed = [m for m in refreshed if m['target_type'] == 'camera']
+                self.assertEqual({m['camera_id'] for m in cameras}, {m['camera_id'] for m in renewed})
+                self.assertTrue(all(m['scan_id'] == 'scan-test' for m in renewed))
+
     def test_people_and_cars_keep_clearance_from_parent_even_at_minimum_random(self):
         for tags, child_type in [({'amenity': 'parking'}, 'vehicle'),
                                  ({'amenity': 'restaurant'}, 'person'),

@@ -16,6 +16,32 @@ class CameraShutdownContractTest(unittest.TestCase):
     setUp = fixtures.PlayerHackReadPathsTest.setUp
     seed = fixtures.PlayerHackReadPathsTest.seed
 
+    def test_windowmaker_camera_tool_is_offered_after_expired_scan_is_renewed(self):
+        from creator_policy import generate_contract
+        self.prepare()
+        contract = generate_contract(dict(action='camera_shutdown', interface='window',
+                                          creates_file=False, price=0), 40)
+        app = run.build_creator_edition(dict(id='camera-project', app_id='creator-camera',
+            owner='attacker', contract=contract,
+            presentation={'name': 'Camera switch', 'icon': 'X'}), 1)
+        self.inventory.install_app('attacker', app, purchase_key='creator-camera-test')
+        with db_connect(self.path) as conn:
+            conn.execute('UPDATE response_camera_observations SET expires_at=0')
+        with patch.object(run, 'sync_session_profile', side_effect=AssertionError('heavy profile')):
+            rejected = self.client.post('/hack-action', json={**self.payload, 'selected_app_id': ''})
+            self.assertEqual(rejected.json['reason'], 'camera_scan_expired_or_unknown')
+            fresh = self.scans.record('attacker', [self.camera], 52.1, 21.2)
+            payload = {**self.payload, 'scan_id': fresh['scan_id'], 'selected_app_id': ''}
+            offered = self.client.post('/hack-action', json=payload)
+            self.assertEqual(offered.status_code, 200, offered.json)
+            self.assertIn(app['id'], [a['id'] for a in offered.json['matching_apps']])
+            launched = self.client.post('/hack-action', json={**payload, 'selected_app_id': app['id']})
+            self.assertEqual(launched.status_code, 200, launched.json)
+            self.assertEqual(self.runtime.get_active_target('attacker')['scan_id'], fresh['scan_id'])
+            finished = self.client.post('/gonna-win', json={'app_id': app['id'], 'launch_source': 'desktop'})
+            self.assertEqual(finished.status_code, 200, finished.json)
+            self.assertTrue(finished.json['success'], finished.json)
+
     def test_parallel_legacy_writer_and_camera_writer_cannot_create_two_operations(self):
         self.prepare()
         barrier = Barrier(2)
