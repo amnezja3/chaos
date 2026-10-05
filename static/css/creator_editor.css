@@ -42,6 +42,8 @@
 .creator-v2 input, .creator-v2 textarea, .creator-v2 select, .creator-v2 button { border-color: #008c80; border-radius: 3px; background: #001713b8; color: #e1fbfa; }
 .creator-v2 input:focus, .creator-v2 textarea:focus { outline: 2px solid #39ead3; outline-offset: 2px; }
 .creator-v2 button { margin: 0; }
+.creator-v2 .browser-window-control { border: 1px solid #008c80; border-radius: 3px; background: #001713b8; color: #e1fbfa; }
+.creator-v2 .browser-window-control:hover, .creator-v2 .browser-window-control:focus-visible { border-color: #33e6cb; background: #06463f; color: #fff; }
 .creator-v2 .appforge-form button:hover, .creator-v2 .appforge-form button:focus-visible { background: #06463f; border-color: #33e6cb; color: #fff !important; }
 .creator-v2-choices { gap: 8px 14px; }
 .creator-v2-choices button { display: grid; grid-template-columns: 42px 1fr 16px; align-items: center; gap: 10px; text-align: left; min-height: 44px; padding: 4px 12px 4px 0; }

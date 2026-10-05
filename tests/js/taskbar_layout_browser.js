@@ -28,7 +28,8 @@ async page => {
                 return bounds.height === 34 && box.scrollWidth <= box.clientWidth
                     && box.scrollHeight <= box.clientHeight && [...box.children].every(button => {
                         const rect = button.getBoundingClientRect();
-                        return rect.width > 0 && rect.height > 0 && rect.left >= bounds.left - 1
+                        return (box.dataset.rows !== '2' || Math.abs(rect.width - rect.height) < 1)
+                            && rect.width > 0 && rect.height > 0 && rect.left >= bounds.left - 1
                             && rect.right <= bounds.right + 1 && rect.top >= bounds.top - 1
                             && rect.bottom <= bounds.bottom + 1 && button.getAttribute('aria-label');
                     });
@@ -38,7 +39,7 @@ async page => {
         }
     }
     await page.setViewportSize({width: 1440, height: 900});
-    await populate(20);
+    await populate(24);
     if (await page.locator('#system-running-apps').getAttribute('data-rows') !== '1') throw Error('Premature second row');
     await page.setViewportSize({width: 901, height: 900});
     await page.waitForFunction(() => document.getElementById('system-running-apps').dataset.rows === '2');

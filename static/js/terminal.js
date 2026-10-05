@@ -1804,12 +1804,13 @@ function fitRunningAppButtons(box) {
     if (!count || !width || isMobileSafeMode()) return;
     const gap = width / count < 80 ? 2 : 6;
     const oneRowWidth = (width - gap * (count - 1)) / count;
-    const rows = oneRowWidth < 28 ? 2 : 1;
+    const rows = oneRowWidth < 22 ? 2 : 1;
     const columns = Math.ceil(count / rows);
-    const buttonWidth = Math.min(190, (width - gap * (columns - 1)) / columns);
+    const buttonWidth = Math.min(rows === 2 ? 16 : 190, (width - gap * (columns - 1)) / columns);
     box.style.setProperty('--task-columns', columns);
     box.style.setProperty('--task-gap', gap + 'px');
-    box.style.setProperty('--task-icon-size', Math.max(8, Math.min(rows === 2 ? 12 : 17, buttonWidth - 8)) + 'px');
+    box.style.setProperty('--task-square-size', buttonWidth + 'px');
+    box.style.setProperty('--task-icon-size', Math.max(1, Math.min(rows === 2 ? 12 : 17, buttonWidth - (rows === 2 ? 4 : 8))) + 'px');
     box.dataset.rows = String(rows);
     box.classList.toggle('tasks-icons-only', buttonWidth < 64);
     box.classList.toggle('tasks-compact', buttonWidth < 110 || rows === 2);
@@ -1826,6 +1827,11 @@ function showTaskbarWindowMenu(event, win, taskButton) {
     const close = document.createElement('button');
     close.type = 'button';
     close.textContent = 'Zamknij';
+    const closeIcon = document.createElement('span');
+    closeIcon.className = 'task-menu-close-icon';
+    closeIcon.setAttribute('aria-hidden', 'true');
+    closeIcon.textContent = '×';
+    close.prepend(closeIcon);
     close.setAttribute('role', 'menuitem');
     close.disabled = !win.querySelector('.close-btn');
     menu.appendChild(close);
