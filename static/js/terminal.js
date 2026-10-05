@@ -462,10 +462,17 @@ function applyMobileSafeModeToWindow(win) {
 const WORKSPACE_WINDOW_APPS = new Set([
     'map', 'territory-control', 'operation-control', 'victim-picker', 'ghostnetwork-suite',
     'appforge', 'termcreator', 'windowmaker', 'buttonmaker', 'ghostlab',
-    'browser', 'files', 'email', 'system-terminal'
+    'browser', 'files', 'email', 'system-terminal', 'ghostsignal-archive'
 ]);
 
+function updateWorkspaceBounds() {
+    const toolbar = document.getElementById('system-toolbar');
+    const bottom = toolbar ? Math.max(0, window.innerHeight - toolbar.getBoundingClientRect().top) : 46;
+    document.documentElement.style.setProperty('--workspace-bottom', bottom + 'px');
+}
+
 function notifyWorkspaceResize(term) {
+    updateWorkspaceBounds();
     requestAnimationFrame(() => {
         if (!term.isConnected) return;
         term.dispatchEvent(new Event('workspace:resize'));
@@ -504,6 +511,10 @@ function bindWindowMaximize(term, title) {
         if (close) controls.appendChild(close);
     }
     close?.classList.add('browser-window-control');
+    if (close) {
+        close.setAttribute('aria-label', 'Zamknij ' + title);
+        close.title = 'Zamknij ' + title;
+    }
     let maximizeButton = controls.querySelector('.browser-maximize-btn');
     if (!maximizeButton) {
         maximizeButton = document.createElement('button');
@@ -586,6 +597,7 @@ function makeDraggable(el) {
 }
 
 function applyMobileSafeModeToOpenWindows() {
+    updateWorkspaceBounds();
     document.querySelectorAll('.terminal, .app-window').forEach(applyMobileSafeModeToWindow);
 }
 
@@ -1803,9 +1815,53 @@ function fitRunningAppButtons(box) {
     box.classList.toggle('tasks-compact', buttonWidth < 110 || rows === 2);
 }
 
+function showTaskbarWindowMenu(event, win, taskButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('system-task-context-menu')?._dismiss?.();
+    const menu = document.createElement('div');
+    menu.id = 'system-task-context-menu';
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', win.dataset.appTitle || 'Okno');
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'Zamknij';
+    close.setAttribute('role', 'menuitem');
+    close.disabled = !win.querySelector('.close-btn');
+    menu.appendChild(close);
+    document.body.appendChild(menu);
+    const controller = new AbortController();
+    const dismiss = () => { controller.abort(); menu.remove(); };
+    menu._dismiss = dismiss;
+    menu.addEventListener('contextmenu', e => e.preventDefault());
+    close.addEventListener('click', () => {
+        dismiss();
+        if (!win.isConnected) return;
+        bringWindowToFront(win);
+        // Use the application's close handler, including unsaved-work prompts.
+        win.querySelector('.close-btn')?.click();
+    });
+    document.addEventListener('pointerdown', e => { if (!menu.contains(e.target)) dismiss(); }, {capture: true, signal: controller.signal});
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { dismiss(); taskButton.focus(); }
+    }, {signal: controller.signal});
+    window.addEventListener('resize', dismiss, {signal: controller.signal});
+    const anchor = taskButton.getBoundingClientRect();
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = Math.max(4, Math.min(event.clientX || anchor.left, innerWidth - rect.width - 4)) + 'px';
+    menu.style.top = Math.max(4, Math.min((event.clientY || anchor.top) - rect.height, innerHeight - rect.height - 4)) + 'px';
+    close.focus();
+}
+
 function renderRunningApps() {
     const box = document.getElementById('system-running-apps');
     if (!box) return;
+    updateWorkspaceBounds();
+    const toolbar = document.getElementById('system-toolbar');
+    if (toolbar && !toolbar._workspaceBoundsObserver && typeof ResizeObserver === 'function') {
+        toolbar._workspaceBoundsObserver = new ResizeObserver(updateWorkspaceBounds);
+        toolbar._workspaceBoundsObserver.observe(toolbar);
+    }
 
     const windows = connectedRunningWindows();
     renderMobileWindowTabButton(windows);
@@ -1823,6 +1879,7 @@ function renderRunningApps() {
             <span class="system-task-label">${escapeHTML(win.dataset.appTitle || getWindowTitle(win))}</span>
         `;
         button.addEventListener('click', () => bringWindowToFront(win));
+        button.addEventListener('contextmenu', event => showTaskbarWindowMenu(event, win, button));
         box.appendChild(button);
     });
     fitRunningAppButtons(box);

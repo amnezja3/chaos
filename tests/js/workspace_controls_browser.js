@@ -10,7 +10,7 @@ async page => {
         await page.setViewportSize(size);
         for (const app of ['map', 'territory-control', 'operation-control', 'victim-picker',
             'ghostnetwork-suite', 'appforge', 'termcreator', 'windowmaker', 'buttonmaker',
-            'ghostlab', 'browser', 'files', 'email', 'system-terminal']) {
+            'ghostlab', 'browser', 'files', 'email', 'system-terminal', 'ghostsignal-archive']) {
             await page.evaluate(app => {
                 const win = fixtureOpen(app);
                 win.querySelector('.fixture-scroll').scrollTop = 70;
@@ -22,8 +22,17 @@ async page => {
             await win.frameLocator('iframe').locator('input').fill('retained iframe state');
             await win.locator('.browser-maximize-btn').click();
             const box = await win.boundingBox();
+            const toolbarTop = (await page.locator('#system-toolbar').boundingBox()).y;
             if (box.x !== 0 || box.y !== 0 || Math.abs(box.width - size.width) > 1
-                || Math.abs(box.height - size.height) > 1) throw Error('fullscreen ' + app);
+                || Math.abs(box.height - toolbarTop) > 1) throw Error('fullscreen ' + app);
+            const controls = await win.locator('.browser-window-controls').evaluate(bar => {
+                const buttons = [...bar.children].map(el => el.getBoundingClientRect());
+                const close = bar.querySelector('.close-btn');
+                return buttons.length === 3 && buttons.every(b => Math.abs(b.y - buttons[0].y) < 1 && b.height === 30)
+                    && getComputedStyle(close).fontSize === '0px'
+                    && getComputedStyle(close, '::before').fontSize === '16px';
+            });
+            if (!controls) throw Error('misaligned or duplicated close ' + app);
             await win.locator('.workspace-minimize-btn').click();
             if (await win.isVisible()) throw Error('minimize ' + app);
             const id = await win.getAttribute('data-window-id');

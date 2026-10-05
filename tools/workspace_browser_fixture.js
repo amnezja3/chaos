@@ -21,8 +21,10 @@ document.getElementById('system-window-tab-button').onclick=cycleMobileToolbarWi
 window.fixtureOpen=(app)=>{
  const win=document.createElement('div');win.className='terminal';win.dataset.app=app;win.dataset.appTitle=app;
  if(['appforge','termcreator','windowmaker','buttonmaker'].includes(app))win.classList.add('creator-window','creator-v2');
+ if(['territory-control','operation-control','victim-picker','ghostnetwork-suite','ghostsignal-archive'].includes(app))win.classList.add('pro-tool-window');
  win.style.cssText='top:60px;left:80px;width:620px;height:480px;';
  win.innerHTML='<div class="title-bar">'+app+'<button class="close-btn">X</button></div><textarea>unsaved draft</textarea><div class="fixture-scroll" style="height:100px;overflow:auto"><div style="height:900px">scroll state</div></div><iframe title="state" srcdoc="<input value=iframe-state>"></iframe>';
+ if(['browser','ghostlab'].includes(app))win.querySelector('.title-bar').outerHTML='<div class="title-bar browser-title-bar"><span>'+app+'</span><span class="browser-window-controls"><button class="browser-window-control browser-maximize-btn">M</button><button class="close-btn browser-window-control">X</button></span></div>';
  document.body.append(win);makeDraggable(win);win.querySelector('.close-btn').onclick=()=>{win.remove();renderRunningApps();};return win;
 };
 </script>`;
