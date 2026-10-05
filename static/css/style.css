@@ -1116,13 +1116,31 @@ body {
 }
 
 #system-running-apps {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--task-columns, 1), minmax(0, 190px));
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: 2px var(--task-gap, 6px);
+  height: 34px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
 }
+
+#system-running-apps .system-task-button {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  grid-template-columns: var(--task-icon-size, 17px) minmax(0, 1fr);
+}
+#system-running-apps .system-task-icon { font-size: var(--task-icon-size, 17px); min-width: 0; }
+#system-running-apps.tasks-compact .system-task-button { padding: 0 3px; gap: 3px; font-size: 11px; }
+#system-running-apps.tasks-icons-only .system-task-button { grid-template-columns: minmax(0, 1fr); padding: 0 1px; gap: 0; }
+#system-running-apps.tasks-icons-only .system-task-label { display: none; }
+#system-running-apps[data-rows="2"] { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+#system-running-apps[data-rows="2"] .system-task-button { height: 100%; padding-top: 0; padding-bottom: 0; font-size: 10px; line-height: 1; }
 
 .system-task-button {
   height: 31px;
@@ -1702,17 +1720,27 @@ body {
   font-size: 0;
 }
 
-.browser-window.is-window-maximized,
-.ghostlab-window.is-window-maximized {
+.workspace-window.is-window-maximized[data-workspace-controls] {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
+  height: 100dvh !important;
   max-width: none !important;
   max-height: none !important;
   resize: none !important;
   box-sizing: border-box;
+  transform: none !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
 }
+
+.workspace-window > .title-bar { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.workspace-window > .title-bar > .browser-window-controls { flex-shrink: 0; margin-left: auto; }
+.workspace-window .browser-window-controls .browser-window-control { min-width: 30px; min-height: 30px; }
+.terminal.workspace-window.is-window-minimized[data-workspace-controls],
+.app-window.workspace-window.is-window-minimized[data-workspace-controls] { display: none !important; }
 
 
 input:focus {

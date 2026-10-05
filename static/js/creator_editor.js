@@ -35,7 +35,7 @@ window.CreatorEditor = (() => {
         if (!policy.installed_interfaces.includes(kind)) throw new Error('Brak narzędzia kreatorskiego. Zainstaluj odpowiedni kreator.');
         const existing = document.querySelector(`.creator-window[data-app="${names[kind].toLowerCase()}"]`);
         if (existing) {
-            existing.style.zIndex = String(Date.now());
+            bringWindowToFront(existing);
             if (projectId) existing.dispatchEvent(new CustomEvent('creator:open', {detail: projectId}));
             return true;
         }

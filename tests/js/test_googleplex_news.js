@@ -69,7 +69,10 @@ assert.ok(terminalSource.includes("if (!catalogLoaded)"), "catalog must be lazy"
 assert.ok(source.includes("dataset.inFlight"), "action dispatch must be single-flight");
 assert.ok(terminalSource.includes("browser-maximize-btn"), "WebDragons must expose a maximize control");
 assert.ok(terminalSource.includes("is-window-maximized"), "maximize must use a reversible window state");
-assert.ok(terminalSource.includes("restoreGeometry"), "restore must preserve the prior geometry");
+// Fullscreen now overrides geometry with CSS only; browser regression checks
+// restore the actual dimensions, draft, scroll and iframe state.
+const windowControls = terminalSource.slice(terminalSource.indexOf('function bindWindowMaximize('), terminalSource.indexOf('function makeDraggable('));
+assert.ok(!/term\.style\.(top|left|width|height)\s*=/.test(windowControls), "fullscreen must retain inline normal geometry");
 assert.ok(terminalSource.includes("defaultBrowserHeight"), "initial browser geometry must adapt to viewport height");
 assert.ok(!newsCss.includes("grid-auto-rows: 68px"), "windowed cards must not overflow undersized grid tracks");
 assert.ok(newsCss.includes("grid-template-columns: minmax(0, 1fr) auto"), "brand and HC must own separate header columns");

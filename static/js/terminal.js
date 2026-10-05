@@ -459,50 +459,83 @@ function applyMobileSafeModeToWindow(win) {
     delete win.dataset.mobileSafeMode;
 }
 
+const WORKSPACE_WINDOW_APPS = new Set([
+    'map', 'territory-control', 'operation-control', 'victim-picker', 'ghostnetwork-suite',
+    'appforge', 'termcreator', 'windowmaker', 'buttonmaker', 'ghostlab',
+    'browser', 'files', 'email', 'system-terminal'
+]);
+
+function notifyWorkspaceResize(term) {
+    requestAnimationFrame(() => {
+        if (!term.isConnected) return;
+        term.dispatchEvent(new Event('workspace:resize'));
+        term.querySelectorAll('iframe').forEach(frame => {
+            try { frame.contentWindow?.dispatchEvent(new Event('resize')); } catch (_) {}
+        });
+    });
+}
+
+function minimizeWorkspaceWindow(term) {
+    if (!term || !term.isConnected) return;
+    term._workspaceFocus = term.contains(document.activeElement) ? document.activeElement : null;
+    term.classList.add('is-window-minimized');
+    term.classList.remove('active');
+    const next = connectedRunningWindows().filter(win => win !== term && !win.classList.contains('is-window-minimized'))
+        .sort((a, b) => Number(b.style.zIndex || 0) - Number(a.style.zIndex || 0))[0];
+    if (next) bringWindowToFront(next);
+    else renderRunningApps();
+    const restoreButton = isMobileSafeMode() ? document.getElementById('system-window-tab-button')
+        : document.querySelector('[data-window-id="' + term.dataset.windowId + '"].system-task-button');
+    restoreButton?.focus();
+}
+
 function bindWindowMaximize(term, title) {
-    const maximizeButton = term.querySelector('.browser-maximize-btn');
-    let restoreGeometry = null;
-    const setMaximized = (maximized) => {
-        if (maximized === term.classList.contains('is-window-maximized')) return;
-        if (maximized) {
-            const rect = term.getBoundingClientRect();
-            restoreGeometry = {
-                top: term.style.top || `${rect.top}px`,
-                left: term.style.left || `${rect.left}px`,
-                width: term.style.width || `${rect.width}px`,
-                height: term.style.height || `${rect.height}px`,
-                resize: term.style.resize || ''
-            };
-            term.classList.add('is-window-maximized');
-            term.style.top = '0';
-            term.style.left = '0';
-            term.style.width = '100vw';
-            term.style.height = '100vh';
-            term.style.resize = 'none';
-        } else if (restoreGeometry) {
-            term.classList.remove('is-window-maximized');
-            term.style.top = restoreGeometry.top;
-            term.style.left = restoreGeometry.left;
-            term.style.width = restoreGeometry.width;
-            term.style.height = restoreGeometry.height;
-            term.style.resize = restoreGeometry.resize;
-            restoreGeometry = null;
-        }
-        if (maximizeButton) {
-            maximizeButton.textContent = maximized ? '\u2750' : '\u26F6';
-            maximizeButton.setAttribute('aria-pressed', maximized ? 'true' : 'false');
-            maximizeButton.setAttribute('aria-label', maximized ? `Przywróć okno ${title}` : `Powiększ ${title}`);
-            maximizeButton.title = maximized ? `Przywróć okno ${title}` : `Pełny ekran ${title}`;
-        }
-        bringWindowToFront(term);
+    if (!term || term.dataset.workspaceControls === '1') return;
+    const bar = term.querySelector('.title-bar');
+    if (!bar) return;
+    term.dataset.workspaceControls = '1';
+    term.classList.add('workspace-window');
+    const close = bar.querySelector('.close-btn');
+    let controls = bar.querySelector('.browser-window-controls');
+    if (!controls) {
+        controls = document.createElement('span');
+        controls.className = 'browser-window-controls';
+        bar.appendChild(controls);
+        if (close) controls.appendChild(close);
+    }
+    close?.classList.add('browser-window-control');
+    let maximizeButton = controls.querySelector('.browser-maximize-btn');
+    if (!maximizeButton) {
+        maximizeButton = document.createElement('button');
+        maximizeButton.type = 'button';
+        maximizeButton.className = 'browser-window-control browser-maximize-btn';
+        controls.insertBefore(maximizeButton, close);
+    }
+    const minimizeButton = document.createElement('button');
+    minimizeButton.type = 'button';
+    minimizeButton.className = 'browser-window-control workspace-minimize-btn';
+    minimizeButton.textContent = '\u2212';
+    minimizeButton.title = minimizeButton.ariaLabel = 'Minimalizuj ' + title;
+    controls.insertBefore(minimizeButton, maximizeButton);
+    const update = () => {
+        const maximized = term.classList.contains('is-window-maximized');
+        maximizeButton.textContent = maximized ? '\u2750' : '\u26F6';
+        maximizeButton.setAttribute('aria-pressed', String(maximized));
+        maximizeButton.title = maximizeButton.ariaLabel = (maximized ? 'Przywróć okno ' : 'Pełny ekran ') + title;
     };
-    maximizeButton?.addEventListener('click', () => {
-        setMaximized(!term.classList.contains('is-window-maximized'));
+    const toggle = () => {
+        term.classList.toggle('is-window-maximized');
+        update();
+        bringWindowToFront(term);
+        notifyWorkspaceResize(term);
+    };
+    minimizeButton.addEventListener('click', event => { event.stopPropagation(); minimizeWorkspaceWindow(term); });
+    maximizeButton.addEventListener('click', event => { event.stopPropagation(); toggle(); });
+    bar.addEventListener('dblclick', event => {
+        if (event.target.closest('button, input, a, .browser-window-controls, .close-btn')) return;
+        toggle();
     });
-    term.querySelector('.browser-title-bar')?.addEventListener('dblclick', event => {
-        if (event.target.closest('.browser-window-control')) return;
-        setMaximized(!term.classList.contains('is-window-maximized'));
-    });
+    update();
 }
 
 function makeDraggable(el) {
@@ -510,6 +543,7 @@ function makeDraggable(el) {
     el.dataset.draggableBound = '1';
 
     registerWindowInTaskbar(el);
+    if (WORKSPACE_WINDOW_APPS.has(el.dataset.app)) bindWindowMaximize(el, el.dataset.appTitle || getWindowTitle(el));
     applyMobileSafeModeToWindow(el);
     bringWindowToFront(el);
 
@@ -527,7 +561,7 @@ function makeDraggable(el) {
 
     dragHandle.addEventListener('mousedown', (e) => {
         if (e.target.closest('.close-btn, button, input, textarea, select, a')) return;
-        if (isMobileSafeMode()) return;
+        if (isMobileSafeMode() || el.classList.contains('is-window-maximized')) return;
 
         isDragging = true;
         offsetX = e.clientX - el.offsetLeft;
@@ -1690,11 +1724,18 @@ function getWindowIcon(win, title) {
 
 function bringWindowToFront(win) {
     if (!win || !win.isConnected) return;
+    const wasMinimized = win.classList.contains('is-window-minimized');
+    win.classList.remove('is-window-minimized');
     if (win.id === 'player-hack-access-panel') win.classList.remove('hidden');
     document.querySelectorAll('.terminal, .app-window').forEach(t => t.classList.remove('active'));
     win.classList.add('active');
     win.style.zIndex = ++topZIndex;
     renderRunningApps();
+    if (wasMinimized) {
+        notifyWorkspaceResize(win);
+        if (win._workspaceFocus?.isConnected) win._workspaceFocus.focus({ preventScroll: true });
+        win._workspaceFocus = null;
+    }
 }
 
 function connectedRunningWindows() {
@@ -1745,6 +1786,23 @@ function registerWindowInTaskbar(win) {
     renderRunningApps();
 }
 
+function fitRunningAppButtons(box) {
+    const count = box.children.length;
+    const width = box.clientWidth;
+    if (!count || !width || isMobileSafeMode()) return;
+    const gap = width / count < 80 ? 2 : 6;
+    const oneRowWidth = (width - gap * (count - 1)) / count;
+    const rows = oneRowWidth < 28 ? 2 : 1;
+    const columns = Math.ceil(count / rows);
+    const buttonWidth = Math.min(190, (width - gap * (columns - 1)) / columns);
+    box.style.setProperty('--task-columns', columns);
+    box.style.setProperty('--task-gap', gap + 'px');
+    box.style.setProperty('--task-icon-size', Math.max(8, Math.min(rows === 2 ? 12 : 17, buttonWidth - 8)) + 'px');
+    box.dataset.rows = String(rows);
+    box.classList.toggle('tasks-icons-only', buttonWidth < 64);
+    box.classList.toggle('tasks-compact', buttonWidth < 110 || rows === 2);
+}
+
 function renderRunningApps() {
     const box = document.getElementById('system-running-apps');
     if (!box) return;
@@ -1758,6 +1816,8 @@ function renderRunningApps() {
         button.type = 'button';
         button.className = `system-task-button ${win.classList.contains('active') ? 'active' : ''}`;
         button.dataset.windowId = id;
+        button.title = win.dataset.appTitle || getWindowTitle(win);
+        button.setAttribute('aria-label', button.title);
         button.innerHTML = `
             <span class="system-task-icon">${win.dataset.appIcon || '\u25A3'}</span>
             <span class="system-task-label">${escapeHTML(win.dataset.appTitle || getWindowTitle(win))}</span>
@@ -1765,6 +1825,11 @@ function renderRunningApps() {
         button.addEventListener('click', () => bringWindowToFront(win));
         box.appendChild(button);
     });
+    fitRunningAppButtons(box);
+    if (!box._taskResizeObserver && typeof ResizeObserver === 'function') {
+        box._taskResizeObserver = new ResizeObserver(() => fitRunningAppButtons(box));
+        box._taskResizeObserver.observe(box);
+    }
 }
 
 const toolbarObserver = new MutationObserver(() => renderRunningApps());
