@@ -29,6 +29,35 @@ nowej ceny, instalacji, uprawnienia czy wersji mechaniki.
 
 ## 154.2 — kompletny katalog systemowy
 
+Zakres 154.1 obejmuje również Dev Bug Reporter (formularz i odpowiedzi,
+bez tłumaczenia zgłoszenia autora) oraz Ghost Signal Sender jako ścieżkę
+nadawania: warunki, blokady, etapy, recovery i potwierdzenie. Signal Registry
+obejmuje też szczegóły, ranking i archiwum. Systemowe UI lokalizujemy w 154;
+sceny Ghost Signal Show, narrację, media i historyczne snapshoty domykamy
+w 155 według B14/C06 [rejestru](../audits/ghost_system_i18n_inventory.md).
+
+### Radio — kanały PL, EN i ANY
+
+- Dodać wybór języka kanałów `PL`, `EN`, `ANY`. PL pokazuje kanały polskie
+  i neutralne językowo; EN angielskie i neutralne; ANY wszystkie dostępne
+  kanały, również wielojęzyczne. ANY nie jest automatycznym tłumaczem audio.
+- Kanał i audycja mają metadane języka. Oddzielić `neutral` (bez słownej treści)
+  od `mixed` (wiele języków); nie oznaczać nieznanego nagrania jako neutralnego.
+  Kanał deklarowany PL/EN nie może emitować systemowej narracji w innym języku.
+  Kanał mieszany pokazuje język bieżącej audycji; pojawia się pod ANY.
+- Język UI ustawia domyślny filtr przy pierwszym użyciu; późniejszy jawny wybór
+  gracza ma pierwszeństwo i jest zapamiętany niezależnie od języka interfejsu.
+  Zmiana języka UI nie restartuje odtwarzania. Zmiana filtra nie przerywa
+  aktualnego utworu; wybór innego kanału następuje jawnie.
+- Nazwy i opisy kanałów systemowych mają PL/EN, a tytuły utworów i autorskie
+  materiały pozostają oryginalne. Brak kanału w wybranym języku daje czytelny
+  pusty stan i możliwość wyboru ANY, bez cichego przełączenia na inny język.
+- Panel radia waliduje metadane playlist i kanałów oraz zgodność systemowych
+  audycji z deklaracją. Istniejące kanały zinwentaryzować przed nadaniem języka.
+  Rejestr pozwala dodać RU/ES po zatwierdzeniu pakietu bez nowych gałęzi UI.
+- Odbiór: macierz PL/EN/ANY × kanał PL/EN/neutral/mixed, zapis preferencji,
+  brak kanału, zmiana UI w trakcie odtwarzania, etykieta bieżącej audycji.
+
 Rejestr z 153 musi objąć co najmniej:
 
 | Rodzina | Zakres |

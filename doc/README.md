@@ -48,6 +48,8 @@ od GhostLab v2 i nie obejmuje realizacji odłożonych funkcji.
 
 - [153 — fundament i powłoka](sprints/sprint_153_ghost_system_i18n_foundation.md):
   inwentaryzacja, autorstwo treści, katalogi, locale, ustawienia i pulpit.
+  [Szczegółowy zakres językowy i źródła](audits/ghost_system_i18n_inventory.md)
+  rozdzielają wdrożenie 153 od aplikacji 154 i treści trwałych 155.
 - [154 — aplikacje i produkty](sprints/sprint_154_ghost_system_apps_catalogs.md):
   mapa, workspace'y, Pro Tools, bilety, serwis, GhostLab i kreatory.
 - [155 — treści i pełny odbiór](sprints/sprint_155_ghost_system_content_acceptance.md):

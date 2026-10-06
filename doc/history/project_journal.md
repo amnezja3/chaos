@@ -1,5 +1,47 @@
 # CHAOS — Project Journal
 
+## 2026-10-06 — Ponowny audyt PL/EN: pulpit i Ghost Signal Show / Sender
+
+Sprawdzono pokrycie 11 aplikacji pulpitu oraz źródła transmisji, manifestu,
+pokazu i archiwum GhostSignal. Rejestr rozszerzono o B14 (nadawanie/archiwum)
+i B15 (Dev Bug Reporter), a C06 o sceny, media, recovery i replay bez powtórzenia
+efektów gry. Doprecyzowano plany 153–155 i raport gotowości. Wyjątek jednego
+języka publikacji BN nie jest automatyczną polityką narracji GhostSignal;
+jej kontrakt pozostaje do zatwierdzenia przed generowaniem. Gotowi do startu
+153.1–153.2, nie do produkcyjnego PASS EN. Bez zmian runtime i bez odmrażania 149–152.
+
+## 2026-10-06 — Dokumentacja FM: zachowane oryginały i nowe wydania językowe
+
+Decyzja autora: `/about` i `/tip&trick` pozostają bez podmiany obecnych materiałów.
+Dodawane będą osobne wydania w zatwierdzonych językach w tych samych folderach.
+Zmiana języka UI nie tłumaczy ani nie zastępuje otwartego dokumentu. Zapisano
+wyjątek w 153, zakres wykonawczy/odbiór w 155 oraz uzupełniono rejestr językowy.
+
+## 2026-10-06 — Doprecyzowanie: język Googleplex News
+
+Googleplex News wyświetla treść według języka ustawionego przez gracza:
+PL lub EN, warianty jednej publikacji bez duplikowania feedu. BlackNet zachowuje
+odrębną zasadę: jeden sygnał w jednym zatwierdzonym języku. Kontrakty promptów,
+cache, fallback i testy rozdzielono według medium w 153/155 i rejestrze zakresu.
+
+## 2026-10-06 — Uzupełnienie lokalizacji: radio i polecenia Ollamy
+
+Zakres rozszerzono o radio PL/EN/ANY (B13, sprint 154) i zatwierdzone warianty
+poleceń narracji Ollamy (155.2a). ANY jest wyborem kanałów, nie językiem modelu.
+Po doprecyzowaniu autora: jeden sygnał/publikacja powstaje w jednym zatwierdzonym
+języku; kolejny może mieć inny. Nie generujemy kopii tego samego sygnału PL/EN.
+Polecenia modelu mają niesprzeczne instrukcje dla języka wybranego zadania.
+Rejestr zatwierdzonych locale powstaje w 153.
+To aktualizacja planów i kryteriów odbioru, bez zmian runtime radia/Ollamy.
+
+## 2026-10-06 — Zakres językowy do Sprintu 153
+
+Dodano [mapę zakresu PL/EN](../audits/ghost_system_i18n_inventory.md):
+11 obszarów fundamentu/powłoki do 153, 12 grup aplikacji i katalogów do 154
+oraz 8 grup treści i odbioru do 155. Rejestr zawiera źródła startowe,
+granice autorstwa, przykłady PL/EN, schemat dalszej inwentaryzacji i odbiór.
+To przygotowanie zakresu, bez wdrożenia tłumaczeń ani wznowienia 149–152.
+
 ## 2026-10-06 — Decyzja: zamrożenie sprintów 149–152
 
 Autor odłożył GhostLab v2 (149–152) **do odwołania**. Zakres dokumentów pozostaje

@@ -6,6 +6,10 @@ niezależny od zamrożonych decyzją autora sprintów 149–152; dalej
 [155](sprint_155_ghost_system_content_acceptance.md).
 To plan prac, nie deklaracja istniejącej wersji angielskiej.
 
+[Przegląd gotowości 6 X 2026](../audits/sprint_153_readiness_2026_10_06.md):
+gotowi do rozpoczęcia 153.1–153.2; ekstrakcja kluczy i wybór wspólnego formatu
+poprzedzają masową migrację UI.
+
 ## Cel
 
 Wprowadzić wspólną infrastrukturę języków dla JS, HTML/Jinja i backendu Python,
@@ -15,7 +19,10 @@ mają wymagać pakietu tłumaczeń i rejestracji, bez kopii aplikacji lub mechan
 
 ## 153.1 — inwentaryzacja i granica autorstwa
 
-Przygotować `doc/audits/ghost_system_i18n_inventory.md`: moduł, źródłowy plik/store,
+Przygotowano [mapę zakresu i rejestr startowy](../audits/ghost_system_i18n_inventory.md):
+A01–A11 do wdrożenia w 153, B01–B15 do 154 oraz C01–C08 do 155.
+To mapa obszarów, nie zakończona ekstrakcja wszystkich tekstów. W 153 rozwinąć
+rejestr do poziomu kluczy: moduł, źródłowy plik/store,
 rodzaj treści, właściciel tekstu, sposób renderowania, klucze, sprint migracji,
 stan PL/EN i scenariusz odbioru. Uwzględnić ścieżki ukryte: pusty stan, walidację,
 brak uprawnień, timeout, offline, recovery, pomoc, tooltip i aria-label.
@@ -26,7 +33,10 @@ funkcje muszą korzystać z kontraktu i18n i uzupełniać rejestr.
 | Treść | Zasada |
 | --- | --- |
 | UI, opisy mechaniki, systemowe nazwy kategorii, produktów i wyników | Klucze tłumaczeń systemowych |
-| Wiadomości i narracja publikowane przez system, także przez LLM | Systemowe treści PL/EN; kontrakt w 155 |
+| Szablonowe komunikaty systemowe | Lokalizowane PL/EN dla odbiorcy |
+| Narracja LLM, np. sygnały BlackNet | Jedna publikacja w jednym zatwierdzonym języku; kolejne mogą mieć inny, bez kopii PL/EN |
+| Googleplex News | Treść zgodna z językiem ustawionym przez odbiorcę; warianty jednej publikacji, bez duplikatów feedu |
+| FM `/about` i `/tip&trick` (klucz `tips-tricks`) | Zachować obecne foldery i materiały; dodawać osobne wersje dokumentów w zatwierdzonych językach |
 | Nazwa, opis, dokument, wiadomość lub przycisk napisany przez gracza | Zachować dokładny tekst autora; bez automatycznego tłumaczenia |
 | Systemowy opis efektu wewnątrz narzędzia gracza | Tłumaczyć opis; zachować branding i własne teksty gracza |
 | Nick, marka auta, nazwa miejscowości, nazwa własna POI/OSM, nazwa pliku użytkownika | Zachować nazwę; tłumaczyć jedynie systemową etykietę i kategorię |
@@ -72,6 +82,11 @@ domyślnie zachować oryginał do czasu audytu.
 
 ## 153.3 — ustawienia i podstawowa powłoka
 
+W 153 zdefiniować także wspólny rejestr zatwierdzonych języków dla interfejsu,
+radia i narracji Ollamy. Język UI, filtr kanałów radia i język konkretnej
+publikacji to oddzielne pola. `ANY` jest wyborem radia, nie językiem tłumaczenia
+ani wartością `output_locale` dla modelu. Szczegóły: 154 (radio) i 155.2a (Ollama).
+
 Selektor Polski / English w ustawieniach gry i na wejściu przed logowaniem.
 Zmiana odświeża otwarte interfejsy i iframe'y bez restartowania operacji,
 zamknięcia okien, wylogowania lub utraty wpisanego tekstu. Przekazywanie języka
@@ -82,6 +97,10 @@ podstawową pomoc, pulpit, menu start, belkę, menu kontekstowe, kontrolki okien
 ustawienia, profil, portfel oraz systemowe elementy terminala i File Managera.
 Nie zmieniać nazw komend ani rzeczywistych ścieżek katalogów; tłumaczyć ich
 etykiety prezentacyjne. Nie utracić poprawki mobilnej klawiatury z 6 X.
+
+Wyjątek FM: `/about` i `/tip&trick` pozostają w obecnej postaci. Ich dokumenty
+nie są automatycznie podmieniane po zmianie języka UI. W 155 dołączamy osobne,
+oznaczone językiem wydania obok oryginałów; bez usuwania i nadpisywania materiałów.
 
 ## Artefakty i odbiór
 
