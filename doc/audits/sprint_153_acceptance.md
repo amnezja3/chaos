@@ -1,8 +1,25 @@
-# Sprint 153 — odbiór lokalny, 6 X 2026
+# Sprint 153 — odbiór lokalny i produkcyjny, 6 X 2026
 
 **PASS lokalny zakresu 153.** Pakiet `153.4`, 496 kluczy PL/EN w pięciu
-domenach. Nie jest to wdrożenie ani autorski PASS produkcyjny. EN pozostaje
+domenach. Wdrożenie potwierdzone przez autora; produkcyjny PASS dotyczy
+wyłącznie ścieżek wymienionych poniżej. EN pozostaje
 testowe; aplikacje i treści systemowe domykają 154/155. 149–152 zamrożone.
+
+## Potwierdzenie autora na produkcji
+
+6 X 2026: wdrożenie potwierdzone. Następnie autor zgłosił **PASS** dla
+rejestracji, logowania, przejścia do systemu, ikon, profilu, ustawień
+i pamiętania wyboru języka.
+
+Kolejne potwierdzenie autora: **FM i portfel PASS**. Jednocześnie zgłoszono
+**FAIL mobilnego pulpitu**: etykiety ikon miały rozmiar symboli (47,2 px).
+Reguła `.icon span` obejmowała nowy span tłumaczonej nazwy. Poprawka ogranicza
+duży rozmiar do symbolu; etykieta ma 14 px na mobile i 13 px na desktopie.
+Kafelki mieszczą wielowierszowe nazwy. Playwright PL/EN przy 360, 390, 588
+i 1440 px: brak wychodzenia symboli/etykiet poza kafelki i poziomego overflow;
+sprawdzono otwarcie ustawień. Poprawka lokalna, odbiór produkcyjny oczekiwany.
+Terminal, recovery, iframe i pozostałe scenariusze mobile/fullscreen nadal
+bez dodatkowego produkcyjnego potwierdzenia autora.
 
 ## Implementacja
 

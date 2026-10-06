@@ -1640,6 +1640,27 @@ body {
   position: absolute;
 }
 
+#desktop-icons .icon {
+  width: 100px;
+  height: 100px;
+  padding: 4px;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+#desktop-icons .icon > span:first-child {
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+#desktop-icons .icon > span:not(:first-child) {
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .icon:hover {
   background-color: rgba(255, 255, 255, 0.1); /* 30% delikatnie białe tło */
 }
@@ -8160,8 +8181,12 @@ button.file-manager-file:focus-visible {
     position: relative !important;
     top: auto !important;
     left: auto !important;
-    width: 74px;
-    height: 82px;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 100px;
+    justify-content: flex-start;
+    gap: 4px;
     padding: 4px;
     background: transparent;
     border-radius: 8px;
@@ -8170,9 +8195,17 @@ button.file-manager-file:focus-visible {
     box-sizing: border-box;
   }
 
-  #desktop-icons .icon span {
+  #desktop-icons .icon > span:first-child {
     font-size: 2.95rem !important;
     line-height: 1;
+    flex-shrink: 0;
+  }
+
+  #desktop-icons .icon > span:not(:first-child) {
+    max-width: 100%;
+    font-size: 14px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
   }
 
   .terminal,

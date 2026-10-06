@@ -203,7 +203,7 @@ A prepared fix is not a production PASS.
 | [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Frozen until further notice. |
 | [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Frozen until further notice. |
 | [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Frozen until further notice. |
-| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Local PASS: 496 keys, shell/recovery/iframe, 105 Python tests, six JS suites and Playwright. Approved for deployment; [runbook](doc/runbooks/deploy_153.md). EN remains test until 155. |
+| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Deployed. Author PASS: registration, login, system entry, profile, settings, locale persistence, FM and wallet. Mobile desktop label regression fixed locally; production retest pending. EN remains test until 155. |
 | [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Planned after 153. |
 | [155](doc/sprints/sprint_155_ghost_system_content_acceptance.md) | System messages, narrative, historical content migration and full PL/EN acceptance | Planned after 154. |
 

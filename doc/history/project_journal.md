@@ -1,5 +1,22 @@
 # CHAOS — Project Journal
 
+## 2026-10-06 — 153: FM i portfel PASS; poprawka etykiet pulpitu
+
+Autor potwierdził FM i portfel, zgłaszając jednocześnie FAIL mobilnego pulpitu.
+Mobilne `.icon span` powiększało również etykiety dodane podczas lokalizacji.
+Rozdzielono rozmiar symbolu i nazwy, dopasowano kafelki do wielowierszowego
+tekstu, podbito wersję CSS. Playwright PL/EN: 360/390/588/1440 px bez overflow,
+otwieranie ustawień działa. Poprawka oczekuje wdrożenia i odbioru autora.
+
+## 2026-10-06 — 153 wdrożony: pierwszy produkcyjny PASS autora
+
+Autor potwierdził wdrożenie, a następnie PASS rejestracji, logowania,
+przejścia do systemu, ikon, profilu, ustawień i pamiętania wyboru języka.
+Pozostałe ścieżki powłoki, w tym FM, terminal, portfel i mobile/fullscreen,
+mają wyniki lokalne; nie deklarujemy jeszcze pełnego produkcyjnego PASS 153.
+EN nadal testowe do zakończenia 154–155. Szczegóły w
+[raporcie odbioru](../audits/sprint_153_acceptance.md).
+
 ## 2026-10-06 — 153: zgodność testów wdrożeniowych z Pythonem VPS
 
 Na VPS 67/105 testów przeszło; 38 testów sesji zatrzymało się w `setUp`

@@ -5,11 +5,14 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
-- [153 — fundament PL/EN: PASS lokalny](sprints/sprint_153_ghost_system_i18n_foundation.md):
+- [153 — fundament PL/EN: wdrożony, częściowy PASS produkcyjny](sprints/sprint_153_ghost_system_i18n_foundation.md):
   [format v1](architecture/ghost_i18n_v1.md) i
   [rejestr kluczy/glosariusz](audits/sprint_153_key_register.md).
   496 kluczy, pełna powłoka 153, recovery i iframe; 105 testów Python, sześć JS
-  oraz Playwright PASS. [Odbiór](audits/sprint_153_acceptance.md). Bez wydania EN i pushu.
+  oraz Playwright PASS lokalnie. Autor potwierdził na produkcji rejestrację,
+  logowanie, wejście do systemu, profil, ustawienia, pamiętanie języka, FM i portfel.
+  Regresja etykiet ikon mobilnego pulpitu poprawiona lokalnie; ponowny odbiór oczekiwany.
+  [Odbiór](audits/sprint_153_acceptance.md). EN nadal testowe.
 
 - [Panel administracyjny — layout i odczyty na żądanie](runbooks/admin_panel_lazy_layout.md):
   cztery sekcje, paginacja, pojedyncze konto i zasoby z kanonicznych store’ów.
