@@ -466,9 +466,27 @@ const WORKSPACE_WINDOW_APPS = new Set([
 ]);
 
 function updateWorkspaceBounds() {
+    if (!updateWorkspaceBounds.bound) {
+        updateWorkspaceBounds.bound = true;
+        window.addEventListener('resize', updateWorkspaceBounds);
+        document.addEventListener('fullscreenchange', updateWorkspaceBounds);
+        window.visualViewport?.addEventListener('resize', updateWorkspaceBounds);
+        window.visualViewport?.addEventListener('scroll', updateWorkspaceBounds);
+    }
     const toolbar = document.getElementById('system-toolbar');
-    const bottom = toolbar ? Math.max(0, window.innerHeight - toolbar.getBoundingClientRect().top) : 46;
-    document.documentElement.style.setProperty('--workspace-bottom', bottom + 'px');
+    const root = document.documentElement;
+    const viewport = isMobileSafeMode() ? window.visualViewport : null;
+    const top = viewport?.offsetTop || 0;
+    const height = viewport?.height || window.innerHeight;
+    const keyboardInset = Math.max(0, window.innerHeight - top - height);
+    root.style.setProperty('--workspace-top', top + 'px');
+    root.style.setProperty('--workspace-keyboard-inset', keyboardInset + 'px');
+    const toolbarHeight = toolbar?.getBoundingClientRect().height || 46;
+    const bottom = isMobileSafeMode() ? keyboardInset + toolbarHeight
+        : toolbar ? Math.max(0, window.innerHeight - toolbar.getBoundingClientRect().top) : 46;
+    root.style.setProperty('--workspace-bottom', bottom + 'px');
+    root.style.setProperty('--workspace-height', Math.max(0, isMobileSafeMode()
+        ? height - toolbarHeight : window.innerHeight - bottom) + 'px');
 }
 
 function notifyWorkspaceResize(term) {
@@ -4131,18 +4149,14 @@ function setupSystemTerminalKeyboardGuard(term) {
     term.dataset.keyboardGuardBound = "1";
 
     const updateOffset = () => {
-        let offset = 0;
-        if (isMobileSafeMode() && window.visualViewport) {
-            offset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
-        }
-        term.style.setProperty('--terminal-keyboard-offset', `${Math.round(offset)}px`);
+        updateWorkspaceBounds();
+        term.style.setProperty('--terminal-keyboard-offset', '0px');
 
         const content = term.querySelector('.content');
         const input = term.querySelector('.system-terminal-input');
         if (content && input && document.activeElement === input) {
             window.requestAnimationFrame(() => {
                 content.scrollTop = content.scrollHeight;
-                input.scrollIntoView({ block: "nearest", inline: "nearest" });
             });
         }
     };
@@ -18154,11 +18168,8 @@ function createEmailClient() {
     };
     window.addEventListener('detention:changed', detentionChatChanged);
     const updateMailViewportInset = () => {
-        let offset = 0;
-        if (window.visualViewport && isMailNarrow()) {
-            offset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
-        }
-        mailApp.style.setProperty('--mail-keyboard-offset', `${Math.round(offset)}px`);
+        updateWorkspaceBounds();
+        mailApp.style.setProperty('--mail-keyboard-offset', '0px');
     };
     const updateMailNarrowMode = () => {
         const rect = term.getBoundingClientRect();

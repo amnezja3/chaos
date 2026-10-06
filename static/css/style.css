@@ -10244,3 +10244,19 @@ button.file-manager-file:focus-visible {
 @media (prefers-reduced-motion: reduce) {
     .ghost-signal-show[data-show-scene="shutdown"] .ghost-signal-show__stage { opacity: 1; }
 }
+
+/* One visual-viewport budget for both browser and game fullscreen on mobile.
+   The keyboard is accounted for here, never again on individual composers. */
+@media (max-width: 900px), (max-height: 700px) {
+    #system-toolbar {
+        bottom: var(--workspace-keyboard-inset, 0px);
+    }
+    .terminal,
+    .app-window,
+    .terminal.system-terminal-window,
+    .workspace-window:is(.terminal, .app-window).is-window-maximized[data-workspace-controls] {
+        top: var(--workspace-top, 0px) !important;
+        bottom: auto !important;
+        height: var(--workspace-height, calc(100dvh - 46px)) !important;
+    }
+}
