@@ -180,12 +180,13 @@ Expect:
 - rough edges in UI,
 - prototype mechanics becoming formal systems over time.
 
-The current priority is completing Deep Scanner acceptance and its effect catalog,
-then the gameplay creators and GhostLab v2.0. A prepared fix is not a production PASS.
+The next planned program is Ghost System PL/EN localization (153–155).
+GhostLab v2.0 (149–152) is frozen until explicitly resumed by the author.
+A prepared fix is not a production PASS.
 
 ## Roadmap Snapshot
 
-| Sprint | Scope | Status as of 30 September 2026 |
+| Sprint | Scope | Status as of 6 October 2026 |
 |---|---|---|
 | 143 | Consequences, detention and prisons | Closed by author; the final 143.6 delivery-order correction has no separate reported acceptance. |
 | 144.1–144.3 | GhostLab registry, authoring and product alignment | PASS. |
@@ -198,14 +199,24 @@ then the gameplay creators and GhostLab v2.0. A prepared fix is not a production
 | [146.5](doc/sprints/sprint_146_5_ghostlab_v1_completion.md) | GhostLab 1.0: .lab, terminal, global/clan PTK and free products | **PASS — 2026-10-01**, accepted by the author. GhostLab 1.0 complete, including PTK editor scrolling, Plexcak and clan catalog visibility. [Runbook](doc/runbooks/sprint_146_5_ghostlab_completion.md). |
 | [147](doc/sprints/sprint_147_creator_gameplay_policy.md) | Simplified creators, level-capped random power and validated Button Choice effects | Backend and progression migration deployed; gameplay confirmation recorded. Sprint 148 completes the creator editor, legacy projects and runtime rollout. [Runbook](doc/runbooks/sprint_147_creators.md). |
 | [148](doc/sprints/sprint_148_creator_ux_runtime_completion.md) | Final-screen creator UX, project editing, free updates and runtime settlement | **PASS — 2026-10-04**, accepted by the author after rollout and gameplay checks. Historical projects adopted; creator UX, launch flow, required files, updates and map-action consistency completed. [Deployment runbook](doc/runbooks/sprint_148_creators.md). |
-| [149](doc/sprints/sprint_149_ghostlab_v2_research.md) | GhostLab v2.0 Research | Planned after creator sprints 147–148. |
-| [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Planned. |
-| [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Planned. |
-| [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Planned. |
+| [149](doc/sprints/sprint_149_ghostlab_v2_research.md) | GhostLab v2.0 Research | Frozen until further notice — author decision, 6 October 2026. |
+| [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Frozen until further notice. |
+| [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Frozen until further notice. |
+| [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Frozen until further notice. |
+| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Planned; independent of frozen sprints 149–152. |
+| [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Planned after 153. |
+| [155](doc/sprints/sprint_155_ghost_system_content_acceptance.md) | System messages, narrative, historical content migration and full PL/EN acceptance | Planned after 154. |
 
 Research, Exchange and Documentation roadmap descriptions are not evidence of
-completed runtime. Their remaining scope is explicitly assigned to 149–152.
+completed runtime. Their remaining scope belongs to frozen sprints 149–152;
+it is not an implementation requirement for localization 153–155.
 See the [documentation index](doc/README.md) for sprint contracts and runbooks.
+
+Sprints 153–155 plan a fully bilingual Ghost System with extensible language packs.
+System-owned interface and content are localized; player-authored names, descriptions,
+documents and messages remain unchanged. Russian, Spanish and other languages can
+be added through the same infrastructure; their translations are outside this scope.
+English remains planned, not an already released feature.
 
 ## License
 

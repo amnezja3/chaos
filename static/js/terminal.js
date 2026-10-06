@@ -14865,18 +14865,19 @@ const GHOSTLAB_ROADMAP = [
     ["v0.6", "Publisher", "done"],
     ["v0.7", "Ghost Exchange — biblioteka informacyjna", "done"],
     ["v0.8", "Research — fundament UI bez progresu", "done"],
-    ["v1.0", "Stable Lab / Polish", "current"]
+    ["v1.0", "Stable Lab — pełny cykl tworzenia i publikacji", "current"]
 ];
 const GHOSTLAB_V2_ROADMAP = [
     "Research Tree",
+    "Official Exchange — pakiety i import",
     "Compiler Optimizer",
     "Ghost Exchange Community",
     "AI Templates",
     "Plugin SDK",
     "Blueprint Sharing",
     "AI Assistant",
-    "Versioning",
-    "Rollback",
+    "Rozbudowana historia wersji projektów",
+    "Rollback projektów",
     "Dependency Graph"
 ];
 const GHOSTLAB_TAB_TOOLTIPS = {
@@ -15200,18 +15201,31 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
                 <header><h3>Documentation</h3><span>${GHOSTLAB_VERSION}</span></header>
                 <div class="ghostlab-docs">
                     <p>GhostLab służy do projektowania i publikowania narzędzi na kontraktach systemowych.</p>
-                    <h4>GhostLab v1.0 - Stable Lab</h4>
-                    <p>GhostLab v1.0 domyka pierwszy pelny cykl pracy: Project -> Template -> Editor -> Validate -> Compile -> Publisher -> Googleplex.</p>
-                    <p>AppForge sluzy do prostych aplikacji operacyjnych. GhostLab obsługuje narzędzia PvP; kolejne typy celów wynikają z kontraktu szablonu.</p>
-                    <p>Obecne sześć rodzin PvP wymaga Player Hack Access. Inne szablony, takie jak bilety lub konserwacja, mają własne zasady uruchomienia.</p>
-                    <h4>Changelog</h4>
-                    <ol>
-                        ${GHOSTLAB_ROADMAP.map(([version, name, status]) => `<li class="ghostlab-roadmap-${escapeHTML(status || 'planned')}"><b>${version}</b> ${name} <span>${escapeHTML(status || 'planned')}</span></li>`).join("")}
-                    </ol>
-                    <h4>GhostLab v2.0 Roadmap</h4>
+                    <p class="ghostlab-docs-status">Stan na 6 października 2026 · GhostLab v1.0: dostępny · v2.0: odłożony do odwołania</p>
+                    <h4>Dostępne teraz — GhostLab v1.0</h4>
+                    <p>Pełny cykl pracy: Project → Template → Editor → Validate → Compile → Publisher → Googleplex. System dostarcza logikę narzędzia; twórca wybiera szablon, konfiguruje projekt i nadaje mu własną nazwę oraz opis.</p>
+                    <ul>
+                        <li>Projekty .lab: zapis, ponowne otwarcie, edycja, walidacja, kompilacja i publikacja. Projekty można otwierać również z File Managera i terminala.</li>
+                        <li>Sześć rodzin PvP: System Log Reader, Security Panel Proxy, Financial Sniffer, Friend Kicker, Arsenal Cleaner i Intruder Kicker. Użycie wymaga Player Hack Access; własne narzędzia korzystają z zasad i limitów swojej rodziny.</li>
+                        <li>Bilety podróży, konserwacja systemu, firmware i Deep Scannery — każdy szablon ma własne wymagania, cele i efekty działania.</li>
+                        <li>Dokumenty PTK: edycja Markdown z podglądem, publikacja globalna lub klanowa, oferty bezpłatne i płatne oraz odczyt pobranych wydań w Plexcaku.</li>
+                        <li>Wersjonowana publikacja, zakup, instalacja i jawna aktualizacja narzędzi. Wycofanie oferty pozostawia zainstalowane kopie u graczy.</li>
+                    </ul>
+                    <p>AppForge, Term Creator, Window Maker i Button Choice służą do tworzenia prostszych aplikacji operacyjnych. GhostLab rozwija narzędzia na kontraktach swoich szablonów.</p>
+                    <h4>Research i Ghost Exchange — obecny zakres</h4>
+                    <p>Research jest obecnie fundamentem interfejsu, bez aktywnego drzewa badań i odblokowań. Ghost Exchange wewnątrz laboratorium jest biblioteką informacyjną; nie jest rynkiem sprzedaży paczek danych w WebDragons. Przyszłe funkcje tych zakładek nie są jeszcze dostępne.</p>
+                    <h4>Najbliższy plan — Ghost System PL / EN</h4>
+                    <p>Planowana jest pełna polska i angielska wersja systemowego interfejsu, opisów narzędzi, biletów, serwisu, komunikatów i pomocy. Wspólny mechanizm językowy pozwoli później dodawać kolejne języki, np. rosyjski i hiszpański.</p>
+                    <p>To plan, nie dostępna już wersja EN. Nazwy, opisy produktów, dokumenty i inne własne teksty graczy pozostaną w języku autora — system nie będzie ich automatycznie tłumaczył.</p>
+                    <h4>GhostLab v2.0 — odłożony do odwołania</h4>
+                    <p>Poniższe funkcje pozostają kierunkiem rozwoju, bez terminu wdrożenia. Prace nad v2.0 zostały wstrzymane; lokalizacja Ghost Systemu nie wymaga ich ukończenia.</p>
                     <ul class="ghostlab-v2-roadmap">
                         ${GHOSTLAB_V2_ROADMAP.map(item => `<li>${escapeHTML(item)}</li>`).join("")}
                     </ul>
+                    <h4>Historia rozwoju v1.0</h4>
+                    <ol>
+                        ${GHOSTLAB_ROADMAP.map(([version, name, status]) => `<li class="ghostlab-roadmap-${escapeHTML(status || 'planned')}"><b>${version}</b> ${name} <span>${escapeHTML(status || 'planned')}</span></li>`).join("")}
+                    </ol>
                 </div>
             </section>
         `;

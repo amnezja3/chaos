@@ -1,6 +1,8 @@
 # Sprint 149 — GhostLab v2.0: Research i rozwój laboratorium
 
-Status: **ZAPLANOWANY**, 26 IX 2026. Start dopiero po PASS
+Status: **ZAMROŻONY DO ODWOŁANIA**, decyzja autora z 6 X 2026.
+Nie rozpoczynać prac bez jawnej decyzji o wznowieniu. Zachowany zakres nie
+blokuje lokalizacji 153–155. Pierwotny plan z 26 IX 2026 zakładał start po PASS
 [148 — kreatory](sprint_148_creator_ux_runtime_completion.md).
 Następny: [150 — biblioteka i import](sprint_150_ghostlab_v2_exchange_import.md).
 Podstawa: [audyt zakładek](../audits/ghostlab_tabs_scope_2026_09_26.md).

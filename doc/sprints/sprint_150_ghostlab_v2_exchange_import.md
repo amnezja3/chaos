@@ -1,6 +1,8 @@
 # Sprint 150 — GhostLab v2.0: Official Exchange, pakiety i import
 
-Status: **ZAPLANOWANY**, 26 IX 2026. Po PASS
+Status: **ZAMROŻONY DO ODWOŁANIA**, decyzja autora z 6 X 2026.
+Nie rozpoczynać prac bez jawnej decyzji o wznowieniu. Zachowany zakres nie
+blokuje lokalizacji 153–155. Pierwotny plan z 26 IX 2026 zakładał start po PASS
 [149](sprint_149_ghostlab_v2_research.md); następny [151](sprint_151_ghostlab_v2_community_versions.md).
 
 ## Cel

@@ -39,10 +39,28 @@ jest historyczne: jego polecenie rozpoczęcia Sprintu 139 nie jest aktualne.
 
 ## Status bieżący
 
+Aktualizacja planów 6 X 2026: po zajętych sprintach 149–152 dodano program
+pełnego Ghost Systemu PL/EN. Status wszystkich trzech: **ZAPLANOWANE**.
+
+Decyzją autora z 6 X 2026 sprinty **149–152 są ZAMROŻONE DO ODWOŁANIA**.
+Nie rozpoczynać ich bez jawnego wznowienia. Lokalizacja 153–155 jest niezależna
+od GhostLab v2 i nie obejmuje realizacji odłożonych funkcji.
+
+- [153 — fundament i powłoka](sprints/sprint_153_ghost_system_i18n_foundation.md):
+  inwentaryzacja, autorstwo treści, katalogi, locale, ustawienia i pulpit.
+- [154 — aplikacje i produkty](sprints/sprint_154_ghost_system_apps_catalogs.md):
+  mapa, workspace'y, Pro Tools, bilety, serwis, GhostLab i kreatory.
+- [155 — treści i pełny odbiór](sprints/sprint_155_ghost_system_content_acceptance.md):
+  wiadomości, narracja, historia, multimedia, rollout oraz runbook kolejnych języków.
+
+Treści graczy nie są automatycznie tłumaczone. RU/ES to przyszłe pakiety na tej
+samej infrastrukturze, nie dodatkowy zakres tłumaczeń 153–155.
+
 Aktualizacja 30 IX 2026: [podsumowanie i odbiory](history/project_journal.md).
 Pakiet do odbioru: [146.5 — domknięcie GhostLab 1.0](sprints/sprint_146_5_ghostlab_v1_completion.md),
 [wdrożenie i testy](runbooks/sprint_146_5_ghostlab_completion.md)
-→ 147 → 148 → 149–152. Cały 146.4 zamknięty / PASS autora.
+→ 147 → 148 → 153–155. Sprinty 149–152 zamrożone decyzją z 6 X.
+Cały 146.4 zamknięty / PASS autora.
 
 - Kreatory gameplayowe — [audyt 24 IX 2026](audits/creators_gameplay_audit_2026_09_24.md),
   [147 — profil działania i policy poziomu](sprints/sprint_147_creator_gameplay_policy.md),
@@ -58,12 +76,12 @@ Pakiet do odbioru: [146.5 — domknięcie GhostLab 1.0](sprints/sprint_146_5_gho
 - [146.4 — Deep Scannery](sprints/sprint_146_4_ghostlab_deep_scanners.md):
   oba etapy zamknięte / PASS, łącznie z poświatą mapy i ostatnią korektą viewfindera.
   [Runbook katalogu i testów](runbooks/sprint_146_4_2_ghostlab_scanner_effects.md).
-- GhostLab v2.0 dopiero po kreatorach 147–148:
+- GhostLab v2.0 — zamrożony do odwołania:
   [149 — Research](sprints/sprint_149_ghostlab_v2_research.md),
   [150 — Exchange/import](sprints/sprint_150_ghostlab_v2_exchange_import.md),
   [151 — Community/wersje](sprints/sprint_151_ghostlab_v2_community_versions.md),
   [152 — optimizer, zależności i AI/SDK](sprints/sprint_152_ghostlab_v2_completion.md).
-  Wszystkie cztery zaplanowane; opisy zakładek nie oznaczają gotowego runtime.
+  Wszystkie cztery zamrożone; opisy zakładek nie oznaczają gotowego runtime.
 
 - [142.3 — cykl i publikacja incydentów](runbooks/sprint_142_3_incident_publications.md):
   zatwierdzone 30 minut cooling, trwała kolejka publikacji, mapa/NPC i BlackNet/GooglePlex News;

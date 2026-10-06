@@ -1,5 +1,27 @@
 # CHAOS — Project Journal
 
+## 2026-10-06 — Decyzja: zamrożenie sprintów 149–152
+
+Autor odłożył GhostLab v2 (149–152) **do odwołania**. Zakres dokumentów pozostaje
+zachowany, ale nie stanowi aktywnego zlecenia; wznowienie wymaga jawnej decyzji.
+Sprinty lokalizacji 153–155 nie czekają na 152 i obejmują wdrożony Ghost System,
+bez realizacji odłożonych funkcji. Zaktualizowano statusy, roadmapę i zależności.
+Ten wpis zastępuje wcześniejsze założenie kolejności 152 → 153.
+
+## 2026-10-06 — Plan trzech sprintów lokalizacji Ghost Systemu
+
+Przygotowano [153 — fundament i pulpit](../sprints/sprint_153_ghost_system_i18n_foundation.md),
+[154 — aplikacje i katalogi](../sprints/sprint_154_ghost_system_apps_catalogs.md)
+oraz [155 — treści i odbiór](../sprints/sprint_155_ghost_system_content_acceptance.md).
+Numeracja zachowuje istniejące plany GhostLab v2 149–152.
+
+Cel: pełne systemowe PL/EN, w tym Pro Tools, bilety, serwis, komunikaty,
+opisy, narracja i zapisane treści systemowe. Teksty graczy pozostają oryginalne;
+pochodzenie rozstrzygane na poziomie pól, również w produktach mieszanych.
+Pakiety językowe umożliwiają późniejsze RU/ES bez duplikowania logiki gry.
+Plany zawierają zależności, migrację, testy, ochronę hot path i bramki PASS.
+Zmiana dokumentacyjna: nie wdrożono jeszcze i18n ani tłumaczeń runtime.
+
 ## 2026-10-05 — Hardbugfix: ograniczenie CPU Ollamy
 
 Operator zastosował `sudo systemctl set-property --runtime ollama.service CPUQuota=300%`

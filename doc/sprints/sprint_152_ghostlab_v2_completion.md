@@ -1,6 +1,8 @@
 # Sprint 152 — GhostLab v2.0: optimizer, zależności, AI/SDK i pełny odbiór
 
-Status: **ZAPLANOWANY**, 26 IX 2026. Po PASS
+Status: **ZAMROŻONY DO ODWOŁANIA**, decyzja autora z 6 X 2026.
+Nie rozpoczynać prac bez jawnej decyzji o wznowieniu. Zachowany zakres nie
+blokuje lokalizacji 153–155. Pierwotny plan z 26 IX 2026 zakładał start po PASS
 [151](sprint_151_ghostlab_v2_community_versions.md).
 To końcowa bramka GhostLab v2.0, po kreatorach 147–148 i pracach 149–151.
 
