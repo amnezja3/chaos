@@ -46,13 +46,14 @@ class AvatarSelector {
      * 🔥 Edycja: wersja 1.0 — gotowa do boju w Twoim projekcie
      */
 
-    constructor({ imageContainer, infoContainer, buttonSelector, defaultImage }) {
+    constructor({ imageContainer, infoContainer, buttonSelector, defaultImage, selectedLabel = name => `Wybrano: ${name}` }) {
         this.imageContainer = document.querySelector(imageContainer);
         this.infoContainer = document.querySelector(infoContainer);
         this.buttons = document.querySelectorAll(buttonSelector);
         this.defaultImage = defaultImage;
         this.currentImage = defaultImage;
         this.selectedButton = null;
+        this.selectedLabel = selectedLabel;
 
         this.init();
     }
@@ -62,7 +63,6 @@ class AvatarSelector {
 
         this.buttons.forEach(button => {
         const imgSrc = button.dataset.img;
-        const name = button.dataset.name;
 
         button.addEventListener("mouseover", () => {
             this.imageContainer.style.backgroundImage = `url('${imgSrc}')`;
@@ -75,7 +75,7 @@ class AvatarSelector {
         button.addEventListener("click", () => {
             this.currentImage = imgSrc;
             this.imageContainer.style.backgroundImage = `url('${imgSrc}')`;
-            this.infoContainer.textContent = `Wybrano: ${name}`;
+            this.infoContainer.textContent = this.selectedLabel(button.dataset.name);
 
             if (this.selectedButton) {
             this.selectedButton.classList.remove("selected");

@@ -1,0 +1,27 @@
+{
+  "translations": [
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 0}, "expected": "0 plików"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 1}, "expected": "1 plik"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 2}, "expected": "2 pliki"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 12}, "expected": "12 plików"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 22}, "expected": "22 pliki"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 21}, "expected": "21 plików"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": 1.5}, "expected": "1.5 pliku"},
+    {"locale": "pl", "key": "shell.files.count", "params": {"count": -2}, "expected": "-2 pliki"},
+    {"locale": "en-GB", "key": "shell.files.count", "params": {"count": 1}, "expected": "1 file"},
+    {"locale": "en", "key": "shell.files.count", "params": {"count": 12}, "expected": "12 files"},
+    {"locale": "en", "key": "shell.files.count", "params": {"count": 0.000001}, "expected": "0.000001 files"},
+    {"locale": "en", "key": "shell.files.count", "params": {"count": 0.0000001}, "expected": "1e-7 files"},
+    {"locale": "en", "key": "shell.terminal.welcome", "params": {"name": "<img src=x onerror=alert(1)> {count} $&"}, "expected": "Welcome, <img src=x onerror=alert(1)> {count} $&."},
+    {"locale": "ANY", "key": "shell.desktop.files", "params": {}, "expected": "Pliki"},
+    {"locale": "en", "key": "unknown.key", "params": {}, "expected": "Message unavailable."}
+  ],
+  "invalid_params": [{}, {"count": "2"}, {"count": true}, {"count": null}, {"count": 2, "extra": 1}, {"count": 9007199254740992}],
+  "resolution": [
+    {"input": {"authenticated": true, "account": "en-US", "device": "pl"}, "expected": "en"},
+    {"input": {"authenticated": true, "device": "en", "browser": "en"}, "expected": "pl"},
+    {"input": {"device": "en_GB", "browser": "pl"}, "expected": "en"},
+    {"input": {"device": "ANY", "browser": "en-US"}, "expected": "en"},
+    {"input": {"browser": "ru"}, "expected": "pl"}
+  ]
+}

@@ -54,6 +54,44 @@ class DesktopSettingsWriterTest(unittest.TestCase):
         self.assertTrue(settings['auto_fullscreen'])
         self.assertEqual(self.metadata(), before)
 
+    def test_locale_write_normalization_and_boot_use_only_projection(self):
+        self.seed()
+        before = self.metadata()
+        with self.no_heavy():
+            response = self.client.post('/api/profile/desktop', json={'locale': 'en-GB'})
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertEqual(response.json['desktop_settings']['locale'], 'en')
+            self.update({'wallpaper': 'wall-2'})
+            self.assertEqual(self.identity.get_desktop_boot('attacker')['desktop_settings']['locale'], 'en')
+            for value in ('ANY', 'ru', '', None, ['en']):
+                rejected = self.client.post('/api/profile/desktop', json={'locale': value})
+                self.assertEqual(rejected.status_code, 400, rejected.json)
+                self.assertEqual(rejected.json['reason'], 'invalid_locale')
+            self.assertEqual(self.identity.get_desktop_boot('attacker')['desktop_settings']['locale'], 'en')
+        self.assertEqual(self.metadata(), before)
+
+    def test_legacy_locale_defaults_to_polish_and_accounts_are_independent(self):
+        self.seed()
+        self.users.save_profile(read_tests.valid_profile('victim'))
+        self.assertEqual(run.normalize_desktop_settings({})['locale'], 'pl')
+        with self.no_heavy():
+            self.update({'locale': 'en'})
+            self.identity.update_desktop_settings('victim', {'wallpaper': 'wall-1'}, normalize=run.normalize_desktop_settings)
+            self.assertEqual(self.identity.get_desktop_boot('attacker')['desktop_settings']['locale'], 'en')
+            self.assertEqual(self.identity.get_desktop_boot('victim')['desktop_settings']['locale'], 'pl')
+
+    def test_login_bootstrap_and_invalid_credentials_are_localized_without_profile_read(self):
+        anonymous = run.app.test_client()
+        with self.no_heavy(), patch.object(run, 'authenticate_user', return_value=False):
+            response = anonymous.get('/')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('ghost-i18n-bootstrap', response.text)
+            self.assertIn('data-entry-locale', response.text)
+            invalid = anonymous.post('/', data={'username': 'invalid-test', 'password': 'wrong', 'locale': 'en'})
+            self.assertEqual(invalid.status_code, 200)
+            self.assertIn('Invalid login credentials.', invalid.text)
+            self.assertIn('data-ghost-i18n="entry.invalid_credentials"', invalid.text)
+
     def test_legacy_read_and_projection_rebuild_preserve_canonical_settings(self):
         self.seed()
         stale = self.users.get_profile_with_revision('attacker')

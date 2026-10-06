@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "locale": "pl",
+  "messages": {
+    "entry.description": {
+      "params": {},
+      "text": "Cyber Hacking Adventure Of Senses. Wejdź do pulpitu operatora, wybierz cel, uruchom narzędzia i pozwól, żeby mapa zaczęła mówić danymi."
+    },
+    "entry.authorize": {
+      "params": {},
+      "text": "Autoryzacja operatora"
+    },
+    "entry.username": {
+      "params": {},
+      "text": "Login"
+    },
+    "entry.password": {
+      "params": {},
+      "text": "Hasło"
+    },
+    "entry.password_hint": {
+      "params": {},
+      "text": "klucz dostępu"
+    },
+    "entry.submit": {
+      "params": {},
+      "text": "Zaloguj"
+    },
+    "entry.no_account": {
+      "params": {},
+      "text": "Nie masz konta?"
+    },
+    "entry.register": {
+      "params": {},
+      "text": "Zainicjuj profil operatora"
+    },
+    "entry.invalid_credentials": {
+      "params": {},
+      "text": "Nieprawidłowe dane logowania."
+    }
+  }
+}

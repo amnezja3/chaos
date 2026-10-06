@@ -1,6 +1,34 @@
 let currentStep = 0;
 let typewriterTimer = null;
 let isSubmitting = false;
+let isValidating = false;
+let registrationErrorKey = "";
+let avatarSelector = null;
+
+function onboardingText(key, params = {}) {
+  return window.GhostLocale.t(`onboarding.${key}`, params);
+}
+
+function onboardingLabel(key) {
+  return `<span data-ghost-i18n="onboarding.${escapeHTML(key)}">${escapeHTML(onboardingText(key))}</span>`;
+}
+
+// Refresh only system text. Inputs, selected cards, audio and pending requests survive.
+function refreshOnboardingLocale() {
+  document.title = onboardingText("title");
+  const story = document.getElementById("prelog-text");
+  if (story) {
+    clearTimeout(typewriterTimer);
+    story.textContent = onboardingText(prelogContent[currentStep].textKey);
+  }
+  for (const button of document.querySelectorAll('[data-name-key]')) {
+    button.dataset.name = onboardingText(button.dataset.nameKey);
+  }
+  const selected = document.querySelector('.avatar-button.selected');
+  if (selected) document.getElementById('avatar-info').textContent = onboardingText('selected', {name: selected.dataset.name});
+  setError(registrationErrorKey);
+}
+document.addEventListener('ghost:locale-changed', refreshOnboardingLocale);
 
 let formData = {
   username: "",
@@ -30,10 +58,10 @@ const rolesByFaction = {
 };
 
 const factions = [
-  { id: 1, name: "Straznicy Ladu", icon: "ORDER", image: "/static/images/logo_faction_img_1.png", summary: "Kontrola, stabilnosc i odbudowa sieci." },
-  { id: 2, name: "Echo Wolnosci", icon: "ECHO", image: "/static/images/logo_faction_img_2.png", summary: "Jawne slady, wolne pakiety, antysystem." },
-  { id: 3, name: "VIREX", icon: "VIRX", image: "/static/images/logo_faction_img_3.png", summary: "Rynek exploitow, zysk i ciche przejecia." },
-  { id: 4, name: "Siatka Widmo", icon: "GHOST", image: "/static/images/logo_faction_img_4.png", summary: "Maskowanie, iluzja i operacje bez podpisu." }
+  { id: 1, icon: "ORDER", image: "/static/images/logo_faction_img_1.png" },
+  { id: 2, icon: "ECHO", image: "/static/images/logo_faction_img_2.png" },
+  { id: 3, icon: "VIRX", image: "/static/images/logo_faction_img_3.png" },
+  { id: 4, icon: "GHOST", image: "/static/images/logo_faction_img_4.png" }
 ];
 
 const avatarData = {
@@ -46,33 +74,27 @@ const avatarData = {
 const prelogContent = [
   {
     image: "/static/images/epizod-1.png",
-    title: "GHOSTSYSTEM // pakiet z przeszlosci",
-    text: "Rok 2108. MASA kontroluje miasta, trasy, banki i prywatne wspomnienia. Wlasnie odebrales pakiet, ktorego nie powinno byc w zadnym rejestrze. Pierwszy krok: nadaj sobie login."
+    titleKey: "story.0.title", textKey: "story.0.text"
   },
   {
     image: "/static/images/epizod-2.png",
-    title: "Frakcje // komu zaufasz",
-    text: "GhostSystem przetrwal dzieki rozproszonym frakcjom. Kazda widzi siec inaczej i kazda placi inna cene za przewage. Wybierz szyld, pod ktorym rozpoczniesz operacje."
+    titleKey: "story.1.title", textKey: "story.1.text"
   },
   {
     image: "/static/images/epizod-3.png",
-    title: "Rola // twoj pierwszy slad",
-    text: "Frakcja daje kierunek, ale rola definiuje styl wejscia. Bedziesz czytal ruch, chronic dostep, manipulowac rynkiem czy znikac z radarow? Wybierz operatora."
+    titleKey: "story.2.title", textKey: "story.2.text"
   },
   {
     image: "/static/images/epizod-4.png",
-    title: "Klucz // zabezpiecz wejscie",
-    text: "Haslo jest pierwsza blokada przed cudzym terminalem. Nie musi byc piekne. Ma byc trudne do odgadniecia i wystarczajaco twarde, zeby kupic ci czas."
+    titleKey: "story.3.title", textKey: "story.3.text"
   },
   {
     image: "/static/images/epizod-5.png",
-    title: "Kontakt // martwa skrzynka",
-    text: "Podaj kanal odzyskiwania. System uzyje go jako ukrytego punktu synchronizacji. Jesli kiedys zgubisz dostep, to moze byc jedyna rzecz, ktora zostanie."
+    titleKey: "story.4.title", textKey: "story.4.text"
   },
   {
     image: "/static/images/epizod-6.png",
-    title: "Alias // wejscie do miasta",
-    text: "Profil jest prawie gotowy. Nadaj sobie nick, sprawdz wybor i uruchom instalacje. Startowa lokalizacja zostanie przydzielona automatycznie z IP albo z listy aktywnych miast."
+    titleKey: "story.5.title", textKey: "story.5.text"
   }
 ];
 
@@ -117,7 +139,7 @@ function renderStoryPanel(step) {
       </div>
       <div class="story-copy">
         <div class="story-kicker">ghost_init / ${String(step + 1).padStart(2, "0")}</div>
-        <h1>${escapeHTML(content.title)}</h1>
+        <h1>${onboardingLabel(content.titleKey)}</h1>
         <p id="prelog-text"></p>
       </div>
     </section>
@@ -132,13 +154,13 @@ function renderShell(step, body, side = "") {
       ${side ? `<section class="identity-panel">${side}</section>` : ""}
       <section class="onboarding-console">
         <div class="console-topline">
-          <span>operator setup</span>
+          <span>${onboardingLabel("setup")}</span>
           <span>${step + 1}/6</span>
         </div>
         <div class="console-body">${body}</div>
         <div class="step-nav">
-          ${step > 0 ? `<button type="button" class="ghost-btn secondary" onclick="prevStep()">Wstecz</button>` : ""}
-          <button type="button" class="ghost-btn primary js-next-step" onclick="handleNext()">${step === 5 ? "Zakoncz" : "Dalej"}</button>
+          ${step > 0 ? `<button type="button" class="ghost-btn secondary" onclick="prevStep()">${onboardingLabel("back")}</button>` : ""}
+          <button type="button" class="ghost-btn primary js-next-step" onclick="handleNext()">${onboardingLabel(step === 5 ? "finish" : "next")}</button>
         </div>
       </section>
     </div>
@@ -148,21 +170,21 @@ function renderShell(step, body, side = "") {
 const steps = [
   () => renderShell(0, `
     <label class="ghost-field">
-      <span>Nazwa uzytkownika</span>
-      <input type="text" id="username" placeholder="np. CyberPhoenix" autocomplete="username">
+      <span>${onboardingLabel("username")}</span>
+      <input type="text" id="username" data-ghost-i18n-placeholder="onboarding.username_placeholder" placeholder="${escapeHTML(onboardingText("username_placeholder"))}" autocomplete="username">
     </label>
-    <div class="field-hint">Login jest unikalny i bedzie widoczny w czesci systemowych logow.</div>
+    <div class="field-hint">${onboardingLabel("username_hint")}</div>
   `),
 
   () => {
     const options = factions.map(faction => `
       <button class="choice-card avatar-button" type="button"
-        data-img="${faction.image}"
-        data-name="${escapeHTML(faction.name)}"
+        data-img="${faction.image}" data-name-key="faction.${faction.id}.name"
+        data-name="${escapeHTML(onboardingText(`faction.${faction.id}.name`))}"
         onclick="selectFaction(${faction.id}, this)">
         <span class="choice-code">${escapeHTML(faction.icon)}</span>
-        <strong>${escapeHTML(faction.name)}</strong>
-        <small>${escapeHTML(faction.summary)}</small>
+        <strong>${onboardingLabel(`faction.${faction.id}.name`)}</strong>
+        <small>${onboardingLabel(`faction.${faction.id}.summary`)}</small>
       </button>
     `).join("");
 
@@ -171,7 +193,7 @@ const steps = [
     `, `
       <div class="identity-preview">
         <div id="avatar-preview" class="avatar-box faction-preview"></div>
-        <div id="avatar-info" class="avatar-info">Wybierz frakcje</div>
+        <div id="avatar-info" class="avatar-info">${onboardingLabel("choose_faction")}</div>
       </div>
     `);
   },
@@ -185,65 +207,64 @@ const steps = [
           const imgPath = `/static/images/${avatars[index]}`;
           return `
             <button class="choice-card avatar-button" type="button"
-              data-img="${imgPath}"
-              data-name="${escapeHTML(roleName)}"
+              data-img="${imgPath}" data-name-key="role.${factionId}.${index + 1}"
+              data-name="${escapeHTML(onboardingText(`role.${factionId}.${index + 1}`))}"
               onclick="selectRole(${index + 1}, this)">
               <span class="choice-code">R${index + 1}</span>
-              <strong>${escapeHTML(roleName)}</strong>
-              <small>Profil operacyjny frakcji.</small>
+              <strong>${onboardingLabel(`role.${factionId}.${index + 1}`)}</strong>
+              <small>${onboardingLabel("role_hint")}</small>
             </button>
           `;
         }).join("")
-      : `<div class="empty-state">Najpierw wybierz frakcje.</div>`;
+      : `<div class="empty-state">${onboardingLabel("faction_first")}</div>`;
 
     return renderShell(2, `
       <div class="choice-grid role-options">${content}</div>
     `, `
       <div class="identity-preview">
         <div id="avatar-preview" class="avatar-box"></div>
-        <div id="avatar-info" class="avatar-info">Wybierz role</div>
+        <div id="avatar-info" class="avatar-info">${onboardingLabel("choose_role")}</div>
       </div>
     `);
   },
 
   () => renderShell(3, `
     <label class="ghost-field">
-      <span>Haslo</span>
-      <input type="password" id="password" placeholder="Minimum 8 znakow, litera i cyfra" autocomplete="new-password">
+      <span>${onboardingLabel("password")}</span>
+      <input type="password" id="password" data-ghost-i18n-placeholder="onboarding.password_placeholder" placeholder="${escapeHTML(onboardingText("password_placeholder"))}" autocomplete="new-password">
     </label>
     <label class="ghost-field">
-      <span>Powtorz haslo</span>
-      <input type="password" id="confirm_password" placeholder="Potwierdz klucz" autocomplete="new-password">
+      <span>${onboardingLabel("confirm_password")}</span>
+      <input type="password" id="confirm_password" data-ghost-i18n-placeholder="onboarding.confirm_placeholder" placeholder="${escapeHTML(onboardingText("confirm_placeholder"))}" autocomplete="new-password">
     </label>
-    <div class="field-hint">System wymaga minimum 8 znakow, jednej litery i jednej cyfry.</div>
+    <div class="field-hint">${onboardingLabel("password_hint")}</div>
   `),
 
   () => renderShell(4, `
     <label class="ghost-field">
-      <span>E-mail odzyskiwania</span>
+      <span>${onboardingLabel("email")}</span>
       <input type="email" id="email" placeholder="operator@ghost.net" autocomplete="email">
     </label>
-    <div class="field-hint">Adres musi byc unikalny. W grze traktujemy go jak martwa skrzynke.</div>
+    <div class="field-hint">${onboardingLabel("email_hint")}</div>
   `),
 
   () => {
     const faction = factions.find(item => item.id === Number(formData.faction));
-    const roleName = (rolesByFaction[formData.faction] || [])[Number(formData.role) - 1] || "Nie wybrano";
     const avatar = formData.avatarImage || "/static/images/avatar-default.jpg";
 
     return renderShell(5, `
       <div class="summary-card">
         <img src="${avatar}" alt="">
         <div>
-          <p><b>Uzytkownik</b> ${escapeHTML(formData.username)}</p>
-          <p><b>Email</b> ${escapeHTML(formData.email)}</p>
-          <p><b>Frakcja</b> ${escapeHTML(faction?.name || "Nie wybrano")}</p>
-          <p><b>Rola</b> ${escapeHTML(roleName)}</p>
+          <p><b>${onboardingLabel("summary_username")}</b> ${escapeHTML(formData.username)}</p>
+          <p><b>${onboardingLabel("summary_email")}</b> ${escapeHTML(formData.email)}</p>
+          <p><b>${onboardingLabel("summary_faction")}</b> ${onboardingLabel(faction ? `faction.${faction.id}.name` : "not_selected")}</p>
+          <p><b>${onboardingLabel("summary_role")}</b> ${onboardingLabel(formData.role ? `role.${formData.faction}.${formData.role}` : "not_selected")}</p>
         </div>
       </div>
       <label class="ghost-field">
-        <span>Nick gracza</span>
-        <input type="text" id="nick" placeholder="np. NullRider" autocomplete="nickname">
+        <span>${onboardingLabel("nick")}</span>
+        <input type="text" id="nick" data-ghost-i18n-placeholder="onboarding.nick_placeholder" placeholder="${escapeHTML(onboardingText("nick_placeholder"))}" autocomplete="nickname">
       </label>
     `);
   }
@@ -252,7 +273,7 @@ const steps = [
 function updatePrelogArea(step) {
   const textElement = document.getElementById("prelog-text");
   if (textElement) {
-    typeText(textElement, prelogContent[step]?.text || "");
+    typeText(textElement, onboardingText(prelogContent[step].textKey));
   }
 }
 
@@ -263,15 +284,16 @@ function showStep(index) {
   document.getElementById("step-content").innerHTML = steps[index]();
   updatePrelogArea(index);
   updateProgressBar(index);
-  document.getElementById("error-msg").innerText = "";
+  setError("");
 
   restoreStepInputs(index);
 
   if (index === 1 || index === 2) {
-    new AvatarSelector({
+    avatarSelector = new AvatarSelector({
       imageContainer: "#avatar-preview",
       infoContainer: "#avatar-info",
       buttonSelector: ".avatar-button",
+      selectedLabel: name => onboardingText("selected", {name}),
       defaultImage: index === 1
         ? "/static/images/logo_faction-default.jpg"
         : "/static/images/avatar-default.jpg"
@@ -298,8 +320,10 @@ function restoreChoiceSelection(index) {
     const button = document.querySelector(`.faction-options button[onclick*="selectFaction(${formData.faction}"]`);
     if (button) {
       button.classList.add("selected");
+      avatarSelector.currentImage = button.dataset.img;
+      avatarSelector.selectedButton = button;
       document.querySelector("#avatar-preview").style.backgroundImage = `url('${button.dataset.img}')`;
-      document.querySelector("#avatar-info").textContent = `Wybrano: ${button.dataset.name}`;
+      document.querySelector("#avatar-info").textContent = onboardingText("selected", {name: button.dataset.name});
     }
   }
 
@@ -307,8 +331,10 @@ function restoreChoiceSelection(index) {
     const button = document.querySelector(`.role-options button[onclick*="selectRole(${formData.role}"]`);
     if (button) {
       button.classList.add("selected");
+      avatarSelector.currentImage = button.dataset.img;
+      avatarSelector.selectedButton = button;
       document.querySelector("#avatar-preview").style.backgroundImage = `url('${button.dataset.img}')`;
-      document.querySelector("#avatar-info").textContent = `Wybrano: ${button.dataset.name}`;
+      document.querySelector("#avatar-info").textContent = onboardingText("selected", {name: button.dataset.name});
     }
   }
 }
@@ -321,13 +347,18 @@ function updateProgressBar(step) {
 }
 
 function prevStep() {
+  if (isSubmitting || isValidating) return;
+  saveStepInputs();
   if (currentStep > 0) showStep(currentStep - 1);
 }
 
 async function handleNext() {
-  if (isSubmitting) return;
-
-  const isValid = await validateStep();
+  if (isSubmitting || isValidating) return;
+  isValidating = true;
+  let isValid;
+  try { isValid = await validateStep(); }
+  catch (_) { setError("onboarding.network"); return; }
+  finally { isValidating = false; }
   if (!isValid) return;
 
   if (currentStep < steps.length - 1) {
@@ -337,8 +368,13 @@ async function handleNext() {
   }
 }
 
-function setError(message) {
-  document.getElementById("error-msg").innerText = message || "";
+function setError(key) {
+  registrationErrorKey = key || "";
+  document.getElementById("error-msg").textContent = key ? window.GhostLocale.t(key) : "";
+}
+
+function saveStepInputs() {
+  for (const input of document.querySelectorAll("#step-content input")) formData[input.id] = input.value;
 }
 
 function isValidUsername(value) {
@@ -351,10 +387,10 @@ function isValidEmail(value) {
 
 function validatePassword(value) {
   const password = String(value || "");
-  if (password.length < 8) return "Haslo musi miec co najmniej 8 znakow.";
-  if (password.length > 128) return "Haslo jest zbyt dlugie.";
-  if (!/[A-Za-z]/.test(password)) return "Haslo musi zawierac przynajmniej jedna litere.";
-  if (!/\d/.test(password)) return "Haslo musi zawierac przynajmniej jedna cyfre.";
+  if (password.length < 8) return "onboarding.password_short";
+  if (password.length > 128) return "onboarding.password_long";
+  if (!/[A-Za-z]/.test(password)) return "onboarding.password_letter";
+  if (!/\d/.test(password)) return "onboarding.password_digit";
   return "";
 }
 
@@ -389,34 +425,34 @@ async function validateStep() {
   });
 
   if (!valid) {
-    setError("Uzupelnij wszystkie pola.");
+    setError("onboarding.required");
     return false;
   }
 
   if (currentStep === 0) {
     if (!isValidUsername(formData.username)) {
-      setError("Login: 3-24 znaki, litery/cyfry oraz _, . albo -.");
+      setError("onboarding.username_invalid");
       return false;
     }
     const response = await fetch("/api/register-check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ checking_username: formData.username, type_data: "user" })
+      body: JSON.stringify({ checking_username: formData.username, type_data: "user", locale: window.GhostLocale.getLocale() })
     });
     const data = await response.json();
     if (!data.success) {
-      setError(data.error || "Ta nazwa uzytkownika jest juz zajeta.");
+      setError(data.error_key || "onboarding.username_taken");
       return false;
     }
   }
 
   if (currentStep === 1 && !formData.faction) {
-    setError("Wybierz frakcje.");
+    setError("onboarding.faction_required");
     return false;
   }
 
   if (currentStep === 2 && !formData.role) {
-    setError("Wybierz role.");
+    setError("onboarding.role_required");
     return false;
   }
 
@@ -427,24 +463,24 @@ async function validateStep() {
       return false;
     }
     if (formData.password !== formData.confirm_password) {
-      setError("Hasla nie sa takie same.");
+      setError("onboarding.password_mismatch");
       return false;
     }
   }
 
   if (currentStep === 4) {
     if (!isValidEmail(formData.email)) {
-      setError("Podaj poprawny adres e-mail.");
+      setError("onboarding.email_invalid");
       return false;
     }
     const response = await fetch("/api/register-check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ checking_username: formData.email, type_data: "email" })
+      body: JSON.stringify({ checking_username: formData.email, type_data: "email", locale: window.GhostLocale.getLocale() })
     });
     const data = await response.json();
     if (!data.success) {
-      setError(data.error || "Ten adres e-mail jest juz zarejestrowany.");
+      setError(data.error_key || "onboarding.email_taken");
       return false;
     }
   }
@@ -457,7 +493,7 @@ function selectFaction(id, btn) {
   formData.faction = id;
   formData.role = "";
   formData.avatarImage = "";
-  document.querySelector("#avatar-info").innerText = `Wybrano: ${btn.dataset.name}`;
+  document.querySelector("#avatar-info").innerText = onboardingText("selected", {name: btn.dataset.name});
   document.querySelector("#avatar-preview").style.backgroundImage = `url('${btn.dataset.img}')`;
   document.querySelectorAll(".faction-options button").forEach(button => button.classList.remove("selected"));
   btn.classList.add("selected");
@@ -466,7 +502,7 @@ function selectFaction(id, btn) {
 function selectRole(id, btn) {
   formData.role = id;
   formData.avatarImage = btn.dataset.img;
-  document.querySelector("#avatar-info").innerText = `Wybrano: ${btn.dataset.name}`;
+  document.querySelector("#avatar-info").innerText = onboardingText("selected", {name: btn.dataset.name});
   document.querySelector("#avatar-preview").style.backgroundImage = `url('${btn.dataset.img}')`;
   document.querySelectorAll(".role-options button").forEach(button => button.classList.remove("selected"));
   btn.classList.add("selected");
@@ -478,14 +514,14 @@ function finalizeRegistration() {
   const nextButton = document.querySelector(".js-next-step");
   if (nextButton) {
     nextButton.disabled = true;
-    nextButton.textContent = "Instaluje...";
+    nextButton.innerHTML = onboardingLabel("installing");
   }
 
-  setError("Instalacja profilu...");
+  setError("onboarding.installing_profile");
   fetch("/api/register-finalize", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(formData)
+    body: JSON.stringify({...formData, locale: window.GhostLocale.getLocale()})
   })
     .then(response => response.json())
     .then(data => {
@@ -495,22 +531,23 @@ function finalizeRegistration() {
         isSubmitting = false;
         if (nextButton) {
           nextButton.disabled = false;
-          nextButton.textContent = "Zakoncz";
+          nextButton.innerHTML = onboardingLabel("finish");
         }
-        setError(data.error || "Nie udalo sie utworzyc profilu.");
+        setError(data.error_key || "onboarding.failed");
       }
     })
     .catch(() => {
       isSubmitting = false;
       if (nextButton) {
         nextButton.disabled = false;
-        nextButton.textContent = "Zakoncz";
+        nextButton.innerHTML = onboardingLabel("finish");
       }
-      setError("Blad sieci.");
+      setError("onboarding.network");
     });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   initOnboardingMusic();
   showStep(0);
+  document.title = onboardingText("title");
 });

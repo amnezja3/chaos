@@ -1,0 +1,79 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "locale": "en",
+  "messages": {
+    "common.unavailable": {
+      "params": {},
+      "text": "Message unavailable."
+    },
+    "locale.label": {
+      "params": {},
+      "text": "Interface language"
+    },
+    "locale.test_notice": {
+      "params": {},
+      "text": "Test version — translation is incomplete."
+    },
+    "locale.saved": {
+      "params": {},
+      "text": "Language saved."
+    },
+    "locale.invalid": {
+      "params": {},
+      "text": "Unsupported interface language."
+    },
+    "locale.load_failed": {
+      "params": {},
+      "text": "Could not load the language. The previous view has been preserved."
+    },
+    "shell.window.close": {
+      "params": {},
+      "text": "Close"
+    },
+    "shell.window.minimize": {
+      "params": {},
+      "text": "Minimize"
+    },
+    "shell.window.maximize": {
+      "params": {},
+      "text": "Fullscreen"
+    },
+    "shell.window.restore": {
+      "params": {},
+      "text": "Restore window"
+    },
+    "shell.desktop.files": {
+      "params": {},
+      "text": "Files"
+    },
+    "shell.desktop.map": {
+      "params": {},
+      "text": "Map"
+    },
+    "shell.desktop.profile": {
+      "params": {},
+      "text": "Profile"
+    },
+    "shell.desktop.settings": {
+      "params": {},
+      "text": "Settings"
+    },
+    "shell.files.count": {
+      "params": {
+        "count": "number"
+      },
+      "plural": "count",
+      "forms": {
+        "one": "{count} file",
+        "other": "{count} files"
+      }
+    },
+    "shell.terminal.welcome": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Welcome, {name}."
+    }
+  }
+}

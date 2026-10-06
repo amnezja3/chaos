@@ -24,6 +24,9 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             str(self.tmpdir / "game.sqlite3")
         )
         self.client = run.app.test_client()
+        # Session lineage uses a dedicated DB; account projection is isolated too.
+        self.enterContext(patch.object(run.identity_projection_store, "get_desktop_boot",
+                                      return_value={"desktop_settings": {"locale": "pl"}}))
 
     def tearDown(self):
         run.session_generation_store = self.original_generation_store
@@ -257,7 +260,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(
             response.get_json()["reason"],
-            "durable_response_generation_replaced",
+            "durable_precommit_rejected",
         )
         self.assertNotIn("changes", response.get_json())
 
@@ -584,7 +587,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         ))
         login = first.get("/")
         self.assertIn(
-            "Konto zostalo zalogowane na innym urzadzeniu",
+            "Konto zostało zalogowane na innym urządzeniu",
             login.get_data(as_text=True),
         )
 
@@ -748,76 +751,22 @@ class SessionGenerationIsolationTests(unittest.TestCase):
 
     def test_desktop_beacon_accepts_generation_in_json_body(self):
         self.seed_session()
-        projection = {
-            "profile": {"username": "alice", "desktop_settings": {"wallpaper": "wall-1"}},
-            "profile_revision": 2,
-        }
-        with patch.object(
-            run,
-            "patch_profile_projection_with_retry",
-            return_value=projection,
-        ) as patch_projection:
+        with patch.object(run.identity_projection_store, "update_desktop_settings",
+                          return_value={"wallpaper":"wall-1", "map_tile_scheme":"carto_dark", "locale":"en"}) as writer:
             response = self.client.post("/api/profile/desktop", json={
-                "wallpaper": "wall-1",
-                "_session_generation": "generation-alice",
-            })
-        self.assertEqual(response.status_code, 200)
-        patch_projection.assert_called_once()
-        self.assertEqual(patch_projection.call_args.args[0], "alice")
-        current = {"desktop_settings": {"map_tile_scheme": "carto_dark"}}
-        self.assertEqual(
-            patch_projection.call_args.args[1](current)["desktop_settings"],
-            {
-                "wallpaper": "wall-1",
-                "icon_positions": {},
-                "auto_fullscreen": False,
-                "map_tile_scheme": "carto_dark",
-            },
-        )
-
-    def test_desktop_settings_retry_rebases_partial_change_on_fresh_profile(self):
-        self.seed_session()
-        records = [
-            {
-                "profile": {"username": "alice", "desktop_settings": {"map_tile_scheme": "osm"}},
-                "profile_revision": 4,
-            },
-            {
-                "profile": {"username": "alice", "desktop_settings": {"map_tile_scheme": "carto_dark"}},
-                "profile_revision": 5,
-            },
-        ]
-        applied = {
-            "profile": {
-                "username": "alice",
-                "desktop_settings": {
-                    "wallpaper": "wall-1",
-                    "icon_positions": {},
-                    "auto_fullscreen": False,
-                    "map_tile_scheme": "carto_dark",
-                },
-            },
-            "profile_revision": 6,
-        }
-        with patch.object(run, "load_profile_write_record", side_effect=records), \
-                patch.object(
-                    run.user_store,
-                    "patch_profile_guarded",
-                    side_effect=[ProfileWriteConflict("stale"), applied],
-                ) as guarded_patch:
-            response = self.client.post(
-                "/api/profile/desktop",
-                json={"wallpaper": "wall-1"},
-                headers=self.generation_headers("generation-alice"),
-            )
-
+                "wallpaper":"wall-1", "_session_generation":"generation-alice"})
         self.assertEqual(200, response.status_code)
-        self.assertEqual("carto_dark", response.get_json()["desktop_settings"]["map_tile_scheme"])
-        self.assertEqual(2, guarded_patch.call_count)
-        self.assertEqual(
-            "carto_dark",
-            guarded_patch.call_args.args[1]["desktop_settings"]["map_tile_scheme"],
-        )
+        writer.assert_called_once_with("alice", {"wallpaper":"wall-1"}, normalize=run.normalize_desktop_settings)
+        self.assertEqual("en", response.json["desktop_settings"]["locale"])
+        self.assertEqual("carto_dark", response.json["desktop_settings"]["map_tile_scheme"])
+
+    def test_stale_desktop_beacon_cannot_write_canonical_settings(self):
+        self.seed_session()
+        with patch.object(run.identity_projection_store, "update_desktop_settings") as writer:
+            response = self.client.post("/api/profile/desktop", json={
+                "locale":"en", "_session_generation":"stale"})
+        self.assertEqual(409, response.status_code)
+        writer.assert_not_called()
 
     def test_public_catalog_never_requires_generation_or_reads_profile(self):
         self.seed_session()
@@ -904,15 +853,14 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(before, self.read_session())
 
     def test_frontend_contract_covers_broadcast_iframe_and_beacon(self):
-        bridge = Path("static/js/session_generation.js").read_text(encoding="utf-8")
-        terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        bridge = (Path(__file__).resolve().parents[1] / "static/js/session_generation.js").read_text(encoding="utf-8")
+        terminal = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         self.assertIn("BroadcastChannel", bridge)
         self.assertIn("browser_session_replaced", bridge)
         self.assertIn("response_generation_mismatch", bridge)
         self.assertIn('root.sessionStorage?.clear?.()', bridge)
         self.assertIn("_session_generation: generation", terminal)
-        self.assertIn("fetch('/resources.json'", terminal)
-        self.assertNotIn("fetch('/api/catalog')", terminal)
+        self.assertIn("fetch('/api/catalog',", terminal)
         self.assertIn("Array.isArray(catalogPayload)", terminal)
         self.assertIn("X-Chaos-Session-Reason", bridge)
         self.assertIn("/session/recover?reason=", bridge)

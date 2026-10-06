@@ -180,7 +180,7 @@ Expect:
 - rough edges in UI,
 - prototype mechanics becoming formal systems over time.
 
-The next planned program is Ghost System PL/EN localization (153–155).
+Ghost System PL/EN foundation and desktop shell (153) passed local acceptance; app/content localization continues in 154–155.
 GhostLab v2.0 (149–152) is frozen until explicitly resumed by the author.
 A prepared fix is not a production PASS.
 
@@ -203,7 +203,7 @@ A prepared fix is not a production PASS.
 | [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Frozen until further notice. |
 | [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Frozen until further notice. |
 | [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Frozen until further notice. |
-| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Planned; independent of frozen sprints 149–152. |
+| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Local PASS: 496 keys, shell/recovery/iframe, 105 Python tests, six JS suites and Playwright. Approved for deployment; [runbook](doc/runbooks/deploy_153.md). EN remains test until 155. |
 | [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Planned after 153. |
 | [155](doc/sprints/sprint_155_ghost_system_content_acceptance.md) | System messages, narrative, historical content migration and full PL/EN acceptance | Planned after 154. |
 
@@ -216,7 +216,11 @@ Sprints 153–155 plan a fully bilingual Ghost System with extensible language p
 System-owned interface and content are localized; player-authored names, descriptions,
 documents and messages remain unchanged. Russian, Spanish and other languages can
 be added through the same infrastructure; their translations are outside this scope.
-English remains planned, not an already released feature.
+English is not released: the shared catalogs, persistence, atomic loading,
+onboarding, recovery and desktop shell passed local sprint 153 acceptance.
+Application interiors and durable content remain in 154–155. See the
+[format contract](doc/architecture/ghost_i18n_v1.md) and
+[key register](doc/audits/sprint_153_key_register.md) and [local acceptance](doc/audits/sprint_153_acceptance.md).
 
 ## License
 

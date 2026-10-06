@@ -41,6 +41,7 @@ const sandbox = {
     }
 };
 vm.createContext(sandbox);
+require('./locale_fixture')(sandbox);
 vm.runInContext(source.slice(start, end), sandbox);
 const run = command => sandbox.handleTerminalPkgCommand(command, {});
 

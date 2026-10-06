@@ -87,7 +87,7 @@ class UserProfileManager:
         self.profile_revision = int(record["profile_revision"])
         self.original_profile = copy.deepcopy(self.user_profile)
 
-    def add_new_user(self, new_username: str, password: str, template_path="static/user_template.json", overwrite=False):
+    def add_new_user(self, new_username: str, password: str, template_path="static/user_template.json", overwrite=False, desktop_settings=None):
         existing_user = self.store.get_profile(new_username)
 
         if existing_user and not overwrite:
@@ -97,6 +97,13 @@ class UserProfileManager:
         template["username"] = new_username
         template["password"] = password
         template["salt"] = "generated_salt_here"
+        if desktop_settings is not None:
+            if not isinstance(desktop_settings, dict):
+                raise TypeError("desktop_settings must be a dictionary")
+            template["desktop_settings"] = {
+                **(template.get("desktop_settings") or {}),
+                **copy.deepcopy(desktop_settings),
+            }
 
         self.store.save_profile_guarded(
             template,

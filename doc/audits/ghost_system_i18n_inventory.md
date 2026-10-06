@@ -6,6 +6,11 @@ wersje językowe; nie potwierdza wykonania tłumaczeń. Podstawa:
 [154](../sprints/sprint_154_ghost_system_apps_catalogs.md),
 [155](../sprints/sprint_155_ghost_system_content_acceptance.md).
 
+153: **PASS lokalny**, [rejestr 496 kluczy](sprint_153_key_register.md),
+[format v1](../architecture/ghost_i18n_v1.md), [odbiór](sprint_153_acceptance.md).
+Fundament i powłoka A01–A11 zakończone. Dalsze obszary tabeli należą do 154/155;
+ich opis jest planem, nie deklaracją gotowości angielskiej wersji całej gry.
+
 Przejrzano punkty wejścia szablonów i rendererów oraz plany funkcjonalne.
 Poniższe źródła są punktami rozpoczęcia migracji, nie pełnym spisem każdego
 literalnego tekstu ani dowodem aktywności wszystkich historycznych plików.

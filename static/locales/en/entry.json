@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "locale": "en",
+  "messages": {
+    "entry.description": {
+      "params": {},
+      "text": "Cyber Hacking Adventure Of Senses. Enter the operator desktop, choose a target, run your tools and let the map reveal its data."
+    },
+    "entry.authorize": {
+      "params": {},
+      "text": "Operator authorization"
+    },
+    "entry.username": {
+      "params": {},
+      "text": "Username"
+    },
+    "entry.password": {
+      "params": {},
+      "text": "Password"
+    },
+    "entry.password_hint": {
+      "params": {},
+      "text": "access key"
+    },
+    "entry.submit": {
+      "params": {},
+      "text": "Log in"
+    },
+    "entry.no_account": {
+      "params": {},
+      "text": "No account yet?"
+    },
+    "entry.register": {
+      "params": {},
+      "text": "Initialize an operator profile"
+    },
+    "entry.invalid_credentials": {
+      "params": {},
+      "text": "Invalid login credentials."
+    }
+  }
+}

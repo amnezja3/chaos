@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CHAOS // Blokada sesji</title>
+  <title data-ghost-i18n="session.title">CHAOS // Blokada sesji</title>
   <link rel="icon" href="{{ url_for('static', filename='images/chaos_favicon.svg') }}" type="image/svg+xml">
   <style>
     * { box-sizing: border-box; }
@@ -143,27 +143,28 @@
   </style>
 </head>
 <body>
+{% include "_ghost_locale.html" %}
   <main class="session-lock" role="alert" aria-live="assertive">
     <header class="session-lock__header">
       <span>CHAOS // SESSION GATE</span>
-      <span class="session-lock__status">ACCESS DENIED</span>
+      <span class="session-lock__status" data-ghost-i18n="session.denied">ACCESS DENIED</span>
     </header>
     <section class="session-lock__body">
       {% if 'replaced' in mismatch_reason %}
-      <h1>Konto zostało zalogowane na innym urządzeniu.</h1>
+      <h1 data-ghost-i18n="session.replaced">Konto zostało zalogowane na innym urządzeniu.</h1>
       {% else %}
-      <h1>Ta sesja nie jest już aktywna.</h1>
+      <h1 data-ghost-i18n="session.inactive">Ta sesja nie jest już aktywna.</h1>
       {% endif %}
-      <div class="session-lock__signal">
+      <div class="session-lock__signal" data-ghost-i18n="session.stopped">
         Połączenie zostało zatrzymane przed wykonaniem kolejnej operacji.
       </div>
-      <p>
+      <p data-ghost-i18n="session.instructions">
         Zaloguj się ponownie, aby rozpocząć nową aktywną sesję. Najnowsze
         poprawne logowanie przejmuje konto i unieważnia poprzednią sesję.
       </p>
-      <div class="session-lock__reason">Kod blokady: {{ mismatch_reason }}</div>
+      <div class="session-lock__reason"><span data-ghost-i18n="session.code">Kod blokady:</span> {{ mismatch_reason }}</div>
       <div class="session-lock__actions">
-        <button type="button" onclick="location.replace('/session/recover?reason={{ mismatch_reason|urlencode }}')">PRZEJDŹ DO LOGINU</button>
+        <button data-ghost-i18n="session.login" type="button" onclick="location.replace('/session/recover?reason={{ mismatch_reason|urlencode }}')">PRZEJDŹ DO LOGINU</button>
       </div>
     </section>
   </main>

@@ -1,0 +1,1500 @@
+{
+  "format_version": 1,
+  "locale": "en",
+  "messages": {
+    "profile.title": {
+      "params": {},
+      "text": "Player profile"
+    },
+    "profile.loading": {
+      "params": {},
+      "text": "Loading profile…"
+    },
+    "profile.sync": {
+      "params": {},
+      "text": "Synchronizing profile, territory and security."
+    },
+    "profile.missing": {
+      "params": {},
+      "text": "Profile data unavailable."
+    },
+    "profile.level": {
+      "params": {},
+      "text": "Level:"
+    },
+    "profile.coins": {
+      "params": {},
+      "text": "💰 HackCoins:"
+    },
+    "profile.respect": {
+      "params": {},
+      "text": "🔥 Respect:"
+    },
+    "profile.points": {
+      "params": {},
+      "text": "pts"
+    },
+    "profile.clan": {
+      "params": {},
+      "text": "👥 Clan:"
+    },
+    "profile.profession": {
+      "params": {},
+      "text": "🧩 Profession:"
+    },
+    "profile.territory": {
+      "params": {},
+      "text": "Territory:"
+    },
+    "profile.effective": {
+      "params": {},
+      "text": "Effective control:"
+    },
+    "profile.density": {
+      "params": {},
+      "text": "Network density:"
+    },
+    "profile.clusters": {
+      "params": {},
+      "text": "🟩 Clusters:"
+    },
+    "profile.area": {
+      "params": {},
+      "text": "📐 Area:"
+    },
+    "profile.next": {
+      "params": {},
+      "text": "⬆ Until next level:"
+    },
+    "profile.range": {
+      "params": {},
+      "text": "🏍️ Motorcycle range:"
+    },
+    "profile.apps": {
+      "params": {},
+      "text": "📦 Applications:"
+    },
+    "profile.position": {
+      "params": {},
+      "text": "📍 Position:"
+    },
+    "profile.security": {
+      "params": {},
+      "text": "Security"
+    },
+    "profile.security_empty": {
+      "params": {},
+      "text": "No security switches available."
+    },
+    "profile.saving": {
+      "params": {},
+      "text": "Saving…"
+    },
+    "profile.save_failed": {
+      "params": {},
+      "text": "Could not save."
+    },
+    "profile.saved": {
+      "params": {},
+      "text": "Saved."
+    },
+    "profile.calculating": {
+      "params": {},
+      "text": "no data / calculating"
+    },
+    "profile.no_threshold": {
+      "params": {},
+      "text": "no active threshold"
+    },
+    "profile.none": {
+      "params": {},
+      "text": "none"
+    },
+    "wallet.subtitle": {
+      "params": {},
+      "text": "Local operator wallet"
+    },
+    "wallet.balance_loading": {
+      "params": {},
+      "text": "Balance: … HC"
+    },
+    "wallet.recipient": {
+      "params": {},
+      "text": "Recipient"
+    },
+    "wallet.amount": {
+      "params": {},
+      "text": "Amount in HC"
+    },
+    "wallet.note": {
+      "params": {},
+      "text": "Note"
+    },
+    "wallet.optional": {
+      "params": {},
+      "text": "optional"
+    },
+    "wallet.accept": {
+      "params": {},
+      "text": "Confirm"
+    },
+    "wallet.clear": {
+      "params": {},
+      "text": "Cancel / Clear"
+    },
+    "wallet.history": {
+      "params": {},
+      "text": "History"
+    },
+    "wallet.history_loading": {
+      "params": {},
+      "text": "Loading history…"
+    },
+    "wallet.sync": {
+      "params": {},
+      "text": "Synchronizing wallet…"
+    },
+    "wallet.load_failed": {
+      "params": {},
+      "text": "Could not load the wallet."
+    },
+    "wallet.offline": {
+      "params": {},
+      "text": "Could not connect to the wallet."
+    },
+    "wallet.empty": {
+      "params": {},
+      "text": "No HC history."
+    },
+    "wallet.sent": {
+      "params": {},
+      "text": "sent"
+    },
+    "wallet.received": {
+      "params": {},
+      "text": "received"
+    },
+    "wallet.recipient_required": {
+      "params": {},
+      "text": "Enter a recipient."
+    },
+    "wallet.positive": {
+      "params": {},
+      "text": "Enter a positive HC amount."
+    },
+    "wallet.sending": {
+      "params": {},
+      "text": "Sending transfer…"
+    },
+    "wallet.rejected": {
+      "params": {},
+      "text": "Transfer rejected."
+    },
+    "wallet.success": {
+      "params": {},
+      "text": "Transfer completed."
+    },
+    "files.inventory_missing": {
+      "params": {},
+      "text": "Account inventory has not been initialized. An administrator must repair the account data."
+    },
+    "files.session_changed": {
+      "params": {},
+      "text": "Your session has changed. Refresh the desktop to reopen files."
+    },
+    "files.load_failed": {
+      "params": {},
+      "text": "Could not load files. Please try again."
+    },
+    "files.retry": {
+      "params": {},
+      "text": "Try again"
+    },
+    "files.title": {
+      "params": {},
+      "text": "File Manager"
+    },
+    "files.loading": {
+      "params": {},
+      "text": "Loading files…"
+    },
+    "files.sync": {
+      "params": {},
+      "text": "Loading inventory and file index…"
+    },
+    "files.directory_failed": {
+      "params": {},
+      "text": "Could not load the folder."
+    },
+    "files.directory_error": {
+      "params": {},
+      "text": "Folder error."
+    },
+    "files.folders": {
+      "params": {},
+      "text": "Folders:"
+    },
+    "files.document": {
+      "params": {},
+      "text": "Document"
+    },
+    "files.disk": {
+      "params": {},
+      "text": "Disk:"
+    },
+    "files.use": {
+      "params": {},
+      "text": "Use"
+    },
+    "files.uninstall": {
+      "params": {},
+      "text": "Uninstall"
+    },
+    "files.withdraw": {
+      "params": {},
+      "text": "Withdraw"
+    },
+    "files.resources": {
+      "params": {},
+      "text": "Resources:"
+    },
+    "files.type": {
+      "params": {},
+      "text": "Type:"
+    },
+    "files.operation": {
+      "params": {},
+      "text": "Operation:"
+    },
+    "files.market": {
+      "params": {},
+      "text": "Market:"
+    },
+    "files.sellable": {
+      "params": {},
+      "text": "Sellable:"
+    },
+    "files.size": {
+      "params": {},
+      "text": "Size:"
+    },
+    "files.complete": {
+      "params": {},
+      "text": "Completeness:"
+    },
+    "files.quality": {
+      "params": {},
+      "text": "Quality:"
+    },
+    "files.missing": {
+      "params": {},
+      "text": "Missing:"
+    },
+    "files.none": {
+      "params": {},
+      "text": "none"
+    },
+    "files.yes": {
+      "params": {},
+      "text": "yes"
+    },
+    "files.no": {
+      "params": {},
+      "text": "no"
+    },
+    "files.empty": {
+      "params": {},
+      "text": "No files"
+    },
+    "files.map_action": {
+      "params": {},
+      "text": "Map action:"
+    },
+    "files.choose_highlighted": {
+      "params": {},
+      "text": "Choose a highlighted tool."
+    },
+    "files.back": {
+      "params": {},
+      "text": "Back"
+    },
+    "files.file": {
+      "params": {},
+      "text": "File:"
+    },
+    "files.folder": {
+      "params": {},
+      "text": "Folder:"
+    },
+    "files.operation_type": {
+      "params": {},
+      "text": "Operation type:"
+    },
+    "files.value": {
+      "params": {},
+      "text": "Estimated value:"
+    },
+    "files.tier": {
+      "params": {},
+      "text": "Tier:"
+    },
+    "files.package_resources": {
+      "params": {},
+      "text": "Package resources"
+    },
+    "files.no_resources": {
+      "params": {},
+      "text": "No resources."
+    },
+    "files.no_resources_ascii": {
+      "params": {},
+      "text": "No resources."
+    },
+    "files.category": {
+      "params": {},
+      "text": "Category:"
+    },
+    "files.records": {
+      "params": {},
+      "text": "Records:"
+    },
+    "files.risk": {
+      "params": {},
+      "text": "Risk:"
+    },
+    "files.resource_heading": {
+      "params": {},
+      "text": "Resources"
+    },
+    "files.time": {
+      "params": {},
+      "text": "Time"
+    },
+    "files.account": {
+      "params": {},
+      "text": "Account"
+    },
+    "files.event": {
+      "params": {},
+      "text": "Event"
+    },
+    "files.amount": {
+      "params": {},
+      "text": "Amount"
+    },
+    "files.confidence": {
+      "params": {},
+      "text": "Confidence"
+    },
+    "files.no_records": {
+      "params": {},
+      "text": "No records."
+    },
+    "files.collected": {
+      "params": {},
+      "text": "Collected entries:"
+    },
+    "files.installed": {
+      "params": {},
+      "text": "Installed:"
+    },
+    "files.end": {
+      "params": {},
+      "text": "End:"
+    },
+    "files.public": {
+      "params": {},
+      "text": "Plaintext data:"
+    },
+    "files.no_upper": {
+      "params": {},
+      "text": "NO"
+    },
+    "files.state": {
+      "params": {},
+      "text": "State:"
+    },
+    "files.fragment": {
+      "params": {},
+      "text": "Fragment:"
+    },
+    "files.duration": {
+      "params": {},
+      "text": "Fragment duration:"
+    },
+    "files.start": {
+      "params": {},
+      "text": "Start:"
+    },
+    "files.quality_ascii": {
+      "params": {},
+      "text": "Quality:"
+    },
+    "files.checkpoints": {
+      "params": {},
+      "text": "Checkpoints:"
+    },
+    "files.accuracy": {
+      "params": {},
+      "text": "Accuracy:"
+    },
+    "files.no_checkpoints": {
+      "params": {},
+      "text": "No checkpoints."
+    },
+    "files.uninstallation": {
+      "params": {},
+      "text": "Uninstallation"
+    },
+    "files.uninstall_failed": {
+      "params": {},
+      "text": "Could not uninstall the application."
+    },
+    "files.done": {
+      "params": {},
+      "text": "Operation completed."
+    },
+    "files.open_failed": {
+      "params": {},
+      "text": "Could not open the file."
+    },
+    "files.open_document": {
+      "params": {},
+      "text": "Opening document…"
+    },
+    "terminal.rights": {
+      "params": {},
+      "text": "Copyright Ghost System operators. All routes monitored."
+    },
+    "terminal.welcome": {
+      "params": {},
+      "text": "Profile loaded. Type help to list commands."
+    },
+    "wallet.balance": {
+      "params": {
+        "amount": "string"
+      },
+      "text": "Balance: {amount} HC"
+    },
+    "wallet.reserved": {
+      "params": {
+        "reserved": "string",
+        "available": "string"
+      },
+      "text": "Reserved: {reserved} HC · available: {available} HC"
+    },
+    "shell.target": {
+      "params": {},
+      "text": "TARGET"
+    },
+    "shell.restart": {
+      "params": {},
+      "text": "Restart"
+    },
+    "shell.logout": {
+      "params": {},
+      "text": "Log out"
+    },
+    "shell.system_menu": {
+      "params": {},
+      "text": "System menu"
+    },
+    "shell.switch_window": {
+      "params": {},
+      "text": "Switch open window"
+    },
+    "shell.next_window": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Next window: {name}"
+    },
+    "shell.no_windows": {
+      "params": {},
+      "text": "No open windows"
+    },
+    "shell.checking": {
+      "params": {},
+      "text": "Checking system…"
+    },
+    "shell.loading": {
+      "params": {},
+      "text": "Loading system…"
+    },
+    "shell.slow": {
+      "params": {},
+      "text": "Network is busy…"
+    },
+    "shell.window": {
+      "params": {},
+      "text": "Window"
+    },
+    "session.title": {
+      "params": {},
+      "text": "CHAOS // Session blocked"
+    },
+    "session.denied": {
+      "params": {},
+      "text": "ACCESS DENIED"
+    },
+    "session.replaced": {
+      "params": {},
+      "text": "This account was signed in on another device."
+    },
+    "session.inactive": {
+      "params": {},
+      "text": "This session is no longer active."
+    },
+    "session.stopped": {
+      "params": {},
+      "text": "The connection was stopped before the next operation."
+    },
+    "session.instructions": {
+      "params": {},
+      "text": "Sign in again to start a new active session. The latest successful login takes over the account and invalidates the previous session."
+    },
+    "session.code": {
+      "params": {},
+      "text": "Block code:"
+    },
+    "session.login": {
+      "params": {},
+      "text": "GO TO LOGIN"
+    },
+    "session.expired": {
+      "params": {},
+      "text": "Your session expired. Please sign in again."
+    },
+    "session.signed_out": {
+      "params": {},
+      "text": "Your session was signed out. Please sign in again."
+    },
+    "session.renew": {
+      "params": {},
+      "text": "Your session needs a secure renewal. Please sign in again."
+    },
+    "session.stale": {
+      "params": {},
+      "text": "Your session is out of date. Please sign in again."
+    },
+    "session.replaced_login": {
+      "params": {},
+      "text": "Your account was signed in on another device. Please sign in again."
+    },
+    "common.cancel": {
+      "params": {},
+      "text": "CANCEL"
+    },
+    "common.ok": {
+      "params": {},
+      "text": "OK"
+    },
+    "common.error": {
+      "params": {},
+      "text": "Error"
+    },
+    "common.offline": {
+      "params": {},
+      "text": "Could not communicate with the server."
+    },
+    "files.folder.gps": {
+      "params": {},
+      "text": "Tracking"
+    },
+    "files.folder.device": {
+      "params": {},
+      "text": "Devices"
+    },
+    "files.folder.camera": {
+      "params": {},
+      "text": "Cameras"
+    },
+    "files.folder.credentials": {
+      "params": {},
+      "text": "Credentials"
+    },
+    "files.folder.financial": {
+      "params": {},
+      "text": "Finances"
+    },
+    "files.folder.personal": {
+      "params": {},
+      "text": "Personal data"
+    },
+    "files.folder.network": {
+      "params": {},
+      "text": "Network"
+    },
+    "files.folder.vehicle": {
+      "params": {},
+      "text": "Vehicles"
+    },
+    "files.folder.system": {
+      "params": {},
+      "text": "System"
+    },
+    "files.folder.market": {
+      "params": {},
+      "text": "Market"
+    },
+    "files.folder.projects": {
+      "params": {},
+      "text": "Projects"
+    },
+    "files.folder.download": {
+      "params": {},
+      "text": "Downloads"
+    },
+    "files.folder.pictures": {
+      "params": {},
+      "text": "Pictures"
+    },
+    "files.folder.tools": {
+      "params": {},
+      "text": "Tools"
+    },
+    "files.folder.audio": {
+      "params": {},
+      "text": "Audio"
+    },
+    "files.folder.ghostlab": {
+      "params": {},
+      "text": "GhostLab"
+    },
+    "files.folder.documents": {
+      "params": {},
+      "text": "Plexcak"
+    },
+    "files.folder.social-media": {
+      "params": {},
+      "text": "Social"
+    },
+    "files.folder.about": {
+      "params": {},
+      "text": "About"
+    },
+    "files.folder.tips-tricks": {
+      "params": {},
+      "text": "Tips&Tricks"
+    },
+    "profile.conflict": {
+      "params": {
+        "names": "string"
+      },
+      "text": "Conflict rules disabled: {names}"
+    },
+    "files.soft_limit": {
+      "params": {},
+      "text": "above soft limit"
+    },
+    "files.disk_heading": {
+      "params": {},
+      "text": "Disk"
+    },
+    "settings.error.wallpaper": {
+      "params": {},
+      "text": "Invalid wallpaper."
+    },
+    "settings.error.map": {
+      "params": {},
+      "text": "Invalid map scheme."
+    },
+    "settings.error.current_password": {
+      "params": {},
+      "text": "Current password is incorrect."
+    },
+    "settings.error.no_changes": {
+      "params": {},
+      "text": "No changes to save."
+    },
+    "settings.error.unauthorized": {
+      "params": {},
+      "text": "User data unavailable."
+    },
+    "settings.error.image": {
+      "params": {
+        "index": "number"
+      },
+      "text": "Image {index}"
+    },
+    "wallet.error.insufficient_hc": {
+      "params": {},
+      "text": "Insufficient HC."
+    },
+    "wallet.error.idempotency_conflict": {
+      "params": {},
+      "text": "This transaction key belongs to a different transfer."
+    },
+    "wallet.error.wallet_not_initialized": {
+      "params": {},
+      "text": "The wallet must be initialized by an administrator."
+    },
+    "wallet.error.wallet_write_rejected": {
+      "params": {},
+      "text": "Transfer rejected. Check the recipient and amount."
+    },
+    "terminal.help": {
+      "params": {},
+      "text": "CHAOS Terminal commands\n\nBasics:\n  help                 show this help\n  clear                clear terminal\n  echo <text>          print text\n  date                 show system time\n  whoami               show current user\n  uname [-a]           system info\n\nFilesystem:\n  pwd                  print working directory\n  ls [path]            list directory\n  dir [path]           alias of ls\n  cd <path>            validate path hint\n  cat <file>           print file\n  type <file>          alias of cat\n\nRuntime:\n  status               profile/runtime summary\n  scan                 surface diagnostics\n  log [system|ghost|market] show recent logs\n  apps                 list installed apps\n  pkg list-all         list Googleplex catalog\n  pkg search <name>    search Googleplex by name or ID\n  pkg install <name>   install exact name or ID via Googleplex\n  map/browser/files/profile/settings open system apps\n  teleport <lat:lon>   teleport to coordinates\n  teleport cur:loc     teleport to device location\n  focus <lat:lon>      show coordinates without teleport\n  focus cur:loc        show device location without teleport\n\nNetwork:\n  ip / ipa / ip a      show pseudo interface state\n  ifconfig             show pseudo interface state\n  ping <host>          simulated latency probe\n  traceroute <host>    simulated route\n  nslookup <host>      simulated DNS lookup\n  netstat              simulated socket table\n\nSession:\n  exit                 close terminal window\n  logout               logout from game\n\nTip: run an installed app by typing its name or run <ID>.\nGhostLab project: open <project-ID>.lab (requires installed GhostLab)."
+    },
+    "terminal.close": {
+      "params": {},
+      "text": "Closing terminal…"
+    },
+    "terminal.unknown": {
+      "params": {
+        "command": "string"
+      },
+      "text": "Unknown command: {command}"
+    },
+    "terminal.parse": {
+      "params": {},
+      "text": "Invalid command syntax."
+    },
+    "terminal.ambiguous": {
+      "params": {
+        "ids": "string"
+      },
+      "text": "Ambiguous name. Use run <ID>: {ids}"
+    },
+    "terminal.cwd": {
+      "params": {
+        "path": "string"
+      },
+      "text": "Directory hint: {path}\nSession cwd persistence is not enabled yet."
+    },
+    "terminal.no_dir": {
+      "params": {
+        "path": "string"
+      },
+      "text": "cd: {path}: no such directory"
+    },
+    "terminal.missing_operand": {
+      "params": {
+        "command": "string"
+      },
+      "text": "{command}: missing file operand"
+    },
+    "terminal.wait_location": {
+      "params": {},
+      "text": "Waiting for location permission…"
+    },
+    "terminal.coordinates": {
+      "params": {
+        "command": "string"
+      },
+      "text": "{command}: enter lat:lon coordinates, e.g. 52.2297:21.0122"
+    },
+    "terminal.coordinates_invalid": {
+      "params": {
+        "command": "string"
+      },
+      "text": "{command}: invalid coordinates."
+    },
+    "terminal.coordinates_range": {
+      "params": {
+        "command": "string"
+      },
+      "text": "{command}: coordinates out of range."
+    },
+    "terminal.focus": {
+      "params": {
+        "position": "string"
+      },
+      "text": "Showing on map: {position}"
+    },
+    "terminal.teleport": {
+      "params": {
+        "position": "string"
+      },
+      "text": "Teleport prepared to: {position}"
+    },
+    "terminal.open": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Opening: {name}…"
+    },
+    "terminal.locked": {
+      "params": {
+        "command": "string"
+      },
+      "text": "{command}: channel locked. Story functionality is not available yet."
+    },
+    "terminal.no_apps": {
+      "params": {},
+      "text": "No installed apps."
+    },
+    "terminal.no_file": {
+      "params": {
+        "path": "string"
+      },
+      "text": "cat: {path}: no such file"
+    },
+    "terminal.is_dir": {
+      "params": {
+        "path": "string"
+      },
+      "text": "cat: {path}: is a directory"
+    },
+    "terminal.ls_missing": {
+      "params": {
+        "path": "string"
+      },
+      "text": "ls: cannot access {path}: no such file or directory"
+    },
+    "terminal.apps": {
+      "params": {
+        "entries": "string"
+      },
+      "text": "Installed apps:\n{entries}"
+    },
+    "terminal.status": {
+      "params": {
+        "name": "string",
+        "host": "string",
+        "coins": "string",
+        "used": "string",
+        "capacity": "string",
+        "apps": "string",
+        "files": "string"
+      },
+      "text": "CHAOS runtime status\nuser: {name}\nhost: {host}\nHC: {coins}\nstorage: {used} MB / {capacity} MB\napps: {apps}\nfiles: {files}\nCyberner: online\nGhost Exchange: online"
+    },
+    "terminal.scan": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Surface scan complete\n- terminal bridge: stable\n- map gate: armed\n- Cyberner: online\n- market eligible files: {count}\nUse: status, apps, log system"
+    },
+    "terminal.launch": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Launching application {name}…"
+    },
+    "terminal.ghostlab_missing": {
+      "params": {},
+      "text": "GhostLab is not installed. Install it to open the project."
+    },
+    "terminal.logout": {
+      "params": {},
+      "text": "Logging out…"
+    },
+    "terminal.delete_prompt": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Delete account {name}? [Y/N]"
+    },
+    "terminal.app_missing": {
+      "params": {
+        "id": "string"
+      },
+      "text": "Application ID not found: {id}"
+    },
+    "terminal.answer": {
+      "params": {},
+      "text": "Enter Y or N."
+    },
+    "terminal.cancelled": {
+      "params": {},
+      "text": "Cancelled."
+    },
+    "terminal.offline": {
+      "params": {},
+      "text": "Could not communicate with the server"
+    },
+    "profile.on": {
+      "params": {},
+      "text": "ON"
+    },
+    "profile.off": {
+      "params": {},
+      "text": "OFF"
+    },
+    "profile.density_value": {
+      "params": {
+        "multiplier": "string",
+        "spans": "string"
+      },
+      "text": "x{multiplier} ({spans} spans / 100 m)"
+    },
+    "wallet.balance_label": {
+      "params": {},
+      "text": "balance:"
+    },
+    "terminal.script": {
+      "params": {
+        "index": "number",
+        "total": "number",
+        "command": "string"
+      },
+      "text": "GhostScript {index}/{total}: running {command}…"
+    },
+    "profile.security.stealth_mode": {
+      "params": {},
+      "text": "Stealth mode"
+    },
+    "profile.security.scan_detection": {
+      "params": {},
+      "text": "Scan detection"
+    },
+    "profile.security.exploit_protection": {
+      "params": {},
+      "text": "Exploit protection"
+    },
+    "profile.security.vpn_enabled": {
+      "params": {},
+      "text": "VPN"
+    },
+    "profile.security.browser_protection": {
+      "params": {},
+      "text": "Browser protection"
+    },
+    "profile.security.os_hardening": {
+      "params": {},
+      "text": "OS hardening"
+    },
+    "profile.security.log_guardian": {
+      "params": {},
+      "text": "Log guardian"
+    },
+    "profile.security.process_monitor": {
+      "params": {},
+      "text": "Process monitor"
+    },
+    "profile.security.firewall": {
+      "params": {},
+      "text": "Firewall"
+    },
+    "profile.security.log_integrity": {
+      "params": {},
+      "text": "Log integrity"
+    },
+    "profile.security.network_anomaly_detection": {
+      "params": {},
+      "text": "Network anomaly detection"
+    },
+    "profile.security.spoofing_protection": {
+      "params": {},
+      "text": "Spoofing protection"
+    },
+    "profile.security.browser_history_log": {
+      "params": {},
+      "text": "Browser history log"
+    },
+    "profile.security.file_visibility": {
+      "params": {},
+      "text": "File visibility"
+    },
+    "profile.security.file_indexing": {
+      "params": {},
+      "text": "File indexing"
+    },
+    "profile.security.storage_integrity": {
+      "params": {},
+      "text": "Storage integrity"
+    },
+    "profile.security.vpn_blocker": {
+      "params": {},
+      "text": "VPN blocker"
+    },
+    "profile.security.activity_monitor": {
+      "params": {},
+      "text": "Activity monitor"
+    },
+    "profile.security.player_tracking": {
+      "params": {},
+      "text": "Player tracking"
+    },
+    "profile.security.system_visibility": {
+      "params": {},
+      "text": "System visibility"
+    },
+    "profile.security.firewall_core": {
+      "params": {},
+      "text": "Firewall core"
+    },
+    "profile.security.kernel_guard": {
+      "params": {},
+      "text": "Kernel guard"
+    },
+    "profile.security.system_integrity_check": {
+      "params": {},
+      "text": "System integrity check"
+    },
+    "profile.security.heap_protection": {
+      "params": {},
+      "text": "Heap protection"
+    },
+    "profile.security.memory_lock": {
+      "params": {},
+      "text": "Memory lock"
+    },
+    "profile.security.unencrypted_access": {
+      "params": {},
+      "text": "Unencrypted access"
+    },
+    "profile.security.background_injection": {
+      "params": {},
+      "text": "Background injection"
+    },
+    "profile.security.memory_guard": {
+      "params": {},
+      "text": "Memory guard"
+    },
+    "files.operation.vehicle_tracking": {
+      "params": {},
+      "text": "vehicle tracking"
+    },
+    "files.operation.device_tracking": {
+      "params": {},
+      "text": "device tracking"
+    },
+    "files.operation.camera_stream": {
+      "params": {},
+      "text": "camera stream"
+    },
+    "files.operation.camera_shutdown": {
+      "params": {},
+      "text": "camera shutdown"
+    },
+    "files.operation.atm_log_extraction": {
+      "params": {},
+      "text": "ATM log extraction"
+    },
+    "files.operation.persistent_sniffer": {
+      "params": {},
+      "text": "network implant"
+    },
+    "files.operation.generic_trace": {
+      "params": {},
+      "text": "target tracking"
+    },
+    "files.operation.wifi_scanner": {
+      "params": {},
+      "text": "hotspot scan"
+    },
+    "files.operation.audio_interference": {
+      "params": {},
+      "text": "audio takeover"
+    },
+    "files.operation.vehicle_ecu": {
+      "params": {},
+      "text": "ECU hacking"
+    },
+    "terminal.teleport_bad": {
+      "params": {},
+      "text": "teleport: invalid coordinates."
+    },
+    "terminal.teleport_title": {
+      "params": {},
+      "text": "CONFIRM TELEPORT"
+    },
+    "terminal.teleport_confirm": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Teleport to: {name}?"
+    },
+    "terminal.teleport_details": {
+      "params": {},
+      "text": "OK moves the operator and refreshes the map. CANCEL keeps the current position."
+    },
+    "terminal.teleport_cancelled": {
+      "params": {},
+      "text": "Teleport cancelled."
+    },
+    "terminal.teleport_rejected": {
+      "params": {},
+      "text": "Teleport rejected."
+    },
+    "terminal.teleport_done": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Teleported to: {name}."
+    },
+    "terminal.focus_bad": {
+      "params": {},
+      "text": "focus: invalid coordinates."
+    },
+    "terminal.focus_failed": {
+      "params": {},
+      "text": "focus: could not open the map."
+    },
+    "terminal.geo_denied": {
+      "params": {},
+      "text": "Location denied. Allow access in site settings and retry the command."
+    },
+    "terminal.geo_unavailable": {
+      "params": {},
+      "text": "Could not determine the current device location."
+    },
+    "terminal.geo_timeout": {
+      "params": {},
+      "text": "Location request timed out. Please try again."
+    },
+    "terminal.geo_failed": {
+      "params": {},
+      "text": "Could not obtain the device location."
+    },
+    "terminal.geo_unsupported": {
+      "params": {},
+      "text": "Unsupported terminal location request."
+    },
+    "terminal.geo_https": {
+      "params": {},
+      "text": "Geolocation is unavailable. HTTPS and browser location support are required."
+    },
+    "terminal.geo_wait": {
+      "params": {},
+      "text": "Waiting for browser permission and current location…"
+    },
+    "terminal.geo_invalid": {
+      "params": {},
+      "text": "The browser did not return valid coordinates."
+    },
+    "terminal.geo_current": {
+      "params": {},
+      "text": "Current device location"
+    },
+    "terminal.geo_accuracy": {
+      "params": {
+        "accuracy": "number"
+      },
+      "text": "Location acquired (accuracy approx. {accuracy} m)."
+    },
+    "terminal.pkg_usage": {
+      "params": {},
+      "text": "Usage: pkg list-all | pkg search <name> | pkg install <name or ID>"
+    },
+    "terminal.pkg_failed": {
+      "params": {
+        "status": "number"
+      },
+      "text": "pkg: could not load Googleplex catalog (HTTP {status})."
+    },
+    "terminal.pkg_list": {
+      "params": {
+        "count": "number",
+        "entries": "string"
+      },
+      "text": "Googleplex — {count} entries:\n{entries}"
+    },
+    "terminal.pkg_empty": {
+      "params": {},
+      "text": "Googleplex catalog is empty."
+    },
+    "terminal.pkg_no_match": {
+      "params": {
+        "query": "string"
+      },
+      "text": "No Googleplex entries: {query}"
+    },
+    "terminal.pkg_exact": {
+      "params": {
+        "query": "string",
+        "suggestions": "string"
+      },
+      "text": "An exact, unambiguous name or ID is required: {query}.\n{suggestions}"
+    },
+    "terminal.pkg_purchase": {
+      "params": {},
+      "text": "CONFIRM PURCHASE"
+    },
+    "terminal.pkg_travel": {
+      "params": {},
+      "text": "CONFIRM TRAVEL"
+    },
+    "terminal.pkg_confirm": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Buy: {name}?"
+    },
+    "terminal.pkg_details": {
+      "params": {
+        "price": "number"
+      },
+      "text": "{price} HC."
+    },
+    "terminal.pkg_travel_details": {
+      "params": {
+        "price": "number"
+      },
+      "text": "{price} HC. Buying this ticket teleports you to its destination."
+    },
+    "terminal.pkg_buy": {
+      "params": {},
+      "text": "BUY AND INSTALL"
+    },
+    "terminal.pkg_cancelled": {
+      "params": {},
+      "text": "pkg: purchase cancelled."
+    },
+    "terminal.pkg_installer": {
+      "params": {
+        "item": "string"
+      },
+      "text": "pkg: starting Googleplex installer — {item}."
+    },
+    "terminal.pkg_installed": {
+      "params": {
+        "name": "string"
+      },
+      "text": "pkg: installed {name}."
+    },
+    "terminal.pkg_bought": {
+      "params": {
+        "name": "string"
+      },
+      "text": "pkg: purchased {name}."
+    },
+    "terminal.pkg_uncertain": {
+      "params": {
+        "reason": "string"
+      },
+      "text": "pkg: purchase outcome unconfirmed; retry the same installation. [{reason}]"
+    },
+    "terminal.pkg_rejected": {
+      "params": {
+        "details": "string",
+        "reason": "string"
+      },
+      "text": "pkg: installation failed. {details} [{reason}]"
+    },
+    "terminal.pkg_offline": {
+      "params": {},
+      "text": "pkg: connection or session error. Installation unconfirmed."
+    },
+    "files.folder.atm": {
+      "params": {},
+      "text": "ATMs"
+    },
+    "wallet.event.wallet.seed": {
+      "params": {},
+      "text": "Opening balance"
+    },
+    "wallet.event.wallet.transfer.outgoing": {
+      "params": {},
+      "text": "Transfer sent"
+    },
+    "wallet.event.wallet.transfer.incoming": {
+      "params": {},
+      "text": "Transfer received"
+    },
+    "wallet.event.wallet.technical_transfer.outgoing": {
+      "params": {},
+      "text": "Technical debit"
+    },
+    "wallet.event.wallet.technical_transfer.incoming": {
+      "params": {},
+      "text": "Technical credit"
+    },
+    "wallet.event_other": {
+      "params": {},
+      "text": "Wallet operation"
+    },
+    "shell.target_check": {
+      "params": {},
+      "text": "Checking target state…"
+    },
+    "shell.target_refresh": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Target: {name}. Click to refresh."
+    },
+    "shell.target_captured": {
+      "params": {},
+      "text": "Target captured. The bar will return to its neutral state."
+    },
+    "shell.target_none": {
+      "params": {},
+      "text": "Click to refresh the target profile"
+    },
+    "shell.boot.wake": {
+      "params": {},
+      "text": "Waking operator terminal…"
+    },
+    "shell.boot.profile": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Profile active: {name}"
+    },
+    "shell.boot.index": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Indexing applications: {count}"
+    },
+    "shell.boot.toolbar": {
+      "params": {},
+      "text": "Mounting system taskbar…"
+    },
+    "shell.boot.restore": {
+      "params": {},
+      "text": "Restoring wallpaper and icon positions…"
+    },
+    "shell.boot.wait": {
+      "params": {},
+      "text": "Waiting for the desktop…"
+    },
+    "shell.boot.ready": {
+      "params": {},
+      "text": "ghost_init.pkg completed. System ready."
+    },
+    "shell.boot.failed": {
+      "params": {},
+      "text": "Could not load the profile."
+    },
+    "shell.boot.emergency": {
+      "params": {},
+      "text": "Recovery mode: desktop partially started."
+    },
+    "entry.gate": {
+      "params": {},
+      "text": "CHAOS login gate"
+    },
+    "entry.secure": {
+      "params": {},
+      "text": "Ghost System / secure entry"
+    },
+    "entry.status": {
+      "params": {},
+      "text": "System status"
+    },
+    "entry.signal": {
+      "params": {},
+      "text": "Signal online"
+    },
+    "entry.armed": {
+      "params": {},
+      "text": "Ghost Gate armed"
+    },
+    "entry.standby": {
+      "params": {},
+      "text": "Cyberner standby"
+    },
+    "session.profile_recovery": {
+      "params": {},
+      "text": "Your profile requires signing in again or a controlled repair."
+    },
+    "session.profile_missing": {
+      "params": {},
+      "text": "Profile data is unavailable. Sign in again or contact an administrator."
+    },
+    "wallet.invalid_request": {
+      "params": {},
+      "text": "Invalid transfer request. Check the recipient, amount and transaction key."
+    },
+    "files.player_material": {
+      "params": {},
+      "text": "Player content:"
+    },
+    "files.document_loading": {
+      "params": {},
+      "text": "Loading document…"
+    },
+    "files.document_failed": {
+      "params": {},
+      "text": "Could not load the document."
+    },
+    "files.project_failed": {
+      "params": {},
+      "text": "Could not open the project."
+    },
+    "files.source": {
+      "params": {},
+      "text": "Source:"
+    },
+    "terminal.document.readme": {
+      "params": {},
+      "text": "CHAOS Terminal surface. Type: help"
+    },
+    "terminal.document.notes": {
+      "params": {},
+      "text": "Keep routes clean. Watch the map. Trust deltas, verify snapshots."
+    },
+    "terminal.document.installed": {
+      "params": {},
+      "text": "Use: apps\nInstalled applications are loaded from your profile."
+    },
+    "terminal.document.launcher": {
+      "params": {},
+      "text": "Run an app by typing its name or id."
+    },
+    "terminal.document.briefing": {
+      "params": {},
+      "text": "# Briefing\n- map is live\n- targets remember you\n- Ghost Exchange pays for data"
+    },
+    "terminal.document.motd": {
+      "params": {},
+      "text": "Welcome to CHAOS. Try: help, status, apps, scan"
+    },
+    "terminal.document.world": {
+      "params": {},
+      "text": "Cyberner source: WORLD"
+    },
+    "settings.image": {
+      "params": {
+        "number": "number"
+      },
+      "text": "Image {number}"
+    },
+    "files.opening": {
+      "params": {},
+      "text": "Opening file"
+    },
+    "files.simulated_open": {
+      "params": {
+        "name": "string"
+      },
+      "text": "(Simulation) Opening file: {name}"
+    },
+    "files.uninstalled": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Uninstalled {name}."
+    },
+    "terminal.delete_login": {
+      "params": {},
+      "text": "You are not signed in."
+    },
+    "terminal.delete_name": {
+      "params": {},
+      "text": "Username is required."
+    },
+    "terminal.delete_admin": {
+      "params": {},
+      "text": "The admin account cannot be deleted."
+    },
+    "terminal.delete_own": {
+      "params": {},
+      "text": "You may only delete your own account."
+    },
+    "terminal.delete_missing": {
+      "params": {},
+      "text": "The user does not exist."
+    },
+    "terminal.deleted": {
+      "params": {},
+      "text": "Account deleted."
+    },
+    "terminal.completed": {
+      "params": {},
+      "text": "Operation completed."
+    },
+    "terminal.usage": {
+      "params": {
+        "syntax": "string"
+      },
+      "text": "Usage: {syntax}"
+    }
+  },
+  "content_version": "153.4"
+}

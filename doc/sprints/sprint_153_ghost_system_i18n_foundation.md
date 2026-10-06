@@ -1,10 +1,93 @@
 # Sprint 153 — Ghost System: fundament języków i pulpit PL/EN
 
-Status: **ZAPLANOWANY**, 6 X 2026. Pierwszy z trzech sprintów lokalizacji,
+Status: **PASS LOKALNY**, zakończony 6 X 2026; bez commita/pushu i wdrożenia. Pierwszy z trzech sprintów lokalizacji,
 niezależny od zamrożonych decyzją autora sprintów 149–152; dalej
 [154](sprint_154_ghost_system_apps_catalogs.md) i
 [155](sprint_155_ghost_system_content_acceptance.md).
-To plan prac, nie deklaracja istniejącej wersji angielskiej.
+Pełna wersja angielska nie jest jeszcze udostępniona.
+
+## Odbiór końcowy 6 X
+
+496 kluczy PL/EN, pakiet 153.4. Domknięto powłokę, recovery, iframe,
+formaty i rejestr języków. 105 testów Python oraz sześć zestawów JS PASS.
+Playwright: desktop/mobile, fullscreen gry i okna, drafty, iframe,
+treści autora, dokument FM i pseudojęzyk. Szczegóły i ograniczenia:
+[raport odbioru](../audits/sprint_153_acceptance.md).
+
+Poniższe przyrosty są historią prac; ich listy TODO i wyniki pośrednie
+zastępuje powyższy odbiór. 154/155 pozostają do wykonania, EN testowe.
+
+## Przyrost 6 X — rejestracja i onboarding PL/EN
+
+- Pakiet `153.3.2`: 151 kluczy, w tym 86 w nowej domenie `onboarding`.
+  Sześć kroków, opowieść, frakcje, role, podsumowanie, walidacje klienta
+  i odpowiedzi endpointów rejestracji korzystają z PL/EN.
+- Preferencja urządzenia działa także przed rejestracją. Zmiana języka
+  aktualizuje liście tekstowe: zachowuje inputy, wybraną kartę, identyfikatory
+  frakcji/roli, awatar, muzykę i trwające żądanie. Nie tłumaczy nicku ani loginu.
+- Język konta trafia do pierwszego zapisu rejestracyjnego razem z kanoniczną
+  projekcją ustawień; zachowane są pozostałe ustawienia szablonu. Brak locale
+  oznacza PL, `en-GB` normalizuje się do EN, niezatwierdzone wartości są odrzucane.
+  Późniejszy zapis ciężkiego profilu nie służy do zmiany języka.
+- PASS: 32 testy Python zakresu i regresji (locale, ustawienia, FM, spawn,
+  rejestracja/nowa sesja); cztery skrypty JS. Playwright: rzeczywisty szablon
+  i skrypty, wszystkie kroki, przełączenia z draftami, wybrane role, powrót,
+  zmiana języka podczas odpowiedzi błędu, jedno żądanie, mobile 390 px
+  i geometria 1440×900 / 1366×700. Przeglądarka korzystała z atrap odpowiedzi
+  dostępności/rejestracji; zapis konta i ustawień sprawdzono na realnym store
+  w izolowanych testach Python. Czysta ścieżka bez błędów JS/konsoli.
+- Szerszy przebieg: 65/69 testów PASS. Cztery stare problemy zestawu
+  `test_session_generation_isolation` odtworzono także z `run.py` z HEAD
+  `d979ac9`: dwa testy mockują wycofany writer profilu, jeden oczekuje starszego
+  powodu odrzucenia sesji, jeden czyta zasób względem tymczasowego CWD.
+  Nie są nowymi regresjami tego przyrostu; nie deklarujemy PASS całego zestawu.
+- Nadal otwarte: recovery sesji, pozostałe renderery powłoki, kontrolki/tooltipy,
+  walidacje ustawień, iframe, formatowanie serwerowe i pełny odbiór pulpitu.
+  **Sprint pozostaje W TOKU, lokalnie, bez commita ani pushu.**
+
+## Przyrost 6 X — przełączanie pakietów i pierwszy UI
+
+- 65 kluczy PL/EN w domenach foundation/settings/entry; wspólny fallback PL
+  osadzony przez Jinja, pobieranie pozostałych domen po wersji manifestu.
+- Loader waliduje cały pakiet i wszystkie formy przed zmianą. Cache, timeout,
+  kolejka zapisu, odrzucenie przestarzałego wyboru i pozostawienie ostatniego
+  potwierdzonego języka przy awarii. Bez podmiany tekstów autora.
+- Selektor w ustawieniach zapisuje locale przez lekki writer. Selektor logowania
+  zapisuje osobną preferencję urządzenia; po wejściu konto ma pierwszeństwo.
+- Przeniesiono podstawowe etykiety pulpitu/menu Start, formularze ustawień
+  i ich komunikaty klienta oraz formularz logowania z błędnymi credentials.
+  Identyfikatory ikon, kontrolek i aplikacji nie zależą od tłumaczenia.
+- PASS: 21 testów Python (i18n/settings/FM), trzy testy JS (format, loader,
+  kolejka writera), składnia JS. Playwright: istniejący renderer ustawień
+  z prawdziwym endpointem na tymczasowym koncie oraz szablon logowania;
+  PL/EN, zapis/odświeżenie, viewport 390 px, zachowanie węzłów/draftów/UGC,
+  awaria pobrania i zapisu, retry, pierwszeństwo konta nad urządzeniem.
+- **Nadal bez pełnego PASS 153**: rejestracja/onboarding, recovery sesji,
+  pozostała powłoka terminala/FM/profilu/portfela, komplet kontrolek i tooltipów,
+  walidacje backendu ustawień, iframe'y i pełny odbiór pulpitu pozostają otwarte.
+  Formatowanie dat/liczb istnieje na kliencie; wspólne formaty jednostek i
+  odbiór serwerowego formatowania też wymagają domknięcia.
+
+Zmiany tego sprintu pozostają lokalne. Nie obejmują osobno wypchniętej łatki FM.
+
+## Wcześniejszy przyrost 6 X — fundament, bez PASS sprintu
+
+- 153.1: [pierwszy rejestr kluczy i glosariusz](../audits/sprint_153_key_register.md)
+  obejmuje 16 kluczy; pełna ekstrakcja A01–A11 nadal w toku.
+- 153.2: [format v1 i decyzja techniczna](../architecture/ghost_i18n_v1.md),
+  wspólne katalogi PL/EN, czytniki JS/Python, pluralizacja, typowane parametry,
+  wersjonowany komunikat, fallback i diagnostyka. Wspólne testy zgodności PASS.
+- Część 153.3: zapis `locale` przez istniejący writer i lekki bootstrap,
+  domyślne PL starszych kont, odrzucenie `ANY`/nieobsługiwanych języków.
+  Testy potwierdzają brak odczytu/zapisu ciężkiego profilu i izolację kont.
+- Pozostają: pełna inwentaryzacja, formaty lokalne dat/liczb/jednostek,
+  loader/cache i atomowa zmiana pakietu, selektor konta/pre-login, iframe,
+  migracja wszystkich ekranów A01–A11 oraz odbiór Playwright/mobile.
+  Czytnik JS nie jest jeszcze podłączony do szablonów gry.
+
+Walidacja tego przyrostu: 14 testów Python (format + writer) i test JS
+ze wspólnymi fixture, kontraktami, fallbackiem i dodatkowym pakietem. UI nie
+zmieniono; nie deklarujemy odbioru przeglądarkowego ani pełnego PASS 153.2/153.
 
 [Przegląd gotowości 6 X 2026](../audits/sprint_153_readiness_2026_10_06.md):
 gotowi do rozpoczęcia 153.1–153.2; ekstrakcja kluczy i wybór wspólnego formatu

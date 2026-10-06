@@ -1,0 +1,167 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "locale": "en",
+  "messages": {
+    "locale.save_failed": {
+      "params": {},
+      "text": "Could not save the language. Please try again."
+    },
+    "settings.display": {
+      "params": {},
+      "text": "Display"
+    },
+    "settings.wallpaper": {
+      "params": {},
+      "text": "Desktop wallpaper"
+    },
+    "settings.none": {
+      "params": {},
+      "text": "None"
+    },
+    "settings.map_scheme": {
+      "params": {},
+      "text": "Leaflet map style"
+    },
+    "settings.account": {
+      "params": {},
+      "text": "Account"
+    },
+    "settings.account_hint": {
+      "params": {},
+      "text": "Password and email address"
+    },
+    "settings.current_password": {
+      "params": {},
+      "text": "Current password"
+    },
+    "settings.new_password": {
+      "params": {},
+      "text": "New password"
+    },
+    "settings.password_hint": {
+      "params": {},
+      "text": "min. 8 characters, a letter and a digit"
+    },
+    "settings.change_password": {
+      "params": {},
+      "text": "Change password"
+    },
+    "settings.email": {
+      "params": {},
+      "text": "Email address"
+    },
+    "settings.save_email": {
+      "params": {},
+      "text": "Save email"
+    },
+    "settings.radio_autoplay": {
+      "params": {},
+      "text": "Start radio after the first interaction"
+    },
+    "settings.sfx": {
+      "params": {},
+      "text": "Sound effects"
+    },
+    "settings.sfx_hint": {
+      "params": {},
+      "text": "Game and lore scene effects"
+    },
+    "settings.volume": {
+      "params": {},
+      "text": "Volume"
+    },
+    "settings.screen_mode": {
+      "params": {},
+      "text": "Screen mode"
+    },
+    "settings.runtime": {
+      "params": {},
+      "text": "Game display"
+    },
+    "settings.auto_fullscreen": {
+      "params": {},
+      "text": "Enter fullscreen after clicking/tapping the game"
+    },
+    "settings.wallpaper_saved": {
+      "params": {},
+      "text": "Wallpaper saved."
+    },
+    "settings.map_saving": {
+      "params": {},
+      "text": "Saving map style..."
+    },
+    "settings.map_failed": {
+      "params": {},
+      "text": "Could not save the map style."
+    },
+    "settings.map_unconfirmed": {
+      "params": {},
+      "text": "The server did not confirm the map style."
+    },
+    "settings.map_saved": {
+      "params": {},
+      "text": "Map style saved. The map has been refreshed."
+    },
+    "settings.radio_on": {
+      "params": {},
+      "text": "Radio autostart enabled."
+    },
+    "settings.radio_off": {
+      "params": {},
+      "text": "Radio autostart disabled."
+    },
+    "settings.sfx_on": {
+      "params": {},
+      "text": "Sound effects enabled."
+    },
+    "settings.sfx_off": {
+      "params": {},
+      "text": "Sound effects disabled."
+    },
+    "settings.sfx_unavailable": {
+      "params": {},
+      "text": "SFX engine unavailable."
+    },
+    "settings.sfx_playing": {
+      "params": {},
+      "text": "Playing test audio."
+    },
+    "settings.sfx_failed": {
+      "params": {},
+      "text": "Could not play test audio."
+    },
+    "settings.fullscreen_on": {
+      "params": {},
+      "text": "Auto fullscreen enabled. Click the game to activate."
+    },
+    "settings.fullscreen_off": {
+      "params": {},
+      "text": "Auto fullscreen disabled."
+    },
+    "settings.password_saving": {
+      "params": {},
+      "text": "Saving password..."
+    },
+    "settings.password_failed": {
+      "params": {},
+      "text": "Could not change the password."
+    },
+    "settings.password_saved": {
+      "params": {},
+      "text": "Password changed."
+    },
+    "settings.email_saving": {
+      "params": {},
+      "text": "Saving email address..."
+    },
+    "settings.email_failed": {
+      "params": {},
+      "text": "Could not save the email address."
+    },
+    "settings.email_saved": {
+      "params": {},
+      "text": "Email address saved."
+    }
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "locale": "pl",
+  "messages": {
+    "locale.save_failed": {
+      "params": {},
+      "text": "Nie udało się zapisać języka. Spróbuj ponownie."
+    },
+    "settings.display": {
+      "params": {},
+      "text": "Ekran"
+    },
+    "settings.wallpaper": {
+      "params": {},
+      "text": "Tapeta pulpitu"
+    },
+    "settings.none": {
+      "params": {},
+      "text": "Brak"
+    },
+    "settings.map_scheme": {
+      "params": {},
+      "text": "Schemat Leaflet"
+    },
+    "settings.account": {
+      "params": {},
+      "text": "Konto"
+    },
+    "settings.account_hint": {
+      "params": {},
+      "text": "Hasło i adres e-mail"
+    },
+    "settings.current_password": {
+      "params": {},
+      "text": "Aktualne hasło"
+    },
+    "settings.new_password": {
+      "params": {},
+      "text": "Nowe hasło"
+    },
+    "settings.password_hint": {
+      "params": {},
+      "text": "min. 8 znaków, litera i cyfra"
+    },
+    "settings.change_password": {
+      "params": {},
+      "text": "Zmień hasło"
+    },
+    "settings.email": {
+      "params": {},
+      "text": "Adres e-mail"
+    },
+    "settings.save_email": {
+      "params": {},
+      "text": "Zapisz e-mail"
+    },
+    "settings.radio_autoplay": {
+      "params": {},
+      "text": "Autostart radia po pierwszej interakcji"
+    },
+    "settings.sfx": {
+      "params": {},
+      "text": "Efekty dźwiękowe"
+    },
+    "settings.sfx_hint": {
+      "params": {},
+      "text": "Efekty gry i scen lore"
+    },
+    "settings.volume": {
+      "params": {},
+      "text": "Głośność"
+    },
+    "settings.screen_mode": {
+      "params": {},
+      "text": "Tryb ekranu"
+    },
+    "settings.runtime": {
+      "params": {},
+      "text": "Wyświetlanie gry"
+    },
+    "settings.auto_fullscreen": {
+      "params": {},
+      "text": "Auto fullscreen po kliknięciu/tapnięciu w grę"
+    },
+    "settings.wallpaper_saved": {
+      "params": {},
+      "text": "Tapeta zapisana."
+    },
+    "settings.map_saving": {
+      "params": {},
+      "text": "Zapisywanie schematu mapy..."
+    },
+    "settings.map_failed": {
+      "params": {},
+      "text": "Nie udało się zapisać schematu mapy."
+    },
+    "settings.map_unconfirmed": {
+      "params": {},
+      "text": "Serwer nie potwierdził schematu mapy."
+    },
+    "settings.map_saved": {
+      "params": {},
+      "text": "Schemat mapy zapisany. Mapa została odświeżona."
+    },
+    "settings.radio_on": {
+      "params": {},
+      "text": "Autostart radia włączony."
+    },
+    "settings.radio_off": {
+      "params": {},
+      "text": "Autostart radia wyłączony."
+    },
+    "settings.sfx_on": {
+      "params": {},
+      "text": "Efekty dźwiękowe włączone."
+    },
+    "settings.sfx_off": {
+      "params": {},
+      "text": "Efekty dźwiękowe wyłączone."
+    },
+    "settings.sfx_unavailable": {
+      "params": {},
+      "text": "Silnik SFX niedostępny."
+    },
+    "settings.sfx_playing": {
+      "params": {},
+      "text": "Odtwarzanie testowe."
+    },
+    "settings.sfx_failed": {
+      "params": {},
+      "text": "Nie udało się odtworzyć dźwięku testowego."
+    },
+    "settings.fullscreen_on": {
+      "params": {},
+      "text": "Auto fullscreen włączony. Kliknij w grę, aby aktywować."
+    },
+    "settings.fullscreen_off": {
+      "params": {},
+      "text": "Auto fullscreen wyłączony."
+    },
+    "settings.password_saving": {
+      "params": {},
+      "text": "Zapisywanie hasła..."
+    },
+    "settings.password_failed": {
+      "params": {},
+      "text": "Nie udało się zmienić hasła."
+    },
+    "settings.password_saved": {
+      "params": {},
+      "text": "Hasło zmienione."
+    },
+    "settings.email_saving": {
+      "params": {},
+      "text": "Zapisywanie adresu e-mail..."
+    },
+    "settings.email_failed": {
+      "params": {},
+      "text": "Nie udało się zapisać adresu e-mail."
+    },
+    "settings.email_saved": {
+      "params": {},
+      "text": "Adres e-mail zapisany."
+    }
+  }
+}

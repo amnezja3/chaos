@@ -8,6 +8,7 @@ import os
 import json
 import re
 import math
+from ghost_i18n import normalize_locale, manifest as locale_manifest, translator as locale_translator
 import ipaddress
 import html
 import subprocess
@@ -119,6 +120,45 @@ from territory_geometry import polygons_intersect as canonical_polygons_intersec
 from territory_geometry import is_territory_anchor
 
 app = Flask(__name__)
+
+
+@app.context_processor
+def ghost_locale_template_context():
+    # Shared static catalogs plus the small canonical identity projection.
+    return {"ghost_i18n_bootstrap": {
+        "manifest": locale_manifest(),
+        "fallback": locale_translator().catalogs["pl"],
+        "locale": request_ui_locale(),
+        "resume_locale": session.get("recovery_locale"),
+    }}
+
+
+def request_ui_locale():
+    if not hasattr(g, "ghost_ui_locale"):
+        locale = session.get("recovery_locale", "pl")
+        if session.get("user"):
+            try:
+                snapshot = identity_projection_store.get_desktop_boot(session["user"]) or {}
+                locale = (snapshot.get("desktop_settings") or {}).get("locale", "pl")
+            except (ProfileRecoveryRequired, ValueError):
+                pass  # Recovery must remain readable even without a valid projection.
+        g.ghost_ui_locale = normalize_locale(locale)
+    return g.ghost_ui_locale
+
+
+def ui_message(key, params=None):
+    params = params or {}
+    return {"key": key, "params": params, "content_version": locale_manifest()["content_version"]}
+
+
+def ui_failure(key, status=400, **extra):
+    return jsonify(success=False, error=locale_translator().t(key, locale=request_ui_locale()),
+                   message_i18n=ui_message(key), **extra), status
+
+
+def terminal_system_response(key, params=None, **extra):
+    return jsonify(response=locale_translator().t(key, params, request_ui_locale()),
+                   response_i18n=ui_message(key, params), **extra)
 # Ensure once during application startup; request readers never migrate schema.
 ghostsignal_show_db_path = GhostNetworkRepository().db_path
 
@@ -272,6 +312,9 @@ def wallet_error_response(exc, *, status_key="error"):
         payload["reason"] = "wallet_not_initialized"
     else:
         payload["reason"] = "wallet_write_rejected"
+    key = "wallet.error." + payload["reason"]
+    payload[status_key] = locale_translator().t(key, locale=request_ui_locale())
+    payload["message_i18n"] = ui_message(key)
     return jsonify(payload), status
 
 
@@ -17613,6 +17656,7 @@ MAP_TILE_SCHEMES = {
 def normalize_desktop_settings(settings):
     source = settings if isinstance(settings, dict) else {}
     normalized = {
+        "locale": normalize_locale(source.get("locale")),
         "wallpaper": str(source.get("wallpaper") or "").strip(),
         "icon_positions": source.get("icon_positions") if isinstance(source.get("icon_positions"), dict) else {},
         "auto_fullscreen": source.get("auto_fullscreen") is True,
@@ -20222,9 +20266,9 @@ def _profile_error_document_redirect(error_code):
         and request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS
     ):
         return None
-    session["login_error"] = (
-        "Profil wymaga ponownego zalogowania lub kontrolowanej naprawy."
-    )
+    session["login_error_key"] = "session.profile_recovery"
+    session["recovery_locale"] = request_ui_locale()
+    session["login_error"] = locale_translator().t("session.profile_recovery", locale=request_ui_locale())
     return redirect(url_for("index", profile_error=error_code))
 
 
@@ -20537,10 +20581,13 @@ def log_missing_profile_warning(source):
 
 
 def redirect_missing_profile_to_login():
-    message = "Brak danych profilu. Zaloguj sie ponownie albo skontaktuj sie z administratorem."
+    locale = request_ui_locale()
+    message = locale_translator().t("session.profile_missing", locale=locale)
     log_missing_profile_warning("map_view")
     invalidate_authenticated_session("profile_not_found")
     session["login_error"] = message
+    session["login_error_key"] = "session.profile_missing"
+    session["recovery_locale"] = locale
     return redirect(url_for("index"))
 
 
@@ -20902,9 +20949,11 @@ def index():
                 _session_generation=_session_generation_query_token(generation),
             ))
 
-        return render_template("login.html", error="❌ Nieprawidłowe dane logowania")
+        locale = normalize_locale(request.form.get('locale'))
+        return render_template("login.html", error=locale_translator().t('entry.invalid_credentials', locale=locale),
+                               error_key='entry.invalid_credentials')
 
-    return render_template("login.html", error=session.pop("login_error", None))
+    return render_template("login.html", error=session.pop("login_error", None), error_key=session.pop("login_error_key", None))
 
 @app.route("/register")
 def register_page():
@@ -20986,31 +21035,43 @@ def build_registration_identity_contract(faction, role):
 @app.route("/api/register-check", methods=["POST"])
 def register_check_username():
     data = request.get_json(silent=True) or {}
+    locale = normalize_locale(data.get("locale", "pl"), default=None)
+    if locale is None:
+        return registration_failure("locale.invalid", 400, "pl")
     username = data.get("checking_username")
     type_data = data.get("type_data")
 
     if type_data == "user":
         username, error = validate_registration_username(username)
         if error:
-            return jsonify(success=False, error=error)
+            return registration_failure("onboarding.username_invalid", 200, locale)
         exists = user_store.username_exists(username)
-        return jsonify(success=not exists, error="Login jest juz zajety." if exists else "")
+        return registration_failure("onboarding.username_taken", 200, locale) if exists else jsonify(success=True, error="")
 
     elif type_data == "email":
         email, error = validate_registration_email(username)
         if error:
-            return jsonify(success=False, error=error)
+            return registration_failure("onboarding.email_invalid", 200, locale)
         useremails = {str(u.get("email", "")).strip().lower() for u in user_store.list_profiles()}
         exists = email in useremails
-        return jsonify(success=not exists, error="Ten adres e-mail jest juz zarejestrowany." if exists else "")
+        return registration_failure("onboarding.email_taken", 200, locale) if exists else jsonify(success=True, error="")
 
-    return jsonify(success=False)
+    return registration_failure("onboarding.required", 200, locale)
+
+
+def registration_failure(key, status=400, locale="pl"):
+    # Stable key lets an in-flight response follow a subsequent UI locale change.
+    return jsonify(success=False, error_key=key,
+                   error=locale_translator().t(key, locale=locale)), status
 
 
 @app.route("/api/register-finalize", methods=["POST"])
 def api_register_finalize():
 
     data = request.get_json(silent=True) or {}
+    locale = normalize_locale(data.get("locale", "pl"), default=None)
+    if locale is None:
+        return registration_failure("locale.invalid", 400, "pl")
 
     username, username_error = validate_registration_username(data.get("username"))
     password = str(data.get("password") or "")
@@ -21021,24 +21082,27 @@ def api_register_finalize():
     email, email_error = validate_registration_email(data.get("email"))
 
     if not all([username, password, faction, role, nick, email]):
-        return jsonify(success=False, error="Brakuje danych."), 400
+        return registration_failure("onboarding.required", locale=locale)
     if username_error:
-        return jsonify(success=False, error=username_error), 400
+        return registration_failure("onboarding.username_invalid", locale=locale)
     if password_error:
-        return jsonify(success=False, error=password_error), 400
+        password_key = ("password_short" if len(password) < 8 else
+                        "password_long" if len(password) > 128 else
+                        "password_letter" if not re.search(r"[A-Za-z]", password) else "password_digit")
+        return registration_failure(f"onboarding.{password_key}", locale=locale)
     if nick_error:
-        return jsonify(success=False, error=nick_error), 400
+        return registration_failure("onboarding.nick_invalid", locale=locale)
     if email_error:
-        return jsonify(success=False, error=email_error), 400
+        return registration_failure("onboarding.email_invalid", locale=locale)
     if user_store.username_exists(username):
-        return jsonify(success=False, error="Login jest juz zajety."), 409
+        return registration_failure("onboarding.username_taken", 409, locale)
     useremails = {str(u.get("email", "")).strip().lower() for u in user_store.list_profiles()}
     if email in useremails:
-        return jsonify(success=False, error="Ten adres e-mail jest juz zarejestrowany."), 409
+        return registration_failure("onboarding.email_taken", 409, locale)
     try:
         identity = build_registration_identity_contract(faction, role)
     except ValueError:
-        return jsonify(success=False, error="Nieprawidlowa frakcja lub rola."), 400
+        return registration_failure("onboarding.identity_invalid", locale=locale)
 
     ip = get_request_ip()
     start_location = get_start_location_by_ip(ip)
@@ -21054,10 +21118,7 @@ def api_register_finalize():
             f"reason={first_respawn.get('reason') or 'unknown'}",
             flush=True,
         )
-        return jsonify(
-            success=False,
-            error="Nie udalo sie wyznaczyc bezpiecznej pozycji startowej. Sprobuj ponownie.",
-        ), 503
+        return registration_failure("onboarding.spawn_failed", 503, locale)
     lat = float(resolved_position["lat"])
     lng = float(resolved_position["lng"])
     if first_respawn.get("adjusted"):
@@ -21072,8 +21133,8 @@ def api_register_finalize():
 
     try:
         mgr = UserProfileManager("admin")
-        if not mgr.add_new_user(username, password):
-            return jsonify(success=False, error="Użytkownik już istnieje.")
+        if not mgr.add_new_user(username, password, desktop_settings={"locale": locale}):
+            return registration_failure("onboarding.username_taken", 200, locale)
 
         mgr = UserProfileManager(username)
         mgr.update_profile({
@@ -21117,7 +21178,7 @@ def api_register_finalize():
             f"error={exc.__class__.__name__}",
             flush=True,
         )
-        return jsonify(success=False, error="Nie udalo sie utworzyc konta."), 400
+        return registration_failure("onboarding.failed", locale=locale)
 
 
 
@@ -22436,23 +22497,31 @@ def logout():
     return redirect(url_for("index"))
 
 
-def session_recovery_message(reason):
+def session_recovery_key(reason):
     reason = str(reason or "").strip().lower()
     if "replaced" in reason:
-        return "Konto zostalo zalogowane na innym urzadzeniu. Zaloguj sie ponownie."
+        return "session.replaced_login"
     if "expired" in reason or "timeout" in reason:
-        return "Sesja wygasla. Zaloguj sie ponownie."
+        return "session.expired"
     if "logged_out" in reason:
-        return "Sesja zostala wylogowana. Zaloguj sie ponownie."
+        return "session.signed_out"
     if "missing_generation" in reason or "bootstrap" in reason:
-        return "Sesja wymaga bezpiecznego odnowienia. Zaloguj sie ponownie."
-    return "Sesja jest nieaktualna. Zaloguj sie ponownie."
+        return "session.renew"
+    return "session.stale"
+
+
+def session_recovery_message(reason):
+    key = session_recovery_key(reason)
+    session["login_error_key"] = key
+    session["recovery_locale"] = request_ui_locale()
+    return locale_translator().t(key, locale=request_ui_locale())
 
 
 @app.route("/session/recover")
 def session_recover():
     """Discard only this browser's stale cookie and return to login."""
     reason = str(request.args.get("reason") or "session_stale")[:96]
+    request_ui_locale()  # Retain the recipient locale before clearing this cookie.
     _rotate_server_session_id()
     session["login_error"] = session_recovery_message(reason)
     session.modified = True
@@ -22478,7 +22547,7 @@ def command():
             return jsonify(openGhostLabDocument=artifact_id)
         if len(tokens) == 2 and tokens[0].lower() == 'open' and tokens[1].endswith('.lab'):
             if not player_inventory_store.has_app(session['user'], 'ghost_lab'):
-                return jsonify(response='Brak narzędzia GhostLab. Zainstaluj je, aby otworzyć projekt.')
+                return terminal_system_response("terminal.ghostlab_missing")
             project_id = tokens[1][:-4]
             ghostlab_store.get(session['user'], project_id)
             return jsonify(openGhostLabFile=project_id)
@@ -22494,7 +22563,7 @@ def command():
             matches = [r for r in rows if r['app_id'].casefold() == query.casefold()]
             matches = matches or [r for r in rows if str(r['name']).casefold() == query.casefold()]
             if len(matches) > 1:
-                return jsonify(response='Niejednoznaczna nazwa. Użyj run <ID>: ' + ', '.join(r['app_id'] for r in matches))
+                return terminal_system_response("terminal.ambiguous", {"ids": ", ".join(r["app_id"] for r in matches)})
             if matches:
                 installed = conn.execute('SELECT app_json FROM player_apps WHERE username=? AND app_id=?',
                                          (session['user'],matches[0]['app_id'])).fetchone()
@@ -22502,7 +22571,8 @@ def command():
                 if (launch.get('creator_contract_version') or launch.get('creator_legacy_project')
                         or launch['id'].startswith('ghostlab_') or launch['id'] == 'ghost_lab'):
                     return jsonify(runApp=True, applicationId=launch['id'], applicationEffect=launch,
-                                   consoleEffect='Uruchamianie aplikacji ' + launch['name'])
+                                   consoleEffect=locale_translator().t("terminal.launch", {"name": launch["name"]}, request_ui_locale()),
+                                   consoleEffect_i18n=ui_message("terminal.launch", {"name": launch["name"]}))
     flow_id = request.headers.get("X-Hack-Flow-Id", "")
     skip_map_runtime = bool(
         data.get("skip_map_runtime")
@@ -22522,20 +22592,22 @@ def command():
     )
     user_apps = profile.get('apps', [])
 
-    result = interpret_command(user_input, profile)
+    result = interpret_command(user_input, profile, locale=request_ui_locale())
 
     if result.get("logout"):
-        return jsonify({"logout": True, "response": "Wylogowywanie..."})
+        return terminal_system_response("terminal.logout", logout=True)
 
     if result.get("close_terminal"):
         return jsonify({
             "closeTerminal": True,
+            "response_i18n": result.get("response_i18n"),
             "response": result.get("response", "Zamykanie terminala...")
         })
 
     if result.get("openSystemApp"):
         return jsonify({
             "openSystemApp": result.get("openSystemApp"),
+            "response_i18n": result.get("response_i18n"),
             "response": result.get("response", "Otwieram...")
         })
 
@@ -22544,18 +22616,21 @@ def command():
 
     if result.get("terminalMapFocus"):
         return jsonify({
+            "response_i18n": result.get("response_i18n"),
             "response": result.get("response", "Pokazuje punkt na mapie."),
             "terminalMapFocus": result.get("terminalMapFocus"),
         })
 
     if result.get("terminalTeleport"):
         return jsonify({
+            "response_i18n": result.get("response_i18n"),
             "response": result.get("response", "Przygotowano teleport."),
             "terminalTeleport": result.get("terminalTeleport"),
         })
 
     if result.get("terminalGeolocationRequest"):
         return jsonify({
+            "response_i18n": result.get("response_i18n"),
             "response": result.get("response", "Oczekiwanie na lokalizacje urzadzenia."),
             "terminalGeolocationRequest": result.get("terminalGeolocationRequest"),
         })
@@ -22566,20 +22641,21 @@ def command():
             "confirm": {
                 "action": "userdel",
                 "username": username_to_delete,
-                "prompt": f"Usunąć konto '{username_to_delete}'? [Y/N]"
+                "prompt": locale_translator().t("terminal.delete_prompt", {"name": username_to_delete}, request_ui_locale()),
+                "prompt_i18n": ui_message("terminal.delete_prompt", {"name": username_to_delete})
             }
         })
 
     # Zwykła odpowiedź terminala
     if "response" in result:
-        return jsonify({"response": result["response"]})
+        return jsonify({"response": result["response"], "response_i18n": result.get("response_i18n")})
 
     # Uruchamianie aplikacji
     if "runApp" in result:
         app_id = result.get("runApp")
         found_app = next((a for a in user_apps if a["id"] == app_id), None)
         if not found_app:
-            return jsonify({"response": f"Nie znaleziono aplikacji o ID: {app_id}"})
+            return terminal_system_response("terminal.app_missing", {"id": app_id})
 
         # /command is only the launcher. The application window snapshots the
         # currently visible target and /gonna-win performs the single guarded
@@ -22601,40 +22677,42 @@ def command():
 
         return jsonify({
             "runApp": True,
-            "consoleEffect": f"Uruchamianie aplikacji {found_app['name']}...",
+            "consoleEffect": locale_translator().t("terminal.launch", {"name": found_app["name"]}, request_ui_locale()),
+            "consoleEffect_i18n": ui_message("terminal.launch", {"name": found_app["name"]}),
             "applicationId": app_id,
             "applicationEffect": found_app,
             "target": None,
             "actions_allowed_marked": marked_actions,
             "created_operations": created_operations,
         })
-    return jsonify({"response": f"❓ Nieznana komenda: {user_input}"})
+    return terminal_system_response("terminal.unknown", {"command": user_input})
 
 
 @app.route("/api/users/delete", methods=["POST"])
 def delete_user_account():
     if "user" not in session:
-        return jsonify({"success": False, "message": "Nie jesteś zalogowany"}), 401
+        return jsonify({"success": False, "message": locale_translator().t("terminal.delete_login", locale=request_ui_locale()), "message_i18n": ui_message("terminal.delete_login")}), 401
 
     current_user = session.get("user")
+    request_ui_locale()  # Resolve before self-delete removes canonical identity.
     data = request.get_json(silent=True) or {}
     username_to_delete = (data.get("username") or "").strip()
     if not username_to_delete:
-        return jsonify({"success": False, "message": "Brak nazwy użytkownika."}), 400
+        return jsonify({"success": False, "message": locale_translator().t("terminal.delete_name", locale=request_ui_locale()), "message_i18n": ui_message("terminal.delete_name")}), 400
 
     if username_to_delete == "admin":
-        return jsonify({"success": False, "message": "Nie można usunąć konta admin."}), 400
+        return jsonify({"success": False, "message": locale_translator().t("terminal.delete_admin", locale=request_ui_locale()), "message_i18n": ui_message("terminal.delete_admin")}), 400
 
     if current_user != "admin" and username_to_delete != current_user:
         return jsonify({
             "success": False,
-            "message": "Możesz usunąć wyłącznie własne konto.",
+            "message": locale_translator().t("terminal.delete_own", locale=request_ui_locale()), "message_i18n": ui_message("terminal.delete_own"),
         }), 403
 
     territory_store.delete_user_data(username_to_delete)
     deleted = user_store.delete_user(username_to_delete)
     if not deleted:
-        return jsonify({"success": False, "message": f"Użytkownik '{username_to_delete}' nie istnieje."}), 404
+        return jsonify({"success": False, "message": locale_translator().t("terminal.delete_missing", locale=request_ui_locale()), "message_i18n": ui_message("terminal.delete_missing")}), 404
 
     # A self-delete request is still guarded by its current lineage while the
     # account cleanup writes commit. Revoke every browser only after those
@@ -22655,7 +22733,7 @@ def delete_user_account():
         "success": True,
         "logout": logout,
         "redirect": url_for("index") if logout else None,
-        "message": f"Usunięto konto '{username_to_delete}'."
+        "message": locale_translator().t("terminal.deleted", locale=request_ui_locale()), "message_i18n": ui_message("terminal.deleted")
     })
 
 def target_security_status():
@@ -26041,7 +26119,7 @@ def update_profile_security():
             lambda security: change_player_security(security, key, value, changed_by_rules),
             expected_version=data.get('security_version'))
     except ValueError as exc:
-        return jsonify(success=False, error=str(exc)), 400
+        return ui_failure("profile.save_failed")
     return jsonify(success=True, **result, changed_by_rules=changed_by_rules, rules=SECURITY_CONFLICTS)
 
 
@@ -26056,6 +26134,12 @@ def update_profile_desktop():
     username = session["user"]
     changes = {}
 
+    if "locale" in data:
+        locale = normalize_locale(data["locale"], default=None)
+        if locale is None:
+            return ui_failure("locale.invalid", reason="invalid_locale")
+        changes["locale"] = locale
+
     if "wallpaper" in data:
         wallpaper = str(data.get("wallpaper") or "").strip()
         if wallpaper not in [
@@ -26064,7 +26148,7 @@ def update_profile_desktop():
             "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red",
             "wall-chaos-amber", "wall-chaos-violet",
         ]:
-            return jsonify({"error": "Nieprawidlowa tapeta."}), 400
+            return ui_failure("settings.error.wallpaper")
         changes["wallpaper"] = wallpaper
 
     if isinstance(data.get("icon_positions"), dict):
@@ -26089,7 +26173,7 @@ def update_profile_desktop():
     if "map_tile_scheme" in data:
         map_tile_scheme = str(data.get("map_tile_scheme") or "osm").strip()
         if map_tile_scheme not in MAP_TILE_SCHEMES:
-            return jsonify({"error": "Nieprawidlowy schemat mapy."}), 400
+            return ui_failure("settings.error.map")
         changes["map_tile_scheme"] = map_tile_scheme
 
     settings = identity_projection_store.update_desktop_settings(
@@ -26118,14 +26202,14 @@ def update_profile_account():
     if "email" in data:
         email, email_error = validate_registration_email(data.get("email"))
         if email_error:
-            return jsonify({"success": False, "error": email_error}), 400
+            return ui_failure("onboarding.email_invalid")
         useremails = {
             str(item.get("email", "")).strip().lower()
             for item in user_store.list_profiles()
             if str(item.get("username") or "") != username
         }
         if email in useremails:
-            return jsonify({"success": False, "error": "Ten adres e-mail jest juz zarejestrowany."}), 409
+            return ui_failure("onboarding.email_taken", 409)
         requested_email = email
         updates["email"] = email
 
@@ -26134,14 +26218,16 @@ def update_profile_account():
         new_password = str(data.get("new_password") or "")
         password_error = validate_registration_password(new_password)
         if password_error:
-            return jsonify({"success": False, "error": password_error}), 400
+            key = ("password_short" if len(new_password) < 8 else "password_long" if len(new_password) > 128
+                   else "password_letter" if not re.search(r"[A-Za-z]", new_password) else "password_digit")
+            return ui_failure("onboarding." + key)
         if not authenticate_user(username, current_password):
-            return jsonify({"success": False, "error": "Aktualne haslo jest nieprawidlowe."}), 403
+            return ui_failure("settings.error.current_password", 403)
         requested_password = new_password
         updates["password_changed"] = True
 
     if not updates:
-        return jsonify({"success": False, "error": "Brak zmian do zapisania."}), 400
+        return ui_failure("settings.error.no_changes")
 
     # Authentication may upgrade a legacy password hash, so reload the
     # revision immediately before building the full credential candidate.
@@ -26205,7 +26291,7 @@ def api_wallet_transfer():
     except WalletWriteError as exc:
         return wallet_error_response(exc)
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc), "reason": "invalid_request"}), 400
+        return ui_failure("wallet.invalid_request", reason="invalid_request")
 
     record_wallet_balance_delta(
         session["user"],

@@ -1,0 +1,353 @@
+{
+  "format_version": 1,
+  "locale": "en",
+  "messages": {
+    "onboarding.setup": {
+      "params": {},
+      "text": "operator setup"
+    },
+    "onboarding.back": {
+      "params": {},
+      "text": "Back"
+    },
+    "onboarding.finish": {
+      "params": {},
+      "text": "Finish"
+    },
+    "onboarding.next": {
+      "params": {},
+      "text": "Next"
+    },
+    "onboarding.username": {
+      "params": {},
+      "text": "Username"
+    },
+    "onboarding.username_hint": {
+      "params": {},
+      "text": "Your username is unique and will appear in some system logs."
+    },
+    "onboarding.choose_faction": {
+      "params": {},
+      "text": "Choose a faction"
+    },
+    "onboarding.choose_role": {
+      "params": {},
+      "text": "Choose a role"
+    },
+    "onboarding.role_hint": {
+      "params": {},
+      "text": "Faction operational profile."
+    },
+    "onboarding.faction_first": {
+      "params": {},
+      "text": "Choose a faction first."
+    },
+    "onboarding.password": {
+      "params": {},
+      "text": "Password"
+    },
+    "onboarding.confirm_password": {
+      "params": {},
+      "text": "Repeat password"
+    },
+    "onboarding.password_hint": {
+      "params": {},
+      "text": "Use at least 8 characters, including one letter and one digit."
+    },
+    "onboarding.email": {
+      "params": {},
+      "text": "Recovery email"
+    },
+    "onboarding.email_hint": {
+      "params": {},
+      "text": "The address must be unique. In the game, it serves as your dead drop."
+    },
+    "onboarding.summary_username": {
+      "params": {},
+      "text": "Username"
+    },
+    "onboarding.summary_email": {
+      "params": {},
+      "text": "Email"
+    },
+    "onboarding.summary_faction": {
+      "params": {},
+      "text": "Faction"
+    },
+    "onboarding.summary_role": {
+      "params": {},
+      "text": "Role"
+    },
+    "onboarding.nick": {
+      "params": {},
+      "text": "Player nickname"
+    },
+    "onboarding.username_placeholder": {
+      "params": {},
+      "text": "e.g. CyberPhoenix"
+    },
+    "onboarding.password_placeholder": {
+      "params": {},
+      "text": "At least 8 characters, a letter and a digit"
+    },
+    "onboarding.confirm_placeholder": {
+      "params": {},
+      "text": "Confirm access key"
+    },
+    "onboarding.nick_placeholder": {
+      "params": {},
+      "text": "e.g. NullRider"
+    },
+    "onboarding.password_short": {
+      "params": {},
+      "text": "Password must contain at least 8 characters."
+    },
+    "onboarding.password_long": {
+      "params": {},
+      "text": "Password is too long."
+    },
+    "onboarding.password_letter": {
+      "params": {},
+      "text": "Password must contain at least one letter."
+    },
+    "onboarding.password_digit": {
+      "params": {},
+      "text": "Password must contain at least one digit."
+    },
+    "onboarding.required": {
+      "params": {},
+      "text": "Fill in all fields."
+    },
+    "onboarding.username_invalid": {
+      "params": {},
+      "text": "Username: 3–24 characters; letters, digits, _, . or -."
+    },
+    "onboarding.username_taken": {
+      "params": {},
+      "text": "This username is already taken."
+    },
+    "onboarding.faction_required": {
+      "params": {},
+      "text": "Choose a faction."
+    },
+    "onboarding.role_required": {
+      "params": {},
+      "text": "Choose a role."
+    },
+    "onboarding.password_mismatch": {
+      "params": {},
+      "text": "Passwords do not match."
+    },
+    "onboarding.email_invalid": {
+      "params": {},
+      "text": "Enter a valid email address."
+    },
+    "onboarding.email_taken": {
+      "params": {},
+      "text": "This email address is already registered."
+    },
+    "onboarding.installing": {
+      "params": {},
+      "text": "Installing…"
+    },
+    "onboarding.installing_profile": {
+      "params": {},
+      "text": "Installing profile…"
+    },
+    "onboarding.failed": {
+      "params": {},
+      "text": "Could not create the profile."
+    },
+    "onboarding.network": {
+      "params": {},
+      "text": "Network error. Please try again."
+    },
+    "onboarding.nick_invalid": {
+      "params": {},
+      "text": "Nickname must contain 2–32 characters."
+    },
+    "onboarding.identity_invalid": {
+      "params": {},
+      "text": "Invalid faction or role."
+    },
+    "onboarding.spawn_failed": {
+      "params": {},
+      "text": "Could not find a safe starting position. Please try again."
+    },
+    "onboarding.story.0.title": {
+      "params": {},
+      "text": "GHOSTSYSTEM // a package from the past"
+    },
+    "onboarding.story.0.text": {
+      "params": {},
+      "text": "The year is 2108. MASA controls cities, routes, banks and private memories. You have just received a package that should not exist in any registry. First step: choose a username."
+    },
+    "onboarding.story.1.title": {
+      "params": {},
+      "text": "Factions // who will you trust"
+    },
+    "onboarding.story.1.text": {
+      "params": {},
+      "text": "GhostSystem survived through dispersed factions. Each sees the network differently and pays a different price for its edge. Choose the banner under which you will begin your operations."
+    },
+    "onboarding.story.2.title": {
+      "params": {},
+      "text": "Role // your first trace"
+    },
+    "onboarding.story.2.text": {
+      "params": {},
+      "text": "Your faction gives you direction, but your role defines your approach. Will you read traffic, protect access, manipulate the market or disappear from radar? Choose your operator."
+    },
+    "onboarding.story.3.title": {
+      "params": {},
+      "text": "Key // secure your access"
+    },
+    "onboarding.story.3.text": {
+      "params": {},
+      "text": "Your password is the first barrier against someone else’s terminal. It does not have to be beautiful. It must be hard to guess and strong enough to buy you time."
+    },
+    "onboarding.story.4.title": {
+      "params": {},
+      "text": "Contact // dead drop"
+    },
+    "onboarding.story.4.text": {
+      "params": {},
+      "text": "Provide a recovery channel. The system will use it as a hidden synchronization point. If you ever lose access, it may be the only thing left."
+    },
+    "onboarding.story.5.title": {
+      "params": {},
+      "text": "Alias // enter the city"
+    },
+    "onboarding.story.5.text": {
+      "params": {},
+      "text": "Your profile is almost ready. Choose a nickname, review your choices and start installation. Your starting location will be assigned automatically from your IP address or a list of active cities."
+    },
+    "onboarding.faction.1.name": {
+      "params": {},
+      "text": "Guardians of Order"
+    },
+    "onboarding.faction.1.summary": {
+      "params": {},
+      "text": "Control, stability and rebuilding the network."
+    },
+    "onboarding.faction.2.name": {
+      "params": {},
+      "text": "Echo of Freedom"
+    },
+    "onboarding.faction.2.summary": {
+      "params": {},
+      "text": "Open traces, free packets, against the system."
+    },
+    "onboarding.faction.3.name": {
+      "params": {},
+      "text": "VIREX"
+    },
+    "onboarding.faction.3.summary": {
+      "params": {},
+      "text": "The exploit market, profit and quiet takeovers."
+    },
+    "onboarding.faction.4.name": {
+      "params": {},
+      "text": "Ghost Network"
+    },
+    "onboarding.faction.4.summary": {
+      "params": {},
+      "text": "Concealment, illusion and unsigned operations."
+    },
+    "onboarding.role.1.1": {
+      "params": {},
+      "text": "Analyst"
+    },
+    "onboarding.role.1.2": {
+      "params": {},
+      "text": "Defender"
+    },
+    "onboarding.role.1.3": {
+      "params": {},
+      "text": "Reconstructor"
+    },
+    "onboarding.role.1.4": {
+      "params": {},
+      "text": "Mediator"
+    },
+    "onboarding.role.1.5": {
+      "params": {},
+      "text": "Enforcer"
+    },
+    "onboarding.role.2.1": {
+      "params": {},
+      "text": "Hacktivist"
+    },
+    "onboarding.role.2.2": {
+      "params": {},
+      "text": "Social Engineer"
+    },
+    "onboarding.role.2.3": {
+      "params": {},
+      "text": "Revealer"
+    },
+    "onboarding.role.2.4": {
+      "params": {},
+      "text": "Visionary"
+    },
+    "onboarding.role.2.5": {
+      "params": {},
+      "text": "Firestarter"
+    },
+    "onboarding.role.3.1": {
+      "params": {},
+      "text": "Broker"
+    },
+    "onboarding.role.3.2": {
+      "params": {},
+      "text": "Architect"
+    },
+    "onboarding.role.3.3": {
+      "params": {},
+      "text": "Manipulator"
+    },
+    "onboarding.role.3.4": {
+      "params": {},
+      "text": "Profit Enforcer"
+    },
+    "onboarding.role.3.5": {
+      "params": {},
+      "text": "Algorithm Curator"
+    },
+    "onboarding.role.4.1": {
+      "params": {},
+      "text": "Illusionist"
+    },
+    "onboarding.role.4.2": {
+      "params": {},
+      "text": "Virologist"
+    },
+    "onboarding.role.4.3": {
+      "params": {},
+      "text": "Paranoiac"
+    },
+    "onboarding.role.4.4": {
+      "params": {},
+      "text": "Schismatic"
+    },
+    "onboarding.role.4.5": {
+      "params": {},
+      "text": "Mirror Judge"
+    },
+    "onboarding.selected": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Selected: {name}"
+    },
+    "onboarding.not_selected": {
+      "params": {},
+      "text": "Not selected"
+    },
+    "onboarding.title": {
+      "params": {},
+      "text": "CHAOS - Operator registration"
+    }
+  },
+  "content_version": "153.4"
+}

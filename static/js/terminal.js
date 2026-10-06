@@ -260,10 +260,10 @@ function setBootProgress(percent, message) {
     if (!bootLoader.overlay) return;
     const value = Math.max(4, Math.min(100, Number(percent) || 4));
     if (bootLoader.fill) bootLoader.fill.style.width = `${value}%`;
-    if (bootLoader.status) bootLoader.status.textContent = message || "Ładowanie systemu...";
+    if (bootLoader.status) { if (message?.key) ghostSet(bootLoader.status, message.key, message.params); else ghostSet(bootLoader.status, "shell.loading"); }
 }
 
-function finishBootLoader(message = "System gotowy.") {
+function finishBootLoader(message = {key: "shell.boot.ready"}) {
     setBootProgress(100, message);
     if (!bootLoader.overlay) return;
     bootLoader.active = false;
@@ -308,7 +308,7 @@ function ensureDesktopLoadingStatus() {
 function updateDesktopLoadingStatus(message) {
     const status = ensureDesktopLoadingStatus();
     if (desktopLoadingState.text) {
-        desktopLoadingState.text.textContent = message || 'Sprawdzam system...';
+        ghostSet(desktopLoadingState.text, message === "shell.slow" ? "shell.slow" : "shell.checking");
     }
     status.classList.add('is-visible');
     desktopLoadingState.visible = true;
@@ -327,7 +327,7 @@ function beginDesktopLoading(message) {
     }, 280);
     desktopLoadingState.slowTimer = setTimeout(() => {
         if (desktopLoadingState.active.size > 0) {
-            updateDesktopLoadingStatus('Sieć przeciążona...');
+            updateDesktopLoadingStatus("shell.slow");
         }
     }, 2000);
     return token;
@@ -414,11 +414,11 @@ window.pendingCybernerThread = window.pendingCybernerThread || null;
 
 const desktopApps = [
     { icon: '\u{1F5A5}\uFE0F', label: 'Terminal', action: createTerminal },
-    { icon: '\u{1F5FA}\uFE0F', label: 'Mapa', action: createMap },
+    { icon: '\u{1F5FA}\uFE0F', label: 'Mapa', labelKey: 'shell.desktop.map', action: createMap },
     { icon: '\u{1F310}', label: 'Browser', action: createBrowser },
-    { icon: '\u2699\uFE0F', label: 'Ustawienia', action: createSettings },
-    { icon: '\u{1F464}', label: 'Profil', action: createProfile },
-    { icon: '\u{1F4C1}', label: 'Pliki', action: createFileManager },
+    { icon: '\u2699\uFE0F', label: 'Ustawienia', labelKey: 'shell.desktop.settings', action: createSettings },
+    { icon: '\u{1F464}', label: 'Profil', labelKey: 'shell.desktop.profile', action: createProfile },
+    { icon: '\u{1F4C1}', label: 'Pliki', labelKey: 'shell.desktop.files', action: createFileManager },
     { icon: '\u{1F4E8}', label: 'Cyberner', action: createEmailClient },
     { id: 'ghost_hack_radio', icon: '\u{1F4FB}', label: 'Ghost Hack Radio', action: () => window.createGhostHackRadioApp && window.createGhostHackRadioApp() },
     { icon: '\u{1F4B0}', label: 'Wallet HC', action: openWalletApp }
@@ -530,8 +530,8 @@ function bindWindowMaximize(term, title) {
     }
     close?.classList.add('browser-window-control');
     if (close) {
-        close.setAttribute('aria-label', 'Zamknij ' + title);
-        close.title = 'Zamknij ' + title;
+        close.dataset.ghostTitle = 'shell.window.close';
+        close.dataset.ghostAriaLabel = 'shell.window.close';
     }
     let maximizeButton = controls.querySelector('.browser-maximize-btn');
     if (!maximizeButton) {
@@ -544,13 +544,14 @@ function bindWindowMaximize(term, title) {
     minimizeButton.type = 'button';
     minimizeButton.className = 'browser-window-control workspace-minimize-btn';
     minimizeButton.textContent = '\u2212';
-    minimizeButton.title = minimizeButton.ariaLabel = 'Minimalizuj ' + title;
+    minimizeButton.dataset.ghostTitle = minimizeButton.dataset.ghostAriaLabel = 'shell.window.minimize';
     controls.insertBefore(minimizeButton, maximizeButton);
     const update = () => {
         const maximized = term.classList.contains('is-window-maximized');
         maximizeButton.textContent = maximized ? '\u2750' : '\u26F6';
         maximizeButton.setAttribute('aria-pressed', String(maximized));
-        maximizeButton.title = maximizeButton.ariaLabel = (maximized ? 'Przywróć okno ' : 'Pełny ekran ') + title;
+        maximizeButton.dataset.ghostTitle = maximizeButton.dataset.ghostAriaLabel = maximized ? 'shell.window.restore' : 'shell.window.maximize';
+        window.GhostLocale?.render(controls);
     };
     const toggle = () => {
         term.classList.toggle('is-window-maximized');
@@ -660,9 +661,30 @@ function resolveAutoFullscreenSetting(settings = {}) {
     return settings.auto_fullscreen === true;
 }
 
+function ghostText(key, params = {}) {
+    return window.GhostLocale?.t(key, params) || key;
+}
+
+async function initializeDesktopLocale(settings = {}) {
+    try { await window.GhostLocale?.changeLocale(settings.locale || 'pl'); }
+    catch (error) { console.warn('i18n: account catalog unavailable', error.message); }
+}
+
+document.addEventListener('ghost:locale-changed', () => {
+    document.querySelectorAll('[data-app-title-key]').forEach(win => {
+        win.dataset.appTitle = ghostText(win.dataset.appTitleKey);
+    });
+    renderRunningApps();
+    renderToolbarStatus();
+    document.querySelectorAll('[data-wallet-balance]').forEach(node => {
+        if (node._localeBalance) renderWalletBalance(node, ...node._localeBalance);
+    });
+});
+
 function applyDesktopSettings(settings = {}) {
     const autoFullscreen = resolveAutoFullscreenSetting(settings);
     desktopSettings = {
+        locale: settings.locale || 'pl',
         wallpaper: settings.wallpaper || "",
         icon_positions: settings.icon_positions || {},
         auto_fullscreen: autoFullscreen,
@@ -879,7 +901,7 @@ function renderDesktopIcons(apps, settings = desktopSettings) {
         const key = getDesktopIconKey(app);
         icon.className = 'icon';
         icon.dataset.iconKey = key;
-        icon.innerHTML = `<span style="font-size: 3rem">${app.icon}</span> ${app.label}`;
+        icon.innerHTML = `<span style="font-size: 3rem">${app.icon}</span> <span ${app.labelKey ? `data-ghost-i18n="${escapeHTML(app.labelKey)}"` : ''}>${escapeHTML(app.labelKey ? ghostText(app.labelKey) : app.label)}</span>`;
 
         const row = index % maxPerColumn;
         const col = Math.floor(index / maxPerColumn);
@@ -942,7 +964,7 @@ function ensureSystemToolbar() {
     toolbar.id = 'system-toolbar';
     toolbar.innerHTML = `
         <div class="system-start-wrap">
-            <button id="system-start-button" type="button" aria-label="Menu systemowe">
+            <button id="system-start-button" type="button" data-ghost-aria-label="shell.system_menu" aria-label="Menu systemowe">
                 <img src="/static/images/ghost_logo_taskbar.png" alt="">
                 <span>GH0ST</span>
             </button>
@@ -1616,11 +1638,11 @@ function renderToolbarStatus() {
                 : ""
         ].filter(Boolean).join(" ");
         const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
-        const title = toolbarTargetTruthRefreshing ? "Sprawdzam zrodlo prawdy celu..." : `Cel na celowniku: ${escapeHTML(String(targetLabel))}. Kliknij, aby odswiezyc.`;
-        return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b class="target-status-icon" aria-hidden="true">${escapeHTML(targetIcon)}</b><i class="target-status-body"><em>${escapeHTML(targetDisplayLabel)}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
+        const title = toolbarTargetTruthRefreshing ? ghostText("shell.target_check") : ghostText("shell.target_refresh", {name: String(targetLabel)});
+        return `<span class="${targetClasses}" role="button" tabindex="0" title="${escapeHTML(title)}"${targetProgressStyle}><b class="target-status-icon" aria-hidden="true">${escapeHTML(targetIcon)}</b><i class="target-status-body"><em>${escapeHTML(targetDisplayLabel)}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
     })() : (hackedEffect
-        ? `<span class="system-status-target is-hacked-clear" role="button" tabindex="0" title="Cel przejety. Belka zaraz wroci do stanu neutralnego."><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(hackedEffect.label))}</em></i></span>`
-        : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`);
+        ? `<span class="system-status-target is-hacked-clear" role="button" tabindex="0" data-ghost-title="shell.target_captured"><b>${ghostLabel("shell.target")}</b><i class="target-status-body"><em>${escapeHTML(String(hackedEffect.label))}</em></i></span>`
+        : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" data-ghost-title="shell.target_none"><b>${ghostLabel("shell.target")}</b></span>`);
     strip.innerHTML = `
         ${window.DetentionUI?.state ? window.DetentionUI.toolbarMarkup() : targetMarkup}
         <span><b>ARS</b> ${arsenalLabel}</span>
@@ -1654,18 +1676,18 @@ function renderStartMenu() {
             ${apps.map((app, index) => `
                 <button class="system-start-item" type="button" data-launch-index="${index}">
                     <span>${app.icon || '\u25A1'}</span>
-                    <span>${escapeHTML(app.label || 'App')}</span>
+                    <span ${app.labelKey ? `data-ghost-i18n="${escapeHTML(app.labelKey)}"` : ''}>${escapeHTML(app.labelKey ? ghostText(app.labelKey) : (app.label || 'App'))}</span>
                 </button>
             `).join("")}
         </div>
         <div class="system-start-footer">
             <button class="system-start-item system-action-restart" type="button">
                 <span>↻</span>
-                <span>Restart</span>
+                ${ghostLabel("shell.restart")}
             </button>
             <button class="system-start-item system-action-logout" type="button">
                 <span>⏻</span>
-                <span>Logout</span>
+                ${ghostLabel("shell.logout")}
             </button>
         </div>
     `;
@@ -1736,17 +1758,18 @@ async function launchFromToolbar(app) {
 }
 
 function getWindowTitle(win) {
+    if (win.dataset.appTitleKey) return ghostText(win.dataset.appTitleKey);
     const bar = win.querySelector('.title-bar');
-    if (!bar) return win.dataset.appTitle || 'Okno';
+    if (!bar) return win.dataset.appTitle || ghostText("shell.window");
     const textNode = Array.from(bar.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
-    return (win.dataset.appTitle || textNode?.textContent || bar.textContent || 'Okno').trim();
+    return (win.dataset.appTitle || textNode?.textContent || bar.textContent || ghostText("shell.window")).trim();
 }
 
 function getWindowIcon(win, title) {
     if (win.dataset.appIcon) return win.dataset.appIcon;
     const normalizedTitle = title.toLowerCase();
     const found = [...desktopApps, ...toolbarLauncherApps].find(app => {
-        const label = (app.label || '').toLowerCase();
+        const label = (app.labelKey ? ghostText(app.labelKey) : (app.label || '')).toLowerCase();
         return label && (normalizedTitle.includes(label) || label.includes(normalizedTitle));
     });
     return found?.icon || '\u25A3';
@@ -1798,8 +1821,8 @@ function renderMobileWindowTabButton(windows) {
     button.disabled = windows.length === 0;
     button.dataset.windowCount = String(windows.length);
     button.title = nextWindow
-        ? `Nastepne okno: ${nextTitle} (${windows.length})`
-        : 'Brak otwartych okien';
+        ? ghostText("shell.next_window", {name: nextTitle}) + ` (${windows.length})`
+        : ghostText("shell.no_windows");
     button.setAttribute('aria-label', button.title);
 }
 
@@ -1811,6 +1834,11 @@ function registerWindowInTaskbar(win) {
     win.dataset.windowId = id;
     win.dataset.appTitle = title;
     win.dataset.appIcon = getWindowIcon(win, title);
+    const close = win.querySelector('.close-btn');
+    if (close) {
+        close.dataset.ghostTitle = close.dataset.ghostAriaLabel = 'shell.window.close';
+        window.GhostLocale?.render(close);
+    }
     runningWindows.set(id, win);
     ensureSystemToolbar();
     renderRunningApps();
@@ -1841,10 +1869,10 @@ function showTaskbarWindowMenu(event, win, taskButton) {
     const menu = document.createElement('div');
     menu.id = 'system-task-context-menu';
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', win.dataset.appTitle || 'Okno');
+    menu.setAttribute('aria-label', win.dataset.appTitle || ghostText("shell.window"));
     const close = document.createElement('button');
     close.type = 'button';
-    close.textContent = 'Zamknij';
+    close.innerHTML = ghostLabel("shell.window.close");
     const closeIcon = document.createElement('span');
     closeIcon.className = 'task-menu-close-icon';
     closeIcon.setAttribute('aria-hidden', 'true');
@@ -3222,35 +3250,36 @@ function getLauncherAppIcon(app = {}) {
 
 (async () => {
     try {
-        setBootProgress(12, "Budzenie terminala operatora...");
+        setBootProgress(12, ({key:"shell.boot.wake",params:{}}));
         // const res = await fetch('static/app_config.json');
         const profileData = await getDesktopBootProfile();
         if (!profileData) {
             addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
-            finishBootLoader("Nie udało się wczytać profilu.");
+            finishBootLoader(({key:"shell.boot.failed",params:{}}));
             return;
         }
         const res = profileData.apps;
         
-        setBootProgress(34, `Profil aktywny: ${profileData.nick || profileData.username || "operator"}`);
+        setBootProgress(34, ({key:"shell.boot.profile",params:{name: profileData.nick || profileData.username || "operator"}}));
         // const jsonApps = await res.json();
         const jsonApps = profileData.apps || []; 
 
-        setBootProgress(58, `Indeksowanie aplikacji: ${jsonApps.length}`);
+        setBootProgress(58, ({key:"shell.boot.index",params:{count: jsonApps.length}}));
         const generatedIcons = await buildIconsFromJsonWithCommand(jsonApps);
         const systemApps = getSystemDesktopApps(profileData);
         const allApps = [...generatedIcons, ...systemApps]; // dodajesz własne z kodu
-        setBootProgress(76, "Montowanie paska systemowego...");
+        setBootProgress(76, ({key:"shell.boot.toolbar",params:{}}));
         setToolbarLaunchers(allApps, profileData);
-        setBootProgress(88, "Odtwarzanie tapety i pozycji ikon...");
+        setBootProgress(88, ({key:"shell.boot.restore",params:{}}));
         applyDesktopSettings(profileData.desktop_settings || {});
+        await initializeDesktopLocale(profileData.desktop_settings || {});
         renderDesktopIcons(allApps, desktopSettings);
         window.GhostSignalShowController?.acknowledgeBoot?.(profileData);
-        finishBootLoader("ghost_init.pkg zakończony. System gotowy.");
+        finishBootLoader(({key:"shell.boot.ready",params:{}}));
         return;
     } catch (err) {
         console.error("Błąd startu pulpitu:", err);
-        finishBootLoader("Tryb awaryjny: pulpit uruchomiony częściowo.");
+        finishBootLoader({key:"shell.boot.emergency"});
         return;
     }
 
@@ -3384,7 +3413,7 @@ function attachTerminalInputHandler(input, content) {
                         body: JSON.stringify({ username: pending.username })
                     });
                     const deleteData = await deleteRes.json();
-                    content.innerHTML += `<br>${escapeHTML(deleteData.message || "Operacja zakonczona.")}`;
+                    content.innerHTML += `<br>${ghostReply(deleteData, "terminal.completed")}`;
                     if (deleteData.logout) {
                         setTimeout(() => {
                             window.location.href = deleteData.redirect || '/';
@@ -3412,13 +3441,13 @@ function attachTerminalInputHandler(input, content) {
 
             if (data.confirm) {
                 content.pendingConfirm = data.confirm;
-                content.innerHTML += `<br>${escapeHTML(data.confirm.prompt)}`;
+                content.innerHTML += `<br>${(data.confirm.prompt_i18n ? ghostLabel(data.confirm.prompt_i18n.key, data.confirm.prompt_i18n.params) : escapeHTML(data.confirm.prompt))}`;
                 appendTerminalPrompt(content);
                 return;
             }
 
             if (data.response) {
-                content.innerHTML += `<br>${data.response.replace(/\n/g, "<br>")}`;
+                content.innerHTML += `<br>${(data.response_i18n ? ghostLabel(data.response_i18n.key, data.response_i18n.params) : escapeHTML(data.response).replace(/\n/g, "<br>"))}`;
             }
 
             if (data.target) {
@@ -3474,7 +3503,7 @@ function attachTerminalInputHandler(input, content) {
 
                 // 👇 Wyświetl consoleEffect zanim pojawi się nowy input
                 const conDiv = document.createElement('div');
-                conDiv.innerHTML = consoleEffect.replace(/\n/g, "<br>");
+                conDiv.innerHTML = (data.consoleEffect_i18n ? ghostLabel(data.consoleEffect_i18n.key, data.consoleEffect_i18n.params) : escapeHTML(consoleEffect).replace(/\n/g, "<br>"));
                 content.appendChild(conDiv);
 
                 // 👇 Uruchom aplikację
@@ -3616,7 +3645,7 @@ function waitGhostScriptStep(ms = GHOST_SCRIPT_COMMAND_DELAY_MS) {
 function appendSystemTerminalScriptStatus(content, command, index, total) {
     appendSystemTerminalOutput(
         content,
-        `GhostScript ${index + 1}/${total}: uruchamiam <b>${escapeHTML(command)}</b>...`,
+        ghostLabel("terminal.script", {index: index + 1, total, command}),
         "system-terminal-console-effect"
     );
 }
@@ -3634,8 +3663,10 @@ function showGhostDecisionDialog({
     title = "GHOST SYSTEM",
     message = "",
     details = "",
-    confirmLabel = "OK",
-    cancelLabel = "ANULUJ",
+    confirmLabel,
+    cancelLabel,
+    titleKey, messageKey, detailsKey, confirmKey = 'common.ok', cancelKey = 'common.cancel',
+    messageParams = {}, detailsParams = {},
     tone = "lime",
     showConfirm = true
 } = {}) {
@@ -3650,15 +3681,15 @@ function showGhostDecisionDialog({
                 <div class="blacknet-decision__scanline"></div>
                 <header class="blacknet-decision__header">
                     <span class="blacknet-decision__badge">GHOST SYSTEM</span>
-                    <h2 id="ghost-decision-title">${escapeHTML(title)}</h2>
+                    <h2 id="ghost-decision-title">${titleKey ? ghostLabel(titleKey) : escapeHTML(title)}</h2>
                 </header>
                 <div class="blacknet-decision__body">
-                    <p>${escapeHTML(message)}</p>
-                    ${details ? `<p class="blacknet-decision__details">${escapeHTML(details)}</p>` : ""}
+                    <p>${messageKey ? ghostLabel(messageKey, messageParams) : escapeHTML(message)}</p>
+                    ${details || detailsKey ? `<p class="blacknet-decision__details">${detailsKey ? ghostLabel(detailsKey, detailsParams) : escapeHTML(details)}</p>` : ""}
                 </div>
                 <footer class="blacknet-decision__actions">
-                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${escapeHTML(cancelLabel)}</button>
-                    ${showConfirm ? `<button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${escapeHTML(confirmLabel)}</button>` : ''}
+                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${cancelLabel === undefined ? ghostLabel(cancelKey) : escapeHTML(cancelLabel)}</button>
+                    ${showConfirm ? `<button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${confirmLabel === undefined ? ghostLabel(confirmKey) : escapeHTML(confirmLabel)}</button>` : ''}
                 </footer>
             </section>
         `;
@@ -3701,21 +3732,21 @@ async function handleTerminalTeleport(content, teleport) {
     const lat = Number(teleport?.lat);
     const lng = Number(teleport?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        appendSystemTerminalOutput(content, "teleport: brak poprawnych wspolrzednych.");
+        appendSystemTerminalOutput(content, ghostLabel("terminal.teleport_bad"));
         return false;
     }
 
     const label = teleport?.label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     const accepted = await showGhostDecisionDialog({
-        title: "POTWIERDZENIE TELEPORTU",
-        message: `Wykonac teleport do: ${label}?`,
-        details: "OK zmieni pozycje operatora i odswiezy mape. ANULUJ zostawi obecna pozycje.",
+        titleKey: "terminal.teleport_title",
+        messageKey: "terminal.teleport_confirm", messageParams: {name: label},
+        detailsKey: "terminal.teleport_details",
         confirmLabel: "OK",
         cancelLabel: "ANULUJ",
         tone: "lime"
     });
     if (!accepted) {
-        appendSystemTerminalOutput(content, "Teleport anulowany.");
+        appendSystemTerminalOutput(content, ghostLabel("terminal.teleport_cancelled"));
         return false;
     }
 
@@ -3732,11 +3763,11 @@ async function handleTerminalTeleport(content, teleport) {
     });
     const data = await response.json();
     if (!response.ok || data.success === false) {
-        appendSystemTerminalOutput(content, escapeHTML(data.message || "Teleport odrzucony."));
+        appendSystemTerminalOutput(content, ghostReply(data, "terminal.teleport_rejected"));
         return false;
     }
 
-    appendSystemTerminalOutput(content, escapeHTML(data.message || `Teleport wykonany: ${label}.`));
+    appendSystemTerminalOutput(content, ghostLabel("terminal.teleport_done", {name: label}));
     if (typeof refreshToolbarProfile === "function") {
         refreshToolbarProfile();
     }
@@ -3757,13 +3788,13 @@ function handleTerminalMapFocus(content, focus = {}) {
     const lat = Number(focus?.lat);
     const lng = Number(focus?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        appendSystemTerminalOutput(content, "focus: brak poprawnych wspolrzednych.");
+        appendSystemTerminalOutput(content, ghostLabel("terminal.focus_bad"));
         return false;
     }
 
     const label = focus?.label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     if (!openSystemAppFromTerminal("map")) {
-        appendSystemTerminalOutput(content, "focus: nie mozna otworzyc mapy.");
+        appendSystemTerminalOutput(content, ghostLabel("terminal.focus_failed"));
         return false;
     }
     // createMap assigns the iframe URL on the next animation frames. Delay the
@@ -3781,32 +3812,32 @@ function handleTerminalMapFocus(content, focus = {}) {
 function terminalGeolocationErrorMessage(error) {
     const code = Number(error?.code);
     if (code === 1) {
-        return "Lokalizacja odrzucona. Zezwol na dostep w ustawieniach witryny i ponow komende.";
+        return ghostText("terminal.geo_denied");
     }
     if (code === 2) {
-        return "Nie mozna ustalic aktualnej lokalizacji urzadzenia.";
+        return ghostText("terminal.geo_unavailable");
     }
     if (code === 3) {
-        return "Uplynal limit czasu pobierania lokalizacji. Sprobuj ponownie.";
+        return ghostText("terminal.geo_timeout");
     }
-    return "Pobranie lokalizacji urzadzenia nie powiodlo sie.";
+    return ghostText("terminal.geo_failed");
 }
 
 async function handleTerminalGeolocationRequest(content, request = {}) {
     const purpose = String(request?.purpose || "").toLowerCase();
     if (!["teleport", "focus"].includes(purpose)) {
-        appendSystemTerminalOutput(content, "Nieobslugiwane zadanie lokalizacji terminala.");
+        appendSystemTerminalOutput(content, ghostLabel("terminal.geo_unsupported"));
         return false;
     }
     if (!window.isSecureContext || !navigator.geolocation) {
         appendSystemTerminalOutput(
             content,
-            "Geolokalizacja jest niedostepna. Wymagane jest bezpieczne polaczenie HTTPS i obsluga lokalizacji w przegladarce."
+            ghostText("terminal.geo_https")
         );
         return false;
     }
 
-    appendSystemTerminalOutput(content, "Czekam na zgode przegladarki i aktualna lokalizacje...");
+    appendSystemTerminalOutput(content, ghostLabel("terminal.geo_wait"));
     let position;
     try {
         position = await new Promise((resolve, reject) => {
@@ -3824,13 +3855,13 @@ async function handleTerminalGeolocationRequest(content, request = {}) {
     const lat = Number(position?.coords?.latitude);
     const lng = Number(position?.coords?.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        appendSystemTerminalOutput(content, "Przegladarka nie zwrocila poprawnych wspolrzednych.");
+        appendSystemTerminalOutput(content, ghostLabel("terminal.geo_invalid"));
         return false;
     }
     const accuracy = Number(position?.coords?.accuracy);
-    const label = request?.label || "Aktualna lokalizacja urzadzenia";
+    const label = request?.label || ghostText("terminal.geo_current");
     if (Number.isFinite(accuracy)) {
-        appendSystemTerminalOutput(content, `Lokalizacja pobrana (dokladnosc ok. ${Math.round(accuracy)} m).`);
+        appendSystemTerminalOutput(content, ghostLabel("terminal.geo_accuracy", {accuracy: Math.round(accuracy)}));
     }
     if (purpose === "focus") {
         return handleTerminalMapFocus(content, { lat, lng, label, accuracy });
@@ -3847,17 +3878,17 @@ async function handleTerminalPkgCommand(value, content) {
         || (query.startsWith("'") && query.endsWith("'"))) {
         query = query.slice(1, -1).trim();
     }
-    const output = text => appendSystemTerminalOutput(content, escapeHTML(String(text)).replace(/\n/g, '<br>'));
+    const output = (key, params = {}) => appendSystemTerminalOutput(content, ghostLabel("terminal." + key, params));
     if (!['list-all', 'search', 'install'].includes(action)
         || (action === 'list-all' ? Boolean(query) : !query)) {
-        output('Użycie: pkg list-all | pkg search <nazwa> | pkg install <nazwa lub ID>');
+        output("pkg_usage");
         return false;
     }
     try {
         const response = await fetch('/api/catalog', { cache: 'no-store' });
         const payload = await response.json().catch(() => null);
         if (!response.ok || !Array.isArray(payload)) {
-            output(`pkg: nie udało się pobrać katalogu Googleplex (HTTP ${response.status}).`);
+            output("pkg_failed", {status: response.status});
             return false;
         }
         const seen = new Set();
@@ -3874,9 +3905,9 @@ async function handleTerminalPkgCommand(value, content) {
             || String(item.id).toLowerCase().includes(needle));
         const describe = item => `${item.name || item.id} [${item.id}] — ${Number(item.price || 0)} HC`;
         if (action !== 'install') {
-            output(matches.length
-                ? `Googleplex — ${matches.length} pozycji:\n${matches.map(describe).join('\n')}`
-                : (query ? `Brak pozycji w Googleplex: ${query}` : 'Katalog Googleplex jest pusty.'));
+            if (matches.length) output("pkg_list", {count: matches.length, entries: matches.map(describe).join("\n")});
+            else if (query) output("pkg_no_match", {query});
+            else output("pkg_empty");
             return true;
         }
         // Install only an exact name or ID; partial search must never buy a different item.
@@ -3884,37 +3915,33 @@ async function handleTerminalPkgCommand(value, content) {
         const exact = byId.length ? byId : catalog.filter(item => String(item.name || '').toLowerCase() === needle);
         if (exact.length !== 1) {
             const suggestions = exact.length ? exact : matches;
-            output(`${exact.length ? 'Niejednoznaczna nazwa' : 'Brak dokładnej pozycji w Googleplex'}: ${query}.`
-                + (suggestions.length ? `\nUżyj pełnej nazwy lub ID:\n${suggestions.map(describe).join('\n')}` : ''));
+            output("pkg_exact", {query, suggestions: suggestions.map(describe).join("\n")});
             return false;
         }
         const item = exact[0];
         if (item.product_type === 'travel_ticket' || item.purchase_confirmation === true) {
             const accepted = await showGhostDecisionDialog({
-                title: item.product_type === 'travel_ticket' ? 'POTWIERDZENIE PODROZY' : 'POTWIERDZENIE ZAKUPU',
-                message: `Kupić: ${item.name || item.id}?`,
-                details: `${Number(item.price || 0)} HC.` + (item.product_type === 'travel_ticket'
-                    ? ' Zakup wykona teleport do lokalizacji wskazanej przez bilet.' : ''),
-                confirmLabel: 'KUP I ZAINSTALUJ', cancelLabel: 'ANULUJ'
+                titleKey: item.product_type === 'travel_ticket' ? 'terminal.pkg_travel' : 'terminal.pkg_purchase',
+                messageKey: 'terminal.pkg_confirm', messageParams: {name: item.name || item.id},
+                detailsKey: item.product_type === 'travel_ticket' ? 'terminal.pkg_travel_details' : 'terminal.pkg_details',
+                detailsParams: {price: Number(item.price || 0)}, confirmKey: 'terminal.pkg_buy'
             });
             if (!accepted) {
-                output('pkg: zakup anulowany.');
+                output("pkg_cancelled");
                 return false;
             }
         }
-        output(`pkg: uruchamiam instalator Googleplex — ${describe(item)}.`);
+        output("pkg_installer", {item: describe(item)});
         return await new Promise(resolve => {
             showInstallAppProgress(item, null, (success, data = {}) => {
-                output(success
-                    ? `pkg: ${data.product ? 'kupiono' : 'zainstalowano'} ${item.name || item.id}.`
-                    : `pkg: ${data.message || (data.reason === 'network_error'
-                        ? 'Błąd połączenia. Wynik zakupu niepotwierdzony; ponów tę samą instalację.'
-                        : 'Instalacja nie powiodła się.')} ${data.reason ? `[${data.reason}]` : ''}`);
+                if (success) output(data.product ? "pkg_bought" : "pkg_installed", {name: item.name || item.id});
+                else if (data.reason === 'network_error') output('pkg_uncertain', {reason: data.reason});
+                else output('pkg_rejected', {reason: String(data.reason || 'unknown'), details: data.message_i18n ? ghostText(data.message_i18n.key, data.message_i18n.params) : String(data.message || '')});
                 resolve(Boolean(success));
             });
         });
     } catch (_error) {
-        output('pkg: błąd komunikacji lub sesji. Nie potwierdzono instalacji.');
+        output("pkg_offline");
         return false;
     }
 }
@@ -3931,14 +3958,14 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
             const pending = content.pendingConfirm;
 
             if (!["y", "yes", "n", "no"].includes(answer)) {
-                appendSystemTerminalOutput(content, "Wpisz Y albo N.");
+                appendSystemTerminalOutput(content, ghostLabel("terminal.answer"));
                 return false;
             }
 
             content.pendingConfirm = null;
 
             if (answer === "n" || answer === "no") {
-                appendSystemTerminalOutput(content, "Anulowano.");
+                appendSystemTerminalOutput(content, ghostLabel("terminal.cancelled"));
                 return true;
             }
 
@@ -3949,7 +3976,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
                     body: JSON.stringify({ username: pending.username })
                 });
                 const deleteData = await deleteRes.json();
-                appendSystemTerminalOutput(content, escapeHTML(deleteData.message || "Operacja zakonczona."));
+                appendSystemTerminalOutput(content, ghostReply(deleteData, "terminal.completed"));
                 if (deleteData.logout) {
                     setTimeout(() => {
                         window.location.href = deleteData.redirect || '/';
@@ -3976,12 +4003,12 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
 
         if (data.confirm) {
             content.pendingConfirm = data.confirm;
-            appendSystemTerminalOutput(content, escapeHTML(data.confirm.prompt));
+            appendSystemTerminalOutput(content, (data.confirm.prompt_i18n ? ghostLabel(data.confirm.prompt_i18n.key, data.confirm.prompt_i18n.params) : escapeHTML(data.confirm.prompt)));
             return false;
         }
 
         if (data.response) {
-            appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
+            appendSystemTerminalOutput(content, (data.response_i18n ? ghostLabel(data.response_i18n.key, data.response_i18n.params) : escapeHTML(data.response).replace(/\n/g, "<br>")));
         }
 
         if (data.target && applicationResponseMatchesCurrentTarget(context)) {
@@ -4032,7 +4059,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
             const type = app.interface;
 
             if (consoleEffect) {
-                appendSystemTerminalOutput(content, consoleEffect.replace(/\n/g, "<br>"), "system-terminal-console-effect");
+                appendSystemTerminalOutput(content, (data.consoleEffect_i18n ? ghostLabel(data.consoleEffect_i18n.key, data.consoleEffect_i18n.params) : escapeHTML(consoleEffect).replace(/\n/g, "<br>")), "system-terminal-console-effect");
             }
 
             launchApplicationFromEntry(app, "terminal");
@@ -4040,7 +4067,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
 
         return true;
     } catch (err) {
-        appendSystemTerminalOutput(content, '<span style="color:red;">Blad komunikacji z serwerem</span>');
+        appendSystemTerminalOutput(content, ghostLabel("terminal.offline"));
         return false;
     } finally {
         stopLoader();
@@ -5309,8 +5336,8 @@ function createTerminal() {
             <div class="content" id="${terminalId}-content">
                 <div class="system-terminal-boot-log">
                     <div>CHAOS Terminal Runtime [v7.09]</div>
-                    <div>Copyright Ghost System operators. All routes monitored.</div>
-                    <div>Profile loaded. Type <b>help</b> to list commands.</div>
+                    <div>${ghostLabel("terminal.rights")}</div>
+                    <div>${ghostLabel("terminal.welcome")}</div>
                 </div>
             </div>
             <form class="system-terminal-composer">
@@ -6146,7 +6173,7 @@ function renderVictimPickerFrame(app, state, bodyHtml, options = {}) {
                 </div>
             </div>
             <div class="victim-picker-meta">
-                <span title="Aktualny cel"><b>CEL</b> ${escapeHTML(currentLabel)}</span>
+                <span title="Aktualny cel"><b>${ghostLabel("shell.target")}</b> ${escapeHTML(currentLabel)}</span>
                 <span title="Pozycja motocykla"><b>${VICTIM_PICKER_ICONS.bike}</b> ${escapeHTML(formatVictimPickerCoords(position))}</span>
                 <span title="Zasieg akcji"><b>${VICTIM_PICKER_ICONS.range}</b> ${Number.isFinite(range) ? `${Math.round(range)} m` : "--"}</span>
             </div>
@@ -9106,7 +9133,7 @@ function createMap() {
                 <div class="map-window-loader__bar"><span></span></div>
                 <div class="map-window-loader__text">Pobieranie snapshotu swiata...</div>
             </div>
-            <iframe class="map-frame" title="Mapa CHAOS" width="100%" height="100%" style="border:none;"></iframe>
+            <iframe data-ghost-locale-frame class="map-frame" data-ghost-title="shell.desktop.map" title="Mapa CHAOS" width="100%" height="100%" style="border:none;"></iframe>
         </div>
     `;
 
@@ -11474,33 +11501,33 @@ function renderWalletApp(container, options = {}) {
         <div class="wallet-header">
             <div>
                 <div class="wallet-title">Wallet HC</div>
-                <div class="wallet-subtitle">Lokalny portfel operatora</div>
+                <div class="wallet-subtitle">${ghostLabel("wallet.subtitle")}</div>
             </div>
-            <div class="wallet-balance" data-wallet-balance>Saldo: ... HC</div>
+            <div class="wallet-balance" data-wallet-balance>${ghostLabel("wallet.balance_loading")}</div>
         </div>
         <div class="wallet-message" data-wallet-message></div>
         <form class="wallet-transfer-form" data-wallet-form>
             <label>
-                <span>Odbiorca</span>
+                <span>${ghostLabel("wallet.recipient")}</span>
                 <input data-wallet-recipient type="text" autocomplete="off" placeholder="username" value="${escapeHTML(String(options.to || ''))}">
             </label>
             <label>
-                <span>Kwota HC</span>
+                <span>${ghostLabel("wallet.amount")}</span>
                 <input data-wallet-amount type="number" min="1" step="1" placeholder="50">
             </label>
             <label>
-                <span>Notatka</span>
-                <input data-wallet-note type="text" maxlength="240" placeholder="opcjonalnie">
+                <span>${ghostLabel("wallet.note")}</span>
+                <input data-wallet-note type="text" maxlength="240" data-ghost-i18n-placeholder="wallet.optional" placeholder="${escapeHTML(ghostText("wallet.optional"))}">
             </label>
             <div class="wallet-actions">
-                <button type="submit">Akceptuj</button>
-                <button type="button" data-wallet-clear>Anuluj / Wyczysc</button>
+                <button type="submit">${ghostLabel("wallet.accept")}</button>
+                <button type="button" data-wallet-clear>${ghostLabel("wallet.clear")}</button>
             </div>
         </form>
         <div class="wallet-history">
-            <div class="wallet-section-title">Historia</div>
+            <div class="wallet-section-title">${ghostLabel("wallet.history")}</div>
             <div data-wallet-history class="wallet-history-list">
-                <div class="wallet-empty">Ladowanie historii...</div>
+                <div class="wallet-empty">${ghostLabel("wallet.history_loading")}</div>
             </div>
         </div>
     `;
@@ -11524,26 +11551,34 @@ function setWalletMessage(container, type, message) {
     const box = container.querySelector('[data-wallet-message]');
     if (!box) return;
     box.className = `wallet-message ${type ? `is-${type}` : ''}`;
-    box.textContent = message || "";
+    if (message) ghostSet(box, message);
+    else { delete box.dataset.ghostI18n; delete box.dataset.ghostParams; box.textContent = ""; }
+}
+
+function renderWalletBalance(node, balance = 0, reserved = 0, available = Math.max(0, Number(balance) - Number(reserved))) {
+    if (!node) return;
+    node._localeBalance = [balance, reserved, available];
+    node.innerHTML = ghostLabel('wallet.balance', {amount: window.GhostLocale.formatNumber(Number(balance || 0))})
+        + (reserved ? ' · ' + ghostLabel('wallet.reserved', {reserved: window.GhostLocale.formatNumber(Number(reserved)), available: window.GhostLocale.formatNumber(Number(available))}) : '');
 }
 
 async function loadWalletState(container = document.querySelector('.terminal[data-app="wallet"] .wallet-shell')) {
     if (!container) return null;
-    setWalletMessage(container, "loading", "Synchronizacja portfela...");
+    setWalletMessage(container, "loading", "wallet.sync");
     try {
         const res = await fetch('/api/wallet');
         const data = await res.json();
         if (!res.ok || data.error) {
-            setWalletMessage(container, "error", data.error || "Nie udalo sie pobrac portfela.");
+            setWalletMessage(container, "error", data.message_i18n?.key || "wallet.load_failed");
             return null;
         }
-        container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}${data.reserved ? ` · rezerwacja: ${Number(data.reserved)} HC · dostępne: ${Number(data.available)} HC` : ''}`;
+        renderWalletBalance(container.querySelector("[data-wallet-balance]"), data.balance, data.reserved, data.available);
         renderWalletHistory(container, data.ledger || data.transactions || []);
         setWalletMessage(container, "", "");
         return data;
     } catch (err) {
         console.warn('Wallet load failed', err);
-        setWalletMessage(container, "error", "Brak polaczenia z portfelem.");
+        setWalletMessage(container, "error", "wallet.offline");
         return null;
     }
 }
@@ -11552,7 +11587,7 @@ function renderWalletHistory(container, transactions) {
     const list = container.querySelector('[data-wallet-history]');
     if (!list) return;
     if (!transactions.length) {
-        list.innerHTML = `<div class="wallet-empty">Brak historii HC.</div>`;
+        list.innerHTML = `<div class="wallet-empty">${ghostLabel("wallet.empty")}</div>`;
         return;
     }
     list.innerHTML = transactions.map(tx => {
@@ -11564,19 +11599,19 @@ function renderWalletHistory(container, transactions) {
         const sign = outgoing ? "-" : "+";
         const typeLabel = tx.event_type
             ? String(tx.event_type).replace(/^wallet[_:.]?/, '').replace(/_/g, ' ')
-            : (outgoing ? "wyslano" : "odebrano");
+            : (outgoing ? ghostText("wallet.sent") : ghostText("wallet.received"));
         const peer = tx.peer_username || tx.peer || tx.source || '';
         const balanceAfter = Object.prototype.hasOwnProperty.call(tx, "balance_after")
-            ? `<span>saldo: ${Number(tx.balance_after || 0)} HC</span>`
+            ? `<span>${ghostLabel("wallet.balance_label")} ${ghostNumber(Number(tx.balance_after || 0))} HC</span>`
             : '';
         return `
             <div class="wallet-transaction ${outgoing ? 'is-outgoing' : 'is-incoming'}">
                 <div>
-                    <strong>${escapeHTML(typeLabel)} ${sign}${amount} HC</strong>
+                    <strong>${tx.event_type ? (window.GhostLocale.hasKey("wallet.event." + tx.event_type) ? ghostSystemValue("wallet.event.", tx.event_type) : ghostLabel("wallet.event_other")) : ghostLabel(outgoing ? "wallet.sent" : "wallet.received")} ${sign}${ghostNumber(amount)} HC</strong>
                     <span>${escapeHTML(String(peer || 'system'))}</span>
                     ${balanceAfter}
                 </div>
-                <small>${escapeHTML(String(tx.created_at || ''))}</small>
+                <small>${ghostDate(String(tx.created_at || ""))}</small>
                 ${tx.note ? `<em>${escapeHTML(String(tx.note))}</em>` : ''}
             </div>
         `;
@@ -11694,15 +11729,15 @@ async function submitWalletTransfer(container = document.querySelector('.termina
     const note = container.querySelector('[data-wallet-note]').value.trim();
 
     if (!to) {
-        setWalletMessage(container, "error", "Podaj odbiorce.");
+        setWalletMessage(container, "error", "wallet.recipient_required");
         return;
     }
     if (!amount || Number(amount) <= 0) {
-        setWalletMessage(container, "error", "Podaj dodatnia kwote HC.");
+        setWalletMessage(container, "error", "wallet.positive");
         return;
     }
 
-    setWalletMessage(container, "loading", "Wysylanie przelewu...");
+    setWalletMessage(container, "loading", "wallet.sending");
     const transferAction = acquireWalletTransferAction({ to, amount, note }, container);
     const transactionKey = transferAction.key;
     try {
@@ -11716,19 +11751,19 @@ async function submitWalletTransfer(container = document.querySelector('.termina
         });
         const data = await res.json();
         if (!res.ok || data.error) {
-            setWalletMessage(container, "error", data.error || "Przelew odrzucony.");
+            setWalletMessage(container, "error", data.message_i18n?.key || "wallet.rejected");
             return;
         }
         container.querySelector('[data-wallet-amount]').value = "";
         container.querySelector('[data-wallet-note]').value = "";
         clearWalletTransferActionKey(transferAction, container);
-        container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}${data.reserved ? ` · rezerwacja: ${Number(data.reserved)} HC · dostępne: ${Number(data.available)} HC` : ''}`;
+        renderWalletBalance(container.querySelector("[data-wallet-balance]"), data.balance, data.reserved, data.available);
         renderWalletHistory(container, data.ledger || data.transactions || (data.transaction ? [data.transaction] : []));
-        setWalletMessage(container, "success", "Przelew wykonany.");
+        setWalletMessage(container, "success", "wallet.success");
         updateWalletBalanceView(data.balance, data.currency || "HC");
     } catch (err) {
         console.warn('Wallet transfer failed', err);
-        setWalletMessage(container, "error", "Brak polaczenia z portfelem.");
+        setWalletMessage(container, "error", "wallet.offline");
     }
 }
 
@@ -11875,7 +11910,7 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
                         || Object.prototype.hasOwnProperty.call(storage, "capacity")
                     );
                     const storageLine = hasStorageInfo
-                        ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
+                        ? `<br><span style="color:#8fd6a4;">${ghostLabel("files.disk")} ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
                         : '';
                     result.innerHTML = `<span style="color:#0f0;">\u2714 ${data.document_id ? 'Dokument pobrany do Pliki → Plexcak.' : isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
@@ -11968,6 +12003,7 @@ async function refreshDesktop(closeWindows = true) {
     const allApps = [...generatedIcons, ...getSystemDesktopApps(profileData)];
     setToolbarLaunchers(allApps, profileData);
     applyDesktopSettings(profileData.desktop_settings || {});
+    await initializeDesktopLocale(profileData.desktop_settings || {});
     renderDesktopIcons(allApps, desktopSettings);
     return;
 
@@ -12029,6 +12065,8 @@ function createSettings() {
     const term = document.createElement('div');
     term.className = 'terminal';
     term.dataset.app = "settings";
+    term.dataset.appTitleKey = 'shell.desktop.settings';
+    term.dataset.appTitle = ghostText('shell.desktop.settings');
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
@@ -12058,37 +12096,48 @@ function createSettings() {
 
     term.innerHTML = `
         <div class="title-bar">
-            Ustawienia
+            <span data-ghost-i18n="shell.desktop.settings">${escapeHTML(ghostText('shell.desktop.settings'))}</span>
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="settings-shell">
             <div class="settings-status" data-settings-status></div>
 
             <section class="settings-section">
+                <label>
+                    <span data-ghost-i18n="locale.label">${escapeHTML(ghostText('locale.label'))}</span>
+                    <select data-settings-locale>
+                        ${(window.GhostLocale?.languages() || []).map(language => `<option value="${escapeHTML(language.tag)}" ${language.tag === window.GhostLocale.getLocale() ? 'selected' : ''}>${escapeHTML(language.name)}</option>`).join('')}
+                    </select>
+                </label>
+                <p data-ghost-i18n="locale.test_notice">${escapeHTML(ghostText('locale.test_notice'))}</p>
+                <p role="status" data-settings-locale-status></p>
+            </section>
+
+            <section class="settings-section">
                 <div class="settings-section__header">
-                    <h3>Ekran</h3>
-                    <span>Tapeta pulpitu</span>
+                    <h3 data-ghost-i18n="settings.display"></h3>
+                    <span data-ghost-i18n="settings.wallpaper"></span>
                 </div>
                 <div class="settings-wallpaper-grid">
                     <button type="button" class="settings-wallpaper is-none ${currentWallpaper ? '' : 'is-active'}" data-wall="">
                         <span class="settings-wallpaper__swatch"></span>
-                        <b>Brak</b>
+                        <b data-ghost-i18n="settings.none"></b>
                     </button>
                     ${wallpaperOptions.map(option => `
                         <button type="button" class="settings-wallpaper ${currentWallpaper === option.id ? 'is-active' : ''}" data-wall="${escapeHTML(option.id)}">
                             <span class="settings-wallpaper__swatch" style="--wall-color:${escapeHTML(option.color)}"></span>
-                            <b>${escapeHTML(option.label)}</b>
+                            <b>${/^wall-[1-3]$/.test(option.id) ? ghostLabel("settings.image", {number:Number(option.id.slice(-1))}) : escapeHTML(option.label)}</b>
                         </button>
                     `).join("")}
                 </div>
                 <div class="settings-subblock">
                     <div class="settings-section__header settings-section__header--sub">
-                        <h3>Mapa</h3>
-                        <span>Schemat Leaflet</span>
+                        <h3 data-ghost-i18n="shell.desktop.map"></h3>
+                        <span data-ghost-i18n="settings.map_scheme"></span>
                     </div>
                     <div class="settings-map-scheme-grid">
                         ${mapSchemeOptions.map(option => `
-                            <button type="button" class="settings-map-scheme ${currentMapScheme === option.id ? 'is-active' : ''}" data-map-scheme="${escapeHTML(option.id)}" title="Schemat mapy: ${escapeHTML(option.label)}">
+                            <button type="button" class="settings-map-scheme ${currentMapScheme === option.id ? 'is-active' : ''}" data-map-scheme="${escapeHTML(option.id)}" title="${escapeHTML(option.label)}">
                                 <span class="settings-map-scheme__swatch" style="--map-scheme-color:${escapeHTML(option.color)}"></span>
                                 <b>${escapeHTML(option.label)}</b>
                             </button>
@@ -12099,26 +12148,26 @@ function createSettings() {
 
             <section class="settings-section">
                 <div class="settings-section__header">
-                    <h3>Konto</h3>
-                    <span>Haslo i adres e-mail</span>
+                    <h3 data-ghost-i18n="settings.account"></h3>
+                    <span data-ghost-i18n="settings.account_hint"></span>
                 </div>
                 <form class="settings-form" data-settings-password-form>
                     <label>
-                        <span>Aktualne haslo</span>
+                        <span data-ghost-i18n="settings.current_password"></span>
                         <input type="password" autocomplete="current-password" data-current-password>
                     </label>
                     <label>
-                        <span>Nowe haslo</span>
-                        <input type="password" autocomplete="new-password" data-new-password placeholder="min. 8 znakow, litera i cyfra">
+                        <span data-ghost-i18n="settings.new_password"></span>
+                        <input type="password" autocomplete="new-password" data-new-password data-ghost-i18n-placeholder="settings.password_hint">
                     </label>
-                    <button type="submit">Zmien haslo</button>
+                    <button type="submit" data-ghost-i18n="settings.change_password"></button>
                 </form>
                 <form class="settings-form" data-settings-email-form>
                     <label>
-                        <span>Adres e-mail</span>
+                        <span data-ghost-i18n="settings.email"></span>
                         <input type="email" autocomplete="email" data-settings-email placeholder="operator@chaos.net">
                     </label>
-                    <button type="submit">Zapisz e-mail</button>
+                    <button type="submit" data-ghost-i18n="settings.save_email"></button>
                 </form>
             </section>
 
@@ -12129,21 +12178,21 @@ function createSettings() {
                 </div>
                 <label class="settings-toggle">
                     <input type="checkbox" data-settings-radio-autoplay ${isGhostRadioAutoplayEnabled() ? 'checked' : ''}>
-                    <span>Autostart radia po pierwszej interakcji</span>
+                    <span data-ghost-i18n="settings.radio_autoplay"></span>
                 </label>
             </section>
 
             <section class="settings-section">
                 <div class="settings-section__header">
-                    <h3>Efekty dzwiekowe</h3>
+                    <h3 data-ghost-i18n="settings.sfx"></h3>
                     <span>Game SFX</span>
                 </div>
                 <label class="settings-toggle">
                     <input type="checkbox" data-settings-sfx-enabled ${(!window.GameSfx || window.GameSfx.getState().enabled) ? 'checked' : ''}>
-                    <span>Efekty gry i scen lore</span>
+                    <span data-ghost-i18n="settings.sfx_hint"></span>
                 </label>
                 <label class="settings-sfx-volume">
-                    <span>Glosnosc <b data-settings-sfx-volume-value>${Math.round((window.GameSfx ? window.GameSfx.getState().volume : 0.8) * 100)}%</b></span>
+                    <span><span data-ghost-i18n="settings.volume"></span> <b data-settings-sfx-volume-value>${Math.round((window.GameSfx ? window.GameSfx.getState().volume : 0.8) * 100)}%</b></span>
                     <input type="range" min="0" max="100" step="1" value="${Math.round((window.GameSfx ? window.GameSfx.getState().volume : 0.8) * 100)}" data-settings-sfx-volume>
                 </label>
                 <button type="button" class="settings-sfx-test" data-settings-sfx-test>Test Secret Path</button>
@@ -12152,12 +12201,12 @@ function createSettings() {
 
             <section class="settings-section">
                 <div class="settings-section__header">
-                    <h3>Tryb ekranu</h3>
-                    <span>Runtime gry</span>
+                    <h3 data-ghost-i18n="settings.screen_mode"></h3>
+                    <span data-ghost-i18n="settings.runtime"></span>
                 </div>
                 <label class="settings-toggle">
                     <input type="checkbox" data-settings-auto-fullscreen ${isAutoFullscreenEnabled() ? 'checked' : ''}>
-                    <span>Auto fullscreen po kliknieciu/tapnieciu w gre</span>
+                    <span data-ghost-i18n="settings.auto_fullscreen"></span>
                 </label>
             </section>
         </div>
@@ -12168,10 +12217,38 @@ function createSettings() {
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
     bringWindowToFront(term);
 
+    window.GhostLocale?.render(term);
+    const localeSelect = term.querySelector('[data-settings-locale]');
+    localeSelect?.addEventListener('change', async () => {
+        const output = term.querySelector('[data-settings-locale-status]');
+        localeSelect.disabled = true;
+        output.textContent = '';
+        try {
+            await window.GhostLocale.changeLocale(localeSelect.value, async locale => {
+                const response = await postDesktopSettings({locale});
+                const data = response ? await response.json().catch(() => null) : null;
+                if (!response?.ok || data?.desktop_settings?.locale !== locale) throw Error('locale_save_failed');
+                mergeDesktopSettings({locale});
+            });
+            output.textContent = ghostText('locale.saved');
+        } catch (error) {
+            output.textContent = ghostText(error.message === 'locale_save_failed' ? 'locale.save_failed' : 'locale.load_failed');
+        } finally {
+            localeSelect.value = window.GhostLocale.getLocale();
+            localeSelect.disabled = false;
+        }
+    });
+
     const status = term.querySelector('[data-settings-status]');
     const setStatus = (message, type = "") => {
         if (!status) return;
-        status.textContent = message || "";
+        if (message && window.GhostLocale?.hasKey(message)) {
+            status.dataset.ghostI18n = message;
+            status.textContent = ghostText(message);
+        } else {
+            delete status.dataset.ghostI18n;
+            status.textContent = message || "";
+        }
         status.className = `settings-status ${type ? `is-${type}` : ''}`;
     };
 
@@ -12184,26 +12261,26 @@ function createSettings() {
             });
             saveDesktopSettingsNow({ wallpaper: wall });
             term.querySelectorAll('[data-wall]').forEach(item => item.classList.toggle('is-active', item === btn));
-            setStatus("Tapeta zapisana.", "success");
+            setStatus('settings.wallpaper_saved', "success");
         });
     });
 
     term.querySelectorAll('[data-map-scheme]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const mapTileScheme = btn.dataset.mapScheme || "osm";
-            setStatus("Zapisuje schemat mapy...", "loading");
+            setStatus('settings.map_saving', "loading");
             const response = await postDesktopSettings({
                 map_tile_scheme: mapTileScheme
             });
             if (response && !response.ok) {
-                setStatus("Nie udalo sie zapisac schematu mapy.", "error");
+                setStatus('settings.map_failed', "error");
                 return;
             }
             const savedSettings = response ? await response.json().catch(() => null) : null;
             if (savedSettings?.desktop_settings) {
                 applyDesktopSettings(savedSettings.desktop_settings);
             } else {
-                setStatus("Serwer nie potwierdzil schematu mapy.", "error");
+                setStatus('settings.map_unconfirmed', "error");
                 return;
             }
             const activeMapScheme = desktopSettings.map_tile_scheme || mapTileScheme;
@@ -12211,18 +12288,18 @@ function createSettings() {
                 item.classList.toggle('is-active', item.dataset.mapScheme === activeMapScheme);
             });
             reloadOpenMapWindowsForSettings();
-            setStatus("Schemat mapy zapisany. Mapa zostala odswiezona.", "success");
+            setStatus('settings.map_saved', "success");
         });
     });
 
     term.querySelector('[data-settings-radio-autoplay]')?.addEventListener('change', event => {
         setGhostRadioAutoplayEnabled(event.target.checked);
-        setStatus(event.target.checked ? "Autostart radia wlaczony." : "Autostart radia wylaczony.", "success");
+        setStatus(event.target.checked ? 'settings.radio_on' : 'settings.radio_off', "success");
     });
 
     term.querySelector('[data-settings-sfx-enabled]')?.addEventListener('change', event => {
         if (window.GameSfx) window.GameSfx.setEnabled(event.target.checked);
-        setStatus(event.target.checked ? "Efekty dzwiekowe wlaczone." : "Efekty dzwiekowe wylaczone.", "success");
+        setStatus(event.target.checked ? 'settings.sfx_on' : 'settings.sfx_off', "success");
     });
 
     term.querySelector('[data-settings-sfx-volume]')?.addEventListener('input', event => {
@@ -12235,7 +12312,7 @@ function createSettings() {
     term.querySelector('[data-settings-sfx-test]')?.addEventListener('click', async () => {
         const output = term.querySelector('[data-settings-sfx-test-status]');
         if (!window.GameSfx) {
-            if (output) output.textContent = "Silnik SFX niedostepny.";
+            if (output) { output.dataset.ghostI18n = 'settings.sfx_unavailable'; output.textContent = ghostText(output.dataset.ghostI18n); }
             return;
         }
         await window.GameSfx.unlock();
@@ -12244,14 +12321,17 @@ function createSettings() {
             source: 'settings'
         });
         const result = await handle.started;
-        if (output) output.textContent = result.ok ? "Odtwarzanie testowe." : `Test: ${result.reason || 'brak audio'}.`;
+        if (output) {
+            output.dataset.ghostI18n = result.ok ? 'settings.sfx_playing' : 'settings.sfx_failed';
+            output.textContent = ghostText(output.dataset.ghostI18n);
+        }
     });
 
     term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {
         setAutoFullscreenEnabled(event.target.checked);
         saveDesktopSettingsNow({ auto_fullscreen: event.target.checked });
         syncChaosFullscreenRuntime();
-        setStatus(event.target.checked ? "Auto fullscreen wlaczony. Kliknij w gre, aby aktywowac." : "Auto fullscreen wylaczony.", "success");
+        setStatus(event.target.checked ? 'settings.fullscreen_on' : 'settings.fullscreen_off', "success");
         if (event.target.checked) {
             requestChaosFullscreen();
         } else if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
@@ -12263,7 +12343,7 @@ function createSettings() {
         event.preventDefault();
         const currentPassword = term.querySelector('[data-current-password]')?.value || "";
         const newPassword = term.querySelector('[data-new-password]')?.value || "";
-        setStatus("Zapisuje haslo...", "loading");
+        setStatus('settings.password_saving', "loading");
         try {
             const res = await fetch('/api/profile/account', {
                 method: 'POST',
@@ -12274,19 +12354,19 @@ function createSettings() {
                 })
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok || data.success === false) throw new Error(data.error || "Nie udalo sie zmienic hasla.");
+            if (!res.ok || data.success === false) throw new Error(data.message_i18n?.key || 'settings.password_failed');
             term.querySelector('[data-current-password]').value = "";
             term.querySelector('[data-new-password]').value = "";
-            setStatus("Haslo zmienione.", "success");
+            setStatus('settings.password_saved', "success");
         } catch (err) {
-            setStatus(err.message || "Nie udalo sie zmienic hasla.", "error");
+            setStatus(err.message || 'settings.password_failed', "error");
         }
     });
 
     term.querySelector('[data-settings-email-form]')?.addEventListener('submit', async event => {
         event.preventDefault();
         const email = term.querySelector('[data-settings-email]')?.value || "";
-        setStatus("Zapisuje e-mail...", "loading");
+        setStatus('settings.email_saving', "loading");
         try {
             const res = await fetch('/api/profile/account', {
                 method: 'POST',
@@ -12294,10 +12374,10 @@ function createSettings() {
                 body: JSON.stringify({ email })
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok || data.success === false) throw new Error(data.error || "Nie udalo sie zapisac e-maila.");
-            setStatus("E-mail zapisany.", "success");
+            if (!res.ok || data.success === false) throw new Error(data.message_i18n?.key || 'settings.email_failed');
+            setStatus('settings.email_saved', "success");
         } catch (err) {
-            setStatus(err.message || "Nie udalo sie zapisac e-maila.", "error");
+            setStatus(err.message || 'settings.email_failed', "error");
         }
     });
 
@@ -12314,6 +12394,7 @@ async function createProfile() {
     const term = document.createElement('div');
     term.className = 'terminal profile-window';
     term.dataset.app = "profile";
+    term.dataset.appTitleKey = "profile.title";
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
@@ -12324,14 +12405,14 @@ async function createProfile() {
 
     term.innerHTML = `
         <div class="title-bar">
-            Profil gracza
+            ${ghostLabel("profile.title")}
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="profile-content">
             <div class="app-load-panel profile-load-panel">
-                <div class="app-load-panel__title">Ladowanie profilu...</div>
+                <div class="app-load-panel__title">${ghostLabel("profile.loading")}</div>
                 <div class="app-load-panel__bar"><span></span></div>
-                <div class="app-load-panel__text">Synchronizuje profil, terytorium i zabezpieczenia.</div>
+                <div class="app-load-panel__text">${ghostLabel("profile.sync")}</div>
             </div>
         </div>
     `;
@@ -12343,7 +12424,7 @@ async function createProfile() {
     const content = term.querySelector('.profile-content');
     const profileData = await getUserProfile();
     if (!profileData) {
-        content.innerHTML = `<div class="profile-error">Brak danych profilu.</div>`;
+        content.innerHTML = `<div class="profile-error">${ghostLabel("profile.missing")}</div>`;
         addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
         return;
     }
@@ -12354,8 +12435,8 @@ async function createProfile() {
         .map(([key, value]) => `
             <label class="profile-security-tile ${value ? 'is-on' : 'is-off'}" title="${escapeHTML(key)}">
                 <input class="profile-security-toggle" type="checkbox" data-security-key="${escapeHTML(key)}" ${value ? 'checked' : ''}>
-                <span class="profile-security-name">${escapeHTML(key)}</span>
-                <span class="profile-security-state">${value ? 'ON' : 'OFF'}</span>
+                <span class="profile-security-name">${ghostSystemValue("profile.security.", key)}</span>
+                <span class="profile-security-state">${ghostLabel(value ? "profile.on" : "profile.off")}</span>
             </label>
         `)
         .join("");
@@ -12374,9 +12455,9 @@ async function createProfile() {
         "3": "VIREX",
         "4": "Siatka Widmo"
     };
-    const rawPlayerClan = profileData.clan || (profileData.fraction && profileData.fraction.name) || "brak";
+    const rawPlayerClan = profileData.clan || (profileData.fraction && profileData.fraction.name) || ghostText("profile.none");
     const playerClan = factionNames[String(rawPlayerClan)] || rawPlayerClan;
-    profileData.clan = playerClan;
+
     const playerProfession = profileData.ghost_profession_name
         || profileData.profession_name
         || profileData.ghost_profession
@@ -12384,54 +12465,54 @@ async function createProfile() {
         || profileData.role
         || (profileData.fraction && profileData.fraction.role)
         || (profileData.operator && profileData.operator.profession)
-        || "brak";
+        || ghostText("profile.none");
     const appsCount = Array.isArray(profileData.apps)
         ? profileData.apps.length
         : (Array.isArray(profileData.inventory) ? profileData.inventory.length : 0);
     const currentPosition = profileData.curently_possition || profileData.current_position || {};
     const densityLabel = densityMultiplier > 0 && spanDensity > 0
-        ? `x${densityMultiplier.toFixed(2)} (${spanDensity.toFixed(2)} przesel / 100 m)`
-        : "brak danych / przeliczane";
+        ? ghostLabel("profile.density_value", {multiplier: densityMultiplier.toFixed(2), spans: spanDensity.toFixed(2)})
+        : ghostLabel("profile.calculating");
     const nextLevelLabel = areaToNext > 0
-        ? `${areaToNext} m2`
-        : "brak aktywnego progu";
+        ? `${ghostNumber(areaToNext)} m²`
+        : ghostLabel("profile.no_threshold");
     const territoryDetailsHtml = `
-            <p>Efektywna kontrola: <b>${effectiveArea} m2</b></p>
-            <p>Gestosc siatki: <b>${densityLabel}</b></p>
+            <p>${ghostLabel("profile.effective")} <b>${ghostNumber(effectiveArea)} m²</b></p>
+            <p>${ghostLabel("profile.density")} <b>${densityLabel}</b></p>
     `;
 
     content.innerHTML = `
             <div class="profile-hero">
                 <img class="profile-avatar" src="${escapeHTML(profileData.avatar || '')}" alt="Avatar">
                 <h2>${escapeHTML(profileData.nick || profileData.username || 'Ghost')}</h2>
-                <p>Poziom: <b>${profileData.level}</b></p>
+                <p>${ghostLabel("profile.level")} <b>${ghostNumber(profileData.level)}</b></p>
             </div>
 
             <hr>
 
-            <p>💰 HackCoiny: <b>${profileData.hackcoins}</b></p>
-            <p>🔥 Respect: <b>${profileData.respect}</b> pkt</p>
-            <p>👥 Klan: <b>${escapeHTML(profileData.clan)}</b></p>
-            <p>🧩 Profesja: <b>${escapeHTML(playerProfession)}</b></p>
+            <p>${ghostLabel("profile.coins")} <b>${ghostNumber(profileData.hackcoins)}</b></p>
+            <p>${ghostLabel("profile.respect")} <b>${ghostNumber(profileData.respect)}</b> ${ghostLabel("profile.points")}</p>
+            <p>${ghostLabel("profile.clan")} <b>${window.GhostLocale.hasKey("onboarding.faction." + String(profileData.fraction?.id || "") + ".name") ? ghostSystemValue("onboarding.faction.", String(profileData.fraction.id) + ".name") : escapeHTML(playerClan)}</b></p>
+            <p>${ghostLabel("profile.profession")} <b>${/^[1-5]$/.test(String(profileData.fraction?.role || "")) && /^[1-4]$/.test(String(profileData.fraction?.id || "")) ? ghostLabel(`onboarding.role.${profileData.fraction.id}.${profileData.fraction.role}`) : escapeHTML(playerProfession)}</b></p>
 
             <hr>
-            <h4>Terytorium:</h4>
+            <h4>${ghostLabel("profile.territory")}</h4>
             ${territoryDetailsHtml}
-            <p>🟩 Klastry: <b>${territoryStats.clusters_count || 0}</b></p>
-            <p>📐 Powierzchnia: <b>${totalArea} m2</b></p>
-            <p>⬆ Do nastepnego levela: <b>${nextLevelLabel}</b></p>
-            <p>🏍️ Zasieg motocykla: <b>${actionRange} m</b></p>
+            <p>${ghostLabel("profile.clusters")} <b>${ghostNumber(territoryStats.clusters_count || 0)}</b></p>
+            <p>${ghostLabel("profile.area")} <b>${ghostNumber(totalArea)} m²</b></p>
+            <p>${ghostLabel("profile.next")} <b>${nextLevelLabel}</b></p>
+            <p>${ghostLabel("profile.range")} <b>${ghostNumber(actionRange)} m</b></p>
 
             <hr>
 
-            <p>📦 Aplikacje: <b>${appsCount}</b></p>
-            <p>📍 Pozycja: <b>lat: ${currentPosition.lat ?? '-'}, lng: ${currentPosition.lng ?? '-'}</b></p>
+            <p>${ghostLabel("profile.apps")} <b>${ghostNumber(appsCount)}</b></p>
+            <p>${ghostLabel("profile.position")} <b>lat: ${currentPosition.lat ?? '-'}, lng: ${currentPosition.lng ?? '-'}</b></p>
 
             <hr>
             <details class="profile-security-collapse">
-                <summary>Zabezpieczenia</summary>
+                <summary>${ghostLabel("profile.security")}</summary>
                 <div class="profile-security-status"></div>
-                <div class="profile-security-list">${securityControls || '<span class="profile-security-empty">Brak boolean security.</span>'}</div>
+                <div class="profile-security-list">${securityControls || `<span class="profile-security-empty">${ghostLabel("profile.security_empty")}</span>`}</div>
             </details>
     `;
 
@@ -12440,7 +12521,7 @@ async function createProfile() {
             const key = toggle.dataset.securityKey;
             const value = toggle.checked;
             const status = term.querySelector('.profile-security-status');
-            status.textContent = 'Zapisywanie...';
+            ghostSet(status, "profile.saving");
 
             try {
                 const res = await fetch('/api/profile/security', {
@@ -12451,7 +12532,7 @@ async function createProfile() {
                 const data = await res.json();
 
                 if (!res.ok || !data.success) {
-                    throw new Error(data.error || 'Nie udalo sie zapisac.');
+                    throw new Error(data.message_i18n?.key || "profile.save_failed");
                 }
 
                 term.querySelectorAll('.profile-security-toggle').forEach(item => {
@@ -12459,18 +12540,16 @@ async function createProfile() {
                     if (typeof data.security[itemKey] === 'boolean') {
                         item.checked = data.security[itemKey];
                         const row = item.closest('.profile-security-tile');
-                        row.querySelector('.profile-security-state').textContent = item.checked ? 'ON' : 'OFF';
+                        ghostSet(row.querySelector(".profile-security-state"), item.checked ? "profile.on" : "profile.off");
                         row.classList.toggle('is-on', item.checked);
                         row.classList.toggle('is-off', !item.checked);
                     }
                 });
 
-                status.textContent = data.changed_by_rules.length
-                    ? `Reguly konfliktu wylaczyly: ${data.changed_by_rules.join(', ')}`
-                    : 'Zapisano.';
+                ghostSet(status, data.changed_by_rules.length ? 'profile.conflict' : 'profile.saved', data.changed_by_rules.length ? {names: data.changed_by_rules.join(', ')} : {});
             } catch (err) {
                 toggle.checked = !value;
-                status.textContent = err.message;
+                ghostSet(status, err.message.startsWith("profile.") ? err.message : "profile.save_failed");
             }
         });
     });
@@ -12490,7 +12569,7 @@ async function getDesktopBootProfile() {
             return data;
         } catch (error) {
             if (!desktopSessionActive) return null;
-            setBootProgress(12, 'Oczekiwanie na gotowość pulpitu...');
+            setBootProgress(12, ({key:"shell.boot.wait",params:{}}));
             await new Promise(resolve => setTimeout(resolve, Math.min(30000, 5000 * ++attempt)));
         }
     }
@@ -12549,7 +12628,7 @@ function updateWalletBalanceView(balance, currency = "HC", reserved = 0) {
     });
 
     document.querySelectorAll('[data-wallet-balance]').forEach(node => {
-        node.textContent = `Saldo: ${normalizedBalance} ${currency || 'HC'}${reserved ? ` · rezerwacja: ${Number(reserved)} HC · dostępne: ${Math.max(0, normalizedBalance - Number(reserved))} HC` : ''}`;
+        renderWalletBalance(node, normalizedBalance, reserved);
     });
     document.querySelectorAll('.googolplex-wallet').forEach(node => {
         node.textContent = `HackCoiny: ${normalizedBalance}`;
@@ -12570,10 +12649,10 @@ function renderStorageMeterInner(summary) {
     const capacity = Math.max(1, Number(summary.capacity || 1));
     const used = Math.max(0, Number(summary.used || 0));
     const percent = Math.max(0, Math.min(100, Math.round((used / capacity) * 100)));
-    const warning = summary.overLimit ? '<span class="file-manager-storage-warning">ponad limit miękki</span>' : '';
+    const warning = summary.overLimit ? `<span class="file-manager-storage-warning">${ghostLabel("files.soft_limit")}</span>` : '';
     return `
         <div class="file-manager-storage-top">
-            <span>Dysk</span>
+            <span>${ghostLabel("files.disk_heading")}</span>
             <b data-storage-label>${escapeHTML(formatStorageSize(used, summary.unit))} / ${escapeHTML(formatStorageSize(summary.capacity, summary.unit))}</b>
         </div>
         <div class="file-manager-storage-bar"><span data-storage-fill style="width:${percent}%"></span></div>
@@ -16248,7 +16327,7 @@ async function openGhostLabFile(projectId) {
     try {
         const response = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/open`);
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.message || 'Nie można otworzyć projektu.');
+        if (!response.ok || !data.success) throw new Error(ghostText('files.project_failed'));
         const existing = document.querySelector('.terminal[data-app="ghostlab"] .ghostlab-shell');
         if (existing?._ghostLabEditingProject && ghostLabBlueprintDirty(existing, existing._ghostLabEditingProject)) {
             bringWindowToFront(existing.closest('.terminal'));
@@ -16731,8 +16810,8 @@ window.openToolSelectionForMapAction = async function(payload) {
 function renderFileManagerMarkdown(markdown) {
     const renderMarkdownInline = (text) => {
         return escapeHTML(text)
-            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>');
+            .replace(/\*\*([^*]+)\*\*/g, `<strong>$1</strong>`)
+            .replace(/`([^`]+)`/g, `<code>$1</code>`);
     };
     const renderDocument = (markdown) => {
         const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
@@ -16741,13 +16820,13 @@ function renderFileManagerMarkdown(markdown) {
         let codeOpen = false;
         const closeList = () => {
             if (listOpen) {
-                html += '</ul>';
+                html += `</ul>`;
                 listOpen = false;
             }
         };
         const closeCode = () => {
             if (codeOpen) {
-                html += '</code></pre>';
+                html += `</code></pre>`;
                 codeOpen = false;
             }
         };
@@ -16759,7 +16838,7 @@ function renderFileManagerMarkdown(markdown) {
                 closeList();
                 if (codeOpen) closeCode();
                 else {
-                    html += '<pre><code>';
+                    html += `<pre><code>`;
                     codeOpen = true;
                 }
                 return;
@@ -16782,7 +16861,7 @@ function renderFileManagerMarkdown(markdown) {
             const bullet = trimmed.match(/^[-*]\s+(.+)$/);
             if (bullet) {
                 if (!listOpen) {
-                    html += '<ul>';
+                    html += `<ul>`;
                     listOpen = true;
                 }
                 html += `<li>${renderMarkdownInline(bullet[1])}</li>`;
@@ -16802,18 +16881,18 @@ function renderFileManagerMarkdown(markdown) {
 function renderFileManagerLoadError(container, reason, retry) {
     if (!container) return;
     const message = reason === 'inventory_unavailable'
-        ? 'Ekwipunek konta nie został zainicjalizowany. Wymagana jest naprawa danych konta przez administratora.'
+        ? "files.inventory_missing"
         : reason === 'session_generation_mismatch'
-            ? 'Sesja uległa zmianie. Odśwież pulpit, aby ponownie otworzyć pliki.'
-            : 'Nie udało się wczytać plików. Spróbuj ponownie.';
+            ? "files.session_changed"
+            : "files.load_failed";
     const panel = document.createElement('div');
     panel.className = 'file-manager-load-error';
     panel.setAttribute('role', 'alert');
     const text = document.createElement('p');
-    text.textContent = message;
+    ghostSet(text, message);
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Spróbuj ponownie';
+    ghostSet(button, "files.retry");
     button.addEventListener('click', retry);
     panel.append(text, button);
     container.replaceChildren(panel);
@@ -16836,6 +16915,7 @@ async function createFileManager(options = {}) {
     const term = document.createElement('div');
     term.className = 'terminal';
     term.dataset.app = "files";
+    term.dataset.appTitleKey = "files.title";
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
@@ -16955,7 +17035,7 @@ async function createFileManager(options = {}) {
             }
         ]
     };
-    const getFolderLabel = (folderName) => folderLabels[folderName] || folderName;
+    const getFolderLabel = (folderName) => folderLabels[folderName] ? ghostText("files.folder." + folderName) : folderName;
     const getFolderIcon = (folderName) => folderIcons[folderName] || fileManagerUiIcons.file;
     const getStaticDocFile = (folderName, filename) => {
         const docs = fileManagerStaticDocs[folderName] || [];
@@ -16968,63 +17048,24 @@ async function createFileManager(options = {}) {
     };
     const getFileOperationLabel = (fileEntry) => {
         const operationType = getFileOperationType(fileEntry);
-        return operationTypeLabels[operationType] || operationType || '-';
+        return operationTypeLabels[operationType] ? ghostText("files.operation." + operationType) : operationType || "-";
     };
-    const polishFileManagerText = (root) => {
-        if (!root) return;
-        const replacements = [
-            [/Kompletno[^\s:]*/g, 'Kompletno\u015b\u0107'],
-            [/Jako[^\s:]*/g, 'Jako\u015b\u0107'],
-            [/warto[^\s:]*/g, 'warto\u015b\u0107'],
-            [/Warto[^\s:]*/g, 'Warto\u015b\u0107'],
-            [/Dok[^\s:]*/g, 'Dok\u0142adno\u015b\u0107'],
-            [/Pewno[^\s:]*/g, 'Pewno\u015b\u0107'],
-            [/Brak plik[^\s.]*/g, 'Brak plik\u00f3w'],
-            [/Brak zasob[^\s.]*/g, 'Brak zasob\u00f3w'],
-            [/Brak checkpoint[^\s.]*/g, 'Brak checkpoint\u00f3w'],
-            [/U[^\s]*yj/g, 'U\u017cyj'],
-            [/pod[^\s]*wietlone narz[^\s.]*dzie/g, 'pod\u015bwietlone narz\u0119dzie'],
-            [/Wr[^\s]*/g, 'Wr\u00f3\u0107'],
-            [/Mened[^\s]*er plik[^\s]*/g, 'Mened\u017cer plik\u00f3w']
-        ];
-        root.querySelectorAll('.file-manager-back-btn').forEach(button => {
-            if (button.dataset.polishedBack !== '1') {
-                button.innerHTML = '&larr; Wr&oacute;&cacute;';
-                button.dataset.polishedBack = '1';
-            }
-        });
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-        const nodes = [];
-        while (walker.nextNode()) nodes.push(walker.currentNode);
-        nodes.forEach(node => {
-            // Authored documents are immutable content, not legacy UI labels.
-            if (node.parentElement?.closest('.file-manager-markdown')) return;
-            let value = node.nodeValue || '';
-            replacements.forEach(([pattern, replacement]) => {
-                value = value.replace(pattern, replacement);
-            });
-            if (value !== node.nodeValue) node.nodeValue = value;
-        });
-    };
-
     term.innerHTML = `
         <div class="title-bar">
-            Menedżer plików
+            ${ghostLabel("files.title")}
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="file-manager-workspace" style="flex:1; overflow-y:auto; font-family: monospace;" id="${terminalId}-content">
             <div class="app-load-panel">
-                <div class="app-load-panel__title">Ladowanie plikow...</div>
+                <div class="app-load-panel__title">${ghostLabel("files.loading")}</div>
                 <div class="app-load-panel__bar"><span></span></div>
-                <div class="app-load-panel__text">Pobieranie profilu i modelu plikow...</div>
+                <div class="app-load-panel__text">${ghostLabel("files.sync")}</div>
             </div>
         </div>
     `;
 
     document.body.appendChild(term);
     makeDraggable(term);
-    const fileManagerTitle = term.querySelector('.title-bar');
-    if (fileManagerTitle && fileManagerTitle.firstChild) fileManagerTitle.firstChild.nodeValue = 'Menedżer plików ';
     const fileManagerClose = term.querySelector('.close-btn');
     if (fileManagerClose) fileManagerClose.textContent = 'x';
     const fileManagerContent = document.getElementById(`${terminalId}-content`);
@@ -17034,16 +17075,7 @@ async function createFileManager(options = {}) {
             event.target.click();
         }
     });
-    const fileManagerObserver = new MutationObserver(() => polishFileManagerText(fileManagerContent));
-    term._fileManagerObserver = fileManagerObserver;
-    if (fileManagerContent) {
-        fileManagerObserver.observe(fileManagerContent, { childList: true, subtree: true, characterData: true });
-        polishFileManagerText(fileManagerContent);
-    }
-    term.querySelector('.close-btn').addEventListener('click', () => {
-        fileManagerObserver.disconnect();
-        term.remove();
-    });
+    term.querySelector(".close-btn").addEventListener("click", () => term.remove());
 
     // GLab files and PTK use canonical inventory; legacy folders load on demand.
     let profileData = null;
@@ -17065,7 +17097,7 @@ async function createFileManager(options = {}) {
         try {
             const response = await fetch(`/api/ghostlab/${endpoint}`);
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message || 'Nie można wczytać katalogu.');
+            if (!response.ok) throw new Error(data.message || ghostText("files.directory_failed"));
             files[folder] = data.files || [];
         } catch (error) { addSystemMessage('warning', 'Pliki', error.message); files[folder] = []; }
     }
@@ -17103,7 +17135,7 @@ async function createFileManager(options = {}) {
     if (fileManagerContent) {
         fileManagerContent.innerHTML = `
             ${storageMeterHTML()}
-            <h3>Katalogi:</h3>
+            <h3>${ghostLabel("files.folders")}</h3>
             <div id="${terminalId}-folders"></div>
         `;
     }
@@ -17119,7 +17151,7 @@ async function createFileManager(options = {}) {
             folder.type = 'button';
             folder.className = 'file-manager-folder';
             const folderLabel = getFolderLabel(dir);
-            folder.innerHTML = `<span class="file-manager-folder-icon" aria-hidden="true">📂</span><span><b>${escapeHTML(folderLabel)}</b><small>/${escapeHTML(dir)}</small></span><span aria-hidden="true">›</span>`;
+            folder.innerHTML = `<span class="file-manager-folder-icon" aria-hidden="true">📂</span><span><b>${ghostLabel("files.folder." + dir)}</b><small>/${escapeHTML(dir)}</small></span><span aria-hidden="true">›</span>`;
             folder.addEventListener('click', () => window.openFolderInManager(terminalId, dir));
             foldersDiv.appendChild(folder);
         });
@@ -17133,7 +17165,7 @@ async function createFileManager(options = {}) {
             try {
                 const response = await fetch(`/api/ghostlab/${folderName === 'ghostlab' ? 'files' : 'documents'}`);
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Błąd katalogu.');
+                if (!response.ok) throw new Error(data.message || ghostText("files.directory_error"));
                 if (!container.isConnected || state?.currentFolder !== folderName) return;
                 files[folderName] = data.files || [];
             } catch (error) { addSystemMessage('warning', 'Pliki', error.message); return; }
@@ -17167,7 +17199,7 @@ async function createFileManager(options = {}) {
                     <div class="file-manager-file" onclick="window.runFile('${folderName}','${escapeHTML(docFile.name)}')">
                         <span class="file-manager-icon">PTK</span>
                         <span class="file-manager-name">${escapeHTML(docFile.name)}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${escapeHTML(docFile.title || 'Dokument')} | ${escapeHTML(docFile.format || 'text')} | ${escapeHTML(docFile.source || '')}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${escapeHTML(docFile.title || ghostText("files.document"))} | ${escapeHTML(docFile.format || 'text')} | ${escapeHTML(docFile.source || '')}</span>
                     </div>
                 </div>
             `;
@@ -17210,7 +17242,7 @@ async function createFileManager(options = {}) {
                 const toolDiskUsage = Number((toolMeta || {}).disk_usage || (toolMeta || {}).install_size || (toolMeta || {}).file_size || 0);
                 const toolAppId = String((toolMeta || {}).id || "");
                 const toolSizeLine = toolDiskUsage
-                    ? `<span class="file-manager-tool-meta">Dysk: ${escapeHTML(formatStorageSize(toolDiskUsage))}</span>`
+                    ? `<span class="file-manager-tool-meta">${ghostLabel("files.disk")} ${escapeHTML(formatStorageSize(toolDiskUsage))}</span>`
                     : '';
                 const toolContractLine = toolMeta ? `
                     <span class="file-manager-tool-meta">
@@ -17229,11 +17261,11 @@ async function createFileManager(options = {}) {
                             ${toolContractLine}
                             ${isMatchingTool ? `
                                 <button class="file-manager-tool-select" data-app-id="${escapeHTML(matchingTool.id || '')}" onclick="event.stopPropagation();window.selectMapActionTool('${escapeHTML(matchingTool.id || '')}')">
-                                    U\u017cyj
+                                    ${ghostLabel("files.use")}
                                 </button>
                             ` : ''}
                             <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.uninstallApp('${escapeHTML(filename)}', '${escapeHTML(toolAppId)}')">
-                                ${fileManagerUiIcons.uninstall} <span class="file-manager-uninstall-label">Odinstaluj</span>
+                                ${fileManagerUiIcons.uninstall} <span class="file-manager-uninstall-label">${ghostLabel("files.uninstall")}</span>
                             </button>
                         </span>
                     </div>
@@ -17253,7 +17285,7 @@ async function createFileManager(options = {}) {
                             <span class="file-manager-icon">${escapeHTML(projectMeta.icon || fileManagerUiIcons.project)}</span>
                             <span class="file-manager-name">${escapeHTML(projectMeta.name || filename)}</span>
                             <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.removeProjectFromGoogleplex(decodeURIComponent('${encodeURIComponent(filename).replace(/'/g, '%27')}'))">
-                                Wycofaj
+                                ${ghostLabel("files.withdraw")}
                             </button>
                         </span>
                     </div>
@@ -17269,7 +17301,7 @@ async function createFileManager(options = {}) {
                     const sourceOperation = fileEntry.source_operation_id || fileEntry.operation_id || (fileEntry.metadata || {}).operation_id || '-';
                     const marketStatus = fileEntry.market_status || 'not_listed';
                     const operationLabel = getFileOperationLabel(fileEntry);
-                    const sellableLabel = fileEntry.sellable ? 'tak' : 'nie';
+                    const sellableLabel = fileEntry.sellable ? ghostText("files.yes") : ghostText("files.no");
                     const completeness = fileEntry.completeness_percent ?? (fileEntry.metadata || {}).completeness_percent ?? 0;
                     const qualityScore = fileEntry.quality_score ?? (fileEntry.metadata || {}).quality_score ?? 0;
                     const fileSize = fileEntry.file_size ?? (fileEntry.metadata || {}).file_size ?? 0;
@@ -17278,10 +17310,10 @@ async function createFileManager(options = {}) {
                         : (Array.isArray((fileEntry.metadata || {}).missing_fields) ? (fileEntry.metadata || {}).missing_fields : []);
                     meta = `
                         <span class="file-manager-name" style="display:block;color:#8fd6a4;font-size:11px;">${escapeHTML(fileEntry.directory || folderName)} | ${escapeHTML(category)} | ${escapeHTML(previewMode)}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Zasoby: ${escapeHTML(resources)} | Typ: ${escapeHTML(operationLabel)} | Operacja: ${escapeHTML(sourceOperation)}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Rynek: ${escapeHTML(marketStatus)} | Sprzedawalny: ${escapeHTML(sellableLabel)}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Rozmiar: ${escapeHTML(formatStorageSize(fileSize))}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Kompletno\u015b\u0107: ${escapeHTML(String(completeness))}% | Jako\u015b\u0107: ${escapeHTML(String(qualityScore))}/100 | Braki: ${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${ghostLabel("files.resources")} ${escapeHTML(resources)} | ${ghostLabel("files.type")} ${ghostSystemValue("files.operation.", getFileOperationType(fileEntry))} | ${ghostLabel("files.operation")} ${escapeHTML(sourceOperation)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${ghostLabel("files.market")} ${escapeHTML(marketStatus)} | ${ghostLabel("files.sellable")} ${escapeHTML(sellableLabel)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${ghostLabel("files.size")} ${escapeHTML(formatStorageSize(fileSize))}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${ghostLabel("files.complete")} ${escapeHTML(String(completeness))}% | ${ghostLabel("files.quality")} ${escapeHTML(String(qualityScore))}/100 | ${ghostLabel("files.missing")} ${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : ghostText("profile.none"))}</span>
                     `;
                 }
                 list += `
@@ -17304,7 +17336,7 @@ async function createFileManager(options = {}) {
                 const filename = String(app.tool_file || `${name}.sh`);
                 const appDiskUsage = Number(app.disk_usage || app.install_size || app.file_size || 0);
                 const appSizeLine = appDiskUsage
-                    ? `<span class="file-manager-tool-meta">Dysk: ${escapeHTML(formatStorageSize(appDiskUsage))}</span>`
+                    ? `<span class="file-manager-tool-meta">${ghostLabel("files.disk")} ${escapeHTML(formatStorageSize(appDiskUsage))}</span>`
                     : '';
                 list += `
                     <div class="file-manager-row file-manager-row-dark file-manager-row-match">
@@ -17313,7 +17345,7 @@ async function createFileManager(options = {}) {
                             <span class="file-manager-name">${escapeHTML(filename)}</span>
                             ${appSizeLine}
                             <button class="file-manager-tool-select" data-app-id="${escapeHTML(appId)}" onclick="event.stopPropagation();window.selectMapActionTool('${escapeHTML(appId)}')">
-                                    U\u017cyj
+                                    ${ghostLabel("files.use")}
                             </button>
                         </span>
                     </div>
@@ -17321,18 +17353,18 @@ async function createFileManager(options = {}) {
             });
         }
 
-        if (!list) list = `<div class="file-manager-empty">Brak plik\u00f3w</div>`;
+        if (!list) list = `<div class="file-manager-empty">${ghostLabel("files.empty")}</div>`;
         const selectionHeader = folderName === "tools" && window.activeToolSelection ? `
             <div class="file-manager-selection-hint">
-                Akcja mapy: <b>${escapeHTML(window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || '-')}</b>.
-                Wybierz pod\u015bwietlone narz\u0119dzie.
+                ${ghostLabel("files.map_action")} <b>${escapeHTML(window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || '-')}</b>.
+                ${ghostLabel("files.choose_highlighted")}
             </div>
         ` : "";
 
         container.innerHTML = `
             <div class="file-manager-header">
-                <button class="file-manager-back-btn" onclick="window.renderFoldersRoot('${id}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
-                <span class="file-manager-folder-title">${fileManagerUiIcons.folder} ${escapeHTML(getFolderLabel(folderName))} <small style="color:#6fbf89;">/${escapeHTML(folderName)}</small></span>
+                <button class="file-manager-back-btn" onclick="window.renderFoldersRoot('${id}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
+                <span class="file-manager-folder-title">${fileManagerUiIcons.folder} ${ghostLabel("files.folder." + folderName)} <small style="color:#6fbf89;">/${escapeHTML(folderName)}</small></span>
             </div>
             ${storageMeterHTML()}
             ${selectionHeader}
@@ -17350,7 +17382,7 @@ async function createFileManager(options = {}) {
         if (state) state.currentFolder = null;
         container.innerHTML = `
             ${storageMeterHTML()}
-            <h3>Katalogi:</h3>
+            <h3>${ghostLabel("files.folders")}</h3>
             <div id="${id}-folders"></div>
         `;
         renderFolders();
@@ -17362,7 +17394,7 @@ async function createFileManager(options = {}) {
             try {
                 const response = await fetch('/api/creators/project-file?name=' + encodeURIComponent(filename), {cache: 'no-store'});
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Nie można otworzyć projektu.');
+                if (!response.ok) throw new Error(ghostText('files.project_failed'));
                 await window.CreatorEditor.launch(data.project.contract.interface, data.project.id);
             } catch (error) { addSystemMessage('warning', 'Projekt', error.message); }
             return;
@@ -17372,13 +17404,13 @@ async function createFileManager(options = {}) {
             try {
                 const response = await fetch(`/api/ghostlab/documents/${encodeURIComponent(filename)}`);
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Nie można otworzyć dokumentu.');
+                if (!response.ok) throw new Error(ghostText('files.document_failed'));
                 const doc = data.document;
                 const container = document.getElementById(`${terminalId}-content`);
                 container.innerHTML = `<div class="file-manager-header"><button class="file-manager-back-btn"
-                    onclick="window.openFolderInManager('${terminalId}', 'documents')">Wróć</button></div>
+                    onclick="window.openFolderInManager('${terminalId}', 'documents')">${ghostLabel("files.back")}</button></div>
                     <div class="file-manager-document-shell"><div class="file-manager-document-meta">
-                    Materiał gracza: ${escapeHTML(doc.author)} · ${escapeHTML(doc.title)} · v${Number(doc.version)}
+                    ${ghostLabel("files.player_material")} ${escapeHTML(doc.author)} · ${escapeHTML(doc.title)} · v${Number(doc.version)}
                     </div><article class="file-manager-markdown">${renderFileManagerMarkdown(doc.content)}</article></div>`;
             } catch (error) { addSystemMessage('warning', 'Dokument PTK', error.message); }
             return;
@@ -17388,12 +17420,12 @@ async function createFileManager(options = {}) {
             const container = document.getElementById(`${terminalId}-content`);
             container.innerHTML = `
                 <div class="file-manager-header">
-                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                     <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(staticDoc.name)}</span>
                 </div>
                 <div class="file-manager-row file-manager-row-dark" style="display:block;">
                     <div class="app-load-panel">
-                        <div class="app-load-panel__title">Ladowanie dokumentu...</div>
+                        <div class="app-load-panel__title">${ghostLabel("files.document_loading")}</div>
                         <div class="app-load-panel__bar"><span></span></div>
                         <div class="app-load-panel__text">${escapeHTML(staticDoc.source)}</div>
                     </div>
@@ -17405,12 +17437,12 @@ async function createFileManager(options = {}) {
                 const markdown = await response.text();
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(staticDoc.name)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark file-manager-document-shell">
                         <div class="file-manager-document-meta">
-                            Source: <span>${escapeHTML(staticDoc.source)}</span>
+                            ${ghostLabel("files.source")} <span>${escapeHTML(staticDoc.source)}</span>
                         </div>
                         <article class="file-manager-markdown">
                             ${renderFileManagerMarkdown(markdown)}
@@ -17420,13 +17452,13 @@ async function createFileManager(options = {}) {
             } catch (err) {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(staticDoc.name)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
-                        <h3>Nie udalo sie wczytac dokumentu</h3>
-                        <p>${escapeHTML(err.message || 'Nieznany blad')}</p>
-                        <p>Source: <b>${escapeHTML(staticDoc.source)}</b></p>
+                        <h3>${ghostLabel("files.document_failed")}</h3>
+                        <p>${escapeHTML(err.message || ghostText('files.document_failed'))}</p>
+                        <p>${ghostLabel("files.source")} <b>${escapeHTML(staticDoc.source)}</b></p>
                     </div>
                 `;
             }
@@ -17458,28 +17490,28 @@ async function createFileManager(options = {}) {
             if (fileEntry.preview_mode === "card") {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(summary.label || 'Device Intelligence')}</h3>
-                        <p>Plik: <b>${escapeHTML(filename)}</b></p>
-                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
-                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>Typ operacji: <b>${escapeHTML(operationLabel)}</b></p>
-                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
-                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
-                        <p>Kompletność: <b>${escapeHTML(String(summary.completeness_percent ?? completeness.percent ?? 0))}%</b></p>
-                        <p>Tier: <b>${escapeHTML(summary.tier || completeness.tier || 'basic')}</b></p>
+                        <p>${ghostLabel("files.file")} <b>${escapeHTML(filename)}</b></p>
+                        <p>${ghostLabel("files.folder")} <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>${ghostLabel("files.operation")} <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>${ghostLabel("files.operation_type")} <b>${ghostSystemValue("files.operation.", getFileOperationType(fileEntry))}</b></p>
+                        <p>${ghostLabel("files.quality")} <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>${ghostLabel("files.missing")} <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : ghostText("profile.none"))}</b></p>
+                        <p>${ghostLabel("files.value")} <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>${ghostLabel("files.complete")} <b>${escapeHTML(String(summary.completeness_percent ?? completeness.percent ?? 0))}%</b></p>
+                        <p>${ghostLabel("files.tier")} <b>${escapeHTML(summary.tier || completeness.tier || 'basic')}</b></p>
                         <div style="height:10px;border:1px solid #0f0;background:#031403;margin:8px 0 12px;">
                             <div style="height:100%;width:${Math.max(0, Math.min(100, Number(summary.completeness_percent ?? completeness.percent ?? 0)))}%;background:#38ff80;"></div>
                         </div>
-                        <h4>Zasoby w paczce</h4>
+                        <h4>${ghostLabel("files.package_resources")}</h4>
                         <ul>
-                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobów.</li>'}
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || `<li>${ghostLabel("files.no_resources")}</li>`}
                         </ul>
-                        <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b></p>
+                        <p>${ghostLabel("files.quality")} <b>${escapeHTML(metadata.quality || '-')}</b></p>
                     </div>
                 `;
                 return;
@@ -17497,36 +17529,36 @@ async function createFileManager(options = {}) {
                 `).join('');
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(filename)}</h3>
-                        <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
-                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
-                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
-                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
-                        <p>Rekordy: <b>${escapeHTML(String(metadata.record_count ?? records.length))}</b></p>
-                        <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || 'high-value/high-risk')}</b></p>
-                        <h4>Zasoby</h4>
+                        <p>${ghostLabel("files.category")} <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
+                        <p>${ghostLabel("files.folder")} <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>${ghostLabel("files.operation")} <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>${ghostLabel("files.complete")} <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>${ghostLabel("files.quality")} <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>${ghostLabel("files.missing")} <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : ghostText("profile.none"))}</b></p>
+                        <p>${ghostLabel("files.value")} <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>${ghostLabel("files.records")} <b>${escapeHTML(String(metadata.record_count ?? records.length))}</b></p>
+                        <p>${ghostLabel("files.risk")} <b>${escapeHTML(metadata.risk_hint || 'high-value/high-risk')}</b></p>
+                        <h4>${ghostLabel("files.resource_heading")}</h4>
                         <ul>
-                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || `<li>${ghostLabel("files.no_resources_ascii")}</li>`}
                         </ul>
                         <table style="width:100%;border-collapse:collapse;margin-top:10px;">
                             <thead>
                                 <tr>
                                     <th style="text-align:left;border-bottom:1px solid #0f0;">#</th>
-                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Czas</th>
-                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Konto</th>
-                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Event</th>
-                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Kwota</th>
-                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Pewnosc</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">${ghostLabel("files.time")}</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">${ghostLabel("files.account")}</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">${ghostLabel("files.event")}</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">${ghostLabel("files.amount")}</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">${ghostLabel("files.confidence")}</th>
                                 </tr>
                             </thead>
-                            <tbody>${recordRows || '<tr><td colspan="6">Brak rekordow.</td></tr>'}</tbody>
+                            <tbody>${recordRows || `<tr><td colspan="6">${ghostLabel("files.no_records")}</td></tr>`}</tbody>
                         </table>
                     </div>
                 `;
@@ -17535,7 +17567,7 @@ async function createFileManager(options = {}) {
             if (fileEntry.preview_mode === "encrypted_blob") {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
@@ -17544,21 +17576,21 @@ async function createFileManager(options = {}) {
                             <div style="font-size:12px;letter-spacing:2px;">ENCRYPTED BLOB</div>
                             <div style="font-size:20px;margin-top:8px;">•••• •••• •••• ••••</div>
                         </div>
-                        <p>Plik: <b>${escapeHTML(filename)}</b></p>
-                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
-                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
-                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
-                        <p>Zebrane wpisy: <b>${escapeHTML(String(summary.credential_count || metadata.collected_count || 0))}</b></p>
-                        <p>Instalacja: <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
-                        <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
-                        <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || 'long_operation/sniffer_detected/high_value')}</b></p>
-                        <p>Dane jawne: <b>NIE</b></p>
-                        <h4>Zasoby</h4>
+                        <p>${ghostLabel("files.file")} <b>${escapeHTML(filename)}</b></p>
+                        <p>${ghostLabel("files.folder")} <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>${ghostLabel("files.operation")} <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>${ghostLabel("files.complete")} <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>${ghostLabel("files.quality")} <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>${ghostLabel("files.missing")} <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : ghostText("profile.none"))}</b></p>
+                        <p>${ghostLabel("files.value")} <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>${ghostLabel("files.collected")} <b>${escapeHTML(String(summary.credential_count || metadata.collected_count || 0))}</b></p>
+                        <p>${ghostLabel("files.installed")} <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
+                        <p>${ghostLabel("files.end")} <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
+                        <p>${ghostLabel("files.risk")} <b>${escapeHTML(metadata.risk_hint || 'long_operation/sniffer_detected/high_value')}</b></p>
+                        <p>${ghostLabel("files.public")} <b>${ghostLabel("files.no_upper")}</b></p>
+                        <h4>${ghostLabel("files.resource_heading")}</h4>
                         <ul>
-                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || `<li>${ghostLabel("files.no_resources_ascii")}</li>`}
                         </ul>
                     </div>
                 `;
@@ -17567,21 +17599,21 @@ async function createFileManager(options = {}) {
             if (fileEntry.preview_mode === "operation_state") {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(filename)}</h3>
-                        <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
-                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
-                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>Stan: <b>${escapeHTML(metadata.state || fileEntry.status || '-')}</b></p>
-                        <p>Instalacja: <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
-                        <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
-                        <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || '-')}</b></p>
-                        <h4>Zasoby</h4>
+                        <p>${ghostLabel("files.category")} <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
+                        <p>${ghostLabel("files.folder")} <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>${ghostLabel("files.operation")} <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>${ghostLabel("files.state")} <b>${escapeHTML(metadata.state || fileEntry.status || '-')}</b></p>
+                        <p>${ghostLabel("files.installed")} <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
+                        <p>${ghostLabel("files.end")} <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
+                        <p>${ghostLabel("files.risk")} <b>${escapeHTML(metadata.risk_hint || '-')}</b></p>
+                        <h4>${ghostLabel("files.resource_heading")}</h4>
                         <ul>
-                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || `<li>${ghostLabel("files.no_resources_ascii")}</li>`}
                         </ul>
                     </div>
                 `;
@@ -17592,7 +17624,7 @@ async function createFileManager(options = {}) {
                 const durationLabel = `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`;
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                         <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
@@ -17600,21 +17632,21 @@ async function createFileManager(options = {}) {
                         <div style="height:130px;border:1px solid #0f0;background:linear-gradient(135deg,#020802,#071a10);display:flex;align-items:center;justify-content:center;margin:10px 0;color:#8fd6a4;letter-spacing:2px;">
                             MEDIA PLACEHOLDER
                         </div>
-                        <p>Plik: <b>${escapeHTML(filename)}</b></p>
-                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
-                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
-                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
-                        <p>Fragment: <b>${escapeHTML(String(fileEntry.fragment_index || metadata.fragment_index || '-'))}</b></p>
-                        <p>Czas fragmentu: <b>${escapeHTML(durationLabel)}</b></p>
-                        <p>Start: <b>${escapeHTML(metadata.started_at || '-')}</b></p>
-                        <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
-                        <p>Jakosc: <b>${escapeHTML(metadata.frame_quality || metadata.quality || '-')}</b></p>
-                        <h4>Zasoby</h4>
+                        <p>${ghostLabel("files.file")} <b>${escapeHTML(filename)}</b></p>
+                        <p>${ghostLabel("files.folder")} <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>${ghostLabel("files.operation")} <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>${ghostLabel("files.complete")} <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>${ghostLabel("files.quality")} <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>${ghostLabel("files.missing")} <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : ghostText("profile.none"))}</b></p>
+                        <p>${ghostLabel("files.value")} <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>${ghostLabel("files.fragment")} <b>${escapeHTML(String(fileEntry.fragment_index || metadata.fragment_index || '-'))}</b></p>
+                        <p>${ghostLabel("files.time")} fragmentu: <b>${escapeHTML(durationLabel)}</b></p>
+                        <p>${ghostLabel("files.start")} <b>${escapeHTML(metadata.started_at || '-')}</b></p>
+                        <p>${ghostLabel("files.end")} <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
+                        <p>${ghostLabel("files.quality_ascii")} <b>${escapeHTML(metadata.frame_quality || metadata.quality || '-')}</b></p>
+                        <h4>${ghostLabel("files.resource_heading")}</h4>
                         <ul>
-                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || `<li>${ghostLabel("files.no_resources_ascii")}</li>`}
                         </ul>
                     </div>
                 `;
@@ -17630,37 +17662,37 @@ async function createFileManager(options = {}) {
             `).join('');
             container.innerHTML = `
                 <div class="file-manager-header">
-                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} ${ghostLabel("files.back")}</button>
                     <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                 </div>
                 <div class="file-manager-row file-manager-row-dark" style="display:block;">
                     <h3>${escapeHTML(filename)}</h3>
-                    <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
-                    <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
-                    <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                    <p>Typ operacji: <b>${escapeHTML(operationLabel)}</b></p>
-                    <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                    <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
-                    <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                    <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
-                    <p>Checkpointy: <b>${escapeHTML(String(metadata.checkpoint_count ?? checkpoints.length))}</b></p>
-                    <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b> | Dokładność: <b>${escapeHTML(metadata.accuracy || '-')}</b></p>
+                    <p>${ghostLabel("files.category")} <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
+                    <p>${ghostLabel("files.folder")} <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                    <p>${ghostLabel("files.operation")} <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                    <p>${ghostLabel("files.operation_type")} <b>${ghostSystemValue("files.operation.", getFileOperationType(fileEntry))}</b></p>
+                    <p>${ghostLabel("files.complete")} <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                    <p>${ghostLabel("files.quality")} <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                    <p>${ghostLabel("files.missing")} <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : ghostText("profile.none"))}</b></p>
+                    <p>${ghostLabel("files.value")} <b>${escapeHTML(fileValuePreview)}</b></p>
+                    <p>${ghostLabel("files.checkpoints")} <b>${escapeHTML(String(metadata.checkpoint_count ?? checkpoints.length))}</b></p>
+                    <p>${ghostLabel("files.quality")} <b>${escapeHTML(metadata.quality || '-')}</b> | ${ghostLabel("files.accuracy")} <b>${escapeHTML(metadata.accuracy || '-')}</b></p>
                     <table style="width:100%;border-collapse:collapse;margin-top:10px;">
                         <thead>
                             <tr>
                                 <th style="text-align:left;border-bottom:1px solid #0f0;">#</th>
-                                <th style="text-align:left;border-bottom:1px solid #0f0;">Czas</th>
+                                <th style="text-align:left;border-bottom:1px solid #0f0;">${ghostLabel("files.time")}</th>
                                 <th style="text-align:left;border-bottom:1px solid #0f0;">Lat</th>
                                 <th style="text-align:left;border-bottom:1px solid #0f0;">Lng</th>
                             </tr>
                         </thead>
-                        <tbody>${checkpointRows || '<tr><td colspan="4">Brak checkpointów.</td></tr>'}</tbody>
+                        <tbody>${checkpointRows || `<tr><td colspan="4">${ghostLabel("files.no_checkpoints")}</td></tr>`}</tbody>
                     </table>
                 </div>
             `;
             return;
         }
-        addSystemMessage("info", "\u{1F4C1} Otwieranie pliku", `(Symulacja) Otwierasz plik: ${filename}`);
+        addSystemMessage("info", ghostText("files.opening"), ghostText("files.simulated_open", {name:filename}));
     };
     window.selectMapActionTool = selectMapActionTool;
     window.uninstallApp = async (appName, appId = "") => {
@@ -17675,7 +17707,7 @@ async function createFileManager(options = {}) {
             });
             const data = await response.json();
             if (!response.ok || data.success === false || data.status === "error") {
-                addSystemMessage("danger", "Deinstalacja", data.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");
+                addSystemMessage("danger", ghostText("files.uninstallation"), ghostText("files.uninstall_failed"));
                 return;
             }
             if (data.files && Array.isArray(data.files.tools)) {
@@ -17709,9 +17741,9 @@ async function createFileManager(options = {}) {
                     reason: "uninstall_response"
                 });
             }
-            addSystemMessage("warning", "Deinstalacja", data.message || `Odinstalowano ${appName}`);
+            addSystemMessage("warning", ghostText("files.uninstallation"), ghostText("files.uninstalled", {name:appName}));
         } catch (err) {
-            addSystemMessage("danger", "Deinstalacja", err.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");
+            addSystemMessage("danger", ghostText("files.uninstallation"), err.message || ghostText("files.uninstall_failed"));
         }
     };
     window.removeProjectFromGoogleplex = async (filename) => {
@@ -17722,7 +17754,7 @@ async function createFileManager(options = {}) {
         addSystemMessage(
             data.success ? "warning" : "danger",
             "Googleplex",
-            data.message || "Operacja zakonczona."
+            data.message || ghostText("files.done")
         );
         if (data.success) {
             const index = files.projects.indexOf(filename);
@@ -18915,7 +18947,7 @@ function sanitizeToastHTML(value) {
 function formatStorageSize(value, unit = "MB") {
     const number = Number(value || 0);
     if (!Number.isFinite(number) || number <= 0) return `0 ${unit}`;
-    return `${Math.round(number)} ${unit}`;
+    return `${window.GhostLocale ? window.GhostLocale.formatNumber(Math.round(number)) : Math.round(number)} ${unit}`;
 }
 
 function normalizeCybernerNotificationThread(message) {

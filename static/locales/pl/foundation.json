@@ -1,0 +1,81 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "locale": "pl",
+  "messages": {
+    "common.unavailable": {
+      "params": {},
+      "text": "Komunikat niedostępny."
+    },
+    "locale.label": {
+      "params": {},
+      "text": "Język interfejsu"
+    },
+    "locale.test_notice": {
+      "params": {},
+      "text": "Wersja testowa — tłumaczenie jest niepełne."
+    },
+    "locale.saved": {
+      "params": {},
+      "text": "Język zapisany."
+    },
+    "locale.invalid": {
+      "params": {},
+      "text": "Nieobsługiwany język interfejsu."
+    },
+    "locale.load_failed": {
+      "params": {},
+      "text": "Nie udało się wczytać języka. Zachowano poprzedni widok."
+    },
+    "shell.window.close": {
+      "params": {},
+      "text": "Zamknij"
+    },
+    "shell.window.minimize": {
+      "params": {},
+      "text": "Minimalizuj"
+    },
+    "shell.window.maximize": {
+      "params": {},
+      "text": "Pełny ekran"
+    },
+    "shell.window.restore": {
+      "params": {},
+      "text": "Przywróć okno"
+    },
+    "shell.desktop.files": {
+      "params": {},
+      "text": "Pliki"
+    },
+    "shell.desktop.map": {
+      "params": {},
+      "text": "Mapa"
+    },
+    "shell.desktop.profile": {
+      "params": {},
+      "text": "Profil"
+    },
+    "shell.desktop.settings": {
+      "params": {},
+      "text": "Ustawienia"
+    },
+    "shell.files.count": {
+      "params": {
+        "count": "number"
+      },
+      "plural": "count",
+      "forms": {
+        "one": "{count} plik",
+        "few": "{count} pliki",
+        "many": "{count} plików",
+        "other": "{count} pliku"
+      }
+    },
+    "shell.terminal.welcome": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Witaj, {name}."
+    }
+  }
+}

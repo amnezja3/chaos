@@ -9,7 +9,7 @@ class TerminalGeolocationCommandTests(unittest.TestCase):
         result = interpret_command("teleport cur:loc", {"username": "robot"})
 
         self.assertEqual(result["terminalGeolocationRequest"]["purpose"], "teleport")
-        self.assertIn("lokalizacji", result["response"])
+        self.assertEqual("terminal.wait_location", result["response_i18n"]["key"])
         self.assertNotIn("terminalTeleport", result)
 
     def test_cur_loc_is_case_insensitive(self):
@@ -51,7 +51,7 @@ class TerminalGeolocationCommandTests(unittest.TestCase):
         self.assertIn("focus cur:loc", help_text)
 
     def test_focus_frontend_opens_map_without_confirmation_or_position_write(self):
-        source = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         handler = source[
             source.index("function handleTerminalMapFocus"):
             source.index("function terminalGeolocationErrorMessage")

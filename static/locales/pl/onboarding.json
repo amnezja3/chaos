@@ -1,0 +1,353 @@
+{
+  "format_version": 1,
+  "locale": "pl",
+  "messages": {
+    "onboarding.setup": {
+      "params": {},
+      "text": "operator setup"
+    },
+    "onboarding.back": {
+      "params": {},
+      "text": "Wstecz"
+    },
+    "onboarding.finish": {
+      "params": {},
+      "text": "Zakoncz"
+    },
+    "onboarding.next": {
+      "params": {},
+      "text": "Dalej"
+    },
+    "onboarding.username": {
+      "params": {},
+      "text": "Nazwa uzytkownika"
+    },
+    "onboarding.username_hint": {
+      "params": {},
+      "text": "Login jest unikalny i bedzie widoczny w czesci systemowych logow."
+    },
+    "onboarding.choose_faction": {
+      "params": {},
+      "text": "Wybierz frakcje"
+    },
+    "onboarding.choose_role": {
+      "params": {},
+      "text": "Wybierz role"
+    },
+    "onboarding.role_hint": {
+      "params": {},
+      "text": "Profil operacyjny frakcji."
+    },
+    "onboarding.faction_first": {
+      "params": {},
+      "text": "Najpierw wybierz frakcje."
+    },
+    "onboarding.password": {
+      "params": {},
+      "text": "Haslo"
+    },
+    "onboarding.confirm_password": {
+      "params": {},
+      "text": "Powtorz haslo"
+    },
+    "onboarding.password_hint": {
+      "params": {},
+      "text": "System wymaga minimum 8 znakow, jednej litery i jednej cyfry."
+    },
+    "onboarding.email": {
+      "params": {},
+      "text": "E-mail odzyskiwania"
+    },
+    "onboarding.email_hint": {
+      "params": {},
+      "text": "Adres musi byc unikalny. W grze traktujemy go jak martwa skrzynke."
+    },
+    "onboarding.summary_username": {
+      "params": {},
+      "text": "Uzytkownik"
+    },
+    "onboarding.summary_email": {
+      "params": {},
+      "text": "Email"
+    },
+    "onboarding.summary_faction": {
+      "params": {},
+      "text": "Frakcja"
+    },
+    "onboarding.summary_role": {
+      "params": {},
+      "text": "Rola"
+    },
+    "onboarding.nick": {
+      "params": {},
+      "text": "Nick gracza"
+    },
+    "onboarding.username_placeholder": {
+      "params": {},
+      "text": "np. CyberPhoenix"
+    },
+    "onboarding.password_placeholder": {
+      "params": {},
+      "text": "Minimum 8 znakow, litera i cyfra"
+    },
+    "onboarding.confirm_placeholder": {
+      "params": {},
+      "text": "Potwierdz klucz"
+    },
+    "onboarding.nick_placeholder": {
+      "params": {},
+      "text": "np. NullRider"
+    },
+    "onboarding.password_short": {
+      "params": {},
+      "text": "Haslo musi miec co najmniej 8 znakow."
+    },
+    "onboarding.password_long": {
+      "params": {},
+      "text": "Haslo jest zbyt dlugie."
+    },
+    "onboarding.password_letter": {
+      "params": {},
+      "text": "Haslo musi zawierac przynajmniej jedna litere."
+    },
+    "onboarding.password_digit": {
+      "params": {},
+      "text": "Haslo musi zawierac przynajmniej jedna cyfre."
+    },
+    "onboarding.required": {
+      "params": {},
+      "text": "Uzupelnij wszystkie pola."
+    },
+    "onboarding.username_invalid": {
+      "params": {},
+      "text": "Login: 3-24 znaki, litery/cyfry oraz _, . albo -."
+    },
+    "onboarding.username_taken": {
+      "params": {},
+      "text": "Ta nazwa uzytkownika jest juz zajeta."
+    },
+    "onboarding.faction_required": {
+      "params": {},
+      "text": "Wybierz frakcje."
+    },
+    "onboarding.role_required": {
+      "params": {},
+      "text": "Wybierz role."
+    },
+    "onboarding.password_mismatch": {
+      "params": {},
+      "text": "Hasla nie sa takie same."
+    },
+    "onboarding.email_invalid": {
+      "params": {},
+      "text": "Podaj poprawny adres e-mail."
+    },
+    "onboarding.email_taken": {
+      "params": {},
+      "text": "Ten adres e-mail jest juz zarejestrowany."
+    },
+    "onboarding.installing": {
+      "params": {},
+      "text": "Instaluje..."
+    },
+    "onboarding.installing_profile": {
+      "params": {},
+      "text": "Instalacja profilu..."
+    },
+    "onboarding.failed": {
+      "params": {},
+      "text": "Nie udalo sie utworzyc profilu."
+    },
+    "onboarding.network": {
+      "params": {},
+      "text": "Blad sieci."
+    },
+    "onboarding.nick_invalid": {
+      "params": {},
+      "text": "Nick musi miec 2-32 znaki."
+    },
+    "onboarding.identity_invalid": {
+      "params": {},
+      "text": "Nieprawidlowa frakcja lub rola."
+    },
+    "onboarding.spawn_failed": {
+      "params": {},
+      "text": "Nie udalo sie wyznaczyc bezpiecznej pozycji startowej. Sprobuj ponownie."
+    },
+    "onboarding.story.0.title": {
+      "params": {},
+      "text": "GHOSTSYSTEM // pakiet z przeszlosci"
+    },
+    "onboarding.story.0.text": {
+      "params": {},
+      "text": "Rok 2108. MASA kontroluje miasta, trasy, banki i prywatne wspomnienia. Wlasnie odebrales pakiet, ktorego nie powinno byc w zadnym rejestrze. Pierwszy krok: nadaj sobie login."
+    },
+    "onboarding.story.1.title": {
+      "params": {},
+      "text": "Frakcje // komu zaufasz"
+    },
+    "onboarding.story.1.text": {
+      "params": {},
+      "text": "GhostSystem przetrwal dzieki rozproszonym frakcjom. Kazda widzi siec inaczej i kazda placi inna cene za przewage. Wybierz szyld, pod ktorym rozpoczniesz operacje."
+    },
+    "onboarding.story.2.title": {
+      "params": {},
+      "text": "Rola // twoj pierwszy slad"
+    },
+    "onboarding.story.2.text": {
+      "params": {},
+      "text": "Frakcja daje kierunek, ale rola definiuje styl wejscia. Bedziesz czytal ruch, chronic dostep, manipulowac rynkiem czy znikac z radarow? Wybierz operatora."
+    },
+    "onboarding.story.3.title": {
+      "params": {},
+      "text": "Klucz // zabezpiecz wejscie"
+    },
+    "onboarding.story.3.text": {
+      "params": {},
+      "text": "Haslo jest pierwsza blokada przed cudzym terminalem. Nie musi byc piekne. Ma byc trudne do odgadniecia i wystarczajaco twarde, zeby kupic ci czas."
+    },
+    "onboarding.story.4.title": {
+      "params": {},
+      "text": "Kontakt // martwa skrzynka"
+    },
+    "onboarding.story.4.text": {
+      "params": {},
+      "text": "Podaj kanal odzyskiwania. System uzyje go jako ukrytego punktu synchronizacji. Jesli kiedys zgubisz dostep, to moze byc jedyna rzecz, ktora zostanie."
+    },
+    "onboarding.story.5.title": {
+      "params": {},
+      "text": "Alias // wejscie do miasta"
+    },
+    "onboarding.story.5.text": {
+      "params": {},
+      "text": "Profil jest prawie gotowy. Nadaj sobie nick, sprawdz wybor i uruchom instalacje. Startowa lokalizacja zostanie przydzielona automatycznie z IP albo z listy aktywnych miast."
+    },
+    "onboarding.faction.1.name": {
+      "params": {},
+      "text": "Straznicy Ladu"
+    },
+    "onboarding.faction.1.summary": {
+      "params": {},
+      "text": "Kontrola, stabilnosc i odbudowa sieci."
+    },
+    "onboarding.faction.2.name": {
+      "params": {},
+      "text": "Echo Wolnosci"
+    },
+    "onboarding.faction.2.summary": {
+      "params": {},
+      "text": "Jawne slady, wolne pakiety, antysystem."
+    },
+    "onboarding.faction.3.name": {
+      "params": {},
+      "text": "VIREX"
+    },
+    "onboarding.faction.3.summary": {
+      "params": {},
+      "text": "Rynek exploitow, zysk i ciche przejecia."
+    },
+    "onboarding.faction.4.name": {
+      "params": {},
+      "text": "Siatka Widmo"
+    },
+    "onboarding.faction.4.summary": {
+      "params": {},
+      "text": "Maskowanie, iluzja i operacje bez podpisu."
+    },
+    "onboarding.role.1.1": {
+      "params": {},
+      "text": "Analizator"
+    },
+    "onboarding.role.1.2": {
+      "params": {},
+      "text": "Obronca"
+    },
+    "onboarding.role.1.3": {
+      "params": {},
+      "text": "Rekonstruktor"
+    },
+    "onboarding.role.1.4": {
+      "params": {},
+      "text": "Mediator"
+    },
+    "onboarding.role.1.5": {
+      "params": {},
+      "text": "Egzekutor"
+    },
+    "onboarding.role.2.1": {
+      "params": {},
+      "text": "Haktywista"
+    },
+    "onboarding.role.2.2": {
+      "params": {},
+      "text": "Socjotechnik"
+    },
+    "onboarding.role.2.3": {
+      "params": {},
+      "text": "Odslaniacz"
+    },
+    "onboarding.role.2.4": {
+      "params": {},
+      "text": "Wizjoner"
+    },
+    "onboarding.role.2.5": {
+      "params": {},
+      "text": "Zapalnik"
+    },
+    "onboarding.role.3.1": {
+      "params": {},
+      "text": "Broker"
+    },
+    "onboarding.role.3.2": {
+      "params": {},
+      "text": "Architekt"
+    },
+    "onboarding.role.3.3": {
+      "params": {},
+      "text": "Manipulator"
+    },
+    "onboarding.role.3.4": {
+      "params": {},
+      "text": "Egzekutor Zysku"
+    },
+    "onboarding.role.3.5": {
+      "params": {},
+      "text": "Kurator Algorytmu"
+    },
+    "onboarding.role.4.1": {
+      "params": {},
+      "text": "Iluzjonista"
+    },
+    "onboarding.role.4.2": {
+      "params": {},
+      "text": "Wirusolog"
+    },
+    "onboarding.role.4.3": {
+      "params": {},
+      "text": "Paranoik"
+    },
+    "onboarding.role.4.4": {
+      "params": {},
+      "text": "Rozlamowiec"
+    },
+    "onboarding.role.4.5": {
+      "params": {},
+      "text": "Lustrzany Sedzia"
+    },
+    "onboarding.selected": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Wybrano: {name}"
+    },
+    "onboarding.not_selected": {
+      "params": {},
+      "text": "Nie wybrano"
+    },
+    "onboarding.title": {
+      "params": {},
+      "text": "CHAOS - Rejestracja operatora"
+    }
+  },
+  "content_version": "153.4"
+}

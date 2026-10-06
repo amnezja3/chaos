@@ -1,0 +1,146 @@
+{
+  "format_version": 1,
+  "content_version": "153.4",
+  "default_locale": "pl",
+  "domains": [
+    "foundation",
+    "settings",
+    "entry",
+    "onboarding",
+    "shell"
+  ],
+  "locales": {
+    "pl": {
+      "name": "Polski",
+      "direction": "ltr",
+      "status": "partial",
+      "plural_rules": [
+        {
+          "category": "one",
+          "conditions": [
+            {
+              "operand": "n",
+              "ranges": [
+                [
+                  1,
+                  1
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "category": "few",
+          "conditions": [
+            {
+              "operand": "integer",
+              "ranges": [
+                [
+                  1,
+                  1
+                ]
+              ]
+            },
+            {
+              "operand": "n",
+              "mod": 10,
+              "ranges": [
+                [
+                  2,
+                  4
+                ]
+              ]
+            },
+            {
+              "operand": "n",
+              "mod": 100,
+              "ranges": [
+                [
+                  12,
+                  14
+                ]
+              ],
+              "not": true
+            }
+          ]
+        },
+        {
+          "category": "many",
+          "conditions": [
+            {
+              "operand": "integer",
+              "ranges": [
+                [
+                  1,
+                  1
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "formats": {
+        "decimal": ",",
+        "minimum_grouping_digits": 2,
+        "group": " ",
+        "date": "d.m.y",
+        "units": {
+          "meter": "m",
+          "kilometer": "km",
+          "megabyte": "MB",
+          "gigabyte": "GB",
+          "second": "s",
+          "area": "m²",
+          "hackcoin": "HC"
+        }
+      },
+      "approved_for": [
+        "interface",
+        "radio",
+        "narration"
+      ]
+    },
+    "en": {
+      "name": "English",
+      "direction": "ltr",
+      "status": "test",
+      "plural_rules": [
+        {
+          "category": "one",
+          "conditions": [
+            {
+              "operand": "n",
+              "ranges": [
+                [
+                  1,
+                  1
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "formats": {
+        "decimal": ".",
+        "minimum_grouping_digits": 1,
+        "group": ",",
+        "date": "m/d/y",
+        "units": {
+          "meter": "m",
+          "kilometer": "km",
+          "megabyte": "MB",
+          "gigabyte": "GB",
+          "second": "s",
+          "area": "m²",
+          "hackcoin": "HC"
+        }
+      },
+      "approved_for": [
+        "interface",
+        "radio",
+        "narration"
+      ]
+    }
+  },
+  "radio_any_filter": "ANY"
+}

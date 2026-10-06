@@ -312,36 +312,42 @@
   </style>
 </head>
 <body>
-  <main class="login-gate" aria-label="CHAOS login gate">
+  {% include "_ghost_locale.html" %}
+  <main class="login-gate" aria-label="CHAOS login gate" data-ghost-aria-label="entry.gate">
     <section class="login-signal">
       <div class="login-brand">
-        <div class="login-kicker">Ghost System / secure entry</div>
+        <div class="login-kicker" data-ghost-i18n="entry.secure">Ghost System / secure entry</div>
         <h1>CHAOS</h1>
-        <p>Cyber Hacking Adventure Of Senses. Wejdz do pulpitu operatora, wybierz cel, uruchom narzedzia i pozwol, zeby mapa zaczela mowic danymi.</p>
+        <p data-ghost-i18n="entry.description">Cyber Hacking Adventure Of Senses. Wejdz do pulpitu operatora, wybierz cel, uruchom narzedzia i pozwol, zeby mapa zaczela mowic danymi.</p>
       </div>
-      <div class="login-status" aria-label="System status">
-        <span>Signal online</span>
-        <span>Ghost Gate armed</span>
-        <span>Cyberner standby</span>
+      <div class="login-status" aria-label="System status" data-ghost-aria-label="entry.status">
+        <span data-ghost-i18n="entry.signal">Signal online</span>
+        <span data-ghost-i18n="entry.armed">Ghost Gate armed</span>
+        <span data-ghost-i18n="entry.standby">Cyberner standby</span>
       </div>
     </section>
 
     <section class="login-panel">
       <form class="login-form" method="POST" autocomplete="on">
-        <h2>Autoryzacja operatora</h2>
+        <label><span data-ghost-i18n="locale.label">Język interfejsu</span><select data-entry-locale aria-label="Polski / English"></select></label>
+        <p data-ghost-i18n="locale.test_notice"></p>
+        <p role="status" data-entry-locale-status></p>
+        <input type="hidden" name="locale" value="pl">
+        <h2 data-ghost-i18n="entry.authorize">Autoryzacja operatora</h2>
         <label>
-          Login
+          <span data-ghost-i18n="entry.username">Login</span>
           <input type="text" name="username" placeholder="operator" autocomplete="username" required>
         </label>
         <label>
-          Haslo
-          <input type="password" name="password" placeholder="klucz dostepu" autocomplete="current-password" required>
+          <span data-ghost-i18n="entry.password">Hasło</span>
+          <input type="password" name="password" placeholder="klucz dostepu" data-ghost-i18n-placeholder="entry.password_hint" autocomplete="current-password" required>
         </label>
-        <button type="submit">Zaloguj</button>
-        <p class="login-link">Nie masz konta? <a href="/register">Zainicjuj profil operatora</a></p>
-        {% if error %}<div class="login-error">{{ error }}</div>{% endif %}
+        <button type="submit" data-ghost-i18n="entry.submit">Zaloguj</button>
+        <p class="login-link"><span data-ghost-i18n="entry.no_account">Nie masz konta?</span> <a href="/register" data-ghost-i18n="entry.register">Zainicjuj profil operatora</a></p>
+        {% if error %}<div class="login-error" {% if error_key %}data-ghost-i18n="{{ error_key }}"{% endif %}>{{ error }}</div>{% endif %}
       </form>
     </section>
   </main>
+  <script src="{{ url_for('static', filename='js/ghost_i18n_entry.js') }}?v=153-3-1"></script>
 </body>
 </html>

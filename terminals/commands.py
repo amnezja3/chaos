@@ -3,6 +3,21 @@ import hashlib
 import posixpath
 import shlex
 import re
+from contextvars import ContextVar
+from ghost_i18n import translator, manifest
+
+_locale = ContextVar('terminal_locale', default='pl')
+
+
+class SystemText(str):
+    def __new__(cls, key, **params):
+        value = super().__new__(cls, translator().t(key, params, _locale.get()))
+        value.envelope = {'key': key, 'params': params, 'content_version': manifest()['content_version']}
+        return value
+
+
+def _t(key, **params):
+    return SystemText('terminal.' + key, **params)
 
 from database import JsonResourceStore
 
@@ -183,54 +198,7 @@ def _normalize_path(path):
 
 
 def _format_help():
-    return "\n".join([
-        "CHAOS Terminal commands",
-        "",
-        "Basics:",
-        "  help                 show this help",
-        "  clear                clear terminal",
-        "  echo <text>          print text",
-        "  date                 show system time",
-        "  whoami               show current user",
-        "  uname [-a]           system info",
-        "",
-        "Filesystem:",
-        "  pwd                  print working directory",
-        "  ls [path]            list directory",
-        "  dir [path]           alias of ls",
-        "  cd <path>            validate path hint",
-        "  cat <file>           print file",
-        "  type <file>          alias of cat",
-        "",
-        "Runtime:",
-        "  status               profile/runtime summary",
-        "  scan                 surface diagnostics",
-        "  log [system|ghost|market] show recent logs",
-        "  apps                 list installed apps",
-        "  pkg list-all         list Googleplex catalog",
-        "  pkg search <name>    search Googleplex by name or ID",
-        "  pkg install <name>   install exact name or ID via Googleplex",
-        "  map/browser/files/profile/settings open system apps",
-        "  teleport <lat:lon>   teleport to coordinates",
-        "  teleport cur:loc     teleport to device location",
-        "  focus <lat:lon>      show coordinates without teleport",
-        "  focus cur:loc        show device location without teleport",
-        "",
-        "Network:",
-        "  ip / ipa / ip a      show pseudo interface state",
-        "  ifconfig             show pseudo interface state",
-        "  ping <host>          simulated latency probe",
-        "  traceroute <host>    simulated route",
-        "  nslookup <host>      simulated DNS lookup",
-        "  netstat              simulated socket table",
-        "",
-        "Session:",
-        "  exit                 close terminal window",
-        "  logout               logout from game",
-        "",
-        "Tip: run an installed app by typing its name or run <ID>.",
-        "GhostLab project: open <project-ID>.lab (requires installed GhostLab).",
-    ])
+    return _t("help")
 
 
 def _list_dir(path):
@@ -239,16 +207,19 @@ def _list_dir(path):
     if entries is None:
         if normalized in CHAOS_FILES:
             return normalized
-        return f"ls: cannot access '{path}': no such file or directory"
+        return _t("ls_missing", path=path)
     return "\n".join(entries)
 
 
 def _cat_file(path):
     normalized = _normalize_path(path)
     if normalized in CHAOS_FS:
-        return f"cat: {normalized}: is a directory"
+        return _t("is_dir", path=normalized)
     if normalized not in CHAOS_FILES:
-        return f"cat: {path}: no such file"
+        return _t("no_file", path=path)
+    document_keys = {"/readme.txt":"readme", "/home/ghost/notes.txt":"notes", "/home/ghost/apps/installed.list":"installed", "/home/ghost/apps/launcher.hint":"launcher", "/home/ops/briefing.md":"briefing", "/etc/motd":"motd", "/net/world.channel":"world"}
+    if normalized in document_keys:
+        return _t("document." + document_keys[normalized])
     return CHAOS_FILES[normalized].rstrip("\n")
 
 
@@ -262,17 +233,7 @@ def _status(profile):
     file_count = 0
     if isinstance(files, dict):
         file_count = sum(len(v) for v in files.values() if isinstance(v, list))
-    return "\n".join([
-        "CHAOS runtime status",
-        f"user: {username}",
-        f"host: {CHAOS_HOST}",
-        f"hackcoins: {hackcoins}",
-        f"storage: {storage_used} MB / {storage_capacity} MB",
-        f"apps: {apps_count}",
-        f"files: {file_count}",
-        "cyberner: online",
-        "ghost-exchange: online",
-    ])
+    return _t("status", name=username, host=CHAOS_HOST, coins=str(hackcoins), used=str(storage_used), capacity=str(storage_capacity), apps=str(apps_count), files=str(file_count))
 
 
 def _scan(profile):
@@ -282,27 +243,20 @@ def _scan(profile):
         for entries in files.values():
             if isinstance(entries, list):
                 market_files += sum(1 for entry in entries if isinstance(entry, dict) and entry.get("sellable"))
-    return "\n".join([
-        "Surface scan complete",
-        "- terminal bridge: stable",
-        "- map gate: armed",
-        "- cyberner route: online",
-        f"- market eligible files: {market_files}",
-        "Use: status, apps, log system",
-    ])
+    return _t("scan", count=market_files)
 
 
 def _apps_list(profile):
     apps = _apps(profile)
     if not apps:
-        return "No installed apps."
-    lines = ["Installed apps:"]
+        return _t("no_apps")
+    lines = []
     for app in apps:
         app_id = app.get("id", "-")
         name = app.get("name", app_id)
         app_type = app.get("type") or app.get("product_type") or "app"
         lines.append(f"- {name} [{app_id}] ({app_type})")
-    return "\n".join(lines)
+    return _t("apps", entries="\n".join(lines))
 
 
 def _log(name):
@@ -412,7 +366,7 @@ def _builtin_command(tokens, original_text, profile):
     arg = tokens[1] if len(tokens) > 1 else ""
 
     if cmd == "exit":
-        return {"close_terminal": True, "response": "Zamykanie terminala..."}
+        return {"close_terminal": True, "response": _t("close")}
     if cmd == "logout":
         return {"logout": True}
     if cmd == "clear":
@@ -437,11 +391,11 @@ def _builtin_command(tokens, original_text, profile):
     if cmd == "cd":
         target = _normalize_path(arg)
         if target in CHAOS_FS:
-            return {"response": f"cwd hint: {target}\nSession cwd persistence is not enabled yet."}
-        return {"response": f"cd: {arg or ''}: no such directory"}
+            return {"response": _t("cwd", path=target)}
+        return {"response": _t("no_dir", path=arg or '')}
     if cmd in {"cat", "type"}:
         if not arg:
-            return {"response": f"{cmd}: missing file operand"}
+            return {"response": _t("missing_operand", command=cmd)}
         return {"response": _cat_file(arg)}
     if cmd == "status":
         return {"response": _status(profile)}
@@ -455,25 +409,25 @@ def _builtin_command(tokens, original_text, profile):
         is_focus = cmd == "focus"
         coord_arg = original_text.partition(" ")[2].strip()
         if not coord_arg:
-            return {"response": f"usage: {cmd} <lat:lon|cur:loc>"}
+            return {"response": _t("usage", syntax=f"{cmd} <lat:lon|cur:loc>")}
         if coord_arg.lower() == "cur:loc":
             return {
                 "terminalGeolocationRequest": {
                     "purpose": cmd,
                     "label": "Aktualna lokalizacja urzadzenia",
                 },
-                "response": "Oczekiwanie na zgode dostepu do lokalizacji...",
+                "response": _t("wait_location"),
             }
         match = COORDINATE_PAIR_RE.match(coord_arg)
         if not match:
-            return {"response": f"{cmd}: podaj wspolrzedne w formacie lat:lon, np. {cmd} 52.2297:21.0122"}
+            return {"response": _t("coordinates", command=cmd)}
         try:
             lat = float(match.group(1).replace(",", "."))
             lng = float(match.group(2).replace(",", "."))
         except ValueError:
-            return {"response": f"{cmd}: nieprawidlowe wspolrzedne."}
+            return {"response": _t("coordinates_invalid", command=cmd)}
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
-            return {"response": f"{cmd}: wspolrzedne poza zakresem."}
+            return {"response": _t("coordinates_range", command=cmd)}
         if is_focus:
             return {
                 "terminalMapFocus": {
@@ -483,7 +437,7 @@ def _builtin_command(tokens, original_text, profile):
                     "mode": "focus",
                     "source": "terminal",
                 },
-                "response": f"Pokazuje na mapie: {lat:.6f}, {lng:.6f}",
+                "response": _t("focus", position=f"{lat:.6f}, {lng:.6f}"),
             }
         return {
             "terminalTeleport": {
@@ -491,18 +445,19 @@ def _builtin_command(tokens, original_text, profile):
                 "lng": lng,
                 "label": f"{lat:.6f}, {lng:.6f}"
             },
-            "response": f"Przygotowano teleport do: {lat:.6f}, {lng:.6f}"
+            "response": _t("teleport", position=f"{lat:.6f}, {lng:.6f}")
         }
     if cmd in SYSTEM_APP_ALIASES:
         app_key = SYSTEM_APP_ALIASES[cmd]
-        label = SYSTEM_APP_LABELS.get(app_key, app_key)
+        label_key = {"map":"map", "files":"files", "profile":"profile", "settings":"settings"}.get(app_key)
+        label = translator().t("shell.desktop." + label_key, locale=_locale.get()) if label_key else SYSTEM_APP_LABELS.get(app_key, app_key)
         return {
             "openSystemApp": app_key,
-            "response": f"Otwieram {label}..."
+            "response": _t("open", name=label)
         }
     if cmd in {"ip", "ipa"}:
         if cmd == "ip" and len(tokens) > 1 and tokens[1].lower() not in {"a", "addr", "address"}:
-            return {"response": "usage: ip a"}
+            return {"response": _t("usage", syntax="ip a")}
         return {"response": _ip_addr(profile)}
     if cmd == "ifconfig":
         return {"response": _ifconfig(profile)}
@@ -517,7 +472,7 @@ def _builtin_command(tokens, original_text, profile):
     if cmd in {"netstat", "ss"}:
         return {"response": _netstat(profile)}
     if cmd in {"unlock", "su", "daemon", "lore"}:
-        return {"response": f"{cmd}: channel locked. Future story runtime will attach here."}
+        return {"response": _t("locked", command=cmd)}
 
     return None
 
@@ -527,7 +482,18 @@ def reserved_launch_name(name):
     return ' ' not in name and (name in {'run', 'open'} or _builtin_command([name], name, {}) is not None)
 
 
-def interpret_command(text, user_profile):
+def interpret_command(text, user_profile, locale='pl'):
+    token = _locale.set(locale)
+    try:
+        result = _interpret_command(text, user_profile)
+        if isinstance(result.get('response'), SystemText):
+            result['response_i18n'] = result['response'].envelope
+        return result
+    finally:
+        _locale.reset(token)
+
+
+def _interpret_command(text, user_profile):
     original_text = str(text or "").strip()
     lowered = original_text.lower()
     profile = _as_profile(user_profile)
@@ -538,7 +504,7 @@ def interpret_command(text, user_profile):
     try:
         tokens = shlex.split(original_text)
     except ValueError as exc:
-        return {"response": f"parse error: {exc}"}
+        return {"response": _t("parse")}
 
     if len(tokens) == 3 and tokens[0].lower() == "sudo" and tokens[1].lower() == "userdel":
         return {"confirm_userdel": tokens[2]}
@@ -557,7 +523,7 @@ def interpret_command(text, user_profile):
     by_id = [a for a in _apps(profile) if str(a.get('id', '')).casefold() == launch_name.casefold()]
     matches = by_id or [a for a in _apps(profile) if str(a.get('name', '')).casefold() == launch_name.casefold()]
     if len(matches) > 1:
-        return {'response': 'Niejednoznaczna nazwa. Użyj run <ID>: ' + ', '.join(str(a['id']) for a in matches)}
+        return {'response': _t("ambiguous", ids=', '.join(str(a['id']) for a in matches))}
     if matches:
         return {'runApp': matches[0]['id']}
 
@@ -575,4 +541,4 @@ def interpret_command(text, user_profile):
         if cmd.get("type") == "system":
             return {"response": cmd.get("result", "Brak odpowiedzi.")}
 
-    return {"response": f"Nieznana komenda: {lowered}"}
+    return {"response": _t("unknown", command=lowered)}

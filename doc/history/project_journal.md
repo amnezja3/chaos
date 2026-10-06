@@ -1,5 +1,77 @@
 # CHAOS — Project Journal
 
+## 2026-10-06 — 153 zatwierdzony do wdrożenia
+
+Autor zatwierdził publikację sprintu 153 po lokalnym odbiorze. Przygotowano
+[instrukcję wdrożenia i rollbacku](../runbooks/deploy_153.md). Wydanie nie
+wymaga migracji bazy ani restartu Ollamy. Produkcyjny restart i smoke test
+pozostają do wykonania na VPS; zatwierdzenie nie oznacza produkcyjnego PASS.
+
+## 2026-10-06 — Sprint 153: lokalny PASS fundamentu i powłoki PL/EN
+
+Pakiet 153.4: 496 kluczy w pięciu domenach. Domknięto profil, portfel,
+terminal/FM, kontrolki, recovery i ustawienia. Bezpieczny mostek iframe
+zmienia język bez reloadu; formaty liczb/dat nie zmieniają wartości gry.
+UGC i oryginalne dokumenty FM pozostają bez zmian. Usunięto automatyczne
+poprawianie tekstów DOM FM. Rejestr zatwierdzonych locale rozdziela UI,
+radio i narrację; ANY jest wyłącznie filtrem radia.
+
+105 testów Python oraz sześć zestawów JS PASS. Playwright: otwarte okna,
+drafty, PL/EN, iframe, formaty, zachowanie dokumentu, fullscreen gry/okna,
+mobile 390 px i pseudojęzyk z cyrylicą. [Raport i ograniczenia](../audits/sprint_153_acceptance.md).
+Zaktualizowano nieaktualne fixture testów sesji. Bez commita/pushu ani
+wdrożenia; 149–152 zamrożone, 154/155 przed nami, EN nadal testowe.
+
+## 2026-10-06 — 153 lokalnie: rejestracja i onboarding PL/EN
+
+Dodano 86 kluczy onboardingu (łącznie 151, pakiet 153.3.2): sześć kroków,
+opowieść, frakcje/role, podsumowanie, walidacje i odpowiedzi serwera.
+Selektor korzysta z preferencji urządzenia; zachowuje pola, wybory, awatar,
+audio i blokadę trwającej rejestracji. Role/frakcje nadal wysyłają te same ID.
+Język nowego konta zapisuje się przy jego utworzeniu, razem z kanoniczną
+projekcją; inne ustawienia szablonu i teksty gracza pozostają zachowane.
+
+PASS: 32 testy Python zakresu/regresji i cztery skrypty JS. Playwright:
+rzeczywisty renderer, sześć kroków, drafty i wybory, zmiana języka podczas
+odpowiedzi błędu bez powtórzenia żądania, mobile 390 px oraz dwa rozmiary desktop.
+Odpowiedzi rejestracji w przeglądarce izolowane atrapami; prawdziwe tworzenie
+konta i projekcji sprawdzone w Python. Szerszy przebieg 65/69: cztery problemy
+starszego zestawu sesji odtworzone także z serwerem HEAD d979ac9 (stare mocki
+writera, starszy reason sesji i względna ścieżka zasobu). Bez pełnego PASS 153.
+Pozostają recovery, dalsza powłoka, iframe i formatowanie serwerowe.
+Zmiany pozostają lokalne, bez commita/pushu. 149–152 nadal zamrożone.
+
+## 2026-10-06 — 153 lokalnie: loader, selektory i pierwsze ekrany PL/EN
+
+Po odrębnie wdrożonej i zaakceptowanej przez autora poprawce FM wznowiono 153.
+65 kluczy PL/EN, atomowy loader domen, cache wersji, walidacja form i parametrów,
+timeout, kolejka zapisu i obsługa wyścigów. Selektor ustawień zapisuje konto;
+logowanie ma osobną preferencję urządzenia. Konto ma pierwszeństwo, stare PL.
+Podłączono podstawowe etykiety pulpitu/menu Start, formularze i statusy klienta
+ustawień oraz logowanie z błędem credentials. Bez rekonstrukcji okien i draftów.
+
+PASS: 21 testów Python (w tym regresja FM), trzy skrypty testowe JS, składnia;
+Playwright na izolowanym koncie i rzeczywistym endpointcie ustawień: PL/EN,
+odświeżenie, mobile 390 px, awarie pobrania/zapisu i retry, zachowanie formularza,
+pre-login oraz pierwszeństwo konta. Pełny pulpit i fizyczne urządzenia nie są
+jeszcze odebrane. Rejestracja, iframe, reszta powłoki i komunikatów pozostają
+do migracji. Sprint W TOKU; wszystkie zmiany 153 pozostają lokalne, bez pushu.
+
+## 2026-10-06 — Start 153: wspólny format PL/EN i zapis locale
+
+Rozpoczęto implementację niezależnie od nadal zamrożonych 149–152. Dodano
+manifest i 16 kluczy PL/EN, czytniki `ghost_i18n.py` / `ghost_i18n.js`, wspólne
+fixture pluralizacji/interpolacji, walidację parametrów, fallback i wersję treści.
+Istniejący writer `/api/profile/desktop` zapisuje locale w projekcji, bez
+modyfikacji ciężkiego profilu. Starsze konta zachowują domyślne PL.
+
+PASS: 14 testów Python (format i writer), test JS wspólnych przypadków,
+izolacja odbiorców i pakiet testowy z cyrylicą. Dodano decyzję techniczną
+`doc/architecture/ghost_i18n_v1.md`, rejestr pierwszych kluczy i glosariusz.
+Sprint pozostaje W TOKU: loader, selektor, formaty lokalne i migracja ekranów
+są przed nami. Nie podłączono jeszcze czytnika do UI; brak deklaracji PASS
+przeglądarki lub kompletnej wersji EN. Bez wdrożenia na produkcję.
+
 ## 2026-10-06 — Ponowny audyt PL/EN: pulpit i Ghost Signal Show / Sender
 
 Sprawdzono pokrycie 11 aplikacji pulpitu oraz źródła transmisji, manifestu,
@@ -2848,7 +2920,7 @@ odrębnych kompozycji; .4 pozostaje otwarty.
 
 ## 2026-08-22 - Sprint 130.10: manual izolacji sesji i ekran blokady CHAOS
 
-- Manual z `logs/sprint-130-10-monitor-20260822T113207Z-1548831.log`
+- Manual z `logs/sprint-130-10-monitor-20260822T113207Z-1549631.log`
   potwierdził brak przecieków między kontami. Druga gra w tej samej sesji cookie
   została poprawnie zatrzymana przez `409 missing_generation`, a niezależny
   profil przeglądarki działał równolegle.
