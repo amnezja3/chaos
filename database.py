@@ -4007,6 +4007,11 @@ class UserStore:
             prepared_lkg = _prepare_profile_lkg(
                 current_profile if current_profile is not None else candidate
             )
+            # Registration already owns the full candidate; prepare outside the
+            # writer lock, then create canonical inventory in the same commit.
+            from inventory_bootstrap import prepare_inventory, insert_inventory
+            prepared_inventory = (prepare_inventory(candidate)
+                                  if current_profile is None and source == 'profile_manager.registration' else None)
 
             with db_connect(self.db_path) as conn:
                 conn.execute("BEGIN IMMEDIATE")
@@ -4074,6 +4079,8 @@ class UserStore:
                     _wallet_register_with_conn(
                         conn, username, candidate, checksum, created_at=now
                     )
+                    if prepared_inventory is not None:
+                        insert_inventory(conn, username, prepared_inventory)
                     telemetry.update({
                         "old_revision": 0,
                         "candidate_revision": revision,

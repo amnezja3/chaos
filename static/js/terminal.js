@@ -16799,6 +16799,26 @@ function renderFileManagerMarkdown(markdown) {
     return renderDocument(markdown);
 }
 
+function renderFileManagerLoadError(container, reason, retry) {
+    if (!container) return;
+    const message = reason === 'inventory_unavailable'
+        ? 'Ekwipunek konta nie został zainicjalizowany. Wymagana jest naprawa danych konta przez administratora.'
+        : reason === 'session_generation_mismatch'
+            ? 'Sesja uległa zmianie. Odśwież pulpit, aby ponownie otworzyć pliki.'
+            : 'Nie udało się wczytać plików. Spróbuj ponownie.';
+    const panel = document.createElement('div');
+    panel.className = 'file-manager-load-error';
+    panel.setAttribute('role', 'alert');
+    const text = document.createElement('p');
+    text.textContent = message;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Spróbuj ponownie';
+    button.addEventListener('click', retry);
+    panel.append(text, button);
+    container.replaceChildren(panel);
+}
+
 async function createFileManager(options = {}) {
     // Jeden FileManager na raz
     const existing = document.querySelector(`.terminal[data-app="files"]`);
@@ -17026,10 +17046,18 @@ async function createFileManager(options = {}) {
     });
 
     // GLab files and PTK use canonical inventory; legacy folders load on demand.
-    const inventoryResponse = await fetch('/api/ghostlab/file-manager');
-    const profileData = inventoryResponse.ok ? await inventoryResponse.json() : null;
+    let profileData = null;
+    let failureReason = '';
+    try {
+        const inventoryResponse = await fetch('/api/ghostlab/file-manager', {cache: 'no-store'});
+        const payload = await inventoryResponse.json();
+        if (inventoryResponse.ok) profileData = payload;
+        else failureReason = String(payload.reason || payload.error || '');
+    } catch (error) {
+        failureReason = error?.name === 'SessionGenerationMismatchError' ? 'session_generation_mismatch' : 'network_error';
+    }
     if (!profileData || !profileData.files) {
-        addSystemMessage("danger", "\u{1F4C2} Pliki", "\u2716 B\u0142\u0105d \u0142adowania plik\u00f3w");
+        renderFileManagerLoadError(fileManagerContent, failureReason, () => createFileManager(options));
         return;
     }
     const files = profileData.files;
