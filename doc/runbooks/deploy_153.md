@@ -17,7 +17,8 @@ git log -1 --oneline
 ```
 
 Oczekiwane: czyste repo przed pull; najnowszy commit
-`feat: complete sprint 153 bilingual system shell`. Jeśli są lokalne zmiany,
+`feat: complete sprint 153 bilingual system shell` wraz z poprawką
+`fix: support VPS unittest API in session tests`. Jeśli są lokalne zmiany,
 nie resetuj ich ani nie nadpisuj. Zapis poprzedniego SHA służy rollbackowi.
 
 ## 2. Testy izolowane

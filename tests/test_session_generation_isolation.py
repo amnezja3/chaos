@@ -25,8 +25,11 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         )
         self.client = run.app.test_client()
         # Session lineage uses a dedicated DB; account projection is isolated too.
-        self.enterContext(patch.object(run.identity_projection_store, "get_desktop_boot",
-                                      return_value={"desktop_settings": {"locale": "pl"}}))
+        # Keep the deployment suite compatible with the VPS unittest API.
+        boot_patch = patch.object(run.identity_projection_store, "get_desktop_boot",
+                                  return_value={"desktop_settings": {"locale": "pl"}})
+        boot_patch.start()
+        self.addCleanup(boot_patch.stop)
 
     def tearDown(self):
         run.session_generation_store = self.original_generation_store

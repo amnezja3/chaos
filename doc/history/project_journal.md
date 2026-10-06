@@ -1,5 +1,12 @@
 # CHAOS — Project Journal
 
+## 2026-10-06 — 153: zgodność testów wdrożeniowych z Pythonem VPS
+
+Na VPS 67/105 testów przeszło; 38 testów sesji zatrzymało się w `setUp`
+z powodu niedostępnego `TestCase.enterContext`. Zastąpiono go
+`patch.start()` i `addCleanup(patch.stop)`, zachowując zakres mocka i asercje.
+Zmiana dotyczy wyłącznie testów; przed restartem wymagany ponowny PASS na VPS.
+
 ## 2026-10-06 — 153 zatwierdzony do wdrożenia
 
 Autor zatwierdził publikację sprintu 153 po lokalnym odbiorze. Przygotowano
