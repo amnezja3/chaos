@@ -1,0 +1,498 @@
+{
+  "locale": "en",
+  "format_version": 1,
+  "content_version": "154.5.0",
+  "messages": {
+    "creator.editor.title": {
+      "params": {},
+      "text": "Creator"
+    },
+    "creator.editor.discard_question": {
+      "params": {},
+      "text": "Discard unsaved changes?"
+    },
+    "creator.editor.discard": {
+      "params": {},
+      "text": "DISCARD"
+    },
+    "creator.editor.back": {
+      "params": {},
+      "text": "BACK TO EDITING"
+    },
+    "creator.editor.new": {
+      "params": {},
+      "text": "New tool"
+    },
+    "creator.editor.edit": {
+      "params": {},
+      "text": "Interface and publishing"
+    },
+    "creator.editor.name": {
+      "params": {},
+      "text": "Name"
+    },
+    "creator.editor.icon": {
+      "params": {},
+      "text": "Icon — one character or emoji"
+    },
+    "creator.editor.generate": {
+      "params": {},
+      "text": "Generate tool"
+    },
+    "creator.editor.projects": {
+      "params": {},
+      "text": "Saved projects"
+    },
+    "creator.editor.more": {
+      "params": {},
+      "text": "More projects"
+    },
+    "creator.editor.interface_title": {
+      "params": {},
+      "text": "Interface title"
+    },
+    "creator.editor.description": {
+      "params": {},
+      "text": "Googleplex description"
+    },
+    "creator.editor.price": {
+      "params": {},
+      "text": "Purchase price in HC (0 = Open Source)"
+    },
+    "creator.editor.command": {
+      "params": {},
+      "text": "Command"
+    },
+    "creator.editor.outputs": {
+      "params": {},
+      "text": "Outputs — one per line"
+    },
+    "creator.editor.add_command": {
+      "params": {},
+      "text": "Add command"
+    },
+    "creator.editor.logs": {
+      "params": {},
+      "text": "Logs — one per line"
+    },
+    "creator.editor.buttons": {
+      "params": {},
+      "text": "Buttons — one per line"
+    },
+    "creator.editor.prompt": {
+      "params": {},
+      "text": "Prompt"
+    },
+    "creator.editor.option": {
+      "params": {},
+      "text": "Option"
+    },
+    "creator.editor.effect": {
+      "params": {},
+      "text": "Effect"
+    },
+    "creator.editor.use_price": {
+      "params": {},
+      "text": "Usage price in HC"
+    },
+    "creator.editor.add_option": {
+      "params": {},
+      "text": "Add option"
+    },
+    "creator.editor.steps": {
+      "params": {},
+      "text": "Progress logs — one per line"
+    },
+    "creator.editor.success": {
+      "params": {},
+      "text": "Success message"
+    },
+    "creator.editor.failure": {
+      "params": {},
+      "text": "Failure message"
+    },
+    "creator.editor.save": {
+      "params": {},
+      "text": "Save draft"
+    },
+    "creator.editor.saved": {
+      "params": {},
+      "text": "Draft saved."
+    },
+    "creator.editor.publish": {
+      "params": {},
+      "text": "Publish"
+    },
+    "creator.editor.preview": {
+      "params": {},
+      "text": "Preview text — without execution"
+    },
+    "creator.editor.reload": {
+      "params": {},
+      "text": "Load saved project"
+    },
+    "creator.editor.list": {
+      "params": {},
+      "text": "Project list"
+    },
+    "creator.editor.locked": {
+      "params": {},
+      "text": "Mechanics, effects and prices of a published app are locked."
+    },
+    "creator.editor.will_lock": {
+      "params": {},
+      "text": "Mechanics and prices will be locked after the first publication."
+    },
+    "creator.editor.legacy_effect": {
+      "params": {},
+      "text": "Legacy effects and prices remain unchanged. You can edit labels and messages."
+    },
+    "creator.editor.checking": {
+      "params": {},
+      "text": "Checking version…"
+    },
+    "creator.editor.update": {
+      "params": {},
+      "text": "UPDATE · 0 HC"
+    },
+    "creator.editor.default_run": {
+      "params": {},
+      "text": "Run"
+    },
+    "creator.editor.default_execute": {
+      "params": {},
+      "text": "Execute"
+    },
+    "creator.editor.default_start": {
+      "params": {},
+      "text": "Starting…"
+    },
+    "creator.editor.default_success": {
+      "params": {},
+      "text": "Operation completed."
+    },
+    "creator.editor.default_failure": {
+      "params": {},
+      "text": "Operation rejected."
+    },
+    "creator.editor.error": {
+      "params": {},
+      "text": "The operation could not be completed. Try again."
+    },
+    "creator.editor.not_installed": {
+      "params": {},
+      "text": "Creator tool missing. Install the appropriate creator."
+    },
+    "creator.editor.legacy": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Legacy project · original mechanics · version {version}"
+    },
+    "creator.editor.power": {
+      "params": {
+        "power": "number",
+        "cap": "number",
+        "version": "number"
+      },
+      "text": "Power: {power}% · generation maximum: {cap}% · version {version}"
+    },
+    "creator.editor.effect_enabled": {
+      "params": {
+        "level": "number"
+      },
+      "text": "Effect is available from LVL {level}. You can use approved assignments, e.g. firewall=false."
+    },
+    "creator.editor.effect_disabled": {
+      "params": {
+        "level": "number"
+      },
+      "text": "Effect is available from LVL {level}. At your level, entering an effect will not change behavior."
+    },
+    "creator.editor.published": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Version {version} published."
+    },
+    "creator.editor.installed": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Installed: v{version}"
+    },
+    "creator.editor.available": {
+      "params": {
+        "installed": "number",
+        "available": "number"
+      },
+      "text": "Installed: v{installed} · available: v{available}"
+    },
+    "creator.editor.withdrawn": {
+      "params": {
+        "installed": "number"
+      },
+      "text": "Installed: v{installed} · available: withdrawn"
+    },
+    "creator.error.creator_not_installed": {
+      "params": {},
+      "text": "Creator tool missing. Install the appropriate creator."
+    },
+    "creator.error.not_installed": {
+      "params": {},
+      "text": "The app is not installed."
+    },
+    "creator.error.not_logged_in": {
+      "params": {},
+      "text": "Sign in."
+    },
+    "creator.error.creator_rollout_pending": {
+      "params": {},
+      "text": "The new creator is awaiting activation."
+    },
+    "creator.error.request_too_large": {
+      "params": {},
+      "text": "The project exceeds the size limit."
+    },
+    "creator.error.projection_unavailable": {
+      "params": {},
+      "text": "The player level could not be read. Try again."
+    },
+    "creator.error.project_not_migrated": {
+      "params": {},
+      "text": "The project requires migration or an administrator review."
+    },
+    "creator.error.project_not_found": {
+      "params": {},
+      "text": "The author’s project was not found."
+    },
+    "creator.error.request_conflict": {
+      "params": {},
+      "text": "This request ID belongs to another generation."
+    },
+    "creator.error.project_limit": {
+      "params": {},
+      "text": "Project limit reached."
+    },
+    "creator.error.revision_conflict": {
+      "params": {},
+      "text": "The project has changed. Load the saved version before saving again."
+    },
+    "creator.error.mechanics_frozen": {
+      "params": {},
+      "text": "Published mechanics and prices cannot be changed."
+    },
+    "creator.error.version_limit": {
+      "params": {},
+      "text": "Edition limit reached."
+    },
+    "creator.error.name_conflict": {
+      "params": {},
+      "text": "An app with this name already exists."
+    },
+    "creator.error.publication_owner_conflict": {
+      "params": {},
+      "text": "The product belongs to another author."
+    },
+    "creator.editor.invalid_icon": {
+      "params": {},
+      "text": "Choose exactly one visible character or emoji."
+    },
+    "creator.editor.choose_icon": {
+      "params": {},
+      "text": "Choose an icon"
+    },
+    "creator.validation.effect_length": {
+      "params": {},
+      "text": "Effect exceeds the 6000-character limit."
+    },
+    "creator.validation.effect_syntax": {
+      "params": {},
+      "text": "Invalid effect syntax. Use e.g. risk_level=10,firewall=false."
+    },
+    "creator.validation.effect_range": {
+      "params": {},
+      "text": "Numeric effect value is out of range."
+    },
+    "creator.validation.effect_assignments": {
+      "params": {},
+      "text": "Effect requires key=value assignments."
+    },
+    "creator.validation.risk_range": {
+      "params": {},
+      "text": "risk_level: enter an integer from 0 to 100."
+    },
+    "creator.validation.level": {
+      "params": {},
+      "text": "A valid author level is required."
+    },
+    "creator.validation.price": {
+      "params": {},
+      "text": "Price must be an integer within the allowed range."
+    },
+    "creator.validation.effect_interface": {
+      "params": {},
+      "text": "Manual effects are available only in Button Choice."
+    },
+    "creator.validation.generator_fields": {
+      "params": {},
+      "text": "Unsupported generator fields."
+    },
+    "creator.validation.action": {
+      "params": {},
+      "text": "Unknown action or creator."
+    },
+    "creator.validation.file_choice": {
+      "params": {},
+      "text": "Choose whether to create a file."
+    },
+    "creator.validation.file_unavailable": {
+      "params": {},
+      "text": "This action does not create a file."
+    },
+    "creator.validation.mechanics": {
+      "params": {},
+      "text": "Unsupported mechanics change."
+    },
+    "creator.validation.options": {
+      "params": {},
+      "text": "Options are available only in Button Choice (1 to 32)."
+    },
+    "creator.validation.option_fields": {
+      "params": {},
+      "text": "An option may specify only its effect and usage price."
+    },
+    "creator.validation.contract_version": {
+      "params": {},
+      "text": "Unsupported app contract version."
+    },
+    "creator.validation.contract": {
+      "params": {},
+      "text": "Invalid installed app contract."
+    },
+    "creator.validation.choice": {
+      "params": {},
+      "text": "Choose a valid app option."
+    },
+    "creator.validation.choice_id": {
+      "params": {},
+      "text": "Invalid choice_id."
+    },
+    "creator.validation.choice_contract": {
+      "params": {},
+      "text": "The option does not belong to the contract."
+    },
+    "creator.validation.choice_interface": {
+      "params": {},
+      "text": "This interface does not support choice_id."
+    },
+    "creator.validation.presentation": {
+      "params": {},
+      "text": "Only presentation can be changed after publication."
+    },
+    "creator.validation.text": {
+      "params": {},
+      "text": "Invalid presentation text."
+    },
+    "creator.validation.required": {
+      "params": {},
+      "text": "Non-empty text is required."
+    },
+    "creator.validation.list": {
+      "params": {},
+      "text": "A list with at most 32 items is required."
+    },
+    "creator.validation.commands": {
+      "params": {},
+      "text": "Between 1 and 32 commands are required."
+    },
+    "creator.validation.command_fields": {
+      "params": {},
+      "text": "A command requires command text and a logs list."
+    },
+    "creator.validation.commands_unique": {
+      "params": {},
+      "text": "Commands must be unique."
+    },
+    "creator.validation.name": {
+      "params": {},
+      "text": "Invalid app name."
+    },
+    "creator.validation.json": {
+      "params": {},
+      "text": "A JSON object is required."
+    },
+    "creator.validation.versioned_choice": {
+      "params": {},
+      "text": "This is not a versioned Button Choice option."
+    },
+    "creator.validation.presentation_only": {
+      "params": {},
+      "text": "Only presentation editing is allowed."
+    },
+    "creator.validation.configuration": {
+      "params": {},
+      "text": "Project revision and configuration are required."
+    },
+    "creator.validation.publish_fields": {
+      "params": {},
+      "text": "Publication accepts only the project revision."
+    },
+    "creator.validation.request_id": {
+      "params": {},
+      "text": "A generation ID (8–128 characters) is required."
+    },
+    "creator.validation.legacy_steps": {
+      "params": {},
+      "text": "The number of legacy stages cannot be changed."
+    },
+    "creator.validation.published_actions": {
+      "params": {},
+      "text": "Actions cannot be added or removed after publication."
+    },
+    "creator.validation.file_required": {
+      "params": {},
+      "text": "This app collects data but file creation is disabled. Create a new tool with Creates file: YES or configure an effect for every Button Choice option."
+    },
+    "creator.validation.identity": {
+      "params": {},
+      "text": "Product identity mismatch."
+    },
+    "creator.validation.labels_count": {
+      "params": {},
+      "text": "The number of labels must match the number of configured options."
+    },
+    "creator.validation.invalid": {
+      "params": {},
+      "text": "Invalid creator data. Check the form fields."
+    },
+    "creator.validation.icon": {
+      "params": {},
+      "text": "Choose exactly one visible character or emoji."
+    },
+    "creator.validation.effect_duplicate": {
+      "params": {
+        "key": "string"
+      },
+      "text": "Duplicate effect key: {key}"
+    },
+    "creator.validation.effect_boolean": {
+      "params": {
+        "key": "string"
+      },
+      "text": "{key}: use true (ON) or false (OFF)."
+    },
+    "creator.validation.effect_unknown": {
+      "params": {
+        "key": "string"
+      },
+      "text": "Unknown effect key: {key}"
+    },
+    "creator.validation.option": {
+      "params": {
+        "index": "number"
+      },
+      "text": "Option {index}:"
+    }
+  }
+}

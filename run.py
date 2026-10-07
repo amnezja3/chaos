@@ -28738,14 +28738,20 @@ def quote_creator_price(contract, requested):
 
 
 def build_creator_edition(project, version):
+    from creator_messages import CreatorValidationError, presentation_defaults
     if project.get('legacy_snapshot'):
         from creator_legacy import build
         return build(project, version)
     contract, view = project['contract'], project['presentation']
+    defaults = presentation_defaults(contract['interface'], project.get('presentation_locale', 'pl'))
+    view = {**defaults, **view}
     name = str(view.get('name') or '').strip()
     if not name or len(name) > 80 or ';' in name:
-        raise ValueError('Nieprawidlowa nazwa aplikacji.')
-    icon = validate_generated_app_icon(view.get('icon'))
+        raise CreatorValidationError('name', 'Nieprawidlowa nazwa aplikacji.')
+    try:
+        icon = validate_generated_app_icon(view.get('icon'))
+    except ValueError as error:
+        raise CreatorValidationError('icon', str(error)) from error
     product = {key: copy.deepcopy(contract[key]) for key in (
         'type', 'tool_family', 'tool_mode', 'map_actions', 'target_types', 'operation_types', 'resource_types')}
     product.update(id=project['app_id'], name=name, icon=icon,
@@ -28759,22 +28765,21 @@ def build_creator_edition(project, version):
         requires_off=[], interferes_with=[], disables=[], affects=[], detects=[])
     title = view.get('title') or name
     if contract['interface'] == 'terminal':
-        product['levels'] = view.get('commands') or [{'command':'run', 'logs':['Uruchomiono narzedzie.']}]
+        product['levels'] = view.get('commands') or defaults['commands']
     elif contract['interface'] == 'window':
         product['levels'] = [dict(title=title, list=view.get('logs', []),
-            buttons=[dict(label=label, action='run_generated') for label in view.get('button_labels', ['Uruchom'])])]
+            buttons=[dict(label=label, action='run_generated') for label in view['button_labels']])]
     elif contract['interface'] == 'button_choices':
-        labels = view.get('option_labels', ['Wykonaj'])
+        labels = view['option_labels']
         options = contract.get('options') or [dict(effect=contract['effect'], price=0) for _ in labels]
         if len(options) != len(labels):
-            raise ValueError('Liczba etykiet musi odpowiadac liczbie skonfigurowanych opcji.')
+            raise CreatorValidationError('labels_count', 'Liczba etykiet musi odpowiadac liczbie skonfigurowanych opcji.')
         product['levels'] = [dict(title=title, text=view.get('prompt', ''),
             options=[dict(id=i, label=label, effect=options[i]['effect'], price=options[i]['price'])
                      for i, label in enumerate(labels)])]
     else:
-        product['levels'] = [dict(title=title, steps=view.get('steps', ['Uruchamianie...']),
-            result_success=view.get('result_success', 'Operacja wykonana.'),
-            result_failure=view.get('result_failure', 'Operacja odrzucona.'))]
+        product['levels'] = [dict(title=title, steps=view['steps'],
+            result_success=view['result_success'], result_failure=view['result_failure'])]
     normalize_app_storage_fields(product)
     return product
 

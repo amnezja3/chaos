@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/static/css/blacknet.css">
   <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=interaction-fast-path-1">
   <link rel="stylesheet" href="/static/css/ghostlab_scanner.css?v=146-4-2-viewfinder-1">
-  <script src="/static/js/ghostlab_scanner_map.js?v=146-4-2"></script>
+  <script src="/static/js/ghostlab_scanner_map.js?v=154-5"></script>
   <style>
     .context-menu {
       position: absolute;
@@ -2449,14 +2449,14 @@
 
             const overlay = document.createElement('div');
             overlay.className = 'chaos-map-scan-overlay';
-            overlay.dataset.label = 'Skanowanie mapy';
+            overlay.dataset.label = GhostLocale.t('map.workspace.scanning');
             overlay.setAttribute('aria-hidden', 'true');
             container.appendChild(overlay);
             state.element = overlay;
             return overlay;
         }
 
-        function beginMapScanEffect(label = 'Skanowanie mapy') {
+        function beginMapScanEffect(label = GhostLocale.t('map.workspace.scanning')) {
             const state = window.mapScanEffectState;
             const overlay = ensureMapScanOverlay();
             if (!overlay) return null;
@@ -2483,6 +2483,13 @@
                 }, delay);
             };
         }
+
+        document.addEventListener('ghost:locale-changed', () => {
+            const overlay = window.mapScanEffectState.element;
+            if (overlay && !overlay.classList.contains('deep-scanner-styled')) {
+                overlay.dataset.label = GhostLocale.t('map.workspace.scanning');
+            }
+        });
 
         function finishMapScanEffectAfterPaint(finish) {
             if (typeof finish !== 'function') return;
@@ -5834,16 +5841,16 @@
             menu.style.left = `${x}px`;
 
             
-            let html = `<div data-default-scan role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="closeMenus(); mapAction('scan', ${lat}, ${lng})">🔎 Skanuj</div>`;
+            let html = `<div data-default-scan role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="closeMenus(); mapAction('scan', ${lat}, ${lng})">${ghostLabel('map.workspace.scan')}</div>`;
             
             html += `
-                <div onclick="closeMenus(); mapAction('travel', ${lat}, ${lng})">🚲 Podróżuj</div>
+                <div onclick="closeMenus(); mapAction('travel', ${lat}, ${lng})">${ghostLabel('map.workspace.travel')}</div>
             `;
             const canClearScan = scanResultLayers.length > 0;
             html += canClearScan
-                ? `<div onclick="clearScanResultLayers(); closeMenus();">🧹 Wyczyść scan</div>`
-                : `<div class="disabled">🧹 Wyczyść scan</div>`;
-            html += `<div onclick="copyTeleportCommandFromMap(${lat}, ${lng}); closeMenus();">Pobierz teleport</div>`;
+                ? `<div onclick="clearScanResultLayers(); closeMenus();">${ghostLabel('map.workspace.clear')}</div>`
+                : `<div class="disabled">${ghostLabel('map.workspace.clear')}</div>`;
+            html += `<div onclick="copyTeleportCommandFromMap(${lat}, ${lng}); closeMenus();">${ghostLabel('map.workspace.teleport')}</div>`;
             menu.innerHTML = html;
             document.body.appendChild(menu);
             window.DeepScannerMap?.paintMenus();
@@ -5901,12 +5908,12 @@
             menu.appendChild(separator);
 
             [
-                { text: 'Zglos podatnosc', action: 'report' },
-                { text: 'Podrozuj', action: 'travel' },
-                { text: `Oznacz ${label}`, action: 'mark_target' },
+                { key: 'map.menu.report', action: 'report' },
+                { key: 'map.menu.travel', action: 'travel' },
+                { key: 'map.menu.mark', params: {name: String(label || '')}, action: 'mark_target' },
             ].forEach(item => {
                 const row = document.createElement('div');
-                row.textContent = item.text;
+                ghostSet(row, item.key, item.params || {});
                 row.addEventListener('click', () => {
                     if (item.action === 'report') {
                         reportVulnerability({
@@ -5962,24 +5969,24 @@
             let actions = [];
             if (menuTarget.target_mode === "player") {
                 actions = [
-                    { label: "Scan Ports", action: "scan_ports" },
-                    { label: "Exploit", action: "exploit" },
-                    { label: "Sniff", action: "sniff" },
-                    { label: "Trace", action: "trace" }
+                    { action: "scan_ports" },
+                    { action: "exploit" },
+                    { action: "sniff" },
+                    { action: "trace" }
                 ];
             }
             // KAMERY
             else if (targetSourceType === "camera") {
                 actions = [
-                    { label: "🎥 Podgląd obrazu", action: "camera_stream" },
-                    { label: "❌ Wyłącz kamerę", action: "camera_shutdown" }
+                    { action: "camera_stream" },
+                    { action: "camera_shutdown" }
                 ];
             }
             // OSOBY
             else if (["person", "phone"].includes(targetSourceType) || legacyPerson) {
                 actions = [
-                    { label: "📡 Śledź urządzenie", action: "trace_device" },
-                    { label: "🎙️ Podsłuchuj rozmowę", action: "mic_sniff" }
+                    { action: "trace_device" },
+                    { action: "mic_sniff" }
                 ];
             }
             // SAMOCHODY
@@ -5988,31 +5995,31 @@
             else if (["car", "vehicle"].includes(targetSourceType)
                 || (menuTarget.generated && targetSourceType === "parking" && name.startsWith("auto:"))) {
                 actions = [
-                    { label: "🚗 Przejmij system pokładowy", action: "car_hack" },
-                    { label: "📍 Śledź GPS", action: "trace_gps" }
+                    { action: "car_hack" },
+                    { action: "trace_gps" }
                 ];
             }
             // BANKOMATY
             else if (targetSourceType === "atm") {
                 actions = [
-                    { label: "📊 Przejmij logi transakcji", action: "atm_logs" },
-                    { label: "🐛 Zainstaluj sniffer", action: "install_sniffer" }
+                    { action: "atm_logs" },
+                    { action: "install_sniffer" }
                 ];
             }
             // RESTAURACJE, KAWIARNIE
             else if (["restaurant", "bar", "cafe", "fast_food"].includes(targetSourceType)) {
                 actions = [
-                    { label: "📶 Wykryj hotspoty", action: "scan_hotspots" },
-                    { label: "🔊 Przejmij odtwarzacz audio", action: "audio_hack" }
+                    { action: "scan_hotspots" },
+                    { action: "audio_hack" }
                 ];
             }
             // DOMYŚLNIE
             else {
                 actions = [
-                    { label: "🛠️ Przeskanuj porty", action: "scan_ports" },
-                    { label: "💥 Zainstaluj exploit", action: "exploit" },
-                    { label: "📡 Śledź ruch", action: "sniff" },
-                    { label: "📍 Namierz cel", action: "trace" }
+                    { action: "scan_ports" },
+                    { action: "exploit" },
+                    { action: "sniff" },
+                    { action: "trace" }
                 ];
             }
 
@@ -6023,7 +6030,8 @@
             heading.type = 'button';
             heading.className = 'context-menu-target-heading';
             heading.innerHTML = `${String(label || '').startsWith(iconEmoji) ? '' : safeIcon + ' '}${safeLabel}`;
-            heading.title = 'Ustaw jako aktywny cel';
+            heading.dataset.ghostTitle = "map.menu.aim";
+            heading.title = GhostLocale.t("map.menu.aim");
             heading.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -6037,7 +6045,7 @@
             // Generuj przyciski akcji
             actions.forEach(act => {
                 const row = document.createElement('div');
-                row.textContent = act.label;
+                ghostSet(row, "map.action." + act.action);
                 row.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -6121,7 +6129,7 @@
             heading.innerHTML = `<strong>${iconEmoji || '📦'} ${window.escapeMapText(label)}</strong>`;
             menu.appendChild(heading);
             const secure = document.createElement('div');
-            secure.textContent = '🛡 Zabezpiecz';
+            ghostSet(secure, 'map.workspace.secure');
             secure.addEventListener('click', event => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -6129,7 +6137,7 @@
             });
             menu.appendChild(secure);
             const abandon = document.createElement('div');
-            abandon.textContent = '× Porzuć';
+            ghostSet(abandon, 'map.workspace.abandon');
             abandon.className = 'captured-object-abandon';
             abandon.addEventListener('click', event => {
                 event.preventDefault();
@@ -6262,44 +6270,7 @@
             closeMenus();
             setupGlobalCloseListener();
 
-            const SECURITY_LABELS = {
-                "stealth_mode": "Ukrycie",
-                "scan_detection": "Skan",
-                "exploit_protection": "Exploit",
-                "vpn_enabled": "VPN",
-                "browser_protection": "WWW",
-                "os_hardening": "OS+",
-                "log_guardian": "Logi+",
-                "process_monitor": "Procesy",
-                "firewall": "Zapora",
-                "log_integrity": "Logi",
-                "network_anomaly_detection": "Anomalie",
-                "spoofing_protection": "Spoof",
-                "browser_history_log": "Historia",
-                "file_visibility": "Pliki",
-                "file_indexing": "Indeks",
-                "storage_integrity": "Dysk",
-                "anonymity_score": "Anonimowość",
-                "vpn_blocker": "VPN 🔒",
-                "activity_monitor": "Aktyw.",
-                "player_tracking": "Tracking",
-                "system_visibility": "Widocz.",
-                "firewall_core": "Jądro",
-                "kernel_guard": "Kernel",
-                "system_integrity_check": "Sys Check",
-                "system_compromise_level": "Kompromis",
-                "heap_protection": "Heap",
-                "memory_lock": "Blok. RAM",
-                "unencrypted_access": "Brak szyfr.",
-                "background_injection": "Inject",
-                "memory_guard": "RAM+",
-                "player_risk_level": "Ryzyko 🧑‍💻",
-                "traceability": "Śledzalność",
-                "system_integrity": "Integralność",
-                "exploit_success_rate": "Sukces Expl.",
-                "risk_level": "Ryzyko",
-                "access_level": "Dostęp"
-            };
+
 
 
 
@@ -6325,7 +6296,7 @@
             requestPromise
             .then(data => {
                 if (!data.success) {
-                    addSystemMessage("danger", "❌ Błąd", data.message);
+                    addSystemMessage("danger", GhostLocale.t('map.workspace.error'), data.message);
                     return;
                 }
 
@@ -6337,8 +6308,8 @@
                     if (existing.dataset.targetId === targetId) existing.remove();
                 });
                 const security = data.security;
-                const encodedTargetId = encodeURIComponent(targetId);
-                const encodedLabel = encodeURIComponent(String(label || ''));
+                const encodedTargetId = encodeURIComponent(targetId).replace(/'/g, '%27');
+                const encodedLabel = encodeURIComponent(String(label || '')).replace(/'/g, '%27');
                 const menu = document.createElement('div');
                 menu.className = 'context-menu-clean';
                 menu.dataset.targetId = targetId;
@@ -6347,11 +6318,11 @@
                 menu.style.left = `${x}px`;
 
                 let html = `
-                    <strong style="font-size: 14px; margin-left: 1rem;">${label}</strong>
+                    <strong style="font-size: 14px; margin-left: 1rem;">${window.escapeMapText(label)}</strong>
                     <div class="security-preset-bar">
                         ${['open', 'low', 'regular', 'secure', 'all'].map(preset => `
                             <button type="button" class="security-preset-button" onclick="securePreset('${preset}', ${menuObj.lat}, ${menuObj.lon}, decodeURIComponent('${encodedTargetId}'), decodeURIComponent('${encodedLabel}'), this)">
-                                ${preset}
+                                ${ghostLabel('map.preset.' + preset)}
                             </button>
                         `).join('')}
                     </div>
@@ -6361,7 +6332,7 @@
 
                 for (const [key, value] of Object.entries(security)) {
                     const icon = value ? '🟢' : '❌';
-                    const labelFormatted = SECURITY_LABELS[key] || key.replace(/_/g, ' ');
+                    const labelFormatted = ghostSystemValue('map.security.', key);
                     const stateIcon = value
                         ? '<span class="security-state on">&#9679;</span>'
                         : '<span class="security-state off">&times;</span>';
@@ -6369,7 +6340,6 @@
                     html += `
                         <div class="security-row"
                             data-security-key="${key}"
-                            data-security-label="${labelFormatted}"
                             onclick="secureAction('${key}', ${menuObj.lat}, ${menuObj.lon}, decodeURIComponent('${encodedLabel}'), '', this, decodeURIComponent('${encodedTargetId}'))"
                         >
                             ${stateIcon} ${labelFormatted}
@@ -6383,7 +6353,7 @@
                 lastContextWasMarker = true;
             })
             .catch(() => {
-                addSystemMessage("danger", "❌ Błąd", "Nie udało się pobrać stanu zabezpieczeń.");
+                addSystemMessage("danger", GhostLocale.t('map.workspace.error'), GhostLocale.t('map.workspace.security_failed'));
             });
         }
 
@@ -6676,7 +6646,7 @@
                 const key = rowEl.dataset.securityKey;
                 const value = Boolean(security[key]);
                     const icon = value ? '<span class="security-state on">●</span>' : '<span class="security-state off">×</span>';
-                const labelText = rowEl.dataset.securityLabel || key;
+                const labelText = ghostSystemValue('map.security.', key);
                 rowEl.innerHTML = `${icon} ${labelText}`;
             });
         }
@@ -6688,7 +6658,7 @@
                 const key = rowEl.dataset.securityKey;
                 const value = Boolean(security[key]);
                 const icon = value ? '<span class="security-state on">&#9679;</span>' : '<span class="security-state off">&times;</span>';
-                const labelText = rowEl.dataset.securityLabel || key;
+                const labelText = ghostSystemValue('map.security.', key);
                 rowEl.innerHTML = `${icon} ${labelText}`;
             });
         }
@@ -6883,7 +6853,7 @@
             menu.innerHTML = `<div><strong>${icon} ${label}</strong></div><hr style="margin:4px 0;">`;
 
             const row = document.createElement('div');
-            row.textContent = 'Wycofaj oznaczenie';
+            ghostSet(row, 'map.workspace.withdraw');
             row.addEventListener('click', () => withdrawClanVulnerability(report.id));
             menu.appendChild(row);
 
@@ -7128,7 +7098,7 @@
 
         async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false, targetContext = {}) {
             const finishScanEffect = action === 'scan'
-                ? beginMapScanEffect('Skanowanie mapy')
+                ? beginMapScanEffect()
                 : null;
             const scannerJob = action === 'scan' ? window.DeepScannerMap?.begin(window.mapScanEffectState.element, () => {
                 finishScanEffect?.();

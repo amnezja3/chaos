@@ -1,8 +1,8 @@
 # Sprint 153 — odbiór lokalny i produkcyjny, 6 X 2026
 
-**PASS lokalny zakresu 153.** Pakiet `153.4`, 496 kluczy PL/EN w pięciu
-domenach. Wdrożenie potwierdzone przez autora; produkcyjny PASS dotyczy
-wyłącznie ścieżek wymienionych poniżej. EN pozostaje
+**PASS lokalny i produkcyjny zakresu 153 — sprint zamknięty.**
+Pakiet `153.4`, 496 kluczy PL/EN w pięciu domenach. Wdrożenie i końcowy
+odbiór potwierdzone przez autora 6 X 2026. EN pozostaje
 testowe; aplikacje i treści systemowe domykają 154/155. 149–152 zamrożone.
 
 ## Potwierdzenie autora na produkcji
@@ -17,9 +17,14 @@ Reguła `.icon span` obejmowała nowy span tłumaczonej nazwy. Poprawka ogranicz
 duży rozmiar do symbolu; etykieta ma 14 px na mobile i 13 px na desktopie.
 Kafelki mieszczą wielowierszowe nazwy. Playwright PL/EN przy 360, 390, 588
 i 1440 px: brak wychodzenia symboli/etykiet poza kafelki i poziomego overflow;
-sprawdzono otwarcie ustawień. Poprawka lokalna, odbiór produkcyjny oczekiwany.
-Terminal, recovery, iframe i pozostałe scenariusze mobile/fullscreen nadal
-bez dodatkowego produkcyjnego potwierdzenia autora.
+sprawdzono otwarcie ustawień. Następnie autor potwierdził **PASS pulpitu
+mobilnego na produkcji**; regresja etykiet ikon zamknięta.
+W końcowym potwierdzeniu autor zaakceptował również terminal oraz zmianę
+PL/EN przy otwartych oknach i mapie, bez utraty stanu, także w fullscreen.
+W połączeniu z wynikami lokalnymi zamyka to odbiór 153. Potwierdzenie autora
+dotyczy tych scenariuszy; szczegółowe testy recovery i zabezpieczeń mostka
+iframe pozostają udokumentowanymi wynikami lokalnymi, nie osobnym raportem
+testów produkcyjnych.
 
 ## Implementacja
 

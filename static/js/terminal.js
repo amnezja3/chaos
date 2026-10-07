@@ -14700,10 +14700,16 @@ function creatorIconGraphemes(value) {
 function validateCreatorIcon(input, fallbackIcon) {
     const value = String(input.value || '').trim();
     const valid = creatorIconGraphemes(value).length === 1 && value.length <= 16;
-    input.setCustomValidity(valid ? '' : 'Wybierz dokładnie jeden widoczny znak lub emoji.');
+    input.setCustomValidity(valid ? '' : GhostLocale.t('creator.editor.invalid_icon'));
     input.setAttribute('aria-invalid', valid ? 'false' : 'true');
     return valid ? value : fallbackIcon;
 }
+
+document.addEventListener('ghost:locale-changed', () => {
+    document.querySelectorAll('.creator-window input[name="icon"][aria-invalid="true"]').forEach(input => {
+        input.setCustomValidity(GhostLocale.t('creator.editor.invalid_icon'));
+    });
+});
 
 function setupIconPicker(term, fallbackIcon = '\u{1F6E0}\uFE0F') {
     const iconInput = term.querySelector('input[name="icon"]');
@@ -14718,7 +14724,8 @@ function setupIconPicker(term, fallbackIcon = '\u{1F6E0}\uFE0F') {
     toggle.type = 'button';
     toggle.className = 'appforge-icon-picker-toggle';
     toggle.textContent = '\u25BE';
-    toggle.title = 'Wybierz ikon\u0119';
+    toggle.dataset.ghostTitle = 'creator.editor.choose_icon';
+    toggle.title = GhostLocale.t('creator.editor.choose_icon');
 
     const picker = document.createElement('div');
     picker.className = 'appforge-icon-picker';
@@ -16687,7 +16694,7 @@ function updateMapToolPickerBusyState(isBusy, activeAppId = "") {
     picker.querySelectorAll('[data-map-tool-use]').forEach(button => {
         const isActive = String(button.dataset.appId || "") === String(activeAppId || "");
         button.disabled = Boolean(isBusy);
-        button.textContent = isBusy && isActive ? "Uruchamiam..." : "U\u017cyj";
+        ghostSet(button, isBusy && isActive ? "map.picker.starting" : "map.picker.use");
     });
     picker.querySelectorAll('[data-map-tool-open-files]').forEach(button => {
         button.disabled = Boolean(isBusy);
@@ -16696,14 +16703,14 @@ function updateMapToolPickerBusyState(isBusy, activeAppId = "") {
 
 function renderMapToolPickerApp(app) {
     const appId = String(app.id || app.name || "");
-    const title = app.name || app.id || "Narzedzie";
+    const title = app.name || app.id || ghostText("map.picker.tool");
     const toolFile = app.tool_file || app.file_name || app.project_file || `${title}.sh`;
     const family = app.tool_family || app.type || app.category || "tool";
     const mode = app.tool_mode || app.scanner_mode || app.operation_mode || "runtime";
     const quality = app.quality_score ?? app.quality ?? "-";
     const power = app.power_score ?? app.power ?? "-";
     const diskUsage = app.disk_usage || app.install_size || app.file_size || 0;
-    const diskLine = Number(diskUsage) ? `<span>Dysk ${escapeHTML(formatStorageSize(diskUsage))}</span>` : "";
+    const diskLine = Number(diskUsage) ? `<span>${ghostLabel("map.picker.disk")} ${escapeHTML(formatStorageSize(diskUsage))}</span>` : "";
     return `
         <article class="map-tool-picker-card">
             <div class="map-tool-picker-card__icon">${escapeHTML(app.icon || "\u{1F6E0}\uFE0F")}</div>
@@ -16719,7 +16726,7 @@ function renderMapToolPickerApp(app) {
                 </div>
             </div>
             <button class="map-tool-picker-use" data-map-tool-use data-app-id="${escapeHTML(appId)}" type="button">
-                U\u017cyj
+                ${ghostLabel("map.picker.use")}
             </button>
         </article>
     `;
@@ -16736,28 +16743,30 @@ function createMapToolPicker(selection) {
     const term = document.createElement('div');
     term.className = 'terminal map-tool-picker-window';
     term.dataset.app = "map-tool-picker";
+    term.dataset.appTitleKey = "map.picker.title";
+    term.dataset.appTitle = ghostText("map.picker.title");
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
     term.style.width = `520px`;
     term.style.maxWidth = `calc(100vw - 24px)`;
     term.style.minHeight = `260px`;
 
-    const title = selection.map_action_id || selection.canonical_action || "akcja";
+    const title = selection.map_action_id || selection.canonical_action || "";
     const label = (selection.pending_action || {}).label || (selection.pending_action || {}).name || "";
     term.innerHTML = `
-        <div class="title-bar">Wyb\u00f3r narz\u0119dzia <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${ghostLabel("map.picker.title")} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="map-tool-picker-shell">
             <div class="map-tool-picker-head">
-                <span class="map-tool-picker-kicker">Akcja mapy</span>
-                <h3>${escapeHTML(title)}</h3>
+                <span class="map-tool-picker-kicker">${ghostLabel("map.picker.action")}</span>
+                <h3>${title ? ghostSystemValue("map.action.", title) : ghostLabel("map.picker.action_unknown")}</h3>
                 ${label ? `<p title="${escapeHTML(label)}">${escapeHTML(label)}</p>` : ''}
             </div>
             <div class="map-tool-picker-list">
                 ${apps.map(renderMapToolPickerApp).join('')}
             </div>
             <div class="map-tool-picker-footer">
-                <span>Pokazano tylko pasuj\u0105ce narz\u0119dzia. Pe\u0142ny katalog pozostaje w Plikach.</span>
-                <button class="map-tool-picker-files" data-map-tool-open-files type="button">Poka\u017c w plikach</button>
+                <span>${ghostLabel("map.picker.note")}</span>
+                <button class="map-tool-picker-files" data-map-tool-open-files type="button">${ghostLabel("map.picker.files")}</button>
             </div>
         </div>
     `;
@@ -16798,8 +16807,10 @@ window.openToolSelectionForMapAction = async function(payload) {
         await selectMapActionTool(onlyApp.id || onlyApp.name || "");
         return;
     }
-    const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "akcja";
-    addSystemMessage("info", "\u{1F6E0}\uFE0F Wyb\u00f3r narz\u0119dzia", `Wybierz narz\u0119dzie dla: ${title}`);
+    const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "";
+    const actionKey = "map.action." + title;
+    const actionLabel = window.GhostLocale.hasKey(actionKey) ? ghostText(actionKey) : (title || ghostText("map.picker.action_unknown"));
+    addSystemMessage("info", ghostText("map.picker.title"), ghostText("map.picker.choose", {action: actionLabel}));
     createMapToolPicker(window.activeToolSelection);
     appFlowTrace(flowId, "tool_picker_rendered", {
         action: title,
@@ -17356,7 +17367,7 @@ async function createFileManager(options = {}) {
         if (!list) list = `<div class="file-manager-empty">${ghostLabel("files.empty")}</div>`;
         const selectionHeader = folderName === "tools" && window.activeToolSelection ? `
             <div class="file-manager-selection-hint">
-                ${ghostLabel("files.map_action")} <b>${escapeHTML(window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || '-')}</b>.
+                ${ghostLabel("files.map_action")} <b>${ghostSystemValue("map.action.", window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || '-')}</b>.
                 ${ghostLabel("files.choose_highlighted")}
             </div>
         ` : "";

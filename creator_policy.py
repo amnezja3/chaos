@@ -4,6 +4,7 @@ import math
 import secrets
 import re
 
+from creator_messages import CreatorValidationError
 import config
 
 INTERFACES = {'progressbar_random', 'terminal', 'window', 'button_choices'}
@@ -28,7 +29,7 @@ def parse_effect(value):
         return {}
     if isinstance(value, str):
         if len(value) > 6000:
-            raise ValueError('Effect przekracza limit 6000 znaków.')
+            raise CreatorValidationError('effect_length', 'Effect przekracza limit 6000 znaków.')
         value = value.strip()
         if not value:
             return {}
@@ -38,25 +39,25 @@ def parse_effect(value):
         for assignment in value.split(','):
             match = re.fullmatch(r'\s*([a-z_]+)\s*=\s*(true|false|[0-9]+)\s*', assignment)
             if not match:
-                raise ValueError('Nieprawidłowa składnia effect. Użyj np. risk_level=10,firewall=false.')
+                raise CreatorValidationError('effect_syntax', 'Nieprawidłowa składnia effect. Użyj np. risk_level=10,firewall=false.')
             key, raw = match.groups()
             if key in result:
-                raise ValueError('Powtórzony klucz effect: ' + key)
+                raise CreatorValidationError('effect_duplicate', 'Powtórzony klucz effect: ' + key, {'key': key})
             if len(raw) > 3 and raw not in ('true', 'false'):
-                raise ValueError('Wartość liczbowa effect poza zakresem.')
+                raise CreatorValidationError('effect_range', 'Wartość liczbowa effect poza zakresem.')
             result[key] = True if raw == 'true' else False if raw == 'false' else int(raw)
         value = result
     if not isinstance(value, dict) or len(value) > len(EFFECT_BOOLEAN_KEYS) + 1:
-        raise ValueError('Effect wymaga listy przypisań klucz=wartość.')
+        raise CreatorValidationError('effect_assignments', 'Effect wymaga listy przypisań klucz=wartość.')
     for key, item in value.items():
         if key in EFFECT_BOOLEAN_KEYS:
             if type(item) is not bool:
-                raise ValueError(f'{key}: użyj true (ON) albo false (OFF).')
+                raise CreatorValidationError('effect_boolean', f'{key}: użyj true (ON) albo false (OFF).', {'key': key})
         elif key == 'risk_level':
             if type(item) is not int or not 0 <= item <= 100:
-                raise ValueError('risk_level: wymagana liczba całkowita od 0 do 100.')
+                raise CreatorValidationError('risk_range', 'risk_level: wymagana liczba całkowita od 0 do 100.')
         else:
-            raise ValueError('Nieznany klucz effect: ' + str(key))
+            raise CreatorValidationError('effect_unknown', 'Nieznany klucz effect: ' + str(key), {'key': str(key)})
     return dict(value)
 
 
@@ -114,7 +115,7 @@ def fileless_data_operation(app):
 
 def power_cap(level):
     if type(level) is not int or level < 1:
-        raise ValueError('Brak prawidlowego poziomu autora.')
+        raise CreatorValidationError('level', 'Brak prawidlowego poziomu autora.')
     points = config.CREATOR_POWER_CAPS
     for (lo, a), (hi, b) in zip(points, points[1:]):
         if level <= hi:
@@ -135,14 +136,14 @@ def price(value, default=0):
     if value is None:
         return default
     if type(value) is not int or not 0 <= value <= config.CREATOR_MAX_PRICE:
-        raise ValueError('Cena musi byc calkowita kwota w dozwolonym zakresie.')
+        raise CreatorValidationError('price', 'Cena musi byc calkowita kwota w dozwolonym zakresie.')
     return value
 
 
 def validate_effect(value, *, action, interface, level):
     if interface != 'button_choices':
         if value:
-            raise ValueError('Reczny effect jest dostepny tylko w Button Choice.')
+            raise CreatorValidationError('effect_interface', 'Reczny effect jest dostepny tylko w Button Choice.')
         return {}
     parsed = parse_effect(value)
     # Syntax is validated even below the unlock level; only authority is gated.
@@ -152,15 +153,15 @@ def validate_effect(value, *, action, interface, level):
 def generate_contract(data, level, rng=None):
     allowed = {'name', 'icon', 'action', 'creates_file', 'interface', 'effect', 'price'}
     if not isinstance(data, dict) or set(data) - allowed:
-        raise ValueError('Niedozwolone pola generatora.')
+        raise CreatorValidationError('generator_fields', 'Niedozwolone pola generatora.')
     action, interface = data.get('action'), data.get('interface')
     if action not in RECIPES or interface not in INTERFACES:
-        raise ValueError('Nieznana akcja lub kreator.')
+        raise CreatorValidationError('action', 'Nieznana akcja lub kreator.')
     if type(data.get('creates_file')) is not bool:
-        raise ValueError('Wybierz czy tworzyc plik.')
+        raise CreatorValidationError('file_choice', 'Wybierz czy tworzyc plik.')
     result = copy.deepcopy(RECIPES[action])
     if data['creates_file'] and not result['resource_types']:
-        raise ValueError('Ta akcja nie tworzy pliku.')
+        raise CreatorValidationError('file_unavailable', 'Ta akcja nie tworzy pliku.')
     result.update(interface=interface, creates_file=data['creates_file'] or result['requires_file'],
                   price=price(data.get('price')), effect=validate_effect(data.get('effect'),
                     action=action, interface=interface, level=level))
@@ -188,7 +189,7 @@ def configure_draft(contract, changes, level):
     The generated purpose and random power are never regenerated by this call.
     """
     if not isinstance(changes, dict) or set(changes) - {'price', 'effect', 'options'}:
-        raise ValueError('Niedozwolona zmiana mechaniki.')
+        raise CreatorValidationError('mechanics', 'Niedozwolona zmiana mechaniki.')
     result = copy.deepcopy(contract)
     if 'price' in changes:
         result['price'] = price(changes['price'], default=contract['price'])
@@ -198,17 +199,17 @@ def configure_draft(contract, changes, level):
     if 'options' in changes:
         options = changes['options']
         if contract['interface'] != 'button_choices' or not isinstance(options, list) or not 1 <= len(options) <= 32:
-            raise ValueError('Opcje sa dostepne tylko w Button Choice (1 do 32).')
+            raise CreatorValidationError('options', 'Opcje sa dostepne tylko w Button Choice (1 do 32).')
         validated = []
         for index, option in enumerate(options):
             if not isinstance(option, dict) or set(option) - {'effect', 'price'}:
-                raise ValueError('Opcja moze okreslac tylko effect i cene uzycia.')
+                raise CreatorValidationError('option_fields', 'Opcja moze okreslac tylko effect i cene uzycia.')
             try:
                 validated.append(dict(id=index, price=price(option.get('price')),
                     effect=validate_effect(option.get('effect'), action=contract['action'],
                         interface=contract['interface'], level=level)))
-            except ValueError as error:
-                raise ValueError(f'Opcja {index + 1}: {error}') from error
+            except CreatorValidationError as error:
+                raise error.in_option(index + 1)
         result['options'] = validated
     return result
 
@@ -222,10 +223,10 @@ def runtime_effect(app, security, choice_id=None, *, operation_only=False):
     if not app.get('creator_contract_version'):
         return None
     if app['creator_contract_version'] != config.CREATOR_POLICY_VERSION:
-        raise ValueError('Nieobslugiwana wersja kontraktu aplikacji.')
+        raise CreatorValidationError('contract_version', 'Nieobslugiwana wersja kontraktu aplikacji.')
     contract = app.get('creator_contract')
     if not isinstance(contract, dict) or contract.get('policy_version') != config.CREATOR_POLICY_VERSION:
-        raise ValueError('Nieprawidlowy kontrakt zainstalowanej aplikacji.')
+        raise CreatorValidationError('contract', 'Nieprawidlowy kontrakt zainstalowanej aplikacji.')
     if operation_only:
         return {}
     if contract.get('interface') == 'button_choices':
@@ -233,16 +234,16 @@ def runtime_effect(app, security, choice_id=None, *, operation_only=False):
         if isinstance(choice_id, str) and choice_id in {str(i) for i in range(32)}:
             choice_id = int(choice_id)
         if type(choice_id) is not int or choice_id < 0:
-            raise ValueError('Wybierz prawidlowa opcje aplikacji.')
+            raise CreatorValidationError('choice', 'Wybierz prawidlowa opcje aplikacji.')
         options = app.get('levels', [{}])[0].get('options', [])
         if choice_id >= len(options):
-            raise ValueError('Nieprawidlowy choice_id.')
+            raise CreatorValidationError('choice_id', 'Nieprawidlowy choice_id.')
         if 'options' in contract:
             if choice_id >= len(contract['options']):
-                raise ValueError('Opcja nie nalezy do kontraktu.')
+                raise CreatorValidationError('choice_contract', 'Opcja nie nalezy do kontraktu.')
             contract = dict(contract, effect=contract['options'][choice_id]['effect'])
     elif choice_id is not None:
-        raise ValueError('Ten interfejs nie obsluguje choice_id.')
+        raise CreatorValidationError('choice_interface', 'Ten interfejs nie obsluguje choice_id.')
     return security_effect(contract, security)
 
 
@@ -255,31 +256,31 @@ def validate_presentation(interface, value):
         'progressbar_random': {'steps', 'result_success', 'result_failure'},
     }
     if not isinstance(value, dict) or set(value) - common - fields[interface]:
-        raise ValueError('Po publikacji mozna zmieniac tylko prezentacje.')
+        raise CreatorValidationError('presentation', 'Po publikacji mozna zmieniac tylko prezentacje.')
     def text(item, limit=6000, required=False):
         if not isinstance(item, str) or len(item) > limit or '\x00' in item:
-            raise ValueError('Nieprawidlowy tekst prezentacji.')
+            raise CreatorValidationError('text', 'Nieprawidlowy tekst prezentacji.')
         if required and not item.strip():
-            raise ValueError('Wymagany niepusty tekst.')
+            raise CreatorValidationError('required', 'Wymagany niepusty tekst.')
 
     def texts(items, required=False, limit=6000):
         if not isinstance(items, list) or len(items) > (32 if required else 256) or (required and not items):
-            raise ValueError('Wymagana lista maksymalnie 32 pozycji.')
+            raise CreatorValidationError('list', 'Wymagana lista maksymalnie 32 pozycji.')
         for item in items:
             text(item, limit, required)
 
     for key, item in value.items():
         if key == 'commands':
             if not isinstance(item, list) or not 1 <= len(item) <= 32:
-                raise ValueError('Wymagane 1 do 32 komend.')
+                raise CreatorValidationError('commands', 'Wymagane 1 do 32 komend.')
             seen = set()
             for command in item:
                 if not isinstance(command, dict) or set(command) != {'command', 'logs'}:
-                    raise ValueError('Komenda wymaga tekstu command i listy logs.')
+                    raise CreatorValidationError('command_fields', 'Komenda wymaga tekstu command i listy logs.')
                 text(command['command'], 120, True)
                 normalized = command['command'].strip().casefold()
                 if normalized in seen:
-                    raise ValueError('Komendy musza byc unikalne.')
+                    raise CreatorValidationError('commands_unique', 'Komendy musza byc unikalne.')
                 seen.add(normalized)
                 texts(command['logs'])
         elif key in {'logs', 'steps', 'button_labels', 'option_labels'}:
@@ -289,5 +290,5 @@ def validate_presentation(interface, value):
             text(item, 80 if key == 'name' else 128 if key == 'icon' else 6000,
                  key in {'name', 'icon'})
             if key == 'name' and (';' in item or '\n' in item or '\r' in item):
-                raise ValueError('Nieprawidlowa nazwa aplikacji.')
+                raise CreatorValidationError('name', 'Nieprawidlowa nazwa aplikacji.')
     return copy.deepcopy(value)

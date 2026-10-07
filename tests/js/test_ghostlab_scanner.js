@@ -87,10 +87,14 @@ function fixture() {
     let presentation={icon:'X',menu_name:'<Czesacz>',logs:{success:'Found'}};
     const button={classList:{remove(){}},removeAttribute(){},setAttribute(){},replaceChildren(){this.children=[];},append(...nodes){this.children=nodes;}};
     const mapWindow={parent:{DeepScanner:{snapshot:()=>presentation ? {presentation}:null,style(){}}},addEventListener(){}};
-    const adapter={window:mapWindow,document:{querySelectorAll:()=>[button],createElement:()=>({setAttribute(){}})}};
-    vm.createContext(adapter);vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner_map.js','utf8'),adapter);
+    const adapter={window:mapWindow,document:{querySelectorAll:()=>[button],createElement:()=>({dataset:{},setAttribute(){}})}};
+    vm.createContext(adapter);
+    require('./locale_fixture')(adapter, 'pl');
+    vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner_map.js','utf8'),adapter);
     mapWindow.DeepScannerMap.paintMenus();assert.equal(button.children[1].textContent,'<Czesacz>','author name is text, not HTML');
-    presentation=null;mapWindow.DeepScannerMap.paintMenus();assert.equal(button.textContent,'🔎 Skanuj');
+    presentation=null;mapWindow.DeepScannerMap.paintMenus();assert.equal(button.children[0].textContent,'🔎 Skanuj');
+    require('./locale_fixture')(adapter, 'en');
+    mapWindow.DeepScannerMap.paintMenus();assert.equal(button.children[0].textContent,'🔎 Scan');
     const firstScan={id:'scan-one',live:()=>true},secondScan={id:'scan-two',live:()=>true};
     const key=mapWindow.DeepScannerMap.messageKey;
     assert.equal(key(firstScan,'success'),key(firstScan,'success'),'same response remains deduplicated');

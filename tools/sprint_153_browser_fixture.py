@@ -51,6 +51,27 @@ class Handler(BaseHTTPRequestHandler):
                 return
             body = target.read_bytes()
             content_type = mimetypes.guess_type(str(target))[0] or 'application/octet-stream'
+        elif path == '/map-menu-locale.js':
+            source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
+            start = source.index('function showHackingMenuForMarker(')
+            end = source.index('// function showHackingMenuForMarker(', start)
+            body = source[start:end].encode()
+            content_type = 'application/javascript; charset=utf-8'
+        elif path == '/map-workspace-locale.js':
+            source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
+            boundaries = [('ensureMapScanOverlay', 'normalizeBootLoadedScopes'),
+                          ('showContextMenu', 'showMarkerContextMenu'),
+                          ('showCapturedObjectMenu', 'confirmCapturedObjectAbandon'),
+                          ('showMenuForHacked', None),
+                          ('repaintSecurityMenuSafe', 'secureAction'),
+                          ('showVulnerabilityReporterMenu', 'markerMenuAction')]
+            parts = []
+            for name, following in boundaries:
+                start = source.index('function ' + name + '(')
+                end = source.index('function ' + following + '(', start) if following else source.index('window.MAP_ACTION_DEBUG', start)
+                parts.append(source[start:end].rstrip().removesuffix('async').rstrip())
+            body = '\n'.join(parts).encode()
+            content_type = 'application/javascript; charset=utf-8'
         elif path == '/frame':
             with run.app.test_request_context('/frame'):
                 run.session['user'] = 'attacker'

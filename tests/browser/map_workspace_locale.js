@@ -1,0 +1,78 @@
+// Playwright MCP; run tools/sprint_153_browser_fixture.py first.
+async (page) => {
+    const assert = (value, message) => { if (!value) throw Error(message); };
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.setViewportSize({width:1440,height:1000});
+    await page.goto('http://127.0.0.1:8993');
+    if (!await page.evaluate(() => !!window.GhostLocale)) await page.goto('http://127.0.0.1:8993');
+    // Render extracted map menus above the fixture desktop; production owns them in an iframe.
+    await page.addStyleTag({content: '.context-menu,.context-menu-clean{position:fixed;z-index:2147483646;background:#001b0c;color:#caffd7;padding:12px;}'});
+    await page.addScriptTag({url: '/map-workspace-locale.js'});
+    await page.evaluate(() => {
+        window.guardMapGameplayAction = () => false;
+        window.lastContextWasMarker = false;
+        window.scanResultLayers = [];
+        window.mapScanEffectState = {active:0, element:null, hideTimer:null};
+        const container = document.createElement('div');
+        container.className = 'leaflet-container'; document.body.appendChild(container);
+        window.map = {getContainer: () => container};
+        window.closeMenus = () => document.querySelectorAll('.context-menu,.context-menu-clean').forEach(node => node.remove());
+        window.setupGlobalCloseListener = () => {};
+        window.normalizeMapMenuTarget = value => value;
+        window.capturedObjectTargetId = value => value.target_id;
+        window.capturedObjectSecurityRequests = new Map();
+        window.capturedObjectSecurityVersions = new Map();
+        window.escapeMapText = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+        window.mapCalls = [];
+        window.mapAction = (...args) => mapCalls.push(args);
+        window.secureAction = (...args) => mapCalls.push(args.slice(0, 5).concat(args[6]));
+        window.securePreset = (...args) => mapCalls.push(args.slice(0, 5));
+        window.clearScanResultLayers = () => scanResultLayers = [];
+        window.copyTeleportCommandFromMap = (...args) => mapCalls.push(['teleport', ...args]);
+        window.withdrawClanVulnerability = id => mapCalls.push(['withdraw', id]);
+    });
+    await page.addScriptTag({url: '/static/js/ghostlab_scanner_map.js'});
+    await page.evaluate(() => GhostLocale.changeLocale('pl', false));
+    await page.evaluate(() => showContextMenu(20, 20, 37.5, -122.1, true));
+    assert(await page.locator('[data-default-scan]').innerText() === '🔎 Skanuj', 'Default scanner PL');
+    await page.evaluate(() => GhostLocale.changeLocale('en', false));
+    assert(await page.locator('[data-default-scan]').innerText() === '🔎 Scan', 'Default scanner EN');
+    await page.evaluate(() => {window.finishTestScan=beginMapScanEffect();});
+    assert(await page.locator('.chaos-map-scan-overlay').getAttribute('data-label') === 'Scanning map', 'Scan overlay EN');
+    await page.evaluate(() => GhostLocale.changeLocale('pl',false));
+    assert(await page.locator('.chaos-map-scan-overlay').getAttribute('data-label') === 'Skanowanie mapy', 'Scan overlay PL');
+    await page.evaluate(() => {mapScanEffectState.element.classList.add('deep-scanner-styled');mapScanEffectState.element.dataset.label='Własny log <keep>';return GhostLocale.changeLocale('en',false);});
+    assert(await page.locator('.chaos-map-scan-overlay').getAttribute('data-label') === 'Własny log <keep>', 'Authored scan log translated');
+    await page.evaluate(() => finishTestScan());
+    await page.locator('[data-default-scan]').click();
+    assert(JSON.stringify(await page.evaluate(() => mapCalls[0])) === JSON.stringify(['scan',37.5,-122.1]), 'Scan coordinates changed');
+    await page.route('**/target-security-status', async route => {
+        const response = await page.request.get('http://127.0.0.1:8993/api/profile');
+        await route.fulfill({headers: response.headers(), json: {success:true, ownership_version:7, security_version:9, security:{firewall:true,scan_detection:false}}});
+    });
+    await page.evaluate(() => showMenuForHacked(20,20,{target_id:'target:stable',lat:37.5,lon:-122.1},'🏪',"Mike's <keep>"));
+    await page.locator('.context-menu-clean').waitFor();
+    assert(await page.locator('.context-menu-clean strong').innerText() === "Mike's <keep>", 'Target label changed');
+    assert(await page.locator('.context-menu-clean keep').count() === 0, 'UGC interpreted as HTML');
+    const row = page.locator('[data-security-key="firewall"]');
+    await row.evaluate(node => {window.testSecurityRow = node;node.dataset.busy='1';});
+    await page.evaluate(() => {repaintSecurityMenuSafe({firewall:false,scan_detection:true});return GhostLocale.changeLocale('pl',false);});
+    assert((await row.innerText()).includes('Zapora'), 'Security label after repaint');
+    assert(await row.evaluate(node => node === testSecurityRow && node.dataset.busy === '1'), 'Busy or row lost');
+    await row.click();
+    await page.locator('[data-ghost-i18n="map.preset.secure"]').click();
+    const calls = await page.evaluate(() => mapCalls.slice(1));
+    assert(calls[0][0] === 'firewall' && calls[0][3] === "Mike's <keep>" && calls[0][5] === 'target:stable', 'Security payload changed');
+    assert(calls[1][0] === 'secure' && calls[1][3] === 'target:stable', 'Preset ID translated');
+    await page.setViewportSize({width:390,height:844});
+    await page.evaluate(() => showCapturedObjectMenu(20,20,{target_id:'target:stable',lat:37.5,lon:-122.1},'🏪',"Mike's <keep>"));
+    await page.evaluate(() => GhostLocale.changeLocale('en',false));
+    assert(await page.locator('[data-ghost-i18n="map.workspace.secure"]').innerText() === '🛡 Secure', 'Captured menu EN');
+    assert(!await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'Mobile overflow');
+    await page.evaluate(() => showVulnerabilityReporterMenu(20,20,{id:'report:stable',label:'Własna nazwa <keep>'}));
+    await page.locator('[data-ghost-i18n="map.workspace.withdraw"]').click();
+    assert(JSON.stringify(await page.evaluate(() => mapCalls.at(-1))) === JSON.stringify(['withdraw','report:stable']), 'Report ID changed');
+    assert(!errors.length, errors.join('\n'));
+    return {scan:true,security:true,stablePayloads:true,presets:true,ugc:true,mobile:true,errors};
+}

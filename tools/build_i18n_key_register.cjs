@@ -17,6 +17,8 @@ const sources = {
  terminal:'terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command',
  files:'terminal.js:createFileManager()/runFile()/openFolderInManager()',
  shell:'terminal.js desktop/menu/taskbar/window controls/boot; ghost_i18n_frame.js',
+ map:'templates/map_template.html menu; terminal.js map tool picker (sprint 154)',
+ creator:'creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154)',
 };
 const rows = domains.flatMap(({domain,messages}) => Object.entries(messages).sort(([a],[b])=>a.localeCompare(b)).map(([key,entry]) => {
  const spec=Object.entries(entry.params).map(([name,type])=>`${name}: ${type}`).join(', ')||'—';
@@ -24,9 +26,11 @@ const rows = domains.flatMap(({domain,messages}) => Object.entries(messages).sor
  if(!source)throw Error('Unclassified key: '+key);
  return `| \`${key}\` | ${domain} | ${spec} | ${source} |`;
 }));
-const document = `# Sprint 153 — rejestr kluczy i glosariusz
+const sprint = manifest.content_version.split('.')[0];
+if (!/^\d+$/.test(sprint)) throw Error('Invalid sprint version');
+const document = `# Sprint ${sprint} — rejestr kluczy i glosariusz
 
-Stan: lokalny odbiór 6 X 2026. **${count} kluczy PL/EN**, pięć domen,
+Stan: rejestr aktualnego pakietu. **${count} kluczy PL/EN**, ${domains.length} domen,
 wersja pakietu \`${manifest.content_version}\`. Rejestr generuje
 \`node tools/build_i18n_key_register.cjs\`; nie utrzymujemy ręcznie drugiego słownika.
 
@@ -70,11 +74,12 @@ i \`shell.terminal.welcome\` są wzorcami kontraktu testowanego w obu runtime’
 
 Nazwy funkcji odnoszą się do aktualnych rendererów; pełne ścieżki JS:
 \`static/js/\`, Python i szablony w katalogu głównym i \`templates/\`.
-Odbiór: [raport 153](sprint_153_acceptance.md).
+Fundament i18n: [raport 153](sprint_153_acceptance.md). Rejestr nie oznacza
+pełnego odbioru sprintu ${sprint} ani potwierdzenia wdrożenia.
 
 | Klucz | Domena | Parametry | Źródło / renderer |
 | --- | --- | --- | --- |
 ${rows.join('\n')}
 `;
-fs.writeFileSync(path.join(root,'doc/audits/sprint_153_key_register.md'),document);
+fs.writeFileSync(path.join(root,`doc/audits/sprint_${sprint}_key_register.md`),document);
 console.log(JSON.stringify({content_version:manifest.content_version,keys:count,domains:domains.map(d=>({name:d.domain,keys:Object.keys(d.messages).length}))}));

@@ -1,0 +1,231 @@
+{
+  "locale": "en",
+  "format_version": 1,
+  "content_version": "154.5.0",
+  "messages": {
+    "map.picker.choose": {
+      "params": {
+        "action": "string"
+      },
+      "text": "Choose a tool for: {action}"
+    },
+    "map.action.exploit": {
+      "params": {},
+      "text": "💥 Install exploit"
+    },
+    "map.action.scan_ports": {
+      "params": {},
+      "text": "🛠️ Scan ports"
+    },
+    "map.action.trace": {
+      "params": {},
+      "text": "📍 Locate target"
+    },
+    "map.action.trace_gps": {
+      "params": {},
+      "text": "📍 Track GPS"
+    },
+    "map.action.trace_device": {
+      "params": {},
+      "text": "📡 Track device"
+    },
+    "map.action.scan_hotspots": {
+      "params": {},
+      "text": "📶 Detect hotspots"
+    },
+    "map.action.camera_stream": {
+      "params": {},
+      "text": "🎥 View camera feed"
+    },
+    "map.action.camera_shutdown": {
+      "params": {},
+      "text": "❌ Disable camera"
+    },
+    "map.action.install_sniffer": {
+      "params": {},
+      "text": "🐛 Install sniffer"
+    },
+    "map.action.sniff": {
+      "params": {},
+      "text": "📡 Monitor traffic"
+    },
+    "map.action.mic_sniff": {
+      "params": {},
+      "text": "🎙️ Listen to conversation"
+    },
+    "map.action.atm_logs": {
+      "params": {},
+      "text": "📊 Extract transaction logs"
+    },
+    "map.action.audio_hack": {
+      "params": {},
+      "text": "🔊 Take over audio player"
+    },
+    "map.action.car_hack": {
+      "params": {},
+      "text": "🚗 Take over onboard system"
+    },
+    "map.menu.report": {
+      "params": {},
+      "text": "Report vulnerability"
+    },
+    "map.menu.travel": {
+      "params": {},
+      "text": "Travel"
+    },
+    "map.menu.mark": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Mark {name}"
+    },
+    "map.menu.aim": {
+      "params": {},
+      "text": "Set as active target"
+    },
+    "map.picker.title": {
+      "params": {},
+      "text": "Choose a tool"
+    },
+    "map.picker.action": {
+      "params": {},
+      "text": "Map action"
+    },
+    "map.picker.action_unknown": {
+      "params": {},
+      "text": "Action"
+    },
+    "map.picker.use": {
+      "params": {},
+      "text": "Use"
+    },
+    "map.picker.starting": {
+      "params": {},
+      "text": "Starting…"
+    },
+    "map.picker.tool": {
+      "params": {},
+      "text": "Tool"
+    },
+    "map.picker.disk": {
+      "params": {},
+      "text": "Disk"
+    },
+    "map.picker.note": {
+      "params": {},
+      "text": "Only compatible tools are shown. The full catalog is available in Files."
+    },
+    "map.picker.files": {
+      "params": {},
+      "text": "Show in Files"
+    },
+    "map.action_name.exploit": {
+      "params": {},
+      "text": "Install exploit"
+    },
+    "creator.objects.general": {
+      "params": {},
+      "text": "Shops, parking lots and other general objects"
+    },
+    "map.action_name.scan_ports": {
+      "params": {},
+      "text": "Scan ports"
+    },
+    "map.action_name.trace": {
+      "params": {},
+      "text": "Locate target"
+    },
+    "map.action_name.trace_gps": {
+      "params": {},
+      "text": "Track GPS"
+    },
+    "creator.objects.cars": {
+      "params": {},
+      "text": "Cars"
+    },
+    "map.action_name.trace_device": {
+      "params": {},
+      "text": "Track device"
+    },
+    "creator.objects.people": {
+      "params": {},
+      "text": "People — customers, guests and ATM users"
+    },
+    "map.action_name.scan_hotspots": {
+      "params": {},
+      "text": "Detect hotspots"
+    },
+    "creator.objects.audio": {
+      "params": {},
+      "text": "Restaurants, cafés, bars and fast food"
+    },
+    "map.action_name.camera_stream": {
+      "params": {},
+      "text": "View camera feed"
+    },
+    "creator.objects.cameras": {
+      "params": {},
+      "text": "Shop and ATM cameras"
+    },
+    "map.action_name.camera_shutdown": {
+      "params": {},
+      "text": "Disable camera"
+    },
+    "map.action_name.install_sniffer": {
+      "params": {},
+      "text": "Install sniffer"
+    },
+    "creator.objects.atms": {
+      "params": {},
+      "text": "ATMs"
+    },
+    "map.action_name.sniff": {
+      "params": {},
+      "text": "Monitor traffic"
+    },
+    "map.action_name.mic_sniff": {
+      "params": {},
+      "text": "Listen to conversation"
+    },
+    "map.action_name.atm_logs": {
+      "params": {},
+      "text": "Extract transaction logs"
+    },
+    "map.action_name.audio_hack": {
+      "params": {},
+      "text": "Take over audio player"
+    },
+    "map.action_name.car_hack": {
+      "params": {},
+      "text": "Take over onboard system"
+    },
+    "creator.purpose.purpose": {
+      "params": {},
+      "text": "Purpose — map action"
+    },
+    "creator.purpose.menu": {
+      "params": {},
+      "text": "Map menu:"
+    },
+    "creator.purpose.file_yes": {
+      "params": {},
+      "text": "Creates file: YES"
+    },
+    "creator.purpose.file_no": {
+      "params": {},
+      "text": "Creates file: NO"
+    },
+    "creator.purpose.file_required": {
+      "params": {},
+      "text": "This action requires a file. Saving is mandatory after a successful operation."
+    },
+    "creator.purpose.file_optional": {
+      "params": {},
+      "text": "A file will be created after a successful operation."
+    },
+    "creator.purpose.file_none": {
+      "params": {},
+      "text": "This tool does not save a file."
+    }
+  }
+}

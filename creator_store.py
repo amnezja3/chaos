@@ -2,6 +2,8 @@
 import json
 import uuid
 
+from creator_messages import CreatorValidationError, presentation_defaults
+from ghost_i18n import normalize_locale
 import config
 from database import db_connect
 from ghostlab_store import GhostLabError, encoded, digest, now
@@ -61,9 +63,9 @@ class CreatorStore:
                 (owner, after)).fetchall()
         return [dict(row) for row in rows]
 
-    def create(self, owner, data, request_id, level, rng=None, quote=None):
+    def create(self, owner, data, request_id, level, rng=None, quote=None, locale='pl'):
         if not isinstance(request_id, str) or not 8 <= len(request_id) <= 128:
-            raise ValueError('Wymagany identyfikator generacji (8–128 znakow).')
+            raise CreatorValidationError('request_id', 'Wymagany identyfikator generacji (8–128 znakow).')
         signature = digest(data)
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
@@ -80,8 +82,9 @@ class CreatorStore:
                 contract['price'] = quote(contract, data.get('price'))
             project_id = 'crp_' + uuid.uuid4().hex
             project = dict(id=project_id, app_id='creator_' + uuid.uuid4().hex, owner=owner,
-                revision=1, version=0, created_at=now(), contract=contract,
-                presentation=validate_presentation(contract['interface'], {'name':data['name'], 'icon':data['icon']}))
+                revision=1, version=0, created_at=now(), contract=contract, presentation_locale=normalize_locale(locale),
+                presentation=validate_presentation(contract['interface'], {
+                    **presentation_defaults(contract['interface'], locale), 'name':data['name'], 'icon':data['icon']}))
             conn.execute('INSERT INTO creator_projects VALUES(?,?,?,?,?,?)',
                          (project_id, owner, request_id, signature, 1, encoded(project)))
             return project
@@ -95,11 +98,11 @@ class CreatorStore:
             changes = validate_presentation(project['contract']['interface'], presentation)
             if project.get('legacy_snapshot') and 'commands' in changes:
                 if len(changes['commands']) != len(project['presentation']['commands']):
-                    raise ValueError('Nie mozna zmieniac liczby historycznych etapow.')
+                    raise CreatorValidationError('legacy_steps', 'Nie mozna zmieniac liczby historycznych etapow.')
             if project['version']:
                 for key in ('button_labels', 'option_labels'):
                     if key in changes and len(changes[key]) != len(project['presentation'].get(key, ['Uruchom'])):
-                        raise ValueError('Po publikacji nie mozna dodawac ani usuwac akcji.')
+                        raise CreatorValidationError('published_actions', 'Po publikacji nie mozna dodawac ani usuwac akcji.')
             project['presentation'].update(changes)
             project['revision'] += 1
             conn.execute('UPDATE creator_projects SET revision=?,project_json=? WHERE id=?',
@@ -132,7 +135,7 @@ class CreatorStore:
                 effects = ([option.get('effect') for option in contract['options']]
                            if 'options' in contract else [contract.get('effect')])
                 if not effects or not all(effects):
-                    raise ValueError('Ta aplikacja zbiera dane, ale ma wyłączone tworzenie pliku. Utwórz nowe narzędzie z opcją Tworzy plik: TAK albo skonfiguruj effect dla każdej opcji Button Choice.')
+                    raise CreatorValidationError('file_required', 'Ta aplikacja zbiera dane, ale ma wyłączone tworzenie pliku. Utwórz nowe narzędzie z opcją Tworzy plik: TAK albo skonfiguruj effect dla każdej opcji Button Choice.')
             previous = conn.execute('SELECT app_json FROM creator_editions WHERE project_id=? AND revision=?',
                                     (project_id, revision)).fetchone()
             if previous:
@@ -147,11 +150,11 @@ class CreatorStore:
             for index, option in enumerate([] if project.get('legacy_snapshot') else project['contract'].get('options', [])):
                 try:
                     parse_effect(option.get('effect'))
-                except ValueError as error:
-                    raise ValueError(f'Opcja {index + 1}: {error}') from error
+                except CreatorValidationError as error:
+                    raise error.in_option(index + 1)
             app = builder(project, version)
             if app.get('id') != project['app_id'] or app.get('creator_username') != owner:
-                raise ValueError('Niezgodna tozsamosc produktu.')
+                raise CreatorValidationError('identity', 'Niezgodna tozsamosc produktu.')
             if app['name'].strip().casefold() in {str(name).strip().casefold() for name in reserved_names}:
                 raise GhostLabError('name_conflict', 'Aplikacja o takiej nazwie juz istnieje.')
             self._publish(conn, owner, app)

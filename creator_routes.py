@@ -1,13 +1,34 @@
 """Sprint 147 backend; the new editor is activated together with sprint 148."""
 from flask import jsonify, request, session
+from creator_messages import CreatorValidationError
 import config
 from creator_policy import RECIPES, SECURITY_KEYS, power_cap
 from ghostlab_store import GhostLabError
+from ghost_i18n import translator, manifest as locale_manifest
 
 
 def register(app, services):
     creator_apps = {'terminal': 'termcreator', 'window': 'windowmaker',
                     'button_choices': 'buttonmaker', 'progressbar_random': 'appforge'}
+
+    def locale():
+        return services['request_ui_locale']()
+
+    def failure(key, status, reason, params=None, option_index=None):
+        params = params or {}
+        text = translator().t(key, params, locale())
+        if option_index is not None:
+            text = translator().t('creator.validation.option', {'index': option_index}, locale()) + ' ' + text
+        envelope = dict(key=key, params=params, content_version=locale_manifest()['content_version'])
+        if option_index is not None:
+            envelope['option_index'] = option_index
+        return jsonify(success=False, reason=reason, message=text, message_i18n=envelope), status
+
+    def validate_icon(value):
+        try:
+            return services['validate_generated_app_icon'](value)
+        except ValueError as error:
+            raise CreatorValidationError('icon', str(error)) from error
 
     def require_creator(interface):
         app_id = creator_apps.get(interface)
@@ -36,7 +57,7 @@ def register(app, services):
             raise GhostLabError('request_too_large', 'Projekt przekracza limit.', 413)
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
-            raise ValueError('Wymagany obiekt JSON.')
+            raise CreatorValidationError('json', 'Wymagany obiekt JSON.')
         return data
 
     def guard(fn):
@@ -47,9 +68,14 @@ def register(app, services):
                 owner()
                 return fn(*args, **kwargs)
             except GhostLabError as exc:
-                return jsonify(success=False, reason=exc.reason, message=str(exc)), exc.status
+                key = 'creator.error.' + exc.reason
+                if key not in translator().catalogs['pl']['messages']:
+                    key = 'creator.editor.error'
+                return failure(key, exc.status, exc.reason)
+            except CreatorValidationError as exc:
+                return failure(exc.locale_key, 400, 'invalid_creator_input', exc.params, exc.option_index)
             except (ValueError, TypeError, KeyError) as exc:
-                return jsonify(success=False, reason='invalid_creator_input', message=str(exc)), 400
+                return failure('creator.validation.invalid', 400, 'invalid_creator_input')
         return wrapped
 
     @app.get('/api/creators/policy')
@@ -105,7 +131,7 @@ def register(app, services):
         with db_connect(services['player_inventory_store'].db_path) as conn:
             quote = option_quote(conn, owner(), app_id, choice)
         if quote is None:
-            raise ValueError('To nie jest wersjonowana opcja Button Choice.')
+            raise CreatorValidationError('versioned_choice', 'To nie jest wersjonowana opcja Button Choice.')
         return jsonify(success=True, quote=quote)
 
     @app.get('/api/creators/files')
@@ -139,13 +165,13 @@ def register(app, services):
         request_id = data.pop('request_id', None)
         name = data.get('name')
         if not isinstance(name, str) or not name.strip() or len(name) > 80 or ';' in name:
-            raise ValueError('Nieprawidlowa nazwa aplikacji.')
-        services['validate_generated_app_icon'](data.get('icon'))
+            raise CreatorValidationError('name', 'Nieprawidlowa nazwa aplikacji.')
+        validate_icon(data.get('icon'))
         capabilities = services['capability_projection_store'].get_capabilities(owner())
         if not capabilities:
             raise GhostLabError('projection_unavailable', 'Brak projekcji poziomu.', 503)
         project = store().create(owner(), data, request_id, capabilities['level'],
-                                 quote=services['quote_creator_price'])
+                                 quote=services['quote_creator_price'], locale=locale())
         return jsonify(success=True, project=project)
 
     @app.get('/api/creators/projects/<project_id>')
@@ -175,10 +201,10 @@ def register(app, services):
         owned_project(project_id)
         data = payload()
         if set(data) != {'revision', 'presentation'}:
-            raise ValueError('Dozwolona jest tylko edycja prezentacji.')
+            raise CreatorValidationError('presentation_only', 'Dozwolona jest tylko edycja prezentacji.')
         presentation = data['presentation']
         if isinstance(presentation, dict) and 'icon' in presentation:
-            services['validate_generated_app_icon'](presentation['icon'])
+            validate_icon(presentation['icon'])
         return jsonify(success=True, project=store().update(owner(), project_id, data['revision'], presentation))
 
     @app.patch('/api/creators/projects/<project_id>/configuration')
@@ -188,7 +214,7 @@ def register(app, services):
         owned_project(project_id)
         data = payload()
         if set(data) != {'revision', 'configuration'}:
-            raise ValueError('Wymagana rewizja i konfiguracja projektu.')
+            raise CreatorValidationError('configuration', 'Wymagana rewizja i konfiguracja projektu.')
         capabilities = services['capability_projection_store'].get_capabilities(owner())
         if not capabilities:
             raise GhostLabError('projection_unavailable', 'Brak projekcji poziomu.', 503)
@@ -201,7 +227,7 @@ def register(app, services):
         enabled()
         data = payload()
         if set(data) != {'revision'}:
-            raise ValueError('Publikacja przyjmuje tylko rewizje projektu.')
+            raise CreatorValidationError('publish_fields', 'Publikacja przyjmuje tylko rewizje projektu.')
         project = owned_project(project_id)
         reserved = [item.get('name', '') for item in services['get_app_catalog']()
                     if item.get('id') != project['app_id']]

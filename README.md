@@ -180,7 +180,7 @@ Expect:
 - rough edges in UI,
 - prototype mechanics becoming formal systems over time.
 
-Ghost System PL/EN foundation and desktop shell (153) passed local acceptance; app/content localization continues in 154–155.
+Ghost System PL/EN foundation and desktop shell (153) passed production acceptance and is closed; app/content localization continues in 154–155.
 GhostLab v2.0 (149–152) is frozen until explicitly resumed by the author.
 A prepared fix is not a production PASS.
 
@@ -203,8 +203,8 @@ A prepared fix is not a production PASS.
 | [150](doc/sprints/sprint_150_ghostlab_v2_exchange_import.md) | Official Exchange, packages and import | Frozen until further notice. |
 | [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Frozen until further notice. |
 | [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Frozen until further notice. |
-| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Deployed. Author PASS: registration, login, system entry, profile, settings, locale persistence, FM and wallet. Mobile desktop label regression fixed locally; production retest pending. EN remains test until 155. |
-| [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Planned after 153. |
+| [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Deployed, author production PASS, closed 6 October. Includes terminal and state-preserving PL/EN switching with open windows/map and fullscreen. EN remains test until 155. |
+| [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Increment 154.5.0 ready for deployment: creators, action picker, map menus and security labels; 718 keys, 78 Python tests and 9 JS suites PASS. Full sprint remains in progress. [Deployment](doc/runbooks/deploy_154_5.md). |
 | [155](doc/sprints/sprint_155_ghost_system_content_acceptance.md) | System messages, narrative, historical content migration and full PL/EN acceptance | Planned after 154. |
 
 Research, Exchange and Documentation roadmap descriptions are not evidence of

@@ -16,6 +16,57 @@ class CreatorRoutesTest(unittest.TestCase):
     setUp = read_tests.PlayerHackReadPathsTest.setUp
     no_heavy = alignment_tests.GhostLabAlignmentTest.no_heavy
 
+    def test_creator_locale_defaults_retries_and_authored_editions(self):
+        data = dict(self.prepare(), interface='window')
+        with self.no_heavy(), patch.object(run, 'request_ui_locale', return_value='en'):
+            project = self.client.post('/api/creators/projects', json=data).json['project']
+            self.assertEqual(project['presentation_locale'], 'en')
+            self.assertEqual(project['presentation']['button_labels'], ['Run'])
+            base = '/api/creators/projects/' + project['id']
+            invalid = self.client.patch(base + '/configuration', json={
+                'revision': 1, 'configuration': {'price': -1}})
+            self.assertEqual(invalid.status_code, 400)
+            self.assertEqual(invalid.json['message_i18n']['key'], 'creator.validation.price')
+            self.assertIn('Price must', invalid.json['message'])
+            self.assertEqual(self.client.get(base).json['project'], project)
+        with self.no_heavy(), patch.object(run, 'request_ui_locale', return_value='pl'):
+            self.assertEqual(self.client.post('/api/creators/projects', json=data).json['project'], project)
+            updated = self.client.patch(base, json={'revision': 1, 'presentation': {
+                'button_labels': ['Mój przycisk <keep>'], 'logs': ['creator.editor.publish']}}).json['project']
+            app = self.client.post(base + '/publish', json={'revision': updated['revision']}).json['app']
+            self.assertEqual(app['levels'][0]['buttons'][0]['label'], 'Mój przycisk <keep>')
+            self.assertEqual(app['levels'][0]['list'], ['creator.editor.publish'])
+
+    def test_option_validation_has_translatable_context(self):
+        data = dict(self.prepare(), interface='button_choices')
+        with self.no_heavy(), patch.object(run, 'request_ui_locale', return_value='en'):
+            project = self.client.post('/api/creators/projects', json=data).json['project']
+            response = self.client.patch('/api/creators/projects/' + project['id'] + '/configuration',
+                json={'revision': 1, 'configuration': {'options': [
+                    {'effect': 'firewall=false'}, {'effect': 'firewall=bad'}]}})
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json['message_i18n']['key'], 'creator.validation.effect_syntax')
+            self.assertEqual(response.json['message_i18n']['option_index'], 2)
+            self.assertTrue(response.json['message'].startswith('Option 2: Invalid effect syntax.'))
+            self.assertEqual(self.store.get('attacker', project['id']), project)
+
+    def test_all_creator_defaults_publish_in_creation_language(self):
+        data = self.prepare()
+        for locale, expected in [('pl', ['Uruchamianie…', 'Uruchom', 'Wykonaj', 'Operacja wykonana.']),
+                                 ('en', ['Starting…', 'Run', 'Execute', 'Operation completed.'])]:
+            for index, interface in enumerate(['terminal', 'window', 'button_choices', 'progressbar_random']):
+                with self.subTest(locale=locale, interface=interface), self.no_heavy(), patch.object(run, 'request_ui_locale', return_value=locale):
+                    key = locale + '-' + interface
+                    project = self.client.post('/api/creators/projects', json=dict(data,
+                        name=key, request_id='locale-' + key, interface=interface)).json['project']
+                    response = self.client.post('/api/creators/projects/' + project['id'] + '/publish',
+                        json={'revision': 1})
+                    self.assertEqual(response.status_code, 200, response.json)
+                    level = response.json['app']['levels'][0]
+                    value = (level['logs'][0] if index == 0 else level['buttons'][0]['label'] if index == 1
+                             else level['options'][0]['label'] if index == 2 else level['result_success'])
+                    self.assertEqual(value, expected[index])
+
     def test_all_creator_actions_have_same_picker_and_runtime_target_rules(self):
         from creator_policy import RECIPES, supports_target_type
         from response_network.camera_contract import eligible_app

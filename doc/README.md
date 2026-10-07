@@ -5,13 +5,20 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
-- [153 — fundament PL/EN: wdrożony, częściowy PASS produkcyjny](sprints/sprint_153_ghost_system_i18n_foundation.md):
+- [Wydanie przyrostowe 154.5.0](runbooks/deploy_154_5.md): kreatory, picker,
+  menu mapy i zabezpieczenia PL/EN. 718 kluczy, 78 testów Python i dziewięć
+  zestawów JS PASS; [rejestr kluczy](audits/sprint_154_key_register.md).
+  Przygotowane do wdrożenia, bez potwierdzenia produkcyjnego; sprint 154 w toku.
+
+- [153 — fundament PL/EN: wdrożony, PASS produkcyjny, zamknięty](sprints/sprint_153_ghost_system_i18n_foundation.md):
   [format v1](architecture/ghost_i18n_v1.md) i
   [rejestr kluczy/glosariusz](audits/sprint_153_key_register.md).
   496 kluczy, pełna powłoka 153, recovery i iframe; 105 testów Python, sześć JS
   oraz Playwright PASS lokalnie. Autor potwierdził na produkcji rejestrację,
   logowanie, wejście do systemu, profil, ustawienia, pamiętanie języka, FM i portfel.
-  Regresja etykiet ikon mobilnego pulpitu poprawiona lokalnie; ponowny odbiór oczekiwany.
+  Mobilny pulpit: ponowny odbiór autora PASS; regresja etykiet ikon zamknięta.
+  Końcowy PASS obejmuje też terminal i zmianę PL/EN przy otwartych oknach
+  oraz mapie, bez utraty stanu, także w fullscreen.
   [Odbiór](audits/sprint_153_acceptance.md). EN nadal testowe.
 
 - [Panel administracyjny — layout i odczyty na żądanie](runbooks/admin_panel_lazy_layout.md):

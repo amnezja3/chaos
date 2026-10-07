@@ -1,13 +1,16 @@
 {
   "format_version": 1,
-  "content_version": "153.4",
+  "content_version": "154.5.0",
   "default_locale": "pl",
   "domains": [
     "foundation",
     "settings",
     "entry",
     "onboarding",
-    "shell"
+    "shell",
+    "map_actions",
+    "creators",
+    "map_workspace"
   ],
   "locales": {
     "pl": {

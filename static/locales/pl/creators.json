@@ -1,0 +1,498 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.5.0",
+  "messages": {
+    "creator.editor.title": {
+      "params": {},
+      "text": "Kreator"
+    },
+    "creator.editor.discard_question": {
+      "params": {},
+      "text": "Odrzucić niezapisane zmiany?"
+    },
+    "creator.editor.discard": {
+      "params": {},
+      "text": "ODRZUĆ"
+    },
+    "creator.editor.back": {
+      "params": {},
+      "text": "WRÓĆ DO EDYCJI"
+    },
+    "creator.editor.new": {
+      "params": {},
+      "text": "Nowe narzędzie"
+    },
+    "creator.editor.edit": {
+      "params": {},
+      "text": "Interfejs i publikacja"
+    },
+    "creator.editor.name": {
+      "params": {},
+      "text": "Nazwa"
+    },
+    "creator.editor.icon": {
+      "params": {},
+      "text": "Ikona — jeden znak lub emoji"
+    },
+    "creator.editor.generate": {
+      "params": {},
+      "text": "Generuj narzędzie"
+    },
+    "creator.editor.projects": {
+      "params": {},
+      "text": "Zapisane projekty"
+    },
+    "creator.editor.more": {
+      "params": {},
+      "text": "Więcej projektów"
+    },
+    "creator.editor.interface_title": {
+      "params": {},
+      "text": "Tytuł interfejsu"
+    },
+    "creator.editor.description": {
+      "params": {},
+      "text": "Opis w Googleplexie"
+    },
+    "creator.editor.price": {
+      "params": {},
+      "text": "Cena zakupu HC (0 = Open Source)"
+    },
+    "creator.editor.command": {
+      "params": {},
+      "text": "Komenda"
+    },
+    "creator.editor.outputs": {
+      "params": {},
+      "text": "Outputy — jeden na linię"
+    },
+    "creator.editor.add_command": {
+      "params": {},
+      "text": "Dodaj komendę"
+    },
+    "creator.editor.logs": {
+      "params": {},
+      "text": "Logi — jeden na linię"
+    },
+    "creator.editor.buttons": {
+      "params": {},
+      "text": "Przyciski — jeden na linię"
+    },
+    "creator.editor.prompt": {
+      "params": {},
+      "text": "Prompt"
+    },
+    "creator.editor.option": {
+      "params": {},
+      "text": "Opcja"
+    },
+    "creator.editor.effect": {
+      "params": {},
+      "text": "Effect"
+    },
+    "creator.editor.use_price": {
+      "params": {},
+      "text": "Cena użycia HC"
+    },
+    "creator.editor.add_option": {
+      "params": {},
+      "text": "Dodaj opcję"
+    },
+    "creator.editor.steps": {
+      "params": {},
+      "text": "Logi postępu — jeden na linię"
+    },
+    "creator.editor.success": {
+      "params": {},
+      "text": "Komunikat sukcesu"
+    },
+    "creator.editor.failure": {
+      "params": {},
+      "text": "Komunikat niepowodzenia"
+    },
+    "creator.editor.save": {
+      "params": {},
+      "text": "Zapisz szkic"
+    },
+    "creator.editor.saved": {
+      "params": {},
+      "text": "Szkic zapisany."
+    },
+    "creator.editor.publish": {
+      "params": {},
+      "text": "Opublikuj"
+    },
+    "creator.editor.preview": {
+      "params": {},
+      "text": "Podgląd tekstów — bez wykonania"
+    },
+    "creator.editor.reload": {
+      "params": {},
+      "text": "Odczytaj zapisany projekt"
+    },
+    "creator.editor.list": {
+      "params": {},
+      "text": "Lista projektów"
+    },
+    "creator.editor.locked": {
+      "params": {},
+      "text": "Mechanika, efekty i ceny opublikowanej aplikacji są zablokowane."
+    },
+    "creator.editor.will_lock": {
+      "params": {},
+      "text": "Po pierwszej publikacji mechanika i ceny zostaną zablokowane."
+    },
+    "creator.editor.legacy_effect": {
+      "params": {},
+      "text": "Historyczne efekty i ceny pozostają bez zmian. Możesz edytować etykiety i komunikaty."
+    },
+    "creator.editor.checking": {
+      "params": {},
+      "text": "Sprawdzanie wersji…"
+    },
+    "creator.editor.update": {
+      "params": {},
+      "text": "AKTUALIZACJA · 0 HC"
+    },
+    "creator.editor.default_run": {
+      "params": {},
+      "text": "Uruchom"
+    },
+    "creator.editor.default_execute": {
+      "params": {},
+      "text": "Wykonaj"
+    },
+    "creator.editor.default_start": {
+      "params": {},
+      "text": "Uruchamianie…"
+    },
+    "creator.editor.default_success": {
+      "params": {},
+      "text": "Operacja wykonana."
+    },
+    "creator.editor.default_failure": {
+      "params": {},
+      "text": "Operacja odrzucona."
+    },
+    "creator.editor.error": {
+      "params": {},
+      "text": "Nie udało się wykonać operacji. Spróbuj ponownie."
+    },
+    "creator.editor.not_installed": {
+      "params": {},
+      "text": "Brak narzędzia kreatorskiego. Zainstaluj odpowiedni kreator."
+    },
+    "creator.editor.legacy": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Projekt historyczny · oryginalna mechanika · wersja {version}"
+    },
+    "creator.editor.power": {
+      "params": {
+        "power": "number",
+        "cap": "number",
+        "version": "number"
+      },
+      "text": "Moc: {power}% · maksimum przy generacji: {cap}% · wersja {version}"
+    },
+    "creator.editor.effect_enabled": {
+      "params": {
+        "level": "number"
+      },
+      "text": "Effect działa od LVL {level}. Możesz użyć zatwierdzonych przypisań, np. firewall=false."
+    },
+    "creator.editor.effect_disabled": {
+      "params": {
+        "level": "number"
+      },
+      "text": "Effect działa od LVL {level}. Na Twoim poziomie wpisany effect nie zmieni działania."
+    },
+    "creator.editor.published": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Opublikowano wersję {version}."
+    },
+    "creator.editor.installed": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Zainstalowana: v{version}"
+    },
+    "creator.editor.available": {
+      "params": {
+        "installed": "number",
+        "available": "number"
+      },
+      "text": "Zainstalowana: v{installed} · dostępna: v{available}"
+    },
+    "creator.editor.withdrawn": {
+      "params": {
+        "installed": "number"
+      },
+      "text": "Zainstalowana: v{installed} · dostępna: wycofana"
+    },
+    "creator.error.creator_not_installed": {
+      "params": {},
+      "text": "Brak narzędzia kreatorskiego. Zainstaluj odpowiedni kreator."
+    },
+    "creator.error.not_installed": {
+      "params": {},
+      "text": "Brak zainstalowanej aplikacji."
+    },
+    "creator.error.not_logged_in": {
+      "params": {},
+      "text": "Zaloguj się."
+    },
+    "creator.error.creator_rollout_pending": {
+      "params": {},
+      "text": "Nowy kreator oczekuje na aktywację."
+    },
+    "creator.error.request_too_large": {
+      "params": {},
+      "text": "Projekt przekracza limit rozmiaru."
+    },
+    "creator.error.projection_unavailable": {
+      "params": {},
+      "text": "Nie można odczytać poziomu gracza. Spróbuj ponownie."
+    },
+    "creator.error.project_not_migrated": {
+      "params": {},
+      "text": "Projekt wymaga migracji lub sprawdzenia przez administratora."
+    },
+    "creator.error.project_not_found": {
+      "params": {},
+      "text": "Nie znaleziono projektu autora."
+    },
+    "creator.error.request_conflict": {
+      "params": {},
+      "text": "Ten identyfikator żądania należy do innej generacji."
+    },
+    "creator.error.project_limit": {
+      "params": {},
+      "text": "Osiągnięto limit projektów."
+    },
+    "creator.error.revision_conflict": {
+      "params": {},
+      "text": "Projekt zmienił się. Odczytaj zapisaną wersję przed kolejnym zapisem."
+    },
+    "creator.error.mechanics_frozen": {
+      "params": {},
+      "text": "Opublikowana mechanika i ceny są niezmienne."
+    },
+    "creator.error.version_limit": {
+      "params": {},
+      "text": "Osiągnięto limit wydań."
+    },
+    "creator.error.name_conflict": {
+      "params": {},
+      "text": "Aplikacja o takiej nazwie już istnieje."
+    },
+    "creator.error.publication_owner_conflict": {
+      "params": {},
+      "text": "Produkt należy do innego autora."
+    },
+    "creator.editor.invalid_icon": {
+      "params": {},
+      "text": "Wybierz dokładnie jeden widoczny znak lub emoji."
+    },
+    "creator.editor.choose_icon": {
+      "params": {},
+      "text": "Wybierz ikonę"
+    },
+    "creator.validation.effect_length": {
+      "params": {},
+      "text": "Effect przekracza limit 6000 znaków."
+    },
+    "creator.validation.effect_syntax": {
+      "params": {},
+      "text": "Nieprawidłowa składnia effect. Użyj np. risk_level=10,firewall=false."
+    },
+    "creator.validation.effect_range": {
+      "params": {},
+      "text": "Wartość liczbowa effect poza zakresem."
+    },
+    "creator.validation.effect_assignments": {
+      "params": {},
+      "text": "Effect wymaga listy przypisań klucz=wartość."
+    },
+    "creator.validation.risk_range": {
+      "params": {},
+      "text": "risk_level: wymagana liczba całkowita od 0 do 100."
+    },
+    "creator.validation.level": {
+      "params": {},
+      "text": "Brak prawidlowego poziomu autora."
+    },
+    "creator.validation.price": {
+      "params": {},
+      "text": "Cena musi byc calkowita kwota w dozwolonym zakresie."
+    },
+    "creator.validation.effect_interface": {
+      "params": {},
+      "text": "Reczny effect jest dostepny tylko w Button Choice."
+    },
+    "creator.validation.generator_fields": {
+      "params": {},
+      "text": "Niedozwolone pola generatora."
+    },
+    "creator.validation.action": {
+      "params": {},
+      "text": "Nieznana akcja lub kreator."
+    },
+    "creator.validation.file_choice": {
+      "params": {},
+      "text": "Wybierz czy tworzyc plik."
+    },
+    "creator.validation.file_unavailable": {
+      "params": {},
+      "text": "Ta akcja nie tworzy pliku."
+    },
+    "creator.validation.mechanics": {
+      "params": {},
+      "text": "Niedozwolona zmiana mechaniki."
+    },
+    "creator.validation.options": {
+      "params": {},
+      "text": "Opcje sa dostepne tylko w Button Choice (1 do 32)."
+    },
+    "creator.validation.option_fields": {
+      "params": {},
+      "text": "Opcja moze okreslac tylko effect i cene uzycia."
+    },
+    "creator.validation.contract_version": {
+      "params": {},
+      "text": "Nieobslugiwana wersja kontraktu aplikacji."
+    },
+    "creator.validation.contract": {
+      "params": {},
+      "text": "Nieprawidlowy kontrakt zainstalowanej aplikacji."
+    },
+    "creator.validation.choice": {
+      "params": {},
+      "text": "Wybierz prawidlowa opcje aplikacji."
+    },
+    "creator.validation.choice_id": {
+      "params": {},
+      "text": "Nieprawidlowy choice_id."
+    },
+    "creator.validation.choice_contract": {
+      "params": {},
+      "text": "Opcja nie nalezy do kontraktu."
+    },
+    "creator.validation.choice_interface": {
+      "params": {},
+      "text": "Ten interfejs nie obsluguje choice_id."
+    },
+    "creator.validation.presentation": {
+      "params": {},
+      "text": "Po publikacji mozna zmieniac tylko prezentacje."
+    },
+    "creator.validation.text": {
+      "params": {},
+      "text": "Nieprawidlowy tekst prezentacji."
+    },
+    "creator.validation.required": {
+      "params": {},
+      "text": "Wymagany niepusty tekst."
+    },
+    "creator.validation.list": {
+      "params": {},
+      "text": "Wymagana lista maksymalnie 32 pozycji."
+    },
+    "creator.validation.commands": {
+      "params": {},
+      "text": "Wymagane 1 do 32 komend."
+    },
+    "creator.validation.command_fields": {
+      "params": {},
+      "text": "Komenda wymaga tekstu command i listy logs."
+    },
+    "creator.validation.commands_unique": {
+      "params": {},
+      "text": "Komendy musza byc unikalne."
+    },
+    "creator.validation.name": {
+      "params": {},
+      "text": "Nieprawidlowa nazwa aplikacji."
+    },
+    "creator.validation.json": {
+      "params": {},
+      "text": "Wymagany obiekt JSON."
+    },
+    "creator.validation.versioned_choice": {
+      "params": {},
+      "text": "To nie jest wersjonowana opcja Button Choice."
+    },
+    "creator.validation.presentation_only": {
+      "params": {},
+      "text": "Dozwolona jest tylko edycja prezentacji."
+    },
+    "creator.validation.configuration": {
+      "params": {},
+      "text": "Wymagana rewizja i konfiguracja projektu."
+    },
+    "creator.validation.publish_fields": {
+      "params": {},
+      "text": "Publikacja przyjmuje tylko rewizje projektu."
+    },
+    "creator.validation.request_id": {
+      "params": {},
+      "text": "Wymagany identyfikator generacji (8–128 znakow)."
+    },
+    "creator.validation.legacy_steps": {
+      "params": {},
+      "text": "Nie mozna zmieniac liczby historycznych etapow."
+    },
+    "creator.validation.published_actions": {
+      "params": {},
+      "text": "Po publikacji nie mozna dodawac ani usuwac akcji."
+    },
+    "creator.validation.file_required": {
+      "params": {},
+      "text": "Ta aplikacja zbiera dane, ale ma wyłączone tworzenie pliku. Utwórz nowe narzędzie z opcją Tworzy plik: TAK albo skonfiguruj effect dla każdej opcji Button Choice."
+    },
+    "creator.validation.identity": {
+      "params": {},
+      "text": "Niezgodna tozsamosc produktu."
+    },
+    "creator.validation.labels_count": {
+      "params": {},
+      "text": "Liczba etykiet musi odpowiadac liczbie skonfigurowanych opcji."
+    },
+    "creator.validation.invalid": {
+      "params": {},
+      "text": "Nieprawidłowe dane kreatora. Sprawdź pola formularza."
+    },
+    "creator.validation.icon": {
+      "params": {},
+      "text": "Wybierz dokładnie jeden widoczny znak lub emoji."
+    },
+    "creator.validation.effect_duplicate": {
+      "params": {
+        "key": "string"
+      },
+      "text": "Powtórzony klucz effect: {key}"
+    },
+    "creator.validation.effect_boolean": {
+      "params": {
+        "key": "string"
+      },
+      "text": "{key}: użyj true (ON) albo false (OFF)."
+    },
+    "creator.validation.effect_unknown": {
+      "params": {
+        "key": "string"
+      },
+      "text": "Nieznany klucz effect: {key}"
+    },
+    "creator.validation.option": {
+      "params": {
+        "index": "number"
+      },
+      "text": "Opcja {index}:"
+    }
+  }
+}

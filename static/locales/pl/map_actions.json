@@ -1,0 +1,231 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.5.0",
+  "messages": {
+    "map.picker.choose": {
+      "params": {
+        "action": "string"
+      },
+      "text": "Wybierz narzędzie dla: {action}"
+    },
+    "map.action.exploit": {
+      "params": {},
+      "text": "💥 Zainstaluj exploit"
+    },
+    "map.action.scan_ports": {
+      "params": {},
+      "text": "🛠️ Przeskanuj porty"
+    },
+    "map.action.trace": {
+      "params": {},
+      "text": "📍 Namierz cel"
+    },
+    "map.action.trace_gps": {
+      "params": {},
+      "text": "📍 Śledź GPS"
+    },
+    "map.action.trace_device": {
+      "params": {},
+      "text": "📡 Śledź urządzenie"
+    },
+    "map.action.scan_hotspots": {
+      "params": {},
+      "text": "📶 Wykryj hotspoty"
+    },
+    "map.action.camera_stream": {
+      "params": {},
+      "text": "🎥 Podgląd obrazu"
+    },
+    "map.action.camera_shutdown": {
+      "params": {},
+      "text": "❌ Wyłącz kamerę"
+    },
+    "map.action.install_sniffer": {
+      "params": {},
+      "text": "🐛 Zainstaluj sniffer"
+    },
+    "map.action.sniff": {
+      "params": {},
+      "text": "📡 Śledź ruch"
+    },
+    "map.action.mic_sniff": {
+      "params": {},
+      "text": "🎙️ Podsłuchuj rozmowę"
+    },
+    "map.action.atm_logs": {
+      "params": {},
+      "text": "📊 Przejmij logi transakcji"
+    },
+    "map.action.audio_hack": {
+      "params": {},
+      "text": "🔊 Przejmij odtwarzacz audio"
+    },
+    "map.action.car_hack": {
+      "params": {},
+      "text": "🚗 Przejmij system pokładowy"
+    },
+    "map.menu.report": {
+      "params": {},
+      "text": "Zgłoś podatność"
+    },
+    "map.menu.travel": {
+      "params": {},
+      "text": "Podróżuj"
+    },
+    "map.menu.mark": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Oznacz {name}"
+    },
+    "map.menu.aim": {
+      "params": {},
+      "text": "Ustaw jako aktywny cel"
+    },
+    "map.picker.title": {
+      "params": {},
+      "text": "Wybór narzędzia"
+    },
+    "map.picker.action": {
+      "params": {},
+      "text": "Akcja mapy"
+    },
+    "map.picker.action_unknown": {
+      "params": {},
+      "text": "Akcja"
+    },
+    "map.picker.use": {
+      "params": {},
+      "text": "Użyj"
+    },
+    "map.picker.starting": {
+      "params": {},
+      "text": "Uruchamiam…"
+    },
+    "map.picker.tool": {
+      "params": {},
+      "text": "Narzędzie"
+    },
+    "map.picker.disk": {
+      "params": {},
+      "text": "Dysk"
+    },
+    "map.picker.note": {
+      "params": {},
+      "text": "Pokazano tylko pasujące narzędzia. Pełny katalog pozostaje w Plikach."
+    },
+    "map.picker.files": {
+      "params": {},
+      "text": "Pokaż w plikach"
+    },
+    "map.action_name.exploit": {
+      "params": {},
+      "text": "Zainstaluj exploit"
+    },
+    "creator.objects.general": {
+      "params": {},
+      "text": "Sklepy, parkingi i inne obiekty ogólne"
+    },
+    "map.action_name.scan_ports": {
+      "params": {},
+      "text": "Przeskanuj porty"
+    },
+    "map.action_name.trace": {
+      "params": {},
+      "text": "Namierz cel"
+    },
+    "map.action_name.trace_gps": {
+      "params": {},
+      "text": "Śledź GPS"
+    },
+    "creator.objects.cars": {
+      "params": {},
+      "text": "Samochody"
+    },
+    "map.action_name.trace_device": {
+      "params": {},
+      "text": "Śledź urządzenie"
+    },
+    "creator.objects.people": {
+      "params": {},
+      "text": "Osoby — klienci, goście, osoby przy bankomacie"
+    },
+    "map.action_name.scan_hotspots": {
+      "params": {},
+      "text": "Wykryj hotspoty"
+    },
+    "creator.objects.audio": {
+      "params": {},
+      "text": "Restauracje, kawiarnie, bary i fast food"
+    },
+    "map.action_name.camera_stream": {
+      "params": {},
+      "text": "Podgląd obrazu"
+    },
+    "creator.objects.cameras": {
+      "params": {},
+      "text": "Kamery sklepów i bankomatów"
+    },
+    "map.action_name.camera_shutdown": {
+      "params": {},
+      "text": "Wyłącz kamerę"
+    },
+    "map.action_name.install_sniffer": {
+      "params": {},
+      "text": "Zainstaluj sniffer"
+    },
+    "creator.objects.atms": {
+      "params": {},
+      "text": "Bankomaty"
+    },
+    "map.action_name.sniff": {
+      "params": {},
+      "text": "Śledź ruch"
+    },
+    "map.action_name.mic_sniff": {
+      "params": {},
+      "text": "Podsłuchuj rozmowę"
+    },
+    "map.action_name.atm_logs": {
+      "params": {},
+      "text": "Przejmij logi transakcji"
+    },
+    "map.action_name.audio_hack": {
+      "params": {},
+      "text": "Przejmij odtwarzacz audio"
+    },
+    "map.action_name.car_hack": {
+      "params": {},
+      "text": "Przejmij system pokładowy"
+    },
+    "creator.purpose.purpose": {
+      "params": {},
+      "text": "Przeznaczenie — akcja na mapie"
+    },
+    "creator.purpose.menu": {
+      "params": {},
+      "text": "Menu mapy:"
+    },
+    "creator.purpose.file_yes": {
+      "params": {},
+      "text": "Tworzy plik: TAK"
+    },
+    "creator.purpose.file_no": {
+      "params": {},
+      "text": "Tworzy plik: NIE"
+    },
+    "creator.purpose.file_required": {
+      "params": {},
+      "text": "Ta akcja wymaga pliku. Zapis jest obowiązkowy po skutecznym zakończeniu operacji."
+    },
+    "creator.purpose.file_optional": {
+      "params": {},
+      "text": "Plik powstanie po skutecznym zakończeniu operacji."
+    },
+    "creator.purpose.file_none": {
+      "params": {},
+      "text": "To narzędzie nie zapisuje pliku."
+    }
+  }
+}

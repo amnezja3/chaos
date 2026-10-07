@@ -1,10 +1,11 @@
 # Sprint 153 — Ghost System: fundament języków i pulpit PL/EN
 
-Status: **WDROŻONY; CZĘŚCIOWY PASS PRODUKCYJNY** potwierdzony przez autora 6 X 2026.
+Status: **WDROŻONY; PASS PRODUKCYJNY — SPRINT ZAMKNIĘTY**, potwierdzony przez autora 6 X 2026.
 PASS: rejestracja, logowanie, przejście do systemu, ikony, profil, ustawienia
-i pamiętanie wyboru języka; następnie FM i portfel. Mobilny pulpit: zgłoszony
-FAIL etykiet ikon, poprawiony lokalnie i oczekujący ponownego odbioru.
-Potwierdzenie terminala oraz pozostałych scenariuszy mobile/fullscreen pozostaje otwarte.
+i pamiętanie wyboru języka; następnie FM i portfel. Mobilny pulpit:
+ponowny odbiór autora **PASS** po poprawce etykiet ikon. Regresja zamknięta.
+Autor potwierdził także terminal oraz zmianę PL/EN przy otwartych oknach
+i mapie, bez utraty stanu, również w fullscreen. Odbiór zakresu 153 zamknięty.
 Pierwszy z trzech sprintów lokalizacji,
 niezależny od zamrożonych decyzją autora sprintów 149–152; dalej
 [154](sprint_154_ghost_system_apps_catalogs.md) i

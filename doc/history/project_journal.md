@@ -1,5 +1,90 @@
 # CHAOS — Project Journal
 
+## 2026-10-07 — Wydanie przyrostowe 154.5.0 przygotowane do wdrożenia
+
+Na prośbę autora przygotowano wspólny pakiet dotychczasowych prac 154:
+kreatory, akcje i picker, menu mapy i zabezpieczenia. 718 kluczy, osiem domen.
+Końcowa regresja: 78 testów Python oraz dziewięć zestawów JS PASS;
+wcześniejsze scenariusze Playwright desktop/mobile PASS na izolowanych danych.
+Dodano runbook `deploy_154_5.md`, kontrolę publicznych katalogów i rollback kodu.
+Generator rejestru tworzy dokument dla aktualnego sprintu bez nadpisania
+historycznego rejestru 153. Sprint 154 pozostaje w toku; wdrożenie produkcyjne
+wymaga pobrania wydania i restartu na VPS oraz potwierdzenia wyniku.
+
+## 2026-10-07 — 154: menu skanu i zabezpieczeń mapy PL/EN
+
+Pakiet 154.5.0, 718 kluczy. Menu mapy, trwający skan, przejęty obiekt,
+wycofanie oznaczenia, nazwy zabezpieczeń i pięć gotowych ustawień PL/EN.
+Odświeżanie zabezpieczeń zachowuje tłumaczenia i busy. Własne nazwy oraz logi
+skanerów pozostają dosłowne. Poprawiono obsługę apostrofów/HTML w nazwie celu.
+41 testów Python w odpowiednich zestawach i cztery zestawy JS PASS.
+Playwright desktop/mobile: renderery z izolowanymi integracjami, stabilne
+ID/współrzędne kliknięć, PL/EN, stan skanu, zabezpieczenia i UGC. Pełny skan,
+panel oznaczonego celu, wyniki backendu i dalsze interfejsy pozostają otwarte.
+Zmiany lokalne, sprint 154 w toku, bez publikacji.
+
+## 2026-10-07 — 154: domknięto walidacje i teksty domyślne kreatorów
+
+Pakiet 154.4.0, 667 kluczy. Szczegółowe walidacje aktualnego API mają jawne
+klucze i parametry, również numer opcji. Zachowano statusy HTTP i reason.
+Nowe projekty utrwalają domyślne teksty w języku tworzenia; retry w innym
+języku nie zmienia projektu. Publikacja nie tłumaczy treści autora.
+43 testy Python PASS (40 regresyjnych + 3 nowe API), trzy zestawy JS PASS.
+Playwright cztery kreatory desktop/mobile: zapis/publikacja na atrapach API,
+konflikty i szczegółowe walidacje PL/EN, UGC bez zmian, parametry jako tekst.
+Etap kreatorów domknięty lokalnie; mapa, pozostałe aplikacje, katalogi i radio
+nadal w toku 154. Bez commita, pushu ani wdrożenia.
+
+## 2026-10-07 — 154: formularze i publikacja kreatorów PL/EN
+
+Pakiet 154.3.0: 70 nowych kluczy, 621 łącznie. Formularze czterech kreatorów,
+podgląd, zapis, publikacja, dialog odrzucenia, aktualizacje i walidacja ikony
+korzystają ze wspólnych katalogów. Znane błędy rozpoznawane po 15 kodach API;
+szczegółowe walidacje bez kodów nadal wymagają migracji. Teksty autora
+pozostają dosłowne, także gdy przypominają klucze tłumaczeń.
+35 testów Python i trzy zestawy JS PASS. Playwright z izolowanymi odpowiedziami
+API: cztery edytory, zapis/publikacja, zmiana języka bez utraty formularza,
+mobile 390 px i konflikt rewizji; dodatkowo dialog, karta aktualizacji i ikona.
+Zmiany lokalne, sprint nadal w toku; brak wdrożenia i pełnego PASS 154.
+
+## 2026-10-07 — 154: przeznaczenie narzędzi w kreatorach PL/EN
+
+Wspólny edytor korzysta z nazw 14 akcji mapy. Dodano opisy grup obiektów
+oraz etykiety i wyjaśnienia zapisu pliku (pakiet 154.2.0, 551 kluczy).
+Playwright WindowMaker desktop/mobile: zmiana języka zachowuje formularz,
+nazwę UGC, wybraną akcję i flagę pliku. Obowiązkowy plik ATM pozostaje
+zablokowany. Test z izolowanymi odpowiedziami policy/projects, bez publikacji.
+20 testów Python i dwa zestawy JS PASS. Reszta formularzy i publikacja
+pozostają w zakresie dalszych prac 154; bez pełnego PASS sprintu.
+
+## 2026-10-07 — Rozpoczęto 154: menu mapy i picker PL/EN
+
+Dodano 28 kluczy `map_actions` (pakiet 154.1.0, łącznie 524). Wspólne nazwy
+14 akcji trafiają do menu i pickera, który wcześniej pokazywał techniczne ID.
+Zlokalizowano otoczenie pickera i podstawowe menu celu. UGC, payloady, dobór
+narzędzi oraz blokada trwającego uruchomienia pozostają zachowane.
+20 testów Python PASS, JS menu i loader PASS. Playwright desktop/mobile:
+zmiana PL/EN zachowuje DOM, UGC i busy; kliknięcia przekazują pierwotne ID.
+Test menu izoluje integrację mapy, nie obejmuje pełnego skanu/wykonania.
+154 pozostaje w toku; kreatory, pozostała mapa, aplikacje i radio przed nami.
+Zmiany lokalne, bez commita/pushu. 149–152 nadal zamrożone.
+
+## 2026-10-06 — Sprint 153 zamknięty: produkcyjny PASS autora
+
+Autor potwierdził pozostały odbiór terminala oraz przełączania PL/EN przy
+otwartych oknach i mapie, bez utraty stanu, również w fullscreen.
+Wraz z wcześniejszymi potwierdzeniami rejestracji, logowania, pulpitu mobile,
+profilu, ustawień, pamiętania języka, FM i portfela zamyka to sprint 153.
+Status: wdrożony, PASS produkcyjny. EN pozostaje testowe; zakres aplikacji
+i treści systemowych należy do 154–155. 149–152 nadal zamrożone.
+
+## 2026-10-06 — 153: mobilny pulpit PASS
+
+Autor potwierdził PASS pulpitu mobilnego po poprawce rozmiarów etykiet ikon.
+Regresja zamknięta. Potwierdzenie uzupełnia wcześniejszy PASS FM, portfela
+i podstawowych ścieżek systemu; nie rozszerza odbioru na niepotwierdzone
+scenariusze terminala, recovery, iframe ani fullscreen aplikacji.
+
 ## 2026-10-06 — 153: FM i portfel PASS; poprawka etykiet pulpitu
 
 Autor potwierdził FM i portfel, zgłaszając jednocześnie FAIL mobilnego pulpitu.

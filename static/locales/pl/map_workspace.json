@@ -1,0 +1,211 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.5.0",
+  "messages": {
+    "map.workspace.scan": {
+      "params": {},
+      "text": "🔎 Skanuj"
+    },
+    "map.workspace.travel": {
+      "params": {},
+      "text": "🚲 Podróżuj"
+    },
+    "map.workspace.clear": {
+      "params": {},
+      "text": "🧹 Wyczyść skan"
+    },
+    "map.workspace.teleport": {
+      "params": {},
+      "text": "Pobierz teleport"
+    },
+    "map.workspace.scanning": {
+      "params": {},
+      "text": "Skanowanie mapy"
+    },
+    "map.workspace.secure": {
+      "params": {},
+      "text": "🛡 Zabezpiecz"
+    },
+    "map.workspace.abandon": {
+      "params": {},
+      "text": "× Porzuć"
+    },
+    "map.workspace.withdraw": {
+      "params": {},
+      "text": "Wycofaj oznaczenie"
+    },
+    "map.workspace.error": {
+      "params": {},
+      "text": "❌ Błąd"
+    },
+    "map.workspace.security_failed": {
+      "params": {},
+      "text": "Nie udało się pobrać stanu zabezpieczeń."
+    },
+    "map.preset.open": {
+      "params": {},
+      "text": "Otwarte"
+    },
+    "map.preset.low": {
+      "params": {},
+      "text": "Niskie"
+    },
+    "map.preset.regular": {
+      "params": {},
+      "text": "Standardowe"
+    },
+    "map.preset.secure": {
+      "params": {},
+      "text": "Bezpieczne"
+    },
+    "map.preset.all": {
+      "params": {},
+      "text": "Wszystkie"
+    },
+    "map.security.stealth_mode": {
+      "params": {},
+      "text": "Ukrycie"
+    },
+    "map.security.scan_detection": {
+      "params": {},
+      "text": "Skan"
+    },
+    "map.security.exploit_protection": {
+      "params": {},
+      "text": "Exploit"
+    },
+    "map.security.vpn_enabled": {
+      "params": {},
+      "text": "VPN"
+    },
+    "map.security.browser_protection": {
+      "params": {},
+      "text": "WWW"
+    },
+    "map.security.os_hardening": {
+      "params": {},
+      "text": "OS+"
+    },
+    "map.security.log_guardian": {
+      "params": {},
+      "text": "Logi+"
+    },
+    "map.security.process_monitor": {
+      "params": {},
+      "text": "Procesy"
+    },
+    "map.security.firewall": {
+      "params": {},
+      "text": "Zapora"
+    },
+    "map.security.log_integrity": {
+      "params": {},
+      "text": "Logi"
+    },
+    "map.security.network_anomaly_detection": {
+      "params": {},
+      "text": "Anomalie"
+    },
+    "map.security.spoofing_protection": {
+      "params": {},
+      "text": "Spoof"
+    },
+    "map.security.browser_history_log": {
+      "params": {},
+      "text": "Historia"
+    },
+    "map.security.file_visibility": {
+      "params": {},
+      "text": "Pliki"
+    },
+    "map.security.file_indexing": {
+      "params": {},
+      "text": "Indeks"
+    },
+    "map.security.storage_integrity": {
+      "params": {},
+      "text": "Dysk"
+    },
+    "map.security.anonymity_score": {
+      "params": {},
+      "text": "Anonimowość"
+    },
+    "map.security.vpn_blocker": {
+      "params": {},
+      "text": "VPN 🔒"
+    },
+    "map.security.activity_monitor": {
+      "params": {},
+      "text": "Aktyw."
+    },
+    "map.security.player_tracking": {
+      "params": {},
+      "text": "Tracking"
+    },
+    "map.security.system_visibility": {
+      "params": {},
+      "text": "Widocz."
+    },
+    "map.security.firewall_core": {
+      "params": {},
+      "text": "Jądro"
+    },
+    "map.security.kernel_guard": {
+      "params": {},
+      "text": "Kernel"
+    },
+    "map.security.system_integrity_check": {
+      "params": {},
+      "text": "Sys Check"
+    },
+    "map.security.system_compromise_level": {
+      "params": {},
+      "text": "Kompromis"
+    },
+    "map.security.heap_protection": {
+      "params": {},
+      "text": "Heap"
+    },
+    "map.security.memory_lock": {
+      "params": {},
+      "text": "Blok. RAM"
+    },
+    "map.security.unencrypted_access": {
+      "params": {},
+      "text": "Brak szyfr."
+    },
+    "map.security.background_injection": {
+      "params": {},
+      "text": "Inject"
+    },
+    "map.security.memory_guard": {
+      "params": {},
+      "text": "RAM+"
+    },
+    "map.security.player_risk_level": {
+      "params": {},
+      "text": "Ryzyko 🧑‍💻"
+    },
+    "map.security.traceability": {
+      "params": {},
+      "text": "Śledzalność"
+    },
+    "map.security.system_integrity": {
+      "params": {},
+      "text": "Integralność"
+    },
+    "map.security.exploit_success_rate": {
+      "params": {},
+      "text": "Sukces Expl."
+    },
+    "map.security.risk_level": {
+      "params": {},
+      "text": "Ryzyko"
+    },
+    "map.security.access_level": {
+      "params": {},
+      "text": "Dostęp"
+    }
+  }
+}

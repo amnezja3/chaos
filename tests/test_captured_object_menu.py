@@ -196,7 +196,7 @@ class CapturedObjectEndpointTest(unittest.TestCase):
 class CapturedObjectFrontendContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = Path("templates/map_template.html").read_text(encoding="utf-8")
+        cls.source = (Path(__file__).resolve().parents[1] / "templates/map_template.html").read_text(encoding="utf-8")
 
     def test_right_click_opens_local_two_action_menu(self):
         self.assertIn("showCapturedObjectMenu(e.containerPoint.x", self.source)

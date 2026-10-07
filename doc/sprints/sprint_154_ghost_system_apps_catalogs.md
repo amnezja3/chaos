@@ -1,8 +1,110 @@
 # Sprint 154 — Ghost System: aplikacje, narzędzia i katalogi PL/EN
 
-Status: **ZAPLANOWANY**, 6 X 2026. Po PASS
+Status: **W TOKU**, rozpoczęty 7 X 2026. Po produkcyjnym PASS
 [153](sprint_153_ghost_system_i18n_foundation.md), przed
 [155](sprint_155_ghost_system_content_acceptance.md).
+
+7 X: przyrost `154.5.0` przygotowany do wdrożenia na prośbę autora.
+Końcowa wspólna regresja: 78 testów Python i dziewięć zestawów JS PASS.
+[Instrukcja wdrożenia](../runbooks/deploy_154_5.md),
+[aktualny rejestr 718 kluczy](../audits/sprint_154_key_register.md).
+Nie oznacza to zamknięcia sprintu ani potwierdzenia wdrożenia produkcyjnego.
+
+## Przyrost 7 X — menu mapy, skan i zabezpieczenia
+
+- Pakiet `154.5.0`, domena `map_workspace`: 51 nowych kluczy, 718 łącznie.
+  Menu skanu/podróży/czyszczenia/teleportu, etykieta trwającego skanu,
+  menu przejętego obiektu i wycofania oznaczenia, 36 nazw zabezpieczeń
+  oraz pięć gotowych ustawień PL/EN. Kody ustawień i zabezpieczeń pozostają stałe.
+- Odświeżenie stanu zabezpieczeń zachowuje wiązania językowe oraz wiersz
+  i jego blokadę busy. Nazwy obiektów z apostrofem lub HTML pozostają tekstem
+  i nie psują kliknięć. Skanery autora zachowują własne nazwy i logi.
+- PASS: 8 testów i18n/akcji, 28 regresji przejętych obiektów/skanerów oraz
+  5 testów kontraktu frontendu (naprawiono ścieżkę odczytu szablonu w izolowanym
+  runnerze). Cztery zestawy JS: loader języków, menu akcji, skaner i jego preview.
+- Playwright `tests/browser/map_workspace_locale.js`: rzeczywiste funkcje menu
+  wyodrębnione z szablonu, izolowane integracje/odpowiedź stanu zabezpieczeń,
+  PL/EN, współrzędne i ID kliknięć, odświeżenie, busy, UGC, mobile 390 px.
+  Etykieta skanu przełącza język, autorski log pozostaje dosłowny; osobno adapter
+  skanera w iframe. Bez wyjątków JS, ostrzeżenie atrapy radia.
+- To test rendererów, nie pełnego skanu świata ani wykonania operacji.
+  Nadal otwarte: panel oznaczonego celu, wyniki i błędy backendu mapy,
+  dialogi porzucenia/podatności, generowane nazwy, pozostałe workspace'y i radio.
+  Zmiany lokalne, bez wdrożenia i bez pełnego PASS 154.
+
+## Aktualny stan — backend kreatorów domknięty lokalnie
+
+- Pakiet `154.4.0`: 667 kluczy PL/EN. Walidacje aktualnego API kreatorów
+  używają jawnych kodów i parametrów; numer opcji Button Choice pozostaje
+  osobnym kontekstem. HTTP i dotychczasowe `reason` zachowane. Nieoczekiwane
+  błędy danych otrzymują lokalizowany komunikat ogólny.
+- Nowy projekt zapisuje domyślne teksty w języku tworzenia oraz
+  `presentation_locale`. Ponowienie tego samego żądania w innym języku
+  zwraca istniejący projekt. Publikacja zachowuje teksty autora; stare
+  projekty bez informacji o języku mają fallback PL, snapshoty historycznych
+  produktów pozostają w dotychczasowej ścieżce.
+- 40 testów regresji Python + 3 nowe testy API PASS (43): walidacje,
+  idempotencja, migracje, brak ciężkich odczytów profilu, publikacja domyślnych
+  treści we wszystkich czterech interfejsach w PL i EN. Trzy zestawy JS PASS.
+- Playwright: cztery edytory, zapis/publikacja na atrapach API, mobile 390 px,
+  konflikty, szczegółowy błąd z numerem opcji, zmiana języka bez utraty UGC;
+  parametry przypominające HTML pozostają tekstem. Oczekiwane odpowiedzi
+  HTTP 400/409 w scenariuszach błędów, bez wyjątków JS.
+- **Domknięty ten etap kreatorów, nie cały sprint 154.** Reszta mapy,
+  workspace'y, katalogi i radio pozostają otwarte. Zmiany lokalne, bez pushu
+  i wdrożenia. Poniższe przyrosty dokumentują kolejne wcześniejsze etapy.
+
+## Przyrost 7 X — menu akcji i picker
+
+- Pakiet `154.1.0`: nowa domena `map_actions`, 28 kluczy PL/EN, łącznie 524.
+  Wspólne etykiety i ikony 14 akcji mapy; picker pokazuje nazwę zamiast
+  technicznego ID. Menu oznaczenia/podróży/zgłoszenia i otoczenie pickera PL/EN.
+- Te same akcje, dobór narzędzi, ID produktów, cele i payloady. Nazwy UGC
+  pozostają dosłowne. Zmiana języka zachowuje DOM i blokadę zajętego przycisku.
+- PASS lokalny: 20 testów Python (katalogi, pokrycie receptur, regresja polityki
+  kreatorów), test JS menu dla ośmiu kategorii celów i test loadera języków.
+  Playwright: rzeczywisty renderer menu i pickera na izolowanym pulpicie,
+  PL/EN, zachowanie węzłów i UGC, stabilne ID kliknięć, stan busy, mobile 390 px.
+  Menu używało atrap integracji z mapą; nie jest to odbiór pełnej ścieżki
+  skan → wykonanie w świecie gry. Bez nowych błędów JS; ostrzeżenie atrapy radia.
+- Nadal otwarte: reszta mapy/skanu, wyniki działań, etykiety rodzin i trybów,
+  pozostałe formularze kreatorów, wszystkie dalsze workspace'y,
+  radio i katalogi. **Bez pełnego PASS 154; zmiany lokalne, bez publikacji.**
+
+## Przyrost 7 X — przeznaczenie w kreatorach
+
+- Pakiet `154.2.0`: 27 kolejnych kluczy, łącznie 551. Wspólny edytor
+  kreatorów używa nazw 14 akcji zgodnych z mapą i pickerem; opisy grup
+  obiektów, wybór akcji i reguły zapisu pliku mają wersje PL/EN.
+- Zmiana języka aktualizuje etykiety istniejącego formularza bez odtwarzania
+  okna, zmiany przeznaczenia, flagi pliku ani wpisanej nazwy użytkownika.
+- Playwright: WindowMaker na izolowanym pulpicie, policy/projects jako
+  odpowiedzi testowe. PL → EN → PL, obowiązkowy plik ATM, opcjonalny plik auta,
+  zachowanie DOM i UGC, mobile 390 px bez poziomego overflow. Brak błędów JS.
+  Test nie obejmuje generowania ani publikacji produktu na backendzie.
+- 20 testów Python oraz testy JS menu i loadera PASS. Pozostałe pola edycji,
+  publikacja i komunikaty API nadal wymagają lokalizacji. Zmiany lokalne.
+
+## Przyrost 7 X — formularze, publikacja i aktualizacje kreatorów
+
+- Pakiet `154.3.0`, nowa domena `creators`: 70 kluczy, łącznie 621.
+  Wspólny edytor czterech kreatorów: pola, przyciski, pomoc, podsumowanie
+  mechaniki, zapis, publikacja, podgląd, dialog odrzucenia zmian i karta
+  aktualizacji PL/EN. Picker i walidacja ikony również PL/EN.
+- 15 znanych kodów błędów ma lokalizowane komunikaty. Nieznane szczegółowe
+  błędy walidacji nadal pokazują oryginalną odpowiedź API; nie dopasowujemy
+  tłumaczeń po treści. Lokalizacja tych walidacji i domyślnych tekstów
+  generowanych przez backend pozostaje otwarta.
+- 35 testów Python (i18n, akcje, polityka, API kreatorów) PASS; trzy zestawy JS
+  PASS. Playwright: wszystkie cztery edytory, zapis/publikacja z atrapą API,
+  PL → EN → PL, niezmienione pola UGC i DOM, blokada ceny po publikacji;
+  mobile 390 px: konflikt rewizji zachowuje tekst i zwalnia przyciski.
+  Osobno sprawdzone: dialog odrzucenia zmian, karta aktualizacji i walidacja
+  ikony. Bez wyjątków JS; oczekiwany HTTP 409 w teście konfliktu i ostrzeżenie
+  atrapy radia. Test nie publikuje produktów na produkcji.
+- Scenariusz powtarzalny: `tests/browser/creator_editor_locale.js`, uruchamiany
+  przez Playwright MCP z `tools/sprint_153_browser_fixture.py`.
+  Nadal bez pełnego PASS 154, commita, pushu i wdrożenia.
 
 ## Cel
 
