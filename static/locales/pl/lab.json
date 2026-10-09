@@ -1,0 +1,2866 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "lab.template.financial_sniffer.name": {
+      "params": {},
+      "text": "Financial Sniffer"
+    },
+    "lab.template.financial_sniffer.description": {
+      "params": {},
+      "text": "Jednorazowa operacja finansowa na aktywnym dostępie do gracza."
+    },
+    "lab.template.friend_kicker.name": {
+      "params": {},
+      "text": "Friend Kicker"
+    },
+    "lab.template.friend_kicker.description": {
+      "params": {},
+      "text": "Losowa próba zerwania jednego kontaktu ofiary."
+    },
+    "lab.template.security_panel_proxy.name": {
+      "params": {},
+      "text": "Security Panel Proxy"
+    },
+    "lab.template.security_panel_proxy.description": {
+      "params": {},
+      "text": "Zdalny panel ustawień zabezpieczeń celu."
+    },
+    "lab.template.system_log_reader.name": {
+      "params": {},
+      "text": "System Log Reader"
+    },
+    "lab.template.system_log_reader.description": {
+      "params": {},
+      "text": "Bezpieczny odczyt ostatnich komunikatów systemowych celu."
+    },
+    "lab.template.arsenal_cleaner.name": {
+      "params": {},
+      "text": "Arsenal Cleaner"
+    },
+    "lab.template.arsenal_cleaner.description": {
+      "params": {},
+      "text": "Losowa próba usunięcia aplikacji z arsenału ofiary."
+    },
+    "lab.template.intruder_kicker.name": {
+      "params": {},
+      "text": "Intruder Kicker"
+    },
+    "lab.template.intruder_kicker.description": {
+      "params": {},
+      "text": "Usuwa intruza z własnego terytorium przy aktywnym dostępie PvP. Jedno użycie rodziny na dostęp."
+    },
+    "lab.template.travel_ticket.name": {
+      "params": {},
+      "text": "Travel Ticket"
+    },
+    "lab.template.travel_ticket.description": {
+      "params": {},
+      "text": "Jedna podróż do miejsca autora, wykonywana od razu przy zakupie."
+    },
+    "lab.template.file_cleanup.name": {
+      "params": {},
+      "text": "File Cleanup"
+    },
+    "lab.template.file_cleanup.description": {
+      "params": {},
+      "text": "Usuwa wybrane zbędne, niesprzedawalne pliki własnego systemu."
+    },
+    "lab.template.system_update.name": {
+      "params": {},
+      "text": "System Update"
+    },
+    "lab.template.system_update.description": {
+      "params": {},
+      "text": "Prezentacja aktualizacji z logami autora; bez zmian parametrów systemu."
+    },
+    "lab.template.security_restore.name": {
+      "params": {},
+      "text": "Security Restore"
+    },
+    "lab.template.security_restore.description": {
+      "params": {},
+      "text": "Jednorazowo ustawia systemowy zestaw zabezpieczeń własnego konta."
+    },
+    "lab.template.firmware_update.name": {
+      "params": {},
+      "text": "Firmware Update"
+    },
+    "lab.template.firmware_update.description": {
+      "params": {},
+      "text": "Jedna zakupiona próba flashowania. Sukces trwale zwiększa dysk i zasięg skanu; porażka wymaga restartu. Cooldown 24 h po obu wynikach."
+    },
+    "lab.template.deep_scanner.name": {
+      "params": {},
+      "text": "Deep Scanner"
+    },
+    "lab.template.deep_scanner.description": {
+      "params": {},
+      "text": "Nakładka na domyślne Skanuj. Działa tylko przy otwartym oknie; jedna aktywna aplikacja."
+    },
+    "lab.template.ptk_document.name": {
+      "params": {},
+      "text": "Dokument PTK"
+    },
+    "lab.template.ptk_document.description": {
+      "params": {},
+      "text": "Autorski materiał Markdown do czytania w File Managerze."
+    },
+    "lab.field.allowed_switches": {
+      "params": {},
+      "text": "Dozwolone przełączniki"
+    },
+    "lab.field.button_color": {
+      "params": {},
+      "text": "Kolor przycisku"
+    },
+    "lab.field.camera": {
+      "params": {},
+      "text": "Pozostałości skanów kamer"
+    },
+    "lab.field.city": {
+      "params": {},
+      "text": "Miejscowość"
+    },
+    "lab.field.conflict_matrix": {
+      "params": {},
+      "text": "Macierz konfliktów"
+    },
+    "lab.field.contact_message": {
+      "params": {},
+      "text": "Komunikat kontaktu"
+    },
+    "lab.field.content": {
+      "params": {},
+      "text": "Treść"
+    },
+    "lab.field.cooldown_minutes": {
+      "params": {},
+      "text": "Odstęp użyć (min)"
+    },
+    "lab.field.country": {
+      "params": {},
+      "text": "Kraj"
+    },
+    "lab.field.detection_percent": {
+      "params": {},
+      "text": "Szansa wykrycia (%)"
+    },
+    "lab.field.disk_mb": {
+      "params": {},
+      "text": "Przyrost dysku (MB)"
+    },
+    "lab.field.extra_retries": {
+      "params": {},
+      "text": "Dodatkowe ponowienia"
+    },
+    "lab.field.extra_timeout": {
+      "params": {},
+      "text": "Dodatkowy czas oczekiwania"
+    },
+    "lab.field.failure_message": {
+      "params": {},
+      "text": "Komunikat niepowodzenia"
+    },
+    "lab.field.frame_color": {
+      "params": {},
+      "text": "Kolor ramki"
+    },
+    "lab.field.frame_id": {
+      "params": {},
+      "text": "Ramka"
+    },
+    "lab.field.include_created_at": {
+      "params": {},
+      "text": "Uwzględnij datę utworzenia"
+    },
+    "lab.field.include_status": {
+      "params": {},
+      "text": "Uwzględnij status"
+    },
+    "lab.field.include_type": {
+      "params": {},
+      "text": "Uwzględnij typ"
+    },
+    "lab.field.installers": {
+      "params": {},
+      "text": "Niepotrzebne instalatory"
+    },
+    "lab.field.lat": {
+      "params": {},
+      "text": "Szerokość geograficzna (lat)"
+    },
+    "lab.field.lng": {
+      "params": {},
+      "text": "Długość geograficzna (lng)"
+    },
+    "lab.field.log_limit": {
+      "params": {},
+      "text": "Limit logów"
+    },
+    "lab.field.menu_name": {
+      "params": {},
+      "text": "Nazwa w menu"
+    },
+    "lab.field.objects": {
+      "params": {},
+      "text": "Pozostałości skanów obiektów"
+    },
+    "lab.field.pattern_id": {
+      "params": {},
+      "text": "Wzór"
+    },
+    "lab.field.place_name": {
+      "params": {},
+      "text": "Nazwa miejsca"
+    },
+    "lab.field.preset": {
+      "params": {},
+      "text": "Domyślne zabezpieczenia (gracz może zmienić)"
+    },
+    "lab.field.presets": {
+      "params": {},
+      "text": "Zestawy zabezpieczeń"
+    },
+    "lab.field.protected_apps": {
+      "params": {},
+      "text": "Chronione aplikacje"
+    },
+    "lab.field.recon": {
+      "params": {},
+      "text": "Zakończony Recon"
+    },
+    "lab.field.redaction_policy": {
+      "params": {},
+      "text": "Polityka ukrywania danych"
+    },
+    "lab.field.remove_tools_file": {
+      "params": {},
+      "text": "Usuń plik narzędzia"
+    },
+    "lab.field.reward_note": {
+      "params": {},
+      "text": "Notatka nagrody"
+    },
+    "lab.field.rules": {
+      "params": {},
+      "text": "Reguły"
+    },
+    "lab.field.scan_m": {
+      "params": {},
+      "text": "Przyrost zasięgu skanu (m)"
+    },
+    "lab.field.sfx_id": {
+      "params": {},
+      "text": "Efekt dźwiękowy"
+    },
+    "lab.field.steal_percent": {
+      "params": {},
+      "text": "Przechwytywana część (%)"
+    },
+    "lab.field.success_message": {
+      "params": {},
+      "text": "Komunikat powodzenia"
+    },
+    "lab.field.success_percent": {
+      "params": {},
+      "text": "Szansa powodzenia (%)"
+    },
+    "lab.field.system": {
+      "params": {},
+      "text": "Zbędne artefakty systemowe"
+    },
+    "lab.field.target_policy": {
+      "params": {},
+      "text": "Polityka celu"
+    },
+    "lab.field.usage_policy": {
+      "params": {},
+      "text": "Polityka użycia"
+    },
+    "lab.field.victim_message": {
+      "params": {},
+      "text": "Komunikat ofiary"
+    },
+    "lab.field.visibility": {
+      "params": {},
+      "text": "Widoczność publikacji"
+    },
+    "lab.field.log_1": {
+      "params": {},
+      "text": "Komunikat etapu 1"
+    },
+    "lab.field.log_2": {
+      "params": {},
+      "text": "Komunikat etapu 2"
+    },
+    "lab.field.log_3": {
+      "params": {},
+      "text": "Komunikat etapu 3"
+    },
+    "lab.field.log_4": {
+      "params": {},
+      "text": "Komunikat etapu 4"
+    },
+    "lab.field.denied_text": {
+      "params": {},
+      "text": "Tekst odmowy"
+    },
+    "lab.field.denied_log": {
+      "params": {},
+      "text": "Log odmowy"
+    },
+    "lab.field.empty_text": {
+      "params": {},
+      "text": "Tekst braku wyników"
+    },
+    "lab.field.empty_log": {
+      "params": {},
+      "text": "Log braku wyników"
+    },
+    "lab.field.error_text": {
+      "params": {},
+      "text": "Tekst błędu"
+    },
+    "lab.field.error_log": {
+      "params": {},
+      "text": "Log błędu"
+    },
+    "lab.field.start_text": {
+      "params": {},
+      "text": "Tekst rozpoczęcia"
+    },
+    "lab.field.start_log": {
+      "params": {},
+      "text": "Log rozpoczęcia"
+    },
+    "lab.field.success_text": {
+      "params": {},
+      "text": "Tekst powodzenia"
+    },
+    "lab.field.success_log": {
+      "params": {},
+      "text": "Log powodzenia"
+    },
+    "lab.ui.onboarding_help": {
+      "params": {},
+      "text": "Twórz własne Pro System Tools: od projektu do publikacji."
+    },
+    "lab.ui.create": {
+      "params": {},
+      "text": "Utwórz projekt"
+    },
+    "lab.ui.choose_template": {
+      "params": {},
+      "text": "Wybierz szablon"
+    },
+    "lab.ui.edit": {
+      "params": {},
+      "text": "Edytuj projekt"
+    },
+    "lab.ui.validate": {
+      "params": {},
+      "text": "Waliduj"
+    },
+    "lab.ui.compile": {
+      "params": {},
+      "text": "Kompiluj"
+    },
+    "lab.ui.publish_to": {
+      "params": {},
+      "text": "Opublikuj w Googleplex"
+    },
+    "lab.ui.hide": {
+      "params": {},
+      "text": "Ukryj"
+    },
+    "lab.ui.projects": {
+      "params": {},
+      "text": "Projekty"
+    },
+    "lab.ui.your_projects": {
+      "params": {},
+      "text": "Twoje projekty"
+    },
+    "lab.ui.projects_help": {
+      "params": {},
+      "text": "Wybierz projekt, aby zobaczyć szczegóły, lub stwórz nowy na bazie szablonu."
+    },
+    "lab.ui.new_project": {
+      "params": {},
+      "text": "Nowy projekt"
+    },
+    "lab.ui.open_project": {
+      "params": {},
+      "text": "Otwórz projekt"
+    },
+    "lab.ui.loading_projects": {
+      "params": {},
+      "text": "Ładowanie projektów…"
+    },
+    "lab.ui.change_name": {
+      "params": {},
+      "text": "Zmień nazwę"
+    },
+    "lab.ui.cancel": {
+      "params": {},
+      "text": "Anuluj"
+    },
+    "lab.ui.official": {
+      "params": {},
+      "text": "Oficjalne"
+    },
+    "lab.ui.future": {
+      "params": {},
+      "text": "Planowane na GhostLab v2.0 — prace wstrzymane."
+    },
+    "lab.ui.documentation": {
+      "params": {},
+      "text": "Dokumentacja"
+    },
+    "lab.ui.empty_projects": {
+      "params": {},
+      "text": "Nie masz jeszcze projektów."
+    },
+    "lab.ui.empty_projects_help": {
+      "params": {},
+      "text": "Wybierz Nowy projekt, nadaj nazwę i wybierz szablon."
+    },
+    "lab.ui.brand": {
+      "params": {},
+      "text": "Marka Twojej aplikacji"
+    },
+    "lab.ui.name": {
+      "params": {},
+      "text": "Nazwa"
+    },
+    "lab.ui.icon": {
+      "params": {},
+      "text": "Ikona — jeden znak lub emoji"
+    },
+    "lab.ui.description": {
+      "params": {},
+      "text": "Opis autora"
+    },
+    "lab.ui.price": {
+      "params": {},
+      "text": "Sugerowana cena (HC)"
+    },
+    "lab.ui.presentation": {
+      "params": {},
+      "text": "Prezentacja"
+    },
+    "lab.ui.settings": {
+      "params": {},
+      "text": "Ustawienia funkcji"
+    },
+    "lab.ui.saved": {
+      "params": {},
+      "text": "Zmiany zapisane."
+    },
+    "lab.ui.preview": {
+      "params": {},
+      "text": "Podgląd"
+    },
+    "lab.ui.save": {
+      "params": {},
+      "text": "Zapisz szkic"
+    },
+    "lab.ui.back_projects": {
+      "params": {},
+      "text": "Wróć do projektów"
+    },
+    "lab.ui.export": {
+      "params": {},
+      "text": "Eksportuj"
+    },
+    "lab.ui.publish": {
+      "params": {},
+      "text": "Opublikuj build"
+    },
+    "lab.ui.withdraw": {
+      "params": {},
+      "text": "Wycofaj sprzedaż"
+    },
+    "lab.ui.danger": {
+      "params": {},
+      "text": "Usuwanie projektu"
+    },
+    "lab.ui.delete": {
+      "params": {},
+      "text": "Usuń projekt"
+    },
+    "lab.ui.builds": {
+      "params": {},
+      "text": "Buildy"
+    },
+    "lab.ui.no_builds": {
+      "params": {},
+      "text": "Brak buildów. Kompilacja utworzy pierwszy artefakt projektu."
+    },
+    "lab.ui.markdown_help": {
+      "params": {},
+      "text": "Markdown · maks. 6000 znaków. Podgląd pokazuje formatowanie czytnika PTK. HTML i linki pozostają tekstem."
+    },
+    "lab.ui.loading_templates": {
+      "params": {},
+      "text": "Ładowanie szablonów…"
+    },
+    "lab.ui.templates_failed": {
+      "params": {},
+      "text": "Nie udało się pobrać szablonów. Otwórz ponownie Szablony."
+    },
+    "lab.ui.onboarding_hidden": {
+      "params": {},
+      "text": "Wprowadzenie ukryte w tym oknie."
+    },
+    "lab.ui.step_two": {
+      "params": {},
+      "text": "Krok 2 z 2"
+    },
+    "lab.ui.project_templates": {
+      "params": {},
+      "text": "Szablony projektów"
+    },
+    "lab.ui.select_open": {
+      "params": {},
+      "text": "Wybierz i otwórz projekt"
+    },
+    "lab.ui.create_project": {
+      "params": {},
+      "text": "Utwórz projekt"
+    },
+    "lab.ui.projects_loading": {
+      "params": {},
+      "text": "Ładowanie projektów…"
+    },
+    "lab.ui.projects_failed": {
+      "params": {},
+      "text": "Nie udało się pobrać projektów."
+    },
+    "lab.ui.projects_loaded": {
+      "params": {},
+      "text": "Projekty wczytane"
+    },
+    "lab.ui.projects_offline": {
+      "params": {},
+      "text": "Brak połączenia z menedżerem projektów."
+    },
+    "lab.ui.preview_empty": {
+      "params": {},
+      "text": "Tutaj pojawią się szczegóły wybranego projektu."
+    },
+    "lab.ui.select_project": {
+      "params": {},
+      "text": "Wybierz projekt, aby zobaczyć stan pracy."
+    },
+    "lab.ui.standard": {
+      "params": {},
+      "text": "Standardowa"
+    },
+    "lab.ui.validating": {
+      "params": {},
+      "text": "Walidacja…"
+    },
+    "lab.ui.valid": {
+      "params": {},
+      "text": "Podgląd gotowy. Projekt poprawny."
+    },
+    "lab.ui.invalid": {
+      "params": {},
+      "text": "Podgląd gotowy. Projekt wymaga poprawek."
+    },
+    "lab.ui.dirty": {
+      "params": {},
+      "text": "Niezapisane zmiany — zapisz szkic, potem skompiluj."
+    },
+    "lab.ui.document_title": {
+      "params": {},
+      "text": "Tytuł dokumentu"
+    },
+    "lab.ui.publication": {
+      "params": {},
+      "text": "Publikacja"
+    },
+    "lab.ui.document_settings": {
+      "params": {},
+      "text": "Ustawienia dokumentu"
+    },
+    "lab.ui.runtime_document": {
+      "params": {},
+      "text": "Dokument PTK: pobierz z Googleplexa i otwórz w Pliki → Plexcak."
+    },
+    "lab.ui.runtime_self": {
+      "params": {},
+      "text": "Narzędzie własnego systemu gotowe; uruchom z pulpitu."
+    },
+    "lab.ui.runtime_travel": {
+      "params": {},
+      "text": "Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera."
+    },
+    "lab.ui.runtime_pvp": {
+      "params": {},
+      "text": "Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze."
+    },
+    "lab.ui.runtime_unavailable": {
+      "params": {},
+      "text": "Runtime tego szablonu jest jeszcze niedostępny."
+    },
+    "lab.ui.document_editions": {
+      "params": {},
+      "text": "Nowe wydanie wymaga osobnego pobrania. Poprzednie kopie pozostają u czytelników."
+    },
+    "lab.ui.ticket_published": {
+      "params": {},
+      "text": "Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca."
+    },
+    "lab.ui.ticket_publish": {
+      "params": {},
+      "text": "Opublikuj build, aby udostępnić to miejsce w Googleplexie."
+    },
+    "lab.ui.update_help": {
+      "params": {},
+      "text": "Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja."
+    },
+    "lab.ui.publish_help": {
+      "params": {},
+      "text": "Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom."
+    },
+    "lab.ui.publisher_help": {
+      "params": {},
+      "text": "Publisher zapisze produkt w Googleplex po poprawnym buildzie."
+    },
+    "lab.ui.open_project_help": {
+      "params": {},
+      "text": "Otwórz wybrany projekt w edytorze."
+    },
+    "lab.ui.hide_help": {
+      "params": {},
+      "text": "Ukryj wprowadzenie w tym oknie GhostLab"
+    },
+    "lab.ui.validate_help": {
+      "params": {},
+      "text": "Waliduj projekt i odśwież podgląd. Skrót: Ctrl+Enter"
+    },
+    "lab.ui.preview_help": {
+      "params": {},
+      "text": "Podejrzyj metadane projektu bez zapisu."
+    },
+    "lab.ui.save_help": {
+      "params": {},
+      "text": "Zapisz szkic projektu. Skrót: Ctrl+S"
+    },
+    "lab.ui.back_help": {
+      "params": {},
+      "text": "Wróć do menedżera projektów. Skrót: Esc"
+    },
+    "lab.ui.compile_help": {
+      "params": {},
+      "text": "Skompiluj zwalidowany projekt. Skrót: Ctrl+B"
+    },
+    "lab.ui.export_help": {
+      "params": {},
+      "text": "Eksportuj projekt do pliku .glab."
+    },
+    "lab.ui.publish_button_help": {
+      "params": {},
+      "text": "Opublikuj build w Googleplex i udostępnij aktualizację."
+    },
+    "lab.ui.tab.Projects": {
+      "params": {},
+      "text": "Projekty"
+    },
+    "lab.ui.tab.Templates": {
+      "params": {},
+      "text": "Szablony"
+    },
+    "lab.ui.tab.Research": {
+      "params": {},
+      "text": "Badania"
+    },
+    "lab.ui.tab.Ghost_Exchange": {
+      "params": {},
+      "text": "Ghost Exchange"
+    },
+    "lab.ui.tab.Documentation": {
+      "params": {},
+      "text": "Dokumentacja"
+    },
+    "lab.error.not_logged_in": {
+      "params": {},
+      "text": "Zaloguj się ponownie."
+    },
+    "lab.error.authentication_required": {
+      "params": {},
+      "text": "Zaloguj się."
+    },
+    "lab.error.invalid_payload": {
+      "params": {},
+      "text": "Nieprawidłowe lub zbyt duże żądanie."
+    },
+    "lab.error.invalid_blueprint": {
+      "params": {},
+      "text": "Popraw błędy projektu przed kontynuowaniem."
+    },
+    "lab.error.custom_runtime_unsupported": {
+      "params": {},
+      "text": "Własny szkic nie ma runtime. Wybierz systemowy szablon."
+    },
+    "lab.error.invalid_branding": {
+      "params": {},
+      "text": "Sprawdź nazwę, ikonę, opis, cenę i prezentację produktu."
+    },
+    "lab.error.invalid_project": {
+      "params": {},
+      "text": "Nieprawidłowa nazwa, szablon lub metadane projektu."
+    },
+    "lab.error.invalid_icon": {
+      "params": {},
+      "text": "Nieprawidłowa ikona. Wybierz jeden znak lub emoji."
+    },
+    "lab.error.invalid_name": {
+      "params": {},
+      "text": "Nazwa musi zawierać od 1 do 64 znaków."
+    },
+    "lab.error.template_creation_disabled": {
+      "params": {},
+      "text": "Tworzenie tego szablonu jest wyłączone."
+    },
+    "lab.error.unsaved_branding": {
+      "params": {},
+      "text": "Zapisz markę produktu przed kompilacją."
+    },
+    "lab.error.creator_projection_unavailable": {
+      "params": {},
+      "text": "Dane poziomu autora są niedostępne."
+    },
+    "lab.error.ghostlab_migration_required": {
+      "params": {},
+      "text": "Projekty GhostLab wymagają migracji przez administratora."
+    },
+    "lab.error.project_not_found": {
+      "params": {},
+      "text": "Nie znaleziono projektu."
+    },
+    "lab.error.project_revision_conflict": {
+      "params": {},
+      "text": "Projekt zmienił się. Odśwież listę i otwórz go ponownie."
+    },
+    "lab.error.project_limit": {
+      "params": {},
+      "text": "Osiągnięto limit projektów. Usuń nieużywane szkice."
+    },
+    "lab.error.request_id_required": {
+      "params": {},
+      "text": "Brak identyfikatora żądania."
+    },
+    "lab.error.request_id_conflict": {
+      "params": {},
+      "text": "Identyfikator jest przypisany do innego projektu."
+    },
+    "lab.error.unsaved_blueprint": {
+      "params": {},
+      "text": "Zapisz projekt przed kompilacją."
+    },
+    "lab.error.build_limit": {
+      "params": {},
+      "text": "Osiągnięto limit historii buildów. Archiwizacja wymaga administratora."
+    },
+    "lab.error.template_publication_disabled": {
+      "params": {},
+      "text": "Publikacja tego szablonu jest wyłączona."
+    },
+    "lab.error.build_stale": {
+      "params": {},
+      "text": "Zapisz i skompiluj aktualną rewizję przed publikacją."
+    },
+    "lab.error.artifact_mismatch": {
+      "params": {},
+      "text": "Artefakt nie pasuje do bieżącego buildu."
+    },
+    "lab.error.clan_required": {
+      "params": {},
+      "text": "Publikacja klanowa wymaga członkostwa w klanie."
+    },
+    "lab.error.publication_owner_conflict": {
+      "params": {},
+      "text": "Publikacja nie należy do tego autora."
+    },
+    "lab.error.publication_name_conflict": {
+      "params": {},
+      "text": "Ta nazwa jest już zajęta w Googleplex."
+    },
+    "lab.error.published_project_retained": {
+      "params": {},
+      "text": "Opublikowany projekt przechowuje zakupione wersje i nie może zostać usunięty."
+    },
+    "lab.error.ghostlab_not_installed": {
+      "params": {},
+      "text": "Zainstaluj GhostLab z Googleplex."
+    },
+    "lab.error.inventory_limit": {
+      "params": {},
+      "text": "Przekroczono limit widoku ekwipunku."
+    },
+    "lab.error.inventory_unavailable": {
+      "params": {},
+      "text": "Ekwipunek jest niedostępny."
+    },
+    "lab.error.invalid_folder": {
+      "params": {},
+      "text": "Nieznany katalog."
+    },
+    "lab.error.publication_withdrawn": {
+      "params": {},
+      "text": "Oferta została wycofana."
+    },
+    "lab.error.offer_changed": {
+      "params": {},
+      "text": "Oferta zmieniła się. Odśwież i potwierdź ponownie."
+    },
+    "lab.error.firmware_cooldown": {
+      "params": {},
+      "text": "Kolejna próba firmware po 24 godzinach od poprzedniej."
+    },
+    "lab.error.firmware_pending": {
+      "params": {},
+      "text": "Masz już zakupioną próbę firmware. Wykorzystaj ją przed kolejnym zakupem."
+    },
+    "lab.error.firmware_limits": {
+      "params": {},
+      "text": "Osiągnięto oba limity firmware: 2 TB i 30 km."
+    },
+    "lab.error.firmware_purchase_required": {
+      "params": {},
+      "text": "Najpierw kup próbę firmware."
+    },
+    "lab.error.firmware_not_installed": {
+      "params": {},
+      "text": "Zainstaluj firmware przed uruchomieniem."
+    },
+    "lab.error.firmware_build_unavailable": {
+      "params": {},
+      "text": "Firmware wymaga aktualnego buildu."
+    },
+    "lab.error.firmware_state_unavailable": {
+      "params": {},
+      "text": "Parametry systemu są niedostępne."
+    },
+    "lab.error.runtime_disabled": {
+      "params": {},
+      "text": "Runtime jest wyłączony."
+    },
+    "lab.error.restart_pending": {
+      "params": {},
+      "text": "Trwa odzyskiwanie systemu. Spróbuj za chwilę."
+    },
+    "lab.error.invalid_request": {
+      "params": {},
+      "text": "Nieprawidłowe żądanie."
+    },
+    "lab.error.invalid_receipt": {
+      "params": {},
+      "text": "Nieprawidłowe potwierdzenie operacji."
+    },
+    "lab.error.purchase_key_required": {
+      "params": {},
+      "text": "Brak identyfikatora zakupu."
+    },
+    "lab.error.purchase_key_conflict": {
+      "params": {},
+      "text": "Identyfikator dotyczy innego zakupu."
+    },
+    "lab.error.requirements_not_met": {
+      "params": {},
+      "text": "Wymagania produktu nie są spełnione."
+    },
+    "lab.error.scanner_inactive": {
+      "params": {},
+      "text": "Skaner wygasł. Otwórz go ponownie."
+    },
+    "lab.error.scanner_unavailable": {
+      "params": {},
+      "text": "Skaner jest niezainstalowany lub wyłączony."
+    },
+    "lab.error.scanner_busy": {
+      "params": {},
+      "text": "Najpierw zamknij aktywny skaner."
+    },
+    "lab.error.invalid_window": {
+      "params": {},
+      "text": "Brak identyfikatora okna lub sesji."
+    },
+    "lab.error.invalid_lease": {
+      "params": {},
+      "text": "Nieprawidłowa aktywacja skanera."
+    },
+    "lab.error.ticket_not_found": {
+      "params": {},
+      "text": "Nie znaleziono biletu."
+    },
+    "lab.error.ticket_build_unavailable": {
+      "params": {},
+      "text": "Bilet wymaga zgodnego buildu."
+    },
+    "lab.error.destination_disabled": {
+      "params": {},
+      "text": "Miejsce jest niedostępne."
+    },
+    "lab.error.invalid_destination": {
+      "params": {},
+      "text": "Nieprawidłowe miejsce podróży."
+    },
+    "lab.error.invalid_reaction": {
+      "params": {},
+      "text": "Nieprawidłowa reakcja."
+    },
+    "lab.error.travel_required": {
+      "params": {},
+      "text": "Ocenić może podróżujący, który nie jest autorem biletu."
+    },
+    "lab.error.ticket_runtime_disabled": {
+      "params": {},
+      "text": "Podróże twórców są wyłączone dla tego konta."
+    },
+    "lab.error.wallet_unavailable": {
+      "params": {},
+      "text": "Portfel niedostępny."
+    },
+    "lab.error.document_not_owned": {
+      "params": {},
+      "text": "To konto nie pobrało tego dokumentu."
+    },
+    "lab.error.document_not_found": {
+      "params": {},
+      "text": "Nie znaleziono dokumentu."
+    },
+    "lab.error.document_disabled": {
+      "params": {},
+      "text": "Pobieranie dokumentów jest wyłączone."
+    },
+    "lab.error.document_build_invalid": {
+      "params": {},
+      "text": "Dokument wymaga aktualnej kompilacji."
+    },
+    "lab.error.document_limit": {
+      "params": {},
+      "text": "Osiągnięto limit 1000 wydań dokumentów."
+    },
+    "lab.error.failed": {
+      "params": {
+        "code": "string"
+      },
+      "text": "Operacja odrzucona ({code})."
+    },
+    "lab.result.created": {
+      "params": {},
+      "text": "Projekt utworzony."
+    },
+    "lab.result.saved": {
+      "params": {},
+      "text": "Szkic zapisany. Skompiluj przed publikacją."
+    },
+    "lab.result.compiled": {
+      "params": {},
+      "text": "Build skompilowany. Sprawdź informacje o uruchomieniu przed publikacją."
+    },
+    "lab.result.published": {
+      "params": {},
+      "text": "Build opublikowany. Zainstalowane kopie wymagają jawnej aktualizacji."
+    },
+    "lab.result.deleted": {
+      "params": {},
+      "text": "Szkic usunięty."
+    },
+    "lab.result.withdrawn": {
+      "params": {},
+      "text": "Oferta wycofana. Zakupione wersje i buildy pozostają."
+    },
+    "lab.ui.name_invalid": {
+      "params": {},
+      "text": "Nazwa: od 1 do 64 znaków."
+    },
+    "lab.ui.icon_invalid": {
+      "params": {},
+      "text": "Wybierz jeden znak lub emoji jako ikonę."
+    },
+    "lab.ui.description_invalid": {
+      "params": {},
+      "text": "Opis: maksymalnie 1000 znaków."
+    },
+    "lab.ui.price_invalid": {
+      "params": {},
+      "text": "Cena: nieujemna całkowita liczba HC."
+    },
+    "lab.ui.presentation_invalid": {
+      "params": {},
+      "text": "Niedozwolona prezentacja."
+    },
+    "lab.ui.publish_stale": {
+      "params": {},
+      "text": "Zapisz zmiany i skompiluj aktualną rewizję przed publikacją."
+    },
+    "lab.ui.not_selected": {
+      "params": {},
+      "text": "Nie wybrano projektu."
+    },
+    "lab.ui.invalid_save": {
+      "params": {},
+      "text": "Popraw błędy walidacji przed zapisem szkicu."
+    },
+    "lab.ui.saving": {
+      "params": {},
+      "text": "Zapisywanie szkicu…"
+    },
+    "lab.ui.save_failed": {
+      "params": {},
+      "text": "Nie udało się zapisać projektu."
+    },
+    "lab.ui.draft_saved": {
+      "params": {},
+      "text": "Szkic zapisany."
+    },
+    "lab.ui.editor_offline": {
+      "params": {},
+      "text": "Brak połączenia z edytorem projektu."
+    },
+    "lab.ui.compile_invalid": {
+      "params": {},
+      "text": "Kompilacja zatrzymana. Popraw błędy projektu."
+    },
+    "lab.ui.compile_dirty": {
+      "params": {},
+      "text": "Masz niezapisane zmiany. Zapisz szkic przed kompilacją."
+    },
+    "lab.ui.compiling": {
+      "params": {},
+      "text": "Kompilacja…"
+    },
+    "lab.ui.compile_failed": {
+      "params": {},
+      "text": "Kompilacja nie powiodła się."
+    },
+    "lab.ui.compiled": {
+      "params": {},
+      "text": "Build skompilowany."
+    },
+    "lab.ui.compiler_offline": {
+      "params": {},
+      "text": "Brak połączenia z kompilatorem."
+    },
+    "lab.ui.export_none": {
+      "params": {},
+      "text": "Nie wybrano projektu do eksportu."
+    },
+    "lab.ui.export_dirty": {
+      "params": {},
+      "text": "Zapisz zmiany przed eksportem."
+    },
+    "lab.ui.exporting": {
+      "params": {},
+      "text": "Eksportowanie…"
+    },
+    "lab.ui.export_failed": {
+      "params": {},
+      "text": "Eksport nie powiódł się."
+    },
+    "lab.ui.export_offline": {
+      "params": {},
+      "text": "Brak połączenia z usługą eksportu."
+    },
+    "lab.ui.publish_none": {
+      "params": {},
+      "text": "Nie wybrano projektu do publikacji."
+    },
+    "lab.ui.publish_invalid": {
+      "params": {},
+      "text": "Publikacja zatrzymana. Popraw projekt."
+    },
+    "lab.ui.publishing": {
+      "params": {},
+      "text": "Publikowanie…"
+    },
+    "lab.ui.publish_failed": {
+      "params": {},
+      "text": "Publikacja nie powiodła się."
+    },
+    "lab.ui.published": {
+      "params": {},
+      "text": "Publikacja zakończona."
+    },
+    "lab.ui.publisher_offline": {
+      "params": {},
+      "text": "Brak połączenia z Publisherem."
+    },
+    "lab.ui.creating": {
+      "params": {},
+      "text": "Tworzenie projektu z szablonu…"
+    },
+    "lab.ui.create_failed": {
+      "params": {},
+      "text": "Nie udało się utworzyć projektu z szablonu."
+    },
+    "lab.ui.created": {
+      "params": {},
+      "text": "Projekt utworzony. Możesz teraz skonfigurować produkt."
+    },
+    "lab.ui.open_select": {
+      "params": {},
+      "text": "Wybierz projekt do otwarcia."
+    },
+    "lab.ui.delete_select": {
+      "params": {},
+      "text": "Wybierz projekt do usunięcia."
+    },
+    "lab.ui.retain": {
+      "params": {},
+      "text": "Opublikowany projekt pozostaje archiwum zakupionych wersji."
+    },
+    "lab.ui.deleting": {
+      "params": {},
+      "text": "Usuwanie projektu…"
+    },
+    "lab.ui.delete_failed": {
+      "params": {},
+      "text": "Nie udało się usunąć projektu."
+    },
+    "lab.ui.deleted": {
+      "params": {},
+      "text": "Projekt usunięty."
+    },
+    "lab.ui.dirty_open": {
+      "params": {},
+      "text": "Masz niezapisane zmiany. Zapisz je przed otwarciem innego projektu."
+    },
+    "lab.ui.step_one": {
+      "params": {},
+      "text": "Krok 1 z 2"
+    },
+    "lab.ui.name_help": {
+      "params": {},
+      "text": "Nadaj nazwę projektu. W kolejnym kroku wybierzesz szablon."
+    },
+    "lab.ui.project_name": {
+      "params": {},
+      "text": "Nazwa projektu"
+    },
+    "lab.ui.delete_title": {
+      "params": {},
+      "text": "GHOSTLAB — USUNIĘCIE PROJEKTU"
+    },
+    "lab.ui.delete_confirm": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Usunąć projekt {name}?"
+    },
+    "lab.ui.delete_button": {
+      "params": {},
+      "text": "USUŃ"
+    },
+    "lab.runtime.loading": {
+      "params": {},
+      "text": "Ładowanie…"
+    },
+    "lab.runtime.unavailable": {
+      "params": {},
+      "text": "Aplikacja jest niedostępna. Sprawdź instalację i aktywację runtime."
+    },
+    "lab.runtime.versions": {
+      "params": {
+        "installed": "number",
+        "available": "string"
+      },
+      "text": "Zainstalowana wersja: {installed}. Opublikowana: {available}."
+    },
+    "lab.runtime.target": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Cel: {name}"
+    },
+    "lab.runtime.access_required": {
+      "params": {},
+      "text": "Uzyskaj dostęp PvP do gracza, a następnie odśwież panel."
+    },
+    "lab.runtime.reopen": {
+      "params": {},
+      "text": "Otwórz ponownie panel"
+    },
+    "lab.runtime.read_logs": {
+      "params": {},
+      "text": "Odczytaj logi celu"
+    },
+    "lab.runtime.security": {
+      "params": {},
+      "text": "Otwórz panel zabezpieczeń"
+    },
+    "lab.runtime.run": {
+      "params": {},
+      "text": "Uruchom na celu PvP"
+    },
+    "lab.runtime.refresh": {
+      "params": {},
+      "text": "Odśwież"
+    },
+    "lab.runtime.update": {
+      "params": {
+        "version": "number"
+      },
+      "text": "Aktualizuj bezpłatnie do v{version}"
+    },
+    "lab.runtime.used": {
+      "params": {},
+      "text": "Limit tej rodziny został wykorzystany podczas tego dostępu."
+    },
+    "lab.runtime.offline": {
+      "params": {},
+      "text": "Brak połączenia. Otwórz aplikację ponownie, aby sprawdzić aktualny stan."
+    },
+    "lab.check.contract": {
+      "params": {},
+      "text": "Brak obslugi kontraktu szablonu."
+    },
+    "lab.check.fields": {
+      "params": {},
+      "text": "Niezgodne pola blueprintu."
+    },
+    "lab.check.sfx": {
+      "params": {},
+      "text": "sfx_id: wybierz dźwięk zgodny z animacją."
+    },
+    "lab.check.policy": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: polityka serwera."
+    },
+    "lab.check.number": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: nieprawidlowa liczba."
+    },
+    "lab.check.boolean": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: wymagany boolean."
+    },
+    "lab.check.text": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: nieprawidlowy tekst."
+    },
+    "lab.check.characters": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: niedozwolone znaki nazwy."
+    },
+    "lab.check.enum": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: wybierz systemowy zestaw."
+    },
+    "lab.check.type": {
+      "params": {
+        "field": "string"
+      },
+      "text": "{field}: nieobslugiwany typ pola."
+    },
+    "lab.check.project": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Projekt: {name}"
+    },
+    "lab.check.template": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Szablon: {name}"
+    },
+    "lab.check.category": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Kategoria: {name}"
+    },
+    "lab.check.effect_steal": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Efekt: przechwyć do {value}% HC"
+    },
+    "lab.check.detection": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Wykrycie: {value}%"
+    },
+    "lab.check.cooldown": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Odstęp użyć: {value} min"
+    },
+    "lab.check.success": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Powodzenie: {value}%"
+    },
+    "lab.check.target_policy": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Polityka celu: {value}"
+    },
+    "lab.check.presets": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Zestawy: {value}"
+    },
+    "lab.check.rules": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Reguły: {value}"
+    },
+    "lab.check.policy_value": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Polityka: {value}"
+    },
+    "lab.check.protected": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Chronione: {value}"
+    },
+    "lab.check.notes": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Notatki: {value}"
+    },
+    "lab.check.friend": {
+      "params": {},
+      "text": "Efekt: przerwanie losowego kontaktu"
+    },
+    "lab.check.security": {
+      "params": {},
+      "text": "Efekt: zdalny panel przełączników zabezpieczeń"
+    },
+    "lab.check.cleaner": {
+      "params": {},
+      "text": "Efekt: usunięcie losowej aplikacji dodatkowej"
+    },
+    "lab.check.no_build": {
+      "params": {},
+      "text": "Ostatni build: brak"
+    },
+    "lab.check.cleanup": {
+      "params": {},
+      "text": "Czyszczenie własnych, niesprzedawalnych plików; podgląd i potwierdzenie przed usunięciem."
+    },
+    "lab.check.system_update": {
+      "params": {},
+      "text": "Prezentacja aktualizacji bez zmian parametrów."
+    },
+    "lab.check.firmware_policy": {
+      "params": {},
+      "text": "Jeden zakup = jedna próba. Porażka: awaria pulpitu i restart. Odstęp po obu wynikach: 24 h."
+    },
+    "lab.check.firmware_limits": {
+      "params": {},
+      "text": "Trwałe bonusy kumulują się do 2 TB dysku i 30 km zasięgu skanu."
+    },
+    "lab.check.travel": {
+      "params": {},
+      "text": "Jedna podróż natychmiast po zakupie; miejsce deklarowane przez autora."
+    },
+    "lab.pvp.victim": {
+      "params": {},
+      "text": "cel:"
+    },
+    "lab.pvp.access": {
+      "params": {},
+      "text": "dostęp:"
+    },
+    "lab.pvp.stolen": {
+      "params": {},
+      "text": "Przechwycono:"
+    },
+    "lab.pvp.detection": {
+      "params": {},
+      "text": "Wykrycie:"
+    },
+    "lab.pvp.balance": {
+      "params": {},
+      "text": "Twoje saldo:"
+    },
+    "lab.pvp.victim_balance": {
+      "params": {},
+      "text": "Saldo celu:"
+    },
+    "lab.pvp.removed_contact": {
+      "params": {},
+      "text": "Usunięto kontakt:"
+    },
+    "lab.pvp.contact": {
+      "params": {},
+      "text": "Kontakt:"
+    },
+    "lab.pvp.chance": {
+      "params": {},
+      "text": "Szansa:"
+    },
+    "lab.pvp.roll": {
+      "params": {},
+      "text": "Rzut:"
+    },
+    "lab.pvp.contacts": {
+      "params": {},
+      "text": "Kontakty celu:"
+    },
+    "lab.pvp.removed_app": {
+      "params": {},
+      "text": "Usunięto aplikację:"
+    },
+    "lab.pvp.app": {
+      "params": {},
+      "text": "Aplikacja:"
+    },
+    "lab.pvp.type": {
+      "params": {},
+      "text": "Typ:"
+    },
+    "lab.pvp.apps": {
+      "params": {},
+      "text": "Aplikacje celu:"
+    },
+    "lab.pvp.access_to": {
+      "params": {},
+      "text": "Dostęp do:"
+    },
+    "lab.pvp.hidden": {
+      "params": {},
+      "text": "ukryta"
+    },
+    "lab.pvp.refresh": {
+      "params": {},
+      "text": "Odśwież"
+    },
+    "lab.pvp.detected": {
+      "params": {},
+      "text": "WYKRYTO"
+    },
+    "lab.pvp.silent": {
+      "params": {},
+      "text": "NIEWYKRYTO"
+    },
+    "lab.pvp.contact_kicked": {
+      "params": {},
+      "text": "KONTAKT USUNIĘTY"
+    },
+    "lab.pvp.unchanged": {
+      "params": {},
+      "text": "BEZ ZMIAN"
+    },
+    "lab.pvp.app_removed": {
+      "params": {},
+      "text": "APLIKACJA USUNIĘTA"
+    },
+    "lab.pvp.yes": {
+      "params": {},
+      "text": "tak"
+    },
+    "lab.pvp.no": {
+      "params": {},
+      "text": "nie"
+    },
+    "lab.pvp.expired_locked": {
+      "params": {},
+      "text": "Dostęp wygasł. Przyciski są zablokowane."
+    },
+    "lab.pvp.reopen": {
+      "params": {},
+      "text": "Otwórz ponownie panel"
+    },
+    "lab.pvp.no_logs": {
+      "params": {},
+      "text": "Brak logów."
+    },
+    "lab.pvp.truncated": {
+      "params": {},
+      "text": "Treść skrócona."
+    },
+    "lab.pvp.no_security": {
+      "params": {},
+      "text": "Brak przełączników zabezpieczeń."
+    },
+    "lab.pvp.no_tools": {
+      "params": {},
+      "text": "Brak zainstalowanych narzędzi do tego dostępu."
+    },
+    "lab.pvp.cooldown": {
+      "params": {
+        "seconds": "number"
+      },
+      "text": "Odstęp użyć rodziny: {seconds} s."
+    },
+    "lab.pvp.not_installed": {
+      "params": {},
+      "text": "Narzędzie nie jest zainstalowane."
+    },
+    "lab.pvp.unavailable": {
+      "params": {},
+      "text": "Narzędzie jest niedostępne dla tego dostępu."
+    },
+    "lab.pvp.expired": {
+      "params": {},
+      "text": "Dostęp wygasł."
+    },
+    "lab.pvp.starting": {
+      "params": {},
+      "text": "Uruchamianie narzędzia…"
+    },
+    "lab.pvp.complete": {
+      "params": {},
+      "text": "Operacja zakończona."
+    },
+    "lab.pvp.artifact_changed": {
+      "params": {},
+      "text": "Wersja narzędzia zmieniła się. Odśwież panel."
+    },
+    "lab.pvp.access_changed": {
+      "params": {},
+      "text": "Dostęp do gracza zmienił się lub wygasł. Odśwież panel."
+    },
+    "lab.pvp.family_cooldown": {
+      "params": {},
+      "text": "Trwa odstęp użyć tej rodziny narzędzi dla tego celu."
+    },
+    "lab.pvp.unsupported": {
+      "params": {},
+      "text": "To narzędzie nie obsługuje dostępu do gracza."
+    },
+    "lab.pvp.result.financial": {
+      "params": {
+        "amount": "number"
+      },
+      "text": "Przechwycono {amount} HC."
+    },
+    "lab.pvp.result.friend_kicker.removed": {
+      "params": {},
+      "text": "Kontakt został usunięty."
+    },
+    "lab.pvp.result.friend_kicker.unchanged": {
+      "params": {},
+      "text": "Nie usunięto kontaktu."
+    },
+    "lab.pvp.result.arsenal_cleaner.removed": {
+      "params": {},
+      "text": "Aplikacja została usunięta."
+    },
+    "lab.pvp.result.arsenal_cleaner.unchanged": {
+      "params": {},
+      "text": "Nie usunięto aplikacji."
+    },
+    "lab.pvp.result.system_logs": {
+      "params": {},
+      "text": "Odczyt logów zakończony."
+    },
+    "lab.pvp.result.security_panel": {
+      "params": {},
+      "text": "Panel zabezpieczeń połączony."
+    },
+    "lab.pvp.result.intruder_kicker": {
+      "params": {},
+      "text": "Intruz został usunięty z terytorium."
+    },
+    "lab.service.run": {
+      "params": {},
+      "text": "Uruchom"
+    },
+    "lab.service.refresh": {
+      "params": {},
+      "text": "Odśwież podgląd"
+    },
+    "lab.service.update": {
+      "params": {},
+      "text": "Aktualizuj aplikację bezpłatnie"
+    },
+    "lab.service.preview_error": {
+      "params": {},
+      "text": "Brak podglądu."
+    },
+    "lab.service.failed": {
+      "params": {},
+      "text": "Operacja nie powiodła się."
+    },
+    "lab.service.cleanup_count": {
+      "params": {
+        "count": "number",
+        "size": "number"
+      },
+      "text": "Do usunięcia: {count} plików, {size} MB (maks. 250 na operację)."
+    },
+    "lab.service.cleanup_scope": {
+      "params": {},
+      "text": "Zakres czyszczenia"
+    },
+    "lab.service.cleanup_run": {
+      "params": {},
+      "text": "Wyczyść pliki"
+    },
+    "lab.service.clean": {
+      "params": {},
+      "text": "System jest czysty"
+    },
+    "lab.service.security_choose": {
+      "params": {},
+      "text": "Wybierz poziom zabezpieczeń własnego systemu."
+    },
+    "lab.service.security_level": {
+      "params": {},
+      "text": "Poziom zabezpieczeń"
+    },
+    "lab.service.preset": {
+      "params": {},
+      "text": "Zestaw"
+    },
+    "lab.service.planned": {
+      "params": {},
+      "text": "Planowane zmiany:"
+    },
+    "lab.service.security_run": {
+      "params": {},
+      "text": "Przywróć zabezpieczenia"
+    },
+    "lab.service.security_ready": {
+      "params": {},
+      "text": "Zabezpieczenia są zgodne z wybranym zestawem."
+    },
+    "lab.service.update_help": {
+      "params": {},
+      "text": "Pobierz i zainstaluj tę wersję aktualizacji systemu. Bez bonusów do parametrów."
+    },
+    "lab.service.current": {
+      "params": {},
+      "text": "System jest aktualny"
+    },
+    "lab.service.update_run": {
+      "params": {},
+      "text": "Pobierz i zainstaluj aktualizację"
+    },
+    "lab.service.current_help": {
+      "params": {},
+      "text": "System jest aktualny — ta wersja została już zainstalowana."
+    },
+    "lab.service.title": {
+      "params": {},
+      "text": "KONSERWACJA SYSTEMU"
+    },
+    "lab.service.cleanup_confirm": {
+      "params": {
+        "count": "number",
+        "size": "number"
+      },
+      "text": "Usunąć {count} plików ({size} MB)?"
+    },
+    "lab.service.security_confirm": {
+      "params": {
+        "preset": "string"
+      },
+      "text": "Ustawić zabezpieczenia {preset}?"
+    },
+    "lab.service.confirm_details": {
+      "params": {},
+      "text": "Operacja dotyczy Twojego konta. Serwer ponownie sprawdzi aktualny stan."
+    },
+    "lab.service.confirm": {
+      "params": {},
+      "text": "WYKONAJ"
+    },
+    "lab.service.checking": {
+      "params": {},
+      "text": "Sprawdzanie zakresu…"
+    },
+    "lab.service.preparing": {
+      "params": {},
+      "text": "Przygotowanie operacji…"
+    },
+    "lab.service.duplicate": {
+      "params": {},
+      "text": "Zapisany wynik poprzedniego żądania: "
+    },
+    "lab.service.refresh_next": {
+      "params": {},
+      "text": "Odśwież podgląd przed kolejnym uruchomieniem."
+    },
+    "lab.service.saved": {
+      "params": {},
+      "text": "Zapisane zmiany:"
+    },
+    "lab.service.retry": {
+      "params": {},
+      "text": "Możesz ponowić to samo żądanie lub odświeżyć podgląd."
+    },
+    "lab.service.cleanup_result": {
+      "params": {
+        "count": "number",
+        "size": "number"
+      },
+      "text": "Usunięto {count} plików. Zwolniono {size} MB."
+    },
+    "lab.service.security_result": {
+      "params": {
+        "preset": "string",
+        "count": "number"
+      },
+      "text": "Zestaw {preset}: zmieniono {count} ustawień."
+    },
+    "lab.service.update_result": {
+      "params": {},
+      "text": "Aktualizacja zainstalowana. System jest aktualny."
+    },
+    "lab.service.scope_changed": {
+      "params": {},
+      "text": "Zakres zmienił się — odśwież podgląd."
+    },
+    "lab.service.firmware_unavailable": {
+      "params": {},
+      "text": "Firmware niedostępny."
+    },
+    "lab.service.firmware_title": {
+      "params": {},
+      "text": "FIRMWARE"
+    },
+    "lab.service.restore_confirm": {
+      "params": {},
+      "text": "Masz już opłaconą próbę. Przywrócić jej aplikację bez ponownej opłaty?"
+    },
+    "lab.service.restore": {
+      "params": {},
+      "text": "PRZYWRÓĆ"
+    },
+    "lab.service.withdrawn": {
+      "params": {},
+      "text": "Firmware wycofano ze sprzedaży."
+    },
+    "lab.service.pending_first": {
+      "params": {},
+      "text": "Wykorzystaj wcześniej zakupioną próbę firmware."
+    },
+    "lab.service.next": {
+      "params": {
+        "date": "string"
+      },
+      "text": "Kolejna próba: {date}"
+    },
+    "lab.service.limits": {
+      "params": {},
+      "text": "Osiągnięto limity: 2 TB dysku i 30 km skanu."
+    },
+    "lab.service.purchase_title": {
+      "params": {},
+      "text": "ZAKUP PRÓBY FIRMWARE"
+    },
+    "lab.service.purchase_summary": {
+      "params": {
+        "price": "number",
+        "chance": "number"
+      },
+      "text": "Jedna próba za {price} HC. Szansa powodzenia: {chance}%."
+    },
+    "lab.service.firmware_risk": {
+      "params": {
+        "disk": "number",
+        "scan": "number"
+      },
+      "text": "Możliwy przyrost: {disk} MB i {scan} m. Porażka: crash i restart, bez zwrotu HC. Cooldown po obu wynikach: 24 h."
+    },
+    "lab.service.buy": {
+      "params": {},
+      "text": "KUP PRÓBĘ"
+    },
+    "lab.service.crash_title": {
+      "params": {},
+      "text": "Awaria systemu"
+    },
+    "lab.service.crash_description": {
+      "params": {},
+      "text": "Flashowanie firmware’u nie powiodło się. Pulpit został zatrzymany."
+    },
+    "lab.service.crash_safe": {
+      "params": {},
+      "text": "Pliki i wcześniejsze ulepszenia są bezpieczne. Próba została zużyta; kolejny zakup będzie możliwy po 24 godzinach od próby."
+    },
+    "lab.service.restart_preparing": {
+      "params": {},
+      "text": "Przygotowanie restartu…"
+    },
+    "lab.service.restart": {
+      "params": {},
+      "text": "Uruchom ponownie system"
+    },
+    "lab.service.restart_ready": {
+      "params": {},
+      "text": "System gotowy do restartu."
+    },
+    "lab.service.restoring": {
+      "params": {},
+      "text": "Przywracanie systemu…"
+    },
+    "lab.service.firmware_check": {
+      "params": {},
+      "text": "Sprawdzanie firmware’u…"
+    },
+    "lab.service.firmware_help": {
+      "params": {},
+      "text": "Jedna zakupiona próba. Sukces daje trwałe ulepszenia; porażka powoduje crash i wymaga restartu. Cooldown po obu wynikach: 24 h."
+    },
+    "lab.service.chance": {
+      "params": {
+        "chance": "number"
+      },
+      "text": "Szansa powodzenia: {chance}%"
+    },
+    "lab.service.gains": {
+      "params": {
+        "disk": "number",
+        "scan": "number"
+      },
+      "text": "Możliwy przyrost: +{disk} MB dysku i +{scan} m zasięgu skanu."
+    },
+    "lab.service.capacity": {
+      "params": {
+        "disk": "number",
+        "scan": "number"
+      },
+      "text": "Obecnie: {disk} MB / 2 TB; {scan} m / 30 km."
+    },
+    "lab.service.paid": {
+      "params": {},
+      "text": "Próba opłacona. Obowiązują parametry wersji zakupionej — aktualizacja aplikacji ich nie zmienia."
+    },
+    "lab.service.no_attempt": {
+      "params": {},
+      "text": "Brak niewykorzystanej próby."
+    },
+    "lab.service.no_gains": {
+      "params": {},
+      "text": "Brak dostępnych przyrostów lub oferty."
+    },
+    "lab.service.flash": {
+      "params": {},
+      "text": "Flashuj firmware"
+    },
+    "lab.service.buy_price": {
+      "params": {
+        "price": "number"
+      },
+      "text": "Kup próbę — {price} HC"
+    },
+    "lab.service.firmware_success": {
+      "params": {},
+      "text": "Firmware zainstalowany — trwałe bonusy zapisane."
+    },
+    "lab.service.firmware_failure": {
+      "params": {},
+      "text": "Flashowanie nieudane. Crash systemu — wymagany restart."
+    },
+    "lab.service.gains_saved": {
+      "params": {
+        "disk": "number",
+        "scan": "number"
+      },
+      "text": "Zapisano: +{disk} MB, +{scan} m."
+    },
+    "lab.service.last_attempt": {
+      "params": {},
+      "text": "Ostatnia próba: "
+    },
+    "lab.service.flash_title": {
+      "params": {},
+      "text": "FLASHOWANIE FIRMWARE"
+    },
+    "lab.service.buy_confirm": {
+      "params": {
+        "price": "number"
+      },
+      "text": "Kupić jedną próbę za {price} HC?"
+    },
+    "lab.service.flash_confirm": {
+      "params": {
+        "chance": "number"
+      },
+      "text": "Rozpocząć próbę z szansą {chance}%?"
+    },
+    "lab.service.flash_action": {
+      "params": {},
+      "text": "FLASHUJ"
+    },
+    "lab.service.paid_check": {
+      "params": {},
+      "text": "Sprawdzanie opłaconej próby…"
+    },
+    "lab.service.image_prepare": {
+      "params": {},
+      "text": "Przygotowanie obrazu firmware…"
+    },
+    "lab.service.flashing": {
+      "params": {},
+      "text": "Zapisywanie firmware…"
+    },
+    "lab.service.firmware_retry": {
+      "params": {},
+      "text": "Odśwież stan lub ponów żądanie — wynik próby jest zapamiętywany."
+    },
+    "lab.service.scanner_unavailable": {
+      "params": {},
+      "text": "Skaner niedostępny."
+    },
+    "lab.service.scanner_stopped": {
+      "params": {},
+      "text": "Nakładka wyłączona. Otwórz aplikację ponownie, aby ją aktywować."
+    },
+    "lab.service.scanner_activating": {
+      "params": {},
+      "text": "Aktywowanie nakładki…"
+    },
+    "lab.service.scanner_refresh": {
+      "params": {},
+      "text": "Odśwież aktywację"
+    },
+    "lab.service.scanner_update": {
+      "params": {},
+      "text": "Aktualizuj bezpłatnie"
+    },
+    "lab.service.scanner_close": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Najpierw zamknij skaner: {name}"
+    },
+    "lab.service.scanner_active": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Aktywny: {name}. Pozostaw to okno otwarte i użyj Skanuj na mapie. Zamknięcie przywraca zwykły skaner."
+    },
+    "lab.service.demo": {
+      "params": {},
+      "text": "DEMONSTRACJA — bez skanowania, kosztów i aktywacji aplikacji."
+    },
+    "lab.service.demo_visual": {
+      "params": {},
+      "text": "Podgląd efektu i SFX (6 s)"
+    },
+    "lab.service.demo_audio": {
+      "params": {},
+      "text": "Odsłuch SFX"
+    },
+    "lab.service.stop": {
+      "params": {},
+      "text": "Zatrzymaj"
+    },
+    "lab.service.demo_result": {
+      "params": {},
+      "text": "Wynik demonstracji"
+    },
+    "lab.service.detection": {
+      "params": {},
+      "text": "Wykrycie"
+    },
+    "lab.service.empty": {
+      "params": {},
+      "text": "Brak trafień"
+    },
+    "lab.service.api_error": {
+      "params": {},
+      "text": "Błąd API"
+    },
+    "lab.service.denied": {
+      "params": {},
+      "text": "Odmowa"
+    },
+    "lab.service.demo_selected": {
+      "params": {
+        "effect": "string"
+      },
+      "text": "Wybrany efekt: {effect}. Podgląd nie wykonuje zapytań API."
+    },
+    "lab.service.demo_success": {
+      "params": {},
+      "text": "Przykład: wykryto 16 obiektów."
+    },
+    "lab.service.demo_empty": {
+      "params": {},
+      "text": "Przykład: wykryto 0 obiektów."
+    },
+    "lab.service.demo_error": {
+      "params": {},
+      "text": "Przykład: skan nieukończony — błąd API."
+    },
+    "lab.service.demo_denied": {
+      "params": {},
+      "text": "Przykład: operacja niedostępna."
+    },
+    "lab.service.demo_stopped": {
+      "params": {},
+      "text": "Demonstracja przerwana."
+    },
+    "lab.docs.paragraph_0": {
+      "params": {},
+      "text": "GhostLab służy do projektowania i publikowania narzędzi na kontraktach systemowych."
+    },
+    "lab.docs.paragraph_1": {
+      "params": {},
+      "text": "Stan na 8 października 2026 · GhostLab v1.0: dostępny · v2.0: odłożony do odwołania"
+    },
+    "lab.docs.paragraph_2": {
+      "params": {},
+      "text": "Dostępne teraz — GhostLab v1.0"
+    },
+    "lab.docs.paragraph_3": {
+      "params": {},
+      "text": "Pełny cykl pracy: Project → Template → Editor → Validate → Compile → Publisher → Googleplex. System dostarcza logikę narzędzia; twórca wybiera szablon, konfiguruje projekt i nadaje mu własną nazwę oraz opis."
+    },
+    "lab.docs.paragraph_4": {
+      "params": {},
+      "text": "Projekty .lab: zapis, ponowne otwarcie, edycja, walidacja, kompilacja i publikacja. Projekty można otwierać również z File Managera i terminala."
+    },
+    "lab.docs.paragraph_5": {
+      "params": {},
+      "text": "Sześć rodzin PvP: System Log Reader, Security Panel Proxy, Financial Sniffer, Friend Kicker, Arsenal Cleaner i Intruder Kicker. Użycie wymaga Player Hack Access; własne narzędzia korzystają z zasad i limitów swojej rodziny."
+    },
+    "lab.docs.paragraph_6": {
+      "params": {},
+      "text": "Bilety podróży, konserwacja systemu, firmware i Deep Scannery — każdy szablon ma własne wymagania, cele i efekty działania."
+    },
+    "lab.docs.paragraph_7": {
+      "params": {},
+      "text": "Dokumenty PTK: edycja Markdown z podglądem, publikacja globalna lub klanowa, oferty bezpłatne i płatne oraz odczyt pobranych wydań w Plexcaku."
+    },
+    "lab.docs.paragraph_8": {
+      "params": {},
+      "text": "Wersjonowana publikacja, zakup, instalacja i jawna aktualizacja narzędzi. Wycofanie oferty pozostawia zainstalowane kopie u graczy."
+    },
+    "lab.docs.paragraph_9": {
+      "params": {},
+      "text": "AppForge, Term Creator, Window Maker i Button Choice służą do tworzenia prostszych aplikacji operacyjnych. GhostLab rozwija narzędzia na kontraktach swoich szablonów."
+    },
+    "lab.docs.paragraph_10": {
+      "params": {},
+      "text": "Research i Ghost Exchange — obecny zakres"
+    },
+    "lab.docs.paragraph_11": {
+      "params": {},
+      "text": "Research jest obecnie fundamentem interfejsu, bez aktywnego drzewa badań i odblokowań. Ghost Exchange wewnątrz laboratorium jest biblioteką informacyjną; nie jest rynkiem sprzedaży paczek danych w WebDragons. Przyszłe funkcje tych zakładek nie są jeszcze dostępne."
+    },
+    "lab.docs.paragraph_12": {
+      "params": {},
+      "text": "W trakcie — Ghost System PL / EN"
+    },
+    "lab.docs.paragraph_13": {
+      "params": {},
+      "text": "Polski i angielski interfejs systemu, opisy narzędzi i biletów, panele serwisowe, komunikaty oraz pomoc korzystają ze wspólnego rejestru językowego. Kolejne języki, np. rosyjski i hiszpański, można dodawać przez zatwierdzone pakiety językowe."
+    },
+    "lab.docs.paragraph_14": {
+      "params": {},
+      "text": "Migracja językowa trwa. Nazwy i opisy produktów, dokumenty oraz inne własne teksty graczy pozostają w języku autora — system nie tłumaczy ich automatycznie."
+    },
+    "lab.docs.paragraph_15": {
+      "params": {},
+      "text": "GhostLab v2.0 — odłożony do odwołania"
+    },
+    "lab.docs.paragraph_16": {
+      "params": {},
+      "text": "Poniższe funkcje pozostają kierunkiem rozwoju, bez terminu wdrożenia. Prace nad v2.0 zostały wstrzymane; lokalizacja Ghost Systemu nie wymaga ich ukończenia."
+    },
+    "lab.docs.history": {
+      "params": {},
+      "text": "Historia rozwoju v1.0"
+    },
+    "lab.docs.library": {
+      "params": {},
+      "text": "Biblioteka zasobow GhostLab. To nie jest sklep i nie publikuje community uploadow."
+    },
+    "lab.docs.research_help": {
+      "params": {},
+      "text": "Fundament przyszlego drzewa badan GhostLab. Galazie sa widoczne, ale nie zapisuja progresu i nie odblokowuja funkcji."
+    },
+    "lab.docs.research_pick": {
+      "params": {},
+      "text": "Wybierz galaz, zeby zobaczyc przyszle unlocki."
+    },
+    "lab.docs.project_pick": {
+      "params": {},
+      "text": "Wybierz projekt, zeby zobaczyc status workspace."
+    },
+    "lab.docs.unlocks": {
+      "params": {},
+      "text": "Future unlocks"
+    },
+    "lab.docs.research_note": {
+      "params": {},
+      "text": "Research Tree planned for v2.0."
+    },
+    "lab.docs.empty": {
+      "params": {},
+      "text": "No templates available. Ghost Exchange may provide more later."
+    },
+    "lab.docs.research_status": {
+      "params": {},
+      "text": "v1.0: zablokowane / v2.0: odłożone"
+    },
+    "lab.docs.research_message": {
+      "params": {},
+      "text": "Research Tree odłożone z v2.0. Bez zapisu postępu i odblokowań."
+    },
+    "lab.docs.research_missing": {
+      "params": {},
+      "text": "Brak danych gałęzi Research."
+    },
+    "lab.docs.research.finance.name": {
+      "params": {},
+      "text": "Finanse"
+    },
+    "lab.docs.research.finance.description": {
+      "params": {},
+      "text": "Przyszle badania finansowe rozwina parametry narzedzi typu Financial Sniffer."
+    },
+    "lab.docs.research.finance.unlock_0": {
+      "params": {},
+      "text": "Ukryty transfer"
+    },
+    "lab.docs.research.finance.unlock_1": {
+      "params": {},
+      "text": "Wyższy limit"
+    },
+    "lab.docs.research.finance.unlock_2": {
+      "params": {},
+      "text": "Maskowanie transakcji"
+    },
+    "lab.docs.research.finance.unlock_3": {
+      "params": {},
+      "text": "Obejście wykrywania anomalii portfela"
+    },
+    "lab.docs.research.intel.name": {
+      "params": {},
+      "text": "Wywiad"
+    },
+    "lab.docs.research.intel.description": {
+      "params": {},
+      "text": "Przyszle badania wywiadowcze rozszerza odczyt sladow systemowych i korelacje sygnalow."
+    },
+    "lab.docs.research.intel.unlock_0": {
+      "params": {},
+      "text": "Głębsze logi"
+    },
+    "lab.docs.research.intel.unlock_1": {
+      "params": {},
+      "text": "Tryb analizy śledczej"
+    },
+    "lab.docs.research.intel.unlock_2": {
+      "params": {},
+      "text": "Odtwarzanie osi czasu"
+    },
+    "lab.docs.research.intel.unlock_3": {
+      "params": {},
+      "text": "Korelacja sygnałów"
+    },
+    "lab.docs.research.security.name": {
+      "params": {},
+      "text": "Zabezpieczenia"
+    },
+    "lab.docs.research.security.description": {
+      "params": {},
+      "text": "Przyszle badania security rozbuduja zdalne hartowanie i reguly konfliktow zabezpieczen."
+    },
+    "lab.docs.research.security.unlock_0": {
+      "params": {},
+      "text": "Zaawansowane zestawy"
+    },
+    "lab.docs.research.security.unlock_1": {
+      "params": {},
+      "text": "Zdalne zabezpieczanie"
+    },
+    "lab.docs.research.security.unlock_2": {
+      "params": {},
+      "text": "Obejście reguł konfliktu"
+    },
+    "lab.docs.research.security.unlock_3": {
+      "params": {},
+      "text": "Maskowanie na czas sesji"
+    },
+    "lab.docs.research.social.name": {
+      "params": {},
+      "text": "Relacje"
+    },
+    "lab.docs.research.social.description": {
+      "params": {},
+      "text": "Przyszle badania social zwieksza mozliwosci zaklocania relacji i maskowania grafu zaufania."
+    },
+    "lab.docs.research.social.unlock_0": {
+      "params": {},
+      "text": "Silniejsze zakłócanie kontaktów"
+    },
+    "lab.docs.research.social.unlock_1": {
+      "params": {},
+      "text": "Szum w grafie relacji"
+    },
+    "lab.docs.research.social.unlock_2": {
+      "params": {},
+      "text": "Podszywanie się pod zaufany kontakt"
+    },
+    "lab.docs.research.social.unlock_3": {
+      "params": {},
+      "text": "Maskowanie relacji"
+    },
+    "lab.docs.research.apps.name": {
+      "params": {},
+      "text": "Aplikacje"
+    },
+    "lab.docs.research.apps.description": {
+      "params": {},
+      "text": "Przyszle badania aplikacji poprawia czyszczenie arsenalu i analize zaleznosci narzedzi."
+    },
+    "lab.docs.research.apps.unlock_0": {
+      "params": {},
+      "text": "Bezpieczniejsze czyszczenie arsenału"
+    },
+    "lab.docs.research.apps.unlock_1": {
+      "params": {},
+      "text": "Skan zależności"
+    },
+    "lab.docs.research.apps.unlock_2": {
+      "params": {},
+      "text": "Kwarantanna aplikacji"
+    },
+    "lab.docs.research.apps.unlock_3": {
+      "params": {},
+      "text": "Blokowanie odzyskiwania"
+    },
+    "lab.docs.tooltip.Projects": {
+      "params": {},
+      "text": "Tworzenie, otwieranie i porzadkowanie projektow GhostLab."
+    },
+    "lab.docs.tooltip.Templates": {
+      "params": {},
+      "text": "Start projektu z gotowego szablonu narzedzia."
+    },
+    "lab.docs.tooltip.Research": {
+      "params": {},
+      "text": "Przyszle drzewo badan. Pelne Research Tree jest planowane na v2.0."
+    },
+    "lab.docs.tooltip.Ghost_Exchange": {
+      "params": {},
+      "text": "Biblioteka zasobow GhostLab. Community pojawi sie pozniej."
+    },
+    "lab.docs.tooltip.Documentation": {
+      "params": {},
+      "text": "Roadmapa, changelog i opis workflow GhostLab."
+    },
+    "lab.docs.official_0.name": {
+      "params": {},
+      "text": "Oficjalne szablony narzędzi"
+    },
+    "lab.docs.official_0.description": {
+      "params": {},
+      "text": "Bazowe szablony GhostLab: Financial, Social, Security, Intel i Apps."
+    },
+    "lab.docs.official_1.name": {
+      "params": {},
+      "text": "Profile walidacji"
+    },
+    "lab.docs.official_1.description": {
+      "params": {},
+      "text": "Reguly walidacji blueprintow uzywane przez Editor Shell i Compiler."
+    },
+    "lab.docs.official_2.name": {
+      "params": {},
+      "text": "Kontrakt publikacji"
+    },
+    "lab.docs.official_2.description": {
+      "params": {},
+      "text": "Standard publikacji artefaktu jako pro-system-tool w Googleplex."
+    },
+    "lab.docs.official_3.name": {
+      "params": {},
+      "text": "Plan runtime"
+    },
+    "lab.docs.official_3.description": {
+      "params": {},
+      "text": "Runtime sześciu rodzin PvP. Wykonanie zależy od zgodnego buildu i aktywacji serwerowej."
+    },
+    "lab.pvp.security_saved": {
+      "params": {},
+      "text": "Zapisano zabezpieczenia."
+    },
+    "lab.pvp.security_saving": {
+      "params": {},
+      "text": "Zapisywanie zabezpieczeń…"
+    },
+    "lab.pvp.security_conflicts": {
+      "params": {},
+      "text": "Reguły konfliktu wyłączyły:"
+    },
+    "lab.pvp.security_failed": {
+      "params": {},
+      "text": "Nie udało się zapisać zabezpieczeń. Odśwież panel."
+    },
+    "lab.runtime.completed": {
+      "params": {},
+      "text": "Operacja zakończona."
+    },
+    "lab.runtime.target_changed": {
+      "params": {},
+      "text": "Cel zmienił się przed potwierdzeniem. Odśwież cel i uruchom aplikację ponownie."
+    },
+    "lab.runtime.choose": {
+      "params": {},
+      "text": "Wybierz opcję"
+    },
+    "lab.runtime.application": {
+      "params": {},
+      "text": "Aplikacja"
+    },
+    "lab.ui.tab": {
+      "params": {},
+      "text": "Zakładka"
+    },
+    "lab.ui.version": {
+      "params": {},
+      "text": "Wersja"
+    },
+    "lab.ui.active": {
+      "params": {},
+      "text": "Aktywny"
+    },
+    "lab.ui.state": {
+      "params": {},
+      "text": "Stan"
+    },
+    "lab.ui.working": {
+      "params": {},
+      "text": "praca"
+    },
+    "lab.ui.idle": {
+      "params": {},
+      "text": "gotowy"
+    },
+    "lab.ui.risk": {
+      "params": {},
+      "text": "Ryzyko"
+    },
+    "lab.ui.progress": {
+      "params": {},
+      "text": "Postęp"
+    },
+    "lab.ui.tier": {
+      "params": {},
+      "text": "Poziom"
+    },
+    "lab.ui.category": {
+      "params": {},
+      "text": "Kategoria"
+    },
+    "lab.ui.template": {
+      "params": {},
+      "text": "Szablon"
+    },
+    "lab.ui.status": {
+      "params": {},
+      "text": "Stan"
+    },
+    "lab.ui.system_function": {
+      "params": {},
+      "text": "Funkcja systemowa"
+    },
+    "lab.ui.target": {
+      "params": {},
+      "text": "Cel"
+    },
+    "lab.ui.launch": {
+      "params": {},
+      "text": "Uruchomienie"
+    },
+    "lab.ui.policy": {
+      "params": {},
+      "text": "polityka serwera"
+    },
+    "lab.ui.field_unsupported": {
+      "params": {},
+      "text": "Nieobsługiwane pole"
+    },
+    "lab.ui.document_content": {
+      "params": {},
+      "text": "Treść dokumentu"
+    },
+    "lab.ui.markdown_content": {
+      "params": {},
+      "text": "Treść dokumentu w Markdown"
+    },
+    "lab.ui.render": {
+      "params": {},
+      "text": "Podgląd"
+    },
+    "lab.ui.frozen": {
+      "params": {},
+      "text": "Odłożone do odwołania."
+    },
+    "lab.ui.price_pvp": {
+      "params": {},
+      "text": "Puste pole: cena szablonu. Potomki narzędzi PvP zachowują minimalną wycenę, także dla 0 HC."
+    },
+    "lab.ui.price_default": {
+      "params": {},
+      "text": "Puste pole: cena domyślna. Wpisz 0, aby udostępnić bezpłatnie jako Open Source."
+    },
+    "lab.ui.price_ptk": {
+      "params": {},
+      "text": "Dokument PTK: domyślnie 25 HC, maksymalnie 100 HC."
+    },
+    "lab.ui.price_ticket": {
+      "params": {},
+      "text": "Płatny bilet: 5–150 HC, domyślnie 100 HC."
+    },
+    "lab.ui.price_placeholder": {
+      "params": {
+        "amount": "number"
+      },
+      "text": "Domyślna: {amount} HC"
+    },
+    "lab.ui.requirements": {
+      "params": {
+        "level": "number",
+        "respect": "number"
+      },
+      "text": "Wymagania: poziom {level}, respekt {respect}."
+    },
+    "lab.ui.withdraw_title": {
+      "params": {},
+      "text": "GHOSTLAB — WYCOFANIE PUBLIKACJI"
+    },
+    "lab.ui.withdraw_prompt": {
+      "params": {},
+      "text": "Wycofać aplikację ze sprzedaży?"
+    },
+    "lab.ui.withdraw_details": {
+      "params": {},
+      "text": "Zakupione wersje i historia pozostaną."
+    },
+    "lab.ui.withdraw_confirm": {
+      "params": {},
+      "text": "WYCOFAJ"
+    },
+    "lab.ui.withdraw_failed": {
+      "params": {},
+      "text": "Nie udało się wycofać publikacji."
+    },
+    "lab.ui.status.done": {
+      "params": {},
+      "text": "gotowe"
+    },
+    "lab.ui.status.current": {
+      "params": {},
+      "text": "obecne"
+    },
+    "lab.ui.status.planned": {
+      "params": {},
+      "text": "planowane"
+    },
+    "lab.ui.status.locked": {
+      "params": {},
+      "text": "zablokowane"
+    },
+    "lab.ui.status.installed": {
+      "params": {},
+      "text": "zainstalowane"
+    },
+    "lab.ui.status.bundled": {
+      "params": {},
+      "text": "wbudowane"
+    },
+    "lab.ui.status.active": {
+      "params": {},
+      "text": "aktywne"
+    },
+    "lab.ui.status.draft": {
+      "params": {},
+      "text": "szkic"
+    },
+    "lab.ui.status.compiled": {
+      "params": {},
+      "text": "skompilowane"
+    },
+    "lab.ui.status.published": {
+      "params": {},
+      "text": "opublikowane"
+    },
+    "lab.ui.status.withdrawn": {
+      "params": {},
+      "text": "wycofane"
+    },
+    "lab.ui.status.valid": {
+      "params": {},
+      "text": "poprawne"
+    },
+    "lab.ui.target.own_system": {
+      "params": {},
+      "text": "własny system"
+    },
+    "lab.ui.target.player": {
+      "params": {},
+      "text": "gracz z aktywnym dostępem PvP"
+    },
+    "lab.ui.target.none": {
+      "params": {},
+      "text": "brak"
+    },
+    "lab.ui.launch.document": {
+      "params": {},
+      "text": "Dokument PTK w File Managerze."
+    },
+    "lab.ui.launch.own_system": {
+      "params": {},
+      "text": "Aplikacja własnego systemu, uruchamiana z pulpitu."
+    },
+    "lab.ui.launch.purchase_travel": {
+      "params": {},
+      "text": "Zakup biletu w Googleplexie. Jedna podróż przy zakupie; dostępność zależy od konfiguracji serwera."
+    },
+    "lab.ui.launch.player_hack_access": {
+      "params": {},
+      "text": "Panel PLAYER ACCESS. Dostępność zależy od konfiguracji serwera."
+    },
+    "lab.ui.roadmap.0": {
+      "params": {},
+      "text": "Przestrzeń robocza"
+    },
+    "lab.ui.roadmap.1": {
+      "params": {},
+      "text": "Projekty"
+    },
+    "lab.ui.roadmap.2": {
+      "params": {},
+      "text": "Szablony"
+    },
+    "lab.ui.roadmap.3": {
+      "params": {},
+      "text": "Edytory"
+    },
+    "lab.ui.roadmap.4": {
+      "params": {},
+      "text": "Kompilator"
+    },
+    "lab.ui.roadmap.5": {
+      "params": {},
+      "text": "Publikacja"
+    },
+    "lab.ui.roadmap.6": {
+      "params": {},
+      "text": "Ghost Exchange — biblioteka informacyjna"
+    },
+    "lab.ui.roadmap.7": {
+      "params": {},
+      "text": "Badania — podstawowy interfejs bez postępów"
+    },
+    "lab.ui.roadmap.8": {
+      "params": {},
+      "text": "Stabilne laboratorium — pełny cykl tworzenia i publikacji"
+    },
+    "lab.ui.future.0": {
+      "params": {},
+      "text": "Drzewo badań"
+    },
+    "lab.ui.future.1": {
+      "params": {},
+      "text": "Official Exchange — pakiety i import"
+    },
+    "lab.ui.future.2": {
+      "params": {},
+      "text": "Optymalizator kompilatora"
+    },
+    "lab.ui.future.3": {
+      "params": {},
+      "text": "Społeczność Ghost Exchange"
+    },
+    "lab.ui.future.4": {
+      "params": {},
+      "text": "Szablony AI"
+    },
+    "lab.ui.future.5": {
+      "params": {},
+      "text": "Plugin SDK"
+    },
+    "lab.ui.future.6": {
+      "params": {},
+      "text": "Udostępnianie blueprintów"
+    },
+    "lab.ui.future.7": {
+      "params": {},
+      "text": "Asystent AI"
+    },
+    "lab.ui.future.8": {
+      "params": {},
+      "text": "Rozbudowana historia wersji projektów"
+    },
+    "lab.ui.future.9": {
+      "params": {},
+      "text": "Przywracanie wersji projektów"
+    },
+    "lab.ui.future.10": {
+      "params": {},
+      "text": "Graf zależności"
+    },
+    "lab.runtime.started": {
+      "params": {
+        "id": "string"
+      },
+      "text": "Aplikacja {id} uruchomiona."
+    },
+    "lab.runtime.success": {
+      "params": {},
+      "text": "✔ Sukces!"
+    },
+    "lab.runtime.failure": {
+      "params": {},
+      "text": "✖ Operacja nie powiodła się."
+    },
+    "lab.runtime.action_title": {
+      "params": {},
+      "text": "▶ Akcja"
+    },
+    "lab.runtime.choice_title": {
+      "params": {},
+      "text": "⚙ Efekt"
+    },
+    "lab.runtime.action_result": {
+      "params": {
+        "label": "string",
+        "result": "string"
+      },
+      "text": "Akcja: {label} | Wynik: {result}"
+    },
+    "lab.runtime.wait": {
+      "params": {},
+      "text": "[WAIT] oczekiwanie na potwierdzenie wykonania"
+    },
+    "lab.runtime.confirmed": {
+      "params": {},
+      "text": "[OK] operacja potwierdzona"
+    },
+    "lab.runtime.rejected": {
+      "params": {},
+      "text": "[ERROR] operacja odrzucona"
+    },
+    "lab.runtime.execute": {
+      "params": {},
+      "text": "Wykonaj"
+    },
+    "lab.runtime.option": {
+      "params": {
+        "index": "number"
+      },
+      "text": "Opcja {index}"
+    },
+    "lab.runtime.quote_failed": {
+      "params": {},
+      "text": "Nie można odczytać ceny opcji."
+    },
+    "lab.runtime.free": {
+      "params": {},
+      "text": "Użycie bezpłatne"
+    },
+    "lab.runtime.quote": {
+      "params": {
+        "amount": "number",
+        "recipient": "string"
+      },
+      "text": "{amount} HC tylko za sukces → {recipient}"
+    },
+    "lab.runtime.reserve_quote": {
+      "params": {
+        "amount": "number",
+        "recipient": "string"
+      },
+      "text": "Rezerwacja {amount} HC · opłata po sukcesie → {recipient}"
+    },
+    "lab.runtime.reserved": {
+      "params": {
+        "amount": "number"
+      },
+      "text": "Operacja uruchomiona. Zarezerwowano {amount} HC; opłata zostanie pobrana tylko po sukcesie."
+    },
+    "lab.check.state": {
+      "params": {
+        "status": "string"
+      },
+      "text": "Status: {status}"
+    },
+    "lab.check.latest": {
+      "params": {
+        "version": "string",
+        "status": "string"
+      },
+      "text": "Ostatni build: v{version} / {status}"
+    },
+    "lab.check.overlay": {
+      "params": {
+        "name": "string",
+        "pattern": "string",
+        "sfx": "string"
+      },
+      "text": "Nakładka: {name}, efekt {pattern}, SFX {sfx}."
+    },
+    "lab.check.retry": {
+      "params": {
+        "retries": "string",
+        "timeout": "string"
+      },
+      "text": "Ponowienia API +{retries}, limit czasu +{timeout} s. Działa tylko przy otwartym oknie."
+    },
+    "lab.check.groups": {
+      "params": {
+        "groups": "string"
+      },
+      "text": "Wybrane grupy: {groups}"
+    },
+    "lab.check.restore": {
+      "params": {
+        "preset": "string"
+      },
+      "text": "Jednorazowe ustawienie zabezpieczeń własnego konta: {preset}"
+    },
+    "lab.check.firmware": {
+      "params": {
+        "chance": "string",
+        "disk": "string",
+        "scan": "string"
+      },
+      "text": "Szansa powodzenia: {chance}%. Sukces: +{disk} MB dysku i +{scan} m skanu."
+    },
+    "lab.check.log_count": {
+      "params": {
+        "count": "string"
+      },
+      "text": "Efekt: odczyt {count} logów systemowych"
+    },
+    "lab.check.include_status": {
+      "params": {
+        "value": "string"
+      },
+      "text": "Uwzględnia status: {value}"
+    },
+    "lab.check.coordinates": {
+      "params": {
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "Współrzędne: {lat}, {lng}"
+    },
+    "lab.check.icon": {
+      "params": {
+        "icon": "string"
+      },
+      "text": "Ikona: {icon}"
+    },
+    "lab.check.author_description": {
+      "params": {
+        "description": "string"
+      },
+      "text": "Opis autora: {description}"
+    },
+    "lab.check.demonstration": {
+      "params": {},
+      "text": "DEMONSTRACJA — bez wykonania funkcji i kosztów."
+    },
+    "lab.check.protected_archive": {
+      "params": {},
+      "text": "Ten projekt był opublikowany i przechowuje zakupione wersje. Możesz wycofać sprzedaż, ale nie usunąć archiwum."
+    },
+    "lab.check.delete_warning": {
+      "params": {},
+      "text": "Usunięcie projektu jest nieodwracalne. Usunięty zostanie szkic wraz z jego buildami; niezapisane zmiany przepadną."
+    },
+    "lab.check.reaction_failed": {
+      "params": {},
+      "text": "Reakcje chwilowo niedostępne."
+    },
+    "lab.check.ready": {
+      "params": {},
+      "text": "Blueprint gotowy do zapisu jako szkic."
+    },
+    "lab.check.valid": {
+      "params": {},
+      "text": "WALIDACJA OK"
+    },
+    "lab.check.invalid": {
+      "params": {},
+      "text": "BŁĘDY WALIDACJI"
+    },
+    "lab.check.preview": {
+      "params": {},
+      "text": "Podgląd blueprintu"
+    },
+    "lab.check.travel_help": {
+      "params": {},
+      "text": "Miejsce i opis deklaruje autor. Jeden zakup wykonuje od razu jedną podróż. Sprawdź pinezkę przed publikacją."
+    },
+    "lab.check.travel_map": {
+      "params": {},
+      "text": "Pokaż miejsce na mapie"
+    },
+    "lab.check.travel_coordinates": {
+      "params": {},
+      "text": "Podaj poprawną szerokość i długość geograficzną."
+    },
+    "lab.check.travel_frame": {
+      "params": {},
+      "text": "Podgląd współrzędnych miejsca autora"
+    },
+    "lab.check.travel_changed": {
+      "params": {},
+      "text": "Dane zmienione — odśwież podgląd miejsca."
+    },
+    "lab.check.project_create": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Nowy projekt: {name}. Wybór szablonu utworzy projekt i otworzy edytor."
+    },
+    "lab.check.visibility.global": {
+      "params": {},
+      "text": "Globalnie"
+    },
+    "lab.check.visibility.clan": {
+      "params": {},
+      "text": "Tylko dla klanu"
+    },
+    "lab.pvp.invalid_reply": {
+      "params": {
+        "status": "string"
+      },
+      "text": "HTTP {status}: nieprawidłowa odpowiedź. Wynik operacji niepotwierdzony."
+    },
+    "lab.pvp.confirmed_display_failed": {
+      "params": {},
+      "text": "Serwer potwierdził operację. Nie udało się wyświetlić pełnego wyniku."
+    },
+    "lab.pvp.unconfirmed": {
+      "params": {},
+      "text": "Błąd komunikacji z narzędziem. Wynik operacji niepotwierdzony."
+    }
+  }
+}

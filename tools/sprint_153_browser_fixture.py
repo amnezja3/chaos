@@ -55,11 +55,14 @@ class Handler(BaseHTTPRequestHandler):
             source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
             start = source.index('function showHackingMenuForMarker(')
             end = source.index('// function showHackingMenuForMarker(', start)
-            body = source[start:end].encode()
+            label_start = source.index('function mapTargetLabelHtml(')
+            label_end = source.index('function targetStableId(', label_start)
+            body = (source[label_start:label_end] + '\n' + source[start:end]).encode()
             content_type = 'application/javascript; charset=utf-8'
         elif path == '/map-workspace-locale.js':
             source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
-            boundaries = [('ensureMapScanOverlay', 'normalizeBootLoadedScopes'),
+            boundaries = [('mapResponseText', 'handleForeignTerritoryProtectedResponse'),
+                          ('ensureMapScanOverlay', 'normalizeBootLoadedScopes'),
                           ('showContextMenu', 'showMarkerContextMenu'),
                           ('showCapturedObjectMenu', 'confirmCapturedObjectAbandon'),
                           ('showMenuForHacked', None),
@@ -72,6 +75,21 @@ class Handler(BaseHTTPRequestHandler):
                 parts.append(source[start:end].rstrip().removesuffix('async').rstrip())
             body = '\n'.join(parts).encode()
             content_type = 'application/javascript; charset=utf-8'
+        elif path == '/map-operation-locale.js':
+            source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
+            operations = source[source.index('window.operationLabel ='):source.index('if (!window.activeOperationClockTimer)')]
+            actors = source[source.index('window.playerActorRelationLabels ='):source.index('window.requestPlayerActorFriend =')]
+            abandon = source[source.index('async function confirmCapturedObjectAbandon('):source.index('function removeAbandonedCapturedObject(')]
+            body = (operations + '\n' + actors + '\n' + abandon).encode()
+            content_type = 'application/javascript; charset=utf-8'
+        elif path == '/map-result-locale.js':
+            source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
+            start = source.index('function mapResponseText(')
+            end = source.index('function findClanVulnerabilityForTarget(', start)
+            action = source.index('async function mapAction(')
+            action_end = source.index('const bikeDirectionIcons', action)
+            body = (source[start:end] + '\n' + source[action:action_end]).encode()
+            content_type = 'application/javascript; charset=utf-8'
         elif path == '/frame':
             with run.app.test_request_context('/frame'):
                 run.session['user'] = 'attacker'
@@ -81,6 +99,10 @@ class Handler(BaseHTTPRequestHandler):
             data = fixture.users.get_profile('attacker')
             data['desktop_settings'] = fixture.identity.get_desktop_boot('attacker')['desktop_settings']
             body = json.dumps(data).encode()
+        elif path == '/legacy-catalog-locale':
+            from catalog_presentation import legacy_presentation, legacy_sources
+            seeds = json.loads((root / 'static/app_config.json').read_text(encoding='utf8'))
+            body = json.dumps([legacy_presentation(item) for item in seeds if item['id'] in legacy_sources()]).encode()
         elif path in ('/api/ghostlab/files', '/api/ghostlab/documents'):
             body = b'{"files":[]}'
         elif path in ('/system-messages', '/launch-queue'):

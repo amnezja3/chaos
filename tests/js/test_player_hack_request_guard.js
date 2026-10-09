@@ -3,7 +3,7 @@ const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync('static/js/terminal.js', 'utf8');
 let resolve, requests = 0, opened = 0, lastUrl, lastOptions;
-const message = {textContent: ''};
+const message = {textContent: '', dataset:{}, set innerHTML(value) { this.textContent = value.replace(/<[^>]*>/g, ''); }};
 const button = {disabled: false};
 const panel = {isConnected: true, querySelector: () => message, querySelectorAll: () => [button]};
 const ctx = {
@@ -13,6 +13,8 @@ const ctx = {
     fetch(url, options) { requests++; lastUrl = url; lastOptions = options; return new Promise(done => { resolve = done; }); }
 };
 vm.createContext(ctx);
+ctx.escapeHTML = String;
+require('./locale_fixture')(ctx);
 vm.runInContext(source.slice(source.indexOf('async function usePlayerHackTool('), source.indexOf('window.refreshPlayerHackAccess')), ctx);
 (async () => {
     const first = ctx.usePlayerHackTool('friendKicker');

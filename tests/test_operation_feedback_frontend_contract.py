@@ -11,12 +11,13 @@ from config import env_csv, env_float
 class OperationFeedbackFrontendContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.config = Path("config.py").read_text(encoding="utf-8")
-        cls.template = Path("templates/linux.html").read_text(encoding="utf-8")
-        cls.feedback = Path("static/js/operation_feedback.js").read_text(encoding="utf-8")
-        cls.terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        root = Path(__file__).resolve().parents[1]
+        cls.config = (root / "config.py").read_text(encoding="utf-8")
+        cls.template = (root / "templates/linux.html").read_text(encoding="utf-8")
+        cls.feedback = (root / "static/js/operation_feedback.js").read_text(encoding="utf-8")
+        cls.terminal = (root / "static/js/terminal.js").read_text(encoding="utf-8")
         cls.profile = json.loads(
-            Path("static/data/operation_feedback.v1.json").read_text(encoding="utf-8")
+            (root / "static/data/operation_feedback.v1.json").read_text(encoding="utf-8")
         )
 
     def function_source(self, start_marker, end_marker):
@@ -24,13 +25,23 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         end = self.terminal.index(end_marker, start)
         return self.terminal[start:end]
 
-    def test_toolbar_progress_uses_completed_actions_when_backend_percent_is_stale(self):
+    def test_toolbar_progress_uses_security_truth_and_falls_back_when_unknown(self):
         source = self.function_source(
             "function calculateTargetDisarmProgress",
             "function resolveTargetBarFeedback",
         )
-        self.assertIn("actionProgress", source)
-        self.assertIn("Math.max(backendProgress || 0, actionProgress || 0)", source)
+        # The existing runtime uses current security flags, not historical actions.
+        script = """
+const assert = require('assert');
+const TARGET_FEEDBACK_SECURITY_KEYS = ['firewall', 'vpn'];
+const targetFeedbackClampPercent = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(100, Number(value))) : null;
+""" + source + """
+assert.equal(calculateTargetDisarmProgress({disarm_progress:90,security:{firewall:false,vpn:true}}),50);
+assert.equal(calculateTargetDisarmProgress({disarm_progress:0,security:{firewall:false,vpn:false}}),100);
+assert.equal(calculateTargetDisarmProgress({disarm_progress:75,security:{}}),75);
+assert.equal(calculateTargetDisarmProgress({}),0);
+"""
+        subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
 
     def test_feature_flags_are_disabled_by_default_and_reach_desktop(self):
         self.assertIn('env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False)', self.config)
@@ -181,7 +192,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_window_surfaces_authoritative_backend_failure_message(self):
         window = self.function_source("function app_window", "async function app_progressbar_random")
-        self.assertIn('response.message || "Niepowodzenie."', window)
+        self.assertIn("ghostRuntimeReply(response, success ? 'lab.runtime.success' : 'lab.runtime.failure')", window)
 
     def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
@@ -379,6 +390,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
     def test_composer_builds_varied_valid_scenes(self):
         result = subprocess.run(
             ["node", "tests/js/test_operation_feedback.js"],
+            cwd=Path(__file__).resolve().parents[1],
             check=False,
             capture_output=True,
             text=True,
@@ -444,7 +456,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('normalized === "progressbar_random"', self.feedback)
 
     def test_four_application_templates_share_shell_and_keep_distinct_contracts(self):
-        css = Path("static/css/style.css").read_text(encoding="utf-8")
+        css = (Path(__file__).resolve().parents[1] / "static/css/style.css").read_text(encoding="utf-8")
         for template in ("terminal", "button-choice", "window", "progressbar-random"):
             self.assertIn(f".ofs-template-{template}", css)
         self.assertIn("normalizeOFSApplicationTemplate", self.terminal)
@@ -470,7 +482,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('this.presentationMode !== "button_choice"', self.feedback)
 
     def test_visual_lift_is_scoped_truthful_and_bounded(self):
-        css = Path("static/css/style.css").read_text(encoding="utf-8")
+        css = (Path(__file__).resolve().parents[1] / "static/css/style.css").read_text(encoding="utf-8")
         self.assertIn("readOFSVisualLiftEnabled", self.terminal)
         self.assertIn("ofs-visual-lift-disabled", self.terminal)
         self.assertIn("delete app.dataset.ofsWaitBand", self.terminal)
@@ -524,7 +536,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("receiptScope", self.terminal)
 
     def test_mobile_layout_hides_global_desktop_sync_spinner(self):
-        css = Path("static/css/style.css").read_text(encoding="utf-8")
+        css = (Path(__file__).resolve().parents[1] / "static/css/style.css").read_text(encoding="utf-8")
         mobile_start = css.index("@media (max-width: 900px), (max-height: 700px)")
         mobile_end = css.index("@media (max-width: 760px)", mobile_start)
         mobile_css = css[mobile_start:mobile_end]

@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "default_locale": "pl",
   "domains": [
     "foundation",
@@ -10,7 +10,12 @@
     "shell",
     "map_actions",
     "creators",
-    "map_workspace"
+    "map_workspace",
+    "radio",
+    "apps",
+    "catalog",
+    "shop",
+    "lab"
   ],
   "locales": {
     "pl": {

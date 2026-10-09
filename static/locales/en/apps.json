@@ -1,0 +1,2435 @@
+{
+  "locale": "en",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "apps.operations.state.created": {
+      "params": {},
+      "text": "created"
+    },
+    "apps.operations.state.empty": {
+      "params": {},
+      "text": "no file"
+    },
+    "apps.bugs.help": {
+      "params": {},
+      "text": "Report a bug to the administrator. Reports are visible only in the admin panel."
+    },
+    "apps.bugs.title": {
+      "params": {},
+      "text": "Title"
+    },
+    "apps.bugs.description": {
+      "params": {},
+      "text": "Description"
+    },
+    "apps.bugs.steps": {
+      "params": {},
+      "text": "Steps, expected result, actual result…"
+    },
+    "apps.bugs.category": {
+      "params": {},
+      "text": "Category"
+    },
+    "apps.bugs.severity": {
+      "params": {},
+      "text": "Severity"
+    },
+    "apps.bugs.submit": {
+      "params": {},
+      "text": "Submit report"
+    },
+    "apps.bugs.sending": {
+      "params": {},
+      "text": "Sending…"
+    },
+    "apps.bugs.failed": {
+      "params": {},
+      "text": "Could not submit the report. Try again."
+    },
+    "apps.bugs.sent": {
+      "params": {
+        "id": "number"
+      },
+      "text": "Report #{id} has been sent to the administrator."
+    },
+    "apps.bugs.title_required": {
+      "params": {},
+      "text": "A report title is required."
+    },
+    "apps.bugs.dev_only": {
+      "params": {},
+      "text": "Dev Bug Reporter is only available in dev/staging."
+    },
+    "apps.bugs.login_required": {
+      "params": {},
+      "text": "Log in to submit a report."
+    },
+    "apps.bugs.category.ui": {
+      "params": {},
+      "text": "Interface"
+    },
+    "apps.bugs.category.map": {
+      "params": {},
+      "text": "Map"
+    },
+    "apps.bugs.category.operations": {
+      "params": {},
+      "text": "Operations"
+    },
+    "apps.bugs.category.files": {
+      "params": {},
+      "text": "Files"
+    },
+    "apps.bugs.category.ghost_exchange": {
+      "params": {},
+      "text": "Ghost Exchange"
+    },
+    "apps.bugs.category.googleplex": {
+      "params": {},
+      "text": "Googleplex"
+    },
+    "apps.bugs.category.login": {
+      "params": {},
+      "text": "Login"
+    },
+    "apps.bugs.category.performance": {
+      "params": {},
+      "text": "Performance"
+    },
+    "apps.bugs.category.other": {
+      "params": {},
+      "text": "Other"
+    },
+    "apps.bugs.severity.low": {
+      "params": {},
+      "text": "Low"
+    },
+    "apps.bugs.severity.medium": {
+      "params": {},
+      "text": "Medium"
+    },
+    "apps.bugs.severity.high": {
+      "params": {},
+      "text": "High"
+    },
+    "apps.bugs.severity.blocker": {
+      "params": {},
+      "text": "Blocker"
+    },
+    "apps.operations.help": {
+      "params": {},
+      "text": "Active operations, files and incidents"
+    },
+    "apps.operations.active": {
+      "params": {},
+      "text": "ACTIVE"
+    },
+    "apps.operations.incidents": {
+      "params": {},
+      "text": "INCIDENTS"
+    },
+    "apps.operations.groups": {
+      "params": {},
+      "text": "GROUPS"
+    },
+    "apps.operations.position": {
+      "params": {},
+      "text": "Motorcycle position"
+    },
+    "apps.operations.refresh": {
+      "params": {},
+      "text": "Refresh"
+    },
+    "apps.operations.close": {
+      "params": {},
+      "text": "Close"
+    },
+    "apps.operations.summary": {
+      "params": {
+        "count": "number",
+        "incidents": "number",
+        "size": "number"
+      },
+      "text": "Operations: {count} · incidents: {incidents} · {size} MB"
+    },
+    "apps.operations.output": {
+      "params": {},
+      "text": "Expected output"
+    },
+    "apps.operations.cancel_group": {
+      "params": {},
+      "text": "Cancel group"
+    },
+    "apps.operations.incident": {
+      "params": {},
+      "text": "INCIDENT"
+    },
+    "apps.operations.warning": {
+      "params": {},
+      "text": "WARNING"
+    },
+    "apps.operations.clear": {
+      "params": {},
+      "text": "clear"
+    },
+    "apps.operations.no_position": {
+      "params": {},
+      "text": "no position"
+    },
+    "apps.operations.target": {
+      "params": {},
+      "text": "Target"
+    },
+    "apps.operations.distance": {
+      "params": {},
+      "text": "Distance"
+    },
+    "apps.operations.remaining": {
+      "params": {},
+      "text": "Remaining"
+    },
+    "apps.operations.cancel": {
+      "params": {},
+      "text": "Cancel operation"
+    },
+    "apps.operations.ended": {
+      "params": {},
+      "text": "Operation ended"
+    },
+    "apps.operations.history": {
+      "params": {},
+      "text": "HISTORY"
+    },
+    "apps.operations.empty": {
+      "params": {},
+      "text": "No active operations."
+    },
+    "apps.operations.empty_help": {
+      "params": {},
+      "text": "Operation Control refreshes when a tool starts or when you refresh manually."
+    },
+    "apps.operations.confirm": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Cancel operation {name}?"
+    },
+    "apps.operations.cancel_warning": {
+      "params": {},
+      "text": "The operation output may be lost and its associated risk will be recalculated."
+    },
+    "apps.operations.back": {
+      "params": {},
+      "text": "Back"
+    },
+    "apps.operations.cancelling": {
+      "params": {},
+      "text": "Cancelling…"
+    },
+    "apps.operations.failed": {
+      "params": {},
+      "text": "Could not cancel the operation."
+    },
+    "apps.operations.cancelled": {
+      "params": {},
+      "text": "Operation cancelled."
+    },
+    "apps.operations.empty_group": {
+      "params": {},
+      "text": "No active operations in this group."
+    },
+    "apps.operations.confirm_group": {
+      "params": {
+        "name": "string",
+        "count": "number"
+      },
+      "text": "Cancel group {name} (operations: {count})?"
+    },
+    "apps.operations.group_warning": {
+      "params": {
+        "types": "string",
+        "count": "number"
+      },
+      "text": "Output: {types} | Incidents: {count}. Active operation outputs may be lost."
+    },
+    "apps.operations.cancelled_group": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Operations cancelled: {count}."
+    },
+    "apps.operations.loading": {
+      "params": {},
+      "text": "Loading operations…"
+    },
+    "apps.operations.load_failed": {
+      "params": {},
+      "text": "Could not load operations. Try refreshing the view."
+    },
+    "apps.operations.not_installed": {
+      "params": {},
+      "text": "Operation Control is not installed."
+    },
+    "apps.operations.not_found": {
+      "params": {},
+      "text": "Operation not found."
+    },
+    "apps.operations.not_active": {
+      "params": {},
+      "text": "The operation is no longer active."
+    },
+    "apps.operations.login_required": {
+      "params": {},
+      "text": "Log in again."
+    },
+    "apps.operations.invalid_request": {
+      "params": {},
+      "text": "Invalid operation data. Refresh the view."
+    },
+    "apps.operations.family.gps": {
+      "params": {},
+      "text": "GPS"
+    },
+    "apps.operations.family.recon": {
+      "params": {},
+      "text": "RECON"
+    },
+    "apps.operations.family.camera": {
+      "params": {},
+      "text": "CAMERAS"
+    },
+    "apps.operations.family.network": {
+      "params": {},
+      "text": "NETWORK"
+    },
+    "apps.operations.family.atm": {
+      "params": {},
+      "text": "ATMS"
+    },
+    "apps.operations.family.audio": {
+      "params": {},
+      "text": "AUDIO"
+    },
+    "apps.operations.family.vehicle": {
+      "params": {},
+      "text": "VEHICLES"
+    },
+    "apps.operations.family.implant": {
+      "params": {},
+      "text": "IMPLANTS"
+    },
+    "apps.operations.family.device": {
+      "params": {},
+      "text": "DEVICES"
+    },
+    "apps.operations.family.other": {
+      "params": {},
+      "text": "OTHER"
+    },
+    "apps.operations.state.pending": {
+      "params": {},
+      "text": "pending"
+    },
+    "apps.operations.state.active": {
+      "params": {},
+      "text": "active"
+    },
+    "apps.operations.state.running": {
+      "params": {},
+      "text": "running"
+    },
+    "apps.operations.state.completed": {
+      "params": {},
+      "text": "completed"
+    },
+    "apps.operations.state.cancelled": {
+      "params": {},
+      "text": "cancelled"
+    },
+    "apps.operations.state.failed": {
+      "params": {},
+      "text": "failed"
+    },
+    "apps.operations.state.expired": {
+      "params": {},
+      "text": "expired"
+    },
+    "apps.operations.state.resolved": {
+      "params": {},
+      "text": "resolved"
+    },
+    "apps.operations.risk.low": {
+      "params": {},
+      "text": "low"
+    },
+    "apps.operations.risk.medium": {
+      "params": {},
+      "text": "medium"
+    },
+    "apps.operations.risk.high": {
+      "params": {},
+      "text": "high"
+    },
+    "apps.operations.risk.critical": {
+      "params": {},
+      "text": "critical"
+    },
+    "apps.operations.type.vehicle_tracking": {
+      "params": {},
+      "text": "GPS tracking"
+    },
+    "apps.operations.type.generic_trace": {
+      "params": {},
+      "text": "Target location"
+    },
+    "apps.operations.type.device_tracking": {
+      "params": {},
+      "text": "Device tracking"
+    },
+    "apps.operations.type.camera_stream": {
+      "params": {},
+      "text": "Camera feed"
+    },
+    "apps.operations.type.camera_shutdown": {
+      "params": {},
+      "text": "Camera shutdown"
+    },
+    "apps.operations.type.atm_log_extraction": {
+      "params": {},
+      "text": "ATM logs"
+    },
+    "apps.operations.type.persistent_sniffer": {
+      "params": {},
+      "text": "Sniffer installation"
+    },
+    "apps.operations.type.wifi_scanner": {
+      "params": {},
+      "text": "Hotspot detection"
+    },
+    "apps.operations.type.microphone_sniffer": {
+      "params": {},
+      "text": "Audio surveillance"
+    },
+    "apps.operations.type.audio_interference": {
+      "params": {},
+      "text": "Audio player takeover"
+    },
+    "apps.operations.type.vehicle_ecu": {
+      "params": {},
+      "text": "Onboard system takeover"
+    },
+    "apps.operations.type.implant_timer": {
+      "params": {},
+      "text": "Timed implant"
+    },
+    "apps.operations.family.system": {
+      "params": {},
+      "text": "System"
+    },
+    "apps.operations.family.credentials": {
+      "params": {},
+      "text": "Credentials"
+    },
+    "apps.operations.family.financial_records": {
+      "params": {},
+      "text": "Financial records"
+    },
+    "apps.victim.source.marked": {
+      "params": {},
+      "text": "Marked"
+    },
+    "apps.victim.source.players": {
+      "params": {},
+      "text": "Players"
+    },
+    "apps.victim.source.intruders": {
+      "params": {},
+      "text": "Intruders"
+    },
+    "apps.victim.source.vulnerabilities": {
+      "params": {},
+      "text": "Vulnerabilities"
+    },
+    "apps.victim.source.conflicts": {
+      "params": {},
+      "text": "Conflicts"
+    },
+    "apps.victim.reason.out_of_range": {
+      "params": {},
+      "text": "Distant target"
+    },
+    "apps.victim.reason.missing_position": {
+      "params": {},
+      "text": "Target position unavailable"
+    },
+    "apps.victim.reason.missing_player_position": {
+      "params": {},
+      "text": "Motorcycle position unavailable"
+    },
+    "apps.victim.reason.own_vulnerability": {
+      "params": {},
+      "text": "Your own vulnerability report"
+    },
+    "apps.victim.badge.out_of_range": {
+      "params": {},
+      "text": "DISTANT TARGET"
+    },
+    "apps.victim.badge.missing_position": {
+      "params": {},
+      "text": "NO POSITION"
+    },
+    "apps.victim.badge.missing_player_position": {
+      "params": {},
+      "text": "NO MOTORCYCLE"
+    },
+    "apps.victim.badge.own_vulnerability": {
+      "params": {},
+      "text": "OWN VULNERABILITY"
+    },
+    "apps.victim.badge.self": {
+      "params": {},
+      "text": "YOU"
+    },
+    "apps.victim.badge.friend": {
+      "params": {},
+      "text": "FRIEND"
+    },
+    "apps.victim.badge.clan": {
+      "params": {},
+      "text": "OWN CLAN"
+    },
+    "apps.victim.badge.unavailable": {
+      "params": {},
+      "text": "UNAVAILABLE"
+    },
+    "apps.victim.risk.unknown": {
+      "params": {},
+      "text": "UNKNOWN RISK"
+    },
+    "apps.victim.risk.no_distance": {
+      "params": {},
+      "text": "Target distance unavailable"
+    },
+    "apps.victim.risk.remote": {
+      "params": {},
+      "text": "REMOTE TARGET"
+    },
+    "apps.victim.risk.remote_help": {
+      "params": {},
+      "text": "This marked target can be attacked remotely"
+    },
+    "apps.victim.risk.danger": {
+      "params": {},
+      "text": "HOT TARGET"
+    },
+    "apps.victim.risk.danger_help": {
+      "params": {},
+      "text": "Very close to the motorcycle: high tracking risk"
+    },
+    "apps.victim.risk.warning": {
+      "params": {},
+      "text": "NEARBY TARGET"
+    },
+    "apps.victim.risk.warning_help": {
+      "params": {},
+      "text": "Close to the motorcycle: increased response risk"
+    },
+    "apps.victim.risk.safe_help": {
+      "params": {},
+      "text": "Outside the immediate response range: safer target"
+    },
+    "apps.victim.none": {
+      "params": {},
+      "text": "none"
+    },
+    "apps.victim.no_position": {
+      "params": {},
+      "text": "Target position unavailable for the map."
+    },
+    "apps.victim.invalid_teleport": {
+      "params": {},
+      "text": "Valid teleport coordinates unavailable."
+    },
+    "apps.victim.teleport.title": {
+      "params": {},
+      "text": "CONFIRM TELEPORT"
+    },
+    "apps.victim.teleport.details": {
+      "params": {},
+      "text": "Confirm to move the operator and refresh the map. Cancel to keep the current position."
+    },
+    "apps.victim.cancel": {
+      "params": {},
+      "text": "CANCEL"
+    },
+    "apps.victim.teleport.denied": {
+      "params": {},
+      "text": "Teleport rejected."
+    },
+    "apps.victim.sync": {
+      "params": {},
+      "text": "Synchronizing…"
+    },
+    "apps.victim.empty": {
+      "params": {},
+      "text": "No candidates."
+    },
+    "apps.victim.no_active": {
+      "params": {},
+      "text": "No active target to show."
+    },
+    "apps.victim.marking": {
+      "params": {},
+      "text": "Marking object…"
+    },
+    "apps.victim.mark_failed": {
+      "params": {},
+      "text": "Could not mark the object."
+    },
+    "apps.victim.marked_ready": {
+      "params": {},
+      "text": "Object marked. It is available in VICTIMS."
+    },
+    "apps.victim.mark_offline": {
+      "params": {},
+      "text": "Marking is temporarily unavailable."
+    },
+    "apps.victim.scanning": {
+      "params": {},
+      "text": "Scanning…"
+    },
+    "apps.victim.bike_missing": {
+      "params": {},
+      "text": "Motorcycle position unavailable."
+    },
+    "apps.victim.scan_denied": {
+      "params": {},
+      "text": "Scan rejected."
+    },
+    "apps.victim.scan_failed": {
+      "params": {},
+      "text": "Could not complete the scan."
+    },
+    "apps.victim.empty_sources": {
+      "params": {},
+      "text": "No candidates available from the current sources."
+    },
+    "apps.victim.unavailable": {
+      "params": {},
+      "text": "Unavailable"
+    },
+    "apps.victim.teleporting": {
+      "params": {},
+      "text": "Teleporting…"
+    },
+    "apps.victim.aiming": {
+      "params": {},
+      "text": "Setting TARGET…"
+    },
+    "apps.victim.aim_failed": {
+      "params": {},
+      "text": "Could not set the target."
+    },
+    "apps.victim.aimed": {
+      "params": {},
+      "text": "Target set."
+    },
+    "apps.victim.aim_offline": {
+      "params": {},
+      "text": "Target selection is temporarily unavailable."
+    },
+    "apps.victim.loading": {
+      "params": {},
+      "text": "Loading state…"
+    },
+    "apps.victim.load_failed": {
+      "params": {},
+      "text": "Could not load candidates."
+    },
+    "apps.victim.back": {
+      "params": {},
+      "text": "Back"
+    },
+    "apps.victim.help": {
+      "params": {},
+      "text": "Select a target or scan your surroundings"
+    },
+    "apps.victim.scan_help": {
+      "params": {},
+      "text": "Scan the motorcycle surroundings"
+    },
+    "apps.victim.scan_loading": {
+      "params": {},
+      "text": "GhostSystem: scanning the motorcycle surroundings…"
+    },
+    "apps.victim.scan_validation": {
+      "params": {},
+      "text": "Your position and range are verified before scanning."
+    },
+    "apps.victim.scan_calibrate": {
+      "params": {},
+      "text": "calibrating antenna"
+    },
+    "apps.victim.scan_signatures": {
+      "params": {},
+      "text": "reconstructing signatures"
+    },
+    "apps.victim.scan_group": {
+      "params": {},
+      "text": "grouping scan results"
+    },
+    "apps.victim.clear_scan": {
+      "params": {},
+      "text": "Clear scan"
+    },
+    "apps.victim.scan_empty": {
+      "params": {},
+      "text": "No new objects found by this scan."
+    },
+    "apps.victim.sync_picker": {
+      "params": {},
+      "text": "Synchronizing Victim Picker…"
+    },
+    "apps.victim.load_offline": {
+      "params": {},
+      "text": "Could not connect to the candidate service."
+    },
+    "apps.victim.mark": {
+      "params": {},
+      "text": "mark"
+    },
+    "apps.victim.set_target": {
+      "params": {},
+      "text": "set TARGET"
+    },
+    "apps.victim.show": {
+      "params": {},
+      "text": "show"
+    },
+    "apps.victim.marked": {
+      "params": {},
+      "text": "marked"
+    },
+    "apps.victim.show_map": {
+      "params": {},
+      "text": "Show on map"
+    },
+    "apps.victim.active": {
+      "params": {},
+      "text": "active TARGET"
+    },
+    "apps.victim.current_target": {
+      "params": {},
+      "text": "Current target"
+    },
+    "apps.victim.bike_position": {
+      "params": {},
+      "text": "Motorcycle position"
+    },
+    "apps.victim.range": {
+      "params": {},
+      "text": "Action range"
+    },
+    "apps.victim.refresh": {
+      "params": {},
+      "text": "Refresh"
+    },
+    "apps.victim.open_map": {
+      "params": {},
+      "text": "Open map"
+    },
+    "apps.victim.focus_active": {
+      "params": {},
+      "text": "Show current target on map"
+    },
+    "apps.victim.close": {
+      "params": {},
+      "text": "Close"
+    },
+    "apps.victim.go_victims": {
+      "params": {},
+      "text": "Go to VICTIMS"
+    },
+    "apps.victim.teleport_near": {
+      "params": {},
+      "text": "Teleport near target"
+    },
+    "apps.victim.marked_title": {
+      "params": {},
+      "text": "Marked"
+    },
+    "apps.victim.scan_result": {
+      "params": {},
+      "text": "Scan result"
+    },
+    "apps.victim.mark_title": {
+      "params": {},
+      "text": "Mark"
+    },
+    "apps.victim.mark_first": {
+      "params": {},
+      "text": "Mark the object first"
+    },
+    "apps.victim.active_target": {
+      "params": {},
+      "text": "Active TARGET"
+    },
+    "apps.victim.current": {
+      "params": {},
+      "text": "Current TARGET"
+    },
+    "apps.victim.aim": {
+      "params": {},
+      "text": "Set as TARGET"
+    },
+    "apps.victim.candidates": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Choose the active target from {count} candidates"
+    },
+    "apps.victim.teleport.message": {
+      "params": {
+        "label": "string"
+      },
+      "text": "Teleport near target: {label}?"
+    },
+    "apps.victim.teleport.done": {
+      "params": {
+        "label": "string"
+      },
+      "text": "Teleport completed: {label}."
+    },
+    "apps.territory.attack": {
+      "params": {},
+      "text": "ATTACK"
+    },
+    "apps.territory.collision": {
+      "params": {},
+      "text": "COLLISION"
+    },
+    "apps.territory.neutral": {
+      "params": {},
+      "text": "NEUTRAL"
+    },
+    "apps.territory.alarm": {
+      "params": {},
+      "text": "ALARM"
+    },
+    "apps.territory.component.unknown": {
+      "params": {},
+      "text": "UNIDENTIFIED COMPONENT // BLOCKED"
+    },
+    "apps.territory.component.contested": {
+      "params": {},
+      "text": "COMPONENT // CONTESTED"
+    },
+    "apps.territory.component.own": {
+      "params": {},
+      "text": "OWN CLAN PART // ACTIVE"
+    },
+    "apps.territory.component.foreign": {
+      "params": {},
+      "text": "FOREIGN CLAN PART // BLOCKED"
+    },
+    "apps.territory.component.unidentified": {
+      "params": {},
+      "text": "UNIDENTIFIED COMPONENT"
+    },
+    "apps.territory.component.stored": {
+      "params": {},
+      "text": "TERRITORY HOLDS A GHOSTNETWORK COMPONENT"
+    },
+    "apps.territory.sync": {
+      "params": {},
+      "text": "Synchronizing…"
+    },
+    "apps.territory.no_position": {
+      "params": {},
+      "text": "No position available to show on the map."
+    },
+    "apps.territory.invalid_teleport": {
+      "params": {},
+      "text": "Valid teleport coordinates unavailable."
+    },
+    "apps.territory.teleport_denied": {
+      "params": {},
+      "text": "Teleport rejected."
+    },
+    "apps.territory.cluster": {
+      "params": {},
+      "text": "CLUSTER"
+    },
+    "apps.territory.preset_failed": {
+      "params": {},
+      "text": "Could not save the preset."
+    },
+    "apps.territory.flag_changing": {
+      "params": {},
+      "text": "Changing flag…"
+    },
+    "apps.territory.flag_failed": {
+      "params": {},
+      "text": "Could not save the flag."
+    },
+    "apps.territory.abandoning": {
+      "params": {},
+      "text": "Abandoning object…"
+    },
+    "apps.territory.abandon_failed": {
+      "params": {},
+      "text": "Could not abandon the object."
+    },
+    "apps.territory.abandoned": {
+      "params": {},
+      "text": "Object abandoned. Territory recalculation requested."
+    },
+    "apps.territory.recalculated": {
+      "params": {},
+      "text": "Cluster recalculated. Returning to the list."
+    },
+    "apps.territory.teleporting": {
+      "params": {},
+      "text": "Teleporting…"
+    },
+    "apps.territory.loading_cluster": {
+      "params": {},
+      "text": "Loading cluster…"
+    },
+    "apps.territory.cluster_missing": {
+      "params": {},
+      "text": "The cluster no longer exists."
+    },
+    "apps.territory.loading": {
+      "params": {},
+      "text": "Loading territory…"
+    },
+    "apps.territory.load_failed": {
+      "params": {},
+      "text": "Could not load territory."
+    },
+    "apps.territory.component.hidden": {
+      "params": {},
+      "text": "TERRITORY HOLDS AN UNIDENTIFIED COMPONENT"
+    },
+    "apps.territory.back": {
+      "params": {},
+      "text": "Back"
+    },
+    "apps.territory.help": {
+      "params": {},
+      "text": "Manage your controlled territory"
+    },
+    "apps.territory.clusters": {
+      "params": {},
+      "text": "Clusters"
+    },
+    "apps.territory.conflicts": {
+      "params": {},
+      "text": "Conflicts"
+    },
+    "apps.territory.empty": {
+      "params": {},
+      "text": "No active clusters. Controlled pillars remain separate until they form a triangle."
+    },
+    "apps.territory.no_flags": {
+      "params": {},
+      "text": "no flags"
+    },
+    "apps.territory.no_pillars": {
+      "params": {},
+      "text": "No pillars."
+    },
+    "apps.territory.no_inners": {
+      "params": {},
+      "text": "No inner nodes."
+    },
+    "apps.territory.sync_app": {
+      "params": {},
+      "text": "Synchronizing Territory Control…"
+    },
+    "apps.territory.offline": {
+      "params": {},
+      "text": "Could not connect to the territory service."
+    },
+    "apps.territory.machine": {
+      "params": {},
+      "text": "MACHINE:"
+    },
+    "apps.territory.profession": {
+      "params": {},
+      "text": "PROFESSION:"
+    },
+    "apps.territory.ability": {
+      "params": {},
+      "text": "ABILITY:"
+    },
+    "apps.territory.clan": {
+      "params": {},
+      "text": "CLAN:"
+    },
+    "apps.territory.alone": {
+      "params": {},
+      "text": "SEPARATE PILLARS"
+    },
+    "apps.territory.pillars": {
+      "params": {},
+      "text": "PILLARS"
+    },
+    "apps.territory.inners": {
+      "params": {},
+      "text": "INNER NODES"
+    },
+    "apps.territory.bike": {
+      "params": {},
+      "text": "Motorcycle position"
+    },
+    "apps.territory.attacked": {
+      "params": {},
+      "text": "Under attack"
+    },
+    "apps.territory.refresh": {
+      "params": {},
+      "text": "Refresh"
+    },
+    "apps.territory.open_map": {
+      "params": {},
+      "text": "Open map"
+    },
+    "apps.territory.close": {
+      "params": {},
+      "text": "Close"
+    },
+    "apps.territory.details": {
+      "params": {},
+      "text": "Open details"
+    },
+    "apps.territory.show_map": {
+      "params": {},
+      "text": "Show on map"
+    },
+    "apps.territory.cluster_teleport": {
+      "params": {},
+      "text": "Teleport to cluster"
+    },
+    "apps.territory.abandon": {
+      "params": {},
+      "text": "Abandon"
+    },
+    "apps.territory.teleport": {
+      "params": {},
+      "text": "Teleport"
+    },
+    "apps.territory.show_cluster": {
+      "params": {},
+      "text": "Show cluster"
+    },
+    "apps.territory.abandon.title": {
+      "params": {},
+      "text": "ABANDON OBJECT"
+    },
+    "apps.territory.abandon.message": {
+      "params": {
+        "label": "string"
+      },
+      "text": "Abandon controlled object: {label}?"
+    },
+    "apps.territory.abandon.details": {
+      "params": {},
+      "text": "The object will leave your territory. Clusters and conflicts will be recalculated."
+    },
+    "apps.territory.abandon.confirm": {
+      "params": {},
+      "text": "ABANDON"
+    },
+    "apps.territory.counts": {
+      "params": {
+        "nodes": "number",
+        "pillars": "number",
+        "inners": "number"
+      },
+      "text": "{nodes} nodes · {pillars} pillars · {inners} inner nodes"
+    },
+    "apps.territory.from_bike": {
+      "params": {},
+      "text": "from motorcycle"
+    },
+    "apps.territory.alone_help": {
+      "params": {
+        "count": "number"
+      },
+      "text": "{count} / 3 pillars — add another pillar to form a cluster."
+    },
+    "apps.territory.cluster_name": {
+      "params": {
+        "id": "string"
+      },
+      "text": "Cluster {id}"
+    },
+    "apps.territory.preset_saving": {
+      "params": {
+        "preset": "string"
+      },
+      "text": "Applying {preset}…"
+    },
+    "apps.territory.preset_saved": {
+      "params": {
+        "preset": "string"
+      },
+      "text": "Preset {preset} saved."
+    },
+    "apps.territory.security": {
+      "params": {
+        "percent": "number"
+      },
+      "text": "Security {percent}%"
+    },
+    "apps.victim.install_required": {
+      "params": {},
+      "text": "Install Victim Picker from Googleplex first."
+    },
+    "apps.victim.target_missing": {
+      "params": {},
+      "text": "The candidate no longer exists or is unavailable."
+    },
+    "apps.control.error.not_logged_in": {
+      "params": {},
+      "text": "Session expired. Sign in again."
+    },
+    "apps.control.error.profile_not_found": {
+      "params": {},
+      "text": "Operator profile not found."
+    },
+    "apps.control.error.invalid_position": {
+      "params": {},
+      "text": "Invalid position."
+    },
+    "apps.control.error.missing_action": {
+      "params": {},
+      "text": "No action selected."
+    },
+    "apps.control.error.target_not_found": {
+      "params": {},
+      "text": "The object no longer exists or is no longer yours."
+    },
+    "apps.control.error.security_save_failed": {
+      "params": {},
+      "text": "Could not save security settings."
+    },
+    "apps.control.error.invalid_preset": {
+      "params": {},
+      "text": "Invalid security preset."
+    },
+    "apps.control.error.confirmation_required": {
+      "params": {},
+      "text": "Confirm abandoning the object."
+    },
+    "apps.control.error.stale_owner": {
+      "params": {},
+      "text": "The object owner changed. Refresh the view."
+    },
+    "apps.control.error.stale_version": {
+      "params": {},
+      "text": "The object state changed. Refresh the view."
+    },
+    "apps.control.error.missing_target_id": {
+      "params": {},
+      "text": "No target selected."
+    },
+    "apps.control.error.target_unavailable": {
+      "params": {},
+      "text": "Target is currently unavailable."
+    },
+    "apps.control.error.territory_control_not_installed": {
+      "params": {},
+      "text": "Install Territory Control from Googleplex first."
+    },
+    "apps.control.error.cluster_not_found": {
+      "params": {},
+      "text": "The cluster no longer exists."
+    },
+    "apps.control.error.failed": {
+      "params": {},
+      "text": "Operation unavailable. Refresh the view and try again."
+    },
+    "apps.network.all": {
+      "params": {},
+      "text": "ALL"
+    },
+    "apps.network.public": {
+      "params": {},
+      "text": "PUBLIC"
+    },
+    "apps.network.blocked": {
+      "params": {},
+      "text": "BLOCKED"
+    },
+    "apps.network.active": {
+      "params": {},
+      "text": "ACTIVE"
+    },
+    "apps.network.control": {
+      "params": {},
+      "text": "MY CONTROL"
+    },
+    "apps.network.part": {
+      "params": {},
+      "text": "GHOSTNETWORK PART"
+    },
+    "apps.network.location.exact": {
+      "params": {},
+      "text": "EXACT LOCATION"
+    },
+    "apps.network.location.territory_only": {
+      "params": {},
+      "text": "TERRITORY ONLY"
+    },
+    "apps.network.location.hidden": {
+      "params": {},
+      "text": "LOCATION HIDDEN"
+    },
+    "apps.network.map": {
+      "params": {},
+      "text": "Show on map"
+    },
+    "apps.network.map_disabled": {
+      "params": {},
+      "text": "Map unavailable for the current projection"
+    },
+    "apps.network.teleport": {
+      "params": {},
+      "text": "Teleport"
+    },
+    "apps.network.teleport_disabled": {
+      "params": {},
+      "text": "Teleport unavailable for the current projection"
+    },
+    "apps.network.cycle.transmitting": {
+      "params": {},
+      "text": "GHOSTNETWORK LOCKED · TRANSMISSION IN PROGRESS"
+    },
+    "apps.network.cycle.stabilizing": {
+      "params": {},
+      "text": "NEW CYCLE AWAITING STABILIZATION"
+    },
+    "apps.network.cycle.preparing": {
+      "params": {},
+      "text": "PREPARING NEW CYCLE"
+    },
+    "apps.network.cycle.closed": {
+      "params": {},
+      "text": "ACTIVE CYCLE FINISHED"
+    },
+    "apps.network.cycle.active": {
+      "params": {},
+      "text": "STABLE"
+    },
+    "apps.network.no_map": {
+      "params": {},
+      "text": "Map unavailable for the current part projection."
+    },
+    "apps.network.no_teleport": {
+      "params": {},
+      "text": "Teleport unavailable for the current part projection."
+    },
+    "apps.network.teleport_denied": {
+      "params": {},
+      "text": "Teleport rejected by the current projection."
+    },
+    "apps.network.teleport_done": {
+      "params": {},
+      "text": "Teleport completed."
+    },
+    "apps.network.teleport_failed": {
+      "params": {},
+      "text": "Could not complete teleport."
+    },
+    "apps.network.sync_detail": {
+      "params": {},
+      "text": "SYNCHRONIZING GHOSTNETWORK · READING NODE PROJECTIONS"
+    },
+    "apps.network.sync": {
+      "params": {},
+      "text": "Synchronizing GhostNetwork…"
+    },
+    "apps.network.empty": {
+      "params": {},
+      "text": "No parts match the selected filter."
+    },
+    "apps.network.snapshot_missing": {
+      "params": {},
+      "text": "GhostNetwork snapshot unavailable."
+    },
+    "apps.network.load_failed": {
+      "params": {},
+      "text": "Could not load GhostNetwork Suite."
+    },
+    "apps.network.archived": {
+      "params": {},
+      "text": "Archived GhostNetwork signal."
+    },
+    "apps.network.details": {
+      "params": {},
+      "text": "DETAILS"
+    },
+    "apps.network.strategic": {
+      "params": {},
+      "text": "STRATEGIC"
+    },
+    "apps.network.distance": {
+      "params": {},
+      "text": "DISTANCE"
+    },
+    "apps.network.state": {
+      "params": {},
+      "text": "STATE"
+    },
+    "apps.network.clan": {
+      "params": {},
+      "text": "CLAN"
+    },
+    "apps.network.owner": {
+      "params": {},
+      "text": "OWNER"
+    },
+    "apps.network.updated": {
+      "params": {},
+      "text": "LAST CHANGE"
+    },
+    "apps.network.refresh": {
+      "params": {},
+      "text": "REFRESH"
+    },
+    "apps.network.profession": {
+      "params": {},
+      "text": "PROFESSION:"
+    },
+    "apps.network.ability": {
+      "params": {},
+      "text": "ABILITY:"
+    },
+    "apps.network.code": {
+      "params": {},
+      "text": "CODE:"
+    },
+    "apps.network.machine": {
+      "params": {},
+      "text": "MACHINE:"
+    },
+    "apps.network.owner_caption": {
+      "params": {},
+      "text": "OWNER:"
+    },
+    "apps.network.clan_caption": {
+      "params": {},
+      "text": "CLAN:"
+    },
+    "apps.network.territory": {
+      "params": {},
+      "text": "TERRITORY:"
+    },
+    "apps.network.discovered": {
+      "params": {},
+      "text": "DISCOVERED:"
+    },
+    "apps.network.update": {
+      "params": {},
+      "text": "UPDATED:"
+    },
+    "apps.network.cycle": {
+      "params": {},
+      "text": "GHOSTNETWORK // CYCLE"
+    },
+    "apps.network.discovered_count": {
+      "params": {},
+      "text": "DISCOVERED"
+    },
+    "apps.network.registry.players_signal": {
+      "params": {},
+      "text": "PLAYERS // SIGNAL"
+    },
+    "apps.network.registry.clans_signal": {
+      "params": {},
+      "text": "CLANS // SIGNAL"
+    },
+    "apps.network.map_part": {
+      "params": {},
+      "text": "Show GhostNetwork part on map"
+    },
+    "apps.network.teleport_part": {
+      "params": {},
+      "text": "Teleport to GhostNetwork part"
+    },
+    "apps.network.search": {
+      "params": {},
+      "text": "Search visible data"
+    },
+    "apps.network.search_parts": {
+      "params": {},
+      "text": "Search GhostNetwork parts"
+    },
+    "apps.network.sort": {
+      "params": {},
+      "text": "Sort parts"
+    },
+    "apps.network.registry.select": {
+      "params": {},
+      "text": "Select signal"
+    },
+    "apps.network.restart": {
+      "params": {
+        "transition": "string"
+      },
+      "text": "GHOSTSYSTEM RESTART REQUIRED{transition} · ACTIONS LOCKED"
+    },
+    "apps.network.stale": {
+      "params": {
+        "error": "string"
+      },
+      "text": "Stale data — {error}"
+    },
+    "apps.network.teleport.title_territory": {
+      "params": {},
+      "text": "TELEPORT TO COMPONENT TERRITORY"
+    },
+    "apps.network.teleport.title_node": {
+      "params": {},
+      "text": "TELEPORT TO GHOSTNETWORK NODE"
+    },
+    "apps.network.teleport.message": {
+      "params": {
+        "label": "string"
+      },
+      "text": "Teleport to: {label}?"
+    },
+    "apps.network.teleport.territory": {
+      "params": {},
+      "text": "Destination: a safe territory point; the hidden anchor will not be revealed."
+    },
+    "apps.network.teleport.territory_contested": {
+      "params": {},
+      "text": "Destination: a safe territory point; the hidden anchor will not be revealed. Warning: the component is in an active conflict."
+    },
+    "apps.network.teleport.node": {
+      "params": {},
+      "text": "Destination: the current exact node position."
+    },
+    "apps.network.teleport.node_contested": {
+      "params": {},
+      "text": "Destination: the current exact node position. Warning: the component is in an active conflict."
+    },
+    "apps.network.registry.loading": {
+      "params": {},
+      "text": "SYNCHRONIZING GHOSTSIGNAL ARCHIVE…"
+    },
+    "apps.network.registry.choose": {
+      "params": {},
+      "text": "Select an archived signal."
+    },
+    "apps.network.registry.no_ranking": {
+      "params": {},
+      "text": "No completed GhostSignal ranking."
+    },
+    "apps.network.registry.empty": {
+      "params": {},
+      "text": "No archived signals."
+    },
+    "apps.network.registry.players_all": {
+      "params": {},
+      "text": "PLAYERS // ALL-TIME"
+    },
+    "apps.network.registry.clans_all": {
+      "params": {},
+      "text": "CLANS // ALL-TIME"
+    },
+    "apps.network.registry.failed": {
+      "params": {},
+      "text": "Archive unavailable. Try refreshing."
+    },
+    "apps.network.value.public_neutral": {
+      "params": {},
+      "text": "Public"
+    },
+    "apps.network.value.foreign_blocked": {
+      "params": {},
+      "text": "Foreign — blocked"
+    },
+    "apps.network.value.clan_own_active": {
+      "params": {},
+      "text": "Active clan node"
+    },
+    "apps.network.value.self_foreign_blocked": {
+      "params": {},
+      "text": "Own foreign component — blocked"
+    },
+    "apps.network.value.self_own_active": {
+      "params": {},
+      "text": "Own active node"
+    },
+    "apps.network.value.foreign_active": {
+      "params": {},
+      "text": "Foreign active node"
+    },
+    "apps.network.value.public": {
+      "params": {},
+      "text": "Public"
+    },
+    "apps.network.value.active": {
+      "params": {},
+      "text": "Active"
+    },
+    "apps.network.value.blocked": {
+      "params": {},
+      "text": "Blocked"
+    },
+    "apps.network.value.contained": {
+      "params": {},
+      "text": "Contained"
+    },
+    "apps.network.value.contested": {
+      "params": {},
+      "text": "Contested"
+    },
+    "apps.network.value.unknown": {
+      "params": {},
+      "text": "Unknown"
+    },
+    "apps.network.value.inactive": {
+      "params": {},
+      "text": "Inactive"
+    },
+    "apps.network.value.summary.full": {
+      "params": {},
+      "text": "FULL COMPONENT DATA"
+    },
+    "apps.network.value.summary.active_foreign": {
+      "params": {},
+      "text": "ACTIVE GHOSTNETWORK NODE"
+    },
+    "apps.network.value.summary.contained_hidden": {
+      "params": {},
+      "text": "TERRITORY CONTAINS A GHOSTNETWORK PART"
+    },
+    "apps.cyberner.nickname": {
+      "params": {},
+      "text": "Contact username"
+    },
+    "apps.cyberner.add": {
+      "params": {},
+      "text": "Add"
+    },
+    "apps.cyberner.channels": {
+      "params": {},
+      "text": "Channels"
+    },
+    "apps.cyberner.friends": {
+      "params": {},
+      "text": "Friends"
+    },
+    "apps.cyberner.new": {
+      "params": {},
+      "text": "New"
+    },
+    "apps.cyberner.add_contact": {
+      "params": {},
+      "text": "Add contact"
+    },
+    "apps.cyberner.remove": {
+      "params": {},
+      "text": "Remove contact"
+    },
+    "apps.cyberner.send": {
+      "params": {},
+      "text": "Send"
+    },
+    "apps.cyberner.world_subtitle": {
+      "params": {},
+      "text": "Public game world channel"
+    },
+    "apps.cyberner.world_preview": {
+      "params": {},
+      "text": "Public channel for players"
+    },
+    "apps.cyberner.compose": {
+      "params": {},
+      "text": "Write a message…"
+    },
+    "apps.cyberner.back": {
+      "params": {},
+      "text": "Back to list"
+    },
+    "apps.cyberner.unavailable": {
+      "params": {},
+      "text": "This channel is unavailable."
+    },
+    "apps.cyberner.direct": {
+      "params": {},
+      "text": "Direct chat"
+    },
+    "apps.cyberner.unknown_contact": {
+      "params": {},
+      "text": "Unknown contact"
+    },
+    "apps.cyberner.unknown": {
+      "params": {},
+      "text": "Unknown"
+    },
+    "apps.cyberner.runtime_pending": {
+      "params": {},
+      "text": "Channel runtime is not available yet."
+    },
+    "apps.cyberner.soon": {
+      "params": {},
+      "text": "coming soon"
+    },
+    "apps.cyberner.channel": {
+      "params": {},
+      "text": "channel"
+    },
+    "apps.cyberner.placeholder": {
+      "params": {},
+      "text": "planned"
+    },
+    "apps.cyberner.source": {
+      "params": {},
+      "text": "source"
+    },
+    "apps.cyberner.private": {
+      "params": {},
+      "text": "private"
+    },
+    "apps.cyberner.new_small": {
+      "params": {},
+      "text": "new"
+    },
+    "apps.cyberner.world_source": {
+      "params": {},
+      "text": "Game world source"
+    },
+    "apps.cyberner.pending": {
+      "params": {},
+      "text": "Pending contact"
+    },
+    "apps.cyberner.empty": {
+      "params": {},
+      "text": "No messages. Start a conversation."
+    },
+    "apps.cyberner.contact": {
+      "params": {},
+      "text": "Contact"
+    },
+    "apps.cyberner.send_failed": {
+      "params": {},
+      "text": "Could not send message."
+    },
+    "apps.exchange.loading": {
+      "params": {},
+      "text": "Syncing Ghost Exchange…"
+    },
+    "apps.exchange.offline": {
+      "params": {},
+      "text": "No connection to Ghost Exchange."
+    },
+    "apps.exchange.load_failed": {
+      "params": {},
+      "text": "Could not load Ghost Exchange."
+    },
+    "apps.exchange.empty": {
+      "params": {},
+      "text": "No market sectors match this filter."
+    },
+    "apps.exchange.pending": {
+      "params": {},
+      "text": "Pending"
+    },
+    "apps.exchange.volume": {
+      "params": {},
+      "text": "Volume"
+    },
+    "apps.exchange.hc_today": {
+      "params": {},
+      "text": "HC today"
+    },
+    "apps.exchange.pending_data": {
+      "params": {},
+      "text": "Pending data"
+    },
+    "apps.exchange.listed": {
+      "params": {},
+      "text": "Listed"
+    },
+    "apps.exchange.sold_today": {
+      "params": {},
+      "text": "Sold today"
+    },
+    "apps.exchange.earned_today": {
+      "params": {},
+      "text": "Earned today"
+    },
+    "apps.exchange.earned_total": {
+      "params": {},
+      "text": "Total earnings"
+    },
+    "apps.exchange.average": {
+      "params": {},
+      "text": "Average package price"
+    },
+    "apps.exchange.transactions": {
+      "params": {},
+      "text": "Recent transactions"
+    },
+    "apps.exchange.history": {
+      "params": {},
+      "text": "Sales history (7 days)"
+    },
+    "apps.exchange.history_empty": {
+      "params": {},
+      "text": "Recent transactions appear after your first package sale."
+    },
+    "apps.exchange.background": {
+      "params": {},
+      "text": "The automated data market runs in the background. View your collected files in File Manager."
+    },
+    "apps.exchange.package": {
+      "params": {},
+      "text": "Data package"
+    },
+    "apps.exchange.offer_failed": {
+      "params": {},
+      "text": "Could not prepare the offer."
+    },
+    "apps.exchange.offer_ready": {
+      "params": {},
+      "text": "Offer preview ready."
+    },
+    "apps.exchange.sell_failed": {
+      "params": {},
+      "text": "Could not sell the package."
+    },
+    "apps.exchange.sold": {
+      "params": {},
+      "text": "Data package sold."
+    },
+    "apps.exchange.sector.camera": {
+      "params": {},
+      "text": "Cameras"
+    },
+    "apps.exchange.subtitle.camera": {
+      "params": {},
+      "text": "Camera and surveillance market"
+    },
+    "apps.exchange.sector.atm": {
+      "params": {},
+      "text": "ATMs"
+    },
+    "apps.exchange.subtitle.atm": {
+      "params": {},
+      "text": "ATM data market"
+    },
+    "apps.exchange.sector.gps": {
+      "params": {},
+      "text": "GPS"
+    },
+    "apps.exchange.subtitle.gps": {
+      "params": {},
+      "text": "Location and route market"
+    },
+    "apps.exchange.sector.device": {
+      "params": {},
+      "text": "Device data"
+    },
+    "apps.exchange.subtitle.device": {
+      "params": {},
+      "text": "Device information market"
+    },
+    "apps.exchange.sector.personal": {
+      "params": {},
+      "text": "Personal data"
+    },
+    "apps.exchange.subtitle.personal": {
+      "params": {},
+      "text": "Personal data market"
+    },
+    "apps.exchange.sector.credentials": {
+      "params": {},
+      "text": "Credentials"
+    },
+    "apps.exchange.subtitle.credentials": {
+      "params": {},
+      "text": "Credential and account market"
+    },
+    "apps.exchange.sector.financial": {
+      "params": {},
+      "text": "Financial data"
+    },
+    "apps.exchange.subtitle.financial": {
+      "params": {},
+      "text": "Finance and transaction market"
+    },
+    "apps.exchange.sector.network": {
+      "params": {},
+      "text": "Networks"
+    },
+    "apps.exchange.subtitle.network": {
+      "params": {},
+      "text": "Network data market"
+    },
+    "apps.exchange.sector.audio": {
+      "params": {},
+      "text": "Audio"
+    },
+    "apps.exchange.subtitle.audio": {
+      "params": {},
+      "text": "Audio signal market"
+    },
+    "apps.exchange.sector.vehicle": {
+      "params": {},
+      "text": "Vehicles"
+    },
+    "apps.exchange.subtitle.vehicle": {
+      "params": {},
+      "text": "Vehicle telemetry market"
+    },
+    "apps.exchange.sector.unknown": {
+      "params": {},
+      "text": "Other data"
+    },
+    "apps.exchange.subtitle.unknown": {
+      "params": {},
+      "text": "Unclassified data market"
+    },
+    "apps.exchange.files": {
+      "params": {
+        "count": "number"
+      },
+      "text": "{count} files"
+    },
+    "apps.exchange.packages": {
+      "params": {
+        "count": "number"
+      },
+      "text": "{count} packages"
+    },
+    "apps.exchange.transactions_count": {
+      "params": {
+        "count": "number"
+      },
+      "text": "{count} transactions"
+    },
+    "apps.exchange.missing_records": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Missing {count} records"
+    },
+    "apps.exchange.missing_mb": {
+      "params": {
+        "count": "string"
+      },
+      "text": "Missing {count}"
+    },
+    "apps.exchange.history_accessible": {
+      "params": {},
+      "text": "Ghost Exchange sales history"
+    },
+    "apps.blacknet.loading": {
+      "params": {},
+      "text": "Syncing local BlackNet signals…"
+    },
+    "apps.blacknet.none": {
+      "params": {},
+      "text": "NO SIGNAL"
+    },
+    "apps.blacknet.strength": {
+      "params": {},
+      "text": "SIGNAL: STRONG"
+    },
+    "apps.blacknet.up": {
+      "params": {},
+      "text": "SWIPE UP"
+    },
+    "apps.blacknet.down": {
+      "params": {},
+      "text": "SWIPE DOWN"
+    },
+    "apps.blacknet.left": {
+      "params": {},
+      "text": "SWIPE LEFT"
+    },
+    "apps.blacknet.right": {
+      "params": {},
+      "text": "SWIPE RIGHT"
+    },
+    "apps.blacknet.valid": {
+      "params": {},
+      "text": "SIGNAL VALID"
+    },
+    "apps.blacknet.captured": {
+      "params": {},
+      "text": "SIGNAL CAPTURED"
+    },
+    "apps.blacknet.empty": {
+      "params": {},
+      "text": "No signals in the local BlackNet source."
+    },
+    "apps.blacknet.navigation": {
+      "params": {},
+      "text": "SWIPE · WASD · ARROWS"
+    },
+    "apps.blacknet.no_bridge": {
+      "params": {},
+      "text": "This signal has no active bridge yet."
+    },
+    "apps.blacknet.previous": {
+      "params": {},
+      "text": "Previous signal"
+    },
+    "apps.blacknet.next": {
+      "params": {},
+      "text": "Next signal"
+    },
+    "apps.blacknet.strength_aria": {
+      "params": {},
+      "text": "Signal strength: strong"
+    },
+    "apps.cyberner.channel.world.title": {
+      "params": {},
+      "text": "WORLD"
+    },
+    "apps.cyberner.channel.world.subtitle": {
+      "params": {},
+      "text": "Public game world channel"
+    },
+    "apps.cyberner.channel.world.preview": {
+      "params": {},
+      "text": "Public channel for players"
+    },
+    "apps.cyberner.channel.world.meta": {
+      "params": {
+        "count": "number"
+      },
+      "text": "{count} online"
+    },
+    "apps.cyberner.channel.friends.title": {
+      "params": {},
+      "text": "FRIENDS"
+    },
+    "apps.cyberner.channel.friends.subtitle": {
+      "params": {},
+      "text": "Player contact channel"
+    },
+    "apps.cyberner.channel.friends.preview": {
+      "params": {},
+      "text": "Shared channel for accepted contacts"
+    },
+    "apps.cyberner.channel.friends.meta": {
+      "params": {
+        "count": "number"
+      },
+      "text": "{count} friends"
+    },
+    "apps.cyberner.channel.clan.title": {
+      "params": {},
+      "text": "CLAN"
+    },
+    "apps.cyberner.channel.clan.subtitle": {
+      "params": {
+        "clan": "string"
+      },
+      "text": "Clan channel: {clan}"
+    },
+    "apps.cyberner.channel.clan.preview": {
+      "params": {},
+      "text": "Shared channel for clan members"
+    },
+    "apps.cyberner.channel.agi2108.title": {
+      "params": {},
+      "text": "AGI 2108"
+    },
+    "apps.cyberner.channel.agi2108.subtitle": {
+      "params": {},
+      "text": "Private AI Central channel"
+    },
+    "apps.cyberner.channel.agi2108.preview": {
+      "params": {},
+      "text": "Accepted operator analyses"
+    },
+    "apps.cyberner.channel.agi2108.meta": {
+      "params": {},
+      "text": "OWNER // READ ONLY"
+    },
+    "apps.signal.no_dates": {
+      "params": {},
+      "text": "SIGNAL / JOURNEY DATES NOT RECORDED"
+    },
+    "apps.signal.unmute": {
+      "params": {},
+      "text": "Enable sound"
+    },
+    "apps.signal.mute": {
+      "params": {},
+      "text": "Mute"
+    },
+    "apps.signal.replaying": {
+      "params": {},
+      "text": "Replaying transmission state."
+    },
+    "apps.signal.history": {
+      "params": {},
+      "text": "GhostNetwork cycle completion history"
+    },
+    "apps.signal.journey_date": {
+      "params": {
+        "date": "string"
+      },
+      "text": "Current signal journey date: {date}"
+    },
+    "apps.signal.recovery": {
+      "params": {},
+      "text": "GHOSTSIGNAL — transmission in progress. Recovering the view."
+    },
+    "apps.signal.locked": {
+      "params": {},
+      "text": "The GhostSignal finale is in progress. World actions are temporarily locked."
+    },
+    "apps.signal.restart_required": {
+      "params": {},
+      "text": "World cycle completed. GhostSystem restart required."
+    },
+    "apps.signal.phase.network_lock.title": {
+      "params": {},
+      "text": "NETWORK LOCK"
+    },
+    "apps.signal.phase.network_lock.description": {
+      "params": {},
+      "text": "Closing the old GhostSystem world"
+    },
+    "apps.signal.phase.machine_synchronization.title": {
+      "params": {},
+      "text": "MACHINE SYNCHRONIZATION"
+    },
+    "apps.signal.phase.machine_synchronization.description": {
+      "params": {},
+      "text": "Four machines / twenty nodes"
+    },
+    "apps.signal.phase.signal_transmission.title": {
+      "params": {},
+      "text": "SIGNAL TRANSMISSION"
+    },
+    "apps.signal.phase.signal_transmission.description": {
+      "params": {},
+      "text": "GhostSignal uplink to 2108"
+    },
+    "apps.signal.phase.world_consumption.title": {
+      "params": {},
+      "text": "WORLD CONSUMPTION / ARCHIVE"
+    },
+    "apps.signal.phase.world_consumption.description": {
+      "params": {},
+      "text": "Nodes and territory enter history"
+    },
+    "apps.signal.phase.results.title": {
+      "params": {},
+      "text": "RESULTS / REWARDS"
+    },
+    "apps.signal.phase.results.description": {
+      "params": {},
+      "text": "Final settlement is being committed"
+    },
+    "apps.signal.phase.ghostsystem_restart.title": {
+      "params": {},
+      "text": "GHOSTSYSTEM RESTART"
+    },
+    "apps.signal.phase.ghostsystem_restart.description": {
+      "params": {},
+      "text": "Booting the prepared vNext world"
+    },
+    "apps.exchange.auth_required": {
+      "params": {},
+      "text": "Sign in again."
+    },
+    "apps.exchange.file_required": {
+      "params": {},
+      "text": "Select a file."
+    },
+    "apps.exchange.file_unavailable": {
+      "params": {},
+      "text": "The file is no longer available for this operation."
+    },
+    "apps.exchange.request_failed": {
+      "params": {},
+      "text": "The operation could not be completed. Try again."
+    },
+    "apps.exchange.sale_completed": {
+      "params": {
+        "amount": "number"
+      },
+      "text": "Data package sold for {amount} HC."
+    },
+    "apps.exchange.sale_duplicate": {
+      "params": {
+        "amount": "number"
+      },
+      "text": "Data package was already sold for {amount} HC."
+    },
+    "apps.exchange.status.collecting": {
+      "params": {},
+      "text": "collecting data"
+    },
+    "apps.exchange.status.trading": {
+      "params": {},
+      "text": "trading"
+    },
+    "apps.browser.refresh_failed": {
+      "params": {},
+      "text": "Could not refresh the page. Try again."
+    },
+    "apps.blacknet.suite_check": {
+      "params": {},
+      "text": "Could not verify the GhostNetwork Suite installation."
+    },
+    "apps.blacknet.suite_install": {
+      "params": {},
+      "text": "GhostNetwork Suite is not installed. Install it in Googleplex."
+    },
+    "apps.blacknet.suite_unavailable": {
+      "params": {},
+      "text": "GhostNetwork Suite is unavailable."
+    },
+    "apps.blacknet.suite_open_failed": {
+      "params": {},
+      "text": "Could not open GhostNetwork Suite."
+    },
+    "apps.blacknet.suite_focused": {
+      "params": {},
+      "text": "GhostNetwork Suite opened at the selected component."
+    },
+    "apps.blacknet.suite_open": {
+      "params": {},
+      "text": "GhostNetwork Suite opened from BlackNet."
+    },
+    "apps.blacknet.archive_unavailable": {
+      "params": {},
+      "text": "The GhostSignal archive is unavailable."
+    },
+    "apps.blacknet.radio_failed": {
+      "params": {},
+      "text": "Radio could not load the BlackNet channel."
+    },
+    "apps.blacknet.teleport_missing": {
+      "params": {},
+      "text": "This BlackNet signal has no teleport destination."
+    },
+    "apps.blacknet.teleport_cancelled": {
+      "params": {},
+      "text": "BlackNet teleport cancelled."
+    },
+    "apps.blacknet.teleport_failed": {
+      "params": {},
+      "text": "BlackNet teleport failed."
+    },
+    "apps.blacknet.teleport_offline": {
+      "params": {},
+      "text": "BlackNet teleport is temporarily unavailable."
+    },
+    "apps.blacknet.track_failed": {
+      "params": {},
+      "text": "Radio could not load the BlackNet track."
+    },
+    "apps.blacknet.radio_unavailable": {
+      "params": {},
+      "text": "Radio playback is unavailable."
+    },
+    "apps.blacknet.cancelled": {
+      "params": {},
+      "text": "BlackNet action cancelled."
+    },
+    "apps.blacknet.operation_open": {
+      "params": {},
+      "text": "Operation Control opened from BlackNet."
+    },
+    "apps.blacknet.operation_prompt": {
+      "params": {},
+      "text": "Start the operation requested by BlackNet?"
+    },
+    "apps.blacknet.operation_blocked": {
+      "params": {},
+      "text": "This operation cannot start without an available Operation Core contract."
+    },
+    "apps.blacknet.informational": {
+      "params": {},
+      "text": "This signal is informational."
+    },
+    "apps.blacknet.action_missing": {
+      "params": {},
+      "text": "This signal has no available action."
+    },
+    "apps.blacknet.expired": {
+      "params": {},
+      "text": "This BlackNet signal has expired."
+    },
+    "apps.blacknet.bridge_failed": {
+      "params": {},
+      "text": "The BlackNet action could not be completed."
+    },
+    "apps.blacknet.plex_open": {
+      "params": {},
+      "text": "Googleplex opened from BlackNet."
+    },
+    "apps.blacknet.exchange_open": {
+      "params": {},
+      "text": "Ghost Exchange opened from BlackNet."
+    },
+    "apps.blacknet.map_unfocused": {
+      "params": {},
+      "text": "Map opened. This signal has no location to focus on."
+    },
+    "apps.blacknet.plex_query": {
+      "params": {
+        "query": "string"
+      },
+      "text": "Googleplex filters the signal: {query}."
+    },
+    "apps.blacknet.exchange_sector": {
+      "params": {
+        "sector": "string"
+      },
+      "text": "Ghost Exchange opened for sector: {sector}."
+    },
+    "apps.blacknet.map_focus": {
+      "params": {
+        "target": "string"
+      },
+      "text": "Map opened. Signal focus: {target}."
+    },
+    "apps.blacknet.thread_missing": {
+      "params": {
+        "peer": "string"
+      },
+      "text": "Cyberner could not find an active conversation: {peer}."
+    },
+    "apps.blacknet.operation_focus": {
+      "params": {
+        "id": "string"
+      },
+      "text": "Operation Control: {id}."
+    },
+    "apps.blacknet.bridge_unknown": {
+      "params": {
+        "action": "string"
+      },
+      "text": "Unsupported BlackNet action: {action}."
+    },
+    "apps.blacknet.teleport_done": {
+      "params": {
+        "target": "string"
+      },
+      "text": "BlackNet teleport completed: {target}."
+    },
+    "apps.blacknet.teleport_title": {
+      "params": {},
+      "text": "BLACKNET — TELEPORT"
+    },
+    "apps.blacknet.teleport_prompt": {
+      "params": {
+        "target": "string"
+      },
+      "text": "Target captured: {target}."
+    },
+    "apps.blacknet.teleport_details": {
+      "params": {},
+      "text": "Confirm teleport. Cancelling leaves the operator at the current position."
+    },
+    "apps.blacknet.execute": {
+      "params": {},
+      "text": "EXECUTE"
+    },
+    "apps.blacknet.cancel": {
+      "params": {},
+      "text": "CANCEL"
+    },
+    "apps.blacknet.decision": {
+      "params": {},
+      "text": "BLACKNET — DECISION"
+    },
+    "apps.blacknet.decision_details": {
+      "params": {},
+      "text": "This action requires the operator’s decision."
+    },
+    "apps.agi.ready": {
+      "params": {},
+      "text": "READY"
+    },
+    "apps.agi.no_receipt": {
+      "params": {},
+      "text": "No active receipt."
+    },
+    "apps.agi.unavailable": {
+      "params": {},
+      "text": "STATUS UNAVAILABLE"
+    },
+    "apps.agi.restore_failed": {
+      "params": {},
+      "text": "Could not restore the receipt."
+    },
+    "apps.agi.accepted": {
+      "params": {},
+      "text": "ACCEPTED"
+    },
+    "apps.agi.accepted_help": {
+      "params": {},
+      "text": "The analysis request was accepted."
+    },
+    "apps.agi.queued": {
+      "params": {},
+      "text": "QUEUED"
+    },
+    "apps.agi.queued_help": {
+      "params": {},
+      "text": "The request is waiting for the local AGI worker."
+    },
+    "apps.agi.processing": {
+      "params": {},
+      "text": "PROCESSING"
+    },
+    "apps.agi.processing_help": {
+      "params": {},
+      "text": "AGI 2108 is processing the analysis package."
+    },
+    "apps.agi.completed": {
+      "params": {},
+      "text": "COMPLETED"
+    },
+    "apps.agi.result_ready": {
+      "params": {},
+      "text": "The AGI 2108 result is ready."
+    },
+    "apps.agi.publishing": {
+      "params": {},
+      "text": "The result is awaiting publication."
+    },
+    "apps.agi.failed": {
+      "params": {},
+      "text": "FAILED"
+    },
+    "apps.agi.failed_help": {
+      "params": {},
+      "text": "The analysis could not be completed."
+    },
+    "apps.agi.offline": {
+      "params": {},
+      "text": "OFFLINE"
+    },
+    "apps.agi.retry_status": {
+      "params": {},
+      "text": "The status is saved. Reopen the app to retry."
+    },
+    "apps.agi.topic_missing": {
+      "params": {},
+      "text": "NO TOPIC"
+    },
+    "apps.agi.topic_required": {
+      "params": {},
+      "text": "Enter an analysis topic."
+    },
+    "apps.agi.sending": {
+      "params": {},
+      "text": "SENDING"
+    },
+    "apps.agi.validating": {
+      "params": {},
+      "text": "Checking access, template and receipt…"
+    },
+    "apps.agi.rejected": {
+      "params": {},
+      "text": "REQUEST REJECTED"
+    },
+    "apps.agi.rejected_help": {
+      "params": {},
+      "text": "AGI policy rejected this request."
+    },
+    "apps.agi.created": {
+      "params": {},
+      "text": "One private analysis request was created."
+    },
+    "apps.agi.unconfirmed_help": {
+      "params": {},
+      "text": "The request was not confirmed. Try again."
+    },
+    "apps.agi.unconfirmed": {
+      "params": {},
+      "text": "UNCONFIRMED RECEIPT"
+    },
+    "apps.agi.same_receipt": {
+      "params": {},
+      "text": "Retrying uses the same request identity."
+    },
+    "apps.agi.heading": {
+      "params": {},
+      "text": "AGI 2108 // OWNER ANALYSIS"
+    },
+    "apps.agi.transport": {
+      "params": {},
+      "text": "System-delivered analysis"
+    },
+    "apps.agi.template": {
+      "params": {},
+      "text": "TEMPLATE"
+    },
+    "apps.agi.medium": {
+      "params": {},
+      "text": "CHANNEL"
+    },
+    "apps.agi.cost": {
+      "params": {},
+      "text": "COST"
+    },
+    "apps.agi.topic": {
+      "params": {},
+      "text": "ANALYSIS TOPIC"
+    },
+    "apps.agi.submit": {
+      "params": {},
+      "text": "SUBMIT REQUEST"
+    },
+    "apps.agi.result_link": {
+      "params": {},
+      "text": "RESULT IN CYBERNER AGI 2108"
+    },
+    "apps.agi.placeholder": {
+      "params": {},
+      "text": "Enter an operator analysis topic (up to 120 characters)"
+    },
+    "apps.network.registry.clan_metrics": {
+      "params": {
+        "nodes": "number",
+        "territories": "number",
+        "area": "number"
+      },
+      "text": "NODES {nodes} · TER {territories} · AREA {area}"
+    },
+    "apps.network.registry.player_metrics": {
+      "params": {
+        "rsp": "number",
+        "nodes": "number",
+        "territories": "number"
+      },
+      "text": "RSP {rsp} · NODES {nodes} · TER {territories}"
+    },
+    "apps.network.registry.conflict": {
+      "params": {
+        "score": "number"
+      },
+      "text": "CONFLICT {score}"
+    },
+    "apps.network.registry.closer": {
+      "params": {},
+      "text": "CLOSER"
+    },
+    "apps.network.registry.contract": {
+      "params": {},
+      "text": "IMMUTABLE // REBUILDABLE"
+    }
+  }
+}

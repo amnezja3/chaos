@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "messages": {
     "map.workspace.scan": {
       "params": {},
@@ -206,6 +206,613 @@
     "map.security.access_level": {
       "params": {},
       "text": "Access"
+    },
+    "map.result.not_logged_in": {
+      "params": {},
+      "text": "Sign in."
+    },
+    "map.result.invalid_coordinates": {
+      "params": {},
+      "text": "Invalid coordinates."
+    },
+    "map.result.missing_label": {
+      "params": {},
+      "text": "Target name is missing."
+    },
+    "map.result.profile_not_found": {
+      "params": {},
+      "text": "Player not found."
+    },
+    "map.result.missing_target_data": {
+      "params": {},
+      "text": "Target data is missing."
+    },
+    "map.result.projection": {
+      "params": {},
+      "text": "Scanning unavailable: refresh your player position."
+    },
+    "map.result.out_of_range": {
+      "params": {},
+      "text": "🔍 Scan failed. Target is out of range."
+    },
+    "map.result.upstream": {
+      "params": {},
+      "text": "Could not retrieve map data. Try again."
+    },
+    "map.result.already_captured": {
+      "params": {},
+      "text": "This object has already been captured."
+    },
+    "map.result.vulnerability_expired": {
+      "params": {},
+      "text": "This vulnerability is no longer active. Refresh the map."
+    },
+    "map.result.conflict_expired": {
+      "params": {},
+      "text": "This target no longer belongs to an active conflict. Refresh the map."
+    },
+    "map.result.failed": {
+      "params": {},
+      "text": "Map operation failed."
+    },
+    "map.result.connection": {
+      "params": {},
+      "text": "❌ Connection error"
+    },
+    "map.result.title": {
+      "params": {},
+      "text": "🗺️ Map"
+    },
+    "map.result.target_title": {
+      "params": {},
+      "text": "🎯 Target"
+    },
+    "map.result.travel_title": {
+      "params": {},
+      "text": "🧭 Travel"
+    },
+    "map.result.territory_title": {
+      "params": {},
+      "text": "🛡️ Territory"
+    },
+    "map.result.scanner_title": {
+      "params": {},
+      "text": "Scanner"
+    },
+    "map.result.connection_title": {
+      "params": {},
+      "text": "🖥️ Connection"
+    },
+    "map.result.protected": {
+      "params": {},
+      "text": "This object is protected by another player’s territory."
+    },
+    "map.result.marked": {
+      "params": {},
+      "text": "Target marked."
+    },
+    "map.result.aimed": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Target selected: {name}"
+    },
+    "map.result.marked_coords": {
+      "params": {
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "Target marked: ({lat}, {lng})"
+    },
+    "map.result.reached": {
+      "params": {
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "🎯 Destination reached: ({lat}, {lng})"
+    },
+    "map.result.foreign": {
+      "params": {
+        "name": "string"
+      },
+      "text": "The target is in territory controlled by {name}."
+    },
+    "map.result.travel_range": {
+      "params": {
+        "range": "number"
+      },
+      "text": "Too far. Motorcycle range: {range} m."
+    },
+    "map.result.registered": {
+      "params": {
+        "action": "string",
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "Registered: {action} at ({lat}, {lng})"
+    },
+    "map.result.scanned": {
+      "params": {
+        "count": "number"
+      },
+      "plural": "count",
+      "forms": {
+        "one": "🔍 Scanned {count} new object.",
+        "other": "🔍 Scanned {count} new objects."
+      }
+    },
+    "map.workspace.abandon_title": {
+      "params": {},
+      "text": "ABANDON OBJECT"
+    },
+    "map.workspace.abandon_prompt": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Abandon captured object “{name}”?"
+    },
+    "map.workspace.abandon_details": {
+      "params": {},
+      "text": "This may change the territory and active conflict."
+    },
+    "map.workspace.abandon_confirm": {
+      "params": {},
+      "text": "ABANDON"
+    },
+    "map.workspace.cancel": {
+      "params": {},
+      "text": "CANCEL"
+    },
+    "map.workspace.stale_removed": {
+      "params": {},
+      "text": "The stale object marker was removed from the map."
+    },
+    "map.workspace.abandoned": {
+      "params": {},
+      "text": "Territory rebuilding has been queued."
+    },
+    "map.workspace.abandon_failed": {
+      "params": {},
+      "text": "Could not abandon the object."
+    },
+    "map.workspace.refresh": {
+      "params": {},
+      "text": "Refresh map state"
+    },
+    "map.workspace.snapshot": {
+      "params": {},
+      "text": "Loading the current map state while retaining your view and zoom."
+    },
+    "map.workspace.avatar": {
+      "params": {},
+      "text": "👤 Your avatar"
+    },
+    "map.workspace.operation": {
+      "params": {},
+      "text": "Operation"
+    },
+    "map.workspace.operations": {
+      "params": {},
+      "text": "Operation Control"
+    },
+    "map.workspace.operation_target": {
+      "params": {},
+      "text": "Operation target"
+    },
+    "map.workspace.start": {
+      "params": {},
+      "text": "Start"
+    },
+    "map.workspace.end": {
+      "params": {},
+      "text": "End"
+    },
+    "map.workspace.risk": {
+      "params": {},
+      "text": "Risk"
+    },
+    "map.workspace.history_empty": {
+      "params": {},
+      "text": "No completed operations."
+    },
+    "map.workspace.panel_resize": {
+      "params": {},
+      "text": "Click to resize the panel"
+    },
+    "map.workspace.history_future": {
+      "params": {},
+      "text": "Operation history is not available in this view."
+    },
+    "map.workspace.predicted": {
+      "params": {},
+      "text": "PREDICTED RESULT"
+    },
+    "map.workspace.narrative": {
+      "params": {},
+      "text": "NARRATIVE TAKEOVER"
+    },
+    "map.workspace.phantom": {
+      "params": {},
+      "text": "PHANTOM NODE"
+    },
+    "map.workspace.corridor": {
+      "params": {},
+      "text": "TRUST CORRIDOR"
+    },
+    "map.workspace.false_view": {
+      "params": {},
+      "text": "FALSE VIEW"
+    },
+    "map.workspace.replicated": {
+      "params": {},
+      "text": "REPLICATION ×3"
+    },
+    "map.workspace.revealed": {
+      "params": {},
+      "text": "FULL DISCLOSURE"
+    },
+    "map.workspace.masked": {
+      "params": {},
+      "text": "MASKED"
+    },
+    "map.workspace.delayed": {
+      "params": {},
+      "text": "DELAYED RESPONSE"
+    },
+    "map.workspace.decoy": {
+      "params": {},
+      "text": "DECOY TRAFFIC"
+    },
+    "map.workspace.safe": {
+      "params": {},
+      "text": "SAFE CORRIDOR"
+    },
+    "map.workspace.tools": {
+      "params": {},
+      "text": "🛠️ Tools"
+    },
+    "map.workspace.choose_tool": {
+      "params": {},
+      "text": "Choose a tool."
+    },
+    "map.workspace.open_tools": {
+      "params": {},
+      "text": "Open Files and choose a tool from /tools."
+    },
+    "map.workspace.hack_error": {
+      "params": {},
+      "text": "Hacking operation failed"
+    },
+    "map.workspace.security_error": {
+      "params": {},
+      "text": "Security operation failed"
+    },
+    "map.workspace.travel_far": {
+      "params": {},
+      "text": "The destination is too far away."
+    },
+    "map.workspace.power_ended": {
+      "params": {},
+      "text": "The active component’s effect has ended."
+    },
+    "map.actor.pending": {
+      "params": {},
+      "text": "An invitation is already pending."
+    },
+    "map.actor.friend_blocked": {
+      "params": {},
+      "text": "Unavailable for yourself, friends and your clan."
+    },
+    "map.actor.chat_blocked": {
+      "params": {},
+      "text": "Chat is available only with friends."
+    },
+    "map.actor.transfer_blocked": {
+      "params": {},
+      "text": "You cannot transfer HC to yourself."
+    },
+    "map.actor.marked": {
+      "params": {
+        "name": "string"
+      },
+      "text": "{name} is now marked."
+    },
+    "map.actor.target_blocked": {
+      "params": {},
+      "text": "This player is not currently an eligible strategic opponent."
+    },
+    "map.actor.self_profile": {
+      "params": {},
+      "text": "This is your profile."
+    },
+    "map.actor.unavailable": {
+      "params": {},
+      "text": "Action unavailable."
+    },
+    "map.actor.enabled": {
+      "params": {},
+      "text": "enabled"
+    },
+    "map.actor.disabled": {
+      "params": {},
+      "text": "disabled"
+    },
+    "map.actor.profile": {
+      "params": {},
+      "text": "Player details"
+    },
+    "map.actor.actions": {
+      "params": {},
+      "text": "Actions"
+    },
+    "map.actor.friend": {
+      "params": {},
+      "text": "Friend"
+    },
+    "map.actor.intruder": {
+      "params": {},
+      "text": "Intruder in your territory"
+    },
+    "map.actor.same_clan": {
+      "params": {},
+      "text": "Crew"
+    },
+    "map.actor.enemy_clan": {
+      "params": {},
+      "text": "Enemy clan"
+    },
+    "map.actor.neutral": {
+      "params": {},
+      "text": "Player"
+    },
+    "map.actor.self": {
+      "params": {},
+      "text": "You"
+    },
+    "map.actor.add_friend": {
+      "params": {},
+      "text": "🤝 Add friend"
+    },
+    "map.actor.chat": {
+      "params": {},
+      "text": "💬 Start chat"
+    },
+    "map.actor.transfer_hc": {
+      "params": {},
+      "text": "💸 Transfer HC"
+    },
+    "map.actor.mark_target": {
+      "params": {},
+      "text": "🎯 Mark target"
+    },
+    "map.actor.profile_action": {
+      "params": {},
+      "text": "ℹ️ Player details"
+    },
+    "map.actor.relation": {
+      "params": {},
+      "text": "Relation"
+    },
+    "map.actor.clan": {
+      "params": {},
+      "text": "Clan"
+    },
+    "map.actor.level": {
+      "params": {},
+      "text": "Level"
+    },
+    "map.actor.profession": {
+      "params": {},
+      "text": "Profession"
+    },
+    "map.actor.territories": {
+      "params": {},
+      "text": "Territories"
+    },
+    "map.actor.target_status": {
+      "params": {},
+      "text": "Target status"
+    },
+    "map.actor.aimed": {
+      "params": {},
+      "text": "Targeted"
+    },
+    "map.actor.position": {
+      "params": {},
+      "text": "Position"
+    },
+    "map.actor.username": {
+      "params": {},
+      "text": "Username"
+    },
+    "map.actor.source": {
+      "params": {},
+      "text": "Context source"
+    },
+    "map.actor.sources": {
+      "params": {},
+      "text": "Context sources"
+    },
+    "map.vulnerability.title": {
+      "params": {},
+      "text": "Vulnerability"
+    },
+    "map.vulnerability.reported": {
+      "params": {},
+      "text": "Vulnerability reported to the clan."
+    },
+    "map.vulnerability.failed": {
+      "params": {},
+      "text": "Could not report the vulnerability."
+    },
+    "map.vulnerability.withdrawn": {
+      "params": {},
+      "text": "Vulnerability mark withdrawn."
+    },
+    "map.vulnerability.withdraw_failed": {
+      "params": {},
+      "text": "This vulnerability mark cannot be withdrawn."
+    },
+    "map.vulnerability.coverage": {
+      "params": {
+        "coverage": "number",
+        "threshold": "number"
+      },
+      "text": "Arsenal covers {coverage}% of protections. Required: {threshold}%."
+    },
+    "map.vulnerability.swarm": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Defense swarm active: {count} vulnerabilities reported from the scan."
+    },
+    "map.npc.atm_camera": {
+      "params": {},
+      "text": "ATM camera"
+    },
+    "map.npc.atm_customer": {
+      "params": {},
+      "text": "ATM customer"
+    },
+    "map.npc.shop_camera": {
+      "params": {},
+      "text": "Shop camera"
+    },
+    "map.npc.customer": {
+      "params": {},
+      "text": "Customer"
+    },
+    "map.npc.bicycle_station": {
+      "params": {},
+      "text": "Bicycle station"
+    },
+    "map.npc.guest": {
+      "params": {},
+      "text": "Restaurant guest"
+    },
+    "map.npc.courier": {
+      "params": {},
+      "text": "Courier bot"
+    },
+    "map.npc.atm": {
+      "params": {},
+      "text": "ATM"
+    },
+    "map.power.local": {
+      "params": {},
+      "text": "LOCAL"
+    },
+    "map.power.city": {
+      "params": {},
+      "text": "CITY"
+    },
+    "map.power.country": {
+      "params": {},
+      "text": "COUNTRY"
+    },
+    "map.power.continent": {
+      "params": {},
+      "text": "EUROPE"
+    },
+    "map.power.world": {
+      "params": {},
+      "text": "WORLD"
+    },
+    "map.power.map": {
+      "params": {},
+      "text": "MAP"
+    },
+    "map.power.active": {
+      "params": {},
+      "text": "EFFECT ACTIVE"
+    },
+    "map.power.range": {
+      "params": {
+        "range": "string"
+      },
+      "text": "RANGE {range}"
+    },
+    "map.power.scale": {
+      "params": {
+        "scale": "string"
+      },
+      "text": "SCALE {scale}"
+    },
+    "map.power.activate": {
+      "params": {},
+      "text": "Activate ability"
+    },
+    "map.actor.contact": {
+      "params": {},
+      "text": "Contact"
+    },
+    "map.actor.chat_title": {
+      "params": {},
+      "text": "Chat"
+    },
+    "map.actor.missing_id": {
+      "params": {},
+      "text": "Player identifier is missing."
+    },
+    "map.actor.contact_failed": {
+      "params": {},
+      "text": "Could not send the invitation."
+    },
+    "map.actor.contact_sent": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Invitation sent to {name}."
+    },
+    "map.actor.contact_offline": {
+      "params": {},
+      "text": "Could not connect to the contact system."
+    },
+    "map.actor.mark_failed": {
+      "params": {},
+      "text": "Could not mark the player."
+    },
+    "map.actor.target_offline": {
+      "params": {},
+      "text": "Could not connect to the target system."
+    },
+    "map.actor.position_missing": {
+      "params": {},
+      "text": "Player position is unavailable."
+    },
+    "map.actor.chat_open": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Open Cyberner to chat with {name}."
+    },
+    "map.actor.wallet_open": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Open Wallet to send HC to {name}."
+    },
+    "map.actor.module_unavailable": {
+      "params": {
+        "name": "string"
+      },
+      "text": "The module for {name} is unavailable."
+    },
+    "map.workspace.history_soon": {
+      "params": {},
+      "text": "Operation history will be available in a later view."
+    },
+    "map.workspace.target_loading": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Preparing target: {name}"
+    },
+    "map.workspace.target_linking": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Linking target: {name}"
     }
   }
 }

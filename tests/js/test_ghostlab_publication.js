@@ -30,6 +30,7 @@ const context = vm.createContext({
     },
     window: {refreshDesktop: () => {throw Error('Full desktop refresh forbidden');}},
 });
+require('./locale_fixture')(context);
 for (const name of ['ghostLabSavedBranding','collectGhostLabBranding','ghostLabEditorProject','validateGhostLabBranding','ghostLabBlueprintDirty','ghostLabBuildIsCurrent','publishGhostLabProject','compileGhostLabProject', 'validateGhostLabBlueprint', 'renderGhostLabEditorField']) {
     vm.runInContext(extract(name),context);
 }

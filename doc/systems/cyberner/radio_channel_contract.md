@@ -48,6 +48,44 @@ Kazdy kanal ma wlasny katalog. Pliki audio musza lezec w tym samym katalogu co
 
 ## Pola
 
+### Język — sprint 154
+
+`language` kanału i każdego wpisu `programs["nazwa.mp3"]` przyjmuje zatwierdzony
+kod języka z manifestu i18n albo `neutral`, `mixed`, `unknown`. `ANY` jest wyłącznie
+filtrem, nigdy językiem nagrania. Brak metadanych oznacza `unknown`.
+
+```json
+{
+  "language": "pl",
+  "programs": {
+    "audycja.mp3": {"language": "pl"},
+    "instrumental.mp3": {"language": "neutral"}
+  }
+}
+```
+
+Resolver kanału PL/EN dopuszcza tylko programy o tym samym języku lub neutralne;
+kanał neutralny tylko programy neutralne. Nowy plik bez metadanych nie odziedziczy
+deklaracji kanału. Kanały mieszane i niepotwierdzone pozostają dostępne pod ANY.
+Panel administratora zwraca `language_validation` i wyświetla błędy kontraktu
+oraz niezgodne pliki. Walidator publikacyjny: `radio_locale.validate_contract`.
+
+UI zapamiętuje jawny filtr w `chaos:radio:language-filter` w tej przeglądarce.
+Bez takiego wyboru korzysta z języka interfejsu. Zmiana filtra/języka nie zmienia
+źródła audio, czasu ani stanu odtwarzania; przełączenie kanału wymaga wyboru.
+Pusty wynik oferuje przycisk ANY. Bieżąca audycja pokazuje własny język.
+
+Pola `presentation.name` / `presentation.description` zawierają opcjonalne
+jawne klucze `radio.channel.*` dla kanałów systemowych. Nazwy bez takich kluczy
+oraz autorskie tytuły utworów pozostają dosłowne.
+
+Inwentaryzacja 7 X 2026: `blacknet_radio_2` zawiera 9 plików MP3,
+`ghost_streem_1` zawiera 25. Każdy ma wpis `programs`. Dotychczasowe kontrakty
+nie deklarowały języka, a nazwa pliku nie potwierdza języka nagrania. Wpisy
+muzyczne otrzymały `unknown` do czasu potwierdzenia treści. Są dostępne pod ANY.
+Autor potwierdził, że wszystkie 9 audycji BlackNet Radio jest po polsku;
+ich wpisy oraz kanał mają `language: "pl"` i są dostępne pod PL/ANY.
+
 | Pole | Typ | Wymagane | Znaczenie |
 | --- | --- | --- | --- |
 | `schema` | number | tak | Wersja kontraktu. Sprint 53 uzywa `1`. |

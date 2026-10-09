@@ -8,6 +8,7 @@ function extract(name) {
 let routed;
 const publisher = {escapeHTML: String};
 vm.createContext(publisher);
+require('./locale_fixture')(publisher);
 vm.runInContext(extract('renderGhostLabPublisherPipeline'), publisher);
 const compiled = {status: 'compiled', revision: 3, artifact: {artifact_id: 'a3', version: 3},
     published_artifact_id: 'a2', builds: [{artifact_id: 'a2', version: 2}],
@@ -35,14 +36,14 @@ const ctx={window:{},document:{createElement:()=>app,body:{appendChild(){}}},fin
     makeDraggable(){},escapeHTML:String,encodeURIComponent,desktopSessionActive:true,
     fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>state};},
     refreshPlayerHackAccess:async()=>{},usePlayerHackTool:async id=>{used=id;}};
-vm.createContext(ctx); vm.runInContext(extract('openGhostLabInstalledApp'),ctx);
+vm.createContext(ctx); require('./locale_fixture')(ctx); vm.runInContext(extract('openGhostLabInstalledApp'),ctx);
 (async()=>{
     await ctx.openGhostLabInstalledApp('ghostlab_child');
     assert(body.innerHTML.includes('Aktualizuj bezpłatnie'));
     assert(node('[data-title]').textContent.includes('Own Reader v1'));
-    await node('[data-run]').onclick({target:node('[data-run]')});
+    await node('[data-run]').onclick({target:{},currentTarget:node('[data-run]')});
     assert.equal(used,'ghostlab_child');
-    node('[data-update]').click({target:node('[data-update]')});
+    node('[data-update]').click({target:{},currentTarget:node('[data-update]')});
     await new Promise(setImmediate);
     const update=calls.find(c=>c.options.method==='POST');
     assert.deepEqual(JSON.parse(update.options.body),{expected_artifact_id:'a1',artifact_id:'a2'});

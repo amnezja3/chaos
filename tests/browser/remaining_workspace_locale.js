@@ -1,0 +1,30 @@
+async(page)=>{
+ const assert=(value,message)=>{if(!value)throw Error(message);},errors=[],requests=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ const fulfill=async(route,json,status=200)=>{const response=await page.request.get('http://127.0.0.1:8993/api/profile');await route.fulfill({headers:response.headers(),status,json});};
+ await page.route('**/api/googleplex/llm/tasks',route=>{requests.push(route.request().postDataJSON());return fulfill(route,{success:true,receipt_id:'same-request'});});
+ await page.route('**/api/googleplex/llm/tasks/*',route=>fulfill(route,{success:true,receipt:{status:'completed',receipt_id:'same-request'},publication:{title:'Tytuł autora',body:'Treść publikacji <PL>',publication_receipt_id:'publication-one'}}));
+ await page.goto('http://127.0.0.1:8993');await page.evaluate(()=>{sessionStorage.clear();localStorage.clear();});await page.reload();
+ await page.setViewportSize({width:1280,height:900});
+ await page.evaluate(()=>{createBrowser();createAgi2108ConsoleApp();});
+ const app=page.locator('[data-app=agi2108-console]'),topic=app.locator('textarea');
+ await topic.fill('Analiza autora <PL>');await page.evaluate(()=>GhostLocale.changeLocale('en',false));
+ assert(await topic.inputValue()==='Analiza autora <PL>','draft survives language switch');
+ assert((await app.innerText()).includes('ANALYSIS TOPIC'),'AGI English controls');
+ await app.locator('[data-agi-submit]').click();await app.locator('[data-agi-result]:not([hidden])').waitFor();
+ assert(requests.length===1&&requests[0].input.topic==='Analiza autora <PL>'&&requests[0].app_id==='agi2108Console','one canonical request');
+ assert((await app.innerText()).includes('COMPLETED'),'English result status');
+ assert((await app.innerText()).includes('Treść publikacji <PL>'),'publication stays literal');
+ await page.evaluate(()=>GhostLocale.changeLocale('pl',false));
+ assert((await app.innerText()).includes('ZAKOŃCZONO'),'status updates without repoll');
+ assert(requests.length===1,'language switch does not submit');
+ await page.evaluate(()=>{window.__decision=null;window.blacknetDecisionDialog({titleKey:'apps.blacknet.teleport_title',messageKey:'apps.blacknet.teleport_prompt',params:{target:'Cel autora <PL>'},detailsKey:'apps.blacknet.teleport_details',confirmKey:'apps.blacknet.execute'}).then(value=>window.__decision=value);});
+ const dialog=page.locator('[role=dialog]');
+ await page.evaluate(()=>GhostLocale.changeLocale('en',false));
+ assert((await dialog.innerText()).includes('Target captured: Cel autora <PL>.'),'BlackNet keyed dialog + literal target');
+ await dialog.locator('[data-choice=cancel]').click();assert(await page.evaluate(()=>window.__decision)===false,'cancel preserves state');
+ await page.setViewportSize({width:390,height:844});
+ assert(await app.locator('[data-agi-submit]').isVisible(),'mobile AGI control visible');
+ assert(errors.length===0,errors.join('\n'));
+ return {status:'PASS',flows:'AGI request/result/live locale/draft, BlackNet dialog/cancel, mobile',errors};
+}

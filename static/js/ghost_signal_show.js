@@ -10,6 +10,16 @@
         ghostsystem_restart: ["GHOSTSYSTEM RESTART", "Booting the prepared vNext world"]
     };
 
+    function systemText(key, fallback, params = {}) {
+        return global.GhostLocale?.hasKey(key) ? global.GhostLocale.t(key, params) : fallback;
+    }
+
+    function phaseCopy(phase = {}) {
+        const fallback = PHASE_COPY[phase.code] || [phase.label || 'GHOSTSIGNAL', 'Global transmission in progress'];
+        return [systemText('apps.signal.phase.' + phase.code + '.title', fallback[0]),
+                systemText('apps.signal.phase.' + phase.code + '.description', fallback[1])];
+    }
+
     function serverOffset(snapshot, localNow) {
         const server = Date.parse(snapshot && snapshot.server_now || "");
         return Number.isFinite(server) ? server - Number(localNow || Date.now()) : 0;
@@ -31,7 +41,7 @@
         const progress = Number.isFinite(start) && end > start && Number.isFinite(now)
             ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
         if (!Number.isFinite(sent) || !Number.isFinite(received) || received < sent) {
-            return {progress, label: "SYGNAŁ / BRAK ZAPISU DAT PODRÓŻY"};
+            return {progress, label: systemText('apps.signal.no_dates', 'SYGNAŁ / BRAK ZAPISU DAT PODRÓŻY')};
         }
         const date = new Date(sent + (received - sent) * progress);
         return {progress, label: date.toISOString().slice(0, 19).replace("T", " ") + " UTC"};
@@ -1412,7 +1422,7 @@
             root.style.display = "grid";
             root.classList.add("is-active");
             const phase = phaseAt(snapshot, Date.now(), offsetMs);
-            const copy = PHASE_COPY[phase.code] || [phase.label || "GHOSTSIGNAL", "Global transmission in progress"];
+            const copy = phaseCopy(phase);
             let scene = sceneAt(snapshot, Date.now(), offsetMs);
             const previousStage = root.querySelector(".ghost-signal-show__stage");
             const previousVideo = previousStage && previousStage._video;
@@ -1478,7 +1488,7 @@
             if (sound) {
                 sound.style.display = radio && audioState ? "" : "none";
                 sound.textContent = settings && (settings.showAudioBlocked || (video && video._audioBlocked))
-                    ? "Włącz dźwięk" : settings && settings.muted ? "Włącz dźwięk" : "Wycisz";
+                    ? systemText('apps.signal.unmute', 'Włącz dźwięk') : settings && settings.muted ? systemText('apps.signal.unmute', 'Włącz dźwięk') : systemText('apps.signal.mute', 'Wycisz');
                 sound.onclick = () => {
                     if (!radio) return;
                     const current = radio.getState();
@@ -1496,7 +1506,7 @@
             root.querySelector(".ghost-signal-show__signal").textContent = snapshot.signal_public_id || "GHOSTSIGNAL";
             root.querySelector(".ghost-signal-show__phase").textContent = scene ? scene.label : copy[0];
             root.querySelector(".ghost-signal-show__copy").textContent = scene
-                ? (scene.blocked ? "Trwa odtwarzanie stanu transmisji." : "Historia zakończenia cyklu GhostNetwork")
+                ? (scene.blocked ? systemText('apps.signal.replaying', 'Trwa odtwarzanie stanu transmisji.') : systemText('apps.signal.history', 'Historia zakończenia cyklu GhostNetwork'))
                 : copy[1];
             root.querySelector(".ghost-signal-show__versions").textContent =
                 `${snapshot.from_system_version || "vN"}  >  ${snapshot.to_system_version || "vNext"}`;
@@ -1504,7 +1514,7 @@
             root.querySelector(".ghost-signal-show__progress span").style.width = `${journey.progress * 100}%`;
             const journeyTime = root.querySelector(".ghost-signal-show__time");
             journeyTime.textContent = journey.label;
-            journeyTime.setAttribute("aria-label", "Aktualna data podróży sygnału: " + journey.label);
+            journeyTime.setAttribute("aria-label", systemText('apps.signal.journey_date', 'Aktualna data podróży sygnału: ' + journey.label, {date:journey.label}));
             root.classList.add("is-active");
             const fallback = doc.getElementById("ghost-signal-show-fallback");
             if (fallback) fallback.remove();
@@ -1514,7 +1524,7 @@
                     fallback = doc.createElement("section");
                     fallback.id = "ghost-signal-show-fallback";
                     fallback.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#05090d;color:#d5fff1;padding:10vh 8vw";
-                    fallback.textContent = "GHOSTSIGNAL — transmisja trwa. Trwa odtwarzanie widoku.";
+                    fallback.textContent = systemText('apps.signal.recovery', 'GHOSTSIGNAL — transmisja trwa. Trwa odtwarzanie widoku.');
                     fallback.setAttribute("role", "status");
                     doc.body.appendChild(fallback);
                     if (global.console) global.console.warn("[ghostnetwork] show renderer recovery");
@@ -1624,7 +1634,7 @@
         return {apply, refresh, render, start, stop, acknowledgeBoot, get snapshot() { return snapshot; }};
     }
 
-    const api = {createController, serverOffset, secondsRemaining, signalJourneyAt, phaseAt, sceneAt, sceneLayout, networkPositions, machineFocusPoses, showAudioAt, PHASE_COPY};
+    const api = {createController, serverOffset, secondsRemaining, signalJourneyAt, phaseAt, phaseCopy, sceneAt, sceneLayout, networkPositions, machineFocusPoses, showAudioAt, PHASE_COPY};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     global.GhostSignalShow = api;
 

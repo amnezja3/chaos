@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "messages": {
     "map.picker.choose": {
       "params": {
@@ -226,6 +226,76 @@
     "creator.purpose.file_none": {
       "params": {},
       "text": "To narzędzie nie zapisuje pliku."
+    },
+    "map.launch.no_app": {
+      "params": {},
+      "text": "Brak zainstalowanego narzędzia obsługującego tę akcję."
+    },
+    "map.launch.invalid_tool": {
+      "params": {},
+      "text": "Wybrane narzędzie nie obsługuje tej akcji."
+    },
+    "map.launch.target_changed": {
+      "params": {},
+      "text": "Najpierw oznacz widocznego gracza w zasięgu."
+    },
+    "map.launch.target_blocked": {
+      "params": {},
+      "text": "Ten cel nie może być zaatakowany."
+    },
+    "map.launch.foreign": {
+      "params": {},
+      "text": "Cel znajduje się na kontrolowanym terenie innego gracza."
+    },
+    "map.launch.profile": {
+      "params": {},
+      "text": "Brak aktualnej sesji lub profilu. Zaloguj się ponownie."
+    },
+    "map.launch.failed": {
+      "params": {},
+      "text": "Nie udało się uruchomić narzędzia dla tego celu."
+    },
+    "map.launch.cooldown": {
+      "params": {
+        "seconds": "number"
+      },
+      "text": "Aktywny cooldown. Spróbuj za {seconds} s."
+    },
+    "map.launch.already_captured": {
+      "params": {},
+      "text": "Ten obiekt jest już przejęty."
+    },
+    "map.launch.choose": {
+      "params": {},
+      "text": "Wybierz pasujące narzędzie z /tools."
+    },
+    "map.launch.accepted": {
+      "params": {},
+      "text": "Narzędzie przyjęte do uruchomienia."
+    },
+    "map.launch.waiting": {
+      "params": {},
+      "text": "Oczekiwanie na stan aplikacji…"
+    },
+    "map.launch.timeout": {
+      "params": {},
+      "text": "Przekroczono czas pobierania interfejsu."
+    },
+    "map.launch.connection": {
+      "params": {},
+      "text": "Błąd połączenia podczas wyboru narzędzia."
+    },
+    "map.launch.vulnerability_expired": {
+      "params": {},
+      "text": "Ta podatność nie jest już aktywna."
+    },
+    "map.launch.own_vulnerability": {
+      "params": {},
+      "text": "Nie możesz atakować własnego zgłoszenia podatności."
+    },
+    "map.launch.player_not_found": {
+      "params": {},
+      "text": "Ten gracz nie istnieje."
     }
   }
 }

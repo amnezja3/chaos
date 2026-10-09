@@ -204,7 +204,9 @@ def register(app, services):
         return session['user']
 
     def crashed_response():
-        return jsonify(success=False, error='firmware_restart_required', message='Crash firmware — uruchom ponownie system.'), 423
+        from ghostlab_messages import message
+        return jsonify(success=False, error='firmware_restart_required', message='Crash firmware — uruchom ponownie system.',
+                       message_i18n=message('lab.service.firmware_failure')), 423
 
     @app.errorhandler(FirmwareCrashed)
     def crashed(_error):

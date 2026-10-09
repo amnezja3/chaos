@@ -29,17 +29,17 @@ function applyGhostLabMaintenanceResult(result) {
 
 function ghostLabSecurityChangeLog(changes) {
     const value = item => item === true ? 'ON' : item === false ? 'OFF' : String(item);
-    return changes.map(change => `${change.key}: ${value(change.before)} → ${value(change.after)}`).join('\n');
+    return changes.map(change => `${window.GhostLocale.hasKey('map.security.' + change.key) ? window.GhostLocale.t('map.security.' + change.key) : change.key}: ${value(change.before)} → ${value(change.after)}`).join('\n');
 }
 
 async function renderGhostLabMaintenance(app, body, data, reload) {
     const product = data.product;
     const endpoint = '/api/ghostlab/installed/' + encodeURIComponent(product.id) + '/maintenance';
-    body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
-        <p>${escapeHTML(product.runtime_enabled ? product.description : product.disabled_reason)}</p>
+    body.innerHTML = `<p>${ghostLabel('lab.runtime.versions', {installed:Number(product.installed_version), available:String(data.available_version ?? '—')})}</p>
+        <p>${product.runtime_enabled ? escapeHTML(product.description) : ghostLabel('lab.ui.runtime_unavailable')}</p>
         <div data-maintenance-preview></div><div class="pro-tool-actions">
-        <button data-maintenance-run disabled>Uruchom</button><button data-maintenance-refresh>Odśwież podgląd</button>
-        ${data.update_available ? `<button data-maintenance-update>Aktualizuj aplikację bezpłatnie do v${Number(data.available_version)}</button>` : ''}</div>
+        <button data-maintenance-run disabled>${ghostLabel("lab.service.run")}</button><button data-maintenance-refresh>${ghostLabel("lab.service.refresh")}</button>
+        ${data.update_available ? `<button data-maintenance-update>${ghostLabel('lab.runtime.update', {version:Number(data.available_version)})}</button>` : ''}</div>
         <progress data-maintenance-progress max="100" value="0" hidden style="width:100%;accent-color:#aaff00"></progress>
         <div data-maintenance-log role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>`;
     const view = body.querySelector('[data-maintenance-preview]');
@@ -47,7 +47,7 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
     const run = body.querySelector('[data-maintenance-run]');
     body.querySelector('[data-maintenance-refresh]').onclick = () => reload();
     body.querySelector('[data-maintenance-update]')?.addEventListener('click', event => {
-        event.target.disabled = true;
+        event.currentTarget.disabled = true;
         reload({method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
             expected_artifact_id: product.artifact_id, artifact_id: data.available_artifact_id
         })});
@@ -59,35 +59,34 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
             ? '?preset=' + encodeURIComponent(app._ghostLabSecurityPreset) : '';
         const response = await fetch(endpoint + selection, {cache: 'no-store'});
         plan = await response.json();
-        if (!response.ok || !plan.success) throw Error(plan.error || 'Brak podglądu.');
+        if (!response.ok || !plan.success) throw Error(ghostResponseText(plan, 'lab.service.preview_error'));
     } catch (error) { log.textContent = error.message; return; }
     if (!app.isConnected || !view.isConnected) return;
     const preview = plan.preview;
     if (preview.kind === 'file_cleanup') {
-        view.innerHTML = `<p>Do usunięcia: ${Number(preview.count)} plików, ${Number(preview.size)} MB (maks. 250 na operację).</p>
-            <details><summary>Zakres czyszczenia</summary><ul>${preview.files.map(f => `<li>${escapeHTML(f.name)} — ${Number(f.size)} MB</li>`).join('')}</ul></details>`;
-        run.textContent = preview.count ? 'Wyczyść pliki' : 'System jest czysty';
+        view.innerHTML = `<p>${ghostLabel("lab.service.cleanup_count", {count:Number(preview.count), size:Number(preview.size)})}</p>
+            <details><summary>${ghostLabel("lab.service.cleanup_scope")}</summary><ul>${preview.files.map(f => `<li>${escapeHTML(f.name)} — ${Number(f.size)} MB</li>`).join('')}</ul></details>`;
+        ghostSet(run, preview.count ? 'lab.service.cleanup_run' : 'lab.service.clean');
     } else if (preview.kind === 'security_restore') {
         app._ghostLabSecurityPreset = preview.preset;
-        view.innerHTML = `<p>Wybierz poziom zabezpieczeń własnego systemu.</p><div class="pro-tool-actions ghostlab-security-presets" role="group" aria-label="Poziom zabezpieczeń">
-            ${(preview.presets || ['open', 'low', 'regular', 'all']).map(preset => `<button type="button" data-maintenance-preset="${escapeHTML(preset)}" aria-pressed="${preset === preview.preset}">${escapeHTML(preset[0].toUpperCase() + preset.slice(1))}</button>`).join('')}</div>
-            <p>Zestaw: <b>${escapeHTML(preview.preset.toUpperCase())}</b></p><pre data-maintenance-changes style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>`;
+        view.innerHTML = `<p>${ghostLabel("lab.service.security_choose")}</p><div class="pro-tool-actions ghostlab-security-presets" role="group" data-ghost-aria-label="lab.service.security_level" aria-label="${escapeHTML(window.GhostLocale.t('lab.service.security_level'))}">
+            ${(preview.presets || ['open', 'low', 'regular', 'all']).map(preset => `<button type="button" data-maintenance-preset="${escapeHTML(preset)}" aria-pressed="${preset === preview.preset}">${ghostSystemValue('map.preset.', preset)}</button>`).join('')}</div>
+            <p>${ghostLabel("lab.service.preset")}: <b>${ghostSystemValue('map.preset.', preview.preset)}</b></p><pre data-maintenance-changes style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>`;
         view.querySelector('[data-maintenance-changes]').textContent = preview.changes?.length
-            ? 'Planowane zmiany:\n' + ghostLabSecurityChangeLog(preview.changes) : preview.message;
+            ? window.GhostLocale.t('lab.service.planned') + '\n' + ghostLabSecurityChangeLog(preview.changes) : window.GhostLocale.t('lab.service.security_ready');
         view.querySelectorAll('[data-maintenance-preset]').forEach(button => {
             button.onclick = () => {
                 app._ghostLabSecurityPreset = button.dataset.maintenancePreset;
                 return renderGhostLabMaintenance(app, body, data, reload);
             };
         });
-        run.textContent = 'Przywróć zabezpieczenia';
+        ghostSet(run, 'lab.service.security_run');
     } else {
-        view.textContent = preview.installed ? preview.message
-            : 'Pobierz i zainstaluj tę wersję aktualizacji systemu. Bez bonusów do parametrów.';
-        run.textContent = preview.installed ? 'System jest aktualny' : 'Pobierz i zainstaluj aktualizację';
+        ghostSet(view, preview.installed ? 'lab.service.current_help' : 'lab.service.update_help');
+        ghostSet(run, preview.installed ? 'lab.service.current' : 'lab.service.update_run');
     }
     run.disabled = preview.can_execute === false;
-    if (preview.message) log.textContent = preview.message;
+    if (preview.message) ghostSet(log, preview.kind === 'file_cleanup' ? 'lab.service.clean' : preview.kind === 'security_restore' ? 'lab.service.security_ready' : 'lab.service.current_help');
     run.onclick = async () => {
         if (preview.can_execute === false) return;
         const buttons = Array.from(body.querySelectorAll('button'));
@@ -96,14 +95,12 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
         const progress = body.querySelector('[data-maintenance-progress]');
         try {
             if (preview.kind !== 'system_update' && (preview.kind !== 'file_cleanup' || preview.count)) {
-                const accepted = await showGhostDecisionDialog({title: 'KONSERWACJA SYSTEMU',
-                    message: preview.kind === 'file_cleanup' ? `Usunąć ${preview.count} plików (${preview.size} MB)?` : `Ustawić zabezpieczenia ${preview.preset.toUpperCase()}?`,
-                    details: 'Operacja dotyczy Twojego konta. Serwer ponownie sprawdzi aktualny stan.', confirmLabel: 'WYKONAJ'});
+                const accepted = await showGhostDecisionDialog({titleKey:'lab.service.title', messageKey:preview.kind === 'file_cleanup' ? 'lab.service.cleanup_confirm' : 'lab.service.security_confirm', messageParams:preview.kind === 'file_cleanup' ? {count:Number(preview.count),size:Number(preview.size)} : {preset:window.GhostLocale.t('map.preset.'+preview.preset)}, detailsKey:'lab.service.confirm_details', confirmKey:'lab.service.confirm'});
                 if (!accepted) return;
             }
             progress.hidden = false;
-            log.textContent = '';
-            const stages = preview.logs || ['Sprawdzanie zakresu…', 'Przygotowanie operacji…'];
+            delete log.dataset.ghostI18n; log.textContent = '';
+            const stages = preview.logs || [window.GhostLocale.t('lab.service.checking'), window.GhostLocale.t('lab.service.preparing')];
             for (let i = 0; i < stages.length; i++) {
                 if (!app.isConnected || (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive)) return;
                 log.textContent += stages[i] + '\n';
@@ -113,23 +110,23 @@ async function renderGhostLabMaintenance(app, body, data, reload) {
             if (!app.isConnected || (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive)) return;
             const response = await fetch(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token: plan.token})});
             const result = await response.json();
-            if (!response.ok || !result.success) throw Error(result.error || 'Operacja nie powiodła się.');
+            if (!response.ok || !result.success) throw Error(ghostResponseText(result, 'lab.service.failed'));
             committed = true;
             if (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive) return;
             if (!result.duplicate && !result.already_installed) applyGhostLabMaintenanceResult(result);
             progress.value = 100;
-            log.textContent += (result.duplicate ? 'Zapisany wynik poprzedniego żądania: ' : '') + result.message + '\nOdśwież podgląd przed kolejnym uruchomieniem.';
+            log.textContent += (result.duplicate ? window.GhostLocale.t('lab.service.duplicate') : '') + ghostResponseText(result, 'lab.service.failed') + '\n' + window.GhostLocale.t('lab.service.refresh_next');
             if (Array.isArray(result.changes) && result.changes.length) {
-                log.textContent += '\nZapisane zmiany:\n' + ghostLabSecurityChangeLog(result.changes);
+                log.textContent += '\n' + window.GhostLocale.t('lab.service.saved') + '\n' + ghostLabSecurityChangeLog(result.changes);
             }
             if (preview.kind === 'system_update') {
-                view.textContent = 'System jest aktualny — ta wersja została już zainstalowana.';
-                run.textContent = 'System jest aktualny';
+                ghostSet(view, 'lab.service.current_help');
+                ghostSet(run, 'lab.service.current');
             } else if (preview.kind === 'security_restore') {
-                view.querySelector('[data-maintenance-changes]').textContent = 'Zabezpieczenia są zgodne z wybranym zestawem.';
+                ghostSet(view.querySelector('[data-maintenance-changes]'), 'lab.service.security_ready');
             }
         } catch (error) {
-            log.textContent = error.message + '\nMożesz ponowić to samo żądanie lub odświeżyć podgląd.';
+            log.textContent = error.message + '\n' + window.GhostLocale.t('lab.service.retry');
         } finally {
             buttons.forEach(b => b.disabled = false);
             run.disabled = committed;

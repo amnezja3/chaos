@@ -17,6 +17,7 @@ const sandbox = {
     appFlowTrace(_id, _event, payload) { traces.push(payload); }
 };
 vm.createContext(sandbox);
+require('./locale_fixture')(sandbox);
 vm.runInContext(source.slice(start, end), sandbox);
 sandbox.openSystemLogReaderApp({ logs: [{ title: '<script>', text: '<img onerror=x>', truncated: 1 }] });
 assert.strictEqual(appended, 1);
@@ -26,5 +27,5 @@ assert.ok(list.innerHTML.includes('&lt;img'));
 assert.ok(!list.innerHTML.includes('<script>'));
 assert.ok(list.innerHTML.includes('Treść skrócona'));
 sandbox.renderSystemLogReaderLogs(list, { logs: [] });
-assert.ok(list.innerHTML.includes('Brak logow'));
+assert.ok(list.innerHTML.includes('Brak logów'));
 console.log('Player hack log reader tests: OK');

@@ -42,7 +42,7 @@
     async function post(url, body) {
         const response = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true});
         const data = await response.json();
-        if (!response.ok || !data.success) throw Error(data.message || data.error || 'Skaner niedostępny.');
+        if (!response.ok || !data.success) throw Error(ghostResponseText(data, 'lab.service.scanner_unavailable'));
         return data;
     }
     function changed() {
@@ -57,7 +57,7 @@
         jobs.forEach(job => job.dispose()); jobs.clear();
         changed();
         if (old?.token) post('/api/ghostlab/scanner/lease',{token:old.token,release:true}).catch(() => {});
-        if (old?.status?.isConnected) old.status.textContent = 'Nakładka wyłączona. Otwórz aplikację ponownie, aby ją aktywować.';
+        if (old?.status?.isConnected) ghostSet(old.status, 'lab.service.scanner_stopped');
     }
     function snapshot() {
         if (current && (!current.app.isConnected || Date.now() >= current.until ||
@@ -129,10 +129,10 @@
         if (!installed || installed.status === 'uninstalled' || (installed.artifact_id && installed.artifact_id !== current.presentation.artifact_id)) stop();
     }
     async function render(app, body, data, reload) {
-        body.innerHTML = `<p>Zainstalowana wersja: ${Number(data.product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
-            <p>${escapeHTML(data.product.description)}</p><p data-scanner-status>Aktywowanie nakładki…</p>
-            <div class="pro-tool-actions"><button data-scanner-reopen>Odśwież aktywację</button>
-            ${data.update_available ? '<button data-scanner-update>Aktualizuj bezpłatnie</button>' : ''}</div>`;
+        body.innerHTML = `<p>${ghostLabel('lab.runtime.versions', {installed:Number(data.product.installed_version), available:String(data.available_version ?? '—')})}</p>
+            <p>${escapeHTML(data.product.description)}</p><p data-scanner-status>${ghostLabel("lab.service.scanner_activating")}</p>
+            <div class="pro-tool-actions"><button data-scanner-reopen>${ghostLabel("lab.service.scanner_refresh")}</button>
+            ${data.update_available ? `<button data-scanner-update>${ghostLabel("lab.service.scanner_update")}</button>` : ''}</div>`;
         const status = body.querySelector('[data-scanner-status]');
         body.querySelector('[data-scanner-reopen]').onclick = () => { if (current?.app === app) stop(); reload(); };
         body.querySelector('[data-scanner-update]')?.addEventListener('click', () => {
@@ -140,8 +140,8 @@
             reload({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
                 expected_artifact_id:data.product.artifact_id, artifact_id:data.available_artifact_id})});
         });
-        if (!data.product.runtime_enabled) {status.textContent = data.product.disabled_reason;return;}
-        if (snapshot() && current.app !== app) {status.textContent='Najpierw zamknij skaner: '+current.presentation.name;return;}
+        if (!data.product.runtime_enabled) {ghostSet(status, 'lab.runtime.unavailable');return;}
+        if (snapshot() && current.app !== app) {ghostSet(status, 'lab.service.scanner_close', {name:current.presentation.name});return;}
         app._scannerWindowId ||= crypto.randomUUID();
         try {
             const result = await post('/api/ghostlab/scanner/'+encodeURIComponent(data.product.id)+'/activate',{window_id:app._scannerWindowId});
@@ -150,9 +150,9 @@
             }
             current = {app,status,token:result.token,presentation:result.presentation,until:Date.now()+result.ttl*1000};
             clearInterval(heartbeat);heartbeat=setInterval(renew,10000);
-            status.textContent=`Aktywny: ${result.presentation.icon} ${result.presentation.menu_name}. Pozostaw to okno otwarte i użyj Skanuj na mapie. Zamknięcie przywraca zwykły skaner.`;
+            ghostSet(status, 'lab.service.scanner_active', {name:result.presentation.icon+' '+result.presentation.menu_name});
             changed();
-        } catch(error) {status.textContent=error.message;}
+        } catch(error) {delete status.dataset.ghostI18n; status.textContent=error.message;}
     }
     global.DeepScanner = {snapshot,stop,begin,render,style,inventory,soundLoop,
         registerPreview(dispose) {previews.add(dispose);return () => previews.delete(dispose);},
@@ -174,7 +174,7 @@
 
 function mountGhostLabScannerPreview(main, project) {
     const panel=document.createElement('section');panel.className='deep-scanner-preview';
-    panel.innerHTML='<p>DEMONSTRACJA — bez skanowania, kosztów i aktywacji aplikacji.</p><div class="deep-scanner-preview-map"><div class="chaos-map-scan-overlay"></div></div><div class="deep-scanner-preview-controls"><button type="button" data-visual>Podgląd efektu i SFX (6 s)</button><button type="button" data-audio>Odsłuch SFX</button><button type="button" data-stop>Zatrzymaj</button><select aria-label="Wynik demonstracji" data-result><option value="success">Wykrycie</option><option value="empty">Brak trafień</option><option value="error">Błąd API</option><option value="denied">Odmowa</option></select></div><p class="deep-scanner-preview-result" aria-live="polite" data-preview-log></p>';
+    panel.innerHTML=`<p>${ghostLabel("lab.service.demo")}</p><div class="deep-scanner-preview-map"><div class="chaos-map-scan-overlay"></div></div><div class="deep-scanner-preview-controls"><button type="button" data-visual>${ghostLabel("lab.service.demo_visual")}</button><button type="button" data-audio>${ghostLabel("lab.service.demo_audio")}</button><button type="button" data-stop>${ghostLabel("lab.service.stop")}</button><select data-ghost-aria-label="lab.service.demo_result" aria-label="${escapeHTML(window.GhostLocale.t('lab.service.demo_result'))}" data-result><option value="success">${ghostLabel("lab.service.detection")}</option><option value="empty">${ghostLabel("lab.service.empty")}</option><option value="error">${ghostLabel("lab.service.api_error")}</option><option value="denied">${ghostLabel("lab.service.denied")}</option></select></div><p class="deep-scanner-preview-result" aria-live="polite" data-preview-log></p>`;
     const preview = main.querySelector('[data-ghostlab-preview-panel]');
     if (preview) preview.after(panel); else main.appendChild(panel);
     let sound=null,timer=null,active=false,serial=0;
@@ -192,7 +192,7 @@ function mountGhostLabScannerPreview(main, project) {
             const option=document.createElement('option');option.value=id;option.textContent=id.replaceAll('_',' ');select.append(option);
         }
         if(Array.from(select.options).some(option=>option.value===previous))select.value=previous;
-        log.textContent='Wybrany efekt: '+value('pattern_id')+'. Podgląd nie wykonuje zapytań API.';
+        ghostSet(log, 'lab.service.demo_selected', {effect:value('pattern_id')});
     };
     input('pattern_id').addEventListener('change',sync);
     main.querySelectorAll('[data-ghostlab-blueprint-key]').forEach(field=>field.addEventListener('input',stop));
@@ -200,17 +200,16 @@ function mountGhostLabScannerPreview(main, project) {
     panel.querySelector('[data-visual]').onclick=()=>{
         stop();active=true;
         DeepScanner.style(effect,{pattern_id:value('pattern_id'),frame_id:value('frame_id'),frame_color:value('frame_color'),button_color:value('button_color')});
-        effect.dataset.label=text('start');effect.classList.add('is-visible');log.textContent=text('start');
+        effect.dataset.label=text('start');effect.classList.add('is-visible');delete log.dataset.ghostI18n; log.textContent=text('start');
         window.GameSfx?.unlock();
         sound=DeepScanner.soundLoop(schema.sfx_id.sound_events[value('sfx_id')],()=>active && panel.isConnected);
         timer=setTimeout(()=>{
             const phase=panel.querySelector('[data-result]').value;
             stop();
-            const system={success:'Przykład: wykryto 16 obiektów.',empty:'Przykład: wykryto 0 obiektów.',error:'Przykład: skan nieukończony — błąd API.',denied:'Przykład: operacja niedostępna.'};
-            log.textContent=text(phase)+' — '+system[phase];
+            log.textContent=text(phase)+' — '+window.GhostLocale.t('lab.service.demo_'+phase);
         },6000);
     };
-    panel.querySelector('[data-stop]').onclick=()=>{stop();log.textContent='Demonstracja przerwana.';};
+    panel.querySelector('[data-stop]').onclick=()=>{stop();ghostSet(log, 'lab.service.demo_stopped');};
     panel.querySelector('[data-audio]').onclick=async()=>{
         stop();const ownSerial=serial;
         const handle=await DeepScanner.previewSound(value('sfx_id'));

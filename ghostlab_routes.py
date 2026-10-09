@@ -5,6 +5,7 @@ from ghostlab_store import GhostLabError
 from config import GHOSTLAB_MAX_REQUEST_BYTES
 from ghostlab_registry import get_template, public_templates, template_available
 from ghostlab_branding import project_branding, validate_branding
+from ghostlab_messages import message as locale_message, error_message
 
 
 def register(app, services):
@@ -39,12 +40,23 @@ def register(app, services):
 
     def reply(owner, project=None, **extra):
         serialize = service('serialize_ghostlab_project')
+        presentation_keys = {
+            'ghostlab_create_project': 'lab.result.created',
+            'ghostlab_update_project_blueprint': 'lab.result.saved',
+            'ghostlab_compile_project': 'lab.result.compiled',
+            'ghostlab_publish_project': 'lab.result.published',
+            'ghostlab_delete_project': 'lab.result.deleted',
+            'ghostlab_withdraw_project': 'lab.result.withdrawn',
+        }
+        if request.endpoint in presentation_keys:
+            extra['message_i18n'] = locale_message(presentation_keys[request.endpoint])
         return jsonify(success=True, projects=[serialize(p) for p in service('ghostlab_store').list(owner)],
                        project=serialize(project) if project else None, **extra)
 
     @app.errorhandler(GhostLabError)
     def ghostlab_error(exc):
-        return jsonify(success=False, reason=exc.reason, message=str(exc)), exc.status
+        return jsonify(success=False, reason=exc.reason, message=str(exc),
+                       message_i18n=error_message(exc.reason)), exc.status
 
     @app.get('/api/ghostlab/projects')
     def ghostlab_projects():

@@ -204,7 +204,7 @@ A prepared fix is not a production PASS.
 | [151](doc/sprints/sprint_151_ghostlab_v2_community_versions.md) | Community, sharing and versions | Frozen until further notice. |
 | [152](doc/sprints/sprint_152_ghostlab_v2_completion.md) | Optimizer, dependencies, AI/SDK and full v2.0 acceptance | Frozen until further notice. |
 | [153](doc/sprints/sprint_153_ghost_system_i18n_foundation.md) | Shared localization infrastructure, language settings and PL/EN desktop shell | Deployed, author production PASS, closed 6 October. Includes terminal and state-preserving PL/EN switching with open windows/map and fullscreen. EN remains test until 155. |
-| [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Increment 154.5.0 ready for deployment: creators, action picker, map menus and security labels; 718 keys, 78 Python tests and 9 JS suites PASS. Full sprint remains in progress. [Deployment](doc/runbooks/deploy_154_5.md). |
+| [154](doc/sprints/sprint_154_ghost_system_apps_catalogs.md) | PL/EN system apps, Pro Tools, tickets, service tools and product catalogs | Implementation completed locally in 154.7.0: 2833 keys / 13 domains, remaining workspaces and purchase/install/use/update flows, including historical tools. 30 frontend suites and isolated Playwright checks pass. [Acceptance matrix](doc/audits/sprint_154_acceptance.md). Deployment and production acceptance pending; production remains on accepted 154.5.0. |
 | [155](doc/sprints/sprint_155_ghost_system_content_acceptance.md) | System messages, narrative, historical content migration and full PL/EN acceptance | Planned after 154. |
 
 Research, Exchange and Documentation roadmap descriptions are not evidence of

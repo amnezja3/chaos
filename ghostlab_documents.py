@@ -17,7 +17,7 @@ def public_document(app):
               'product_type', 'price', 'price_hint', 'open_source', 'creator_username', 'creator_nick',
               'published', 'generated', 'ghostlab_generated', 'template_id', 'template_name',
               'artifact_id', 'source_build_version', 'runtime_status', 'visibility', 'installed', 'can_afford',
-              'install_blocked_reason', 'downloads')
+              'install_blocked_reason', 'install_blocked_i18n', 'downloads')
     return {key: app[key] for key in fields if key in app}
 
 

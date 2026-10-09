@@ -15,6 +15,7 @@ const sandbox = {
     renderGhostNetworkSuite: () => { renders += 1; },
 };
 vm.createContext(sandbox);
+require('./locale_fixture')(sandbox);
 vm.runInContext(source.slice(start, end), sandbox);
 
 const fullPart = {

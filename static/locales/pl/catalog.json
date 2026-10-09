@@ -1,0 +1,1019 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "catalog.system.intruderKicker.name": {
+      "params": {},
+      "text": "Intruder Kicker"
+    },
+    "catalog.system.intruderKicker.description": {
+      "params": {},
+      "text": "Wypycha shackowanego intruza poza własne terytorium. Jedno użycie na dostęp PvP."
+    },
+    "catalog.system.financialSniffer.name": {
+      "params": {},
+      "text": "Financial Sniffer"
+    },
+    "catalog.system.financialSniffer.description": {
+      "params": {},
+      "text": "Jednorazowa proba drobnego sniffingu finansowego podczas aktywnego hacku gracza."
+    },
+    "catalog.system.friendKicker.name": {
+      "params": {},
+      "text": "Friend Kicker"
+    },
+    "catalog.system.friendKicker.description": {
+      "params": {},
+      "text": "Losowa proba wypchniecia jednego kontaktu ofiary podczas aktywnego hacku gracza."
+    },
+    "catalog.system.systemLogReader.name": {
+      "params": {},
+      "text": "System Log Reader"
+    },
+    "catalog.system.systemLogReader.description": {
+      "params": {},
+      "text": "Odczyt ostatnich komunikatow systemowych ofiary podczas aktywnego hacku gracza."
+    },
+    "catalog.system.arsenalCleaner.name": {
+      "params": {},
+      "text": "Arsenal Cleaner"
+    },
+    "catalog.system.arsenalCleaner.description": {
+      "params": {},
+      "text": "Losowa proba usuniecia jednej aplikacji z arsenalu ofiary podczas aktywnego hacku."
+    },
+    "catalog.system.securityPanelProxy.name": {
+      "params": {},
+      "text": "Security Panel Proxy"
+    },
+    "catalog.system.securityPanelProxy.description": {
+      "params": {},
+      "text": "Zdalny panel konfiguracji zabezpieczen profilu ofiary podczas aktywnego hacku."
+    },
+    "catalog.system.victimPicker.name": {
+      "params": {},
+      "text": "Victim Picker"
+    },
+    "catalog.system.victimPicker.description": {
+      "params": {},
+      "text": "Lekki selektor celow z istniejacych zrodel mapy: oznaczone POI, gracze, podatnosci i konflikty."
+    },
+    "catalog.system.territoryControl.name": {
+      "params": {},
+      "text": "Territory Control"
+    },
+    "catalog.system.territoryControl.description": {
+      "params": {},
+      "text": "Lekka konsola zarzadzania wlasnymi klastrami, filarami i zabezpieczeniami przejetych obiektow bez uruchamiania pelnej mapy."
+    },
+    "catalog.system.operationControl.name": {
+      "params": {},
+      "text": "Operation Control"
+    },
+    "catalog.system.operationControl.description": {
+      "params": {},
+      "text": "Konsola aktywnych operacji, generowanych plikow i incydentow Response Network z kontrola pojedynczego oraz grupowego anulowania."
+    },
+    "catalog.system.ghostnetworkSuite.name": {
+      "params": {},
+      "text": "GhostNetwork Suite"
+    },
+    "catalog.system.ghostnetworkSuite.description": {
+      "params": {},
+      "text": "Lekka konsola publicznej projekcji GhostNetwork: czesci publiczne, blokowane, aktywne i pozostajace pod kontrola gracza."
+    },
+    "catalog.system.agi2108Console.name": {
+      "params": {},
+      "text": "AGI 2108 Console"
+    },
+    "catalog.system.agi2108Console.description": {
+      "params": {},
+      "text": "Owner-scoped konsola bezpiecznych zlecen narracyjnych AGI 2108 opartych o zatwierdzony template."
+    },
+    "catalog.system.buttonmaker.name": {
+      "params": {},
+      "text": "ButtonMaker"
+    },
+    "catalog.system.buttonmaker.description": {
+      "params": {},
+      "text": "Warsztat do budowania aplikacji typu button_choices i publikacji w Googleplex."
+    },
+    "catalog.system.termcreator.name": {
+      "params": {},
+      "text": "TermCreator"
+    },
+    "catalog.system.termcreator.description": {
+      "params": {},
+      "text": "Warsztat do budowania aplikacji terminalowych i publikacji w Googleplex."
+    },
+    "catalog.system.windowmaker.name": {
+      "params": {},
+      "text": "WindowMaker"
+    },
+    "catalog.system.windowmaker.description": {
+      "params": {},
+      "text": "Warsztat do budowania aplikacji okienkowych i publikacji w Googleplex."
+    },
+    "catalog.system.appforge.name": {
+      "params": {},
+      "text": "AppForge"
+    },
+    "catalog.system.appforge.description": {
+      "params": {},
+      "text": "Zaawansowany warsztat AppForge do publikowania aplikacji progressbar_random."
+    },
+    "catalog.system.ghost_lab.name": {
+      "params": {},
+      "text": "GhostLab"
+    },
+    "catalog.system.ghost_lab.description": {
+      "params": {},
+      "text": "Projektuj, waliduj, kompiluj i publikuj narzędzia na kontraktach systemowych GhostLab."
+    },
+    "catalog.system.storage_ghost_vault_basic.name": {
+      "params": {},
+      "text": "Ghost Vault Basic"
+    },
+    "catalog.system.storage_ghost_vault_basic.description": {
+      "params": {},
+      "text": "Podstawowe rozszerzenie pojemnosci dysku danych."
+    },
+    "catalog.system.storage_ghost_vault_plus.name": {
+      "params": {},
+      "text": "Ghost Vault Plus"
+    },
+    "catalog.system.storage_ghost_vault_plus.description": {
+      "params": {},
+      "text": "Wiekszy bufor danych pod dluzsze operacje i paczki rynku."
+    },
+    "catalog.system.storage_data_vault.name": {
+      "params": {},
+      "text": "Data Vault"
+    },
+    "catalog.system.storage_data_vault.description": {
+      "params": {},
+      "text": "Magazyn danych dla graczy aktywnie pracujacych z Ghost Exchange."
+    },
+    "catalog.system.storage_blackvault.name": {
+      "params": {},
+      "text": "BlackVault"
+    },
+    "catalog.system.storage_blackvault.description": {
+      "params": {},
+      "text": "Ciezki magazyn danych dla duzych paczek sektorowych."
+    },
+    "catalog.system.storage_encrypted_cluster.name": {
+      "params": {},
+      "text": "Encrypted Cluster"
+    },
+    "catalog.system.storage_encrypted_cluster.description": {
+      "params": {},
+      "text": "Najwiekszy seedowy upgrade pojemnosci pod endgame rynku danych."
+    },
+    "catalog.system.ticket_warszawa.name": {
+      "params": {},
+      "text": "Bilet: Warszawa"
+    },
+    "catalog.system.ticket_warszawa.description": {
+      "params": {},
+      "text": "Powrot do miasta startowego."
+    },
+    "catalog.system.ticket_krakow.name": {
+      "params": {},
+      "text": "Bilet: Krakow"
+    },
+    "catalog.system.ticket_krakow.description": {
+      "params": {},
+      "text": "Jednorazowy przejazd do Krakowa."
+    },
+    "catalog.system.ticket_berlin.name": {
+      "params": {},
+      "text": "Bilet: Berlin"
+    },
+    "catalog.system.ticket_berlin.description": {
+      "params": {},
+      "text": "Jednorazowy przejazd do Berlina."
+    },
+    "catalog.system.ticket_londyn.name": {
+      "params": {},
+      "text": "Bilet: Londyn"
+    },
+    "catalog.system.ticket_londyn.description": {
+      "params": {},
+      "text": "Jednorazowy przejazd do Londynu."
+    },
+    "catalog.system.ticket_tokio.name": {
+      "params": {},
+      "text": "Bilet: Tokio"
+    },
+    "catalog.system.ticket_tokio.description": {
+      "params": {},
+      "text": "Jednorazowy przejazd do Tokio."
+    },
+    "catalog.system.ticket_nowy_jork.name": {
+      "params": {},
+      "text": "Bilet: Nowy Jork"
+    },
+    "catalog.system.ticket_nowy_jork.description": {
+      "params": {},
+      "text": "Jednorazowy przejazd do Nowego Jorku."
+    },
+    "catalog.system.map_zoom_plus_1.name": {
+      "params": {},
+      "text": "Map Zoom +1"
+    },
+    "catalog.system.map_zoom_plus_1.description": {
+      "params": {},
+      "text": "Lepsze przyblizenie mapy operacyjnej."
+    },
+    "catalog.system.map_zoom_plus_2.name": {
+      "params": {},
+      "text": "Map Zoom +2"
+    },
+    "catalog.system.map_zoom_plus_2.description": {
+      "params": {},
+      "text": "Zaawansowane przyblizenie mapy operacyjnej."
+    },
+    "catalog.system.map_zoom_plus_3.name": {
+      "params": {},
+      "text": "Map Zoom +3"
+    },
+    "catalog.system.map_zoom_plus_3.description": {
+      "params": {},
+      "text": "Najwyzszy seedowy zoom mapy."
+    },
+    "catalog.system.scan_range_100.name": {
+      "params": {},
+      "text": "Scan Range +100 m"
+    },
+    "catalog.system.scan_range_100.description": {
+      "params": {},
+      "text": "Maly wzrost zasiegu rozpoznania."
+    },
+    "catalog.system.scan_range_300.name": {
+      "params": {},
+      "text": "Scan Range +300 m"
+    },
+    "catalog.system.scan_range_300.description": {
+      "params": {},
+      "text": "Sredni wzrost zasiegu rozpoznania."
+    },
+    "catalog.system.scan_range_500.name": {
+      "params": {},
+      "text": "Scan Range +500 m"
+    },
+    "catalog.system.scan_range_500.description": {
+      "params": {},
+      "text": "Duzy wzrost zasiegu rozpoznania."
+    },
+    "catalog.system.scan_range_1000.name": {
+      "params": {},
+      "text": "Scan Range +1000 m"
+    },
+    "catalog.system.scan_range_1000.description": {
+      "params": {},
+      "text": "Endgameowy wzrost zasiegu rozpoznania."
+    },
+    "catalog.system.bike_range_100.name": {
+      "params": {},
+      "text": "Bike Range +100 m"
+    },
+    "catalog.system.bike_range_100.description": {
+      "params": {},
+      "text": "Maly wzrost zasiegu roweru."
+    },
+    "catalog.system.bike_range_300.name": {
+      "params": {},
+      "text": "Bike Range +300 m"
+    },
+    "catalog.system.bike_range_300.description": {
+      "params": {},
+      "text": "Sredni wzrost zasiegu roweru."
+    },
+    "catalog.system.bike_range_500.name": {
+      "params": {},
+      "text": "Bike Range +500 m"
+    },
+    "catalog.system.bike_range_500.description": {
+      "params": {},
+      "text": "Duzy wzrost zasiegu roweru."
+    },
+    "catalog.system.bike_range_1000.name": {
+      "params": {},
+      "text": "Bike Range +1000 m"
+    },
+    "catalog.system.bike_range_1000.description": {
+      "params": {},
+      "text": "Endgameowy wzrost zasiegu roweru."
+    },
+    "catalog.system.scan_probe_v1.name": {
+      "params": {},
+      "text": "ScanProbe"
+    },
+    "catalog.system.scan_probe_v1.description": {
+      "params": {},
+      "text": "Aktywna sonda wykrywająca porty i lokalizację użytkowników. Może zostać wykryta przez aktywną ochronę."
+    },
+    "catalog.system.scan_probe_v1.levels.0.title": {
+      "params": {},
+      "text": "ScanProbe – Aktywne skanowanie portów i lokalizacji"
+    },
+    "catalog.system.scan_probe_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "Inicjalizacja sondy..."
+    },
+    "catalog.system.scan_probe_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "Ustalanie adresu IP..."
+    },
+    "catalog.system.scan_probe_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "Sprawdzanie otwartych portów..."
+    },
+    "catalog.system.scan_probe_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "Analiza geolokalizacji użytkownika..."
+    },
+    "catalog.system.scan_probe_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Zidentyfikowano otwarte porty i przybliżoną lokalizację."
+    },
+    "catalog.system.scan_probe_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Skanowanie zostało przerwane lub zablokowane."
+    },
+    "catalog.system.deep_sniff_r2.name": {
+      "params": {},
+      "text": "DeepSniff"
+    },
+    "catalog.system.deep_sniff_r2.description": {
+      "params": {},
+      "text": "Skaner głęboki analizujący działające procesy i logi bezpieczeństwa. Może zostać zablokowany przez aktywne logowanie lub ochronę integralności dzienników."
+    },
+    "catalog.system.deep_sniff_r2.levels.0.title": {
+      "params": {},
+      "text": "DeepSniff – Analiza procesów i logów"
+    },
+    "catalog.system.deep_sniff_r2.levels.0.steps.0": {
+      "params": {},
+      "text": "Łączenie z systemem..."
+    },
+    "catalog.system.deep_sniff_r2.levels.0.steps.1": {
+      "params": {},
+      "text": "Odczyt aktywnych zadań..."
+    },
+    "catalog.system.deep_sniff_r2.levels.0.steps.2": {
+      "params": {},
+      "text": "Sprawdzanie integralności logów..."
+    },
+    "catalog.system.deep_sniff_r2.levels.0.steps.3": {
+      "params": {},
+      "text": "Zbieranie podejrzanych wpisów..."
+    },
+    "catalog.system.deep_sniff_r2.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Wykryto aktywne zadania i podejrzane wpisy w logach."
+    },
+    "catalog.system.deep_sniff_r2.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Nie udało się uzyskać dostępu do logów lub procesów."
+    },
+    "catalog.system.ghost_ping_x3.name": {
+      "params": {},
+      "text": "GhostPing"
+    },
+    "catalog.system.ghost_ping_x3.description": {
+      "params": {},
+      "text": "Ultralekki skaner do wykrywania obecności innych użytkowników w sieci i błędów w ich kamuflażu. Podatny na wykrycie przez zaawansowaną detekcję anomalii."
+    },
+    "catalog.system.ghost_ping_x3.levels.0.title": {
+      "params": {},
+      "text": "GhostPing – Pingowanie ukrytych urządzeń"
+    },
+    "catalog.system.ghost_ping_x3.levels.0.steps.0": {
+      "params": {},
+      "text": "Wysyłanie sygnału ping..."
+    },
+    "catalog.system.ghost_ping_x3.levels.0.steps.1": {
+      "params": {},
+      "text": "Oczekiwanie na odpowiedzi..."
+    },
+    "catalog.system.ghost_ping_x3.levels.0.steps.2": {
+      "params": {},
+      "text": "Analiza odpowiedzi sieciowych..."
+    },
+    "catalog.system.ghost_ping_x3.levels.0.steps.3": {
+      "params": {},
+      "text": "Sprawdzanie błędów kamuflażu..."
+    },
+    "catalog.system.ghost_ping_x3.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Wykryto obecność ukrytych użytkowników oraz błędy maskowania."
+    },
+    "catalog.system.ghost_ping_x3.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Brak odpowiedzi – urządzenia mogą być poza zasięgiem lub dobrze ukryte."
+    },
+    "catalog.system.stealth_browser_v2.name": {
+      "params": {},
+      "text": "StealthBrowser"
+    },
+    "catalog.system.stealth_browser_v2.description": {
+      "params": {},
+      "text": "Minimalistyczna przeglądarka z ukrytym referrerem, bez historii. Wrażliwa na aktywną ochronę przeglądarki."
+    },
+    "catalog.system.stealth_browser_v2.levels.0.title": {
+      "params": {},
+      "text": "StealthBrowser v2 – Tryb ukryty"
+    },
+    "catalog.system.stealth_browser_v2.levels.0.list.0": {
+      "params": {},
+      "text": "🌐 Domyślna strona: xhttp://start.local"
+    },
+    "catalog.system.stealth_browser_v2.levels.0.list.1": {
+      "params": {},
+      "text": "🔒 Referrer ukryty: TAK"
+    },
+    "catalog.system.stealth_browser_v2.levels.0.list.2": {
+      "params": {},
+      "text": "📜 Historia przeglądania: WYŁĄCZONA"
+    },
+    "catalog.system.stealth_browser_v2.levels.0.list.3": {
+      "params": {},
+      "text": "🛡️ Blokada skryptów: AKTYWNA"
+    },
+    "catalog.system.stealth_browser_v2.levels.0.buttons.0.label": {
+      "params": {},
+      "text": "Otwórz nową kartę"
+    },
+    "catalog.system.stealth_browser_v2.levels.0.buttons.1.label": {
+      "params": {},
+      "text": "Zamknij przeglądarkę"
+    },
+    "catalog.system.crypto_vault_v1.name": {
+      "params": {},
+      "text": "EncryptedFileVault"
+    },
+    "catalog.system.crypto_vault_v1.description": {
+      "params": {},
+      "text": "Szyfrowany eksplorator użytkownika. Ukrywa zawartość przed systemem i analizą plików."
+    },
+    "catalog.system.crypto_vault_v1.levels.0.title": {
+      "params": {},
+      "text": "Encrypted File Vault – Dostęp szyfrowany"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.list.0": {
+      "params": {},
+      "text": "📁 Folder: /vault"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.list.1": {
+      "params": {},
+      "text": "🧾 Plik: log.txt — 🔐 zaszyfrowany"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.list.2": {
+      "params": {},
+      "text": "🧾 Plik: secrets.dat — 🔐 zaszyfrowany"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.list.3": {
+      "params": {},
+      "text": "🔄 Indeksowanie plików: WYŁĄCZONE"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.list.4": {
+      "params": {},
+      "text": "👁️ Widoczność w systemie: UKRYTA"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.buttons.0.label": {
+      "params": {},
+      "text": "Odszyfruj pliki"
+    },
+    "catalog.system.crypto_vault_v1.levels.0.buttons.1.label": {
+      "params": {},
+      "text": "Zamknij sejf"
+    },
+    "catalog.system.phantom_vpn_v1.name": {
+      "params": {},
+      "text": "PhantomVPN"
+    },
+    "catalog.system.phantom_vpn_v1.description": {
+      "params": {},
+      "text": "Tunel VPN z autoprzełączaniem. Maskuje aktywność gracza, ale może kolidować z wstrzykiwaniem exploitów do sesji TCP/IP."
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.title": {
+      "params": {},
+      "text": "Nawiązywanie tunelu VPN"
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "Negocjowanie parametrów szyfrowania…"
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "Przydzielanie wirtualnego adresu IP…"
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "Zabezpieczanie kanału komunikacji…"
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "Kończenie uzgadniania tunelu…"
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.result_success": {
+      "params": {},
+      "text": "Tunel VPN nawiązany. Adres IP zamaskowany."
+    },
+    "catalog.system.phantom_vpn_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "Połączenie VPN nieudane. Sprawdź blokady VPN i połączenie sieciowe."
+    },
+    "catalog.system.shadow_layer_v1.name": {
+      "params": {},
+      "text": "ShadowLayer"
+    },
+    "catalog.system.shadow_layer_v1.description": {
+      "params": {},
+      "text": "Warstwa maskująca działania gracza w systemie. Redukuje widoczność, ale ogranicza dostęp do aktywnych funkcji systemowych."
+    },
+    "catalog.system.shadow_layer_v1.levels.0.title": {
+      "params": {},
+      "text": "Wybierz tryb ukrycia:"
+    },
+    "catalog.system.shadow_layer_v1.levels.0.text": {
+      "params": {},
+      "text": "ShadowLayer pozwala ukryć działania systemowe. Wybierz poziom ukrycia – im głębszy, tym większe ryzyko dezaktywacji funkcji."
+    },
+    "catalog.system.shadow_layer_v1.levels.0.options.0.label": {
+      "params": {},
+      "text": "Pasywny – tylko maskowanie logów"
+    },
+    "catalog.system.shadow_layer_v1.levels.0.options.1.label": {
+      "params": {},
+      "text": "Agresywny – pełna izolacja"
+    },
+    "catalog.system.shadow_layer_v1.levels.0.options.2.label": {
+      "params": {},
+      "text": "Cichy tunel – ukrycie aktywności sieciowej"
+    },
+    "catalog.system.shadow_layer_v1.levels.0.options.3.label": {
+      "params": {},
+      "text": "Symulacja bezczynności – zamaskowanie działań jako idle"
+    },
+    "catalog.system.shadow_layer_v1.levels.0.options.4.label": {
+      "params": {},
+      "text": "Deep Phantom Mode – pełna separacja jądra (EXPERYMENTALNY)"
+    },
+    "catalog.system.shadow_layer_v1.levels.0.options.5.label": {
+      "params": {},
+      "text": "Anuluj"
+    },
+    "catalog.system.injector_x_v1.name": {
+      "params": {},
+      "text": "InjectorX"
+    },
+    "catalog.system.injector_x_v1.description": {
+      "params": {},
+      "text": "Zaawansowane narzędzie typu exploit injection. Skuteczne tylko przy wyłączonej ochronie jądra. Może obniżyć integralność systemu."
+    },
+    "catalog.system.injector_x_v1.levels.0.logs.0": {
+      "params": {},
+      "text": "Łączenie z usługą docelową..."
+    },
+    "catalog.system.injector_x_v1.levels.0.logs.1": {
+      "params": {},
+      "text": "Próba ominięcia ochrony jądra..."
+    },
+    "catalog.system.injector_x_v1.levels.0.logs.2": {
+      "params": {},
+      "text": "Wstrzyknięcie kodu zakończone sukcesem."
+    },
+    "catalog.system.injector_x_v1.levels.0.logs.3": {
+      "params": {},
+      "text": "Integralność systemu: -15%"
+    },
+    "catalog.system.injector_x_v1.levels.1.logs.0": {
+      "params": {},
+      "text": "Łączenie z usługą docelową..."
+    },
+    "catalog.system.injector_x_v1.levels.1.logs.1": {
+      "params": {},
+      "text": "Firewall core aktywny – dostęp zablokowany!"
+    },
+    "catalog.system.injector_x_v1.levels.1.logs.2": {
+      "params": {},
+      "text": "Wstrzyknięcie zakończone niepowodzeniem."
+    },
+    "catalog.system.procmon_v1.name": {
+      "params": {},
+      "text": "ProcessMon"
+    },
+    "catalog.system.procmon_v1.description": {
+      "params": {},
+      "text": "Monitor procesów systemowych. Wykrywa nieautoryzowane aplikacje i działania, ale może ograniczać działanie narzędzi ofensywnych."
+    },
+    "catalog.system.procmon_v1.levels.0.title": {
+      "params": {},
+      "text": "Monitor procesów"
+    },
+    "catalog.system.procmon_v1.levels.0.list.0": {
+      "params": {},
+      "text": "PID: 2331 | Nazwa: injector_x_v1 | Status: Wykryto próbę iniekcji"
+    },
+    "catalog.system.procmon_v1.levels.0.list.1": {
+      "params": {},
+      "text": "PID: 4522 | Nazwa: shadow_layer_v1 | Status: Ukryty proces - zagrożenie"
+    },
+    "catalog.system.procmon_v1.levels.0.list.2": {
+      "params": {},
+      "text": "PID: 1090 | Nazwa: trusted_daemon | Status: OK"
+    },
+    "catalog.system.procmon_v1.levels.0.buttons.0.label": {
+      "params": {},
+      "text": "Zakończ proces"
+    },
+    "catalog.system.procmon_v1.levels.0.buttons.1.label": {
+      "params": {},
+      "text": "Zignoruj"
+    },
+    "catalog.system.drivecrypt_v1.name": {
+      "params": {},
+      "text": "DriveEncryptor"
+    },
+    "catalog.system.drivecrypt_v1.description": {
+      "params": {},
+      "text": "Moduł szyfrowania systemu plików. Chroni dane gracza, ale wpływa na wydajność i może kolidować z narzędziami indeksującymi."
+    },
+    "catalog.system.drivecrypt_v1.levels.0.title": {
+      "params": {},
+      "text": "DriveEncryptor – Szyfrowanie przestrzeni dyskowej"
+    },
+    "catalog.system.drivecrypt_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "🔐 Inicjalizacja modułu DriveEncryptor..."
+    },
+    "catalog.system.drivecrypt_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "🔄 Skanowanie struktur katalogowych..."
+    },
+    "catalog.system.drivecrypt_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "🗂️ Zabezpieczanie danych użytkownika..."
+    },
+    "catalog.system.drivecrypt_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "💾 Nadpisywanie niezaszyfrowanych sektorów..."
+    },
+    "catalog.system.drivecrypt_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Wszystkie dane zostały skutecznie zaszyfrowane."
+    },
+    "catalog.system.drivecrypt_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Proces szyfrowania nie został zakończony poprawnie."
+    },
+    "catalog.system.zeroday_hunter.name": {
+      "params": {},
+      "text": "ZeroDayHunter"
+    },
+    "catalog.system.zeroday_hunter.description": {
+      "params": {},
+      "text": "Zaawansowany wykrywacz podatności typu zero-day. Może otwierać nieznane wektory ataku, ale jest łatwy do wykrycia przy aktywnym monitoringu."
+    },
+    "catalog.system.zeroday_hunter.levels.0.logs.0": {
+      "params": {},
+      "text": "run launch zeroday_scan deep verbose"
+    },
+    "catalog.system.zeroday_hunter.levels.0.logs.1": {
+      "params": {},
+      "text": "check vulnerabilities 0day"
+    },
+    "catalog.system.zeroday_hunter.levels.0.logs.2": {
+      "params": {},
+      "text": "report generate format json"
+    },
+    "catalog.system.mem_overflow_v1.name": {
+      "params": {},
+      "text": "MemoryOverflow"
+    },
+    "catalog.system.mem_overflow_v1.description": {
+      "params": {},
+      "text": "Atak przepełnienia pamięci operacyjnej. Skuteczny przy wyłączonych zabezpieczeniach pamięci – może uszkodzić system docelowy lub samego gracza."
+    },
+    "catalog.system.mem_overflow_v1.levels.0.title": {
+      "params": {},
+      "text": "MemoryOverflow – Przepełnienie pamięci"
+    },
+    "catalog.system.mem_overflow_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "📤 Wysyłanie danych testowych..."
+    },
+    "catalog.system.mem_overflow_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "💽 Przekraczanie granicy bufora..."
+    },
+    "catalog.system.mem_overflow_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "📉 Manipulacja alokacją RAM..."
+    },
+    "catalog.system.mem_overflow_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "🧠 Inicjalizacja przepełnienia pamięci..."
+    },
+    "catalog.system.mem_overflow_v1.levels.0.result_success": {
+      "params": {},
+      "text": "💥 Pamięć przeciążona – exploit zakończony powodzeniem."
+    },
+    "catalog.system.mem_overflow_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "⚠️ Atak wykryty i zablokowany. Proces zrestartowany przez system."
+    },
+    "catalog.system.pencombo_v1.name": {
+      "params": {},
+      "text": "PenCombo"
+    },
+    "catalog.system.pencombo_v1.description": {
+      "params": {},
+      "text": "Zestaw skonsolidowanych technik penetracyjnych do automatycznego rozpoznania, eskalacji uprawnień i wstrzykiwania kodu. Umożliwia działania ofensywne w różnych wektorach systemowych."
+    },
+    "catalog.system.pencombo_v1.levels.0.title": {
+      "params": {},
+      "text": "Wybierz tryb ataku PenCombo:"
+    },
+    "catalog.system.pencombo_v1.levels.0.text": {
+      "params": {},
+      "text": "Zintegrowany zestaw technik penetracyjnych. Dostosuj tryb do celu – od skanowania aż po wstrzyknięcie kodu."
+    },
+    "catalog.system.pencombo_v1.levels.0.options.0.label": {
+      "params": {},
+      "text": "Recon Mode – pasywna analiza i detekcja słabości"
+    },
+    "catalog.system.pencombo_v1.levels.0.options.1.label": {
+      "params": {},
+      "text": "Injection Mode – aktywna iniekcja kodu"
+    },
+    "catalog.system.pencombo_v1.levels.0.options.2.label": {
+      "params": {},
+      "text": "Privilege Escalation – eskalacja z niskich uprawnień"
+    },
+    "catalog.system.pencombo_v1.levels.0.options.3.label": {
+      "params": {},
+      "text": "All-In-One Strike – pełna sekwencja penetracyjna"
+    },
+    "catalog.system.pencombo_v1.levels.0.options.4.label": {
+      "params": {},
+      "text": "Hack that all"
+    },
+    "catalog.system.camstream_v1.name": {
+      "params": {},
+      "text": "CamStream"
+    },
+    "catalog.system.camstream_v1.description": {
+      "params": {},
+      "text": "Moduł zdalnego podglądu obrazu z kamer IP. Delikatny jak cień, ale może aktywować alert w systemie monitoringu."
+    },
+    "catalog.system.camstream_v1.levels.0.title": {
+      "params": {},
+      "text": "CamStream – Podgląd kamery"
+    },
+    "catalog.system.camstream_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "🔍 Wyszukiwanie aktywnych kamer..."
+    },
+    "catalog.system.camstream_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "📡 Nawiązywanie połączenia..."
+    },
+    "catalog.system.camstream_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "🖼️ Streamowanie obrazu..."
+    },
+    "catalog.system.camstream_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "📁 Buforowanie danych wideo..."
+    },
+    "catalog.system.camstream_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Obraz z kamery uzyskany. Obiekt pod obserwacją."
+    },
+    "catalog.system.camstream_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Kamera odrzuciła połączenie. Możliwa aktywna ochrona."
+    },
+    "catalog.system.camdisabler_v1.name": {
+      "params": {},
+      "text": "CamDisabler"
+    },
+    "catalog.system.camdisabler_v1.description": {
+      "params": {},
+      "text": "Narzędzie do wyłączenia i zakłócenia kamer IP. Pozostawia ślad w logach, jeśli nie działa w trybie stealth."
+    },
+    "catalog.system.camdisabler_v1.levels.0.logs.0": {
+      "params": {},
+      "text": "Połączenie z kamerą..."
+    },
+    "catalog.system.camdisabler_v1.levels.0.logs.1": {
+      "params": {},
+      "text": "Próba wyłączenia aktywnego streamu..."
+    },
+    "catalog.system.camdisabler_v1.levels.0.logs.2": {
+      "params": {},
+      "text": "Zakłócanie transmisji sygnału wideo..."
+    },
+    "catalog.system.camdisabler_v1.levels.0.logs.3": {
+      "params": {},
+      "text": "✅ Kamera została dezaktywowana."
+    },
+    "catalog.system.camdisabler_v1.levels.1.logs.0": {
+      "params": {},
+      "text": "Skanowanie otwartych portów kamery..."
+    },
+    "catalog.system.camdisabler_v1.levels.1.logs.1": {
+      "params": {},
+      "text": "Iniekcja kodu zakłócającego działanie..."
+    },
+    "catalog.system.camdisabler_v1.levels.1.logs.2": {
+      "params": {},
+      "text": "⚠️ Aktywna ochrona wykryta – operacja przerwana."
+    },
+    "catalog.system.micsniff_v1.name": {
+      "params": {},
+      "text": "MicSniff"
+    },
+    "catalog.system.micsniff_v1.description": {
+      "params": {},
+      "text": "Sniffer mikrofonowy – cichy podsłuch otoczenia. Idealny do wykrycia rozmów lub dźwięków wokół celu."
+    },
+    "catalog.system.micsniff_v1.levels.0.title": {
+      "params": {},
+      "text": "MicSniff – Nasłuch mikrofonu"
+    },
+    "catalog.system.micsniff_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "📡 Wyszukiwanie aktywnych mikrofonów..."
+    },
+    "catalog.system.micsniff_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "🎧 Nasłuch kanału audio..."
+    },
+    "catalog.system.micsniff_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "📥 Analiza poziomu dźwięku..."
+    },
+    "catalog.system.micsniff_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "📤 Odszyfrowywanie strumienia audio..."
+    },
+    "catalog.system.micsniff_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Dźwięk przechwycony. Możliwa aktywna rozmowa."
+    },
+    "catalog.system.micsniff_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Brak źródła dźwięku lub blokada audio."
+    },
+    "catalog.system.bttracer_v1.name": {
+      "params": {},
+      "text": "BTTracer"
+    },
+    "catalog.system.bttracer_v1.description": {
+      "params": {},
+      "text": "Skaner aktywnych urządzeń Bluetooth w okolicy. Przydatny do śledzenia obecności użytkownika lub jego sprzętu."
+    },
+    "catalog.system.bttracer_v1.levels.0.title": {
+      "params": {},
+      "text": "BTTracer – Skanowanie sygnałów BLE"
+    },
+    "catalog.system.bttracer_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "📡 Wykrywanie aktywnych beaconów..."
+    },
+    "catalog.system.bttracer_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "🔍 Analiza sygnału RSSI..."
+    },
+    "catalog.system.bttracer_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "📍 Namierzanie pozycji urządzeń..."
+    },
+    "catalog.system.bttracer_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "📲 Odczyt identyfikatorów MAC..."
+    },
+    "catalog.system.bttracer_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Znaleziono urządzenia Bluetooth w pobliżu."
+    },
+    "catalog.system.bttracer_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Brak aktywnych urządzeń lub sygnał zakłócony."
+    },
+    "catalog.system.gpsprobe_v1.name": {
+      "params": {},
+      "text": "GPSProbe"
+    },
+    "catalog.system.gpsprobe_v1.description": {
+      "params": {},
+      "text": "Sonda GPS do lokalizacji ruchomych obiektów. Pozwala zdalnie ustalić współrzędne celu."
+    },
+    "catalog.system.gpsprobe_v1.levels.0.title": {
+      "params": {},
+      "text": "GPSProbe – Ustalanie lokalizacji"
+    },
+    "catalog.system.gpsprobe_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "🔎 Namierzanie sygnału GPS..."
+    },
+    "catalog.system.gpsprobe_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "📍 Łączenie z satelitą..."
+    },
+    "catalog.system.gpsprobe_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "🛰️ Synchronizacja danych lokalizacyjnych..."
+    },
+    "catalog.system.gpsprobe_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "📡 Odbiór współrzędnych..."
+    },
+    "catalog.system.gpsprobe_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Pozycja GPS ustalona. Cel śledzony."
+    },
+    "catalog.system.gpsprobe_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Brak sygnału GPS lub silne zakłócenia."
+    },
+    "catalog.system.wifibreaker_v1.name": {
+      "params": {},
+      "text": "WiFiBreaker"
+    },
+    "catalog.system.wifibreaker_v1.description": {
+      "params": {},
+      "text": "Włam do sieci Wi-Fi. Uzyskaj dostęp do lokalnej infrastruktury lub podsłuchuj ruch."
+    },
+    "catalog.system.wifibreaker_v1.levels.0.title": {
+      "params": {},
+      "text": "WiFiBreaker – Przełamywanie zabezpieczeń"
+    },
+    "catalog.system.wifibreaker_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "🔐 Odczytywanie sygnału..."
+    },
+    "catalog.system.wifibreaker_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "📡 Próba uwierzytelnienia..."
+    },
+    "catalog.system.wifibreaker_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "🧬 Analiza hasła WPA2..."
+    },
+    "catalog.system.wifibreaker_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "🔓 Złamano zabezpieczenia!"
+    },
+    "catalog.system.wifibreaker_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Uzyskano dostęp do Wi-Fi."
+    },
+    "catalog.system.wifibreaker_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Próba nieudana. Silne szyfrowanie."
+    },
+    "catalog.system.data_corruptor_v1.name": {
+      "params": {},
+      "text": "DataCorruptor"
+    },
+    "catalog.system.data_corruptor_v1.description": {
+      "params": {},
+      "text": "Sabotaż plików i danych ofiary. Niszczy logi, archiwa, zrzuty baz danych."
+    },
+    "catalog.system.data_corruptor_v1.levels.0.title": {
+      "params": {},
+      "text": "Uszkadzanie danych..."
+    },
+    "catalog.system.data_corruptor_v1.levels.0.steps.0": {
+      "params": {},
+      "text": "📂 Wyszukiwanie wrażliwych plików..."
+    },
+    "catalog.system.data_corruptor_v1.levels.0.steps.1": {
+      "params": {},
+      "text": "🧨 Wprowadzanie błędów CRC..."
+    },
+    "catalog.system.data_corruptor_v1.levels.0.steps.2": {
+      "params": {},
+      "text": "📉 Usuwanie kopii zapasowych..."
+    },
+    "catalog.system.data_corruptor_v1.levels.0.steps.3": {
+      "params": {},
+      "text": "💥 Sabotaż zakończony"
+    },
+    "catalog.system.data_corruptor_v1.levels.0.result_success": {
+      "params": {},
+      "text": "✅ Dane uszkodzone. System destabilizowany."
+    },
+    "catalog.system.data_corruptor_v1.levels.0.result_failure": {
+      "params": {},
+      "text": "❌ Nie udało się naruszyć systemu – aktywny nadzór bezpieczeństwa."
+    }
+  }
+}

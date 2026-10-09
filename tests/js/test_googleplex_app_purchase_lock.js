@@ -6,11 +6,11 @@ const fs = require("fs");
 const source = fs.readFileSync("static/js/terminal.js", "utf8").replace(/\r\n/g, '\n');
 
 assert.match(source, /item\.purchase_confirmation === true/);
-assert.match(source, /title: "POTWIERDZENIE ZAKUPU"/);
-assert.match(source, /confirmLabel: "KUP I ZAINSTALUJ"/);
+assert.match(source, /titleKey: 'shop.confirm.purchase'/);
+assert.match(source, /confirmKey: 'shop.confirm.buy'/);
 assert.match(source, /const projectedApps = Array\.isArray\(\(toolbarProfile \|\| \{\}\)\.apps\)/);
 assert.match(source, /projectedApps\.some\(app => String\(app\?\.id/);
-assert.match(source, /"ZAINSTALOWANO"/);
+assert.match(source, /'shop.installed'/);
 assert.match(source, /if \(installInFlight\) return/);
 assert.match(source, /installButton\.disabled = true/);
 assert.match(source, /const staleInstalledProjection = !isProduct/);

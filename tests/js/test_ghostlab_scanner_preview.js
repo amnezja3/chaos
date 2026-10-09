@@ -24,13 +24,13 @@ const main=new Node();main.querySelector=key=>key==='[data-ghostlab-preview-pane
 main.querySelectorAll=()=>Object.values(inputs);
 let panel,observer,sequence=0,played=[],stops=0,requests=0;
 const timers=new Map();
-const ctx={console,Set,Map,Date,crypto:{randomUUID:()=>String(++sequence)},
+const ctx={escapeHTML:String,console,Set,Map,Date,crypto:{randomUUID:()=>String(++sequence)},
     setTimeout:(fn,delay)=>{const id=++sequence;timers.set(id,{fn,delay});return id;},clearTimeout:id=>timers.delete(id),
     addEventListener(){},clearInterval(){},MutationObserver:class {constructor(fn){observer=fn;}observe(){}disconnect(){}},
     document:{body:{},createElement:tag=>tag==='section'?(panel=new Node()):new Node()},
     GameSfx:{unlock(){},play(event,options){played.push({event,options});return {stop(){stops++;}};}},
     fetch(){requests++;throw Error('preview must not fetch');}};
-ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner.js','utf8'),ctx);
+ctx.window=ctx;vm.createContext(ctx); require("./locale_fixture")(ctx); vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner.js','utf8'),ctx);
 ctx.mountGhostLabScannerPreview(main,{field_schema:schema});
 assert.equal(inputs.sfx_id.value,'regular_ping','opening editor preserves installed sound');
 for(const pattern of Object.keys(variants)) {

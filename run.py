@@ -9,6 +9,8 @@ import json
 import re
 import math
 from ghost_i18n import normalize_locale, manifest as locale_manifest, translator as locale_translator
+from catalog_presentation import builtin_presentation
+from radio_locale import channel_metadata as radio_channel_metadata, track_metadata as radio_track_metadata, track_allowed as radio_track_allowed, validate_contract as validate_radio_contract
 import ipaddress
 import html
 import subprocess
@@ -4955,9 +4957,9 @@ def is_dev_mode_enabled():
 
 def require_dev_mode():
     if not is_dev_mode_enabled():
-        return jsonify({"success": False, "message": "Dev Bug Reporter jest dostepny tylko w dev/staging."}), 403
+        return jsonify({"success": False, "message": "Dev Bug Reporter jest dostepny tylko w dev/staging.", "message_i18n": ui_message("apps.bugs.dev_only")}), 403
     if "user" not in session:
-        return jsonify({"success": False, "message": "Brak danych uzytkownika."}), 401
+        return jsonify({"success": False, "message": "Brak danych uzytkownika.", "message_i18n": ui_message("apps.bugs.login_required")}), 401
     return None
 
 
@@ -5408,7 +5410,7 @@ CREATOR_SYSTEM_APPS = [
         "icon": "\U0001F9EA",
         "type": "system_lab",
         "category": "pro-system-lab",
-        "description": "Eksperymentalny hub GhostLab / ghost_lab / pro-system-lab do przyszlego projektowania narzedzi pro-system-tools.",
+        "description": "Projektuj, waliduj, kompiluj i publikuj narzędzia na kontraktach systemowych GhostLab.",
         "price": 7000,
         "required_level": 15,
         "required_respect": 350,
@@ -15393,7 +15395,25 @@ def operation_control_forbidden_response():
         "success": False,
         "error": "operation_control_not_installed",
         "message": "Operation Control nie jest zainstalowany.",
+        "message_i18n": ui_message("apps.operations.not_installed"),
     }), 403
+
+
+def operation_control_reply(payload):
+    """Presentation envelope only; operation identifiers and effects stay canonical."""
+    if payload.get('success') is False:
+        key = {
+            'not_logged_in': 'login_required', 'profile_not_found': 'login_required',
+            'missing_operation_id': 'invalid_request', 'invalid_operation_ids': 'invalid_request',
+            'empty_operation_ids': 'invalid_request', 'not_found': 'not_found',
+            'already_terminal': 'not_active', 'not_active': 'not_active',
+        }.get(payload.get('error'), 'failed')
+        payload = {**payload, 'message_i18n': ui_message('apps.operations.' + key)}
+    elif payload.get('result') == 'cancelled':
+        payload = {**payload, 'message_i18n': ui_message('apps.operations.cancelled')}
+    elif isinstance(payload.get('cancelled'), list):
+        payload = {**payload, 'message_i18n': ui_message('apps.operations.cancelled_group', {'count': len(payload['cancelled'])})}
+    return jsonify(payload)
 
 
 def operation_control_unique(values):
@@ -16703,24 +16723,24 @@ def profile_fraction_values(profile):
 def pro_system_tools_catalog():
     from ghostlab_registry import pro_tool_classification
     return [
-        {
+        builtin_presentation({
             **dict(tool),
             **pro_tool_classification(tool['id']),
             "bounded_install": True,
             "published": True,
             "downloads": int(tool.get("downloads") or 0),
-        }
+        })
         for tool in PRO_SYSTEM_TOOLS
     ]
 
 
 def creator_system_apps_catalog():
     return [
-        {
+        builtin_presentation({
             **dict(app),
             "published": True,
             "downloads": int(app.get("downloads") or 0),
-        }
+        })
         for app in CREATOR_SYSTEM_APPS
     ]
 
@@ -16735,10 +16755,15 @@ def tracks_googleplex_downloads(item):
 
 def get_app_catalog():
     from ghostlab_ticket_policy import is_ticket, ticket_price, public_ticket
+    from catalog_presentation import legacy_presentation
     apps = resources_store.get("app_config", default=[]) or []
     by_id = {item.get('id'): item for item in apps}
-    by_id.update({item['id']: item for item in creator_store.catalog()})
-    apps = list(by_id.values())
+    authored = {item['id']: item for item in creator_store.catalog()}
+    by_id.update(authored)
+    # A player publication cannot claim system-owned presentation metadata.
+    presentation_fields = {'presentation_owner', 'presentation_i18n', 'search_aliases'}
+    apps = [{key: value for key, value in item.items() if key not in presentation_fields} for item in by_id.values()]
+    apps = [legacy_presentation(item, authored=item.get('id') in authored) for item in apps]
     pro_tools = pro_system_tools_catalog()
     pro_ids = {item['id'] for item in pro_tools}
     # Code owns builtin contracts; legacy catalog copies only retain download history.
@@ -16771,7 +16796,7 @@ def googleplex_download_update(app_data):
 
 def googleplex_product_catalog():
     from ghostlab_ticket_policy import is_ticket, ticket_price
-    return [dict(product, price=ticket_price(product)) if is_ticket(product) else dict(product)
+    return [builtin_presentation(dict(product, price=ticket_price(product)) if is_ticket(product) else dict(product))
             for product in GOOGLEPLEX_EFFECT_PRODUCTS]
 
 
@@ -17562,14 +17587,23 @@ def googleplex_catalog_payload(app, profile):
     balance = int((profile or {}).get("hackcoins", 0) or 0)
     item["can_afford"] = balance >= price
     item["install_blocked_reason"] = ""
+    item.pop("install_blocked_i18n", None)
     if item["installed"]:
         item["install_blocked_reason"] = "Aplikacja juz kupiona."
+        item['install_blocked_i18n'] = ui_message('shop.owned')
     elif not item["can_afford"]:
         item["install_blocked_reason"] = f"Brak HC. Cena: {price}, masz: {balance}."
+        item['install_blocked_i18n'] = ui_message('shop.balance_required', {'price': price, 'balance': balance})
 
     requirement_error = validate_app_install_requirements(item, profile or {})
     if not item["install_blocked_reason"] and requirement_error:
         item["install_blocked_reason"] = requirement_error
+        if get_player_level(profile or {}) < int(item.get('required_level') or 1):
+            item['install_blocked_i18n'] = ui_message('shop.level_required', {'level': int(item.get('required_level') or 1)})
+        elif int((profile or {}).get('respect') or 0) < int(item.get('required_respect') or 0):
+            item['install_blocked_i18n'] = ui_message('shop.respect_required', {'respect': int(item.get('required_respect') or 0)})
+        else:
+            item['install_blocked_i18n'] = ui_message('shop.faction_required')
 
     if item.get('template_id') == 'ptk_document':
         from ghostlab_documents import public_document
@@ -18019,10 +18053,11 @@ def app_tool_file_candidates(app):
     return candidates
 
 
-def player_actor_action(enabled, reason=""):
+def player_actor_action(enabled, reason="", reason_key=None):
     return {
         "enabled": bool(enabled),
         "reason": "" if enabled else reason,
+        **({'message_i18n': ui_message(reason_key)} if not enabled and reason_key else {}),
     }
 
 
@@ -18060,22 +18095,27 @@ def resolve_player_actor_actions(viewer_username, actor_data, relation):
         "add_friend": player_actor_action(
             not is_self and not is_friend and not is_same_clan and not is_pending,
             "Zaproszenie juz oczekuje." if is_pending else "Niedostepne dla siebie, znajomych i swojego klanu.",
+            'map.actor.pending' if is_pending else 'map.actor.friend_blocked',
         ),
         "chat": player_actor_action(
             is_friend,
             "Rozmowa dostepna tylko dla znajomych.",
+            'map.actor.chat_blocked',
         ),
         "transfer_hc": player_actor_action(
             not is_self,
             "Nie mozna przelac HC samemu sobie.",
+            'map.actor.transfer_blocked',
         ),
         "mark_target": player_actor_action(
             not is_self and not is_friend and not is_same_clan and combat_hostile and not is_marked_target,
             "Ten gracz jest juz celem." if is_marked_target else "Cel nie jest aktualnie legalnym przeciwnikiem strategicznym.",
+            'map.actor.marked' if is_marked_target else 'map.actor.target_blocked',
         ),
         "profile": player_actor_action(
             not is_self,
             "To twoj profil.",
+            'map.actor.self_profile',
         ),
     }
 
@@ -20854,7 +20894,8 @@ def ghostsignal_request_is_exempt():
 
 def ghostsignal_locked_response(state):
     response = jsonify({"ok": False, "error": "ghostsignal_show_active",
-        "reason": "gameplay_locked_during_ghostsignal_show", **state})
+        "reason": "gameplay_locked_during_ghostsignal_show", **state,
+        "message_i18n": ui_message('apps.signal.restart_required' if state.get('error') == 'ghostsystem_restart_required' else 'apps.signal.locked')})
     response.status_code = 423
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -22354,6 +22395,7 @@ def api_blacknet_cta_teleport():
     return jsonify({
         "success": True,
         "message": f"{message_prefix}: {target_label}.",
+        "message_i18n": ui_message("apps.blacknet.teleport_done", {"target": target_label}),
         "hotspot": hotspot_payload,
         "ghostnetwork_target": ghostnetwork_target,
         "changed": bool(position_result.get("changed")),
@@ -23306,7 +23348,7 @@ def map_target_snapshot():
 def map_aim_target():
     """Persist a map selection without launching the hacking runtime."""
     if "user" not in session:
-        return jsonify({"success": False, "error": "not_logged_in"}), 401
+        return jsonify({"success": False, "error": "not_logged_in", "message_i18n": ui_message('map.result.not_logged_in')}), 401
     data = request.get_json(silent=True) or {}
     if data.get("target_mode") == "player" or str(data.get("target_id") or "").startswith("player:"):
         name = data.get("target_username") or str(data.get("target_id") or "").removeprefix("player:")
@@ -23315,15 +23357,15 @@ def map_aim_target():
         lat = float(data.get("lat"))
         lng = float(data.get("lng", data.get("lon")))
     except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "invalid_coordinates"}), 400
+        return jsonify({"success": False, "error": "invalid_coordinates", "message_i18n": ui_message('map.result.invalid_coordinates')}), 400
     label = str(data.get("label") or data.get("name") or "").strip()
     if not label:
-        return jsonify({"success": False, "error": "missing_label"}), 400
+        return jsonify({"success": False, "error": "missing_label", "message_i18n": ui_message('map.result.missing_label')}), 400
 
     username = session["user"]
     profile = user_store.get_profile_identity(username)
     if not isinstance(profile, dict):
-        return jsonify({"success": False, "error": "profile_not_found"}), 404
+        return jsonify({"success": False, "error": "profile_not_found", "message_i18n": ui_message('map.result.profile_not_found')}), 404
     profile = dict(profile)
     aimed_contested_target = find_contested_target(
         username, lat, lng, label=label,
@@ -23338,6 +23380,7 @@ def map_aim_target():
             "success": False,
             "blocked": True,
             "error": "foreign_territory_protected",
+            "message_i18n": ui_message('map.result.foreign', {'name': str(foreign_area['owner_nick'])}),
             "message": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
         }), 403
     previous = {}
@@ -23421,6 +23464,8 @@ def map_aim_target():
                     "success": False,
                     "error": "stale_vulnerability_target",
                     "message": "Ta podatnosc nie jest juz aktywna. Odswiez mape.",
+
+                    "message_i18n": ui_message('map.result.vulnerability_expired'),
                 }), 409
 
         conflict_hint = (
@@ -23458,6 +23503,8 @@ def map_aim_target():
                     "success": False,
                     "error": "stale_conflict_target",
                     "message": "Ten cel nie nalezy juz do aktywnego konfliktu. Odswiez mape.",
+
+                    "message_i18n": ui_message('map.result.conflict_expired'),
                 }), 409
 
         if canonical_target is None:
@@ -23485,7 +23532,7 @@ def map_aim_target():
         persist_profile_projection=False,
     )
     if not aimed_target:
-        return jsonify({"success": False, "error": "target_already_captured", "message": "Ten obiekt jest juz przejety."}), 409
+        return jsonify({"success": False, "error": "target_already_captured", "message": "Ten obiekt jest juz przejety.", "message_i18n": ui_message("map.result.already_captured")}), 409
 
     cached_profile = session.get("profile")
     if isinstance(cached_profile, dict):
@@ -23496,6 +23543,8 @@ def map_aim_target():
     return jsonify({
         "success": True,
         "status": "aimed_target_set",
+
+        "message_i18n": ui_message('map.result.aimed', {'name': display_target_label(aimed_target)}),
         "message": f"Cel ustawiony: {display_target_label(aimed_target)}",
         "target": aimed_target,
     })
@@ -23504,7 +23553,7 @@ def map_aim_target():
 @app.route('/map-action', methods=['POST'])
 def map_action():
     if "user" not in session:
-        return jsonify({"success": False, "error": "not_logged_in"}), 401
+        return jsonify({"success": False, "error": "not_logged_in", "message_i18n": ui_message('map.result.not_logged_in')}), 401
     data = request.get_json(silent=True) or {}
     action = data.get("action")
     if action == 'travel':
@@ -23515,13 +23564,13 @@ def map_action():
         lat = float(data.get("lat"))
         lng = float(data.get("lng"))
     except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "invalid_coordinates"}), 400
+        return jsonify({"success": False, "error": "invalid_coordinates", "message_i18n": ui_message('map.result.invalid_coordinates')}), 400
 
     if action == "mark_target":
         username = session["user"]
         identity = user_store.get_profile_identity(username)
         if not isinstance(identity, dict):
-            return jsonify({"success": False, "error": "profile_not_found"}), 404
+            return jsonify({"success": False, "error": "profile_not_found", "message_i18n": ui_message('map.result.profile_not_found')}), 404
         foreign_area = foreign_territory_action_block(
             username,
             lat,
@@ -23533,6 +23582,8 @@ def map_action():
                 "success": False,
                 "blocked": True,
                 "reason": "foreign_territory_protected",
+
+                "message_i18n": ui_message('map.result.foreign', {'name': str(foreign_area['owner_nick'])}),
                 "status": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
                 "markers": [],
             }), 403
@@ -23540,7 +23591,7 @@ def map_action():
         label = str(data.get("label") or "").strip()
         icon = str(data.get("icon") or "").strip()
         if not (label and icon):
-            return jsonify({"success": False, "error": "missing_target_data"}), 400
+            return jsonify({"success": False, "error": "missing_target_data", "message_i18n": ui_message('map.result.missing_target_data')}), 400
         target = {
             "lat": lat,
             "lng": lng,
@@ -23577,6 +23628,8 @@ def map_action():
         return jsonify({
             "success": True,
             "status": f"Cel oznaczony: ({lat}, {lng})",
+
+            "message_i18n": ui_message('map.result.marked_coords', {'lat': str(lat), 'lng': str(lng)}),
             "target": map_target_client_snapshot(stored_target, captured=False),
             "duplicate": bool(stored.get("duplicate")),
             "version": int(stored.get("version") or 1),
@@ -23603,6 +23656,8 @@ def map_action():
             return jsonify({
                 "success": False,
                 "error": "scan_projection_unavailable",
+
+                "message_i18n": ui_message('map.result.projection'),
                 "status": "Skanowanie niedostępne: odśwież pozycję gracza.",
                 "markers": [],
             }), 409
@@ -23648,6 +23703,8 @@ def map_action():
                 "success": False,
                 "blocked": True,
                 "reason": "foreign_territory_protected",
+
+                "message_i18n": ui_message('map.result.foreign', {'name': str(foreign_area['owner_nick'])}),
                 "status": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
                 "markers": [],
             }), 403
@@ -23721,6 +23778,8 @@ def map_action():
             return jsonify({
                 "status": "🔍 Skanowanie nie udane! Nie jesteś w zasięgu.",
                 "scan_outcome": "denied",
+
+                "message_i18n": ui_message('map.result.out_of_range'),
                 "markers": [],
                 "scan_context": {
                     "distance_m": int(round(distance)),
@@ -23750,6 +23809,8 @@ def map_action():
             return jsonify({
                 "status": f"Nie udało się pobrać danych mapy: {e}",
                 "scan_outcome": "api_error",
+
+                "message_i18n": ui_message('map.result.upstream'),
                 "markers": []
             })
         scan_location_context = infer_scan_location(fetched_results)
@@ -23789,11 +23850,13 @@ def map_action():
 
                 def append_atm_scene(atm):
                     extra.append({**camera_marker(atm), "name": "Kamera bankomatu",
-                                  "label": "Kamera bankomatu", "icon": "📹"})
+                                  "label": "Kamera bankomatu", "icon": "📹",
+                                  "label_i18n": ui_message("map.npc.atm_camera")})
                     for _ in range(randint(1, 3)):
                         extra.append({
                             "lat": atm['lat'] + jitter(), "lon": atm['lon'] + jitter(),
                             "name": "Osoba przy bankomacie", "icon": "🧍",
+                            "label_i18n": ui_message("map.npc.atm_customer"),
                             "source_type": "person", "generated": True})
 
 
@@ -23802,7 +23865,8 @@ def map_action():
                     camera_count = 2 + int(hashlib.sha256(str(obj.get('osm_id') or obj.get('node_id') or f'{base_lat}:{base_lng}').encode()).hexdigest()[:4], 16) % 3
                     for camera_index in range(camera_count):
                         extra.append({**camera_marker(obj, camera_index),
-                                      "name": "Kamera sklepu", "label": "Kamera sklepu"})
+                                      "name": "Kamera sklepu", "label": "Kamera sklepu",
+                                      "label_i18n": ui_message("map.npc.shop_camera")})
                     client_count = randint(3, 8)
                     start_angle = random() * math.tau
                     for client_index in range(client_count):
@@ -23812,6 +23876,7 @@ def map_action():
                             "lat": base_lat + dlat,
                             "lon": base_lng + dlng,
                             "name": "Klient",
+                            "label_i18n": ui_message("map.npc.customer"),
                             "icon": "🧍",
                             "source_type": "person",
                             "generated": True
@@ -23825,6 +23890,7 @@ def map_action():
                         "lat": base_lat + jitter(),
                         "lon": base_lng + jitter(),
                         "name": "Stacja rowerowa",
+                        "label_i18n": ui_message("map.npc.bicycle_station"),
                         "icon": "🚲",
                         "source_type": source_type,
                         "generated": True
@@ -23840,6 +23906,7 @@ def map_action():
                             "lat": base_lat + dlat,
                             "lon": base_lng + dlng,
                             "name": "Gość restauracji",
+                            "label_i18n": ui_message("map.npc.guest"),
                             "icon": "🧑‍🍳",
                             "source_type": "person",
                             "generated": True
@@ -23850,6 +23917,7 @@ def map_action():
                         "lat": base_lat + jitter(),
                         "lon": base_lng + jitter(),
                         "name": "Kuriero-bot",
+                        "label_i18n": ui_message("map.npc.courier"),
                         "icon": "📦",
                         "source_type": source_type,
                         "generated": True
@@ -23875,6 +23943,7 @@ def map_action():
                     parent_key = obj.get('osm_id') or obj.get('node_id') or f'{base_lat}:{base_lng}'
                     atm = dict(lat=base_lat + .00012, lon=base_lng + .00012,
                                name='Bankomat', icon='🏧', source_type='atm', generated=True,
+                               label_i18n=ui_message('map.npc.atm'),
                                osm_id=f'attached-atm:{parent_key}', parent_target_id=str(parent_key))
                     extra.append(atm)
                     append_atm_scene(atm)
@@ -23918,6 +23987,8 @@ def map_action():
         return jsonify({
             "status": f"🔍 Zeskanowano {len(all_results)} nowych obiektów.",
             "scan_outcome": "success" if all_results else "empty",
+
+            "message_i18n": ui_message('map.result.scanned', {'count': len(all_results)}),
             "markers": all_results,
             "scan_context": {
                 **scan_location_context,
@@ -23961,6 +24032,8 @@ def map_action():
         if distance > action_range:
             return jsonify({
                 "status": "too_far",
+
+                "message_i18n": ui_message('map.result.travel_range', {'range': action_range}),
                 "message": f"Za daleko, zasięg motocykla: {action_range} m."
             })
 
@@ -23981,6 +24054,8 @@ def map_action():
 
         return jsonify({
             "status": f"🎯 Cel osiągnięty: ({lat}, {lng})",
+
+            "message_i18n": ui_message('map.result.reached', {'lat': str(lat), 'lng': str(lng)}),
             "message": f"🎯 Cel osiągnięty: ({lat}, {lng})",
             "curently_possition": position_updates.get("curently_possition"),
             "current_position": position_updates.get("current_position"),
@@ -23994,7 +24069,7 @@ def map_action():
             } if intrusion_area else None
         })
 
-    return jsonify(status=f"Zarejestrowano: {action} dla ({lat}, {lng})")
+    return jsonify(status=f"Zarejestrowano: {action} dla ({lat}, {lng})", message_i18n=ui_message('map.result.registered', {'action': str(action), 'lat': str(lat), 'lng': str(lng)}))
 
 
 def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=None):
@@ -24129,6 +24204,62 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
                         'status': message, 'message': message}), 409
 
 
+@app.after_request
+def map_auxiliary_message_presentation(response):
+    """Add UI copy without changing target IDs, mutation results or legacy fields."""
+    vulnerability = request.path == '/api/vulnerabilities/report' or (
+        request.path.startswith('/api/vulnerabilities/') and request.path.endswith('/withdraw'))
+    teleport = request.path == '/api/blacknet/cta/teleport'
+    if not (vulnerability or teleport) or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get('message_i18n'):
+        return response
+    if response.status_code == 401:
+        key = 'map.result.not_logged_in'
+    elif teleport:
+        key = 'apps.blacknet.teleport_failed'
+    elif request.path.endswith('/withdraw'):
+        key = 'map.vulnerability.withdraw_failed'
+    elif response.status_code == 400:
+        key = 'map.result.missing_target_data'
+    else:
+        key = 'map.vulnerability.failed'
+    payload['message_i18n'] = ui_message(key)
+    response.set_data(app.json.dumps(payload))
+    return response
+
+
+@app.after_request
+def hack_action_message_presentation(response):
+    if request.path != '/hack-action' or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get('message_i18n'):
+        return response
+    params = {}
+    code = payload.get('reason') or payload.get('error')
+    if payload.get('cooldown_seconds_left'):
+        key, params = 'cooldown', {'seconds': int(payload['cooldown_seconds_left'])}
+    elif payload.get('blocked') or response.status_code >= 400 or payload.get('success') is False:
+        key = {'no_app': 'no_app', 'invalid_tool': 'invalid_tool',
+               'target_selection_changed': 'target_changed', 'target_not_attackable': 'target_blocked',
+               'foreign_area_without_conflict_target': 'foreign', 'profile_not_found': 'profile',
+               'vulnerability_expired': 'vulnerability_expired', 'own_vulnerability': 'own_vulnerability',
+               'player_not_found': 'player_not_found'}.get(code if isinstance(code, str) else '', 'failed')
+        if response.status_code == 401:
+            key = 'profile'
+    elif payload.get('captured_target'):
+        key = 'already_captured'
+    elif payload.get('matching_apps'):
+        key = 'choose'
+    else:
+        key = 'accepted'
+    payload['message_i18n'] = ui_message('map.launch.' + key, params)
+    response.set_data(app.json.dumps(payload))
+    return response
+
+
 @app.route('/hack-action', methods=['POST'])
 def hack_action():
     app_flow_started_at = time.perf_counter()
@@ -24260,13 +24391,13 @@ def hack_action():
                 return jsonify({
                     "success": False,
                     "blocked": True,
-                    "status": "Ta podatnosc nie jest juz aktywna."
+                    "reason": "vulnerability_expired", "status": "Ta podatnosc nie jest juz aktywna."
                 }), 404
             if preflight_vulnerability_report.get("reported_by_username") == session["user"]:
                 return jsonify({
                     "success": False,
                     "blocked": True,
-                    "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
+                    "reason": "own_vulnerability", "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
                 }), 403
 
         preflight_contested_target = None if player_runtime is not None else find_contested_target(
@@ -24337,7 +24468,7 @@ def hack_action():
                 return jsonify({
                     "success": False,
                     "blocked": True,
-                    "status": "Ten gracz nie istnieje."
+                    "reason": "player_not_found", "status": "Ten gracz nie istnieje."
                 }), 404
             active_access = player_hack_access_store.get_active_access(session["user"], preflight_player_target_username)
             cooldown = player_hack_access_store.get_cooldown(session["user"], preflight_player_target_username)
@@ -24585,14 +24716,14 @@ def hack_action():
             return jsonify({
                 "success": False,
                 "blocked": True,
-                "status": "Ta podatnosc nie jest juz aktywna."
+                "reason": "vulnerability_expired", "status": "Ta podatnosc nie jest juz aktywna."
             }), 404
 
         if vulnerability_report.get("reported_by_username") == session["user"]:
             return jsonify({
                 "success": False,
                 "blocked": True,
-                "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
+                "reason": "own_vulnerability", "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
             }), 403
 
         reporter = vulnerability_report.get("reported_by_username")
@@ -24694,7 +24825,7 @@ def hack_action():
             return jsonify({
                 "success": False,
                 "blocked": True,
-                "status": "Ten gracz nie istnieje."
+                "reason": "player_not_found", "status": "Ten gracz nie istnieje."
             }), 404
         active_access = player_hack_access_store.get_active_access(session["user"], player_target_username)
         cooldown = player_hack_access_store.get_cooldown(session["user"], player_target_username)
@@ -25521,7 +25652,9 @@ def api_dev_bug_report_create():
     if denied:
         return denied
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not str(data.get('title') or '').strip():
+        return jsonify(success=False, message="Tytul zgloszenia jest wymagany.", message_i18n=ui_message("apps.bugs.title_required")), 400
     data["status"] = "new"
     data["context"] = build_dev_bug_server_context(
         session.get("user"),
@@ -25535,12 +25668,13 @@ def api_dev_bug_report_create():
             app_version=APP_VERSION,
         )
     except ValueError as exc:
-        return jsonify({"success": False, "message": str(exc)}), 400
+        return jsonify({"success": False, "message": str(exc), "message_i18n": ui_message("apps.bugs.failed")}), 400
 
     return jsonify({
         "success": True,
         "report": report,
         "message": "Zgloszenie zostalo zapisane.",
+        "message_i18n": ui_message("apps.bugs.sent", {"id": report['id']}),
     })
 
 
@@ -25709,31 +25843,31 @@ def api_cancel_operation():
 @app.route("/api/pro-system/operation-control")
 def operation_control_snapshot():
     if "user" not in session:
-        return jsonify({"success": False, "error": "not_logged_in"}), 401
+        return operation_control_reply({"success": False, "error": "not_logged_in"}), 401
 
     username = session["user"]
     profile = operation_control_load_profile(username, strip_sensitive=True)
     if not profile:
         invalidate_authenticated_session("profile_not_found")
-        return jsonify({"success": False, "error": "profile_not_found"}), 401
+        return operation_control_reply({"success": False, "error": "profile_not_found"}), 401
     if not operation_control_app_installed(profile):
         return operation_control_forbidden_response()
 
     operations = operations_from_store_or_profile(username, profile, refresh=False)
-    return jsonify(build_operation_control_snapshot(username, profile, operations=operations))
+    return operation_control_reply(build_operation_control_snapshot(username, profile, operations=operations))
 
 
 @app.route("/api/ghost-control/operations/cancel", methods=["POST"])
 @app.route("/api/pro-system/operation-control/cancel", methods=["POST"])
 def operation_control_cancel():
     if "user" not in session:
-        return jsonify({"success": False, "error": "not_logged_in"}), 401
+        return operation_control_reply({"success": False, "error": "not_logged_in"}), 401
 
     username = session["user"]
     data = request.get_json(silent=True) or {}
     operation_id = str(data.get("operation_id") or "").strip()
     if not operation_id:
-        return jsonify({"success": False, "error": "missing_operation_id"}), 400
+        return operation_control_reply({"success": False, "error": "missing_operation_id"}), 400
 
     if not player_inventory_store.has_app(username, OPERATION_CONTROL_APP_ID):
         return operation_control_forbidden_response()
@@ -25743,16 +25877,16 @@ def operation_control_cancel():
         cancelled_by=username,
     )
     if result == "not_found":
-        return jsonify({"success": False, "error": "not_found", "message": "Nie znaleziono operacji."}), 404
+        return operation_control_reply({"success": False, "error": "not_found", "message": "Nie znaleziono operacji."}), 404
     if result in {"already_terminal", "not_active"}:
-        return jsonify({
+        return operation_control_reply({
             "success": False,
             "error": result,
             "message": "Operacja nie jest juz aktywna.",
             "operation": summarize_operation_control_item(operation) if operation else None,
         }), 409
     if result != "cancelled":
-        return jsonify({"success": False, "error": result or "cancel_failed"}), 409
+        return operation_control_reply({"success": False, "error": result or "cancel_failed"}), 409
 
     operations = bounded_operations_from_store(username)
     snapshot = build_operation_control_snapshot(
@@ -25760,7 +25894,7 @@ def operation_control_cancel():
         {"username": username},
         operations=operations,
     )
-    return jsonify({
+    return operation_control_reply({
         "success": True,
         "ok": True,
         "message": "Operacja zostala anulowana.",
@@ -25775,17 +25909,17 @@ def operation_control_cancel():
 @app.route("/api/pro-system/operation-control/cancel-group", methods=["POST"])
 def operation_control_cancel_group():
     if "user" not in session:
-        return jsonify({"success": False, "error": "not_logged_in"}), 401
+        return operation_control_reply({"success": False, "error": "not_logged_in"}), 401
 
     username = session["user"]
     data = request.get_json(silent=True) or {}
     requested_family = str(data.get("operation_family") or "").strip().lower()
     operation_ids = data.get("operation_ids")
     if not isinstance(operation_ids, list):
-        return jsonify({"success": False, "error": "invalid_operation_ids"}), 400
+        return operation_control_reply({"success": False, "error": "invalid_operation_ids"}), 400
     operation_ids = [str(item or "").strip() for item in operation_ids if str(item or "").strip()]
     if not operation_ids:
-        return jsonify({"success": False, "error": "empty_operation_ids"}), 400
+        return operation_control_reply({"success": False, "error": "empty_operation_ids"}), 400
 
     if not player_inventory_store.has_app(username, OPERATION_CONTROL_APP_ID):
         return operation_control_forbidden_response()
@@ -25872,7 +26006,7 @@ def operation_control_cancel_group():
 
     operations = bounded_operations_from_store(username)
     snapshot = build_operation_control_snapshot(username, profile, operations=operations)
-    return jsonify({
+    return operation_control_reply({
         "success": True,
         "ok": True,
         "operation_family": requested_family or None,
@@ -25884,6 +26018,28 @@ def operation_control_cancel_group():
         "remaining_active": snapshot.get("active_count", 0),
         "snapshot": snapshot,
     })
+
+
+@app.after_request
+def ghost_exchange_message_presentation(response):
+    if request.path not in {'/api/ghost-exchange', '/api/ghost-exchange/preview', '/api/ghost-exchange/sell'} or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return response
+    params = {}
+    if response.status_code >= 400 or payload.get('success') is False:
+        key = {401: 'auth_required', 400: 'file_required', 404: 'file_unavailable'}.get(response.status_code, 'request_failed')
+    elif request.path.endswith('/preview'):
+        key = 'offer_ready'
+    elif request.path.endswith('/sell'):
+        key = 'sale_duplicate' if payload.get('duplicate') else 'sale_completed'
+        params = {'amount': (payload.get('sale') or {}).get('price', 0)}
+    else:
+        return response
+    payload['message_i18n'] = ui_message('apps.exchange.' + key, params)
+    response.set_data(app.json.dumps(payload))
+    return response
 
 
 @app.route("/api/ghost-exchange")
@@ -26523,6 +26679,47 @@ def log_ghostlab_runtime_response(response):
                 'app': str(data.get('tool_id') or '')[:150], 'artifact': str(data.get('artifact_id') or '')[:150],
                 'status': response.status_code, 'reason': result.get('reason') or 'request_rejected'
             }))
+    return response
+
+
+@app.after_request
+def player_hack_tool_message_presentation(response):
+    if request.endpoint not in {'api_player_hack_tool_use', 'api_player_hack_security_read',
+                                'api_player_hack_security_update', 'api_player_hack_security_preset'} or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get('message_i18n'):
+        return response
+    if response.status_code >= 400:
+        reason_keys = {
+            'tool_not_installed': 'lab.pvp.not_installed',
+            'runtime_pending': 'lab.runtime.unavailable',
+            'tool_already_used': 'lab.runtime.used',
+            'artifact_changed': 'lab.pvp.artifact_changed',
+            'player_access_changed': 'lab.pvp.access_changed',
+            'family_cooldown': 'lab.pvp.family_cooldown',
+            'unsupported_player_hack_tool': 'lab.pvp.unsupported',
+        }
+        key = reason_keys.get(payload.get('reason'), 'lab.pvp.unavailable')
+        if response.status_code == 401:
+            key = 'lab.error.not_logged_in'
+        payload['message_i18n'] = ui_message(key)
+    else:
+        # An artifact may supply an author's own success/failure message.
+        # Historical log entries and authored result text remain literal.
+        tool = payload.get('tool') or {}
+        kind = payload.get('result_type')
+        if tool.get('artifact_id') and kind not in {'system_logs', 'security_panel'}:
+            return response
+        if kind == 'financial_sniffer':
+            payload['message_i18n'] = ui_message('lab.pvp.result.financial', {'amount': payload.get('stolen_amount') or 0})
+        elif kind in {'friend_kicker', 'arsenal_cleaner'}:
+            payload['message_i18n'] = ui_message('lab.pvp.result.' + kind + ('.removed' if payload.get('removed') else '.unchanged'))
+        elif kind in {'system_logs', 'security_panel', 'intruder_kicker'}:
+            payload['message_i18n'] = ui_message('lab.pvp.result.' + kind)
+        else:
+            return response
+    response.set_data(app.json.dumps(payload))
     return response
 
 
@@ -27169,6 +27366,30 @@ def mark_player_target(target_username_override=None):
     })
 
 
+@app.after_request
+def control_workspace_message_presentation(response):
+    endpoints = {
+        "victim_picker_candidates", "victim_picker_aim", "territory_control_clusters",
+        "territory_control_cluster_detail", "territory_control_security_toggle",
+        "territory_control_security_preset", "territory_control_abandon",
+    }
+    if request.endpoint not in endpoints or not response.is_json or response.status_code < 400:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get("message_i18n"):
+        return response
+    code = payload.get("error") or payload.get("reason")
+    known = {
+        "not_logged_in", "profile_not_found", "invalid_position", "missing_action",
+        "target_not_found", "security_save_failed", "invalid_preset", "confirmation_required",
+        "stale_owner", "stale_version", "missing_target_id", "target_unavailable",
+        "territory_control_not_installed", "cluster_not_found",
+    }
+    payload["message_i18n"] = ui_message("apps.control.error." + (code if code in known else "failed"))
+    response.set_data(app.json.dumps(payload))
+    return response
+
+
 @app.route("/api/victim-picker/candidates")
 def victim_picker_candidates():
     if "user" not in session:
@@ -27182,6 +27403,7 @@ def victim_picker_candidates():
             "success": False,
             "error": "victim_picker_not_installed",
             "message": "Victim Picker wymaga instalacji z Googleplex.",
+            "message_i18n": ui_message("apps.victim.install_required"),
         }), 403
 
     origin = victim_picker_position(profile)
@@ -27217,6 +27439,7 @@ def victim_picker_aim():
             "success": False,
             "error": "victim_picker_not_installed",
             "message": "Victim Picker wymaga instalacji z Googleplex.",
+            "message_i18n": ui_message("apps.victim.install_required"),
         }), 403
 
     candidate, candidates = find_victim_picker_candidate_by_id(username, profile, target_id)
@@ -27225,6 +27448,7 @@ def victim_picker_aim():
             "success": False,
             "error": "target_not_found",
             "message": "Kandydat nie istnieje albo przestal byc dostepny.",
+            "message_i18n": ui_message("apps.victim.target_missing"),
             "candidate_count": len(candidates),
         }), 404
     if not candidate.get("can_aim"):
@@ -27232,6 +27456,7 @@ def victim_picker_aim():
             "success": False,
             "error": "target_unavailable",
             "message": candidate.get("disabled_reason") or "Kandydat jest niedostepny.",
+            "message_i18n": ui_message("apps.victim.unavailable"),
             "candidate": serialize_victim_picker_candidate(candidate),
         }), 409
 
@@ -27255,6 +27480,7 @@ def victim_picker_aim():
         "success": True,
         "status": "aimed_target_set",
         "message": f"Cel ustawiony: {display_target_label(aimed_target)}",
+        "message_i18n": ui_message("apps.victim.aimed"),
         "target": aimed_target,
         "candidate": serialize_victim_picker_candidate(candidate),
     })
@@ -28358,6 +28584,8 @@ def report_vulnerability():
                 f"wymagane {potential['threshold_percent']}%."
             ),
             "potential": potential,
+            "message_i18n": ui_message("map.vulnerability.coverage", {
+                "coverage": potential['coverage_percent'], "threshold": potential['threshold_percent']}),
         }), 403
 
     clan = get_profile_clan(profile)
@@ -28474,6 +28702,8 @@ def report_vulnerability():
         "message": message,
         "report": report,
         "reports": reports,
+        "message_i18n": (ui_message("map.vulnerability.swarm", {"count": len(reports)})
+                         if swarm_active else ui_message("map.vulnerability.reported")),
         "swarm": {
             "active": swarm_active,
             "count": len(reports),
@@ -28501,6 +28731,7 @@ def withdraw_vulnerability(report_id):
     return jsonify({
         "success": True,
         "message": "Oznaczenie podatnosci wycofane.",
+        "message_i18n": ui_message("map.vulnerability.withdrawn"),
         "report": report,
     })
 
@@ -28541,7 +28772,8 @@ def account_catalog():
     ]
     for item in catalog:
         if item.get('template_id') == 'ptk_document' and item.get('artifact_id') in owned_documents:
-            item.update(installed=True, install_blocked_reason='To wydanie jest już w Dokumentach PTK.')
+            item.update(installed=True, install_blocked_reason='To wydanie jest już w Dokumentach PTK.',
+                        install_blocked_i18n=ui_message('shop.owned'))
 
     return jsonify(catalog)
 
@@ -28627,7 +28859,9 @@ def radio_channel_manifest(channel_id):
             if filename.casefold() in excluded:
                 continue
             title = os.path.splitext(filename)[0].replace("_", " ").strip() or filename
-            tracks.append({"title": title, "file": filename})
+            track = {"title": title, "file": filename, **radio_track_metadata(channel, filename)}
+            if radio_track_allowed(channel, track):
+                tracks.append(track)
     except OSError:
         return jsonify({"success": False, "message": "Nie udalo sie odczytac katalogu kanalu."}), 500
 
@@ -28637,7 +28871,7 @@ def radio_channel_manifest(channel_id):
 
     return jsonify({
         "success": True,
-        "channel": channel,
+        "channel": radio_channel_metadata(channel),
         "tracks": tracks,
         "track_count": len(tracks),
     })
@@ -28683,6 +28917,8 @@ def radio_channels_manifest():
             "loop": channel.get("loop", True),
             "mode": channel.get("mode") or "ordered",
             "sort": channel.get("sort") or "name",
+            "language": radio_channel_metadata(channel)["language"],
+            "presentation": channel.get("presentation", {}),
         })
 
     settings = resources_store.get('radio_settings', default={}) or {}
@@ -28705,6 +28941,20 @@ def admin_radio_settings():
     if manifest.status_code != 200:
         return manifest
     data = manifest.get_json()
+    validation = []
+    for channel in data['channels']:
+        channel_path = os.path.join(app.static_folder, 'mp3', 'radio', 'channel', channel['id'])
+        try:
+            with open(os.path.join(channel_path, 'meta.channel'), encoding='utf-8') as handle:
+                contract = json.load(handle)
+            validate_radio_contract(contract)
+            for filename in os.listdir(channel_path):
+                if filename.lower().endswith('.mp3') and filename not in contract.get('exclude', []):
+                    if not radio_track_allowed(contract, radio_track_metadata(contract, filename)):
+                        validation.append({'channel': channel['id'], 'file': filename, 'code': 'program_language_conflict'})
+        except (ValueError, OSError) as exc:
+            validation.append({'channel': channel['id'], 'code': str(exc) if isinstance(exc, ValueError) else 'channel_unavailable'})
+    data['language_validation'] = validation
     if request.method == 'POST':
         payload = request.get_json(silent=True)
         channel_id = payload.get('autostart_channel') if isinstance(payload, dict) else None
@@ -28938,6 +29188,15 @@ def build_cyberner_channels(profile, contacts, group_active_count, accepted_cont
             "meta": "OWNER // READ ONLY",
         })
 
+    for channel in channels:
+        code = channel['channel']
+        fields = ['title', 'subtitle', 'preview'] + ([] if code == 'clan' else ['meta'])
+        channel['presentation_i18n'] = {}
+        for field in fields:
+            params = ({'count': int(group_active_count or 0)} if code == 'world' and field == 'meta' else
+                      {'count': accepted_count} if code == 'friends' and field == 'meta' else
+                      {'clan': clan} if code == 'clan' and field == 'subtitle' else {})
+            channel['presentation_i18n'][field] = ui_message('apps.cyberner.channel.' + code + '.' + field, params)
     return channels
 
 
@@ -29325,6 +29584,34 @@ def add_system_message():
         return jsonify({"status": "success", "duplicate": True, "message": "Wiadomosc juz czeka"})
 
     return jsonify({"status": "success", "message": "Wiadomość dodana"})
+
+
+@app.after_request
+def install_app_message_presentation(response):
+    if request.endpoint != 'install_app' or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get('message_i18n'):
+        return response
+    if response.status_code < 400 and payload.get('status') == 'success':
+        key = ('document_ready' if payload.get('document_id') else 'travel_ready' if payload.get('travel')
+               else 'purchased' if payload.get('product') else 'installed')
+    else:
+        code = payload.get('reason_code') or payload.get('reason') or payload.get('error')
+        key = {
+            'authentication_required': 'session_expired', 'not_logged_in': 'session_expired',
+            'catalog_item_not_found': 'not_found', 'publication_withdrawn': 'withdrawn',
+            'offer_changed': 'offer_changed', 'purchase_key_conflict': 'offer_changed',
+            'untrusted_glab_product': 'untrusted', 'untrusted_travel_product': 'untrusted',
+            'requirements_not_met': 'requirements', 'insufficient_funds': 'no_funds',
+            'insufficient_balance': 'no_funds', 'recovery_required': 'recovery',
+            'already_owned': 'owned', 'already_installed': 'owned',
+        }.get(code if isinstance(code, str) else '', 'failed')
+        if response.status_code == 401:
+            key = 'session_expired'
+    payload['message_i18n'] = ui_message('shop.' + key)
+    response.set_data(app.json.dumps(payload))
+    return response
 
 
 @app.route('/install-app', methods=['POST'])
@@ -30095,6 +30382,38 @@ def uninstall_app():
             "over_limit": projection.get("storage_over_limit", False),
         }
     })
+
+
+@app.after_request
+def installed_app_locale_presentation(response):
+    # Presentation is computed on reads, including historical installed copies.
+    # Never save translated strings or change the installed artifact/version.
+    if (request.path not in {'/command', '/api/profile', '/api/profile/desktop', '/api/desktop/boot', '/map-action', '/api/ghostlab/file-manager'}
+            and not request.path.startswith('/api/player-hack/')) or not response.is_json:
+        return response
+    from catalog_presentation import installed_presentation
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return response
+    builtins = {item['id']: item for item in
+                pro_system_tools_catalog() + creator_system_apps_catalog() + googleplex_product_catalog()}
+    changed = False
+    for owner in [payload] + [payload[k] for k in ('profile', 'inventory', 'access') if isinstance(payload.get(k), dict)]:
+        if isinstance(owner.get('apps'), list):
+            owner['apps'] = [installed_presentation(item, builtins) if isinstance(item, dict) else item for item in owner['apps']]
+            changed = True
+        if isinstance(owner.get('applicationEffect'), dict):
+            owner['applicationEffect'] = installed_presentation(owner['applicationEffect'], builtins)
+            changed = True
+        if isinstance(owner.get('tools'), list):
+            owner['tools'] = [installed_presentation(item, builtins) if isinstance(item, dict) else item for item in owner['tools']]
+            changed = True
+        if isinstance(owner.get('tool'), dict):
+            owner['tool'] = installed_presentation(owner['tool'], builtins)
+            changed = True
+    if changed:
+        response.set_data(app.json.dumps(payload))
+    return response
 
 
 @app.route("/launch-queue")

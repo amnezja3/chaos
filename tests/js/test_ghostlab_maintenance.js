@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const source = fs.readFileSync('static/js/ghostlab_maintenance.js', 'utf8');
 function fixture(kind = 'system_update') {
     const nodes = {};
-    const node = key => nodes[key] ||= {isConnected: true, textContent: '', innerHTML: '', disabled: false,
+    const node = key => nodes[key] ||= {dataset:{},isConnected: true, textContent: '', innerHTML: '', disabled: false,
         querySelector: key => node(key), querySelectorAll: selector => selector === '[data-maintenance-preset]'
             ? ['open','low','regular','all'].map(preset => Object.assign(node('preset-' + preset), {dataset:{maintenancePreset:preset}})) : [],
         addEventListener(_, fn) { this.onclick = fn; }};
@@ -30,7 +30,7 @@ function fixture(kind = 'system_update') {
             return {ok: true, json: async () => ({success: true, message: 'Done', storage: {used: 0},
                 changes: kind === 'security_restore' ? [{key:'firewall', before:false, after:true}] : []})};
         }};
-    vm.createContext(ctx); vm.runInContext(source, ctx);
+    vm.createContext(ctx); require("./locale_fixture")(ctx); vm.runInContext(source, ctx);
     return {ctx, nodes, body, app, plan, gets, posts: () => posts, storageUpdates: () => storageUpdates,
         accept: value => accepted = value, fail: value => fail = value,
         render: () => ctx.renderGhostLabMaintenance(app, body, {product: {id: 'child', template_id: kind, runtime_enabled: true,
@@ -55,7 +55,7 @@ function fixture(kind = 'system_update') {
     assert.equal(f.posts(), 2);
 
     f = fixture('security_restore'); await f.render();
-    assert(f.nodes['[data-maintenance-preview]'].innerHTML.includes('REGULAR'));
+    assert(f.nodes['[data-maintenance-preview]'].innerHTML.includes('map.preset.regular'));
     f.app.isConnected = false; await f.nodes['[data-maintenance-run]'].onclick();
     assert.equal(f.posts(), 0, 'closing during animation cancels execution');
 
@@ -78,10 +78,10 @@ function fixture(kind = 'system_update') {
     f.plan.preview.changes = [{key:'firewall', before:false, after:true}];
     await f.render();
     assert(f.gets[0].endsWith('?preset=all'));
-    assert(f.nodes['[data-maintenance-changes]'].textContent.includes('firewall: OFF → ON'));
+    assert(f.nodes['[data-maintenance-changes]'].textContent.includes(f.ctx.GhostLocale.t('map.security.firewall') + ': OFF → ON'));
     for (const preset of ['open','low','regular','all']) assert(f.nodes['[data-maintenance-preview]'].innerHTML.includes(`data-maintenance-preset="${preset}"`));
     await f.nodes['[data-maintenance-run]'].onclick();
-    assert(f.nodes['[data-maintenance-log]'].textContent.includes('firewall: OFF → ON'));
+    assert(f.nodes['[data-maintenance-log]'].textContent.includes(f.ctx.GhostLocale.t('map.security.firewall') + ': OFF → ON'));
     await f.nodes['preset-open'].onclick();
     assert(f.gets.at(-1).endsWith('?preset=open'), 'button requests a fresh preview for the selected level');
     assert.equal(f.app._ghostLabSecurityPreset, 'open');

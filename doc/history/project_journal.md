@@ -1,5 +1,39 @@
 # CHAOS — Project Journal
 
+## 2026-10-08 — 154.7.0: pozostałe workspace’y i cykl narzędzi
+
+Domknięto lokalną implementację 154: 2833 klucze PL/EN, 13 domen.
+Territory/Operation Control, Victim Picker, Ghost Network Suite/Signal Registry,
+GhostLab, Googleplex/Ghost Exchange, Cyberner/BlackNet/AGI i Dev Bug Reporter
+korzystają ze wspólnej prezentacji. Uwzględniono fazy/blokady Sendera,
+radio PL/EN/ANY, sześć rodzin PvP, serwis, bilety, ulepszenia oraz cztery kreatory,
+łącznie ze starszą ścieżką fallback.
+
+Katalog obejmuje 38 produktów kodowych i 20 starszych aplikacji. Historyczne
+instalacje otrzymują metadane przy odczycie, bez reinstalacji. Zmienione przez
+autora pola, nazwy i dokumenty pozostają dosłowne; identyfikatory, ceny, efekty
+i receipty zachowują kontrakt. Generowane NPC mają osobną etykietę językową,
+bez zmiany kanonicznej nazwy celu.
+
+287/287 testów Python i 30/30 zestawów JS PASS; Playwright PL/EN sprawdził otwarte workspace’y,
+instalator, publikację, sześć rodzin PvP, usługi, stare narzędzia, szkice i mobile.
+Backend weryfikowany na izolowanych bazach, w tym zakup i wykonanie na kontach
+innych niż autor. [Macierz i granice odbioru](../audits/sprint_154_acceptance.md).
+
+To wynik lokalny, bez commita/pushu/wdrożenia i bez deklaracji produkcyjnego
+PASS 154.7.0. EN nadal testowe. Zakres treści/narracji/historii pozostaje w 155;
+149–152 i GhostLab v2 nadal zamrożone.
+
+## 2026-10-07 — Produkcyjny PASS 154.5.0; rozpoczęto 154.6.0
+
+Autor potwierdził udane wdrożenie `61f8c63` i PASS zakresu 154.5.0.
+Kolejny lokalny pakiet 154.6.0 ma 746 kluczy: komunikaty API wyboru celu
+i operacji mapowych, w tym wyniki skanu z liczbą mnogą PL/EN. Statusy i dane
+celu pozostają kanoniczne. Frontend zachowuje autorskie logi i deduplikację.
+Testy Python i trzy zestawy JS PASS; Playwright rzeczywistych funkcji
+z atrapami API: identyczne żądania PL/EN, niezmieniony cel, błędy skanu,
+bezpieczne parametry nazw. Nowy zakres bez pushu i wdrożenia; 154 nadal w toku.
+
 ## 2026-10-07 — Wydanie przyrostowe 154.5.0 przygotowane do wdrożenia
 
 Na prośbę autora przygotowano wspólny pakiet dotychczasowych prac 154:
@@ -6561,3 +6595,18 @@ indywidualną skalę i obrót assetów, częściowe wyjście pierwszego planu
 poza boczne krawędzie, przesunięcie skrajnych podpisów do wnętrza oraz
 ochronę dolnego paska. Zachowano cztery grupy i utrwalone pozycje.
 Para v3 oczekuje odbioru wizualnego; runtime pozostaje bez zmian.
+
+# 7 X 2026 — 154.6: radio i kolejne aplikacje PL/EN (lokalnie)
+
+Radio otrzymało PL/EN/ANY, zapis jawnego filtra i metadane kanałów/audycji.
+Przełączanie języka lub filtra zachowuje odtwarzanie. Resolver nie dopuszcza
+obcojęzycznej lub niepotwierdzonej audycji w kanale PL/EN. Zainwentaryzowano
+34 nagrania; autor potwierdził PL dla 9 audycji BlackNet Radio, pozostałe
+25 nagrań muzycznych pozostaje pod ANY do potwierdzenia języka. Tytuły autorskie
+pozostają niezmienione, także gdy zawierają ukośnik.
+
+Dev Bug Reporter oraz widok/dialogi/API Operation Control otrzymały PL/EN.
+Testy Playwright przeszły dla obu języków, zachowania szkicu/UGC, stabilnych
+żądań, pustych stanów, zmiany języka przy odtwarzaniu i mobile. Osobne regresje
+API i Ghost Signal Show audio PASS. Pakiet 886 klucze, 10 domen, `154.6.0`.
+Zmiany lokalne; bez pushu/wdrożenia i bez pełnego PASS 154.

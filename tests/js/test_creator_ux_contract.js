@@ -47,6 +47,6 @@ assert(source.includes('role="tab"'));
 assert(source.includes("event.key === 'ArrowRight'"));
 assert(source.includes("panel.setAttribute('aria-hidden'"));
 assert(source.includes("field.setAttribute('aria-invalid', 'true')"));
-assert(source.includes('["Kolizje",'));
+assert(source.includes('[ghostText("creator.legacy.conflicts"),'));
 
 console.log("Creator UX contract tests passed.");

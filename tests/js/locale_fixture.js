@@ -14,8 +14,9 @@ module.exports = function(sandbox, locale='pl') {
     const translator = core.createTranslator(manifest,catalogs);
     sandbox.window ||= sandbox;
     sandbox.window.GhostLocale = {t:(key,params)=>translator.t(key,params,locale),hasKey:key=>Boolean(catalogs.pl.messages[key]),
+        getLocale:()=>locale, contentVersion:manifest.content_version, languages:()=>Object.entries(manifest.locales).map(([tag,data])=>({tag,...data})),
         formatNumber:(value,options)=>new Intl.NumberFormat(locale,options).format(value)};
     sandbox.ghostText = sandbox.window.GhostLocale.t;
     vm.runInContext(fs.readFileSync(path.join(root,'static/js/ghost_i18n_bindings.js'),'utf8'),sandbox);
-    for (const key of ['ghostLabel','ghostSet','ghostNumber','ghostReply']) sandbox[key]=sandbox.window[key];
+    for (const key of ['ghostLabel','ghostSet','ghostNumber','ghostReply','ghostResponseText','ghostRuntimeReply','ghostSystemValue','ghostProductLabel','ghostApplicationField']) sandbox[key]=sandbox.window[key];
 };

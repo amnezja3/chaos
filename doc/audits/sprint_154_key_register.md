@@ -1,7 +1,7 @@
 # Sprint 154 — rejestr kluczy i glosariusz
 
-Stan: rejestr aktualnego pakietu. **718 kluczy PL/EN**, 8 domen,
-wersja pakietu `154.5.0`. Rejestr generuje
+Stan: rejestr aktualnego pakietu. **2833 kluczy PL/EN**, 13 domen,
+wersja pakietu `154.7.0`. Rejestr generuje
 `node tools/build_i18n_key_register.cjs`; nie utrzymujemy ręcznie drugiego słownika.
 
 Właściciel wszystkich kluczy: Ghost System. Każdy wynik jest tekstem;
@@ -49,7 +49,9 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 
 | Klucz | Domena | Parametry | Źródło / renderer |
 | --- | --- | --- | --- |
+| `common.no` | foundation | — | ghost_i18n.py; ghost_i18n.js — fallback |
 | `common.unavailable` | foundation | — | ghost_i18n.py; ghost_i18n.js — fallback |
+| `common.yes` | foundation | — | ghost_i18n.py; ghost_i18n.js — fallback |
 | `locale.invalid` | foundation | — | ghost_i18n_entry.js; createSettings(); /api/profile/desktop |
 | `locale.label` | foundation | — | ghost_i18n_entry.js; createSettings(); /api/profile/desktop |
 | `locale.load_failed` | foundation | — | ghost_i18n_entry.js; createSettings(); /api/profile/desktop |
@@ -586,6 +588,23 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `map.action.trace` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.trace_device` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.trace_gps` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.accepted` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.already_captured` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.choose` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.connection` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.cooldown` | map_actions | seconds: number | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.failed` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.foreign` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.invalid_tool` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.no_app` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.own_vulnerability` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.player_not_found` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.profile` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.target_blocked` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.target_changed` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.timeout` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.vulnerability_expired` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.launch.waiting` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.menu.aim` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.menu.mark` | map_actions | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.menu.report` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -670,6 +689,281 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `creator.error.request_too_large` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.error.revision_conflict` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.error.version_limit` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.action` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.action_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.action_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.add_button` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.add_level` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.add_list` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.add_option` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.add_step` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.affects` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.affects_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.app` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.back` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.button_label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.catalog_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.choice_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.command` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.conflict_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.conflicts` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.contract_help.affects` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.contract_help.disables` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.contract_help.interferes_with` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.contract_help.requires_off` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_option_groups.map_actions` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_option_groups.operation_types` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_option_groups.resource_types` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_option_groups.target_types` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.access` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.accounts` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.device` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.finance` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.location` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.media` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.creator_semantic_group_labels.world` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.custom` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.description_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.desktop` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.detect_example` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.detect_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.detect_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.detects` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.disable_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.disables` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.disk` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.effect` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.exploit.desktop.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.exploit.desktop.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.exploit.hybrid.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.exploit.hybrid.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.exploit.map.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.exploit.map.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.failure_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family_label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.exploit.boxTitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.exploit.desktopMapNote` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.exploit.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.exploit.mapNote` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.exploit.safetyText` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.scanner_recon.boxTitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.scanner_recon.desktopMapNote` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.scanner_recon.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.scanner_recon.mapNote` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.scanner_recon.safetyText` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.sniffer.boxTitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.sniffer.desktopMapNote` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.sniffer.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.sniffer.mapNote` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.family.sniffer.safetyText` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.filter_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.filtered` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.filtered_count` | creators | count: number | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.general` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.general_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.general_mode` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.hybrid` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.icon` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.information` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.information_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.interface` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.invalid_icon` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.invalid_name` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.json` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.launch_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.legacy_name_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.levels` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.levels_many` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.list` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.list_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.list_lines` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.logs` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.logs_lines` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.map` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.map_actions` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.map_error` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.mode` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.mode_action_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.mode_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.mode_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.name` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.name_error` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.name_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.0.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.0.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.0.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.0.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.0.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.1.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.1.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.1.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.1.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.1.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.2.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.2.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.2.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.2.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.2.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.3.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.3.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.3.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.3.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.3.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.4.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.4.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.4.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.4.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.4.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.5.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.5.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.5.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.5.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.5.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.6.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.6.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.6.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.6.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.6.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.7.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.7.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.7.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.7.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.7.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.8.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.8.educational_note` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.8.gameplay_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.8.subtitle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.narrative.8.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.next` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.none` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.not_selected` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.operation_error` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.operation_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.operations` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option_label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.atm_logs` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.audio_hack` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.camera_shutdown` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.camera_stream` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.car_hack` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.exploit` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.install_sniffer` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.scan_hotspots` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.scan_ports` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.sniff` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.trace` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.trace_device` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.map_actions.trace_gps` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.atm_log_extraction` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.audio_interference` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.camera_shutdown` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.camera_stream` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.device_tracking` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.generic_trace` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.microphone_sniffer` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.persistent_sniffer` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.vehicle_ecu` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.vehicle_tracking` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.operation_types.wifi_scanner` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.atm_dump` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.audio_transcript` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.call_history` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.camera_dump` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.credentials` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.device_logs` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.email_accounts` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.financial_records` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.gps_logs` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.hotspot_database` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.internal_recon_state` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.location_history` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.messenger_data` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.personal_records` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.vehicle_diagnostics` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.video_material` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.resource_types.wifi_networks` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.atm` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.camera` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.person` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.phone` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.pillar` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.player` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.poi` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.router` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.server` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.vehicle` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.option.target_types.venue` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.panel_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.policy_failed` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.presentation` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.price` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.price_lower` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.profile` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.progress_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.progress_lines` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.progress_title_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.publish` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.publish_failed` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.publish_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.published_file` | creators | file: string | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.publishing` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.quality` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.reliability` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.requires` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.requires_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.resource_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.result_failure` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.result_success` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.run_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.runtime` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.scanner.desktop.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.scanner.desktop.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.scanner.hybrid.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.scanner.hybrid.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.scanner.map.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.scanner.map.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.sniffer.desktop.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.sniffer.desktop.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.sniffer.hybrid.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.sniffer.hybrid.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.sniffer.map.description` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.sniffer.map.label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.start` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step_label` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.0` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.1` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.2` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.3` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.4` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.5` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.6` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.7` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.step.8` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.success_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.success_unicode_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.target` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.target_error` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.target_help` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.target_question` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.terminal_logs_hint` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.text` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.title` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.atm_tool` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.camera_tool` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.custom` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.exploit` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.exploit_suite` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.scanner` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.sniffer` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.tracker` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.type.vehicle_tool` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.unnamed` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.legacy.weight` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.action` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.choice` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.choice_contract` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
@@ -716,11 +1010,103 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `creator.validation.risk_range` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.text` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.versioned_choice` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `map.actor.actions` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.add_friend` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.aimed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.chat` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.chat_blocked` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.chat_open` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.chat_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.clan` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.contact` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.contact_failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.contact_offline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.contact_sent` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.disabled` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.enabled` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.enemy_clan` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.friend` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.friend_blocked` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.intruder` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.level` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.mark_failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.mark_target` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.marked` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.missing_id` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.module_unavailable` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.neutral` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.pending` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.position` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.position_missing` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.profession` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.profile` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.profile_action` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.relation` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.same_clan` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.self` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.self_profile` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.source` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.sources` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.target_blocked` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.target_offline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.target_status` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.territories` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.transfer_blocked` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.transfer_hc` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.unavailable` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.username` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.actor.wallet_open` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.atm` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.atm_camera` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.atm_customer` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.bicycle_station` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.courier` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.customer` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.guest` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.npc.shop_camera` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.activate` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.active` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.city` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.continent` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.country` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.local` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.map` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.range` | map_workspace | range: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.scale` | map_workspace | scale: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.world` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.preset.all` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.preset.low` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.preset.open` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.preset.regular` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.preset.secure` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.aimed` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.already_captured` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.conflict_expired` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.connection` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.connection_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.foreign` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.invalid_coordinates` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.marked` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.marked_coords` | map_workspace | lat: string, lng: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.missing_label` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.missing_target_data` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.not_logged_in` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.out_of_range` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.profile_not_found` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.projection` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.protected` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.reached` | map_workspace | lat: string, lng: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.registered` | map_workspace | action: string, lat: string, lng: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.scanned` | map_workspace | count: number | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.scanner_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.target_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.territory_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.travel_range` | map_workspace | range: number | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.travel_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.upstream` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.result.vulnerability_expired` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.access_level` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.activity_monitor` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.anonymity_score` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -757,13 +1143,1742 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `map.security.unencrypted_access` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.vpn_blocker` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.vpn_enabled` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.coverage` | map_workspace | coverage: number, threshold: number | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.reported` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.swarm` | map_workspace | count: number | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.withdraw_failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.vulnerability.withdrawn` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.abandon` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.abandon_confirm` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.abandon_details` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.abandon_failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.abandon_prompt` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.abandon_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.abandoned` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.avatar` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.cancel` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.choose_tool` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.clear` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.corridor` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.decoy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.delayed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.end` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.error` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.false_view` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.hack_error` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.history_empty` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.history_future` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.history_soon` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.masked` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.narrative` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.open_tools` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.operation` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.operation_target` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.operations` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.panel_resize` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.phantom` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.power_ended` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.predicted` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.refresh` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.replicated` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.revealed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.risk` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.safe` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.scan` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.scanning` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.secure` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.security_error` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.security_failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.snapshot` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.stale_removed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.start` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.target_linking` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.target_loading` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.teleport` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.tools` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.travel` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.workspace.travel_far` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.workspace.withdraw` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `radio.any` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.channel.blacknet.description` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.channel.blacknet.name` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.channel.ghost.description` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.channel.ghost.name` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.channels` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.choose` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.empty` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.filter` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.mixed` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.mute` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.neutral` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.next` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.no_track` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.pause` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.play` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.previous` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.program` | radio | language: string | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.autoplay_off` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.bad_schema` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.click_to_start` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.no_tracks` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.one_channel` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_boot` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_error` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_idle` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_loading` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_lost` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_online` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_paused` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_ready` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_search` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.status.signal_tuning` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.unknown` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.unmute` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `radio.volume` | radio | — | ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154) |
+| `apps.agi.accepted` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.accepted_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.completed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.cost` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.created` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.failed_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.heading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.medium` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.no_receipt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.placeholder` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.processing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.processing_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.publishing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.queued` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.queued_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.ready` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.rejected` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.rejected_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.restore_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.result_link` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.result_ready` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.retry_status` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.same_receipt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.sending` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.submit` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.template` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.topic` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.topic_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.topic_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.transport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.unconfirmed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.unconfirmed_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.agi.validating` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.archive_unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.bridge_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.bridge_unknown` | apps | action: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.cancel` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.cancelled` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.captured` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.decision` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.decision_details` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.down` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.exchange_open` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.exchange_sector` | apps | sector: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.execute` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.expired` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.informational` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.left` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.map_focus` | apps | target: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.map_unfocused` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.navigation` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.next` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.no_bridge` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.none` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.operation_blocked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.operation_focus` | apps | id: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.operation_open` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.operation_prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.plex_open` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.plex_query` | apps | query: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.previous` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.radio_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.radio_unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.right` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.strength` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.strength_aria` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.suite_check` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.suite_focused` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.suite_install` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.suite_open` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.suite_open_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.suite_unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_cancelled` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_details` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_done` | apps | target: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_prompt` | apps | target: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.teleport_title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.thread_missing` | apps | peer: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.track_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.up` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.valid` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.browser.refresh_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.files` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.ghost_exchange` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.googleplex` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.login` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.operations` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.other` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.performance` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.category.ui` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.dev_only` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.login_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.sending` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.sent` | apps | id: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.severity` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.severity.blocker` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.severity.high` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.severity.low` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.severity.medium` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.steps` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.submit` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.bugs.title_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.cluster_not_found` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.confirmation_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.invalid_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.invalid_preset` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.missing_action` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.missing_target_id` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.not_logged_in` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.profile_not_found` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.security_save_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.stale_owner` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.stale_version` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.target_not_found` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.target_unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.control.error.territory_control_not_installed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.add` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.add_contact` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.back` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.agi2108.meta` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.agi2108.preview` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.agi2108.subtitle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.agi2108.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.clan.preview` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.clan.subtitle` | apps | clan: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.clan.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.friends.meta` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.friends.preview` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.friends.subtitle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.friends.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.world.meta` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.world.preview` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.world.subtitle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channel.world.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.channels` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.compose` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.contact` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.direct` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.friends` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.new` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.new_small` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.nickname` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.pending` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.placeholder` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.private` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.remove` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.runtime_pending` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.send` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.send_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.soon` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.source` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.unknown_contact` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.world_preview` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.world_source` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.cyberner.world_subtitle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.auth_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.average` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.background` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.earned_today` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.earned_total` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.file_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.file_unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.files` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.hc_today` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.history` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.history_accessible` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.history_empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.listed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.load_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.missing_mb` | apps | count: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.missing_records` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.offer_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.offer_ready` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.package` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.packages` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.pending` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.pending_data` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.request_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sale_completed` | apps | amount: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sale_duplicate` | apps | amount: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.atm` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.audio` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.camera` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.credentials` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.device` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.financial` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.gps` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.network` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.personal` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sector.vehicle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sell_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sold` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.sold_today` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.status.collecting` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.status.trading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.atm` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.audio` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.camera` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.credentials` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.device` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.financial` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.gps` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.network` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.personal` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.subtitle.vehicle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.transactions` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.transactions_count` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.exchange.volume` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.ability` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.all` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.archived` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.blocked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.clan` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.clan_caption` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.code` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.control` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.cycle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.cycle.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.cycle.closed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.cycle.preparing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.cycle.stabilizing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.cycle.transmitting` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.details` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.discovered` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.discovered_count` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.distance` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.load_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.location.exact` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.location.hidden` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.location.territory_only` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.machine` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.map_disabled` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.map_part` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.no_map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.no_teleport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.owner` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.owner_caption` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.part` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.profession` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.public` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.refresh` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.choose` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.clan_metrics` | apps | nodes: number, territories: number, area: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.clans_all` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.clans_signal` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.closer` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.conflict` | apps | score: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.contract` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.no_ranking` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.player_metrics` | apps | rsp: number, nodes: number, territories: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.players_all` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.players_signal` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.registry.select` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.restart` | apps | transition: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.search` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.search_parts` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.snapshot_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.sort` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.stale` | apps | error: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.state` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.strategic` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.sync` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.sync_detail` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport_denied` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport_disabled` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport_done` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport_part` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.message` | apps | label: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.node` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.node_contested` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.territory` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.territory_contested` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.title_node` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.teleport.title_territory` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.territory` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.update` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.updated` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.blocked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.clan_own_active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.contained` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.contested` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.foreign_active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.foreign_blocked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.inactive` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.public` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.public_neutral` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.self_foreign_blocked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.self_own_active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.summary.active_foreign` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.summary.contained_hidden` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.summary.full` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.network.value.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.back` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.cancel` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.cancel_group` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.cancel_warning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.cancelled` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.cancelled_group` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.cancelling` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.clear` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.close` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.confirm` | apps | name: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.confirm_group` | apps | name: string, count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.distance` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.empty_group` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.empty_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.ended` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.atm` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.audio` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.camera` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.credentials` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.device` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.financial_records` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.gps` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.implant` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.network` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.other` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.recon` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.system` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.family.vehicle` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.group_warning` | apps | types: string, count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.groups` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.history` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.incident` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.incidents` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.invalid_request` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.load_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.login_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.no_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.not_active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.not_found` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.not_installed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.output` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.refresh` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.remaining` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.risk.critical` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.risk.high` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.risk.low` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.risk.medium` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.cancelled` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.completed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.created` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.expired` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.pending` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.resolved` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.state.running` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.summary` | apps | count: number, incidents: number, size: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.target` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.atm_log_extraction` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.audio_interference` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.camera_shutdown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.camera_stream` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.device_tracking` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.generic_trace` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.implant_timer` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.microphone_sniffer` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.persistent_sniffer` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.vehicle_ecu` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.vehicle_tracking` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.type.wifi_scanner` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.operations.warning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.history` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.journey_date` | apps | date: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.locked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.mute` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.no_dates` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.ghostsystem_restart.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.ghostsystem_restart.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.machine_synchronization.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.machine_synchronization.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.network_lock.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.network_lock.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.results.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.results.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.signal_transmission.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.signal_transmission.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.world_consumption.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.phase.world_consumption.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.recovery` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.replaying` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.restart_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.signal.unmute` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandon` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandon_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandon.confirm` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandon.details` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandon.message` | apps | label: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandon.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandoned` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.abandoning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.ability` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.alarm` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.alone` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.alone_help` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.attack` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.attacked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.back` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.bike` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.clan` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.close` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.cluster` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.cluster_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.cluster_name` | apps | id: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.cluster_teleport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.clusters` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.collision` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.contested` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.foreign` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.hidden` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.own` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.stored` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.unidentified` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.component.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.conflicts` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.counts` | apps | nodes: number, pillars: number, inners: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.details` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.flag_changing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.flag_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.from_bike` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.inners` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.invalid_teleport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.load_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.loading_cluster` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.machine` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.neutral` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.no_flags` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.no_inners` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.no_pillars` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.no_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.open_map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.pillars` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.preset_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.preset_saved` | apps | preset: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.preset_saving` | apps | preset: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.profession` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.recalculated` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.refresh` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.security` | apps | percent: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.show_cluster` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.show_map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.sync` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.sync_app` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.teleport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.teleport_denied` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.territory.teleporting` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.active_target` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.aim` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.aim_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.aim_offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.aimed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.aiming` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.back` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.clan` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.friend` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.missing_player_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.missing_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.out_of_range` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.own_vulnerability` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.self` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.badge.unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.bike_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.bike_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.cancel` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.candidates` | apps | count: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.clear_scan` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.close` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.current` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.current_target` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.empty_sources` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.focus_active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.go_victims` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.install_required` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.invalid_teleport` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.load_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.load_offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.mark` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.mark_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.mark_first` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.mark_offline` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.mark_title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.marked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.marked_ready` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.marked_title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.marking` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.no_active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.no_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.none` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.open_map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.range` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.reason.missing_player_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.reason.missing_position` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.reason.out_of_range` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.reason.own_vulnerability` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.refresh` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.danger` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.danger_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.no_distance` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.remote` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.remote_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.safe_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.warning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.risk.warning_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_calibrate` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_denied` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_empty` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_group` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_loading` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_result` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_signatures` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scan_validation` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.scanning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.set_target` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.show` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.show_map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.source.conflicts` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.source.intruders` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.source.marked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.source.players` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.source.vulnerabilities` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.sync` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.sync_picker` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.target_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleport_near` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleport.denied` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleport.details` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleport.done` | apps | label: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleport.message` | apps | label: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleport.title` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.teleporting` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.victim.unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `catalog.system.agi2108Console.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.agi2108Console.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.appforge.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.appforge.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.arsenalCleaner.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.arsenalCleaner.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_100.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_100.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_1000.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_1000.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_300.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_300.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_500.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bike_range_500.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.bttracer_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.buttonmaker.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.buttonmaker.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.0.logs.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.0.logs.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.0.logs.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.0.logs.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.1.logs.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.1.logs.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.levels.1.logs.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camdisabler_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.camstream_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.buttons.0.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.buttons.1.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.list.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.list.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.list.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.list.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.list.4` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.crypto_vault_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.data_corruptor_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.deep_sniff_r2.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.drivecrypt_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.financialSniffer.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.financialSniffer.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.friendKicker.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.friendKicker.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_lab.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_lab.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghost_ping_x3.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghostnetworkSuite.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ghostnetworkSuite.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.gpsprobe_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.0.logs.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.0.logs.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.0.logs.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.0.logs.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.1.logs.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.1.logs.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.levels.1.logs.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.injector_x_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.intruderKicker.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.intruderKicker.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.map_zoom_plus_1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.map_zoom_plus_1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.map_zoom_plus_2.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.map_zoom_plus_2.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.map_zoom_plus_3.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.map_zoom_plus_3.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.mem_overflow_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.micsniff_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.operationControl.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.operationControl.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.options.0.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.options.1.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.options.2.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.options.3.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.options.4.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.text` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.pencombo_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.phantom_vpn_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.levels.0.buttons.0.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.levels.0.buttons.1.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.levels.0.list.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.levels.0.list.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.levels.0.list.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.procmon_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_probe_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_100.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_100.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_1000.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_1000.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_300.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_300.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_500.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.scan_range_500.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.securityPanelProxy.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.securityPanelProxy.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.options.0.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.options.1.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.options.2.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.options.3.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.options.4.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.options.5.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.text` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.shadow_layer_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.buttons.0.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.buttons.1.label` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.list.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.list.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.list.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.list.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.stealth_browser_v2.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_blackvault.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_blackvault.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_data_vault.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_data_vault.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_encrypted_cluster.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_encrypted_cluster.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_ghost_vault_basic.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_ghost_vault_basic.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_ghost_vault_plus.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.storage_ghost_vault_plus.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.systemLogReader.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.systemLogReader.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.termcreator.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.termcreator.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.territoryControl.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.territoryControl.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_berlin.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_berlin.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_krakow.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_krakow.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_londyn.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_londyn.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_nowy_jork.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_nowy_jork.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_tokio.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_tokio.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_warszawa.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.ticket_warszawa.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.victimPicker.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.victimPicker.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.result_failure` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.result_success` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.steps.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.steps.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.steps.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.steps.3` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.levels.0.title` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.wifibreaker_v1.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.windowmaker.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.windowmaker.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.zeroday_hunter.description` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.zeroday_hunter.levels.0.logs.0` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.zeroday_hunter.levels.0.logs.1` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.zeroday_hunter.levels.0.logs.2` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `catalog.system.zeroday_hunter.name` | catalog | — | catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154) |
+| `shop.all_categories` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.all_products` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.application` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.balance_required` | shop | price: number, balance: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.buy` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.buy_document` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.cancelled` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.bike_upgrade` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.documents` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.map` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.other` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.storage_upgrade` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.tools` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.category.travel_ticket` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.clan_only` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.confirm.buy` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.confirm.details` | shop | name: string, price: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.confirm.message` | shop | name: string | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.confirm.purchase` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.confirm.travel` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.confirm.travel_message` | shop | destination: string | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.document_ready` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.downloads` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.effect.bike_range_bonus` | shop | value: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.effect.map_zoom_bonus` | shop | value: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.effect.scan_range_bonus` | shop | value: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.effect.storage_capacity_bonus` | shop | value: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.effect.travel_city` | shop | city: string | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.empty` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.faction_required` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.failed` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.free` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.global` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.install` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.installation` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.installed` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.installing` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.level_required` | shop | level: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.load_failed` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.loading` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.no_description` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.no_funds` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.no_risk` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.not_found` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.offer_changed` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.offline` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.open_source` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.owned` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.price` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.products` | shop | count: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.purchased` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.authored` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.bad` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.change` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.current` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.empty` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.failed` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.happy` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.history` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.instant` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.loading` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.own` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.retry` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.travel_required` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.reaction.very_happy` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.recovery` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.requirements` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.respect_required` | shop | respect: number | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.results` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.search` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.search_blacknet` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.search_exchange` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.session_expired` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.soft_limit` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.audience` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.category` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.creator` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.data` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.effect` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.family` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.install` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.level` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.map` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.mode` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.open-source` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.ops` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.power` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.price-hint` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.product` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.quality` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.reliability` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.tier` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.spec.weight` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.components` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.document` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.download` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.finish` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.register` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.start` | shop | name: string | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.step.travel` | shop | name: string | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.travel` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.travel_ready` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.untrusted` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.validation` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.Advanced` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.Basic` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.bike_upgrade` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.camera_tool` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.creator` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.creators` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.desktop` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.Elite` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.hybrid` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.Legendary` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.map` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.map_upgrade` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.Pro` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.pro-system-lab` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.pro-system-tool` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.pro-system-tools` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.recon` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.scan_upgrade` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.scanner` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.storage` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.storage_upgrade` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.system_lab` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.tool` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.tracker` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.travel` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.value.travel_ticket` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `shop.withdrawn` | shop | — | terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154) |
+| `lab.check.author_description` | lab | description: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.boolean` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.category` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.characters` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.cleaner` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.cleanup` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.contract` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.cooldown` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.coordinates` | lab | lat: string, lng: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.delete_warning` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.demonstration` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.detection` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.effect_steal` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.enum` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.fields` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.firmware` | lab | chance: string, disk: string, scan: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.firmware_limits` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.firmware_policy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.friend` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.groups` | lab | groups: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.icon` | lab | icon: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.include_status` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.latest` | lab | version: string, status: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.log_count` | lab | count: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.no_build` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.notes` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.number` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.overlay` | lab | name: string, pattern: string, sfx: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.policy` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.policy_value` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.presets` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.preview` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.project` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.project_create` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.protected` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.protected_archive` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.reaction_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.ready` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.restore` | lab | preset: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.retry` | lab | retries: string, timeout: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.rules` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.security` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.sfx` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.state` | lab | status: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.success` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.system_update` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.target_policy` | lab | value: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.template` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.text` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.travel` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.travel_changed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.travel_coordinates` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.travel_frame` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.travel_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.travel_map` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.type` | lab | field: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.valid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.visibility.clan` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.check.visibility.global` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.empty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.history` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.library` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_0.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_0.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_1.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_1.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_2.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_2.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_3.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.official_3.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_10` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_11` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_12` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_13` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_14` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_15` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_16` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_4` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_5` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_6` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_7` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_8` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.paragraph_9` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.project_pick` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research_message` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research_missing` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research_note` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research_pick` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research_status` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.apps.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.apps.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.apps.unlock_0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.apps.unlock_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.apps.unlock_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.apps.unlock_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.finance.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.finance.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.finance.unlock_0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.finance.unlock_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.finance.unlock_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.finance.unlock_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.intel.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.intel.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.intel.unlock_0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.intel.unlock_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.intel.unlock_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.intel.unlock_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.security.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.security.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.security.unlock_0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.security.unlock_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.security.unlock_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.security.unlock_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.social.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.social.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.social.unlock_0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.social.unlock_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.social.unlock_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.research.social.unlock_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.tooltip.Documentation` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.tooltip.Ghost_Exchange` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.tooltip.Projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.tooltip.Research` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.tooltip.Templates` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.docs.unlocks` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.artifact_mismatch` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.authentication_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.build_limit` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.build_stale` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.clan_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.creator_projection_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.custom_runtime_unsupported` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.destination_disabled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.document_build_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.document_disabled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.document_limit` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.document_not_found` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.document_not_owned` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.failed` | lab | code: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_build_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_cooldown` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_limits` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_not_installed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_pending` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_purchase_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.firmware_state_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.ghostlab_migration_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.ghostlab_not_installed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_blueprint` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_branding` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_destination` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_folder` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_icon` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_lease` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_payload` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_project` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_reaction` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_receipt` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_request` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.invalid_window` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.inventory_limit` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.inventory_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.not_logged_in` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.offer_changed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.project_limit` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.project_not_found` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.project_revision_conflict` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.publication_name_conflict` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.publication_owner_conflict` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.publication_withdrawn` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.published_project_retained` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.purchase_key_conflict` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.purchase_key_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.request_id_conflict` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.request_id_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.requirements_not_met` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.restart_pending` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.runtime_disabled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.scanner_busy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.scanner_inactive` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.scanner_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.template_creation_disabled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.template_publication_disabled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.ticket_build_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.ticket_not_found` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.ticket_runtime_disabled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.travel_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.unsaved_blueprint` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.unsaved_branding` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.error.wallet_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.allowed_switches` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.button_color` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.camera` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.city` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.conflict_matrix` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.contact_message` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.content` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.cooldown_minutes` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.country` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.denied_log` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.denied_text` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.detection_percent` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.disk_mb` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.empty_log` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.empty_text` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.error_log` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.error_text` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.extra_retries` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.extra_timeout` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.failure_message` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.frame_color` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.frame_id` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.include_created_at` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.include_status` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.include_type` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.installers` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.lat` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.lng` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.log_1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.log_2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.log_3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.log_4` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.log_limit` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.menu_name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.objects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.pattern_id` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.place_name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.preset` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.presets` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.protected_apps` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.recon` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.redaction_policy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.remove_tools_file` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.reward_note` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.rules` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.scan_m` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.sfx_id` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.start_log` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.start_text` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.steal_percent` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.success_log` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.success_message` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.success_percent` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.success_text` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.system` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.target_policy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.usage_policy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.victim_message` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.field.visibility` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.access` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.access_changed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.access_to` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.app` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.app_removed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.apps` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.artifact_changed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.balance` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.chance` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.complete` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.confirmed_display_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.contact` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.contact_kicked` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.contacts` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.cooldown` | lab | seconds: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.detected` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.detection` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.expired` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.expired_locked` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.family_cooldown` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.hidden` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.invalid_reply` | lab | status: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.no` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.no_logs` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.no_security` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.no_tools` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.not_installed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.refresh` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.removed_app` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.removed_contact` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.reopen` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.arsenal_cleaner.removed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.arsenal_cleaner.unchanged` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.financial` | lab | amount: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.friend_kicker.removed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.friend_kicker.unchanged` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.intruder_kicker` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.security_panel` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.result.system_logs` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.roll` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.security_conflicts` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.security_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.security_saved` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.security_saving` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.silent` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.starting` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.stolen` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.truncated` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.type` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.unchanged` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.unconfirmed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.unsupported` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.victim` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.victim_balance` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.pvp.yes` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.result.compiled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.result.created` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.result.deleted` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.result.published` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.result.saved` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.result.withdrawn` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.access_required` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.action_result` | lab | label: string, result: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.action_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.application` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.choice_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.choose` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.completed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.confirmed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.execute` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.failure` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.free` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.loading` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.offline` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.option` | lab | index: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.quote` | lab | amount: number, recipient: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.quote_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.read_logs` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.refresh` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.rejected` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.reopen` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.reserve_quote` | lab | amount: number, recipient: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.reserved` | lab | amount: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.run` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.security` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.started` | lab | id: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.success` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.target` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.target_changed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.update` | lab | version: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.used` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.versions` | lab | installed: number, available: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.runtime.wait` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.api_error` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.buy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.buy_confirm` | lab | price: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.buy_price` | lab | price: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.capacity` | lab | disk: number, scan: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.chance` | lab | chance: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.checking` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.clean` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.cleanup_confirm` | lab | count: number, size: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.cleanup_count` | lab | count: number, size: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.cleanup_result` | lab | count: number, size: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.cleanup_run` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.cleanup_scope` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.confirm` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.confirm_details` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.crash_description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.crash_safe` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.crash_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.current` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.current_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_audio` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_denied` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_empty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_error` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_result` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_selected` | lab | effect: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_stopped` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_success` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.demo_visual` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.denied` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.detection` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.duplicate` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.empty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_check` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_failure` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_retry` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_risk` | lab | disk: number, scan: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_success` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.firmware_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.flash` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.flash_action` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.flash_confirm` | lab | chance: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.flash_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.flashing` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.gains` | lab | disk: number, scan: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.gains_saved` | lab | disk: number, scan: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.image_prepare` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.last_attempt` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.limits` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.next` | lab | date: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.no_attempt` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.no_gains` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.paid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.paid_check` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.pending_first` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.planned` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.preparing` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.preset` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.preview_error` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.purchase_summary` | lab | price: number, chance: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.purchase_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.refresh` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.refresh_next` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.restart` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.restart_preparing` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.restart_ready` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.restore` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.restore_confirm` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.restoring` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.retry` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.run` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.saved` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_activating` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_active` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_close` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_refresh` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_stopped` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scanner_update` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.scope_changed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.security_choose` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.security_confirm` | lab | preset: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.security_level` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.security_ready` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.security_result` | lab | preset: string, count: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.security_run` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.stop` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.update` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.update_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.update_result` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.update_run` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.service.withdrawn` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.arsenal_cleaner.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.arsenal_cleaner.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.deep_scanner.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.deep_scanner.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.file_cleanup.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.file_cleanup.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.financial_sniffer.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.financial_sniffer.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.firmware_update.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.firmware_update.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.friend_kicker.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.friend_kicker.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.intruder_kicker.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.intruder_kicker.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.ptk_document.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.ptk_document.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.security_panel_proxy.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.security_panel_proxy.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.security_restore.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.security_restore.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.system_log_reader.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.system_log_reader.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.system_update.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.system_update.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.travel_ticket.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.template.travel_ticket.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.active` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.back_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.back_projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.brand` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.builds` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.cancel` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.category` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.change_name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.choose_template` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compile` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compile_dirty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compile_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compile_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compile_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compiled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compiler_offline` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.compiling` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.create` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.create_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.create_project` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.created` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.creating` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.danger` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.delete` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.delete_button` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.delete_confirm` | lab | name: string | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.delete_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.delete_select` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.delete_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.deleted` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.deleting` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.description` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.description_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.dirty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.dirty_open` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.document_content` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.document_editions` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.document_settings` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.document_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.documentation` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.draft_saved` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.edit` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.editor_offline` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.empty_projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.empty_projects_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.export` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.export_dirty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.export_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.export_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.export_none` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.export_offline` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.exporting` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.field_unsupported` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.frozen` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.10` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.4` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.5` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.6` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.7` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.8` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.future.9` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.hide` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.hide_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.icon` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.icon_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.idle` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.invalid_save` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.launch` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.launch.document` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.launch.own_system` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.launch.player_hack_access` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.launch.purchase_travel` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.loading_projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.loading_templates` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.markdown_content` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.markdown_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.name_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.name_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.new_project` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.no_builds` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.not_selected` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.official` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.onboarding_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.onboarding_hidden` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.open_project` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.open_project_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.open_select` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.policy` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.presentation` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.presentation_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.preview` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.preview_empty` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.preview_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price_default` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price_placeholder` | lab | amount: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price_ptk` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price_pvp` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.price_ticket` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.progress` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.project_name` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.project_templates` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.projects_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.projects_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.projects_loaded` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.projects_loading` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.projects_offline` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publication` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_button_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_invalid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_none` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_stale` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publish_to` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.published` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publisher_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publisher_offline` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.publishing` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.render` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.requirements` | lab | level: number, respect: number | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.retain` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.risk` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.0` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.1` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.2` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.3` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.4` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.5` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.6` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.7` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.roadmap.8` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.runtime_document` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.runtime_pvp` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.runtime_self` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.runtime_travel` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.runtime_unavailable` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.save` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.save_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.save_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.saved` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.saving` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.select_open` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.select_project` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.settings` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.standard` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.state` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.active` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.bundled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.compiled` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.current` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.done` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.draft` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.installed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.locked` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.planned` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.published` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.valid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.status.withdrawn` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.step_one` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.step_two` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.system_function` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tab` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tab.Documentation` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tab.Ghost_Exchange` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tab.Projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tab.Research` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tab.Templates` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.target` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.target.none` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.target.own_system` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.target.player` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.template` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.templates_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.ticket_publish` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.ticket_published` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.tier` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.update_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.valid` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.validate` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.validate_help` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.validating` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.version` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.withdraw` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.withdraw_confirm` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.withdraw_details` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.withdraw_failed` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.withdraw_prompt` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.withdraw_title` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.working` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |
+| `lab.ui.your_projects` | lab | — | ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154) |

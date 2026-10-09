@@ -16,7 +16,7 @@ for(const locale of ['pl','en']){
   normalizeMapMenuTarget:x=>({...x}),closeMenus:()=>{body.children=[];},setupGlobalCloseListener:()=>{},
   hackingAction:(...args)=>calls.push(args),aimMapTargetOnly:()=>{},escapeMapText:s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;')});
  require('./locale_fixture')(sandbox,locale);
- vm.runInContext(menu,sandbox);
+ vm.runInContext(source.slice(source.indexOf('function mapTargetLabelHtml('),source.indexOf('function targetStableId('))+menu,sandbox);
  for(const [type,expected] of Object.entries(cases)){
   const target={source_type:type,lat:1,lon:2,label:'UGC <keep>',name:'UGC <keep>',icon:'X',target_id:'stable:'+type};
   sandbox.showHackingMenuForMarker(1,2,target,'X',target.label);
@@ -28,6 +28,8 @@ for(const locale of ['pl','en']){
   assert.equal(target.label,'UGC <keep>');
  }
  captured[locale]=calls.map(args=>args.filter((_,index)=>index!==13)); // DOM busy control is not a gameplay value.
+ const label= sandbox.mapTargetLabelHtml({label_i18n:{key:'map.npc.customer',params:{},content_version:sandbox.GhostLocale.contentVersion}},'Klient');
+ assert(label.includes(locale==='en'?'Customer':'Klient'));
 }
 assert.deepEqual(JSON.parse(JSON.stringify(captured.pl)),JSON.parse(JSON.stringify(captured.en)));
 console.log('Map action locale: PASS (8 target categories, stable action payloads, escaped UGC)');

@@ -43,6 +43,7 @@ const cardSandbox = {
     String,
 };
 vm.createContext(cardSandbox);
+require('./locale_fixture')(cardSandbox);
 vm.runInContext(source.slice(cardStart, cardEnd), cardSandbox);
 const activeCard = cardSandbox.ghostnetworkSuiteCard({
     public_entity_id: "p-active",
@@ -67,8 +68,8 @@ assert.match(suiteSource, /TERRITORY_CONTROL_ICONS\.teleport/);
 assert.doesNotMatch(suiteSource, />MAPA<|>TELEPORT</);
 assert.match(suiteSource, /body: JSON\.stringify\(target\)/);
 assert.doesNotMatch(suiteSource, /body: JSON\.stringify\(\{[^}]*lat/s);
-assert.match(suiteSource, /GHOSTNETWORK ZAMKNIETY · TRANSMISJA W TOKU/);
-assert.match(suiteSource, /NOWY CYKL OCZEKUJE NA STABILIZACJE/);
+assert.match(suiteSource, /apps.network.cycle.transmitting/);
+assert.match(suiteSource, /apps.network.cycle.stabilizing/);
 assert.match(suiteSource, /const existing = document\.querySelector/);
 assert.match(suiteSource, /GhostNetworkDeltaClient/);
 assert.match(suiteSource, /registerAdapter/);

@@ -5,7 +5,7 @@ import unittest
 class CybernerLiveDeliveryFrontendContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = pathlib.Path("static/js/terminal.js").read_text(encoding="utf-8")
+        cls.source = (pathlib.Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
 
     def test_send_uses_stable_client_message_id(self):
         self.assertIn("client_message_id: pendingSend.clientMessageId", self.source)
@@ -43,7 +43,7 @@ class CybernerLiveDeliveryFrontendContractTest(unittest.TestCase):
         self.assertGreaterEqual(self.source.count('class="mail-sidebar-section"'), 2)
         sidebar = self.source.split('<div class="mail-sidebar">', 1)[1].split('<div class="mail-main mail-chat">', 1)[0]
         self.assertLess(sidebar.index('mail-contact-search'), sidebar.index('mail-sidebar-scroll'))
-        self.assertIn('<div class="mail-section-title">Znajomi</div>', sidebar)
+        self.assertIn("ghostLabel('apps.cyberner.friends')", sidebar)
 
 
 if __name__ == "__main__":

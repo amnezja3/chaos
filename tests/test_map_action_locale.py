@@ -23,5 +23,15 @@ class MapActionLocaleTest(unittest.TestCase):
             text = translator().t('map.menu.mark', {'name': name}, locale)
             self.assertIn(name, text)
 
+    def test_scan_count_plural_forms_and_target_names(self):
+        runtime = translator()
+        for count, ending in [(0, 'obiektów.'), (1, 'obiekt.'), (2, 'obiekty.'), (12, 'obiektów.'), (22, 'obiekty.')]:
+            self.assertTrue(runtime.t('map.result.scanned', {'count': count}, 'pl').endswith(ending))
+        self.assertEqual(runtime.t('map.result.scanned', {'count': 1}, 'en'), '🔍 Scanned 1 new object.')
+        self.assertEqual(runtime.t('map.result.scanned', {'count': 12}, 'en'), '🔍 Scanned 12 new objects.')
+        for locale in ('pl', 'en'):
+            name = "Mike's <keep> {count}"
+            self.assertIn(name, runtime.t('map.result.aimed', {'name': name}, locale))
+
 
 if __name__ == '__main__': unittest.main()

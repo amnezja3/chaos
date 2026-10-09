@@ -3653,7 +3653,7 @@ function appendSystemTerminalScriptStatus(content, command, index, total) {
 function validateGeneratedAppNameForScripts(payload, status) {
     const name = String(payload?.name || "").trim();
     if (name.includes(";")) {
-        if (status) status.textContent = "Nazwa aplikacji nie moze zawierac srednika (;).";
+        if (status) ghostSet(status,'creator.legacy.invalid_name');
         return false;
     }
     return true;
@@ -4590,7 +4590,7 @@ async function openGhostLabInstalledApp(appId) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.style.maxWidth = 'calc(100vw - 24px)';
-    app.innerHTML = '<div class="title-bar"><span data-title>GhostLab</span><button class="close-btn">×</button></div><div class="system-log-reader-content" data-body>Ładowanie…</div>';
+    app.innerHTML = `<div class="title-bar"><span data-title>GhostLab</span><button class="close-btn">×</button></div><div class="system-log-reader-content" data-body>${ghostLabel('lab.runtime.loading')}</div>`;
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').onclick = () => { if (window.DeepScanner?.owns(app)) window.DeepScanner.stop(); app.remove(); };
@@ -4602,7 +4602,10 @@ async function openGhostLabInstalledApp(appId) {
             const response = await fetch('/api/ghostlab/installed/' + encodeURIComponent(appId), {cache: 'no-store', ...options});
             const data = await response.json();
             if (!app.isConnected || requestSerial !== serial || (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive)) return;
-            if (!response.ok || !data.success) throw Error(data.error || 'Aplikacja niedostępna.');
+            if (!response.ok || !data.success) {
+                body.innerHTML = ghostReply(data, 'lab.runtime.unavailable');
+                return;
+            }
             const product = data.product;
             app.querySelector('[data-title]').textContent = `${product.icon} ${product.name} v${product.installed_version}`;
             if (product.launch_mode === 'own_system') {
@@ -4619,27 +4622,27 @@ async function openGhostLabInstalledApp(appId) {
             }
             const tool = data.access?.tools?.find(item => item.id === appId);
             const enabled = data.access?.active && (tool?.enabled || tool?.can_reopen);
-            body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
-                <p>${escapeHTML(product.runtime_enabled ? (data.access?.active ? 'Cel: ' + (data.access.victim_nick || data.access.victim_username) : 'Uzyskaj dostęp PvP do gracza, a następnie odśwież panel.') : product.disabled_reason)}</p>
-                <div class="pro-tool-actions"><button data-run ${enabled ? '' : 'disabled'}>${tool?.can_reopen ? 'Otwórz ponownie panel' : product.family_id === 'systemLogReader' ? 'Odczytaj logi celu' : product.family_id === 'securityPanelProxy' ? 'Otwórz panel zabezpieczeń' : 'Uruchom na celu PvP'}</button>
-                <button data-refresh>Odśwież</button>
-                ${data.update_available ? '<button data-update>Aktualizuj bezpłatnie do v' + Number(data.available_version) + '</button>' : ''}</div>
-                <p>${tool?.used ? 'Limit tej rodziny został wykorzystany podczas tego dostępu.' : ''}</p>`;
+            body.innerHTML = `<p>${ghostLabel('lab.runtime.versions', {installed:Number(product.installed_version), available:data.available_version == null ? '—' : String(data.available_version)})}</p>
+                <p>${product.runtime_enabled ? (data.access?.active ? ghostLabel('lab.runtime.target', {name:data.access.victim_nick || data.access.victim_username}) : ghostLabel('lab.runtime.access_required')) : ghostLabel('lab.runtime.unavailable')}</p>
+                <div class="pro-tool-actions"><button data-run ${enabled ? '' : 'disabled'}>${ghostLabel(tool?.can_reopen ? 'lab.runtime.reopen' : product.family_id === 'systemLogReader' ? 'lab.runtime.read_logs' : product.family_id === 'securityPanelProxy' ? 'lab.runtime.security' : 'lab.runtime.run')}</button>
+                <button data-refresh>${ghostLabel('lab.runtime.refresh')}</button>
+                ${data.update_available ? `<button data-update>${ghostLabel('lab.runtime.update', {version:Number(data.available_version)})}</button>` : ''}</div>
+                <p>${tool?.used ? ghostLabel('lab.runtime.used') : ''}</p>`;
             body.querySelector('[data-refresh]').onclick = () => load();
             body.querySelector('[data-run]').onclick = async event => {
-                event.target.disabled = true;
+                event.currentTarget.disabled = true;
                 await refreshPlayerHackAccess(data.access);
                 await usePlayerHackTool(appId);
                 if (app.isConnected) await load();
             };
             body.querySelector('[data-update]')?.addEventListener('click', event => {
-                event.target.disabled = true;
+                event.currentTarget.disabled = true;
                 load({method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
                     expected_artifact_id: product.artifact_id, artifact_id: data.available_artifact_id
                 })});
             });
         } catch (error) {
-            if (app.isConnected && requestSerial === serial) body.textContent = error.message;
+            if (app.isConnected && requestSerial === serial) body.innerHTML = ghostLabel('lab.runtime.offline');
         }
     }
     await load();
@@ -4655,7 +4658,7 @@ function formatHackAccessTime(seconds) {
 function renderSystemLogReaderLogs(container, payload = {}) {
     const logs = Array.isArray(payload.logs) ? payload.logs : [];
     if (!logs.length) {
-        container.innerHTML = '<div class="system-log-reader-empty">Brak logow.</div>';
+        container.innerHTML = `<div class="system-log-reader-empty">${ghostLabel("lab.pvp.no_logs")}</div>`;
         return;
     }
 
@@ -4669,7 +4672,7 @@ function renderSystemLogReaderLogs(container, payload = {}) {
             <footer>
                 ${log.status ? `<span>status: ${escapeHTML(String(log.status))}</span>` : ''}
                 ${log.created_at ? `<span>${escapeHTML(String(log.created_at))}</span>` : ''}
-                ${log.truncated ? '<span>Treść skrócona.</span>' : ''}
+                ${log.truncated ? `<span>${ghostLabel("lab.pvp.truncated")}</span>` : ''}
             </footer>
         </article>
     `).join('');
@@ -4689,10 +4692,10 @@ function openSystemLogReaderApp(payload = {}) {
         <div class="title-bar">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'System Log Reader')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="system-log-reader-content">
             <div class="system-log-reader-meta">
-                <span>victim: <b>${escapeHTML(String(victimName))}</b></span>
-                <span>access: <b data-system-log-reader-countdown>${formatHackAccessTime(secondsLeft)}</b></span>
+                <span>${ghostLabel("lab.pvp.victim")} <b>${escapeHTML(String(victimName))}</b></span>
+                <span>${ghostLabel("lab.pvp.access")} <b data-system-log-reader-countdown>${formatHackAccessTime(secondsLeft)}</b></span>
             </div>
-            <div class="system-log-reader-message">${escapeHTML(String(payload.message || ''))}</div>
+            <div class="system-log-reader-message">${payload.message_i18n ? ghostReply(payload, 'lab.pvp.complete') : escapeHTML(String(payload.message || ''))}</div>
             <div class="system-log-reader-list"></div>
         </div>
     `;
@@ -4714,20 +4717,20 @@ function renderFinancialSnifferResult(container, payload = {}) {
     const detected = Boolean(payload.detected);
     container.innerHTML = `
         <div class="financial-sniffer-meta">
-            <span>victim: <b>${escapeHTML(String(victimName))}</b></span>
-            <span>access: <b>${formatHackAccessTime(access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0)}</b></span>
+            <span>${ghostLabel("lab.pvp.victim")} <b>${escapeHTML(String(victimName))}</b></span>
+            <span>${ghostLabel("lab.pvp.access")} <b>${formatHackAccessTime(access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0)}</b></span>
         </div>
         <div class="financial-sniffer-result ${detected ? 'detected' : 'silent'}">
             <strong>${stolen} ${escapeHTML(String(payload.currency || 'HC'))}</strong>
-            <span>${detected ? 'DETECTED' : 'SILENT'}</span>
+            <span>${detected ? ghostLabel('lab.pvp.detected') : ghostLabel('lab.pvp.silent')}</span>
         </div>
-        <p>${escapeHTML(String(payload.message || ''))}</p>
+        <p>${payload.message_i18n ? ghostReply(payload, 'lab.pvp.complete') : escapeHTML(String(payload.message || ''))}</p>
         <div class="financial-sniffer-details">
             ${payload.reward_note ? `<div>${escapeHTML(String(payload.reward_note))}</div>` : ''}
-            <div>Skradziono: <b>${stolen} HC</b></div>
-            <div>Detekcja: <b>${detected ? 'tak' : 'nie'}</b></div>
-            ${payload.attacker_balance !== undefined ? `<div>Twoje saldo: <b>${Number(payload.attacker_balance || 0)} HC</b></div>` : ''}
-            <div>Saldo ofiary: <b>ukryte</b></div>
+            <div>${ghostLabel("lab.pvp.stolen")} <b>${stolen} HC</b></div>
+            <div>${ghostLabel("lab.pvp.detection")} <b>${detected ? ghostLabel('lab.pvp.yes') : ghostLabel('lab.pvp.no')}</b></div>
+            ${payload.attacker_balance !== undefined ? `<div>${ghostLabel("lab.pvp.balance")} <b>${Number(payload.attacker_balance || 0)} HC</b></div>` : ''}
+            <div>${ghostLabel("lab.pvp.victim_balance")} <b>${ghostLabel("lab.pvp.hidden")}</b></div>
         </div>
     `;
 }
@@ -4759,20 +4762,20 @@ function renderFriendKickerResult(container, payload = {}) {
     const detected = Boolean(payload.detected);
     container.innerHTML = `
         <div class="friend-kicker-meta">
-            <span>victim: <b>${escapeHTML(String(victimName))}</b></span>
-            <span>access: <b>${formatHackAccessTime(access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0)}</b></span>
+            <span>${ghostLabel("lab.pvp.victim")} <b>${escapeHTML(String(victimName))}</b></span>
+            <span>${ghostLabel("lab.pvp.access")} <b>${formatHackAccessTime(access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0)}</b></span>
         </div>
         <div class="friend-kicker-result ${removed ? 'removed' : 'failed'}">
-            <strong>${removed ? 'CONTACT KICKED' : 'NO CHANGE'}</strong>
-            <span>${detected ? 'DETECTED' : 'SILENT'}</span>
+            <strong>${removed ? ghostLabel('lab.pvp.contact_kicked') : ghostLabel('lab.pvp.unchanged')}</strong>
+            <span>${detected ? ghostLabel('lab.pvp.detected') : ghostLabel('lab.pvp.silent')}</span>
         </div>
-        <p>${escapeHTML(String(payload.message || ''))}</p>
+        <p>${payload.message_i18n ? ghostReply(payload, 'lab.pvp.complete') : escapeHTML(String(payload.message || ''))}</p>
         <div class="friend-kicker-details">
-            <div>Usunieto kontakt: <b>${removed ? 'tak' : 'nie'}</b></div>
-            ${payload.kicked_contact_masked ? `<div>Kontakt: <b>${escapeHTML(String(payload.kicked_contact_masked))}</b></div>` : ''}
-            <div>Szansa: <b>${Number(payload.chance || 0)}%</b></div>
-            <div>Rzut: <b>${Number(payload.roll || 0)}</b></div>
-            <div>Lista kontaktow ofiary: <b>ukryta</b></div>
+            <div>${ghostLabel("lab.pvp.removed_contact")} <b>${removed ? ghostLabel('lab.pvp.yes') : ghostLabel('lab.pvp.no')}</b></div>
+            ${payload.kicked_contact_masked ? `<div>${ghostLabel("lab.pvp.contact")} <b>${escapeHTML(String(payload.kicked_contact_masked))}</b></div>` : ''}
+            <div>${ghostLabel("lab.pvp.chance")} <b>${Number(payload.chance || 0)}%</b></div>
+            <div>${ghostLabel("lab.pvp.roll")} <b>${Number(payload.roll || 0)}</b></div>
+            <div>${ghostLabel("lab.pvp.contacts")} <b>${ghostLabel("lab.pvp.hidden")}</b></div>
         </div>
     `;
 }
@@ -4803,21 +4806,21 @@ function renderArsenalCleanerResult(container, payload = {}) {
     const detected = Boolean(payload.detected);
     container.innerHTML = `
         <div class="arsenal-cleaner-meta">
-            <span>victim: <b>${escapeHTML(String(victimName))}</b></span>
-            <span>access: <b>${formatHackAccessTime(access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0)}</b></span>
+            <span>${ghostLabel("lab.pvp.victim")} <b>${escapeHTML(String(victimName))}</b></span>
+            <span>${ghostLabel("lab.pvp.access")} <b>${formatHackAccessTime(access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0)}</b></span>
         </div>
         <div class="arsenal-cleaner-result ${removed ? 'removed' : 'failed'}">
-            <strong>${removed ? 'APP REMOVED' : 'NO CHANGE'}</strong>
-            <span>${detected ? 'DETECTED' : 'SILENT'}</span>
+            <strong>${removed ? ghostLabel('lab.pvp.app_removed') : ghostLabel('lab.pvp.unchanged')}</strong>
+            <span>${detected ? ghostLabel('lab.pvp.detected') : ghostLabel('lab.pvp.silent')}</span>
         </div>
-        <p>${escapeHTML(String(payload.message || ''))}</p>
+        <p>${payload.message_i18n ? ghostReply(payload, 'lab.pvp.complete') : escapeHTML(String(payload.message || ''))}</p>
         <div class="arsenal-cleaner-details">
-            <div>Usunieto aplikacje: <b>${removed ? 'tak' : 'nie'}</b></div>
-            ${payload.removed_app_masked ? `<div>Aplikacja: <b>${escapeHTML(String(payload.removed_app_masked))}</b></div>` : ''}
-            ${payload.removed_app_type ? `<div>Typ: <b>${escapeHTML(String(payload.removed_app_type))}</b></div>` : ''}
-            <div>Szansa: <b>${Number(payload.chance || 0)}%</b></div>
-            <div>Rzut: <b>${Number(payload.roll || 0)}</b></div>
-            <div>Lista aplikacji ofiary: <b>ukryta</b></div>
+            <div>${ghostLabel("lab.pvp.removed_app")} <b>${removed ? ghostLabel('lab.pvp.yes') : ghostLabel('lab.pvp.no')}</b></div>
+            ${payload.removed_app_masked ? `<div>${ghostLabel("lab.pvp.app")} <b>${escapeHTML(String(payload.removed_app_masked))}</b></div>` : ''}
+            ${payload.removed_app_type ? `<div>${ghostLabel("lab.pvp.type")} <b>${escapeHTML(String(payload.removed_app_type))}</b></div>` : ''}
+            <div>${ghostLabel("lab.pvp.chance")} <b>${Number(payload.chance || 0)}%</b></div>
+            <div>${ghostLabel("lab.pvp.roll")} <b>${Number(payload.roll || 0)}</b></div>
+            <div>${ghostLabel("lab.pvp.apps")} <b>${ghostLabel("lab.pvp.hidden")}</b></div>
         </div>
     `;
 }
@@ -4866,7 +4869,7 @@ function renderSecurityPanelProxy(container, payload = {}) {
         .filter(([, value]) => typeof value === 'boolean')
         .map(([key, value]) => `
             <label class="security-panel-proxy-row" title="${escapeHTML(key)}">
-                <span>${escapeHTML(key)}</span>
+                <span>${ghostSystemValue('map.security.', key)}</span>
                 <input type="checkbox" data-security-key="${escapeHTML(key)}" ${value ? 'checked' : ''} ${isExpired ? 'disabled' : ''}>
                 <b>${value ? 'ON' : 'OFF'}</b>
             </label>
@@ -4875,19 +4878,20 @@ function renderSecurityPanelProxy(container, payload = {}) {
 
     container.innerHTML = `
         <div class="security-panel-proxy-meta">
-            <span>victim: <b>${escapeHTML(String(victimNick))}</b></span>
-            <span>access: <b>${formatHackAccessTime(secondsLeft)}</b></span>
+            <span>${ghostLabel("lab.pvp.victim")} <b>${escapeHTML(String(victimNick))}</b></span>
+            <span>${ghostLabel("lab.pvp.access")} <b>${formatHackAccessTime(secondsLeft)}</b></span>
         </div>
         <div class="security-panel-proxy-presets">
-            <button type="button" data-security-refresh ${isExpired ? 'disabled' : ''}>Odśwież</button>
+            <button type="button" data-security-refresh ${isExpired ? 'disabled' : ''}>${ghostLabel("lab.pvp.refresh")}</button>
             ${['open', 'low', 'regular', 'secure', 'all'].map(preset => `
-                <button type="button" data-security-preset="${preset}" ${isExpired ? 'disabled' : ''}>${preset}</button>
+                <button type="button" data-security-preset="${preset}" ${isExpired ? 'disabled' : ''}>${ghostSystemValue('map.preset.', preset)}</button>
             `).join('')}
         </div>
         <div class="security-panel-proxy-message ${isExpired ? 'error' : ''}" data-security-proxy-message>
-            ${isExpired ? 'Dostep wygasl. Przyciski sa zablokowane.' : escapeHTML(String(payload.message || ''))}
+            ${isExpired ? ghostLabel('lab.pvp.expired_locked') : payload.message_i18n ? ghostReply(payload, 'lab.pvp.security_saved') : escapeHTML(String(payload.message || ''))}
+            ${payload.changed_by_rules?.length ? ghostLabel('lab.pvp.security_conflicts') + ' ' + payload.changed_by_rules.map(key => ghostSystemValue('map.security.', key)).join(', ') : ''}
         </div>
-        <div class="security-panel-proxy-list">${rows || '<div class="security-panel-proxy-empty">Brak boolean security.</div>'}</div>
+        <div class="security-panel-proxy-list">${rows || `<div class="security-panel-proxy-empty">${ghostLabel("lab.pvp.no_security")}</div>`}</div>
     `;
 
     container.querySelectorAll('[data-security-key]').forEach(toggle => {
@@ -4901,7 +4905,7 @@ function renderSecurityPanelProxy(container, payload = {}) {
                 victim_username: victimUsername, tool_id: container._securityContext.tool_id
             }));
             const data = await response.json();
-            if (!response.ok || !data.success) throw Error(data.error || 'Panel niedostępny.');
+            if (!response.ok || !data.success) throw Error(ghostResponseText(data, 'lab.pvp.unavailable'));
             renderSecurityPanelProxy(container, data);
         } catch (error) { securityPanelProxySetMessage(container, 'error', error.message); }
     });
@@ -4929,7 +4933,7 @@ function openSecurityPanelProxyApp(payload = {}) {
 }
 
 async function updateVictimSecurity(victimUsername, key, value, container) {
-    securityPanelProxySetMessage(container, '', 'Zapisywanie...');
+    securityPanelProxySetMessage(container, '', ghostText('lab.pvp.security_saving'));
     try {
         const res = await fetch('/api/player-hack/security/update', {
             method: 'POST',
@@ -4938,24 +4942,22 @@ async function updateVictimSecurity(victimUsername, key, value, container) {
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-            throw new Error(data.error || 'Nie udalo sie zapisac zabezpieczenia.');
+            throw new Error(ghostResponseText(data, 'lab.pvp.security_failed'));
         }
         renderSecurityPanelProxy(container, {
             ...data,
             victim_username: victimUsername,
             victim_nick: container.closest('.security-panel-proxy-window')?.dataset.victimNick || victimUsername,
-            message: data.changed_by_rules && data.changed_by_rules.length
-                ? `Reguly konfliktu wylaczyly: ${data.changed_by_rules.join(', ')}`
-                : 'Zapisano.'
+            message_i18n: {key:'lab.pvp.security_saved', params:{}, content_version:window.GhostLocale.contentVersion}
         });
     } catch (err) {
-        securityPanelProxySetMessage(container, 'error', err.message || 'Blad zapisu.');
+        securityPanelProxySetMessage(container, 'error', err.message || ghostText('lab.pvp.security_failed'));
         container.querySelectorAll('button:not([data-security-refresh]), input').forEach(el => el.disabled = true);
     }
 }
 
 async function applyVictimSecurityPreset(victimUsername, preset, container) {
-    securityPanelProxySetMessage(container, '', `Preset ${preset}...`);
+    securityPanelProxySetMessage(container, '', ghostText('lab.pvp.security_saving'));
     try {
         const res = await fetch('/api/player-hack/security/preset', {
             method: 'POST',
@@ -4964,16 +4966,16 @@ async function applyVictimSecurityPreset(victimUsername, preset, container) {
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-            throw new Error(data.error || 'Nie udalo sie zastosowac presetu.');
+            throw new Error(ghostResponseText(data, 'lab.pvp.security_failed'));
         }
         renderSecurityPanelProxy(container, {
             ...data,
             victim_username: victimUsername,
             victim_nick: container.closest('.security-panel-proxy-window')?.dataset.victimNick || victimUsername,
-            message: `Preset ${preset} zapisany.`
+            message_i18n: {key:'lab.pvp.security_saved', params:{}, content_version:window.GhostLocale.contentVersion}
         });
     } catch (err) {
-        securityPanelProxySetMessage(container, 'error', err.message || 'Blad presetu.');
+        securityPanelProxySetMessage(container, 'error', err.message || ghostText('lab.pvp.security_failed'));
         container.querySelectorAll('button:not([data-security-refresh]), input').forEach(el => el.disabled = true);
     }
 }
@@ -5030,21 +5032,23 @@ function renderPlayerHackAccessPanel(access) {
             <span>PLAYER ACCESS</span>
             <strong data-player-hack-countdown>${formatHackAccessTime(playerHackAccessState.seconds_left)}</strong>
         </div>
-        <div class="player-hack-access-victim">Dostep do: <b>${escapeHTML(access.victim_nick || access.victim_username || 'unknown')}</b></div>
+        <div class="player-hack-access-victim">${ghostLabel("lab.pvp.access_to")} <b>${escapeHTML(access.victim_nick || access.victim_username || 'unknown')}</b></div>
         <div class="player-hack-access-tools">
             ${tools.map(tool => {
                 const installed = tool.installed === true;
                 const disabled = !installed || (tool.enabled === false && !tool.can_reopen);
-                const reason = tool.disabled_reason || "Narzedzie nie jest zainstalowane.";
+                const reasonKey = !installed ? 'lab.pvp.not_installed' : tool.used ? 'lab.runtime.used' : tool.cooldown_seconds ? 'lab.pvp.cooldown' : 'lab.pvp.unavailable';
+                const reasonParams = reasonKey === 'lab.pvp.cooldown' ? {seconds:Number(tool.cooldown_seconds)} : {};
+                const reason = ghostText(reasonKey, reasonParams);
                 const price = Number(tool.price || tool.price_hc || 0);
                 const title = disabled ? reason : (tool.description || "");
                 return `
                 <button type="button" class="player-hack-tool-btn" data-tool-id="${escapeHTML(tool.id)}" title="${escapeHTML(title)}" ${disabled ? "disabled" : ""}>
-                    <span>${escapeHTML(tool.icon || '')} ${escapeHTML(tool.name || tool.id)}</span>
-                    <small>${disabled ? escapeHTML(reason) : tool.can_reopen ? 'Otwórz ponownie panel' : `LVL ${Number(tool.required_level || 1)} / ${price} HC`}</small>
+                    <span>${escapeHTML(tool.icon || '')} ${ghostProductLabel(tool, 'name', tool.id)}</span>
+                    <small>${disabled ? ghostLabel(reasonKey, reasonParams) : tool.can_reopen ? ghostLabel('lab.pvp.reopen') : `LVL ${Number(tool.required_level || 1)} / ${price} HC`}</small>
                 </button>
             `;
-            }).join('') || '<p>Brak zainstalowanych narzędzi do tego dostępu.</p>'}
+            }).join('') || `<p>${ghostLabel("lab.pvp.no_tools")}</p>`}
         </div>
         <div class="player-hack-access-message" data-player-hack-message></div>
     `;
@@ -5067,7 +5071,7 @@ function renderPlayerHackAccessPanel(access) {
             playerHackAccessTimer = null;
             const expiredState = playerHackAccessState;
             const msg = panel.querySelector('[data-player-hack-message]');
-            if (msg) msg.textContent = 'Dostep wygasl.';
+            if (msg) ghostSet(msg, 'lab.pvp.expired');
             setTimeout(() => {
                 if (playerHackAccessState === expiredState) renderPlayerHackAccessPanel(null);
             }, 1200);
@@ -5104,11 +5108,12 @@ async function refreshPlayerHackAccess(prefetched = null) {
 
 function openIntruderKickerApp(payload = {}) {
     const app = document.createElement('div');
-    app.className = 'app-window pro-tool-window';
+    app.className = 'app-window pro-tool-window intruder-kicker-window';
     Object.assign(app.style, { position: 'absolute', top: '60px', left: '12px',
         width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100vh - 90px)', overflow: 'auto' });
-    app.innerHTML = `<div class="app-header">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Intruder Kicker')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <button class="close-btn" aria-label="Zamknij">×</button></div>
-        <div style="padding:16px;overflow-wrap:anywhere">${escapeHTML(payload.message || '')}</div>`;
+    app.innerHTML = `<div class="app-header">${escapeHTML(payload.tool?.icon || '')} ${escapeHTML(payload.tool?.name || 'Intruder Kicker')} ${payload.tool?.artifact_id ? escapeHTML('v' + payload.tool.installed_version) : ''} <button class="close-btn" data-ghost-aria-label="shell.window.close" aria-label="${escapeHTML(ghostText('shell.window.close'))}">×</button></div>
+        <p>${ghostLabel('lab.pvp.victim')} <b>${escapeHTML(payload.access?.victim_nick || payload.access?.victim_username || payload.victim_username || '')}</b></p>
+        <div style="padding:16px;overflow-wrap:anywhere">${payload.message_i18n ? ghostReply(payload, 'lab.pvp.complete') : escapeHTML(payload.message || '')}</div>`;
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
@@ -5129,7 +5134,7 @@ async function usePlayerHackTool(toolId) {
         && panel.isConnected !== false
         && (typeof desktopSessionActive === 'undefined' || desktopSessionActive);
     const msg = panel.querySelector('[data-player-hack-message]');
-    if (msg) msg.textContent = 'Uruchamianie narzedzia...';
+    if (msg) ghostSet(msg, 'lab.pvp.starting');
     let confirmedResult = null;
     try {
         const res = selectedTool?.can_reopen ? await fetch('/api/player-hack/security?' + new URLSearchParams({
@@ -5146,18 +5151,17 @@ async function usePlayerHackTool(toolId) {
         const data = await res.json().catch(() => null);
         if (!currentRequest()) return;
         if (!data) {
-            if (msg) msg.textContent = `HTTP ${res.status || 'error'}: nieprawidlowa odpowiedz. Wynik operacji niepotwierdzony.`;
+            if (msg) ghostSet(msg, 'lab.pvp.invalid_reply', {status:String(res.status || 'error')});
             return;
         }
         if (!res.ok || data.success === false) {
             if (data.access) refreshPlayerHackAccess(data.access);
             const currentMessage = panel.querySelector('[data-player-hack-message]');
-            if (currentMessage) currentMessage.textContent = data.reason === 'tool_already_used'
-                ? '' : (data.error || 'Narzędzie niedostepne.');
+            if (currentMessage) { delete currentMessage.dataset.ghostI18n; currentMessage.innerHTML = data.reason === 'tool_already_used' ? '' : data.message_i18n ? ghostReply(data, 'lab.pvp.unavailable') : escapeHTML(data.error || ghostText('lab.pvp.unavailable')); }
             return;
         }
         confirmedResult = data;
-        if (msg) msg.textContent = data.message || 'Operacja zakończona.';
+        if (msg) { delete msg.dataset.ghostI18n; msg.innerHTML = data.message_i18n ? ghostReply(data, 'lab.pvp.complete') : escapeHTML(data.message || ghostText('lab.pvp.complete')); }
         if (data.result_type === 'intruder_kicker') openIntruderKickerApp(data);
         if (data.result_type === 'system_logs') {
             openSystemLogReaderApp(data);
@@ -5178,9 +5182,10 @@ async function usePlayerHackTool(toolId) {
         if (data.access) refreshPlayerHackAccess(data.access);
     } catch (err) {
         if (!currentRequest()) return;
-        if (msg) msg.textContent = confirmedResult
-            ? `${confirmedResult.message || 'Serwer potwierdził operację.'} Nie udało się wyświetlić pełnego wyniku.`
-            : 'Błąd komunikacji z narzędziem. Wynik operacji niepotwierdzony.';
+        if (msg && confirmedResult) {
+            delete msg.dataset.ghostI18n;
+            msg.innerHTML = ghostRuntimeReply(confirmedResult, 'lab.pvp.complete') + ' ' + ghostLabel('lab.pvp.confirmed_display_failed');
+        } else if (msg) ghostSet(msg, 'lab.pvp.unconfirmed');
     } finally {
         requestAccess.toolInFlight = false;
         buttons.forEach((button, index) => { button.disabled = disabledBefore[index]; });
@@ -5294,26 +5299,27 @@ function createDevBugReporterApp() {
     Object.assign(app.style, {top: `${position.top}px`, left: `${position.left}px`, width: '620px', height: '580px'});
     app.innerHTML = `<div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right;cursor:pointer">✖</span></div>
         <div class="app-content" style="overflow:auto;min-height:0;flex:1;padding:16px">
-        <p>Zgłoś błąd administratorowi. Zgłoszenia są widoczne tylko w panelu admina.</p>
+        <p>${ghostLabel('apps.bugs.help')}</p>
         <div class="dev-bug-message" role="status"></div>
         <section class="dev-bug-card dev-bug-form-card"><form>
-        <label>Tytuł<input name="title" required maxlength="160"></label>
-        <label>Opis<textarea name="description" rows="6" placeholder="Kroki, oczekiwany wynik, aktualny wynik…"></textarea></label>
-        <div class="dev-bug-form-grid"><label>Kategoria<select name="category">${DEV_BUG_CATEGORIES.map(value=>`<option>${value}</option>`).join('')}</select></label>
-        <label>Ważność<select name="severity">${DEV_BUG_SEVERITIES.map(value=>`<option>${value}</option>`).join('')}</select></label></div>
-        <button type="submit">Wyślij zgłoszenie</button></form></section></div>`;
+        <label>${ghostLabel('apps.bugs.title')}<input name="title" required maxlength="160"></label>
+        <label>${ghostLabel('apps.bugs.description')}<textarea name="description" rows="6" data-ghost-i18n-placeholder="apps.bugs.steps"></textarea></label>
+        <div class="dev-bug-form-grid"><label>${ghostLabel('apps.bugs.category')}<select name="category">${DEV_BUG_CATEGORIES.map(value=>`<option value="${escapeHTML(value)}" data-ghost-i18n="apps.bugs.category.${value.replaceAll(' ', '_').toLowerCase()}">${escapeHTML(GhostLocale.t('apps.bugs.category.'+value.replaceAll(' ', '_').toLowerCase()))}</option>`).join('')}</select></label>
+        <label>${ghostLabel('apps.bugs.severity')}<select name="severity">${DEV_BUG_SEVERITIES.map(value=>`<option value="${value}" data-ghost-i18n="apps.bugs.severity.${value}">${escapeHTML(GhostLocale.t('apps.bugs.severity.'+value))}</option>`).join('')}</select></label></div>
+        <button type="submit">${ghostLabel('apps.bugs.submit')}</button></form></section></div>`;
     document.body.appendChild(app);makeDraggable(app);registerWindowInTaskbar(app);bringWindowToFront(app);
     app.querySelector('.close-btn').onclick=()=>app.remove();
     const form=app.querySelector('form'),message=app.querySelector('[role="status"]');
     form.onsubmit=async event=>{
-        event.preventDefault();const button=form.querySelector('button');button.disabled=true;message.textContent='Wysyłanie…';
+        event.preventDefault();const button=form.querySelector('button');button.disabled=true;ghostSet(message,'apps.bugs.sending');
         try{
             const payload=Object.fromEntries(new FormData(form));
             payload.context=await collectDevBugReporterContext();payload.current_url=location.href;payload.screen=`${innerWidth}x${innerHeight}`;
             const response=await fetch('/api/dev/bug-reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-            const data=await response.json();if(!response.ok||!data.success)throw new Error(data.message||'Błąd zapisu');
-            form.reset();message.textContent='Zgłoszenie #'+data.report.id+' zostało przekazane administratorowi.';
-        }catch(error){message.textContent=error.message;}finally{button.disabled=false;}
+            const data=await response.json();
+            if(!response.ok||!data.success){message.innerHTML=ghostReply(data,'apps.bugs.failed');delete message.dataset.ghostI18n;delete message.dataset.ghostParams;return;}
+            form.reset();ghostSet(message,'apps.bugs.sent',{id:Number(data.report.id)});
+        }catch(error){ghostSet(message,'apps.bugs.failed');}finally{button.disabled=false;}
     };
     return app;
 }
@@ -5372,19 +5378,19 @@ function app_window(id, levels) {
     const level = safeLevels[0] || {};
     const items = Array.isArray(level.list) && level.list.length
         ? level.list
-        : [`Aplikacja ${id} uruchomiona.`];
+        : [ghostText('lab.runtime.started', {id:String(id)})];
     const windowButtons = Array.isArray(level.buttons) ? level.buttons : [];
     const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "window");
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content ofs-author-shell ofs-author-window">
-            <header class="ofs-author-header"><span>WINDOW</span><h3>${escapeHTML(level.title || 'Aplikacja')}</h3></header>
-            <section class="ofs-author-content"><ul>${items.map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul></section>
+            <header class="ofs-author-header"><span>WINDOW</span><h3>${ghostApplicationField(level, 'title', level.title || ghostText('lab.runtime.application'))}</h3></header>
+            <section class="ofs-author-content"><ul>${items.map((item, index) => `<li>${ghostApplicationField(level, 'list.' + index, String(item || ''))}</li>`).join('')}</ul></section>
             <div class="button-row ofs-author-actions">
                 ${windowButtons.map((b, i) => `
                     <button data-action="${escapeHTML(b.action || '')}" data-label="${escapeHTML(b.label || '')}">
-                        ${escapeHTML(b.label || '')}
+                        ${ghostApplicationField(level, 'buttons.' + i + '.label', b.label || '')}
                     </button>
                 `).join('')}
             </div>
@@ -5426,10 +5432,8 @@ function app_window(id, levels) {
                 const success = response.success === true;
                 btn.classList.add("is-selected");
 
-                addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
-                resultBox.textContent = success
-                    ? "\u2714 Sukces!"
-                    : `\u2716 ${response.message || "Niepowodzenie."}`;
+                addSystemMessage('info', ghostText('lab.runtime.action_title'), ghostText('lab.runtime.action_result', {label:escapeHTML(label), result:success ? '✔' : '✖'}));
+                resultBox.innerHTML = ghostRuntimeReply(response, success ? 'lab.runtime.success' : 'lab.runtime.failure');
                 resultBox.style.color = success ? "#0f0" : "#f33";
                 if (success) {
                     appFlowTrace(app.dataset.appFlowId, "app_option_success", {
@@ -5459,11 +5463,11 @@ async function app_progressbar_random(id, levels) {
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content ofs-author-shell ofs-author-progress">
-            <header class="ofs-author-header"><span>EXECUTOR</span><h3>${escapeHTML(level.title || id)}</h3></header>
+            <header class="ofs-author-header"><span>EXECUTOR</span><h3>${ghostApplicationField(level, 'title', level.title || id)}</h3></header>
             <div class="progress-log ofs-progress-list">
                 ${steps.map((step, index) => `
                     <div class="ofs-progress-step" data-progress-step="${index}" data-state="running">
-                        <div class="ofs-progress-step-head"><span>${escapeHTML(String(step || ''))}</span><b>0%</b></div>
+                        <div class="ofs-progress-step-head"><span>${ghostApplicationField(level, 'steps.' + index, String(step || ''))}</span><b>0%</b></div>
                         <div class="progress-bar"><div class="progress-fill"></div></div>
                     </div>
                 `).join('')}
@@ -5534,11 +5538,11 @@ async function app_progressbar_random(id, levels) {
                     item.row.querySelector('b').textContent = success ? "100%" : `${item.value}%`;
                     item.row.dataset.state = success ? "complete" : "failed";
                 });
-                result.textContent = success
-                    ? (level.result_success || "Operacja zako\u0144czona.")
+                result.innerHTML = success
+                    ? ghostApplicationField(level, 'result_success', level.result_success || ghostText('lab.runtime.completed'))
                     : (staleTarget
-                        ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
-                        : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
+                        ? ghostLabel('lab.runtime.target_changed')
+                        : ghostApplicationField(level, 'result_failure', level.result_failure || ghostText('lab.service.failed')));
                 result.dataset.tone = success ? "success" : (staleTarget ? "warning" : "failure");
                 feedback.presentProgressCompletion(authorProgress.map(item => ({
                     label: item.row.querySelector('.ofs-progress-step-head span')?.textContent || `Etap ${item.index + 1}`,
@@ -5874,29 +5878,29 @@ const VICTIM_PICKER_ICONS = {
 };
 
 const VICTIM_PICKER_SOURCE_LABELS = {
-    "profile.targets": "Oznaczone",
-    "player.friend": "Gracze",
-    "player.intruder": "Intruzi",
-    "player.aimed": "Gracze",
-    "clan_vulnerability": "Podatnosci",
-    "territory_conflict": "Konflikty"
+    "profile.targets": "apps.victim.source.marked",
+    "player.friend": "apps.victim.source.players",
+    "player.intruder": "apps.victim.source.intruders",
+    "player.aimed": "apps.victim.source.players",
+    "clan_vulnerability": "apps.victim.source.vulnerabilities",
+    "territory_conflict": "apps.victim.source.conflicts"
 };
 
 const VICTIM_PICKER_REASON_LABELS = {
-    out_of_range: "Daleki cel",
-    missing_position: "Brak pozycji celu",
-    missing_player_position: "Brak pozycji motocykla",
-    own_vulnerability: "Wlasne zgloszenie podatnosci"
+    out_of_range: "apps.victim.reason.out_of_range",
+    missing_position: "apps.victim.reason.missing_position",
+    missing_player_position: "apps.victim.reason.missing_player_position",
+    own_vulnerability: "apps.victim.reason.own_vulnerability"
 };
 
 const VICTIM_PICKER_REASON_BADGES = {
-    out_of_range: "DALEKI CEL",
-    missing_position: "BRAK POZYCJI",
-    missing_player_position: "BRAK MOTOCYKLA",
-    own_vulnerability: "WLASNA PODATNOSC",
-    self: "TY",
-    friend: "ZNAJOMY",
-    clan: "WLASNY KLAN"
+    out_of_range: "apps.victim.badge.out_of_range",
+    missing_position: "apps.victim.badge.missing_position",
+    missing_player_position: "apps.victim.badge.missing_player_position",
+    own_vulnerability: "apps.victim.badge.own_vulnerability",
+    self: "apps.victim.badge.self",
+    friend: "apps.victim.badge.friend",
+    clan: "apps.victim.badge.clan"
 };
 
 function formatVictimPickerCoords(position) {
@@ -5915,18 +5919,18 @@ function formatVictimPickerDistance(distance) {
 
 function getVictimPickerSourceLabel(candidate) {
     const key = String(candidate?.candidate_source || candidate?.source_type || "profile.targets");
-    return VICTIM_PICKER_SOURCE_LABELS[key] || key.replace(/[_:.]+/g, " ");
+    return (VICTIM_PICKER_SOURCE_LABELS[key] ? ghostText(VICTIM_PICKER_SOURCE_LABELS[key]) : "") || key.replace(/[_:.]+/g, " ");
 }
 
 function getVictimPickerReason(candidate) {
     const reason = String(candidate?.disabled_reason || "").trim();
-    return VICTIM_PICKER_REASON_LABELS[reason] || reason || "";
+    return (VICTIM_PICKER_REASON_LABELS[reason] ? ghostText(VICTIM_PICKER_REASON_LABELS[reason]) : "") || reason || "";
 }
 
 function getVictimPickerReasonBadge(candidate) {
     const reason = String(candidate?.disabled_reason || "").trim();
     if (!reason) return "";
-    return VICTIM_PICKER_REASON_BADGES[reason] || "NIEDOSTEPNY";
+    return (VICTIM_PICKER_REASON_BADGES[reason] ? ghostText(VICTIM_PICKER_REASON_BADGES[reason]) : "") || ghostText("apps.victim.badge.unavailable");
 }
 
 function getVictimPickerRisk(candidate, actionRange) {
@@ -5936,16 +5940,16 @@ function getVictimPickerRisk(candidate, actionRange) {
         return {
             key: "unknown",
             className: "risk-unknown",
-            label: "RYZYKO NIEZNANE",
-            title: "Brak dystansu celu"
+            label: ghostText("apps.victim.risk.unknown"),
+            title: ghostText("apps.victim.risk.no_distance")
         };
     }
     if (!Number.isFinite(range) || range <= 0) {
         return {
             key: "safe",
             className: "risk-safe",
-            label: "ZDALNY CEL",
-            title: "Cel jest oznaczony i moze byc atakowany zdalnie"
+            label: ghostText("apps.victim.risk.remote"),
+            title: ghostText("apps.victim.risk.remote_help")
         };
     }
     const dangerLimit = Math.max(180, Math.min(650, range * 0.35));
@@ -5953,23 +5957,23 @@ function getVictimPickerRisk(candidate, actionRange) {
         return {
             key: "danger",
             className: "risk-danger",
-            label: "GORACY CEL",
-            title: "Bardzo blisko motocykla: wysokie ryzyko namierzenia"
+            label: ghostText("apps.victim.risk.danger"),
+            title: ghostText("apps.victim.risk.danger_help")
         };
     }
     if (distance <= range) {
         return {
             key: "warning",
             className: "risk-warning",
-            label: "BLISKI CEL",
-            title: "Blisko motocykla: podwyzszone ryzyko reakcji"
+            label: ghostText("apps.victim.risk.warning"),
+            title: ghostText("apps.victim.risk.warning_help")
         };
     }
     return {
         key: "safe",
         className: "risk-safe",
-        label: "DALEKI CEL",
-        title: "Poza bezposrednim zasiegiem reakcji: bezpieczniejszy cel"
+        label: ghostText("apps.victim.badge.out_of_range"),
+        title: ghostText("apps.victim.risk.safe_help")
     };
 }
 
@@ -5991,7 +5995,7 @@ function groupVictimPickerCandidates(candidates) {
 function getVictimPickerActiveLabel(state = {}) {
     const target = state.aimed_target || {};
     const fromCandidates = (Array.isArray(state.candidates) ? state.candidates : []).find(item => item.is_aimed);
-    return target.label || target.name || fromCandidates?.label || "brak";
+    return target.label || target.name || fromCandidates?.label || ghostText("apps.victim.none");
 }
 
 function getVictimPickerScanId(item = {}) {
@@ -6056,7 +6060,7 @@ function normalizeVictimPickerScanResult(item = {}) {
 function groupVictimPickerScanResults(results) {
     return (Array.isArray(results) ? results : []).reduce((groups, result) => {
         const key = String(result.source_type || "pozostale");
-        const label = VICTIM_PICKER_SOURCE_LABELS[key] || key.replace(/[_:.]+/g, " ");
+        const label = (VICTIM_PICKER_SOURCE_LABELS[key] ? ghostText(VICTIM_PICKER_SOURCE_LABELS[key]) : "") || key.replace(/[_:.]+/g, " ");
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label).push(result);
         return groups;
@@ -6067,7 +6071,7 @@ function openVictimPickerMapFocus(focus = {}, label = "Victim Picker") {
     const lat = Number(focus?.lat);
     const lng = Number(focus?.lng);
     if (!hasUsableGameplayCoordinates({ lat, lng })) {
-        addSystemMessage("warning", "VICTIM PICKER", "Brak pozycji celu dla mapy.");
+        addSystemMessage("warning", "VICTIM PICKER", ghostText("apps.victim.no_position"));
         return false;
     }
     createMap();
@@ -6088,17 +6092,17 @@ async function teleportVictimPickerCandidate(candidate, refreshAfter = null) {
     const lat = Number(teleport.lat ?? candidate?.lat);
     const lng = Number(teleport.lng ?? candidate?.lng);
     if (!hasUsableGameplayCoordinates({ lat, lng })) {
-        addSystemMessage("warning", "VICTIM PICKER", "Brak poprawnych wspolrzednych teleportu.");
+        addSystemMessage("warning", "VICTIM PICKER", ghostText("apps.victim.invalid_teleport"));
         return false;
     }
     const label = candidate?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
     const accepted = await showGhostDecisionDialog({
-        title: "POTWIERDZENIE TELEPORTU",
-        message: `Wykonac teleport w okolice celu: ${label}?`,
-        details: "OK zmieni pozycje operatora i odswiezy mape. ANULUJ zostawi obecna pozycje.",
+        titleKey: "apps.victim.teleport.title",
+        messageKey: "apps.victim.teleport.message", messageParams: {label},
+        detailsKey: "apps.victim.teleport.details",
         confirmLabel: "OK",
-        cancelLabel: "ANULUJ",
+        cancelKey: "apps.victim.cancel",
         tone: "lime"
     });
     if (!accepted) return false;
@@ -6116,11 +6120,11 @@ async function teleportVictimPickerCandidate(candidate, refreshAfter = null) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.success === false) {
-        addSystemMessage("warning", "VICTIM PICKER", data.message || "Teleport odrzucony.");
+        addSystemMessage("warning", "VICTIM PICKER", ghostReply(data, "apps.victim.teleport.denied"));
         return false;
     }
 
-    addSystemMessage("success", "VICTIM PICKER", data.message || `Teleport wykonany: ${label}.`);
+    addSystemMessage("success", "VICTIM PICKER", ghostLabel("apps.victim.teleport.done", {label}));
     if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
     openVictimPickerMapFocus({
         ...teleport,
@@ -6141,7 +6145,7 @@ function setVictimPickerBusy(app, busy, message = "") {
     app.classList.toggle("is-loading", Boolean(busy));
     const status = app.querySelector("[data-victim-picker-status]");
     if (status) {
-        status.textContent = message || (busy ? "Synchronizacja..." : "");
+        status.textContent = message || (busy ? ghostText("apps.victim.sync") : "");
         status.hidden = !busy && !message;
     }
     app.querySelectorAll("[data-victim-picker-action]").forEach(button => {
@@ -6150,7 +6154,7 @@ function setVictimPickerBusy(app, busy, message = "") {
 }
 
 function renderVictimPickerEmpty(container, message) {
-    container.innerHTML = `<div class="victim-picker-empty">${escapeHTML(message || "Brak kandydatow.")}</div>`;
+    container.innerHTML = `<div class="victim-picker-empty">${escapeHTML(message || ghostText("apps.victim.empty"))}</div>`;
 }
 
 function renderVictimPickerFrame(app, state, bodyHtml, options = {}) {
@@ -6160,7 +6164,7 @@ function renderVictimPickerFrame(app, state, bodyHtml, options = {}) {
     const position = state.position || {};
     const range = Number(state.action_range_m);
     const view = state.view || "main";
-    const back = options.back ? `<button type="button" data-victim-picker-action="${escapeHTML(options.back)}" title="Wroc" aria-label="Wroc">${VICTIM_PICKER_ICONS.back}<span>Wroc</span></button>` : "";
+    const back = options.back ? `<button type="button" data-victim-picker-action="${escapeHTML(options.back)}" data-ghost-title="apps.victim.back" title="${escapeHTML(ghostText('apps.victim.back'))}" data-ghost-aria-label="apps.victim.back" aria-label="${escapeHTML(ghostText('apps.victim.back'))}">${VICTIM_PICKER_ICONS.back}<span>${ghostLabel("apps.victim.back")}</span></button>` : "";
     const screenTitle = options.title || (view === "scan_results" || view === "scan_loading" ? "SCAN" : view === "victims" ? "VICTIMS" : "Victim Picker");
 
     root.innerHTML = `
@@ -6169,21 +6173,21 @@ function renderVictimPickerFrame(app, state, bodyHtml, options = {}) {
                 <span class="victim-picker-brand-icon">${VICTIM_PICKER_ICONS.app}</span>
                 <div>
                     <strong>${escapeHTML(screenTitle)}</strong>
-                    <span>Lekki selektor celu bez Leafleta</span>
+                    <span>${ghostLabel("apps.victim.help")}</span>
                 </div>
             </div>
             <div class="victim-picker-meta">
-                <span title="Aktualny cel"><b>${ghostLabel("shell.target")}</b> ${escapeHTML(currentLabel)}</span>
-                <span title="Pozycja motocykla"><b>${VICTIM_PICKER_ICONS.bike}</b> ${escapeHTML(formatVictimPickerCoords(position))}</span>
-                <span title="Zasieg akcji"><b>${VICTIM_PICKER_ICONS.range}</b> ${Number.isFinite(range) ? `${Math.round(range)} m` : "--"}</span>
+                <span data-ghost-title="apps.victim.current_target" title="${escapeHTML(ghostText('apps.victim.current_target'))}"><b>${ghostLabel("shell.target")}</b> ${escapeHTML(currentLabel)}</span>
+                <span data-ghost-title="apps.victim.bike_position" title="${escapeHTML(ghostText('apps.victim.bike_position'))}"><b>${VICTIM_PICKER_ICONS.bike}</b> ${escapeHTML(formatVictimPickerCoords(position))}</span>
+                <span data-ghost-title="apps.victim.range" title="${escapeHTML(ghostText('apps.victim.range'))}"><b>${VICTIM_PICKER_ICONS.range}</b> ${Number.isFinite(range) ? `${Math.round(range)} m` : "--"}</span>
             </div>
         </header>
         <nav class="victim-picker-toolbar" aria-label="Victim Picker tools">
             ${back}
-            <button type="button" data-victim-picker-action="refresh" title="Odswiez" aria-label="Odswiez">${VICTIM_PICKER_ICONS.refresh}</button>
-            <button type="button" data-victim-picker-action="open-map" title="Otworz mape" aria-label="Otworz mape">${VICTIM_PICKER_ICONS.map}</button>
-            <button type="button" data-victim-picker-action="focus-active" title="Pokaz aktualny cel na mapie" aria-label="Pokaz aktualny cel na mapie">${VICTIM_PICKER_ICONS.aimed}</button>
-            <button type="button" data-victim-picker-action="close" title="Zamknij" aria-label="Zamknij">×</button>
+            <button type="button" data-victim-picker-action="refresh" data-ghost-title="apps.victim.refresh" title="${escapeHTML(ghostText('apps.victim.refresh'))}" data-ghost-aria-label="apps.victim.refresh" aria-label="${escapeHTML(ghostText('apps.victim.refresh'))}">${VICTIM_PICKER_ICONS.refresh}</button>
+            <button type="button" data-victim-picker-action="open-map" data-ghost-title="apps.victim.open_map" title="${escapeHTML(ghostText('apps.victim.open_map'))}" data-ghost-aria-label="apps.victim.open_map" aria-label="${escapeHTML(ghostText('apps.victim.open_map'))}">${VICTIM_PICKER_ICONS.map}</button>
+            <button type="button" data-victim-picker-action="focus-active" data-ghost-title="apps.victim.focus_active" title="${escapeHTML(ghostText('apps.victim.focus_active'))}" data-ghost-aria-label="apps.victim.focus_active" aria-label="${escapeHTML(ghostText('apps.victim.focus_active'))}">${VICTIM_PICKER_ICONS.aimed}</button>
+            <button type="button" data-victim-picker-action="close" data-ghost-title="apps.victim.close" title="${escapeHTML(ghostText('apps.victim.close'))}" data-ghost-aria-label="apps.victim.close" aria-label="${escapeHTML(ghostText('apps.victim.close'))}">×</button>
         </nav>
         <div class="victim-picker-status" data-victim-picker-status hidden></div>
         <section class="victim-picker-screen victim-picker-screen-${escapeHTML(view)}" data-victim-picker-screen>${bodyHtml || ""}</section>
@@ -6205,7 +6209,7 @@ function bindVictimPickerCommonActions(app, state) {
         const target = state.aimed_target;
         const focus = active?.focus || active || target;
         if (!hasUsableGameplayCoordinates(focus)) {
-            addSystemMessage("warning", "VICTIM PICKER", "Brak aktywnego celu do pokazania.");
+            addSystemMessage("warning", "VICTIM PICKER", ghostText("apps.victim.no_active"));
             return;
         }
         openVictimPickerMapFocus(focus, getVictimPickerActiveLabel(state));
@@ -6219,18 +6223,18 @@ function renderVictimPickerMain(app, state) {
             <button type="button" class="victim-picker-tile" data-victim-picker-action="scan">
                 <span class="victim-picker-tile-icon">${VICTIM_PICKER_ICONS.scan}</span>
                 <strong>SCAN</strong>
-                <span>Skanuj otoczenie motocykla</span>
+                <span>${ghostLabel("apps.victim.scan_help")}</span>
             </button>
             <button type="button" class="victim-picker-tile" data-victim-picker-action="victims">
                 <span class="victim-picker-tile-icon">${VICTIM_PICKER_ICONS.victims}</span>
                 <strong>VICTIMS</strong>
-                <span>Wybierz aktywny cel z ${Array.isArray(state.candidates) ? state.candidates.length : 0} kandydatow</span>
+                <span>${ghostLabel("apps.victim.candidates", {count: Array.isArray(state.candidates) ? state.candidates.length : 0})}</span>
             </button>
         </div>
         <div class="victim-picker-legend">
-            <span>${VICTIM_PICKER_ICONS.mark} oznacz</span>
-            <span>${VICTIM_PICKER_ICONS.aim} ustaw CEL</span>
-            <span>${VICTIM_PICKER_ICONS.map} pokaz</span>
+            <span>${VICTIM_PICKER_ICONS.mark} ${ghostLabel("apps.victim.mark")}</span>
+            <span>${VICTIM_PICKER_ICONS.aim} ${ghostLabel("apps.victim.set_target")}</span>
+            <span>${VICTIM_PICKER_ICONS.map} ${ghostLabel("apps.victim.show")}</span>
             <span>${VICTIM_PICKER_ICONS.teleport} teleport</span>
         </div>
     `, { title: "Victim Picker" });
@@ -6245,12 +6249,12 @@ function renderVictimPickerScanLoading(app, state) {
         <div class="victim-picker-loading">
             <div class="victim-picker-radar" aria-hidden="true">${VICTIM_PICKER_ICONS.scan}</div>
             <div>
-                <b>GhostSystem: skan otoczenia motocykla...</b>
-                <p>Pozycja i zasieg sa weryfikowane po stronie runtime.</p>
+                <b>${ghostLabel("apps.victim.scan_loading")}</b>
+                <p>${ghostLabel("apps.victim.scan_validation")}</p>
                 <ul class="victim-picker-scan-log">
-                    <li>kalibracja anteny</li>
-                    <li>rekonstrukcja sygnatur</li>
-                    <li>grupowanie wedlug source_type</li>
+                    <li>${ghostLabel("apps.victim.scan_calibrate")}</li>
+                    <li>${ghostLabel("apps.victim.scan_signatures")}</li>
+                    <li>${ghostLabel("apps.victim.scan_group")}</li>
                 </ul>
             </div>
         </div>
@@ -6263,13 +6267,13 @@ function renderVictimPickerScanResults(app, state) {
     const groups = groupVictimPickerScanResults(results);
     const body = `
         <div class="victim-picker-scan-actions">
-            <button type="button" data-victim-picker-action="clear-scan" title="Wyczysc scan" aria-label="Wyczysc scan">${VICTIM_PICKER_ICONS.clear}<span>Wyczysc scan</span></button>
-            <button type="button" data-victim-picker-action="go-victims" title="Przejdz do VICTIMS" aria-label="Przejdz do VICTIMS">${VICTIM_PICKER_ICONS.victims}<span>VICTIMS</span></button>
+            <button type="button" data-victim-picker-action="clear-scan" data-ghost-title="apps.victim.clear_scan" title="${escapeHTML(ghostText('apps.victim.clear_scan'))}" data-ghost-aria-label="apps.victim.clear_scan" aria-label="${escapeHTML(ghostText('apps.victim.clear_scan'))}">${VICTIM_PICKER_ICONS.clear}<span>${ghostLabel("apps.victim.clear_scan")}</span></button>
+            <button type="button" data-victim-picker-action="go-victims" data-ghost-title="apps.victim.go_victims" title="${escapeHTML(ghostText('apps.victim.go_victims'))}" data-ghost-aria-label="apps.victim.go_victims" aria-label="${escapeHTML(ghostText('apps.victim.go_victims'))}">${VICTIM_PICKER_ICONS.victims}<span>VICTIMS</span></button>
         </div>
         <div class="victim-picker-legend">
-            <span>${VICTIM_PICKER_ICONS.mark} oznacz</span>
-            <span>${VICTIM_PICKER_ICONS.marked} oznaczony</span>
-            <span>${VICTIM_PICKER_ICONS.map} pokaz na mapie</span>
+            <span>${VICTIM_PICKER_ICONS.mark} ${ghostLabel("apps.victim.mark")}</span>
+            <span>${VICTIM_PICKER_ICONS.marked} ${ghostLabel("apps.victim.marked")}</span>
+            <span>${VICTIM_PICKER_ICONS.map} ${ghostLabel("apps.victim.show_map")}</span>
         </div>
         <section class="victim-picker-list" data-victim-picker-list>
             ${results.length ? Array.from(groups.entries()).map(([groupLabel, items]) => `
@@ -6281,17 +6285,17 @@ function renderVictimPickerScanResults(app, state) {
                             <div class="victim-picker-copy">
                                 <strong>${escapeHTML(result.label || result.name || "unknown")}</strong>
                                 <span>${escapeHTML(result.source_type || "unknown")} / ${escapeHTML(formatVictimPickerDistance(result.distance_m))}</span>
-                                <em>${result.marked ? "Oznaczony" : "Wynik skanu"}</em>
+                                <em>${result.marked ? ghostText("apps.victim.marked_title") : ghostText("apps.victim.scan_result")}</em>
                             </div>
                             <div class="victim-picker-state">${result.marked ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.inRange}</div>
                             <div class="victim-picker-actions">
-                                <button type="button" data-victim-picker-action="mark-scan" data-scan-id="${escapeHTML(result.id)}" title="${result.marked ? "Oznaczony" : "Oznacz"}" aria-label="${result.marked ? "Oznaczony" : "Oznacz"}" ${result.marked ? "disabled data-original-disabled=\"1\"" : ""}>${result.marked ? VICTIM_PICKER_ICONS.marked : VICTIM_PICKER_ICONS.mark}</button>
-                                <button type="button" data-victim-picker-action="show-scan-map" data-scan-id="${escapeHTML(result.id)}" title="${result.marked ? "Pokaz na mapie" : "Najpierw oznacz obiekt"}" aria-label="Pokaz na mapie" ${result.marked ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.map}</button>
+                                <button type="button" data-victim-picker-action="mark-scan" data-scan-id="${escapeHTML(result.id)}" title="${result.marked ? ghostText("apps.victim.marked_title") : ghostText("apps.victim.mark_title")}" aria-label="${result.marked ? ghostText("apps.victim.marked_title") : ghostText("apps.victim.mark_title")}" ${result.marked ? "disabled data-original-disabled=\"1\"" : ""}>${result.marked ? VICTIM_PICKER_ICONS.marked : VICTIM_PICKER_ICONS.mark}</button>
+                                <button type="button" data-victim-picker-action="show-scan-map" data-scan-id="${escapeHTML(result.id)}" title="${result.marked ? ghostText("apps.victim.show_map") : ghostText("apps.victim.mark_first")}" data-ghost-aria-label="apps.victim.show_map" aria-label="${escapeHTML(ghostText('apps.victim.show_map'))}" ${result.marked ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.map}</button>
                             </div>
                         </article>
                     `).join("")}
                 </section>
-            `).join("") : `<div class="victim-picker-empty">Brak nowych obiektow w wyniku skanu.</div>`}
+            `).join("") : `<div class="victim-picker-empty">${ghostLabel("apps.victim.scan_empty")}</div>`}
         </section>
     `;
     renderVictimPickerFrame(app, state, body, { back: "back-main", title: "SCAN" });
@@ -6314,7 +6318,7 @@ function renderVictimPickerScanResults(app, state) {
                 return;
             }
             if (button.dataset.victimPickerAction !== "mark-scan" || scan.marked) return;
-            setVictimPickerBusy(app, true, "Oznaczam obiekt...");
+            setVictimPickerBusy(app, true, ghostText("apps.victim.marking"));
             try {
                 const response = await fetch("/map-action", {
                     method: "POST",
@@ -6337,16 +6341,16 @@ function renderVictimPickerScanResults(app, state) {
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok || data.error) {
-                    addSystemMessage("warning", "VICTIM PICKER", data.error || "Nie udalo sie oznaczyc obiektu.");
+                    addSystemMessage("warning", "VICTIM PICKER", ghostReply(data, "apps.victim.mark_failed"));
                     return;
                 }
                 scan.marked = true;
-                addSystemMessage("success", "VICTIM PICKER", "Obiekt oznaczony. Jest dostepny w VICTIMS.");
+                addSystemMessage("success", "VICTIM PICKER", ghostText("apps.victim.marked_ready"));
                 await loadVictimPickerData(app, state, "scan_results", { silent: true });
                 renderVictimPickerScanResults(app, state);
             } catch (error) {
                 console.warn("Victim Picker mark scan failed", error);
-                addSystemMessage("warning", "VICTIM PICKER", "Most oznaczania jest chwilowo niedostepny.");
+                addSystemMessage("warning", "VICTIM PICKER", ghostText("apps.victim.mark_offline"));
             } finally {
                 setVictimPickerBusy(app, false);
             }
@@ -6356,14 +6360,14 @@ function renderVictimPickerScanResults(app, state) {
 
 async function runVictimPickerScan(app, state) {
     renderVictimPickerScanLoading(app, state);
-    setVictimPickerBusy(app, true, "Skan...");
+    setVictimPickerBusy(app, true, ghostText("apps.victim.scanning"));
     try {
         await loadVictimPickerData(app, state, "scan_loading", { silent: true });
         const position = state.position || {};
         const lat = Number(position.lat);
         const lng = Number(position.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            throw new Error("Brak pozycji motocykla.");
+            throw new Error(ghostText("apps.victim.bike_missing"));
         }
         const response = await fetch("/map-action", {
             method: "POST",
@@ -6381,7 +6385,7 @@ async function runVictimPickerScan(app, state) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(data.message || data.status || "Skan odrzucony.");
+            throw new Error(data.message || data.status || ghostText("apps.victim.scan_denied"));
         }
         const origin = state.position || {};
         state.scan_results = (Array.isArray(data.markers) ? data.markers : [])
@@ -6398,7 +6402,7 @@ async function runVictimPickerScan(app, state) {
         renderVictimPickerFrame(app, state, `
             <div class="victim-picker-error">
                 <strong>${VICTIM_PICKER_ICONS.error} Scan offline</strong>
-                <p>${escapeHTML(error?.message || "Nie udalo sie wykonac skanu.")}</p>
+                <p>${escapeHTML(error?.message || ghostText("apps.victim.scan_failed"))}</p>
             </div>
         `, { back: "back-main", title: "SCAN" });
     } finally {
@@ -6426,9 +6430,9 @@ function renderVictimPickerVictims(app, state) {
     const groups = groupVictimPickerCandidates(candidates);
     const body = `
         <div class="victim-picker-legend">
-            <span>${VICTIM_PICKER_ICONS.aim} ustaw CEL</span>
-            <span>${VICTIM_PICKER_ICONS.aimed} aktualny CEL</span>
-            <span>${VICTIM_PICKER_ICONS.map} pokaz</span>
+            <span>${VICTIM_PICKER_ICONS.aim} ${ghostLabel("apps.victim.set_target")}</span>
+            <span>${VICTIM_PICKER_ICONS.aimed} ${ghostLabel("apps.victim.active")}</span>
+            <span>${VICTIM_PICKER_ICONS.map} ${ghostLabel("apps.victim.show")}</span>
             <span>${VICTIM_PICKER_ICONS.teleport} teleport</span>
         </div>
         <section class="victim-picker-list" data-victim-picker-list></section>
@@ -6439,7 +6443,7 @@ function renderVictimPickerVictims(app, state) {
     const list = root?.querySelector("[data-victim-picker-list]");
     if (!list) return;
     if (!candidates.length) {
-        renderVictimPickerEmpty(list, "Brak kandydatow w zasiegu aktualnych zrodel.");
+        renderVictimPickerEmpty(list, ghostText("apps.victim.empty_sources"));
     } else {
         list.innerHTML = Array.from(groups.entries()).map(([groupLabel, items]) => `
             <section class="victim-picker-group">
@@ -6462,13 +6466,13 @@ function renderVictimPickerVictims(app, state) {
                                 <strong title="${escapeHTML(candidate.label || "")}">${escapeHTML(candidate.label || "unknown")}</strong>
                                 <span>${escapeHTML(candidate.target_mode || "standard")} / ${escapeHTML(formatVictimPickerDistance(candidate.distance_m))}</span>
                                 <em class="victim-picker-risk" title="${escapeHTML(risk.title)}">${escapeHTML(candidate.can_aim ? risk.label : (reasonBadge || risk.label))}</em>
-                                ${candidate.is_aimed ? `<em class="victim-picker-badge-cel">CEL</em>` : ""}
+                                ${candidate.is_aimed ? `<em class="victim-picker-badge-cel">${ghostLabel("shell.target")}</em>` : ""}
                             </div>
-                            <div class="victim-picker-state" title="${candidate.is_aimed ? "Aktywny CEL" : candidate.can_aim ? risk.title : escapeHTML(reason || "Niedostepny")}">${getVictimPickerCandidateIcon(candidate)}</div>
+                            <div class="victim-picker-state" title="${candidate.is_aimed ? ghostText("apps.victim.active_target") : candidate.can_aim ? risk.title : escapeHTML(reason || ghostText("apps.victim.unavailable"))}">${getVictimPickerCandidateIcon(candidate)}</div>
                             <div class="victim-picker-actions">
-                                <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? (candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL") : escapeHTML(reason || "Niedostepny")}" aria-label="${candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL"}" ${candidate.can_aim && !candidate.is_aimed ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
-                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie" ${hasUsableGameplayCoordinates(candidate.focus || candidate) ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.map}</button>
-                                ${candidate.teleport && hasUsableGameplayCoordinates(candidate.teleport) ? `<button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Teleport w okolice celu" aria-label="Teleport w okolice celu">${VICTIM_PICKER_ICONS.teleport}</button>` : ""}
+                                <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? (candidate.is_aimed ? ghostText("apps.victim.current") : ghostText("apps.victim.aim")) : escapeHTML(reason || ghostText("apps.victim.unavailable"))}" aria-label="${candidate.is_aimed ? ghostText("apps.victim.current") : ghostText("apps.victim.aim")}" ${candidate.can_aim && !candidate.is_aimed ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
+                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" data-ghost-title="apps.victim.show_map" title="${escapeHTML(ghostText('apps.victim.show_map'))}" data-ghost-aria-label="apps.victim.show_map" aria-label="${escapeHTML(ghostText('apps.victim.show_map'))}" ${hasUsableGameplayCoordinates(candidate.focus || candidate) ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.map}</button>
+                                ${candidate.teleport && hasUsableGameplayCoordinates(candidate.teleport) ? `<button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" data-ghost-title="apps.victim.teleport_near" title="${escapeHTML(ghostText('apps.victim.teleport_near'))}" data-ghost-aria-label="apps.victim.teleport_near" aria-label="${escapeHTML(ghostText('apps.victim.teleport_near'))}">${VICTIM_PICKER_ICONS.teleport}</button>` : ""}
                             </div>
                         </article>
                     `;
@@ -6488,7 +6492,7 @@ function renderVictimPickerVictims(app, state) {
                 return;
             }
             if (action === "teleport") {
-                setVictimPickerBusy(app, true, "Teleport...");
+                setVictimPickerBusy(app, true, ghostText("apps.victim.teleporting"));
                 try {
                     await teleportVictimPickerCandidate(candidate, () => loadVictimPickerData(app, state));
                 } finally {
@@ -6498,7 +6502,7 @@ function renderVictimPickerVictims(app, state) {
             }
             if (action !== "aim") return;
             if (!candidate.can_aim) return;
-            setVictimPickerBusy(app, true, "Ustawiam CEL...");
+            setVictimPickerBusy(app, true, ghostText("apps.victim.aiming"));
             try {
                 const response = await fetch("/api/victim-picker/aim", {
                     method: "POST",
@@ -6507,10 +6511,10 @@ function renderVictimPickerVictims(app, state) {
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok || data.success === false) {
-                    addSystemMessage("warning", "VICTIM PICKER", data.message || "Nie udalo sie ustawic celu.");
+                    addSystemMessage("warning", "VICTIM PICKER", ghostReply(data, "apps.victim.aim_failed"));
                     return;
                 }
-                addSystemMessage("success", "VICTIM PICKER", data.message || "Cel ustawiony.");
+                addSystemMessage("success", "VICTIM PICKER", ghostReply(data, "apps.victim.aimed"));
                 if (data.target && typeof updateToolbarAimedTarget === "function") {
                     updateToolbarAimedTarget(data.target);
                 }
@@ -6521,7 +6525,7 @@ function renderVictimPickerVictims(app, state) {
                 renderVictimPickerVictims(app, state);
             } catch (error) {
                 console.warn("Victim Picker aim failed", error);
-                addSystemMessage("warning", "VICTIM PICKER", "Most celu jest chwilowo niedostepny.");
+                addSystemMessage("warning", "VICTIM PICKER", ghostText("apps.victim.aim_offline"));
             } finally {
                 setVictimPickerBusy(app, false);
             }
@@ -6532,13 +6536,13 @@ function renderVictimPickerVictims(app, state) {
 async function loadVictimPickerData(app, state = {}, nextView = null, options = {}) {
     const shell = app.querySelector(".victim-picker-shell");
     if (!shell) return;
-    if (!options.silent) setVictimPickerBusy(app, true, "Pobieram stan...");
+    if (!options.silent) setVictimPickerBusy(app, true, ghostText("apps.victim.loading"));
     if (!shell.dataset.initialized && !options.silent) {
         shell.dataset.initialized = "1";
         shell.innerHTML = `
             <div class="victim-picker-loading">
                 <span class="app-button-spinner" aria-hidden="true"></span>
-                <b>Synchronizacja Victim Pickera...</b>
+                <b>${ghostLabel("apps.victim.sync_picker")}</b>
             </div>
         `;
     }
@@ -6552,7 +6556,7 @@ async function loadVictimPickerData(app, state = {}, nextView = null, options = 
             shell.innerHTML = `
                 <div class="victim-picker-error">
                     <strong>${VICTIM_PICKER_ICONS.error} Victim Picker offline</strong>
-                    <p>${escapeHTML(data.message || data.error || "Nie udalo sie pobrac kandydatow.")}</p>
+                    <p>${ghostReply(data, "apps.victim.load_failed")}</p>
                 </div>
             `;
             return;
@@ -6570,7 +6574,7 @@ async function loadVictimPickerData(app, state = {}, nextView = null, options = 
         shell.innerHTML = `
             <div class="victim-picker-error">
                 <strong>${VICTIM_PICKER_ICONS.error} Victim Picker offline</strong>
-                <p>Nie udalo sie polaczyc z endpointem kandydatow.</p>
+                <p>${ghostLabel("apps.victim.load_offline")}</p>
             </div>
         `;
     } finally {
@@ -6604,12 +6608,27 @@ function createVictimPickerApp() {
     makeDraggable(app);
     app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
     const state = { view: "main", scan_results: [] };
+    app._victimPickerState = state;
     app._ghostControlPositionRefresh = () => loadVictimPickerData(app, state, state.view || "main", { silent: true });
     loadVictimPickerData(app, state, "main");
     return app;
 }
 
 window.createVictimPickerApp = createVictimPickerApp;
+
+document.addEventListener('ghost:locale-changed', () => {
+    document.querySelectorAll('.victim-picker-window').forEach(app => {
+        const state = app._victimPickerState;
+        if (!state || app.classList.contains('is-loading')) return;
+        const screen = app.querySelector('[data-victim-picker-screen]');
+        const scroll = screen?.scrollTop || 0;
+        if (state.view === 'victims') renderVictimPickerVictims(app, state);
+        else if (state.view === 'scan_results') renderVictimPickerScanResults(app, state);
+        else if (state.view === 'main') renderVictimPickerMain(app, state);
+        const next = app.querySelector('[data-victim-picker-screen]');
+        if (next) next.scrollTop = scroll;
+    });
+});
 
 const TERRITORY_CONTROL_ICONS = {
     app: "◇",
@@ -6649,7 +6668,7 @@ function territoryControlArea(value) {
     const n = Number(value);
     if (!Number.isFinite(n)) return "--";
     if (n >= 1000000) return `${(n / 1000000).toFixed(2)} km²`;
-    return `${Math.round(n).toLocaleString("pl-PL")} m²`;
+    return `${window.GhostLocale.formatNumber(Math.round(n))} m²`;
 }
 
 function territoryControlCoords(position) {
@@ -6661,21 +6680,21 @@ function territoryControlCoords(position) {
 
 function territoryControlThreatLabel(value) {
     const key = String(value || "neutral").toLowerCase();
-    if (key === "attacked") return "ATAK";
-    if (key === "collision") return "KOLIZJA";
-    return "NEUTRAL";
+    if (key === "attacked") return ghostText('apps.territory.attack');
+    if (key === "collision") return ghostText('apps.territory.collision');
+    return ghostText('apps.territory.neutral');
 }
 
 function territoryControlThreatBadges(cluster = {}) {
     const flags = cluster?.threat_flags || {};
     const badges = [];
     if (flags.attacked || Number(cluster?.attacked_targets_count || 0) > 0 || Number(cluster?.attacked_pillars_count || 0) > 0 || String(cluster?.threat_state || "").toLowerCase() === "attacked") {
-        badges.push({ kind: "attacked", label: "ALARM" });
+        badges.push({ kind: "attacked", label: ghostText('apps.territory.alarm') });
     }
     if (flags.collision || Number(cluster?.conflict_count || 0) > 0) {
-        badges.push({ kind: "collision", label: "KOLIZJA" });
+        badges.push({ kind: "collision", label: ghostText('apps.territory.collision') });
     }
-    if (!badges.length) badges.push({ kind: "neutral", label: "NEUTRAL" });
+    if (!badges.length) badges.push({ kind: "neutral", label: ghostText('apps.territory.neutral') });
     return badges;
 }
 
@@ -6691,10 +6710,10 @@ function territoryControlGhostBadge(cluster = {}) {
     const contested = parts.some(part => part?.contested || part?.conflict_state === "contested");
     const relation = String(cluster.ghost_part_relation || parts[0]?.viewer_relation || "");
     const state = String(cluster.ghost_part_state || parts[0]?.module_state || "");
-    let label = "KOMPONENT NIEZIDENTYFIKOWANY // BLOKOWANY";
-    if (contested) label = "KOMPONENT // KONFLIKT";
-    else if (relation === "self_own_active" || relation === "clan_own_active" || state === "active") label = "CZESC WLASNEGO KLANU // AKTYWNA";
-    else if (relation === "self_foreign_blocked" || state === "blocked") label = cluster.ghost_part_identity_visible ? "CZESC OBCEGO KLANU // BLOKOWANA" : label;
+    let label = ghostText('apps.territory.component.unknown');
+    if (contested) label = ghostText('apps.territory.component.contested');
+    else if (relation === "self_own_active" || relation === "clan_own_active" || state === "active") label = ghostText('apps.territory.component.own');
+    else if (relation === "self_foreign_blocked" || state === "blocked") label = cluster.ghost_part_identity_visible ? ghostText('apps.territory.component.foreign') : label;
     return `<span class="territory-control-ghost-badge state-${escapeHTML(contested ? "contested" : state || "blocked")}" title="GhostNetwork">${TERRITORY_CONTROL_ICONS.app} ${escapeHTML(label)}</span>`;
 }
 
@@ -6704,15 +6723,15 @@ function renderTerritoryControlGhostDetails(cluster = {}) {
     const rows = parts.map(part => {
         const identity = part?.identity_visible === true;
         return `<article class="territory-control-ghost-part">
-            <strong>${escapeHTML(part?.display_label || "NIEZIDENTYFIKOWANY KOMPONENT")}</strong>
-            <span>${escapeHTML(String(part?.module_state || "unknown").toUpperCase())}${part?.contested ? " · KONFLIKT" : ""}</span>
-            ${identity && (part.machine_name || part.machine_code) ? `<small>MASZYNA: ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
-            ${identity && (part.profession_name || part.profession_code) ? `<small>PROFESJA: ${escapeHTML(part.profession_name || part.profession_code)}</small>` : ""}
-            ${part?.ability_visible && (part.ability_name || part.ability_code) ? `<small>MOC: ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
-            ${part?.clan_name || part?.clan_code ? `<small>KLAN: ${escapeHTML(part.clan_name || part.clan_code)}</small>` : ""}
+            <strong>${escapeHTML(part?.display_label || ghostText('apps.territory.component.unidentified'))}</strong>
+            <span>${escapeHTML(String(part?.module_state || "unknown").toUpperCase())}${part?.contested ? " · " + ghostText("apps.territory.collision") : ""}</span>
+            ${identity && (part.machine_name || part.machine_code) ? `<small>${ghostLabel("apps.territory.machine")} ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
+            ${identity && (part.profession_name || part.profession_code) ? `<small>${ghostLabel("apps.territory.profession")} ${escapeHTML(part.profession_name || part.profession_code)}</small>` : ""}
+            ${part?.ability_visible && (part.ability_name || part.ability_code) ? `<small>${ghostLabel("apps.territory.ability")} ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
+            ${part?.clan_name || part?.clan_code ? `<small>${ghostLabel("apps.territory.clan")} ${escapeHTML(part.clan_name || part.clan_code)}</small>` : ""}
         </article>`;
     }).join("");
-    return `<section class="territory-control-ghost-section"><h4>GHOSTNETWORK <span>${Number(cluster.ghost_part_count || parts.length || 0)}</span></h4><p>${escapeHTML(cluster.ghost_part_summary || "TERYTORIUM PRZECHOWUJE KOMPONENT GHOSTNETWORK")}</p>${rows || `<div class="territory-control-empty">TERYTORIUM PRZECHOWUJE NIEZIDENTYFIKOWANY KOMPONENT</div>`}</section>`;
+    return `<section class="territory-control-ghost-section"><h4>GHOSTNETWORK <span>${Number(cluster.ghost_part_count || parts.length || 0)}</span></h4><p>${escapeHTML(cluster.ghost_part_summary || ghostText('apps.territory.component.stored'))}</p>${rows || `<div class="territory-control-empty">${ghostLabel("apps.territory.component.hidden")}</div>`}</section>`;
 }
 
 function territoryControlThreatSummary(cluster = {}) {
@@ -6726,7 +6745,7 @@ function setTerritoryControlBusy(app, busy, message = "") {
     app.classList.toggle("is-loading", Boolean(busy));
     const status = app.querySelector("[data-territory-control-status]");
     if (status) {
-        status.textContent = message || (busy ? "Synchronizacja..." : "");
+        status.textContent = message || (busy ? ghostText('apps.territory.sync') : "");
         status.hidden = !busy && !message;
     }
     app.querySelectorAll("[data-territory-control-action]").forEach(button => {
@@ -6764,7 +6783,7 @@ function openTerritoryControlMapFocus(focus = {}, label = "Territory Control") {
     const lat = Number(focus?.lat);
     const lng = Number(focus?.lng ?? focus?.lon);
     if (!hasUsableGameplayCoordinates({ lat, lng })) {
-        addSystemMessage("warning", "TERRITORY CONTROL", "Brak pozycji do pokazania na mapie.");
+        addSystemMessage("warning", "TERRITORY CONTROL", ghostText('apps.territory.no_position'));
         return false;
     }
     createMap();
@@ -6784,17 +6803,17 @@ async function teleportTerritoryControlObject(item, refreshAfter = null) {
     const lat = Number(teleport.lat ?? item?.lat);
     const lng = Number(teleport.lng ?? item?.lng ?? item?.lon);
     if (!hasUsableGameplayCoordinates({ lat, lng })) {
-        addSystemMessage("warning", "TERRITORY CONTROL", "Brak poprawnych wspolrzednych teleportu.");
+        addSystemMessage("warning", "TERRITORY CONTROL", ghostText('apps.territory.invalid_teleport'));
         return false;
     }
     const label = item?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
     const accepted = await showGhostDecisionDialog({
-        title: "POTWIERDZENIE TELEPORTU",
-        message: `Wykonac teleport w okolice: ${label}?`,
-        details: "OK zmieni pozycje operatora i odswiezy mape. ANULUJ zostawi obecna pozycje.",
+        titleKey: "apps.victim.teleport.title",
+        messageKey: "apps.victim.teleport.message", messageParams: {label},
+        detailsKey: "apps.victim.teleport.details",
         confirmLabel: "OK",
-        cancelLabel: "ANULUJ",
+        cancelKey: "apps.victim.cancel",
         tone: "lime"
     });
     if (!accepted) return false;
@@ -6812,10 +6831,10 @@ async function teleportTerritoryControlObject(item, refreshAfter = null) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.success === false) {
-        addSystemMessage("warning", "TERRITORY CONTROL", data.message || "Teleport odrzucony.");
+        addSystemMessage("warning", "TERRITORY CONTROL", ghostReply(data, 'apps.territory.teleport_denied'));
         return false;
     }
-    addSystemMessage("success", "TERRITORY CONTROL", data.message || `Teleport wykonany: ${label}.`);
+    addSystemMessage("success", "TERRITORY CONTROL", ghostLabel("apps.victim.teleport.done", {label}));
     if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
     openTerritoryControlMapFocus({
         ...teleport,
@@ -6835,28 +6854,28 @@ function renderTerritoryControlFrame(app, state, bodyHtml, options = {}) {
     const clusters = Array.isArray(state.clusters) ? state.clusters : [];
     const conflictCount = clusters.reduce((sum, cluster) => sum + Number(cluster.conflict_count || 0), 0);
     const attackedCount = clusters.filter(cluster => cluster.threat_state === "attacked").length;
-    const back = options.back ? `<button type="button" data-territory-control-action="${escapeHTML(options.back)}" title="Wroc" aria-label="Wroc">${TERRITORY_CONTROL_ICONS.back}<span>Wroc</span></button>` : "";
+    const back = options.back ? `<button type="button" data-territory-control-action="${escapeHTML(options.back)}" data-ghost-title="apps.territory.back" title="${escapeHTML(ghostText('apps.territory.back'))}" data-ghost-aria-label="apps.territory.back" aria-label="${escapeHTML(ghostText('apps.territory.back'))}">${TERRITORY_CONTROL_ICONS.back}<span>${ghostLabel("apps.territory.back")}</span></button>` : "";
     root.innerHTML = `
         <header class="territory-control-header">
             <div class="territory-control-brand">
                 <span class="territory-control-brand-icon">${TERRITORY_CONTROL_ICONS.app}</span>
                 <div>
                     <strong>${escapeHTML(options.title || "TERRITORY CONTROL")}</strong>
-                    <span>Zarzadzanie przejetym terenem bez Leafleta</span>
+                    <span>${ghostLabel("apps.territory.help")}</span>
                 </div>
             </div>
             <div class="territory-control-meta">
-                <span title="Pozycja motocykla"><b>POS</b> ${escapeHTML(territoryControlCoords(state.position))}</span>
-                <span title="Klastry"><b>KLASTRY</b> ${clusters.length}</span>
-                <span title="Konflikty"><b>KONFLIKTY</b> ${conflictCount}</span>
-                <span title="Atakowane"><b>ATAK</b> ${attackedCount}</span>
+                <span data-ghost-title="apps.territory.bike" title="${escapeHTML(ghostText('apps.territory.bike'))}"><b>POS</b> ${escapeHTML(territoryControlCoords(state.position))}</span>
+                <span data-ghost-title="apps.territory.clusters" title="${escapeHTML(ghostText('apps.territory.clusters'))}"><b>${ghostLabel("apps.territory.clusters")}</b> ${clusters.length}</span>
+                <span data-ghost-title="apps.territory.conflicts" title="${escapeHTML(ghostText('apps.territory.conflicts'))}"><b>${ghostLabel("apps.territory.conflicts")}</b> ${conflictCount}</span>
+                <span data-ghost-title="apps.territory.attacked" title="${escapeHTML(ghostText('apps.territory.attacked'))}"><b>${ghostLabel("apps.territory.attack")}</b> ${attackedCount}</span>
             </div>
         </header>
         <nav class="territory-control-toolbar" aria-label="Territory Control tools">
             ${back}
-            <button type="button" data-territory-control-action="refresh" title="Odswiez" aria-label="Odswiez">${TERRITORY_CONTROL_ICONS.refresh}</button>
-            <button type="button" data-territory-control-action="open-map" title="Otworz mape" aria-label="Otworz mape">${TERRITORY_CONTROL_ICONS.map}</button>
-            <button type="button" data-territory-control-action="close" title="Zamknij" aria-label="Zamknij">×</button>
+            <button type="button" data-territory-control-action="refresh" data-ghost-title="apps.territory.refresh" title="${escapeHTML(ghostText('apps.territory.refresh'))}" data-ghost-aria-label="apps.territory.refresh" aria-label="${escapeHTML(ghostText('apps.territory.refresh'))}">${TERRITORY_CONTROL_ICONS.refresh}</button>
+            <button type="button" data-territory-control-action="open-map" data-ghost-title="apps.territory.open_map" title="${escapeHTML(ghostText('apps.territory.open_map'))}" data-ghost-aria-label="apps.territory.open_map" aria-label="${escapeHTML(ghostText('apps.territory.open_map'))}">${TERRITORY_CONTROL_ICONS.map}</button>
+            <button type="button" data-territory-control-action="close" data-ghost-title="apps.territory.close" title="${escapeHTML(ghostText('apps.territory.close'))}" data-ghost-aria-label="apps.territory.close" aria-label="${escapeHTML(ghostText('apps.territory.close'))}">×</button>
         </nav>
         <div class="territory-control-status" data-territory-control-status hidden></div>
         <section class="territory-control-screen" data-territory-control-screen>${bodyHtml || ""}</section>
@@ -6879,16 +6898,16 @@ function renderTerritoryClusterCard(cluster) {
     return `
         <article class="territory-control-cluster threat-${escapeHTML(threat)}" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}">
             <div class="territory-control-cluster-main">
-                <strong>${escapeHTML(cluster.label || `Klaster ${cluster.cluster_id}`)}</strong>
-                <span>${Number(cluster.node_count || 0)} wezlow · ${Number(cluster.pillar_count || 0)} filarow · ${Number(cluster.inner_count || 0)} innerow</span>
-                <span>${escapeHTML(territoryControlArea(cluster.area_size))} · ${escapeHTML(territoryControlMeters(cluster.distance_from_bike))} od motocykla</span>
+                <strong>${escapeHTML(cluster.label || ghostText("apps.territory.cluster_name", {id:String(cluster.cluster_id)}))}</strong>
+                <span>${ghostLabel("apps.territory.counts", {nodes:Number(cluster.node_count || 0),pillars:Number(cluster.pillar_count || 0),inners:Number(cluster.inner_count || 0)})}</span>
+                <span>${escapeHTML(territoryControlArea(cluster.area_size))} · ${escapeHTML(territoryControlMeters(cluster.distance_from_bike))} ${ghostLabel("apps.territory.from_bike")}</span>
             </div>
             <div class="territory-control-threats">${renderTerritoryControlThreatBadges(cluster)}</div>
             <div class="territory-control-ghost-summary">${territoryControlGhostBadge(cluster)}</div>
             <div class="territory-control-actions">
-                <button type="button" data-territory-control-action="cluster-detail" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Otworz szczegoly">${TERRITORY_CONTROL_ICONS.open}</button>
-                <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Pokaz na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
-                <button type="button" data-territory-control-action="cluster-teleport" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Teleport do klastra">${TERRITORY_CONTROL_ICONS.teleport}</button>
+                <button type="button" data-territory-control-action="cluster-detail" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" data-ghost-title="apps.territory.details" title="${escapeHTML(ghostText('apps.territory.details'))}">${TERRITORY_CONTROL_ICONS.open}</button>
+                <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" data-ghost-title="apps.territory.show_map" title="${escapeHTML(ghostText('apps.territory.show_map'))}">${TERRITORY_CONTROL_ICONS.map}</button>
+                <button type="button" data-territory-control-action="cluster-teleport" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" data-ghost-title="apps.territory.cluster_teleport" title="${escapeHTML(ghostText('apps.territory.cluster_teleport'))}">${TERRITORY_CONTROL_ICONS.teleport}</button>
             </div>
         </article>
     `;
@@ -6898,14 +6917,14 @@ function renderTerritoryControlList(app, state) {
     state.view = "list";
     const clusters = Array.isArray(state.clusters) ? state.clusters : [];
     const alone = Array.isArray(state.alone_pillars) ? state.alone_pillars : [];
-    const aloneInfo = alone.length ? `<p class="territory-control-alone-info">${alone.length} / 3 filary - dodaj kolejny filar, aby utworzyc klaster.</p>` : "";
+    const aloneInfo = alone.length ? `<p class="territory-control-alone-info">${ghostLabel("apps.territory.alone_help", {count:alone.length})}</p>` : "";
     const body = `
         <section class="territory-control-list">
-            ${clusters.length ? clusters.map(renderTerritoryClusterCard).join("") : `<div class="territory-control-empty">Brak aktywnych klastrow. Przejete filary pojawia sie jako samotne do czasu zbudowania trojkata.</div>`}
+            ${clusters.length ? clusters.map(renderTerritoryClusterCard).join("") : `<div class="territory-control-empty">${ghostLabel("apps.territory.empty")}</div>`}
         </section>
         ${alone.length ? `
             <section class="territory-control-group">
-                <h4>SAMOTNE FILARY <span>${alone.length}</span></h4>
+                <h4>${ghostLabel("apps.territory.alone")} <span>${alone.length}</span></h4>
                 ${aloneInfo}
                 <div class="territory-control-object-list">
                     ${alone.map(item => renderTerritoryControlObjectRow(item, { alone: true })).join("")}
@@ -6956,7 +6975,7 @@ function renderTerritoryControlObjectRow(item, options = {}) {
             <div class="territory-control-object-copy">
                 <strong title="${escapeHTML(item.label || "")}">${escapeHTML(item.label || "unknown")}</strong>
                 <span>${escapeHTML(role.toUpperCase())} · ${escapeHTML(territoryControlMeters(item.distance_from_bike))}</span>
-                <div class="territory-control-security-bar" title="Zabezpieczenia ${percent}%">
+                <div class="territory-control-security-bar" title="${escapeHTML(ghostText("apps.territory.security", {percent}))}">
                     <i style="width:${percent}%"></i>
                     <b>${percent}%</b>
                 </div>
@@ -6964,11 +6983,11 @@ function renderTerritoryControlObjectRow(item, options = {}) {
             <div class="territory-control-presets">
                 ${TERRITORY_CONTROL_PRESETS.map(preset => `<button type="button" data-territory-control-action="security-preset" data-target-id="${escapeHTML(item.target_id || "")}" data-preset="${preset.id}" title="${escapeHTML(preset.title || preset.label)}">${preset.label}</button>`).join("")}
             </div>
-            <div class="territory-control-security-preview">${securityPreview || `<span>brak flag</span>`}</div>
+            <div class="territory-control-security-preview">${securityPreview || `<span>${ghostLabel("apps.territory.no_flags")}</span>`}</div>
             <div class="territory-control-actions">
-                <button type="button" data-territory-control-action="object-abandon" data-target-id="${escapeHTML(item.target_id || "")}" title="Porzuc">${TERRITORY_CONTROL_ICONS.abandon}</button>
-                <button type="button" data-territory-control-action="object-map" data-target-id="${escapeHTML(item.target_id || "")}" title="Pokaz na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
-                <button type="button" data-territory-control-action="object-teleport" data-target-id="${escapeHTML(item.target_id || "")}" title="Teleport">${TERRITORY_CONTROL_ICONS.teleport}</button>
+                <button type="button" data-territory-control-action="object-abandon" data-target-id="${escapeHTML(item.target_id || "")}" data-ghost-title="apps.territory.abandon" title="${escapeHTML(ghostText('apps.territory.abandon'))}">${TERRITORY_CONTROL_ICONS.abandon}</button>
+                <button type="button" data-territory-control-action="object-map" data-target-id="${escapeHTML(item.target_id || "")}" data-ghost-title="apps.territory.show_map" title="${escapeHTML(ghostText('apps.territory.show_map'))}">${TERRITORY_CONTROL_ICONS.map}</button>
+                <button type="button" data-territory-control-action="object-teleport" data-target-id="${escapeHTML(item.target_id || "")}" data-ghost-title="apps.territory.teleport" title="${escapeHTML(ghostText('apps.territory.teleport'))}">${TERRITORY_CONTROL_ICONS.teleport}</button>
             </div>
         </article>
     `;
@@ -6977,6 +6996,7 @@ function renderTerritoryControlObjectRow(item, options = {}) {
 function renderTerritoryControlCluster(app, state, cluster) {
     state.view = "cluster";
     state.currentClusterId = cluster?.cluster_id || state.currentClusterId;
+    state.currentCluster = cluster;
     const pillars = Array.isArray(cluster?.pillars) ? cluster.pillars : [];
     const inners = Array.isArray(cluster?.inners) ? cluster.inners : [];
     const pillarRows = pillars.map(item => renderTerritoryControlObjectRow(item)).join("");
@@ -6985,33 +7005,33 @@ function renderTerritoryControlCluster(app, state, cluster) {
         <section class="territory-control-cluster-detail threat-${escapeHTML(cluster?.threat_state || "neutral")}">
             <div class="territory-control-detail-head">
                 <div>
-                    <strong>${escapeHTML(cluster?.label || `Klaster ${cluster?.cluster_id || ""}`)}</strong>
+                    <strong>${escapeHTML(cluster?.label || ghostText("apps.territory.cluster_name", {id:String(cluster?.cluster_id || "")}))}</strong>
                     <span>${escapeHTML(territoryControlThreatSummary(cluster))} · ${escapeHTML(territoryControlArea(cluster?.area_size))} · ${escapeHTML(territoryControlMeters(cluster?.distance_from_bike))}</span>
                 </div>
                 <div class="territory-control-actions">
-                    <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" title="Pokaz klaster">${TERRITORY_CONTROL_ICONS.map}</button>
-                    <button type="button" data-territory-control-action="cluster-teleport" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" title="Teleport do klastra">${TERRITORY_CONTROL_ICONS.teleport}</button>
+                    <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" data-ghost-title="apps.territory.show_cluster" title="${escapeHTML(ghostText('apps.territory.show_cluster'))}">${TERRITORY_CONTROL_ICONS.map}</button>
+                    <button type="button" data-territory-control-action="cluster-teleport" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" data-ghost-title="apps.territory.cluster_teleport" title="${escapeHTML(ghostText('apps.territory.cluster_teleport'))}">${TERRITORY_CONTROL_ICONS.teleport}</button>
                 </div>
             </div>
         </section>
         ${renderTerritoryControlGhostDetails(cluster)}
         <section class="territory-control-object-list territory-control-cluster-nodes">
             <div class="territory-control-category">
-                <h4>FILARY <span>${pillars.length}</span></h4>
-                ${pillarRows || `<div class="territory-control-empty">Brak filarow.</div>`}
+                <h4>${ghostLabel("apps.territory.pillars")} <span>${pillars.length}</span></h4>
+                ${pillarRows || `<div class="territory-control-empty">${ghostLabel("apps.territory.no_pillars")}</div>`}
             </div>
             <div class="territory-control-category">
-                <h4>INNER NODES <span>${inners.length}</span></h4>
-                ${innerRows || `<div class="territory-control-empty">Brak inner nodes.</div>`}
+                <h4>${ghostLabel("apps.territory.inners")} <span>${inners.length}</span></h4>
+                ${innerRows || `<div class="territory-control-empty">${ghostLabel("apps.territory.no_inners")}</div>`}
             </div>
         </section>
     `;
-    renderTerritoryControlFrame(app, state, body, { back: "back-list", title: cluster?.label || "KLASTER" });
+    renderTerritoryControlFrame(app, state, body, { back: "back-list", title: cluster?.label || ghostText('apps.territory.cluster') });
     bindTerritoryControlListActions(app, state);
 }
 
 async function applyTerritoryControlPreset(app, state, item, preset) {
-    setTerritoryControlBusy(app, true, `Preset ${preset.toUpperCase()}...`);
+    setTerritoryControlBusy(app, true, ghostText("apps.territory.preset_saving", {preset:preset.toUpperCase()}));
     const preferredView = state.view;
     const preferredClusterId = state.currentClusterId;
     const preferredTargetId = item?.target_id;
@@ -7023,7 +7043,7 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie zapisac presetu.");
+            addSystemMessage("warning", "TERRITORY CONTROL", ghostReply(data, 'apps.territory.preset_failed'));
             return;
         }
         if (data.snapshot) {
@@ -7031,7 +7051,7 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
             state.view = preferredView;
             state.currentClusterId = preferredClusterId;
         }
-        addSystemMessage("success", "TERRITORY CONTROL", `Preset ${preset.toUpperCase()} zapisany.`);
+        addSystemMessage("success", "TERRITORY CONTROL", ghostLabel("apps.territory.preset_saved", {preset:preset.toUpperCase()}));
         await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId, preferredTargetId });
     } finally {
         setTerritoryControlBusy(app, false);
@@ -7039,7 +7059,7 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
 }
 
 async function toggleTerritoryControlSecurity(app, state, item, action) {
-    setTerritoryControlBusy(app, true, "Zmieniam flage...");
+    setTerritoryControlBusy(app, true, ghostText('apps.territory.flag_changing'));
     const preferredView = state.view;
     const preferredClusterId = state.currentClusterId;
     const preferredTargetId = item?.target_id;
@@ -7051,7 +7071,7 @@ async function toggleTerritoryControlSecurity(app, state, item, action) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie zapisac flagi.");
+            addSystemMessage("warning", "TERRITORY CONTROL", ghostReply(data, 'apps.territory.flag_failed'));
             return;
         }
         if (data.snapshot) {
@@ -7067,15 +7087,15 @@ async function toggleTerritoryControlSecurity(app, state, item, action) {
 
 async function abandonTerritoryControlObject(app, state, item) {
     const accepted = await showGhostDecisionDialog({
-        title: "PORZUCENIE OBIEKTU",
-        message: `Porzucic przejety obiekt: ${item.label || "unknown"}?`,
-        details: "Obiekt zniknie z terytorium, a klastry i konflikty zostana przeliczone.",
-        confirmLabel: "PORZUC",
-        cancelLabel: "ANULUJ",
+        titleKey: "apps.territory.abandon.title",
+        messageKey: "apps.territory.abandon.message", messageParams: {label: item.label || "unknown"},
+        detailsKey: "apps.territory.abandon.details",
+        confirmKey: "apps.territory.abandon.confirm",
+        cancelKey: "apps.victim.cancel",
         tone: "red"
     });
     if (!accepted) return;
-    setTerritoryControlBusy(app, true, "Porzucam obiekt...");
+    setTerritoryControlBusy(app, true, ghostText('apps.territory.abandoning'));
     try {
         const response = await fetch("/api/ghost-control/territory/abandon", {
             method: "POST",
@@ -7091,10 +7111,10 @@ async function abandonTerritoryControlObject(app, state, item) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie porzucic obiektu.");
+            addSystemMessage("warning", "TERRITORY CONTROL", ghostReply(data, 'apps.territory.abandon_failed'));
             return;
         }
-        addSystemMessage("success", "TERRITORY CONTROL", "Obiekt porzucony. Przebudowa terytorium zostala zlecona.");
+        addSystemMessage("success", "TERRITORY CONTROL", ghostText('apps.territory.abandoned'));
         if (data.snapshot) Object.assign(state, data.snapshot);
         await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferListOnMissingCluster: true });
     } finally {
@@ -7124,7 +7144,7 @@ async function refreshTerritoryControlAfterMutation(app, state, snapshot = null,
             return;
         }
         if (!options.preferListOnMissingCluster) {
-            addSystemMessage("warning", "TERRITORY CONTROL", "Klaster zostal przeliczony. Wracam do listy.");
+            addSystemMessage("warning", "TERRITORY CONTROL", ghostText('apps.territory.recalculated'));
         }
     }
     renderTerritoryControlList(app, state);
@@ -7151,7 +7171,7 @@ function bindTerritoryControlObjectActions(app, state) {
                 return;
             }
             if (action === "object-teleport") {
-                setTerritoryControlBusy(app, true, "Teleport...");
+                setTerritoryControlBusy(app, true, ghostText('apps.territory.teleporting'));
                 try {
                     await teleportTerritoryControlObject(item, () => loadTerritoryControlData(app, state, null, { silent: true, noRender: true }));
                 } finally {
@@ -7167,12 +7187,12 @@ function bindTerritoryControlObjectActions(app, state) {
 }
 
 async function loadTerritoryControlCluster(app, state, clusterId) {
-    setTerritoryControlBusy(app, true, "Pobieram klaster...");
+    setTerritoryControlBusy(app, true, ghostText('apps.territory.loading_cluster'));
     try {
         const response = await fetch(`/api/ghost-control/territory/${encodeURIComponent(clusterId)}`, { headers: { "Accept": "application/json" } });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false || !data.cluster) {
-            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Klaster juz nie istnieje.");
+            addSystemMessage("warning", "TERRITORY CONTROL", ghostReply(data, 'apps.territory.cluster_missing'));
             await loadTerritoryControlData(app, state, "list");
             return;
         }
@@ -7189,13 +7209,13 @@ async function loadTerritoryControlCluster(app, state, clusterId) {
 async function loadTerritoryControlData(app, state = {}, nextView = "list", options = {}) {
     const shell = app.querySelector(".territory-control-shell");
     if (!shell) return;
-    if (!options.silent) setTerritoryControlBusy(app, true, "Pobieram terytorium...");
+    if (!options.silent) setTerritoryControlBusy(app, true, ghostText('apps.territory.loading'));
     if (!shell.dataset.initialized && !options.silent) {
         shell.dataset.initialized = "1";
         shell.innerHTML = `
             <div class="territory-control-loading">
                 <span class="app-button-spinner" aria-hidden="true"></span>
-                <b>Synchronizacja Territory Control...</b>
+                <b>${ghostLabel("apps.territory.sync_app")}</b>
             </div>
         `;
     }
@@ -7206,7 +7226,7 @@ async function loadTerritoryControlData(app, state = {}, nextView = "list", opti
             shell.innerHTML = `
                 <div class="territory-control-error">
                     <strong>Territory Control offline</strong>
-                    <p>${escapeHTML(data.message || data.error || "Nie udalo sie pobrac terytorium.")}</p>
+                    <p>${ghostReply(data, 'apps.territory.load_failed')}</p>
                 </div>
             `;
             return;
@@ -7225,7 +7245,7 @@ async function loadTerritoryControlData(app, state = {}, nextView = "list", opti
         shell.innerHTML = `
             <div class="territory-control-error">
                 <strong>Territory Control offline</strong>
-                <p>Nie udalo sie polaczyc z endpointem terytorium.</p>
+                <p>${ghostLabel("apps.territory.offline")}</p>
             </div>
         `;
     } finally {
@@ -7260,6 +7280,7 @@ function createTerritoryControlApp() {
     bringWindowToFront(app);
     app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
     const state = { view: "list" };
+    app._territoryControlState = state;
     app._ghostControlPositionRefresh = () => loadTerritoryControlData(app, state, state.view || "list", { silent: true });
     loadTerritoryControlData(app, state, "list");
     return app;
@@ -7267,6 +7288,18 @@ function createTerritoryControlApp() {
 
 window.createTerritoryControlApp = createTerritoryControlApp;
 window.territory_control = createTerritoryControlApp;
+
+document.addEventListener('ghost:locale-changed', () => {
+    document.querySelectorAll('.territory-control-window').forEach(app => {
+        const state = app._territoryControlState;
+        if (!state || app.classList.contains('is-loading')) return;
+        const scroll = app.querySelector('[data-territory-control-screen]')?.scrollTop || 0;
+        if (state.view === 'cluster' && state.currentCluster) renderTerritoryControlCluster(app, state, state.currentCluster);
+        else renderTerritoryControlList(app, state);
+        const screen = app.querySelector('[data-territory-control-screen]');
+        if (screen) screen.scrollTop = scroll;
+    });
+});
 
 const OPERATION_CONTROL_ICONS = {
     app: "📟",
@@ -7305,7 +7338,7 @@ const OPERATION_CONTROL_FAMILY_LABELS = {
 
 function operationControlFamilyLabel(family) {
     const key = String(family || "other").toLowerCase();
-    return OPERATION_CONTROL_FAMILY_LABELS[key] || key.toUpperCase();
+    return GhostLocale.hasKey('apps.operations.family.' + key) ? GhostLocale.t('apps.operations.family.' + key) : key.toUpperCase();
 }
 
 function operationControlIcon(family) {
@@ -7315,8 +7348,8 @@ function operationControlIcon(family) {
 function operationControlMeters(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return "-";
-    if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)} km`;
-    return `${Math.max(0, Math.round(num))} m`;
+    if (num >= 1000) return GhostLocale.formatUnit(num / 1000, 'kilometer', {maximumFractionDigits:num >= 10000 ? 0 : 1});
+    return GhostLocale.formatUnit(Math.max(0, Math.round(num)), 'meter');
 }
 
 function operationControlCoords(position) {
@@ -7344,6 +7377,8 @@ function operationControlFileLabel(output) {
     return {
         title: `${category.toUpperCase()} ${size ? `~${size} MB` : ""}`.trim(),
         detail: `${directory} · ${status}`,
+        titleHtml: `${ghostSystemValue('apps.operations.family.', category)} ${size ? '~' + ghostNumber(size) + ' MB' : ''}`,
+        detailHtml: `${escapeHTML(directory)} · ${ghostSystemValue('apps.operations.state.', status)}`,
     };
 }
 
@@ -7377,7 +7412,8 @@ function setOperationControlBusy(app, busy, message = "") {
     const status = root.querySelector("[data-operation-control-status]");
     if (status) {
         status.hidden = !busy && !message;
-        status.textContent = message || "";
+        if (message) ghostSet(status, message);
+        else { delete status.dataset.ghostI18n; delete status.dataset.ghostParams; status.textContent = ''; }
     }
 }
 
@@ -7393,19 +7429,19 @@ function renderOperationControlFrame(app, state, bodyHtml, options = {}) {
                 <span class="operation-control-brand-icon">${OPERATION_CONTROL_ICONS.app}</span>
                 <div>
                     <strong>${escapeHTML(options.title || "OPERATION CONTROL")}</strong>
-                    <span>Aktywne operacje, pliki i incydenty bez Leafleta</span>
+                    ${ghostLabel('apps.operations.help')}
                 </div>
             </div>
             <div class="operation-control-meta">
-                <span title="Aktywne operacje"><b>AKTYWNE</b> ${activeCount}</span>
-                <span title="Operacje z incydentem"><b>INCYDENTY</b> ${incidentCount}</span>
-                <span title="Grupy operacji"><b>GRUPY</b> ${groups.length}</span>
-                <span title="Pozycja motocykla"><b>POS</b> ${escapeHTML(operationControlCoords(state.position))}</span>
+                <span><b>${ghostLabel('apps.operations.active')}</b> ${ghostNumber(activeCount)}</span>
+                <span><b>${ghostLabel('apps.operations.incidents')}</b> ${ghostNumber(incidentCount)}</span>
+                <span><b>${ghostLabel('apps.operations.groups')}</b> ${ghostNumber(groups.length)}</span>
+                <span data-ghost-title="apps.operations.position"><b>POS</b> ${escapeHTML(operationControlCoords(state.position))}</span>
             </div>
         </header>
         <nav class="operation-control-toolbar" aria-label="Operation Control tools">
-            <button type="button" data-operation-control-action="refresh" title="Odswiez" aria-label="Odswiez">${OPERATION_CONTROL_ICONS.refresh}</button>
-            <button type="button" data-operation-control-action="close" title="Zamknij" aria-label="Zamknij">${OPERATION_CONTROL_ICONS.close}</button>
+            <button type="button" data-operation-control-action="refresh" data-ghost-title="apps.operations.refresh" data-ghost-aria-label="apps.operations.refresh">${OPERATION_CONTROL_ICONS.refresh}</button>
+            <button type="button" data-operation-control-action="close" data-ghost-title="apps.operations.close" data-ghost-aria-label="apps.operations.close">${OPERATION_CONTROL_ICONS.close}</button>
         </nav>
         <div class="operation-control-status" data-operation-control-status hidden></div>
         <section class="operation-control-screen" data-operation-control-screen>${bodyHtml || ""}</section>
@@ -7433,12 +7469,12 @@ function renderOperationControlGroup(group, operations) {
                 <div class="operation-control-group-title">
                     <span>${operationControlIcon(family)}</span>
                     <div>
-                        <strong>${escapeHTML(operationControlFamilyLabel(family))}</strong>
-                        <em>${Number(group.count || 0)} operacji · ${incidentCount} incydentow · ${expectedMb} MB</em>
+                        <strong>${ghostSystemValue('apps.operations.family.', family)}</strong>
+                        <em>${ghostLabel('apps.operations.summary', {count:Number(group.count || 0),incidents:incidentCount,size:expectedMb})}</em>
                     </div>
                 </div>
-                <div class="operation-control-group-output" title="Przewidywany output">${escapeHTML(outputTypes)}</div>
-                <button type="button" data-operation-control-action="cancel-group" data-operation-family="${escapeHTML(family)}" title="Anuluj cala grupe" aria-label="Anuluj cala grupe">${OPERATION_CONTROL_ICONS.cancelGroup}</button>
+                <div class="operation-control-group-output" data-ghost-title="apps.operations.output">${escapeHTML(outputTypes)}</div>
+                <button type="button" data-operation-control-action="cancel-group" data-operation-family="${escapeHTML(family)}" data-ghost-title="apps.operations.cancel_group" data-ghost-aria-label="apps.operations.cancel_group">${OPERATION_CONTROL_ICONS.cancelGroup}</button>
             </header>
             <div class="operation-control-rows">
                 ${groupOperations.map(renderOperationControlRow).join("")}
@@ -7453,30 +7489,30 @@ function renderOperationControlRow(item) {
     const output = operationControlFileLabel(item.output);
     const incident = item.incident || {};
     const incidentBadge = incident.active
-        ? `<span class="operation-control-incident danger">${OPERATION_CONTROL_ICONS.incident} INCYDENT L${escapeHTML(incident.level || "-")}</span>`
+        ? `<span class="operation-control-incident danger">${OPERATION_CONTROL_ICONS.incident} ${ghostLabel('apps.operations.incident')} L${escapeHTML(incident.level || "-")}</span>`
         : incident.warning
-            ? `<span class="operation-control-incident warning">${OPERATION_CONTROL_ICONS.warning} WARNING</span>`
-            : `<span class="operation-control-incident safe">czysto</span>`;
-    const distance = item.distance_available ? operationControlMeters(item.distance_from_bike) : "brak pozycji";
+            ? `<span class="operation-control-incident warning">${OPERATION_CONTROL_ICONS.warning} ${ghostLabel('apps.operations.warning')}</span>`
+            : `<span class="operation-control-incident safe">${ghostLabel('apps.operations.clear')}</span>`;
+    const distance = item.distance_available ? escapeHTML(operationControlMeters(item.distance_from_bike)) : ghostLabel('apps.operations.no_position');
     return `
         <article class="operation-control-row risk-${escapeHTML(riskClass)}" data-operation-id="${escapeHTML(item.operation_id || "")}">
             <div class="operation-control-row-icon">${operationControlIcon(family)}</div>
             <div class="operation-control-row-main">
-                <strong title="${escapeHTML(item.operation_type || "")}">${escapeHTML(item.label || item.operation_type || "operacja")}</strong>
-                <span>Target: ${escapeHTML(item.target_label || item.target_id || "-")}</span>
-                <span>Dystans: ${escapeHTML(distance)} · Pozostalo: ${escapeHTML(operationControlTime(item.remaining_seconds))}</span>
+                <strong title="${escapeHTML(item.operation_type || "")}">${item.label ? escapeHTML(item.label) : ghostSystemValue('apps.operations.type.', item.operation_type || '-')}</strong>
+                <span>${ghostLabel('apps.operations.target')}: ${escapeHTML(item.target_label || item.target_id || "-")}</span>
+                <span>${ghostLabel('apps.operations.distance')}: ${distance} · ${ghostLabel('apps.operations.remaining')}: ${escapeHTML(operationControlTime(item.remaining_seconds))}</span>
             </div>
             <div class="operation-control-output">
-                <b>${OPERATION_CONTROL_ICONS.file} ${escapeHTML(output.title)}</b>
-                <span>${escapeHTML(output.detail)}</span>
+                <b>${OPERATION_CONTROL_ICONS.file} ${output.titleHtml}</b>
+                <span>${output.detailHtml}</span>
             </div>
             <div class="operation-control-risk">
-                <b>${escapeHTML(operationControlRiskLabel(item))}</b>
+                <b>${ghostSystemValue('apps.operations.risk.', item.risk?.level || item.risk_level || 'low')} ${item.risk?.current_heat != null || item.risk?.score != null ? ghostNumber(item.risk.current_heat ?? item.risk.score) : ''}</b>
                 ${incidentBadge}
-                ${incident.active ? `<span>${escapeHTML(incident.status || "active")} ${incident.arrival_at ? `· ETA ${escapeHTML(String(incident.arrival_at))}` : ""}</span>` : ""}
+                ${incident.active ? `<span>${ghostSystemValue('apps.operations.state.', incident.status || 'active')} ${incident.arrival_at ? `· ETA ${ghostDate(String(incident.arrival_at), {hour:'2-digit',minute:'2-digit'})}` : ""}</span>` : ""}
             </div>
             <div class="operation-control-actions">
-                <button type="button" data-operation-control-action="cancel-operation" data-operation-id="${escapeHTML(item.operation_id || "")}" title="${item.can_cancel ? "Anuluj operacje" : "Operacja zakonczona"}" aria-label="Anuluj operacje" ${item.can_cancel ? "" : "disabled data-original-disabled=\"1\""}>${OPERATION_CONTROL_ICONS.cancel}</button>
+                <button type="button" data-operation-control-action="cancel-operation" data-operation-id="${escapeHTML(item.operation_id || "")}" data-ghost-title="${item.can_cancel ? 'apps.operations.cancel' : 'apps.operations.ended'}" data-ghost-aria-label="apps.operations.cancel" ${item.can_cancel ? "" : "disabled data-original-disabled=\"1\""}>${OPERATION_CONTROL_ICONS.cancel}</button>
             </div>
         </article>
     `;
@@ -7491,17 +7527,17 @@ function renderOperationControl(app, state) {
         </section>
         ${Array.isArray(state.operation_history) && state.operation_history.length ? `
             <section class="operation-control-history">
-                <h4>HISTORIA <span>${state.operation_history.length}</span></h4>
+                <h4>${ghostLabel('apps.operations.history')} <span>${state.operation_history.length}</span></h4>
                 ${state.operation_history.slice(-8).reverse().map(item => {
                     const output = operationControlFileLabel(item.output);
-                    return `<div class="operation-control-history-row"><b>${escapeHTML(item.operation_type || item.operation_id || "-")}</b><span>${escapeHTML(output.title)} · ${escapeHTML(item.status || "-")}</span></div>`;
+                    return `<div class="operation-control-history-row"><b>${ghostSystemValue('apps.operations.type.', item.operation_type || item.operation_id || '-')}</b><span>${output.titleHtml} · ${ghostSystemValue('apps.operations.state.', item.status || '-')}</span></div>`;
                 }).join("")}
             </section>
         ` : ""}
     ` : `
         <div class="operation-control-empty">
-            <strong>Brak aktywnych operacji.</strong>
-            <span>Operation Control odswiezy sie po uruchomieniu narzedzia albo recznym odswiezeniu.</span>
+            <strong>${ghostLabel('apps.operations.empty')}</strong>
+            ${ghostLabel('apps.operations.empty_help')}
         </div>
     `;
     renderOperationControlFrame(app, state, body);
@@ -7515,15 +7551,15 @@ function operationControlGroupByFamily(state, family) {
 
 async function cancelOperationControlItem(app, state, item) {
     const accepted = await showGhostDecisionDialog({
-        title: "ANULOWANIE OPERACJI",
-        message: `Anulowac operacje ${item.operation_type || item.operation_id || "unknown"}?`,
-        details: "Wynik operacji moze zostac utracony, a powiazane ryzyko zostanie przeliczone.",
-        confirmLabel: "ANULUJ OPERACJE",
-        cancelLabel: "WRÓC",
+        titleKey: 'apps.operations.cancel',
+        messageKey: 'apps.operations.confirm', messageParams: {name:String(item.operation_type || item.operation_id || "unknown")},
+        detailsKey: 'apps.operations.cancel_warning',
+        confirmKey: 'apps.operations.cancel',
+        cancelKey: 'apps.operations.back',
         tone: "red"
     });
     if (!accepted) return;
-    setOperationControlBusy(app, true, "Anuluje operacje...");
+    setOperationControlBusy(app, true, 'apps.operations.cancelling');
     try {
         const response = await fetch("/api/ghost-control/operations/cancel", {
             method: "POST",
@@ -7532,12 +7568,14 @@ async function cancelOperationControlItem(app, state, item) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            addSystemMessage("warning", "OPERATION CONTROL", data.message || data.error || "Nie udalo sie anulowac operacji.");
+            addSystemMessage("warning", "OPERATION CONTROL", ghostReply(data, 'apps.operations.failed'));
             return;
         }
         if (data.snapshot) Object.assign(state, data.snapshot);
-        addSystemMessage("success", "OPERATION CONTROL", data.message || "Operacja anulowana.");
+        addSystemMessage("success", "OPERATION CONTROL", ghostLabel('apps.operations.cancelled'));
         renderOperationControl(app, state);
+    } catch (error) {
+        addSystemMessage('warning', 'OPERATION CONTROL', ghostLabel('apps.operations.failed'));
     } finally {
         setOperationControlBusy(app, false);
     }
@@ -7546,21 +7584,21 @@ async function cancelOperationControlItem(app, state, item) {
 async function cancelOperationControlGroup(app, state, family) {
     const groupItems = operationControlGroupByFamily(state, family);
     if (!groupItems.length) {
-        addSystemMessage("warning", "OPERATION CONTROL", "Brak aktywnych operacji w tej grupie.");
+        addSystemMessage("warning", "OPERATION CONTROL", ghostLabel('apps.operations.empty_group'));
         return;
     }
     const outputTypes = Array.from(new Set(groupItems.map(item => item?.output?.file_category).filter(Boolean)));
     const incidentCount = groupItems.filter(item => item?.incident?.active).length;
     const accepted = await showGhostDecisionDialog({
-        title: "ANULOWANIE GRUPY",
-        message: `Anulowac grupe ${operationControlFamilyLabel(family)} (${groupItems.length} operacji)?`,
-        details: `Output: ${outputTypes.join(", ") || "-"} | Incydenty: ${incidentCount}. Wyniki aktywnych operacji moga zostac utracone.`,
-        confirmLabel: "ANULUJ GRUPE",
-        cancelLabel: "WRÓC",
+        titleKey: 'apps.operations.cancel_group',
+        messageKey: 'apps.operations.confirm_group', messageParams: {name:family,count:groupItems.length},
+        detailsKey: 'apps.operations.group_warning', detailsParams: {types:outputTypes.join(', ') || '-',count:incidentCount},
+        confirmKey: 'apps.operations.cancel_group',
+        cancelKey: 'apps.operations.back',
         tone: "red"
     });
     if (!accepted) return;
-    setOperationControlBusy(app, true, "Anuluje grupe...");
+    setOperationControlBusy(app, true, 'apps.operations.cancelling');
     try {
         const response = await fetch("/api/ghost-control/operations/cancel-group", {
             method: "POST",
@@ -7572,12 +7610,14 @@ async function cancelOperationControlGroup(app, state, family) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            addSystemMessage("warning", "OPERATION CONTROL", data.message || data.error || "Nie udalo sie anulowac grupy.");
+            addSystemMessage("warning", "OPERATION CONTROL", ghostReply(data, 'apps.operations.failed'));
             return;
         }
         if (data.snapshot) Object.assign(state, data.snapshot);
-        addSystemMessage("success", "OPERATION CONTROL", `Anulowano ${Array.isArray(data.cancelled) ? data.cancelled.length : 0} operacji.`);
+        addSystemMessage("success", "OPERATION CONTROL", ghostLabel('apps.operations.cancelled_group', {count:Array.isArray(data.cancelled) ? data.cancelled.length : 0}));
         renderOperationControl(app, state);
+    } catch (error) {
+        addSystemMessage('warning', 'OPERATION CONTROL', ghostLabel('apps.operations.failed'));
     } finally {
         setOperationControlBusy(app, false);
     }
@@ -7603,13 +7643,13 @@ function bindOperationControlActions(app, state) {
 async function loadOperationControlData(app, state = {}, options = {}) {
     const shell = app.querySelector(".operation-control-shell");
     if (!shell) return;
-    if (!options.silent) setOperationControlBusy(app, true, "Pobieram operacje...");
+    if (!options.silent) setOperationControlBusy(app, true, 'apps.operations.loading');
     if (!shell.dataset.initialized && !options.silent) {
         shell.dataset.initialized = "1";
         shell.innerHTML = `
             <div class="operation-control-loading">
                 <span class="app-button-spinner" aria-hidden="true"></span>
-                <b>Synchronizacja Operation Control...</b>
+                <b>${ghostLabel('apps.operations.loading')}</b>
             </div>
         `;
     }
@@ -7620,7 +7660,7 @@ async function loadOperationControlData(app, state = {}, options = {}) {
             shell.innerHTML = `
                 <div class="operation-control-error">
                     <strong>Operation Control offline</strong>
-                    <p>${escapeHTML(data.message || data.error || "Nie udalo sie pobrac operacji.")}</p>
+                    <p>${ghostReply(data, 'apps.operations.load_failed')}</p>
                 </div>
             `;
             return;
@@ -7632,7 +7672,7 @@ async function loadOperationControlData(app, state = {}, options = {}) {
         shell.innerHTML = `
             <div class="operation-control-error">
                 <strong>Operation Control offline</strong>
-                <p>Nie udalo sie polaczyc z endpointem operacji.</p>
+                <p>${ghostLabel('apps.operations.load_failed')}</p>
             </div>
         `;
     } finally {
@@ -7676,11 +7716,11 @@ window.operation_control = createOperationControlApp;
 
 const GHOSTNETWORK_SUITE_ENDPOINT = "/api/ghostnetwork/snapshot?view=suite";
 const GHOSTNETWORK_SUITE_SECTIONS = [
-    { id: "all", label: "WSZYSTKIE" },
-    { id: "public", label: "PUBLICZNE" },
-    { id: "blocked", label: "BLOKOWANE" },
-    { id: "active", label: "AKTYWNE" },
-    { id: "control", label: "MOJA KONTROLA" },
+    { id: "all", label: "apps.network.all" },
+    { id: "public", label: "apps.network.public" },
+    { id: "blocked", label: "apps.network.blocked" },
+    { id: "active", label: "apps.network.active" },
+    { id: "control", label: "apps.network.control" },
 ];
 const GHOSTNETWORK_SUITE_PART_DELTA_TYPES = new Set([
     "ghost.part_discovered", "ghost.part_contained", "ghost.part_revealed",
@@ -7872,7 +7912,7 @@ function ghostnetworkSuiteRestartMessage(snapshot = {}) {
     const fromVersion = String(snapshot.restart_from_version || cycle.restart_from_version || "").trim();
     const toVersion = String(snapshot.restart_to_version || cycle.restart_to_version || "").trim();
     const transition = fromVersion && toVersion ? ` · ${fromVersion} → ${toVersion}` : "";
-    return `RESTART GHOSTSYSTEMU WYMAGANY${transition} · AKCJE ZABLOKOWANE`;
+    return ghostText("apps.network.restart", {transition});
 }
 
 function ghostnetworkSuiteRestartRequired(snapshot = {}) {
@@ -7983,45 +8023,47 @@ function ghostnetworkSuiteCard(part = {}) {
     const actions = part.actions || {};
     const canMap = actions.can_show_on_map === true;
     const canTeleport = actions.can_teleport === true;
-    const displayLabel = String(part.display_label || "CZESC GHOSTNETWORK");
+    const hiddenLabelKey = ['active_foreign', 'contained_hidden'].includes(part.visibility_level) ? 'apps.network.value.summary.' + part.visibility_level : '';
+    const summaryKey = ['full_public', 'full_owner', 'full_clan'].includes(part.visibility_level) ? 'apps.network.value.summary.full' : hiddenLabelKey;
+    const displayLabel = String(part.display_label || ghostText('apps.network.part'));
     const summary = String(part.summary || "").trim();
     const distinctSummary = summary && summary.toLocaleLowerCase("pl") !== displayLabel.trim().toLocaleLowerCase("pl") ? summary : "";
     const conflictState = String(part.conflict_state || "").trim().toLowerCase();
-    const locationLabel = location.visibility === "exact" ? "LOKACJA DOKLADNA" : location.visibility === "territory_only" ? "TYLKO TERYTORIUM" : "LOKACJA UKRYTA";
+    const locationLabel = location.visibility === "exact" ? ghostText('apps.network.location.exact') : location.visibility === "territory_only" ? ghostText('apps.network.location.territory_only') : ghostText('apps.network.location.hidden');
     return `
         <article class="ghostnetwork-suite-card" data-part-ref="${escapeHTML(part.public_entity_id || "")}">
             <div class="ghostnetwork-suite-card-icon">${asset ? `<img src="${escapeHTML(asset)}" alt="">` : "◈"}</div>
             <div class="ghostnetwork-suite-card-main">
-                <strong>${escapeHTML(displayLabel)}</strong>
-                ${distinctSummary ? `<span>${escapeHTML(distinctSummary)}</span>` : ""}
-                <small>${escapeHTML(locationLabel)} · ${escapeHTML(part.viewer_relation || "public")}</small>
-                ${identity && part.profession_code ? `<small>PROFESJA: ${escapeHTML(part.profession_code)}</small>` : ""}
-                ${ability && (part.ability_name || part.ability_code) ? `<small>ZDOLNOSC: ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
-                <details><summary>SZCZEGOLY</summary>
-                    ${identity && part.part_code ? `<small>KOD: ${escapeHTML(part.part_code)}</small>` : ""}
-                    ${identity && (part.machine_name || part.machine_code) ? `<small>MASZYNA: ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
-                    ${owner.owner_alias ? `<small>WLASCICIEL: ${escapeHTML(owner.owner_alias)}</small>` : ""}
-                    ${(owner.owner_clan || territory.owner_clan) ? `<small>KLAN: ${escapeHTML(owner.owner_clan || territory.owner_clan)}</small>` : ""}
-                    ${territory.territory_id ? `<small>TERYTORIUM: ${escapeHTML(territory.territory_id)}</small>` : ""}
-                    ${part.discovered_at ? `<small>ODKRYTO: ${escapeHTML(part.discovered_at)}</small>` : ""}
-                    ${part.updated_at ? `<small>AKTUALIZACJA: ${escapeHTML(part.updated_at)}</small>` : ""}
+                <strong>${hiddenLabelKey ? ghostLabel(hiddenLabelKey) : escapeHTML(displayLabel)}</strong>
+                ${summaryKey && !hiddenLabelKey ? ghostLabel(summaryKey) : !summaryKey && distinctSummary ? `<span>${escapeHTML(distinctSummary)}</span>` : ""}
+                <small>${escapeHTML(locationLabel)} · ${ghostSystemValue("apps.network.value.", part.viewer_relation || "public")}</small>
+                ${identity && part.profession_code ? `<small>${ghostLabel("apps.network.profession")} ${escapeHTML(part.profession_code)}</small>` : ""}
+                ${ability && (part.ability_name || part.ability_code) ? `<small>${ghostLabel("apps.network.ability")} ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
+                <details><summary>${ghostLabel("apps.network.details")}</summary>
+                    ${identity && part.part_code ? `<small>${ghostLabel("apps.network.code")} ${escapeHTML(part.part_code)}</small>` : ""}
+                    ${identity && (part.machine_name || part.machine_code) ? `<small>${ghostLabel("apps.network.machine")} ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
+                    ${owner.owner_alias ? `<small>${ghostLabel("apps.network.owner_caption")} ${escapeHTML(owner.owner_alias)}</small>` : ""}
+                    ${(owner.owner_clan || territory.owner_clan) ? `<small>${ghostLabel("apps.network.clan_caption")} ${escapeHTML(owner.owner_clan || territory.owner_clan)}</small>` : ""}
+                    ${territory.territory_id ? `<small>${ghostLabel("apps.network.territory")} ${escapeHTML(territory.territory_id)}</small>` : ""}
+                    ${part.discovered_at ? `<small>${ghostLabel("apps.network.discovered")} ${escapeHTML(part.discovered_at)}</small>` : ""}
+                    ${part.updated_at ? `<small>${ghostLabel("apps.network.update")} ${escapeHTML(part.updated_at)}</small>` : ""}
                 </details>
             </div>
-            <div class="ghostnetwork-suite-card-state"><b>${escapeHTML(part.status || "unknown")}</b>${conflictState && conflictState !== "none" ? `<span>${escapeHTML(conflictState)}</span>` : ""}</div>
+            <div class="ghostnetwork-suite-card-state"><b>${ghostSystemValue("apps.network.value.", part.status || "unknown")}</b>${conflictState && conflictState !== "none" ? `<span>${ghostSystemValue("apps.network.value.", conflictState)}</span>` : ""}</div>
             <div class="ghostnetwork-suite-card-actions">
-                <button type="button" data-suite-card-action="map" ${canMap ? "" : "disabled data-original-disabled=\"1\""} title="${canMap ? "Pokaz na mapie" : "Mapa niedostepna dla aktualnej projekcji"}" aria-label="Pokaz czesc GhostNetwork na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
-                <button type="button" data-suite-card-action="teleport" ${canTeleport ? "" : "disabled data-original-disabled=\"1\""} title="${canTeleport ? "Teleport" : "Teleport niedostepny dla aktualnej projekcji"}" aria-label="Teleport do czesci GhostNetwork">${TERRITORY_CONTROL_ICONS.teleport}</button>
+                <button type="button" data-suite-card-action="map" ${canMap ? "" : "disabled data-original-disabled=\"1\""} title="${canMap ? ghostText('apps.network.map') : ghostText('apps.network.map_disabled')}" data-ghost-aria-label="apps.network.map_part" aria-label="${escapeHTML(ghostText('apps.network.map_part'))}">${TERRITORY_CONTROL_ICONS.map}</button>
+                <button type="button" data-suite-card-action="teleport" ${canTeleport ? "" : "disabled data-original-disabled=\"1\""} title="${canTeleport ? ghostText('apps.network.teleport') : ghostText('apps.network.teleport_disabled')}" data-ghost-aria-label="apps.network.teleport_part" aria-label="${escapeHTML(ghostText('apps.network.teleport_part'))}">${TERRITORY_CONTROL_ICONS.teleport}</button>
             </div>
         </article>`;
 }
 
 function ghostnetworkSuiteCycleStatus(cycle = {}) {
     const status = String(cycle.status || "active").toLowerCase();
-    if (status === "transmitting") return "GHOSTNETWORK ZAMKNIETY · TRANSMISJA W TOKU";
-    if (status === "stabilizing") return "NOWY CYKL OCZEKUJE NA STABILIZACJE";
-    if (status === "preparing") return "PRZYGOTOWANIE NOWEGO CYKLU";
-    if (status === "closed") return "AKTYWNY CYKL ZAKONCZONY";
-    return "STABILNIE";
+    if (status === "transmitting") return ghostText('apps.network.cycle.transmitting');
+    if (status === "stabilizing") return ghostText('apps.network.cycle.stabilizing');
+    if (status === "preparing") return ghostText('apps.network.cycle.preparing');
+    if (status === "closed") return ghostText('apps.network.cycle.closed');
+    return ghostText('apps.network.cycle.active');
 }
 
 function ghostnetworkSuiteOpaqueAction(part = {}, actionName = "map") {
@@ -8040,7 +8082,7 @@ function ghostnetworkSuiteOpaqueAction(part = {}, actionName = "map") {
 function openGhostNetworkSuiteMap(part = {}) {
     const target = ghostnetworkSuiteOpaqueAction(part, "map");
     if (!target) {
-        addSystemMessage("warning", "GHOSTNETWORK SUITE", "Mapa jest niedostepna dla aktualnej projekcji czesci.");
+        addSystemMessage("warning", "GHOSTNETWORK SUITE", ghostText('apps.network.no_map'));
         return false;
     }
     createMap();
@@ -8065,17 +8107,17 @@ async function teleportGhostNetworkSuitePart(app, state, part = {}) {
     if (state.actionPending) return false;
     const target = ghostnetworkSuiteOpaqueAction(part, "teleport");
     if (!target) {
-        addSystemMessage("warning", "GHOSTNETWORK SUITE", "Teleport jest niedostepny dla aktualnej projekcji czesci.");
+        addSystemMessage("warning", "GHOSTNETWORK SUITE", ghostText('apps.network.no_teleport'));
         return false;
     }
     const territoryOnly = target.target_type === "ghostnetwork_territory";
     const conflictWarning = part.contested || part.conflict_state === "contested" ? " Uwaga: komponent znajduje sie w aktywnym konflikcie." : "";
     const accepted = await showGhostDecisionDialog({
-        title: territoryOnly ? "TELEPORT DO TERYTORIUM Z KOMPONENTEM" : "TELEPORT DO WEZLA GHOSTNETWORK",
-        message: `Wykonac teleport: ${part.display_label || "GhostNetwork"}?`,
-        details: `${territoryOnly ? "Cel: bezpieczny punkt terytorium; ukryta kotwica nie zostanie ujawniona." : "Cel: aktualna dokladna pozycja wezla."}${conflictWarning}`,
-        confirmLabel: "TELEPORT",
-        cancelLabel: "ANULUJ",
+        titleKey: territoryOnly ? "apps.network.teleport.title_territory" : "apps.network.teleport.title_node",
+        messageKey: "apps.network.teleport.message", messageParams: {label:part.display_label || "GhostNetwork"},
+        detailsKey: "apps.network.teleport." + (territoryOnly ? "territory" : "node") + (part.contested || part.conflict_state === "contested" ? "_contested" : ""),
+        confirmKey: "apps.network.teleport",
+        cancelKey: "apps.victim.cancel",
         tone: part.contested ? "red" : "lime",
     });
     if (!accepted) return false;
@@ -8089,11 +8131,11 @@ async function teleportGhostNetworkSuitePart(app, state, part = {}) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            addSystemMessage("warning", "GHOSTNETWORK SUITE", data.message || "Teleport odrzucony przez aktualna projekcje.");
+            addSystemMessage("warning", "GHOSTNETWORK SUITE", ghostReply(data, 'apps.network.teleport_denied'));
             await loadGhostNetworkSuite(app, state);
             return false;
         }
-        addSystemMessage("success", "GHOSTNETWORK SUITE", data.message || "Teleport wykonany.");
+        addSystemMessage("success", "GHOSTNETWORK SUITE", ghostReply(data, 'apps.network.teleport_done'));
         const position = data.current_position || data.curently_possition || {};
         if (Number.isFinite(Number(position.lat)) && Number.isFinite(Number(position.lng))) {
             createMap();
@@ -8108,7 +8150,7 @@ async function teleportGhostNetworkSuitePart(app, state, part = {}) {
         return true;
     } catch (error) {
         console.warn("GhostNetwork Suite teleport failed", { reason: String(error?.message || "transport_error") });
-        addSystemMessage("warning", "GHOSTNETWORK SUITE", "Nie udalo sie wykonac teleportu.");
+        addSystemMessage("warning", "GHOSTNETWORK SUITE", ghostText('apps.network.teleport_failed'));
         return false;
     } finally {
         state.actionPending = false;
@@ -8139,10 +8181,10 @@ function renderGhostNetworkSuite(app, state) {
     const selected = ghostnetworkSuiteSelect(snapshot, state.filter, state.query, state.sort);
     const stale = state.error && state.snapshot;
     shell.innerHTML = `
-        <header class="ghostnetwork-suite-header"><div><strong>GHOSTNETWORK // CYKL ${escapeHTML(cycle.cycle_id || "-")}</strong><span>${escapeHTML(snapshot.system_version || cycle.system_version || "GHOSTSYSTEM")}</span></div><div class="ghostnetwork-suite-counters"><b>ODKRYTE ${Number(summary.parts_discovered || 0)} / 20</b><b>AKTYWNE ${Number(summary.parts_active || 0)} / 20</b><b>BLOKOWANE ${Number(summary.parts_blocked || 0)}</b><b>PUBLICZNE ${Number(summary.parts_public || 0)}</b></div></header>
-        <div class="ghostnetwork-suite-toolbar"><nav>${GHOSTNETWORK_SUITE_SECTIONS.map(section => `<button type="button" data-suite-filter="${section.id}" class="${state.filter === section.id ? "is-active" : ""}">${section.label}</button>`).join("")}</nav><input type="search" data-suite-search value="${escapeHTML(state.query || "")}" placeholder="Szukaj w widocznych danych" aria-label="Szukaj czesci GhostNetwork"><select data-suite-sort aria-label="Sortowanie czesci"><option value="strategic" ${state.sort === "strategic" ? "selected" : ""}>STRATEGICZNE</option><option value="distance" ${state.sort === "distance" ? "selected" : ""}>ODLEGLOSC</option><option value="state" ${state.sort === "state" ? "selected" : ""}>STAN</option><option value="clan" ${state.sort === "clan" ? "selected" : ""}>KLAN</option><option value="owner" ${state.sort === "owner" ? "selected" : ""}>WLASCICIEL</option><option value="updated" ${state.sort === "updated" ? "selected" : ""}>OSTATNIA ZMIANA</option></select><button type="button" data-suite-refresh>ODSWIEZ</button></div>
-        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? "SYNCHRONIZACJA GHOSTNETWORK · ODCZYT PROJEKCJI WEZLOW" : state.restartRequired ? escapeHTML(ghostnetworkSuiteRestartMessage(snapshot)) : stale ? `DANE STALE · ${escapeHTML(state.error)}` : state.error ? escapeHTML(state.error) : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
-        <section class="ghostnetwork-suite-list">${selected.length ? selected.map(ghostnetworkSuiteCard).join("") : `<div class="ghostnetwork-suite-empty">${state.loading ? "Synchronizacja GhostNetwork..." : "Brak czesci dla wybranego filtra."}</div>`}</section>`;
+        <header class="ghostnetwork-suite-header"><div><strong>${ghostLabel("apps.network.cycle")} ${escapeHTML(cycle.cycle_id || "-")}</strong><span>${escapeHTML(snapshot.system_version || cycle.system_version || "GHOSTSYSTEM")}</span></div><div class="ghostnetwork-suite-counters"><b>${ghostLabel("apps.network.discovered_count")} ${Number(summary.parts_discovered || 0)} / 20</b><b>${ghostLabel("apps.network.active")} ${Number(summary.parts_active || 0)} / 20</b><b>${ghostLabel("apps.network.blocked")} ${Number(summary.parts_blocked || 0)}</b><b>${ghostLabel("apps.network.public")} ${Number(summary.parts_public || 0)}</b></div></header>
+        <div class="ghostnetwork-suite-toolbar"><nav>${GHOSTNETWORK_SUITE_SECTIONS.map(section => `<button type="button" data-suite-filter="${section.id}" class="${state.filter === section.id ? "is-active" : ""}">${ghostLabel(section.label)}</button>`).join("")}</nav><input type="search" data-suite-search value="${escapeHTML(state.query || "")}" data-ghost-i18n-placeholder="apps.network.search" placeholder="${escapeHTML(ghostText('apps.network.search'))}" data-ghost-aria-label="apps.network.search_parts" aria-label="${escapeHTML(ghostText('apps.network.search_parts'))}"><select data-suite-sort data-ghost-aria-label="apps.network.sort" aria-label="${escapeHTML(ghostText('apps.network.sort'))}"><option value="strategic" ${state.sort === "strategic" ? "selected" : ""}>${ghostLabel("apps.network.strategic")}</option><option value="distance" ${state.sort === "distance" ? "selected" : ""}>${ghostLabel("apps.network.distance")}</option><option value="state" ${state.sort === "state" ? "selected" : ""}>${ghostLabel("apps.network.state")}</option><option value="clan" ${state.sort === "clan" ? "selected" : ""}>${ghostLabel("apps.network.clan")}</option><option value="owner" ${state.sort === "owner" ? "selected" : ""}>${ghostLabel("apps.network.owner")}</option><option value="updated" ${state.sort === "updated" ? "selected" : ""}>${ghostLabel("apps.network.updated")}</option></select><button type="button" data-suite-refresh>${ghostLabel("apps.network.refresh")}</button></div>
+        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? ghostText('apps.network.sync_detail') : state.restartRequired ? escapeHTML(ghostnetworkSuiteRestartMessage(snapshot)) : stale ? ghostLabel("apps.network.stale", {error:ghostText("apps.network.load_failed")}) : state.error ? ghostLabel("apps.network.load_failed") : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
+        <section class="ghostnetwork-suite-list">${selected.length ? selected.map(ghostnetworkSuiteCard).join("") : `<div class="ghostnetwork-suite-empty">${state.loading ? ghostText('apps.network.sync') : ghostText('apps.network.empty')}</div>`}</section>`;
     shell.querySelectorAll("[data-part-ref]").forEach(card => {
         const details = card.querySelector("details");
         if (details && expanded.has(card.dataset.partRef || "")) details.open = true;
@@ -8229,7 +8271,7 @@ async function loadGhostNetworkSuite(app, state, options = {}) {
     try {
         const response = await fetch(GHOSTNETWORK_SUITE_ENDPOINT, { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok || payload?.suite_health?.ok === false) throw new Error(payload?.message || payload?.error || "Snapshot GhostNetwork jest niedostepny.");
+        if (!response.ok || payload?.suite_health?.ok === false) throw new Error(payload?.message || payload?.error || ghostText('apps.network.snapshot_missing'));
         state.snapshot = payload;
         state.restartRequired = ghostnetworkSuiteRestartRequired(payload);
         if (state.restartRequired) ghostnetworkSuiteDisableActions(state.snapshot);
@@ -8237,7 +8279,7 @@ async function loadGhostNetworkSuite(app, state, options = {}) {
         ghostnetworkSuiteSetBaseline(payload);
         loaded = true;
     } catch (error) {
-        state.error = error?.message || "Nie udalo sie pobrac GhostNetwork Suite.";
+        state.error = error?.message || ghostText('apps.network.load_failed');
         console.warn("GhostNetwork Suite load failed", { reason: state.error });
     } finally {
         state.loading = false;
@@ -8332,7 +8374,7 @@ window.ghostnetwork_suite = createGhostNetworkSuiteApp;
 async function loadGhostSignalArchive(app, signalId = "") {
     const shell = app?.querySelector(".ghostsignal-archive-shell");
     if (!shell) return false;
-    shell.innerHTML = '<div class="ghostnetwork-suite-status">SYNCHRONIZACJA ARCHIWUM GHOSTSIGNAL...</div>';
+    shell.innerHTML = `<div class="ghostnetwork-suite-status">${ghostLabel("apps.network.registry.loading")}</div>`;
     try {
         const requestOptions = {credentials: "same-origin", cache: "no-store", headers: {"Accept": "application/json"}};
         const [listResponse, rankingsResponse, allTimeResponse] = await Promise.all([
@@ -8369,9 +8411,9 @@ async function loadGhostSignalArchive(app, signalId = "") {
         const detailMarkup = selectedSignal ? `
             <article class="ghostnetwork-suite-card">
                 <div class="ghostnetwork-suite-card-main"><strong>${escapeHTML(selectedSignal.title || selectedSignal.signal_id || "GHOSTSIGNAL")}</strong>
-                <p>${escapeHTML(selectedSignal.summary || selectedSignal.status || "Zarchiwizowany sygnał GhostNetwork.")}</p>
+                <p>${escapeHTML(selectedSignal.summary || selectedSignal.status || ghostText('apps.network.archived'))}</p>
                 <small>${escapeHTML(selectedSignal.sent_at || selectedSignal.created_at || "")}</small></div>
-            </article>` : '<div class="ghostnetwork-suite-empty">Wybierz zarchiwizowany sygnał.</div>';
+            </article>` : `<div class="ghostnetwork-suite-empty">${ghostLabel("apps.network.registry.choose")}</div>`;
         const registryAvatars = new Map();
         const registryAvatar = value => /^\/?static\/images\/avatar-(?:frakcja-[1-4]-player-[1-5]\.png|default\.jpg)$/.test(String(value || ""))
             ? "/" + String(value).replace(/^\//, "") : "";
@@ -8386,32 +8428,34 @@ async function loadGhostSignalArchive(app, signalId = "") {
             const territories = item?.territories_consumed ?? item?.territories_consumed_total ?? 0;
             const area = item?.territory_area_consumed ?? item?.territory_area_consumed_total ?? 0;
             const rsp = item?.rsp_signal ?? item?.ghostnetwork_rsp_total ?? 0;
-            const meta = kind === "clan"
-                ? `NODES ${nodes} · TER ${territories} · AREA ${area}${item?.conflict_metrics ? ` · CONFLICT ${conflictScore}` : ""}`
-                : `RSP ${rsp} · NODES ${nodes} · TER ${territories}${item?.conflict_metrics ? ` · CONFLICT ${conflictScore}` : ""}${item?.closer ? " · CLOSER" : ""}`;
+            const meta = (kind === 'clan'
+                ? ghostLabel('apps.network.registry.clan_metrics', {nodes:Number(nodes), territories:Number(territories), area:Number(area)})
+                : ghostLabel('apps.network.registry.player_metrics', {rsp:Number(rsp), nodes:Number(nodes), territories:Number(territories)}))
+                + (item?.conflict_metrics ? ' · ' + ghostLabel('apps.network.registry.conflict', {score:Number(conflictScore)}) : '')
+                + (item?.closer ? ' · ' + ghostLabel('apps.network.registry.closer') : '');
             const clan = String(item.clan_id || "");
             const image = kind === "clan"
                 ? (registryClans.includes(clan) ? `/static/images/ghostnetwork/clans/${clan}.svg` : "")
                 : registryAvatar(item.avatar_snapshot) || (labelKey && valueKey === "ghostnetwork_rsp_total" ? registryAvatars.get(item.user_id) : "") || "/static/images/avatar-default.jpg";
             const portrait = `<span class="registry-portrait ${kind === "clan" ? "is-clan" : "is-player"}" aria-hidden="true">${image ? `<img src="${escapeHTML(image)}" alt="" loading="lazy" decoding="async">` : "≋"}</span>`;
-            return `<div class="ghostsignal-ranking-row"><b>#${escapeHTML(item?.rank || "-")}</b><div class="registry-identity">${portrait}<span>${escapeHTML(item?.[labelKey] || "-")}<small>${escapeHTML(meta)}</small></span></div><strong>${escapeHTML(item?.[valueKey] || 0)}</strong></div>`;
+            return `<div class="ghostsignal-ranking-row"><b>#${escapeHTML(item?.rank || "-")}</b><div class="registry-identity">${portrait}<span>${escapeHTML(item?.[labelKey] || "-")}<small>${meta}</small></span></div><strong>${escapeHTML(item?.[valueKey] || 0)}</strong></div>`;
         }).join("");
         const rankingMarkup = selectedRanking ? `
             <section class="ghostsignal-ranking-grid">
-                <article><h3>GRACZE // SIGNAL ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.players, "rsp_signal", "display_alias_snapshot", "player")}</article>
-                <article><h3>KLANY // SIGNAL ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.clans, "clan_ghost_score", "clan_name_snapshot", "clan")}</article>
-            </section>` : '<div class="ghostnetwork-suite-empty">Brak zakończonego rankingu GhostSignal.</div>';
+                <article><h3>${ghostLabel("apps.network.registry.players_signal")} ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.players, "rsp_signal", "display_alias_snapshot", "player")}</article>
+                <article><h3>${ghostLabel("apps.network.registry.clans_signal")} ${escapeHTML(selectedRanking.signal_number || "")}</h3>${rankRows(selectedRanking.clans, "clan_ghost_score", "clan_name_snapshot", "clan")}</article>
+            </section>` : `<div class="ghostnetwork-suite-empty">${ghostLabel("apps.network.registry.no_ranking")}</div>`;
         const allTimeMarkup = `
             <section class="ghostsignal-ranking-grid">
-                <article><h3>GRACZE // ALL-TIME</h3>${rankRows(allTimePayload.players, "ghostnetwork_rsp_total", "display_alias_snapshot", "player")}</article>
-                <article><h3>KLANY // ALL-TIME</h3>${rankRows(allTimePayload.clans, "clan_ghost_score_total", "clan_name_snapshot", "clan")}</article>
+                <article><h3>${ghostLabel("apps.network.registry.players_all")}</h3>${rankRows(allTimePayload.players, "ghostnetwork_rsp_total", "display_alias_snapshot", "player")}</article>
+                <article><h3>${ghostLabel("apps.network.registry.clans_all")}</h3>${rankRows(allTimePayload.clans, "clan_ghost_score_total", "clan_name_snapshot", "clan")}</article>
             </section>`;
         shell.innerHTML = `
-            <header class="ghostnetwork-suite-header"><div><strong>SIGNAL REGISTRY</strong><span>IMMUTABLE // REBUILDABLE</span></div></header>
-            <div class="ghostnetwork-suite-toolbar"><button type="button" data-ghostsignal-refresh>ODŚWIEŻ</button></div>
+            <header class="ghostnetwork-suite-header"><div><strong>SIGNAL REGISTRY</strong><span>${ghostLabel('apps.network.registry.contract')}</span></div></header>
+            <div class="ghostnetwork-suite-toolbar"><button type="button" data-ghostsignal-refresh>${ghostLabel("apps.network.refresh")}</button></div>
             <section class="ghostnetwork-suite-list">${detailMarkup}</section>
             ${rankingMarkup}
-            <section class="ghostnetwork-suite-list" aria-label="Wybierz sygnał">${rows || '<div class="ghostnetwork-suite-empty">Brak zarchiwizowanych sygnałów.</div>'}</section>
+            <section class="ghostnetwork-suite-list" data-ghost-aria-label="apps.network.registry.select" aria-label="${escapeHTML(ghostText('apps.network.registry.select'))}">${rows || `<div class="ghostnetwork-suite-empty">${ghostLabel("apps.network.registry.empty")}</div>`}</section>
             ${allTimeMarkup}`;
         shell.querySelectorAll(".registry-portrait img").forEach(img => img.addEventListener("error", () => {
             if (img.parentElement.classList.contains("is-player") && !img.src.endsWith("/avatar-default.jpg")) {
@@ -8425,7 +8469,7 @@ async function loadGhostSignalArchive(app, signalId = "") {
         }));
         return true;
     } catch (error) {
-        shell.innerHTML = `<div class="ghostnetwork-suite-status is-error">ARCHIWUM NIEDOSTĘPNE // ${escapeHTML(error?.message || "read_failed")}</div>`;
+        shell.innerHTML = `<div class="ghostnetwork-suite-status is-error">${ghostLabel("apps.network.registry.failed")}</div>`;
         return false;
     }
 }
@@ -8457,6 +8501,12 @@ function createGhostSignalArchiveApp(signalId = "") {
 
 window.createGhostSignalArchiveApp = createGhostSignalArchiveApp;
 
+document.addEventListener('ghost:locale-changed', () => {
+    document.querySelectorAll('[data-app="ghostnetwork-suite"]').forEach(app => {
+        if (app._ghostNetworkSuiteState && !app._ghostNetworkSuiteState.closed) renderGhostNetworkSuite(app, app._ghostNetworkSuiteState);
+    });
+});
+
 function createAgi2108ConsoleApp() {
     const existing = document.querySelector('.app-window[data-app="agi2108-console"]');
     if (existing) { bringWindowToFront(existing); return existing; }
@@ -8476,24 +8526,24 @@ function createAgi2108ConsoleApp() {
         <div class="agi2108-shell">
             <header class="agi2108-header">
                 <span class="agi2108-mark" aria-hidden="true">⌬</span>
-                <span><strong>AGI 2108 // OWNER ANALYSIS</strong><small>Canonical narrative transport</small></span>
+                <span><strong>${ghostLabel('apps.agi.heading')}</strong><small>${ghostLabel('apps.agi.transport')}</small></span>
                 <i>5 / H</i>
             </header>
             <section class="agi2108-contract">
-                <span>TEMPLATE <b>owner-analysis</b></span>
-                <span>MEDIUM <b>Cyberner / AGI 2108</b></span>
-                <span>COST <b>0 HC</b></span>
+                <span>${ghostLabel('apps.agi.template')} <b>owner-analysis</b></span>
+                <span>${ghostLabel('apps.agi.medium')} <b>Cyberner / AGI 2108</b></span>
+                <span>${ghostLabel('apps.agi.cost')} <b>0 HC</b></span>
             </section>
-            <label class="agi2108-topic-label" for="agi2108-topic">TEMAT ANALIZY</label>
-            <textarea id="agi2108-topic" class="agi2108-topic" maxlength="120" rows="4" placeholder="Wpisz temat analizy operatorskiej (maks. 120 znaków)"></textarea>
-            <div class="agi2108-compose-footer"><span data-agi-count>0 / 120</span><button type="button" data-agi-submit>WYŚLIJ TASK</button></div>
+            <label class="agi2108-topic-label" for="agi2108-topic">${ghostLabel('apps.agi.topic')}</label>
+            <textarea id="agi2108-topic" class="agi2108-topic" maxlength="120" rows="4" data-ghost-i18n-placeholder="apps.agi.placeholder" placeholder="${escapeHTML(ghostText('apps.agi.placeholder'))}"></textarea>
+            <div class="agi2108-compose-footer"><span data-agi-count>0 / 120</span><button type="button" data-agi-submit>${ghostLabel('apps.agi.submit')}</button></div>
             <section class="agi2108-status" data-agi-status data-state="idle">
-                <strong>GOTOWY</strong><span>Brak aktywnego receipt.</span><small></small>
+                <strong>${ghostLabel('apps.agi.ready')}</strong><span>${ghostLabel('apps.agi.no_receipt')}</span><small></small>
             </section>
             <section class="agi2108-result" data-agi-result hidden>
                 <strong></strong><p></p><small></small>
             </section>
-            <button type="button" class="agi2108-result-link" disabled>WYNIK W CYBERNER AGI 2108</button>
+            <button type="button" class="agi2108-result-link" disabled>${ghostLabel('apps.agi.result_link')}</button>
         </div>`;
     document.body.appendChild(app);
     makeDraggable(app);
@@ -8515,8 +8565,10 @@ function createAgi2108ConsoleApp() {
 
     const setStatus = (state, title, message, detail = '') => {
         status.dataset.state = state;
-        status.querySelector('strong').textContent = title;
-        status.querySelector('span').textContent = message;
+        ghostSet(status.querySelector('strong'), title);
+        const messageNode = status.querySelector('span');
+        if (String(message).startsWith('apps.agi.') && GhostLocale.hasKey(message)) ghostSet(messageNode, message);
+        else { delete messageNode.dataset.ghostI18n; messageNode.textContent = message; }
         status.querySelector('small').textContent = detail;
     };
     const receiptShort = value => String(value || '').slice(0, 22);
@@ -8536,24 +8588,24 @@ function createAgi2108ConsoleApp() {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || data.success === false) {
-                setStatus('failed', 'STATUS NIEDOSTĘPNY', data.message || 'Nie udało się odtworzyć receipt.', receiptShort(receiptId));
+                setStatus('failed', 'apps.agi.unavailable', 'apps.agi.restore_failed', receiptShort(receiptId));
                 return;
             }
             const receipt = data.receipt || {};
             const publication = data.publication && typeof data.publication === 'object' ? data.publication : null;
             const state = String(receipt.status || 'accepted');
             const labels = {
-                accepted: ['PRZYJĘTO', 'Task został przyjęty do canonical transportu.'],
-                queued: ['W KOLEJCE', 'Task oczekuje na lokalny worker AGI.'],
-                processing: ['PRZETWARZANIE', 'AGI 2108 przetwarza bounded package.'],
-                completed: ['ZAKOŃCZONO', publication ? 'Wynik AGI 2108 jest gotowy.' : 'Candidate oczekuje na bezpieczną publikację.'],
-                failed: ['NIEPOWODZENIE', receipt.user_message || 'Task zakończył się kontrolowanym błędem.']
+                accepted: ['apps.agi.accepted', 'apps.agi.accepted_help'],
+                queued: ['apps.agi.queued', 'apps.agi.queued_help'],
+                processing: ['apps.agi.processing', 'apps.agi.processing_help'],
+                completed: ['apps.agi.completed', publication ? 'apps.agi.result_ready' : 'apps.agi.publishing'],
+                failed: ['apps.agi.failed', 'apps.agi.failed_help']
             };
             const label = labels[state] || labels.accepted;
             setStatus(
                 state,
                 label[0],
-                receipt.user_message || label[1],
+                label[1],
                 `RECEIPT ${receiptShort(receipt.receipt_id || receiptId)}`
             );
             if (publication && resultPanel && resultLink) {
@@ -8570,7 +8622,7 @@ function createAgi2108ConsoleApp() {
                 || (state === 'completed' && !publication)
             ) scheduleStatus();
         } catch (_error) {
-            setStatus('failed', 'BRAK POŁĄCZENIA', 'Status pozostaje zapisany. Ponowimy po otwarciu aplikacji.', receiptShort(receiptId));
+            setStatus('failed', 'apps.agi.offline', 'apps.agi.retry_status', receiptShort(receiptId));
         }
     };
 
@@ -8584,7 +8636,7 @@ function createAgi2108ConsoleApp() {
     submit?.addEventListener('click', async () => {
         const value = String(topicInput?.value || '').trim();
         if (!value) {
-            setStatus('failed', 'BRAK TEMATU', 'Wpisz temat analizy.');
+            setStatus('failed', 'apps.agi.topic_missing', 'apps.agi.topic_required');
             topicInput?.focus();
             return;
         }
@@ -8598,7 +8650,7 @@ function createAgi2108ConsoleApp() {
         );
         pendingAction = {receipt_id: clientReceipt, topic: value};
         try { window.sessionStorage?.setItem(pendingStorageKey, JSON.stringify(pendingAction)); } catch (_error) {}
-        setStatus('accepted', 'WYSYŁANIE', 'Walidacja entitlement, template i receipt...');
+        setStatus('accepted', 'apps.agi.sending', 'apps.agi.validating');
         try {
             const requestPayload = {
                 app_id: 'agi2108Console',
@@ -8614,7 +8666,7 @@ function createAgi2108ConsoleApp() {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || data.success === false) {
-                setStatus('failed', 'TASK ODRZUCONY', data.message || 'Polityka AGI odrzuciła zlecenie.', String(data.reason_code || 'request_rejected'));
+                setStatus('failed', 'apps.agi.rejected', 'apps.agi.rejected_help', String(data.reason_code || 'request_rejected'));
                 if (response.status < 500) {
                     pendingAction = null;
                     try { window.sessionStorage?.removeItem(pendingStorageKey); } catch (_error) {}
@@ -8625,12 +8677,12 @@ function createAgi2108ConsoleApp() {
             if (receiptId) window.sessionStorage?.setItem(receiptStorageKey, receiptId);
             pendingAction = null;
             try { window.sessionStorage?.removeItem(pendingStorageKey); } catch (_error) {}
-            setStatus('accepted', 'PRZYJĘTO', 'Utworzono jeden owner-scoped task.', `RECEIPT ${receiptShort(receiptId)}`);
+            setStatus('accepted', 'apps.agi.accepted', 'apps.agi.created', `RECEIPT ${receiptShort(receiptId)}`);
             topicInput.value = '';
             if (count) count.textContent = '0 / 120';
             scheduleStatus();
         } catch (_error) {
-            setStatus('failed', 'BRAK POŁĄCZENIA', 'Task nie został potwierdzony. Spróbuj ponownie.');
+            setStatus('failed', 'apps.agi.offline', 'apps.agi.unconfirmed_help');
         } finally {
             submitting = false;
             submit.disabled = false;
@@ -8648,7 +8700,7 @@ function createAgi2108ConsoleApp() {
             pendingAction = savedPending;
             topicInput.value = String(savedPending.topic).slice(0, 120);
             if (count) count.textContent = `${topicInput.value.length} / 120`;
-            setStatus('accepted', 'NIEPOTWIERDZONY RECEIPT', 'Ponowienie użyje tej samej tożsamości taska.', receiptShort(savedPending.receipt_id));
+            setStatus('accepted', 'apps.agi.unconfirmed', 'apps.agi.same_receipt', receiptShort(savedPending.receipt_id));
         }
     } catch (_error) {
         receiptId = '';
@@ -8948,14 +9000,12 @@ function app_terminal(id, levels) {
     async function confirmTerminalRuntime() {
         const resultLine = document.createElement('div');
         resultLine.className = 'terminal-line app-terminal-line app-terminal-runtime-result';
-        resultLine.textContent = '[WAIT] oczekiwanie na potwierdzenie runtime';
+        ghostSet(resultLine, 'lab.runtime.wait');
         log.appendChild(resultLine);
         scrollLogToBottom();
         const success = await notifyGonnaWin(id, app, { legacyWait: false });
         if (!app.isConnected) return;
-        resultLine.textContent = success
-            ? '[OK] operacja potwierdzona przez runtime'
-            : '[ERROR] runtime odrzucil operacje';
+        ghostSet(resultLine, success ? 'lab.runtime.confirmed' : 'lab.runtime.rejected');
         resultLine.dataset.tone = success ? 'success' : 'failure';
         app.querySelector('[data-terminal-sysinfo]')?.setAttribute(
             'data-terminal-sysinfo',
@@ -8974,7 +9024,7 @@ function app_terminal(id, levels) {
         }
         const line = document.createElement('div');
         line.className = 'terminal-line app-terminal-line app-terminal-output';
-        line.textContent = String(outputLines[index] || '');
+        line.innerHTML = ghostApplicationField(level, 'logs.' + index, String(outputLines[index] || ''));
         log.appendChild(line);
         window.requestAnimationFrame(() => line.classList.add('is-visible'));
         scrollLogToBottom();
@@ -8996,18 +9046,18 @@ function app_button_choices(id, levels) {
     const lvl = safeLevels[0] || {};
     const options = Array.isArray(lvl.options) && lvl.options.length
         ? lvl.options.map((option, index) => normalizeButtonChoiceOption(option, index))
-        : [{ id: 0, label: "Wykonaj", effect: {} }];
+        : [{ id: 0, label: ghostText('lab.runtime.execute'), effect: {} }];
     const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "button_choices");
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content ofs-author-shell ofs-author-button-choice">
-            <header class="ofs-author-header"><span>DECISION</span><h3>${escapeHTML(lvl.title || 'Wybierz opcj\u0119')}</h3></header>
-            <section class="ofs-author-content"><p>${escapeHTML(lvl.text || '')}</p></section>
+            <header class="ofs-author-header"><span>DECISION</span><h3>${ghostApplicationField(lvl, 'title', lvl.title || ghostText('lab.runtime.choose'))}</h3></header>
+            <section class="ofs-author-content"><p>${ghostApplicationField(lvl, 'text', lvl.text || '')}</p></section>
             <div class="button-row ofs-author-actions" data-choice-layout="${options.length === 1 ? 'single' : (options.length <= 4 ? 'grid' : 'list')}" data-choice-count="${options.length}">
                 ${options.map((opt, i) => `
                     <button data-opt-id="${escapeHTML(opt.id || i)}" class="choice-btn">
-                        ${escapeHTML(opt.label || '')}
+                        ${ghostApplicationField(lvl, 'options.' + i + '.label', opt.label || '')}
                     </button>
                 `).join('')}
             </div>
@@ -9031,14 +9081,14 @@ function app_button_choices(id, levels) {
             try {
                 const response = await fetch(`/api/creators/installed/${encodeURIComponent(id)}/options/${encodeURIComponent(button.dataset.optId)}`, {cache: 'no-store'});
                 const data = await response.json();
-                if (!response.ok || !data.success) throw new Error(data.message || 'Nie można odczytać ceny opcji.');
+                if (!response.ok || !data.success) throw new Error(ghostResponseText(data, 'lab.runtime.quote_failed'));
                 const quote = data.quote;
                 const label = document.createElement('small');
                 label.style.display = 'block';
-                label.textContent = quote.price ? `${quote.price} HC tylko za sukces → ${quote.recipient}` : 'Użycie bezpłatne';
+                if (quote.price) ghostSet(label, 'lab.runtime.quote', {amount:Number(quote.price), recipient:String(quote.recipient)}); else ghostSet(label, 'lab.runtime.free');
                 button.appendChild(label);
                 if (quote.price && quote.asynchronous) {
-                    label.textContent = `Rezerwacja ${quote.price} HC · opłata po sukcesie → ${quote.recipient}`;
+                    ghostSet(label, 'lab.runtime.reserve_quote', {amount:Number(quote.price), recipient:String(quote.recipient)});
                     button.disabled = false;
                 } else { button.disabled = false; }
             } catch (error) { resultBox.textContent = error.message; }
@@ -9063,10 +9113,10 @@ function app_button_choices(id, levels) {
                 const success = response.success === true;
                 btn.classList.add("is-selected");
 
-                addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
-                resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
+                addSystemMessage('info', ghostText('lab.runtime.choice_title'), ghostText('lab.runtime.action_result', {label:escapeHTML(choiceLabel), result:success ? '✔' : '✖'}));
+                resultBox.innerHTML = ghostRuntimeReply(response, success ? 'lab.runtime.success' : 'lab.runtime.failure');
                 if (response.option_payment?.reserved > 0) {
-                    resultBox.textContent = `Operacja uruchomiona. Zarezerwowano ${response.option_payment.reserved} HC; opłata zostanie pobrana tylko po sukcesie.`;
+                    resultBox.innerHTML = ghostLabel('lab.runtime.reserved', {amount:Number(response.option_payment.reserved)});
                 }
                 resultBox.style.color = success ? "#0f0" : "#f33";
                 if (success) {
@@ -9087,7 +9137,7 @@ function app_button_choices(id, levels) {
 
 function normalizeButtonChoiceOption(option, index = 0) {
     if (option === null || option === undefined) {
-        return { id: index, label: `Opcja ${index + 1}`, action: "", effect: {} };
+        return { id: index, label: ghostText('lab.runtime.option', {index:index + 1}), action: "", effect: {} };
     }
     if (typeof option !== "object") {
         return {
@@ -9097,7 +9147,7 @@ function normalizeButtonChoiceOption(option, index = 0) {
             effect: {}
         };
     }
-    const label = option.label ?? option.text ?? option.title ?? option.name ?? option.value ?? `Opcja ${index + 1}`;
+    const label = option.label ?? option.text ?? option.title ?? option.name ?? option.value ?? ghostText('lab.runtime.option', {index:index + 1});
     return {
         ...option,
         id: option.id ?? option.value ?? index,
@@ -9204,19 +9254,19 @@ function createBrowser() {
             <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
             <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
             <button type="button" class="browser-tab" data-browser-tab="blacknet">BlackNet</button>
-            <label class="gp-category-filter">Kategoria
-                <select aria-label="Kategoria produktów Googleplex">
-                    <option value="">Wszystkie kategorie</option>
-                    ${(googleplexSearchPresentation?.categories || []).map(category => `<option value="${category.id}">${category.label}</option>`).join('')}
+            <label class="gp-category-filter">${ghostLabel('shop.category')}
+                <select data-ghost-aria-label="shop.category">
+                    <option value="" data-ghost-i18n="shop.all_categories">${GhostLocale.t('shop.all_categories')}</option>
+                    ${(googleplexSearchPresentation?.categories || []).map(category => `<option value="${category.id}" data-ghost-i18n="shop.category.${category.id}">${GhostLocale.t('shop.category.' + category.id)}</option>`).join('')}
                 </select>
             </label>
         </div>
-        <input type="text" id="${terminalId}-search" placeholder="Szukaj aplikacji...  /all - pokaz wszystkie" class="googolplex-search">
+        <input type="text" id="${terminalId}-search" data-ghost-i18n-placeholder="shop.search" class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid">
             <div class="app-load-panel">
-                <div class="app-load-panel__title">Ladowanie WebDragons...</div>
+                <div class="app-load-panel__title">${ghostLabel('shop.loading')}</div>
                 <div class="app-load-panel__bar"><span></span></div>
-                <div class="app-load-panel__text">Synchronizacja katalogu Googolplex...</div>
+                <div class="app-load-panel__text">${ghostLabel('shop.loading')}</div>
             </div>
         </div>
     </div>
@@ -9776,72 +9826,10 @@ function createBrowser() {
 
     const blacknetCtaResult = (ok, message = "", extra = {}) => ({ ok: Boolean(ok), message, ...extra });
 
-    const blacknetDecisionDialog = ({
-        title = "BLACKNET",
-        message = "",
-        details = "",
-        confirmLabel = "OK",
-        cancelLabel = "ANULUJ",
-        tone = "lime"
-    } = {}) => new Promise(resolve => {
-        const existing = document.querySelector(".blacknet-decision-backdrop");
-        if (existing) {
-            existing.remove();
-        }
-
-        const backdrop = document.createElement("div");
-        backdrop.className = `blacknet-decision-backdrop tone-${String(tone || "lime").toLowerCase()}`;
-        backdrop.innerHTML = `
-            <section class="blacknet-decision" role="dialog" aria-modal="true" aria-labelledby="blacknet-decision-title">
-                <div class="blacknet-decision__scanline"></div>
-                <header class="blacknet-decision__header">
-                    <span class="blacknet-decision__badge">GHOST SYSTEM</span>
-                    <h2 id="blacknet-decision-title">${escapeHTML(title)}</h2>
-                </header>
-                <div class="blacknet-decision__body">
-                    <p>${escapeHTML(message)}</p>
-                    ${details ? `<p class="blacknet-decision__details">${escapeHTML(details)}</p>` : ""}
-                </div>
-                <footer class="blacknet-decision__actions">
-                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${escapeHTML(cancelLabel)}</button>
-                    <button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${escapeHTML(confirmLabel)}</button>
-                </footer>
-            </section>
-        `;
-
-        let settled = false;
-        const finish = accepted => {
-            if (settled) return;
-            settled = true;
-            document.removeEventListener("keydown", handleKeydown, true);
-            backdrop.remove();
-            resolve(Boolean(accepted));
-        };
-        const handleKeydown = event => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                finish(false);
-            }
-            if (event.key === "Enter") {
-                event.preventDefault();
-                finish(true);
-            }
-        };
-
-        backdrop.addEventListener("click", event => {
-            const button = event.target.closest("[data-choice]");
-            if (!button) {
-                if (event.target === backdrop) finish(false);
-                return;
-            }
-            finish(button.dataset.choice === "confirm");
-        });
-        document.addEventListener("keydown", handleKeydown, true);
-        document.body.appendChild(backdrop);
-        const confirmButton = backdrop.querySelector(".blacknet-decision__button.is-confirm");
-        if (confirmButton) {
-            requestAnimationFrame(() => confirmButton.focus());
-        }
+    const blacknetDecisionDialog = (options = {}) => showGhostDecisionDialog({
+        ...options,
+        messageParams: options.messageParams || options.params || {},
+        cancelKey: options.cancelKey || 'apps.blacknet.cancel'
     });
 
     window.blacknetDecisionDialog = blacknetDecisionDialog;
@@ -9876,8 +9864,8 @@ function createBrowser() {
             renderCatalog();
         }
         addSystemMessage("info", "BlackNet", query
-            ? `Googolplex filtruje sygnal: ${escapeHTML(query)}.`
-            : "Googolplex otwarty przez most BlackNet.");
+            ? ghostText('apps.blacknet.plex_query', {query:escapeHTML(query)})
+            : ghostText('apps.blacknet.plex_open'));
         return blacknetCtaResult(true);
     };
 
@@ -9898,8 +9886,8 @@ function createBrowser() {
         }
         switchBrowserTab("exchange");
         addSystemMessage("info", "BlackNet", sector
-            ? `Ghost Exchange otwarty dla sygnalu sektora: ${escapeHTML(sector)}.`
-            : "Ghost Exchange otwarty przez most BlackNet.");
+            ? ghostText('apps.blacknet.exchange_sector', {sector:escapeHTML(sector)})
+            : ghostText('apps.blacknet.exchange_open'));
         return blacknetCtaResult(true);
     };
 
@@ -9944,9 +9932,9 @@ function createBrowser() {
                 label: metadata.target_label || signal?.title || ""
             };
             setTimeout(() => notifyOpenMapsBlacknetFocus(window.__blacknetMapFocus), 50);
-            addSystemMessage("info", "BlackNet", `Mapa otwarta. Fokus sygnalu: ${escapeHTML(focus || metadata.coordinates || signal?.title || "koordynaty")}.`);
+            addSystemMessage("info", "BlackNet", ghostText('apps.blacknet.map_focus', {target:escapeHTML(focus || metadata.coordinates || signal?.title || "GPS")}));
         } else {
-            addSystemMessage("info", "BlackNet", "Mapa otwarta. Ten sygnal nie ma punktu do ustawienia fokusu.");
+            addSystemMessage("info", "BlackNet", ghostText('apps.blacknet.map_unfocused'));
         }
         return blacknetCtaResult(opened);
     };
@@ -9996,7 +9984,7 @@ function createBrowser() {
             return blacknetCtaResult(true);
         }
         if (peer) {
-            return blacknetCtaResult(false, `Cyberner nie znalazl aktywnego threadu: ${escapeHTML(peer)}.`);
+            return blacknetCtaResult(false, ghostText('apps.blacknet.thread_missing', {peer:escapeHTML(peer)}));
         }
         return blacknetCtaResult(opened);
     };
@@ -10014,20 +10002,20 @@ function createBrowser() {
     const blacknetOpenGhostNetworkSuite = async (signal, focusPart = false) => {
         const profile = toolbarProfile || await getUserProfile().catch(() => null);
         if (!profile) {
-            const message = "Nie udało się potwierdzić instalacji GhostNetwork Suite.";
+            const message = ghostText('apps.blacknet.suite_check');
             addSystemMessage("warning", "GhostNetwork Suite", message);
             return blacknetCtaResult(false, message, { messageShown: true });
         }
         if (!ghostNetworkSuiteInstalledInProfile(profile)) {
-            const message = "GhostNetwork Suite nie jest zainstalowany. Zainstaluj aplikację w Googleplex.";
+            const message = ghostText('apps.blacknet.suite_install');
             addSystemMessage("warning", "GhostNetwork Suite", message);
             return blacknetCtaResult(false, message, { messageShown: true });
         }
         if (typeof window.createGhostNetworkSuiteApp !== "function") {
-            return blacknetCtaResult(false, "GhostNetwork Suite nie jest dostępny.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.suite_unavailable'));
         }
         const app = window.createGhostNetworkSuiteApp();
-        if (!app) return blacknetCtaResult(false, "Nie udało się otworzyć GhostNetwork Suite.");
+        if (!app) return blacknetCtaResult(false, ghostText('apps.blacknet.suite_open_failed'));
         bringWindowToFront(app);
         const state = app._ghostNetworkSuiteState;
         const partId = String(
@@ -10043,15 +10031,15 @@ function createBrowser() {
         addSystemMessage(
             "info", "BlackNet",
             focusPart && partId
-                ? "GhostNetwork Suite otwarty na wskazanym elemencie."
-                : "GhostNetwork Suite otwarty przez BlackNet."
+                ? ghostText('apps.blacknet.suite_focused')
+                : ghostText('apps.blacknet.suite_open')
         );
         return blacknetCtaResult(true);
     };
 
     const blacknetOpenGhostSignalArchive = signal => {
         if (typeof window.createGhostSignalArchiveApp !== "function") {
-            return blacknetCtaResult(false, "Archiwum GhostSignal nie jest dostępne.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.archive_unavailable'));
         }
         const signalId = String(
             signal?.metadata?.signal_id || signal?.cta_target_id || ""
@@ -10089,7 +10077,7 @@ function createBrowser() {
                 return blacknetCtaResult(true);
             } catch (error) {
                 console.warn("BlackNet radio bridge failed", error);
-                return blacknetCtaResult(false, "Radio nie moglo zaladowac wskazanego kanalu BlackNet.");
+                return blacknetCtaResult(false, ghostText('apps.blacknet.radio_failed'));
             }
         }
         return blacknetCtaResult(opened);
@@ -10107,18 +10095,17 @@ function createBrowser() {
         ).trim();
         const label = String(metadata.target_label || metadata.label || signal?.title || hotspotId || "target").trim();
         if (!hotspotId && !hasCoordinates) {
-            return blacknetCtaResult(false, "Sygnal BlackNet nie zawiera konkretnego celu teleportu.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.teleport_missing'));
         }
         const accepted = await blacknetDecisionDialog({
-            title: "BLACKNET TELEPORT",
-            message: `Przechwycono cel: ${label}.`,
-            details: "Potwierdz wykonanie teleportu. Anulowanie zostawi operatora w obecnej pozycji.",
-            confirmLabel: "WYKONAJ",
-            cancelLabel: "ANULUJ",
+            titleKey: 'apps.blacknet.teleport_title',
+            messageKey: 'apps.blacknet.teleport_prompt', params: {target: label},
+            detailsKey: 'apps.blacknet.teleport_details',
+            confirmKey: 'apps.blacknet.execute', cancelKey: 'apps.blacknet.cancel',
             tone: signal?.tone || "lime"
         });
         if (!accepted) {
-            return blacknetCtaResult(false, "Teleport BlackNet anulowany.", { cancelled: true });
+            return blacknetCtaResult(false, ghostText('apps.blacknet.teleport_cancelled'), { cancelled: true });
         }
         try {
             const response = await fetch("/api/blacknet/cta/teleport", {
@@ -10134,7 +10121,7 @@ function createBrowser() {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || data?.success === false) {
-                return blacknetCtaResult(false, data?.message || "Teleport BlackNet nie zostal wykonany.");
+                return blacknetCtaResult(false, ghostResponseText(data, 'apps.blacknet.teleport_failed'));
             }
             openSystemAppFromTerminal("map");
             window.__blacknetMapFocus = {
@@ -10152,7 +10139,7 @@ function createBrowser() {
             if (typeof refreshToolbarProfile === "function") {
                 refreshToolbarProfile();
             }
-            addSystemMessage("success", "BlackNet", data?.message || `Teleport BlackNet wykonany: ${escapeHTML(label)}.`);
+            addSystemMessage("success", "BlackNet", escapeHTML(ghostResponseText(data, ghostText('apps.blacknet.teleport_done', {target:label}))));
             return blacknetCtaResult(true, "", {
                 confirmed: true,
                 hotspot_id: hotspotId,
@@ -10160,7 +10147,7 @@ function createBrowser() {
             });
         } catch (error) {
             console.warn("BlackNet teleport bridge failed", error);
-            return blacknetCtaResult(false, "Most teleportu BlackNet jest chwilowo niedostepny.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.teleport_offline'));
         }
     };
 
@@ -10186,24 +10173,24 @@ function createBrowser() {
                 return blacknetCtaResult(true);
             } catch (error) {
                 console.warn("BlackNet podcast bridge failed", error);
-                return blacknetCtaResult(false, "Radio nie moglo zaladowac wskazanego tracku BlackNet.");
+                return blacknetCtaResult(false, ghostText('apps.blacknet.track_failed'));
             }
         }
         openSystemAppFromTerminal("radio");
-        return blacknetCtaResult(false, "Radio wymaga istniejacego mostu GhostRadio.playTrack().");
+        return blacknetCtaResult(false, ghostText('apps.blacknet.radio_unavailable'));
     };
 
     const blacknetConfirmControlled = async (signal, prompt, blockedMessage) => {
         const accepted = await blacknetDecisionDialog({
-            title: "BLACKNET DECISION",
+            titleKey: "apps.blacknet.decision",
             message: prompt,
-            details: "Ta akcja wymaga decyzji operatora.",
+            detailsKey: "apps.blacknet.decision_details",
             confirmLabel: "OK",
             cancelLabel: "ANULUJ",
             tone: signal?.tone || "lime"
         });
         if (!accepted) {
-            return blacknetCtaResult(false, "Akcja BlackNet anulowana.", { cancelled: true });
+            return blacknetCtaResult(false, ghostText('apps.blacknet.cancelled'), { cancelled: true });
         }
         return blacknetCtaResult(false, blockedMessage, { confirmed: true, controlled_block: true });
     };
@@ -10213,17 +10200,17 @@ function createBrowser() {
         const operationId = String(signal?.operation_id || signal?.cta_target_id || signal?.metadata?.operation_id || "").trim();
         if (operationId) {
             window.__blacknetOperationFocus = { mode, operation_id: operationId, signal_id: signal?.id || "" };
-            addSystemMessage("info", "BlackNet", `Centrum Operacji: ${escapeHTML(operationId)}.`);
+            addSystemMessage("info", "BlackNet", ghostText('apps.blacknet.operation_focus', {id:escapeHTML(operationId)}));
             return blacknetCtaResult(true);
         }
         if (mode === "open") {
-            addSystemMessage("info", "BlackNet", "Centrum Operacji otwarte przez BlackNet.");
+            addSystemMessage("info", "BlackNet", ghostText('apps.blacknet.operation_open'));
             return blacknetCtaResult(true);
         }
         return blacknetConfirmControlled(
             signal,
-            "BlackNet chce uruchomic akcje operacyjna. Potwierdzic?",
-            "Start operacji wymaga istniejacego kontraktu Operation Core."
+            ghostText('apps.blacknet.operation_prompt'),
+            ghostText('apps.blacknet.operation_blocked')
         );
     };
 
@@ -10261,7 +10248,7 @@ function createBrowser() {
         open_blacknet_detail: signal => blacknetInternalDetail(signal, "DETAIL"),
         open_blacknet_dossier: signal => blacknetInternalDetail(signal, "DOSSIER"),
         open_blacknet_report: signal => blacknetInternalDetail(signal, "REPORT"),
-        none: () => blacknetCtaResult(false, "Ten sygnal jest informacyjny.", { noCapture: true })
+        none: () => blacknetCtaResult(false, ghostText('apps.blacknet.informational'), { noCapture: true })
     };
 
     const runBlacknetCta = async signal => {
@@ -10270,16 +10257,16 @@ function createBrowser() {
         blacknetCtaDiagnostic(signal, "start", { validation: "pending" });
         if (!action) {
             blacknetCtaDiagnostic(signal, "error", { error: "missing_cta_action", duration_ms: 0 });
-            return blacknetCtaResult(false, "Sygnal nie posiada cta_action.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.action_missing'));
         }
         if (blacknetSignalExpired(signal)) {
             blacknetCtaDiagnostic(signal, "error", { error: "expired_signal", duration_ms: Math.round(performance.now() - startedAt) });
-            return blacknetCtaResult(false, "Sygnal BlackNet wygasl.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.expired'));
         }
         const handler = BLACKNET_CTA_HANDLERS[action];
         if (typeof handler !== "function") {
             blacknetCtaDiagnostic(signal, "error", { error: "unknown_cta_action", duration_ms: Math.round(performance.now() - startedAt) });
-            return blacknetCtaResult(false, `Nieznany most BlackNet: ${escapeHTML(action)}.`);
+            return blacknetCtaResult(false, ghostText('apps.blacknet.bridge_unknown', {action:escapeHTML(action)}));
         }
         try {
             const result = await handler(signal);
@@ -10296,7 +10283,7 @@ function createBrowser() {
                 error: String(error?.message || error),
                 duration_ms: Math.round(performance.now() - startedAt)
             });
-            return blacknetCtaResult(false, "Most BlackNet zakonczyl sie bledem kontrolowanym.");
+            return blacknetCtaResult(false, ghostText('apps.blacknet.bridge_failed'));
         }
     };
 
@@ -10317,7 +10304,7 @@ function createBrowser() {
             results.innerHTML = `
                 <main class="blacknet-stage tone-lime">
                     <div class="bn-noise"></div>
-                    <div class="bn-empty">Synchronizacja lokalnych sygnalow BlackNet...</div>
+                    <div class="bn-empty">${ghostLabel('apps.blacknet.loading')}</div>
                 </main>
             `;
             loadBlacknetSignals();
@@ -10340,16 +10327,16 @@ function createBrowser() {
                         <button type="button" data-blacknet-open-tab="googleplex">GGPL</button>
                         <button type="button" data-blacknet-open-tab="exchange">GX</button>
                     </div>
-                    <div class="bn-channel"><span>&gt;</span> ${escapeHTML(featured?.channel || "BRAK SYGNALU")}</div>
+                    <div class="bn-channel"><span>&gt;</span> ${escapeHTML(featured?.channel || ghostText('apps.blacknet.none'))}</div>
                 </header>
-                <div class="bn-signal-strength" aria-label="Sila sygnalu: mocna">
+                <div class="bn-signal-strength" data-ghost-aria-label="apps.blacknet.strength_aria" aria-label="${escapeHTML(ghostText('apps.blacknet.strength_aria'))}">
                     <div class="bn-bars"><i></i><i></i><i></i><i></i><i></i></div>
-                    <span>SYGNAL: MOCNY</span>
+                    <span>${ghostLabel('apps.blacknet.strength')}</span>
                 </div>
-                <button class="bn-nav bn-nav-up" type="button" data-blacknet-nav="-1:up" aria-label="Poprzedni sygnal">⌃<span>PRZESUN W GORE</span></button>
-                <button class="bn-nav bn-nav-down" type="button" data-blacknet-nav="1:down" aria-label="Nastepny sygnal">⌄<span>PRZESUN W DOL</span></button>
-                <button class="bn-nav bn-nav-left" type="button" data-blacknet-nav="-1:left" aria-label="Poprzedni sygnal">‹<span>PRZESUN W LEWO</span></button>
-                <button class="bn-nav bn-nav-right" type="button" data-blacknet-nav="1:right" aria-label="Nastepny sygnal">›<span>PRZESUN W PRAWO</span></button>
+                <button class="bn-nav bn-nav-up" type="button" data-blacknet-nav="-1:up" data-ghost-aria-label="apps.blacknet.previous" aria-label="${escapeHTML(ghostText('apps.blacknet.previous'))}">⌃<span>${ghostLabel('apps.blacknet.up')}</span></button>
+                <button class="bn-nav bn-nav-down" type="button" data-blacknet-nav="1:down" data-ghost-aria-label="apps.blacknet.next" aria-label="${escapeHTML(ghostText('apps.blacknet.next'))}">⌄<span>${ghostLabel('apps.blacknet.down')}</span></button>
+                <button class="bn-nav bn-nav-left" type="button" data-blacknet-nav="-1:left" data-ghost-aria-label="apps.blacknet.previous" aria-label="${escapeHTML(ghostText('apps.blacknet.previous'))}">‹<span>${ghostLabel('apps.blacknet.left')}</span></button>
+                <button class="bn-nav bn-nav-right" type="button" data-blacknet-nav="1:right" data-ghost-aria-label="apps.blacknet.next" aria-label="${escapeHTML(ghostText('apps.blacknet.next'))}">›<span>${ghostLabel('apps.blacknet.right')}</span></button>
                 ${featured ? `
                     <section class="bn-signal bn-layout-${Number(featured.layout || 1)} bn-enter-${escapeHTML(activeBlacknetDirection)}">
                         <div class="bn-signal-inner">
@@ -10360,16 +10347,16 @@ function createBrowser() {
                                 <div class="bn-metric">${escapeHTML(featured.value)}</div>
                             </div>
                             <div class="bn-visual">${blacknetRadarSvg(featured)}</div>
-                            <div class="bn-timer"><span class="bn-hourglass">⌛</span><small>SYGNAL WAZNY</small><strong>${escapeHTML(featured.timer)}</strong></div>
+                            <div class="bn-timer"><span class="bn-hourglass">⌛</span><small>${ghostLabel('apps.blacknet.valid')}</small><strong>${escapeHTML(featured.timer)}</strong></div>
                             <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}" data-blacknet-cta-action="${escapeHTML(featuredCta.action)}" ${featuredCta.enabled ? "" : "disabled"}>
-                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? "SYGNAL PRZECHWYCONY" : escapeHTML(featuredCta.label)}
+                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? ghostText('apps.blacknet.captured') : escapeHTML(featuredCta.label)}
                             </button>
                         </div>
                     </section>
-                ` : `<div class="bn-empty">${escapeHTML(blacknetSignalsError || "Brak sygnalow w lokalnym zrodle BlackNet.")}</div>`}
+                ` : `<div class="bn-empty">${escapeHTML(blacknetSignalsError || ghostText('apps.blacknet.empty'))}</div>`}
                 <footer class="bn-footer">
                     <span>${String(visibleSignals.length ? activeIndex + 1 : 0).padStart(2, "0")} / ${String(visibleSignals.length).padStart(2, "0")}</span>
-                    <span>SWIPE · WASD · STRZALKI</span>
+                    <span>${ghostLabel('apps.blacknet.navigation')}</span>
                     <span>BLACKNET SIGNAL BUS</span>
                 </footer>
             </main>
@@ -10415,7 +10402,7 @@ function createBrowser() {
                 if (result?.message && !result?.messageShown) {
                     addSystemMessage(result.cancelled || result.noCapture ? "info" : "warning", "BlackNet", result.message);
                 } else if (!result?.messageShown) {
-                    addSystemMessage("warning", "BlackNet", "Ten sygnal nie ma jeszcze aktywnego mostu.");
+                    addSystemMessage("warning", "BlackNet", ghostText('apps.blacknet.no_bridge'));
                 }
             }
         });
@@ -10614,12 +10601,12 @@ function createBrowser() {
         const settleCatalogScroll = beginGoogleplexCatalogView(`${selectedCategory}:${showAll ? "all" : `query:${query}`}`);
 
         if (!catalogLoaded) {
-            results.innerHTML = '<div class="googolplex-empty">Synchronizacja katalogu Googleplex...</div>';
+            results.innerHTML = `<div class="googolplex-empty">${ghostLabel('shop.loading')}</div>`;
             settleCatalogScroll();
             loadCatalog().catch(error => {
                 console.warn('Googleplex catalog lazy load failed', error);
                 if (activeBrowserTab === "googleplex" && (search.value.trim() || selectedCategory)) {
-                    results.innerHTML = '<div class="googolplex-empty">Nie udało się pobrać katalogu.</div>';
+                    results.innerHTML = `<div class="googolplex-empty">${ghostLabel('shop.load_failed')}</div>`;
                 }
             });
             return;
@@ -10637,16 +10624,15 @@ function createBrowser() {
             : filteredMatches;
         results.innerHTML = '';
         if (matches.length === 0) {
-            results.innerHTML = '<div class="googolplex-empty">Brak pasujących produktów. Zmień kategorię lub wpisane hasło.</div>';
+            results.innerHTML = `<div class="googolplex-empty">${ghostLabel('shop.empty')}</div>`;
             settleCatalogScroll();
             updateBrowserNarrowMode();
             return;
         }
 
         results.innerHTML = `<main class="gp-search-view gp-catalog-home" data-search-mode="${showAll ? "all" : "query"}">
-            <header class="gp-search-view__bar"><span>${showAll ? "ALL APPLICATIONS" : "SEARCH RESULTS"} // PRODUCT GRID</span><strong>${matches.length} APPS</strong></header>
+            <header class="gp-search-view__bar"><span>${ghostLabel(showAll ? 'shop.all_products' : 'shop.results')}</span><strong>${ghostLabel('shop.products', {count:matches.length})}</strong></header>
             <section class="gp-search-results" aria-label="Googleplex applications"></section>
-            <footer class="gp-search-view__protocol"><span>SOURCE: PUBLIC CATALOG</span><span>${showAll ? "RANK: DOWNLOADS DESC" : "ORDER: SEARCH RESULT"}</span><span>${showAll ? "TIE: APP_ID" : "QUERY: BOUNDED"}</span><span>PROFILE: NOT READ</span></footer>
         </main>`;
         const cardsRoot = results.querySelector('.gp-search-results');
 
@@ -10677,9 +10663,9 @@ function createBrowser() {
                 ? (installed ? "Aplikacja juz kupiona." : (staleInstalledProjection ? "" : item.install_blocked_reason || ""))
                 : item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
-            const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (item.open_source ? 'Pobierz bezpłatnie' : item.template_id === 'ptk_document' ? 'Kup i pobierz' : isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
+            const buttonKey = installed ? (isProduct ? 'shop.purchased' : 'shop.installed') : (canAfford ? (item.open_source ? 'shop.free' : item.template_id === 'ptk_document' ? 'shop.buy_document' : isProduct ? 'shop.buy' : 'shop.install') : 'shop.no_funds');
             const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
-            const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
+            const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : ghostLabel('shop.no_risk');
             const fileSize = Number(item.file_size || 0);
             const diskUsage = Number(item.disk_usage || item.install_size || fileSize || 0);
             const qualityScore = Math.max(0, Math.min(100, Number(item.quality_score || 0)));
@@ -10749,17 +10735,20 @@ function createBrowser() {
             ];
             const renderSpecRows = (rows, rowClass) => rows.map(({ key, label, value }) => `
                 <div class="gp-app-spec ${rowClass}" data-spec-key="${escapeHTML(key)}">
-                    <dt>${escapeHTML(label)}</dt>
-                    <dd>${googleplexBreakableText(value)}</dd>
+                    <dt>${ghostLabel('shop.spec.' + key)}</dt>
+                    <dd>${key === 'effect' ? (item.effects || []).map(effect => {
+                        const effectKey = 'shop.effect.' + effect.type;
+                        return GhostLocale.hasKey(effectKey) ? ghostLabel(effectKey, effect.type === 'travel_city' ? {city:String(effect.city || item.travel_city || '-')} : {value:Number(effect.value || 0)}) : googleplexBreakableText(effect.type || '-');
+                    }).join(', ') : key === 'open-source' ? ghostLabel('shop.open_source') : key === 'audience' ? ghostLabel(item.visibility === 'clan' ? 'shop.clan_only' : 'shop.global') : GhostLocale.hasKey('shop.value.' + value) ? ghostLabel('shop.value.' + value) : googleplexBreakableText(value)}</dd>
                 </div>
             `).join("");
             const renderTechnicalRows = rows => rows.map(({ key, label, values }) => {
                 const tokens = values.length
-                    ? values.map(value => `<span class="gp-app-spec-panel__token">${googleplexBreakableText(value)}</span>`).join("")
+                    ? values.map(value => `<span class="gp-app-spec-panel__token">${key === 'map' ? ghostSystemValue('map.action.', value) : key === 'ops' ? ghostSystemValue('apps.operations.type.', value) : googleplexBreakableText(value)}</span>`).join("")
                     : '<span class="gp-app-spec-panel__token">-</span>';
                 return `
                     <div class="gp-app-spec gp-app-spec--technical" data-spec-key="${escapeHTML(key)}">
-                        <dt>${escapeHTML(label)}</dt>
+                        <dt>${ghostLabel('shop.spec.' + key)}</dt>
                         <dd>${tokens}</dd>
                     </div>
                 `;
@@ -10773,7 +10762,7 @@ function createBrowser() {
             const purchaseState = purchaseStateText
                 ? `<div class="gp-app-purchase-state gp-search-product__hint" data-purchase-state="${installed ? "owned" : "blocked"}">
                     <span class="gp-app-purchase-state__mark" aria-hidden="true">${installed ? "&#10003;" : "!"}</span>
-                    <span>${escapeHTML(purchaseStateText)}</span>
+                    <span>${installed ? ghostLabel('shop.owned') : item.install_blocked_i18n ? ghostReply({message_i18n:item.install_blocked_i18n}, 'shop.requirements') : escapeHTML(purchaseStateText)}</span>
                 </div>`
                 : "";
             const appId = String(item.id || item.app_id || "");
@@ -10804,8 +10793,8 @@ function createBrowser() {
             card.innerHTML = `
                 <header class="gp-app-card__header gp-search-product__header">
                     <span class="gp-app-card__eyebrow gp-search-product__eyebrow">${escapeHTML(familyLabel)} // APPLICATION</span>
-                    <h2 class="gp-app-card__title gp-search-product__title">${escapeHTML(item.name || "Aplikacja")}</h2>
-                    <p class="gp-app-card__description gp-search-product__description">${escapeHTML(item.description || "Brak opisu.")}</p>
+                    <h2 class="gp-app-card__title gp-search-product__title">${ghostProductLabel(item, 'name', GhostLocale.t('shop.application'))}</h2>
+                    <p class="gp-app-card__description gp-search-product__description">${ghostProductLabel(item, 'description', GhostLocale.t('shop.no_description'))}</p>
                 </header>
                 ${requirementsMeta}
                 <div class="gp-app-card__body">
@@ -10823,14 +10812,14 @@ function createBrowser() {
                 <footer class="gp-app-market-footer gp-search-product__footer">
                     <div class="gp-app-market-footer__identity gp-search-product__commerce">
                         <span>${escapeHTML(item.type || "tool")}</span>
-                        <span><strong>${Number(item.downloads || 0)}</strong> pobra\u0144</span>
+                        <span><strong>${ghostNumber(Number(item.downloads || 0))}</strong> ${ghostLabel('shop.downloads')}</span>
                     </div>
                     <div class="gp-app-market-footer__price">
-                        <small>CENA</small>
+                        <small>${ghostLabel('shop.price')}</small>
                         <strong>${price}</strong>
                         <span>HC</span>
                     </div>
-                    <button class="gp-app-market-footer__action gp-search-product__action" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
+                    <button class="gp-app-market-footer__action gp-search-product__action" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${ghostLabel(buttonKey)}</button>
                 </footer>
             `;
             if (isTravelTicket) mountTravelTicketReactions(card, item);
@@ -10841,37 +10830,32 @@ function createBrowser() {
                 if (!canInstall) return;
                 if (installInFlight) return;
                 if (isTravelTicket) {
-                    const accepted = await blacknetDecisionDialog({
-                        title: "POTWIERDZENIE PODROZY",
-                        message: travelDestination
-                            ? `Kupic ticket i przeniesc operatora do: ${travelDestination}?`
-                            : "Kupic ticket i wykonac teleport do wskazanej lokalizacji?",
-                        details: `${item.name || "Travel Ticket"} kosztuje ${price} HC. Anulowanie nie pobierze HC i nie zmieni pozycji.`,
-                        confirmLabel: "OK",
-                        cancelLabel: "ANULUJ",
+                    const accepted = await showGhostDecisionDialog({
+                        titleKey: 'shop.confirm.travel',
+                        messageKey: 'shop.confirm.travel_message', messageParams: {destination:travelDestination || '-'},
+                        detailsKey: 'shop.confirm.details', detailsParams: {name:item.name || 'Travel Ticket',price},
                         tone: "lime"
                     });
                     if (!accepted) {
-                        addSystemMessage("info", "Googleplex", "Teleport anulowany. Ticket nie zostal kupiony.");
+                        addSystemMessage("info", "Googleplex", ghostLabel('shop.cancelled'));
                         return;
                     }
                 } else if (item.purchase_confirmation === true) {
-                    const accepted = await blacknetDecisionDialog({
-                        title: "POTWIERDZENIE ZAKUPU",
-                        message: `Kupic i zainstalowac: ${item.name || "aplikacja"}?`,
-                        details: `${item.name || "Aplikacja"} kosztuje ${price} HC. Anulowanie nie pobierze HC i nie utworzy launchera.`,
-                        confirmLabel: "KUP I ZAINSTALUJ",
-                        cancelLabel: "ANULUJ",
+                    const accepted = await showGhostDecisionDialog({
+                        titleKey: 'shop.confirm.purchase',
+                        messageKey: 'shop.confirm.message', messageParams: {name:item.name || '-'},
+                        detailsKey: 'shop.confirm.details', detailsParams: {name:item.name || '-',price},
+                        confirmKey: 'shop.confirm.buy',
                         tone: "lime"
                     });
                     if (!accepted) {
-                        addSystemMessage("info", "Googleplex", "Zakup aplikacji anulowany.");
+                        addSystemMessage("info", "Googleplex", ghostLabel('shop.cancelled'));
                         return;
                     }
                 }
                 installInFlight = true;
                 installButton.disabled = true;
-                installButton.textContent = "INSTALACJA...";
+                ghostSet(installButton, 'shop.installing');
                 showInstallAppProgress(
                     item,
                     isTravelTicket ? async () => { await card._refreshTravelReactions?.(); } : null,
@@ -10879,7 +10863,7 @@ function createBrowser() {
                         installInFlight = false;
                         if ((!success || isTravelTicket) && installButton.isConnected) {
                             installButton.disabled = false;
-                            installButton.textContent = buttonLabel;
+                            ghostSet(installButton, buttonKey);
                         }
                     }
                 );
@@ -10927,31 +10911,31 @@ function createBrowser() {
     window.addEventListener('chaos:apps-projection-updated', appsProjectionListener);
 
     const gxSectorLabels = {
-        camera: "Kamery",
-        atm: "Bankomaty",
-        gps: "GPS",
-        device: "Dane urzadzen",
-        personal: "Dane osobowe",
-        credentials: "Dane logowania",
-        financial: "Dane finansowe",
-        network: "Sieci",
-        audio: "Audio",
-        vehicle: "Pojazdy",
-        unknown: "Inne dane"
+        get camera() { return ghostText('apps.exchange.sector.camera'); },
+        get atm() { return ghostText('apps.exchange.sector.atm'); },
+        get gps() { return ghostText('apps.exchange.sector.gps'); },
+        get device() { return ghostText('apps.exchange.sector.device'); },
+        get personal() { return ghostText('apps.exchange.sector.personal'); },
+        get credentials() { return ghostText('apps.exchange.sector.credentials'); },
+        get financial() { return ghostText('apps.exchange.sector.financial'); },
+        get network() { return ghostText('apps.exchange.sector.network'); },
+        get audio() { return ghostText('apps.exchange.sector.audio'); },
+        get vehicle() { return ghostText('apps.exchange.sector.vehicle'); },
+        get unknown() { return ghostText('apps.exchange.sector.unknown'); }
     };
 
     const gxSectorSubtitles = {
-        camera: "Rynek kamer i monitoringu",
-        atm: "Rynek danych z bankomatow",
-        gps: "Rynek lokalizacji i tras",
-        device: "Rynek informacji o urzadzeniach",
-        personal: "Rynek danych osobowych",
-        credentials: "Rynek credentiali i kont",
-        financial: "Rynek finansow i transakcji",
-        network: "Rynek danych sieciowych",
-        audio: "Rynek sygnalow audio",
-        vehicle: "Rynek telemetrii pojazdow",
-        unknown: "Rynek danych niesklasyfikowanych"
+        get camera() { return ghostText('apps.exchange.subtitle.camera'); },
+        get atm() { return ghostText('apps.exchange.subtitle.atm'); },
+        get gps() { return ghostText('apps.exchange.subtitle.gps'); },
+        get device() { return ghostText('apps.exchange.subtitle.device'); },
+        get personal() { return ghostText('apps.exchange.subtitle.personal'); },
+        get credentials() { return ghostText('apps.exchange.subtitle.credentials'); },
+        get financial() { return ghostText('apps.exchange.subtitle.financial'); },
+        get network() { return ghostText('apps.exchange.subtitle.network'); },
+        get audio() { return ghostText('apps.exchange.subtitle.audio'); },
+        get vehicle() { return ghostText('apps.exchange.subtitle.vehicle'); },
+        get unknown() { return ghostText('apps.exchange.subtitle.unknown'); }
     };
 
     const gxSectorIcons = {
@@ -11058,7 +11042,7 @@ function createBrowser() {
             return `<text x="${x.toFixed(1)}" y="${height - 4}" text-anchor="middle">${escapeHTML(label)}</text>`;
         }).join("");
         return `
-            <svg class="gx-sparkline gx-history-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Historia sprzedazy Ghost Exchange">
+            <svg class="gx-sparkline gx-history-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" data-ghost-aria-label="apps.exchange.history_accessible" aria-label="${escapeHTML(ghostText('apps.exchange.history_accessible'))}">
                 <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="rgba(0,255,102,.22)" />
                 ${seriesMarkup}
                 <g class="gx-history-axis">${axis}</g>
@@ -11068,8 +11052,8 @@ function createBrowser() {
 
     const gxMissingText = sector => {
         const missingRecords = gxNumber(sector.missing_records);
-        if (missingRecords > 0) return `Brakuje ${missingRecords} rekordow`;
-        return `Brakuje ${gxFormatMb(sector.missing_mb)}`;
+        if (missingRecords > 0) return ghostText('apps.exchange.missing_records', {count:missingRecords});
+        return ghostText('apps.exchange.missing_mb', {count:gxFormatMb(sector.missing_mb)});
     };
 
     const renderExchange = () => {
@@ -11095,7 +11079,7 @@ function createBrowser() {
         dashboard.className = 'gx-dashboard';
 
         if (!matchingSectors.length) {
-            dashboard.innerHTML = '<div class="gx-chart-empty">Brak sektorow rynku dla tego filtra.</div>';
+            dashboard.innerHTML = `<div class="gx-chart-empty">${ghostLabel('apps.exchange.empty')}</div>`;
             results.appendChild(dashboard);
             updateBrowserNarrowMode();
             return;
@@ -11115,9 +11099,9 @@ function createBrowser() {
                         </span>
                     </div>
                     <div class="gx-sector-stats">
-                        <span class="gx-stat"><span class="gx-stat-label">Oczekuje</span><b class="gx-stat-value">${gxFormatNumber(sector.pending_files)} plikow</b></span>
-                        <span class="gx-stat"><span class="gx-stat-label">Wolumen</span><b class="gx-stat-value">${gxFormatMb(sector.pending_mb)}</b></span>
-                        <span class="gx-stat gx-stat-wide"><span class="gx-stat-label">HC dzisiaj</span><b class="gx-stat-value">${gxFormatHc(sector.hc_today)}</b></span>
+                        <span class="gx-stat"><span class="gx-stat-label">${ghostLabel('apps.exchange.pending')}</span><b class="gx-stat-value">${ghostLabel('apps.exchange.files', {count:Number(sector.pending_files) || 0})}</b></span>
+                        <span class="gx-stat"><span class="gx-stat-label">${ghostLabel('apps.exchange.volume')}</span><b class="gx-stat-value">${gxFormatMb(sector.pending_mb)}</b></span>
+                        <span class="gx-stat gx-stat-wide"><span class="gx-stat-label">${ghostLabel('apps.exchange.hc_today')}</span><b class="gx-stat-value">${gxFormatHc(sector.hc_today)}</b></span>
                     </div>
                     <div class="gx-sector-progress">
                         <div class="gx-progress-meta">
@@ -11128,7 +11112,7 @@ function createBrowser() {
                     </div>
                     ${gxSparklineSvg(sector.sparkline)}
                     <div class="gx-sector-foot">
-                        <span>${escapeHTML(sector.status || 'collecting')} · ${gxFormatNumber(sector.listed_batches || 0)} paczek</span>
+                        <span>${ghostSystemValue('apps.exchange.status.', sector.status || 'collecting')} · ${ghostLabel('apps.exchange.packages', {count:Number(sector.listed_batches || 0) || 0})}</span>
                         <b>${escapeHTML(sector.estimated_sale_time || '~5 min')}</b>
                     </div>
                 </article>
@@ -11136,12 +11120,12 @@ function createBrowser() {
         }).join("");
 
         const summaryCards = `
-            <div class="gx-summary-card"><span class="gx-summary-label">Oczekujace dane</span><b class="gx-summary-value">${gxFormatNumber(summary.pending_files)} plikow / ${gxFormatMb(summary.pending_mb)}</b></div>
-            <div class="gx-summary-card"><span class="gx-summary-label">W obrocie</span><b class="gx-summary-value">${gxFormatNumber(summary.listed_batches)} paczek</b></div>
-            <div class="gx-summary-card"><span class="gx-summary-label">Sprzedane dzisiaj</span><b class="gx-summary-value">${gxFormatNumber(summary.sold_today_files)} plikow</b></div>
-            <div class="gx-summary-card"><span class="gx-summary-label">Zarobek dzisiaj</span><b class="gx-summary-value">${gxFormatHc(summary.hc_today)}</b></div>
-            <div class="gx-summary-card"><span class="gx-summary-label">Zarobek lacznie</span><b class="gx-summary-value">${gxFormatHc(summary.hc_total)}</b></div>
-            <div class="gx-summary-card"><span class="gx-summary-label">Srednia cena paczki</span><b class="gx-summary-value">${gxFormatHc(summary.average_price)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">${ghostLabel('apps.exchange.pending_data')}</span><b class="gx-summary-value">${ghostLabel('apps.exchange.files', {count:Number(summary.pending_files) || 0})} / ${gxFormatMb(summary.pending_mb)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">${ghostLabel('apps.exchange.listed')}</span><b class="gx-summary-value">${ghostLabel('apps.exchange.packages', {count:Number(summary.listed_batches) || 0})}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">${ghostLabel('apps.exchange.sold_today')}</span><b class="gx-summary-value">${ghostLabel('apps.exchange.files', {count:Number(summary.sold_today_files) || 0})}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">${ghostLabel('apps.exchange.earned_today')}</span><b class="gx-summary-value">${gxFormatHc(summary.hc_today)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">${ghostLabel('apps.exchange.earned_total')}</span><b class="gx-summary-value">${gxFormatHc(summary.hc_total)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">${ghostLabel('apps.exchange.average')}</span><b class="gx-summary-value">${gxFormatHc(summary.average_price)}</b></div>
         `;
 
         const transactionRows = recentTransactions.length
@@ -11149,12 +11133,12 @@ function createBrowser() {
                 <div class="gx-transaction-row">
                     <span>${escapeHTML(String(transaction.sold_at || '').slice(11, 16) || '--:--')}</span>
                     <span class="gx-transaction-sector">${escapeHTML(gxSectorLabels[transaction.market_sector] || transaction.market_sector || '-')}</span>
-                    <span class="gx-transaction-desc">${escapeHTML(transaction.file_name || transaction.batch_id || 'Paczka danych')}</span>
+                    <span class="gx-transaction-desc">${escapeHTML(transaction.file_name || transaction.batch_id || ghostText('apps.exchange.package'))}</span>
                     <span>${gxFormatMb(transaction.volume_mb)}</span>
                     <span class="gx-transaction-hc">${gxFormatHc(transaction.price)}</span>
                 </div>
             `).join("")
-            : '<div class="gx-chart-empty">Ostatnie transakcje pojawia sie po pierwszej sprzedazy paczki.</div>';
+            : `<div class="gx-chart-empty">${ghostLabel('apps.exchange.history_empty')}</div>`;
 
         dashboard.innerHTML = `
             <div class="gx-sector-grid">${sectorCards}</div>
@@ -11162,15 +11146,15 @@ function createBrowser() {
             <div class="gx-main-row">
                 <section class="gx-transactions-panel">
                     <div class="gx-chart-header">
-                        <span class="gx-chart-title">Ostatnie transakcje</span>
+                        <span class="gx-chart-title">${ghostLabel('apps.exchange.transactions')}</span>
                         <span class="gx-chart-subtitle">Ghost Exchange</span>
                     </div>
                     <div class="gx-transactions-list">${transactionRows}</div>
                 </section>
                 <section class="gx-chart-panel">
                     <div class="gx-chart-header">
-                        <span class="gx-chart-title">Historia sprzedazy (7 dni)</span>
-                        <span class="gx-chart-subtitle">fallback SVG / uPlot-ready</span>
+                        <span class="gx-chart-title">${ghostLabel('apps.exchange.history')}</span>
+                        <span class="gx-chart-subtitle">HC</span>
                     </div>
                     <div class="gx-chart-legend">
                         ${gxHistorySeries.map(series => `
@@ -11183,8 +11167,8 @@ function createBrowser() {
                 </section>
             </div>
             <div class="gx-dashboard-note">
-                <span>Automatyczny rynek danych dziala w tle. File Manager pozostaje miejscem podgladu lootow.</span>
-                <b>${gxFormatNumber(summary.transaction_count)} transakcji</b>
+                <span>${ghostLabel('apps.exchange.background')}</span>
+                <b>${ghostLabel('apps.exchange.transactions_count', {count:Number(summary.transaction_count) || 0})}</b>
             </div>
         `;
         results.appendChild(dashboard);
@@ -11267,12 +11251,12 @@ function createBrowser() {
     }
 
     async function loadExchange() {
-        results.innerHTML = '<div class="googolplex-empty">Synchronizacja Ghost Exchange...</div>';
+        results.innerHTML = `<div class="googolplex-empty">${ghostLabel('apps.exchange.loading')}</div>`;
         try {
             const res = await fetch('/api/ghost-exchange');
             const data = await res.json();
             if (!res.ok || data.success === false) {
-                results.innerHTML = `<div class="googolplex-empty">${escapeHTML(data.message || 'Nie udalo sie pobrac Ghost Exchange.')}</div>`;
+                results.innerHTML = `<div class="googolplex-empty">${escapeHTML(ghostResponseText(data, ghostText('apps.exchange.load_failed')))}</div>`;
                 return;
             }
             exchangeFiles = data.files || [];
@@ -11295,7 +11279,7 @@ function createBrowser() {
             renderExchange();
         } catch (err) {
             console.warn('Ghost Exchange load failed', err);
-            results.innerHTML = '<div class="googolplex-empty">Brak polaczenia z Ghost Exchange.</div>';
+            results.innerHTML = `<div class="googolplex-empty">${ghostLabel('apps.exchange.offline')}</div>`;
         }
     }
 
@@ -11309,15 +11293,15 @@ function createBrowser() {
             });
             const data = await res.json();
             if (!res.ok || data.success === false) {
-                addSystemMessage("warning", "Ghost Exchange", data.message || "Nie udalo sie przygotowac oferty.");
+                addSystemMessage("warning", "Ghost Exchange", ghostResponseText(data, ghostText('apps.exchange.offer_failed')));
                 return;
             }
             exchangeFiles = data.files || exchangeFiles.map(item => item.id === fileId ? data.file : item);
-            addSystemMessage("info", "Ghost Exchange", data.message || "Oferta przygotowana w trybie preview.");
+            addSystemMessage("info", "Ghost Exchange", ghostResponseText(data, ghostText('apps.exchange.offer_ready')));
             renderExchange();
         } catch (err) {
             console.warn('Ghost Exchange preview failed', err);
-            addSystemMessage("danger", "Ghost Exchange", "Brak polaczenia z Ghost Exchange.");
+            addSystemMessage("danger", "Ghost Exchange", ghostText('apps.exchange.offline'));
         }
     }
 
@@ -11331,7 +11315,7 @@ function createBrowser() {
             });
             const data = await res.json();
             if (!res.ok || data.success === false) {
-                addSystemMessage("warning", "Ghost Exchange", data.message || "Nie udalo sie sprzedac pakietu.");
+                addSystemMessage("warning", "Ghost Exchange", ghostResponseText(data, ghostText('apps.exchange.sell_failed')));
                 return;
             }
             exchangeFiles = data.files || exchangeFiles.filter(item => item.id !== fileId);
@@ -11343,11 +11327,11 @@ function createBrowser() {
                     hackcoins: walletBalance
                 });
             }
-            addSystemMessage("success", "Ghost Exchange", data.message || "Pakiet danych sprzedany.");
+            addSystemMessage("success", "Ghost Exchange", ghostResponseText(data, ghostText('apps.exchange.sold')));
             renderExchange();
         } catch (err) {
             console.warn('Ghost Exchange sell failed', err);
-            addSystemMessage("danger", "Ghost Exchange", "Brak polaczenia z Ghost Exchange.");
+            addSystemMessage("danger", "Ghost Exchange", ghostText('apps.exchange.offline'));
         }
     }
 
@@ -11373,17 +11357,20 @@ function createBrowser() {
         const title = term.querySelector(`#${terminalId}-title`);
         if (tabName === "exchange") {
             title.textContent = "Ghost Exchange";
-            search.placeholder = "Szukaj danych, kategorii rynku, zasobow...";
+            search.dataset.ghostI18nPlaceholder = 'shop.search_exchange';
+            search.placeholder = GhostLocale.t('shop.search_exchange');
             loadExchange();
         } else if (tabName === "blacknet") {
             title.textContent = "BlackNet";
             renderBrowserWallet();
-            search.placeholder = "Szukaj sygnalow, zrodel, ryzyka...";
+            search.dataset.ghostI18nPlaceholder = 'shop.search_blacknet';
+            search.placeholder = GhostLocale.t('shop.search_blacknet');
             renderBlackNet();
         } else {
             title.innerHTML = '<span class="gp-brand-lockup"><img src="/static/images/googleplx/brand/googleplex-news-wordmark.svg" alt="Googleplex News"></span>';
             renderBrowserWallet();
-            search.placeholder = "Szukaj nazwy, kategorii lub działania… /all — wszystkie";
+            search.dataset.ghostI18nPlaceholder = 'shop.search';
+            search.placeholder = GhostLocale.t('shop.search');
             renderCatalog();
             if (!search.value.trim() && !term.querySelector('.gp-category-filter select').value) {
                 loadGoogleplexHome({ force: true }).catch(() => {});
@@ -11391,9 +11378,17 @@ function createBrowser() {
         }
     }
 
+    const browserLocaleChanged = () => {
+        if (!term.isConnected) { document.removeEventListener('ghost:locale-changed', browserLocaleChanged); return; }
+        const scroll = results.scrollTop;
+        if (activeBrowserTab === 'exchange') renderExchange();
+        if (activeBrowserTab === 'blacknet' && !results.querySelector('[data-blacknet-capture]:disabled')) renderBlackNet();
+        results.scrollTop = scroll;
+    };
+    document.addEventListener('ghost:locale-changed', browserLocaleChanged);
     const browserRefreshButton = term.querySelector('.browser-refresh-btn');
     term.querySelector('.gp-category-filter select').addEventListener('change', renderCatalog);
-    search.placeholder = "Szukaj nazwy, kategorii lub działania… /all — wszystkie";
+    search.placeholder = GhostLocale.t('shop.search');
     browserRefreshButton.addEventListener('click', async () => {
         if (browserRefreshButton.disabled) return;
         browserRefreshButton.disabled = true;
@@ -11415,7 +11410,7 @@ function createBrowser() {
             }
         } catch (error) {
             console.warn('WebDragons refresh failed', error);
-            addSystemMessage('warning', 'WebDragons', 'Nie udało się odświeżyć strony. Spróbuj ponownie.');
+            addSystemMessage('warning', 'WebDragons', ghostText('apps.browser.refresh_failed'));
         } finally {
             browserRefreshButton.disabled = false;
             browserRefreshButton.removeAttribute('aria-busy');
@@ -11797,14 +11792,13 @@ function googleplexInstallActionKey(app = {}) {
 function googleplexInstallErrorDetails(response, data = {}) {
     const httpStatus = Number(response?.status || 0);
     const reasonCode = String(data.reason_code || data.reason || data.error || "unknown_error").trim();
-    const canonicalMessage = String(data.message || "").trim();
+    const entry = data.message_i18n;
+    const translated = entry && entry.content_version === GhostLocale.contentVersion && GhostLocale.hasKey(entry.key)
+        ? GhostLocale.t(entry.key, entry.params || {}) : '';
+    const canonicalMessage = translated || String(data.message || "").trim();
     let message = canonicalMessage;
     if (!message) {
-        if (httpStatus === 401) message = "Sesja wygasla. Zaloguj sie ponownie.";
-        else if (httpStatus === 409) message = "Zakup koliduje z aktualnym stanem konta. Odswiez dane i sprobuj ponownie.";
-        else if (httpStatus === 422) message = "Dane produktu nie przeszly walidacji.";
-        else if (httpStatus === 400) message = "Nie spelniono warunkow zakupu lub instalacji.";
-        else message = "Nie udalo sie zakonczyc zakupu lub instalacji.";
+        message = GhostLocale.t(httpStatus === 401 ? 'shop.session_expired' : httpStatus === 409 ? 'shop.offer_changed' : httpStatus === 422 ? 'shop.validation' : httpStatus === 400 ? 'shop.requirements' : 'shop.failed');
     }
     return { httpStatus, reasonCode, message };
 }
@@ -11843,15 +11837,10 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
         }
     }
     // Okno progressbar (symulacja jak instalator Windows/Linux)
-    const steps = app.product_type === 'ptk_document' ? ['Pobieranie dokumentu PTK do File Managera...'] : app.product_type === 'travel_ticket' ? [
-        `Przygotowanie podróży: ${app.name || 'Bilet'}`
-    ] : [
-        `Rozpoczynanie instalacji aplikacji: ${app.name || 'aplikacja'}`,
-        `Pobieranie plik\u00f3w...`,
-        `Instalacja sk\u0142adnik\u00f3w...`,
-        `Rejestracja aplikacji w systemie...`,
-        `Finalizacja...`
-    ];
+    const nameEntry = app.presentation_owner === 'system' && app.presentation_i18n?.name;
+    const name = nameEntry?.content_version === GhostLocale.contentVersion && GhostLocale.hasKey(nameEntry.key) ? GhostLocale.t(nameEntry.key) : app.name || '-';
+    const steps = app.product_type === 'ptk_document' ? [['shop.step.document', {}]] : app.product_type === 'travel_ticket'
+        ? [['shop.step.travel', {name}]] : [['shop.step.start', {name}], ['shop.step.download', {}], ['shop.step.components', {}], ['shop.step.register', {}], ['shop.step.finish', {}]];
 
     const appWindow = document.createElement('div');
     appWindow.className = 'app-window';
@@ -11859,7 +11848,7 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
     appWindow.style.top = `${position.top}px`;
     appWindow.style.left = `${position.left}px`;
     appWindow.innerHTML = `
-        <div class="title-bar">${escapeHTML(app.name || 'Aplikacja')} - ${app.product_type === 'travel_ticket' ? 'Podróż' : 'Instalacja'} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${ghostProductLabel(app, 'name', GhostLocale.t('shop.application'))} - ${ghostLabel(app.product_type === 'travel_ticket' ? 'shop.travel' : 'shop.installation')} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
             <div class="progress-log" style="font-family: monospace; font-size: 13px; margin-bottom: 10px;"></div>
             <div class="progress-bar" style="position: relative; height: 20px; background: #333;">
@@ -11910,9 +11899,9 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
                         || Object.prototype.hasOwnProperty.call(storage, "capacity")
                     );
                     const storageLine = hasStorageInfo
-                        ? `<br><span style="color:#8fd6a4;">${ghostLabel("files.disk")} ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
+                        ? `<br><span style="color:#8fd6a4;">${ghostLabel("files.disk")} ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (' + ghostLabel('shop.soft_limit') + ')' : ''}</span>`
                         : '';
-                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${data.document_id ? 'Dokument pobrany do Pliki → Plexcak.' : isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
+                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${ghostReply(data, data.document_id ? 'shop.document_ready' : isProductPurchase ? 'shop.purchased' : 'shop.installed')}</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
                         setToolbarProfile({
                             ...toolbarProfile,
@@ -11951,8 +11940,8 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
                     if (['offer_changed','purchase_key_conflict'].includes(diagnostic.reasonCode)) {
                         try { window.sessionStorage.removeItem(installAction.storageKey); } catch (_err) { /* unavailable storage */ }
                     }
-                    result.innerHTML = `<span style="color:#f33;">\u2716 ${escapeHTML(diagnostic.message)}</span>`;
-                    addSystemMessage("danger", "Googleplex", diagnostic.message);
+                    result.innerHTML = `<span style="color:#f33;">\u2716 ${data.message_i18n ? ghostReply(data, 'shop.failed') : escapeHTML(diagnostic.message)}</span>`;
+                    addSystemMessage("danger", "Googleplex", escapeHTML(diagnostic.message));
                     console.warn("Googleplex purchase/install rejected", {
                         http_status: diagnostic.httpStatus,
                         reason_code: diagnostic.reasonCode,
@@ -11963,13 +11952,13 @@ async function showInstallAppProgress(app, onInstalled = null, onSettled = null)
                 }
             })
             .catch(err => {
-                result.innerHTML = `<span style="color:#f33;">\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.</span>`;
+                result.innerHTML = `<span style="color:#f33;">\u2716 ${ghostLabel('shop.offline')}</span>`;
                 if (typeof onSettled === "function") onSettled(false, { reason: "network_error" });
             });
             return;
         }
 
-        log.innerHTML += `<div>\u23F1 ${escapeHTML(String(steps[stepIndex] || ''))}</div>`;
+        log.innerHTML += `<div>\u23F1 ${ghostLabel(...steps[stepIndex])}</div>`;
         fill.style.width = `${(stepIndex + 1) * progressPerStep}%`;
 
         stepIndex++;
@@ -13427,16 +13416,16 @@ function createAppForgeLegacy() {
         </div>
         <form class="appforge-form">
             <div class="appforge-grid">
-                <label>Nazwa<input name="name" maxlength="32" required placeholder="np. NullTrace"></label>
-                <label>Typ<input name="type" value="scanner" placeholder="scanner"></label>
-                <label>Ikonka
+                <label>${ghostLabel("creator.legacy.name")}<input name="name" maxlength="32" required data-ghost-placeholder="creator.legacy.legacy_name_hint" placeholder="${escapeHTML(ghostText('creator.legacy.legacy_name_hint'))}"></label>
+                <label>${ghostLabel("creator.legacy.type")}<input name="type" value="scanner" placeholder="scanner"></label>
+                <label>${ghostLabel("creator.legacy.icon")}
                     <span class="appforge-icon-row">
                         <input name="icon" maxlength="16" value="\u{1F6E0}\uFE0F" placeholder="\u{1F6E0}\uFE0F">
                         <span class="appforge-icon-preview">\u{1F6E0}\uFE0F</span>
                     </span>
                 </label>
-                <label>Cena<input name="price" type="number" min="0" step="1" value="100"></label>
-                <label>Interface
+                <label>${ghostLabel("creator.legacy.price")}<input name="price" type="number" min="0" step="1" value="100"></label>
+                <label>${ghostLabel("creator.legacy.interface")}
                     <select name="interface">
                         <option value="progressbar_random">progressbar_random</option>
                         <option value="window">window</option>
@@ -13445,13 +13434,13 @@ function createAppForgeLegacy() {
                     </select>
                 </label>
             </div>
-            <label>Opis<textarea name="description" rows="3" placeholder="Co robi aplikacja?"></textarea></label>
+            <label>${ghostLabel("creator.legacy.description")}<textarea name="description" rows="3" data-ghost-placeholder="creator.legacy.description_hint" placeholder="${escapeHTML(ghostText('creator.legacy.description_hint'))}"></textarea></label>
             <label>Wymaga OFF<textarea name="requires_off" rows="2" placeholder="np. firewall, scan_detection"></textarea></label>
             <label>Zmienia w celu<textarea name="interferes_with" rows="2" placeholder="np. stealth_mode, vpn_enabled"></textarea></label>
-            <label>Wykrywa<textarea name="detects" rows="2" placeholder="np. open_ports, user_location"></textarea></label>
+            <label>${ghostLabel("creator.legacy.detects")}<textarea name="detects" rows="2" data-ghost-placeholder="creator.legacy.detect_hint" placeholder="${escapeHTML(ghostText('creator.legacy.detect_hint'))}"></textarea></label>
             <label>Efekty gracza<textarea name="affects" rows="2" placeholder="np. traceability"></textarea></label>
             <div class="appforge-level-fields"></div>
-            <button class="appforge-submit" type="submit">Publikuj w Googleplex</button>
+            <button class="appforge-submit" type="submit">${ghostLabel("creator.legacy.publish")}</button>
             <div class="appforge-status"></div>
         </form>
     `;
@@ -13475,30 +13464,30 @@ function createAppForgeLegacy() {
         if (selected === "window") {
             levelFields.innerHTML = `
                 <h4>Levels: window</h4>
-                <label>levels[0].title<input name="level_title" placeholder="Panel aplikacji"></label>
-                <label>levels[0].list<textarea name="window_list" rows="4" placeholder="Jedna linia = jeden wpis listy"></textarea></label>
+                <label>levels[0].title<input name="level_title" data-ghost-placeholder="creator.legacy.panel_hint" placeholder="${escapeHTML(ghostText('creator.legacy.panel_hint'))}"></label>
+                <label>levels[0].list<textarea name="window_list" rows="4" data-ghost-placeholder="creator.legacy.list_lines" placeholder="${escapeHTML(ghostText('creator.legacy.list_lines'))}"></textarea></label>
                 <label>levels[0].buttons<textarea name="window_buttons" rows="3" placeholder="Label|action&#10;Uruchom modul|run_generated"></textarea></label>
             `;
         } else if (selected === "terminal") {
             levelFields.innerHTML = `
                 <h4>Levels: terminal</h4>
                 <label>levels[0].command<input name="terminal_command" placeholder="./tool.sh --target current"></label>
-                <label>levels[0].logs<textarea name="terminal_logs" rows="5" placeholder="Jedna linia = jeden log terminala"></textarea></label>
+                <label>levels[0].logs<textarea name="terminal_logs" rows="5" data-ghost-placeholder="creator.legacy.logs_lines" placeholder="${escapeHTML(ghostText('creator.legacy.logs_lines'))}"></textarea></label>
             `;
         } else if (selected === "button_choices") {
             levelFields.innerHTML = `
                 <h4>Levels: button_choices</h4>
-                <label>levels[0].title<input name="level_title" placeholder="Wybierz tryb dzia\u0142ania"></label>
-                <label>levels[0].text<textarea name="button_text" rows="3" placeholder="Opis wyboru dla gracza"></textarea></label>
+                <label>levels[0].title<input name="level_title" data-ghost-placeholder="creator.legacy.mode_action_hint" placeholder="${escapeHTML(ghostText('creator.legacy.mode_action_hint'))}"></label>
+                <label>levels[0].text<textarea name="button_text" rows="3" data-ghost-placeholder="creator.legacy.choice_hint" placeholder="${escapeHTML(ghostText('creator.legacy.choice_hint'))}"></textarea></label>
                 <label>levels[0].options<textarea name="button_options" rows="5" placeholder="Label|effect|price&#10;Recon|risk_level=10,access_level=1|90&#10;Disable firewall|firewall=false|140"></textarea></label>
             `;
         } else {
             levelFields.innerHTML = `
                 <h4>Levels: progressbar_random</h4>
-                <label>levels[0].title<input name="level_title" placeholder="Wykonywanie operacji"></label>
-                <label>levels[0].steps<textarea name="progress_steps" rows="5" placeholder="Jedna linia = jeden krok progressbara"></textarea></label>
-                <label>levels[0].result_success<input name="result_success" placeholder="Operacja zako\u0144czona powodzeniem."></label>
-                <label>levels[0].result_failure<input name="result_failure" placeholder="Operacja zablokowana."></label>
+                <label>levels[0].title<input name="level_title" data-ghost-placeholder="creator.legacy.progress_hint" placeholder="${escapeHTML(ghostText('creator.legacy.progress_hint'))}"></label>
+                <label>levels[0].steps<textarea name="progress_steps" rows="5" data-ghost-placeholder="creator.legacy.progress_lines" placeholder="${escapeHTML(ghostText('creator.legacy.progress_lines'))}"></textarea></label>
+                <label>levels[0].result_success<input name="result_success" data-ghost-placeholder="creator.legacy.success_unicode_hint" placeholder="${escapeHTML(ghostText('creator.legacy.success_unicode_hint'))}"></label>
+                <label>levels[0].result_failure<input name="result_failure" data-ghost-placeholder="creator.legacy.failure_hint" placeholder="${escapeHTML(ghostText('creator.legacy.failure_hint'))}"></label>
             `;
         }
     };
@@ -13513,7 +13502,7 @@ function createAppForgeLegacy() {
         const payload = Object.fromEntries(formData.entries());
         payload.price = Number(payload.price || 0);
         if (!validateGeneratedAppNameForScripts(payload, status)) return;
-        status.textContent = 'Publikowanie...';
+        status.textContent = ghostText("creator.legacy.publishing");
 
         try {
             const res = await fetch('/api/apps/generate', {
@@ -13523,9 +13512,9 @@ function createAppForgeLegacy() {
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Nie udalo sie opublikowac.');
+                throw new Error(ghostResponseText(data,'creator.legacy.publish_failed'));
             }
-            status.textContent = `${data.message} Projekt zapisany w files/projects/${data.app.project_file}`;
+            status.textContent = ghostText('creator.legacy.published_file',{file:data.app.project_file});
             form.reset();
         } catch (err) {
             status.textContent = err.message;
@@ -13543,19 +13532,19 @@ async function createAppForge() {
     appendCreatorMeta(form, keys, 'progressbar_random');
     form.querySelector('.creator-interface-slot').insertAdjacentHTML('beforeend', `
         <div class="appforge-level-fields">
-            <h4>levels[0]</h4>
-            <label>title<input name="level_title" placeholder="MemoryOverflow - Przepelnienie pamieci"></label>
+            <h4>${ghostLabel("creator.legacy.levels")}</h4>
+            <label>${ghostLabel("creator.legacy.title")}<input name="level_title" data-ghost-placeholder="creator.legacy.progress_title_hint" placeholder="${escapeHTML(ghostText('creator.legacy.progress_title_hint'))}"></label>
             <div class="creator-items" data-kind="progress-steps"></div>
-            <button type="button" class="appforge-submit add-progress-step">Dodaj krok</button>
-            <label>result_success<input name="result_success" placeholder="Operacja zakonczona powodzeniem."></label>
-            <label>result_failure<input name="result_failure" placeholder="Operacja zablokowana."></label>
+            <button type="button" class="appforge-submit add-progress-step">${ghostLabel("creator.legacy.add_step")}</button>
+            <label>${ghostLabel("creator.legacy.result_success")}<input name="result_success" data-ghost-placeholder="creator.legacy.success_hint" placeholder="${escapeHTML(ghostText('creator.legacy.success_hint'))}"></label>
+            <label>${ghostLabel("creator.legacy.result_failure")}<input name="result_failure" data-ghost-placeholder="creator.legacy.failure_hint" placeholder="${escapeHTML(ghostText('creator.legacy.failure_hint'))}"></label>
         </div>
     `);
 
     const progressSteps = term.querySelector('[data-kind="progress-steps"]');
     const addProgressStep = (value = '') => {
         progressSteps.insertAdjacentHTML('beforeend', `
-            <label>step<input class="creator-progress-step" value="${escapeHTML(value)}" placeholder="Wysylanie danych testowych..."></label>
+            <label>${ghostLabel("creator.legacy.step_label")}<input class="creator-progress-step" value="${escapeHTML(value)}" data-ghost-placeholder="creator.legacy.step_hint" placeholder="${escapeHTML(ghostText('creator.legacy.step_hint'))}"></label>
         `);
     };
     term.querySelector('.add-progress-step').addEventListener('click', () => addProgressStep());
@@ -13573,7 +13562,7 @@ async function createAppForge() {
 async function getCreatorSecurityKeys() {
     const response = await fetch('/api/creators/policy', {cache: 'no-store'});
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Brak polityki kreatora.');
+    if (!response.ok) throw new Error(data.message || ghostText("creator.legacy.policy_failed"));
     return data.security_keys;
 }
 
@@ -13584,7 +13573,7 @@ function creatorCheckboxGroup(keys, fieldName) {
                 <label class="appforge-check creator-toggle" data-state="off">
                     <input type="checkbox" value="${escapeHTML(key)}">
                     <span class="creator-toggle-state">OFF</span>
-                    <span class="creator-toggle-label">${escapeHTML(creatorSecurityLabel(key))}</span>
+                    <span class="creator-toggle-label">${ghostSystemValue("map.security.",key)}</span>
                 </label>
             `).join("")}
         </div>
@@ -13607,95 +13596,75 @@ function creatorSecurityLabel(key) {
         .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
-const CREATOR_WIZARD_STEPS = [
-    "Nazwa",
-    "Rodzina",
-    "Cel",
-    "Start",
-    "Dzialanie",
-    "Informacje",
-    "Ryzyko",
-    "Podglad",
-    "Publikacja"
-];
+const CREATOR_WIZARD_STEPS = ["creator.legacy.step.0","creator.legacy.step.1","creator.legacy.step.2","creator.legacy.step.3","creator.legacy.step.4","creator.legacy.step.5","creator.legacy.step.6","creator.legacy.step.7","creator.legacy.step.8"];
 
 const CREATOR_STEP_NARRATIVE = [
     {
-        title: "Nadaj narz\u0119dziu to\u017csamo\u015b\u0107",
-        subtitle: "Pierwszy sygnal dla gracza i katalogu Googleplex.",
-        description: "Nazwa, ikona i opis mowia, czym jest aplikacja zanim ktokolwiek spojrzy w jej kontrakt.",
-        educational_note: "Profesjonalne narz\u0119dzia tej klasy s\u0105 rozpoznawalne po celu, zakresie i wiarygodnym opisie.",
-        gameplay_hint: "Cena jest punktem startu. Runtime moze pokazac sugerowana wartosc w podgladzie balansu."
+        "title": "creator.legacy.narrative.0.title",
+        "subtitle": "creator.legacy.narrative.0.subtitle",
+        "description": "creator.legacy.narrative.0.description",
+        "educational_note": "creator.legacy.narrative.0.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.0.gameplay_hint"
     },
     {
-        title: "Wybierz rodzin\u0119 narz\u0119dzia",
-        subtitle: "Rodzina zawedza dalsze decyzje.",
-        description: "Scanner / Recon obejmuje tak\u017ce namierzanie celu (trace). Exploit i Sniffer pozostaj\u0105 osobnymi rodzinami gameplayowymi.",
-        educational_note: "Administratorzy i zespoly bezpieczenstwa uzywaja podobnych klas rozwiazan do rozpoznania, kontroli i obserwacji systemow.",
-        gameplay_hint: "Dla akcji mapy Namierz cel wybierz Scanner / Recon / Namierzanie, typ Tracer / tracker oraz dzia\u0142anie Namierz cel (trace)."
+        "title": "creator.legacy.narrative.1.title",
+        "subtitle": "creator.legacy.narrative.1.subtitle",
+        "description": "creator.legacy.narrative.1.description",
+        "educational_note": "creator.legacy.narrative.1.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.1.gameplay_hint"
     },
     {
-        title: "Wskaz obiekt zainteresowania",
-        subtitle: "Cel decyduje, jakie opcje maja sens.",
-        description: "Inaczej projektuje si\u0119 narz\u0119dzie dla pojazdu, inaczej dla kamery, a inaczej dla routera.",
-        educational_note: "W swiecie CHAOS kazdy obiekt ma inne cyfrowe zmysly: lokalizacje, obraz, sygnal, logi albo dostep.",
-        gameplay_hint: "Po wyborze celu kreator ukrywa niepasujace operacje i informacje."
+        "title": "creator.legacy.narrative.2.title",
+        "subtitle": "creator.legacy.narrative.2.subtitle",
+        "description": "creator.legacy.narrative.2.description",
+        "educational_note": "creator.legacy.narrative.2.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.2.gameplay_hint"
     },
     {
-        title: "Okresl miejsce uruchomienia",
-        subtitle: "Mapa, desktop albo oba tryby.",
-        description: "Nie ka\u017cde narz\u0119dzie musi by\u0107 widoczne w menu mapy. Desktop mo\u017ce dzia\u0142a\u0107 na oznaczony cel.",
-        educational_note: "To rozr\u00f3\u017cnienie przypomina prac\u0119 z kontekstem: czasem dzia\u0142asz na obiekcie w terenie, czasem na ju\u017c wybranym celu.",
-        gameplay_hint: "Tryb desktopowy moze nie miec akcji mapy. Tryb mapowy powinien miec jawne map_actions."
+        "title": "creator.legacy.narrative.3.title",
+        "subtitle": "creator.legacy.narrative.3.subtitle",
+        "description": "creator.legacy.narrative.3.description",
+        "educational_note": "creator.legacy.narrative.3.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.3.gameplay_hint"
     },
     {
-        title: "Zdecyduj, co narz\u0119dzie ma zrobi\u0107",
-        subtitle: "To jest serce kontraktu operacji.",
-        description: "Wybierasz efekt gameplayowy: sledzenie, stream, odczyt, zaklocenie albo implant.",
-        educational_note: "Nie chodzi o realne komendy. Chodzi o opis skutku w symulowanym swiecie gry.",
-        gameplay_hint: "Operacja moze zyc na mapie, miec timer, produkowac dane albo tylko wspierac inny proces."
+        "title": "creator.legacy.narrative.4.title",
+        "subtitle": "creator.legacy.narrative.4.subtitle",
+        "description": "creator.legacy.narrative.4.description",
+        "educational_note": "creator.legacy.narrative.4.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.4.gameplay_hint"
     },
     {
-        title: "Wybierz informacje, ktorych szuka",
-        subtitle: "Dane sa paliwem ekonomii CHAOS.",
-        description: "Zasoby okreslaja, jaki typ pliku albo stanu moze powstac po operacji.",
-        educational_note: "Podobne klasy narz\u0119dzi w realnym \u015bwiecie pomagaj\u0105 zrozumie\u0107, jakie sygna\u0142y i metadane istniej\u0105 w systemach.",
-        gameplay_hint: "Nie ka\u017cdy zas\u00f3b jest sprzedawalny. `internal_recon_state` mo\u017ce tylko przygotowa\u0107 dalsze dzia\u0142anie."
+        "title": "creator.legacy.narrative.5.title",
+        "subtitle": "creator.legacy.narrative.5.subtitle",
+        "description": "creator.legacy.narrative.5.description",
+        "educational_note": "creator.legacy.narrative.5.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.5.gameplay_hint"
     },
     {
-        title: "Ustal ryzyko i zaleznosci",
-        subtitle: "Ka\u017cde narz\u0119dzie ma \u015blady i wymagania.",
-        description: "Ten krok opisuje, z czym narz\u0119dzie koliduje, co wy\u0142\u0105cza i jakie warunki powinny by\u0107 spe\u0142nione.",
-        educational_note: "\u015awiadome projektowanie narz\u0119dzia polega te\u017c na rozumieniu ogranicze\u0144, nie tylko mo\u017cliwo\u015bci.",
-        gameplay_hint: "To nadal sa pola kontraktu gry. Nie tworza realnych instrukcji ani nowego systemu ryzyka."
+        "title": "creator.legacy.narrative.6.title",
+        "subtitle": "creator.legacy.narrative.6.subtitle",
+        "description": "creator.legacy.narrative.6.description",
+        "educational_note": "creator.legacy.narrative.6.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.6.gameplay_hint"
     },
     {
-        title: "Sprawdz kontrakt przed publikacja",
-        subtitle: "Podglad laczy decyzje w jedna aplikacje.",
-        description: "Tutaj widzisz, jak wyb\u00f3r rodziny, celu, dzia\u0142ania i danych zamienia si\u0119 w app contract.",
-        educational_note: "Dobry projekt narz\u0119dzia powinien by\u0107 czytelny bez zagl\u0105dania w kod.",
-        gameplay_hint: "Waga, jakosc, niezawodnosc i cena sugerowana sa liczone przez runtime."
+        "title": "creator.legacy.narrative.7.title",
+        "subtitle": "creator.legacy.narrative.7.subtitle",
+        "description": "creator.legacy.narrative.7.description",
+        "educational_note": "creator.legacy.narrative.7.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.7.gameplay_hint"
     },
     {
-        title: "Opublikuj w Googleplex",
-        subtitle: "Ten sam katalog, ten sam runtime.",
-        description: "Publikacja uzywa istniejacego endpointu i trafia do tego samego Googleplexa co inne aplikacje.",
-        educational_note: "CHAOS traktuje narz\u0119dzie jak element ekosystemu: projekt, publikacja, instalacja, u\u017cycie i uninstall.",
-        gameplay_hint: "Po publikacji aplikacj\u0119 kupujesz i instalujesz tak jak inne narz\u0119dzia."
+        "title": "creator.legacy.narrative.8.title",
+        "subtitle": "creator.legacy.narrative.8.subtitle",
+        "description": "creator.legacy.narrative.8.description",
+        "educational_note": "creator.legacy.narrative.8.educational_note",
+        "gameplay_hint": "creator.legacy.narrative.8.gameplay_hint"
     }
 ];
 
-const CREATOR_TOOL_TYPES = [
-    ["scanner", "Scanner / recon"],
-    ["exploit", "Exploit"],
-    ["exploit_suite", "Exploit suite"],
-    ["sniffer", "Sniffer"],
-    ["tracker", "Tracer / namierzanie celu"],
-    ["camera_tool", "Camera tool"],
-    ["atm_tool", "ATM tool"],
-    ["vehicle_tool", "Vehicle tool"],
-    ["custom", "Custom"]
-];
+const CREATOR_TOOL_TYPES = [["scanner","creator.legacy.type.scanner"],["exploit","creator.legacy.type.exploit"],["exploit_suite","creator.legacy.type.exploit_suite"],["sniffer","creator.legacy.type.sniffer"],["tracker","creator.legacy.type.tracker"],["camera_tool","creator.legacy.type.camera_tool"],["atm_tool","creator.legacy.type.atm_tool"],["vehicle_tool","creator.legacy.type.vehicle_tool"],["custom","creator.legacy.type.custom"]];
 
 const CREATOR_MAP_ACTION_OPTIONS = [
     "scan_ports",
@@ -13761,75 +13730,63 @@ const CREATOR_TARGET_TYPE_OPTIONS = [
     "venue"
 ];
 
-const CREATOR_OPTION_LABELS = {
-    map_actions: {
-        scan_ports: "Przeskanuj porty",
-        exploit: "Zainstaluj exploit",
-        sniff: "Sledz ruch",
-        trace: "Namierz cel",
-        trace_gps: "Sledz pojazd GPS",
-        trace_device: "Sledz urzadzenie",
-        camera_stream: "Ogl\u0105daj obraz z kamery",
-        camera_shutdown: "Zakloc kamere",
-        atm_logs: "Odczytaj logi ATM",
-        install_sniffer: "Zainstaluj implant",
-        scan_hotspots: "Szukaj hotspotow",
-        audio_hack: "Zakloc audio",
-        car_hack: "Diagnozuj ECU"
-    },
-    operation_types: {
-        generic_trace: "Sledzenie celu",
-        vehicle_tracking: "Sledzenie pojazdu",
-        device_tracking: "Sledzenie urzadzenia",
-        microphone_sniffer: "Nasluch mikrofonu",
-        camera_stream: "Monitoring kamery",
-        camera_shutdown: "Czasowe wylaczenie kamery",
-        atm_log_extraction: "Odczyt logow ATM",
-        persistent_sniffer: "Implant sieciowy",
-        wifi_scanner: "Rozpoznanie sieci",
-        audio_interference: "Zaklocenie audio",
-        vehicle_ecu: "Diagnostyka ECU"
-    },
-    resource_types: {
-        internal_recon_state: "Stan rozpoznania",
-        gps_logs: "Logi GPS",
-        location_history: "Historia lokalizacji",
-        device_logs: "Logi urzadzenia",
-        personal_records: "Dane osobowe",
-        financial_records: "Rekordy finansowe",
-        credentials: "Dane dostepowe",
-        email_accounts: "Konta e-mail",
-        call_history: "Historia polaczen",
-        messenger_data: "Dane komunikatora",
-        audio_transcript: "Transkrypcja audio",
-        camera_dump: "Dump kamery",
-        video_material: "Material wideo",
-        atm_dump: "Dump ATM",
-        vehicle_diagnostics: "Diagnostyka pojazdu",
-        wifi_networks: "Sieci Wi-Fi",
-        hotspot_database: "Baza hotspotow"
-    },
-    target_types: {
-        poi: "Obiekt w swiecie",
-        camera: "Kamera",
-        atm: "ATM",
-        server: "Serwer",
-        router: "Router",
-        player: "Gracz",
-        pillar: "Filar konfliktu",
-        vehicle: "Pojazd",
-        person: "Osoba",
-        phone: "Telefon",
-        venue: "Miejsce"
-    }
-};
+const CREATOR_OPTION_LABELS = {"map_actions":{get scan_ports(){return ghostText("creator.legacy.option.map_actions.scan_ports");},
+    get exploit(){return ghostText("creator.legacy.option.map_actions.exploit");},
+    get sniff(){return ghostText("creator.legacy.option.map_actions.sniff");},
+    get trace(){return ghostText("creator.legacy.option.map_actions.trace");},
+    get trace_gps(){return ghostText("creator.legacy.option.map_actions.trace_gps");},
+    get trace_device(){return ghostText("creator.legacy.option.map_actions.trace_device");},
+    get camera_stream(){return ghostText("creator.legacy.option.map_actions.camera_stream");},
+    get camera_shutdown(){return ghostText("creator.legacy.option.map_actions.camera_shutdown");},
+    get atm_logs(){return ghostText("creator.legacy.option.map_actions.atm_logs");},
+    get install_sniffer(){return ghostText("creator.legacy.option.map_actions.install_sniffer");},
+    get scan_hotspots(){return ghostText("creator.legacy.option.map_actions.scan_hotspots");},
+    get audio_hack(){return ghostText("creator.legacy.option.map_actions.audio_hack");},
+    get car_hack(){return ghostText("creator.legacy.option.map_actions.car_hack");}},
+    "operation_types":{get generic_trace(){return ghostText("creator.legacy.option.operation_types.generic_trace");},
+    get vehicle_tracking(){return ghostText("creator.legacy.option.operation_types.vehicle_tracking");},
+    get device_tracking(){return ghostText("creator.legacy.option.operation_types.device_tracking");},
+    get microphone_sniffer(){return ghostText("creator.legacy.option.operation_types.microphone_sniffer");},
+    get camera_stream(){return ghostText("creator.legacy.option.operation_types.camera_stream");},
+    get camera_shutdown(){return ghostText("creator.legacy.option.operation_types.camera_shutdown");},
+    get atm_log_extraction(){return ghostText("creator.legacy.option.operation_types.atm_log_extraction");},
+    get persistent_sniffer(){return ghostText("creator.legacy.option.operation_types.persistent_sniffer");},
+    get wifi_scanner(){return ghostText("creator.legacy.option.operation_types.wifi_scanner");},
+    get audio_interference(){return ghostText("creator.legacy.option.operation_types.audio_interference");},
+    get vehicle_ecu(){return ghostText("creator.legacy.option.operation_types.vehicle_ecu");}},
+    "resource_types":{get internal_recon_state(){return ghostText("creator.legacy.option.resource_types.internal_recon_state");},
+    get gps_logs(){return ghostText("creator.legacy.option.resource_types.gps_logs");},
+    get location_history(){return ghostText("creator.legacy.option.resource_types.location_history");},
+    get device_logs(){return ghostText("creator.legacy.option.resource_types.device_logs");},
+    get personal_records(){return ghostText("creator.legacy.option.resource_types.personal_records");},
+    get financial_records(){return ghostText("creator.legacy.option.resource_types.financial_records");},
+    get credentials(){return ghostText("creator.legacy.option.resource_types.credentials");},
+    get email_accounts(){return ghostText("creator.legacy.option.resource_types.email_accounts");},
+    get call_history(){return ghostText("creator.legacy.option.resource_types.call_history");},
+    get messenger_data(){return ghostText("creator.legacy.option.resource_types.messenger_data");},
+    get audio_transcript(){return ghostText("creator.legacy.option.resource_types.audio_transcript");},
+    get camera_dump(){return ghostText("creator.legacy.option.resource_types.camera_dump");},
+    get video_material(){return ghostText("creator.legacy.option.resource_types.video_material");},
+    get atm_dump(){return ghostText("creator.legacy.option.resource_types.atm_dump");},
+    get vehicle_diagnostics(){return ghostText("creator.legacy.option.resource_types.vehicle_diagnostics");},
+    get wifi_networks(){return ghostText("creator.legacy.option.resource_types.wifi_networks");},
+    get hotspot_database(){return ghostText("creator.legacy.option.resource_types.hotspot_database");}},
+    "target_types":{get poi(){return ghostText("creator.legacy.option.target_types.poi");},
+    get camera(){return ghostText("creator.legacy.option.target_types.camera");},
+    get atm(){return ghostText("creator.legacy.option.target_types.atm");},
+    get server(){return ghostText("creator.legacy.option.target_types.server");},
+    get router(){return ghostText("creator.legacy.option.target_types.router");},
+    get player(){return ghostText("creator.legacy.option.target_types.player");},
+    get pillar(){return ghostText("creator.legacy.option.target_types.pillar");},
+    get vehicle(){return ghostText("creator.legacy.option.target_types.vehicle");},
+    get person(){return ghostText("creator.legacy.option.target_types.person");},
+    get phone(){return ghostText("creator.legacy.option.target_types.phone");},
+    get venue(){return ghostText("creator.legacy.option.target_types.venue");}}};
 
-const CREATOR_OPTION_GROUPS = {
-    map_actions: "Akcja mapy",
-    operation_types: "Operacja runtime",
-    resource_types: "Informacja",
-    target_types: "Cel"
-};
+const CREATOR_OPTION_GROUPS = {get map_actions(){return ghostText("creator.legacy.creator_option_groups.map_actions");},
+    get operation_types(){return ghostText("creator.legacy.creator_option_groups.operation_types");},
+    get resource_types(){return ghostText("creator.legacy.creator_option_groups.resource_types");},
+    get target_types(){return ghostText("creator.legacy.creator_option_groups.target_types");}};
 
 const CREATOR_SEMANTIC_GROUPS = {
     location: ["gps_logs", "location_history", "generic_trace", "vehicle_tracking", "device_tracking", "trace", "trace_gps", "trace_device"],
@@ -13841,15 +13798,13 @@ const CREATOR_SEMANTIC_GROUPS = {
     world: ["poi", "camera", "server", "router", "pillar", "vehicle", "venue"]
 };
 
-const CREATOR_SEMANTIC_GROUP_LABELS = {
-    location: "Lokalizacja i śledzenie",
-    device: "Urządzenia i sieć",
-    media: "Media i komunikacja",
-    accounts: "Konta i tożsamość",
-    finance: "Finanse",
-    access: "Dostęp i wpływ",
-    world: "Obiekty świata"
-};
+const CREATOR_SEMANTIC_GROUP_LABELS = {get location(){return ghostText("creator.legacy.creator_semantic_group_labels.location");},
+    get device(){return ghostText("creator.legacy.creator_semantic_group_labels.device");},
+    get media(){return ghostText("creator.legacy.creator_semantic_group_labels.media");},
+    get accounts(){return ghostText("creator.legacy.creator_semantic_group_labels.accounts");},
+    get finance(){return ghostText("creator.legacy.creator_semantic_group_labels.finance");},
+    get access(){return ghostText("creator.legacy.creator_semantic_group_labels.access");},
+    get world(){return ghostText("creator.legacy.creator_semantic_group_labels.world");}};
 
 function creatorSemanticGroup(fieldName, key) {
     const matched = Object.entries(CREATOR_SEMANTIC_GROUPS)
@@ -13878,10 +13833,10 @@ const CREATOR_OPTION_CATALOG = Object.freeze(Object.fromEntries(
             const label = (CREATOR_OPTION_LABELS[fieldName] || {})[key] || key;
             return Object.freeze({
                 key,
-                label,
+                get label() { return (CREATOR_OPTION_LABELS[fieldName] || {})[key] || key; },
                 icon: CREATOR_OPTION_ICONS[key] || "◇",
-                description: `${CREATOR_OPTION_GROUPS[fieldName]}: ${label}.`,
-                group: creatorSemanticGroup(fieldName, key),
+                get description() { return `${CREATOR_OPTION_GROUPS[fieldName]}: ${this.label}.`; },
+                get group() { return creatorSemanticGroup(fieldName, key); },
                 constraints: Object.freeze({ serialized_value: key })
             });
         }))
@@ -14016,119 +13971,54 @@ const CREATOR_ACTION_FILTERS = {
     }
 };
 
-const CREATOR_SCANNER_MODE_PRESETS = {
-    map: {
-        label: "Scanner mapowy",
-        description: "Rozpoznanie uruchamiane z mapy na konkretny obiekt.",
-        map_actions: ["scan_ports", "trace", "trace_gps", "trace_device", "scan_hotspots", "camera_stream"],
-        operation_types: ["generic_trace", "vehicle_tracking", "device_tracking", "wifi_scanner", "camera_stream"],
-        resource_types: ["internal_recon_state", "gps_logs", "location_history", "device_logs", "camera_dump", "wifi_networks", "hotspot_database"],
-        target_types: ["poi", "camera", "server", "router", "player", "pillar", "vehicle", "person", "phone", "venue"]
-    },
-    desktop: {
-        label: "Scanner desktopowy na oznaczony cel",
-        description: "Rozpoznanie odpalane z pulpitu na aktualny aimed_target.",
-        map_actions: [],
-        operation_types: ["generic_trace", "device_tracking", "wifi_scanner"],
-        resource_types: ["internal_recon_state", "location_history", "device_logs", "wifi_networks", "hotspot_database"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "person", "phone", "venue"]
-    },
-    hybrid: {
-        label: "Scanner hybrydowy",
-        description: "Narz\u0119dzie recon dzia\u0142aj\u0105ce z mapy i z desktopu, bez wchodzenia w \u015bcie\u017ck\u0119 exploit/sniffer.",
-        map_actions: ["scan_ports", "trace", "trace_gps", "trace_device", "scan_hotspots", "camera_stream"],
-        operation_types: ["generic_trace", "vehicle_tracking", "device_tracking", "wifi_scanner", "camera_stream"],
-        resource_types: ["internal_recon_state", "gps_logs", "location_history", "device_logs", "camera_dump", "wifi_networks", "hotspot_database"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "person", "phone", "venue"]
-    }
-};
+const CREATOR_SCANNER_MODE_PRESETS = {"map":{get label(){return ghostText("creator.legacy.scanner.map.label");},
+    get description(){return ghostText("creator.legacy.scanner.map.description");},
+    "map_actions":["scan_ports","trace","trace_gps","trace_device","scan_hotspots","camera_stream"],"operation_types":["generic_trace","vehicle_tracking","device_tracking","wifi_scanner","camera_stream"],"resource_types":["internal_recon_state","gps_logs","location_history","device_logs","camera_dump","wifi_networks","hotspot_database"],"target_types":["poi","camera","server","router","player","pillar","vehicle","person","phone","venue"]},
+    "desktop":{get label(){return ghostText("creator.legacy.scanner.desktop.label");},
+    get description(){return ghostText("creator.legacy.scanner.desktop.description");},
+    "map_actions":[],"operation_types":["generic_trace","device_tracking","wifi_scanner"],"resource_types":["internal_recon_state","location_history","device_logs","wifi_networks","hotspot_database"],"target_types":["poi","camera","atm","server","router","player","pillar","vehicle","person","phone","venue"]},
+    "hybrid":{get label(){return ghostText("creator.legacy.scanner.hybrid.label");},
+    get description(){return ghostText("creator.legacy.scanner.hybrid.description");},
+    "map_actions":["scan_ports","trace","trace_gps","trace_device","scan_hotspots","camera_stream"],"operation_types":["generic_trace","vehicle_tracking","device_tracking","wifi_scanner","camera_stream"],"resource_types":["internal_recon_state","gps_logs","location_history","device_logs","camera_dump","wifi_networks","hotspot_database"],"target_types":["poi","camera","atm","server","router","player","pillar","vehicle","person","phone","venue"]}};
 
-const CREATOR_EXPLOIT_MODE_PRESETS = {
-    map: {
-        label: "Exploit mapowy",
-        description: "Symulowane wykorzystanie s\u0142abo\u015bci celu uruchamiane z mapy w \u015bwiecie gry.",
-        map_actions: ["exploit", "camera_shutdown", "install_sniffer", "audio_hack", "car_hack"],
-        operation_types: ["camera_shutdown", "persistent_sniffer", "audio_interference", "vehicle_ecu"],
-        resource_types: ["internal_recon_state", "financial_records", "credentials", "vehicle_diagnostics"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "venue"]
-    },
-    desktop: {
-        label: "Exploit desktopowy na oznaczony cel",
-        description: "Symulowany wp\u0142yw na aktualny aimed_target bez automatycznego podpinania do menu mapy.",
-        map_actions: [],
-        operation_types: ["camera_shutdown", "audio_interference", "vehicle_ecu"],
-        resource_types: ["internal_recon_state", "vehicle_diagnostics"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "venue"]
-    },
-    hybrid: {
-        label: "Exploit hybrydowy",
-        description: "Narz\u0119dzie dzia\u0142aj\u0105ce z mapy i desktopu, nadal w ramach symulowanego \u015bwiata CHAOS.",
-        map_actions: ["exploit", "camera_shutdown", "install_sniffer", "audio_hack", "car_hack"],
-        operation_types: ["camera_shutdown", "persistent_sniffer", "audio_interference", "vehicle_ecu"],
-        resource_types: ["internal_recon_state", "financial_records", "credentials", "vehicle_diagnostics"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "venue"]
-    }
-};
+const CREATOR_EXPLOIT_MODE_PRESETS = {"map":{get label(){return ghostText("creator.legacy.exploit.map.label");},
+    get description(){return ghostText("creator.legacy.exploit.map.description");},
+    "map_actions":["exploit","camera_shutdown","install_sniffer","audio_hack","car_hack"],"operation_types":["camera_shutdown","persistent_sniffer","audio_interference","vehicle_ecu"],"resource_types":["internal_recon_state","financial_records","credentials","vehicle_diagnostics"],"target_types":["poi","camera","atm","server","router","player","pillar","vehicle","venue"]},
+    "desktop":{get label(){return ghostText("creator.legacy.exploit.desktop.label");},
+    get description(){return ghostText("creator.legacy.exploit.desktop.description");},
+    "map_actions":[],"operation_types":["camera_shutdown","audio_interference","vehicle_ecu"],"resource_types":["internal_recon_state","vehicle_diagnostics"],"target_types":["poi","camera","atm","server","router","player","pillar","vehicle","venue"]},
+    "hybrid":{get label(){return ghostText("creator.legacy.exploit.hybrid.label");},
+    get description(){return ghostText("creator.legacy.exploit.hybrid.description");},
+    "map_actions":["exploit","camera_shutdown","install_sniffer","audio_hack","car_hack"],"operation_types":["camera_shutdown","persistent_sniffer","audio_interference","vehicle_ecu"],"resource_types":["internal_recon_state","financial_records","credentials","vehicle_diagnostics"],"target_types":["poi","camera","atm","server","router","player","pillar","vehicle","venue"]}};
 
-const CREATOR_SNIFFER_MODE_PRESETS = {
-    map: {
-        label: "Sniffer mapowy",
-        description: "Symulowane zbieranie sygna\u0142\u00f3w lub danych przez operacj\u0119 uruchamian\u0105 z mapy.",
-        map_actions: ["sniff", "mic_sniff", "atm_logs", "install_sniffer", "camera_stream"],
-        operation_types: ["persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"],
-        resource_types: ["credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "person", "phone", "venue"]
-    },
-    desktop: {
-        label: "Sniffer desktopowy na oznaczony cel",
-        description: "Symulowany podgl\u0105d sygna\u0142\u00f3w aktualnego aimed_target bez obowi\u0105zkowego menu mapy.",
-        map_actions: [],
-        operation_types: ["persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"],
-        resource_types: ["credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "person", "phone", "venue"]
-    },
-    hybrid: {
-        label: "Sniffer hybrydowy",
-        description: "Narz\u0119dzie obserwacji dzia\u0142aj\u0105ce z mapy i z desktopu w ramach operacji gry.",
-        map_actions: ["sniff", "mic_sniff", "atm_logs", "install_sniffer", "camera_stream"],
-        operation_types: ["persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"],
-        resource_types: ["credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"],
-        target_types: ["poi", "camera", "atm", "server", "router", "player", "pillar", "person", "phone", "venue"]
-    }
-};
+const CREATOR_SNIFFER_MODE_PRESETS = {"map":{get label(){return ghostText("creator.legacy.sniffer.map.label");},
+    get description(){return ghostText("creator.legacy.sniffer.map.description");},
+    "map_actions":["sniff","mic_sniff","atm_logs","install_sniffer","camera_stream"],"operation_types":["persistent_sniffer","microphone_sniffer","atm_log_extraction","camera_stream"],"resource_types":["credentials","financial_records","atm_dump","audio_transcript","camera_dump","video_material","device_logs","internal_recon_state"],"target_types":["poi","camera","atm","server","router","player","pillar","person","phone","venue"]},
+    "desktop":{get label(){return ghostText("creator.legacy.sniffer.desktop.label");},
+    get description(){return ghostText("creator.legacy.sniffer.desktop.description");},
+    "map_actions":[],"operation_types":["persistent_sniffer","microphone_sniffer","atm_log_extraction","camera_stream"],"resource_types":["credentials","financial_records","atm_dump","audio_transcript","camera_dump","video_material","device_logs","internal_recon_state"],"target_types":["poi","camera","atm","server","router","player","pillar","person","phone","venue"]},
+    "hybrid":{get label(){return ghostText("creator.legacy.sniffer.hybrid.label");},
+    get description(){return ghostText("creator.legacy.sniffer.hybrid.description");},
+    "map_actions":["sniff","mic_sniff","atm_logs","install_sniffer","camera_stream"],"operation_types":["persistent_sniffer","microphone_sniffer","atm_log_extraction","camera_stream"],"resource_types":["credentials","financial_records","atm_dump","audio_transcript","camera_dump","video_material","device_logs","internal_recon_state"],"target_types":["poi","camera","atm","server","router","player","pillar","person","phone","venue"]}};
 
-const CREATOR_TOOL_FAMILY_PRESETS = {
-    scanner_recon: {
-        label: "Scanner / Recon / Namierzanie",
-        boxTitle: "Gdzie dzia\u0142a rozpoznanie lub namierzanie?",
-        defaultType: "scanner",
-        allowedTypes: ["scanner", "tracker"],
-        safetyText: "Ta rodzina obejmuje skanowanie oraz tracer mapowy. Dla Namierz cel ustaw typ Tracer / namierzanie celu, akcj\u0119 trace i operacj\u0119 generic_trace.",
-        desktopMapNote: "Scanner desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
-        mapNote: "Cztery podstawowe akcje mapy to scan_ports, exploit, sniff i trace. W tej rodzinie utworzysz scan_ports albo Namierz cel (trace).",
-        modes: CREATOR_SCANNER_MODE_PRESETS
-    },
-    exploit: {
-        label: "Exploit",
-        boxTitle: "Gdzie dzia\u0142a exploit?",
-        defaultType: "exploit",
-        allowedTypes: ["exploit", "exploit_suite", "camera_tool", "atm_tool", "vehicle_tool"],
-        safetyText: "Exploit w CHAOS oznacza symulowany wp\u0142yw na s\u0142abo\u015b\u0107 systemu w \u015bwiecie gry. Opisuj efekt gameplayowy, nie technik\u0119.",
-        desktopMapNote: "Exploit desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
-        mapNote: "Wybierz akcje mapy tylko wtedy, gdy narz\u0119dzie ma by\u0107 widoczne w menu mapy.",
-        modes: CREATOR_EXPLOIT_MODE_PRESETS
-    },
-    sniffer: {
-        label: "Sniffer",
-        boxTitle: "Gdzie dzia\u0142a sniffer?",
-        defaultType: "sniffer",
-        allowedTypes: ["sniffer"],
-        safetyText: "Sniffer w CHAOS oznacza symulowan\u0105 obserwacj\u0119 sygna\u0142\u00f3w lub danych w ramach operacji gry.",
-        desktopMapNote: "Sniffer desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
-        mapNote: "Wybierz akcje mapy tylko wtedy, gdy sniffer ma by\u0107 uruchamiany z mapy.",
-        modes: CREATOR_SNIFFER_MODE_PRESETS
-    }
-};
+const CREATOR_TOOL_FAMILY_PRESETS = {"scanner_recon":{get label(){return ghostText("creator.legacy.family.scanner_recon.label");},
+    get boxTitle(){return ghostText("creator.legacy.family.scanner_recon.boxTitle");},
+    "defaultType":"scanner","allowedTypes":["scanner","tracker"],get safetyText(){return ghostText("creator.legacy.family.scanner_recon.safetyText");},
+    get desktopMapNote(){return ghostText("creator.legacy.family.scanner_recon.desktopMapNote");},
+    get mapNote(){return ghostText("creator.legacy.family.scanner_recon.mapNote");},
+    modes:CREATOR_SCANNER_MODE_PRESETS},
+    "exploit":{get label(){return ghostText("creator.legacy.family.exploit.label");},
+    get boxTitle(){return ghostText("creator.legacy.family.exploit.boxTitle");},
+    "defaultType":"exploit","allowedTypes":["exploit","exploit_suite","camera_tool","atm_tool","vehicle_tool"],get safetyText(){return ghostText("creator.legacy.family.exploit.safetyText");},
+    get desktopMapNote(){return ghostText("creator.legacy.family.exploit.desktopMapNote");},
+    get mapNote(){return ghostText("creator.legacy.family.exploit.mapNote");},
+    modes:CREATOR_EXPLOIT_MODE_PRESETS},
+    "sniffer":{get label(){return ghostText("creator.legacy.family.sniffer.label");},
+    get boxTitle(){return ghostText("creator.legacy.family.sniffer.boxTitle");},
+    "defaultType":"sniffer","allowedTypes":["sniffer"],get safetyText(){return ghostText("creator.legacy.family.sniffer.safetyText");},
+    get desktopMapNote(){return ghostText("creator.legacy.family.sniffer.desktopMapNote");},
+    get mapNote(){return ghostText("creator.legacy.family.sniffer.mapNote");},
+    modes:CREATOR_SNIFFER_MODE_PRESETS}};
 
 function creatorOptionCheckboxGroup(options, fieldName) {
     const groups = [];
@@ -14151,7 +14041,7 @@ function creatorOptionCheckboxGroup(options, fieldName) {
                     <input type="checkbox" value="${escapeHTML(item.key)}">
                     <span class="creator-toggle-state">OFF</span>
                     <span class="creator-toggle-icon" aria-hidden="true">${escapeHTML(item.icon)}</span>
-                    <span class="creator-toggle-label">${escapeHTML(item.label)}</span>
+                    <span class="creator-toggle-label">${ghostLabel("creator.legacy.option."+fieldName+"."+item.key)}</span>
                 </label>
                     `).join("")}
                 </section>
@@ -14165,7 +14055,7 @@ function creatorWizardNavHtml() {
         <div class="creator-wizard-nav" role="tablist">
             ${CREATOR_WIZARD_STEPS.map((label, index) => `
                 <button type="button" role="tab" class="creator-wizard-tab${index === 0 ? " active" : ""}" data-creator-step="${index}">
-                    <span>${index + 1}</span>${escapeHTML(label)}
+                    <span>${index + 1}</span>${ghostLabel(label)}
                 </button>
             `).join("")}
         </div>
@@ -14176,11 +14066,11 @@ function creatorStepNarrativeHtml(index) {
     const item = CREATOR_STEP_NARRATIVE[index] || {};
     return `
         <div class="creator-step-narrative">
-            <span class="creator-step-kicker">${escapeHTML(item.subtitle || '')}</span>
-            <h4>${escapeHTML(item.title || '')}</h4>
-            <p>${escapeHTML(item.description || '')}</p>
-            <small>${escapeHTML(item.educational_note || '')}</small>
-            <em>${escapeHTML(item.gameplay_hint || '')}</em>
+            <span class="creator-step-kicker">${ghostLabel(item.subtitle || '')}</span>
+            <h4>${ghostLabel(item.title || '')}</h4>
+            <p>${ghostLabel(item.description || '')}</p>
+            <small>${ghostLabel(item.educational_note || '')}</small>
+            <em>${ghostLabel(item.gameplay_hint || '')}</em>
         </div>
     `;
 }
@@ -14218,6 +14108,26 @@ function wireCreatorWizard(term) {
         input.addEventListener('change', () => syncCreatorToggle(input));
         syncCreatorToggle(input);
     });
+    const refreshLabels = () => {
+        if (!term.isConnected) { document.removeEventListener('ghost:locale-changed', refreshLabels); return; }
+        polishCreatorWizardLabels(term);
+        term.querySelectorAll('[data-creator-option-group]').forEach(group => {
+            const input = group.querySelector('input');
+            const field = group.closest('[data-appforge-field]')?.dataset.appforgeField;
+            if (input && field) group.querySelector('h5').textContent = creatorOptionDescriptor(field,input.value).group;
+        });
+        term.querySelectorAll('[data-creator-option]').forEach(node => {
+            node.title = creatorOptionDescriptor(node.closest('[data-appforge-field]').dataset.appforgeField,node.dataset.creatorOption).description;
+        });
+        term.querySelectorAll('[name="tool_family"] option').forEach(option => {
+            option.textContent = CREATOR_TOOL_FAMILY_PRESETS[option.value]?.label || ghostText('creator.legacy.general');
+        });
+        term.querySelectorAll('[name="type"] option').forEach(option => { option.textContent=ghostText('creator.legacy.type.'+option.value); });
+        const family=CREATOR_TOOL_FAMILY_PRESETS[term.querySelector('[name="tool_family"]')?.value];
+        if(family){const mode=term.querySelector('[name="tool_mode"]').value;for(const [selector,text]of [['title',family.boxTitle],['note',(family.modes[mode]||family.modes.map).description],['safety',family.safetyText]])term.querySelector('[data-creator-family-'+selector+']').textContent=text;term.querySelector('[data-creator-map-note]').textContent=mode==='desktop'?family.desktopMapNote:family.mapNote;}
+        updateCreatorContractPreview(term);
+    };
+    document.addEventListener('ghost:locale-changed', refreshLabels);
     form.addEventListener('reset', () => setTimeout(() => {
         form.querySelectorAll('.creator-toggle input[type="checkbox"]').forEach(syncCreatorToggle);
     }, 0));
@@ -14270,8 +14180,8 @@ function wireCreatorWizard(term) {
 function creatorPanelNav(previous = true, next = true) {
     return `
         <div class="creator-panel-nav">
-            ${previous ? '<button type="button" class="appforge-submit" data-creator-prev>Wstecz</button>' : '<span></span>'}
-            ${next ? '<button type="button" class="appforge-submit" data-creator-next>Dalej</button>' : ''}
+            ${previous ? `<button type="button" class="appforge-submit" data-creator-prev>${ghostLabel("creator.legacy.back")}</button>` : '<span></span>'}
+            ${next ? `<button type="button" class="appforge-submit" data-creator-next>${ghostLabel("creator.legacy.next")}</button>` : ''}
         </div>
     `;
 }
@@ -14279,16 +14189,16 @@ function creatorPanelNav(previous = true, next = true) {
 function polishCreatorWizardLabels(term) {
     const familySelect = term.querySelector('[name="tool_family"]');
     if (familySelect?.parentElement) {
-        familySelect.parentElement.childNodes[0].textContent = "Jaki rodzaj narz\u0119dzia chcesz stworzy\u0107? ";
+        familySelect.parentElement.childNodes[0].textContent = ghostText("creator.legacy.family_question");
     }
     const typeSelect = term.querySelector('[name="type"]');
     if (typeSelect?.parentElement) {
-        typeSelect.parentElement.childNodes[0].textContent = "Jak ma byc opisane w katalogu? ";
+        typeSelect.parentElement.childNodes[0].textContent = ghostText("creator.legacy.catalog_question");
     }
     const detects = term.querySelector('[name="detects"]');
     if (detects?.parentElement) {
-        detects.parentElement.childNodes[0].textContent = "Jakie \u015blady lub sygna\u0142y rozpoznaje? ";
-        detects.placeholder = "np. otwarte us\u0142ugi, ruch celu";
+        detects.parentElement.childNodes[0].textContent = ghostText("creator.legacy.detect_question");
+        detects.placeholder = ghostText("creator.legacy.detect_example");
     }
     const panelHeadings = [
         ["0", ""],
@@ -14307,14 +14217,14 @@ function polishCreatorWizardLabels(term) {
         if (heading && !text) heading.remove();
     });
     const friendlyFieldsets = [
-        ['[data-creator-panel="2"] .appforge-fieldset h4', "Jakim obiektem chcesz si\u0119 zaj\u0105\u0107?"],
-        ['[data-creator-panel="3"] .appforge-fieldset h4', "Sk\u0105d gracz ma uruchamia\u0107 narz\u0119dzie?"],
-        ['[data-creator-panel="4"] .appforge-fieldset h4', "Co ma zrobi\u0107 Twoje narz\u0119dzie?"],
-        ['[data-creator-panel="5"] .appforge-fieldset h4', "Jakich informacji ma szuka\u0107?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(1) h4', "Z czym mo\u017ce kolidowa\u0107?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(2) h4', "Co powinno by\u0107 wy\u0142\u0105czone?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(3) h4', "Co narz\u0119dzie potrafi wy\u0142\u0105czy\u0107?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(4) h4', "Na co wp\u0142ywa po stronie gracza?"]
+        ['[data-creator-panel="2"] .appforge-fieldset h4', ghostText("creator.legacy.target_question")],
+        ['[data-creator-panel="3"] .appforge-fieldset h4', ghostText("creator.legacy.launch_question")],
+        ['[data-creator-panel="4"] .appforge-fieldset h4', ghostText("creator.legacy.action_question")],
+        ['[data-creator-panel="5"] .appforge-fieldset h4', ghostText("creator.legacy.information_question")],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(1) h4', ghostText("creator.legacy.conflict_question")],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(2) h4', ghostText("creator.legacy.requires_question")],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(3) h4', ghostText("creator.legacy.disable_question")],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(4) h4', ghostText("creator.legacy.affects_question")]
     ];
     friendlyFieldsets.forEach(([selector, text]) => {
         const item = term.querySelector(selector);
@@ -14356,18 +14266,18 @@ function updateCreatorContractPreview(term) {
     if (summary) {
         const labels = (fieldName, values) => values.map(value => creatorOptionDescriptor(fieldName, value).label);
         const rows = [
-            ["Aplikacja", `${payload.icon || "◇"} ${payload.name || "Bez nazwy"}`],
-            ["Rodzina", (CREATOR_TOOL_FAMILY_PRESETS[payload.tool_family] || {}).label || "Ogólne narzędzie"],
-            ["Cel", labels("target_types", payload.target_types).join(", ") || "Nie wybrano"],
-            ["Start", payload.tool_mode || "ogólny"],
-            ["Akcje mapy", labels("map_actions", payload.map_actions).join(", ") || "Brak"],
-            ["Operacje", labels("operation_types", payload.operation_types).join(", ") || "Nie wybrano"],
-            ["Informacje", labels("resource_types", payload.resource_types).join(", ") || "Brak"],
-            ["Kolizje", (payload.interferes_with || []).join(", ") || "Brak"],
-            ["Wymaga wyłączenia", (payload.requires_off || []).join(", ") || "Brak"],
-            ["Może wyłączyć", (payload.disables || []).join(", ") || "Brak"],
-            ["Wpływ na gracza", (payload.affects || []).join(", ") || "Brak"],
-            ["Prezentacja", payload.interface || "Nie wybrano"]
+            [ghostText("creator.legacy.app"), `${payload.icon || "◇"} ${payload.name || ghostText("creator.legacy.unnamed")}`],
+            [ghostText("creator.legacy.family_label"), (CREATOR_TOOL_FAMILY_PRESETS[payload.tool_family] || {}).label || ghostText("creator.legacy.general")],
+            [ghostText("creator.legacy.target"), labels("target_types", payload.target_types).join(", ") || ghostText("creator.legacy.not_selected")],
+            [ghostText("creator.legacy.start"), payload.tool_mode || ghostText("creator.legacy.general_mode")],
+            [ghostText("creator.legacy.map_actions"), labels("map_actions", payload.map_actions).join(", ") || ghostText("creator.legacy.none")],
+            [ghostText("creator.legacy.operations"), labels("operation_types", payload.operation_types).join(", ") || ghostText("creator.legacy.not_selected")],
+            [ghostText("creator.legacy.information"), labels("resource_types", payload.resource_types).join(", ") || ghostText("creator.legacy.none")],
+            [ghostText("creator.legacy.conflicts"), (payload.interferes_with || []).join(", ") || ghostText("creator.legacy.none")],
+            [ghostText("creator.legacy.requires"), (payload.requires_off || []).join(", ") || ghostText("creator.legacy.none")],
+            [ghostText("creator.legacy.disables"), (payload.disables || []).join(", ") || ghostText("creator.legacy.none")],
+            [ghostText("creator.legacy.affects"), (payload.affects || []).join(", ") || ghostText("creator.legacy.none")],
+            [ghostText("creator.legacy.presentation"), payload.interface || ghostText("creator.legacy.not_selected")]
         ];
         summary.innerHTML = rows.map(row => `<span>${escapeHTML(row[0])}</span><b>${escapeHTML(row[1])}</b>`).join("");
     }
@@ -14389,17 +14299,17 @@ function validateCreatorContext(term, payload) {
         return { step, fieldName, message };
     };
     if (!payload.name || !String(payload.name).trim()) {
-        return invalid(0, "name", "Krok 1 · Nazwa: wpisz niepustą nazwę aplikacji.");
+        return invalid(0, "name", ghostText("creator.legacy.name_error"));
     }
     if (payload.tool_family && payload.tool_family !== "custom") {
         if (!payload.target_types.length) {
-            return invalid(2, "target_types", "Krok 3 · Cel: wybierz co najmniej jeden rodzaj celu zgodny z rodziną.");
+            return invalid(2, "target_types", ghostText("creator.legacy.target_error"));
         }
         if (["map", "hybrid"].includes(payload.tool_mode) && !payload.map_actions.length) {
-            return invalid(3, "map_actions", "Krok 4 · Start: tryb mapowy lub hybrydowy wymaga akcji mapy; wybierz akcję albo tryb desktopowy.");
+            return invalid(3, "map_actions", ghostText("creator.legacy.map_error"));
         }
         if (!payload.operation_types.length) {
-            return invalid(4, "operation_types", "Krok 5 · Działanie: wybierz co najmniej jedną operację zgodną z celem i akcją.");
+            return invalid(4, "operation_types", ghostText("creator.legacy.operation_error"));
         }
     }
     return null;
@@ -14485,10 +14395,10 @@ function applyCreatorScannerMode(term) {
             setCreatorCheckboxFilter(term, field, null);
         });
         if (familyTitle) familyTitle.textContent = "Tryb narz\u0119dzia";
-        if (familyNote) familyNote.textContent = "Wybierz \u015bcie\u017ck\u0119 kreatora, \u017ceby zaw\u0119zi\u0107 kontrakt do sensownych p\u00f3l.";
+        if (familyNote) familyNote.textContent = ghostText("creator.legacy.mode_help");
         if (familySafety) familySafety.textContent = "";
         if (mapNote) mapNote.textContent = "";
-        if (filterStatus) filterStatus.textContent = "Tryb ogólny pokazuje cały kontrakt aplikacji.";
+        if (filterStatus) filterStatus.textContent = ghostText("creator.legacy.general_help");
         updateCreatorContractPreview(term);
         return;
     }
@@ -14518,8 +14428,8 @@ function applyCreatorScannerMode(term) {
     const clearedCount = results.reduce((total, result) => total + (result ? result.clearedCount : 0), 0);
     if (filterStatus) {
         filterStatus.textContent = clearedCount
-            ? `Dopasowano opcje do rodziny, celu i akcji. Wyczyszczono niezgodnych wyborów: ${clearedCount}.`
-            : "Opcje są dopasowane do wybranej rodziny, celu i akcji.";
+            ? ghostText('creator.legacy.filtered_count',{count:clearedCount})
+            : ghostText("creator.legacy.filtered");
     }
     if (familyTitle) familyTitle.textContent = familyPreset.boxTitle;
     if (familyNote) familyNote.textContent = preset.description;
@@ -14556,106 +14466,106 @@ function appendCreatorMeta(form, keys, interfaceName) {
             <section class="creator-step-panel" data-creator-panel="0">
                 <h4>Meta aplikacji</h4>
                 <div class="appforge-grid">
-                    <label>Nazwa<input name="name" maxlength="32" required placeholder="Nazwa aplikacji"></label>
-                    <label>Cena<input name="price" type="number" min="0" step="1" value="100"></label>
-                    <label>Ikonka
+                    <label>${ghostLabel("creator.legacy.name")}<input name="name" maxlength="32" required data-ghost-placeholder="creator.legacy.name_hint" placeholder="${escapeHTML(ghostText('creator.legacy.name_hint'))}"></label>
+                    <label>${ghostLabel("creator.legacy.price")}<input name="price" type="number" min="0" step="1" value="100"></label>
+                    <label>${ghostLabel("creator.legacy.icon")}
                         <span class="appforge-icon-row">
                             <input name="icon" maxlength="16" value="">
                             <span class="appforge-icon-preview"></span>
                         </span>
                     </label>
                 </div>
-                <label>Opis<textarea name="description" rows="3" placeholder="Co robi aplikacja?"></textarea></label>
+                <label>${ghostLabel("creator.legacy.description")}<textarea name="description" rows="3" data-ghost-placeholder="creator.legacy.description_hint" placeholder="${escapeHTML(ghostText('creator.legacy.description_hint'))}"></textarea></label>
                 ${creatorPanelNav(false, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="1" hidden>
                 <h4>Typ narz\u0119dzia</h4>
-                <label>\u015acie\u017cka kreatora
+                <label>${ghostLabel("creator.legacy.family")}
                     <select name="tool_family">
-                        <option value="custom">Og\u00f3lne narz\u0119dzie</option>
+                        <option value="custom">${ghostLabel("creator.legacy.custom")}</option>
                         ${Object.entries(CREATOR_TOOL_FAMILY_PRESETS).map(([value, preset]) => `
                             <option value="${escapeHTML(value)}">${escapeHTML(preset.label)}</option>
                         `).join("")}
                     </select>
                 </label>
                 <div class="creator-scanner-box" data-creator-family-box hidden>
-                    <label><span data-creator-family-title>Tryb narz\u0119dzia</span>
+                    <label><span data-creator-family-title>${ghostLabel("creator.legacy.mode")}</span>
                         <select name="tool_mode">
-                            <option value="map">Mapowy</option>
-                            <option value="desktop">Desktopowy na aimed_target</option>
-                            <option value="hybrid">Hybrydowy</option>
+                            <option value="map" data-ghost-i18n="creator.legacy.map">${ghostText("creator.legacy.map")}</option>
+                            <option value="desktop" data-ghost-i18n="creator.legacy.desktop">${ghostText("creator.legacy.desktop")}</option>
+                            <option value="hybrid" data-ghost-i18n="creator.legacy.hybrid">${ghostText("creator.legacy.hybrid")}</option>
                         </select>
                     </label>
                     <p class="creator-step-note" data-creator-family-note></p>
                     <p class="creator-step-note" data-creator-family-safety></p>
                 </div>
-                <label>Typ
+                <label>${ghostLabel("creator.legacy.type")}
                     <select name="type">
                         ${CREATOR_TOOL_TYPES.map(([value, label]) => `
-                            <option value="${escapeHTML(value)}" ${value === "exploit" ? "selected" : ""}>${escapeHTML(label)}</option>
+                            <option value="${escapeHTML(value)}" ${value === "exploit" ? "selected" : ""}>${ghostText(label)}</option>
                         `).join("")}
                     </select>
                 </label>
-                <label>Wykrywa<textarea name="detects" rows="2" placeholder="np. open_ports, user_location"></textarea></label>
-                <p class="creator-filter-status" data-creator-filter-status role="status" aria-live="polite">Wybierz rodzinę, aby dopasować kontrakt aplikacji.</p>
+                <label>${ghostLabel("creator.legacy.detects")}<textarea name="detects" rows="2" data-ghost-placeholder="creator.legacy.detect_hint" placeholder="${escapeHTML(ghostText('creator.legacy.detect_hint'))}"></textarea></label>
+                <p class="creator-filter-status" data-creator-filter-status role="status" aria-live="polite">${ghostLabel("creator.legacy.filter_help")}</p>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="2" hidden>
                 <h4>\u015arodowisko dzia\u0142ania</h4>
                 <input type="hidden" name="interface" value="${escapeHTML(interfaceName)}">
                 <div class="creator-readonly-contract">
-                    <span>Interface</span>
+                    <span>${ghostLabel("creator.legacy.interface")}</span>
                     <b>${escapeHTML(interfaceName)}</b>
                 </div>
-                <div class="appforge-fieldset"><h4>Rodzaj celu</h4><p class="creator-field-help">Wybierz obiekty świata, na których narzędzie może pracować.</p>${creatorOptionCheckboxGroup(CREATOR_TARGET_TYPE_OPTIONS, "target_types")}</div>
+                <div class="appforge-fieldset"><h4>Rodzaj celu</h4><p class="creator-field-help">${ghostLabel("creator.legacy.target_help")}</p>${creatorOptionCheckboxGroup(CREATOR_TARGET_TYPE_OPTIONS, "target_types")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="3" hidden>
                 <h4>Akcje mapy / desktopu</h4>
                 <p class="creator-step-note" data-creator-map-note>Wybierz akcje mapy tylko wtedy, gdy narz\u0119dzie ma by\u0107 uruchamiane z menu mapy.</p>
-                <div class="appforge-fieldset"><h4>Akcja uruchamiana z mapy</h4><p class="creator-field-help">To wpis widoczny w menu obiektu. Tryb desktopowy może pozostać bez akcji mapy.</p>${creatorOptionCheckboxGroup(CREATOR_MAP_ACTION_OPTIONS, "map_actions")}</div>
+                <div class="appforge-fieldset"><h4>Akcja uruchamiana z mapy</h4><p class="creator-field-help">${ghostLabel("creator.legacy.action_help")}</p>${creatorOptionCheckboxGroup(CREATOR_MAP_ACTION_OPTIONS, "map_actions")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="4" hidden>
                 <h4>Operacje</h4>
-                <div class="appforge-fieldset"><h4>Operacja na oznaczonym celu</h4><p class="creator-field-help">Określa gameplayowy skutek aplikacji uruchamianej z desktopu lub terminala.</p>${creatorOptionCheckboxGroup(CREATOR_OPERATION_OPTIONS, "operation_types")}</div>
+                <div class="appforge-fieldset"><h4>Operacja na oznaczonym celu</h4><p class="creator-field-help">${ghostLabel("creator.legacy.operation_help")}</p>${creatorOptionCheckboxGroup(CREATOR_OPERATION_OPTIONS, "operation_types")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="5" hidden>
                 <h4>Zasoby</h4>
-                <div class="appforge-fieldset"><h4>Informacje i ślady</h4><p class="creator-field-help">Wybierz dane, które operacja może przygotować w świecie gry.</p>${creatorOptionCheckboxGroup(CREATOR_RESOURCE_OPTIONS, "resource_types")}</div>
+                <div class="appforge-fieldset"><h4>Informacje i ślady</h4><p class="creator-field-help">${ghostLabel("creator.legacy.resource_help")}</p>${creatorOptionCheckboxGroup(CREATOR_RESOURCE_OPTIONS, "resource_types")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="6" hidden>
                 <h4>Ryzyko i zabezpieczenia</h4>
                 <div class="creator-risk-grid">
-                    <div class="appforge-fieldset"><h4>Z czym może kolidować?</h4><p class="creator-field-help">Zapis do <code>interferes_with</code>: aktywne zabezpieczenia, które mogą zakłócić pracę.</p>${creatorCheckboxGroup(keys, "interferes_with")}</div>
-                    <div class="appforge-fieldset"><h4>Co musi być wyłączone na celu?</h4><p class="creator-field-help">Zapis do <code>requires_off</code>: warunki konieczne przed uruchomieniem.</p>${creatorCheckboxGroup(keys, "requires_off")}</div>
-                    <div class="appforge-fieldset"><h4>Co narzędzie może wyłączyć?</h4><p class="creator-field-help">Zapis do <code>disables</code>: zabezpieczenia będące skutkiem działania.</p>${creatorCheckboxGroup(keys, "disables")}</div>
-                    <div class="appforge-fieldset"><h4>Na co wpływa po stronie gracza?</h4><p class="creator-field-help">Zapis do <code>affects</code>: lokalny wpływ aplikacji na profil lub rozgrywkę.</p>${creatorCheckboxGroup(keys, "affects")}</div>
+                    <div class="appforge-fieldset"><h4>Z czym może kolidować?</h4><p class="creator-field-help">${ghostLabel("creator.legacy.contract_help.interferes_with")}</p>${creatorCheckboxGroup(keys, "interferes_with")}</div>
+                    <div class="appforge-fieldset"><h4>Co musi być wyłączone na celu?</h4><p class="creator-field-help">${ghostLabel("creator.legacy.contract_help.requires_off")}</p>${creatorCheckboxGroup(keys, "requires_off")}</div>
+                    <div class="appforge-fieldset"><h4>Co narzędzie może wyłączyć?</h4><p class="creator-field-help">${ghostLabel("creator.legacy.contract_help.disables")}</p>${creatorCheckboxGroup(keys, "disables")}</div>
+                    <div class="appforge-fieldset"><h4>Na co wpływa po stronie gracza?</h4><p class="creator-field-help">${ghostLabel("creator.legacy.contract_help.affects")}</p>${creatorCheckboxGroup(keys, "affects")}</div>
                 </div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="7" hidden>
                 <h4>Storage / quality preview</h4>
                 <div class="creator-preview-grid">
-                    <span>Waga aplikacji</span><b>runtime default</b>
-                    <span>Disk usage</span><b>runtime default</b>
-                    <span>Quality</span><b>profil tw\u00f3rcy</b>
-                    <span>Reliability</span><b>profil tw\u00f3rcy</b>
+                    <span>${ghostLabel("creator.legacy.weight")}</span><b>${ghostLabel("creator.legacy.runtime")}</b>
+                    <span>${ghostLabel("creator.legacy.disk")}</span><b>${ghostLabel("creator.legacy.runtime")}</b>
+                    <span>${ghostLabel("creator.legacy.quality")}</span><b>${ghostLabel("creator.legacy.profile")}</b>
+                    <span>${ghostLabel("creator.legacy.reliability")}</span><b>${ghostLabel("creator.legacy.profile")}</b>
                 </div>
                 <div class="creator-player-summary" data-creator-player-summary></div>
                 <details class="creator-technical-preview">
-                    <summary>Pokaż techniczny kontrakt JSON</summary>
+                    <summary>${ghostLabel("creator.legacy.json")}</summary>
                     <pre class="creator-contract-preview" data-creator-contract-preview></pre>
                 </details>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="8" hidden>
                 <h4>Publikacja</h4>
-                <p class="creator-step-note">Publikacja u\u017cywa istniej\u0105cego endpointu /api/apps/generate i katalogu Googleplex.</p>
+                <p class="creator-step-note">${ghostLabel("creator.legacy.publish_help")}</p>
                 <div class="creator-interface-slot"></div>
-                <button class="appforge-submit" type="submit">Publikuj w Googleplex</button>
+                <button class="appforge-submit" type="submit">${ghostLabel("creator.legacy.publish")}</button>
                 <div class="appforge-status"></div>
                 ${creatorPanelNav(true, false)}
             </section>
@@ -14790,7 +14700,7 @@ function wireCreatorSubmit(term, buildExtraPayload) {
         payload.price = Number(payload.price || 0);
         if (!validateGeneratedAppNameForScripts(payload, status)) return;
         if (!validateCreatorIcon(iconInput, '\u{1F6E0}\uFE0F')) {
-            status.textContent = 'Wybierz dokładnie jedną ikonę aplikacji.';
+            status.textContent = ghostText("creator.legacy.invalid_icon");
             iconInput.reportValidity();
             return;
         }
@@ -14813,7 +14723,7 @@ function wireCreatorSubmit(term, buildExtraPayload) {
             return;
         }
         status.removeAttribute('role');
-        status.textContent = 'Publikowanie...';
+        status.textContent = ghostText("creator.legacy.publishing");
 
         try {
             const res = await fetch('/api/apps/generate', {
@@ -14822,8 +14732,8 @@ function wireCreatorSubmit(term, buildExtraPayload) {
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Nie udalo sie opublikowac.');
-            status.textContent = `${data.message} Projekt zapisany w files/projects/${data.app.project_file}`;
+            if (!res.ok || !data.success) throw new Error(ghostResponseText(data,'creator.legacy.publish_failed'));
+            status.textContent = ghostText('creator.legacy.published_file',{file:data.app.project_file});
             form.reset();
             iconInput.value = '\u{1F6E0}\uFE0F';
             iconPreview.textContent = iconInput.value;
@@ -14842,17 +14752,17 @@ async function createTermCreator() {
     appendCreatorMeta(form, keys, 'terminal');
     form.querySelector('.creator-interface-slot').insertAdjacentHTML('beforeend', `
         <div class="appforge-level-fields">
-            <h4>levels[]</h4>
+            <h4>${ghostLabel("creator.legacy.levels_many")}</h4>
             <div class="creator-items" data-kind="terminal-level"></div>
-            <button type="button" class="appforge-submit creator-add">Dodaj poziom terminala</button>
+            <button type="button" class="appforge-submit creator-add">${ghostLabel("creator.legacy.add_level")}</button>
         </div>
     `);
     const list = term.querySelector('[data-kind="terminal-level"]');
     const addLevel = () => {
         list.insertAdjacentHTML('beforeend', `
             <div class="creator-item">
-                <label>command<input class="creator-terminal-command" placeholder="./tool.sh --target current"></label>
-                <label>logs<textarea class="creator-terminal-logs" rows="4" placeholder="Jedna linia = jeden log"></textarea></label>
+                <label>${ghostLabel("creator.legacy.command")}<input class="creator-terminal-command" placeholder="./tool.sh --target current"></label>
+                <label>${ghostLabel("creator.legacy.logs")}<textarea class="creator-terminal-logs" rows="4" data-ghost-placeholder="creator.legacy.terminal_logs_hint" placeholder="${escapeHTML(ghostText('creator.legacy.terminal_logs_hint'))}"></textarea></label>
             </div>
         `);
     };
@@ -14877,16 +14787,16 @@ async function createWindowMaker() {
     appendCreatorMeta(form, keys, 'window');
     form.querySelector('.creator-interface-slot').insertAdjacentHTML('beforeend', `
         <div class="appforge-level-fields">
-            <h4>levels[0]</h4>
-            <label>title<input name="level_title" placeholder="Panel aplikacji"></label>
+            <h4>${ghostLabel("creator.legacy.levels")}</h4>
+            <label>${ghostLabel("creator.legacy.title")}<input name="level_title" data-ghost-placeholder="creator.legacy.panel_hint" placeholder="${escapeHTML(ghostText('creator.legacy.panel_hint'))}"></label>
             <div class="creator-items" data-kind="window-list"></div>
-            <button type="button" class="appforge-submit add-list-item">Dodaj wpis listy</button>
+            <button type="button" class="appforge-submit add-list-item">${ghostLabel("creator.legacy.add_list")}</button>
             <div class="creator-items" data-kind="window-buttons"></div>
-            <button type="button" class="appforge-submit add-button-item">Dodaj przycisk</button>
+            <button type="button" class="appforge-submit add-button-item">${ghostLabel("creator.legacy.add_button")}</button>
         </div>
     `);
-    const addList = () => term.querySelector('[data-kind="window-list"]').insertAdjacentHTML('beforeend', `<label>list[]<input class="creator-window-list" placeholder="Linia statusu"></label>`);
-    const addButton = () => term.querySelector('[data-kind="window-buttons"]').insertAdjacentHTML('beforeend', `<div class="creator-item"><label>button label<input class="creator-window-button-label" placeholder="Uruchom"></label><label>action<input class="creator-window-button-action" placeholder="run_generated"></label></div>`);
+    const addList = () => term.querySelector('[data-kind="window-list"]').insertAdjacentHTML('beforeend', `<label>${ghostLabel("creator.legacy.list")}<input class="creator-window-list" data-ghost-placeholder="creator.legacy.list_hint" placeholder="${escapeHTML(ghostText('creator.legacy.list_hint'))}"></label>`);
+    const addButton = () => term.querySelector('[data-kind="window-buttons"]').insertAdjacentHTML('beforeend', `<div class="creator-item"><label>${ghostLabel("creator.legacy.button_label")}<input class="creator-window-button-label" data-ghost-placeholder="creator.legacy.run_hint" placeholder="${escapeHTML(ghostText('creator.legacy.run_hint'))}"></label><label>${ghostLabel("creator.legacy.action")}<input class="creator-window-button-action" placeholder="run_generated"></label></div>`);
     term.querySelector('.add-list-item').addEventListener('click', addList);
     term.querySelector('.add-button-item').addEventListener('click', addButton);
     addList();
@@ -14912,18 +14822,18 @@ async function createButtonMaker() {
     appendCreatorMeta(form, keys, 'button_choices');
     form.querySelector('.creator-interface-slot').insertAdjacentHTML('beforeend', `
         <div class="appforge-level-fields">
-            <h4>levels[0]</h4>
-            <label>title<input name="level_title" placeholder="Wybierz tryb"></label>
-            <label>text<textarea name="button_text" rows="3" placeholder="Opis wyboru dla gracza"></textarea></label>
+            <h4>${ghostLabel("creator.legacy.levels")}</h4>
+            <label>${ghostLabel("creator.legacy.title")}<input name="level_title" data-ghost-placeholder="creator.legacy.mode_hint" placeholder="${escapeHTML(ghostText('creator.legacy.mode_hint'))}"></label>
+            <label>${ghostLabel("creator.legacy.text")}<textarea name="button_text" rows="3" data-ghost-placeholder="creator.legacy.choice_hint" placeholder="${escapeHTML(ghostText('creator.legacy.choice_hint'))}"></textarea></label>
             <div class="creator-items" data-kind="button-options"></div>
-            <button type="button" class="appforge-submit add-option-item">Dodaj opcje</button>
+            <button type="button" class="appforge-submit add-option-item">${ghostLabel("creator.legacy.add_option")}</button>
         </div>
     `);
     const addOption = () => term.querySelector('[data-kind="button-options"]').insertAdjacentHTML('beforeend', `
         <div class="creator-item">
-            <label>label<input class="creator-option-label" placeholder="Recon"></label>
-            <label>effect<input class="creator-option-effect" placeholder="risk_level=10,firewall=false"></label>
-            <label>price<input class="creator-option-price" type="number" min="0" step="1" placeholder="90"></label>
+            <label>${ghostLabel("creator.legacy.option_label")}<input class="creator-option-label" placeholder="Recon"></label>
+            <label>${ghostLabel("creator.legacy.effect")}<input class="creator-option-effect" placeholder="risk_level=10,firewall=false"></label>
+            <label>${ghostLabel("creator.legacy.price_lower")}<input class="creator-option-price" type="number" min="0" step="1" placeholder="90"></label>
         </div>
     `);
     term.querySelector('.add-option-item').addEventListener('click', addOption);
@@ -14979,7 +14889,7 @@ async function loadGhostLabTemplates(root) {
     const main = root.querySelector('[data-ghostlab-main]');
     const loading = document.createElement('div');
     loading.className = 'ghostlab-empty';
-    loading.textContent = 'Ladowanie szablonow...';
+    loading.textContent = ghostText('lab.ui.loading_templates');
     main.replaceChildren(loading);
     try {
         const response = await fetch('/api/ghostlab/templates');
@@ -14989,7 +14899,7 @@ async function loadGhostLabTemplates(root) {
         GHOSTLAB_TEMPLATES = data.templates;
         renderGhostLabTab('Templates', root, true);
     } catch (error) {
-        if (loading.isConnected) loading.textContent = 'Nie udalo sie pobrac szablonow. Otworz ponownie Templates.';
+        if (loading.isConnected) loading.textContent = ghostText('lab.ui.templates_failed');
     }
 }
 
@@ -15095,11 +15005,11 @@ function updateGhostLabStatusBar(root) {
     if (!bar) return;
     const activeProject = ghostLabState.projects.find(project => project.id === ghostLabState.activeProjectId);
     bar.innerHTML = `
-        <span>Tab: <b>${escapeHTML(ghostLabState.activeTab || "Projects")}</b></span>
-        <span>Version: <b>${escapeHTML(GHOSTLAB_VERSION)}</b></span>
+        <span>${ghostLabel('lab.ui.tab')}: <b>${escapeHTML(ghostLabState.activeTab || "Projects")}</b></span>
+        <span>${ghostLabel('lab.ui.version')}: <b>${escapeHTML(GHOSTLAB_VERSION)}</b></span>
         <span>Projects: <b>${escapeHTML(String(ghostLabState.projects.length || 0))}</b></span>
-        <span>Active: <b>${escapeHTML(activeProject?.name || "-")}</b></span>
-        <span>State: <b>${ghostLabState.working ? "working" : escapeHTML(ghostLabState.lastAction || "idle")}</b></span>
+        <span>${ghostLabel('lab.ui.active')}: <b>${escapeHTML(activeProject?.name || "-")}</b></span>
+        <span>${ghostLabel('lab.ui.state')}: <b>${ghostLabState.working ? ghostLabel("lab.ui.working") : ghostLabState.lastAction && ghostLabState.lastAction !== "idle" ? escapeHTML(ghostLabState.lastAction) : ghostLabel("lab.ui.idle")}</b></span>
     `;
 }
 
@@ -15149,24 +15059,24 @@ function renderGhostLabWorkspace(root) {
         <section class="ghostlab-onboarding" data-ghostlab-onboarding ${ghostLabState.bannerHidden ? 'hidden' : ''}>
             <div>
                 <strong>Welcome to GhostLab ${GHOSTLAB_VERSION}</strong>
-                <p>Build custom Pro System Tools through a full IDE workflow.</p>
+                <p>${ghostLabel("lab.ui.onboarding_help")}</p>
                 <ol>
-                    <li>Create project</li>
-                    <li>Choose template</li>
-                    <li>Edit blueprint</li>
-                    <li>Validate</li>
-                    <li>Compile</li>
-                    <li>Publish to Googleplex</li>
+                    <li>${ghostLabel("lab.ui.create")}</li>
+                    <li>${ghostLabel("lab.ui.choose_template")}</li>
+                    <li>${ghostLabel("lab.ui.edit")}</li>
+                    <li>${ghostLabel("lab.ui.validate")}</li>
+                    <li>${ghostLabel("lab.ui.compile")}</li>
+                    <li>${ghostLabel("lab.ui.publish_to")}</li>
                 </ol>
             </div>
-            <button type="button" data-ghostlab-hide-onboarding title="Hide this banner in the current GhostLab window">Hide</button>
+            <button type="button" data-ghostlab-hide-onboarding data-ghost-title="lab.ui.hide_help" title="${escapeHTML(ghostText('lab.ui.hide_help'))}">${ghostLabel("lab.ui.hide")}</button>
         </section>
         <div class="ghostlab-message" data-ghostlab-message></div>
         <div class="ghostlab-workspace">
             <aside class="ghostlab-sidebar">
                 ${tabs.map((tab, index) => `
-                    <button type="button" class="${index === 0 ? 'active' : ''}" data-ghostlab-tab="${tab}" title="${escapeHTML(GHOSTLAB_TAB_TOOLTIPS[tab] || tab)}">
-                        ${tab}
+                    <button type="button" class="${index === 0 ? 'active' : ''}" data-ghostlab-tab="${tab}" data-ghost-title="lab.docs.tooltip.${tab.replaceAll(' ', '_')}" title="${escapeHTML(ghostText('lab.docs.tooltip.'+tab.replaceAll(' ', '_')))}">
+                        ${ghostLabel("lab.ui.tab." + tab.replaceAll(" ", "_"))}
                     </button>
                 `).join("")}
             </aside>
@@ -15177,7 +15087,7 @@ function renderGhostLabWorkspace(root) {
     root.querySelector('[data-ghostlab-hide-onboarding]')?.addEventListener('click', () => {
         ghostLabState.bannerHidden = true;
         root.querySelector('[data-ghostlab-onboarding]')?.setAttribute('hidden', '');
-        setGhostLabMessage(root, "Onboarding hidden for this window.", "info");
+        setGhostLabMessage(root, ghostText('lab.ui.onboarding_hidden'), "info");
     });
     root.querySelectorAll('[data-ghostlab-tab]').forEach(button => {
         button.addEventListener('click', () => {
@@ -15204,18 +15114,18 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
     if (tabName === "Projects") {
         main.innerHTML = `
             <section class="ghostlab-panel ghostlab-projects-panel">
-                <header><h3>Projects</h3><span>Twoje projekty</span></header>
-                <p>Wybierz projekt, aby zobaczyć szczegóły, lub stwórz nowy na bazie templatki.</p>
+                <header><h3>${ghostLabel("lab.ui.projects")}</h3><span>${ghostLabel("lab.ui.your_projects")}</span></header>
+                <p>${ghostLabel("lab.ui.projects_help")}</p>
                 <div class="ghostlab-project-toolbar">
-                    <button type="button" data-ghostlab-new-project>New Project</button>
-                    <button type="button" data-ghostlab-open-project title="Open selected project in the editor.">Open Project</button>
+                    <button type="button" data-ghostlab-new-project>${ghostLabel("lab.ui.new_project")}</button>
+                    <button type="button" data-ghostlab-open-project data-ghost-title="lab.ui.open_project_help" title="${escapeHTML(ghostText('lab.ui.open_project_help'))}">${ghostLabel("lab.ui.open_project")}</button>
                 </div>
                 <div class="ghostlab-projects-layout">
                 <div class="ghostlab-project-list" data-ghostlab-project-list aria-label="Projekty">
-                    <div class="ghostlab-empty">Ladowanie projektow...</div>
+                    <div class="ghostlab-empty">${ghostLabel("lab.ui.loading_projects")}</div>
                 </div>
                 <div class="ghostlab-project-preview" data-ghostlab-project-preview>
-                    Wybierz projekt, zeby zobaczyc status workspace.
+                    ${ghostLabel('lab.docs.project_pick')}
                 </div>
                 </div>
             </section>
@@ -15225,27 +15135,27 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
         if (!templatesLoaded) { loadGhostLabTemplates(root); return; }
         main.innerHTML = `
             <section class="ghostlab-panel">
-                <header><h3>${root._ghostLabNewProjectName ? 'Wybierz templatkę' : 'Templates'}</h3><span>${root._ghostLabNewProjectName ? 'Krok 2 z 2' : 'Szablony projektów'}</span></header>
-                ${root._ghostLabNewProjectName ? `<p>Nowy projekt: <strong>${escapeHTML(root._ghostLabNewProjectName)}</strong>. Wybór templatki utworzy projekt i otworzy edytor.</p><div class="ghostlab-project-toolbar"><button type="button" data-ghostlab-change-name>Zmień nazwę</button><button type="button" data-ghostlab-cancel-create>Anuluj</button></div>` : ''}
+                <header><h3>${root._ghostLabNewProjectName ? ghostText('lab.ui.choose_template') : 'Templates'}</h3><span>${root._ghostLabNewProjectName ? ghostText('lab.ui.step_two') : ghostText('lab.ui.project_templates')}</span></header>
+                ${root._ghostLabNewProjectName ? `<p>${ghostLabel('lab.check.project_create', {name:root._ghostLabNewProjectName})}</p><div class="ghostlab-project-toolbar"><button type="button" data-ghostlab-change-name>${ghostLabel("lab.ui.change_name")}</button><button type="button" data-ghostlab-cancel-create>${ghostLabel("lab.ui.cancel")}</button></div>` : ''}
                 <div class="ghostlab-template-grid">
                     ${GHOSTLAB_TEMPLATES.map(item => `
                         <article class="ghostlab-template-card">
                             <div class="ghostlab-template-head">
                                 <span class="ghostlab-template-icon">${escapeHTML(item.icon)}</span>
                                 <div>
-                                    <strong>${escapeHTML(item.name)}</strong>
-                                    <small>${escapeHTML(item.category)} / ${escapeHTML(item.status)}</small>
+                                    <strong>${ghostSystemValue("lab.template." + item.id + ".", "name")}</strong>
+                                    <small>${escapeHTML(item.category)} / ${ghostSystemValue("lab.ui.status.", item.status)}</small>
                                 </div>
                             </div>
-                            <span>${escapeHTML(item.description)}</span>
+                            <span>${ghostSystemValue("lab.template." + item.id + ".", "description")}</span>
                             <div class="ghostlab-template-meta">
                                 <b>LVL ${escapeHTML(String(item.recommended_level))}</b>
-                                <b>Risk ${"★".repeat(item.risk_level)}${"☆".repeat(Math.max(0, 5 - item.risk_level))}</b>
+                                <b>${ghostLabel("lab.ui.risk")} ${"★".repeat(item.risk_level)}${"☆".repeat(Math.max(0, 5 - item.risk_level))}</b>
                             </div>
-                            <button type="button" data-ghostlab-create-template="${escapeHTML(item.id)}">${root._ghostLabNewProjectName ? 'Wybierz i otwórz projekt' : 'Create Project'}</button>
+                            <button type="button" data-ghostlab-create-template="${escapeHTML(item.id)}">${root._ghostLabNewProjectName ? ghostText('lab.ui.select_open') : ghostText('lab.ui.create_project')}</button>
                         </article>
                     `).join("")}
-                    ${GHOSTLAB_TEMPLATES.length ? '' : '<div class="ghostlab-empty">No templates available. Ghost Exchange may provide more later.</div>'}
+                    ${GHOSTLAB_TEMPLATES.length ? '' : `<div class="ghostlab-empty">${ghostLabel('lab.docs.empty')}</div>`}
                 </div>
             </section>
         `;
@@ -15256,25 +15166,25 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
         main.innerHTML = `
             <section class="ghostlab-panel">
                 <header><h3>Ghost Exchange</h3><span>v0.7 Official</span></header>
-                <p>Biblioteka zasobow GhostLab. To nie jest sklep i nie publikuje community uploadow.</p>
+                <p>${ghostLabel('lab.docs.library')}</p>
                 <div class="ghostlab-exchange-layout">
                     <div class="ghostlab-exchange-section">
-                        <h4>Official</h4>
+                        <h4>${ghostLabel("lab.ui.official")}</h4>
                         <div class="ghostlab-exchange-grid">
-                            ${GHOSTLAB_EXCHANGE_OFFICIAL.map(item => `
+                            ${GHOSTLAB_EXCHANGE_OFFICIAL.map((item, index) => `
                                 <article class="ghostlab-exchange-card">
-                                    <strong>${escapeHTML(item.name)}</strong>
-                                    <small>${escapeHTML(item.type)} / ${escapeHTML(item.status)}</small>
-                                    <span>${escapeHTML(item.description)}</span>
+                                    <strong>${ghostLabel('lab.docs.official_'+index+'.name')}</strong>
+                                    <small>${escapeHTML(item.type)} / ${ghostSystemValue("lab.ui.status.", item.status)}</small>
+                                    <span>${ghostLabel('lab.docs.official_'+index+'.description')}</span>
                                 </article>
                             `).join("")}
                         </div>
                     </div>
                     <div class="ghostlab-exchange-placeholders">
                         ${["Community", "Blueprints", "Templates"].map(section => `
-                            <button type="button" title="Coming in GhostLab v2.0." data-ghostlab-disabled="${section} w Ghost Exchange: Coming in GhostLab v2.0.">
+                            <button type="button" data-ghost-title="lab.ui.frozen" title="${escapeHTML(ghostText('lab.ui.frozen'))}" data-ghostlab-disabled="${escapeHTML(ghostText('lab.ui.frozen'))}">
                                 <strong>${section}</strong>
-                                <span>Coming in GhostLab v2.0.</span>
+                                <span>${ghostLabel("lab.ui.future")}</span>
                             </button>
                         `).join("")}
                     </div>
@@ -15284,33 +15194,33 @@ function renderGhostLabTab(tabName, root, templatesLoaded = false) {
     } else {
         main.innerHTML = `
             <section class="ghostlab-panel">
-                <header><h3>Documentation</h3><span>${GHOSTLAB_VERSION}</span></header>
+                <header><h3>${ghostLabel("lab.ui.documentation")}</h3><span>${GHOSTLAB_VERSION}</span></header>
                 <div class="ghostlab-docs">
-                    <p>GhostLab służy do projektowania i publikowania narzędzi na kontraktach systemowych.</p>
-                    <p class="ghostlab-docs-status">Stan na 6 października 2026 · GhostLab v1.0: dostępny · v2.0: odłożony do odwołania</p>
-                    <h4>Dostępne teraz — GhostLab v1.0</h4>
-                    <p>Pełny cykl pracy: Project → Template → Editor → Validate → Compile → Publisher → Googleplex. System dostarcza logikę narzędzia; twórca wybiera szablon, konfiguruje projekt i nadaje mu własną nazwę oraz opis.</p>
+                    <p>${ghostLabel('lab.docs.paragraph_0')}</p>
+                    <p class="ghostlab-docs-status">${ghostLabel('lab.docs.paragraph_1')}</p>
+                    <h4>${ghostLabel('lab.docs.paragraph_2')}</h4>
+                    <p>${ghostLabel('lab.docs.paragraph_3')}</p>
                     <ul>
-                        <li>Projekty .lab: zapis, ponowne otwarcie, edycja, walidacja, kompilacja i publikacja. Projekty można otwierać również z File Managera i terminala.</li>
-                        <li>Sześć rodzin PvP: System Log Reader, Security Panel Proxy, Financial Sniffer, Friend Kicker, Arsenal Cleaner i Intruder Kicker. Użycie wymaga Player Hack Access; własne narzędzia korzystają z zasad i limitów swojej rodziny.</li>
-                        <li>Bilety podróży, konserwacja systemu, firmware i Deep Scannery — każdy szablon ma własne wymagania, cele i efekty działania.</li>
-                        <li>Dokumenty PTK: edycja Markdown z podglądem, publikacja globalna lub klanowa, oferty bezpłatne i płatne oraz odczyt pobranych wydań w Plexcaku.</li>
-                        <li>Wersjonowana publikacja, zakup, instalacja i jawna aktualizacja narzędzi. Wycofanie oferty pozostawia zainstalowane kopie u graczy.</li>
+                        <li>${ghostLabel('lab.docs.paragraph_4')}</li>
+                        <li>${ghostLabel('lab.docs.paragraph_5')}</li>
+                        <li>${ghostLabel('lab.docs.paragraph_6')}</li>
+                        <li>${ghostLabel('lab.docs.paragraph_7')}</li>
+                        <li>${ghostLabel('lab.docs.paragraph_8')}</li>
                     </ul>
-                    <p>AppForge, Term Creator, Window Maker i Button Choice służą do tworzenia prostszych aplikacji operacyjnych. GhostLab rozwija narzędzia na kontraktach swoich szablonów.</p>
-                    <h4>Research i Ghost Exchange — obecny zakres</h4>
-                    <p>Research jest obecnie fundamentem interfejsu, bez aktywnego drzewa badań i odblokowań. Ghost Exchange wewnątrz laboratorium jest biblioteką informacyjną; nie jest rynkiem sprzedaży paczek danych w WebDragons. Przyszłe funkcje tych zakładek nie są jeszcze dostępne.</p>
-                    <h4>Najbliższy plan — Ghost System PL / EN</h4>
-                    <p>Planowana jest pełna polska i angielska wersja systemowego interfejsu, opisów narzędzi, biletów, serwisu, komunikatów i pomocy. Wspólny mechanizm językowy pozwoli później dodawać kolejne języki, np. rosyjski i hiszpański.</p>
-                    <p>To plan, nie dostępna już wersja EN. Nazwy, opisy produktów, dokumenty i inne własne teksty graczy pozostaną w języku autora — system nie będzie ich automatycznie tłumaczył.</p>
-                    <h4>GhostLab v2.0 — odłożony do odwołania</h4>
-                    <p>Poniższe funkcje pozostają kierunkiem rozwoju, bez terminu wdrożenia. Prace nad v2.0 zostały wstrzymane; lokalizacja Ghost Systemu nie wymaga ich ukończenia.</p>
+                    <p>${ghostLabel('lab.docs.paragraph_9')}</p>
+                    <h4>${ghostLabel('lab.docs.paragraph_10')}</h4>
+                    <p>${ghostLabel('lab.docs.paragraph_11')}</p>
+                    <h4>${ghostLabel('lab.docs.paragraph_12')}</h4>
+                    <p>${ghostLabel('lab.docs.paragraph_13')}</p>
+                    <p>${ghostLabel('lab.docs.paragraph_14')}</p>
+                    <h4>${ghostLabel('lab.docs.paragraph_15')}</h4>
+                    <p>${ghostLabel('lab.docs.paragraph_16')}</p>
                     <ul class="ghostlab-v2-roadmap">
-                        ${GHOSTLAB_V2_ROADMAP.map(item => `<li>${escapeHTML(item)}</li>`).join("")}
+                        ${GHOSTLAB_V2_ROADMAP.map((item, index) => `<li>${ghostLabel("lab.ui.future."+index)}</li>`).join("")}
                     </ul>
-                    <h4>Historia rozwoju v1.0</h4>
+                    <h4>${ghostLabel('lab.docs.history')}</h4>
                     <ol>
-                        ${GHOSTLAB_ROADMAP.map(([version, name, status]) => `<li class="ghostlab-roadmap-${escapeHTML(status || 'planned')}"><b>${version}</b> ${name} <span>${escapeHTML(status || 'planned')}</span></li>`).join("")}
+                        ${GHOSTLAB_ROADMAP.map(([version, name, status], index) => `<li class="ghostlab-roadmap-${escapeHTML(status || 'planned')}"><b>${version}</b> ${ghostLabel("lab.ui.roadmap."+index)} <span>${ghostSystemValue("lab.ui.status.", status || "planned")}</span></li>`).join("")}
                     </ol>
                 </div>
             </section>
@@ -15329,16 +15239,16 @@ function renderGhostLabResearch(root) {
     if (!main) return;
     main.innerHTML = `
         <section class="ghostlab-panel ghostlab-research">
-            <header><h3>Research</h3><span>v1.0 locked / v2.0 planned</span></header>
-            <p>Fundament przyszlego drzewa badan GhostLab. Galazie sa widoczne, ale nie zapisuja progresu i nie odblokowuja funkcji.</p>
+            <header><h3>Research</h3><span>${ghostLabel('lab.docs.research_status')}</span></header>
+            <p>${ghostLabel('lab.docs.research_help')}</p>
             <div class="ghostlab-research-layout">
                 <div class="ghostlab-research-grid">
                     ${GHOSTLAB_RESEARCH_BRANCHES.map(branch => `
                         <button type="button" class="ghostlab-research-card is-locked" data-ghostlab-research-branch="${escapeHTML(branch.id)}">
                             <span class="ghostlab-research-icon">${escapeHTML(branch.icon)}</span>
-                            <strong>${escapeHTML(branch.name)}</strong>
-                            <small>${escapeHTML(branch.status)} / tier ${escapeHTML(String(branch.tier))}</small>
-                            <em>${escapeHTML(branch.description)}</em>
+                            <strong>${ghostLabel('lab.docs.research.'+branch.id+'.name')}</strong>
+                            <small>${ghostSystemValue("lab.ui.status.", branch.status)} / ${ghostLabel("lab.ui.tier")} ${escapeHTML(String(branch.tier))}</small>
+                            <em>${ghostLabel('lab.docs.research.'+branch.id+'.description')}</em>
                             <span class="ghostlab-research-progress">
                                 <i style="width:${Number(branch.progress || 0)}%"></i>
                             </span>
@@ -15347,7 +15257,7 @@ function renderGhostLabResearch(root) {
                     `).join("")}
                 </div>
                 <aside class="ghostlab-research-detail" data-ghostlab-research-detail>
-                    Wybierz galaz, zeby zobaczyc przyszle unlocki.
+                    ${ghostLabel('lab.docs.research_pick')}
                 </aside>
             </div>
         </section>
@@ -15368,29 +15278,29 @@ function renderGhostLabResearchBranchDetail(root, branchId) {
     if (!detail) return;
     const branch = GHOSTLAB_RESEARCH_BRANCHES.find(item => item.id === branchId);
     if (!branch) {
-        detail.textContent = "Brak danych galezi Research.";
+        ghostSet(detail, 'lab.docs.research_missing');
         return;
     }
     detail.innerHTML = `
         <div class="ghostlab-research-detail-head">
             <span>${escapeHTML(branch.icon)}</span>
             <div>
-                <strong>${escapeHTML(branch.name)}</strong>
-                <small>Status: ${escapeHTML(branch.status)} / GhostLab required: v2.0</small>
+                <strong>${ghostLabel('lab.docs.research.'+branch.id+'.name')}</strong>
+                <small>Status: ${ghostSystemValue("lab.ui.status.", branch.status)} / ${ghostLabel("lab.ui.frozen")}</small>
             </div>
         </div>
-        <p>${escapeHTML(branch.description)}</p>
+        <p>${ghostLabel('lab.docs.research.'+branch.id+'.description')}</p>
         <div class="ghostlab-research-stats">
-            <span>Progress <b>${escapeHTML(String(branch.progress))}%</b></span>
-            <span>Tier <b>${escapeHTML(String(branch.tier))}</b></span>
+            <span>${ghostLabel("lab.ui.progress")} <b>${escapeHTML(String(branch.progress))}%</b></span>
+            <span>${ghostLabel("lab.ui.tier")} <b>${escapeHTML(String(branch.tier))}</b></span>
         </div>
-        <h4>Future unlocks</h4>
+        <h4>${ghostLabel('lab.docs.unlocks')}</h4>
         <ul>
-            ${branch.unlocks.map(item => `<li>${escapeHTML(item)}</li>`).join("")}
+            ${branch.unlocks.map((item, index) => `<li>${ghostLabel('lab.docs.research.'+branch.id+'.unlock_'+index)}</li>`).join("")}
         </ul>
-        <div class="ghostlab-research-locked-note">Research Tree planned for v2.0.</div>
+        <div class="ghostlab-research-locked-note">${ghostLabel('lab.docs.research_note')}</div>
     `;
-    setGhostLabMessage(root, "Research Tree planned for v2.0. Brak zapisu progresu i brak unlockow.", "locked");
+    setGhostLabMessage(root, ghostText('lab.docs.research_message'), "locked");
 }
 
 function activateGhostLabTab(root, tabName) {
@@ -15454,14 +15364,14 @@ function wireGhostLabProjects(root) {
 
 async function loadGhostLabProjects(root) {
     const list = root?.querySelector('[data-ghostlab-project-list]');
-    if (list) list.innerHTML = `<div class="ghostlab-empty">Ladowanie projektow...</div>`;
-    setGhostLabWorking(root, "Loading projects...");
+    if (list) list.innerHTML = `<div class="ghostlab-empty">${ghostLabel("lab.ui.loading_projects")}</div>`;
+    setGhostLabWorking(root, ghostText('lab.ui.projects_loading'));
     try {
         const res = await fetch('/api/ghostlab/projects');
         const data = await res.json();
         if (!list?.isConnected || root.querySelector('[data-ghostlab-project-list]') !== list) return;
         if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Nie udalo sie pobrac projektow.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.projects_failed'), "error");
             return;
         }
         ghostLabState.projects = Array.isArray(data.projects) ? data.projects : [];
@@ -15469,10 +15379,10 @@ async function loadGhostLabProjects(root) {
             ghostLabState.selectedProjectId = ghostLabState.projects[0]?.id || null;
         }
         renderGhostLabProjects(root);
-        clearGhostLabWorking(root, "Projects loaded");
+        clearGhostLabWorking(root, ghostText('lab.ui.projects_loaded'));
     } catch (err) {
         console.warn("GhostLab projects load failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.projects_offline'), "error");
     }
 }
 
@@ -15484,15 +15394,15 @@ function renderGhostLabProjects(root) {
     if (openButton) openButton.disabled = !selectedGhostLabProject();
     const scrollTop = list.scrollTop;
     if (!ghostLabState.projects.length) {
-        list.innerHTML = `<div class="ghostlab-empty"><strong>Nie masz jeszcze projektów.</strong><span>Wybierz New Project, nadaj nazwę i wybierz templatkę.</span></div>`;
-        preview.textContent = "Tutaj pojawią się szczegóły wybranego projektu.";
+        list.innerHTML = `<div class="ghostlab-empty"><strong>${ghostLabel("lab.ui.empty_projects")}</strong><span>${ghostLabel("lab.ui.empty_projects_help")}</span></div>`;
+        preview.textContent = ghostText('lab.ui.preview_empty');
         updateGhostLabStatusBar(root);
         return;
     }
     list.innerHTML = ghostLabState.projects.map(project => `
         <button type="button" class="${project.id === ghostLabState.selectedProjectId ? 'active' : ''}" aria-pressed="${project.id === ghostLabState.selectedProjectId}" data-ghostlab-project-id="${escapeHTML(project.id)}">
             <strong>${escapeHTML(project.icon || '🧪')} ${escapeHTML(project.name)}</strong>
-            <span>${escapeHTML(project.tool_category || 'custom')} / ${escapeHTML(ghostLabProjectStatusLabel(project.status))}</span>
+            <span>${escapeHTML(project.tool_category || 'custom')} / ${ghostSystemValue('lab.ui.status.', ghostLabProjectStatusLabel(project.status))}</span>
         </button>
     `).join("");
     list.querySelectorAll('[data-ghostlab-project-id]').forEach(button => {
@@ -15507,12 +15417,12 @@ function renderGhostLabProjects(root) {
     const selected = selectedGhostLabProject();
     preview.innerHTML = selected ? `
         <strong>${escapeHTML(selected.icon || '🧪')} ${escapeHTML(selected.name)}</strong>
-        <span>Template: ${escapeHTML(selected.template_name || 'custom project')}</span>
+        <span>${ghostLabel('lab.ui.template')}: ${escapeHTML(selected.template_name || 'custom project')}</span>
         <span>Kategoria: ${escapeHTML(selected.tool_category || '-')}</span>
-        <span>Status: ${escapeHTML(ghostLabProjectStatusLabel(selected.status))}</span>
+        <span>${ghostLabel('lab.ui.status')}: ${ghostSystemValue('lab.ui.status.', ghostLabProjectStatusLabel(selected.status))}</span>
         <span>Builds: ${escapeHTML(String((selected.builds || []).length))}</span>
         <span>Updated: ${escapeHTML(selected.updated_at || '-')}</span>
-    ` : "Wybierz projekt, zeby zobaczyc status workspace.";
+    ` : ghostText('lab.ui.select_project');
     list.scrollTop = scrollTop;
     updateGhostLabStatusBar(root);
 }
@@ -15520,7 +15430,7 @@ function renderGhostLabProjects(root) {
 function mountGhostLabTravelPreview(main) {
     const panel = document.createElement('section');
     panel.className = 'ghostlab-preview-panel';
-    panel.innerHTML = '<p>Miejsce i opis deklaruje autor. Jeden zakup wykonuje od razu jedną podróż. Sprawdź pinezkę przed publikacją.</p><button type="button">Pokaż miejsce na mapie</button><div data-travel-map></div>';
+    panel.innerHTML = `<p>${ghostLabel('lab.check.travel_help')}</p><button type="button">${ghostLabel('lab.check.travel_map')}</button><div data-travel-map></div>`;
     main.querySelector('.ghostlab-editor-feedback').before(panel);
     panel.querySelector('button').addEventListener('click', () => {
         const read = key => main.querySelector(`[data-ghostlab-blueprint-key="${key}"]`)?.value?.trim();
@@ -15528,18 +15438,18 @@ function mountGhostLabTravelPreview(main) {
         const lat = Number(latText), lng = Number(lngText);
         const target = panel.querySelector('[data-travel-map]');
         if (!latText || !lngText || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-            target.textContent = 'Podaj poprawną szerokość i długość geograficzną.';
+            ghostSet(target, 'lab.check.travel_coordinates');
             return;
         }
         const frame = document.createElement('iframe');
-        frame.title = 'Podgląd współrzędnych miejsca autora';
+        frame.dataset.ghostTitle='lab.check.travel_frame'; frame.title = ghostText('lab.check.travel_frame');
         frame.style.cssText = 'width:100%;height:280px;border:0;margin-top:12px';
         const bbox = [Math.max(-180,lng-.02), Math.max(-90,lat-.015), Math.min(180,lng+.02), Math.min(90,lat+.015)];
         frame.src = 'https://www.openstreetmap.org/export/embed.html?' + new URLSearchParams({bbox:bbox.join(','), layer:'mapnik', marker:`${lat},${lng}`});
-        target.replaceChildren(frame);
+        delete target.dataset.ghostI18n; target.replaceChildren(frame);
     });
     main.querySelectorAll('[data-ghostlab-blueprint-key]').forEach(input => input.addEventListener('input', () => {
-        panel.querySelector('[data-travel-map]').textContent = 'Dane zmienione — odśwież podgląd miejsca.';
+        ghostSet(panel.querySelector('[data-travel-map]'), 'lab.check.travel_changed');
     }));
 }
 
@@ -15547,32 +15457,32 @@ function mountTravelTicketReactions(card, item) {
     const panel = document.createElement('section');
     panel.className = 'gp-ticket-feedback';
     card.append(panel);
-    const choices = [['bad','😠 Zły'], ['happy','🙂 Zadowolony'], ['very_happy','🤩 Bardzo zadowolony']];
+    const choices = ['bad', 'happy', 'very_happy'];
     const url = '/api/travel-tickets/' + encodeURIComponent(item.id);
     let requestSerial = 0;
     const render = async () => {
         const serial = ++requestSerial;
-        panel.textContent = 'Ładowanie reakcji podróżujących…';
+        panel.innerHTML = ghostLabel('shop.reaction.loading');
         try {
             const response = await fetch(url, {cache:'no-store'});
             const state = await response.json();
             if (serial !== requestSerial) return;
-            if (!response.ok || !state.success) throw new Error(state.message || 'Reakcje chwilowo niedostępne.');
+            if (!response.ok || !state.success) throw new Error(state.message || ghostText('lab.check.reaction_failed'));
             panel.replaceChildren();
             const text = document.createElement('p');
             const d = state.offer.destination;
-            text.textContent = `${[d.place_name, d.city, d.country].filter(Boolean).join(', ')}. ${item.ghostlab_generated ? 'Miejsce deklarowane przez autora. ' : ''}Jeden zakup = jedna natychmiastowa podróż.`;
+            text.innerHTML = `${escapeHTML([d.place_name, d.city, d.country].filter(Boolean).join(', '))}. ${item.ghostlab_generated ? ghostLabel('shop.reaction.authored') + ' ' : ''}${ghostLabel('shop.reaction.instant')}`;
             panel.append(text);
             const summary = document.createElement('p');
             const total = Object.values(state.counts).reduce((a,b) => a+b, 0);
-            summary.textContent = total ? 'Reakcje dotyczą obecnego miejsca.' : 'Brak ocen obecnego miejsca.';
+            ghostSet(summary, total ? 'shop.reaction.current' : 'shop.reaction.empty');
             panel.append(summary);
             const buttons = document.createElement('div');
             buttons.className = 'gp-ticket-feedback__choices';
-            choices.forEach(([key,label]) => {
+            choices.forEach(key => {
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.textContent = `${label}: ${state.counts[key] || 0}`;
+                button.innerHTML = `${ghostLabel('shop.reaction.' + key)}: ${ghostNumber(state.counts[key] || 0)}`;
                 button.setAttribute('aria-pressed', String(state.mine?.reaction === key && state.mine?.destination_revision === state.offer.destination_revision));
                 button.disabled = !state.reaction_receipt;
                 button.addEventListener('click', async () => {
@@ -15583,7 +15493,7 @@ function mountTravelTicketReactions(card, item) {
                         if (!result.ok || !data.success) throw new Error(data.message || 'Nie zapisano reakcji.');
                         await render();
                     } catch (error) {
-                        summary.textContent = error.message;
+                        ghostSet(summary, 'shop.reaction.failed');
                         buttons.querySelectorAll('button').forEach(b => { b.disabled = !state.reaction_receipt; });
                     }
                 });
@@ -15592,14 +15502,14 @@ function mountTravelTicketReactions(card, item) {
             panel.append(buttons);
             const info = document.createElement('p');
             const history = Object.values(state.historical_counts).reduce((a,b) => a+b, 0);
-            info.textContent = state.reaction_blocked_reason === 'own_ticket' ? 'Nie możesz ocenić własnego biletu.' : state.reaction_receipt ? 'Możesz zmienić swoją reakcję; nadal liczony jest jeden głos.' : 'Ocena będzie dostępna po odbytej podróży.';
-            if (history) info.textContent += ' Poprzednie miejsca: ' + choices.map(([key,label]) => `${label}: ${state.historical_counts[key] || 0}`).join(' · ');
+            info.innerHTML = ghostLabel(state.reaction_blocked_reason === 'own_ticket' ? 'shop.reaction.own' : state.reaction_receipt ? 'shop.reaction.change' : 'shop.reaction.travel_required');
+            if (history) info.innerHTML += ' ' + ghostLabel('shop.reaction.history') + ' ' + choices.map(key => `${ghostLabel('shop.reaction.' + key)}: ${ghostNumber(state.historical_counts[key] || 0)}`).join(' · ');
             panel.append(info);
         } catch (error) {
             if (serial !== requestSerial) return;
-            panel.textContent = error.message;
+            panel.innerHTML = ghostLabel('shop.reaction.failed');
             const retry = document.createElement('button');
-            retry.textContent = 'Odśwież reakcje';
+            ghostSet(retry, 'shop.reaction.retry');
             retry.addEventListener('click', render);
             panel.append(retry);
         }
@@ -15620,11 +15530,7 @@ function renderGhostLabEditor(root, project) {
     const blueprint = project.blueprint && typeof project.blueprint === "object" ? project.blueprint : {};
     const branding = ghostLabSavedBranding(project);
     const definition = project.template_definition || {};
-    const priceHelp = definition.source_tool_id
-        ? 'Puste pole: cena szablonu. Potomki narzędzi PvP zachowują minimalną wycenę, także dla 0 HC.'
-        : 'Puste pole: dotychczasowa cena domyślna. Wpisz 0, aby udostępnić bezpłatnie jako Open Source.' +
-          (project.template_id === 'ptk_document' ? ' Dokument PTK: domyślnie 25 HC, maksymalnie 100 HC.' :
-           project.template_id === 'travel_ticket' ? ' Płatny bilet: 5–150 HC, domyślnie 100 HC.' : '');
+    const priceHelp = definition.source_tool_id ? ghostLabel('lab.ui.price_pvp') : ghostLabel('lab.ui.price_default') + ' ' + (project.template_id === 'ptk_document' ? ghostLabel('lab.ui.price_ptk') : project.template_id === 'travel_ticket' ? ghostLabel('lab.ui.price_ticket') : '');
     main.innerHTML = `
         <section class="ghostlab-panel ghostlab-editor">
             <header>
@@ -15632,21 +15538,21 @@ function renderGhostLabEditor(root, project) {
                 <span>${GHOSTLAB_VERSION} Stable Workflow</span>
             </header>
             <div class="ghostlab-editor-meta">
-                <span>Template: ${escapeHTML(project.template_name || 'custom project')}</span>
-                <span>Category: ${escapeHTML(project.tool_category || 'custom')}</span>
-                <span>Status: ${escapeHTML(ghostLabProjectStatusLabel(project.status))}</span>
+                <span>${ghostLabel('lab.ui.template')}: ${escapeHTML(project.template_name || 'custom project')}</span>
+                <span>${ghostLabel('lab.ui.category')}: ${escapeHTML(project.tool_category || 'custom')}</span>
+                <span>${ghostLabel('lab.ui.status')}: ${ghostSystemValue('lab.ui.status.', ghostLabProjectStatusLabel(project.status))}</span>
                 <span>ID: ${escapeHTML(project.id)}</span>
             </div>
-            <h4>Marka Twojej aplikacji</h4>
+            <h4>${ghostLabel("lab.ui.brand")}</h4>
             <div class="ghostlab-editor-grid">
-                <label class="ghostlab-editor-field"><span>Nazwa</span><input data-ghostlab-branding="name" maxlength="64" value="${escapeHTML(branding.name)}"></label>
-                <label class="ghostlab-editor-field"><span>Ikona — jeden znak lub emoji</span><input data-ghostlab-branding="icon" maxlength="32" value="${escapeHTML(branding.icon)}"></label>
-                <label class="ghostlab-editor-field"><span>Opis autora</span><textarea data-ghostlab-branding="description" maxlength="1000">${escapeHTML(branding.description)}</textarea></label>
-                <label class="ghostlab-editor-field"><span>Sugerowana cena (HC)</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : project.template_id === 'ptk_document' ? 'max="100"' : ''} step="1" data-ghostlab-branding="suggested_price" placeholder="Domyślna: ${Number(definition.price || 0)} HC" value="${branding.suggested_price ?? ''}"><small>${escapeHTML(priceHelp)}</small></label>
-                <label class="ghostlab-editor-field"><span>Prezentacja</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? 'Standardowa' : escapeHTML(id)}</option>`).join('')}</select></label>
+                <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.name")}</span><input data-ghostlab-branding="name" maxlength="64" value="${escapeHTML(branding.name)}"></label>
+                <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.icon")}</span><input data-ghostlab-branding="icon" maxlength="32" value="${escapeHTML(branding.icon)}"></label>
+                <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.description")}</span><textarea data-ghostlab-branding="description" maxlength="1000">${escapeHTML(branding.description)}</textarea></label>
+                <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.price")}</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : project.template_id === 'ptk_document' ? 'max="100"' : ''} step="1" data-ghostlab-branding="suggested_price" data-ghost-i18n-placeholder="lab.ui.price_placeholder" data-ghost-params='${escapeHTML(JSON.stringify({amount:Number(definition.price || 0)}))}' placeholder="${escapeHTML(ghostText('lab.ui.price_placeholder', {amount:Number(definition.price || 0)}))}" value="${branding.suggested_price ?? ''}"><small>${priceHelp}</small></label>
+                <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.presentation")}</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? ghostText('lab.ui.standard') : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
-            <div class="ghostlab-editor-meta"><span>Funkcja systemowa: ${escapeHTML(definition.description || project.template_name || 'Szkic')}</span><span>Cel: ${definition.target_kind === 'own_system' ? 'wlasny system' : definition.target_kind === 'player' ? 'gracz z aktywnym dostępem PvP' : escapeHTML(definition.target_kind || 'brak')}</span><span>Uruchomienie: ${definition.launch_mode === 'document' ? 'Dokument PTK w File Managerze.' : definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'zakup biletu w Googleplexie' : definition.launch_mode === 'player_hack_access' ? 'panel PLAYER ACCESS' : escapeHTML(definition.launch_mode || 'brak')}</span><span>Wymagania: poziom ${Number(definition.recommended_level || 0)}, respekt ${Number(definition.required_respect || 0)}. ${definition.launch_mode === 'document' ? 'Dokument gotowy do publikacji i pobrania.' : definition.launch_mode === 'own_system' ? 'Aplikacja wlasnego systemu, uruchamiana z pulpitu.' : definition.launch_mode === 'purchase_travel' ? 'Jedna podroz od razu przy zakupie; aktywacja zalezy od konfiguracji serwera.' : project.publisher_contract?.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy; aktywacja zależy od konfiguracji serwera.' : 'Runtime tej templatki jeszcze niedostępny.'}</span></div>
-            <h4>Ustawienia funkcji</h4>
+            <div class="ghostlab-editor-meta"><span>${ghostLabel('lab.ui.system_function')}: ${ghostSystemValue('lab.template.'+project.template_id+'.', 'description')}</span><span>${ghostLabel('lab.ui.target')}: ${ghostSystemValue('lab.ui.target.', definition.target_kind || 'none')}</span><span>${ghostLabel('lab.ui.launch')}: ${ghostSystemValue('lab.ui.launch.', definition.launch_mode || 'none')}</span><span>${ghostLabel('lab.ui.requirements', {level:Number(definition.recommended_level || 0), respect:Number(definition.required_respect || 0)})}</span></div>
+            <h4>${ghostLabel("lab.ui.settings")}</h4>
             <div class="ghostlab-editor-grid">
                 ${fields.map(field => renderGhostLabEditorField(field, blueprint[field.key])).join("")}
             </div>
@@ -15661,20 +15567,20 @@ function renderGhostLabEditor(root, project) {
                 ${renderGhostLabPublisherPipeline(project)}
             </div>
             <div class="ghostlab-editor-actions">
-                <span data-ghostlab-dirty-state>Zmiany zapisane.</span>
-                <button type="button" data-ghostlab-preview-blueprint title="Validate blueprint and refresh preview. Shortcut: Ctrl+Enter">Validate</button>
-                <button type="button" data-ghostlab-preview-blueprint title="Preview compiled blueprint metadata without saving.">Preview</button>
-                <button type="button" data-ghostlab-save-blueprint title="Save blueprint draft. Shortcut: Ctrl+S">Save Draft</button>
-                <button type="button" data-ghostlab-back-projects title="Return to project manager. Shortcut: Esc">Back to Projects</button>
-                <button type="button" data-ghostlab-compile-project title="Compile current validated blueprint. Shortcut: Ctrl+B">Compile</button>
-                <button type="button" data-ghostlab-export-project title="Export project snapshot as .glab file.">Export</button>
-                <button type="button" data-ghostlab-publish-project title="Opublikuj build w Googleplex i udostępnij aktualizację.">Opublikuj build</button>
-                <button type="button" data-ghostlab-withdraw-project>Wycofaj sprzedaz</button>
+                <span data-ghostlab-dirty-state>${ghostLabel("lab.ui.saved")}</span>
+                <button type="button" data-ghostlab-preview-blueprint data-ghost-title="lab.ui.validate_help" title="${escapeHTML(ghostText('lab.ui.validate_help'))}">${ghostLabel("lab.ui.validate")}</button>
+                <button type="button" data-ghostlab-preview-blueprint data-ghost-title="lab.ui.preview_help" title="${escapeHTML(ghostText('lab.ui.preview_help'))}">${ghostLabel("lab.ui.preview")}</button>
+                <button type="button" data-ghostlab-save-blueprint data-ghost-title="lab.ui.save_help" title="${escapeHTML(ghostText('lab.ui.save_help'))}">${ghostLabel("lab.ui.save")}</button>
+                <button type="button" data-ghostlab-back-projects data-ghost-title="lab.ui.back_help" title="${escapeHTML(ghostText('lab.ui.back_help'))}">${ghostLabel("lab.ui.back_projects")}</button>
+                <button type="button" data-ghostlab-compile-project data-ghost-title="lab.ui.compile_help" title="${escapeHTML(ghostText('lab.ui.compile_help'))}">${ghostLabel("lab.ui.compile")}</button>
+                <button type="button" data-ghostlab-export-project data-ghost-title="lab.ui.export_help" title="${escapeHTML(ghostText('lab.ui.export_help'))}">${ghostLabel("lab.ui.export")}</button>
+                <button type="button" data-ghostlab-publish-project data-ghost-title="lab.ui.publish_button_help" title="${escapeHTML(ghostText('lab.ui.publish_button_help'))}">${ghostLabel("lab.ui.publish")}</button>
+                <button type="button" data-ghostlab-withdraw-project>${ghostLabel("lab.ui.withdraw")}</button>
             </div>
             <section class="ghostlab-danger" aria-label="Danger">
-                <h4>Danger</h4>
-                <p>${project.published_artifact_id || project.published_at ? 'Ten projekt był opublikowany i przechowuje zakupione wersje. Możesz wycofać sprzedaż, ale nie usunąć archiwum.' : 'Usunięcie projektu jest nieodwracalne. Usunięty zostanie szkic wraz z jego buildami; niezapisane zmiany przepadną.'}</p>
-                <button type="button" data-ghostlab-delete-project ${project.published_artifact_id || project.published_at ? 'disabled' : ''}>Delete Project</button>
+                <h4>${ghostLabel("lab.ui.danger")}</h4>
+                <p>${project.published_artifact_id || project.published_at ? ghostText('lab.check.protected_archive') : ghostText('lab.check.delete_warning')}</p>
+                <button type="button" data-ghostlab-delete-project ${project.published_artifact_id || project.published_at ? 'disabled' : ''}>${ghostLabel("lab.ui.delete")}</button>
             </section>
         </section>
     `;
@@ -15683,9 +15589,9 @@ function renderGhostLabEditor(root, project) {
     if (project.template_id === 'deep_scanner') mountGhostLabScannerPreview(main, project);
     main.querySelectorAll('[data-ghostlab-preview-blueprint]').forEach(button => {
         button.addEventListener('click', () => {
-            setGhostLabWorking(root, "Validating...");
+            setGhostLabWorking(root, ghostText('lab.ui.validating'));
             const validation = refreshGhostLabEditorFeedback(root, project);
-            setGhostLabMessage(root, validation.valid ? "Preview ready. Blueprint valid." : "Preview ready. Blueprint needs fixes.", validation.valid ? "info" : "error");
+            setGhostLabMessage(root, validation.valid ? ghostText('lab.ui.valid') : ghostText('lab.ui.invalid'), validation.valid ? "info" : "error");
         });
     });
     main.querySelector('[data-ghostlab-save-blueprint]')?.addEventListener('click', () => saveGhostLabBlueprint(root, project.id));
@@ -15695,7 +15601,7 @@ function renderGhostLabEditor(root, project) {
         input.addEventListener('input', () => {
             const dirty = ghostLabBlueprintDirty(root, project);
             main.querySelector('[data-ghostlab-dirty-state]').textContent = dirty
-                ? 'Niezapisane zmiany — Save Draft, potem Compile.' : 'Zmiany zapisane.';
+                ? ghostText('lab.ui.dirty') : ghostText('lab.ui.saved');
         });
     });
     main.querySelector('[data-ghostlab-compile-project]')?.addEventListener('click', () => compileGhostLabProject(root, project.id));
@@ -15713,31 +15619,31 @@ function mountGhostLabDocumentEditor(root, main, project) {
     const editor = main.querySelector('.ghostlab-editor');
     editor.classList.add('ghostlab-document-editor');
     const title = main.querySelector('[data-ghostlab-branding="name"]').closest('label');
-    title.querySelector('span').textContent = 'Tytuł dokumentu';
+    ghostSet(title.querySelector('span'), 'lab.ui.document_title');
     const content = main.querySelector('[data-ghostlab-blueprint-key="content"]');
     const visibility = main.querySelector('[data-ghostlab-blueprint-key="visibility"]').closest('label');
-    visibility.querySelector('span').textContent = 'Publikacja';
+    ghostSet(visibility.querySelector('span'), 'lab.ui.publication');
     const oldFields = content.closest('.ghostlab-editor-grid');
     const oldHeading = oldFields.previousElementSibling;
     const section = document.createElement('section');
     section.className = 'ghostlab-document-workspace';
     const prefix = `ptk-${project.id}`;
-    section.innerHTML = `<div class="ghostlab-document-tabs" role="tablist" aria-label="Treść dokumentu">
+    section.innerHTML = `<div class="ghostlab-document-tabs" role="tablist" data-ghost-aria-label="lab.ui.document_content" aria-label="${escapeHTML(ghostText('lab.ui.document_content'))}">
         <button type="button" role="tab" id="${escapeHTML(prefix)}-markdown-tab" aria-controls="${escapeHTML(prefix)}-markdown" data-ptk-tab="markdown">Markdown</button>
-        <button type="button" role="tab" id="${escapeHTML(prefix)}-render-tab" aria-controls="${escapeHTML(prefix)}-render" data-ptk-tab="render">Render</button>
+        <button type="button" role="tab" id="${escapeHTML(prefix)}-render-tab" aria-controls="${escapeHTML(prefix)}-render" data-ptk-tab="render">${ghostLabel("lab.ui.render")}</button>
         </div><div class="ghostlab-document-surface">
         <div role="tabpanel" id="${escapeHTML(prefix)}-markdown" aria-labelledby="${escapeHTML(prefix)}-markdown-tab" data-ptk-panel="markdown"></div>
         <article role="tabpanel" id="${escapeHTML(prefix)}-render" aria-labelledby="${escapeHTML(prefix)}-render-tab" data-ptk-panel="render" class="file-manager-markdown" tabindex="0" hidden></article>
-        </div><small class="ghostlab-document-help">Markdown · maks. 6000 znaków. Render pokazuje formatowanie czytnika PTK. HTML i linki pozostają tekstem.</small>`;
+        </div><small class="ghostlab-document-help">${ghostLabel("lab.ui.markdown_help")}</small>`;
     section.prepend(title);
     section.querySelector('[data-ptk-panel="markdown"]').append(content);
-    content.setAttribute('aria-label', 'Treść dokumentu w Markdown');
+    content.dataset.ghostAriaLabel = 'lab.ui.markdown_content'; content.setAttribute('aria-label', ghostText('lab.ui.markdown_content'));
     content.spellcheck = false;
     section.append(visibility);
     oldFields.remove();
     oldHeading.remove();
     editor.querySelector('header').after(section);
-    editor.querySelector('h4').textContent = 'Ustawienia dokumentu';
+    ghostSet(editor.querySelector('h4'), 'lab.ui.document_settings');
     const render = section.querySelector('[data-ptk-panel="render"]');
     let renderedSource = null;
     const refresh = () => {
@@ -15774,12 +15680,12 @@ function renderGhostLabEditorField(field, value) {
     // and compiles the draft; historical artifacts are never rewritten.
     if (field.editable === false) value = field.default;
     const safeKey = escapeHTML(field.key);
-    const safeLabel = escapeHTML(field.label);
+    const safeLabel = window.GhostLocale.hasKey("lab.field." + field.key) ? ghostLabel("lab.field." + field.key) : escapeHTML(field.label);
     if (Array.isArray(field.enum)) {
-        return `<label class="ghostlab-editor-field"><span>${safeLabel}</span><select data-ghostlab-blueprint-key="${safeKey}">${field.enum.map(option => `<option value="${escapeHTML(option)}" ${option === value ? 'selected' : ''}>${escapeHTML(field.option_labels?.[option] || option.toUpperCase())}</option>`).join('')}</select></label>`;
+        return `<label class="ghostlab-editor-field"><span>${safeLabel}</span><select data-ghostlab-blueprint-key="${safeKey}">${field.enum.map(option => `<option value="${escapeHTML(option)}" ${option === value ? 'selected' : ''}>${field.key === 'visibility' ? ghostText('lab.check.visibility.'+option) : escapeHTML(field.option_labels?.[option] || option.toUpperCase())}</option>`).join('')}</select></label>`;
     }
     if (field.editable === false && field.type === 'textarea') {
-        return `<label class="ghostlab-editor-field"><span>${safeLabel} — polityka serwera</span><input readonly data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? '')}"></label>`;
+        return `<label class="ghostlab-editor-field"><span>${safeLabel} — ${ghostLabel("lab.ui.policy")}</span><input readonly data-ghostlab-blueprint-key="${safeKey}" value="${escapeHTML(value ?? '')}"></label>`;
     }
     if (field.type === "textarea") {
         return `
@@ -15798,7 +15704,7 @@ function renderGhostLabEditorField(field, value) {
             </label>
         `;
     }
-    if (field.type === 'unsupported') return `<p>Nieobslugiwane pole: ${safeLabel}</p>`;
+    if (field.type === 'unsupported') return `<p>${ghostLabel("lab.ui.field_unsupported")}: ${safeLabel}</p>`;
     return `
         <label class="ghostlab-editor-field">
             <span>${safeLabel}</span>
@@ -15811,12 +15717,12 @@ function renderGhostLabBuildHistory(project) {
     const builds = Array.isArray(project?.builds) ? project.builds : [];
     if (!builds.length) {
         return `
-            <strong>Builds</strong>
-            <span>Brak buildow. Compile utworzy pierwszy artefakt projektu.</span>
+            <strong>${ghostLabel("lab.ui.builds")}</strong>
+            <span>${ghostLabel("lab.ui.no_builds")}</span>
         `;
     }
     return `
-        <strong>Builds</strong>
+        <strong>${ghostLabel("lab.ui.builds")}</strong>
         <div class="ghostlab-build-list">
             ${builds.slice().reverse().map(build => `
                 <span>v${escapeHTML(String(build.version || '-'))} / ${escapeHTML(build.status || 'compiled')} / ${escapeHTML(build.created_at || '-')}</span>
@@ -15842,8 +15748,8 @@ function renderGhostLabPublisherPipeline(project) {
     return `
         <strong>Publisher: rewizja ${escapeHTML(String(project?.revision || "-"))}, build ${escapeHTML(String(project?.artifact?.version || "-"))}</strong>
         <span>Ostatnio opublikowany build: ${escapeHTML(String(publishedBuild?.version || '—'))}.</span>
-        <span>${contract.runtime_status === 'document' ? 'Dokument PTK: pobierz z Googleplexa i otw?rz w Pliki ? Plexcak.' : contract.runtime_status === 'own_system' ? 'Runtime wlasnego systemu gotowy; uruchomienie z pulpitu.' : contract.runtime_status === 'purchase_travel' ? 'Bilet: jeden zakup wykonuje jedną podróż. Aktywacja zależy od konfiguracji serwera.' : contract.runtime_status === 'player_hack_access' ? 'Runtime PvP gotowy. Dostęp zależy od aktywacji konta na serwerze.' : 'Runtime tej templatki jeszcze niedostępny.'}</span>
-        <span>${project.template_id === 'ptk_document' ? 'Nowe wydanie wymaga osobnego pobrania. Poprzednie kopie pozostaj? u czytelnik?w.' : project.template_id === 'travel_ticket' ? (isPublished ? 'Aktualny bilet jest w Googleplexie. Każdy kolejny zakup używa opublikowanego miejsca.' : 'Opublikuj build, aby udostępnić to miejsce w Googleplexie.') : isPublished ? 'Publikacja aktualna. W zainstalowanej aplikacji kliknij Odśwież, a następnie Aktualizuj, jeśli dostępna jest nowsza wersja.' : 'Ten build nie jest opublikowany. Kliknij Opublikuj build pod edytorem. Publikacja udostępni aktualizację użytkownikom.'}</span>
+        <span>${contract.runtime_status === 'document' ? ghostText('lab.ui.runtime_document') : contract.runtime_status === 'own_system' ? ghostText('lab.ui.runtime_self') : contract.runtime_status === 'purchase_travel' ? ghostText('lab.ui.runtime_travel') : contract.runtime_status === 'player_hack_access' ? ghostText('lab.ui.runtime_pvp') : ghostText('lab.ui.runtime_unavailable')}</span>
+        <span>${project.template_id === 'ptk_document' ? ghostText('lab.ui.document_editions') : project.template_id === 'travel_ticket' ? (isPublished ? ghostText('lab.ui.ticket_published') : ghostText('lab.ui.ticket_publish')) : isPublished ? ghostText('lab.ui.update_help') : ghostText('lab.ui.publish_help')}</span>
         <div class="ghostlab-pipeline">
             ${steps.map(([label, done]) => `
                 <span class="${done ? 'done' : ''}">${escapeHTML(label)}</span>
@@ -15858,7 +15764,7 @@ function renderGhostLabPublisherPipeline(project) {
             <span>ops: <b>${escapeHTML((contract.operation_types || []).join(', ') || 'custom runtime')}</b></span>
             <span>data: <b>${escapeHTML((contract.resource_types || []).join(', ') || '-')}</b></span>
         </div>
-        <em>${isPublished ? `Googleplex ID: ${escapeHTML(project.googleplex_app_id || '-')}` : 'Publisher zapisze produkt w Googleplex po poprawnym buildzie.'}</em>
+        <em>${isPublished ? `Googleplex ID: ${escapeHTML(project.googleplex_app_id || '-')}` : ghostText('lab.ui.publisher_help')}</em>
     `;
 }
 
@@ -15882,83 +15788,83 @@ function collectGhostLabBlueprint(root) {
 function validateGhostLabBlueprint(project, blueprint) {
     const errors = [];
     const fields = project.field_schema || {};
-    if (!Object.keys(fields).length) errors.push('Brak obslugi kontraktu szablonu.');
+    if (!Object.keys(fields).length) errors.push(ghostText('lab.check.contract'));
     if (Object.keys(blueprint).length !== Object.keys(fields).length
-        || Object.keys(blueprint).some(key => !(key in fields))) errors.push('Niezgodne pola blueprintu.');
+        || Object.keys(blueprint).some(key => !(key in fields))) errors.push(ghostText('lab.check.fields'));
     Object.entries(fields).forEach(([key, field]) => {
         const value = blueprint[key];
-        if (field.editable === false && value !== field.default) errors.push(`${key}: polityka serwera.`);
+        if (field.editable === false && value !== field.default) errors.push(ghostText('lab.check.policy', {field:key}));
         if (field.type === 'number') {
             if (typeof value !== 'number' || !Number.isFinite(value) || value < field.minimum
-                || value > field.maximum || (field.integer && !Number.isInteger(value))) errors.push(`${key}: nieprawidlowa liczba.`);
+                || value > field.maximum || (field.integer && !Number.isInteger(value))) errors.push(ghostText('lab.check.number', {field:key}));
         } else if (field.type === 'boolean') {
-            if (typeof value !== 'boolean') errors.push(`${key}: wymagany boolean.`);
+            if (typeof value !== 'boolean') errors.push(ghostText('lab.check.boolean', {field:key}));
         } else if (field.type === 'string') {
             if (typeof value !== 'string' || (!value.trim() && !field.allow_empty)
-                || (field.unicode_scalars ? Array.from(value.trim().normalize('NFC')).length : value.length) > field.max_length) errors.push(`${key}: nieprawidlowy tekst.`);
-            if (field.unicode_scalars && typeof value === 'string' && (value.length > 96 || /[\p{C}\p{Z}]/u.test(value.trim().replaceAll(" ", "")))) errors.push(`${key}: niedozwolone znaki nazwy.`);
-            if (Array.isArray(field.enum) && !field.enum.includes(value)) errors.push(`${key}: wybierz systemowy zestaw.`);
-        } else errors.push(`${key}: nieobslugiwany typ pola.`);
+                || (field.unicode_scalars ? Array.from(value.trim().normalize('NFC')).length : value.length) > field.max_length) errors.push(ghostText('lab.check.text', {field:key}));
+            if (field.unicode_scalars && typeof value === 'string' && (value.length > 96 || /[\p{C}\p{Z}]/u.test(value.trim().replaceAll(" ", "")))) errors.push(ghostText('lab.check.characters', {field:key}));
+            if (Array.isArray(field.enum) && !field.enum.includes(value)) errors.push(ghostText('lab.check.enum', {field:key}));
+        } else errors.push(ghostText('lab.check.type', {field:key}));
     });
     if (project.template_id === 'deep_scanner' && !fields.sfx_id?.pattern_options?.[blueprint.pattern_id]?.includes(blueprint.sfx_id)) {
-        errors.push('sfx_id: wybierz dźwięk zgodny z animacją.');
+        errors.push(ghostText('lab.check.sfx'));
     }
     return { valid: errors.length === 0, errors, warnings: [] };
 }
 
 function buildGhostLabBlueprintPreview(project, blueprint, validation) {
     const lines = [
-        `Project: ${project?.name || '-'}`,
-        `Template: ${project?.template_name || 'custom project'}`,
-        `Category: ${project?.tool_category || 'custom'}`,
-        `Status: ${validation.valid ? 'draft valid' : 'needs fixes'}`
+        ghostText('lab.check.project', {name:project?.name || '-'}),
+        ghostText('lab.check.template', {name:project?.template_name || 'custom project'}),
+        ghostText('lab.check.category', {name:project?.tool_category || 'custom'}),
+        ghostText('lab.check.state',{status:ghostText(validation.valid ? 'lab.ui.valid' : 'lab.ui.invalid')})
     ];
     if (project?.latest_build) {
-        lines.push(`Latest build: v${project.latest_build.version} / ${project.latest_build.status}`);
+        lines.push(ghostText('lab.check.latest',{version:String(project.latest_build.version),status:String(project.latest_build.status)}));
     } else {
-        lines.push(`Latest build: none`);
+        lines.push(ghostText('lab.check.no_build'));
     }
     if (project?.template_id === 'deep_scanner') {
-        lines.push(`Nakładka: ${blueprint.menu_name}, efekt ${blueprint.pattern_id}, SFX ${blueprint.sfx_id}.`);
-        lines.push(`Retry API +${blueprint.extra_retries}, timeout +${blueprint.extra_timeout} s. Aktywna tylko przy otwartym oknie.`);
+        lines.push(ghostText('lab.check.overlay',{name:String(blueprint.menu_name),pattern:String(blueprint.pattern_id),sfx:String(blueprint.sfx_id)}));
+        lines.push(ghostText('lab.check.retry',{retries:String(blueprint.extra_retries),timeout:String(blueprint.extra_timeout)}));
     } else if (project?.template_id === 'file_cleanup') {
-        lines.push('Czyszczenie własnych, niesprzedawalnych plików; podgląd i potwierdzenie przed usunięciem.');
-        lines.push('Wybrane grupy: ' + Object.keys(blueprint).filter(key => blueprint[key]).join(', '));
+        lines.push(ghostText('lab.check.cleanup'));
+        lines.push(ghostText('lab.check.groups',{groups:Object.keys(blueprint).filter(key => blueprint[key]).map(key=>ghostText('lab.field.'+key)).join(', ')}));
     } else if (project?.template_id === 'system_update') {
-        lines.push('Prezentacja aktualizacji bez zmian parametrów.');
+        lines.push(ghostText('lab.check.system_update'));
         lines.push(...Object.values(blueprint));
     } else if (project?.template_id === 'security_restore') {
-        lines.push('Jednorazowe ustawienie zabezpieczeń własnego konta: ' + String(blueprint.preset).toUpperCase());
+        lines.push(ghostText('lab.check.restore',{preset:ghostText('map.preset.'+blueprint.preset)}));
     } else if (project?.template_id === 'firmware_update') {
-        lines.push(`Szansa powodzenia: ${blueprint.success_percent}%. Sukces: +${blueprint.disk_mb} MB dysku i +${blueprint.scan_m} m skanu.`);
-        lines.push('Jeden zakup = jedna próba. Porażka: crash pulpitu i restart. Cooldown po obu wynikach: 24 h.');
-        lines.push('Trwałe bonusy kumulują się do 2 TB dysku i 30 km zasięgu skanu.');
+        lines.push(ghostText('lab.check.firmware',{chance:String(blueprint.success_percent),disk:String(blueprint.disk_mb),scan:String(blueprint.scan_m)}));
+        lines.push(ghostText('lab.check.firmware_policy'));
+        lines.push(ghostText('lab.check.firmware_limits'));
     } else if (project?.template_id === "financial_sniffer") {
-        lines.push(`Effect: steal up to ${blueprint.steal_percent || '?'}% HC`);
-        lines.push(`Detection: ${blueprint.detection_percent ?? '?'}%`);
-        lines.push(`Cooldown: ${blueprint.cooldown_minutes || '?'} min`);
+        lines.push(ghostText('lab.check.effect_steal', {value:String(blueprint.steal_percent || '?')}));
+        lines.push(ghostText('lab.check.detection', {value:String(blueprint.detection_percent ?? '?')}));
+        lines.push(ghostText('lab.check.cooldown', {value:String(blueprint.cooldown_minutes || '?')}));
     } else if (project?.template_id === "friend_kicker") {
-        lines.push(`Effect: random contact disruption`);
-        lines.push(`Success: ${blueprint.success_percent || '?'}%`);
-        lines.push(`Target policy: ${blueprint.target_policy || '-'}`);
+        lines.push(ghostText('lab.check.friend'));
+        lines.push(ghostText('lab.check.success', {value:String(blueprint.success_percent || '?')}));
+        lines.push(ghostText('lab.check.target_policy', {value:blueprint.target_policy || '-'}));
     } else if (project?.template_id === "security_panel_proxy") {
-        lines.push(`Effect: remote boolean security panel`);
-        lines.push(`Presets: ${blueprint.presets || '-'}`);
-        lines.push(`Rules: ${blueprint.rules || '-'}`);
+        lines.push(ghostText('lab.check.security'));
+        lines.push(ghostText('lab.check.presets', {value:blueprint.presets || '-'}));
+        lines.push(ghostText('lab.check.rules', {value:blueprint.rules || '-'}));
     } else if (project?.template_id === "system_log_reader") {
-        lines.push(`Effect: read ${blueprint.log_limit || '?'} system logs`);
-        lines.push(`Includes status: ${blueprint.include_status ? 'yes' : 'no'}`);
-        lines.push(`Policy: ${blueprint.redaction_policy || '-'}`);
+        lines.push(ghostText('lab.check.log_count',{count:String(blueprint.log_limit || '?')}));
+        lines.push(ghostText('lab.check.include_status',{value:ghostText(blueprint.include_status ? 'common.yes' : 'common.no')}));
+        lines.push(ghostText('lab.check.policy_value', {value:blueprint.redaction_policy || '-'}));
     } else if (project?.template_id === "travel_ticket") {
-        lines.push('Jedna podróż natychmiast po zakupie; miejsce deklarowane przez autora.');
+        lines.push(ghostText('lab.check.travel'));
         lines.push(`${blueprint.place_name}, ${blueprint.city}, ${blueprint.country}`);
-        lines.push(`Współrzędne: ${blueprint.lat}, ${blueprint.lng}`);
+        lines.push(ghostText('lab.check.coordinates',{lat:String(blueprint.lat),lng:String(blueprint.lng)}));
     } else if (project?.template_id === "arsenal_cleaner") {
-        lines.push(`Effect: random non-core app cleanup`);
-        lines.push(`Success: ${blueprint.success_percent || '?'}%`);
-        lines.push(`Protected: ${blueprint.protected_apps || '-'}`);
+        lines.push(ghostText('lab.check.cleaner'));
+        lines.push(ghostText('lab.check.success', {value:String(blueprint.success_percent || '?')}));
+        lines.push(ghostText('lab.check.protected', {value:blueprint.protected_apps || '-'}));
     } else {
-        lines.push(`Notes: ${blueprint.notes || '-'}`);
+        lines.push(ghostText('lab.check.notes', {value:blueprint.notes || '-'}));
     }
     return lines;
 }
@@ -15973,15 +15879,15 @@ function refreshGhostLabEditorFeedback(root, project) {
     validation.errors.push(...validateGhostLabBranding(branding, project));
     validation.valid = validation.errors.length === 0;
     const preview = buildGhostLabBlueprintPreview({...project, name: branding.name}, blueprint, validation);
-    preview.unshift('DEMONSTRACJA — bez wykonania funkcji i kosztów.', `Ikona: ${branding.icon}`, `Opis autora: ${branding.description}`);
+    preview.unshift(ghostText('lab.check.demonstration'), ghostText('lab.check.icon',{icon:String(branding.icon)}), ghostText('lab.check.author_description',{description:String(branding.description)}));
     validationPanel.innerHTML = `
-        <strong>${validation.valid ? 'VALIDATION OK' : 'VALIDATION ERRORS'}</strong>
-        ${validation.errors.length ? `<ul>${validation.errors.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>` : '<span>Blueprint gotowy do zapisu jako draft.</span>'}
+        <strong>${ghostLabel(validation.valid ? 'lab.check.valid' : 'lab.check.invalid')}</strong>
+        ${validation.errors.length ? `<ul>${validation.errors.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>` : '<span>' + ghostLabel('lab.check.ready') + '</span>'}
         ${validation.warnings.length ? `<em>${validation.warnings.map(escapeHTML).join(" | ")}</em>` : ''}
     `;
     validationPanel.classList.toggle('is-error', !validation.valid);
     previewPanel.innerHTML = `
-        <strong>Blueprint Preview</strong>
+        <strong>${ghostLabel('lab.check.preview')}</strong>
         <pre>${escapeHTML(preview.join("\n"))}</pre>
     `;
     previewPanel.hidden = project.template_id === 'ptk_document';
@@ -15999,10 +15905,10 @@ function ghostLabCreateRequestId(root, payload) {
 
 async function withdrawGhostLabProject(root, project) {
     if (!await showGhostDecisionDialog({
-        title: 'GHOSTLAB — WYCOFANIE PUBLIKACJI',
-        message: 'Wycofać aplikację ze sprzedaży?',
-        details: 'Zakupione wersje i historia pozostaną.',
-        confirmLabel: 'WYCOFAJ', cancelLabel: 'ANULUJ', tone: 'red'
+        titleKey: 'lab.ui.withdraw_title',
+        messageKey: 'lab.ui.withdraw_prompt',
+        detailsKey: 'lab.ui.withdraw_details',
+        confirmKey: 'lab.ui.withdraw_confirm', cancelKey: 'lab.ui.cancel', tone: 'red'
     })) return;
     try {
         const response = await fetch(`/api/ghostlab/projects/${encodeURIComponent(project.id)}/withdraw`, {
@@ -16010,11 +15916,11 @@ async function withdrawGhostLabProject(root, project) {
             body: JSON.stringify({revision: project.revision})
         });
         const data = await response.json();
-        if (!response.ok) { setGhostLabMessage(root, data.message || 'Nie udalo sie wycofac.', 'error'); return; }
+        if (!response.ok) { setGhostLabMessage(root, ghostResponseText(data, ghostText('lab.ui.withdraw_failed')), 'error'); return; }
         ghostLabState.projects = data.projects || [];
         renderGhostLabEditor(root, data.project);
-        setGhostLabMessage(root, data.message, 'info');
-    } catch (error) { setGhostLabMessage(root, 'Brak polaczenia z Publisherem.', 'error'); }
+        setGhostLabMessage(root, ghostResponseText(data, ''), 'info');
+    } catch (error) { setGhostLabMessage(root, ghostText('lab.ui.publisher_offline'), 'error'); }
 }
 
 function ghostLabBlueprintDirty(root, project) {
@@ -16047,18 +15953,18 @@ function ghostLabEditorProject(root, projectId) {
 
 function validateGhostLabBranding(branding, project) {
     const errors = [];
-    if (!branding.name.trim() || branding.name.trim().length > 64) errors.push('Nazwa: od 1 do 64 znaków.');
-    if (!branding.icon.trim() || [...branding.icon].length > 16) errors.push('Wybierz jeden znak lub emoji jako ikonę.');
-    if (branding.description.length > 1000) errors.push('Opis: maksymalnie 1000 znaków.');
-    if (branding.suggested_price !== null && (!Number.isSafeInteger(branding.suggested_price) || branding.suggested_price < 0)) errors.push('Cena: nieujemna całkowita liczba HC.');
-    if (!(project.template_definition?.presentation_ids || ['default']).includes(branding.presentation_id)) errors.push('Niedozwolona prezentacja.');
+    if (!branding.name.trim() || branding.name.trim().length > 64) errors.push(ghostText('lab.ui.name_invalid'));
+    if (!branding.icon.trim() || [...branding.icon].length > 16) errors.push(ghostText('lab.ui.icon_invalid'));
+    if (branding.description.length > 1000) errors.push(ghostText('lab.ui.description_invalid'));
+    if (branding.suggested_price !== null && (!Number.isSafeInteger(branding.suggested_price) || branding.suggested_price < 0)) errors.push(ghostText('lab.ui.price_invalid'));
+    if (!(project.template_definition?.presentation_ids || ['default']).includes(branding.presentation_id)) errors.push(ghostText('lab.ui.presentation_invalid'));
     return errors;
 }
 
 function ghostLabBuildIsCurrent(root, project) {
     if (ghostLabBlueprintDirty(root, project) ||
         !project?.artifact?.artifact_id || project.artifact.source_revision !== project.revision) {
-        setGhostLabMessage(root, "Publisher: zapisz zmiany i skompiluj aktualna rewizje.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.publish_stale'), "error");
         return false;
     }
     return true;
@@ -16066,16 +15972,16 @@ function ghostLabBuildIsCurrent(root, project) {
 
 async function saveGhostLabBlueprint(root, projectId) {
     if (!projectId) {
-        setGhostLabMessage(root, "Nie wybrano projektu.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.not_selected'), "error");
         return;
     }
     const project = ghostLabEditorProject(root, projectId);
     const validation = refreshGhostLabEditorFeedback(root, project);
     if (!validation.valid) {
-        setGhostLabMessage(root, "Popraw bledy walidacji przed zapisem draftu.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.invalid_save'), "error");
         return;
     }
-    setGhostLabWorking(root, "Saving draft...");
+    setGhostLabWorking(root, ghostText('lab.ui.saving'));
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/blueprint`, {
             method: 'PATCH',
@@ -16084,33 +15990,33 @@ async function saveGhostLabBlueprint(root, projectId) {
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Nie udalo sie zapisac blueprintu.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.save_failed'), "error");
             return;
         }
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = data.project?.id || projectId;
         ghostLabState.activeProjectId = data.project?.id || projectId;
-        setGhostLabMessage(root, data.message || "Draft zapisany.", "info");
+        setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.draft_saved'), "info");
         renderGhostLabEditor(root, data.project);
     } catch (err) {
         console.warn("GhostLab blueprint save failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z edytorem blueprintu.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.editor_offline'), "error");
     }
 }
 
 async function compileGhostLabProject(root, projectId) {
     if (!projectId) {
-        setGhostLabMessage(root, "Nie wybrano projektu.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.not_selected'), "error");
         return;
     }
     const project = ghostLabEditorProject(root, projectId);
     const validation = refreshGhostLabEditorFeedback(root, project);
     if (!validation.valid) {
-        setGhostLabMessage(root, "Compile zatrzymany. Popraw bledy blueprintu.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.compile_invalid'), "error");
         return;
     }
-    if (ghostLabBlueprintDirty(root, project)) { setGhostLabMessage(root, "Masz niezapisane zmiany. Uzyj Save Draft przed Compile.", "error"); return; }
-    setGhostLabWorking(root, "Compiling...");
+    if (ghostLabBlueprintDirty(root, project)) { setGhostLabMessage(root, ghostText('lab.ui.compile_dirty'), "error"); return; }
+    setGhostLabWorking(root, ghostText('lab.ui.compiling'));
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/compile`, {
             method: 'POST',
@@ -16119,35 +16025,35 @@ async function compileGhostLabProject(root, projectId) {
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Compile nie powiodl sie.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.compile_failed'), "error");
             return;
         }
         ghostLabState.projects = data.projects || [];
         ghostLabState.selectedProjectId = data.project?.id || projectId;
         ghostLabState.activeProjectId = data.project?.id || projectId;
         renderGhostLabEditor(root, data.project);
-        setGhostLabMessage(root, data.message || "Build skompilowany.", "info");
+        setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.compiled'), "info");
     } catch (err) {
         console.warn("GhostLab compile failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z compilerem.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.compiler_offline'), "error");
     }
 }
 
 async function exportGhostLabProject(root, projectId) {
     if (!projectId) {
-        setGhostLabMessage(root, "Nie wybrano projektu do exportu.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.export_none'), "error");
         return;
     }
     const project = ghostLabEditorProject(root, projectId);
     if (ghostLabBlueprintDirty(root, project)) {
-        setGhostLabMessage(root, "Zapisz zmiany przed eksportem.", "error"); return;
+        setGhostLabMessage(root, ghostText('lab.ui.export_dirty'), "error"); return;
     }
-    setGhostLabWorking(root, "Exporting...");
+    setGhostLabWorking(root, ghostText('lab.ui.exporting'));
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/export`);
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            setGhostLabMessage(root, data.message || "Export nie powiodl sie.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.export_failed'), "error");
             return;
         }
         const blob = await res.blob();
@@ -16165,23 +16071,23 @@ async function exportGhostLabProject(root, projectId) {
         setGhostLabMessage(root, `Export gotowy: ${filename}`, "info");
     } catch (err) {
         console.warn("GhostLab export failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z exportem.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.export_offline'), "error");
     }
 }
 
 async function publishGhostLabProject(root, projectId) {
     if (!projectId) {
-        setGhostLabMessage(root, "Nie wybrano projektu do Publishera.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.publish_none'), "error");
         return;
     }
     const project = ghostLabEditorProject(root, projectId);
     const validation = refreshGhostLabEditorFeedback(root, project);
     if (!validation.valid) {
-        setGhostLabMessage(root, "Publisher zatrzymany. Popraw blueprint.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.publish_invalid'), "error");
         return;
     }
     if (!ghostLabBuildIsCurrent(root, project)) return;
-    setGhostLabWorking(root, "Publishing...");
+    setGhostLabWorking(root, ghostText('lab.ui.publishing'));
     try {
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(projectId)}/publisher`, {
             method: 'POST',
@@ -16189,7 +16095,7 @@ async function publishGhostLabProject(root, projectId) {
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Publisher nie powiodl sie.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.publish_failed'), "error");
             return;
         }
         ghostLabState.projects = data.projects || [];
@@ -16197,11 +16103,11 @@ async function publishGhostLabProject(root, projectId) {
         ghostLabState.activeProjectId = data.project?.id || projectId;
         renderGhostLabEditor(root, data.project);
         const priceMessage = Number.isFinite(data.app?.price) ? ` Cena katalogowa: ${data.app.price} HC.` : '';
-        setGhostLabMessage(root, (data.message || "Publisher zakonczony.") + priceMessage, "info");
+        setGhostLabMessage(root, (ghostResponseText(data, 'lab.ui.published')) + priceMessage, "info");
         // Publication changes the catalog, not the player profile or desktop inventory.
     } catch (err) {
         console.warn("GhostLab publisher failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z Publisherem.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.publisher_offline'), "error");
     }
 }
 
@@ -16214,13 +16120,13 @@ function createGhostLabProject(root) {
     if (!main || root._ghostLabCreating) return;
     root._ghostLabEditingProject = null;
     main.innerHTML = `<section class="ghostlab-panel ghostlab-new-project">
-        <header><h3>New Project</h3><span>Krok 1 z 2</span></header>
-        <p>Nadaj nazwę projektu. W kolejnym kroku wybierzesz templatkę.</p>
+        <header><h3>${ghostLabel("lab.ui.new_project")}</h3><span>${ghostLabel("lab.ui.step_one")}</span></header>
+        <p>${ghostLabel("lab.ui.name_help")}</p>
         <form data-ghostlab-new-form>
-            <label class="ghostlab-editor-field"><span>Nazwa projektu</span>
+            <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.project_name")}</span>
                 <input type="text" data-ghostlab-project-name maxlength="64" required autocomplete="off" value="${escapeHTML(root._ghostLabNewProjectName || '')}"></label>
-            <div class="ghostlab-project-toolbar"><button type="submit">Wybierz templatkę</button>
-                <button type="button" data-ghostlab-cancel-create>Anuluj</button></div>
+            <div class="ghostlab-project-toolbar"><button type="submit">${ghostLabel("lab.ui.choose_template")}</button>
+                <button type="button" data-ghostlab-cancel-create>${ghostLabel("lab.ui.cancel")}</button></div>
         </form></section>`;
     const input = main.querySelector('[data-ghostlab-project-name]');
     root.scrollTop = 0;
@@ -16247,7 +16153,7 @@ async function createGhostLabProjectFromTemplate(root, template) {
         tool_category: template.tool_category || template.category,
         icon: template.icon
     };
-    setGhostLabWorking(root, "Creating project from template...");
+    setGhostLabWorking(root, ghostText('lab.ui.creating'));
     try {
         const res = await fetch('/api/ghostlab/projects', {
             method: 'POST',
@@ -16256,7 +16162,7 @@ async function createGhostLabProjectFromTemplate(root, template) {
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Nie udalo sie utworzyc projektu z szablonu.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.create_failed'), "error");
             return;
         }
         root._ghostLabCreateSignature = null;
@@ -16267,10 +16173,10 @@ async function createGhostLabProjectFromTemplate(root, template) {
         root.querySelectorAll('[data-ghostlab-tab]').forEach(button => button.classList.toggle('active', button.dataset.ghostlabTab === 'Projects'));
         renderGhostLabEditor(root, data.project);
         root.scrollTop = 0;
-        setGhostLabMessage(root, "Projekt utworzony. Możesz teraz skonfigurować produkt.", "info");
+        setGhostLabMessage(root, ghostText('lab.ui.created'), "info");
     } catch (err) {
         console.warn("GhostLab template project create failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.projects_offline'), "error");
     } finally {
         root._ghostLabCreating = false;
         buttons.forEach(button => button.disabled = false);
@@ -16280,7 +16186,7 @@ async function createGhostLabProjectFromTemplate(root, template) {
 function openGhostLabProject(root) {
     const selected = selectedGhostLabProject();
     if (!selected) {
-        setGhostLabMessage(root, "Wybierz projekt do otwarcia.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.open_select'), "error");
         return;
     }
     ghostLabState.activeProjectId = selected.id;
@@ -16293,27 +16199,27 @@ async function deleteGhostLabProject(root, project = root?._ghostLabEditingProje
     const selected = project;
     if (root._ghostLabDeleting) return;
     if (!selected) {
-        setGhostLabMessage(root, "Wybierz projekt do usuniecia.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.delete_select'), "error");
         return;
     }
     if (selected.published_artifact_id || selected.published_at) {
-        setGhostLabMessage(root, 'Opublikowany projekt pozostaje archiwum zakupionych wersji.', 'error');
+        setGhostLabMessage(root, ghostText('lab.ui.retain'), 'error');
         return;
     }
     root._ghostLabDeleting = true;
     try {
         if (!await showGhostDecisionDialog({
-            title: 'GHOSTLAB — USUNIĘCIE PROJEKTU',
-            message: `Usunąć projekt ${selected.name}?`,
-            confirmLabel: 'USUŃ', cancelLabel: 'ANULUJ', tone: 'red'
+            titleKey: 'lab.ui.delete_title',
+            messageKey: 'lab.ui.delete_confirm', messageParams: {name:selected.name},
+            confirmKey: 'lab.ui.delete_button', cancelKey: 'lab.ui.cancel', tone: 'red'
         })) return;
-        setGhostLabWorking(root, "Deleting project...");
+        setGhostLabWorking(root, ghostText('lab.ui.deleting'));
         const res = await fetch(`/api/ghostlab/projects/${encodeURIComponent(selected.id)}`, {
             method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({revision: selected.revision})
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-            setGhostLabMessage(root, data.message || "Nie udalo sie usunac projektu.", "error");
+            setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.delete_failed'), "error");
             return;
         }
         ghostLabState.projects = data.projects || [];
@@ -16321,10 +16227,10 @@ async function deleteGhostLabProject(root, project = root?._ghostLabEditingProje
         if (ghostLabState.activeProjectId === selected.id) ghostLabState.activeProjectId = null;
         root._ghostLabEditingProject = null;
         activateGhostLabTab(root, 'Projects');
-        setGhostLabMessage(root, data.message || "Projekt usuniety.", "info");
+        setGhostLabMessage(root, ghostResponseText(data, 'lab.ui.deleted'), "info");
     } catch (err) {
         console.warn("GhostLab delete project failed", err);
-        setGhostLabMessage(root, "Brak polaczenia z Project Managerem.", "error");
+        setGhostLabMessage(root, ghostText('lab.ui.projects_offline'), "error");
     } finally {
         root._ghostLabDeleting = false;
     }
@@ -16338,7 +16244,7 @@ async function openGhostLabFile(projectId) {
         const existing = document.querySelector('.terminal[data-app="ghostlab"] .ghostlab-shell');
         if (existing?._ghostLabEditingProject && ghostLabBlueprintDirty(existing, existing._ghostLabEditingProject)) {
             bringWindowToFront(existing.closest('.terminal'));
-            setGhostLabMessage(existing, 'Masz niezapisane zmiany. Zapisz je przed otwarciem innego projektu.', 'error');
+            setGhostLabMessage(existing, ghostText('lab.ui.dirty_open'), 'error');
             return;
         }
         const term = createGhostLabHub();
@@ -16351,6 +16257,14 @@ async function openGhostLabFile(projectId) {
         addSystemMessage('warning', 'GhostLab', error.message);
     }
 }
+
+document.addEventListener('ghost:locale-changed', () => {
+    document.querySelectorAll('.ghostlab-shell').forEach(root => {
+        const project = root._ghostLabEditingProject;
+        if (project && root.querySelector('.ghostlab-editor')) refreshGhostLabEditorFeedback(root, project);
+        updateGhostLabStatusBar(root);
+    });
+});
 
 function createGhostLabHub() {
     const existing = document.querySelector('.terminal[data-app="ghostlab"]');
@@ -16477,7 +16391,7 @@ async function selectMapActionTool(appId) {
     const selection = window.activeToolSelection;
     if (!selection || !selection.pending_action) {
         hackFlowDebug("", "desktop", "tool_picker_missing_selection", { appId });
-        addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "Brak aktywnej akcji mapy.");
+        addSystemMessage("warning", ghostText('map.picker.title'), "Brak aktywnej akcji mapy.");
         return;
     }
     if (selection.in_flight) {
@@ -16491,7 +16405,7 @@ async function selectMapActionTool(appId) {
     ));
     if (!app) {
         hackFlowDebug(getHackFlowId(selection), "desktop", "tool_picker_app_not_found", { appId });
-        addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "To narz\u0119dzie nie pasuje do aktywnej akcji.");
+        addSystemMessage("warning", ghostText('map.picker.title'), "To narz\u0119dzie nie pasuje do aktywnej akcji.");
         return;
     }
 
@@ -16595,9 +16509,9 @@ async function selectMapActionTool(appId) {
             updateProvisionalApplicationSession(
                 provisionalSession,
                 "failed",
-                data.status || "Backend odrzucil uruchomienie aplikacji."
+                ghostResponseText(data, 'map.launch.failed')
             );
-            addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
+            addSystemMessage("warning", ghostText('map.picker.title'), ghostResponseText(data, 'map.launch.failed'));
             selection.in_flight = false;
             updateMapToolPickerBusyState(false);
             return;
@@ -16607,7 +16521,7 @@ async function selectMapActionTool(appId) {
             updateProvisionalApplicationSession(
                 provisionalSession,
                 "booting",
-                "Oczekiwanie na stan aplikacji..."
+                ghostText('map.launch.waiting')
             );
             hackFlowDebug(flowId, "desktop", "tool_picker_duplicate_response", {
                 idempotent_replay: Boolean(data.idempotent_replay),
@@ -16626,7 +16540,7 @@ async function selectMapActionTool(appId) {
         updateProvisionalApplicationSession(
             provisionalSession,
             "booting",
-            "Aplikacja przyjeta. Oczekiwanie na runtime..."
+            ghostText('map.launch.accepted')
         );
         if (data.target) {
             updateToolbarAimedTarget(data.target);
@@ -16636,7 +16550,7 @@ async function selectMapActionTool(appId) {
             });
         }
         await launchConfirmedPickerApplication(data, provisionalSession, app, flowId);
-        addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
+        addSystemMessage("success", ghostText('map.picker.title'), ghostResponseText(data, 'map.launch.accepted'));
         if (typeof notifyOpenMapsOperationsChanged === "function") {
             await notifyOpenMapsOperationsChanged();
             appFlowTrace(flowId, "operations_refresh_after_tool_picker", {
@@ -16652,13 +16566,13 @@ async function selectMapActionTool(appId) {
         updateProvisionalApplicationSession(
             provisionalSession,
             "failed",
-            err?.name === 'AbortError' ? 'Przekroczono czas pobierania interfejsu.' : (err?.message || 'Blad uruchamiania aplikacji.')
+            ghostText(err?.name === 'AbortError' ? 'map.launch.timeout' : 'map.launch.failed')
         );
         hackFlowDebug(selection ? getHackFlowId(selection) : "", "desktop", "tool_picker_error", {
             message: err && err.message ? err.message : String(err)
         });
         console.error("Błąd wyboru narzędzia:", err);
-        addSystemMessage("danger", "\u{1F6E0}\uFE0F Narz\u0119dzia", "B\u0142\u0105d po\u0142\u0105czenia podczas wyboru narz\u0119dzia.");
+        addSystemMessage("danger", ghostText('map.picker.title'), ghostText('map.launch.connection'));
         if (selection) {
             selection.in_flight = false;
             updateMapToolPickerBusyState(false);
@@ -17110,7 +17024,7 @@ async function createFileManager(options = {}) {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || ghostText("files.directory_failed"));
             files[folder] = data.files || [];
-        } catch (error) { addSystemMessage('warning', 'Pliki', error.message); files[folder] = []; }
+        } catch (error) { addSystemMessage('warning', ghostText('shell.desktop.files'), error.message); files[folder] = []; }
     }
     if (!Array.isArray(files.projects)) files.projects = [];
     systemDirs.forEach(dir => {
@@ -17176,21 +17090,21 @@ async function createFileManager(options = {}) {
             try {
                 const response = await fetch(`/api/ghostlab/${folderName === 'ghostlab' ? 'files' : 'documents'}`);
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.message || ghostText("files.directory_error"));
+                if (!response.ok) throw new Error(ghostResponseText(data, 'files.directory_error'));
                 if (!container.isConnected || state?.currentFolder !== folderName) return;
                 files[folderName] = data.files || [];
-            } catch (error) { addSystemMessage('warning', 'Pliki', error.message); return; }
+            } catch (error) { addSystemMessage('warning', ghostText('shell.desktop.files'), error.message); return; }
         } else if (folderName === 'projects') {
             const response = await fetch('/api/creators/files', {cache: 'no-store'});
             const data = await response.json();
-            if (!response.ok) { addSystemMessage('warning', 'Projekty', data.message); return; }
+            if (!response.ok) { addSystemMessage('warning', ghostText('shell.desktop.files'), ghostResponseText(data, 'files.directory_error')); return; }
             if (!container.isConnected || state?.currentFolder !== folderName) return;
             files.projects = data.files || [];
             state.creatorProjectMetadata = data.metadata || {};
         } else if (['gps', 'device', 'audio', 'camera', 'atm', 'credentials', 'financial', 'personal', 'network', 'vehicle'].includes(folderName)) {
             const response = await fetch(`/api/ghostlab/file-manager/folders/${encodeURIComponent(folderName)}`, {cache: 'no-store'});
             const data = await response.json();
-            if (!response.ok) { addSystemMessage('warning', 'Pliki', data.message); return; }
+            if (!response.ok) { addSystemMessage('warning', ghostText('shell.desktop.files'), ghostResponseText(data, 'files.directory_error')); return; }
             if (!container.isConnected || state?.currentFolder !== folderName) return;
             files[folderName] = data.files || [];
         } else if (!['tools', 'about', 'tips-tricks'].includes(folderName)) {
@@ -17886,40 +17800,40 @@ function createEmailClient() {
             <div class="mail-sidebar">
                 <div class="mail-sidebar-title">Cyberner</div>
                 <form id="${terminalId}-contact-form" class="mail-contact-form mail-add-contact mail-contact-search">
-                    <input id="${terminalId}-contact-input" type="text" placeholder="Nick znajomego" autocomplete="off">
-                    <button type="submit">Dodaj</button>
+                    <input id="${terminalId}-contact-input" type="text" data-ghost-i18n-placeholder="apps.cyberner.nickname" placeholder="${escapeHTML(ghostText('apps.cyberner.nickname'))}" autocomplete="off">
+                    <button type="submit">${ghostLabel('apps.cyberner.add')}</button>
                 </form>
                 <div class="mail-sidebar-scroll">
                     <section class="mail-sidebar-section">
-                        <div class="mail-section-title">Kanały</div>
+                        <div class="mail-section-title">${ghostLabel('apps.cyberner.channels')}</div>
                         <div id="${terminalId}-channels" class="mail-channel-list mail-conversation-list"></div>
                     </section>
                     <section class="mail-sidebar-section">
-                        <div class="mail-section-title">Znajomi</div>
+                        <div class="mail-section-title">${ghostLabel('apps.cyberner.friends')}</div>
                         <div id="${terminalId}-contacts" class="mail-contact-list mail-conversation-list"></div>
                     </section>
                     <section id="${terminalId}-pending-wrap" class="mail-pending-wrap mail-sidebar-section" style="display:none;">
-                        <div class="mail-section-title">Nowe</div>
+                        <div class="mail-section-title">${ghostLabel('apps.cyberner.new')}</div>
                         <div id="${terminalId}-pending" class="mail-contact-list mail-conversation-list"></div>
                     </section>
                 </div>
             </div>
             <div class="mail-main mail-chat">
                 <div class="mail-header mail-chat-header">
-                    <button id="${terminalId}-back" type="button" class="mail-back-button" aria-label="Wroc do listy">&larr;</button>
+                    <button id="${terminalId}-back" type="button" class="mail-back-button" data-ghost-aria-label="apps.cyberner.back" aria-label="${escapeHTML(ghostText('apps.cyberner.back'))}">&larr;</button>
                     <div>
                         <div id="${terminalId}-chat-title" class="mail-chat-title">WORLD</div>
-                        <div id="${terminalId}-chat-subtitle" class="mail-chat-subtitle">Publiczny kanal swiata gry</div>
+                        <div id="${terminalId}-chat-subtitle" class="mail-chat-subtitle">${ghostLabel('apps.cyberner.world_subtitle')}</div>
                     </div>
                     <div class="mail-header-actions">
-                        <button id="${terminalId}-accept-contact" type="button" style="display:none;">Dodaj kontakt</button>
-                        <button id="${terminalId}-remove-contact" type="button" class="mail-danger" style="display:none;">Usun kontakt</button>
+                        <button id="${terminalId}-accept-contact" type="button" style="display:none;">${ghostLabel('apps.cyberner.add_contact')}</button>
+                        <button id="${terminalId}-remove-contact" type="button" class="mail-danger" style="display:none;">${ghostLabel('apps.cyberner.remove')}</button>
                     </div>
                 </div>
                 <div id="${terminalId}-messages" class="mail-messages"></div>
                 <form id="${terminalId}-message-form" class="mail-message-form mail-composer">
-                    <input id="${terminalId}-message-input" type="text" placeholder="Napisz wiadomosc..." autocomplete="off">
-                    <button type="submit" disabled>Wyslij</button>
+                    <input id="${terminalId}-message-input" type="text" data-ghost-i18n-placeholder="apps.cyberner.compose" placeholder="${escapeHTML(ghostText('apps.cyberner.compose'))}" autocomplete="off">
+                    <button type="submit" disabled>${ghostLabel('apps.cyberner.send')}</button>
                 </form>
             </div>
         </div>
@@ -18001,8 +17915,8 @@ function createEmailClient() {
         scope: "group",
         peer: "global",
         title: "WORLD",
-        subtitle: "Publiczny kanal swiata gry",
-        preview: "Publiczny kanal online graczy",
+        subtitle: ghostText('apps.cyberner.world_subtitle'),
+        preview: ghostText('apps.cyberner.world_preview'),
         enabled: true,
         meta: `${groupActiveCount} online`
     });
@@ -18027,6 +17941,7 @@ function createEmailClient() {
                 disabled_reason: item.disabled_reason || "",
                 meta: item.meta || "",
                 active_count: item.active_count,
+                presentation_i18n: item.presentation_i18n,
                 clan: item.clan || ""
             });
         });
@@ -18034,6 +17949,11 @@ function createEmailClient() {
             normalized.unshift(defaultWorldChannel());
         }
         return normalized;
+    };
+    const channelField = (channel, field) => {
+        const entry = channel?.presentation_i18n?.[field];
+        return entry && entry.content_version === window.GhostLocale.contentVersion && window.GhostLocale.hasKey(entry.key)
+            ? ghostText(entry.key, entry.params || {}) : channel?.[field] || '';
     };
     const currentChannel = () => channels.find(item => item.channel === currentChat.channel)
         || (currentChat.channel === "world" ? defaultWorldChannel() : null);
@@ -18090,7 +18010,7 @@ function createEmailClient() {
         const last = Array.isArray(groupMessages) && groupMessages.length
             ? groupMessages[groupMessages.length - 1]
             : null;
-        return threadPreview(last, "Publiczny kanal online graczy");
+        return threadPreview(last, ghostText('apps.cyberner.world_preview'));
     };
     const relationClassForThread = (thread, fallback = "") => {
         if (!thread || typeof thread !== "object") return fallback;
@@ -18108,7 +18028,7 @@ function createEmailClient() {
             <span class="mail-avatar ${avatarClass}">${cybernerIcon(iconKey)}</span>
             <span class="mail-conversation-content">
                 <span class="mail-conversation-title-row">
-                    <span class="mail-conversation-name">${escapeHTML(name || "Nieznany")}</span>
+                    <span class="mail-conversation-name">${escapeHTML(name || ghostText('apps.cyberner.unknown'))}</span>
                     ${kindMarkup}
                 </span>
                 <span class="mail-conversation-preview">${escapeHTML(preview || "")}</span>
@@ -18235,7 +18155,8 @@ function createEmailClient() {
         messageButton.disabled = !sendable || !hasBody || mailSending;
         messageForm.classList.toggle('is-disabled', !sendable);
         messageForm.classList.toggle('is-sending', mailSending);
-        messageInput.placeholder = window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct')) || (sendable ? "Napisz wiadomosc..." : "Ten kanal jest niedostepny.");
+        delete messageInput.dataset.ghostI18nPlaceholder;
+        messageInput.placeholder = window.DetentionUI?.chatReason(currentChat.channel || (currentChat.scope === 'group' ? 'world' : 'direct')) || (sendable ? ghostText('apps.cyberner.compose') : ghostText('apps.cyberner.unavailable'));
     };
     const detentionChatChanged = () => {
         if (!document.body.contains(term)) { window.removeEventListener('detention:changed', detentionChatChanged); return; }
@@ -18280,10 +18201,10 @@ function createEmailClient() {
             const btn = Array.from(term.querySelectorAll('.mail-thread'))
                 .find(el => el.dataset.channel === currentChat.channel);
             if (btn) btn.classList.add('active');
-            chatTitle.textContent = (channel && channel.title) || currentChat.title || "WORLD";
+            chatTitle.textContent = (channel && channelField(channel, 'title')) || currentChat.title || "WORLD";
             const subtitle = channel && channel.channel === "world"
-                ? `${channel.subtitle || "Publiczny kanal swiata gry"} - ${groupActiveCount} online`
-                : (channel && (channel.disabled_reason || channel.subtitle)) || currentChat.subtitle || "";
+                ? `${channelField(channel, 'subtitle') || ghostText('apps.cyberner.world_subtitle')} - ${groupActiveCount} online`
+                : (channel && (channel.disabled_reason || channelField(channel, 'subtitle'))) || currentChat.subtitle || "";
             chatSubtitle.textContent = subtitle;
             acceptBtn.style.display = "none";
             removeBtn.style.display = "none";
@@ -18298,7 +18219,7 @@ function createEmailClient() {
         const known = isKnownContact(currentChat.peer);
         const sourceKey = cybernerSourceKeyForName(currentChat.peer);
         const worldSource = isWorldSourceKey(sourceKey);
-        chatSubtitle.textContent = worldSource ? cybernerLabel(sourceKey) : known ? "Czat indywidualny" : "Nieznany kontakt";
+        chatSubtitle.textContent = worldSource ? cybernerLabel(sourceKey) : known ? ghostText('apps.cyberner.direct') : ghostText('apps.cyberner.unknown_contact');
         acceptBtn.style.display = known || worldSource ? "none" : "inline-block";
         removeBtn.style.display = known && !worldSource ? "inline-block" : "none";
         updateComposerState();
@@ -18317,22 +18238,22 @@ function createEmailClient() {
             btn.setAttribute("aria-disabled", channel.enabled ? "false" : "true");
             if (!channel.enabled) {
                 btn.disabled = true;
-                btn.title = channel.disabled_reason || "Kanal czeka na runtime.";
+                btn.title = channel.disabled_reason || ghostText('apps.cyberner.runtime_pending');
             }
             const unread = channelUnread(channel);
-            const preview = channel.channel === "world" ? latestGroupPreview() : channel.preview;
+            const preview = channel.channel === "world" ? latestGroupPreview() : channelField(channel, 'preview');
             const meta = channel.channel === "world"
                 ? `<span>world</span><span>${escapeHTML(`${groupActiveCount} online`)}</span>`
-                : `<span>${escapeHTML(channel.enabled ? (channel.meta || channel.subtitle || "") : "wkrótce")}</span>`;
+                : `<span>${escapeHTML(channel.enabled ? (channelField(channel, 'meta') || channelField(channel, 'subtitle') || "") : ghostText('apps.cyberner.soon'))}</span>`;
             btn.innerHTML = renderThreadItemContent({
                 iconKey: channel.source || channel.channel || "unknown",
-                name: channel.title || cybernerLabel(channel.source || channel.channel || "unknown"),
+                name: channelField(channel, 'title') || cybernerLabel(channel.source || channel.channel || "unknown"),
                 preview: preview || channel.disabled_reason || "",
                 meta,
                 unread,
                 avatarClass: `mail-avatar-${channel.source || channel.channel || "unknown"}`,
                 metaClass: channel.enabled ? "mail-status-system" : "mail-status-disabled",
-                kind: channel.enabled ? "kanał" : "placeholder"
+                kind: channel.enabled ? ghostText('apps.cyberner.channel') : ghostText('apps.cyberner.placeholder')
             });
             if (channel.enabled) {
                 btn.addEventListener('click', () => {
@@ -18341,8 +18262,8 @@ function createEmailClient() {
                         peer: channel.peer || "global",
                         source: channel.source || "world",
                         channel: channel.channel || "world",
-                        title: channel.title || "WORLD",
-                        subtitle: channel.subtitle || ""
+                        title: channelField(channel, 'title') || "WORLD",
+                        subtitle: channelField(channel, 'subtitle') || ""
                     };
                     setActiveThread();
                     openMailChatViewIfNarrow();
@@ -18357,7 +18278,7 @@ function createEmailClient() {
         renderChannels();
         contactsBox.innerHTML = "";
         contacts.forEach(contact => {
-            const contactName = contact.name || "Nieznany";
+            const contactName = contact.name || ghostText('apps.cyberner.unknown');
             const btn = document.createElement('button');
             btn.type = "button";
             btn.className = `mail-thread mail-conversation-item ${relationClassForThread(contact)}`.trim();
@@ -18369,12 +18290,12 @@ function createEmailClient() {
             btn.innerHTML = renderThreadItemContent({
                 iconKey: sourceKey,
                 name: contactName,
-                preview: threadPreview(contact, "Czat indywidualny"),
+                preview: threadPreview(contact, ghostText('apps.cyberner.direct')),
                 meta: `<span>${escapeHTML(isWorldSourceKey(sourceKey) ? cybernerLabel(sourceKey) : contact.status || "offline")}</span>`,
                 unread,
                 avatarClass: isWorldSourceKey(sourceKey) ? `mail-avatar-${sourceKey}` : "mail-avatar-contact",
                 metaClass: `${statusClass} ${mailStatusClass}`,
-                kind: isWorldSourceKey(sourceKey) ? "źródło" : "prywatne"
+                kind: isWorldSourceKey(sourceKey) ? ghostText('apps.cyberner.source') : ghostText('apps.cyberner.private')
             });
             btn.addEventListener('click', () => {
                 currentChat = { scope: "direct", peer: contactName };
@@ -18389,7 +18310,7 @@ function createEmailClient() {
         pendingWrap.style.display = pendingThreads.length ? "grid" : "none";
         pendingWrap.classList.toggle("is-visible", pendingThreads.length > 0);
         pendingThreads.forEach(thread => {
-            const threadName = thread.name || "Nieznany";
+            const threadName = thread.name || ghostText('apps.cyberner.unknown');
             const btn = document.createElement('button');
             btn.type = "button";
             btn.className = `mail-thread mail-conversation-item pending ${relationClassForThread(thread, "is-pending is-stranger")}`.trim();
@@ -18398,17 +18319,17 @@ function createEmailClient() {
             const sourceKey = cybernerSourceForThread(thread, "request");
             const worldSource = isWorldSourceKey(sourceKey);
             const pendingMeta = thread.last_at
-                ? `<span>${escapeHTML(worldSource ? cybernerLabel(sourceKey) : "nowe")}</span><span>${escapeHTML(thread.last_at)}</span>`
-                : `<span>${escapeHTML(worldSource ? cybernerLabel(sourceKey) : "nowe")}</span>`;
+                ? `<span>${escapeHTML(worldSource ? cybernerLabel(sourceKey) : ghostText('apps.cyberner.new_small'))}</span><span>${escapeHTML(thread.last_at)}</span>`
+                : `<span>${escapeHTML(worldSource ? cybernerLabel(sourceKey) : ghostText('apps.cyberner.new_small'))}</span>`;
             btn.innerHTML = renderThreadItemContent({
                 iconKey: sourceKey,
                 name: threadName,
-                preview: threadPreview(thread, worldSource ? "Zrodlo swiata gry" : "Oczekuje na kontakt"),
+                preview: threadPreview(thread, worldSource ? ghostText('apps.cyberner.world_source') : ghostText('apps.cyberner.pending')),
                 meta: pendingMeta,
                 unread,
                 avatarClass: worldSource ? `mail-avatar-${sourceKey}` : "mail-avatar-pending",
                 metaClass: worldSource ? "mail-status-system" : "pending mail-status-pending",
-                kind: worldSource ? "źródło" : "nowe"
+                kind: worldSource ? ghostText('apps.cyberner.source') : ghostText('apps.cyberner.new_small')
             });
             btn.addEventListener('click', () => {
                 currentChat = { scope: "direct", peer: threadName };
@@ -18481,7 +18402,8 @@ function createEmailClient() {
                     return {
                         ...channel,
                         preview: thread.preview || thread.subject || channel.preview || "",
-                        meta: channel.meta || thread.created_at || ""
+                        presentation_i18n: {...channel.presentation_i18n, preview: null},
+                        meta: channelField(channel, 'meta') || thread.created_at || ""
                     };
                 });
             } else if (scope === "direct") {
@@ -18510,7 +18432,7 @@ function createEmailClient() {
         replaceCurrentMessages(messages);
         messagesBox.innerHTML = "";
         if (!currentMessages.length) {
-            messagesBox.innerHTML = `<div class="mail-empty">Brak wiadomosci. Zacznij rozmowe.</div>`;
+            messagesBox.innerHTML = `<div class="mail-empty">${ghostLabel('apps.cyberner.empty')}</div>`;
             return;
         }
 
@@ -18677,6 +18599,15 @@ function createEmailClient() {
         return task;
     };
 
+    const mailLocaleChanged = () => {
+        if (!term.isConnected) { document.removeEventListener('ghost:locale-changed', mailLocaleChanged); return; }
+        const scroll = messagesBox.scrollTop;
+        renderContacts();
+        if (!currentMessages.length) renderMessages(currentMessages);
+        messagesBox.scrollTop = scroll;
+        updateComposerState();
+    };
+    document.addEventListener('ghost:locale-changed', mailLocaleChanged);
     const bootstrap = () => refreshThreads(true);
 
     backBtn.addEventListener('click', () => {
@@ -18703,7 +18634,7 @@ function createEmailClient() {
         });
         const data = await res.json();
         if (data.error) {
-            addSystemMessage("warning", "Kontakt", data.error);
+            addSystemMessage("warning", ghostText('apps.cyberner.contact'), data.error);
             return;
         }
         if (data.contacts) {
@@ -18724,7 +18655,7 @@ function createEmailClient() {
         });
         const data = await res.json();
         if (data.error) {
-            addSystemMessage("warning", "Kontakt", data.error);
+            addSystemMessage("warning", ghostText('apps.cyberner.contact'), data.error);
             return;
         }
         if (data.contacts) {
@@ -18798,7 +18729,7 @@ function createEmailClient() {
                 }, { own: true });
             }
         } catch (err) {
-            addSystemMessage("danger", "Cyberner", "Nie udalo sie wyslac wiadomosci.");
+            addSystemMessage("danger", "Cyberner", ghostText('apps.cyberner.send_failed'));
         } finally {
             mailSending = false;
             updateComposerState();

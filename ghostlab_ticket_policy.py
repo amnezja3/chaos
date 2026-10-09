@@ -26,7 +26,8 @@ def public_ticket(app):
         'required_level', 'required_respect', 'allowed_fractions', 'published', 'generated',
         'ghostlab_generated', 'system_catalog', 'template_id', 'template_name', 'artifact_id',
         'source_build_version', 'runtime_status', 'open_source', 'purchase_confirmation', 'installed', 'can_afford',
-        'install_blocked_reason', 'destination_revision', 'travel_city', 'downloads')
+        'install_blocked_reason', 'install_blocked_i18n', 'destination_revision', 'travel_city', 'downloads',
+        'presentation_owner', 'presentation_i18n', 'search_aliases')
     result = {key: app[key] for key in fields if key in app}
     result['price'] = ticket_price(app)
     result['price_hint'] = result['price']

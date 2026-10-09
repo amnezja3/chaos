@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "messages": {
     "map.picker.choose": {
       "params": {
@@ -226,6 +226,76 @@
     "creator.purpose.file_none": {
       "params": {},
       "text": "This tool does not save a file."
+    },
+    "map.launch.no_app": {
+      "params": {},
+      "text": "No installed tool supports this action."
+    },
+    "map.launch.invalid_tool": {
+      "params": {},
+      "text": "The selected tool does not support this action."
+    },
+    "map.launch.target_changed": {
+      "params": {},
+      "text": "First mark a visible player within range."
+    },
+    "map.launch.target_blocked": {
+      "params": {},
+      "text": "This target cannot be attacked."
+    },
+    "map.launch.foreign": {
+      "params": {},
+      "text": "The target is in another player’s controlled territory."
+    },
+    "map.launch.profile": {
+      "params": {},
+      "text": "No current session or profile. Sign in again."
+    },
+    "map.launch.failed": {
+      "params": {},
+      "text": "Could not start the tool for this target."
+    },
+    "map.launch.cooldown": {
+      "params": {
+        "seconds": "number"
+      },
+      "text": "Cooldown active. Try again in {seconds} s."
+    },
+    "map.launch.already_captured": {
+      "params": {},
+      "text": "This object is already captured."
+    },
+    "map.launch.choose": {
+      "params": {},
+      "text": "Choose a matching tool from /tools."
+    },
+    "map.launch.accepted": {
+      "params": {},
+      "text": "Tool accepted for launch."
+    },
+    "map.launch.waiting": {
+      "params": {},
+      "text": "Waiting for application state…"
+    },
+    "map.launch.timeout": {
+      "params": {},
+      "text": "Loading the interface timed out."
+    },
+    "map.launch.connection": {
+      "params": {},
+      "text": "Connection error while selecting the tool."
+    },
+    "map.launch.vulnerability_expired": {
+      "params": {},
+      "text": "This vulnerability is no longer active."
+    },
+    "map.launch.own_vulnerability": {
+      "params": {},
+      "text": "You cannot attack your own vulnerability report."
+    },
+    "map.launch.player_not_found": {
+      "params": {},
+      "text": "This player does not exist."
     }
   }
 }

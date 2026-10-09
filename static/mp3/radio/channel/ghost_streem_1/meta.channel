@@ -9,5 +9,87 @@
   "loop": true,
   "mode": "random",
   "sort": "name",
-  "exclude": []
+  "exclude": [],
+  "language": "unknown",
+  "presentation": {
+    "name": "radio.channel.ghost.name",
+    "description": "radio.channel.ghost.description"
+  },
+  "programs": {
+    "Algorytm Imperium.mp3": {
+      "language": "unknown"
+    },
+    "Another Protocol.mp3": {
+      "language": "unknown"
+    },
+    "chaos odpalam.mp3": {
+      "language": "unknown"
+    },
+    "Cyber Asfalt.mp3": {
+      "language": "unknown"
+    },
+    "Cyber rdzeń infiltracja puls.mp3": {
+      "language": "unknown"
+    },
+    "Cyber Zmysły.mp3": {
+      "language": "unknown"
+    },
+    "Cyberpunk Chaos.mp3": {
+      "language": "unknown"
+    },
+    "Digital Senses.mp3": {
+      "language": "unknown"
+    },
+    "Ghost Exchange.mp3": {
+      "language": "unknown"
+    },
+    "Ghost System.mp3": {
+      "language": "unknown"
+    },
+    "Hack Digital Senses.mp3": {
+      "language": "unknown"
+    },
+    "Hack of Digital Senses.mp3": {
+      "language": "unknown"
+    },
+    "Hack the Digital Senses.mp3": {
+      "language": "unknown"
+    },
+    "Hack the Digital Senses_1.mp3": {
+      "language": "unknown"
+    },
+    "Hakuj Zmysły.mp3": {
+      "language": "unknown"
+    },
+    "Impuls Kod Wizja Sieć.mp3": {
+      "language": "unknown"
+    },
+    "Nowy Exploit Nowy Poziom.mp3": {
+      "language": "unknown"
+    },
+    "Rytm.mp3": {
+      "language": "unknown"
+    },
+    "Sensejack Protocol.mp3": {
+      "language": "unknown"
+    },
+    "The 80s.mp3": {
+      "language": "unknown"
+    },
+    "Tylko skan Remix.mp3": {
+      "language": "unknown"
+    },
+    "Tylko skan.mp3": {
+      "language": "unknown"
+    },
+    "Tylko skan_1.mp3": {
+      "language": "unknown"
+    },
+    "Unknown Territory.mp3": {
+      "language": "unknown"
+    },
+    "Za dużo pytań.mp3": {
+      "language": "unknown"
+    }
+  }
 }

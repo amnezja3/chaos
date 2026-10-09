@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "messages": {
     "creator.editor.title": {
       "params": {},
@@ -493,6 +493,1110 @@
         "index": "number"
       },
       "text": "Opcja {index}:"
+    },
+    "creator.legacy.step.0": {
+      "params": {},
+      "text": "Nazwa"
+    },
+    "creator.legacy.step.1": {
+      "params": {},
+      "text": "Rodzina"
+    },
+    "creator.legacy.step.2": {
+      "params": {},
+      "text": "Cel"
+    },
+    "creator.legacy.step.3": {
+      "params": {},
+      "text": "Start"
+    },
+    "creator.legacy.step.4": {
+      "params": {},
+      "text": "Dzialanie"
+    },
+    "creator.legacy.step.5": {
+      "params": {},
+      "text": "Informacje"
+    },
+    "creator.legacy.step.6": {
+      "params": {},
+      "text": "Ryzyko"
+    },
+    "creator.legacy.step.7": {
+      "params": {},
+      "text": "Podglad"
+    },
+    "creator.legacy.step.8": {
+      "params": {},
+      "text": "Publikacja"
+    },
+    "creator.legacy.narrative.0.title": {
+      "params": {},
+      "text": "Nadaj narzędziu tożsamość"
+    },
+    "creator.legacy.narrative.0.subtitle": {
+      "params": {},
+      "text": "Pierwszy sygnal dla gracza i katalogu Googleplex."
+    },
+    "creator.legacy.narrative.0.description": {
+      "params": {},
+      "text": "Nazwa, ikona i opis mowia, czym jest aplikacja zanim ktokolwiek spojrzy w jej kontrakt."
+    },
+    "creator.legacy.narrative.0.educational_note": {
+      "params": {},
+      "text": "Profesjonalne narzędzia tej klasy są rozpoznawalne po celu, zakresie i wiarygodnym opisie."
+    },
+    "creator.legacy.narrative.0.gameplay_hint": {
+      "params": {},
+      "text": "Cena jest punktem startu. Runtime moze pokazac sugerowana wartosc w podgladzie balansu."
+    },
+    "creator.legacy.narrative.1.title": {
+      "params": {},
+      "text": "Wybierz rodzinę narzędzia"
+    },
+    "creator.legacy.narrative.1.subtitle": {
+      "params": {},
+      "text": "Rodzina zawedza dalsze decyzje."
+    },
+    "creator.legacy.narrative.1.description": {
+      "params": {},
+      "text": "Scanner / Recon obejmuje także namierzanie celu (trace). Exploit i Sniffer pozostają osobnymi rodzinami gameplayowymi."
+    },
+    "creator.legacy.narrative.1.educational_note": {
+      "params": {},
+      "text": "Administratorzy i zespoly bezpieczenstwa uzywaja podobnych klas rozwiazan do rozpoznania, kontroli i obserwacji systemow."
+    },
+    "creator.legacy.narrative.1.gameplay_hint": {
+      "params": {},
+      "text": "Dla akcji mapy Namierz cel wybierz Scanner / Recon / Namierzanie, typ Tracer / tracker oraz działanie Namierz cel (trace)."
+    },
+    "creator.legacy.narrative.2.title": {
+      "params": {},
+      "text": "Wskaz obiekt zainteresowania"
+    },
+    "creator.legacy.narrative.2.subtitle": {
+      "params": {},
+      "text": "Cel decyduje, jakie opcje maja sens."
+    },
+    "creator.legacy.narrative.2.description": {
+      "params": {},
+      "text": "Inaczej projektuje się narzędzie dla pojazdu, inaczej dla kamery, a inaczej dla routera."
+    },
+    "creator.legacy.narrative.2.educational_note": {
+      "params": {},
+      "text": "W swiecie CHAOS kazdy obiekt ma inne cyfrowe zmysly: lokalizacje, obraz, sygnal, logi albo dostep."
+    },
+    "creator.legacy.narrative.2.gameplay_hint": {
+      "params": {},
+      "text": "Po wyborze celu kreator ukrywa niepasujace operacje i informacje."
+    },
+    "creator.legacy.narrative.3.title": {
+      "params": {},
+      "text": "Okresl miejsce uruchomienia"
+    },
+    "creator.legacy.narrative.3.subtitle": {
+      "params": {},
+      "text": "Mapa, desktop albo oba tryby."
+    },
+    "creator.legacy.narrative.3.description": {
+      "params": {},
+      "text": "Nie każde narzędzie musi być widoczne w menu mapy. Desktop może działać na oznaczony cel."
+    },
+    "creator.legacy.narrative.3.educational_note": {
+      "params": {},
+      "text": "To rozróżnienie przypomina pracę z kontekstem: czasem działasz na obiekcie w terenie, czasem na już wybranym celu."
+    },
+    "creator.legacy.narrative.3.gameplay_hint": {
+      "params": {},
+      "text": "Tryb desktopowy moze nie miec akcji mapy. Tryb mapowy powinien miec jawne map_actions."
+    },
+    "creator.legacy.narrative.4.title": {
+      "params": {},
+      "text": "Zdecyduj, co narzędzie ma zrobić"
+    },
+    "creator.legacy.narrative.4.subtitle": {
+      "params": {},
+      "text": "To jest serce kontraktu operacji."
+    },
+    "creator.legacy.narrative.4.description": {
+      "params": {},
+      "text": "Wybierasz efekt gameplayowy: sledzenie, stream, odczyt, zaklocenie albo implant."
+    },
+    "creator.legacy.narrative.4.educational_note": {
+      "params": {},
+      "text": "Nie chodzi o realne komendy. Chodzi o opis skutku w symulowanym swiecie gry."
+    },
+    "creator.legacy.narrative.4.gameplay_hint": {
+      "params": {},
+      "text": "Operacja moze zyc na mapie, miec timer, produkowac dane albo tylko wspierac inny proces."
+    },
+    "creator.legacy.narrative.5.title": {
+      "params": {},
+      "text": "Wybierz informacje, ktorych szuka"
+    },
+    "creator.legacy.narrative.5.subtitle": {
+      "params": {},
+      "text": "Dane sa paliwem ekonomii CHAOS."
+    },
+    "creator.legacy.narrative.5.description": {
+      "params": {},
+      "text": "Zasoby okreslaja, jaki typ pliku albo stanu moze powstac po operacji."
+    },
+    "creator.legacy.narrative.5.educational_note": {
+      "params": {},
+      "text": "Podobne klasy narzędzi w realnym świecie pomagają zrozumieć, jakie sygnały i metadane istnieją w systemach."
+    },
+    "creator.legacy.narrative.5.gameplay_hint": {
+      "params": {},
+      "text": "Nie każdy zasób jest sprzedawalny. `internal_recon_state` może tylko przygotować dalsze działanie."
+    },
+    "creator.legacy.narrative.6.title": {
+      "params": {},
+      "text": "Ustal ryzyko i zaleznosci"
+    },
+    "creator.legacy.narrative.6.subtitle": {
+      "params": {},
+      "text": "Każde narzędzie ma ślady i wymagania."
+    },
+    "creator.legacy.narrative.6.description": {
+      "params": {},
+      "text": "Ten krok opisuje, z czym narzędzie koliduje, co wyłącza i jakie warunki powinny być spełnione."
+    },
+    "creator.legacy.narrative.6.educational_note": {
+      "params": {},
+      "text": "Świadome projektowanie narzędzia polega też na rozumieniu ograniczeń, nie tylko możliwości."
+    },
+    "creator.legacy.narrative.6.gameplay_hint": {
+      "params": {},
+      "text": "To nadal sa pola kontraktu gry. Nie tworza realnych instrukcji ani nowego systemu ryzyka."
+    },
+    "creator.legacy.narrative.7.title": {
+      "params": {},
+      "text": "Sprawdz kontrakt przed publikacja"
+    },
+    "creator.legacy.narrative.7.subtitle": {
+      "params": {},
+      "text": "Podglad laczy decyzje w jedna aplikacje."
+    },
+    "creator.legacy.narrative.7.description": {
+      "params": {},
+      "text": "Tutaj widzisz, jak wybór rodziny, celu, działania i danych zamienia się w app contract."
+    },
+    "creator.legacy.narrative.7.educational_note": {
+      "params": {},
+      "text": "Dobry projekt narzędzia powinien być czytelny bez zaglądania w kod."
+    },
+    "creator.legacy.narrative.7.gameplay_hint": {
+      "params": {},
+      "text": "Waga, jakosc, niezawodnosc i cena sugerowana sa liczone przez runtime."
+    },
+    "creator.legacy.narrative.8.title": {
+      "params": {},
+      "text": "Opublikuj w Googleplex"
+    },
+    "creator.legacy.narrative.8.subtitle": {
+      "params": {},
+      "text": "Ten sam katalog, ten sam runtime."
+    },
+    "creator.legacy.narrative.8.description": {
+      "params": {},
+      "text": "Publikacja uzywa istniejacego endpointu i trafia do tego samego Googleplexa co inne aplikacje."
+    },
+    "creator.legacy.narrative.8.educational_note": {
+      "params": {},
+      "text": "CHAOS traktuje narzędzie jak element ekosystemu: projekt, publikacja, instalacja, użycie i uninstall."
+    },
+    "creator.legacy.narrative.8.gameplay_hint": {
+      "params": {},
+      "text": "Po publikacji aplikację kupujesz i instalujesz tak jak inne narzędzia."
+    },
+    "creator.legacy.type.scanner": {
+      "params": {},
+      "text": "Scanner / recon"
+    },
+    "creator.legacy.type.exploit": {
+      "params": {},
+      "text": "Exploit"
+    },
+    "creator.legacy.type.exploit_suite": {
+      "params": {},
+      "text": "Exploit suite"
+    },
+    "creator.legacy.type.sniffer": {
+      "params": {},
+      "text": "Sniffer"
+    },
+    "creator.legacy.type.tracker": {
+      "params": {},
+      "text": "Tracer / namierzanie celu"
+    },
+    "creator.legacy.type.camera_tool": {
+      "params": {},
+      "text": "Camera tool"
+    },
+    "creator.legacy.type.atm_tool": {
+      "params": {},
+      "text": "ATM tool"
+    },
+    "creator.legacy.type.vehicle_tool": {
+      "params": {},
+      "text": "Vehicle tool"
+    },
+    "creator.legacy.type.custom": {
+      "params": {},
+      "text": "Custom"
+    },
+    "creator.legacy.creator_option_groups.map_actions": {
+      "params": {},
+      "text": "Akcja mapy"
+    },
+    "creator.legacy.creator_option_groups.operation_types": {
+      "params": {},
+      "text": "Operacja runtime"
+    },
+    "creator.legacy.creator_option_groups.resource_types": {
+      "params": {},
+      "text": "Informacja"
+    },
+    "creator.legacy.creator_option_groups.target_types": {
+      "params": {},
+      "text": "Cel"
+    },
+    "creator.legacy.creator_semantic_group_labels.location": {
+      "params": {},
+      "text": "Lokalizacja i śledzenie"
+    },
+    "creator.legacy.creator_semantic_group_labels.device": {
+      "params": {},
+      "text": "Urządzenia i sieć"
+    },
+    "creator.legacy.creator_semantic_group_labels.media": {
+      "params": {},
+      "text": "Media i komunikacja"
+    },
+    "creator.legacy.creator_semantic_group_labels.accounts": {
+      "params": {},
+      "text": "Konta i tożsamość"
+    },
+    "creator.legacy.creator_semantic_group_labels.finance": {
+      "params": {},
+      "text": "Finanse"
+    },
+    "creator.legacy.creator_semantic_group_labels.access": {
+      "params": {},
+      "text": "Dostęp i wpływ"
+    },
+    "creator.legacy.creator_semantic_group_labels.world": {
+      "params": {},
+      "text": "Obiekty świata"
+    },
+    "creator.legacy.option.map_actions.scan_ports": {
+      "params": {},
+      "text": "Przeskanuj porty"
+    },
+    "creator.legacy.option.map_actions.exploit": {
+      "params": {},
+      "text": "Zainstaluj exploit"
+    },
+    "creator.legacy.option.map_actions.sniff": {
+      "params": {},
+      "text": "Sledz ruch"
+    },
+    "creator.legacy.option.map_actions.trace": {
+      "params": {},
+      "text": "Namierz cel"
+    },
+    "creator.legacy.option.map_actions.trace_gps": {
+      "params": {},
+      "text": "Sledz pojazd GPS"
+    },
+    "creator.legacy.option.map_actions.trace_device": {
+      "params": {},
+      "text": "Sledz urzadzenie"
+    },
+    "creator.legacy.option.map_actions.camera_stream": {
+      "params": {},
+      "text": "Oglądaj obraz z kamery"
+    },
+    "creator.legacy.option.map_actions.camera_shutdown": {
+      "params": {},
+      "text": "Zakloc kamere"
+    },
+    "creator.legacy.option.map_actions.atm_logs": {
+      "params": {},
+      "text": "Odczytaj logi ATM"
+    },
+    "creator.legacy.option.map_actions.install_sniffer": {
+      "params": {},
+      "text": "Zainstaluj implant"
+    },
+    "creator.legacy.option.map_actions.scan_hotspots": {
+      "params": {},
+      "text": "Szukaj hotspotow"
+    },
+    "creator.legacy.option.map_actions.audio_hack": {
+      "params": {},
+      "text": "Zakloc audio"
+    },
+    "creator.legacy.option.map_actions.car_hack": {
+      "params": {},
+      "text": "Diagnozuj ECU"
+    },
+    "creator.legacy.option.operation_types.generic_trace": {
+      "params": {},
+      "text": "Sledzenie celu"
+    },
+    "creator.legacy.option.operation_types.vehicle_tracking": {
+      "params": {},
+      "text": "Sledzenie pojazdu"
+    },
+    "creator.legacy.option.operation_types.device_tracking": {
+      "params": {},
+      "text": "Sledzenie urzadzenia"
+    },
+    "creator.legacy.option.operation_types.microphone_sniffer": {
+      "params": {},
+      "text": "Nasluch mikrofonu"
+    },
+    "creator.legacy.option.operation_types.camera_stream": {
+      "params": {},
+      "text": "Monitoring kamery"
+    },
+    "creator.legacy.option.operation_types.camera_shutdown": {
+      "params": {},
+      "text": "Czasowe wylaczenie kamery"
+    },
+    "creator.legacy.option.operation_types.atm_log_extraction": {
+      "params": {},
+      "text": "Odczyt logow ATM"
+    },
+    "creator.legacy.option.operation_types.persistent_sniffer": {
+      "params": {},
+      "text": "Implant sieciowy"
+    },
+    "creator.legacy.option.operation_types.wifi_scanner": {
+      "params": {},
+      "text": "Rozpoznanie sieci"
+    },
+    "creator.legacy.option.operation_types.audio_interference": {
+      "params": {},
+      "text": "Zaklocenie audio"
+    },
+    "creator.legacy.option.operation_types.vehicle_ecu": {
+      "params": {},
+      "text": "Diagnostyka ECU"
+    },
+    "creator.legacy.option.resource_types.internal_recon_state": {
+      "params": {},
+      "text": "Stan rozpoznania"
+    },
+    "creator.legacy.option.resource_types.gps_logs": {
+      "params": {},
+      "text": "Logi GPS"
+    },
+    "creator.legacy.option.resource_types.location_history": {
+      "params": {},
+      "text": "Historia lokalizacji"
+    },
+    "creator.legacy.option.resource_types.device_logs": {
+      "params": {},
+      "text": "Logi urzadzenia"
+    },
+    "creator.legacy.option.resource_types.personal_records": {
+      "params": {},
+      "text": "Dane osobowe"
+    },
+    "creator.legacy.option.resource_types.financial_records": {
+      "params": {},
+      "text": "Rekordy finansowe"
+    },
+    "creator.legacy.option.resource_types.credentials": {
+      "params": {},
+      "text": "Dane dostepowe"
+    },
+    "creator.legacy.option.resource_types.email_accounts": {
+      "params": {},
+      "text": "Konta e-mail"
+    },
+    "creator.legacy.option.resource_types.call_history": {
+      "params": {},
+      "text": "Historia polaczen"
+    },
+    "creator.legacy.option.resource_types.messenger_data": {
+      "params": {},
+      "text": "Dane komunikatora"
+    },
+    "creator.legacy.option.resource_types.audio_transcript": {
+      "params": {},
+      "text": "Transkrypcja audio"
+    },
+    "creator.legacy.option.resource_types.camera_dump": {
+      "params": {},
+      "text": "Dump kamery"
+    },
+    "creator.legacy.option.resource_types.video_material": {
+      "params": {},
+      "text": "Material wideo"
+    },
+    "creator.legacy.option.resource_types.atm_dump": {
+      "params": {},
+      "text": "Dump ATM"
+    },
+    "creator.legacy.option.resource_types.vehicle_diagnostics": {
+      "params": {},
+      "text": "Diagnostyka pojazdu"
+    },
+    "creator.legacy.option.resource_types.wifi_networks": {
+      "params": {},
+      "text": "Sieci Wi-Fi"
+    },
+    "creator.legacy.option.resource_types.hotspot_database": {
+      "params": {},
+      "text": "Baza hotspotow"
+    },
+    "creator.legacy.option.target_types.poi": {
+      "params": {},
+      "text": "Obiekt w swiecie"
+    },
+    "creator.legacy.option.target_types.camera": {
+      "params": {},
+      "text": "Kamera"
+    },
+    "creator.legacy.option.target_types.atm": {
+      "params": {},
+      "text": "ATM"
+    },
+    "creator.legacy.option.target_types.server": {
+      "params": {},
+      "text": "Serwer"
+    },
+    "creator.legacy.option.target_types.router": {
+      "params": {},
+      "text": "Router"
+    },
+    "creator.legacy.option.target_types.player": {
+      "params": {},
+      "text": "Gracz"
+    },
+    "creator.legacy.option.target_types.pillar": {
+      "params": {},
+      "text": "Filar konfliktu"
+    },
+    "creator.legacy.option.target_types.vehicle": {
+      "params": {},
+      "text": "Pojazd"
+    },
+    "creator.legacy.option.target_types.person": {
+      "params": {},
+      "text": "Osoba"
+    },
+    "creator.legacy.option.target_types.phone": {
+      "params": {},
+      "text": "Telefon"
+    },
+    "creator.legacy.option.target_types.venue": {
+      "params": {},
+      "text": "Miejsce"
+    },
+    "creator.legacy.scanner.map.label": {
+      "params": {},
+      "text": "Scanner mapowy"
+    },
+    "creator.legacy.scanner.map.description": {
+      "params": {},
+      "text": "Rozpoznanie uruchamiane z mapy na konkretny obiekt."
+    },
+    "creator.legacy.scanner.desktop.label": {
+      "params": {},
+      "text": "Scanner desktopowy na oznaczony cel"
+    },
+    "creator.legacy.scanner.desktop.description": {
+      "params": {},
+      "text": "Rozpoznanie odpalane z pulpitu na aktualny aimed_target."
+    },
+    "creator.legacy.scanner.hybrid.label": {
+      "params": {},
+      "text": "Scanner hybrydowy"
+    },
+    "creator.legacy.scanner.hybrid.description": {
+      "params": {},
+      "text": "Narzędzie recon działające z mapy i z desktopu, bez wchodzenia w ścieżkę exploit/sniffer."
+    },
+    "creator.legacy.exploit.map.label": {
+      "params": {},
+      "text": "Exploit mapowy"
+    },
+    "creator.legacy.exploit.map.description": {
+      "params": {},
+      "text": "Symulowane wykorzystanie słabości celu uruchamiane z mapy w świecie gry."
+    },
+    "creator.legacy.exploit.desktop.label": {
+      "params": {},
+      "text": "Exploit desktopowy na oznaczony cel"
+    },
+    "creator.legacy.exploit.desktop.description": {
+      "params": {},
+      "text": "Symulowany wpływ na aktualny aimed_target bez automatycznego podpinania do menu mapy."
+    },
+    "creator.legacy.exploit.hybrid.label": {
+      "params": {},
+      "text": "Exploit hybrydowy"
+    },
+    "creator.legacy.exploit.hybrid.description": {
+      "params": {},
+      "text": "Narzędzie działające z mapy i desktopu, nadal w ramach symulowanego świata CHAOS."
+    },
+    "creator.legacy.sniffer.map.label": {
+      "params": {},
+      "text": "Sniffer mapowy"
+    },
+    "creator.legacy.sniffer.map.description": {
+      "params": {},
+      "text": "Symulowane zbieranie sygnałów lub danych przez operację uruchamianą z mapy."
+    },
+    "creator.legacy.sniffer.desktop.label": {
+      "params": {},
+      "text": "Sniffer desktopowy na oznaczony cel"
+    },
+    "creator.legacy.sniffer.desktop.description": {
+      "params": {},
+      "text": "Symulowany podgląd sygnałów aktualnego aimed_target bez obowiązkowego menu mapy."
+    },
+    "creator.legacy.sniffer.hybrid.label": {
+      "params": {},
+      "text": "Sniffer hybrydowy"
+    },
+    "creator.legacy.sniffer.hybrid.description": {
+      "params": {},
+      "text": "Narzędzie obserwacji działające z mapy i z desktopu w ramach operacji gry."
+    },
+    "creator.legacy.family.scanner_recon.label": {
+      "params": {},
+      "text": "Scanner / Recon / Namierzanie"
+    },
+    "creator.legacy.family.scanner_recon.boxTitle": {
+      "params": {},
+      "text": "Gdzie działa rozpoznanie lub namierzanie?"
+    },
+    "creator.legacy.family.scanner_recon.safetyText": {
+      "params": {},
+      "text": "Ta rodzina obejmuje skanowanie oraz tracer mapowy. Dla Namierz cel ustaw typ Tracer / namierzanie celu, akcję trace i operację generic_trace."
+    },
+    "creator.legacy.family.scanner_recon.desktopMapNote": {
+      "params": {},
+      "text": "Scanner desktopowy może nie mieć akcji mapy. Działa na aktualny aimed_target."
+    },
+    "creator.legacy.family.scanner_recon.mapNote": {
+      "params": {},
+      "text": "Cztery podstawowe akcje mapy to scan_ports, exploit, sniff i trace. W tej rodzinie utworzysz scan_ports albo Namierz cel (trace)."
+    },
+    "creator.legacy.family.exploit.label": {
+      "params": {},
+      "text": "Exploit"
+    },
+    "creator.legacy.family.exploit.boxTitle": {
+      "params": {},
+      "text": "Gdzie działa exploit?"
+    },
+    "creator.legacy.family.exploit.safetyText": {
+      "params": {},
+      "text": "Exploit w CHAOS oznacza symulowany wpływ na słabość systemu w świecie gry. Opisuj efekt gameplayowy, nie technikę."
+    },
+    "creator.legacy.family.exploit.desktopMapNote": {
+      "params": {},
+      "text": "Exploit desktopowy może nie mieć akcji mapy. Działa na aktualny aimed_target."
+    },
+    "creator.legacy.family.exploit.mapNote": {
+      "params": {},
+      "text": "Wybierz akcje mapy tylko wtedy, gdy narzędzie ma być widoczne w menu mapy."
+    },
+    "creator.legacy.family.sniffer.label": {
+      "params": {},
+      "text": "Sniffer"
+    },
+    "creator.legacy.family.sniffer.boxTitle": {
+      "params": {},
+      "text": "Gdzie działa sniffer?"
+    },
+    "creator.legacy.family.sniffer.safetyText": {
+      "params": {},
+      "text": "Sniffer w CHAOS oznacza symulowaną obserwację sygnałów lub danych w ramach operacji gry."
+    },
+    "creator.legacy.family.sniffer.desktopMapNote": {
+      "params": {},
+      "text": "Sniffer desktopowy może nie mieć akcji mapy. Działa na aktualny aimed_target."
+    },
+    "creator.legacy.family.sniffer.mapNote": {
+      "params": {},
+      "text": "Wybierz akcje mapy tylko wtedy, gdy sniffer ma być uruchamiany z mapy."
+    },
+    "creator.legacy.name": {
+      "params": {},
+      "text": "Nazwa"
+    },
+    "creator.legacy.price": {
+      "params": {},
+      "text": "Cena"
+    },
+    "creator.legacy.icon": {
+      "params": {},
+      "text": "Ikonka"
+    },
+    "creator.legacy.description": {
+      "params": {},
+      "text": "Opis"
+    },
+    "creator.legacy.type": {
+      "params": {},
+      "text": "Typ"
+    },
+    "creator.legacy.detects": {
+      "params": {},
+      "text": "Wykrywa"
+    },
+    "creator.legacy.interface": {
+      "params": {},
+      "text": "Interface"
+    },
+    "creator.legacy.custom": {
+      "params": {},
+      "text": "Ogólne narzędzie"
+    },
+    "creator.legacy.mode": {
+      "params": {},
+      "text": "Tryb narzędzia"
+    },
+    "creator.legacy.map": {
+      "params": {},
+      "text": "Mapowy"
+    },
+    "creator.legacy.desktop": {
+      "params": {},
+      "text": "Desktopowy na aimed_target"
+    },
+    "creator.legacy.hybrid": {
+      "params": {},
+      "text": "Hybrydowy"
+    },
+    "creator.legacy.family": {
+      "params": {},
+      "text": "Ścieżka kreatora"
+    },
+    "creator.legacy.back": {
+      "params": {},
+      "text": "Wstecz"
+    },
+    "creator.legacy.next": {
+      "params": {},
+      "text": "Dalej"
+    },
+    "creator.legacy.publish": {
+      "params": {},
+      "text": "Publikuj w Googleplex"
+    },
+    "creator.legacy.add_step": {
+      "params": {},
+      "text": "Dodaj krok"
+    },
+    "creator.legacy.add_level": {
+      "params": {},
+      "text": "Dodaj poziom terminala"
+    },
+    "creator.legacy.add_list": {
+      "params": {},
+      "text": "Dodaj wpis listy"
+    },
+    "creator.legacy.add_button": {
+      "params": {},
+      "text": "Dodaj przycisk"
+    },
+    "creator.legacy.add_option": {
+      "params": {},
+      "text": "Dodaj opcje"
+    },
+    "creator.legacy.weight": {
+      "params": {},
+      "text": "Waga aplikacji"
+    },
+    "creator.legacy.disk": {
+      "params": {},
+      "text": "Disk usage"
+    },
+    "creator.legacy.quality": {
+      "params": {},
+      "text": "Quality"
+    },
+    "creator.legacy.reliability": {
+      "params": {},
+      "text": "Reliability"
+    },
+    "creator.legacy.profile": {
+      "params": {},
+      "text": "profil twórcy"
+    },
+    "creator.legacy.runtime": {
+      "params": {},
+      "text": "runtime default"
+    },
+    "creator.legacy.json": {
+      "params": {},
+      "text": "Pokaż techniczny kontrakt JSON"
+    },
+    "creator.legacy.levels": {
+      "params": {},
+      "text": "levels[0]"
+    },
+    "creator.legacy.levels_many": {
+      "params": {},
+      "text": "levels[]"
+    },
+    "creator.legacy.title": {
+      "params": {},
+      "text": "title"
+    },
+    "creator.legacy.text": {
+      "params": {},
+      "text": "text"
+    },
+    "creator.legacy.command": {
+      "params": {},
+      "text": "command"
+    },
+    "creator.legacy.logs": {
+      "params": {},
+      "text": "logs"
+    },
+    "creator.legacy.step_label": {
+      "params": {},
+      "text": "step"
+    },
+    "creator.legacy.result_success": {
+      "params": {},
+      "text": "result_success"
+    },
+    "creator.legacy.result_failure": {
+      "params": {},
+      "text": "result_failure"
+    },
+    "creator.legacy.list": {
+      "params": {},
+      "text": "list[]"
+    },
+    "creator.legacy.button_label": {
+      "params": {},
+      "text": "button label"
+    },
+    "creator.legacy.action": {
+      "params": {},
+      "text": "action"
+    },
+    "creator.legacy.option_label": {
+      "params": {},
+      "text": "label"
+    },
+    "creator.legacy.effect": {
+      "params": {},
+      "text": "effect"
+    },
+    "creator.legacy.price_lower": {
+      "params": {},
+      "text": "price"
+    },
+    "creator.legacy.target_help": {
+      "params": {},
+      "text": "Wybierz obiekty świata, na których narzędzie może pracować."
+    },
+    "creator.legacy.action_help": {
+      "params": {},
+      "text": "To wpis widoczny w menu obiektu. Tryb desktopowy może pozostać bez akcji mapy."
+    },
+    "creator.legacy.operation_help": {
+      "params": {},
+      "text": "Określa gameplayowy skutek aplikacji uruchamianej z desktopu lub terminala."
+    },
+    "creator.legacy.resource_help": {
+      "params": {},
+      "text": "Wybierz dane, które operacja może przygotować w świecie gry."
+    },
+    "creator.legacy.filter_help": {
+      "params": {},
+      "text": "Wybierz rodzinę, aby dopasować kontrakt aplikacji."
+    },
+    "creator.legacy.publish_help": {
+      "params": {},
+      "text": "Publikacja używa istniejącego endpointu /api/apps/generate i katalogu Googleplex."
+    },
+    "creator.legacy.name_hint": {
+      "params": {},
+      "text": "Nazwa aplikacji"
+    },
+    "creator.legacy.description_hint": {
+      "params": {},
+      "text": "Co robi aplikacja?"
+    },
+    "creator.legacy.terminal_logs_hint": {
+      "params": {},
+      "text": "Jedna linia = jeden log"
+    },
+    "creator.legacy.panel_hint": {
+      "params": {},
+      "text": "Panel aplikacji"
+    },
+    "creator.legacy.list_hint": {
+      "params": {},
+      "text": "Linia statusu"
+    },
+    "creator.legacy.run_hint": {
+      "params": {},
+      "text": "Uruchom"
+    },
+    "creator.legacy.mode_hint": {
+      "params": {},
+      "text": "Wybierz tryb"
+    },
+    "creator.legacy.choice_hint": {
+      "params": {},
+      "text": "Opis wyboru dla gracza"
+    },
+    "creator.legacy.progress_title_hint": {
+      "params": {},
+      "text": "MemoryOverflow - Przepelnienie pamieci"
+    },
+    "creator.legacy.success_hint": {
+      "params": {},
+      "text": "Operacja zakonczona powodzeniem."
+    },
+    "creator.legacy.failure_hint": {
+      "params": {},
+      "text": "Operacja zablokowana."
+    },
+    "creator.legacy.step_hint": {
+      "params": {},
+      "text": "Wysylanie danych testowych..."
+    },
+    "creator.legacy.detect_hint": {
+      "params": {},
+      "text": "np. open_ports, user_location"
+    },
+    "creator.legacy.legacy_name_hint": {
+      "params": {},
+      "text": "np. NullTrace"
+    },
+    "creator.legacy.list_lines": {
+      "params": {},
+      "text": "Jedna linia = jeden wpis listy"
+    },
+    "creator.legacy.logs_lines": {
+      "params": {},
+      "text": "Jedna linia = jeden log terminala"
+    },
+    "creator.legacy.progress_lines": {
+      "params": {},
+      "text": "Jedna linia = jeden krok progressbara"
+    },
+    "creator.legacy.mode_action_hint": {
+      "params": {},
+      "text": "Wybierz tryb działania"
+    },
+    "creator.legacy.progress_hint": {
+      "params": {},
+      "text": "Wykonywanie operacji"
+    },
+    "creator.legacy.success_unicode_hint": {
+      "params": {},
+      "text": "Operacja zakończona powodzeniem."
+    },
+    "creator.legacy.family_question": {
+      "params": {},
+      "text": "Jaki rodzaj narzędzia chcesz stworzyć? "
+    },
+    "creator.legacy.catalog_question": {
+      "params": {},
+      "text": "Jak ma byc opisane w katalogu? "
+    },
+    "creator.legacy.detect_question": {
+      "params": {},
+      "text": "Jakie ślady lub sygnały rozpoznaje? "
+    },
+    "creator.legacy.detect_example": {
+      "params": {},
+      "text": "np. otwarte usługi, ruch celu"
+    },
+    "creator.legacy.target_question": {
+      "params": {},
+      "text": "Jakim obiektem chcesz się zająć?"
+    },
+    "creator.legacy.launch_question": {
+      "params": {},
+      "text": "Skąd gracz ma uruchamiać narzędzie?"
+    },
+    "creator.legacy.action_question": {
+      "params": {},
+      "text": "Co ma zrobić Twoje narzędzie?"
+    },
+    "creator.legacy.information_question": {
+      "params": {},
+      "text": "Jakich informacji ma szukać?"
+    },
+    "creator.legacy.conflict_question": {
+      "params": {},
+      "text": "Z czym może kolidować?"
+    },
+    "creator.legacy.requires_question": {
+      "params": {},
+      "text": "Co powinno być wyłączone?"
+    },
+    "creator.legacy.disable_question": {
+      "params": {},
+      "text": "Co narzędzie potrafi wyłączyć?"
+    },
+    "creator.legacy.affects_question": {
+      "params": {},
+      "text": "Na co wpływa po stronie gracza?"
+    },
+    "creator.legacy.unnamed": {
+      "params": {},
+      "text": "Bez nazwy"
+    },
+    "creator.legacy.general": {
+      "params": {},
+      "text": "Ogólne narzędzie"
+    },
+    "creator.legacy.not_selected": {
+      "params": {},
+      "text": "Nie wybrano"
+    },
+    "creator.legacy.none": {
+      "params": {},
+      "text": "Brak"
+    },
+    "creator.legacy.app": {
+      "params": {},
+      "text": "Aplikacja"
+    },
+    "creator.legacy.family_label": {
+      "params": {},
+      "text": "Rodzina"
+    },
+    "creator.legacy.target": {
+      "params": {},
+      "text": "Cel"
+    },
+    "creator.legacy.start": {
+      "params": {},
+      "text": "Start"
+    },
+    "creator.legacy.map_actions": {
+      "params": {},
+      "text": "Akcje mapy"
+    },
+    "creator.legacy.operations": {
+      "params": {},
+      "text": "Operacje"
+    },
+    "creator.legacy.information": {
+      "params": {},
+      "text": "Informacje"
+    },
+    "creator.legacy.conflicts": {
+      "params": {},
+      "text": "Kolizje"
+    },
+    "creator.legacy.requires": {
+      "params": {},
+      "text": "Wymaga wyłączenia"
+    },
+    "creator.legacy.disables": {
+      "params": {},
+      "text": "Może wyłączyć"
+    },
+    "creator.legacy.affects": {
+      "params": {},
+      "text": "Wpływ na gracza"
+    },
+    "creator.legacy.presentation": {
+      "params": {},
+      "text": "Prezentacja"
+    },
+    "creator.legacy.general_mode": {
+      "params": {},
+      "text": "ogólny"
+    },
+    "creator.legacy.name_error": {
+      "params": {},
+      "text": "Krok 1 · Nazwa: wpisz niepustą nazwę aplikacji."
+    },
+    "creator.legacy.target_error": {
+      "params": {},
+      "text": "Krok 3 · Cel: wybierz co najmniej jeden rodzaj celu zgodny z rodziną."
+    },
+    "creator.legacy.map_error": {
+      "params": {},
+      "text": "Krok 4 · Start: tryb mapowy lub hybrydowy wymaga akcji mapy; wybierz akcję albo tryb desktopowy."
+    },
+    "creator.legacy.operation_error": {
+      "params": {},
+      "text": "Krok 5 · Działanie: wybierz co najmniej jedną operację zgodną z celem i akcją."
+    },
+    "creator.legacy.mode_help": {
+      "params": {},
+      "text": "Wybierz ścieżkę kreatora, żeby zawęzić kontrakt do sensownych pól."
+    },
+    "creator.legacy.general_help": {
+      "params": {},
+      "text": "Tryb ogólny pokazuje cały kontrakt aplikacji."
+    },
+    "creator.legacy.filtered": {
+      "params": {},
+      "text": "Opcje są dopasowane do wybranej rodziny, celu i akcji."
+    },
+    "creator.legacy.publishing": {
+      "params": {},
+      "text": "Publikowanie..."
+    },
+    "creator.legacy.publish_failed": {
+      "params": {},
+      "text": "Nie udalo sie opublikowac."
+    },
+    "creator.legacy.policy_failed": {
+      "params": {},
+      "text": "Brak polityki kreatora."
+    },
+    "creator.legacy.invalid_icon": {
+      "params": {},
+      "text": "Wybierz dokładnie jedną ikonę aplikacji."
+    },
+    "creator.legacy.contract_help.interferes_with": {
+      "params": {},
+      "text": "Aktywne zabezpieczenia, które mogą zakłócić pracę."
+    },
+    "creator.legacy.contract_help.requires_off": {
+      "params": {},
+      "text": "Warunki konieczne przed uruchomieniem."
+    },
+    "creator.legacy.contract_help.disables": {
+      "params": {},
+      "text": "Zabezpieczenia wyłączane przez operację."
+    },
+    "creator.legacy.contract_help.affects": {
+      "params": {},
+      "text": "Lokalny wpływ na profil lub rozgrywkę."
+    },
+    "creator.legacy.filtered_count": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Dopasowano opcje. Wyczyszczono niezgodne wybory: {count}."
+    },
+    "creator.legacy.published_file": {
+      "params": {
+        "file": "string"
+      },
+      "text": "Projekt zapisany w files/projects/{file}"
+    },
+    "creator.legacy.invalid_name": {
+      "params": {},
+      "text": "Nazwa aplikacji nie może zawierać średnika (;)."
     }
   }
 }

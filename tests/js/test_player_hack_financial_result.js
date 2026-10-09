@@ -3,7 +3,7 @@ const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync('static/js/terminal.js', 'utf8');
 const content = { innerHTML: '' };
-const message = { textContent: '' };
+const message = { textContent: '', dataset:{}, set innerHTML(value) { this.textContent = value.replace(/<[^>]*>/g, ''); } };
 let requests = 0;
 let refreshes = 0;
 let toolbarRefreshes = 0;
@@ -30,6 +30,7 @@ const sandbox = {
     }
 };
 vm.createContext(sandbox);
+require('./locale_fixture')(sandbox);
 const renderStart = source.indexOf('function renderFinancialSnifferResult(');
 const renderEnd = source.indexOf('window.openFinancialSnifferApp', renderStart);
 vm.runInContext(source.slice(renderStart, renderEnd), sandbox);

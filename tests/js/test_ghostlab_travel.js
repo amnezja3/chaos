@@ -8,7 +8,9 @@ function extract(name) {
     return source.slice(start, end);
 }
 class Node {
-    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.events = {}; }
+    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.events = {}; this.dataset = {}; }
+    set innerHTML(value) { this.html = value; this.children = []; this.text = String(value).replace(/<[^>]*>/g, '').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'); }
+    get innerHTML() { return this.html || ''; }
     set textContent(value) { this.text = value; this.children = []; }
     get textContent() { return this.text || ''; }
     append(...nodes) { this.children.push(...nodes); }
@@ -21,6 +23,7 @@ const state = {success:true,offer:{destination:{place_name:'<img onerror=bad>',c
     counts:{bad:0,happy:0,very_happy:0},historical_counts:{bad:2,happy:0,very_happy:0},mine:null,reaction_receipt:null};
 const calls = [];
 const context = {document:{createElement:tag => new Node(tag)},encodeURIComponent,
+    escapeHTML: value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),
     fetch:async(url,options) => {
         calls.push({url,options});
         if (options?.method === 'POST') {
@@ -32,6 +35,7 @@ const context = {document:{createElement:tag => new Node(tag)},encodeURIComponen
         return {ok:true,json:async()=>state};
     }};
 vm.createContext(context);
+require('./locale_fixture')(context);
 vm.runInContext(extract('mountTravelTicketReactions'),context);
 (async()=>{
     const card = new Node('article');
@@ -58,6 +62,7 @@ vm.runInContext(extract('mountTravelTicketReactions'),context);
     assert(card.querySelectorAll('p').some(p=>p.textContent.includes('Nie możesz ocenić własnego biletu.')));
     assert(calls.every(c=>c.url.startsWith('/api/travel-tickets/')),'feedback never loads a profile');
     const publisher = {escapeHTML:String}; vm.createContext(publisher);
+    require('./locale_fixture')(publisher);
     vm.runInContext(extract('renderGhostLabPublisherPipeline'),publisher);
     const html = publisher.renderGhostLabPublisherPipeline({template_id:'travel_ticket',status:'published',revision:1,
         artifact:{artifact_id:'a',version:1},published_artifact_id:'a',publisher_contract:{runtime_status:'purchase_travel'}});

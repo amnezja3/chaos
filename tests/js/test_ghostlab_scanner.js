@@ -4,7 +4,7 @@ function fixture() {
     let sequence=0, audioContext=null;
     const timers=new Map();
     const nodes={};
-    const node=s=>nodes[s] ||= {textContent:'',isConnected:true,addEventListener(_,fn){this.onclick=fn;}};
+    const node=s=>nodes[s] ||= {dataset:{},textContent:'',isConnected:true,addEventListener(_,fn){this.onclick=fn;}};
     const app={isConnected:true,style:{},scrollIntoView(){},querySelector(){return {focus(){}};}};
     const body={innerHTML:'',querySelector:node};
     const presentation={app_id:'one',artifact_id:'build1',name:'Scanner',menu_name:'Czesacz',icon:'X',
@@ -19,7 +19,7 @@ function fixture() {
             if(fail) throw Error('offline');
             return {ok:true,json:async()=>({success:true,token:'token-one',ttl:35,presentation})};},
         window:{addEventListener(){},GameSfx:{unlock(){},play(_,context){plays++;audioContext=context;return {stop(){stops++;context.on_end?.();}};}}}};
-    vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner.js','utf8'),ctx);
+    vm.createContext(ctx); require("./locale_fixture")(ctx); vm.runInContext(fs.readFileSync('static/js/ghostlab_scanner.js','utf8'),ctx);
     const api=ctx.window.DeepScanner;
     const data={product:{id:'one',runtime_enabled:true,description:'safe',installed_version:1}};
     return {ctx,api,app,body,data,posts,callbacks,nodes,timers,ended:()=>audioContext.on_end(),plays:()=>plays,stops:()=>stops,

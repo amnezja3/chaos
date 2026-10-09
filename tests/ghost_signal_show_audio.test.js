@@ -47,7 +47,9 @@ const context={Audio,console,Date:{now:()=>now},document:{readyState:'loading',q
     localStorage:{getItem:()=>null},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
     fetch:async()=>({ok:true,json:async()=>({channel:{schema:1,name:'Radio'},tracks:[{file:'normal.mp3'}]})})};
 context.window=context;
-vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/js/ghost_radio.js'),'utf8'),context);
+vm.createContext(context);
+require('./js/locale_fixture')(context);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/ghost_radio.js'),'utf8'),context);
 const radio=context.GhostRadio;
 (async()=>{
     await radio.playTrack('normal');

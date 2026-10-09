@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "locale": "en",
   "messages": {
     "common.unavailable": {
@@ -74,6 +74,14 @@
         "name": "string"
       },
       "text": "Welcome, {name}."
+    },
+    "common.yes": {
+      "params": {},
+      "text": "yes"
+    },
+    "common.no": {
+      "params": {},
+      "text": "no"
     }
   }
 }

@@ -1,0 +1,565 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "shop.validation": {
+      "params": {},
+      "text": "Dane produktu nie przeszły walidacji."
+    },
+    "shop.search_exchange": {
+      "params": {},
+      "text": "Szukaj danych, kategorii rynku, zasobów…"
+    },
+    "shop.search_blacknet": {
+      "params": {},
+      "text": "Szukaj sygnałów, źródeł, ryzyka…"
+    },
+    "shop.category": {
+      "params": {},
+      "text": "Kategoria"
+    },
+    "shop.all_categories": {
+      "params": {},
+      "text": "Wszystkie kategorie"
+    },
+    "shop.search": {
+      "params": {},
+      "text": "Szukaj produktów… /all — pokaż wszystkie"
+    },
+    "shop.loading": {
+      "params": {},
+      "text": "Ładowanie katalogu…"
+    },
+    "shop.load_failed": {
+      "params": {},
+      "text": "Nie udało się pobrać katalogu."
+    },
+    "shop.empty": {
+      "params": {},
+      "text": "Brak pasujących produktów. Zmień kategorię lub wpisane hasło."
+    },
+    "shop.all_products": {
+      "params": {},
+      "text": "Wszystkie produkty"
+    },
+    "shop.results": {
+      "params": {},
+      "text": "Wyniki wyszukiwania"
+    },
+    "shop.products": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Produkty: {count}"
+    },
+    "shop.owned": {
+      "params": {},
+      "text": "Ten produkt jest już kupiony."
+    },
+    "shop.purchased": {
+      "params": {},
+      "text": "Produkt kupiony."
+    },
+    "shop.installed": {
+      "params": {},
+      "text": "Aplikacja zainstalowana."
+    },
+    "shop.buy": {
+      "params": {},
+      "text": "Kup"
+    },
+    "shop.install": {
+      "params": {},
+      "text": "Zainstaluj"
+    },
+    "shop.free": {
+      "params": {},
+      "text": "Pobierz bezpłatnie"
+    },
+    "shop.buy_document": {
+      "params": {},
+      "text": "Kup i pobierz"
+    },
+    "shop.no_funds": {
+      "params": {},
+      "text": "Brak środków."
+    },
+    "shop.no_risk": {
+      "params": {},
+      "text": "brak"
+    },
+    "shop.balance_required": {
+      "params": {
+        "price": "number",
+        "balance": "number"
+      },
+      "text": "Brak HC. Cena: {price}, masz: {balance}."
+    },
+    "shop.level_required": {
+      "params": {
+        "level": "number"
+      },
+      "text": "Wymagany poziom {level}."
+    },
+    "shop.respect_required": {
+      "params": {
+        "respect": "number"
+      },
+      "text": "Wymagany Respect {respect}."
+    },
+    "shop.faction_required": {
+      "params": {},
+      "text": "Produkt niedostępny dla Twojej frakcji."
+    },
+    "shop.requirements": {
+      "params": {},
+      "text": "Nie spełniono warunków zakupu lub instalacji. Sprawdź wymagania produktu."
+    },
+    "shop.session_expired": {
+      "params": {},
+      "text": "Sesja wygasła. Zaloguj się ponownie."
+    },
+    "shop.not_found": {
+      "params": {},
+      "text": "Nie znaleziono produktu w katalogu."
+    },
+    "shop.withdrawn": {
+      "params": {},
+      "text": "Produkt został wycofany ze sprzedaży."
+    },
+    "shop.offer_changed": {
+      "params": {},
+      "text": "Oferta zmieniła się. Odśwież katalog i potwierdź aktualną cenę oraz wersję."
+    },
+    "shop.untrusted": {
+      "params": {},
+      "text": "Brak zatwierdzonej publikacji produktu."
+    },
+    "shop.recovery": {
+      "params": {},
+      "text": "Stan konta wymaga odzyskania. Odśwież sesję."
+    },
+    "shop.failed": {
+      "params": {},
+      "text": "Nie udało się zakończyć zakupu lub instalacji."
+    },
+    "shop.offline": {
+      "params": {},
+      "text": "Błąd połączenia. Wynik zakupu niepotwierdzony; ponowienie zachowa klucz transakcji."
+    },
+    "shop.document_ready": {
+      "params": {},
+      "text": "Dokument pobrany do Pliki → Plexcak."
+    },
+    "shop.travel_ready": {
+      "params": {},
+      "text": "Podróż zakończona."
+    },
+    "shop.travel": {
+      "params": {},
+      "text": "Podróż"
+    },
+    "shop.installation": {
+      "params": {},
+      "text": "Instalacja"
+    },
+    "shop.installing": {
+      "params": {},
+      "text": "Instalowanie…"
+    },
+    "shop.no_description": {
+      "params": {},
+      "text": "Brak opisu."
+    },
+    "shop.application": {
+      "params": {},
+      "text": "Aplikacja"
+    },
+    "shop.downloads": {
+      "params": {},
+      "text": "pobrań"
+    },
+    "shop.price": {
+      "params": {},
+      "text": "Cena"
+    },
+    "shop.soft_limit": {
+      "params": {},
+      "text": "ponad limit miękki"
+    },
+    "shop.step.document": {
+      "params": {},
+      "text": "Pobieranie dokumentu PTK do File Managera…"
+    },
+    "shop.step.travel": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Przygotowanie podróży: {name}"
+    },
+    "shop.step.start": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Rozpoczynanie instalacji: {name}"
+    },
+    "shop.step.download": {
+      "params": {},
+      "text": "Pobieranie plików…"
+    },
+    "shop.step.components": {
+      "params": {},
+      "text": "Instalacja składników…"
+    },
+    "shop.step.register": {
+      "params": {},
+      "text": "Rejestracja aplikacji w systemie…"
+    },
+    "shop.step.finish": {
+      "params": {},
+      "text": "Finalizacja…"
+    },
+    "shop.confirm.travel": {
+      "params": {},
+      "text": "Potwierdzenie podróży"
+    },
+    "shop.confirm.travel_message": {
+      "params": {
+        "destination": "string"
+      },
+      "text": "Kupić bilet i przenieść operatora do: {destination}?"
+    },
+    "shop.confirm.purchase": {
+      "params": {},
+      "text": "Potwierdzenie zakupu"
+    },
+    "shop.confirm.message": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Kupić i zainstalować: {name}?"
+    },
+    "shop.confirm.details": {
+      "params": {
+        "name": "string",
+        "price": "number"
+      },
+      "text": "{name} kosztuje {price} HC. Anulowanie nie pobierze HC ani nie zmieni stanu konta."
+    },
+    "shop.confirm.buy": {
+      "params": {},
+      "text": "Kup i zainstaluj"
+    },
+    "shop.cancelled": {
+      "params": {},
+      "text": "Zakup anulowany."
+    },
+    "shop.category.tools": {
+      "params": {},
+      "text": "Narzędzia"
+    },
+    "shop.category.documents": {
+      "params": {},
+      "text": "Dokumenty"
+    },
+    "shop.category.travel_ticket": {
+      "params": {},
+      "text": "Bilety"
+    },
+    "shop.category.storage_upgrade": {
+      "params": {},
+      "text": "Dysk"
+    },
+    "shop.category.map": {
+      "params": {},
+      "text": "Mapa i skan"
+    },
+    "shop.category.bike_upgrade": {
+      "params": {},
+      "text": "Pojazd"
+    },
+    "shop.category.other": {
+      "params": {},
+      "text": "Pozostałe"
+    },
+    "shop.spec.level": {
+      "params": {},
+      "text": "Poziom"
+    },
+    "shop.spec.family": {
+      "params": {},
+      "text": "Rodzina"
+    },
+    "shop.spec.mode": {
+      "params": {},
+      "text": "Tryb"
+    },
+    "shop.spec.product": {
+      "params": {},
+      "text": "Produkt"
+    },
+    "shop.spec.category": {
+      "params": {},
+      "text": "Kategoria"
+    },
+    "shop.spec.effect": {
+      "params": {},
+      "text": "Efekt"
+    },
+    "shop.spec.tier": {
+      "params": {},
+      "text": "Klasa"
+    },
+    "shop.spec.open-source": {
+      "params": {},
+      "text": "Dostęp"
+    },
+    "shop.spec.audience": {
+      "params": {},
+      "text": "Publikacja"
+    },
+    "shop.spec.map": {
+      "params": {},
+      "text": "Mapa"
+    },
+    "shop.spec.ops": {
+      "params": {},
+      "text": "Operacje"
+    },
+    "shop.spec.data": {
+      "params": {},
+      "text": "Dane"
+    },
+    "shop.spec.weight": {
+      "params": {},
+      "text": "Waga"
+    },
+    "shop.spec.install": {
+      "params": {},
+      "text": "Instalacja"
+    },
+    "shop.spec.quality": {
+      "params": {},
+      "text": "Jakość"
+    },
+    "shop.spec.reliability": {
+      "params": {},
+      "text": "Niezawodność"
+    },
+    "shop.spec.creator": {
+      "params": {},
+      "text": "Moc twórcy"
+    },
+    "shop.spec.power": {
+      "params": {},
+      "text": "Moc"
+    },
+    "shop.spec.price-hint": {
+      "params": {},
+      "text": "Cena sugerowana"
+    },
+    "shop.effect.travel_city": {
+      "params": {
+        "city": "string"
+      },
+      "text": "Miasto: {city}"
+    },
+    "shop.effect.storage_capacity_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Dysk +{value} MB"
+    },
+    "shop.effect.map_zoom_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Zoom +{value}"
+    },
+    "shop.effect.scan_range_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Skan +{value} m"
+    },
+    "shop.effect.bike_range_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Pojazd +{value} m"
+    },
+    "shop.open_source": {
+      "params": {},
+      "text": "Open Source · bezpłatnie"
+    },
+    "shop.clan_only": {
+      "params": {},
+      "text": "Tylko dla klanu"
+    },
+    "shop.global": {
+      "params": {},
+      "text": "Globalnie"
+    },
+    "shop.reaction.loading": {
+      "params": {},
+      "text": "Ładowanie reakcji podróżujących…"
+    },
+    "shop.reaction.authored": {
+      "params": {},
+      "text": "Miejsce deklarowane przez autora."
+    },
+    "shop.reaction.instant": {
+      "params": {},
+      "text": "Jeden zakup = jedna natychmiastowa podróż."
+    },
+    "shop.reaction.current": {
+      "params": {},
+      "text": "Reakcje dotyczą obecnego miejsca."
+    },
+    "shop.reaction.empty": {
+      "params": {},
+      "text": "Brak ocen obecnego miejsca."
+    },
+    "shop.reaction.bad": {
+      "params": {},
+      "text": "😠 Zły"
+    },
+    "shop.reaction.happy": {
+      "params": {},
+      "text": "🙂 Zadowolony"
+    },
+    "shop.reaction.very_happy": {
+      "params": {},
+      "text": "🤩 Bardzo zadowolony"
+    },
+    "shop.reaction.failed": {
+      "params": {},
+      "text": "Reakcje chwilowo niedostępne. Spróbuj ponownie."
+    },
+    "shop.reaction.own": {
+      "params": {},
+      "text": "Nie możesz ocenić własnego biletu."
+    },
+    "shop.reaction.change": {
+      "params": {},
+      "text": "Możesz zmienić reakcję; nadal liczony jest jeden głos."
+    },
+    "shop.reaction.travel_required": {
+      "params": {},
+      "text": "Ocena będzie dostępna po odbytej podróży."
+    },
+    "shop.reaction.history": {
+      "params": {},
+      "text": "Poprzednie miejsca:"
+    },
+    "shop.reaction.retry": {
+      "params": {},
+      "text": "Odśwież reakcje"
+    },
+    "shop.value.Basic": {
+      "params": {},
+      "text": "Podstawowy"
+    },
+    "shop.value.Advanced": {
+      "params": {},
+      "text": "Zaawansowany"
+    },
+    "shop.value.Pro": {
+      "params": {},
+      "text": "Profesjonalny"
+    },
+    "shop.value.Elite": {
+      "params": {},
+      "text": "Elitarny"
+    },
+    "shop.value.Legendary": {
+      "params": {},
+      "text": "Legendarny"
+    },
+    "shop.value.tool": {
+      "params": {},
+      "text": "Narzędzie"
+    },
+    "shop.value.scanner": {
+      "params": {},
+      "text": "Skaner"
+    },
+    "shop.value.tracker": {
+      "params": {},
+      "text": "Śledzenie"
+    },
+    "shop.value.creator": {
+      "params": {},
+      "text": "Kreator"
+    },
+    "shop.value.system_lab": {
+      "params": {},
+      "text": "Laboratorium systemowe"
+    },
+    "shop.value.pro-system-tool": {
+      "params": {},
+      "text": "Narzędzie systemowe Pro"
+    },
+    "shop.value.pro-system-tools": {
+      "params": {},
+      "text": "Narzędzia systemowe Pro"
+    },
+    "shop.value.travel_ticket": {
+      "params": {},
+      "text": "Bilet podróży"
+    },
+    "shop.value.storage_upgrade": {
+      "params": {},
+      "text": "Rozbudowa dysku"
+    },
+    "shop.value.map_upgrade": {
+      "params": {},
+      "text": "Ulepszenie mapy"
+    },
+    "shop.value.scan_upgrade": {
+      "params": {},
+      "text": "Zasięg skanu"
+    },
+    "shop.value.bike_upgrade": {
+      "params": {},
+      "text": "Zasięg pojazdu"
+    },
+    "shop.value.storage": {
+      "params": {},
+      "text": "Dysk"
+    },
+    "shop.value.travel": {
+      "params": {},
+      "text": "Podróż"
+    },
+    "shop.value.map": {
+      "params": {},
+      "text": "Mapa"
+    },
+    "shop.value.hybrid": {
+      "params": {},
+      "text": "Hybrydowy"
+    },
+    "shop.value.desktop": {
+      "params": {},
+      "text": "Pulpit"
+    },
+    "shop.value.recon": {
+      "params": {},
+      "text": "Rozpoznanie"
+    },
+    "shop.value.camera_tool": {
+      "params": {},
+      "text": "Narzędzie kamery"
+    },
+    "shop.value.creators": {
+      "params": {},
+      "text": "Kreatory"
+    },
+    "shop.value.pro-system-lab": {
+      "params": {},
+      "text": "Laboratorium systemowe"
+    }
+  }
+}

@@ -55,14 +55,14 @@ class CreatorUxContractTest(unittest.TestCase):
 
     def test_preview_separates_player_summary_from_raw_contract(self):
         self.assertIn("data-creator-player-summary", self.source)
-        self.assertIn("Pokaż techniczny kontrakt JSON", self.source)
+        self.assertIn('ghostLabel("creator.legacy.json")', self.source)
         self.assertIn("creatorOptionDescriptor(fieldName, value).label", self.source)
 
     def test_context_validation_routes_user_to_repair_step(self):
         self.assertIn("function validateCreatorContext", self.source)
-        self.assertIn("Krok 3 · Cel", self.source)
-        self.assertIn("Krok 4 · Start", self.source)
-        self.assertIn("Krok 5 · Działanie", self.source)
+        self.assertIn('invalid(2, "target_types", ghostText("creator.legacy.target_error"))', self.source)
+        self.assertIn('invalid(3, "map_actions", ghostText("creator.legacy.map_error"))', self.source)
+        self.assertIn('invalid(4, "operation_types", ghostText("creator.legacy.operation_error"))', self.source)
         self.assertIn("creator:goto-step", self.source)
 
     def test_wizard_exposes_dynamic_accessibility_state(self):

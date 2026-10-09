@@ -1,8 +1,77 @@
 # Sprint 154 — Ghost System: aplikacje, narzędzia i katalogi PL/EN
 
-Status: **W TOKU**, rozpoczęty 7 X 2026. Po produkcyjnym PASS
+Status: **IMPLEMENTACJA DOMKNIĘTA LOKALNIE — 154.7.0**, 8 X 2026.
+Oczekuje wdrożenia i odbioru produkcyjnego. Po produkcyjnym PASS
 [153](sprint_153_ghost_system_i18n_foundation.md), przed
 [155](sprint_155_ghost_system_content_acceptance.md).
+
+## Aktualny przyrost: 154.7.0
+
+**2833 klucze PL/EN w 13 domenach.** Pozostałe workspace’y, systemowe katalogi,
+zakup/instalacja/aktualizacja/użycie, sześć rodzin PvP, serwis, cztery kreatory
+wraz ze starszym fallbackiem oraz historyczne instalacje mają wspólną warstwę
+prezentacji. Nie zmieniamy ID produktów, opłat, receiptów ani tekstów graczy.
+
+Szczegółowy zakres i ograniczenia testów opisuje
+[macierz odbioru 154.7.0](../audits/sprint_154_acceptance.md).
+Regresja frontendu: `node tools/check_sprint154.cjs`, **30/30 PASS**.
+Końcowy wspólny przebieg backendu: **287/287 PASS** na izolowanych bazach.
+Playwright: rzeczywiste renderery na izolowanym pulpicie, PL/EN, mobile,
+zmiana języka przy otwartym formularzu/instalatorze, niezmienne payloady i UGC.
+Regresje backendu używają izolowanych baz i kanonicznych transakcji.
+
+EN pozostaje testowe do końca 155. Narracje, trwałe zdarzenia, ich historia,
+sceny/media i dokumenty systemowe pozostają w wcześniej uzgodnionym 155.
+149–152 nadal zamrożone. **154.7.0 lokalnie, bez commita/pushu/wdrożenia.**
+Poniższe wpisy są historią przyrostów; ich dawne listy otwartych prac nie
+zastępują aktualnej macierzy odbioru.
+
+## Historia: odbiór 154.5.0 i lokalny przyrost 154.6.0
+
+Autor potwierdził wdrożenie `61f8c63`, manifest `154.5.0`, a następnie
+**PASS produkcyjny zakresu 154.5.0** i zgodę na dalsze prace. Nie jest to
+zamknięcie całego sprintu ani pełna wersja EN.
+
+Lokalnie `154.6.0`: 886 klucze w 10 domenach. Odpowiedzi `/map-action`
+i `/api/map/aim-target` otrzymują jawne klucze i parametry komunikatów
+wyboru/oznaczenia celu, skanu, błędów pozycji, zasięgu, nieaktualności celu,
+ochrony terenu i podróży. Dotychczasowe statusy HTTP, status/error/scan_outcome,
+markery, ID i współrzędne zachowane. Polski wynik skanu ma reguły liczby mnogiej.
+Frontend korzysta z nowej koperty; niezgodna wersja zachowuje kompatybilny
+komunikat. Parametry nazw i autorskie logi skanerów są escapowane.
+
+Testy katalogów, marked-target hot path i skanerów PASS; trzy zestawy JS PASS.
+Playwright `map_results_locale.js`: rzeczywiste funkcje wyboru celu i obsługi
+wyników z izolowanymi integracjami/API, identyczne żądania PL/EN, nazwy z HTML,
+błąd upstream, brak zasięgu, autorski log i deduplikacja. To nie jest pełny
+skan świata ani test podróży. Brak pushu/wdrożenia 154.6.0.
+Pozostałe wyniki narzędzi, dialogi i warstwy mapy nadal wymagają migracji;
+historia trwałych komunikatów pozostaje w 155.
+
+Kolejny przyrost lokalny:
+
+- Radio: PL/EN/ANY, niezależny zapis filtra, bez przeładowania audio przy zmianie
+  języka, pusty stan z jawnym ANY, język audycji, metadane kanałów/programów,
+  blokada niezgodnych nagrań w kanale PL/EN, diagnostyka panelu administratora.
+  Istniejące 34 nagrania zinwentaryzowane bez zgadywania języka z nazwy.
+  Autor potwierdził PL dla wszystkich 9 audycji BlackNet Radio; kanał ma PL.
+  Pozostałe 25 nagrań muzycznych ma `unknown` i dostępność pod ANY.
+- Dev Bug Reporter: formularz, kategorie/ważność, błędy i potwierdzenie PL/EN;
+  wartości kategorii, szkic oraz treść zgłoszenia nie zmieniają się z językiem.
+- Operation Control: widok operacji, grupy, ryzyko, pliki, historia, puste stany,
+  dialogi anulowania i koperty API PL/EN. Anulowanie używa tych samych ID;
+  rezygnacja w dialogu nie wysyła żądania. Błąd sieci zwalnia blokadę przycisków.
+- Playwright: `radio_locale.js`, `bug_report_locale.js`,
+  `operation_control_locale.js` PASS na izolowanym desktopie, z mockami API;
+  radio używa atrapy Audio do sprawdzenia niezmienności źródła/czasu. Sprawdzono
+  mobile 390 px i brak wyjątków JS. API i reguły operacji testowane osobno.
+- Końcowa regresja: 39 testów Python radia/admina/operacji/zgłoszeń/i18n PASS.
+  Testy JS runtime języków, menu akcji oraz ścieżki audio Ghost Signal Show PASS.
+
+**Pełny sprint pozostaje otwarty:** Territory Control, Victim Picker,
+Ghost Network Suite/Signal Registry/Sender, pozostałe workspace'y,
+katalogi produktów i ich pełne ścieżki zakupu/instalacji/użycia/aktualizacji,
+pozostałe dialogi i nazwy mapy oraz macierz odbioru całego zakresu.
 
 7 X: przyrost `154.5.0` przygotowany do wdrożenia na prośbę autora.
 Końcowa wspólna regresja: 78 testów Python i dziewięć zestawów JS PASS.

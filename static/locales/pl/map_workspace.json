@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "messages": {
     "map.workspace.scan": {
       "params": {},
@@ -206,6 +206,615 @@
     "map.security.access_level": {
       "params": {},
       "text": "Dostęp"
+    },
+    "map.result.not_logged_in": {
+      "params": {},
+      "text": "Zaloguj się."
+    },
+    "map.result.invalid_coordinates": {
+      "params": {},
+      "text": "Nieprawidłowe współrzędne."
+    },
+    "map.result.missing_label": {
+      "params": {},
+      "text": "Brakuje nazwy celu."
+    },
+    "map.result.profile_not_found": {
+      "params": {},
+      "text": "Nie znaleziono gracza."
+    },
+    "map.result.missing_target_data": {
+      "params": {},
+      "text": "Brakuje danych celu."
+    },
+    "map.result.projection": {
+      "params": {},
+      "text": "Skanowanie niedostępne: odśwież pozycję gracza."
+    },
+    "map.result.out_of_range": {
+      "params": {},
+      "text": "🔍 Skanowanie nieudane. Cel poza zasięgiem."
+    },
+    "map.result.upstream": {
+      "params": {},
+      "text": "Nie udało się pobrać danych mapy. Spróbuj ponownie."
+    },
+    "map.result.already_captured": {
+      "params": {},
+      "text": "Ten obiekt jest już przejęty."
+    },
+    "map.result.vulnerability_expired": {
+      "params": {},
+      "text": "Ta podatność nie jest już aktywna. Odśwież mapę."
+    },
+    "map.result.conflict_expired": {
+      "params": {},
+      "text": "Ten cel nie należy już do aktywnego konfliktu. Odśwież mapę."
+    },
+    "map.result.failed": {
+      "params": {},
+      "text": "Operacja mapy nie powiodła się."
+    },
+    "map.result.connection": {
+      "params": {},
+      "text": "❌ Błąd połączenia"
+    },
+    "map.result.title": {
+      "params": {},
+      "text": "🗺️ Mapa"
+    },
+    "map.result.target_title": {
+      "params": {},
+      "text": "🎯 Cel"
+    },
+    "map.result.travel_title": {
+      "params": {},
+      "text": "🧭 Podróż"
+    },
+    "map.result.territory_title": {
+      "params": {},
+      "text": "🛡️ Terytorium"
+    },
+    "map.result.scanner_title": {
+      "params": {},
+      "text": "Skaner"
+    },
+    "map.result.connection_title": {
+      "params": {},
+      "text": "🖥️ Połączenie"
+    },
+    "map.result.protected": {
+      "params": {},
+      "text": "Ten obiekt jest chroniony przez obce terytorium."
+    },
+    "map.result.marked": {
+      "params": {},
+      "text": "Cel oznaczony."
+    },
+    "map.result.aimed": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Cel ustawiony: {name}"
+    },
+    "map.result.marked_coords": {
+      "params": {
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "Cel oznaczony: ({lat}, {lng})"
+    },
+    "map.result.reached": {
+      "params": {
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "🎯 Cel osiągnięty: ({lat}, {lng})"
+    },
+    "map.result.foreign": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Cel znajduje się na kontrolowanym terenie gracza {name}."
+    },
+    "map.result.travel_range": {
+      "params": {
+        "range": "number"
+      },
+      "text": "Za daleko, zasięg motocykla: {range} m."
+    },
+    "map.result.registered": {
+      "params": {
+        "action": "string",
+        "lat": "string",
+        "lng": "string"
+      },
+      "text": "Zarejestrowano: {action} dla ({lat}, {lng})"
+    },
+    "map.result.scanned": {
+      "params": {
+        "count": "number"
+      },
+      "plural": "count",
+      "forms": {
+        "one": "🔍 Zeskanowano {count} nowy obiekt.",
+        "few": "🔍 Zeskanowano {count} nowe obiekty.",
+        "many": "🔍 Zeskanowano {count} nowych obiektów.",
+        "other": "🔍 Zeskanowano {count} nowych obiektów."
+      }
+    },
+    "map.workspace.abandon_title": {
+      "params": {},
+      "text": "PORZUCENIE OBIEKTU"
+    },
+    "map.workspace.abandon_prompt": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Porzucić przejęty obiekt „{name}”?"
+    },
+    "map.workspace.abandon_details": {
+      "params": {},
+      "text": "Może to zmienić terytorium i aktywny konflikt."
+    },
+    "map.workspace.abandon_confirm": {
+      "params": {},
+      "text": "PORZUĆ"
+    },
+    "map.workspace.cancel": {
+      "params": {},
+      "text": "ANULUJ"
+    },
+    "map.workspace.stale_removed": {
+      "params": {},
+      "text": "Usunięto nieaktualny marker obiektu z mapy."
+    },
+    "map.workspace.abandoned": {
+      "params": {},
+      "text": "Przebudowa terytorium została zakolejkowana."
+    },
+    "map.workspace.abandon_failed": {
+      "params": {},
+      "text": "Nie udało się porzucić obiektu."
+    },
+    "map.workspace.refresh": {
+      "params": {},
+      "text": "Odśwież stan mapy"
+    },
+    "map.workspace.snapshot": {
+      "params": {},
+      "text": "Pobieranie aktualnego snapshotu. Zachowując obserwowany obszar i poziom zoomu."
+    },
+    "map.workspace.avatar": {
+      "params": {},
+      "text": "👤 Twój Avatar"
+    },
+    "map.workspace.operation": {
+      "params": {},
+      "text": "Operacja"
+    },
+    "map.workspace.operations": {
+      "params": {},
+      "text": "Centrum Operacji"
+    },
+    "map.workspace.operation_target": {
+      "params": {},
+      "text": "Cel operacji"
+    },
+    "map.workspace.start": {
+      "params": {},
+      "text": "Start"
+    },
+    "map.workspace.end": {
+      "params": {},
+      "text": "Koniec"
+    },
+    "map.workspace.risk": {
+      "params": {},
+      "text": "Ryzyko"
+    },
+    "map.workspace.history_empty": {
+      "params": {},
+      "text": "Brak zakończonych operacji."
+    },
+    "map.workspace.panel_resize": {
+      "params": {},
+      "text": "Kliknij, aby zmienić wysokość panelu"
+    },
+    "map.workspace.history_future": {
+      "params": {},
+      "text": "Historia operacji zostanie podłączona w kolejnym widoku."
+    },
+    "map.workspace.predicted": {
+      "params": {},
+      "text": "WYNIK PRZEWIDZIANY"
+    },
+    "map.workspace.narrative": {
+      "params": {},
+      "text": "NARRACJA PRZEJĘTA"
+    },
+    "map.workspace.phantom": {
+      "params": {},
+      "text": "WĘZEŁ WIDMO"
+    },
+    "map.workspace.corridor": {
+      "params": {},
+      "text": "KORYTARZ ZAUFANIA"
+    },
+    "map.workspace.false_view": {
+      "params": {},
+      "text": "FAŁSZYWY OBRAZ"
+    },
+    "map.workspace.replicated": {
+      "params": {},
+      "text": "REPLIKACJA ×3"
+    },
+    "map.workspace.revealed": {
+      "params": {},
+      "text": "PEŁNE UJAWNIENIE"
+    },
+    "map.workspace.masked": {
+      "params": {},
+      "text": "MASKOWANE"
+    },
+    "map.workspace.delayed": {
+      "params": {},
+      "text": "REAKCJA OPÓŹNIONA"
+    },
+    "map.workspace.decoy": {
+      "params": {},
+      "text": "RUCH POZORNY"
+    },
+    "map.workspace.safe": {
+      "params": {},
+      "text": "KORYTARZ BEZPIECZNY"
+    },
+    "map.workspace.tools": {
+      "params": {},
+      "text": "🛠️ Narzędzia"
+    },
+    "map.workspace.choose_tool": {
+      "params": {},
+      "text": "Wybierz narzędzie."
+    },
+    "map.workspace.open_tools": {
+      "params": {},
+      "text": "Otwórz Pliki i wybierz narzędzie z /tools."
+    },
+    "map.workspace.hack_error": {
+      "params": {},
+      "text": "Błąd operacji hackowania"
+    },
+    "map.workspace.security_error": {
+      "params": {},
+      "text": "Błąd operacji zabezpieczeń"
+    },
+    "map.workspace.travel_far": {
+      "params": {},
+      "text": "Cel jest zbyt oddalony."
+    },
+    "map.workspace.power_ended": {
+      "params": {},
+      "text": "Wpływ aktywnej części dobiegł końca."
+    },
+    "map.actor.pending": {
+      "params": {},
+      "text": "Zaproszenie już oczekuje."
+    },
+    "map.actor.friend_blocked": {
+      "params": {},
+      "text": "Niedostępne dla siebie, znajomych i swojego klanu."
+    },
+    "map.actor.chat_blocked": {
+      "params": {},
+      "text": "Rozmowa dostępna tylko dla znajomych."
+    },
+    "map.actor.transfer_blocked": {
+      "params": {},
+      "text": "Nie można przelać HC samemu sobie."
+    },
+    "map.actor.marked": {
+      "params": {
+        "name": "string"
+      },
+      "text": "{name} jest na celowniku."
+    },
+    "map.actor.target_blocked": {
+      "params": {},
+      "text": "Cel nie jest aktualnie legalnym przeciwnikiem strategicznym."
+    },
+    "map.actor.self_profile": {
+      "params": {},
+      "text": "To twój profil."
+    },
+    "map.actor.unavailable": {
+      "params": {},
+      "text": "Akcja niedostępna."
+    },
+    "map.actor.enabled": {
+      "params": {},
+      "text": "aktywne"
+    },
+    "map.actor.disabled": {
+      "params": {},
+      "text": "zablokowane"
+    },
+    "map.actor.profile": {
+      "params": {},
+      "text": "Charakterystyka gracza"
+    },
+    "map.actor.actions": {
+      "params": {},
+      "text": "Akcje"
+    },
+    "map.actor.friend": {
+      "params": {},
+      "text": "Znajomy"
+    },
+    "map.actor.intruder": {
+      "params": {},
+      "text": "Intruz na twoim terenie"
+    },
+    "map.actor.same_clan": {
+      "params": {},
+      "text": "Crew"
+    },
+    "map.actor.enemy_clan": {
+      "params": {},
+      "text": "Wrogi klan"
+    },
+    "map.actor.neutral": {
+      "params": {},
+      "text": "Gracz"
+    },
+    "map.actor.self": {
+      "params": {},
+      "text": "Ty"
+    },
+    "map.actor.add_friend": {
+      "params": {},
+      "text": "🤝 Dodaj do znajomych"
+    },
+    "map.actor.chat": {
+      "params": {},
+      "text": "💬 Rozpocznij rozmowę"
+    },
+    "map.actor.transfer_hc": {
+      "params": {},
+      "text": "💸 Przelej HC"
+    },
+    "map.actor.mark_target": {
+      "params": {},
+      "text": "🎯 Oznacz jako cel"
+    },
+    "map.actor.profile_action": {
+      "params": {},
+      "text": "ℹ️ Charakterystyka"
+    },
+    "map.actor.relation": {
+      "params": {},
+      "text": "Relacja"
+    },
+    "map.actor.clan": {
+      "params": {},
+      "text": "Klan"
+    },
+    "map.actor.level": {
+      "params": {},
+      "text": "Poziom"
+    },
+    "map.actor.profession": {
+      "params": {},
+      "text": "Profesja"
+    },
+    "map.actor.territories": {
+      "params": {},
+      "text": "Terytoria"
+    },
+    "map.actor.target_status": {
+      "params": {},
+      "text": "Status celu"
+    },
+    "map.actor.aimed": {
+      "params": {},
+      "text": "Na celowniku"
+    },
+    "map.actor.position": {
+      "params": {},
+      "text": "Pozycja"
+    },
+    "map.actor.username": {
+      "params": {},
+      "text": "Nazwa konta"
+    },
+    "map.actor.source": {
+      "params": {},
+      "text": "Źródło kontekstu"
+    },
+    "map.actor.sources": {
+      "params": {},
+      "text": "Źródła kontekstu"
+    },
+    "map.vulnerability.title": {
+      "params": {},
+      "text": "Podatność"
+    },
+    "map.vulnerability.reported": {
+      "params": {},
+      "text": "Podatność wystawiona dla klanu."
+    },
+    "map.vulnerability.failed": {
+      "params": {},
+      "text": "Nie udało się wystawić podatności."
+    },
+    "map.vulnerability.withdrawn": {
+      "params": {},
+      "text": "Oznaczenie podatności wycofane."
+    },
+    "map.vulnerability.withdraw_failed": {
+      "params": {},
+      "text": "Nie można wycofać tego oznaczenia."
+    },
+    "map.vulnerability.coverage": {
+      "params": {
+        "coverage": "number",
+        "threshold": "number"
+      },
+      "text": "Arsenał pokrywa {coverage}% zabezpieczeń. Wymagane: {threshold}%."
+    },
+    "map.vulnerability.swarm": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Rój obronny aktywny: wystawiono {count} podatności ze skanu."
+    },
+    "map.npc.atm_camera": {
+      "params": {},
+      "text": "Kamera bankomatu"
+    },
+    "map.npc.atm_customer": {
+      "params": {},
+      "text": "Osoba przy bankomacie"
+    },
+    "map.npc.shop_camera": {
+      "params": {},
+      "text": "Kamera sklepu"
+    },
+    "map.npc.customer": {
+      "params": {},
+      "text": "Klient"
+    },
+    "map.npc.bicycle_station": {
+      "params": {},
+      "text": "Stacja rowerowa"
+    },
+    "map.npc.guest": {
+      "params": {},
+      "text": "Gość restauracji"
+    },
+    "map.npc.courier": {
+      "params": {},
+      "text": "Kuriero-bot"
+    },
+    "map.npc.atm": {
+      "params": {},
+      "text": "Bankomat"
+    },
+    "map.power.local": {
+      "params": {},
+      "text": "LOKALNIE"
+    },
+    "map.power.city": {
+      "params": {},
+      "text": "MIASTO"
+    },
+    "map.power.country": {
+      "params": {},
+      "text": "KRAJ"
+    },
+    "map.power.continent": {
+      "params": {},
+      "text": "EUROPA"
+    },
+    "map.power.world": {
+      "params": {},
+      "text": "ŚWIAT"
+    },
+    "map.power.map": {
+      "params": {},
+      "text": "MAPA"
+    },
+    "map.power.active": {
+      "params": {},
+      "text": "WPŁYW AKTYWNY"
+    },
+    "map.power.range": {
+      "params": {
+        "range": "string"
+      },
+      "text": "ZASIĘG {range}"
+    },
+    "map.power.scale": {
+      "params": {
+        "scale": "string"
+      },
+      "text": "SKALA {scale}"
+    },
+    "map.power.activate": {
+      "params": {},
+      "text": "Aktywuj moc"
+    },
+    "map.actor.contact": {
+      "params": {},
+      "text": "Kontakt"
+    },
+    "map.actor.chat_title": {
+      "params": {},
+      "text": "Rozmowa"
+    },
+    "map.actor.missing_id": {
+      "params": {},
+      "text": "Brak identyfikatora gracza."
+    },
+    "map.actor.contact_failed": {
+      "params": {},
+      "text": "Nie udało się wysłać zaproszenia."
+    },
+    "map.actor.contact_sent": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Wysłano zaproszenie do {name}."
+    },
+    "map.actor.contact_offline": {
+      "params": {},
+      "text": "Nie udało się połączyć z systemem kontaktów."
+    },
+    "map.actor.mark_failed": {
+      "params": {},
+      "text": "Nie udało się oznaczyć gracza."
+    },
+    "map.actor.target_offline": {
+      "params": {},
+      "text": "Nie udało się połączyć z systemem celowania."
+    },
+    "map.actor.position_missing": {
+      "params": {},
+      "text": "Brak danych pozycji gracza."
+    },
+    "map.actor.chat_open": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Otwórz komunikator, aby porozmawiać z {name}."
+    },
+    "map.actor.wallet_open": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Uruchom Wallet, aby wysłać HC do {name}."
+    },
+    "map.actor.module_unavailable": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Moduł dla gracza {name} jest niedostępny."
+    },
+    "map.workspace.history_soon": {
+      "params": {},
+      "text": "Historia operacji będzie dostępna w kolejnym widoku."
+    },
+    "map.workspace.target_loading": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Przygotowanie celu: {name}"
+    },
+    "map.workspace.target_linking": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Łączenie z celem: {name}"
     }
   }
 }

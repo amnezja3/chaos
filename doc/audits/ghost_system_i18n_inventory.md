@@ -76,7 +76,9 @@ wydań w 155, bez tłumaczenia na żądanie przez Ollamę.
 
 ## B. Zakres zinwentaryzowany w 153, wdrażany w 154
 
-Stan wszystkich pozycji: **PLAN / ekstrakcja i katalogi PL/EN do wykonania**.
+Aktualizacja 8 X 2026: implementacja pakietu **154.7.0** domknięta lokalnie.
+Pokrycie B01–B15 i dowody testów: [macierz odbioru 154](sprint_154_acceptance.md).
+Odbiór produkcyjny nowego pakietu pozostaje otwarty. Poniżej zachowano kontrakt zakresu.
 
 | ID / domena | Zakres wersji językowych | Źródła startowe / odbiór |
 | --- | --- | --- |

@@ -178,14 +178,54 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
     }
 
     function displayTrackTitle(track, fallbackIndex = 0) {
+        if (track && typeof track.title === 'string' && track.title.trim()) return track.title;
         const source = String((track && (track.title || track.file)) || `Track ${fallbackIndex + 1}`);
         const filename = source.split(/[\\/]/).pop() || source;
         return filename.replace(/\.mp3$/i, "").replace(/[_-]+/g, " ").trim() || `Track ${fallbackIndex + 1}`;
     }
 
+    const filterStorageKey = 'chaos:radio:language-filter';
+    let explicitFilter = null;
+    try { explicitFilter = localStorage.getItem(filterStorageKey); } catch (_) {}
+    let statusCode = 'SIGNAL IDLE';
+    const radioText = (key, params = {}) => window.GhostLocale.t('radio.' + key, params);
+    function filterOptions() {
+        return [...window.GhostLocale.languages().filter(item => item.approved_for.includes('radio')).map(item => item.tag), 'ANY'];
+    }
+    function selectedFilter() {
+        const allowed = filterOptions();
+        if (allowed.includes(explicitFilter)) return explicitFilter;
+        const locale = window.GhostLocale.getLocale();
+        return allowed.includes(locale) ? locale : 'ANY';
+    }
+    function visibleChannels() {
+        const selected = selectedFilter();
+        return state.channels.filter(channel => selected === 'ANY' || [selected, 'neutral'].includes(channel.language));
+    }
+    function channelText(channel, field) {
+        const key = channel?.presentation?.[field];
+        if (typeof key === 'string' && key.startsWith('radio.channel.') && window.GhostLocale.hasKey(key)) return window.GhostLocale.t(key);
+        return channel?.[field] || '';
+    }
+    function renderChannelFilters() {
+        const {languageFilter, channelSelect, emptyChannels} = state.elements;
+        if (languageFilter) {
+            languageFilter.replaceChildren(...filterOptions().map(value => new Option(value.toUpperCase(), value)));
+            languageFilter.value = selectedFilter();
+        }
+        const channels = visibleChannels();
+        if (channelSelect) {
+            channelSelect.replaceChildren(new Option(radioText('choose'), ''), ...channels.map(channel => new Option(channelText(channel, 'name'), channel.id)));
+            channelSelect.value = channels.some(channel => channel.id === state.channelId) ? state.channelId : '';
+            channelSelect.disabled = !channels.length;
+        }
+        if (emptyChannels) emptyChannels.hidden = channels.length > 0;
+        updatePlaybackView();
+    }
     function setStatus(text) {
+        statusCode = text || 'SIGNAL IDLE';
         if (state.elements.status) {
-            state.elements.status.textContent = text || "SIGNAL IDLE";
+            state.elements.status.textContent = radioText('status.' + statusCode.toLowerCase().replaceAll(' ', '_'));
         }
     }
 
@@ -206,7 +246,8 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
         }
         if (state.elements.playButton) state.elements.playButton.disabled = !track || isPlaying;
         if (state.elements.pauseButton) state.elements.pauseButton.disabled = !track || !isPlaying;
-        const hasChannelSwitch = state.channels.length > 1;
+        const channels = visibleChannels();
+        const hasChannelSwitch = channels.length > 1 || channels.some(channel => channel.id !== state.channelId);
         if (state.elements.nextButton) state.elements.nextButton.disabled = !hasChannelSwitch;
         if (state.elements.previousButton) state.elements.previousButton.disabled = !hasChannelSwitch;
         updateVolumeView();
@@ -214,13 +255,20 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
 
     function updateTrackView() {
         const track = currentTrack();
-        const channelName = (state.channel && state.channel.name) || "Ghost Hack Radio";
-        const trackTitle = (track && track.title) || "Brak utworu";
+        const channelName = channelText(state.channel, 'name') || "Ghost Hack Radio";
+        const trackTitle = (track && track.title) || radioText('no_track');
         const position = state.playlist.length ? `${state.currentIndex + 1} / ${state.playlist.length}` : "0 / 0";
 
         if (state.elements.channelName) state.elements.channelName.textContent = channelName;
+        if (state.elements.channelDescription) state.elements.channelDescription.textContent = channelText(state.channel, 'description');
         if (state.elements.trackTitle) state.elements.trackTitle.textContent = trackTitle;
         if (state.elements.trackCount) state.elements.trackCount.textContent = position;
+        if (state.elements.programLanguage) {
+            const language = (track && track.language) || 'unknown';
+            state.elements.programLanguage.textContent = radioText('program', {
+                language: ['unknown', 'neutral', 'mixed'].includes(language) ? radioText(language) : language.toUpperCase()
+            });
+        }
         if (state.elements.sourcePath) {
             state.elements.sourcePath.textContent = `${channelPath(state.channelId || state.defaultChannel)}/`;
         }
@@ -295,8 +343,11 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
         }
         if (state.elements.muteButton) {
             state.elements.muteButton.textContent = state.muted ? "\u{1F50A}" : "\u{1F507}";
-            state.elements.muteButton.title = state.muted ? "Unmute" : "Mute";
-            state.elements.muteButton.setAttribute("aria-label", state.muted ? "Unmute" : "Mute");
+            const key = state.muted ? 'unmute' : 'mute';
+            state.elements.muteButton.setAttribute('data-ghost-title', 'radio.' + key);
+            state.elements.muteButton.setAttribute('data-ghost-aria-label', 'radio.' + key);
+            state.elements.muteButton.title = radioText(key);
+            state.elements.muteButton.setAttribute("aria-label", radioText(key));
             state.elements.muteButton.classList.toggle("is-active", state.muted);
         }
     }
@@ -367,6 +418,28 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
             volumeValue: root.querySelector("[data-radio-volume-value]"),
             sourcePath: root.querySelector("[data-radio-source]")
         };
+        state.elements.languageFilter = root.querySelector('[data-radio-filter]');
+        state.elements.channelSelect = root.querySelector('[data-radio-select]');
+        state.elements.emptyChannels = root.querySelector('[data-radio-empty]');
+        state.elements.programLanguage = root.querySelector('[data-radio-language]');
+        state.elements.channelDescription = root.querySelector('[data-radio-description]');
+        state.elements.languageFilter?.addEventListener('change', event => GhostRadio.setLanguageFilter(event.target.value));
+        root.querySelector('[data-radio-any]')?.addEventListener('click', () => GhostRadio.setLanguageFilter('ANY'));
+        state.elements.channelSelect?.addEventListener('change', event => {
+            if (!event.target.value) return;
+            const resume = state.isPlaying;
+            GhostRadio.loadChannel(event.target.value).then(() => resume && GhostRadio.play()).catch(() => setStatus('SIGNAL LOST'));
+        });
+        for (const action of ['previous', 'next', 'play', 'pause', 'mute']) {
+            const button = root.querySelector(`[data-radio-action='${action}']`);
+            if (button) {
+                button.setAttribute('data-ghost-title', 'radio.' + action);
+                button.setAttribute('data-ghost-aria-label', 'radio.' + action);
+                button.title = radioText(action);
+                button.setAttribute('aria-label', radioText(action));
+            }
+        }
+        renderChannelFilters();
 
         if (state.elements.playButton) state.elements.playButton.addEventListener("click", () => GhostRadio.play());
         if (state.elements.pauseButton) state.elements.pauseButton.addEventListener("click", () => GhostRadio.pause());
@@ -381,6 +454,13 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
     }
 
     const GhostRadio = {
+        setLanguageFilter(value) {
+            if (!filterOptions().includes(value)) return false;
+            explicitFilter = value;
+            try { localStorage.setItem(filterStorageKey, value); } catch (_) {}
+            renderChannelFilters();
+            return true;
+        },
         syncShow(request) {
             if (!request || !request.key) return;
             if (!state.audio) {
@@ -474,11 +554,10 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
                     state.defaultChannel = String(payload.default_channel);
                 }
             } catch (error) {
-                state.channels = [{ id: state.defaultChannel, name: "Ghost Hack Radio" }];
+                state.channels = [];
+                setStatus('SIGNAL LOST');
             }
-            if (!state.channels.some(channel => channel.id === state.defaultChannel)) {
-                state.channels.unshift({ id: state.defaultChannel, name: "Ghost Hack Radio" });
-            }
+            renderChannelFilters();
             return state.channels.slice();
         },
 
@@ -502,12 +581,17 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
                 syncAudioSettings();
                 return Promise.resolve(state.channel);
             }
-            return this.loadChannels().then(() => this.loadChannel(state.channelId || state.defaultChannel));
+            return this.loadChannels().then(() => {
+                const channels = visibleChannels();
+                const initial = channels.find(channel => channel.id === state.defaultChannel) || channels[0];
+                if (state.channelId) return this.loadChannel(state.channelId);
+                return initial ? this.loadChannel(initial.id) : null;
+            });
         },
 
         async loadChannel(id = state.defaultChannel, options = {}) {
             if (showPlayback) return state.channel;
-            const generation = sourceGeneration;
+            const generation = ++sourceGeneration;
             const channelId = String(id || state.defaultChannel);
             setStatus("SIGNAL LOADING");
             const response = await fetch(radioManifestUrl(channelId), { cache: "no-store" });
@@ -534,6 +618,7 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
                 .filter(isPlayableMp3Track)
                 .map((track, index) => ({
                     title: displayTrackTitle(track, index),
+                    language: track.language || 'unknown',
                     file: track.file.trim(),
                     url: trackUrl(channelId, track.file.trim())
                 }));
@@ -549,6 +634,7 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
             }
             setStatus(state.playlist.length ? "SIGNAL READY" : "NO TRACKS");
             updateTrackView();
+            renderChannelFilters();
             syncAudioSettings();
             return state.channel;
         },
@@ -721,14 +807,15 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
         },
 
         nextChannel() {
-            if (state.channels.length <= 1) {
+            const channels = visibleChannels();
+            if (!channels.length || (channels.length === 1 && channels[0].id === state.channelId)) {
                 setStatus("ONE CHANNEL");
                 updatePlaybackView();
                 return false;
             }
             const current = state.channelId || state.defaultChannel;
-            const index = Math.max(0, state.channels.findIndex(channel => channel.id === current));
-            const next = state.channels[(index + 1) % state.channels.length];
+            const index = channels.findIndex(channel => channel.id === current);
+            const next = channels[(index + 1) % channels.length];
             const shouldResume = state.isPlaying;
             return this.loadChannel(next.id).then(() => {
                 if (shouldResume) return this.play();
@@ -737,14 +824,15 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
         },
 
         previousChannel() {
-            if (state.channels.length <= 1) {
+            const channels = visibleChannels();
+            if (!channels.length || (channels.length === 1 && channels[0].id === state.channelId)) {
                 setStatus("ONE CHANNEL");
                 updatePlaybackView();
                 return false;
             }
             const current = state.channelId || state.defaultChannel;
-            const index = Math.max(0, state.channels.findIndex(channel => channel.id === current));
-            const previous = state.channels[(index - 1 + state.channels.length) % state.channels.length];
+            const index = channels.findIndex(channel => channel.id === current);
+            const previous = channels[index < 0 ? channels.length - 1 : (index - 1 + channels.length) % channels.length];
             const shouldResume = state.isPlaying;
             return this.loadChannel(previous.id).then(() => {
                 if (shouldResume) return this.play();
@@ -757,6 +845,8 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
                 channel: state.channel,
                 playlist: state.playlist.slice(),
                 channels: state.channels.slice(),
+                languageFilter: selectedFilter(),
+                visibleChannels: visibleChannels(),
                 currentIndex: state.currentIndex,
                 isPlaying: state.isPlaying,
                 volume: state.volume,
@@ -772,6 +862,11 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
     };
 
     window.GhostRadio = GhostRadio;
+    document.addEventListener('ghost:locale-changed', () => {
+        renderChannelFilters();
+        updateTrackView();
+        setStatus(statusCode);
+    });
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => GhostRadio.armFirstInteractionAutostart(), { once: true });
@@ -805,7 +900,14 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
                 </div>
                 <div class="ghost-radio-display">
                     <h2 data-radio-channel>Ghost Hack Radio</h2>
-                    <div class="ghost-radio-track" data-radio-track>Loading channel...</div>
+                    <small data-radio-description></small>
+                    <div class="ghost-radio-track" data-radio-track>${ghostLabel('radio.status.signal_loading')}</div>
+                    <small data-radio-language></small>
+                </div>
+                <div class="ghost-radio-filters">
+                    <label>${ghostLabel('radio.filter')}<select data-radio-filter></select></label>
+                    <label>${ghostLabel('radio.channels')}<select data-radio-select></select></label>
+                    <div data-radio-empty hidden>${ghostLabel('radio.empty')} <button type="button" data-radio-any>${ghostLabel('radio.any')}</button></div>
                 </div>
                 <div class="ghost-radio-eq-wrap">
                     <div class="ghost-radio-eq" aria-hidden="true">
@@ -825,7 +927,7 @@ const DEFAULT_RADIO_CHANNEL = "blacknet_radio_2";
                     <button type="button" data-radio-action="mute" title="Mute" aria-label="Mute">\u{1F507}</button>
                 </div>
                 <label class="ghost-radio-volume">
-                    <span>Volume</span>
+                    ${ghostLabel('radio.volume')}
                     <input type="range" min="0" max="100" value="80" step="1" data-radio-volume>
                     <b data-radio-volume-value>80%</b>
                 </label>

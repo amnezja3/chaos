@@ -39,6 +39,23 @@ class AdminBugReportsTest(unittest.TestCase):
             self.assertEqual(response["report"]["status"], "new")
             self.assertEqual(response["report"]["created_by"], "bob")
             self.assertNotIn("similar", response)
+            self.assertEqual(response['message_i18n']['key'], 'apps.bugs.sent')
+            self.assertEqual(response['message_i18n']['params'], {'id': response['report']['id']})
+
+    def test_create_validation_is_localizable_and_preserves_authored_text(self):
+        for payload in ({'title': ''}, [], None):
+            with run.app.test_request_context('/api/dev/bug-reports', method='POST', json=payload), \
+                 patch.object(run, 'require_dev_mode', return_value=None):
+                response = run.app.make_response(run.api_dev_bug_report_create())
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json['message_i18n']['key'], 'apps.bugs.title_required')
+        with run.app.test_request_context('/api/dev/bug-reports', method='POST', json={
+            'title': 'apps.bugs.title', 'description': '<script>PL/EN</script>', 'category': 'Files', 'severity': 'high'
+        }), patch.object(run, 'require_dev_mode', return_value=None), patch.object(run, 'build_dev_bug_server_context', return_value={}):
+            report = run.api_dev_bug_report_create().get_json()['report']
+            self.assertEqual(report['title'], 'apps.bugs.title')
+            self.assertEqual(report['description'], '<script>PL/EN</script>')
+            self.assertEqual(report['category'], 'Files')
 
     def test_admin_status_and_complete_export(self):
         with run.app.test_request_context("/api/dev/bug-reports/1", method="PATCH", json={"status": "fixed"}):

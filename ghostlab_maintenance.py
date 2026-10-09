@@ -7,6 +7,7 @@ from flask import jsonify, request, session
 from itsdangerous import URLSafeTimedSerializer, BadData
 from database import db_connect, utc_now, ProfileWriteConflict
 from ghostlab_products import resolve
+from ghostlab_messages import message
 from player_security_store import PlayerSecurityStore
 from response_network.capabilities import require_targeting_allowed
 
@@ -92,6 +93,31 @@ def restore_preset(security, preset, builder, conflicts):
 
 
 def register(app, services):
+    @app.after_request
+    def maintenance_presentation(response):
+        if request.endpoint != 'maintenance' or not response.is_json:
+            return response
+        payload = response.get_json()
+        if not isinstance(payload, dict):
+            return response
+        if response.status_code >= 400:
+            key = ('lab.error.authentication_required' if response.status_code == 401 else
+                   'lab.error.runtime_disabled' if response.status_code == 403 else
+                   'lab.service.preview_error' if response.status_code == 409 else 'lab.service.failed')
+            payload['message_i18n'] = message(key)
+        elif request.method == 'POST':
+            kind = payload.get('kind')
+            if kind == 'file_cleanup':
+                payload['message_i18n'] = message('lab.service.cleanup_result',
+                    {'count': payload.get('count', 0), 'size': payload.get('freed_mb', 0)})
+            elif kind == 'security_restore':
+                payload['message_i18n'] = message('lab.service.security_result',
+                    {'preset': str(payload.get('preset', '')).upper(), 'count': len(payload.get('changed', []))})
+            elif kind == 'system_update':
+                payload['message_i18n'] = message('lab.service.current_help' if payload.get('already_installed') else 'lab.service.update_result')
+        response.set_data(app.json.dumps(payload))
+        return response
+
     def signer():
         return URLSafeTimedSerializer(app.secret_key, salt='ghostlab-maintenance-v1')
 

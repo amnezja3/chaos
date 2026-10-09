@@ -8,7 +8,11 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 - [Wydanie przyrostowe 154.5.0](runbooks/deploy_154_5.md): kreatory, picker,
   menu mapy i zabezpieczenia PL/EN. 718 kluczy, 78 testów Python i dziewięć
   zestawów JS PASS; [rejestr kluczy](audits/sprint_154_key_register.md).
-  Przygotowane do wdrożenia, bez potwierdzenia produkcyjnego; sprint 154 w toku.
+  Wdrożenie i produkcyjny PASS 154.5.0 potwierdzone przez autora.
+  Lokalny pakiet **154.7.0: 2833 klucze, 13 domen**, pozostałe workspace’y,
+  katalogi oraz zakup/instalacja/użycie/aktualizacja narzędzi.
+  [Macierz odbioru](audits/sprint_154_acceptance.md): implementacja domknięta
+  lokalnie; 30 zestawów JS i Playwright PL/EN. Bez wdrożenia i produkcyjnego PASS 154.7.0.
 
 - [153 — fundament PL/EN: wdrożony, PASS produkcyjny, zamknięty](sprints/sprint_153_ghost_system_i18n_foundation.md):
   [format v1](architecture/ghost_i18n_v1.md) i

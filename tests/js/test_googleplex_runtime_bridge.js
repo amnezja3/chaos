@@ -6,7 +6,7 @@ const vm = require("vm");
 
 const source = fs.readFileSync("static/js/terminal.js", "utf8");
 const start = source.indexOf("function googleplexInstallErrorDetails");
-const end = source.indexOf("function showInstallAppProgress", start);
+const end = source.indexOf("async function showInstallAppProgress", start);
 assert.ok(start >= 0 && end > start, "Googleplex response helpers must exist");
 
 const focused = [];
@@ -24,6 +24,7 @@ const sandbox = {
     notifyOpenMapsBlacknetFocus(payload) { focused.push(payload); }
 };
 vm.createContext(sandbox);
+require('./locale_fixture')(sandbox);
 vm.runInContext(source.slice(start, end), sandbox);
 
 assert.strictEqual(sandbox.applyGoogleplexTravelToOpenMaps({ travel: {

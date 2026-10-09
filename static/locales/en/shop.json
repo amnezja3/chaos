@@ -1,0 +1,565 @@
+{
+  "locale": "en",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "shop.validation": {
+      "params": {},
+      "text": "Product data did not pass validation."
+    },
+    "shop.search_exchange": {
+      "params": {},
+      "text": "Search data, market categories, resources…"
+    },
+    "shop.search_blacknet": {
+      "params": {},
+      "text": "Search signals, sources, risk…"
+    },
+    "shop.category": {
+      "params": {},
+      "text": "Category"
+    },
+    "shop.all_categories": {
+      "params": {},
+      "text": "All categories"
+    },
+    "shop.search": {
+      "params": {},
+      "text": "Search products… /all — show all"
+    },
+    "shop.loading": {
+      "params": {},
+      "text": "Loading catalog…"
+    },
+    "shop.load_failed": {
+      "params": {},
+      "text": "Could not load the catalog."
+    },
+    "shop.empty": {
+      "params": {},
+      "text": "No matching products. Change the category or search terms."
+    },
+    "shop.all_products": {
+      "params": {},
+      "text": "All products"
+    },
+    "shop.results": {
+      "params": {},
+      "text": "Search results"
+    },
+    "shop.products": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Products: {count}"
+    },
+    "shop.owned": {
+      "params": {},
+      "text": "This product is already owned."
+    },
+    "shop.purchased": {
+      "params": {},
+      "text": "Product purchased."
+    },
+    "shop.installed": {
+      "params": {},
+      "text": "Application installed."
+    },
+    "shop.buy": {
+      "params": {},
+      "text": "Buy"
+    },
+    "shop.install": {
+      "params": {},
+      "text": "Install"
+    },
+    "shop.free": {
+      "params": {},
+      "text": "Download for free"
+    },
+    "shop.buy_document": {
+      "params": {},
+      "text": "Buy and download"
+    },
+    "shop.no_funds": {
+      "params": {},
+      "text": "Insufficient funds."
+    },
+    "shop.no_risk": {
+      "params": {},
+      "text": "none"
+    },
+    "shop.balance_required": {
+      "params": {
+        "price": "number",
+        "balance": "number"
+      },
+      "text": "Insufficient HC. Price: {price}, balance: {balance}."
+    },
+    "shop.level_required": {
+      "params": {
+        "level": "number"
+      },
+      "text": "Level {level} required."
+    },
+    "shop.respect_required": {
+      "params": {
+        "respect": "number"
+      },
+      "text": "Respect {respect} required."
+    },
+    "shop.faction_required": {
+      "params": {},
+      "text": "This product is unavailable to your faction."
+    },
+    "shop.requirements": {
+      "params": {},
+      "text": "Purchase or installation requirements are not met. Check the product requirements."
+    },
+    "shop.session_expired": {
+      "params": {},
+      "text": "Your session has expired. Log in again."
+    },
+    "shop.not_found": {
+      "params": {},
+      "text": "Product not found in the catalog."
+    },
+    "shop.withdrawn": {
+      "params": {},
+      "text": "This product has been withdrawn from sale."
+    },
+    "shop.offer_changed": {
+      "params": {},
+      "text": "The offer has changed. Refresh the catalog and confirm its current price and version."
+    },
+    "shop.untrusted": {
+      "params": {},
+      "text": "No verified publication is available for this product."
+    },
+    "shop.recovery": {
+      "params": {},
+      "text": "Your account state needs recovery. Refresh your session."
+    },
+    "shop.failed": {
+      "params": {},
+      "text": "Could not complete the purchase or installation."
+    },
+    "shop.offline": {
+      "params": {},
+      "text": "Connection failed. Purchase outcome is unconfirmed; retrying will retain the transaction key."
+    },
+    "shop.document_ready": {
+      "params": {},
+      "text": "Document downloaded to Files → Plexcak."
+    },
+    "shop.travel_ready": {
+      "params": {},
+      "text": "Travel completed."
+    },
+    "shop.travel": {
+      "params": {},
+      "text": "Travel"
+    },
+    "shop.installation": {
+      "params": {},
+      "text": "Installation"
+    },
+    "shop.installing": {
+      "params": {},
+      "text": "Installing…"
+    },
+    "shop.no_description": {
+      "params": {},
+      "text": "No description."
+    },
+    "shop.application": {
+      "params": {},
+      "text": "Application"
+    },
+    "shop.downloads": {
+      "params": {},
+      "text": "downloads"
+    },
+    "shop.price": {
+      "params": {},
+      "text": "Price"
+    },
+    "shop.soft_limit": {
+      "params": {},
+      "text": "above the soft limit"
+    },
+    "shop.step.document": {
+      "params": {},
+      "text": "Downloading the PTK document to File Manager…"
+    },
+    "shop.step.travel": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Preparing travel: {name}"
+    },
+    "shop.step.start": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Starting installation: {name}"
+    },
+    "shop.step.download": {
+      "params": {},
+      "text": "Downloading files…"
+    },
+    "shop.step.components": {
+      "params": {},
+      "text": "Installing components…"
+    },
+    "shop.step.register": {
+      "params": {},
+      "text": "Registering the application…"
+    },
+    "shop.step.finish": {
+      "params": {},
+      "text": "Finalizing…"
+    },
+    "shop.confirm.travel": {
+      "params": {},
+      "text": "Confirm travel"
+    },
+    "shop.confirm.travel_message": {
+      "params": {
+        "destination": "string"
+      },
+      "text": "Buy a ticket and move the operator to: {destination}?"
+    },
+    "shop.confirm.purchase": {
+      "params": {},
+      "text": "Confirm purchase"
+    },
+    "shop.confirm.message": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Buy and install: {name}?"
+    },
+    "shop.confirm.details": {
+      "params": {
+        "name": "string",
+        "price": "number"
+      },
+      "text": "{name} costs {price} HC. Cancelling will not charge HC or change your account state."
+    },
+    "shop.confirm.buy": {
+      "params": {},
+      "text": "Buy and install"
+    },
+    "shop.cancelled": {
+      "params": {},
+      "text": "Purchase cancelled."
+    },
+    "shop.category.tools": {
+      "params": {},
+      "text": "Tools"
+    },
+    "shop.category.documents": {
+      "params": {},
+      "text": "Documents"
+    },
+    "shop.category.travel_ticket": {
+      "params": {},
+      "text": "Tickets"
+    },
+    "shop.category.storage_upgrade": {
+      "params": {},
+      "text": "Storage"
+    },
+    "shop.category.map": {
+      "params": {},
+      "text": "Map and scanning"
+    },
+    "shop.category.bike_upgrade": {
+      "params": {},
+      "text": "Vehicle"
+    },
+    "shop.category.other": {
+      "params": {},
+      "text": "Other"
+    },
+    "shop.spec.level": {
+      "params": {},
+      "text": "Level"
+    },
+    "shop.spec.family": {
+      "params": {},
+      "text": "Family"
+    },
+    "shop.spec.mode": {
+      "params": {},
+      "text": "Mode"
+    },
+    "shop.spec.product": {
+      "params": {},
+      "text": "Product"
+    },
+    "shop.spec.category": {
+      "params": {},
+      "text": "Category"
+    },
+    "shop.spec.effect": {
+      "params": {},
+      "text": "Effect"
+    },
+    "shop.spec.tier": {
+      "params": {},
+      "text": "Tier"
+    },
+    "shop.spec.open-source": {
+      "params": {},
+      "text": "Access"
+    },
+    "shop.spec.audience": {
+      "params": {},
+      "text": "Audience"
+    },
+    "shop.spec.map": {
+      "params": {},
+      "text": "Map"
+    },
+    "shop.spec.ops": {
+      "params": {},
+      "text": "Operations"
+    },
+    "shop.spec.data": {
+      "params": {},
+      "text": "Data"
+    },
+    "shop.spec.weight": {
+      "params": {},
+      "text": "File size"
+    },
+    "shop.spec.install": {
+      "params": {},
+      "text": "Installation size"
+    },
+    "shop.spec.quality": {
+      "params": {},
+      "text": "Quality"
+    },
+    "shop.spec.reliability": {
+      "params": {},
+      "text": "Reliability"
+    },
+    "shop.spec.creator": {
+      "params": {},
+      "text": "Creator power"
+    },
+    "shop.spec.power": {
+      "params": {},
+      "text": "Power"
+    },
+    "shop.spec.price-hint": {
+      "params": {},
+      "text": "Suggested price"
+    },
+    "shop.effect.travel_city": {
+      "params": {
+        "city": "string"
+      },
+      "text": "City: {city}"
+    },
+    "shop.effect.storage_capacity_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Storage +{value} MB"
+    },
+    "shop.effect.map_zoom_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Zoom +{value}"
+    },
+    "shop.effect.scan_range_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Scan range +{value} m"
+    },
+    "shop.effect.bike_range_bonus": {
+      "params": {
+        "value": "number"
+      },
+      "text": "Vehicle range +{value} m"
+    },
+    "shop.open_source": {
+      "params": {},
+      "text": "Open Source · free"
+    },
+    "shop.clan_only": {
+      "params": {},
+      "text": "Clan only"
+    },
+    "shop.global": {
+      "params": {},
+      "text": "Global"
+    },
+    "shop.reaction.loading": {
+      "params": {},
+      "text": "Loading traveller reactions…"
+    },
+    "shop.reaction.authored": {
+      "params": {},
+      "text": "Destination declared by the author."
+    },
+    "shop.reaction.instant": {
+      "params": {},
+      "text": "One purchase = one immediate trip."
+    },
+    "shop.reaction.current": {
+      "params": {},
+      "text": "Reactions refer to the current destination."
+    },
+    "shop.reaction.empty": {
+      "params": {},
+      "text": "No ratings for the current destination."
+    },
+    "shop.reaction.bad": {
+      "params": {},
+      "text": "😠 Unhappy"
+    },
+    "shop.reaction.happy": {
+      "params": {},
+      "text": "🙂 Happy"
+    },
+    "shop.reaction.very_happy": {
+      "params": {},
+      "text": "🤩 Very happy"
+    },
+    "shop.reaction.failed": {
+      "params": {},
+      "text": "Reactions are temporarily unavailable. Try again."
+    },
+    "shop.reaction.own": {
+      "params": {},
+      "text": "You cannot rate your own ticket."
+    },
+    "shop.reaction.change": {
+      "params": {},
+      "text": "You can change your reaction; it still counts as one vote."
+    },
+    "shop.reaction.travel_required": {
+      "params": {},
+      "text": "Rating becomes available after travelling."
+    },
+    "shop.reaction.history": {
+      "params": {},
+      "text": "Previous destinations:"
+    },
+    "shop.reaction.retry": {
+      "params": {},
+      "text": "Refresh reactions"
+    },
+    "shop.value.Basic": {
+      "params": {},
+      "text": "Basic"
+    },
+    "shop.value.Advanced": {
+      "params": {},
+      "text": "Advanced"
+    },
+    "shop.value.Pro": {
+      "params": {},
+      "text": "Pro"
+    },
+    "shop.value.Elite": {
+      "params": {},
+      "text": "Elite"
+    },
+    "shop.value.Legendary": {
+      "params": {},
+      "text": "Legendary"
+    },
+    "shop.value.tool": {
+      "params": {},
+      "text": "Tool"
+    },
+    "shop.value.scanner": {
+      "params": {},
+      "text": "Scanner"
+    },
+    "shop.value.tracker": {
+      "params": {},
+      "text": "Tracking"
+    },
+    "shop.value.creator": {
+      "params": {},
+      "text": "Creator"
+    },
+    "shop.value.system_lab": {
+      "params": {},
+      "text": "System lab"
+    },
+    "shop.value.pro-system-tool": {
+      "params": {},
+      "text": "Pro system tool"
+    },
+    "shop.value.pro-system-tools": {
+      "params": {},
+      "text": "Pro system tools"
+    },
+    "shop.value.travel_ticket": {
+      "params": {},
+      "text": "Travel ticket"
+    },
+    "shop.value.storage_upgrade": {
+      "params": {},
+      "text": "Storage upgrade"
+    },
+    "shop.value.map_upgrade": {
+      "params": {},
+      "text": "Map upgrade"
+    },
+    "shop.value.scan_upgrade": {
+      "params": {},
+      "text": "Scan range"
+    },
+    "shop.value.bike_upgrade": {
+      "params": {},
+      "text": "Vehicle range"
+    },
+    "shop.value.storage": {
+      "params": {},
+      "text": "Storage"
+    },
+    "shop.value.travel": {
+      "params": {},
+      "text": "Travel"
+    },
+    "shop.value.map": {
+      "params": {},
+      "text": "Map"
+    },
+    "shop.value.hybrid": {
+      "params": {},
+      "text": "Hybrid"
+    },
+    "shop.value.desktop": {
+      "params": {},
+      "text": "Desktop"
+    },
+    "shop.value.recon": {
+      "params": {},
+      "text": "Reconnaissance"
+    },
+    "shop.value.camera_tool": {
+      "params": {},
+      "text": "Camera tool"
+    },
+    "shop.value.creators": {
+      "params": {},
+      "text": "Creators"
+    },
+    "shop.value.pro-system-lab": {
+      "params": {},
+      "text": "System lab"
+    }
+  }
+}

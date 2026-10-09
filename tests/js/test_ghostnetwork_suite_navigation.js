@@ -156,6 +156,7 @@ const territorySandbox = {
     Array, Number, String,
 };
 vm.createContext(territorySandbox);
+require('./locale_fixture')(territorySandbox);
 vm.runInContext(terminal.slice(territoryStart, territoryEnd), territorySandbox);
 assert.strictEqual(territorySandbox.territoryControlGhostBadge({ contains_ghost_part: false }), "");
 const hiddenDetails = territorySandbox.renderTerritoryControlGhostDetails({

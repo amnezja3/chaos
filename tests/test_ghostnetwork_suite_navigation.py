@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import run
@@ -10,14 +11,14 @@ def projection(part, cycle_status="active"):
 
 class GhostNetworkSuiteNavigationTests(unittest.TestCase):
     def test_narrative_cta_surfaces_exist_in_frontend(self):
-        with open("static/js/terminal.js", encoding="utf-8") as source:
+        with (Path(__file__).resolve().parents[1] / "static/js/terminal.js").open(encoding="utf-8") as source:
             script = source.read()
         for marker in (
             "createGhostSignalArchiveApp", "open_ghostsignal_archive:",
             "open_ghostnetwork_suite:", "show_ghostnetwork_part:",
             "show_ghostnetwork_territory:", "open_cyberner_channel:",
             "ghostNetworkSuiteInstalledInProfile",
-            "GhostNetwork Suite nie jest zainstalowany",
+            "apps.blacknet.suite_install",
             "messageShown: true",
             "function blacknetCtaPresentation",
             'action !== "none"',
@@ -26,7 +27,7 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
             self.assertIn(marker, script)
 
     def test_signal_archive_cta_retains_selected_signal_across_reopen_and_reload(self):
-        with open("static/js/terminal.js", encoding="utf-8") as source:
+        with (Path(__file__).resolve().parents[1] / "static/js/terminal.js").open(encoding="utf-8") as source:
             script = source.read()
 
         self.assertIn(
@@ -42,7 +43,7 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
             script,
         )
         self.assertIn(
-            'const selectedId = String(signalId || app.dataset.signalId || "").trim()',
+            'const selectedId = String(signalId || app.dataset.signalId || rankings[0]?.signal_id || "").trim()',
             script,
         )
         self.assertIn(

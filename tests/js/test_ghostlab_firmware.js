@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const source = fs.readFileSync('static/js/ghostlab_firmware.js', 'utf8');
 function fixture() {
     const nodes = {};
-    const node = key => nodes[key] ||= {textContent:'', innerHTML:'', disabled:false,
+    const node = key => nodes[key] ||= {dataset:{},textContent:'', innerHTML:'', disabled:false,
         addEventListener(_, fn) { this.onclick = fn; }};
     const buttons = ['[data-flash]', '[data-buy]', '[data-refresh]'].map(node);
     const body = {isConnected:true, innerHTML:'', querySelector:node, querySelectorAll:() => buttons};
@@ -24,7 +24,7 @@ function fixture() {
             getElementById:() => overlay,
             createElement:() => {
                 const button = {disabled:true,focus(){}};
-                const status = {textContent:''};
+                const status = {dataset:{},textContent:''};
                 return {isConnected:true,dataset:{},setAttribute(){},focus(){},addEventListener(){},
                     querySelector: s => s === 'button' ? button : status,
                     remove(){this.isConnected=false;overlay=null;}};
@@ -39,7 +39,7 @@ function fixture() {
             if (fail) throw Error('lost response');
             return {ok:true,json:async () => ({success:true,succeeded:true,message:'Saved',disk_mb:100,scan_m:50,storage:{capacity:5100}})};
         }};
-    vm.createContext(ctx); vm.runInContext(source,ctx);
+    vm.createContext(ctx); require("./locale_fixture")(ctx); vm.runInContext(source,ctx);
     return {ctx,app,body,nodes,info,timers,sibling, posts:() => posts,reloads:() => reloads,
         restartCalls:() => restartCalls,reloadCalls:() => reloadCalls,overlay:() => overlay,
         state:s => state=s,accept:a => accepted=a,fail:a => fail=a,

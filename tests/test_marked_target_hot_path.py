@@ -153,6 +153,8 @@ class MarkTargetEndpointHotPathTests(unittest.TestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertTrue(response.get_json()["success"])
+        self.assertEqual(response.json['message_i18n']['key'], 'map.result.marked_coords')
+        self.assertEqual(response.json['message_i18n']['params'], {'lat': '52.1', 'lng': '21.2'})
         self.assertEqual("map:52.1:21.2:Fast", response.get_json()["target"]["target_id"])
         upsert.assert_called_once()
         delta.assert_called_once()
@@ -210,6 +212,7 @@ class MarkTargetEndpointHotPathTests(unittest.TestCase):
         })
         self.assertEqual(400, response.status_code)
         self.assertEqual("invalid_coordinates", response.get_json()["error"])
+        self.assertEqual('map.result.invalid_coordinates', response.json['message_i18n']['key'])
 
 
 class MarkedTargetFrontendContractTests(unittest.TestCase):

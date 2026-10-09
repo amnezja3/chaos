@@ -1,0 +1,219 @@
+{
+  "scan_probe_v1": {
+    "name": "ScanProbe",
+    "description": "Aktywna sonda wykrywająca porty i lokalizację użytkowników. Może zostać wykryta przez aktywną ochronę.",
+    "levels.0.title": "ScanProbe – Aktywne skanowanie portów i lokalizacji",
+    "levels.0.steps.0": "Inicjalizacja sondy...",
+    "levels.0.steps.1": "Ustalanie adresu IP...",
+    "levels.0.steps.2": "Sprawdzanie otwartych portów...",
+    "levels.0.steps.3": "Analiza geolokalizacji użytkownika...",
+    "levels.0.result_success": "✅ Zidentyfikowano otwarte porty i przybliżoną lokalizację.",
+    "levels.0.result_failure": "❌ Skanowanie zostało przerwane lub zablokowane."
+  },
+  "deep_sniff_r2": {
+    "name": "DeepSniff",
+    "description": "Skaner głęboki analizujący działające procesy i logi bezpieczeństwa. Może zostać zablokowany przez aktywne logowanie lub ochronę integralności dzienników.",
+    "levels.0.title": "DeepSniff – Analiza procesów i logów",
+    "levels.0.steps.0": "Łączenie z systemem...",
+    "levels.0.steps.1": "Odczyt aktywnych zadań...",
+    "levels.0.steps.2": "Sprawdzanie integralności logów...",
+    "levels.0.steps.3": "Zbieranie podejrzanych wpisów...",
+    "levels.0.result_success": "✅ Wykryto aktywne zadania i podejrzane wpisy w logach.",
+    "levels.0.result_failure": "❌ Nie udało się uzyskać dostępu do logów lub procesów."
+  },
+  "ghost_ping_x3": {
+    "name": "GhostPing",
+    "description": "Ultralekki skaner do wykrywania obecności innych użytkowników w sieci i błędów w ich kamuflażu. Podatny na wykrycie przez zaawansowaną detekcję anomalii.",
+    "levels.0.title": "GhostPing – Pingowanie ukrytych urządzeń",
+    "levels.0.steps.0": "Wysyłanie sygnału ping...",
+    "levels.0.steps.1": "Oczekiwanie na odpowiedzi...",
+    "levels.0.steps.2": "Analiza odpowiedzi sieciowych...",
+    "levels.0.steps.3": "Sprawdzanie błędów kamuflażu...",
+    "levels.0.result_success": "✅ Wykryto obecność ukrytych użytkowników oraz błędy maskowania.",
+    "levels.0.result_failure": "❌ Brak odpowiedzi – urządzenia mogą być poza zasięgiem lub dobrze ukryte."
+  },
+  "stealth_browser_v2": {
+    "name": "StealthBrowser",
+    "description": "Minimalistyczna przeglądarka z ukrytym referrerem, bez historii. Wrażliwa na aktywną ochronę przeglądarki.",
+    "levels.0.title": "StealthBrowser v2 – Tryb ukryty",
+    "levels.0.list.0": "🌐 Domyślna strona: xhttp://start.local",
+    "levels.0.list.1": "🔒 Referrer ukryty: TAK",
+    "levels.0.list.2": "📜 Historia przeglądania: WYŁĄCZONA",
+    "levels.0.list.3": "🛡️ Blokada skryptów: AKTYWNA",
+    "levels.0.buttons.0.label": "Otwórz nową kartę",
+    "levels.0.buttons.1.label": "Zamknij przeglądarkę"
+  },
+  "crypto_vault_v1": {
+    "name": "EncryptedFileVault",
+    "description": "Szyfrowany eksplorator użytkownika. Ukrywa zawartość przed systemem i analizą plików.",
+    "levels.0.title": "Encrypted File Vault – Dostęp szyfrowany",
+    "levels.0.list.0": "📁 Folder: /vault",
+    "levels.0.list.1": "🧾 Plik: log.txt — 🔐 zaszyfrowany",
+    "levels.0.list.2": "🧾 Plik: secrets.dat — 🔐 zaszyfrowany",
+    "levels.0.list.3": "🔄 Indeksowanie plików: WYŁĄCZONE",
+    "levels.0.list.4": "👁️ Widoczność w systemie: UKRYTA",
+    "levels.0.buttons.0.label": "Odszyfruj pliki",
+    "levels.0.buttons.1.label": "Zamknij sejf"
+  },
+  "phantom_vpn_v1": {
+    "name": "PhantomVPN",
+    "description": "Tunel VPN z autoprzełączaniem. Maskuje aktywność gracza, ale może kolidować z wstrzykiwaniem exploitów do sesji TCP/IP.",
+    "levels.0.title": "Establishing VPN Tunnel",
+    "levels.0.steps.0": "Negotiating encryption parameters...",
+    "levels.0.steps.1": "Assigning virtual IP address...",
+    "levels.0.steps.2": "Securing communication channel...",
+    "levels.0.steps.3": "Finalizing tunnel handshake...",
+    "levels.0.result_success": "VPN tunnel established successfully. IP masked.",
+    "levels.0.result_failure": "VPN connection failed. Check for VPN blockers or network issues."
+  },
+  "shadow_layer_v1": {
+    "name": "ShadowLayer",
+    "description": "Warstwa maskująca działania gracza w systemie. Redukuje widoczność, ale ogranicza dostęp do aktywnych funkcji systemowych.",
+    "levels.0.title": "Wybierz tryb ukrycia:",
+    "levels.0.text": "ShadowLayer pozwala ukryć działania systemowe. Wybierz poziom ukrycia – im głębszy, tym większe ryzyko dezaktywacji funkcji.",
+    "levels.0.options.0.label": "Pasywny – tylko maskowanie logów",
+    "levels.0.options.1.label": "Agresywny – pełna izolacja",
+    "levels.0.options.2.label": "Cichy tunel – ukrycie aktywności sieciowej",
+    "levels.0.options.3.label": "Symulacja bezczynności – zamaskowanie działań jako idle",
+    "levels.0.options.4.label": "Deep Phantom Mode – pełna separacja jądra (EXPERYMENTALNY)",
+    "levels.0.options.5.label": "Anuluj"
+  },
+  "injector_x_v1": {
+    "name": "InjectorX",
+    "description": "Zaawansowane narzędzie typu exploit injection. Skuteczne tylko przy wyłączonej ochronie jądra. Może obniżyć integralność systemu.",
+    "levels.0.logs.0": "Łączenie z usługą docelową...",
+    "levels.0.logs.1": "Próba ominięcia ochrony jądra...",
+    "levels.0.logs.2": "Wstrzyknięcie kodu zakończone sukcesem.",
+    "levels.0.logs.3": "Integralność systemu: -15%",
+    "levels.1.logs.0": "Łączenie z usługą docelową...",
+    "levels.1.logs.1": "Firewall core aktywny – dostęp zablokowany!",
+    "levels.1.logs.2": "Wstrzyknięcie zakończone niepowodzeniem."
+  },
+  "procmon_v1": {
+    "name": "ProcessMon",
+    "description": "Monitor procesów systemowych. Wykrywa nieautoryzowane aplikacje i działania, ale może ograniczać działanie narzędzi ofensywnych.",
+    "levels.0.title": "Monitor procesów",
+    "levels.0.list.0": "PID: 2331 | Nazwa: injector_x_v1 | Status: Wykryto próbę iniekcji",
+    "levels.0.list.1": "PID: 4522 | Nazwa: shadow_layer_v1 | Status: Ukryty proces - zagrożenie",
+    "levels.0.list.2": "PID: 1090 | Nazwa: trusted_daemon | Status: OK",
+    "levels.0.buttons.0.label": "Zakończ proces",
+    "levels.0.buttons.1.label": "Zignoruj"
+  },
+  "drivecrypt_v1": {
+    "name": "DriveEncryptor",
+    "description": "Moduł szyfrowania systemu plików. Chroni dane gracza, ale wpływa na wydajność i może kolidować z narzędziami indeksującymi.",
+    "levels.0.title": "DriveEncryptor – Szyfrowanie przestrzeni dyskowej",
+    "levels.0.steps.0": "🔐 Inicjalizacja modułu DriveEncryptor...",
+    "levels.0.steps.1": "🔄 Skanowanie struktur katalogowych...",
+    "levels.0.steps.2": "🗂️ Zabezpieczanie danych użytkownika...",
+    "levels.0.steps.3": "💾 Nadpisywanie niezaszyfrowanych sektorów...",
+    "levels.0.result_success": "✅ Wszystkie dane zostały skutecznie zaszyfrowane.",
+    "levels.0.result_failure": "❌ Proces szyfrowania nie został zakończony poprawnie."
+  },
+  "zeroday_hunter": {
+    "name": "ZeroDayHunter",
+    "description": "Zaawansowany wykrywacz podatności typu zero-day. Może otwierać nieznane wektory ataku, ale jest łatwy do wykrycia przy aktywnym monitoringu.",
+    "levels.0.logs.0": "run launch zeroday_scan deep verbose",
+    "levels.0.logs.1": "check vulnerabilities 0day",
+    "levels.0.logs.2": "report generate format json"
+  },
+  "mem_overflow_v1": {
+    "name": "MemoryOverflow",
+    "description": "Atak przepełnienia pamięci operacyjnej. Skuteczny przy wyłączonych zabezpieczeniach pamięci – może uszkodzić system docelowy lub samego gracza.",
+    "levels.0.title": "MemoryOverflow – Przepełnienie pamięci",
+    "levels.0.steps.0": "📤 Wysyłanie danych testowych...",
+    "levels.0.steps.1": "💽 Przekraczanie granicy bufora...",
+    "levels.0.steps.2": "📉 Manipulacja alokacją RAM...",
+    "levels.0.steps.3": "🧠 Inicjalizacja przepełnienia pamięci...",
+    "levels.0.result_success": "💥 Pamięć przeciążona – exploit zakończony powodzeniem.",
+    "levels.0.result_failure": "⚠️ Atak wykryty i zablokowany. Proces zrestartowany przez system."
+  },
+  "pencombo_v1": {
+    "name": "PenCombo",
+    "description": "Zestaw skonsolidowanych technik penetracyjnych do automatycznego rozpoznania, eskalacji uprawnień i wstrzykiwania kodu. Umożliwia działania ofensywne w różnych wektorach systemowych.",
+    "levels.0.title": "Wybierz tryb ataku PenCombo:",
+    "levels.0.text": "Zintegrowany zestaw technik penetracyjnych. Dostosuj tryb do celu – od skanowania aż po wstrzyknięcie kodu.",
+    "levels.0.options.0.label": "Recon Mode – pasywna analiza i detekcja słabości",
+    "levels.0.options.1.label": "Injection Mode – aktywna iniekcja kodu",
+    "levels.0.options.2.label": "Privilege Escalation – eskalacja z niskich uprawnień",
+    "levels.0.options.3.label": "All-In-One Strike – pełna sekwencja penetracyjna",
+    "levels.0.options.4.label": "Hack that all"
+  },
+  "camstream_v1": {
+    "name": "CamStream",
+    "description": "Moduł zdalnego podglądu obrazu z kamer IP. Delikatny jak cień, ale może aktywować alert w systemie monitoringu.",
+    "levels.0.title": "CamStream – Podgląd kamery",
+    "levels.0.steps.0": "🔍 Wyszukiwanie aktywnych kamer...",
+    "levels.0.steps.1": "📡 Nawiązywanie połączenia...",
+    "levels.0.steps.2": "🖼️ Streamowanie obrazu...",
+    "levels.0.steps.3": "📁 Buforowanie danych wideo...",
+    "levels.0.result_success": "✅ Obraz z kamery uzyskany. Obiekt pod obserwacją.",
+    "levels.0.result_failure": "❌ Kamera odrzuciła połączenie. Możliwa aktywna ochrona."
+  },
+  "camdisabler_v1": {
+    "name": "CamDisabler",
+    "description": "Narzędzie do wyłączenia i zakłócenia kamer IP. Pozostawia ślad w logach, jeśli nie działa w trybie stealth.",
+    "levels.0.logs.0": "Połączenie z kamerą...",
+    "levels.0.logs.1": "Próba wyłączenia aktywnego streamu...",
+    "levels.0.logs.2": "Zakłócanie transmisji sygnału wideo...",
+    "levels.0.logs.3": "✅ Kamera została dezaktywowana.",
+    "levels.1.logs.0": "Skanowanie otwartych portów kamery...",
+    "levels.1.logs.1": "Iniekcja kodu zakłócającego działanie...",
+    "levels.1.logs.2": "⚠️ Aktywna ochrona wykryta – operacja przerwana."
+  },
+  "micsniff_v1": {
+    "name": "MicSniff",
+    "description": "Sniffer mikrofonowy – cichy podsłuch otoczenia. Idealny do wykrycia rozmów lub dźwięków wokół celu.",
+    "levels.0.title": "MicSniff – Nasłuch mikrofonu",
+    "levels.0.steps.0": "📡 Wyszukiwanie aktywnych mikrofonów...",
+    "levels.0.steps.1": "🎧 Nasłuch kanału audio...",
+    "levels.0.steps.2": "📥 Analiza poziomu dźwięku...",
+    "levels.0.steps.3": "📤 Odszyfrowywanie strumienia audio...",
+    "levels.0.result_success": "✅ Dźwięk przechwycony. Możliwa aktywna rozmowa.",
+    "levels.0.result_failure": "❌ Brak źródła dźwięku lub blokada audio."
+  },
+  "bttracer_v1": {
+    "name": "BTTracer",
+    "description": "Skaner aktywnych urządzeń Bluetooth w okolicy. Przydatny do śledzenia obecności użytkownika lub jego sprzętu.",
+    "levels.0.title": "BTTracer – Skanowanie sygnałów BLE",
+    "levels.0.steps.0": "📡 Wykrywanie aktywnych beaconów...",
+    "levels.0.steps.1": "🔍 Analiza sygnału RSSI...",
+    "levels.0.steps.2": "📍 Namierzanie pozycji urządzeń...",
+    "levels.0.steps.3": "📲 Odczyt identyfikatorów MAC...",
+    "levels.0.result_success": "✅ Znaleziono urządzenia Bluetooth w pobliżu.",
+    "levels.0.result_failure": "❌ Brak aktywnych urządzeń lub sygnał zakłócony."
+  },
+  "gpsprobe_v1": {
+    "name": "GPSProbe",
+    "description": "Sonda GPS do lokalizacji ruchomych obiektów. Pozwala zdalnie ustalić współrzędne celu.",
+    "levels.0.title": "GPSProbe – Ustalanie lokalizacji",
+    "levels.0.steps.0": "🔎 Namierzanie sygnału GPS...",
+    "levels.0.steps.1": "📍 Łączenie z satelitą...",
+    "levels.0.steps.2": "🛰️ Synchronizacja danych lokalizacyjnych...",
+    "levels.0.steps.3": "📡 Odbiór współrzędnych...",
+    "levels.0.result_success": "✅ Pozycja GPS ustalona. Cel śledzony.",
+    "levels.0.result_failure": "❌ Brak sygnału GPS lub silne zakłócenia."
+  },
+  "wifibreaker_v1": {
+    "name": "WiFiBreaker",
+    "description": "Włam do sieci Wi-Fi. Uzyskaj dostęp do lokalnej infrastruktury lub podsłuchuj ruch.",
+    "levels.0.title": "WiFiBreaker – Przełamywanie zabezpieczeń",
+    "levels.0.steps.0": "🔐 Odczytywanie sygnału...",
+    "levels.0.steps.1": "📡 Próba uwierzytelnienia...",
+    "levels.0.steps.2": "🧬 Analiza hasła WPA2...",
+    "levels.0.steps.3": "🔓 Złamano zabezpieczenia!",
+    "levels.0.result_success": "✅ Uzyskano dostęp do Wi-Fi.",
+    "levels.0.result_failure": "❌ Próba nieudana. Silne szyfrowanie."
+  },
+  "data_corruptor_v1": {
+    "name": "DataCorruptor",
+    "description": "Sabotaż plików i danych ofiary. Niszczy logi, archiwa, zrzuty baz danych.",
+    "levels.0.title": "Uszkadzanie danych...",
+    "levels.0.steps.0": "📂 Wyszukiwanie wrażliwych plików...",
+    "levels.0.steps.1": "🧨 Wprowadzanie błędów CRC...",
+    "levels.0.steps.2": "📉 Usuwanie kopii zapasowych...",
+    "levels.0.steps.3": "💥 Sabotaż zakończony",
+    "levels.0.result_success": "✅ Dane uszkodzone. System destabilizowany.",
+    "levels.0.result_failure": "❌ Nie udało się naruszyć systemu – aktywny nadzór bezpieczeństwa."
+  }
+}

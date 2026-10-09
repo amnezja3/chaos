@@ -1,0 +1,153 @@
+{
+  "locale": "pl",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "radio.filter": {
+      "params": {},
+      "text": "Język kanałów"
+    },
+    "radio.channels": {
+      "params": {},
+      "text": "Kanał"
+    },
+    "radio.empty": {
+      "params": {},
+      "text": "Brak kanałów dla tego języka."
+    },
+    "radio.any": {
+      "params": {},
+      "text": "Pokaż wszystkie (ANY)"
+    },
+    "radio.choose": {
+      "params": {},
+      "text": "Wybierz kanał"
+    },
+    "radio.program": {
+      "params": {
+        "language": "string"
+      },
+      "text": "Język audycji: {language}"
+    },
+    "radio.unknown": {
+      "params": {},
+      "text": "niepotwierdzony"
+    },
+    "radio.neutral": {
+      "params": {},
+      "text": "bez słów"
+    },
+    "radio.mixed": {
+      "params": {},
+      "text": "wielojęzyczny"
+    },
+    "radio.previous": {
+      "params": {},
+      "text": "Poprzedni kanał"
+    },
+    "radio.next": {
+      "params": {},
+      "text": "Następny kanał"
+    },
+    "radio.play": {
+      "params": {},
+      "text": "Odtwórz"
+    },
+    "radio.pause": {
+      "params": {},
+      "text": "Wstrzymaj"
+    },
+    "radio.mute": {
+      "params": {},
+      "text": "Wycisz"
+    },
+    "radio.volume": {
+      "params": {},
+      "text": "Głośność"
+    },
+    "radio.no_track": {
+      "params": {},
+      "text": "Brak utworu"
+    },
+    "radio.status.signal_idle": {
+      "params": {},
+      "text": "SYGNAŁ BEZCZYNNY"
+    },
+    "radio.status.signal_boot": {
+      "params": {},
+      "text": "URUCHAMIANIE RADIA"
+    },
+    "radio.status.signal_tuning": {
+      "params": {},
+      "text": "STROJENIE"
+    },
+    "radio.status.signal_online": {
+      "params": {},
+      "text": "ODTWARZANIE"
+    },
+    "radio.status.signal_paused": {
+      "params": {},
+      "text": "WSTRZYMANO"
+    },
+    "radio.status.signal_search": {
+      "params": {},
+      "text": "SZUKANIE SYGNAŁU"
+    },
+    "radio.status.signal_error": {
+      "params": {},
+      "text": "BŁĄD SYGNAŁU"
+    },
+    "radio.status.signal_loading": {
+      "params": {},
+      "text": "ŁADOWANIE"
+    },
+    "radio.status.signal_lost": {
+      "params": {},
+      "text": "UTRACONO SYGNAŁ"
+    },
+    "radio.status.bad_schema": {
+      "params": {},
+      "text": "NIEZGODNY FORMAT KANAŁU"
+    },
+    "radio.status.signal_ready": {
+      "params": {},
+      "text": "GOTOWE"
+    },
+    "radio.status.no_tracks": {
+      "params": {},
+      "text": "BRAK UTWORÓW"
+    },
+    "radio.status.click_to_start": {
+      "params": {},
+      "text": "KLIKNIJ, ABY ODTWORZYĆ"
+    },
+    "radio.status.autoplay_off": {
+      "params": {},
+      "text": "AUTOPLAY WYŁĄCZONY"
+    },
+    "radio.status.one_channel": {
+      "params": {},
+      "text": "BRAK INNYCH KANAŁÓW"
+    },
+    "radio.unmute": {
+      "params": {},
+      "text": "Włącz dźwięk"
+    },
+    "radio.channel.blacknet.name": {
+      "params": {},
+      "text": "BlackNet Radio"
+    },
+    "radio.channel.blacknet.description": {
+      "params": {},
+      "text": "Rozmowy z cyfrowego podziemia. Audycje dla operatorów CHAOS."
+    },
+    "radio.channel.ghost.name": {
+      "params": {},
+      "text": "Ghost Hack Radio"
+    },
+    "radio.channel.ghost.description": {
+      "params": {},
+      "text": "Pierwszy piracki kanał systemowy GhostNet."
+    }
+  }
+}

@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   width: min(620px, calc(100vw - 24px));
-  height: min(480px, calc(100vh - 32px));
+  height: min(620px, calc(100vh - 72px));
   min-width: 340px;
   min-height: 360px;
   overflow: hidden;
@@ -10,7 +10,7 @@
 
 .ghost-radio-shell {
   display: grid;
-  grid-template-rows: auto auto minmax(74px, 1fr) auto auto auto;
+  grid-template-rows: auto auto auto minmax(34px, 1fr) auto auto auto auto auto;
   gap: 12px;
   flex: 1 1 auto;
   min-height: 0;
@@ -23,8 +23,17 @@
     #020806;
   border: 1px solid rgba(0, 255, 102, 0.35);
   box-shadow: inset 0 0 24px rgba(0, 255, 102, 0.08);
-  overflow: hidden;
+  overflow: auto;
 }
+
+.ghost-radio-filters { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.ghost-radio-filters label { display: grid; gap: 4px; flex: 1 1 130px; min-width: 0; font-size: .8rem; }
+.ghost-radio-filters select, .ghost-radio-filters button {
+  min-width: 0; max-width: 100%; padding: 6px 8px; color: #baffcf;
+  background: #03190d; border: 1px solid #248549; font: inherit; color-scheme: dark;
+}
+.ghost-radio-filters [data-radio-empty] { flex-basis: 100%; font-size: .8rem; }
+.ghost-radio-filters [hidden] { display: none; }
 
 .ghost-radio-window .title-bar {
   flex: 0 0 auto;
@@ -245,7 +254,7 @@
   }
 
   .ghost-radio-shell {
-    grid-template-rows: auto auto minmax(42px, 1fr) auto auto auto;
+    grid-template-rows: auto auto auto minmax(34px, 1fr) auto auto auto auto auto;
     gap: 9px;
     padding: 14px;
   }

@@ -281,7 +281,7 @@ class TerritoryDefenseRuntimeTest(unittest.TestCase):
     def test_scan_and_frontend_contract_carry_trusted_scan_identity(self):
         map_action = inspect.getsource(run.map_action)
         report = inspect.getsource(run.report_vulnerability)
-        frontend = Path("templates/map_template.html").read_text(encoding="utf-8")
+        frontend = (Path(__file__).resolve().parents[1] / "templates/map_template.html").read_text(encoding="utf-8")
         for token in (
             "player_scan_snapshot_store.record",
             'marker["scan_id"] = scan_id',

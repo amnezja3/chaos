@@ -8,7 +8,9 @@ assert.match(terminal, /signal_registry_available === true/);
 assert.match(terminal, /label: 'Signal Registry'/);
 assert.match(terminal, /\/api\/ghostnetwork\/rankings\?limit=50/);
 assert.match(terminal, /\/api\/ghostnetwork\/rankings\/all-time/);
-assert.match(terminal, /IMMUTABLE \/\/ REBUILDABLE/);
+assert.match(terminal, /apps\.network\.registry\.contract/);
+assert(Object.values(JSON.parse(fs.readFileSync('static/locales/en/apps.json','utf8')).messages)
+    .some(message => message.text === 'IMMUTABLE // REBUILDABLE'));
 assert.match(terminal, /createGhostSignalArchiveApp/);
 assert.match(styles, /\.ghostsignal-ranking-grid/);
 assert.match(styles, /\.ghostsignal-ranking-row/);

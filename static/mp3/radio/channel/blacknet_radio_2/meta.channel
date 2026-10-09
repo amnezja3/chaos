@@ -9,5 +9,39 @@
   "loop": true,
   "mode": "random",
   "sort": "name",
-  "exclude": []
+  "exclude": [],
+  "language": "pl",
+  "presentation": {
+    "name": "radio.channel.blacknet.name",
+    "description": "radio.channel.blacknet.description"
+  },
+  "programs": {
+    "BLACKNET RADIO — 001.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 002.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 003.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 004.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 005.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 006.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 007.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 008.mp3": {
+      "language": "pl"
+    },
+    "BLACKNET RADIO — 009.mp3": {
+      "language": "pl"
+    }
+  }
 }

@@ -15,12 +15,12 @@
 
     const categories = Object.freeze([
         { id: 'tools', label: 'Narzędzia', words: 'narzędzia narzędzie aplikacje programy tools' },
-        { id: 'documents', label: 'Dokumenty', words: 'dokument dokumenty wiedza instrukcje' },
-        { id: 'travel_ticket', label: 'Bilety', words: 'bilety bilet podróż podróże przejazd miasta' },
-        { id: 'storage_upgrade', label: 'Dysk', words: 'dysk dyski pamięć pojemność magazyn ulepszenia' },
-        { id: 'map', label: 'Mapa i skan', words: 'mapa mapy skan skanowanie zasięg zoom ulepszenia' },
-        { id: 'bike_upgrade', label: 'Pojazd', words: 'pojazd motocykl rower podróż zasięg ulepszenia' },
-        { id: 'other', label: 'Pozostałe', words: 'pozostałe inne produkty' }
+        { id: 'documents', label: 'Dokumenty', words: 'dokument dokumenty wiedza instrukcje document documents knowledge instructions' },
+        { id: 'travel_ticket', label: 'Bilety', words: 'bilety bilet podróż podróże przejazd miasta ticket tickets travel trip cities' },
+        { id: 'storage_upgrade', label: 'Dysk', words: 'dysk dyski pamięć pojemność magazyn ulepszenia disk storage memory capacity upgrades' },
+        { id: 'map', label: 'Mapa i skan', words: 'mapa mapy skan skanowanie zasięg zoom ulepszenia map scan scanning range zoom upgrades' },
+        { id: 'bike_upgrade', label: 'Pojazd', words: 'pojazd motocykl rower podróż zasięg ulepszenia vehicle motorcycle bike travel range upgrades' },
+        { id: 'other', label: 'Pozostałe', words: 'pozostałe inne produkty other products' }
     ]);
     const normalizeSearch = value => String(value || '').toLowerCase().normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/[_-]+/g, ' ');
@@ -57,7 +57,7 @@
         const aliases = associations.filter(([keys]) => keys.split(' ').some(key => metadataWords.has(key)))
             .map(([, words]) => words).join(' ');
         const text = normalizeSearch([
-            item.name, item.description, item.app_level, item.travel_city, metadata, aliases,
+            item.name, item.description, ...list(item.search_aliases), item.app_level, item.travel_city, metadata, aliases,
             categories.find(entry => entry.id === categoryOf(item)).words,
             ...list(item.effects).map(effect => `${effect?.type || ''} ${effect?.value ?? effect?.city ?? ''}`)
         ].join(' '));

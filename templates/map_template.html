@@ -2195,7 +2195,7 @@
 
 {{ folium_js|safe }}
 <script src="/static/js/ghostnetwork_delta_client.js?v=suite-cutover-1"></script>
-<script src="/static/js/ghost_radio.js?v=radio-player-142-3-2"></script>
+<script src="/static/js/ghost_radio.js?v=radio-i18n-154-6"></script>
 <link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
 <script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
 <script src="/static/js/ghost_signal_network_details.js?v=network-runtime-1"></script>
@@ -2353,9 +2353,9 @@
                 const container = L.DomUtil.create('div', 'leaflet-bar chaos-map-refresh-control');
                 const button = L.DomUtil.create('a', 'chaos-map-refresh-button', container);
                 button.href = '#';
-                button.title = 'Odśwież stan mapy';
+                button.title = GhostLocale.t('map.workspace.refresh');
                 button.setAttribute('role', 'button');
-                button.setAttribute('aria-label', 'Odśwież stan mapy');
+                button.setAttribute('aria-label', GhostLocale.t('map.workspace.refresh'));
                 button.textContent = '↻';
                 button.innerHTML = '<span class="chaos-map-refresh-icon" aria-hidden="true">&#8635;</span>';
                 L.DomEvent.disableClickPropagation(container);
@@ -2372,7 +2372,7 @@
                         showMapPreloader('Rekonstrukcja stanu mapy...', 8);
                         const note = mapBootOverlay()?.querySelector('.chaos-map-boot-note');
                         if (note) {
-                            note.textContent = 'Pobieranie aktualnego snapshotu. Zachowując obserwowany obszar i poziom zoomu.';
+                            note.textContent = GhostLocale.t('map.workspace.snapshot');
                         }
                         window.requestAnimationFrame(() => window.location.reload());
                     }, 560);
@@ -3058,11 +3058,11 @@
 
         function ghostAbilityMapScaleLabel(scale) {
             return ({
-                local: 'LOKALNIE',
-                city: 'MIASTO',
-                country: 'KRAJ',
-                continent: 'EUROPA',
-                world: 'ŚWIAT'
+                local: GhostLocale.t("map.power.local"),
+                city: GhostLocale.t("map.power.city"),
+                country: GhostLocale.t("map.power.country"),
+                continent: GhostLocale.t("map.power.continent"),
+                world: GhostLocale.t("map.power.world")
             })[String(scale || '')] || 'MAPA';
         }
 
@@ -3320,7 +3320,7 @@
                 if (window.ghostAbilityRuntime.expiredWindowId === windowId) return;
                 window.ghostAbilityRuntime.expiredWindowId = windowId;
             }
-            addSystemMessage('info', 'GhostNetwork', 'Wpływ aktywnej części dobiegł końca.');
+            addSystemMessage('info', 'GhostNetwork', GhostLocale.t('map.workspace.power_ended'));
         }
 
         function renderGhostAbilityControl() {
@@ -3360,10 +3360,10 @@
                     const scanRange = Number(snapshot.player && snapshot.player.effective_scan_range_m) || 0;
                     const strategicScale = snapshot.player && snapshot.player.map_zoom_scale;
                     existingState.textContent = liveActive && presentation.impact_ui === 'scan_range'
-                        ? `ZASIĘG ${formatGhostAbilityRange(scanRange)}`
+                        ? GhostLocale.t('map.power.range',{range:formatGhostAbilityRange(scanRange)})
                         : liveActive && presentation.impact_ui === 'map_zoom'
-                            ? `SKALA ${ghostAbilityMapScaleLabel(strategicScale)}`
-                            : (liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN');
+                            ? GhostLocale.t('map.power.scale',{scale:ghostAbilityMapScaleLabel(strategicScale)})
+                            : (liveActive ? GhostLocale.t("map.power.active") : 'COOLDOWN');
                     existingTimer.textContent = formatGhostAbilitySeconds(liveActive ? activeRemaining : cooldownRemaining);
                     return;
                 }
@@ -3385,10 +3385,10 @@
                 const scanRange = Number(snapshot.player && snapshot.player.effective_scan_range_m) || 0;
                 const strategicScale = snapshot.player && snapshot.player.map_zoom_scale;
                 state.textContent = liveActive && presentation.impact_ui === 'scan_range'
-                    ? `ZASIĘG ${formatGhostAbilityRange(scanRange)}`
+                    ? GhostLocale.t('map.power.range',{range:formatGhostAbilityRange(scanRange)})
                     : liveActive && presentation.impact_ui === 'map_zoom'
-                        ? `SKALA ${ghostAbilityMapScaleLabel(strategicScale)}`
-                        : (liveActive ? 'WPŁYW AKTYWNY' : 'COOLDOWN');
+                        ? GhostLocale.t('map.power.scale',{scale:ghostAbilityMapScaleLabel(strategicScale)})
+                        : (liveActive ? GhostLocale.t("map.power.active") : 'COOLDOWN');
                 copy.append(name, state);
                 const timer = document.createElement('div');
                 timer.className = 'ghost-ability-control__timer';
@@ -3403,7 +3403,7 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'ghost-ability-control__button';
-                button.textContent = String(presentation.display_name || ability.ability_name || 'Aktywuj moc');
+                button.textContent = String(presentation.display_name || ability.ability_name || GhostLocale.t("map.power.activate"));
                 button.addEventListener('click', () => activateGhostAbility(button));
                 control.appendChild(button);
                 control.dataset.renderKey = renderKey;
@@ -3503,12 +3503,21 @@
             );
         }
 
+        function mapResponseText(data, fallbackKey = 'map.result.failed') {
+            const envelope = data?.message_i18n;
+            if (envelope?.content_version === GhostLocale.contentVersion && GhostLocale.hasKey(envelope.key)) {
+                return GhostLocale.t(envelope.key, envelope.params || {});
+            }
+            // Compatibility for older/other endpoints; never infer keys from user text.
+            return String(data?.message || data?.status || GhostLocale.t(fallbackKey));
+        }
+
         function handleForeignTerritoryProtectedResponse(response, data) {
             if (!isForeignTerritoryProtectedResponse(response, data)) return false;
             addSystemMessage(
                 'warning',
-                '🛡️ Terytorium',
-                data.message || data.status || 'Ten obiekt jest chroniony przez obce terytorium.'
+                GhostLocale.t('map.result.territory_title'),
+                window.escapeMapText(mapResponseText(data, 'map.result.protected'))
             );
             return true;
         }
@@ -3554,7 +3563,7 @@
                         if (trigger) trigger.setAttribute('aria-busy', 'false');
                         return;
                     }
-                    throw new Error(data.message || data.error || 'Nie udalo sie ustawic celu.');
+                    throw new Error(mapResponseText(data));
                 }
                 window.profileData = window.profileData || {};
                 window.profileData.aimed_target = data.target;
@@ -3564,10 +3573,10 @@
                 // marker registry until the next complete map refresh.
                 closeAllMapMenus();
                 showSecretPathLore(data.target);
-                addSystemMessage('success', '🎯 Cel', data.message || 'Cel oznaczony.');
+                addSystemMessage('success', GhostLocale.t('map.result.target_title'), window.escapeMapText(mapResponseText(data, 'map.result.marked')));
             } catch (err) {
                 console.error('[map aim-target] failed', err);
-                addSystemMessage('error', '🎯 Cel', err.message || 'Nie udalo sie ustawic celu.');
+                addSystemMessage('error', GhostLocale.t('map.result.target_title'), window.escapeMapText(err.message || GhostLocale.t('map.result.failed')));
                 if (trigger) trigger.setAttribute('aria-busy', 'false');
             }
         }
@@ -4912,7 +4921,7 @@
                     iconAnchor: [24, 24]
                 })
             }).addTo(map);
-            marker.bindTooltip(`LINKING TARGET... ${mapTargetDisplayLabel(normalized, 'TARGET')}`, {
+            marker.bindTooltip(ghostLabel('map.workspace.target_linking',{name:mapTargetDisplayLabel(normalized,'TARGET')}), {
                 permanent: false,
                 direction: 'top'
             });
@@ -5118,6 +5127,13 @@
             return `${fallbackPrefix || targetDisplayPrefix(obj)}-${targetDisplayCode(obj)}`;
         }
 
+        // Presentation never participates in target identity or action payloads.
+        function mapTargetLabelHtml(obj = {}, fallback = '') {
+            const entry = obj.label_i18n;
+            return entry?.content_version === GhostLocale.contentVersion && entry.key.startsWith('map.npc.') && GhostLocale.hasKey(entry.key)
+                ? ghostLabel(entry.key, entry.params || {}) : window.escapeMapText(fallback || mapTargetDisplayLabel(obj));
+        }
+
         function targetStableId(obj = {}) {
             if (obj.target_id) return String(obj.target_id);
             if (obj.target_mode === 'player' && obj.target_username) return `player:${obj.target_username}`;
@@ -5245,7 +5261,7 @@
                 entry.marker.setLatLng([lat, lng]);
                 entry.marker.setIcon(targetDeltaIcon(target, captured));
                 if (typeof entry.marker.bindTooltip === 'function') {
-                    entry.marker.bindTooltip(label, { permanent: false, direction: 'top' });
+                    entry.marker.bindTooltip(mapTargetLabelHtml(target, label), { permanent: false, direction: 'top' });
                 }
                 entry.marker._chaosTargetSnapshot = target;
             }
@@ -5605,7 +5621,7 @@
                     iconAnchor: [40, 20]
                 })
             }).addTo(map);
-            marker.bindTooltip(label, { permanent: false, direction: 'top' });
+            marker.bindTooltip(mapTargetLabelHtml(obj || {}, label), { permanent: false, direction: 'top' });
             bindMarkerContextSnapshot(marker, markerObj, 'interactiveTargetMarker');
             marker.on('contextmenu', function(e) {
                 const binding = resolveMarkerContextBinding(marker, e, markerObj, 'interactiveTargetMarker');
@@ -5658,7 +5674,7 @@
                     iconAnchor: [16, 42]
                 })
             }).addTo(map);
-            marker.bindTooltip(label, { permanent: false, direction: 'top' });
+            marker.bindTooltip(mapTargetLabelHtml(target, label), { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
                 if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'hackedTargetMarker')) {
                     consumeMapContextEvent(e);
@@ -6025,7 +6041,7 @@
 
             // Nagłówek
             const safeIcon = window.escapeMapText ? window.escapeMapText(iconEmoji || '') : (iconEmoji || '');
-            const safeLabel = window.escapeMapText ? window.escapeMapText(label || '') : (label || '');
+            const safeLabel = mapTargetLabelHtml(menuTarget, label);
             const heading = document.createElement('button');
             heading.type = 'button';
             heading.className = 'context-menu-target-heading';
@@ -6153,10 +6169,10 @@
             try {
                 if (window.parent && window.parent !== window && typeof window.parent.blacknetDecisionDialog === 'function') {
                     return await window.parent.blacknetDecisionDialog({
-                        title: 'PORZUCENIE OBIEKTU',
-                        message: `Porzucić przejęty obiekt „${label}”?`,
-                        details: 'Może to zmienić terytorium i aktywny konflikt.',
-                        confirmLabel: 'PORZUĆ', cancelLabel: 'ANULUJ', tone: 'red'
+                        titleKey: 'map.workspace.abandon_title',
+                        messageKey: 'map.workspace.abandon_prompt', messageParams: {name:label},
+                        detailsKey: 'map.workspace.abandon_details',
+                        confirmKey: 'map.workspace.abandon_confirm', cancelKey: 'map.workspace.cancel', tone: 'red'
                     });
                 }
             } catch (err) {
@@ -6171,16 +6187,16 @@
                 dialog.setAttribute('aria-modal', 'true');
                 dialog.style.cssText = 'width:min(520px,100%);border:1px solid #ff4d67;background:#031109;color:#caffd7;padding:1.25rem;box-shadow:0 0 28px rgba(255,40,80,.35);font-family:monospace;';
                 const title = document.createElement('strong');
-                title.textContent = 'GHOST SYSTEM // PORZUCENIE OBIEKTU';
+                ghostSet(title, 'map.workspace.abandon_title');
                 title.style.color = '#ff5d72';
                 const message = document.createElement('p');
-                message.textContent = `Porzucić przejęty obiekt „${label}”? Może to zmienić terytorium i aktywny konflikt.`;
+                message.innerHTML = ghostLabel('map.workspace.abandon_prompt', {name:label}) + ' ' + ghostLabel('map.workspace.abandon_details');
                 const actions = document.createElement('div');
                 actions.style.cssText = 'display:flex;justify-content:flex-end;gap:.75rem;margin-top:1rem;';
                 const cancel = document.createElement('button');
-                cancel.type = 'button'; cancel.textContent = 'ANULUJ';
+                cancel.type = 'button'; ghostSet(cancel, 'map.workspace.cancel');
                 const confirm = document.createElement('button');
-                confirm.type = 'button'; confirm.textContent = 'PORZUĆ';
+                confirm.type = 'button'; ghostSet(confirm, 'map.workspace.abandon_confirm');
                 [cancel, confirm].forEach(button => {
                     button.style.cssText = 'border:1px solid #23f37c;background:#001b0c;color:#baffcf;padding:.65rem 1rem;font-family:inherit;';
                 });
@@ -6246,7 +6262,7 @@
                 if (response.status === 404 && data.error === 'target_not_found') {
                     removeAbandonedCapturedObject(menuObj, sourceMarker);
                     closeMenus();
-                    addSystemMessage('info', '✕ Porzucenie', 'Usunięto nieaktualny marker obiektu z mapy.');
+                    addSystemMessage('info', GhostLocale.t('map.workspace.abandon_title'), GhostLocale.t('map.workspace.stale_removed'));
                     return;
                 }
                 if (!response.ok || !data.success) throw new Error(data.error || 'abandon_failed');
@@ -6255,9 +6271,9 @@
                 if (typeof window.refreshPlayerAreasAfterTargetCapture === 'function') {
                     window.refreshPlayerAreasAfterTargetCapture('captured_object_abandoned');
                 }
-                addSystemMessage('success', '📦 Obiekt porzucony', 'Przebudowa terytorium została zakolejkowana.');
+                addSystemMessage('success', GhostLocale.t('map.workspace.abandon_title'), GhostLocale.t('map.workspace.abandoned'));
             } catch (err) {
-                addSystemMessage('danger', '❌ Porzucenie', err && err.message ? err.message : 'Nie udało się porzucić obiektu.');
+                addSystemMessage('danger', GhostLocale.t('map.workspace.abandon_title'), GhostLocale.t('map.workspace.abandon_failed'));
                 if (triggerEl) triggerEl.dataset.busy = '0';
             }
         }
@@ -6440,7 +6456,7 @@
                     interactive: false,
                     className: 'pending-hack-target-marker'
                 }).addTo(map);
-                pendingTargetMarker.bindTooltip(`Przygotowanie celu: ${mapTargetDisplayLabel({ label, name }, 'TARGET')}`, {
+                pendingTargetMarker.bindTooltip(ghostLabel('map.workspace.target_loading',{name:mapTargetDisplayLabel({label,name},'TARGET')}), {
                     permanent: false,
                     direction: 'top'
                 });
@@ -6532,7 +6548,7 @@
                     debug_flow: data.debug_flow || null
                 });
                 if (!res.ok || data.blocked) {
-                    addSystemMessage("warning", `⛔ ${action}`, data.status || "Akcja zablokowana.");
+                    addSystemMessage("warning", `⛔ ${GhostLocale.t('map.action.' + action)}`, window.escapeMapText(mapResponseText(data, 'map.result.failed')));
                     return null;
                 }
                 return data;
@@ -6541,7 +6557,7 @@
                 if (!data) return;
                 if (data.duplicate) {
                     if (action === 'camera_shutdown') {
-                        addSystemMessage('info', 'Kamera', data.status || 'Operacja kamery juz trwa.');
+                        addSystemMessage('info', GhostLocale.t('map.action.camera_shutdown'), window.escapeMapText(mapResponseText(data, 'map.launch.accepted')));
                     }
                     if (data.captured_target && typeof window.markMapTargetHacked === 'function') {
                         window.markMapTargetHacked(data.captured_target);
@@ -6572,9 +6588,9 @@
                     if (typeof opener === 'function') {
                         opener(data);
                     } else {
-                        addSystemMessage("warning", "🛠️ Narzędzia", "Otwórz Pliki i wybierz narzędzie z /tools.");
+                        addSystemMessage("warning", GhostLocale.t('map.workspace.tools'), GhostLocale.t('map.workspace.open_tools'));
                     }
-                    addSystemMessage("info", `🛠️ ${action}`, data.status || "Wybierz narzędzie.");
+                    addSystemMessage("info", `🛠️ ${GhostLocale.t('map.action.' + action)}`, window.escapeMapText(mapResponseText(data, 'map.workspace.choose_tool')));
                     return;
                 }
                 if (data.captured_target && data.captured_target.lat !== undefined && (data.captured_target.lng !== undefined || data.captured_target.lon !== undefined)) {
@@ -6599,7 +6615,7 @@
                 if (window.refreshActiveOperations) {
                     await window.refreshActiveOperations();
                 }
-                addSystemMessage("success", `✅ ${action}`, data.status);
+                addSystemMessage("success", `✅ ${GhostLocale.t('map.action.' + action)}`, window.escapeMapText(mapResponseText(data, 'map.launch.accepted')));
             })
             .catch(err => {
                 console.error("[map hack-action] request failed before response", {
@@ -6617,7 +6633,7 @@
                     label,
                     error: err && (err.message || String(err))
                 });
-                addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania");
+                addSystemMessage("danger", "❌ Hackowanie", GhostLocale.t('map.workspace.hack_error'));
             })
             .finally(() => {
                 if (pendingTargetMarker) {
@@ -6685,7 +6701,7 @@
                 }
             })
             .catch(() => {
-                addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji zabezpieczeń");
+                addSystemMessage("danger", "❌ Hackowanie", GhostLocale.t('map.workspace.security_error'));
             })
             .finally(() => {
                 if (rowEl) rowEl.dataset.busy = '0';
@@ -6756,14 +6772,14 @@
                     body: JSON.stringify({ target })
                 });
                 const data = await res.json();
-                const message = data.message || (data.success ? 'Podatnosc wystawiona.' : 'Nie udalo sie wystawic podatnosci.');
+                const message = window.escapeMapText(mapResponseText(data, data.success ? 'map.vulnerability.reported' : 'map.vulnerability.failed'));
 
                 if (!res.ok || !data.success) {
-                    addSystemMessage('warning', 'Podatnosc', message);
+                    addSystemMessage('warning', GhostLocale.t('map.vulnerability.title'), message);
                     return;
                 }
 
-                addSystemMessage('success', 'Podatnosc', message);
+                addSystemMessage('success', GhostLocale.t('map.vulnerability.title'), message);
                 if (data.swarm && data.swarm.active) {
                     clearScanResultLayers();
                 } else {
@@ -6798,7 +6814,7 @@
                 }
             } catch (err) {
                 console.warn('Vulnerability report failed', err);
-                addSystemMessage('warning', 'Podatnosc', 'Nie udalo sie wystawic podatnosci.');
+                addSystemMessage('warning', GhostLocale.t('map.vulnerability.title'), GhostLocale.t('map.vulnerability.failed'));
             } finally {
                 lastContextWasMarker = false;
             }
@@ -6813,14 +6829,14 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
                 const data = await res.json();
-                const message = data.message || (data.success ? 'Oznaczenie wycofane.' : 'Nie mozna wycofac oznaczenia.');
+                const message = window.escapeMapText(mapResponseText(data, data.success ? 'map.vulnerability.withdrawn' : 'map.vulnerability.withdraw_failed'));
 
                 if (!res.ok || !data.success) {
-                    addSystemMessage('warning', 'Podatnosc', message);
+                    addSystemMessage('warning', GhostLocale.t('map.vulnerability.title'), message);
                     return;
                 }
 
-                addSystemMessage('success', 'Podatnosc', message);
+                addSystemMessage('success', GhostLocale.t('map.vulnerability.title'), message);
                 if (data.report) {
                     const registryKey = vulnerabilityTargetKey(data.report.target || data.report);
                     if (registryKey) {
@@ -6832,7 +6848,7 @@
                 }
             } catch (err) {
                 console.warn('Vulnerability withdraw failed', err);
-                addSystemMessage('warning', 'Podatnosc', 'Nie udalo sie wycofac oznaczenia.');
+                addSystemMessage('warning', GhostLocale.t('map.vulnerability.title'), GhostLocale.t('map.vulnerability.withdraw_failed'));
             } finally {
                 lastContextWasMarker = false;
             }
@@ -7176,7 +7192,7 @@
                 if (!res.ok || data.success === false || data.blocked) {
                     if (data.reason === 'scanner_inactive') window.DeepScannerMap?.stop();
                     const narrative = action === 'scan' && res.status === 403 ? window.DeepScannerMap?.log(scannerJob,'denied') : '';
-                    if (narrative) addSystemMessage('warning','Skaner',window.escapeMapText(narrative),window.DeepScannerMap?.messageKey(scannerJob,'denied'));
+                    if (narrative) addSystemMessage('warning',GhostLocale.t('map.result.scanner_title'),window.escapeMapText(narrative),window.DeepScannerMap?.messageKey(scannerJob,'denied'));
                     if (handleDetentionTravelDenial(data)) return null;
                     if (handleForeignTerritoryProtectedResponse(res, data)) {
                         if (pendingMarkedTarget) {
@@ -7184,21 +7200,22 @@
                         }
                         return null;
                     }
-                    throw Object.assign(new Error(data.status || data.message || data.error || 'Operacja mapy nie powiodla sie.'), {serverDenial:true});
+                    throw Object.assign(new Error(mapResponseText(data)), {serverDenial:true});
                 }
                 
                 if (data.status === "too_far") {
                     if (action === 'travel' && typeof window.hideMotorcycleTravelPhone === 'function') {
                         window.hideMotorcycleTravelPhone("range_rejected");
                     }
-                    addSystemMessage("warning", "🧭 Podróż", data.message || "Cel zbyt daleko.");
+                    addSystemMessage("warning", GhostLocale.t('map.result.travel_title'), window.escapeMapText(mapResponseText(data)));
                     // location.reload();
                     return;
                 }
                 const phase = action === 'scan' ? data.scan_outcome : null;
                 const narrative = phase ? window.DeepScannerMap?.log(scannerJob,phase === 'api_error' ? 'error' : phase) : '';
-                const scanText = narrative ? window.escapeMapText(narrative) + '<br>' + data.status : data.status;
-                addSystemMessage(phase === 'api_error' ? 'danger' : phase === 'denied' ? 'warning' : 'success', "🗺️ Mapa", scanText, phase ? window.DeepScannerMap?.messageKey(scannerJob,phase) : undefined);
+                const resultText = window.escapeMapText(mapResponseText(data));
+                const scanText = narrative ? window.escapeMapText(narrative) + '<br>' + resultText : resultText;
+                addSystemMessage(phase === 'api_error' ? 'danger' : phase === 'denied' ? 'warning' : 'success', GhostLocale.t('map.result.title'), scanText, phase ? window.DeepScannerMap?.messageKey(scannerJob,phase) : undefined);
                 if (phase === 'api_error' || phase === 'denied') return data;
 
                 if (action === 'mark_target') {
@@ -7235,6 +7252,7 @@
                             osm_id: obj.osm_id || null,
                             node_id: obj.node_id || null,
                             scan_id: obj.scan_id || data.scan_context?.scan_id || '',
+                            label_i18n: obj.label_i18n || null,
                             camera_id: obj.camera_id || null,
                             parent_target_id: obj.parent_target_id || null,
                             location: obj.location || data.scan_context?.location || null,
@@ -7278,7 +7296,7 @@
                             source: 'scanTargetMarker',
                             layer_type: 'target_marker'
                         });
-                        marker.bindTooltip(menuTarget.label, { permanent: false, direction: 'top' });
+                        marker.bindTooltip(mapTargetLabelHtml(menuTarget, menuTarget.label), { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
                             const binding = resolveMarkerContextBinding(
@@ -7310,7 +7328,7 @@
                 if (action === 'travel') {
                    
                     if (data.status === "too_far") {
-                        addSystemMessage("warning", "🧭 Podróż", "Cel jest zbyt oddalony.");
+                        addSystemMessage("warning", "🧭 Podróż", GhostLocale.t('map.workspace.travel_far'));
                         // Bez przeładowania mapy przy błędzie zasięgu.
                         return;
                     }
@@ -7353,8 +7371,8 @@
                     window.hideMotorcycleTravelPhone("request_failed");
                 }
                 const narrative = action === 'scan' && !err.serverDenial ? window.DeepScannerMap?.log(scannerJob,'error') : '';
-                const failure = err.serverDenial ? window.escapeMapText(err.message) : '❌ Błąd połączenia';
-                addSystemMessage('danger', '🖥️ Połączenie', narrative ? window.escapeMapText(narrative) + '<br>' + failure : failure, action === 'scan' ? window.DeepScannerMap?.messageKey(scannerJob,'failure') : undefined);
+                const failure = err.serverDenial ? window.escapeMapText(err.message) : GhostLocale.t('map.result.connection');
+                addSystemMessage('danger', GhostLocale.t('map.result.connection_title'), narrative ? window.escapeMapText(narrative) + '<br>' + failure : failure, action === 'scan' ? window.DeepScannerMap?.messageKey(scannerJob,'failure') : undefined);
                 console.error(err);
             } finally {
                 scannerJob?.dispose();
@@ -7775,7 +7793,7 @@
             ];
 
             const avatarMarker = L.marker(avatarLatLng, { icon: buildBikeIcon("right") }).addTo(map);
-            avatarMarker.bindPopup("👤 Twój Avatar");
+            avatarMarker.bindPopup(GhostLocale.t('map.workspace.avatar'));
 
             // 👇 ZAPISUJEMY GLOBALNIE
             window.avatarMarkerRef = avatarMarker;
@@ -7840,7 +7858,7 @@
 
             window.operationLabel = function(operation) {
                 const target = operation.target || {};
-                return target.label || target.name || operation.target_id || 'Cel operacji';
+                return target.label || target.name || operation.target_id || GhostLocale.t('map.workspace.operation_target');
             };
 
             window.OPERATION_ICON_LIBRARY = {
@@ -7930,8 +7948,8 @@
                 return {
                     icon: meta.icon || window.operationIconForType(type),
                     css: meta.css || '',
-                    label: meta.markerLabel || meta.name || 'OPERACJA',
-                    name: meta.name || type || 'Operacja'
+                    label: GhostLocale.hasKey('apps.operations.type.' + type) ? GhostLocale.t('apps.operations.type.' + type) : GhostLocale.t('map.workspace.operation'),
+                    name: GhostLocale.hasKey('apps.operations.type.' + type) ? GhostLocale.t('apps.operations.type.' + type) : type || GhostLocale.t('map.workspace.operation')
                 };
             };
 
@@ -7940,15 +7958,15 @@
                 if (operation.risk_masked === true) {
                     const heat = Number(meter.current_heat);
                     if (operation.risk_boost_code === 'narrative_takeover') {
-                        return Number.isFinite(heat) ? `REAKCJA OPÓŹNIONA · HEAT ${heat}` : 'REAKCJA OPÓŹNIONA';
+                        return Number.isFinite(heat) ? `${GhostLocale.t('map.workspace.delayed')} · HEAT ${heat}` : GhostLocale.t('map.workspace.delayed');
                     }
                     if (operation.risk_boost_code === 'phantom_node') {
-                        return Number.isFinite(heat) ? `RUCH POZORNY · HEAT ${heat}` : 'RUCH POZORNY';
+                        return Number.isFinite(heat) ? `${GhostLocale.t('map.workspace.decoy')} · HEAT ${heat}` : GhostLocale.t('map.workspace.decoy');
                     }
                     if (operation.risk_boost_code === 'trust_corridor') {
-                        return Number.isFinite(heat) ? `KORYTARZ BEZPIECZNY · HEAT ${heat}` : 'KORYTARZ BEZPIECZNY';
+                        return Number.isFinite(heat) ? `${GhostLocale.t('map.workspace.safe')} · HEAT ${heat}` : GhostLocale.t('map.workspace.safe');
                     }
-                    return Number.isFinite(heat) ? `MASKOWANE · HEAT ${heat}` : 'MASKOWANE';
+                    return Number.isFinite(heat) ? `${GhostLocale.t('map.workspace.masked')} · HEAT ${heat}` : GhostLocale.t('map.workspace.masked');
                 }
                 const riskState = operation.risk_state || {};
                 return riskState.level || riskState.risk_level || meter.risk_level || operation.risk_level || 'brak';
@@ -7969,29 +7987,29 @@
                     if (cachedCard && cachedCard.signature === cacheSignature) return cachedCard.html;
                     const meta = window.operationMarkerMeta(operation);
                     const label = window.escapeMapText(window.operationLabel(operation));
-                    const type = window.escapeMapText(meta.name);
-                    const status = window.escapeMapText(operation.status || 'unknown');
+                    const type = ghostSystemValue('apps.operations.type.', operation.operation_type || 'unknown');
+                    const status = ghostSystemValue('apps.operations.state.', operation.status || 'unknown');
                     const started = window.escapeMapText(window.formatOperationDate(operation.started_at));
                     const expires = window.escapeMapText(window.formatOperationDate(operation.expires_at));
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
-                    const risk = window.escapeMapText(window.operationRiskLabel(operation));
+                    const risk = ghostSystemValue('apps.operations.risk.', window.operationRiskLabel(operation));
                     const icon = window.escapeMapText(meta.icon);
                     const rawOperationId = String(operation.operation_id || '').trim();
                     const operationId = window.escapeMapText(rawOperationId);
                     const accelerated = operation.accelerated === true;
                     const speedBoostLabel = operation.speed_boost_code === 'operational_prediction'
-                        ? 'WYNIK PRZEWIDZIANY'
+                        ? GhostLocale.t('map.workspace.predicted')
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
                     const phantomRisk = operation.risk_boost_code === 'phantom_node';
                     const sentinelRisk = operation.risk_boost_code === 'trust_corridor';
                     const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
-                        ? 'NARRACJA PRZEJĘTA'
+                        ? GhostLocale.t('map.workspace.narrative')
                         : operation.risk_boost_code === 'phantom_node'
-                            ? 'WĘZEŁ WIDMO'
+                            ? GhostLocale.t('map.workspace.phantom')
                             : operation.risk_boost_code === 'trust_corridor'
-                                ? 'KORYTARZ ZAUFANIA'
-                                : 'FAŁSZYWY OBRAZ';
+                                ? GhostLocale.t('map.workspace.corridor')
+                                : GhostLocale.t('map.workspace.false_view');
                     const yieldBoosted = operation.yield_boosted === true;
                     const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
@@ -8006,13 +8024,13 @@
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}${qualityBoosted ? '<span class="active-operation-card__boost">PEŁNE UJAWNIENIE</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">' + ghostLabel('map.workspace.replicated') + '</span>' : ''}${qualityBoosted ? '<span class="active-operation-card__boost">' + ghostLabel('map.workspace.revealed') + '</span>' : ''}</span>
                             </div>
-                            <div class="active-operation-card__type">Target: ${label}</div>
-                            <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
-                            <div class="active-operation-card__remaining">Pozostało: ${remaining}</div>
-                            <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
-                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? 'Anulowanie...' : 'Anuluj'}</button></div>` : ''}
+                            <div class="active-operation-card__type">${ghostLabel('apps.operations.target')}: ${label}</div>
+                            <div class="active-operation-card__meta">${ghostLabel('map.workspace.start')}: ${started} | ${ghostLabel('map.workspace.end')}: ${expires}</div>
+                            <div class="active-operation-card__remaining">${ghostLabel('apps.operations.remaining')}: ${remaining}</div>
+                            <div class="active-operation-card__risk">${ghostLabel('map.workspace.risk')}: ${risk}</div>
+                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? ghostLabel('apps.operations.cancelling') : ghostLabel('apps.operations.cancel')}</button></div>` : ''}
                         </div>
                     `;
                     window.activeOperationCardCache.set(cacheId, { signature: cacheSignature, html: cardHtml });
@@ -8025,17 +8043,17 @@
 
                 panel.innerHTML = `
                     <div class="active-operations-panel__header">
-                        <span class="active-operations-panel__title">Centrum Operacji</span>
+                        <span class="active-operations-panel__title">${ghostLabel('map.workspace.operations')}</span>
                         <span class="active-operations-panel__count">${active.length}</span>
                     </div>
                     <div class="active-operations-panel__tabs">
-                        <div class="active-operations-panel__tab is-active">Aktywne</div>
-                        <div class="active-operations-panel__tab">Historia</div>
+                        <div class="active-operations-panel__tab is-active">${ghostLabel('apps.operations.active')}</div>
+                        <div class="active-operations-panel__tab">${ghostLabel('apps.operations.history')}</div>
                     </div>
                     <div class="active-operations-panel__body">
-                        ${cards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak aktywnych operacji.</div></div>'}
+                        ${cards || '<div class="active-operation-card"><div class="active-operation-card__meta">' + ghostLabel('apps.operations.empty') + '</div></div>'}
                         <div class="active-operation-card active-operation-card--history-placeholder">
-                            <div class="active-operation-card__meta">Historia operacji zostanie podłączona w kolejnym widoku.</div>
+                            <div class="active-operation-card__meta">${ghostLabel('map.workspace.history_soon')}</div>
                         </div>
                     </div>
                 `;
@@ -8054,8 +8072,8 @@
             window.renderOperationHistoryCard = function(operation) {
                 const meta = window.operationMarkerMeta(operation);
                 const label = window.escapeMapText(window.operationLabel(operation));
-                const type = window.escapeMapText(meta.name);
-                const status = window.escapeMapText(operation.status || 'unknown');
+                const type = ghostSystemValue('apps.operations.type.', operation.operation_type || 'unknown');
+                const status = ghostSystemValue('apps.operations.state.', operation.status || 'unknown');
                 const icon = window.escapeMapText(meta.icon);
                 const ended = window.escapeMapText(window.formatOperationDate(operation.ended_at || operation.expires_at || operation.started_at));
                 const outputMb = Number(operation.output_mb || operation.market_volume_mb || operation.file_size || 0);
@@ -8113,29 +8131,29 @@
                     )}`;
                     const meta = window.operationMarkerMeta(operation);
                     const label = window.escapeMapText(window.operationLabel(operation));
-                    const type = window.escapeMapText(meta.name);
-                    const status = window.escapeMapText(operation.status || 'unknown');
+                    const type = ghostSystemValue('apps.operations.type.', operation.operation_type || 'unknown');
+                    const status = ghostSystemValue('apps.operations.state.', operation.status || 'unknown');
                     const started = window.escapeMapText(window.formatOperationDate(operation.started_at));
                     const expires = window.escapeMapText(window.formatOperationDate(operation.expires_at));
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
-                    const risk = window.escapeMapText(window.operationRiskLabel(operation));
+                    const risk = ghostSystemValue('apps.operations.risk.', window.operationRiskLabel(operation));
                     const icon = window.escapeMapText(meta.icon);
                     const rawOperationId = String(operation.operation_id || '').trim();
                     const operationId = window.escapeMapText(rawOperationId);
                     const accelerated = operation.accelerated === true;
                     const speedBoostLabel = operation.speed_boost_code === 'operational_prediction'
-                        ? 'WYNIK PRZEWIDZIANY'
+                        ? GhostLocale.t('map.workspace.predicted')
                         : 'INSIDER FEED';
                     const riskMasked = operation.risk_masked === true;
                     const phantomRisk = operation.risk_boost_code === 'phantom_node';
                     const sentinelRisk = operation.risk_boost_code === 'trust_corridor';
                     const riskBoostLabel = operation.risk_boost_code === 'narrative_takeover'
-                        ? 'NARRACJA PRZEJĘTA'
+                        ? GhostLocale.t('map.workspace.narrative')
                         : operation.risk_boost_code === 'phantom_node'
-                            ? 'WĘZEŁ WIDMO'
+                            ? GhostLocale.t('map.workspace.phantom')
                             : operation.risk_boost_code === 'trust_corridor'
-                                ? 'KORYTARZ ZAUFANIA'
-                                : 'FAŁSZYWY OBRAZ';
+                                ? GhostLocale.t('map.workspace.corridor')
+                                : GhostLocale.t('map.workspace.false_view');
                     const yieldBoosted = operation.yield_boosted === true;
                     const qualityBoosted = operation.quality_boosted === true;
                     const cancelInFlight = Boolean(
@@ -8150,13 +8168,13 @@
                                     <span class="active-operation-card__icon">${icon}</span>
                                     <span>${type}</span>
                                 </span>
-                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">REPLIKACJA ×3</span>' : ''}${qualityBoosted ? '<span class="active-operation-card__boost">PEŁNE UJAWNIENIE</span>' : ''}</span>
+                                <span class="active-operation-card__status">${status}${accelerated ? `<span class="active-operation-card__boost">${speedBoostLabel}</span>` : ''}${riskMasked ? `<span class="active-operation-card__boost">${riskBoostLabel}</span>` : ''}${yieldBoosted ? '<span class="active-operation-card__boost">' + ghostLabel('map.workspace.replicated') + '</span>' : ''}${qualityBoosted ? '<span class="active-operation-card__boost">' + ghostLabel('map.workspace.revealed') + '</span>' : ''}</span>
                             </div>
-                            <div class="active-operation-card__type">Target: ${label}</div>
-                            <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
-                            <div class="active-operation-card__remaining" data-operation-expires-at="${window.escapeMapText(operation.expires_at || '')}">Pozostalo: <span data-operation-countdown>${remaining}</span></div>
-                            <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
-                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? 'Anulowanie...' : 'Anuluj'}</button></div>` : ''}
+                            <div class="active-operation-card__type">${ghostLabel('apps.operations.target')}: ${label}</div>
+                            <div class="active-operation-card__meta">${ghostLabel('map.workspace.start')}: ${started} | ${ghostLabel('map.workspace.end')}: ${expires}</div>
+                            <div class="active-operation-card__remaining" data-operation-expires-at="${window.escapeMapText(operation.expires_at || '')}">${ghostLabel('apps.operations.remaining')}: <span data-operation-countdown>${remaining}</span></div>
+                            <div class="active-operation-card__risk">${ghostLabel('map.workspace.risk')}: ${risk}</div>
+                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? ghostLabel('apps.operations.cancelling') : ghostLabel('apps.operations.cancel')}</button></div>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -8164,8 +8182,8 @@
                     ? operationHistory.slice().reverse().map(window.renderOperationHistoryCard).join('')
                     : '';
                 const body = activeTab === 'history'
-                    ? (historyCards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak zakonczonych operacji.</div></div>')
-                    : (cards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak aktywnych operacji.</div></div>');
+                    ? (historyCards || '<div class="active-operation-card"><div class="active-operation-card__meta">' + ghostLabel('map.workspace.history_empty') + '</div></div>')
+                    : (cards || '<div class="active-operation-card"><div class="active-operation-card__meta">' + ghostLabel('apps.operations.empty') + '</div></div>');
                 const countLabel = activeTab === 'history'
                     ? `${active.length} / ${operationHistory.length}`
                     : `${active.length}`;
@@ -8206,13 +8224,13 @@
                 }
 
                 panel.innerHTML = `
-                    <div class="active-operations-panel__header" data-operation-center-toggle="1" title="Kliknij, aby zmienic wysokosc panelu">
-                        <span class="active-operations-panel__title">Centrum Operacji</span>
+                    <div class="active-operations-panel__header" data-operation-center-toggle="1" data-ghost-title="map.workspace.panel_resize" title="${window.escapeMapText(GhostLocale.t('map.workspace.panel_resize'))}">
+                        <span class="active-operations-panel__title">${ghostLabel('map.workspace.operations')}</span>
                         <span class="active-operations-panel__count">${window.escapeMapText(countLabel)}</span>
                     </div>
                     <div class="active-operations-panel__tabs">
-                        <button type="button" class="active-operations-panel__tab ${activeTab === 'active' ? 'is-active' : ''}" data-operation-center-tab="active">Aktywne</button>
-                        <button type="button" class="active-operations-panel__tab ${activeTab === 'history' ? 'is-active' : ''}" data-operation-center-tab="history">Historia</button>
+                        <button type="button" class="active-operations-panel__tab ${activeTab === 'active' ? 'is-active' : ''}" data-operation-center-tab="active">${ghostLabel('apps.operations.active')}</button>
+                        <button type="button" class="active-operations-panel__tab ${activeTab === 'history' ? 'is-active' : ''}" data-operation-center-tab="history">${ghostLabel('apps.operations.history')}</button>
                     </div>
                     <div class="active-operations-panel__body">
                         ${body}
@@ -9751,20 +9769,20 @@
             };
 
             window.playerActorRelationLabels = {
-                friend: 'Znajomy',
-                intruder: 'Intruz na twoim terenie',
-                same_clan: 'Crew',
-                enemy_clan: 'Wrogi klan',
-                neutral: 'Gracz',
-                self: 'Ty'
+                get friend() { return GhostLocale.t('map.actor.friend'); },
+                get intruder() { return GhostLocale.t('map.actor.intruder'); },
+                get same_clan() { return GhostLocale.t('map.actor.same_clan'); },
+                get enemy_clan() { return GhostLocale.t('map.actor.enemy_clan'); },
+                get neutral() { return GhostLocale.t('map.actor.neutral'); },
+                get self() { return GhostLocale.t('map.actor.self'); }
             };
 
             window.playerActorActionLabels = {
-                add_friend: '🤝 Dodaj do znajomych',
-                chat: '💬 Rozpocznij rozmowę',
-                transfer_hc: '💸 Przelej HC',
-                mark_target: '🎯 Oznacz jako cel',
-                profile: 'ℹ️ Charakterystyka'
+                get add_friend() { return GhostLocale.t('map.actor.add_friend'); },
+                get chat() { return GhostLocale.t('map.actor.chat'); },
+                get transfer_hc() { return GhostLocale.t('map.actor.transfer_hc'); },
+                get mark_target() { return GhostLocale.t('map.actor.mark_target'); },
+                get profile() { return GhostLocale.t('map.actor.profile_action'); }
             };
 
             window.hidePlayerActorProfile = function() {
@@ -9796,29 +9814,29 @@
 
                 const fields = [
                     ['Nick', actor.nick || actor.username || 'Gracz'],
-                    ['Username', actor.username || ''],
-                    ['Relacja', relationLabel],
-                    ['Context source', context.source || ''],
-                    ['Context sources', sources],
+                    [GhostLocale.t('map.actor.username'), actor.username || ''],
+                    [GhostLocale.t('map.actor.relation'), relationLabel],
+                    [GhostLocale.t('map.actor.source'), context.source || ''],
+                    [GhostLocale.t('map.actor.sources'), sources],
                     ['Status', status],
-                    ['Klan', clan],
-                    ['Poziom', level],
-                    ['Profesja', profession],
-                    ['Terytoria', territoryCount],
-                    ['Status celu', targetStatus ? 'Na celowniku' : ''],
-                    ['Pozycja', coords]
+                    [GhostLocale.t('map.actor.clan'), clan],
+                    [GhostLocale.t('map.actor.level'), level],
+                    [GhostLocale.t('map.actor.profession'), profession],
+                    [GhostLocale.t('map.actor.territories'), territoryCount],
+                    [GhostLocale.t('map.actor.target_status'), targetStatus ? GhostLocale.t('map.actor.aimed') : ''],
+                    [GhostLocale.t('map.actor.position'), coords]
                 ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
 
                 const actionRows = Object.entries(window.playerActorActionLabels).map(([actionKey, label]) => {
                     const actionState = (actor.actions && actor.actions[actionKey]) || { enabled: false, reason: 'Akcja niedostepna.' };
                     const stateClass = actionState.enabled ? 'is-enabled' : 'is-disabled';
-                    const stateText = actionState.enabled ? 'aktywne' : 'zablokowane';
-                    const reason = !actionState.enabled && actionState.reason
-                        ? `<span class="player-actor-modal__reason">${safeValue(actionState.reason)}</span>`
+                    const stateText = GhostLocale.t(actionState.enabled ? 'map.actor.enabled' : 'map.actor.disabled');
+                    const reason = !actionState.enabled && (actionState.reason || actionState.message_i18n)
+                        ? `<span class="player-actor-modal__reason">${ghostReply(actionState, 'map.actor.unavailable')}</span>`
                         : '';
                     return `
                         <div class="player-actor-modal__action ${stateClass}">
-                            <strong>${safeValue(label)}</strong><br>
+                            <strong>${ghostLabel("map.actor."+(actionKey === "profile" ? "profile_action" : actionKey))}</strong><br>
                             <span>${safeValue(stateText)}</span>
                             ${reason}
                         </div>
@@ -9832,13 +9850,13 @@
                 const backdrop = document.createElement('div');
                 backdrop.className = 'player-actor-modal-backdrop';
                 backdrop.innerHTML = `
-                    <section class="player-actor-modal" role="dialog" aria-modal="true" aria-label="Charakterystyka gracza">
+                    <section class="player-actor-modal" role="dialog" aria-modal="true" data-ghost-aria-label="map.actor.profile" aria-label="${window.escapeMapText(GhostLocale.t('map.actor.profile'))}">
                         <header class="player-actor-modal__header">
                             <div>
                                 <h2 class="player-actor-modal__title">${safeValue(actor.nick || actor.username || 'Gracz')}</h2>
                                 <div class="player-actor-modal__relation">${safeValue(relationLabel)}</div>
                             </div>
-                            <button type="button" class="player-actor-modal__close" aria-label="Zamknij">x</button>
+                            <button type="button" class="player-actor-modal__close" data-ghost-aria-label="shell.window.close" aria-label="${window.escapeMapText(GhostLocale.t('shell.window.close'))}">x</button>
                         </header>
                         <div class="player-actor-modal__body">
                             <div class="player-actor-modal__avatar">${avatar}</div>
@@ -9851,7 +9869,7 @@
                                 `).join('')}
                             </div>
                             <div class="player-actor-modal__actions">
-                                <h3>Akcje</h3>
+                                <h3>${ghostLabel("map.actor.actions")}</h3>
                                 <div class="player-actor-modal__action-list">${actionRows}</div>
                             </div>
                         </div>
@@ -9886,7 +9904,7 @@
             window.requestPlayerActorFriend = async function(actor) {
                 const actorName = actor.nick || actor.username || 'gracz';
                 if (!actor.username) {
-                    addSystemMessage('warning', 'Kontakt', 'Brak identyfikatora gracza.');
+                    addSystemMessage('warning', GhostLocale.t("map.actor.contact"), GhostLocale.t("map.actor.missing_id"));
                     return;
                 }
                 try {
@@ -9897,23 +9915,23 @@
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok || data.error) {
-                        addSystemMessage('warning', 'Kontakt', data.error || 'Nie udalo sie wyslac zaproszenia.');
+                        addSystemMessage('warning', GhostLocale.t("map.actor.contact"), GhostLocale.t('map.actor.contact_failed'));
                         return;
                     }
-                    addSystemMessage('info', 'Kontakt', data.message || `Wyslano gest przywitania do ${actorName}.`);
+                    addSystemMessage('info', GhostLocale.t("map.actor.contact"), window.escapeMapText(GhostLocale.t('map.actor.contact_sent',{name:actorName})));
                     if (window.refreshPlayerActors) {
                         window.refreshPlayerActors();
                     }
                 } catch (err) {
                     console.warn('Player contact request failed', err);
-                    addSystemMessage('warning', 'Kontakt', 'Nie udalo sie polaczyc z systemem kontaktow.');
+                    addSystemMessage('warning', GhostLocale.t("map.actor.contact"), GhostLocale.t('map.actor.contact_offline'));
                 }
             };
 
             window.openPlayerActorChat = function(actor) {
                 const actorName = actor.nick || actor.username || 'gracz';
                 if (!actor.username) {
-                    addSystemMessage('warning', 'Rozmowa', 'Brak identyfikatora gracza.');
+                    addSystemMessage('warning', GhostLocale.t("map.actor.chat_title"), GhostLocale.t("map.actor.missing_id"));
                     return;
                 }
 
@@ -9928,8 +9946,8 @@
 
                 addSystemMessage(
                     'info',
-                    'Rozmowa',
-                    `Rozmowa z ${actorName} bedzie otwierana w komunikatorze w kolejnym kroku.`
+                    GhostLocale.t("map.actor.chat_title"),
+                    window.escapeMapText(GhostLocale.t('map.actor.chat_open',{name:actorName}))
                 );
             };
 
@@ -9970,7 +9988,7 @@
             window.showPlayerActorHackMenu = function(actor, targetOverride = null, x = null, y = null) {
                 const target = normalizeMapMenuTarget(window.buildPlayerTargetFromActor(actor || {}, targetOverride));
                 if (Number.isNaN(target.lat) || Number.isNaN(target.lng) || !target.target_username) {
-                    addSystemMessage('warning', 'Cel', 'Brak danych pozycji player targetu.');
+                    addSystemMessage('warning', 'Cel', GhostLocale.t('map.actor.position_missing'));
                     return;
                 }
                 let menuX = x;
@@ -9986,7 +10004,7 @@
             window.markPlayerActorTarget = async function(actor) {
                 const actorName = actor.nick || actor.username || 'gracz';
                 if (!actor.username) {
-                    addSystemMessage('warning', 'Cel', 'Brak identyfikatora gracza.');
+                    addSystemMessage('warning', 'Cel', GhostLocale.t("map.actor.missing_id"));
                     return;
                 }
                 try {
@@ -9997,10 +10015,10 @@
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok || data.error) {
-                        addSystemMessage('warning', 'Cel', data.error || 'Nie udalo sie oznaczyc gracza.');
+                        addSystemMessage('warning', 'Cel', GhostLocale.t('map.actor.mark_failed'));
                         return;
                     }
-                    addSystemMessage('success', 'Cel', data.message || `${actorName} jest na celowniku.`);
+                    addSystemMessage('success', 'Cel', window.escapeMapText(GhostLocale.t('map.actor.marked',{name:actorName})));
                     if (window.refreshPlayerActors) {
                         window.refreshPlayerActors();
                     }
@@ -10008,7 +10026,7 @@
                     refreshParentToolbarProfile();
                 } catch (err) {
                     console.warn('Player target mark failed', err);
-                    addSystemMessage('warning', 'Cel', 'Nie udalo sie polaczyc z systemem celowania.');
+                    addSystemMessage('warning', 'Cel', GhostLocale.t('map.actor.target_offline'));
                 }
             };
 
@@ -10038,7 +10056,7 @@
                     addSystemMessage(
                         'info',
                         'Wallet HC',
-                        `Przelew HC do ${actor.nick || actor.username || 'gracza'} bedzie dostepny po uruchomieniu Wallet.`
+                        window.escapeMapText(GhostLocale.t('map.actor.wallet_open',{name:actor.nick || actor.username || ''}))
                     );
                     return;
                 }
@@ -10058,7 +10076,7 @@
                 addSystemMessage(
                     'info',
                     window.playerActorActionLabels[actionKey] || 'Akcja gracza',
-                    `Moduł w budowie dla gracza ${actorName}.`
+                    window.escapeMapText(GhostLocale.t('map.actor.module_unavailable',{name:actorName}))
                 );
             };
 
@@ -10084,15 +10102,15 @@
                 Object.entries(window.playerActorActionLabels).forEach(([actionKey, label]) => {
                     const actionState = (menuActor.actions && menuActor.actions[actionKey]) || { enabled: false, reason: 'Akcja niedostępna.' };
                     const row = document.createElement('div');
-                    row.textContent = label;
+                    row.innerHTML = ghostLabel('map.actor.'+(actionKey === 'profile' ? 'profile_action' : actionKey));
                     if (actionState.enabled) {
                         row.addEventListener('click', () => window.handlePlayerActorAction(actionKey, menuActor));
                     } else {
                         row.className = 'player-action-disabled';
-                        row.title = actionState.reason || 'Akcja niedostępna.';
+                        row.title = ghostResponseText(actionState, 'map.actor.unavailable');
                         const reason = document.createElement('span');
                         reason.className = 'player-action-reason';
-                        reason.textContent = actionState.reason || 'Akcja niedostępna.';
+                        reason.innerHTML = ghostReply(actionState, 'map.actor.unavailable');
                         row.appendChild(reason);
                     }
                     menu.appendChild(row);
@@ -10607,7 +10625,7 @@
             window.buildClanVulnerabilityIcon = function(report) {
                 const icon = window.escapeMapText ? window.escapeMapText(report.icon || '!')
                     : (report.icon || '!');
-                const rawLabel = report.display_label || report.target?.display_label || report.label || report.name || 'Podatnosc';
+                const rawLabel = report.display_label || report.target?.display_label || report.label || report.name || GhostLocale.t('map.vulnerability.title');
                 const label = window.escapeMapText ? window.escapeMapText(rawLabel) : rawLabel;
                 const provenance = report.target && report.target.territory_defense_provenance;
                 const swarmClass = provenance && report.same_clan === true
@@ -10659,9 +10677,9 @@
                             lat,
                             lng,
                             lon: lng,
-                            label: report.label || target.label || target.name || 'Podatnosc',
-                            name: report.name || target.name || report.label || 'Podatnosc',
-                            display_label: report.display_label || target.display_label || report.label || target.label || target.name || 'Podatnosc',
+                            label: report.label || target.label || target.name || GhostLocale.t('map.vulnerability.title'),
+                            name: report.name || target.name || report.label || GhostLocale.t('map.vulnerability.title'),
+                            display_label: report.display_label || target.display_label || report.label || target.label || target.name || GhostLocale.t('map.vulnerability.title'),
                             icon: report.icon || target.icon || '!',
                             source_type: report.source_type || target.source_type || 'manual',
                             generated: Boolean(report.generated || target.generated),

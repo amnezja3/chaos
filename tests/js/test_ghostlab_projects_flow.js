@@ -28,6 +28,7 @@ const ctx = {crypto: {randomUUID: () => `request-${++uuid}`}, encodeURIComponent
         return {ok: true, json: async () => ({success: true, project, projects: [project]})};
     }};
 vm.createContext(ctx);
+require('./locale_fixture')(ctx);
 for (const name of ['createGhostLabProject', 'createGhostLabProjectFromTemplate', 'ghostLabCreateRequestId', 'deleteGhostLabProject']) {
     vm.runInContext(extract(name), ctx);
 }

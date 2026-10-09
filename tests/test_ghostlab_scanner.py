@@ -101,6 +101,8 @@ class ScannerTest(unittest.TestCase):
             response = self.client.post('/map-action', json=payload)
             self.assertEqual(response.status_code,200,response.json)
             self.assertEqual(response.json['scan_outcome'],'api_error')
+            self.assertEqual(response.json['message_i18n']['key'], 'map.result.upstream')
+            self.assertEqual(response.json['message_i18n']['params'], {})
             options = fetcher.call_args.kwargs['scan_options']
             self.assertEqual((options['extra_retries'],options['extra_timeout']),(0,0))
             self.assertTrue(options['still_active']())

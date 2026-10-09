@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.5.0",
+  "content_version": "154.7.0",
   "messages": {
     "creator.editor.title": {
       "params": {},
@@ -493,6 +493,1110 @@
         "index": "number"
       },
       "text": "Option {index}:"
+    },
+    "creator.legacy.step.0": {
+      "params": {},
+      "text": "Name"
+    },
+    "creator.legacy.step.1": {
+      "params": {},
+      "text": "Family"
+    },
+    "creator.legacy.step.2": {
+      "params": {},
+      "text": "Target"
+    },
+    "creator.legacy.step.3": {
+      "params": {},
+      "text": "Launch"
+    },
+    "creator.legacy.step.4": {
+      "params": {},
+      "text": "Action"
+    },
+    "creator.legacy.step.5": {
+      "params": {},
+      "text": "Information"
+    },
+    "creator.legacy.step.6": {
+      "params": {},
+      "text": "Risk"
+    },
+    "creator.legacy.step.7": {
+      "params": {},
+      "text": "Preview"
+    },
+    "creator.legacy.step.8": {
+      "params": {},
+      "text": "Publish"
+    },
+    "creator.legacy.narrative.0.title": {
+      "params": {},
+      "text": "Give the tool an identity"
+    },
+    "creator.legacy.narrative.0.subtitle": {
+      "params": {},
+      "text": "The first signal for players and the Googleplex catalog."
+    },
+    "creator.legacy.narrative.0.description": {
+      "params": {},
+      "text": "The name, icon and description explain the app before anyone reads its contract."
+    },
+    "creator.legacy.narrative.0.educational_note": {
+      "params": {},
+      "text": "Tools of this class are recognised by their purpose, scope and clear description."
+    },
+    "creator.legacy.narrative.0.gameplay_hint": {
+      "params": {},
+      "text": "The price is a starting point. The balance preview may suggest a different value."
+    },
+    "creator.legacy.narrative.1.title": {
+      "params": {},
+      "text": "Choose a tool family"
+    },
+    "creator.legacy.narrative.1.subtitle": {
+      "params": {},
+      "text": "The family narrows the next choices."
+    },
+    "creator.legacy.narrative.1.description": {
+      "params": {},
+      "text": "Scanner / Recon also includes target tracing. Exploit and Sniffer are separate gameplay families."
+    },
+    "creator.legacy.narrative.1.educational_note": {
+      "params": {},
+      "text": "Security teams use similar classes of tools to discover, control and observe systems."
+    },
+    "creator.legacy.narrative.1.gameplay_hint": {
+      "params": {},
+      "text": "For Trace target choose Scanner / Recon / Tracing, the tracer type and the trace action."
+    },
+    "creator.legacy.narrative.2.title": {
+      "params": {},
+      "text": "Choose the target"
+    },
+    "creator.legacy.narrative.2.subtitle": {
+      "params": {},
+      "text": "The target determines which options apply."
+    },
+    "creator.legacy.narrative.2.description": {
+      "params": {},
+      "text": "Vehicles, cameras and routers require different tool contracts."
+    },
+    "creator.legacy.narrative.2.educational_note": {
+      "params": {},
+      "text": "CHAOS objects expose different signals: location, image, network traffic, logs or access."
+    },
+    "creator.legacy.narrative.2.gameplay_hint": {
+      "params": {},
+      "text": "The creator hides operations and information that do not match the target."
+    },
+    "creator.legacy.narrative.3.title": {
+      "params": {},
+      "text": "Choose where to launch"
+    },
+    "creator.legacy.narrative.3.subtitle": {
+      "params": {},
+      "text": "Map, desktop or both."
+    },
+    "creator.legacy.narrative.3.description": {
+      "params": {},
+      "text": "A tool does not need a map menu entry. Desktop tools can use the marked target."
+    },
+    "creator.legacy.narrative.3.educational_note": {
+      "params": {},
+      "text": "The context matters: work on a world object or an already selected target."
+    },
+    "creator.legacy.narrative.3.gameplay_hint": {
+      "params": {},
+      "text": "Desktop mode may have no map action. Map mode needs explicit map_actions."
+    },
+    "creator.legacy.narrative.4.title": {
+      "params": {},
+      "text": "Choose what the tool does"
+    },
+    "creator.legacy.narrative.4.subtitle": {
+      "params": {},
+      "text": "The operation contract starts here."
+    },
+    "creator.legacy.narrative.4.description": {
+      "params": {},
+      "text": "Choose a gameplay effect: tracking, streaming, reading, interference or an implant."
+    },
+    "creator.legacy.narrative.4.educational_note": {
+      "params": {},
+      "text": "Describe the effect in the simulated game world."
+    },
+    "creator.legacy.narrative.4.gameplay_hint": {
+      "params": {},
+      "text": "An operation may appear on the map, have a timer, produce data or support another process."
+    },
+    "creator.legacy.narrative.5.title": {
+      "params": {},
+      "text": "Choose what information it seeks"
+    },
+    "creator.legacy.narrative.5.subtitle": {
+      "params": {},
+      "text": "Data fuels the CHAOS economy."
+    },
+    "creator.legacy.narrative.5.description": {
+      "params": {},
+      "text": "Resources determine the files or state that an operation can produce."
+    },
+    "creator.legacy.narrative.5.educational_note": {
+      "params": {},
+      "text": "These tool classes help explain the signals and metadata present in systems."
+    },
+    "creator.legacy.narrative.5.gameplay_hint": {
+      "params": {},
+      "text": "Some resources cannot be sold. internal_recon_state may only prepare another action."
+    },
+    "creator.legacy.narrative.6.title": {
+      "params": {},
+      "text": "Set risk and dependencies"
+    },
+    "creator.legacy.narrative.6.subtitle": {
+      "params": {},
+      "text": "Every tool has traces and requirements."
+    },
+    "creator.legacy.narrative.6.description": {
+      "params": {},
+      "text": "Specify conflicts, disabled protections and conditions required before use."
+    },
+    "creator.legacy.narrative.6.educational_note": {
+      "params": {},
+      "text": "Design includes understanding limitations as well as capabilities."
+    },
+    "creator.legacy.narrative.6.gameplay_hint": {
+      "params": {},
+      "text": "These are game contract fields; they do not introduce a new risk system."
+    },
+    "creator.legacy.narrative.7.title": {
+      "params": {},
+      "text": "Review the contract"
+    },
+    "creator.legacy.narrative.7.subtitle": {
+      "params": {},
+      "text": "Preview your choices as one app."
+    },
+    "creator.legacy.narrative.7.description": {
+      "params": {},
+      "text": "See how family, target, action and data form the app contract."
+    },
+    "creator.legacy.narrative.7.educational_note": {
+      "params": {},
+      "text": "A clear tool design should be understandable without reading code."
+    },
+    "creator.legacy.narrative.7.gameplay_hint": {
+      "params": {},
+      "text": "Size, quality, reliability and suggested price are calculated by the runtime."
+    },
+    "creator.legacy.narrative.8.title": {
+      "params": {},
+      "text": "Publish in Googleplex"
+    },
+    "creator.legacy.narrative.8.subtitle": {
+      "params": {},
+      "text": "The same catalog and runtime."
+    },
+    "creator.legacy.narrative.8.description": {
+      "params": {},
+      "text": "Publishing uses the existing endpoint and Googleplex catalog."
+    },
+    "creator.legacy.narrative.8.educational_note": {
+      "params": {},
+      "text": "A tool belongs to an ecosystem: design, publish, install, use and uninstall."
+    },
+    "creator.legacy.narrative.8.gameplay_hint": {
+      "params": {},
+      "text": "After publishing, buy and install the app like any other tool."
+    },
+    "creator.legacy.type.scanner": {
+      "params": {},
+      "text": "Scanner / recon"
+    },
+    "creator.legacy.type.exploit": {
+      "params": {},
+      "text": "Exploit"
+    },
+    "creator.legacy.type.exploit_suite": {
+      "params": {},
+      "text": "Exploit suite"
+    },
+    "creator.legacy.type.sniffer": {
+      "params": {},
+      "text": "Sniffer"
+    },
+    "creator.legacy.type.tracker": {
+      "params": {},
+      "text": "Tracer / target tracking"
+    },
+    "creator.legacy.type.camera_tool": {
+      "params": {},
+      "text": "Camera tool"
+    },
+    "creator.legacy.type.atm_tool": {
+      "params": {},
+      "text": "ATM tool"
+    },
+    "creator.legacy.type.vehicle_tool": {
+      "params": {},
+      "text": "Vehicle tool"
+    },
+    "creator.legacy.type.custom": {
+      "params": {},
+      "text": "Custom"
+    },
+    "creator.legacy.creator_option_groups.map_actions": {
+      "params": {},
+      "text": "Map action"
+    },
+    "creator.legacy.creator_option_groups.operation_types": {
+      "params": {},
+      "text": "Runtime operation"
+    },
+    "creator.legacy.creator_option_groups.resource_types": {
+      "params": {},
+      "text": "Information"
+    },
+    "creator.legacy.creator_option_groups.target_types": {
+      "params": {},
+      "text": "Target"
+    },
+    "creator.legacy.creator_semantic_group_labels.location": {
+      "params": {},
+      "text": "Location and tracking"
+    },
+    "creator.legacy.creator_semantic_group_labels.device": {
+      "params": {},
+      "text": "Devices and network"
+    },
+    "creator.legacy.creator_semantic_group_labels.media": {
+      "params": {},
+      "text": "Media and communication"
+    },
+    "creator.legacy.creator_semantic_group_labels.accounts": {
+      "params": {},
+      "text": "Accounts and identity"
+    },
+    "creator.legacy.creator_semantic_group_labels.finance": {
+      "params": {},
+      "text": "Finance"
+    },
+    "creator.legacy.creator_semantic_group_labels.access": {
+      "params": {},
+      "text": "Access and influence"
+    },
+    "creator.legacy.creator_semantic_group_labels.world": {
+      "params": {},
+      "text": "World objects"
+    },
+    "creator.legacy.option.map_actions.scan_ports": {
+      "params": {},
+      "text": "Scan ports"
+    },
+    "creator.legacy.option.map_actions.exploit": {
+      "params": {},
+      "text": "Install exploit"
+    },
+    "creator.legacy.option.map_actions.sniff": {
+      "params": {},
+      "text": "Track traffic"
+    },
+    "creator.legacy.option.map_actions.trace": {
+      "params": {},
+      "text": "Trace target"
+    },
+    "creator.legacy.option.map_actions.trace_gps": {
+      "params": {},
+      "text": "Track vehicle GPS"
+    },
+    "creator.legacy.option.map_actions.trace_device": {
+      "params": {},
+      "text": "Track device"
+    },
+    "creator.legacy.option.map_actions.camera_stream": {
+      "params": {},
+      "text": "Watch camera feed"
+    },
+    "creator.legacy.option.map_actions.camera_shutdown": {
+      "params": {},
+      "text": "Disable camera"
+    },
+    "creator.legacy.option.map_actions.atm_logs": {
+      "params": {},
+      "text": "Read ATM logs"
+    },
+    "creator.legacy.option.map_actions.install_sniffer": {
+      "params": {},
+      "text": "Install sniffer"
+    },
+    "creator.legacy.option.map_actions.scan_hotspots": {
+      "params": {},
+      "text": "Detect hotspots"
+    },
+    "creator.legacy.option.map_actions.audio_hack": {
+      "params": {},
+      "text": "Take over audio player"
+    },
+    "creator.legacy.option.map_actions.car_hack": {
+      "params": {},
+      "text": "Take over onboard system"
+    },
+    "creator.legacy.option.operation_types.generic_trace": {
+      "params": {},
+      "text": "Target tracing"
+    },
+    "creator.legacy.option.operation_types.vehicle_tracking": {
+      "params": {},
+      "text": "Vehicle tracking"
+    },
+    "creator.legacy.option.operation_types.device_tracking": {
+      "params": {},
+      "text": "Device tracking"
+    },
+    "creator.legacy.option.operation_types.microphone_sniffer": {
+      "params": {},
+      "text": "Microphone listening"
+    },
+    "creator.legacy.option.operation_types.camera_stream": {
+      "params": {},
+      "text": "Camera monitoring"
+    },
+    "creator.legacy.option.operation_types.camera_shutdown": {
+      "params": {},
+      "text": "Temporary camera shutdown"
+    },
+    "creator.legacy.option.operation_types.atm_log_extraction": {
+      "params": {},
+      "text": "ATM log extraction"
+    },
+    "creator.legacy.option.operation_types.persistent_sniffer": {
+      "params": {},
+      "text": "Network implant"
+    },
+    "creator.legacy.option.operation_types.wifi_scanner": {
+      "params": {},
+      "text": "Network discovery"
+    },
+    "creator.legacy.option.operation_types.audio_interference": {
+      "params": {},
+      "text": "Audio interference"
+    },
+    "creator.legacy.option.operation_types.vehicle_ecu": {
+      "params": {},
+      "text": "Onboard system access"
+    },
+    "creator.legacy.option.resource_types.internal_recon_state": {
+      "params": {},
+      "text": "Recon state"
+    },
+    "creator.legacy.option.resource_types.gps_logs": {
+      "params": {},
+      "text": "GPS logs"
+    },
+    "creator.legacy.option.resource_types.location_history": {
+      "params": {},
+      "text": "Location history"
+    },
+    "creator.legacy.option.resource_types.device_logs": {
+      "params": {},
+      "text": "Device logs"
+    },
+    "creator.legacy.option.resource_types.personal_records": {
+      "params": {},
+      "text": "Personal records"
+    },
+    "creator.legacy.option.resource_types.financial_records": {
+      "params": {},
+      "text": "Financial records"
+    },
+    "creator.legacy.option.resource_types.credentials": {
+      "params": {},
+      "text": "Credentials"
+    },
+    "creator.legacy.option.resource_types.email_accounts": {
+      "params": {},
+      "text": "Email accounts"
+    },
+    "creator.legacy.option.resource_types.call_history": {
+      "params": {},
+      "text": "Call history"
+    },
+    "creator.legacy.option.resource_types.messenger_data": {
+      "params": {},
+      "text": "Messenger data"
+    },
+    "creator.legacy.option.resource_types.audio_transcript": {
+      "params": {},
+      "text": "Audio transcript"
+    },
+    "creator.legacy.option.resource_types.camera_dump": {
+      "params": {},
+      "text": "Camera dump"
+    },
+    "creator.legacy.option.resource_types.video_material": {
+      "params": {},
+      "text": "Video footage"
+    },
+    "creator.legacy.option.resource_types.atm_dump": {
+      "params": {},
+      "text": "ATM dump"
+    },
+    "creator.legacy.option.resource_types.vehicle_diagnostics": {
+      "params": {},
+      "text": "Vehicle diagnostics"
+    },
+    "creator.legacy.option.resource_types.wifi_networks": {
+      "params": {},
+      "text": "Wi-Fi networks"
+    },
+    "creator.legacy.option.resource_types.hotspot_database": {
+      "params": {},
+      "text": "Hotspot database"
+    },
+    "creator.legacy.option.target_types.poi": {
+      "params": {},
+      "text": "World object"
+    },
+    "creator.legacy.option.target_types.camera": {
+      "params": {},
+      "text": "Camera"
+    },
+    "creator.legacy.option.target_types.atm": {
+      "params": {},
+      "text": "ATM"
+    },
+    "creator.legacy.option.target_types.server": {
+      "params": {},
+      "text": "Server"
+    },
+    "creator.legacy.option.target_types.router": {
+      "params": {},
+      "text": "Router"
+    },
+    "creator.legacy.option.target_types.player": {
+      "params": {},
+      "text": "Player"
+    },
+    "creator.legacy.option.target_types.pillar": {
+      "params": {},
+      "text": "Conflict pillar"
+    },
+    "creator.legacy.option.target_types.vehicle": {
+      "params": {},
+      "text": "Vehicle"
+    },
+    "creator.legacy.option.target_types.person": {
+      "params": {},
+      "text": "Person"
+    },
+    "creator.legacy.option.target_types.phone": {
+      "params": {},
+      "text": "Phone"
+    },
+    "creator.legacy.option.target_types.venue": {
+      "params": {},
+      "text": "Venue"
+    },
+    "creator.legacy.scanner.map.label": {
+      "params": {},
+      "text": "Scanner: map"
+    },
+    "creator.legacy.scanner.map.description": {
+      "params": {},
+      "text": "Scanner operations in the simulated game world, launched from the map."
+    },
+    "creator.legacy.scanner.desktop.label": {
+      "params": {},
+      "text": "Scanner: desktop / marked target"
+    },
+    "creator.legacy.scanner.desktop.description": {
+      "params": {},
+      "text": "Scanner operations in the simulated game world, launched from the desktop for the marked target, without a map menu entry."
+    },
+    "creator.legacy.scanner.hybrid.label": {
+      "params": {},
+      "text": "Scanner: hybrid"
+    },
+    "creator.legacy.scanner.hybrid.description": {
+      "params": {},
+      "text": "Scanner operations in the simulated game world, launched from both map and desktop."
+    },
+    "creator.legacy.exploit.map.label": {
+      "params": {},
+      "text": "Exploit: map"
+    },
+    "creator.legacy.exploit.map.description": {
+      "params": {},
+      "text": "Exploit operations in the simulated game world, launched from the map."
+    },
+    "creator.legacy.exploit.desktop.label": {
+      "params": {},
+      "text": "Exploit: desktop / marked target"
+    },
+    "creator.legacy.exploit.desktop.description": {
+      "params": {},
+      "text": "Exploit operations in the simulated game world, launched from the desktop for the marked target, without a map menu entry."
+    },
+    "creator.legacy.exploit.hybrid.label": {
+      "params": {},
+      "text": "Exploit: hybrid"
+    },
+    "creator.legacy.exploit.hybrid.description": {
+      "params": {},
+      "text": "Exploit operations in the simulated game world, launched from both map and desktop."
+    },
+    "creator.legacy.sniffer.map.label": {
+      "params": {},
+      "text": "Sniffer: map"
+    },
+    "creator.legacy.sniffer.map.description": {
+      "params": {},
+      "text": "Sniffer operations in the simulated game world, launched from the map."
+    },
+    "creator.legacy.sniffer.desktop.label": {
+      "params": {},
+      "text": "Sniffer: desktop / marked target"
+    },
+    "creator.legacy.sniffer.desktop.description": {
+      "params": {},
+      "text": "Sniffer operations in the simulated game world, launched from the desktop for the marked target, without a map menu entry."
+    },
+    "creator.legacy.sniffer.hybrid.label": {
+      "params": {},
+      "text": "Sniffer: hybrid"
+    },
+    "creator.legacy.sniffer.hybrid.description": {
+      "params": {},
+      "text": "Sniffer operations in the simulated game world, launched from both map and desktop."
+    },
+    "creator.legacy.family.scanner_recon.label": {
+      "params": {},
+      "text": "Scanner / Recon / Tracing"
+    },
+    "creator.legacy.family.scanner_recon.boxTitle": {
+      "params": {},
+      "text": "Where does recon or tracing run?"
+    },
+    "creator.legacy.family.scanner_recon.safetyText": {
+      "params": {},
+      "text": "For target tracing, select the tracer type, trace action and generic_trace operation."
+    },
+    "creator.legacy.family.scanner_recon.desktopMapNote": {
+      "params": {},
+      "text": "A desktop scanner can use the marked target without a map action."
+    },
+    "creator.legacy.family.scanner_recon.mapNote": {
+      "params": {},
+      "text": "This family supports scan_ports and trace map actions."
+    },
+    "creator.legacy.family.exploit.label": {
+      "params": {},
+      "text": "Exploit"
+    },
+    "creator.legacy.family.exploit.boxTitle": {
+      "params": {},
+      "text": "Where does the exploit run?"
+    },
+    "creator.legacy.family.exploit.safetyText": {
+      "params": {},
+      "text": "Describe the simulated gameplay effect on a system weakness in CHAOS."
+    },
+    "creator.legacy.family.exploit.desktopMapNote": {
+      "params": {},
+      "text": "A desktop exploit can use the marked target without a map action."
+    },
+    "creator.legacy.family.exploit.mapNote": {
+      "params": {},
+      "text": "Choose map actions if the tool should appear in the map menu."
+    },
+    "creator.legacy.family.sniffer.label": {
+      "params": {},
+      "text": "Sniffer"
+    },
+    "creator.legacy.family.sniffer.boxTitle": {
+      "params": {},
+      "text": "Where does the sniffer run?"
+    },
+    "creator.legacy.family.sniffer.safetyText": {
+      "params": {},
+      "text": "A sniffer observes simulated signals or data through a game operation."
+    },
+    "creator.legacy.family.sniffer.desktopMapNote": {
+      "params": {},
+      "text": "A desktop sniffer can use the marked target without a map action."
+    },
+    "creator.legacy.family.sniffer.mapNote": {
+      "params": {},
+      "text": "Choose map actions if the sniffer should launch from the map."
+    },
+    "creator.legacy.name": {
+      "params": {},
+      "text": "Name"
+    },
+    "creator.legacy.price": {
+      "params": {},
+      "text": "Price"
+    },
+    "creator.legacy.icon": {
+      "params": {},
+      "text": "Icon"
+    },
+    "creator.legacy.description": {
+      "params": {},
+      "text": "Description"
+    },
+    "creator.legacy.type": {
+      "params": {},
+      "text": "Type"
+    },
+    "creator.legacy.detects": {
+      "params": {},
+      "text": "Detects"
+    },
+    "creator.legacy.interface": {
+      "params": {},
+      "text": "Interface"
+    },
+    "creator.legacy.custom": {
+      "params": {},
+      "text": "General tool"
+    },
+    "creator.legacy.mode": {
+      "params": {},
+      "text": "Tool mode"
+    },
+    "creator.legacy.map": {
+      "params": {},
+      "text": "Map"
+    },
+    "creator.legacy.desktop": {
+      "params": {},
+      "text": "Desktop / marked target"
+    },
+    "creator.legacy.hybrid": {
+      "params": {},
+      "text": "Hybrid"
+    },
+    "creator.legacy.family": {
+      "params": {},
+      "text": "Creator path"
+    },
+    "creator.legacy.back": {
+      "params": {},
+      "text": "Back"
+    },
+    "creator.legacy.next": {
+      "params": {},
+      "text": "Next"
+    },
+    "creator.legacy.publish": {
+      "params": {},
+      "text": "Publish in Googleplex"
+    },
+    "creator.legacy.add_step": {
+      "params": {},
+      "text": "Add step"
+    },
+    "creator.legacy.add_level": {
+      "params": {},
+      "text": "Add terminal level"
+    },
+    "creator.legacy.add_list": {
+      "params": {},
+      "text": "Add list entry"
+    },
+    "creator.legacy.add_button": {
+      "params": {},
+      "text": "Add button"
+    },
+    "creator.legacy.add_option": {
+      "params": {},
+      "text": "Add option"
+    },
+    "creator.legacy.weight": {
+      "params": {},
+      "text": "App size"
+    },
+    "creator.legacy.disk": {
+      "params": {},
+      "text": "Disk usage"
+    },
+    "creator.legacy.quality": {
+      "params": {},
+      "text": "Quality"
+    },
+    "creator.legacy.reliability": {
+      "params": {},
+      "text": "Reliability"
+    },
+    "creator.legacy.profile": {
+      "params": {},
+      "text": "creator profile"
+    },
+    "creator.legacy.runtime": {
+      "params": {},
+      "text": "runtime default"
+    },
+    "creator.legacy.json": {
+      "params": {},
+      "text": "Show technical JSON contract"
+    },
+    "creator.legacy.levels": {
+      "params": {},
+      "text": "Level"
+    },
+    "creator.legacy.levels_many": {
+      "params": {},
+      "text": "Levels"
+    },
+    "creator.legacy.title": {
+      "params": {},
+      "text": "Title"
+    },
+    "creator.legacy.text": {
+      "params": {},
+      "text": "Text"
+    },
+    "creator.legacy.command": {
+      "params": {},
+      "text": "Command"
+    },
+    "creator.legacy.logs": {
+      "params": {},
+      "text": "Logs"
+    },
+    "creator.legacy.step_label": {
+      "params": {},
+      "text": "Step"
+    },
+    "creator.legacy.result_success": {
+      "params": {},
+      "text": "Success result"
+    },
+    "creator.legacy.result_failure": {
+      "params": {},
+      "text": "Failure result"
+    },
+    "creator.legacy.list": {
+      "params": {},
+      "text": "List entry"
+    },
+    "creator.legacy.button_label": {
+      "params": {},
+      "text": "Button label"
+    },
+    "creator.legacy.action": {
+      "params": {},
+      "text": "Action"
+    },
+    "creator.legacy.option_label": {
+      "params": {},
+      "text": "Label"
+    },
+    "creator.legacy.effect": {
+      "params": {},
+      "text": "Effect"
+    },
+    "creator.legacy.price_lower": {
+      "params": {},
+      "text": "Price"
+    },
+    "creator.legacy.target_help": {
+      "params": {},
+      "text": "Choose world objects supported by the tool."
+    },
+    "creator.legacy.action_help": {
+      "params": {},
+      "text": "This entry appears in the object menu. Desktop mode may have no map action."
+    },
+    "creator.legacy.operation_help": {
+      "params": {},
+      "text": "Defines the gameplay effect when launched from the desktop or terminal."
+    },
+    "creator.legacy.resource_help": {
+      "params": {},
+      "text": "Choose data produced by the operation in the game world."
+    },
+    "creator.legacy.filter_help": {
+      "params": {},
+      "text": "Choose a family to configure the app contract."
+    },
+    "creator.legacy.publish_help": {
+      "params": {},
+      "text": "Publishing uses the existing Googleplex catalog."
+    },
+    "creator.legacy.name_hint": {
+      "params": {},
+      "text": "App name"
+    },
+    "creator.legacy.description_hint": {
+      "params": {},
+      "text": "What does the app do?"
+    },
+    "creator.legacy.terminal_logs_hint": {
+      "params": {},
+      "text": "One log per line"
+    },
+    "creator.legacy.panel_hint": {
+      "params": {},
+      "text": "App panel"
+    },
+    "creator.legacy.list_hint": {
+      "params": {},
+      "text": "Status line"
+    },
+    "creator.legacy.run_hint": {
+      "params": {},
+      "text": "Run"
+    },
+    "creator.legacy.mode_hint": {
+      "params": {},
+      "text": "Choose a mode"
+    },
+    "creator.legacy.choice_hint": {
+      "params": {},
+      "text": "Describe the choice for the player"
+    },
+    "creator.legacy.progress_title_hint": {
+      "params": {},
+      "text": "MemoryOverflow"
+    },
+    "creator.legacy.success_hint": {
+      "params": {},
+      "text": "Operation completed successfully."
+    },
+    "creator.legacy.failure_hint": {
+      "params": {},
+      "text": "Operation blocked."
+    },
+    "creator.legacy.step_hint": {
+      "params": {},
+      "text": "Sending test data…"
+    },
+    "creator.legacy.detect_hint": {
+      "params": {},
+      "text": "e.g. open_ports, user_location"
+    },
+    "creator.legacy.legacy_name_hint": {
+      "params": {},
+      "text": "e.g. NullTrace"
+    },
+    "creator.legacy.list_lines": {
+      "params": {},
+      "text": "One list entry per line"
+    },
+    "creator.legacy.logs_lines": {
+      "params": {},
+      "text": "One terminal log per line"
+    },
+    "creator.legacy.progress_lines": {
+      "params": {},
+      "text": "One progress step per line"
+    },
+    "creator.legacy.mode_action_hint": {
+      "params": {},
+      "text": "Choose an operation mode"
+    },
+    "creator.legacy.progress_hint": {
+      "params": {},
+      "text": "Running operation"
+    },
+    "creator.legacy.success_unicode_hint": {
+      "params": {},
+      "text": "Operation completed successfully."
+    },
+    "creator.legacy.family_question": {
+      "params": {},
+      "text": "What type of tool do you want to create? "
+    },
+    "creator.legacy.catalog_question": {
+      "params": {},
+      "text": "How should it appear in the catalog? "
+    },
+    "creator.legacy.detect_question": {
+      "params": {},
+      "text": "Which traces or signals does it detect? "
+    },
+    "creator.legacy.detect_example": {
+      "params": {},
+      "text": "e.g. open services, target traffic"
+    },
+    "creator.legacy.target_question": {
+      "params": {},
+      "text": "Which object should it target?"
+    },
+    "creator.legacy.launch_question": {
+      "params": {},
+      "text": "Where should the player launch it?"
+    },
+    "creator.legacy.action_question": {
+      "params": {},
+      "text": "What should your tool do?"
+    },
+    "creator.legacy.information_question": {
+      "params": {},
+      "text": "What information should it seek?"
+    },
+    "creator.legacy.conflict_question": {
+      "params": {},
+      "text": "What can interfere with it?"
+    },
+    "creator.legacy.requires_question": {
+      "params": {},
+      "text": "What must be disabled?"
+    },
+    "creator.legacy.disable_question": {
+      "params": {},
+      "text": "What can the tool disable?"
+    },
+    "creator.legacy.affects_question": {
+      "params": {},
+      "text": "How does it affect the player?"
+    },
+    "creator.legacy.unnamed": {
+      "params": {},
+      "text": "Unnamed"
+    },
+    "creator.legacy.general": {
+      "params": {},
+      "text": "General tool"
+    },
+    "creator.legacy.not_selected": {
+      "params": {},
+      "text": "Not selected"
+    },
+    "creator.legacy.none": {
+      "params": {},
+      "text": "None"
+    },
+    "creator.legacy.app": {
+      "params": {},
+      "text": "App"
+    },
+    "creator.legacy.family_label": {
+      "params": {},
+      "text": "Family"
+    },
+    "creator.legacy.target": {
+      "params": {},
+      "text": "Target"
+    },
+    "creator.legacy.start": {
+      "params": {},
+      "text": "Launch"
+    },
+    "creator.legacy.map_actions": {
+      "params": {},
+      "text": "Map actions"
+    },
+    "creator.legacy.operations": {
+      "params": {},
+      "text": "Operations"
+    },
+    "creator.legacy.information": {
+      "params": {},
+      "text": "Information"
+    },
+    "creator.legacy.conflicts": {
+      "params": {},
+      "text": "Conflicts"
+    },
+    "creator.legacy.requires": {
+      "params": {},
+      "text": "Requires disabled"
+    },
+    "creator.legacy.disables": {
+      "params": {},
+      "text": "Can disable"
+    },
+    "creator.legacy.affects": {
+      "params": {},
+      "text": "Player effects"
+    },
+    "creator.legacy.presentation": {
+      "params": {},
+      "text": "Presentation"
+    },
+    "creator.legacy.general_mode": {
+      "params": {},
+      "text": "general"
+    },
+    "creator.legacy.name_error": {
+      "params": {},
+      "text": "Step 1 · Name: enter an app name."
+    },
+    "creator.legacy.target_error": {
+      "params": {},
+      "text": "Step 3 · Target: choose at least one target type supported by the family."
+    },
+    "creator.legacy.map_error": {
+      "params": {},
+      "text": "Step 4 · Launch: map and hybrid modes require a map action. Choose one or use desktop mode."
+    },
+    "creator.legacy.operation_error": {
+      "params": {},
+      "text": "Step 5 · Action: choose an operation compatible with the target and action."
+    },
+    "creator.legacy.mode_help": {
+      "params": {},
+      "text": "Choose a creator path to narrow the available contract fields."
+    },
+    "creator.legacy.general_help": {
+      "params": {},
+      "text": "General mode shows the complete app contract."
+    },
+    "creator.legacy.filtered": {
+      "params": {},
+      "text": "Options match the selected family, target and action."
+    },
+    "creator.legacy.publishing": {
+      "params": {},
+      "text": "Publishing…"
+    },
+    "creator.legacy.publish_failed": {
+      "params": {},
+      "text": "Could not publish."
+    },
+    "creator.legacy.policy_failed": {
+      "params": {},
+      "text": "Creator policy unavailable."
+    },
+    "creator.legacy.invalid_icon": {
+      "params": {},
+      "text": "Choose exactly one app icon."
+    },
+    "creator.legacy.contract_help.interferes_with": {
+      "params": {},
+      "text": "Active protections that may interfere with the tool."
+    },
+    "creator.legacy.contract_help.requires_off": {
+      "params": {},
+      "text": "Required conditions before launch."
+    },
+    "creator.legacy.contract_help.disables": {
+      "params": {},
+      "text": "Protections disabled by the operation."
+    },
+    "creator.legacy.contract_help.affects": {
+      "params": {},
+      "text": "Local effects on the player profile or gameplay."
+    },
+    "creator.legacy.filtered_count": {
+      "params": {
+        "count": "number"
+      },
+      "text": "Options adjusted. Incompatible selections cleared: {count}."
+    },
+    "creator.legacy.published_file": {
+      "params": {
+        "file": "string"
+      },
+      "text": "Project saved in files/projects/{file}"
+    },
+    "creator.legacy.invalid_name": {
+      "params": {},
+      "text": "The app name cannot contain a semicolon (;)."
     }
   }
 }

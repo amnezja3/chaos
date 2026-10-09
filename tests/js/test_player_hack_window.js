@@ -12,7 +12,7 @@ function makeNode() {
         querySelector(selector) {
             if (selector === '[data-player-hack-content]') return content;
             if (selector === '[data-player-hack-minimize]') return minimize;
-            return {textContent: ''};
+            return {textContent: '', dataset:{}};
         }, querySelectorAll: () => [], remove() { node = null; }};
 }
 const ctx = {
@@ -24,6 +24,7 @@ const ctx = {
     playerHackAccessState: null, playerHackAccessTimer: null
 };
 vm.createContext(ctx);
+require('./locale_fixture')(ctx);
 vm.runInContext(source.slice(source.indexOf('function getPlayerHackAccessPanel()'), source.indexOf('async function refreshPlayerHackAccess(')), ctx);
 const access = {active: true, victim_username: 'a', seconds_left: 5, tools: []};
 ctx.renderPlayerHackAccessPanel(null);

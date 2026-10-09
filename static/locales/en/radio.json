@@ -1,0 +1,153 @@
+{
+  "locale": "en",
+  "format_version": 1,
+  "content_version": "154.7.0",
+  "messages": {
+    "radio.filter": {
+      "params": {},
+      "text": "Channel language"
+    },
+    "radio.channels": {
+      "params": {},
+      "text": "Channel"
+    },
+    "radio.empty": {
+      "params": {},
+      "text": "No channels in this language."
+    },
+    "radio.any": {
+      "params": {},
+      "text": "Show all (ANY)"
+    },
+    "radio.choose": {
+      "params": {},
+      "text": "Choose a channel"
+    },
+    "radio.program": {
+      "params": {
+        "language": "string"
+      },
+      "text": "Programme language: {language}"
+    },
+    "radio.unknown": {
+      "params": {},
+      "text": "unverified"
+    },
+    "radio.neutral": {
+      "params": {},
+      "text": "non-verbal"
+    },
+    "radio.mixed": {
+      "params": {},
+      "text": "multilingual"
+    },
+    "radio.previous": {
+      "params": {},
+      "text": "Previous channel"
+    },
+    "radio.next": {
+      "params": {},
+      "text": "Next channel"
+    },
+    "radio.play": {
+      "params": {},
+      "text": "Play"
+    },
+    "radio.pause": {
+      "params": {},
+      "text": "Pause"
+    },
+    "radio.mute": {
+      "params": {},
+      "text": "Mute"
+    },
+    "radio.volume": {
+      "params": {},
+      "text": "Volume"
+    },
+    "radio.no_track": {
+      "params": {},
+      "text": "No track"
+    },
+    "radio.status.signal_idle": {
+      "params": {},
+      "text": "SIGNAL IDLE"
+    },
+    "radio.status.signal_boot": {
+      "params": {},
+      "text": "SIGNAL BOOT"
+    },
+    "radio.status.signal_tuning": {
+      "params": {},
+      "text": "SIGNAL TUNING"
+    },
+    "radio.status.signal_online": {
+      "params": {},
+      "text": "SIGNAL ONLINE"
+    },
+    "radio.status.signal_paused": {
+      "params": {},
+      "text": "SIGNAL PAUSED"
+    },
+    "radio.status.signal_search": {
+      "params": {},
+      "text": "SIGNAL SEARCH"
+    },
+    "radio.status.signal_error": {
+      "params": {},
+      "text": "SIGNAL ERROR"
+    },
+    "radio.status.signal_loading": {
+      "params": {},
+      "text": "SIGNAL LOADING"
+    },
+    "radio.status.signal_lost": {
+      "params": {},
+      "text": "SIGNAL LOST"
+    },
+    "radio.status.bad_schema": {
+      "params": {},
+      "text": "BAD SCHEMA"
+    },
+    "radio.status.signal_ready": {
+      "params": {},
+      "text": "SIGNAL READY"
+    },
+    "radio.status.no_tracks": {
+      "params": {},
+      "text": "NO TRACKS"
+    },
+    "radio.status.click_to_start": {
+      "params": {},
+      "text": "CLICK TO START"
+    },
+    "radio.status.autoplay_off": {
+      "params": {},
+      "text": "AUTOPLAY OFF"
+    },
+    "radio.status.one_channel": {
+      "params": {},
+      "text": "NO OTHER CHANNELS"
+    },
+    "radio.unmute": {
+      "params": {},
+      "text": "Unmute"
+    },
+    "radio.channel.blacknet.name": {
+      "params": {},
+      "text": "BlackNet Radio"
+    },
+    "radio.channel.blacknet.description": {
+      "params": {},
+      "text": "Conversations from the digital underground. Programmes for CHAOS operators."
+    },
+    "radio.channel.ghost.name": {
+      "params": {},
+      "text": "Ghost Hack Radio"
+    },
+    "radio.channel.ghost.description": {
+      "params": {},
+      "text": "The first GhostNet pirate system channel."
+    }
+  }
+}

@@ -4,7 +4,7 @@ async function firmwareRequest(url, body) {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
     });
     const data = await response.json();
-    if (!response.ok || data.success === false) throw Error(data.message || data.error || 'Firmware niedostępny.');
+    if (!response.ok || data.success === false) throw Error(ghostResponseText(data, 'lab.service.firmware_unavailable'));
     return data;
 }
 
@@ -12,16 +12,14 @@ async function confirmFirmwarePurchase(appId) {
     const info = await firmwareRequest('/api/ghostlab/firmware/' + encodeURIComponent(appId));
     if (info.state.crash_id) { await syncFirmwareCrash(); return null; }
     if (info.pending) {
-        const accepted = await showGhostDecisionDialog({title: 'FIRMWARE', message: 'Masz już opłaconą próbę. Przywrócić jej aplikację bez ponownej opłaty?', confirmLabel: 'PRZYWRÓĆ'});
+        const accepted = await showGhostDecisionDialog({titleKey:'lab.service.firmware_title',messageKey:'lab.service.restore_confirm',confirmKey:'lab.service.restore'});
         return accepted ? info.pending_offer : null;
     }
-    if (!info.available) throw Error('Firmware wycofano ze sprzedaży.');
-    if (info.has_pending) throw Error('Wykorzystaj wcześniej zakupioną próbę firmware.');
-    if (info.state.cooldown_until > info.server_time) throw Error('Kolejny zakup możliwy: ' + new Date(info.state.cooldown_until * 1000).toLocaleString());
-    if (!info.gains.disk_mb && !info.gains.scan_m) throw Error('Osiągnięto limity: 2 TB dysku i 30 km skanu.');
-    const accepted = await showGhostDecisionDialog({title: 'ZAKUP PRÓBY FIRMWARE',
-        message: `Jedna próba za ${info.available.price} HC. Szansa powodzenia: ${info.policy.success_percent}%.`,
-        details: `Możliwy przyrost: ${info.gains.disk_mb} MB i ${info.gains.scan_m} m. Porażka: crash i restart, bez zwrotu HC. Cooldown po obu wynikach: 24 h.`, confirmLabel: 'KUP PRÓBĘ'});
+    if (!info.available) throw Error(window.GhostLocale.t('lab.service.withdrawn'));
+    if (info.has_pending) throw Error(window.GhostLocale.t('lab.service.pending_first'));
+    if (info.state.cooldown_until > info.server_time) throw Error(window.GhostLocale.t('lab.service.next', {date:new Date(info.state.cooldown_until * 1000).toLocaleString(window.GhostLocale.getLocale())}));
+    if (!info.gains.disk_mb && !info.gains.scan_m) throw Error(window.GhostLocale.t('lab.service.limits'));
+    const accepted = await showGhostDecisionDialog({titleKey:'lab.service.purchase_title',messageKey:'lab.service.purchase_summary',messageParams:{price:info.available.price,chance:info.policy.success_percent},detailsKey:'lab.service.firmware_risk',detailsParams:{disk:info.gains.disk_mb,scan:info.gains.scan_m},confirmKey:'lab.service.buy'});
     return accepted ? info.available : null;
 }
 
@@ -54,10 +52,10 @@ async function syncFirmwareCrash() {
         overlay.setAttribute('aria-labelledby', 'firmware-crash-title');
         overlay.tabIndex = -1;
         overlay.innerHTML = `<div class="firmware-crash-panel"><div class="firmware-fault-code">GHOST SYSTEM // FLASH FAILURE</div>
-            <h1 id="firmware-crash-title">Awaria systemu</h1><p>Flashowanie firmware’u nie powiodło się. Pulpit został zatrzymany.</p>
+            <h1 id="firmware-crash-title">${ghostLabel("lab.service.crash_title")}</h1><p>${ghostLabel("lab.service.crash_description")}</p>
             <pre>FLASH WRITE ........ FAILED\nSYSTEM HALTED\nRECOVERY IMAGE ..... READY</pre>
-            <p>Pliki i wcześniejsze ulepszenia są bezpieczne. Próba została zużyta; kolejny zakup będzie możliwy po 24 godzinach od próby.</p>
-            <p data-recovery role="status">Przygotowanie restartu…</p><button type="button" disabled>Uruchom ponownie system</button></div>`;
+            <p>${ghostLabel("lab.service.crash_safe")}</p>
+            <p data-recovery role="status">${ghostLabel("lab.service.restart_preparing")}</p><button type="button" disabled>${ghostLabel("lab.service.restart")}</button></div>`;
         document.body.appendChild(overlay);
         document.body.classList.add('firmware-crashed');
         [...document.body.children].filter(element => element !== overlay && !['SCRIPT', 'STYLE'].includes(element.tagName)).forEach(element => {
@@ -68,18 +66,18 @@ async function syncFirmwareCrash() {
         const button = overlay.querySelector('button');
         const status = overlay.querySelector('[data-recovery]');
         const wait = Math.max(0, (state.restart_after - state.server_time) * 1000);
-        setTimeout(() => { if (overlay.isConnected) { button.disabled = false; status.textContent = 'System gotowy do restartu.'; button.focus(); } }, wait);
+        setTimeout(() => { if (overlay.isConnected) { button.disabled = false; ghostSet(status, 'lab.service.restart_ready'); button.focus(); } }, wait);
         overlay.addEventListener('keydown', event => {
             if (event.key === 'Tab') { event.preventDefault(); button.focus(); }
             event.stopPropagation();
         });
         button.onclick = async () => {
             button.disabled = true;
-            status.textContent = 'Przywracanie systemu…';
+            ghostSet(status, 'lab.service.restoring');
             try {
                 await firmwareRequest('/api/firmware/restart', {crash_id: state.crash_id});
                 location.reload();
-            } catch (error) { status.textContent = error.message; button.disabled = false; }
+            } catch (error) { delete status.dataset.ghostI18n; status.textContent = error.message; button.disabled = false; }
         };
     } catch (_error) { /* Preserve an existing crash overlay during a network outage. */ }
 }
@@ -87,7 +85,7 @@ async function syncFirmwareCrash() {
 async function renderGhostLabFirmware(app, body, data, reload) {
     const product = data.product;
     const endpoint = '/api/ghostlab/firmware/' + encodeURIComponent(product.id);
-    body.innerHTML = '<p>Sprawdzanie firmware’u…</p>';
+    body.innerHTML = `<p>${ghostLabel("lab.service.firmware_check")}</p>`;
     try {
         const info = await firmwareRequest(endpoint);
         if (!app.isConnected || !body.isConnected) return;
@@ -95,24 +93,24 @@ async function renderGhostLabFirmware(app, body, data, reload) {
         const ready = info.state.cooldown_until <= info.server_time;
         const gains = info.gains;
         const room = gains && (gains.disk_mb > 0 || gains.scan_m > 0);
-        body.innerHTML = `<p>Zainstalowana wersja: ${Number(product.installed_version)}. Opublikowana: ${data.available_version == null ? '—' : Number(data.available_version)}.</p>
+        body.innerHTML = `<p>${ghostLabel('lab.runtime.versions', {installed:Number(product.installed_version), available:String(data.available_version ?? '—')})}</p>
             <p>${escapeHTML(product.description || '')}</p>
-            <p>Jedna zakupiona próba. Sukces daje trwałe ulepszenia; porażka powoduje crash i wymaga restartu. Cooldown po obu wynikach: 24 h.</p>
-            ${info.policy ? `<div class="firmware-stats"><p>Szansa powodzenia: <b>${Number(info.policy.success_percent)}%</b></p>
-            <p>Możliwy przyrost: <b>+${Number(gains.disk_mb)} MB</b> dysku i <b>+${Number(gains.scan_m)} m</b> zasięgu skanu.</p>
-            <p>Obecnie: ${Number(gains.storage.capacity)} MB / 2 TB; ${Number(gains.scan_range_m)} m / 30 km.</p></div>` : ''}
-            <p>${info.pending ? 'Próba opłacona. Obowiązują parametry wersji zakupionej — aktualizacja aplikacji ich nie zmienia.' : 'Brak niewykorzystanej próby.'}</p>
-            ${!ready ? `<p>Kolejna próba: ${escapeHTML(new Date(info.state.cooldown_until * 1000).toLocaleString())}</p>` : ''}
-            ${!room ? '<p>Brak dostępnych przyrostów lub oferty.</p>' : ''}
-            <div class="pro-tool-actions"><button data-flash ${!info.pending || !ready || !room || !product.runtime_enabled ? 'disabled' : ''}>Flashuj firmware</button>
-            <button data-buy ${info.has_pending || !info.available || !ready || !room ? 'disabled' : ''}>Kup próbę — ${Number(info.available?.price || 0)} HC</button>
-            <button data-refresh>Odśwież</button>
-            ${data.update_available ? '<button data-update>Aktualizuj aplikację bezpłatnie</button>' : ''}</div>
+            <p>${ghostLabel("lab.service.firmware_help")}</p>
+            ${info.policy ? `<div class="firmware-stats"><p>${ghostLabel("lab.service.chance", {chance:Number(info.policy.success_percent)})}</p>
+            <p>${ghostLabel("lab.service.gains", {disk:Number(gains.disk_mb),scan:Number(gains.scan_m)})}</p>
+            <p>${ghostLabel("lab.service.capacity", {disk:Number(gains.storage.capacity),scan:Number(gains.scan_range_m)})}</p></div>` : ''}
+            <p>${ghostLabel(info.pending ? 'lab.service.paid' : 'lab.service.no_attempt')}</p>
+            ${!ready ? `<p>${ghostLabel("lab.service.next", {date:new Date(info.state.cooldown_until * 1000).toLocaleString(window.GhostLocale.getLocale())})}</p>` : ''}
+            ${!room ? `<p>${ghostLabel("lab.service.no_gains")}</p>` : ''}
+            <div class="pro-tool-actions"><button data-flash ${!info.pending || !ready || !room || !product.runtime_enabled ? 'disabled' : ''}>${ghostLabel("lab.service.flash")}</button>
+            <button data-buy ${info.has_pending || !info.available || !ready || !room ? 'disabled' : ''}>${ghostLabel("lab.service.buy_price", {price:Number(info.available?.price || 0)})}</button>
+            <button data-refresh>${ghostLabel('lab.runtime.refresh')}</button>
+            ${data.update_available ? `<button data-update>${ghostLabel("lab.service.update")}</button>` : ''}</div>
             <progress data-progress hidden max="100" value="0"></progress><pre data-log role="status" aria-live="polite"></pre>`;
         const log = body.querySelector('[data-log]');
         const progress = body.querySelector('[data-progress]');
-        const resultText = result => result.message + (result.succeeded ? `\nZapisano: +${result.disk_mb} MB, +${result.scan_m} m.` : '');
-        if (info.last_result) log.textContent = 'Ostatnia próba: ' + resultText(info.last_result);
+        const resultText = result => window.GhostLocale.t(result.succeeded ? 'lab.service.firmware_success' : 'lab.service.firmware_failure') + (result.succeeded ? '\n' + window.GhostLocale.t('lab.service.gains_saved', {disk:Number(result.disk_mb),scan:Number(result.scan_m)}) : '');
+        if (info.last_result) log.textContent = window.GhostLocale.t('lab.service.last_attempt') + resultText(info.last_result);
         body.querySelector('[data-refresh]').onclick = () => reload();
         body.querySelector('[data-update]')?.addEventListener('click', () => reload({method: 'POST',
             headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_artifact_id: product.artifact_id, artifact_id: data.available_artifact_id})}));
@@ -122,10 +120,7 @@ async function renderGhostLabFirmware(app, body, data, reload) {
             buttons.forEach(button => button.disabled = true);
             let committed = false;
             try {
-                const confirmed = await showGhostDecisionDialog({title: buy ? 'ZAKUP PRÓBY FIRMWARE' : 'FLASHOWANIE FIRMWARE',
-                    message: buy ? `Kupić jedną próbę za ${info.available.price} HC?` : `Rozpocząć próbę z szansą ${info.policy.success_percent}%?`,
-                    details: `Możliwy przyrost: ${gains.disk_mb} MB i ${gains.scan_m} m. Porażka: crash i restart, bez zwrotu HC. Cooldown po obu wynikach: 24 h.`,
-                    confirmLabel: buy ? 'KUP PRÓBĘ' : 'FLASHUJ'});
+                const confirmed = await showGhostDecisionDialog({titleKey:buy ? 'lab.service.purchase_title' : 'lab.service.flash_title',messageKey:buy ? 'lab.service.buy_confirm' : 'lab.service.flash_confirm',messageParams:buy ? {price:info.available.price} : {chance:info.policy.success_percent},detailsKey:'lab.service.firmware_risk',detailsParams:{disk:gains.disk_mb,scan:gains.scan_m},confirmKey:buy ? 'lab.service.buy' : 'lab.service.flash_action'});
                 if (!confirmed || !app.isConnected) return;
                 if (buy) {
                     const storageKey = 'firmware-purchase:' + product.id;
@@ -139,10 +134,10 @@ async function renderGhostLabFirmware(app, body, data, reload) {
                     await reload();
                 } else {
                     progress.hidden = false;
-                    for (const [index, text] of ['Sprawdzanie opłaconej próby…', 'Przygotowanie obrazu firmware…', 'Zapisywanie firmware…'].entries()) {
+                    for (const [index, text] of ['paid_check','image_prepare','flashing'].entries()) {
                         if (!app.isConnected || (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive)) return;
                         progress.value = (index + 1) * 25;
-                        log.textContent = text;
+                        ghostSet(log, 'lab.service.' + text);
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
                     if (!app.isConnected || (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive)) return;
@@ -150,11 +145,11 @@ async function renderGhostLabFirmware(app, body, data, reload) {
                     committed = true;
                     if (typeof desktopSessionActive !== 'undefined' && !desktopSessionActive) return;
                     progress.value = 100;
-                    log.textContent = resultText(result);
+                    delete log.dataset.ghostI18n; log.textContent = resultText(result);
                     if (typeof updateStorageView === 'function') updateStorageView(result.storage);
                     await syncFirmwareCrash();
                 }
-            } catch (error) { log.textContent = error.message + '\nOdśwież stan lub ponów żądanie — wynik próby jest zapamiętywany.'; }
+            } catch (error) { delete log.dataset.ghostI18n; log.textContent = error.message + '\n' + window.GhostLocale.t('lab.service.firmware_retry'); }
             finally {
                 buttons.forEach((button, index) => button.disabled = disabled[index]);
                 if (committed && !buy) { body.querySelector('[data-flash]').disabled = true; body.querySelector('[data-buy]').disabled = true; }

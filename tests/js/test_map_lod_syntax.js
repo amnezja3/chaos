@@ -3,7 +3,7 @@
 const assert = require("assert");
 const fs = require("fs");
 
-const source = fs.readFileSync("templates/map_template.html", "utf8");
+const source = fs.readFileSync("templates/map_template.html", "utf8").replace(/\r\n/g, "\n");
 const marker = "<script>\n        const map =";
 const start = source.indexOf(marker);
 assert.ok(start >= 0, "main map runtime script must exist");

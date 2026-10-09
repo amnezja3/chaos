@@ -6,6 +6,11 @@ const manifest = read('static/locales/manifest.json');
 const domains = manifest.domains.map(domain => ({domain, messages:read(`static/locales/pl/${domain}.json`).messages}));
 const count = domains.reduce((sum, item) => sum + Object.keys(item.messages).length, 0);
 const sources = {
+ lab:'ghostlab_registry.py; ghostlab_messages.py; ghostlab_routes.py; terminal.js GhostLab (sprint 154)',
+ shop:'terminal.js Googleplex/installer; run.py /install-app and catalog projections (sprint 154)',
+ catalog:'catalog_presentation.py; run.py code-owned products; terminal.js Googleplex (sprint 154)',
+ apps:'terminal.js application renderers; run.py application endpoints (sprint 154)',
+ radio:'ghost_radio.js; radio_locale.py; /api/radio/channels; /api/radio/channel (sprint 154)',
  common:'ghost_i18n.py; ghost_i18n.js — fallback',
  locale:'ghost_i18n_entry.js; createSettings(); /api/profile/desktop',
  entry:'templates/login.html; run.py:index()',

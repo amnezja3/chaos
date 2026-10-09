@@ -10,7 +10,14 @@
         return data;
     }
     request().then(data => {
-        data.channels.forEach(channel => select.add(new Option(`${channel.name} (${channel.id})`, channel.id)));
+        data.channels.forEach(channel => select.add(new Option(`${channel.name} (${channel.language})`, channel.id)));
+        const validation = document.getElementById('radio-language-validation');
+        for (const item of data.language_validation || []) {
+            const row = document.createElement('li');
+            row.textContent = `${item.channel}: ${item.code}${item.file ? ' — ' + item.file : ''}`;
+            validation.appendChild(row);
+        }
+        if (!validation.children.length) validation.textContent = 'Brak konfliktów języka w kontraktach.';
         select.value = data.default_channel;
         select.disabled = save.disabled = false;
     }).catch(error => { notice.textContent = error.message; });

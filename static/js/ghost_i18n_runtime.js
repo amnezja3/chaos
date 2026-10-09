@@ -106,7 +106,7 @@
                 const value = runtime.t(node.dataset.ghostI18n, JSON.parse(node.dataset.ghostParams || '{}'));
                 if (node.textContent !== value) node.textContent = value;
             }
-            for (const node of container.querySelectorAll('[data-ghost-i18n-placeholder]')) node.placeholder = runtime.t(node.dataset.ghostI18nPlaceholder);
+            for (const node of container.querySelectorAll('[data-ghost-i18n-placeholder]')) node.placeholder = runtime.t(node.dataset.ghostI18nPlaceholder, JSON.parse(node.dataset.ghostParams || '{}'));
             for (const attr of ['title', 'aria-label']) for (const node of nodes(`[data-ghost-${attr}]`)) {
                 node.setAttribute(attr, runtime.t(node.getAttribute(`data-ghost-${attr}`), JSON.parse(node.dataset.ghostParams || '{}')));
             }
