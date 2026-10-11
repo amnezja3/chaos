@@ -131,6 +131,7 @@ def ghost_locale_template_context():
         "manifest": locale_manifest(),
         "fallback": locale_translator().catalogs["pl"],
         "locale": request_ui_locale(),
+        "initial": locale_translator().catalogs[request_ui_locale()] if request_ui_locale() != "pl" else None,
         "resume_locale": session.get("recovery_locale"),
     }}
 

@@ -1494,7 +1494,15 @@
         "syntax": "string"
       },
       "text": "Usage: {syntax}"
+    },
+    "terminal.paste": {
+      "params": {},
+      "text": "Paste"
+    },
+    "terminal.paste_fallback": {
+      "params": {},
+      "text": "Clipboard access unavailable. Use Ctrl+V or ⌘V."
     }
   },
-  "content_version": "154.7.3"
+  "content_version": "154.7.4"
 }

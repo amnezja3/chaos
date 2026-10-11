@@ -2,7 +2,7 @@
 (function (root) {
     'use strict';
     const core = typeof module !== 'undefined' && module.exports ? require('./ghost_i18n.js') : root.GhostI18n;
-    function createRuntime({manifest, fallback, fetch: fetcher = root.fetch.bind(root), onChange = () => {}}) {
+    function createRuntime({manifest, fallback, initial, fetch: fetcher = root.fetch.bind(root), onChange = () => {}}) {
         const cache = new Map(), pending = new Map();
         let activeLocale = manifest.default_locale;
         let activeTranslator = core.createTranslator(manifest, {[activeLocale]: fallback});
@@ -35,6 +35,12 @@
             return bundle;
         }
         validate(fallback, manifest.default_locale);
+        if (initial) {
+            validate(initial, initial.locale);
+            cache.set(initial.locale, initial);
+            activeLocale = initial.locale;
+            activeTranslator = core.createTranslator(manifest, {[manifest.default_locale]: fallback, [activeLocale]: initial});
+        }
         async function load(locale) {
             if (cache.has(locale)) return cache.get(locale);
             if (pending.has(locale)) return pending.get(locale);
@@ -120,8 +126,8 @@
             document.dispatchEvent(new CustomEvent('ghost:locale-changed', {detail: {locale}}));
             options.onChange?.(locale, definition);
         }});
-        document.documentElement.lang = config.manifest.default_locale;
-        document.documentElement.dir = config.manifest.locales[config.manifest.default_locale].direction;
+        document.documentElement.lang = runtime.getLocale();
+        document.documentElement.dir = config.manifest.locales[runtime.getLocale()].direction;
         // Observe only explicit bindings; never inspect or replace authored text.
         if (root.MutationObserver) {
             const observer = new root.MutationObserver(records => {

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <script src="{{ url_for('static', filename='js/game_context_menu.js') }}?v=154-7-2"></script>
+  <script src="{{ url_for('static', filename='js/game_context_menu.js') }}?v=154-7-4"></script>
   <meta charset="UTF-8">
   <title>CHAOS - Mapa</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2370,10 +2370,10 @@
                     saveManualMapViewport();
                     window.setTimeout(() => {
                         disableMapGameplay();
-                        showMapPreloader('Rekonstrukcja stanu mapy...', 8);
+                        showMapPreloader(ghostCopy('map.boot.reconstruct'), 8);
                         const note = mapBootOverlay()?.querySelector('.chaos-map-boot-note');
                         if (note) {
-                            note.textContent = GhostLocale.t('map.workspace.snapshot');
+                            ghostSet(note, 'map.workspace.snapshot');
                         }
                         window.requestAnimationFrame(() => window.location.reload());
                     }, 560);
@@ -8822,7 +8822,7 @@
                 window.mapBootState.failed = false;
                 normalizeBootLoadedScopes().clear();
                 disableMapGameplay();
-                showMapPreloader('Inicjalizacja mapy...', 0);
+                showMapPreloader(ghostCopy('map.boot.init'), 0);
                 await waitForMapBootPaint();
                 const criticalTotal = 8;
                 try {

@@ -1,7 +1,7 @@
 # Sprint 154 — rejestr kluczy i glosariusz
 
-Stan: rejestr aktualnego pakietu. **3144 kluczy PL/EN**, 13 domen,
-wersja pakietu `154.7.3`. Rejestr generuje
+Stan: rejestr aktualnego pakietu. **3146 kluczy PL/EN**, 13 domen,
+wersja pakietu `154.7.4`. Rejestr generuje
 `node tools/build_i18n_key_register.cjs`; nie utrzymujemy ręcznie drugiego słownika.
 
 Właściciel wszystkich kluczy: Ghost System. Każdy wynik jest tekstem;
@@ -477,6 +477,8 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `terminal.offline` | shell | — | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
 | `terminal.open` | shell | name: string | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
 | `terminal.parse` | shell | — | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
+| `terminal.paste` | shell | — | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
+| `terminal.paste_fallback` | shell | — | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
 | `terminal.pkg_bought` | shell | name: string | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
 | `terminal.pkg_buy` | shell | — | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |
 | `terminal.pkg_cancelled` | shell | — | terminals/commands.py; terminal.js:createTerminal()/handleTerminalPkgCommand(); /command |

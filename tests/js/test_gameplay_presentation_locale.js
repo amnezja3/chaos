@@ -25,5 +25,7 @@ for(const locale of ['pl','en']){
  sandbox.window.ghostSetCopy(node,'Tekst autora');assert.equal(node.textContent,'Tekst autora');assert(!node.dataset.ghostI18n);
 }
 assert.deepEqual(outputs.pl,outputs.en,'locale must not change scene identity or cadence');
+assert(!/showMapPreloader\(\s*['"]/.test(fs.readFileSync('templates/map_template.html','utf8')),
+ 'Map boot and recovery must retain a locale binding, not a Polish literal');
 assert.equal(JSON.stringify(config),before,'presentation cannot mutate runtime configuration');
 console.log('Gameplay presentation locale PASS: five voices, stable scenes, 20 abilities, six Secret Path scenes, literal authored text');

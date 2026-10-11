@@ -9,6 +9,11 @@ const pack = locale => ({locale, format_version: 1, content_version: manifest.co
 const fetchPack = async url => ({ok: true, json: async () => read(new URL(url, 'http://localhost').pathname.replace('/static/locales/', ''))});
 const deferred = () => {let resolve, reject; const promise = new Promise((yes, no) => {resolve=yes; reject=no;}); return {promise,resolve,reject};};
 (async () => {
+    const initial = createRuntime({manifest, fallback: pack('pl'), initial: pack('en'),
+        fetch: () => { throw Error('Initial language must not require a network request'); }});
+    assert.equal(initial.getLocale(), 'en');
+    assert.equal(initial.t('map.boot.init'), pack('en').messages['map.boot.init'].text);
+    await initial.changeLocale('en');
     let calls = 0, changes = [];
     const runtime = createRuntime({manifest, fallback: pack('pl'), fetch: url => {calls++; return fetchPack(url);}, onChange: locale => changes.push(locale)});
     await runtime.changeLocale('en-GB');

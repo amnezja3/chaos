@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-10-11 — 154.7.4: wklejanie w terminalu i język preloadera mapy
+
+Terminal ma systemowe menu „Wklej” / „Paste”, zachowujące zaznaczenie.
+Wklejenie nie wysyła polecenia; odmowa schowka pokazuje skrót Ctrl+V / ⌘V.
+Usunięto polskie literały startu i rekonstrukcji mapy. Bootstrap przekazuje
+katalog wybranego języka, więc pierwszy render nie czeka na pobranie EN.
+31 zestawów JS, 6 testów katalogów Python i Playwright (rzeczywisty schowek,
+PL/EN, odmowa dostępu, widoczny preloader i zmiana języka) PASS.
+3146 kluczy / 13 domen. Lokalnie, bez pushu/wdrożenia.
+Odbiór użytkownika: blokada prawego kliknięcia PASS; kategorie PvP nadal w testach.
+
 ## 2026-10-11 — 154.7.3: zwykłe generowane narzędzia PvP
 
 AppForge, Term Creator, Window Maker i Button Choice otrzymały cztery osobne

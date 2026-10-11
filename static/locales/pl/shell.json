@@ -1494,7 +1494,15 @@
         "syntax": "string"
       },
       "text": "Składnia: {syntax}"
+    },
+    "terminal.paste": {
+      "params": {},
+      "text": "Wklej"
+    },
+    "terminal.paste_fallback": {
+      "params": {},
+      "text": "Brak dostępu do schowka. Użyj Ctrl+V lub ⌘V."
     }
   },
-  "content_version": "154.7.3"
+  "content_version": "154.7.4"
 }
