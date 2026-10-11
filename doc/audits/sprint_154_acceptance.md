@@ -1,4 +1,26 @@
-# Sprint 154 — odbiór lokalny 154.7.0
+# Sprint 154 — poprawki odbioru 154.7.1
+
+10 X 2026. Lokalna poprawka: **2940 kluczy PL/EN, 13 domen**.
+Autor potwierdził punkty 1, 4, 8 oraz zasadnicze działanie pozostałych ścieżek,
+ale zgłosił braki w nazwach generowanych obiektów, OFS, PvP, opisach szablonów,
+nazwach klastrów i przyciskach BlackNetu. To częściowy odbiór, nie pełny PASS.
+
+Poprawka zapisuje nowe nazwy generowane w języku odkrywcy; odświeżenie skanu
+oznaczonej kamery zachowuje jej nazwę. Oryginalne nazwy POI i marki pozostają
+dosłowne. Nowy projekt GhostLaba otrzymuje opis szablonu w wybranym języku;
+retry po zmianie języka zachowuje ten sam projekt i opis. Nie nadpisujemy UGC.
+CTA BlackNetu wynika z kodu akcji, nazwa klastra z ID; etykiety minimalizacji
+PvP oraz statusy, wybory i odliczanie OFS mają powiązania PL/EN.
+
+Sprawdzone lokalnie: 30/30 zestawów frontendu, composer OFS, izolowane testy
+katalogów, tworzenia/publikacji projektów, skanu oraz kontraktów OFS.
+Playwright: sześć rodzin PvP, Territory/Victim Picker, BlackNet i aktywne kontrolki OFS;
+przełączenie języka zachowuje sesję, wybór, deadline oraz teksty autora.
+**Biblioteki narracyjnych scen OFS pozostają w 155**, podobnie jak historyczne
+wiadomości systemowe. Nie deklarujemy ich pełnego tłumaczenia.
+154.7.1 nie został wypchnięty ani wdrożony.
+
+## Historyczny punkt odniesienia: 154.7.0
 
 8 X 2026. Pakiet: **2833 klucze PL/EN, 13 domen**. Implementacja pozostałych
 workspace’ów, katalogów i ścieżek narzędzi przygotowana lokalnie. Produkcyjny

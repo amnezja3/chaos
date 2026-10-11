@@ -30,6 +30,9 @@ for(const locale of ['pl','en']){
  captured[locale]=calls.map(args=>args.filter((_,index)=>index!==13)); // DOM busy control is not a gameplay value.
  const label= sandbox.mapTargetLabelHtml({label_i18n:{key:'map.npc.customer',params:{},content_version:sandbox.GhostLocale.contentVersion}},'Klient');
  assert(label.includes(locale==='en'?'Customer':'Klient'));
+ const discovered=sandbox.mapTargetLabelHtml({name:'Shop camera',label:'Shop camera',discovery_locale:'en'},'Shop camera');
+ assert(discovered.includes('Shop camera'));
+ assert(!discovered.includes('data-ghost-i18n'));
 }
 assert.deepEqual(JSON.parse(JSON.stringify(captured.pl)),JSON.parse(JSON.stringify(captured.en)));
 console.log('Map action locale: PASS (8 target categories, stable action payloads, escaped UGC)');

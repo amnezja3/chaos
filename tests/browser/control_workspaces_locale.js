@@ -41,6 +41,7 @@ async(page)=>{
     const territory=page.locator('.territory-control-window');
     await territory.locator('[data-territory-control-action=cluster-detail]').waitFor();
     assert((await territory.innerText()).includes('COLLISION'),'threat translated');
+    assert((await territory.innerText()).includes('Cluster cluster-1'),'generated cluster name translated');
     await territory.locator('[data-territory-control-action=cluster-detail]').click();
     await territory.locator('[data-territory-control-action=object-abandon]').waitFor();
     await page.evaluate(()=>GhostLocale.changeLocale('pl',false));

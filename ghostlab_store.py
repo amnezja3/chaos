@@ -100,10 +100,11 @@ class GhostLabStore:
             self.ready(conn, owner)
             return self._get(conn, owner, project_id)
 
-    def create(self, owner, seed, request_id):
+    def create(self, owner, seed, request_id, *, request_seed=None):
         if not isinstance(request_id, str) or not 8 <= len(request_id) <= 100:
             raise GhostLabError('request_id_required', 'Brak identyfikatora utworzenia projektu.', 400)
-        signature = digest(seed)
+        # Server-selected presentation defaults must not change a retry's identity.
+        signature = digest(seed if request_seed is None else request_seed)
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             self.ready(conn, owner)

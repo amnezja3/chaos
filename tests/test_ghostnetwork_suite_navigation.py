@@ -22,7 +22,7 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
             "messageShown: true",
             "function blacknetCtaPresentation",
             'action !== "none"',
-            'label: enabled ? String(signal?.cta || "OTWORZ") : "READ ONLY"',
+            "'apps.blacknet.action.' + action",
         ):
             self.assertIn(marker, script)
 

@@ -66,6 +66,23 @@
     let rendererSequence = 0;
     let profilePromise = null;
 
+    // Only explicitly system-owned copy gets locale bindings. Author text is literal.
+    const systemCopy = new WeakMap();
+    function feedbackText(key, fallback, params = {}) {
+        if (!global.GhostLocale?.hasKey(key)) return fallback;
+        const value = new String(global.GhostLocale.t(key, params));
+        systemCopy.set(value, { key, params });
+        return value;
+    }
+    function feedbackSet(node, value) {
+        const entry = value && typeof value === 'object' ? systemCopy.get(value) : null;
+        if (entry && global.ghostSet) global.ghostSet(node, entry.key, entry.params);
+        else {
+            if (node.dataset) { delete node.dataset.ghostI18n; delete node.dataset.ghostParams; }
+            node.textContent = String(value ?? '');
+        }
+    }
+
     function ensureObject(value, label) {
         if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error(`OFS invalid ${label}`);
@@ -111,7 +128,7 @@
         icon.textContent = SCENE_ROLE_ICONS[role];
         const content = global.document.createElement("span");
         content.className = "ofs-scene-text";
-        content.textContent = text;
+        feedbackSet(content, text);
         line.appendChild(icon);
         line.appendChild(content);
         return line;
@@ -125,7 +142,7 @@
         const phase = String(value.phase || "").trim();
         const allowOutcome = phase === "completing" || phase === "failed";
         const lines = (Array.isArray(value.lines) ? value.lines : [])
-            .map(line => safeContentText(String(line || ""), { allowOutcome }))
+            .map(line => safeContentText(systemCopy.has(line) ? line : String(line || ""), { allowOutcome }))
             .filter(Boolean)
             .slice(0, 6);
         const slots = Object.fromEntries(Object.entries(
@@ -142,7 +159,7 @@
             presentation_mode: mode,
             phase,
             scene_id: String(value.scene_id || value.family || "scene").trim(),
-            status: safeContentText(String(value.status || ""), { allowOutcome }) || "",
+            status: safeContentText(systemCopy.has(value.status) ? value.status : String(value.status || ""), { allowOutcome }) || "",
             lines: Object.freeze(lines),
             slots: Object.freeze(slots),
             transition,
@@ -269,7 +286,7 @@
             panel.dataset.sceneRole = semanticRoleForEnvelope(envelope);
             const status = panel.querySelector(".operation-feedback-status");
             const lines = panel.querySelector(".operation-feedback-lines");
-            status.textContent = envelope.status;
+            feedbackSet(status, envelope.status);
             if (envelope.transition === "clear") {
                 lines.replaceChildren();
                 this.renderEnvelope(envelope, panel);
@@ -356,7 +373,7 @@
             panel.dataset.tone = success ? "success" : "failure";
             panel.dataset.executorState = success ? "complete" : "failed";
             panel.dataset.sceneId = "progress_resolution";
-            status.textContent = success ? "Potwierdzono wykonanie." : "Operacja nie została domknięta.";
+            feedbackSet(status, success ? feedbackText('apps.ofs.progress_success', "Potwierdzono wykonanie.") : feedbackText('apps.ofs.progress_failure', "Operacja nie została domknięta."));
             lines.replaceChildren();
             snapshot.replaceChildren(...items.map((item, index) => {
                 const value = success ? 100 : Math.max(0, Math.min(99, Number(item.value) || 0));
@@ -837,7 +854,7 @@
             family,
             phase: String(definition.phase || "booting"),
             lines,
-            status: lines[0] || "Oczekiwanie na runtime.",
+            status: lines[0] || feedbackText('apps.ofs.waiting', "Oczekiwanie na runtime."),
             transition: definition.transition,
             content_source: family === "author_content" || family === "author_manifest" ? "app_projection"
                 : (packedVariants ? "provisional_voice_pack" : "global_fallback"),
@@ -1010,6 +1027,7 @@
     }
 
     function safeContentText(value, { allowOutcome = false } = {}) {
+        if (systemCopy.has(value)) return value;
         if (typeof value !== "string") return null;
         const text = value.trim().replace(/\s+/g, " ").slice(0, 240);
         if (!text || /<[^>]+>/.test(text)) return null;
@@ -1442,7 +1460,7 @@
                     button.disabled = true;
                 });
                 const countdown = container.querySelector(".operation-feedback-choice-countdown");
-                if (countdown) countdown.textContent = reason === "timeout" ? "Wybrano domyslnie." : "Wybor zapisany lokalnie.";
+                if (countdown) feedbackSet(countdown, reason === "timeout" ? feedbackText('apps.ofs.choice_default', "Wybrano domyslnie.") : feedbackText('apps.ofs.choice_saved', "Wybor zapisany lokalnie."));
             }
             this.trace(reason === "timeout" ? "feedback_choice_timed_out" : "feedback_choice_selected", {
                 choice_id: choice.choice_id,
@@ -1472,7 +1490,7 @@
 
             const prompt = global.document.createElement("div");
             prompt.className = "operation-feedback-choice-prompt";
-            prompt.textContent = choice.prompt;
+            feedbackSet(prompt, feedbackText('apps.ofs.choice.' + choice.choice_id + '.prompt', choice.prompt));
             container.appendChild(prompt);
 
             const buttons = global.document.createElement("div");
@@ -1485,7 +1503,7 @@
                 button.type = "button";
                 button.dataset.feedbackChoice = choice.choice_id;
                 button.dataset.feedbackValue = option.value;
-                button.textContent = option.label;
+                feedbackSet(button, feedbackText('apps.ofs.choice.' + choice.choice_id + '.' + option.value, option.label));
                 button.addEventListener("click", () => {
                     button.dataset.choiceSelected = "true";
                     button.setAttribute("aria-pressed", "true");
@@ -1502,7 +1520,7 @@
             const updateCountdown = () => {
                 if (this.disposed || this.activeChoice !== choice) return;
                 const seconds = Math.max(0, Math.ceil((deadline - this.now()) / 1000));
-                countdown.textContent = `Domyslny wybor za ${seconds}s`;
+                feedbackSet(countdown, feedbackText('apps.ofs.countdown', `Domyslny wybor za ${seconds}s`, {seconds}));
                 if (seconds > 0) this.choiceTickId = this.setTimer(updateCountdown, 1000);
             };
             updateCountdown();
@@ -1528,18 +1546,18 @@
         start() {
             this.startedAt = this.now();
             this.transition("starting");
-            this.render("Uruchamianie sesji...", [
-                `Akcja: ${this.actionKey}`,
-                "Przygotowanie lokalnej prezentacji.",
-                "Oczekiwanie na runtime."
+            this.render(feedbackText('apps.ofs.starting', "Uruchamianie sesji..."), [
+                feedbackText('apps.ofs.action', `Akcja: ${this.actionKey}`, {action:this.actionKey}),
+                feedbackText('apps.ofs.prepare', "Przygotowanie lokalnej prezentacji."),
+                feedbackText('apps.ofs.waiting', "Oczekiwanie na runtime.")
             ]);
             this.trace("feedback_session_started");
             this.playSemanticSfx("intro");
             this.transition("running");
-            this.render("Operacja w toku...", [
-                `Aplikacja: ${this.appId || "narzedzie"}`,
-                "Request przekazany do runtime.",
-                "Oczekiwanie na potwierdzony payload."
+            this.render(feedbackText('apps.ofs.running', "Operacja w toku..."), [
+                feedbackText('apps.ofs.application', `Aplikacja: ${this.appId || 'tool'}`, {app:this.appId || 'tool'}),
+                feedbackText('apps.ofs.sent', "Request przekazany do runtime."),
+                feedbackText('apps.ofs.payload', "Oczekiwanie na potwierdzony payload.")
             ]);
             Promise.resolve(this.configLoader()).then(config => {
                 if (this.disposed || this.state !== "running") return;
@@ -1565,9 +1583,9 @@
                 }
                 const authorLines = this.authorIntroLines();
                 this.setPresentationPhase("author_intro");
-                this.render(this.applicationContent.title || "Profil aplikacji", authorLines.length
+                this.render(this.applicationContent.title || feedbackText('apps.ofs.profile', "Profil aplikacji"), authorLines.length
                     ? authorLines
-                    : ["Lokalny profil aplikacji jest gotowy."], "pending", "replace", "author_intro");
+                    : [feedbackText('apps.ofs.profile_ready', "Lokalny profil aplikacji jest gotowy.")], "pending", "replace", "author_intro");
                 this.trace("feedback_author_scene_started", {
                     content_source: this.applicationContent.structured ? "app_structured"
                         : (authorLines.length ? "app_legacy" : "global_fallback")
@@ -1606,7 +1624,7 @@
                 applicationContent: null
             });
             if (this.state === "awaiting_payload") this.transition("running");
-            this.render("Operacja w toku...", scene.lines, "pending", "replace", scene.scene_id);
+            this.render(feedbackText('apps.ofs.running', "Operacja w toku..."), scene.lines, "pending", "replace", scene.scene_id);
             this.sceneSequence += 1;
             this.trace("feedback_scene_started", {
                 scene_id: scene.scene_id,
@@ -1659,12 +1677,12 @@
                     ? legacyCompletion
                     : fallbackCompletion);
             const terminalLine = randomItem(completionLines, this.random)
-                || (success ? "Runtime potwierdzil powodzenie." : "Runtime zwrocil wynik operacji.");
+                || (success ? feedbackText('apps.ofs.success', "Runtime potwierdzil powodzenie.") : feedbackText('apps.ofs.result', "Runtime zwrocil wynik operacji."));
             const authoritativeFailure = success ? "" : safeContentText(
                 payload.message || payload.status || payload.reason || payload.error,
                 { allowOutcome: true }
             );
-            this.render(success ? "Potwierdzono wynik." : "Operacja zakonczona.", [
+            this.render(success ? feedbackText('apps.ofs.confirmed', "Potwierdzono wynik.") : feedbackText('apps.ofs.finished', "Operacja zakonczona."), [
                 terminalLine,
                 ...(authoritativeFailure && authoritativeFailure !== terminalLine
                     ? [authoritativeFailure]
@@ -1711,8 +1729,8 @@
                 ? (this.config.failure_library[failureCategory]
                     || (this.profile && this.config.failure_library[this.profile.failure_pool]))
                 : null;
-            this.render("Blad odpowiedzi runtime.", [
-                randomItem(failurePool, this.random) || "Operacja nie zostala potwierdzona."
+            this.render(feedbackText('apps.ofs.error', "Blad odpowiedzi runtime."), [
+                randomItem(failurePool, this.random) || feedbackText('apps.ofs.unconfirmed', "Operacja nie zostala potwierdzona.")
             ], "failure");
             this.trace("feedback_failed", {
                 completion_reason: String(reason || "request_failed"),

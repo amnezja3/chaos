@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.7.0",
+  "content_version": "154.7.1",
   "messages": {
     "apps.operations.state.created": {
       "params": {},
@@ -2430,6 +2430,440 @@
     "apps.network.registry.contract": {
       "params": {},
       "text": "NIEZMIENNY // ODTWARZALNY"
+    },
+    "apps.pvp.minimize": {
+      "params": {},
+      "text": "Minimalizuj panel PvP"
+    },
+    "apps.pvp.restore_hint": {
+      "params": {},
+      "text": "Przywróć z paska aplikacji"
+    },
+    "apps.blacknet.action.open": {
+      "params": {},
+      "text": "OTWÓRZ"
+    },
+    "apps.blacknet.action.none": {
+      "params": {},
+      "text": "TYLKO ODCZYT"
+    },
+    "apps.blacknet.action.open_googleplex": {
+      "params": {},
+      "text": "OTWÓRZ GOOGLEPLEX"
+    },
+    "apps.blacknet.action.open_googleplex_search": {
+      "params": {},
+      "text": "OTWÓRZ GOOGLEPLEX"
+    },
+    "apps.blacknet.action.open_ghost_exchange": {
+      "params": {},
+      "text": "OTWÓRZ GHOST EXCHANGE"
+    },
+    "apps.blacknet.action.open_exchange_market": {
+      "params": {},
+      "text": "OTWÓRZ GHOST EXCHANGE"
+    },
+    "apps.blacknet.action.open_exchange_category": {
+      "params": {},
+      "text": "OTWÓRZ GHOST EXCHANGE"
+    },
+    "apps.blacknet.action.open_ghostnetwork_suite": {
+      "params": {},
+      "text": "OTWÓRZ GHOST NETWORK SUITE"
+    },
+    "apps.blacknet.action.open_ghostsignal_archive": {
+      "params": {},
+      "text": "OTWÓRZ ARCHIWUM SYGNAŁÓW"
+    },
+    "apps.blacknet.action.open_map": {
+      "params": {},
+      "text": "POKAŻ NA MAPIE"
+    },
+    "apps.blacknet.action.open_map_region": {
+      "params": {},
+      "text": "POKAŻ NA MAPIE"
+    },
+    "apps.blacknet.action.focus_map_target": {
+      "params": {},
+      "text": "POKAŻ NA MAPIE"
+    },
+    "apps.blacknet.action.show_hotspot": {
+      "params": {},
+      "text": "POKAŻ NA MAPIE"
+    },
+    "apps.blacknet.action.show_ghostnetwork_part": {
+      "params": {},
+      "text": "POKAŻ TERYTORIUM"
+    },
+    "apps.blacknet.action.show_ghostnetwork_territory": {
+      "params": {},
+      "text": "POKAŻ TERYTORIUM"
+    },
+    "apps.blacknet.action.open_cyberner": {
+      "params": {},
+      "text": "OTWÓRZ CYBERNER"
+    },
+    "apps.blacknet.action.open_cyberner_thread": {
+      "params": {},
+      "text": "OTWÓRZ CYBERNER"
+    },
+    "apps.blacknet.action.open_cyberner_channel": {
+      "params": {},
+      "text": "OTWÓRZ CYBERNER"
+    },
+    "apps.blacknet.action.open_radio": {
+      "params": {},
+      "text": "OTWÓRZ RADIO"
+    },
+    "apps.blacknet.action.play_radio_podcast": {
+      "params": {},
+      "text": "ODTWÓRZ AUDYCJĘ"
+    },
+    "apps.blacknet.action.open_operation": {
+      "params": {},
+      "text": "OTWÓRZ OPERACJĘ"
+    },
+    "apps.blacknet.action.start_operation": {
+      "params": {},
+      "text": "ROZPOCZNIJ OPERACJĘ"
+    },
+    "apps.blacknet.action.accept_blacknet_job": {
+      "params": {},
+      "text": "PRZYJMIJ ZLECENIE"
+    },
+    "apps.blacknet.action.teleport_to_hotspot": {
+      "params": {},
+      "text": "PRZENIEŚ DO HOTSPOTU"
+    },
+    "apps.blacknet.action.open_blacknet_detail": {
+      "params": {},
+      "text": "OTWÓRZ SZCZEGÓŁY"
+    },
+    "apps.blacknet.action.open_blacknet_dossier": {
+      "params": {},
+      "text": "OTWÓRZ SZCZEGÓŁY"
+    },
+    "apps.blacknet.action.open_blacknet_report": {
+      "params": {},
+      "text": "OTWÓRZ SZCZEGÓŁY"
+    },
+    "apps.ofs.running": {
+      "params": {},
+      "text": "Operacja w toku..."
+    },
+    "apps.ofs.starting": {
+      "params": {},
+      "text": "Uruchamianie sesji..."
+    },
+    "apps.ofs.prepare": {
+      "params": {},
+      "text": "Przygotowanie lokalnej prezentacji."
+    },
+    "apps.ofs.waiting": {
+      "params": {},
+      "text": "Oczekiwanie na runtime."
+    },
+    "apps.ofs.sent": {
+      "params": {},
+      "text": "Request przekazany do runtime."
+    },
+    "apps.ofs.payload": {
+      "params": {},
+      "text": "Oczekiwanie na potwierdzony payload."
+    },
+    "apps.ofs.profile": {
+      "params": {},
+      "text": "Profil aplikacji"
+    },
+    "apps.ofs.profile_ready": {
+      "params": {},
+      "text": "Lokalny profil aplikacji jest gotowy."
+    },
+    "apps.ofs.confirmed": {
+      "params": {},
+      "text": "Potwierdzono wynik."
+    },
+    "apps.ofs.finished": {
+      "params": {},
+      "text": "Operacja zakonczona."
+    },
+    "apps.ofs.success": {
+      "params": {},
+      "text": "Runtime potwierdzil powodzenie."
+    },
+    "apps.ofs.result": {
+      "params": {},
+      "text": "Runtime zwrocil wynik operacji."
+    },
+    "apps.ofs.error": {
+      "params": {},
+      "text": "Blad odpowiedzi runtime."
+    },
+    "apps.ofs.unconfirmed": {
+      "params": {},
+      "text": "Operacja nie zostala potwierdzona."
+    },
+    "apps.ofs.progress_success": {
+      "params": {},
+      "text": "Potwierdzono wykonanie."
+    },
+    "apps.ofs.progress_failure": {
+      "params": {},
+      "text": "Operacja nie została domknięta."
+    },
+    "apps.ofs.choice_default": {
+      "params": {},
+      "text": "Wybrano domyslnie."
+    },
+    "apps.ofs.choice_saved": {
+      "params": {},
+      "text": "Wybor zapisany lokalnie."
+    },
+    "apps.ofs.countdown": {
+      "params": {
+        "seconds": "number"
+      },
+      "text": "Domyślny wybór za {seconds}s"
+    },
+    "apps.ofs.action": {
+      "params": {
+        "action": "string"
+      },
+      "text": "Akcja: {action}"
+    },
+    "apps.ofs.application": {
+      "params": {
+        "app": "string"
+      },
+      "text": "Aplikacja: {app}"
+    },
+    "apps.ofs.choice.feedback.operation.posture.prompt": {
+      "params": {},
+      "text": "Profil wykonania"
+    },
+    "apps.ofs.choice.feedback.operation.posture.quiet": {
+      "params": {},
+      "text": "CICHO"
+    },
+    "apps.ofs.choice.feedback.operation.posture.forceful": {
+      "params": {},
+      "text": "SILOWO"
+    },
+    "apps.ofs.choice.feedback.operation.route.prompt": {
+      "params": {},
+      "text": "Kanal prezentacji"
+    },
+    "apps.ofs.choice.feedback.operation.route.direct": {
+      "params": {},
+      "text": "BEZPOSREDNIO"
+    },
+    "apps.ofs.choice.feedback.operation.route.alternate": {
+      "params": {},
+      "text": "OBEJSCIE"
+    },
+    "apps.ofs.choice.feedback.operation.verification.prompt": {
+      "params": {},
+      "text": "Kontrola odpowiedzi"
+    },
+    "apps.ofs.choice.feedback.operation.verification.repeat": {
+      "params": {},
+      "text": "PONOW"
+    },
+    "apps.ofs.choice.feedback.operation.verification.continue": {
+      "params": {},
+      "text": "KONTYNUUJ"
+    },
+    "apps.ofs.choice.feedback.scan_ports.visibility.prompt": {
+      "params": {},
+      "text": "Widocznosc sondy"
+    },
+    "apps.ofs.choice.feedback.scan_ports.visibility.masked": {
+      "params": {},
+      "text": "MASKUJ"
+    },
+    "apps.ofs.choice.feedback.scan_ports.visibility.standard": {
+      "params": {},
+      "text": "KONTYNUUJ"
+    },
+    "apps.ofs.choice.feedback.scan_ports.pace.prompt": {
+      "params": {},
+      "text": "Rytm prezentacji sondy"
+    },
+    "apps.ofs.choice.feedback.scan_ports.pace.quiet": {
+      "params": {},
+      "text": "TRYB CICHY"
+    },
+    "apps.ofs.choice.feedback.scan_ports.pace.fast": {
+      "params": {},
+      "text": "TRYB SZYBKI"
+    },
+    "apps.ofs.choice.feedback.scan_ports.verification.prompt": {
+      "params": {},
+      "text": "Sposob weryfikacji"
+    },
+    "apps.ofs.choice.feedback.scan_ports.verification.repeat": {
+      "params": {},
+      "text": "PONOW"
+    },
+    "apps.ofs.choice.feedback.scan_ports.verification.skip": {
+      "params": {},
+      "text": "POMIN"
+    },
+    "apps.ofs.choice.feedback.exploit.vector.prompt": {
+      "params": {},
+      "text": "Wektor exploita"
+    },
+    "apps.ofs.choice.feedback.exploit.vector.precision": {
+      "params": {},
+      "text": "PRECYZYJNIE"
+    },
+    "apps.ofs.choice.feedback.exploit.vector.forceful": {
+      "params": {},
+      "text": "AGRESYWNIE"
+    },
+    "apps.ofs.choice.feedback.sniff.scope.prompt": {
+      "params": {},
+      "text": "Zakres przechwytywania"
+    },
+    "apps.ofs.choice.feedback.sniff.scope.metadata": {
+      "params": {},
+      "text": "METADANE"
+    },
+    "apps.ofs.choice.feedback.sniff.scope.full_stream": {
+      "params": {},
+      "text": "PELNY STRUMIEN"
+    },
+    "apps.ofs.choice.feedback.trace.route.prompt": {
+      "params": {},
+      "text": "Tor sledzenia"
+    },
+    "apps.ofs.choice.feedback.trace.route.quiet_correlation": {
+      "params": {},
+      "text": "CICHA KORELACJA"
+    },
+    "apps.ofs.choice.feedback.trace.route.active_trail": {
+      "params": {},
+      "text": "AKTYWNY SLAD"
+    },
+    "apps.ofs.choice.feedback.trace_gps.filter.prompt": {
+      "params": {},
+      "text": "Filtr lokalizacji"
+    },
+    "apps.ofs.choice.feedback.trace_gps.filter.stabilize": {
+      "params": {},
+      "text": "STABILIZUJ"
+    },
+    "apps.ofs.choice.feedback.trace_gps.filter.predict": {
+      "params": {},
+      "text": "PRZEWIDUJ"
+    },
+    "apps.ofs.choice.feedback.trace_device.fingerprint.prompt": {
+      "params": {},
+      "text": "Odcisk urzadzenia"
+    },
+    "apps.ofs.choice.feedback.trace_device.fingerprint.hardware": {
+      "params": {},
+      "text": "SPRZET"
+    },
+    "apps.ofs.choice.feedback.trace_device.fingerprint.network": {
+      "params": {},
+      "text": "SIEC"
+    },
+    "apps.ofs.choice.feedback.mic_sniff.band.prompt": {
+      "params": {},
+      "text": "Tryb odsluchu"
+    },
+    "apps.ofs.choice.feedback.mic_sniff.band.filtered": {
+      "params": {},
+      "text": "FILTRUJ"
+    },
+    "apps.ofs.choice.feedback.mic_sniff.band.full_band": {
+      "params": {},
+      "text": "PELNE PASMO"
+    },
+    "apps.ofs.choice.feedback.atm_logs.range.prompt": {
+      "params": {},
+      "text": "Zakres dziennika ATM"
+    },
+    "apps.ofs.choice.feedback.atm_logs.range.recent": {
+      "params": {},
+      "text": "OSTATNIE"
+    },
+    "apps.ofs.choice.feedback.atm_logs.range.full_session": {
+      "params": {},
+      "text": "PELNA SESJA"
+    },
+    "apps.ofs.choice.feedback.install_sniffer.anchor.prompt": {
+      "params": {},
+      "text": "Punkt implantacji"
+    },
+    "apps.ofs.choice.feedback.install_sniffer.anchor.memory": {
+      "params": {},
+      "text": "PAMIEC"
+    },
+    "apps.ofs.choice.feedback.install_sniffer.anchor.process": {
+      "params": {},
+      "text": "PROCES"
+    },
+    "apps.ofs.choice.feedback.scan_hotspots.range.prompt": {
+      "params": {},
+      "text": "Zakres hotspotow"
+    },
+    "apps.ofs.choice.feedback.scan_hotspots.range.nearby": {
+      "params": {},
+      "text": "BLISKO"
+    },
+    "apps.ofs.choice.feedback.scan_hotspots.range.wide": {
+      "params": {},
+      "text": "SZEROKO"
+    },
+    "apps.ofs.choice.feedback.audio_hack.channel.prompt": {
+      "params": {},
+      "text": "Kanal audio"
+    },
+    "apps.ofs.choice.feedback.audio_hack.channel.input": {
+      "params": {},
+      "text": "WEJSCIE"
+    },
+    "apps.ofs.choice.feedback.audio_hack.channel.output": {
+      "params": {},
+      "text": "WYJSCIE"
+    },
+    "apps.ofs.choice.feedback.camera_stream.profile.prompt": {
+      "params": {},
+      "text": "Profil strumienia"
+    },
+    "apps.ofs.choice.feedback.camera_stream.profile.discreet": {
+      "params": {},
+      "text": "DYSKRETNIE"
+    },
+    "apps.ofs.choice.feedback.camera_stream.profile.stable": {
+      "params": {},
+      "text": "STABILNIE"
+    },
+    "apps.ofs.choice.feedback.camera_shutdown.method.prompt": {
+      "params": {},
+      "text": "Metoda wygaszenia"
+    },
+    "apps.ofs.choice.feedback.camera_shutdown.method.mute": {
+      "params": {},
+      "text": "WYCISZ"
+    },
+    "apps.ofs.choice.feedback.camera_shutdown.method.disconnect": {
+      "params": {},
+      "text": "ODLACZ"
+    },
+    "apps.ofs.choice.feedback.car_hack.bus.prompt": {
+      "params": {},
+      "text": "Magistrala pojazdu"
+    },
+    "apps.ofs.choice.feedback.car_hack.bus.telematics": {
+      "params": {},
+      "text": "TELEMATYKA"
+    },
+    "apps.ofs.choice.feedback.car_hack.bus.control": {
+      "params": {},
+      "text": "STEROWANIE"
     }
   }
 }

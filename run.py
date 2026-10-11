@@ -23793,6 +23793,7 @@ def map_action():
         # compatibility profile read.
         marked_targets = player_marked_target_store.list_targets(session["user"])
         existing_targets = {(t["lat"], t["lng"]) for t in marked_targets}
+        discovered_cameras = {t['camera_id']: t for t in marked_targets if t.get('camera_id')}
 
         # Zbierz unikalne wyniki ze wszystkich kategorii
         all_results = []
@@ -23953,11 +23954,30 @@ def map_action():
                                    or (marker['lat'], marker['lon']) not in existing_targets)
 
         for marker in all_results:
+            # Generated names belong to the discovery, not the viewer's current UI.
+            # Keep OSM names and brands untouched; resolve only explicit system seeds.
+            label_message = marker.get('label_i18n')
+            if marker.get('generated') and label_message:
+                discovery_locale = request_ui_locale()
+                marker['name'] = locale_translator().t(
+                    label_message['key'], label_message.get('params', {}), discovery_locale)
+                marker['label'] = marker['name']
+                marker['discovery_locale'] = discovery_locale
+                marker.pop('label_i18n', None)
             marker['target_type'] = infer_target_type_from_target(marker)
             if marker.get('source_type') == 'camera' and not marker.get('camera_id'):
                 identity = camera_marker(marker)
                 marker.update({'camera_id': identity['camera_id'], 'target_type': 'camera',
                                'parent_target_id': identity['parent_target_id']})
+            discovered = discovered_cameras.get(marker.get('camera_id'))
+            if discovered and (discovered.get('name') or discovered.get('label')):
+                # Refresh evidence without renaming an already discovered camera.
+                marker['name'] = discovered.get('name') or discovered['label']
+                marker['label'] = discovered.get('label') or marker['name']
+                marker.pop('label_i18n', None)
+                marker.pop('discovery_locale', None)
+                if discovered.get('discovery_locale'):
+                    marker['discovery_locale'] = discovered['discovery_locale']
             direct_location = project_poi_location(marker.get("tags"))
             location = direct_location or scan_location
             if location:

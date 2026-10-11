@@ -3742,7 +3742,7 @@ async function handleTerminalTeleport(content, teleport) {
         messageKey: "terminal.teleport_confirm", messageParams: {name: label},
         detailsKey: "terminal.teleport_details",
         confirmLabel: "OK",
-        cancelLabel: "ANULUJ",
+        cancelKey: "apps.blacknet.cancel",
         tone: "lime"
     });
     if (!accepted) {
@@ -4997,7 +4997,7 @@ function getPlayerHackAccessPanel() {
         panel.style.top = `${position.top}px`;
         panel.innerHTML = `
             <div class="title-bar"><span>Player Access — PvP</span>
-                <button type="button" data-player-hack-minimize aria-label="Minimalizuj panel PvP" title="Przywróć z paska aplikacji">−</button>
+                <button type="button" data-player-hack-minimize data-ghost-aria-label="apps.pvp.minimize" aria-label="${escapeHTML(ghostText('apps.pvp.minimize'))}" data-ghost-title="apps.pvp.restore_hint" title="${escapeHTML(ghostText('apps.pvp.restore_hint'))}">−</button>
             </div>
             <div class="app-content" data-player-hack-content></div>`;
         document.body.appendChild(panel);
@@ -6898,7 +6898,7 @@ function renderTerritoryClusterCard(cluster) {
     return `
         <article class="territory-control-cluster threat-${escapeHTML(threat)}" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}">
             <div class="territory-control-cluster-main">
-                <strong>${escapeHTML(cluster.label || ghostText("apps.territory.cluster_name", {id:String(cluster.cluster_id)}))}</strong>
+                <strong>${escapeHTML(ghostText("apps.territory.cluster_name", {id:String(cluster.cluster_id)}))}</strong>
                 <span>${ghostLabel("apps.territory.counts", {nodes:Number(cluster.node_count || 0),pillars:Number(cluster.pillar_count || 0),inners:Number(cluster.inner_count || 0)})}</span>
                 <span>${escapeHTML(territoryControlArea(cluster.area_size))} · ${escapeHTML(territoryControlMeters(cluster.distance_from_bike))} ${ghostLabel("apps.territory.from_bike")}</span>
             </div>
@@ -6949,7 +6949,7 @@ function bindTerritoryControlListActions(app, state) {
                 return;
             }
             if (action === "cluster-map") {
-                openTerritoryControlMapFocus(cluster.map_focus || cluster.centroid, cluster.label);
+                openTerritoryControlMapFocus(cluster.map_focus || cluster.centroid, ghostText("apps.territory.cluster_name", {id:String(cluster.cluster_id)}));
                 return;
             }
             if (action === "cluster-teleport") {
@@ -7005,7 +7005,7 @@ function renderTerritoryControlCluster(app, state, cluster) {
         <section class="territory-control-cluster-detail threat-${escapeHTML(cluster?.threat_state || "neutral")}">
             <div class="territory-control-detail-head">
                 <div>
-                    <strong>${escapeHTML(cluster?.label || ghostText("apps.territory.cluster_name", {id:String(cluster?.cluster_id || "")}))}</strong>
+                    <strong>${escapeHTML(ghostText("apps.territory.cluster_name", {id:String(cluster?.cluster_id || "")}))}</strong>
                     <span>${escapeHTML(territoryControlThreatSummary(cluster))} · ${escapeHTML(territoryControlArea(cluster?.area_size))} · ${escapeHTML(territoryControlMeters(cluster?.distance_from_bike))}</span>
                 </div>
                 <div class="territory-control-actions">
@@ -7026,7 +7026,7 @@ function renderTerritoryControlCluster(app, state, cluster) {
             </div>
         </section>
     `;
-    renderTerritoryControlFrame(app, state, body, { back: "back-list", title: cluster?.label || ghostText('apps.territory.cluster') });
+    renderTerritoryControlFrame(app, state, body, { back: "back-list", title: ghostText("apps.territory.cluster_name", {id:String(cluster?.cluster_id || "")}) });
     bindTerritoryControlListActions(app, state);
 }
 
@@ -10186,7 +10186,7 @@ function createBrowser() {
             message: prompt,
             detailsKey: "apps.blacknet.decision_details",
             confirmLabel: "OK",
-            cancelLabel: "ANULUJ",
+            cancelKey: "apps.blacknet.cancel",
             tone: signal?.tone || "lime"
         });
         if (!accepted) {
@@ -10290,10 +10290,14 @@ function createBrowser() {
     function blacknetCtaPresentation(signal = {}) {
         const action = String(signal?.cta_action || "").trim();
         const enabled = Boolean(action && action !== "none");
+        const labelKey = enabled && window.GhostLocale?.hasKey('apps.blacknet.action.' + action)
+            ? 'apps.blacknet.action.' + action
+            : (enabled ? 'apps.blacknet.action.open' : 'apps.blacknet.action.none');
         return {
             action,
             enabled,
-            label: enabled ? String(signal?.cta || "OTWORZ") : "READ ONLY"
+            labelKey,
+            label: ghostText(labelKey)
         };
     }
 
@@ -10349,7 +10353,7 @@ function createBrowser() {
                             <div class="bn-visual">${blacknetRadarSvg(featured)}</div>
                             <div class="bn-timer"><span class="bn-hourglass">⌛</span><small>${ghostLabel('apps.blacknet.valid')}</small><strong>${escapeHTML(featured.timer)}</strong></div>
                             <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}" data-blacknet-cta-action="${escapeHTML(featuredCta.action)}" ${featuredCta.enabled ? "" : "disabled"}>
-                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? ghostText('apps.blacknet.captured') : escapeHTML(featuredCta.label)}
+                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? ghostLabel('apps.blacknet.captured') : ghostLabel(featuredCta.labelKey)}
                             </button>
                         </div>
                     </section>

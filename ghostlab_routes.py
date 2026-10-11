@@ -151,7 +151,14 @@ def register(app, services):
                     tool_category=str(data.get('tool_category') or ''), icon=icon,
                     blueprint=service('default_ghostlab_blueprint')(template))
         seed.update(project_branding(seed))
-        project = service('ghostlab_store').create(owner, seed, data.get('request_id'))
+        request_seed = dict(seed)
+        # This is a new editable example, not a translation of an author's text.
+        if template:
+            from ghost_i18n import translator
+            locale = service('request_ui_locale')()
+            seed['description'] = translator().t('lab.template.' + template + '.description', locale=locale)
+            seed['presentation_locale'] = locale
+        project = service('ghostlab_store').create(owner, seed, data.get('request_id'), request_seed=request_seed)
         return reply(owner, project, message='Projekt utworzony.')
 
     @app.patch('/api/ghostlab/projects/<project_id>')

@@ -1,7 +1,7 @@
 # Sprint 154 — rejestr kluczy i glosariusz
 
-Stan: rejestr aktualnego pakietu. **2833 kluczy PL/EN**, 13 domen,
-wersja pakietu `154.7.0`. Rejestr generuje
+Stan: rejestr aktualnego pakietu. **2940 kluczy PL/EN**, 13 domen,
+wersja pakietu `154.7.1`. Rejestr generuje
 `node tools/build_i18n_key_register.cjs`; nie utrzymujemy ręcznie drugiego słownika.
 
 Właściciel wszystkich kluczy: Ghost System. Każdy wynik jest tekstem;
@@ -1274,6 +1274,33 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `apps.agi.unconfirmed_help` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.agi.validating` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.blacknet.action_missing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.accept_blacknet_job` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.focus_map_target` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.none` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_blacknet_detail` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_blacknet_dossier` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_blacknet_report` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_cyberner` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_cyberner_channel` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_cyberner_thread` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_exchange_category` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_exchange_market` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_ghost_exchange` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_ghostnetwork_suite` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_ghostsignal_archive` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_googleplex` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_googleplex_search` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_map` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_map_region` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_operation` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.open_radio` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.play_radio_podcast` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.show_ghostnetwork_part` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.show_ghostnetwork_territory` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.show_hotspot` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.start_operation` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.blacknet.action.teleport_to_hotspot` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.blacknet.archive_unavailable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.blacknet.bridge_failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.blacknet.bridge_unknown` | apps | action: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
@@ -1563,6 +1590,84 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `apps.network.value.summary.contained_hidden` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.network.value.summary.full` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.network.value.unknown` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.action` | apps | action: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.application` | apps | app: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice_default` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice_saved` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.atm_logs.range.full_session` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.atm_logs.range.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.atm_logs.range.recent` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.audio_hack.channel.input` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.audio_hack.channel.output` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.audio_hack.channel.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.camera_shutdown.method.disconnect` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.camera_shutdown.method.mute` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.camera_shutdown.method.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.camera_stream.profile.discreet` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.camera_stream.profile.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.camera_stream.profile.stable` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.car_hack.bus.control` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.car_hack.bus.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.car_hack.bus.telematics` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.exploit.vector.forceful` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.exploit.vector.precision` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.exploit.vector.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.install_sniffer.anchor.memory` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.install_sniffer.anchor.process` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.install_sniffer.anchor.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.mic_sniff.band.filtered` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.mic_sniff.band.full_band` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.mic_sniff.band.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.posture.forceful` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.posture.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.posture.quiet` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.route.alternate` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.route.direct` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.route.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.verification.continue` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.verification.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.operation.verification.repeat` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_hotspots.range.nearby` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_hotspots.range.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_hotspots.range.wide` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.pace.fast` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.pace.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.pace.quiet` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.verification.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.verification.repeat` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.verification.skip` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.visibility.masked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.visibility.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.scan_ports.visibility.standard` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.sniff.scope.full_stream` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.sniff.scope.metadata` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.sniff.scope.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace_device.fingerprint.hardware` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace_device.fingerprint.network` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace_device.fingerprint.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace_gps.filter.predict` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace_gps.filter.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace_gps.filter.stabilize` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace.route.active_trail` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace.route.prompt` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.choice.feedback.trace.route.quiet_correlation` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.confirmed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.countdown` | apps | seconds: number | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.error` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.finished` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.payload` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.prepare` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.profile` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.profile_ready` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.progress_failure` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.progress_success` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.result` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.running` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.sent` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.starting` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.success` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.unconfirmed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.ofs.waiting` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.active` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.back` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.cancel` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
@@ -1641,6 +1746,8 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `apps.operations.type.vehicle_tracking` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.type.wifi_scanner` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.warning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.pvp.minimize` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.pvp.restore_hint` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.signal.history` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.signal.journey_date` | apps | date: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.signal.locked` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |

@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.7.0",
+  "content_version": "154.7.1",
   "messages": {
     "lab.template.financial_sniffer.name": {
       "params": {},
@@ -65,7 +65,7 @@
     },
     "lab.template.file_cleanup.description": {
       "params": {},
-      "text": "Remove selected unnecessary, unsellable files from your own system."
+      "text": "Removes selected unnecessary, unsellable system files."
     },
     "lab.template.system_update.name": {
       "params": {},

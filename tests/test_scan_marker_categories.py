@@ -11,6 +11,25 @@ from tests.test_player_hack_read_paths import PlayerHackReadPathsTest
 class ScanMarkerCategoriesTest(unittest.TestCase):
     setUp = PlayerHackReadPathsTest.setUp
 
+    def test_generated_names_are_discovery_language_not_viewer_metadata(self):
+        with patch.object(run, 'request_ui_locale', return_value='en'):
+            markers = self.scan({'shop': 'books', 'atm': 'yes'})
+        generated = [marker for marker in markers if marker.get('discovery_locale') == 'en']
+        self.assertTrue(generated)
+        self.assertTrue(any(marker['name'] == 'Shop camera' for marker in generated))
+        self.assertTrue(any(marker['name'] == 'Customer' for marker in generated))
+        self.assertTrue(all('label_i18n' not in marker for marker in generated))
+        self.assertTrue(all(marker['name'] == marker['label'] for marker in generated))
+        self.assertEqual(next(marker for marker in markers if not marker['generated'])['name'], 'Test')
+        with patch.object(run, 'request_ui_locale', return_value='pl'):
+            marked = [dict(marker, lng=marker['lon']) for marker in markers]
+            renewed = self.scan({'shop': 'books', 'atm': 'yes'}, marked)
+        self.assertTrue(any(marker['name'] == 'Shop camera' for marker in renewed))
+        self.assertTrue(all(marker.get('discovery_locale') == 'en' for marker in renewed if marker['source_type'] == 'camera'))
+        with patch.object(run, 'request_ui_locale', return_value='en'):
+            vehicles = [m for m in self.scan({'amenity': 'parking'}) if m['target_type'] == 'vehicle']
+        self.assertTrue(all('label_i18n' not in m for m in vehicles))
+
     def scan(self, tags, marked=(), hour=12):
         poi = dict(lat=52.0, lon=21.0, name='Test', osm_id=123, tags=tags)
         with ExitStack() as stack:

@@ -11,18 +11,19 @@ const ctaPresentationEnd = terminal.indexOf("const renderBlackNet", ctaPresentat
 assert.ok(ctaPresentationStart >= 0 && ctaPresentationEnd > ctaPresentationStart);
 const ctaPresentationSandbox = { Boolean, String };
 vm.createContext(ctaPresentationSandbox);
+require('./locale_fixture')(ctaPresentationSandbox, 'en');
 vm.runInContext(terminal.slice(ctaPresentationStart, ctaPresentationEnd), ctaPresentationSandbox);
 assert.deepStrictEqual(
     JSON.parse(JSON.stringify(ctaPresentationSandbox.blacknetCtaPresentation({ cta: "OTWORZ", cta_action: "" }))),
-    { action: "", enabled: false, label: "READ ONLY" }
+    { action: "", enabled: false, labelKey: "apps.blacknet.action.none", label: "READ ONLY" }
 );
 assert.deepStrictEqual(
     JSON.parse(JSON.stringify(ctaPresentationSandbox.blacknetCtaPresentation({ cta: "OTWORZ", cta_action: "none" }))),
-    { action: "none", enabled: false, label: "READ ONLY" }
+    { action: "none", enabled: false, labelKey: "apps.blacknet.action.none", label: "READ ONLY" }
 );
 assert.deepStrictEqual(
     JSON.parse(JSON.stringify(ctaPresentationSandbox.blacknetCtaPresentation({ cta: "OTWORZ", cta_action: "show_ghostnetwork_part" }))),
-    { action: "show_ghostnetwork_part", enabled: true, label: "OTWORZ" }
+    { action: "show_ghostnetwork_part", enabled: true, labelKey: "apps.blacknet.action.show_ghostnetwork_part", label: "SHOW TERRITORY" }
 );
 const actionStart = terminal.indexOf("function ghostnetworkSuiteOpaqueAction");
 const actionEnd = terminal.indexOf("function openGhostNetworkSuiteMap", actionStart);

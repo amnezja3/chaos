@@ -252,9 +252,18 @@ class GhostLabPublicationTest(unittest.TestCase):
              patch.object(run.capability_projection_store,'get_capabilities',return_value={'level':40}), \
              patch.object(run.wallet_balance_store,'get_balance',return_value=1000), \
              patch.object(database.InstrumentedConnection,'execute',guarded):
-            response = client.post('/api/ghostlab/projects',json=dict(name='HTTP',template_id='system_log_reader',request_id='http-create-1'))
+            creation = dict(name='HTTP',template_id='system_log_reader',request_id='http-create-1')
+            with patch.object(run, 'request_ui_locale', return_value='en'):
+                response = client.post('/api/ghostlab/projects',json=creation)
             self.assertEqual(200,response.status_code,response.get_json())
             p = response.get_json()['project']; base='/api/ghostlab/projects/'+p['id']
+            from ghost_i18n import translator
+            self.assertEqual(p['branding']['description'], translator().t('lab.template.system_log_reader.description', locale='en'))
+            with patch.object(run, 'request_ui_locale', return_value='pl'):
+                repeated = client.post('/api/ghostlab/projects', json=creation)
+            self.assertEqual(repeated.status_code, 200, repeated.json)
+            self.assertEqual(repeated.json['project']['id'], p['id'])
+            self.assertEqual(repeated.json['project']['branding']['description'], p['branding']['description'])
             self.assertEqual(p['field_schema']['log_limit']['maximum'], 5)
             registry_response = client.get('/api/ghostlab/templates')
             self.assertEqual(200, registry_response.status_code)

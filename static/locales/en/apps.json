@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.7.0",
+  "content_version": "154.7.1",
   "messages": {
     "apps.operations.state.created": {
       "params": {},
@@ -2430,6 +2430,440 @@
     "apps.network.registry.contract": {
       "params": {},
       "text": "IMMUTABLE // REBUILDABLE"
+    },
+    "apps.pvp.minimize": {
+      "params": {},
+      "text": "Minimize PvP panel"
+    },
+    "apps.pvp.restore_hint": {
+      "params": {},
+      "text": "Restore from the taskbar"
+    },
+    "apps.blacknet.action.open": {
+      "params": {},
+      "text": "OPEN"
+    },
+    "apps.blacknet.action.none": {
+      "params": {},
+      "text": "READ ONLY"
+    },
+    "apps.blacknet.action.open_googleplex": {
+      "params": {},
+      "text": "OPEN GOOGLEPLEX"
+    },
+    "apps.blacknet.action.open_googleplex_search": {
+      "params": {},
+      "text": "OPEN GOOGLEPLEX"
+    },
+    "apps.blacknet.action.open_ghost_exchange": {
+      "params": {},
+      "text": "OPEN GHOST EXCHANGE"
+    },
+    "apps.blacknet.action.open_exchange_market": {
+      "params": {},
+      "text": "OPEN GHOST EXCHANGE"
+    },
+    "apps.blacknet.action.open_exchange_category": {
+      "params": {},
+      "text": "OPEN GHOST EXCHANGE"
+    },
+    "apps.blacknet.action.open_ghostnetwork_suite": {
+      "params": {},
+      "text": "OPEN GHOST NETWORK SUITE"
+    },
+    "apps.blacknet.action.open_ghostsignal_archive": {
+      "params": {},
+      "text": "OPEN SIGNAL ARCHIVE"
+    },
+    "apps.blacknet.action.open_map": {
+      "params": {},
+      "text": "SHOW ON MAP"
+    },
+    "apps.blacknet.action.open_map_region": {
+      "params": {},
+      "text": "SHOW ON MAP"
+    },
+    "apps.blacknet.action.focus_map_target": {
+      "params": {},
+      "text": "SHOW ON MAP"
+    },
+    "apps.blacknet.action.show_hotspot": {
+      "params": {},
+      "text": "SHOW ON MAP"
+    },
+    "apps.blacknet.action.show_ghostnetwork_part": {
+      "params": {},
+      "text": "SHOW TERRITORY"
+    },
+    "apps.blacknet.action.show_ghostnetwork_territory": {
+      "params": {},
+      "text": "SHOW TERRITORY"
+    },
+    "apps.blacknet.action.open_cyberner": {
+      "params": {},
+      "text": "OPEN CYBERNER"
+    },
+    "apps.blacknet.action.open_cyberner_thread": {
+      "params": {},
+      "text": "OPEN CYBERNER"
+    },
+    "apps.blacknet.action.open_cyberner_channel": {
+      "params": {},
+      "text": "OPEN CYBERNER"
+    },
+    "apps.blacknet.action.open_radio": {
+      "params": {},
+      "text": "OPEN RADIO"
+    },
+    "apps.blacknet.action.play_radio_podcast": {
+      "params": {},
+      "text": "PLAY BROADCAST"
+    },
+    "apps.blacknet.action.open_operation": {
+      "params": {},
+      "text": "OPEN OPERATION"
+    },
+    "apps.blacknet.action.start_operation": {
+      "params": {},
+      "text": "START OPERATION"
+    },
+    "apps.blacknet.action.accept_blacknet_job": {
+      "params": {},
+      "text": "ACCEPT JOB"
+    },
+    "apps.blacknet.action.teleport_to_hotspot": {
+      "params": {},
+      "text": "TELEPORT TO HOTSPOT"
+    },
+    "apps.blacknet.action.open_blacknet_detail": {
+      "params": {},
+      "text": "OPEN DETAILS"
+    },
+    "apps.blacknet.action.open_blacknet_dossier": {
+      "params": {},
+      "text": "OPEN DETAILS"
+    },
+    "apps.blacknet.action.open_blacknet_report": {
+      "params": {},
+      "text": "OPEN DETAILS"
+    },
+    "apps.ofs.running": {
+      "params": {},
+      "text": "Operation in progress..."
+    },
+    "apps.ofs.starting": {
+      "params": {},
+      "text": "Starting session..."
+    },
+    "apps.ofs.prepare": {
+      "params": {},
+      "text": "Preparing local presentation."
+    },
+    "apps.ofs.waiting": {
+      "params": {},
+      "text": "Waiting for runtime."
+    },
+    "apps.ofs.sent": {
+      "params": {},
+      "text": "Request sent to runtime."
+    },
+    "apps.ofs.payload": {
+      "params": {},
+      "text": "Waiting for a confirmed result."
+    },
+    "apps.ofs.profile": {
+      "params": {},
+      "text": "Application profile"
+    },
+    "apps.ofs.profile_ready": {
+      "params": {},
+      "text": "Local application profile is ready."
+    },
+    "apps.ofs.confirmed": {
+      "params": {},
+      "text": "Result confirmed."
+    },
+    "apps.ofs.finished": {
+      "params": {},
+      "text": "Operation finished."
+    },
+    "apps.ofs.success": {
+      "params": {},
+      "text": "Runtime confirmed success."
+    },
+    "apps.ofs.result": {
+      "params": {},
+      "text": "Runtime returned the operation result."
+    },
+    "apps.ofs.error": {
+      "params": {},
+      "text": "Runtime response error."
+    },
+    "apps.ofs.unconfirmed": {
+      "params": {},
+      "text": "Operation was not confirmed."
+    },
+    "apps.ofs.progress_success": {
+      "params": {},
+      "text": "Execution confirmed."
+    },
+    "apps.ofs.progress_failure": {
+      "params": {},
+      "text": "Operation was not completed."
+    },
+    "apps.ofs.choice_default": {
+      "params": {},
+      "text": "Default selected."
+    },
+    "apps.ofs.choice_saved": {
+      "params": {},
+      "text": "Choice saved locally."
+    },
+    "apps.ofs.countdown": {
+      "params": {
+        "seconds": "number"
+      },
+      "text": "Default selection in {seconds}s"
+    },
+    "apps.ofs.action": {
+      "params": {
+        "action": "string"
+      },
+      "text": "Action: {action}"
+    },
+    "apps.ofs.application": {
+      "params": {
+        "app": "string"
+      },
+      "text": "Application: {app}"
+    },
+    "apps.ofs.choice.feedback.operation.posture.prompt": {
+      "params": {},
+      "text": "Execution profile"
+    },
+    "apps.ofs.choice.feedback.operation.posture.quiet": {
+      "params": {},
+      "text": "QUIET"
+    },
+    "apps.ofs.choice.feedback.operation.posture.forceful": {
+      "params": {},
+      "text": "FORCEFUL"
+    },
+    "apps.ofs.choice.feedback.operation.route.prompt": {
+      "params": {},
+      "text": "Presentation channel"
+    },
+    "apps.ofs.choice.feedback.operation.route.direct": {
+      "params": {},
+      "text": "DIRECT"
+    },
+    "apps.ofs.choice.feedback.operation.route.alternate": {
+      "params": {},
+      "text": "BYPASS"
+    },
+    "apps.ofs.choice.feedback.operation.verification.prompt": {
+      "params": {},
+      "text": "Response check"
+    },
+    "apps.ofs.choice.feedback.operation.verification.repeat": {
+      "params": {},
+      "text": "REPEAT"
+    },
+    "apps.ofs.choice.feedback.operation.verification.continue": {
+      "params": {},
+      "text": "CONTINUE"
+    },
+    "apps.ofs.choice.feedback.scan_ports.visibility.prompt": {
+      "params": {},
+      "text": "Probe visibility"
+    },
+    "apps.ofs.choice.feedback.scan_ports.visibility.masked": {
+      "params": {},
+      "text": "MASK"
+    },
+    "apps.ofs.choice.feedback.scan_ports.visibility.standard": {
+      "params": {},
+      "text": "CONTINUE"
+    },
+    "apps.ofs.choice.feedback.scan_ports.pace.prompt": {
+      "params": {},
+      "text": "Probe presentation pace"
+    },
+    "apps.ofs.choice.feedback.scan_ports.pace.quiet": {
+      "params": {},
+      "text": "QUIET MODE"
+    },
+    "apps.ofs.choice.feedback.scan_ports.pace.fast": {
+      "params": {},
+      "text": "FAST MODE"
+    },
+    "apps.ofs.choice.feedback.scan_ports.verification.prompt": {
+      "params": {},
+      "text": "Verification method"
+    },
+    "apps.ofs.choice.feedback.scan_ports.verification.repeat": {
+      "params": {},
+      "text": "REPEAT"
+    },
+    "apps.ofs.choice.feedback.scan_ports.verification.skip": {
+      "params": {},
+      "text": "SKIP"
+    },
+    "apps.ofs.choice.feedback.exploit.vector.prompt": {
+      "params": {},
+      "text": "Exploit vector"
+    },
+    "apps.ofs.choice.feedback.exploit.vector.precision": {
+      "params": {},
+      "text": "PRECISE"
+    },
+    "apps.ofs.choice.feedback.exploit.vector.forceful": {
+      "params": {},
+      "text": "AGGRESSIVE"
+    },
+    "apps.ofs.choice.feedback.sniff.scope.prompt": {
+      "params": {},
+      "text": "Capture scope"
+    },
+    "apps.ofs.choice.feedback.sniff.scope.metadata": {
+      "params": {},
+      "text": "METADATA"
+    },
+    "apps.ofs.choice.feedback.sniff.scope.full_stream": {
+      "params": {},
+      "text": "FULL STREAM"
+    },
+    "apps.ofs.choice.feedback.trace.route.prompt": {
+      "params": {},
+      "text": "Tracking route"
+    },
+    "apps.ofs.choice.feedback.trace.route.quiet_correlation": {
+      "params": {},
+      "text": "QUIET CORRELATION"
+    },
+    "apps.ofs.choice.feedback.trace.route.active_trail": {
+      "params": {},
+      "text": "ACTIVE TRAIL"
+    },
+    "apps.ofs.choice.feedback.trace_gps.filter.prompt": {
+      "params": {},
+      "text": "Location filter"
+    },
+    "apps.ofs.choice.feedback.trace_gps.filter.stabilize": {
+      "params": {},
+      "text": "STABILIZE"
+    },
+    "apps.ofs.choice.feedback.trace_gps.filter.predict": {
+      "params": {},
+      "text": "PREDICT"
+    },
+    "apps.ofs.choice.feedback.trace_device.fingerprint.prompt": {
+      "params": {},
+      "text": "Device fingerprint"
+    },
+    "apps.ofs.choice.feedback.trace_device.fingerprint.hardware": {
+      "params": {},
+      "text": "HARDWARE"
+    },
+    "apps.ofs.choice.feedback.trace_device.fingerprint.network": {
+      "params": {},
+      "text": "NETWORK"
+    },
+    "apps.ofs.choice.feedback.mic_sniff.band.prompt": {
+      "params": {},
+      "text": "Listening mode"
+    },
+    "apps.ofs.choice.feedback.mic_sniff.band.filtered": {
+      "params": {},
+      "text": "FILTER"
+    },
+    "apps.ofs.choice.feedback.mic_sniff.band.full_band": {
+      "params": {},
+      "text": "FULL BAND"
+    },
+    "apps.ofs.choice.feedback.atm_logs.range.prompt": {
+      "params": {},
+      "text": "ATM log range"
+    },
+    "apps.ofs.choice.feedback.atm_logs.range.recent": {
+      "params": {},
+      "text": "RECENT"
+    },
+    "apps.ofs.choice.feedback.atm_logs.range.full_session": {
+      "params": {},
+      "text": "FULL SESSION"
+    },
+    "apps.ofs.choice.feedback.install_sniffer.anchor.prompt": {
+      "params": {},
+      "text": "Implant location"
+    },
+    "apps.ofs.choice.feedback.install_sniffer.anchor.memory": {
+      "params": {},
+      "text": "MEMORY"
+    },
+    "apps.ofs.choice.feedback.install_sniffer.anchor.process": {
+      "params": {},
+      "text": "PROCESS"
+    },
+    "apps.ofs.choice.feedback.scan_hotspots.range.prompt": {
+      "params": {},
+      "text": "Hotspot range"
+    },
+    "apps.ofs.choice.feedback.scan_hotspots.range.nearby": {
+      "params": {},
+      "text": "NEARBY"
+    },
+    "apps.ofs.choice.feedback.scan_hotspots.range.wide": {
+      "params": {},
+      "text": "WIDE"
+    },
+    "apps.ofs.choice.feedback.audio_hack.channel.prompt": {
+      "params": {},
+      "text": "Audio channel"
+    },
+    "apps.ofs.choice.feedback.audio_hack.channel.input": {
+      "params": {},
+      "text": "INPUT"
+    },
+    "apps.ofs.choice.feedback.audio_hack.channel.output": {
+      "params": {},
+      "text": "OUTPUT"
+    },
+    "apps.ofs.choice.feedback.camera_stream.profile.prompt": {
+      "params": {},
+      "text": "Stream profile"
+    },
+    "apps.ofs.choice.feedback.camera_stream.profile.discreet": {
+      "params": {},
+      "text": "DISCREET"
+    },
+    "apps.ofs.choice.feedback.camera_stream.profile.stable": {
+      "params": {},
+      "text": "STABLE"
+    },
+    "apps.ofs.choice.feedback.camera_shutdown.method.prompt": {
+      "params": {},
+      "text": "Shutdown method"
+    },
+    "apps.ofs.choice.feedback.camera_shutdown.method.mute": {
+      "params": {},
+      "text": "MUTE"
+    },
+    "apps.ofs.choice.feedback.camera_shutdown.method.disconnect": {
+      "params": {},
+      "text": "DISCONNECT"
+    },
+    "apps.ofs.choice.feedback.car_hack.bus.prompt": {
+      "params": {},
+      "text": "Vehicle bus"
+    },
+    "apps.ofs.choice.feedback.car_hack.bus.telematics": {
+      "params": {},
+      "text": "TELEMATICS"
+    },
+    "apps.ofs.choice.feedback.car_hack.bus.control": {
+      "params": {},
+      "text": "CONTROL"
     }
   }
 }

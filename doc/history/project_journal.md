@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-10-10 — 154.7.1: poprawki po częściowym odbiorze
+
+2940 kluczy, 13 domen. Generowane nazwy zapisują język odkrywcy, a odświeżenie
+skanu oznaczonej kamery nie zmienia jej nazwy. Nowe projekty GhostLaba mają
+lokalizowany opis startowy z zachowaniem idempotencji tworzenia i tekstów autora.
+Poprawiono nazwy klastrów, systemowe CTA BlackNetu i etykiety panelu PvP.
+Kontrolki OFS reagują na język bez restartu operacji i odliczania; biblioteki
+scen narracyjnych pozostają zakresem 155. Pełny PASS nadal otwarty.
+Testy: 30 zestawów JS i composer OFS PASS; izolowany backend i Playwright
+PvP, Territory/Victim Picker, BlackNet, OFS. Szczegóły w macierzy odbioru 154.
+Lokalnie, bez commita/pushu/wdrożenia; 149–152 pozostają zamrożone.
+
 ## 2026-10-08 — 154.7.0: pozostałe workspace’y i cykl narzędzi
 
 Domknięto lokalną implementację 154: 2833 klucze PL/EN, 13 domen.

@@ -1,11 +1,14 @@
 # Sprint 154 — Ghost System: aplikacje, narzędzia i katalogi PL/EN
 
-Status: **IMPLEMENTACJA DOMKNIĘTA LOKALNIE — 154.7.0**, 8 X 2026.
-Oczekuje wdrożenia i odbioru produkcyjnego. Po produkcyjnym PASS
+Status: **POPRAWKI PO CZĘŚCIOWYM ODBIORZE — 154.7.1**, 10 X 2026.
+2940 kluczy / 13 domen. Poprawka lokalna; pełny PASS pozostaje otwarty.
+Nazwy odkrytych obiektów, opisy nowych projektów, klastry, CTA BlackNetu,
+etykiety PvP i kontrolki OFS: szczegóły w macierzy odbioru.
+Biblioteki narracyjnych scen OFS pozostają zakresem 155. Po produkcyjnym PASS
 [153](sprint_153_ghost_system_i18n_foundation.md), przed
 [155](sprint_155_ghost_system_content_acceptance.md).
 
-## Aktualny przyrost: 154.7.0
+## Historyczny przyrost: 154.7.0
 
 **2833 klucze PL/EN w 13 domenach.** Pozostałe workspace’y, systemowe katalogi,
 zakup/instalacja/aktualizacja/użycie, sześć rodzin PvP, serwis, cztery kreatory
