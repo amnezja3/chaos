@@ -5,10 +5,10 @@ from pathlib import Path
 class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.config = Path("config.py").read_text(encoding="utf-8")
-        cls.run_source = Path("run.py").read_text(encoding="utf-8")
-        cls.template = Path("templates/linux.html").read_text(encoding="utf-8")
-        cls.terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        cls.config = (Path(__file__).resolve().parents[1] / "config.py").read_text(encoding="utf-8")
+        cls.run_source = (Path(__file__).resolve().parents[1] / "run.py").read_text(encoding="utf-8")
+        cls.template = (Path(__file__).resolve().parents[1] / "templates/linux.html").read_text(encoding="utf-8")
+        cls.terminal = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
 
     def function_source(self, start, end):
         start_index = self.terminal.index(start)

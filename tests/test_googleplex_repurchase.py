@@ -66,6 +66,10 @@ class GoogleplexRepurchaseTest(unittest.TestCase):
                     return response.json
 
             first = purchase()
+            if offer.get('creator_contract_version'):
+                self.assertEqual(first['app']['creator_contract'], offer['creator_contract'])
+                self.assertEqual(first['app']['map_actions'], offer['map_actions'])
+                self.assertEqual(first['app']['target_types'], ['player'])
             self.assertTrue(purchase()['duplicate'])
             self.assertEqual(self.wallet.get_balance('alice'), 24900)
             # The canonical consequence executor uses this same atomic removal.
@@ -100,3 +104,22 @@ class GoogleplexRepurchaseTest(unittest.TestCase):
 
     def test_legacy_repurchase_after_confiscation(self):
         self.check_repurchase(False)
+
+    def check_player_tool(self, purpose):
+        from creator_policy import generate_contract
+        contract = generate_contract(dict(action=purpose, interface='window', creates_file=False), 40)
+        self.app = run.build_creator_edition(dict(id=purpose, app_id=purpose, owner='admin',
+            contract=contract, presentation={'name': purpose, 'icon': 'X'}), 1)
+        self.check_repurchase(False)
+
+    def test_player_scanner_purchase(self):
+        self.check_player_tool('scan_player')
+
+    def test_player_exploit_purchase(self):
+        self.check_player_tool('exploit_player')
+
+    def test_player_monitor_purchase(self):
+        self.check_player_tool('sniff_player')
+
+    def test_player_tracker_purchase(self):
+        self.check_player_tool('trace_player')

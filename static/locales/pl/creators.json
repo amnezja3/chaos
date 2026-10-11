@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.7.1",
+  "content_version": "154.7.3",
   "messages": {
     "creator.editor.title": {
       "params": {},
@@ -1597,6 +1597,10 @@
     "creator.legacy.invalid_name": {
       "params": {},
       "text": "Nazwa aplikacji nie może zawierać średnika (;)."
+    },
+    "creator.objects.players": {
+      "params": {},
+      "text": "Gracze · PvP"
     }
   }
 }

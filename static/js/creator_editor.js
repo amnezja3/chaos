@@ -2,7 +2,9 @@
 window.CreatorEditor = (() => {
     const actionIcons = {exploit: '💥', scan_ports: '🛠️', trace: '📍', trace_gps: '📍', trace_device: '📡', scan_hotspots: '📶', camera_stream: '🎥', camera_shutdown: '❌', install_sniffer: '🐛', sniff: '📡', mic_sniff: '🎙️', atm_logs: '📊', audio_hack: '🔊', car_hack: '🚗'};
     const names = {terminal: 'TermCreator', window: 'WindowMaker', button_choices: 'ButtonMaker', progressbar_random: 'AppForge'};
+    Object.assign(actionIcons, {scan_player: '🛠️', exploit_player: '💥', sniff_player: '📡', trace_player: '📍'});
     const objectGroups = {"exploit":"general","scan_ports":"general","trace":"general","sniff":"general","trace_gps":"cars","car_hack":"cars","trace_device":"people","mic_sniff":"people","scan_hotspots":"audio","audio_hack":"audio","camera_stream":"cameras","camera_shutdown":"cameras","atm_logs":"atms","install_sniffer":"atms"};
+    Object.assign(objectGroups, {scan_player: 'players', exploit_player: 'players', sniff_player: 'players', trace_player: 'players'});
     function localized(tag, key, parent, params = {}) {
         const el = node(tag, undefined, parent);
         ghostSet(el, key, params);

@@ -841,14 +841,28 @@
         const available = candidates.filter(candidate => !recent.has(candidate.key));
         const selected = (available.length ? available : candidates)[Math.floor(random() * (available.length || candidates.length))];
         const values = {
-            app_title: safeContentText(context.app_title, { allowOutcome: true }) || "Aplikacja",
-            description: safeContentText(context.description) || "Opis autora nie zostal udostepniony.",
+            app_title: safeContentText(context.app_title, { allowOutcome: true }) || String(feedbackText('apps.preload.default.app', 'Aplikacja')),
+            description: safeContentText(context.description) || String(feedbackText('apps.preload.default.description', 'Opis autora nie zostal udostepniony.')),
             interface: safeContentText(context.interface, { allowOutcome: true }) || configuredVoice,
-            target_label: safeContentText(context.target_label, { allowOutcome: true }) || "cel operacji",
-            action_label: safeContentText(context.action_label, { allowOutcome: true }) || "operacja"
+            target_label: safeContentText(context.target_label, { allowOutcome: true }) || String(feedbackText('apps.preload.default.target', 'cel operacji')),
+            action_label: safeContentText(context.action_label, { allowOutcome: true }) || String(feedbackText('apps.preload.default.action', 'operacja'))
         };
-        const lines = selected.lines.map(line => line.replace(/\{([a-z_]+)\}/g, (match, key) => values[key] || ""))
+        let lines = selected.lines.map(line => line.replace(/\{([a-z_]+)\}/g, (match, key) => values[key] || ""))
             .map(line => safeContentText(line, { allowOutcome: true })).filter(Boolean);
+        // Localized startup copy is presentation only: keep the selected variant,
+        // timeline, ownership and launch receipt unchanged.
+        const index = Number(selected.key.split(':').pop()) % 3;
+        const copyKey = `apps.preload.scene.${family}.${index}`;
+        if (global.GhostLocale?.hasKey(copyKey)) {
+            const fields = {
+                app_identity: ['app_title', 'app_title', 'app_title'],
+                author_manifest: ['description', 'app_title', 'interface'],
+                context_bind: ['target_label', 'action_label', null],
+                author_content: ['description', 'app_title', null]
+            };
+            const field = fields[family]?.[index];
+            lines = [feedbackText(copyKey, lines[0] || '', field ? {[field]:String(values[field])} : {})];
+        }
         return {
             scene_id: sceneId,
             family,
@@ -1804,6 +1818,8 @@
     }
 
     global.OperationFeedbackSystem = Object.freeze({
+        systemText: feedbackText,
+        setSystemText: feedbackSet,
         OperationFeedbackSession,
         createSession,
         disposeWindowSession,

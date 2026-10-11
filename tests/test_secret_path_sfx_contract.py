@@ -6,10 +6,10 @@ from pathlib import Path
 class SecretPathSfxContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.map_template = Path("templates/map_template.html").read_text(encoding="utf-8")
-        cls.terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        cls.map_template = (Path(__file__).resolve().parents[1] / "templates/map_template.html").read_text(encoding="utf-8")
+        cls.terminal = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
         cls.manifest = json.loads(
-            Path("static/audio/sfx/manifest.v1.json").read_text(encoding="utf-8")
+            (Path(__file__).resolve().parents[1] / "static/audio/sfx/manifest.v1.json").read_text(encoding="utf-8")
         )
 
     def test_six_visual_scenes_map_one_to_one_to_six_events(self):
@@ -30,9 +30,8 @@ class SecretPathSfxContractTest(unittest.TestCase):
 
     def test_one_selected_scene_drives_visual_and_audio(self):
         self.assertIn("const scene = secretPathLoreScenes[", self.map_template)
-        self.assertIn("scene.eyebrow", self.map_template)
-        self.assertIn("scene.title", self.map_template)
-        self.assertIn("scene.copy", self.map_template)
+        for field in ('eyebrow', 'title', 'copy'):
+            self.assertIn("'map.secret.' + scene.scene_id + '." + field + "'", self.map_template)
         self.assertIn("sfx.play(scene.sound_event", self.map_template)
         self.assertIn("scene_id: scene.scene_id", self.map_template)
 

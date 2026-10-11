@@ -1093,7 +1093,7 @@
                 const machine = layout.machines.find(m => m.code === part.machine_code) || {};
                 const power = (catalog.abilities || []).find(a => a.ability_code === part.ability_code) || {};
                 details[part.part_code] = {code:part.part_code,name:part.name,clan:clan.name || part.clan_code || "Brak zapisu",
-                    machine:machine.name || "Brak zapisu",power:power.name || "Brak zapisu",description:power.description || "Opis niedostępny w tym zapisie."};
+                    machine:machine.name || "Brak zapisu",ability_code:part.ability_code,power:power.name || "Brak zapisu",description:power.description || "Opis niedostępny w tym zapisie."};
             });
             stage._networkDetails = global.GhostSignalNetworkDetails.mount({document:doc,window:global,field,
                 host:doc.getElementById("ghost-signal-show"),square:network,catalog:details,parts:stage._partsRows.map(row => row.card)});

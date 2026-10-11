@@ -1,7 +1,7 @@
 # Sprint 154 — rejestr kluczy i glosariusz
 
-Stan: rejestr aktualnego pakietu. **2940 kluczy PL/EN**, 13 domen,
-wersja pakietu `154.7.1`. Rejestr generuje
+Stan: rejestr aktualnego pakietu. **3144 kluczy PL/EN**, 13 domen,
+wersja pakietu `154.7.3`. Rejestr generuje
 `node tools/build_i18n_key_register.cjs`; nie utrzymujemy ręcznie drugiego słownika.
 
 Właściciel wszystkich kluczy: Ghost System. Każdy wynik jest tekstem;
@@ -566,28 +566,36 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `map.action_name.camera_stream` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.car_hack` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.exploit` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action_name.exploit_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.install_sniffer` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.mic_sniff` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.scan_hotspots` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action_name.scan_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.scan_ports` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.sniff` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action_name.sniff_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.trace` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.trace_device` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action_name.trace_gps` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action_name.trace_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.atm_logs` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.audio_hack` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.camera_shutdown` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.camera_stream` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.car_hack` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.exploit` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action.exploit_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.install_sniffer` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.mic_sniff` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.scan_hotspots` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action.scan_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.scan_ports` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.sniff` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action.sniff_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.trace` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.trace_device` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.action.trace_gps` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.action.trace_player` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.launch.accepted` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.launch.already_captured` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.launch.choose` | map_actions | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -964,6 +972,7 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `creator.legacy.type.vehicle_tool` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.legacy.unnamed` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.legacy.weight` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `creator.objects.players` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.action` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.choice` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.choice_contract` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
@@ -1010,6 +1019,66 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `creator.validation.risk_range` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.text` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
 | `creator.validation.versioned_choice` | creators | — | creator_editor.js; creator_messages.py; creator_policy.py; creator_routes.py; terminal.js icon picker (sprint 154) |
+| `map.ability.bastion.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.bastion.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.bastion.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.domino_effect.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.domino_effect.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.domino_effect.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.expose.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.expose.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.expose.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.false_image.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.false_image.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.false_image.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.false_tracking.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.false_tracking.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.false_tracking.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.full_disclosure.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.full_disclosure.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.full_disclosure.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.glitch_injection.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.glitch_injection.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.glitch_injection.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.hostile_takeover.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.hostile_takeover.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.hostile_takeover.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.insider_feed.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.insider_feed.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.insider_feed.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.integrity_scan.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.integrity_scan.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.integrity_scan.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.narrative_takeover.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.narrative_takeover.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.narrative_takeover.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.network_fracture.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.network_fracture.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.network_fracture.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.operational_prediction.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.operational_prediction.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.operational_prediction.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.phantom_node.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.phantom_node.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.phantom_node.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.quarantine.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.quarantine.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.quarantine.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.reflection.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.reflection.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.reflection.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.resistance_signal.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.resistance_signal.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.resistance_signal.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.rollback.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.rollback.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.rollback.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.service_entrance.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.service_entrance.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.service_entrance.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.trust_corridor.description` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.trust_corridor.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.ability.trust_corridor.tagline` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.actor.actions` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.actor.add_friend` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.actor.aimed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -1056,6 +1125,38 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `map.actor.unavailable` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.actor.username` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.actor.wallet_open` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.active_operations` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.base_map` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.base_tiles` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.captured_targets` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.clan_vulnerabilities` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.delta_feed_ready` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.delta_recovery` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.error` | map_workspace | step: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.ghost_ability` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.incidents` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.incidents_sync` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.init` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_busy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_error` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_incidents` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_operations` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_sync` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_territory` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.log_time` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.network_busy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.note` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.npc` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.operations_sync` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.player_actors` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.player_areas` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.player_position` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.ready` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.reconstruct` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.retry` | map_workspace | step: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.sync` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.target_snapshot` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.boot.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.npc.atm` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.npc.atm_camera` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.npc.atm_customer` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -1065,13 +1166,35 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `map.npc.guest` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.npc.shop_camera` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.activate` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.activated` | map_workspace | name: string, minutes: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.active` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.city` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.continent` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.country` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.detail.clan` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.detail.code` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.detail.machine` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.detail.name` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.detail.power` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.failed` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.local` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.map` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.quarantine_status` | map_workspace | scale: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.quarantine_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.range` | map_workspace | range: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.abilities_disabled` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.ability_not_enabled_for_runtime` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.client_parameters_forbidden` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.cooldown` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.invalid_request_key` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.no_active_part` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.not_eligible` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.not_logged_in` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.projection_recovery_required` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.projection_unavailable` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.reason.select_target_before_activation` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.satellite_status` | map_workspace | scale: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.power.satellite_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.scale` | map_workspace | scale: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.power.world` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.preset.all` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -1107,6 +1230,25 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `map.result.travel_title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.result.upstream` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.result.vulnerability_expired` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.acceleration.copy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.acceleration.eyebrow` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.acceleration.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.chaos_protocol_2108.copy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.chaos_protocol_2108.eyebrow` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.chaos_protocol_2108.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.lore_discovered.copy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.lore_discovered.eyebrow` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.lore_discovered.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.route` | map_workspace | name: string | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.route_open.copy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.route_open.eyebrow` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.route_open.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.skill_verified.copy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.skill_verified.eyebrow` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.skill_verified.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.target_repaired.copy` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.target_repaired.eyebrow` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
+| `map.secret.target_repaired.title` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.access_level` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.activity_monitor` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
 | `map.security.anonymity_score` | map_workspace | — | templates/map_template.html menu; terminal.js map tool picker (sprint 154) |
@@ -1746,6 +1888,68 @@ pełnego odbioru sprintu 154 ani potwierdzenia wdrożenia.
 | `apps.operations.type.vehicle_tracking` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.type.wifi_scanner` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.operations.warning` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.action` | apps | action: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.author` | apps | text: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.await_state` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.choices` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.content` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.default.action` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.default.app` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.default.description` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.default.target` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.environment` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.error` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.failed` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.finalizing` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.hydrating` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.init` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.init_status` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.launch_aria` | apps | name: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.launcher` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.ready` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.ready_context` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.retain` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.running` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.app_identity.0` | apps | app_title: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.app_identity.1` | apps | app_title: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.app_identity.2` | apps | app_title: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.author_content.0` | apps | description: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.author_content.1` | apps | app_title: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.author_content.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.author_manifest.0` | apps | description: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.author_manifest.1` | apps | app_title: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.author_manifest.2` | apps | interface: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.context_bind.0` | apps | target_label: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.context_bind.1` | apps | action_label: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.context_bind.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.extended_wait.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.extended_wait.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.extended_wait.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.hydration_wait.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.hydration_wait.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.hydration_wait.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.interface_boot.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.interface_boot.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.interface_boot.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.launcher_sync.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.launcher_sync.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.launcher_sync.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.local_init.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.local_init.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.local_init.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.local_validation.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.local_validation.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.local_validation.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.module_boot.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.module_boot.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.module_boot.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.runtime_prepare.0` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.runtime_prepare.1` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.scene.runtime_prepare.2` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.steps` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.target` | apps | name: string | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.terminal` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
+| `apps.preload.window` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.pvp.minimize` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.pvp.restore_hint` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |
 | `apps.signal.history` | apps | — | terminal.js application renderers; run.py application endpoints (sprint 154) |

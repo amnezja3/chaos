@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
+  <script src="{{ url_for('static', filename='js/game_context_menu.js') }}?v=154-7-2"></script>
   <meta charset="UTF-8">
   <title>CHAOS - Mapa</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2163,10 +2164,10 @@
   </div>
   <div id="chaos-map-boot-overlay" class="chaos-map-boot-overlay is-visible" aria-live="polite">
     <div class="chaos-map-boot-panel">
-      <div class="chaos-map-boot-title">Ladowanie mapy CHAOS...</div>
+      <div class="chaos-map-boot-title" data-ghost-i18n="map.boot.title">Ladowanie mapy CHAOS...</div>
       <div class="chaos-map-boot-progress"><span></span></div>
-      <div class="chaos-map-boot-step">Inicjalizacja mapy...</div>
-      <div class="chaos-map-boot-note">Mapa synchronizuje stan swiata. Akcje beda dostepne po zakonczeniu ladowania.</div>
+      <div class="chaos-map-boot-step" data-ghost-i18n="map.boot.init">Inicjalizacja mapy...</div>
+      <div class="chaos-map-boot-note" data-ghost-i18n="map.boot.note">Mapa synchronizuje stan swiata. Akcje beda dostepne po zakonczeniu ladowania.</div>
     </div>
   </div>
   <div id="active-operations-panel" class="active-operations-panel is-empty" aria-live="polite"></div>
@@ -2513,14 +2514,14 @@
             return document.getElementById('chaos-map-boot-overlay');
         }
 
-        function updateMapBootOverlay(label = 'Synchronizacja mapy...', progress = 0, failed = false) {
+        function updateMapBootOverlay(label = ghostCopy('map.boot.sync'), progress = 0, failed = false) {
             const overlay = mapBootOverlay();
             if (!overlay) return;
             const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
             const elapsedHint = safeProgress >= 82 ? 5400 : (safeProgress >= 45 ? 2400 : 0);
             const log = typeof window.pickMapGhostSystemLog === 'function'
                 ? window.pickMapGhostSystemLog(label, failed ? 5400 : elapsedHint)
-                : 'GhostSystem 2108 // synchronizacja mapy';
+                : ghostCopy('map.boot.log_sync');
             overlay.dataset.log = log;
             overlay.classList.toggle('is-failed', Boolean(failed));
             overlay.classList.toggle('is-slow', !failed && safeProgress >= 45 && safeProgress < 82);
@@ -2532,11 +2533,11 @@
                 fill.style.setProperty('--map-boot-progress', `${safeProgress}%`);
             }
             if (step) {
-                step.textContent = label || 'Synchronizacja mapy...';
+                ghostSetCopy(step, label || ghostCopy('map.boot.sync'));
             }
         }
 
-        function showMapPreloader(label = 'Inicjalizacja mapy...', progress = 0) {
+        function showMapPreloader(label = ghostCopy('map.boot.init'), progress = 0) {
             const overlay = mapBootOverlay();
             if (!overlay) return;
             overlay.classList.add('is-visible');
@@ -2562,8 +2563,8 @@
         }
 
         function notifyMapBootBlocked() {
-            updateMapBootOverlay('Mapa synchronizuje stan swiata. Akcje beda dostepne po zakonczeniu ladowania.', 95);
-            window.updateMapLoadingStatus?.('Mapa synchronizuje stan swiata...');
+            updateMapBootOverlay(ghostCopy('map.boot.note'), 95);
+            window.updateMapLoadingStatus?.(ghostCopy('map.boot.sync'));
         }
 
         function guardMapGameplayAction() {
@@ -3004,10 +3005,10 @@
             const scene = secretPathLoreScenes[Math.floor(Math.random() * secretPathLoreScenes.length)];
             const label = String(target.label || target.name || target.target_id || 'TARGET').trim();
             const targetId = String(target.target_id || target.id || `${target.lat || ''}:${target.lng || target.lon || ''}:${label}`);
-            overlay.querySelector('.chaos-secret-path-eyebrow').textContent = scene.eyebrow;
-            overlay.querySelector('.chaos-secret-path-title').textContent = scene.title;
-            overlay.querySelector('.chaos-secret-path-copy').textContent = scene.copy;
-            overlay.querySelector('.chaos-secret-path-route').textContent = `SECRET LINK > ${label} > RUNTIME READY`;
+            ghostSet(overlay.querySelector('.chaos-secret-path-eyebrow'), 'map.secret.' + scene.scene_id + '.eyebrow');
+            ghostSet(overlay.querySelector('.chaos-secret-path-title'), 'map.secret.' + scene.scene_id + '.title');
+            ghostSet(overlay.querySelector('.chaos-secret-path-copy'), 'map.secret.' + scene.scene_id + '.copy');
+            ghostSet(overlay.querySelector('.chaos-secret-path-route'), 'map.secret.route', {name:label});
             const sequence = String(Number(overlay.dataset.sequence || 0) + 1);
             overlay.dataset.sequence = sequence;
             overlay.dataset.sceneId = scene.scene_id;
@@ -3219,7 +3220,7 @@
                     <div class="chaos-ghost-map-zoom-orbit"></div>
                     <div class="chaos-ghost-map-zoom-copy">
                         <div class="chaos-ghost-map-zoom-eyebrow">FRACTURE ENGINE // ORBITAL UPLINK</div>
-                        <div class="chaos-ghost-map-zoom-title">AKTYWACJA DODATKOWYCH SATELIT</div>
+                        <div class="chaos-ghost-map-zoom-title" data-ghost-i18n="map.power.satellite_title"></div>
                         <div class="chaos-ghost-map-zoom-status"></div>
                     </div>
                 </div>`;
@@ -3243,16 +3244,11 @@
                     : 'FRACTURE ENGINE // ORBITAL UPLINK';
             }
             if (title) {
-                title.textContent = quarantine
-                    ? 'AKTYWACJA PIERŚCIENIA KWARANTANNY'
-                    : 'AKTYWACJA DODATKOWYCH SATELIT';
+                ghostSet(title, quarantine ? 'map.power.quarantine_title' : 'map.power.satellite_title');
             }
             const status = overlay.querySelector('.chaos-ghost-map-zoom-status');
             if (status) {
-                const action = quarantine
-                    ? 'ROZSZERZANIE STREFY NADZORU'
-                    : 'ROZSZERZANIE SIATKI OBSERWACJI';
-                status.textContent = `${action} // ${ghostAbilityMapScaleLabel(player.map_zoom_scale)}`;
+                ghostSet(status, quarantine ? 'map.power.quarantine_status' : 'map.power.satellite_status', {scale:ghostAbilityMapScaleLabel(player.map_zoom_scale)});
             }
             overlay.classList.add('is-map-zoom-transition', 'is-visible');
         }
@@ -3272,10 +3268,8 @@
             asset.onerror = () => { asset.hidden = true; };
             overlay.querySelector('.chaos-ghost-ability-eyebrow').textContent =
                 `GHOSTNETWORK // ${String(ability.source_part_code || ability.part_code || 'ACTIVE')}`;
-            overlay.querySelector('.chaos-ghost-ability-title').textContent =
-                String(presentation.display_name || ability.ability_name || 'Moc aktywna');
-            overlay.querySelector('.chaos-ghost-ability-copy').textContent =
-                String(presentation.activation_tagline || 'MOC AKTYWNA');
+            ghostAbilitySet(overlay.querySelector('.chaos-ghost-ability-title'), ability.ability_code, 'name', presentation.display_name || ability.ability_name || GhostLocale.t('map.power.active'));
+            ghostAbilitySet(overlay.querySelector('.chaos-ghost-ability-copy'), ability.ability_code, 'tagline', presentation.activation_tagline || GhostLocale.t('map.power.active'));
             const runtime = window.ghostAbilityRuntime;
             if (runtime.overlayTimer) window.clearTimeout(runtime.overlayTimer);
             stopGhostAbilityAudio(60);
@@ -3379,7 +3373,7 @@
                 const copy = document.createElement('div');
                 const name = document.createElement('div');
                 name.className = 'ghost-ability-control__name';
-                name.textContent = String(presentation.display_name || ability.ability_name || 'GhostNetwork');
+                ghostAbilitySet(name, ability.ability_code, 'name', presentation.display_name || ability.ability_name || 'GhostNetwork');
                 const state = document.createElement('div');
                 state.className = 'ghost-ability-control__state';
                 const scanRange = Number(snapshot.player && snapshot.player.effective_scan_range_m) || 0;
@@ -3403,7 +3397,7 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'ghost-ability-control__button';
-                button.textContent = String(presentation.display_name || ability.ability_name || GhostLocale.t("map.power.activate"));
+                ghostAbilitySet(button, ability.ability_code, 'name', presentation.display_name || ability.ability_name || GhostLocale.t('map.power.activate'));
                 button.addEventListener('click', () => activateGhostAbility(button));
                 control.appendChild(button);
                 control.dataset.renderKey = renderKey;
@@ -3465,7 +3459,8 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
-                    throw new Error(result.message || result.reason || result.status || 'Nie udało się aktywować mocy.');
+                    const reasonKey = 'map.power.reason.' + String(result.reason || result.status || result.error || '');
+                    throw new Error(GhostLocale.hasKey(reasonKey) ? GhostLocale.t(reasonKey) : GhostLocale.t('map.power.failed'));
                 }
                 if (result.target) {
                     window.profileData = window.profileData || {};
@@ -3481,12 +3476,12 @@
                     const durationMinutes = Math.max(1, Math.round(
                         (Date.parse(snapshot.window.expires_at) - Date.parse(snapshot.window.activated_at)) / 60000
                     ));
-                    const displayName = snapshot.presentation.display_name || snapshot.ability.ability_name;
-                    addSystemMessage('success', 'GhostNetwork', `${displayName} — wpływ aktywny przez ${durationMinutes} min.`);
+                    const displayName = ghostAbilityText(snapshot.ability.ability_code, 'name', snapshot.presentation.display_name || snapshot.ability.ability_name);
+                    addSystemMessage('success', 'GhostNetwork', GhostLocale.t('map.power.activated', {name:displayName, minutes:String(durationMinutes)}));
                 }
             } catch (err) {
                 console.error('[ghost ability] activation failed', err);
-                addSystemMessage('warning', 'GhostNetwork', err.message || 'Nie udało się aktywować mocy.');
+                addSystemMessage('warning', 'GhostNetwork', err.message || GhostLocale.t('map.power.failed'));
                 await refreshGhostAbilitySnapshot({ silent: true });
             } finally {
                 if (button) button.setAttribute('aria-busy', 'false');
@@ -6061,7 +6056,10 @@
             // Generuj przyciski akcji
             actions.forEach(act => {
                 const row = document.createElement('div');
-                ghostSet(row, "map.action." + act.action);
+                const playerPurpose = menuTarget.target_mode === 'player'
+                    ? {scan_ports: 'scan_player', exploit: 'exploit_player', sniff: 'sniff_player', trace: 'trace_player'}[act.action]
+                    : null;
+                ghostSet(row, "map.action." + (playerPurpose || act.action));
                 row.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -8563,13 +8561,13 @@
 
             window.pickMapGhostSystemLog = function(message, elapsedMs = 0) {
                 const text = String(message || '').toLowerCase();
-                if (text.includes('blad') || text.includes('error')) return 'GhostSystem 2108 // blad synchronizacji';
-                if (elapsedMs > 5200) return 'GhostSystem 2108 // przeciazenie sieci';
-                if (elapsedMs > 2200) return 'GhostSystem 2108 // rekonstrukcja osi czasu';
-                if (text.includes('terytor')) return 'GhostSystem 2108 // walidacja warstw terytorium';
-                if (text.includes('operac')) return 'GhostSystem 2108 // synchronizacja operacji';
-                if (text.includes('incyd')) return 'GhostSystem 2108 // indeks incydentow aktywny';
-                return 'GhostSystem 2108 // synchronizacja mapy';
+                if (text.includes('blad') || text.includes('error')) return ghostCopy('map.boot.log_error');
+                if (elapsedMs > 5200) return ghostCopy('map.boot.log_busy');
+                if (elapsedMs > 2200) return ghostCopy('map.boot.log_time');
+                if (/terytor|territor/.test(text)) return ghostCopy('map.boot.log_territory');
+                if (/operac|operat/.test(text)) return ghostCopy('map.boot.log_operations');
+                if (/incyd|incid/.test(text)) return ghostCopy('map.boot.log_incidents');
+                return ghostCopy('map.boot.log_sync');
             };
 
             window.seedMapGlitchBlocks = function(overlay) {
@@ -8590,7 +8588,7 @@
                 }
                 const overlay = document.createElement('div');
                 overlay.className = 'chaos-map-glitch-overlay';
-                overlay.dataset.log = 'GhostSystem 2108 // synchronizacja mapy';
+                overlay.dataset.log = ghostCopy('map.boot.log_sync');
                 overlay.setAttribute('aria-hidden', 'true');
                 window.seedMapGlitchBlocks(overlay);
                 container.appendChild(overlay);
@@ -8620,7 +8618,7 @@
                 status.setAttribute('aria-live', 'polite');
                 status.innerHTML = `
                     <span class="chaos-map-sync-status__body">
-                        <span class="chaos-map-sync-status__text">Synchronizacja mapy...</span>
+                        <span class="chaos-map-sync-status__text" data-ghost-i18n="map.boot.sync">Synchronizacja mapy...</span>
                         <span class="chaos-map-sync-status__log">GhostSystem 2108 // synchronizacja mapy</span>
                     </span>
                 `;
@@ -8638,10 +8636,10 @@
                 const elapsed = window.mapLoadingState.startedAt ? performance.now() - window.mapLoadingState.startedAt : 0;
                 const log = window.pickMapGhostSystemLog(message, elapsed);
                 if (window.mapLoadingState.text) {
-                    window.mapLoadingState.text.textContent = message || 'Synchronizacja mapy...';
+                    ghostSetCopy(window.mapLoadingState.text, message || ghostCopy('map.boot.sync'));
                 }
                 if (window.mapLoadingState.log) {
-                    window.mapLoadingState.log.textContent = log;
+                    ghostSetCopy(window.mapLoadingState.log, log);
                 }
                 if (overlay) {
                     const bootOverlay = document.getElementById('chaos-map-boot-overlay');
@@ -8658,7 +8656,7 @@
                 const state = window.mapLoadingState;
                 const token = `map-load-${++state.seq}`;
                 if (typeof closeTerritoryTooltips === 'function') closeTerritoryTooltips();
-                state.active.set(token, message || 'Synchronizacja mapy...');
+                state.active.set(token, message || ghostCopy('map.boot.sync'));
                 if (!state.startedAt || state.active.size === 1) {
                     state.startedAt = performance.now();
                 }
@@ -8674,13 +8672,13 @@
                 }, 280);
                 state.slowTimer = setTimeout(() => {
                     if (state.active.size > 0) {
-                        window.updateMapLoadingStatus('Siec przeciazona...');
+                        window.updateMapLoadingStatus(ghostCopy('map.boot.network_busy'));
                         window.setMapLoadingIntensity('slow');
                     }
                 }, 2000);
                 state.heavyTimer = setTimeout(() => {
                     if (state.active.size > 0) {
-                        window.updateMapLoadingStatus('GhostSystem 2108: rekonstrukcja osi czasu...');
+                        window.updateMapLoadingStatus(ghostCopy('map.boot.reconstruct'));
                         window.setMapLoadingIntensity('heavy');
                     }
                 }, 5200);
@@ -8765,7 +8763,7 @@
                         if (canRetry) {
                             const retryDelay = 900 + (attempt * 900);
                             if (!silent) {
-                                updateMapBootOverlay(`Ponawiam: ${label}`, startProgress);
+                                updateMapBootOverlay(ghostCopy('map.boot.retry',{step:String(label)}), startProgress);
                                 await waitForMapBootPaint();
                             }
                             await waitForMapBootRetry(retryDelay);
@@ -8773,7 +8771,7 @@
                         }
                         if (options.critical) {
                             state.failed = true;
-                            updateMapBootOverlay(`Blad ladowania: ${label}`, startProgress, true);
+                            updateMapBootOverlay(ghostCopy('map.boot.error',{step:String(label)}), startProgress, true);
                             throw err;
                         }
                         return false;
@@ -8798,14 +8796,14 @@
             window.bootMapOptionalScopes = function() {
                 Promise.allSettled([
                     (async function bootResponseRuntimeScopes() {
-                        await window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true });
-                        await window.bootStep('Incydenty publiczne', 'incidents', window.refreshIncidentHotspots, { total: 1, index: 0, silent: true });
-                        await window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true });
+                        await window.bootStep(ghostCopy('map.boot.active_operations'), 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true });
+                        await window.bootStep(ghostCopy('map.boot.incidents'), 'incidents', window.refreshIncidentHotspots, { total: 1, index: 0, silent: true });
+                        await window.bootStep(ghostCopy('map.boot.npc'), 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true });
                     })(),
-                    window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
-                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true }),
+                    window.bootStep(ghostCopy('map.boot.clan_vulnerabilities'), 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
+                    window.bootStep(ghostCopy('map.boot.player_actors'), 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true }),
                     (typeof window.refreshGhostAbilitySnapshot === 'function'
-                        ? window.bootStep('Moc GhostNetwork', 'ghost_ability', function() {
+                        ? window.bootStep(ghostCopy('map.boot.ghost_ability'), 'ghost_ability', function() {
                             return window.refreshGhostAbilitySnapshot({ silent: true });
                         }, { total: 1, index: 0, silent: true })
                         : Promise.resolve(false)),
@@ -8828,12 +8826,12 @@
                 await waitForMapBootPaint();
                 const criticalTotal = 8;
                 try {
-                    await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
-                    await window.bootStep('Warstwa bazowa', 'base_tiles', null, { critical: true, total: criticalTotal, index: 1 });
-                    await window.bootStep('Pozycja gracza', 'player_position', null, { critical: true, total: criticalTotal, index: 2 });
-                    await window.bootStep('Oznaczone cele', 'target_snapshot', window.refreshMapTargetSnapshot, { critical: true, total: criticalTotal, index: 3, timeoutMs: 12000 });
+                    await window.bootStep(ghostCopy('map.boot.base_map'), 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
+                    await window.bootStep(ghostCopy('map.boot.base_tiles'), 'base_tiles', null, { critical: true, total: criticalTotal, index: 1 });
+                    await window.bootStep(ghostCopy('map.boot.player_position'), 'player_position', null, { critical: true, total: criticalTotal, index: 2 });
+                    await window.bootStep(ghostCopy('map.boot.target_snapshot'), 'target_snapshot', window.refreshMapTargetSnapshot, { critical: true, total: criticalTotal, index: 3, timeoutMs: 12000 });
                     scheduleLegacyPlayerAreaCleanup();
-                    await window.bootStep('Terytoria graczy', 'player_areas', window.refreshPlayerAreas, {
+                    await window.bootStep(ghostCopy('map.boot.player_areas'), 'player_areas', window.refreshPlayerAreas, {
                         critical: true,
                         total: criticalTotal,
                         index: 4,
@@ -8842,14 +8840,14 @@
                         progressIntervalMs: 3500
                     });
                     normalizeBootLoadedScopes().add('captured_targets');
-                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 5 });
-                    await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 6 });
-                    await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 7 });
+                    await window.bootStep(ghostCopy('map.boot.captured_targets'), 'captured_targets', null, { critical: true, total: criticalTotal, index: 5 });
+                    await window.bootStep(ghostCopy('map.boot.delta_recovery'), 'delta_recovery', null, { critical: true, total: criticalTotal, index: 6 });
+                    await window.bootStep(ghostCopy('map.boot.delta_feed_ready'), 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 7 });
                     enableMapGameplay();
                     if (typeof window.applyPendingGhostNetworkSuiteFocus === 'function') {
                         window.applyPendingGhostNetworkSuiteFocus();
                     }
-                    updateMapBootOverlay('Mapa gotowa.', 100);
+                    updateMapBootOverlay(ghostCopy('map.boot.ready'), 100);
                     setTimeout(hideMapPreloader, 220);
                     window.startMapSnapshotRefreshTimers();
                     window.bootMapOptionalScopes();
@@ -8942,7 +8940,7 @@
             };
 
             window.refreshIncidentHotspots = async function() {
-                const loadingToken = window.beginMapLoading('Synchronizacja incydentow...');
+                const loadingToken = window.beginMapLoading(ghostCopy('map.boot.incidents_sync'));
                 try {
                     const snapshot = await window.fetchMapSnapshot('incidents', '/api/map/incidents', { timeoutMs: 10000 });
                     if (snapshot.skipped || snapshot.aborted) return false;
@@ -9690,7 +9688,7 @@
             };
 
             window.refreshActiveOperations = async function() {
-                const loadingToken = window.beginMapLoading('Aktualizacja operacji...');
+                const loadingToken = window.beginMapLoading(ghostCopy('map.boot.operations_sync'));
                 try {
                     const snapshot = await window.fetchMapSnapshot('active_operations', '/api/operations?summary=1', { timeoutMs: 12000 });
                     if (snapshot.skipped || snapshot.aborted) return false;
@@ -10397,7 +10395,7 @@
                 const refreshPromise = (async function() {
                     const startedAt = performance.now();
                     const actorChangeSerial = window.playerActorChangeSerial;
-                    const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
+                    const loadingToken = window.beginMapLoading(ghostCopy('map.boot.sync'));
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 45000);
                     console.info('[map actors] refresh started', {
@@ -10890,7 +10888,7 @@
                     && window.matchMedia('(max-width: 760px)').matches;
                 const criticalTimeoutMs = Number(options.timeoutMs || (isNarrowViewport ? 420000 : 300000));
                 const refreshSeq = ++window.playerAreaRefreshSeq;
-                const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
+                const loadingToken = window.beginMapLoading(ghostCopy('map.boot.sync'));
                 try {
                     const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', {
                         timeoutMs: isCritical ? criticalTimeoutMs : (isNarrowViewport ? 30000 : 20000),

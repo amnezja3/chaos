@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.7.1",
+  "content_version": "154.7.3",
   "messages": {
     "apps.operations.state.created": {
       "params": {},
@@ -2864,6 +2864,282 @@
     "apps.ofs.choice.feedback.car_hack.bus.control": {
       "params": {},
       "text": "CONTROL"
+    },
+    "apps.preload.scene.app_identity.0": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Starting {app_title}."
+    },
+    "apps.preload.scene.app_identity.1": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Preparing {app_title}."
+    },
+    "apps.preload.scene.app_identity.2": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Opening {app_title}."
+    },
+    "apps.preload.scene.local_init.0": {
+      "params": {},
+      "text": "Preparing application session."
+    },
+    "apps.preload.scene.local_init.1": {
+      "params": {},
+      "text": "Initializing local profile."
+    },
+    "apps.preload.scene.local_init.2": {
+      "params": {},
+      "text": "Preparing application environment."
+    },
+    "apps.preload.scene.interface_boot.0": {
+      "params": {},
+      "text": "Preparing application interface."
+    },
+    "apps.preload.scene.interface_boot.1": {
+      "params": {},
+      "text": "Loading application view."
+    },
+    "apps.preload.scene.interface_boot.2": {
+      "params": {},
+      "text": "Preparing controls."
+    },
+    "apps.preload.scene.author_manifest.0": {
+      "params": {
+        "description": "string"
+      },
+      "text": "Author description: {description}"
+    },
+    "apps.preload.scene.author_manifest.1": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Application profile: {app_title}"
+    },
+    "apps.preload.scene.author_manifest.2": {
+      "params": {
+        "interface": "string"
+      },
+      "text": "Interface: {interface}"
+    },
+    "apps.preload.scene.context_bind.0": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "Target: {target_label}"
+    },
+    "apps.preload.scene.context_bind.1": {
+      "params": {
+        "action_label": "string"
+      },
+      "text": "Action: {action_label}"
+    },
+    "apps.preload.scene.context_bind.2": {
+      "params": {},
+      "text": "Preparing target context."
+    },
+    "apps.preload.scene.module_boot.0": {
+      "params": {},
+      "text": "Loading application modules."
+    },
+    "apps.preload.scene.module_boot.1": {
+      "params": {},
+      "text": "Preparing tool."
+    },
+    "apps.preload.scene.module_boot.2": {
+      "params": {},
+      "text": "Loading view components."
+    },
+    "apps.preload.scene.local_validation.0": {
+      "params": {},
+      "text": "Checking startup data."
+    },
+    "apps.preload.scene.local_validation.1": {
+      "params": {},
+      "text": "Verifying application configuration."
+    },
+    "apps.preload.scene.local_validation.2": {
+      "params": {},
+      "text": "Checking local session."
+    },
+    "apps.preload.scene.runtime_prepare.0": {
+      "params": {},
+      "text": "Waiting for the application to start."
+    },
+    "apps.preload.scene.runtime_prepare.1": {
+      "params": {},
+      "text": "Preparing execution session."
+    },
+    "apps.preload.scene.runtime_prepare.2": {
+      "params": {},
+      "text": "Waiting for application data."
+    },
+    "apps.preload.scene.author_content.0": {
+      "params": {
+        "description": "string"
+      },
+      "text": "Author description: {description}"
+    },
+    "apps.preload.scene.author_content.1": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Author profile: {app_title}"
+    },
+    "apps.preload.scene.author_content.2": {
+      "params": {},
+      "text": "Preparing application content."
+    },
+    "apps.preload.scene.launcher_sync.0": {
+      "params": {},
+      "text": "Synchronizing application launch."
+    },
+    "apps.preload.scene.launcher_sync.1": {
+      "params": {},
+      "text": "Waiting for launch confirmation."
+    },
+    "apps.preload.scene.launcher_sync.2": {
+      "params": {},
+      "text": "Preserving session context."
+    },
+    "apps.preload.scene.hydration_wait.0": {
+      "params": {},
+      "text": "Waiting for application data."
+    },
+    "apps.preload.scene.hydration_wait.1": {
+      "params": {},
+      "text": "The application is still loading."
+    },
+    "apps.preload.scene.hydration_wait.2": {
+      "params": {},
+      "text": "Keeping the session open."
+    },
+    "apps.preload.scene.extended_wait.0": {
+      "params": {},
+      "text": "Startup is taking longer. The session remains active."
+    },
+    "apps.preload.scene.extended_wait.1": {
+      "params": {},
+      "text": "Still waiting for the application."
+    },
+    "apps.preload.scene.extended_wait.2": {
+      "params": {},
+      "text": "Waiting for a response."
+    },
+    "apps.preload.default.app": {
+      "params": {},
+      "text": "Application"
+    },
+    "apps.preload.default.description": {
+      "params": {},
+      "text": "The author has not provided a description."
+    },
+    "apps.preload.default.target": {
+      "params": {},
+      "text": "operation target"
+    },
+    "apps.preload.default.action": {
+      "params": {},
+      "text": "operation"
+    },
+    "apps.preload.terminal": {
+      "text": "Preparing a local terminal session.",
+      "params": {}
+    },
+    "apps.preload.steps": {
+      "text": "Loading application stages.",
+      "params": {}
+    },
+    "apps.preload.choices": {
+      "text": "Preparing the decision interface.",
+      "params": {}
+    },
+    "apps.preload.window": {
+      "text": "Preparing the application view.",
+      "params": {}
+    },
+    "apps.preload.init": {
+      "text": "Initializing local profile.",
+      "params": {}
+    },
+    "apps.preload.ready_context": {
+      "text": "Local application context is ready.",
+      "params": {}
+    },
+    "apps.preload.await_state": {
+      "text": "Waiting for confirmed launch state.",
+      "params": {}
+    },
+    "apps.preload.retain": {
+      "text": "Preserving application context.",
+      "params": {}
+    },
+    "apps.preload.launcher": {
+      "text": "Waiting for launcher state.",
+      "params": {}
+    },
+    "apps.preload.environment": {
+      "text": "Preparing the local application environment.",
+      "params": {}
+    },
+    "apps.preload.hydrating": {
+      "text": "Loading the confirmed application...",
+      "params": {}
+    },
+    "apps.preload.content": {
+      "text": "Loading application content...",
+      "params": {}
+    },
+    "apps.preload.ready": {
+      "text": "Application ready.",
+      "params": {}
+    },
+    "apps.preload.failed": {
+      "text": "Could not load the application.",
+      "params": {}
+    },
+    "apps.preload.running": {
+      "text": "Operation in progress...",
+      "params": {}
+    },
+    "apps.preload.finalizing": {
+      "text": "Finalizing result...",
+      "params": {}
+    },
+    "apps.preload.error": {
+      "text": "Operation ended with an error.",
+      "params": {}
+    },
+    "apps.preload.author": {
+      "text": "Author profile: {text}",
+      "params": {
+        "text": "string"
+      }
+    },
+    "apps.preload.target": {
+      "text": "Target: {name}",
+      "params": {
+        "name": "string"
+      }
+    },
+    "apps.preload.action": {
+      "text": "Action profile: {action}",
+      "params": {
+        "action": "string"
+      }
+    },
+    "apps.preload.init_status": {
+      "text": "Initializing local profile...",
+      "params": {}
+    },
+    "apps.preload.launch_aria": {
+      "text": "{name}. Starting application.",
+      "params": {
+        "name": "string"
+      }
     }
   }
 }

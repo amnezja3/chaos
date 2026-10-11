@@ -4,7 +4,7 @@ const {spawnSync} = require('node:child_process');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const names = [
-    'ghost_i18n', 'ghost_i18n_runtime', 'locale_frame', 'map_action_locale',
+    'ghost_i18n', 'ghost_i18n_runtime', 'locale_frame', 'map_action_locale', 'gameplay_presentation_locale',
     'map_lod_syntax', 'scan_marker_actions', 'creator_ux_contract', 'creator_picker_handoff',
     'googleplex_search_categories', 'googleplex_app_purchase_lock', 'googleplex_runtime_bridge',
     'googleplex_download_update', 'ghostnetwork_suite_app', 'ghostnetwork_suite_live',

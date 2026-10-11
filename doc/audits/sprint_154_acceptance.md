@@ -1,4 +1,37 @@
-# Sprint 154 — poprawki odbioru 154.7.1
+# Sprint 154 — poprawki odbioru 154.7.3
+
+11 X 2026. Lokalnie: **3144 klucze PL/EN / 13 domen**.
+
+154.7.3 dodaje cztery przeznaczenia PvP do AppForge, Term Creator, Window Maker
+i Button Choice. Osobne kontrakty dla graczy, kanoniczny executor ataku,
+losowana moc, obowiązkowe pliki monitoringu/śledzenia i opcjonalny raport skanu.
+Testy API obejmują publikację, zakup, instalację, picker, wykonanie i retry;
+Playwright sprawdza 32 kombinacje formularza PL/EN z izolowanym API.
+Preloadery aplikacji (cztery interfejsy i fallback) oraz mapy mają komunikaty
+PL/EN. Teksty startowe są krótsze; sceny, tempo, identyfikatory i dane autora
+pozostają bez zmian. Sześć scen Secret Path, nazwy/hasła/opisy 20 Supermocy,
+aktywacja i kwarantanna, tooltipy oraz nazwy mocy w Territory/Network Suite
+korzystają ze wspólnego katalogu. Otwarte sceny aktualizują język bez restartu
+timera, losowania sceny ani ponownego odtwarzania dźwięku.
+
+Domyślne `contextmenu` jest blokowane w dokumencie gry, mapie i dostępnych
+ramkach tego samego originu, także tworzonych dynamicznie. Zdarzenia nadal
+docierają do własnych menu; działają zaznaczanie tekstu i skróty klawiaturowe.
+WebKit otrzymuje również `-webkit-touch-callout: none`. Nie przejmujemy menu
+zewnętrznych stron o innym originie ani menu należących do interfejsu przeglądarki.
+
+Weryfikacja: **31/31 zestawów JS**, composer OFS, **54 testy Python**;
+Playwright: `preloader_locale.js` (180 wariantów), `map_presentation_locale.js`
+(zmiana języka i trwałość sceny/timera), `gameplay_context_menu.js` (sześć
+powierzchni, ramki zagnieżdżone, systemowe Zamknij). Brak błędów JS w tych
+scenariuszach. Testy używają izolowanego pulpitu i rendererów mapy.
+
+W repozytorium nie znaleziono osobnej funkcji ani etykiety „Special Path”.
+Poproszono autora o wskazanie miejsca; nie deklarujemy odbioru nieznanej ścieżki.
+Narracje operacji OFS po zakończeniu preloadera pozostają w 155.
+Poprawka lokalna, bez commita/pushu/wdrożenia; pełny PASS nadal otwarty.
+
+## Poprzednia poprawka: 154.7.1
 
 10 X 2026. Lokalna poprawka: **2940 kluczy PL/EN, 13 domen**.
 Autor potwierdził punkty 1, 4, 8 oraz zasadnicze działanie pozostałych ścieżek,

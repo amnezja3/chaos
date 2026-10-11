@@ -1,5 +1,35 @@
 # CHAOS — Project Journal
 
+## 2026-10-11 — 154.7.3: zwykłe generowane narzędzia PvP
+
+AppForge, Term Creator, Window Maker i Button Choice otrzymały cztery osobne
+przeznaczenia: Scan Player, Install Exploit Player, Monitor Traffic Player
+i Track Player Position. Kontrakty dopuszczają wyłącznie cel `player` i używają
+kanonicznych etapów ataku, bez zależności od rodzin GhostLaba. Picker i wykonanie
+zachowują ograniczenia celu, losowanej mocy, zainstalowanej wersji i opcji.
+Monitoring i śledzenie wymagają pliku; skaner może zapisać raport rozpoznania.
+Nie migrujemy przeznaczeń wcześniej opublikowanych produktów.
+
+Testy obejmują generowanie/publikację w 16 kombinacjach, zakup/instalację,
+ponowny zakup po konfiskacie, cały atak z przyznaniem dostępu, powtórzenia
+żądań oraz odrzucanie niewłaściwego celu/przeznaczenia. Playwright: 32 kombinacje
+kategorii/kreatora/języka i osiem tytułów pickera, bez błędów konsoli
+(izolowana atrapa API dla UI). Regresja: 55 testów Python i 31 zestawów JS PASS.
+Pakiet PL/EN: 3144 klucze / 13 domen. Zmiany lokalne, bez pushu i wdrożenia.
+
+## 2026-10-11 — 154.7.2: preloadery, Secret Path, Supermoce i prawy klik
+
+3135 kluczy / 13 domen. Dodano PL/EN dla preloaderów aplikacji i mapy,
+sześciu scen Secret Path oraz nazw, haseł i opisów 20 Supermocy. Język zmienia
+się bez restartowania sceny, odliczania i dźwięku. Dane autora pozostają dosłowne.
+Globalna blokada natywnego contextmenu obejmuje grę i dostępne ramki;
+propagacja zdarzeń i własne menu systemowe pozostają aktywne.
+31 zestawów JS + composer OFS, 54 testy Python oraz trzy scenariusze Playwright
+PASS (180 wariantów preloadera, sceny mapy/mocy, powierzchnie/ramki/prawy klik).
+„Special Path” nie występuje jako osobna funkcja w repo; oczekuje wskazania
+ekranu przez autora. Szczegóły i granica z 155 w macierzy odbioru 154.
+Lokalnie, bez commita/pushu/wdrożenia. 149–152 nadal zamrożone.
+
 ## 2026-10-10 — 154.7.1: poprawki po częściowym odbiorze
 
 2940 kluczy, 13 domen. Generowane nazwy zapisują język odkrywcy, a odświeżenie

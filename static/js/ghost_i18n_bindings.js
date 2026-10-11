@@ -2,8 +2,26 @@
 (function (root) {
     'use strict';
     const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const copyEntries = new WeakMap();
+    root.ghostCopy = (key, params = {}) => {
+        const value = new String(root.GhostLocale.t(key, params));
+        copyEntries.set(value, {key, params});
+        return value;
+    };
+    root.ghostSetCopy = (node, value) => {
+        const entry = copyEntries.get(value);
+        if (entry) root.ghostSet(node, entry.key, entry.params);
+        else { delete node.dataset.ghostI18n; delete node.dataset.ghostParams; node.textContent = String(value ?? ''); }
+    };
     root.ghostLabel = (key, params = {}) => `<span style="white-space:pre-wrap" data-ghost-i18n="${escape(key)}" data-ghost-params="${escape(JSON.stringify(params))}">${escape(root.GhostLocale.t(key, params))}</span>`;
     root.ghostSystemValue = (prefix, code) => root.GhostLocale.hasKey(prefix + code) ? root.ghostLabel(prefix + code) : escape(code ?? '');
+    root.ghostAbilityText = (code, field, fallback = '') => root.GhostLocale.hasKey(`map.ability.${code}.${field}`)
+        ? root.GhostLocale.t(`map.ability.${code}.${field}`) : String(fallback);
+    root.ghostAbilitySet = (node, code, field, fallback = '') => {
+        const key = `map.ability.${code}.${field}`;
+        if (root.GhostLocale.hasKey(key)) root.ghostSet(node, key);
+        else { delete node.dataset.ghostI18n; delete node.dataset.ghostParams; node.textContent = String(fallback); }
+    };
     root.ghostApplicationField = (level, field, fallback = '') => {
         const entry = level?._system_i18n?.[field];
         return entry && entry.content_version === root.GhostLocale.contentVersion && entry.key.startsWith('catalog.system.') && root.GhostLocale.hasKey(entry.key)

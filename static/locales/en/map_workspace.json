@@ -1,8 +1,24 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.7.1",
+  "content_version": "154.7.3",
   "messages": {
+    "map.power.reason.select_target_before_activation": {
+      "params": {},
+      "text": "Mark a target on the map first."
+    },
+    "map.power.reason.ability_not_enabled_for_runtime": {
+      "params": {},
+      "text": "This ability is not available for activation yet."
+    },
+    "map.power.reason.not_eligible": {
+      "params": {},
+      "text": "You do not meet the requirements to activate this ability."
+    },
+    "map.power.reason.invalid_request_key": {
+      "params": {},
+      "text": "The activation request is invalid. Please try again."
+    },
     "map.workspace.scan": {
       "params": {},
       "text": "🔎 Scan"
@@ -813,6 +829,535 @@
         "name": "string"
       },
       "text": "Linking target: {name}"
+    },
+    "map.secret.target_repaired.eyebrow": {
+      "params": {},
+      "text": "BACKDOOR // TARGET REPAIRED"
+    },
+    "map.secret.target_repaired.title": {
+      "params": {},
+      "text": "Broken lock restored"
+    },
+    "map.secret.target_repaired.copy": {
+      "params": {},
+      "text": "You repaired the damaged target channel. Desktop and terminal applications now share the same tunnel."
+    },
+    "map.secret.route_open.eyebrow": {
+      "params": {},
+      "text": "SECRET PATH // ROUTE OPEN"
+    },
+    "map.secret.route_open.title": {
+      "params": {},
+      "text": "Short route unlocked"
+    },
+    "map.secret.route_open.copy": {
+      "params": {},
+      "text": "Tool selection was skipped. The target is ready — you can launch applications directly from the terminal."
+    },
+    "map.secret.skill_verified.eyebrow": {
+      "params": {},
+      "text": "GHOST SKILL // VERIFIED"
+    },
+    "map.secret.skill_verified.title": {
+      "params": {},
+      "text": "Operator instinct"
+    },
+    "map.secret.skill_verified.copy": {
+      "params": {},
+      "text": "You found an entrance hidden in the object name. The backdoor recognizes players who read the interface."
+    },
+    "map.secret.acceleration.eyebrow": {
+      "params": {},
+      "text": "ACCELERATION // ACTIVE"
+    },
+    "map.secret.acceleration.title": {
+      "params": {},
+      "text": "Hack line accelerated"
+    },
+    "map.secret.acceleration.copy": {
+      "params": {},
+      "text": "Secret Path shortened the route to the target. Continue reconnaissance directly from any application."
+    },
+    "map.secret.lore_discovered.eyebrow": {
+      "params": {},
+      "text": "LORE NODE // DISCOVERED"
+    },
+    "map.secret.lore_discovered.title": {
+      "params": {},
+      "text": "Knowledge is leverage"
+    },
+    "map.secret.lore_discovered.copy": {
+      "params": {},
+      "text": "Hidden CHAOS paths give you an advantage over operators who use only the visible commands."
+    },
+    "map.secret.chaos_protocol_2108.eyebrow": {
+      "params": {},
+      "text": "CHAOS PROTOCOL // 2108"
+    },
+    "map.secret.chaos_protocol_2108.title": {
+      "params": {},
+      "text": "Shield. Blade. Surge."
+    },
+    "map.secret.chaos_protocol_2108.copy": {
+      "params": {},
+      "text": "The shield holds the target, the blade opens the way, and the pulse connects applications to the authoritative runtime."
+    },
+    "map.secret.route": {
+      "params": {
+        "name": "string"
+      },
+      "text": "SECRET LINK > {name} > RUNTIME READY"
+    },
+    "map.ability.insider_feed.name": {
+      "params": {},
+      "text": "Insider Feed"
+    },
+    "map.ability.insider_feed.tagline": {
+      "params": {},
+      "text": "MARKET BOOM"
+    },
+    "map.ability.insider_feed.description": {
+      "params": {},
+      "text": "Analyzes demand and detects shifts in value before they become public."
+    },
+    "map.ability.service_entrance.name": {
+      "params": {},
+      "text": "Service Entrance"
+    },
+    "map.ability.service_entrance.tagline": {
+      "params": {},
+      "text": "BACKDOOR READY"
+    },
+    "map.ability.service_entrance.description": {
+      "params": {},
+      "text": "Designs side entrances into structures without tearing down the whole facade."
+    },
+    "map.ability.false_image.name": {
+      "params": {},
+      "text": "False Image"
+    },
+    "map.ability.false_image.tagline": {
+      "params": {},
+      "text": "DO NOT TRUST YOUR EYES"
+    },
+    "map.ability.false_image.description": {
+      "params": {},
+      "text": "Builds convincing reflections and false silhouettes of infrastructure."
+    },
+    "map.ability.hostile_takeover.name": {
+      "params": {},
+      "text": "Hostile Takeover"
+    },
+    "map.ability.hostile_takeover.tagline": {
+      "params": {},
+      "text": "TRIPLE PROFIT"
+    },
+    "map.ability.hostile_takeover.description": {
+      "params": {},
+      "text": "Detects the moment when an outside resource can be taken over with minimal resistance."
+    },
+    "map.ability.operational_prediction.name": {
+      "params": {},
+      "text": "Operational Prediction"
+    },
+    "map.ability.operational_prediction.tagline": {
+      "params": {},
+      "text": "TIME CALCULATED"
+    },
+    "map.ability.operational_prediction.description": {
+      "params": {},
+      "text": "Calculates the most likely sequence of moves on the timeline."
+    },
+    "map.ability.expose.name": {
+      "params": {},
+      "text": "Exposure"
+    },
+    "map.ability.expose.tagline": {
+      "params": {},
+      "text": "WEAKNESS EXPOSED"
+    },
+    "map.ability.expose.description": {
+      "params": {},
+      "text": "Breaks the silence around hidden weaknesses and exposes them to the wider network."
+    },
+    "map.ability.narrative_takeover.name": {
+      "params": {},
+      "text": "Narrative Takeover"
+    },
+    "map.ability.narrative_takeover.tagline": {
+      "params": {},
+      "text": "RESPONSE DELAYED"
+    },
+    "map.ability.narrative_takeover.description": {
+      "params": {},
+      "text": "Reframes information so that the opponent reacts too late."
+    },
+    "map.ability.full_disclosure.name": {
+      "params": {},
+      "text": "Full Disclosure"
+    },
+    "map.ability.full_disclosure.tagline": {
+      "params": {},
+      "text": "UNFILTERED TRUTH"
+    },
+    "map.ability.full_disclosure.description": {
+      "params": {},
+      "text": "Reaches the hidden layers of a target and removes protective ambiguity."
+    },
+    "map.ability.resistance_signal.name": {
+      "params": {},
+      "text": "Resistance Beacon"
+    },
+    "map.ability.resistance_signal.tagline": {
+      "params": {},
+      "text": "WORLD WITHIN REACH"
+    },
+    "map.ability.resistance_signal.description": {
+      "params": {},
+      "text": "Amplifies the clan signal and brings scattered decisions into a shared rhythm."
+    },
+    "map.ability.domino_effect.name": {
+      "params": {},
+      "text": "Domino Effect"
+    },
+    "map.ability.domino_effect.tagline": {
+      "params": {},
+      "text": "SPARK IGNITED"
+    },
+    "map.ability.domino_effect.description": {
+      "params": {},
+      "text": "Initiates chain reactions in neighboring system segments."
+    },
+    "map.ability.phantom_node.name": {
+      "params": {},
+      "text": "Phantom Node"
+    },
+    "map.ability.phantom_node.tagline": {
+      "params": {},
+      "text": "DECOY ACTIVITY"
+    },
+    "map.ability.phantom_node.description": {
+      "params": {},
+      "text": "Creates decoy activity that draws attention away from real movement."
+    },
+    "map.ability.glitch_injection.name": {
+      "params": {},
+      "text": "Glitch Injection"
+    },
+    "map.ability.glitch_injection.tagline": {
+      "params": {},
+      "text": "SYSTEM FRACTURING"
+    },
+    "map.ability.glitch_injection.description": {
+      "params": {},
+      "text": "Disrupts the stability of territory layers and introduces a controlled fault."
+    },
+    "map.ability.false_tracking.name": {
+      "params": {},
+      "text": "False Tracking"
+    },
+    "map.ability.false_tracking.tagline": {
+      "params": {},
+      "text": "TRACES EVERYWHERE"
+    },
+    "map.ability.false_tracking.description": {
+      "params": {},
+      "text": "Feeds the system trails that look too convincing to be accidental."
+    },
+    "map.ability.network_fracture.name": {
+      "params": {},
+      "text": "Network Fracture"
+    },
+    "map.ability.network_fracture.tagline": {
+      "params": {},
+      "text": "HORIZON FRACTURING"
+    },
+    "map.ability.network_fracture.description": {
+      "params": {},
+      "text": "Breaks the continuity of control and forces the system to defend several versions at once."
+    },
+    "map.ability.reflection.name": {
+      "params": {},
+      "text": "Reflection"
+    },
+    "map.ability.reflection.tagline": {
+      "params": {},
+      "text": "SWARM REFLECTED"
+    },
+    "map.ability.reflection.description": {
+      "params": {},
+      "text": "Redirects some pressure toward the sender and reveals the cost of the attack."
+    },
+    "map.ability.integrity_scan.name": {
+      "params": {},
+      "text": "Integrity Scan"
+    },
+    "map.ability.integrity_scan.tagline": {
+      "params": {},
+      "text": "NETWORK EXAMINED"
+    },
+    "map.ability.integrity_scan.description": {
+      "params": {},
+      "text": "Detects system cracks before they become lasting damage."
+    },
+    "map.ability.bastion.name": {
+      "params": {},
+      "text": "Bastion"
+    },
+    "map.ability.bastion.tagline": {
+      "params": {},
+      "text": "WALL RAISED"
+    },
+    "map.ability.bastion.description": {
+      "params": {},
+      "text": "Raises defensive layers and reinforces the stability of the controlled area."
+    },
+    "map.ability.rollback.name": {
+      "params": {},
+      "text": "Restoration"
+    },
+    "map.ability.rollback.tagline": {
+      "params": {},
+      "text": "ACCESS RESTORED"
+    },
+    "map.ability.rollback.description": {
+      "params": {},
+      "text": "Restores lost order from the last stable system snapshot."
+    },
+    "map.ability.trust_corridor.name": {
+      "params": {},
+      "text": "Trust Corridor"
+    },
+    "map.ability.trust_corridor.tagline": {
+      "params": {},
+      "text": "PASSAGE SECURED"
+    },
+    "map.ability.trust_corridor.description": {
+      "params": {},
+      "text": "Creates a safe passage between segments that would normally distrust each other."
+    },
+    "map.ability.quarantine.name": {
+      "params": {},
+      "text": "Quarantine"
+    },
+    "map.ability.quarantine.tagline": {
+      "params": {},
+      "text": "BOUNDARY DEFINED"
+    },
+    "map.ability.quarantine.description": {
+      "params": {},
+      "text": "Isolates contaminated traffic and forces a firm decision about the system boundary."
+    },
+    "map.power.quarantine_title": {
+      "params": {},
+      "text": "ACTIVATING QUARANTINE RING"
+    },
+    "map.power.satellite_title": {
+      "params": {},
+      "text": "ACTIVATING ADDITIONAL SATELLITES"
+    },
+    "map.power.quarantine_status": {
+      "params": {
+        "scale": "string"
+      },
+      "text": "EXPANDING SURVEILLANCE AREA // {scale}"
+    },
+    "map.power.satellite_status": {
+      "params": {
+        "scale": "string"
+      },
+      "text": "EXPANDING OBSERVATION GRID // {scale}"
+    },
+    "map.power.activated": {
+      "params": {
+        "name": "string",
+        "minutes": "string"
+      },
+      "text": "{name} — effect active for {minutes} min."
+    },
+    "map.power.failed": {
+      "params": {},
+      "text": "Could not activate the ability."
+    },
+    "map.boot.sync": {
+      "text": "Synchronizing map...",
+      "params": {}
+    },
+    "map.boot.note": {
+      "text": "The map is synchronizing world state. Actions will be available when loading finishes.",
+      "params": {}
+    },
+    "map.boot.network_busy": {
+      "text": "Network overloaded...",
+      "params": {}
+    },
+    "map.boot.reconstruct": {
+      "text": "GhostSystem 2108: reconstructing timeline...",
+      "params": {}
+    },
+    "map.boot.ready": {
+      "text": "Map ready.",
+      "params": {}
+    },
+    "map.boot.incidents_sync": {
+      "text": "Synchronizing incidents...",
+      "params": {}
+    },
+    "map.boot.operations_sync": {
+      "text": "Updating operations...",
+      "params": {}
+    },
+    "map.boot.base_map": {
+      "text": "Initializing map",
+      "params": {}
+    },
+    "map.boot.base_tiles": {
+      "text": "Base layer",
+      "params": {}
+    },
+    "map.boot.player_position": {
+      "text": "Player position",
+      "params": {}
+    },
+    "map.boot.target_snapshot": {
+      "text": "Marked targets",
+      "params": {}
+    },
+    "map.boot.player_areas": {
+      "text": "Player territories",
+      "params": {}
+    },
+    "map.boot.captured_targets": {
+      "text": "Captured targets",
+      "params": {}
+    },
+    "map.boot.delta_recovery": {
+      "text": "Recovering updates",
+      "params": {}
+    },
+    "map.boot.delta_feed_ready": {
+      "text": "Map update feed",
+      "params": {}
+    },
+    "map.boot.active_operations": {
+      "text": "Active operations",
+      "params": {}
+    },
+    "map.boot.incidents": {
+      "text": "Public incidents",
+      "params": {}
+    },
+    "map.boot.npc": {
+      "text": "Response agents",
+      "params": {}
+    },
+    "map.boot.clan_vulnerabilities": {
+      "text": "Clan vulnerabilities",
+      "params": {}
+    },
+    "map.boot.player_actors": {
+      "text": "Players on the map",
+      "params": {}
+    },
+    "map.boot.ghost_ability": {
+      "text": "GhostNetwork ability",
+      "params": {}
+    },
+    "map.boot.log_error": {
+      "text": "GhostSystem 2108 // synchronization error",
+      "params": {}
+    },
+    "map.boot.log_busy": {
+      "text": "GhostSystem 2108 // network overload",
+      "params": {}
+    },
+    "map.boot.log_time": {
+      "text": "GhostSystem 2108 // reconstructing timeline",
+      "params": {}
+    },
+    "map.boot.log_territory": {
+      "text": "GhostSystem 2108 // validating territory layers",
+      "params": {}
+    },
+    "map.boot.log_operations": {
+      "text": "GhostSystem 2108 // synchronizing operations",
+      "params": {}
+    },
+    "map.boot.log_incidents": {
+      "text": "GhostSystem 2108 // incident index active",
+      "params": {}
+    },
+    "map.boot.log_sync": {
+      "text": "GhostSystem 2108 // synchronizing map",
+      "params": {}
+    },
+    "map.boot.title": {
+      "text": "Loading CHAOS map...",
+      "params": {}
+    },
+    "map.boot.init": {
+      "text": "Initializing map...",
+      "params": {}
+    },
+    "map.boot.retry": {
+      "text": "Retrying: {step}",
+      "params": {
+        "step": "string"
+      }
+    },
+    "map.boot.error": {
+      "text": "Loading failed: {step}",
+      "params": {
+        "step": "string"
+      }
+    },
+    "map.power.detail.name": {
+      "params": {},
+      "text": "Name"
+    },
+    "map.power.detail.clan": {
+      "params": {},
+      "text": "Clan"
+    },
+    "map.power.detail.code": {
+      "params": {},
+      "text": "Symbol"
+    },
+    "map.power.detail.power": {
+      "params": {},
+      "text": "Superpower"
+    },
+    "map.power.detail.machine": {
+      "params": {},
+      "text": "Machine"
+    },
+    "map.power.reason.abilities_disabled": {
+      "params": {},
+      "text": "Superpowers are currently disabled."
+    },
+    "map.power.reason.cooldown": {
+      "params": {},
+      "text": "The superpower is not ready to use again."
+    },
+    "map.power.reason.no_active_part": {
+      "params": {},
+      "text": "No active GhostNetwork part."
+    },
+    "map.power.reason.not_logged_in": {
+      "params": {},
+      "text": "Please sign in again."
+    },
+    "map.power.reason.projection_unavailable": {
+      "params": {},
+      "text": "Player state is unavailable. Please try again."
+    },
+    "map.power.reason.projection_recovery_required": {
+      "params": {},
+      "text": "Player state requires recovery."
+    },
+    "map.power.reason.client_parameters_forbidden": {
+      "params": {},
+      "text": "Invalid activation parameters."
     }
   }
 }

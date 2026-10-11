@@ -5,10 +5,10 @@ from pathlib import Path
 class GhostAbilityPresentationContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = Path("templates/map_template.html").read_text(encoding="utf-8")
-        cls.terminal_source = Path("static/js/terminal.js").read_text(encoding="utf-8")
-        cls.css_source = Path("static/css/style.css").read_text(encoding="utf-8")
-        cls.map_runtime_source = Path("static/js/map/ghostnetwork.js").read_text(encoding="utf-8")
+        cls.source = (Path(__file__).resolve().parents[1] / "templates/map_template.html").read_text(encoding="utf-8")
+        cls.terminal_source = (Path(__file__).resolve().parents[1] / "static/js/terminal.js").read_text(encoding="utf-8")
+        cls.css_source = (Path(__file__).resolve().parents[1] / "static/css/style.css").read_text(encoding="utf-8")
+        cls.map_runtime_source = (Path(__file__).resolve().parents[1] / "static/js/map/ghostnetwork.js").read_text(encoding="utf-8")
 
     def test_map_uses_server_snapshot_and_not_client_realizer_parameters(self):
         self.assertIn("fetch('/api/ghostnetwork/ability'", self.source)
@@ -97,7 +97,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "active-operation-card--accelerated",
             "active-operation-card__boost",
             "INSIDER FEED",
-            "WYNIK PRZEWIDZIANY",
+            "map.workspace.predicted",
             "operational_prediction",
         ):
             self.assertIn(token, self.source)
@@ -114,22 +114,22 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
 
     def test_false_image_risk_label_is_unambiguous(self):
         self.assertIn("operation.risk_masked === true", self.source)
-        self.assertIn("MASKOWANE · HEAT", self.source)
-        self.assertIn("FAŁSZYWY OBRAZ", self.source)
+        self.assertIn("map.workspace.masked", self.source)
+        self.assertIn("map.workspace.false_view", self.source)
 
     def test_narrative_takeover_reuses_risk_ui_with_distinct_copy(self):
         for token in (
             "narrative_takeover",
-            "REAKCJA OPÓŹNIONA",
-            "NARRACJA PRZEJĘTA",
+            "map.workspace.delayed",
+            "map.workspace.narrative",
         ):
             self.assertIn(token, self.source)
 
     def test_phantom_node_reuses_risk_ui_with_distinct_copy(self):
         for token in (
             "phantom_node",
-            "RUCH POZORNY",
-            "WĘZEŁ WIDMO",
+            "map.workspace.decoy",
+            "map.workspace.phantom",
             "active-operation-card--risk-phantom",
             "rgba(0, 207, 166",
         ):
@@ -139,16 +139,16 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         for token in (
             "quarantine",
             "JUDGMENT CORE // CONTAINMENT GRID",
-            "AKTYWACJA PIERŚCIENIA KWARANTANNY",
-            "ROZSZERZANIE STREFY NADZORU",
+            "map.power.quarantine_title",
+            "map.power.quarantine_status",
         ):
             self.assertIn(token, self.source)
 
     def test_trust_corridor_reuses_risk_ui_with_sentinel_copy(self):
         for token in (
             "trust_corridor",
-            "KORYTARZ BEZPIECZNY",
-            "KORYTARZ ZAUFANIA",
+            "map.workspace.safe",
+            "map.workspace.corridor",
             "active-operation-card--risk-sentinel",
             "rgba(255, 209, 82",
         ):
@@ -158,7 +158,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         for token in (
             "operation.yield_boosted === true",
             "active-operation-card--yield-boosted",
-            "REPLIKACJA ×3",
+            "map.workspace.replicated",
             "ghost-file-yield-pulse",
         ):
             self.assertIn(token, self.source)
@@ -167,7 +167,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
         for token in (
             "operation.quality_boosted === true",
             "active-operation-card--quality-boosted",
-            "PEŁNE UJAWNIENIE",
+            "map.workspace.revealed",
         ):
             self.assertIn(token, self.source)
 
@@ -206,7 +206,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             "function formatGhostAbilityRange",
             "snapshot.player.effective_scan_range_m",
             "presentation.impact_ui === 'scan_range'",
-            "ZASIĘG ${formatGhostAbilityRange(scanRange)}",
+            "map.power.range",
         ):
             self.assertIn(token, self.source)
         for token in (
@@ -241,7 +241,7 @@ class GhostAbilityPresentationContractTest(unittest.TestCase):
             self.assertIn(token, self.terminal_source)
         self.assertIn('content: "EFEKT DOMINA"', self.css_source)
         for template in ("index.html", "linux.html", "linux_old.html"):
-            source = (Path("templates") / template).read_text(encoding="utf-8")
+            source = ((Path(__file__).resolve().parents[1] / "templates") / template).read_text(encoding="utf-8")
             self.assertIn("ghost-ability-impact-6", source)
 
     def test_glitch_injection_reuses_security_ui_with_distinct_copy(self):

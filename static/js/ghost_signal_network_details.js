@@ -33,12 +33,19 @@
         const header = document.createElement('p');
         header.className = 'network-tooltip-title'; header.textContent = '> GN / NODE INSPECT'; tip.appendChild(header);
         const list = document.createElement('dl');
-        [['Nazwa',info.name],['Klan',info.clan],['Symbol',info.code],['Supermoc',info.power],['Maszyna',info.machine]].forEach(pair => {
+        [['name','Nazwa',info.name],['clan','Klan',info.clan],['code','Symbol',info.code],['power','Supermoc',info.power],['machine','Maszyna',info.machine]].forEach(pair => {
             const label = document.createElement('dt'), value = document.createElement('dd');
-            label.textContent = pair[0]; value.textContent = pair[1]; list.appendChild(label); list.appendChild(value);
+            if (window.ghostSet) window.ghostSet(label, 'map.power.detail.' + pair[0]);
+            else label.textContent = pair[1];
+            if (pair[0] === 'power' && window.ghostAbilitySet) window.ghostAbilitySet(value, info.ability_code, 'name', pair[2]);
+            else value.textContent = pair[2];
+            list.appendChild(label); list.appendChild(value);
         });
         tip.appendChild(list);
-        const description = document.createElement('p'); description.textContent = info.description; tip.appendChild(description);
+        const description = document.createElement('p');
+        if (window.ghostAbilitySet) window.ghostAbilitySet(description, info.ability_code, 'description', info.description);
+        else description.textContent = info.description;
+        tip.appendChild(description);
         tip.hidden = false; part.setAttribute('aria-describedby', tip.id); position();
     }
     (options.parts || []).forEach(part => {

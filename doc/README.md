@@ -5,11 +5,15 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
-- **154.7.1 — lokalne poprawki po częściowym odbiorze:** 2940 kluczy / 13 domen;
+- **154.7.3 — lokalne poprawki po częściowym odbiorze:** 3144 klucze / 13 domen;
+  cztery przeznaczenia PvP w zwykłych kreatorach, publikacja/zakup/instalacja
+  i pełna ścieżka ataku na gracza poza GhostLabem;
+  preloadery i Secret Path PL/EN, 20 Supermocy, blokowanie natywnego prawego
+  kliku przy zachowaniu własnych menu gry. Zawiera również poprzednie poprawki:
   nazwy generowanych obiektów w języku odkrywcy, opisy nowych projektów,
   klastry, BlackNet, etykiety PvP i kontrolki OFS.
   [Aktualny zakres i ograniczenia](audits/sprint_154_acceptance.md).
-  Pełny PASS otwarty; narracyjne sceny OFS nadal w 155.
+  Pełny PASS otwarty; narracyjne sceny operacji OFS nadal w 155.
 
 - [Wydanie przyrostowe 154.5.0](runbooks/deploy_154_5.md): kreatory, picker,
   menu mapy i zabezpieczenia PL/EN. 718 kluczy, 78 testów Python i dziewięć

@@ -51,6 +51,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             body = target.read_bytes()
             content_type = mimetypes.guess_type(str(target))[0] or 'application/octet-stream'
+        elif path == '/map-presentation-locale.js':
+            source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
+            powers = source[source.index('const secretPathLoreScenes ='):source.index('function isForeignTerritoryProtectedResponse(')]
+            boot = source[source.index('function mapBootOverlay('):source.index('function disableMapGameplay(')]
+            body = (powers + '\n' + boot).encode()
+            content_type = 'application/javascript; charset=utf-8'
         elif path == '/map-menu-locale.js':
             source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
             start = source.index('function showHackingMenuForMarker(')

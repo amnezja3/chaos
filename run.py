@@ -17275,13 +17275,13 @@ def get_apps_for_map_action(apps, map_action_id, allow_legacy_fallback=True):
 
 def get_apps_for_target_action(apps, action, target):
     """Use creator runtime restrictions before offering or accepting a tool."""
-    from creator_policy import supports_target_type
+    from creator_policy import supports_target_type, supports_action
     target_type = infer_target_type_from_target(target)
     eligible = []
     for app in apps:
         if app.get('creator_contract_version'):
             contract = app.get('creator_contract') or {}
-            if contract.get('action') != action or not supports_target_type(contract, target_type):
+            if not supports_action(contract, action) or not supports_target_type(contract, target_type):
                 continue
         eligible.append(app)
     matched, source = get_apps_for_map_action(eligible, action)
@@ -32064,7 +32064,7 @@ def _gonna_win_runtime():
     if player_flow:
         payload.pop("hacked", None)
     creator_contract = app.get('creator_contract') or {}
-    if success and app.get('creator_contract_version') and creator_contract.get('action') == 'scan_ports' and creator_contract.get('creates_file'):
+    if success and app.get('creator_contract_version') and creator_contract.get('action') in {'scan_ports', 'scan_player'} and creator_contract.get('creates_file'):
         report_key = hashlib.sha256(json.dumps([session['user'], app_id, app.get('version'),
             launch_receipt or build_operation_target_id(aimed)], ensure_ascii=False).encode()).hexdigest()[:32]
         report = normalize_runtime_file_entry(dict(id='creator_recon_' + report_key,

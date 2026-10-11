@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.7.1",
+  "content_version": "154.7.3",
   "messages": {
     "apps.operations.state.created": {
       "params": {},
@@ -2864,6 +2864,282 @@
     "apps.ofs.choice.feedback.car_hack.bus.control": {
       "params": {},
       "text": "STEROWANIE"
+    },
+    "apps.preload.scene.app_identity.0": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Uruchamianie {app_title}."
+    },
+    "apps.preload.scene.app_identity.1": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Przygotowanie {app_title}."
+    },
+    "apps.preload.scene.app_identity.2": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Otwieranie {app_title}."
+    },
+    "apps.preload.scene.local_init.0": {
+      "params": {},
+      "text": "Przygotowanie sesji aplikacji."
+    },
+    "apps.preload.scene.local_init.1": {
+      "params": {},
+      "text": "Inicjalizacja lokalnego profilu."
+    },
+    "apps.preload.scene.local_init.2": {
+      "params": {},
+      "text": "Przygotowanie środowiska aplikacji."
+    },
+    "apps.preload.scene.interface_boot.0": {
+      "params": {},
+      "text": "Przygotowanie interfejsu aplikacji."
+    },
+    "apps.preload.scene.interface_boot.1": {
+      "params": {},
+      "text": "Ładowanie widoku aplikacji."
+    },
+    "apps.preload.scene.interface_boot.2": {
+      "params": {},
+      "text": "Przygotowanie kontrolek."
+    },
+    "apps.preload.scene.author_manifest.0": {
+      "params": {
+        "description": "string"
+      },
+      "text": "Opis autora: {description}"
+    },
+    "apps.preload.scene.author_manifest.1": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Profil aplikacji: {app_title}"
+    },
+    "apps.preload.scene.author_manifest.2": {
+      "params": {
+        "interface": "string"
+      },
+      "text": "Interfejs: {interface}"
+    },
+    "apps.preload.scene.context_bind.0": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "Cel: {target_label}"
+    },
+    "apps.preload.scene.context_bind.1": {
+      "params": {
+        "action_label": "string"
+      },
+      "text": "Akcja: {action_label}"
+    },
+    "apps.preload.scene.context_bind.2": {
+      "params": {},
+      "text": "Przygotowanie kontekstu celu."
+    },
+    "apps.preload.scene.module_boot.0": {
+      "params": {},
+      "text": "Ładowanie modułów aplikacji."
+    },
+    "apps.preload.scene.module_boot.1": {
+      "params": {},
+      "text": "Przygotowanie narzędzia."
+    },
+    "apps.preload.scene.module_boot.2": {
+      "params": {},
+      "text": "Ładowanie komponentów widoku."
+    },
+    "apps.preload.scene.local_validation.0": {
+      "params": {},
+      "text": "Sprawdzanie danych startowych."
+    },
+    "apps.preload.scene.local_validation.1": {
+      "params": {},
+      "text": "Weryfikacja konfiguracji aplikacji."
+    },
+    "apps.preload.scene.local_validation.2": {
+      "params": {},
+      "text": "Sprawdzanie lokalnej sesji."
+    },
+    "apps.preload.scene.runtime_prepare.0": {
+      "params": {},
+      "text": "Oczekiwanie na uruchomienie aplikacji."
+    },
+    "apps.preload.scene.runtime_prepare.1": {
+      "params": {},
+      "text": "Przygotowanie sesji wykonawczej."
+    },
+    "apps.preload.scene.runtime_prepare.2": {
+      "params": {},
+      "text": "Oczekiwanie na dane aplikacji."
+    },
+    "apps.preload.scene.author_content.0": {
+      "params": {
+        "description": "string"
+      },
+      "text": "Opis autora: {description}"
+    },
+    "apps.preload.scene.author_content.1": {
+      "params": {
+        "app_title": "string"
+      },
+      "text": "Profil autora: {app_title}"
+    },
+    "apps.preload.scene.author_content.2": {
+      "params": {},
+      "text": "Przygotowanie treści aplikacji."
+    },
+    "apps.preload.scene.launcher_sync.0": {
+      "params": {},
+      "text": "Synchronizacja uruchomienia aplikacji."
+    },
+    "apps.preload.scene.launcher_sync.1": {
+      "params": {},
+      "text": "Oczekiwanie na potwierdzenie uruchomienia."
+    },
+    "apps.preload.scene.launcher_sync.2": {
+      "params": {},
+      "text": "Zachowywanie kontekstu sesji."
+    },
+    "apps.preload.scene.hydration_wait.0": {
+      "params": {},
+      "text": "Oczekiwanie na dane aplikacji."
+    },
+    "apps.preload.scene.hydration_wait.1": {
+      "params": {},
+      "text": "Aplikacja nadal się ładuje."
+    },
+    "apps.preload.scene.hydration_wait.2": {
+      "params": {},
+      "text": "Utrzymywanie otwartej sesji."
+    },
+    "apps.preload.scene.extended_wait.0": {
+      "params": {},
+      "text": "Uruchomienie trwa dłużej. Sesja pozostaje aktywna."
+    },
+    "apps.preload.scene.extended_wait.1": {
+      "params": {},
+      "text": "Nadal oczekujemy na aplikację."
+    },
+    "apps.preload.scene.extended_wait.2": {
+      "params": {},
+      "text": "Oczekiwanie na odpowiedź."
+    },
+    "apps.preload.default.app": {
+      "params": {},
+      "text": "Aplikacja"
+    },
+    "apps.preload.default.description": {
+      "params": {},
+      "text": "Autor nie udostępnił opisu."
+    },
+    "apps.preload.default.target": {
+      "params": {},
+      "text": "cel operacji"
+    },
+    "apps.preload.default.action": {
+      "params": {},
+      "text": "operacja"
+    },
+    "apps.preload.terminal": {
+      "text": "Przygotowanie lokalnej sesji terminalowej.",
+      "params": {}
+    },
+    "apps.preload.steps": {
+      "text": "Ladowanie etapow aplikacji.",
+      "params": {}
+    },
+    "apps.preload.choices": {
+      "text": "Przygotowanie interfejsu decyzji.",
+      "params": {}
+    },
+    "apps.preload.window": {
+      "text": "Przygotowanie widoku aplikacji.",
+      "params": {}
+    },
+    "apps.preload.init": {
+      "text": "Inicjalizacja lokalnego profilu.",
+      "params": {}
+    },
+    "apps.preload.ready_context": {
+      "text": "Lokalny kontekst aplikacji jest gotowy.",
+      "params": {}
+    },
+    "apps.preload.await_state": {
+      "text": "Oczekiwanie na autorytatywny stan uruchomienia.",
+      "params": {}
+    },
+    "apps.preload.retain": {
+      "text": "Utrzymanie kontekstu aplikacji.",
+      "params": {}
+    },
+    "apps.preload.launcher": {
+      "text": "Oczekiwanie na stan launchera.",
+      "params": {}
+    },
+    "apps.preload.environment": {
+      "text": "Przygotowanie lokalnego srodowiska aplikacji.",
+      "params": {}
+    },
+    "apps.preload.hydrating": {
+      "text": "Ladowanie autorytatywnej aplikacji...",
+      "params": {}
+    },
+    "apps.preload.content": {
+      "text": "Ladowanie zawartosci aplikacji...",
+      "params": {}
+    },
+    "apps.preload.ready": {
+      "text": "Aplikacja gotowa.",
+      "params": {}
+    },
+    "apps.preload.failed": {
+      "text": "Nie udalo sie zaladowac aplikacji.",
+      "params": {}
+    },
+    "apps.preload.running": {
+      "text": "Operacja w toku...",
+      "params": {}
+    },
+    "apps.preload.finalizing": {
+      "text": "Finalizacja wyniku...",
+      "params": {}
+    },
+    "apps.preload.error": {
+      "text": "Operacja zakonczona bledem.",
+      "params": {}
+    },
+    "apps.preload.author": {
+      "text": "Profil autora: {text}",
+      "params": {
+        "text": "string"
+      }
+    },
+    "apps.preload.target": {
+      "text": "Cel: {name}",
+      "params": {
+        "name": "string"
+      }
+    },
+    "apps.preload.action": {
+      "text": "Profil działania: {action}",
+      "params": {
+        "action": "string"
+      }
+    },
+    "apps.preload.init_status": {
+      "text": "Inicjalizacja lokalnego profilu...",
+      "params": {}
+    },
+    "apps.preload.launch_aria": {
+      "text": "{name}. Uruchamianie aplikacji.",
+      "params": {
+        "name": "string"
+      }
     }
   }
 }

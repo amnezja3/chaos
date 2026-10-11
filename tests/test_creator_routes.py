@@ -67,8 +67,27 @@ class CreatorRoutesTest(unittest.TestCase):
                              else level['options'][0]['label'] if index == 2 else level['result_success'])
                     self.assertEqual(value, expected[index])
 
+    def test_player_purposes_generate_and_publish_in_every_creator(self):
+        from creator_policy import PLAYER_ACTIONS, INTERFACES
+        data = self.prepare()
+        for purpose, step in PLAYER_ACTIONS.items():
+            for interface in INTERFACES:
+                key = purpose + interface
+                response = self.client.post('/api/creators/projects', json=dict(data,
+                    name=key, action=purpose, interface=interface, request_id=key))
+                self.assertEqual(response.status_code, 200, response.json)
+                project = response.json['project']
+                published = self.client.post('/api/creators/projects/' + project['id'] + '/publish',
+                                             json={'revision': 1})
+                self.assertEqual(published.status_code, 200, published.json)
+                product = published.json['app']
+                self.assertEqual(product['map_actions'], [step])
+                self.assertEqual(product['target_types'], ['player'])
+                self.assertEqual(product['creator_contract'], project['contract'])
+                self.assertFalse(product.get('ghostlab_generated'))
+
     def test_all_creator_actions_have_same_picker_and_runtime_target_rules(self):
-        from creator_policy import RECIPES, supports_target_type
+        from creator_policy import RECIPES, PLAYER_ACTIONS, supports_target_type
         from response_network.camera_contract import eligible_app
         world = {'poi', 'server', 'router', 'pillar', 'venue'}
         expected = {
@@ -87,7 +106,9 @@ class CreatorRoutesTest(unittest.TestCase):
             for target_type in world | {'vehicle', 'person', 'phone', 'camera', 'atm', 'player'}:
                 with self.subTest(action=action, target_type=target_type):
                     matched, _ = run.get_apps_for_target_action(products, action, {'source_type': target_type})
-                    self.assertEqual([p['id'] for p in matched], [action] if target_type in types else [])
+                    wanted = ([purpose for purpose, step in PLAYER_ACTIONS.items() if step == action]
+                              if target_type == 'player' else [action] if target_type in types else [])
+                    self.assertEqual([p['id'] for p in matched], wanted)
                     product = next(p for p in products if p['id'] == action)
                     self.assertEqual(supports_target_type(product['creator_contract'], target_type), target_type in types)
         self.assertEqual([p['id'] for p in products if eligible_app(p)], ['camera_shutdown'])

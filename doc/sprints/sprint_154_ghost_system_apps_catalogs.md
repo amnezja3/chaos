@@ -1,7 +1,12 @@
 # Sprint 154 — Ghost System: aplikacje, narzędzia i katalogi PL/EN
 
-Status: **POPRAWKI PO CZĘŚCIOWYM ODBIORZE — 154.7.1**, 10 X 2026.
-2940 kluczy / 13 domen. Poprawka lokalna; pełny PASS pozostaje otwarty.
+Status: **POPRAWKI PO CZĘŚCIOWYM ODBIORZE — 154.7.3**, 11 X 2026.
+3144 klucze / 13 domen. Poprawka lokalna; pełny PASS pozostaje otwarty.
+Dodano cztery przeznaczenia PvP do zwykłych kreatorów: skan gracza, exploit,
+monitoring ruchu i śledzenie pozycji, wraz z pickerem i ścieżką wykonania.
+Preloadery, Secret Path i 20 Supermocy PL/EN; blokada menu przeglądarki
+przy zachowaniu własnych menu gry. 31 zestawów JS, 54 testy Python i Playwright PASS.
+Osobne „Special Path” oczekuje identyfikacji ekranu przez autora.
 Nazwy odkrytych obiektów, opisy nowych projektów, klastry, CTA BlackNetu,
 etykiety PvP i kontrolki OFS: szczegóły w macierzy odbioru.
 Biblioteki narracyjnych scen OFS pozostają zakresem 155. Po produkcyjnym PASS

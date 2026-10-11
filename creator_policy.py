@@ -87,8 +87,20 @@ RECIPES = {
 }
 
 
+# Purpose is separate from the four canonical steps of a player attack. Keep
+# those steps unchanged so receipts, cooldowns and capture use one executor.
+PLAYER_ACTIONS = {
+    'scan_player': 'scan_ports',
+    'exploit_player': 'exploit',
+    'sniff_player': 'sniff',
+    'trace_player': 'trace',
+}
+for _purpose, _step in PLAYER_ACTIONS.items():
+    RECIPES[_purpose] = copy.deepcopy(RECIPES[_step])
+    RECIPES[_purpose].update(action=_purpose, target_types=['player'])
+
 FILE_REQUIRED_ACTIONS = frozenset({'trace', 'trace_gps', 'trace_device', 'scan_hotspots',
-    'install_sniffer', 'sniff', 'mic_sniff', 'atm_logs'})
+    'install_sniffer', 'sniff', 'mic_sniff', 'atm_logs', 'sniff_player', 'trace_player'})
 for _action, _recipe in RECIPES.items():
     _recipe['requires_file'] = _action in FILE_REQUIRED_ACTIONS
 
@@ -105,6 +117,12 @@ def supports_target_type(contract, target_type):
         if target_type == 'atm' and contract.get('action') == 'install_sniffer':
             return True
     return False
+
+
+def supports_action(contract, action):
+    """Match an immutable purpose to the canonical launcher action."""
+    purpose = contract.get('action')
+    return PLAYER_ACTIONS.get(purpose, purpose) == action
 
 
 def fileless_data_operation(app):
@@ -175,7 +193,7 @@ def security_effect(contract, security):
     """Deterministic target-relative influence; rendering/retries cannot reroll it."""
     if contract.get('effect'):
         return parse_effect(contract['effect'])
-    if contract['action'] != 'exploit':
+    if contract['action'] not in {'exploit', 'exploit_player'}:
         return {}
     keys = [key for key in contract['security_keys'] if type(security.get(key)) is bool]
     # A partial tool never silently gets 100% due to rounding on a small target.

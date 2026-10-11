@@ -2081,7 +2081,10 @@ function updateProvisionalApplicationSession(session, state, message = "") {
     if (!appWindow || !appWindow.isConnected) return;
     appWindow.dataset.provisionalState = state;
     const status = appWindow.querySelector(".provisional-app-status");
-    if (status) status.textContent = message || state;
+    if (status) {
+        if (window.OperationFeedbackSystem?.setSystemText) window.OperationFeedbackSystem.setSystemText(status, message || state);
+        else status.textContent = String(message || state);
+    }
 }
 
 function setApplicationPresentationPhase(session, phase, details = {}) {
@@ -2111,6 +2114,11 @@ function setApplicationPresentationPhase(session, phase, details = {}) {
     return true;
 }
 
+function preloadText(key, params = {}) {
+    const text = ghostText(key, params);
+    return window.OperationFeedbackSystem?.systemText?.(key, text, params) || text;
+}
+
 function buildPreExecutionScenes(appData = {}, pending = {}, projectedContent = null) {
     const appName = String(appData.name || appData.id || "Aplikacja").trim();
     const interfaceType = String(appData.interface || "window").trim().toLowerCase();
@@ -2120,25 +2128,25 @@ function buildPreExecutionScenes(appData = {}, pending = {}, projectedContent = 
         projectedContent?.legacy?.transition?.[0] || appData.description || ""
     ).trim();
     const interfaceLines = {
-        terminal: "Przygotowanie lokalnej sesji terminalowej.",
-        progressbar_random: "Ladowanie etapow aplikacji.",
-        button_choices: "Przygotowanie interfejsu decyzji.",
-        window: "Przygotowanie widoku aplikacji."
+        terminal: preloadText('apps.preload.terminal'),
+        progressbar_random: preloadText('apps.preload.steps'),
+        button_choices: preloadText('apps.preload.choices'),
+        window: preloadText('apps.preload.window')
     };
     const scenes = [
-        { phase: "launching", family: "app_identity", lines: [appName, authorDescription ? `Profil autora: ${authorDescription}` : ""].filter(Boolean) },
-        { phase: "booting", family: "local_init", lines: ["Inicjalizacja lokalnego profilu.", interfaceLines[interfaceType] || interfaceLines.window] }
+        { phase: "launching", family: "app_identity", lines: [appName, authorDescription ? preloadText('apps.preload.author', {text:authorDescription}) : ""].filter(Boolean) },
+        { phase: "booting", family: "local_init", lines: [preloadText('apps.preload.init'), interfaceLines[interfaceType] || interfaceLines.window] }
     ];
     if (targetLabel || action) {
         scenes.push({
             phase: "booting",
             family: "context_bind",
-            lines: [targetLabel ? `Cel: ${targetLabel}` : "", action ? `Profil dzialania: ${action}` : ""].filter(Boolean)
+            lines: [targetLabel ? preloadText('apps.preload.target', {name:targetLabel}) : "", action ? preloadText('apps.preload.action', {action}) : ""].filter(Boolean)
         });
     }
     scenes.push(
-        { phase: "booting", family: "runtime_prepare", lines: ["Lokalny kontekst aplikacji jest gotowy.", "Oczekiwanie na autorytatywny stan uruchomienia."] },
-        { phase: "booting", family: "hydration_wait", lines: ["Utrzymanie kontekstu aplikacji.", "Oczekiwanie na stan launchera."] }
+        { phase: "booting", family: "runtime_prepare", lines: [preloadText('apps.preload.ready_context'), preloadText('apps.preload.await_state')] },
+        { phase: "booting", family: "hydration_wait", lines: [preloadText('apps.preload.retain'), preloadText('apps.preload.launcher')] }
     );
     return scenes;
 }
@@ -2211,7 +2219,7 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
             viewport.replaceChildren(...scene.lines.map(line => {
                 const node = document.createElement("div");
                 node.className = "provisional-app-scene-line";
-                node.textContent = line;
+                if (window.OperationFeedbackSystem?.setSystemText) window.OperationFeedbackSystem.setSystemText(node, line); else node.textContent = String(line);
                 return node;
             }));
         }
@@ -2353,7 +2361,7 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
         ? window.OperationFeedbackSystem.projectApplicationContent(appData)
         : null;
     const safeDescription = projectedContent?.legacy?.transition?.[0]
-        || "Przygotowanie lokalnego srodowiska aplikacji.";
+        || preloadText('apps.preload.environment');
     const position = findAvailablePosition(460, 280);
     const appWindow = document.createElement("div");
     const provisionalTemplate = normalizeOFSApplicationTemplate(appData.interface);
@@ -2386,13 +2394,13 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
                 <span class="provisional-app-icon">${escapeHTML(appData.icon || "\u{1F6E0}\uFE0F")}</span>
                 <div>
                     <strong>${escapeHTML(appName)}</strong>
-                    <span>${escapeHTML(safeDescription)}</span>
+                    <span>${projectedContent?.legacy?.transition?.[0] ? escapeHTML(safeDescription) : ghostLabel('apps.preload.environment')}</span>
                 </div>
             </div>
             <div class="provisional-app-activity" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="provisional-app-status" role="status">Inicjalizacja lokalnego profilu...</div>
+            <div class="provisional-app-status" role="status">${ghostLabel("apps.preload.init_status")}</div>
             <div class="provisional-app-scenes" aria-live="polite"></div>
-            ${pending.label ? `<div class="provisional-app-target">Cel: ${escapeHTML(pending.label)}</div>` : ""}
+            ${pending.label ? `<div class="provisional-app-target">${ghostLabel("apps.preload.target", {name:pending.label})}</div>` : ""}
         </div>
     `;
 
@@ -2485,7 +2493,7 @@ function consumeProvisionalHydrationWindow(id, type) {
         mode: "ofs_provisional",
         elapsed_ms: Math.max(0, Math.round(performance.now() - session.createdAt))
     });
-    updateProvisionalApplicationSession(session, "hydrating", "Ladowanie autorytatywnej aplikacji...");
+    updateProvisionalApplicationSession(session, "hydrating", preloadText('apps.preload.hydrating'));
     app.className = "app-window";
     delete app.dataset.ofsWaitBand;
     app.style.removeProperty("width");
@@ -2633,7 +2641,7 @@ function prepareProvisionalApplicationTitle(app) {
     titleScene.className = "ofs-title-sequence ofs-provisional-title-sequence";
     titleScene.dataset.titleClass = model.name_metrics?.name_class || "multi-word";
     titleScene.dataset.titleMotion = model.title_sequence?.motion || "icon-lock";
-    titleScene.setAttribute("aria-label", `${model.name}. Uruchamianie aplikacji.`);
+    titleScene.dataset.ghostAriaLabel = "apps.preload.launch_aria"; titleScene.dataset.ghostParams = JSON.stringify({name:model.name}); titleScene.setAttribute("aria-label", ghostText("apps.preload.launch_aria", {name:model.name}));
     titleScene.appendChild(createApplicationBrandMark(model, "author_logo_header"));
     if ((model.author_logo_header?.mode || "") === "icon_only") {
         const fullTitle = document.createElement("strong");
@@ -2667,7 +2675,7 @@ function prepareApplicationBrandShell(app) {
     titleScene.className = "ofs-title-sequence";
     titleScene.dataset.titleClass = model.name_metrics?.name_class || "multi-word";
     titleScene.dataset.titleMotion = model.title_sequence?.motion || "icon-lock";
-    titleScene.setAttribute("aria-label", `${model.name}. Uruchamianie aplikacji.`);
+    titleScene.dataset.ghostAriaLabel = "apps.preload.launch_aria"; titleScene.dataset.ghostParams = JSON.stringify({name:model.name}); titleScene.setAttribute("aria-label", ghostText("apps.preload.launch_aria", {name:model.name}));
     titleScene.appendChild(createApplicationBrandMark(model, "author_logo_header"));
     if ((model.author_logo_header?.mode || "") === "icon_only") {
         const fullTitle = document.createElement("strong");
@@ -2741,14 +2749,14 @@ function finishApplicationRenderWindow(app, hydrated) {
     app.dataset.ofsPhase = "author_intro";
     const session = app._provisionalApplicationSession;
     if (session && !session.disposed) {
-        updateProvisionalApplicationSession(session, "presenting", "Ladowanie zawartosci aplikacji...");
+        updateProvisionalApplicationSession(session, "presenting", preloadText('apps.preload.content'));
         setApplicationPresentationPhase(session, "author_intro");
         appFlowTrace(session.flowId, "feedback_author_scene_started", {
             app_id: session.appId,
             action: session.action,
             mode: "ofs_provisional"
         });
-        updateProvisionalApplicationSession(session, "interactive", "Aplikacja gotowa.");
+        updateProvisionalApplicationSession(session, "interactive", preloadText('apps.preload.ready'));
     }
     startApplicationTitleSequence(app);
     if (app.dataset.ofsTitleActive !== "true") app._ofsAuthorVisibleAt = performance.now();
@@ -2768,7 +2776,7 @@ function hydrateProvisionalApplicationSession(session, appData, item = {}) {
         return "hydrated";
     } catch (error) {
         activeProvisionalHydrationSession = null;
-        updateProvisionalApplicationSession(session, "failed", "Nie udalo sie zaladowac aplikacji.");
+        updateProvisionalApplicationSession(session, "failed", preloadText('apps.preload.failed'));
         console.error("[app launch] Hydration failed", error);
         return "failed";
     }
@@ -4437,7 +4445,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true, re
     if (appWindow?.dataset) appWindow.dataset.ofsPhase = "executing";
     const provisionalSession = appWindow?._provisionalApplicationSession;
     if (provisionalSession && !provisionalSession.disposed) {
-        updateProvisionalApplicationSession(provisionalSession, "executing", "Operacja w toku...");
+        updateProvisionalApplicationSession(provisionalSession, "executing", preloadText('apps.preload.running'));
         setApplicationPresentationPhase(provisionalSession, "executing");
     }
     const context = currentApplicationLaunchContext(appWindow);
@@ -4511,7 +4519,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true, re
                 terminalSysinfo.textContent = sysinfo;
             }
             if (provisionalSession && !provisionalSession.disposed) {
-                updateProvisionalApplicationSession(provisionalSession, "completing", "Finalizacja wyniku...");
+                updateProvisionalApplicationSession(provisionalSession, "completing", preloadText('apps.preload.finalizing'));
                 setApplicationPresentationPhase(provisionalSession, "completing");
             }
             return true;
@@ -4544,7 +4552,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true, re
                 terminalSysinfo.textContent = "FAILED";
             }
             if (provisionalSession && !provisionalSession.disposed) {
-                updateProvisionalApplicationSession(provisionalSession, "failed", "Operacja zakonczona bledem.");
+                updateProvisionalApplicationSession(provisionalSession, "failed", preloadText('apps.preload.error'));
                 setApplicationPresentationPhase(provisionalSession, "failed");
             }
             lifecycle.ofsTerminalState = "failed";
@@ -6727,7 +6735,7 @@ function renderTerritoryControlGhostDetails(cluster = {}) {
             <span>${escapeHTML(String(part?.module_state || "unknown").toUpperCase())}${part?.contested ? " · " + ghostText("apps.territory.collision") : ""}</span>
             ${identity && (part.machine_name || part.machine_code) ? `<small>${ghostLabel("apps.territory.machine")} ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
             ${identity && (part.profession_name || part.profession_code) ? `<small>${ghostLabel("apps.territory.profession")} ${escapeHTML(part.profession_name || part.profession_code)}</small>` : ""}
-            ${part?.ability_visible && (part.ability_name || part.ability_code) ? `<small>${ghostLabel("apps.territory.ability")} ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
+            ${part?.ability_visible && (part.ability_name || part.ability_code) ? `<small>${ghostLabel("apps.territory.ability")} ${GhostLocale.hasKey(`map.ability.${part.ability_code}.name`) ? ghostLabel(`map.ability.${part.ability_code}.name`) : escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
             ${part?.clan_name || part?.clan_code ? `<small>${ghostLabel("apps.territory.clan")} ${escapeHTML(part.clan_name || part.clan_code)}</small>` : ""}
         </article>`;
     }).join("");
@@ -8038,7 +8046,7 @@ function ghostnetworkSuiteCard(part = {}) {
                 ${summaryKey && !hiddenLabelKey ? ghostLabel(summaryKey) : !summaryKey && distinctSummary ? `<span>${escapeHTML(distinctSummary)}</span>` : ""}
                 <small>${escapeHTML(locationLabel)} · ${ghostSystemValue("apps.network.value.", part.viewer_relation || "public")}</small>
                 ${identity && part.profession_code ? `<small>${ghostLabel("apps.network.profession")} ${escapeHTML(part.profession_code)}</small>` : ""}
-                ${ability && (part.ability_name || part.ability_code) ? `<small>${ghostLabel("apps.network.ability")} ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
+                ${ability && (part.ability_name || part.ability_code) ? `<small>${ghostLabel("apps.network.ability")} ${GhostLocale.hasKey(`map.ability.${part.ability_code}.name`) ? ghostLabel(`map.ability.${part.ability_code}.name`) : escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
                 <details><summary>${ghostLabel("apps.network.details")}</summary>
                     ${identity && part.part_code ? `<small>${ghostLabel("apps.network.code")} ${escapeHTML(part.part_code)}</small>` : ""}
                     ${identity && (part.machine_name || part.machine_code) ? `<small>${ghostLabel("apps.network.machine")} ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
@@ -16669,7 +16677,10 @@ function createMapToolPicker(selection) {
     term.style.maxWidth = `calc(100vw - 24px)`;
     term.style.minHeight = `260px`;
 
-    const title = selection.map_action_id || selection.canonical_action || "";
+    const action = selection.map_action_id || selection.canonical_action || "";
+    const title = selection.pending_action?.target_mode === 'player'
+        ? ({scan_ports: 'scan_player', exploit: 'exploit_player', sniff: 'sniff_player', trace: 'trace_player'}[action] || action)
+        : action;
     const label = (selection.pending_action || {}).label || (selection.pending_action || {}).name || "";
     term.innerHTML = `
         <div class="title-bar">${ghostLabel("map.picker.title")} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>

@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "154.7.1",
+  "content_version": "154.7.3",
   "messages": {
     "map.picker.choose": {
       "params": {
@@ -296,6 +296,38 @@
     "map.launch.player_not_found": {
       "params": {},
       "text": "This player does not exist."
+    },
+    "map.action_name.scan_player": {
+      "params": {},
+      "text": "Scan Player"
+    },
+    "map.action.scan_player": {
+      "params": {},
+      "text": "🛠️ Scan Player"
+    },
+    "map.action_name.exploit_player": {
+      "params": {},
+      "text": "Install Exploit Player"
+    },
+    "map.action.exploit_player": {
+      "params": {},
+      "text": "💥 Install Exploit Player"
+    },
+    "map.action_name.sniff_player": {
+      "params": {},
+      "text": "Monitor Traffic Player"
+    },
+    "map.action.sniff_player": {
+      "params": {},
+      "text": "📡 Monitor Traffic Player"
+    },
+    "map.action_name.trace_player": {
+      "params": {},
+      "text": "Track Player Position"
+    },
+    "map.action.trace_player": {
+      "params": {},
+      "text": "📍 Track Player Position"
     }
   }
 }
