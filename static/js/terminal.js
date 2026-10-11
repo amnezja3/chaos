@@ -9174,6 +9174,8 @@ function createMap() {
     const term = document.createElement('div');
     term.className = 'terminal map-window';
     term.dataset.app = "map";
+    term.dataset.appTitleKey = "shell.desktop.map";
+    term.dataset.appTitle = ghostText("shell.desktop.map");
     const layout = getInitialMapWindowLayout();
     term.style.top = `${layout.top}px`;
     term.style.left = `${layout.left}px`;
@@ -9182,14 +9184,14 @@ function createMap() {
 
     term.innerHTML = `
         <div class="title-bar">
-            Mapa
+            ${ghostLabel('shell.desktop.map')}
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="map-frame-host">
             <div class="map-window-loader" role="status" aria-live="polite">
-                <div class="map-window-loader__title">Ladowanie mapy CHAOS...</div>
+                <div class="map-window-loader__title">${ghostLabel('map.boot.title')}</div>
                 <div class="map-window-loader__bar"><span></span></div>
-                <div class="map-window-loader__text">Pobieranie snapshotu swiata...</div>
+                <div class="map-window-loader__text">${ghostLabel('map.boot.sync')}</div>
             </div>
             <iframe data-ghost-locale-frame class="map-frame" data-ghost-title="shell.desktop.map" title="Mapa CHAOS" width="100%" height="100%" style="border:none;"></iframe>
         </div>
