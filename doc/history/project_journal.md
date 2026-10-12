@@ -1,5 +1,19 @@
 # CHAOS — Project Journal
 
+## 2026-10-12 — 154.8: odbiór serwerowy i poprawka schematu Mistrala
+
+Operator wdrożył c60a09d: backup SQLite, 163 testy PASS, migracja i restart.
+Weryfikacja Ollamy OK; panel pobrał modele Mistrala z sekretem serwera.
+Pierwszy test mistral-small-2603 odrzucony: invalid_body, invalid_fact_refs,
+invalid_title, invalid_tone, schema_fields_mismatch; nic nie opublikowano.
+Adapter pomijał `package.format`, wysyłając tylko `json_object`. Poprawka
+przekazuje kanoniczny schemat zadania jako `json_schema` z `strict: true`.
+Prompty, fakty, walidator i fallback pozostają bez zmian. Dodano test transportu
+schematu na rzeczywistym pakiecie diagnostycznym. Wymagany ponowny test live
+po wdrożeniu poprawki; główny dostawca pozostaje Ollama do odbioru Mistrala.
+Regresja lokalna: 37/37 PASS (test_mistral_runtime, test_narrative_provider_admin,
+test_narrative_provider); git diff --check PASS. Poprawka nie została wdrożona.
+
 ## 2026-10-11 — 154.8: pakiet przedwdrożeniowy
 
 Dokończono lokalną implementację 154.8.1–4: Mistral REST, proces wywołania

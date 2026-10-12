@@ -101,10 +101,22 @@ class MistralNarrativeProvider:
 
     def generate(self, package, policy):
         started = time.monotonic()
+        # Carry the same task-scoped contract as Ollama's `format` field.
+        # JSON mode alone guarantees syntax, not the narrative fields/types.
+        response_format = {"type": "json_object"}
+        if isinstance(package.get("format"), dict):
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "chaos_narrative_output",
+                    "schema": package["format"],
+                    "strict": True,
+                },
+            }
         data, digest = self.request("POST", "/chat/completions", {
             "model": self.config["model"], "messages": package["messages"],
             "stream": False, "n": 1, "temperature": 0,
-            "max_tokens": self.config["max_tokens"], "response_format": {"type": "json_object"},
+            "max_tokens": self.config["max_tokens"], "response_format": response_format,
         })
         choices = data.get("choices")
         if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):

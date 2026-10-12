@@ -77,6 +77,29 @@ class MistralAdapterTest(unittest.TestCase):
             with self.subTest(body=body),self.assertRaises(NarrativeProviderError):
                 adapter(body).generate({'messages':[]},None)
 
+    def test_diagnostic_package_transmits_canonical_output_schema(self):
+        from ghostnetwork.ollama_policy import assign_ollama_task_policy, build_ollama_task_package
+        task = assign_ollama_task_policy({
+            'source_scope':'blacknet_world', 'task_variant':'world_digest',
+            'target_medium':'blacknet', 'audience_scope':'public',
+            'truth_class_policy':'canonical_facts_only',
+            'facts':[{'fact_id':'diagnostic', 'fact_type':'runtime_probe',
+                      'value':'Transport diagnostyczny jest gotowy.'}],
+            'allowed_actions':[],
+        })
+        package = build_ollama_task_package(task)
+        original = json.dumps({'messages':package['messages'], 'format':package['format']}, sort_keys=True)
+        session = Session(Response(self.response()))
+        MistralNarrativeProvider(self.config,session).generate(package,package['policy'])
+        payload = session.calls[0][1]['json']
+        self.assertEqual(payload['messages'],package['messages'])
+        self.assertEqual(payload['response_format']['type'],'json_schema')
+        contract = payload['response_format']['json_schema']
+        self.assertIs(contract['strict'],True)
+        self.assertEqual(contract['schema'],package['format'])
+        self.assertTrue({'title','body','fact_refs','tone'}.issubset(contract['schema']['properties']))
+        self.assertEqual(original,json.dumps({'messages':package['messages'], 'format':package['format']}, sort_keys=True))
+
     def test_http_failures_are_redacted_and_not_retried(self):
         for code in (301,400,401,402,403,404,408,409,422,429,500,503):
             session=Session(Response({'error':'secret-test-only'},code,{'Retry-After':'120'}))
