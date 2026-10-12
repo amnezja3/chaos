@@ -364,6 +364,45 @@ i uzgodnione wznowienie. Nie usuwamy ręcznie WAL/SHM. Zapisz stan PM2 przez
 
 ## Odbiór
 
+### Pojedynczy canary po optymalizacji promptów
+
+Po pobraniu poprawki wystarczy jeden rzeczywisty test Ollama / PL / Cyberner.
+Nie wznawiaj workerów ani pełnej macierzy na podstawie samego HTTP 200.
+Poniższa komenda odtwarza wyłącznie zmienne CHAOS ze snapshotu workera
+w procesie testowym; nie zmienia PM2 i nie drukuje sekretów:
+
+```sh
+.venv/bin/python - <<'PY'
+import json, os, subprocess, sys
+from pathlib import Path
+rows = json.loads((Path(os.environ['DEPLOY_BACKUP']) / 'pm2-before.json').read_text())
+worker = next(r['pm2_env'] for r in rows if r['name'] == 'chaos-ollama-worker')
+saved = {**worker.get('env', {}), **worker}
+env = os.environ.copy()
+env.update({k: str(v) for k, v in saved.items()
+            if k.startswith('CHAOS_') and isinstance(v, (str, int, float))})
+result = subprocess.run([
+    sys.executable, 'tools/narrative_locale_canary.py',
+    '--db', 'data/game.sqlite3', '--provider', 'ollama',
+    '--locale', 'pl', '--medium', 'cyberner', '--generate', '--show-text',
+], env=env)
+sys.exit(result.returncode)
+PY
+```
+
+Spodziewane: `published:false`, `provider:ollama`, `validation:accepted`,
+`errors:[]`, `elapsed_seconds` oraz `input_metrics`. `message_bytes` liczy
+wszystkie wiadomości wspólnego pakietu, `schema_bytes` osobno schemat;
+nie są to liczby tokenów ani pełny rozmiar HTTP. Adapter Mistrala dodatkowo
+włącza schemat do instrukcji. `prompt_sha256` identyfikuje dokładną treść
+wiadomości i schematu bez ujawniania ich w metrykach.
+
+Sprawdź także próbkę: może mówić o ujawnieniu elementu przy Canary Station,
+ale nie o potwierdzeniu w logach, aktywności, autoryzacji lub pomiarach,
+których nie było w faktach. Formalne `accepted` nie zastępuje tego odbioru.
+Przy timeout lub odrzuceniu zachowaj wynik; nie ponawiaj do losowego sukcesu.
+Test zapisuje diagnostykę dostawcy, ale nie kolejkuje ani nie publikuje treści.
+
 [Macierz dowodów](../audits/sprint_155_acceptance.md) rozdziela testy lokalne
 od produkcyjnych. Pełny PASS wymaga rzeczywistych próbek rodzin narracji,
 przeglądu dostępnej historii, dwóch kont PL/EN i odbioru urządzeń.

@@ -1,5 +1,26 @@
 # CHAOS — Project Journal
 
+## 2026-10-12 — 155: krótsze prompty i pomiar pełnych wiadomości
+
+Po pięciu timeoutach Ollamy w sześciu rzeczywistych canary oraz udanym małym
+żądaniu skrócono powielone instrukcje grounding/discovery, domenę event PL/EN
+i lokalizację News EN. Usunięto niefaktyczny rok z instrukcji stylu event.
+Walidatory, fakty, referencje, schema, CPU quota i timeouty pozostają bez zmian.
+Nie uznano formalnego accepted Mistrala za dowód braku dopisanych faktów.
+
+Pełne wiadomości canary (bajty UTF-8 przed → po): PL BN 2473 → 1665,
+PL Cyberner 2297 → 1543, PL News 2331 → 1936; EN BN 2519 → 1852,
+EN Cyberner 2327 → 1728, EN News 3633 → 2436. To rozmiar tekstu, nie tokeny.
+Canary pokazuje wszystkie wiadomości, osobny rozmiar schematu, hash treści
+i czas rzeczywistej próby. Dotychczasowe metryki budżetu faktów nie zmieniają
+znaczenia. Hash pozwala rozróżniać poprawki treści przy tej samej policy.
+
+Izolowana regresja promptów/locale/policy/News/support/matrix: 66 PASS.
+Dwie asercje literalnego brzmienia instrukcji dostosowano do krótszego tekstu.
+Runbook zawiera pojedynczy test Ollama PL/Cyberner ze środowiskiem snapshotu
+PM2, bez publikacji. Nie wykonywano zmian produkcyjnych ani wywołań modeli.
+Poprawa opóźnienia i jakość generacji pozostają do potwierdzenia na serwerze.
+
 ## 2026-10-12 — 155: discovery grounding i pełny raport canary
 
 Po pierwszej poprawce testy serwera 62 PASS; rzeczywisty Mistral PL/Cyberner

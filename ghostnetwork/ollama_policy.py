@@ -1084,15 +1084,11 @@ def build_ollama_task_package(task, policy=None):
     )
     if active_ghost_prompt:
         domain_prompt += (
-            '\nZasada zgodności: klimat i tajemniczy ton nie uprawniają do dopisywania faktów. '
-            'Przy jednym fakcie wystarczy jedno krótkie zdanie. Brak informacji nie oznacza '
-            'braku logów, rejestracji, autoryzacji ani zgodności z protokołem. Nie dodawaj '
-            'częstotliwości, okresów powtarzania, pomiarów ani roku, których nie ma w semantic_facts.'
+            '\nJeden fakt: jedno krótkie zdanie. Nieznane pozostaje nieznane: '
+            'nie dopisuj stanu, autoryzacji, logów, pomiarów ani dat.'
             if output_locale == 'pl' else
-            '\nGrounding rule: atmosphere and mystery never authorize extra facts. '
-            'For one fact, one short sentence is enough. Missing information does not imply '
-            'missing logs, registration, authorization or protocol compatibility. Do not add '
-            'frequencies, repetition intervals, measurements or years absent from semantic_facts.'
+            '\nOne fact: one short sentence. Unknown stays unknown: '
+            'do not invent states, authorization, logs, measurements or dates.'
         )
         is_part_discovered = (
             str((source_facts[0] or {}).get("fact_type") or "").strip()
@@ -1100,13 +1096,9 @@ def build_ollama_task_package(task, policy=None):
         )
         if is_part_discovered:
             domain_prompt += (
-                '\nTo zdarzenie oznacza ODKRYCIE, nie aktywację. Opisz ujawnienie ukrytego '
-                'elementu; nie zmieniaj go w uruchomienie, emisję sygnału ani działający węzeł. '
-                'Własność i stan działania pozostają nieustalone, jeśli nie podano ich w faktach.'
+                '\nOdkrycie nie oznacza aktywacji, emisji sygnału ani własności.'
                 if output_locale == 'pl' else
-                '\nThis event is DISCOVERY, not activation. Describe the revelation of a hidden '
-                'part; do not turn it into startup, signal emission or an operating node. '
-                'Ownership and operating state are unspecified unless explicitly present in facts.'
+                '\nDiscovery does not imply activation, signal emission or ownership.'
             )
             if all(fact.get('fact_type') == 'part_discovered' for fact in source_facts):
                 voice_contract['discovery_only'] = True
@@ -1150,15 +1142,14 @@ def build_ollama_task_package(task, policy=None):
             "title_prefix": language_registry()[output_locale]['blacknet_title_prefix'] if output_locale != 'pl' else "PRZECHWYT // ",
             "body_prefix": "...",
         })
-        # Repeat the precise per-medium constraint next to the generation
-        # request, rather than relying only on a conditional domain paragraph.
+        # Keep literal prefixes next to the request, for this medium only.
         prefixes = json.dumps({field: voice_contract[field + '_prefix'] for field in ('title', 'body')}, ensure_ascii=False)
-        domain_prompt += ('\nObowiązkowe dosłowne początki pól JSON (wliczone w limity): '
+        domain_prompt += ('\nDosłowne początki pól (wliczone w limity): '
                           if output_locale == 'pl' else
-                          '\nMandatory literal JSON field prefixes (included in length limits): ') + prefixes
-        domain_prompt += (' Zacznij body dokładnie trzema kropkami ASCII (...), nie znakiem ….'
+                          '\nLiteral field prefixes (count toward limits): ') + prefixes
+        domain_prompt += (' Body: trzy kropki ASCII, nie ….'
                           if output_locale == 'pl' else
-                          ' Begin body with exactly three ASCII periods (...), not the Unicode ellipsis (…).')
+                          ' Body: three ASCII periods, not ….')
     return {
         "policy": policy,
         "language_contract": language_contract,

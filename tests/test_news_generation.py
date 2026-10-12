@@ -57,7 +57,7 @@ class NewsGenerationTests(unittest.TestCase):
         before = copy.deepcopy(self.task)
         package = build_package(self.task, self.record)
         prompt = package['messages'][0]['content']
-        self.assertIn('Write title and body in\nEnglish', prompt)
+        self.assertIn('Write English title/body', prompt)
         self.assertNotIn('Napisz', prompt)
         self.assertNotIn('po polsku', prompt)
         self.assertEqual(package['news_language_contract']['output_locale'], 'en')

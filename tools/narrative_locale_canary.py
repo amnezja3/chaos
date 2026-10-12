@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
@@ -41,8 +42,10 @@ def main():
     if not Path(args.db).is_file():
         parser.error('Existing database required.')
     package=package_for(args.locale,args.medium)
+    from ghostnetwork.llm.prompt_metrics import prompt_metrics
     report=dict(ok=True,published=False,locale=args.locale,medium=args.medium,
-        prompt=package['policy'].prompt_version,generated=False)
+        prompt=package['policy'].prompt_version,generated=False,
+        input_metrics=prompt_metrics(package))
     if args.generate:
         from ghostnetwork.llm.router import NarrativeRouter
         from ghostnetwork.llm.provider import NarrativeProviderError
@@ -50,6 +53,7 @@ def main():
         router=NarrativeRouter(args.db)
         if args.provider!='configured':
             router.provider=args.provider  # In-memory override; leaves admin config unchanged.
+        started = time.monotonic()
         try:
             result=router.generate(package,package['policy'],task_id='locale-canary')
             if package.get('canary_record'):
@@ -66,6 +70,8 @@ def main():
                 report['sample']={k:validation['output'][k] for k in ('title','body')}
         except NarrativeProviderError as exc:
             report.update(ok=False,error=exc.code)
+        finally:
+            report['elapsed_seconds'] = round(time.monotonic() - started, 2)
     print(json.dumps(report,ensure_ascii=False,indent=2))
     return 0 if report['ok'] else 1
 

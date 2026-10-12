@@ -121,9 +121,9 @@ class OllamaPolicyTest(unittest.TestCase):
             "statement": "Czesc GhostNetwork zostala aktywowana.",
             "attributes": [{"name": "status", "value": "aktywna"}],
         }])
-        self.assertIn("naturalny komunikat po polsku", package["messages"][0]["content"])
-        self.assertIn("wyłącznie informacji z", package["messages"][0]["content"])
-        self.assertIn("Tytuł zaczyna się", package["messages"][0]["content"])
+        self.assertIn("komunikat po polsku", package["messages"][0]["content"])
+        self.assertIn("tylko tresci przekazanej w semantic_facts", package["messages"][0]["content"])
+        self.assertIn('"title": "PRZECHWYT // "', package["messages"][0]["content"])
         self.assertNotIn("pattern", package["format"]["properties"]["title"])
         self.assertNotIn("pattern", package["format"]["properties"]["body"])
         self.assertEqual(package["voice_contract"], {
