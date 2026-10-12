@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from ghostnetwork.llm import executor
-from ghostnetwork.llm.mistral_provider import MistralNarrativeProvider
+from ghostnetwork.llm.mistral_provider import MistralNarrativeProvider, generation_messages, token_reservation
 from ghostnetwork.llm.provider import NarrativeGenerationResult, NarrativeProviderError
 from ghostnetwork.llm.provider_store import DEFAULTS, ProviderStore, ProviderRevisionConflict, ProviderConfigError
 from ghostnetwork.llm.router import NarrativeRouter
@@ -92,13 +92,28 @@ class MistralAdapterTest(unittest.TestCase):
         session = Session(Response(self.response()))
         MistralNarrativeProvider(self.config,session).generate(package,package['policy'])
         payload = session.calls[0][1]['json']
-        self.assertEqual(payload['messages'],package['messages'])
-        self.assertEqual(payload['response_format']['type'],'json_schema')
-        contract = payload['response_format']['json_schema']
-        self.assertIs(contract['strict'],True)
-        self.assertEqual(contract['schema'],package['format'])
-        self.assertTrue({'title','body','fact_refs','tone'}.issubset(contract['schema']['properties']))
+        self.assertEqual(payload['messages'][1:],package['messages'][1:])
+        self.assertTrue(payload['messages'][0]['content'].startswith(package['messages'][0]['content']))
+        self.assertEqual(payload['response_format'],{'type':'json_object'})
+        contract = json.loads(payload['messages'][0]['content'].rsplit('\n',1)[1])
+        self.assertEqual(contract,package['format'])
+        self.assertTrue({'title','body','fact_refs','tone'}.issubset(contract['properties']))
         self.assertEqual(original,json.dumps({'messages':package['messages'], 'format':package['format']}, sort_keys=True))
+        self.assertEqual(token_reservation(package,256),256 + 128 + sum(
+            len(m['content'].encode('utf-8')) for m in payload['messages']))
+
+    def test_all_canonical_schemas_preserved_in_json_mode_instructions(self):
+        from pathlib import Path
+        schema_dir = Path(__file__).resolve().parents[1] / 'ghostnetwork' / 'llm' / 'schemas'
+        for path in schema_dir.glob('*.json'):
+            with self.subTest(schema=path.name):
+                schema = json.loads(path.read_text(encoding='utf-8'))
+                package = {'messages':[{'role':'user','content':'Synthetic fact'}], 'format':schema}
+                messages = generation_messages(package)
+                self.assertEqual(messages[0]['role'],'system')
+                self.assertEqual(json.loads(messages[0]['content'].rsplit('\n',1)[1]),schema)
+                self.assertEqual(messages[1:],package['messages'])
+                self.assertEqual(len(package['messages']),1)
 
     def test_http_failures_are_redacted_and_not_retried(self):
         for code in (301,400,401,402,403,404,408,409,422,429,500,503):

@@ -4,6 +4,7 @@ import os
 import time
 
 from .executor import execute
+from .mistral_provider import token_reservation
 from .provider import NarrativeProviderError
 from .provider_store import ProviderStore
 from ..ollama_client import OllamaClientConfig
@@ -84,7 +85,7 @@ class NarrativeRouter:
                     if provider == 'mistral':
                         if self.store.circuit(self.circuit_key)['until_at'] > time.time():
                             raise NarrativeProviderError('circuit_open',provider=provider,retryable=True)
-                        reserve = self.config['max_tokens'] + 128 + sum(len(str(m.get('content','')).encode()) for m in package['messages'])
+                        reserve = token_reservation(package, self.config['max_tokens'])
                         if not self.store.reserve_tokens(reserve,self.config['daily_token_budget']):
                             raise NarrativeProviderError('mistral_local_budget',provider=provider,retryable=True)
                     result = self.executor(provider,self.config,'generate',package,policy,seconds=min(seconds,end-time.monotonic()),guard=guard)

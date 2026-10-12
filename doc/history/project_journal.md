@@ -1,5 +1,19 @@
 # CHAOS — Project Journal
 
+## 2026-10-12 — 154.8: zgodność kontraktu z trybem JSON Mistrala
+
+Po wdrożeniu 5d5a047 test live zwrócił HTTP 400, code 3051:
+`Invalid structured output syntax`. API nie wskazało konkretnego keywordu.
+Zastąpiono `json_schema` trybem `json_object` z pełnym kanonicznym schematem
+dołączonym do instrukcji systemowej kopii wiadomości Mistrala. Nie zmieniono
+pakietu zadania, wejścia Ollamy ani walidacji akceptacji. To nie gwarantuje
+zgodności odpowiedzi modelu: nadal obowiązuje walidator i istniejący fallback.
+Rezerwacja budżetu w workerze i diagnostyce uwzględnia dodatkową instrukcję.
+Dodano pokrycie wszystkich czterech schematów oraz brak mutacji pakietu.
+Ponowny odbiór live wymagany; do tego czasu głównym dostawcą pozostaje Ollama.
+Lokalnie 38/38 testów PASS (runtime, admin, provider), git diff --check PASS.
+Poprawka pozostaje lokalna, bez commita/pushu i restartu produkcji.
+
 ## 2026-10-12 — 154.8: odbiór serwerowy i poprawka schematu Mistrala
 
 Operator wdrożył c60a09d: backup SQLite, 163 testy PASS, migracja i restart.

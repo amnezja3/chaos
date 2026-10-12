@@ -1,5 +1,5 @@
 """Admin service; secrets are exclusively environment-owned."""
-from .mistral_provider import ENDPOINT, secret_configured
+from .mistral_provider import ENDPOINT, secret_configured, token_reservation
 from .provider import NarrativeProviderError
 from .provider_store import DEFAULTS, ProviderConfigError, ProviderRevisionConflict
 from .router import NarrativeRouter
@@ -39,7 +39,7 @@ def handle(db_path, action, data, actor):
             with router.store.slot('generation:mistral',10) as acquired:
                 if not acquired:
                     raise NarrativeProviderError('provider_busy',provider='mistral',retryable=True)
-                reserve = router.config['max_tokens'] + 128 + sum(len(str(m.get('content','')).encode()) for m in package['messages'])
+                reserve = token_reservation(package, router.config['max_tokens'])
                 if not router.store.reserve_tokens(reserve,router.config['daily_token_budget']):
                     raise NarrativeProviderError('mistral_local_budget',provider='mistral',retryable=True)
                 result = router.executor('mistral',router.config,'generate',package,package['policy'],seconds=8)

@@ -17,6 +17,32 @@ def secret_configured():
     return bool(os.environ.get("CHAOS_MISTRAL_API_KEY", "").strip())
 
 
+def generation_messages(package):
+    # Mistral rejected our canonical schema in constrained-decoding mode
+    # (HTTP 400/3051). JSON mode plus full instructions preserves the contract;
+    # the unchanged CHAOS validator remains authoritative for acceptance.
+    messages = [dict(message) for message in package["messages"]]
+    if isinstance(package.get("format"), dict):
+        instruction = (
+            "\n\nReturn only a JSON object matching the following JSON Schema. "
+            "Include every required field and no extra fields. Follow all "
+            "types, enums, length limits and reference constraints. This is "
+            "the output contract, not source facts to narrate:\n"
+            + json.dumps(package["format"], ensure_ascii=False, separators=(",", ":"))
+        )
+        if messages and messages[0].get("role") == "system":
+            messages[0]["content"] += instruction
+        else:
+            messages.insert(0, {"role": "system", "content": instruction.strip()})
+    return messages
+
+
+def token_reservation(package, max_tokens):
+    return max_tokens + 128 + sum(
+        len(str(m.get("content", "")).encode("utf-8")) for m in generation_messages(package)
+    )
+
+
 class MistralNarrativeProvider:
     provider = "mistral"
 
@@ -101,22 +127,10 @@ class MistralNarrativeProvider:
 
     def generate(self, package, policy):
         started = time.monotonic()
-        # Carry the same task-scoped contract as Ollama's `format` field.
-        # JSON mode alone guarantees syntax, not the narrative fields/types.
-        response_format = {"type": "json_object"}
-        if isinstance(package.get("format"), dict):
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "chaos_narrative_output",
-                    "schema": package["format"],
-                    "strict": True,
-                },
-            }
         data, digest = self.request("POST", "/chat/completions", {
-            "model": self.config["model"], "messages": package["messages"],
+            "model": self.config["model"], "messages": generation_messages(package),
             "stream": False, "n": 1, "temperature": 0,
-            "max_tokens": self.config["max_tokens"], "response_format": response_format,
+            "max_tokens": self.config["max_tokens"], "response_format": {"type": "json_object"},
         })
         choices = data.get("choices")
         if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
