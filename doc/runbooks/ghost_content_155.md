@@ -122,6 +122,19 @@ nie publikuje ani nie nalicza nagród. Błąd cofa niedokończony DDL.
 
 ## 4. Próby Mistrala i Ollamy, nadal bez publikacji
 
+Po poprawkach canary można zamiast poniższej pętli zatrzymującej się na pierwszym
+odrzuceniu użyć jednej komendy zbierającej cały wynik. Każda próba raz, bez retry:
+
+```sh
+.venv/bin/python tools/narrative_locale_matrix.py --db data/game.sqlite3 --pm2-snapshot "$DEPLOY_BACKUP/pm2-before.json" --report "$DEPLOY_BACKUP/canary-$(date -u +%Y%m%dT%H%M%SZ).json" --generate
+```
+
+Spodziewane: 12 raportów `published:false`, podsumowanie `passed:12, failed:0`.
+Każde odrzucenie pozostaje w raporcie i powoduje końcowy exit 1; nie pomijamy go
+w ocenie. Także próbki `accepted` wymagają przeglądu faktów: odkrycie nie oznacza
+aktywacji, a brak informacji nie dowodzi braku logów. Nie wykonywać obu wariantów
+macierzy jeden po drugim bez potrzeby. Raport nie zawiera sekretu.
+
 Procesy gry nadal zatrzymane. Canary korzysta ze wspólnego routera/walidatora
 i syntetycznych faktów; zapisuje diagnostykę oraz zużycie budżetu dostawcy.
 Nie dodaje zadań do kolejki ani wiadomości. Nie wymaga części Ghost Signala.

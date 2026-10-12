@@ -1083,11 +1083,33 @@ def build_ollama_task_package(task, policy=None):
         }
     )
     if active_ghost_prompt:
+        domain_prompt += (
+            '\nZasada zgodności: klimat i tajemniczy ton nie uprawniają do dopisywania faktów. '
+            'Przy jednym fakcie wystarczy jedno krótkie zdanie. Brak informacji nie oznacza '
+            'braku logów, rejestracji, autoryzacji ani zgodności z protokołem. Nie dodawaj '
+            'częstotliwości, okresów powtarzania, pomiarów ani roku, których nie ma w semantic_facts.'
+            if output_locale == 'pl' else
+            '\nGrounding rule: atmosphere and mystery never authorize extra facts. '
+            'For one fact, one short sentence is enough. Missing information does not imply '
+            'missing logs, registration, authorization or protocol compatibility. Do not add '
+            'frequencies, repetition intervals, measurements or years absent from semantic_facts.'
+        )
         is_part_discovered = (
             str((source_facts[0] or {}).get("fact_type") or "").strip()
             == "part_discovered"
         )
         if is_part_discovered:
+            domain_prompt += (
+                '\nTo zdarzenie oznacza ODKRYCIE, nie aktywację. Opisz ujawnienie ukrytego '
+                'elementu; nie zmieniaj go w uruchomienie, emisję sygnału ani działający węzeł. '
+                'Własność i stan działania pozostają nieustalone, jeśli nie podano ich w faktach.'
+                if output_locale == 'pl' else
+                '\nThis event is DISCOVERY, not activation. Describe the revelation of a hidden '
+                'part; do not turn it into startup, signal emission or an operating node. '
+                'Ownership and operating state are unspecified unless explicitly present in facts.'
+            )
+            if all(fact.get('fact_type') == 'part_discovered' for fact in source_facts):
+                voice_contract['discovery_only'] = True
             detail_values = list(_part_discovered_required_details(
                 source_facts, str(task.get("audience_scope") or "").strip()
             ))
@@ -1251,6 +1273,16 @@ def parse_and_validate_ollama_content(content, task_package):
     if not isinstance(body, str) or not body.strip() or len(body) > body_limit:
         errors.append("invalid_body")
     voice_contract = task_package.get("voice_contract") or {}
+    if voice_contract.get('discovery_only'):
+        # A narrow discovery/activation distinction, not a general semantic
+        # verifier. Literal visible names must not trigger this check.
+        source = json.dumps((task_package.get('model_input') or {}).get('semantic_facts') or [], ensure_ascii=False)
+        prose = f'{title or ""} {body or ""}'
+        for label in sorted(voice_contract.get('detail_values') or (), key=len, reverse=True):
+            prose = re.sub(re.escape(label), '', prose, flags=re.IGNORECASE)
+        activation = r'\b(?:aktywac\w*|aktywow\w*|activat\w*)\b'
+        if re.search(activation, prose, re.IGNORECASE) and not re.search(activation, source, re.IGNORECASE):
+            errors.append('voice_discovery_changed_to_activation')
     for field_name, value in (("title", title), ("body", body)):
         prefix = str(voice_contract.get(f"{field_name}_prefix") or "")
         if prefix and (not isinstance(value, str) or not value.startswith(prefix)):

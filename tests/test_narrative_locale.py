@@ -72,6 +72,22 @@ class NarrativeLocaleTest(unittest.TestCase):
             bad = {**output, 'title':'Canary Station', 'body':'Canary Station: 2108 / 1200 MHz.', 'fact_refs':list(other['fact_refs'])}
             self.assertIn('voice_unsupported_number', parse_and_validate_ollama_content(json.dumps(bad), other)['errors'])
 
+    def test_discovery_is_not_activation_in_either_language_or_medium(self):
+        from tools.narrative_locale_canary import package_for
+        for locale in ('pl','en'):
+            for medium in ('blacknet','cyberner','googleplex_news'):
+                package = package_for(locale, medium)
+                prefix = ('PRZECHWYT // ' if locale=='pl' else 'INTERCEPT // ') if medium=='blacknet' else ''
+                body_prefix = '... ' if medium=='blacknet' else ''
+                output = dict(title=prefix+'Canary Station', body=body_prefix+(
+                    'Wykryto aktywację ukrytego modułu przy obiekcie Canary Station.' if locale=='pl' else
+                    'A hidden GhostNetwork part was activated at Canary Station.'),
+                    tone='warning', fact_refs=list(package['fact_refs']), cta_ref=None)
+                if 'asset_ref' in package['format']['properties']:
+                    output['asset_ref'] = next(iter(package.get('allowed_asset_refs') or [None]))
+                result = parse_and_validate_ollama_content(json.dumps(output), package)
+                self.assertIn('voice_discovery_changed_to_activation', result['errors'], (locale,medium,result))
+
     def test_selection_is_frozen_across_reopen_retry_and_dedupe(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'locale.sqlite3')

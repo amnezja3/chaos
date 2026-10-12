@@ -1,5 +1,24 @@
 # CHAOS — Project Journal
 
+## 2026-10-12 — 155: discovery grounding i pełny raport canary
+
+Po pierwszej poprawce testy serwera 62 PASS; rzeczywisty Mistral PL/Cyberner
+został prawidłowo odrzucony za dopisane 12 minut. BN z formalnym `accepted`
+zamienił odkrycie w aktywację i dopisał brak logów — nie uznano próbki za PASS.
+Instrukcje aktywnych narracji odróżniają klimat od nowych faktów, brak danych
+od negatywnego dowodu i odkrycie od aktywacji. Dla samych faktów odkrycia
+walidator wykrywa jawną zamianę w aktywację PL/EN, z uwzględnieniem nazw własnych
+i jawnych informacji źródła. Jest to wąska kontrola, nie pełny verifier znaczenia.
+Regresja policy/locale/News/support: 63 PASS.
+
+`tools/narrative_locale_matrix.py` uruchamia każdą kombinację dostawca/język/medium
+raz, zachowując wszystkie odrzucenia, bez retry do sukcesu i bez publikacji.
+Raport jest zapisywany po każdej próbie do nowego pliku 600, nie nadpisuje starego.
+Sekret pochodzi ze snapshotu PM2, nie jest drukowany. Bez `--generate` tylko
+pakiety; przy odrzuceniach końcowy exit 1. Test izolowany kontynuacji 12 prób,
+braku retry/ujawnienia sekretu i odmowy nadpisania raportu PASS.
+Bez DDL, zmian serwera i rzeczywistych wywołań modeli w lokalnej pracy.
+
 ## 2026-10-12 — 155: poprawka po produkcyjnym canary BN EN
 
 Canary Mistrala odrzucił EN BlackNet (`voice_body_prefix_mismatch`): odpowiedź
