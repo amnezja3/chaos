@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
@@ -89,11 +90,11 @@ class LlmPublisherAdapterTest(unittest.TestCase):
             "open_cyberner_channel",
         }
         self.assertTrue(expected.issubset(run.BLACKNET_ALLOWED_CTA_ACTIONS))
-        with open("googleplex_news.py", encoding="utf-8") as source:
+        with open(Path(__file__).resolve().parents[1] / "googleplex_news.py", encoding="utf-8") as source:
             backend = source.read()
-        with open("static/js/googleplex_news.js", encoding="utf-8") as source:
+        with open(Path(__file__).resolve().parents[1] / "static/js/googleplex_news.js", encoding="utf-8") as source:
             frontend = source.read()
-        with open("static/js/terminal.js", encoding="utf-8") as source:
+        with open(Path(__file__).resolve().parents[1] / "static/js/terminal.js", encoding="utf-8") as source:
             dispatcher = source.read()
         for action in expected:
             self.assertIn(f'"{action}"', backend)

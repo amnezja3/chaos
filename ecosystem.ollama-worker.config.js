@@ -10,9 +10,9 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      // SIGTERM only stops the outer claim loop. Let the in-flight bounded
-      // model call (240 s read timeout) finish before PM2 escalates to SIGKILL.
-      kill_timeout: 300000,
+      // Routing bounds generation to <=280 s. Allow database cleanup and
+      // child termination before PM2 escalates to SIGKILL.
+      kill_timeout: 360000,
       env: {
         CHAOS_RESPONSE_QUALIFICATION_MODE: "observe",
         CHAOS_RESPONSE_ENCOUNTERS_ENABLED: "true",

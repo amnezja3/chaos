@@ -1,7 +1,10 @@
 # Sprint 155 — Ghost System: treści, historia i pełny odbiór PL/EN
 
-Status: **ZAPLANOWANY**, 6 X 2026. Po PASS
-[154](sprint_154_ghost_system_apps_catalogs.md). Ostatni sprint programu
+Status: **ZAPLANOWANY — oczekuje na PASS 154.8**, aktualizacja 11 X 2026.
+[154](sprint_154_ghost_system_apps_catalogs.md) ma PASS użytkownika.
+Przed rozpoczęciem wymagany jest odbiór
+[154.8 — Mistral API i fallback Ollama](sprint_154_8_narrative_providers_mistral.md).
+Zakres językowy 155 pozostaje bez zmian. Ostatni sprint programu
 rozpoczętego w [153](sprint_153_ghost_system_i18n_foundation.md).
 
 ## Cel
@@ -16,6 +19,12 @@ angielski pulpit nadal otrzymuje polskie systemowe błędy lub nieprzetłumaczon
 Googleplex News. Sygnały BN i audycje zachowują swój zatwierdzony język.
 
 ## 155.1 — zdarzenia i wiadomości
+
+- Potwierdzony przy odbiorze 154 brak: trwałe powiadomienia po instalacji
+  narzędzi (`googleplex_install`: „Instalacja zakończona”, „Aplikacja … została
+  poprawnie zainstalowana”). Objąć obie ścieżki instalacji, nowe wpisy i historię;
+  zachować autorską nazwę aplikacji, identyfikator zdarzenia i deduplikację.
+  Odpowiedź instalatora `shop.installed` jest już lokalizowana w 154.
 
 - Komunikaty operacji, logi widoczne graczowi, nagrody LVL/RSP/HC, terytoria,
   wtargnięcia, konflikty, Response Network, konsekwencje, zatrzymanie i więzienie,

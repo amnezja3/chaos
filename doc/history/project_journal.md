@@ -1,5 +1,90 @@
 # CHAOS — Project Journal
 
+## 2026-10-11 — 154.8: pakiet przedwdrożeniowy
+
+Dokończono lokalną implementację 154.8.1–4: Mistral REST, proces wywołania
+z deadline, admin PL/EN, rewizje konfiguracji, historia subprób, wspólny circuit,
+blokady i lokalny budżet rezerwacji tokenów. Model wybiera administrator,
+klucz istnieje tylko w środowisku web/workera. Jedno przejście Mistral → Ollama
+w obrębie taska; utrata lease/TTL/cancel blokuje fallback, odrzucenie faktów
+pozostaje domenową walidacją. PM2 shutdown budget zwiększono do 360 s.
+
+Pełna regresja 12 modułów: 160/160 PASS; cztery testy celowane PASS po rozszerzeniu
+odbioru o publikację/replay, kontrolę lease, IPC spawn i CLI (163 unikalne testy).
+Playwright: PL/EN, wybór i zapis modelu, degradacja, konflikt dwóch okien, rollback,
+mobile 390×844 bez overflow. Brak wyjątków JS; oczekiwany 409 i favicon fixture 404.
+Przeglądarka i lokalny serwer testowy zamknięte.
+
+Dodano `scripts/narrative_provider_control.py` i runbook wdrożenia/rollbacku.
+Status LOCAL PASS / PREDEPLOYMENT; brak klucza lokalnie, więc nie ma deklaracji
+live PASS Mistrala, 30 min ruchu ani pomiarów współdzielonej Ollamy. Nie wykonano
+commita, pushu, deployu ani restartów produkcji. 155 nadal czeka na odbiór 154.8.
+
+## 2026-10-11 — 154.8.1: tożsamość modelu i trwałe metadane
+
+Model i digest nie są już polami polityki narracji; kompatybilne akcesory
+pozostają dla starych klientów. Worker odczytuje tożsamość z adaptera, lokalny
+klient nadal weryfikuje przypięty model/runtime przez konfigurację transportu.
+Addytywna migracja attempts/candidates dodaje provider, requested_model
+i provider_request_id. Zapisujemy także rzeczywiście zwrócony model;
+wynik zewnętrzny nie otrzymuje digestu ani runtime Ollamy. Obsłużono osobne
+oznaczenie kandydata wytworzonego wyłącznie przez deterministic support.
+
+Nowe testy: migracja starego schematu bez utraty publikacji, ponowny odczyt bazy,
+tożsamość dostawcy przy awarii oraz rozdzielenie polityki od modelu.
+Regresja dziewięciu modułów: 133 testy, początkowo 131 PASS i dwa błędy ścieżek
+źródeł w izolowanym cwd. Poprawiono te ścieżki; ponowne 26 testów
+publisher/support PASS. Pozostałe 107 przeszło w pełnym przebiegu.
+Etap otwarty: rzeczywisty wspólny deadline wymaga dalszej implementacji;
+timeout bezczynności odczytu HTTP nie jest całkowitym limitem czasu.
+Zmiany lokalne, bez wywołań Mistrala i bez wdrożenia.
+
+## 2026-10-11 — start 154.8.1: wspólny kontrakt dostawcy
+
+Dodano `NarrativeProvider`, wspólny wynik i błędy oraz adapter istniejącego
+klienta Ollamy. Worker i CLI tworzą klienta przez fabrykę. Zachowano transport,
+parametry, weryfikację lokalnego modelu, walidację narracji i ponowienia kolejki.
+Klucz Mistrala będzie wyłącznie sekretem serwera; panel wybiera dostawcę/model
+i pokazuje status sekretu, bez edycji jego wartości.
+
+Regresja: `test_narrative_provider`, `test_ollama_client`, `test_ollama_worker`,
+`test_ollama_policy`, `test_ollama_ecosystem_shutdown_contract`: 64 testy PASS.
+Etap 154.8.1 nadal otwarty: pozostały polityki modelu, trwałe metadane i deadline.
+Brak wywołań Mistrala, wdrożenia i zmian produkcji.
+
+## 2026-10-11 — referencja Mistrala z drugiej aplikacji
+
+Autor przekazał `MistralChatManager` z tego samego serwera. Plan 154.8 uzupełniono
+o SDK `mistralai`, weryfikację ustawienia regionu `eu`, modelu z przykładu
+`mistral-saba-2502`, wersji zależności, chunków odpowiedzi i współdzielonej Ollamy.
+W przesłanym kodzie lokalna ścieżka jest wybierana przez `mistral=False`;
+wyjątek Mistrala nie uruchamia automatycznego fallbacku. Wskazano tę różnicę,
+brak przekazania timeoutu Mistralowi i potrzebę ograniczenia retry.
+Nie zmieniano kodu ani konfiguracji drugiej aplikacji; nie wykonywano API calls.
+
+## 2026-10-11 — plan 154.8 przed 155: Mistral i fallback Ollama
+
+Na prośbę autora dodano sprint infrastruktury 154.8, bez zmiany numeru i zakresu
+155. Kolejność: 154 PASS → 154.8 → 155. Plan oparty na obecnym kliencie,
+preflight/heartbeat workerów, politykach modelu i publikatorach oraz oficjalnym
+API Mistrala. Obejmuje adaptery, panel administracyjny, sekret i wybór modelu,
+próby dostawców w ramach tego samego taska, circuit breaker i limity zasobów.
+403/409 z API, quota/billing, rate limit i awarie transportu mają uruchamiać
+lokalną Ollamę bez zatrzymania procesu. Błędy domeny, lease i bazy są osobne.
+PASS wymaga rzeczywistego przebiegu narracji z Mistralem i testów awarii,
+a nie wyłącznie mocków lub testu połączenia. Zapisano plan; implementacji,
+wywołań płatnego API ani wdrożenia nie wykonywano. 149–152 nadal zamrożone.
+
+## 2026-10-11 — PASS 154
+
+Autor potwierdził generatory nowych kategorii PvP i preloader okna mapy.
+Po sprawdzeniu wcześniejszego zakresu 155 zaakceptowano PASS 154.
+Pozostałe polskie powiadomienia po instalacji są zapisanymi wiadomościami
+`googleplex_install`; dopisano je jawnie do 155.1 i pozostawiono historię
+w zakresie 155.3. Komunikat API instalatora ma już kopertę `shop.installed`.
+Odbiór nie oznacza jeszcze pełnego PASS angielskich treści systemowych — 155
+pozostaje zaplanowany. Pakiet `154.7.4`: 3146 kluczy / 13 domen.
+
 ## 2026-10-11 — 154.7.4: wklejanie w terminalu i język preloadera mapy
 
 Terminal ma systemowe menu „Wklej” / „Paste”, zachowujące zaznaczenie.

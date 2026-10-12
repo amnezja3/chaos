@@ -22414,6 +22414,26 @@ def api_blacknet_cta_teleport():
     })
 
 
+@app.route("/api/admin/narrative-providers", methods=["GET", "POST"])
+def api_admin_narrative_providers():
+    if not require_dev_admin():
+        return jsonify(success=False, error="admin_required"), 403
+    from ghostnetwork.llm.provider_admin import handle
+    if request.method == "POST":
+        origin = request.headers.get("Origin")
+        if (origin and origin.rstrip('/') != request.host_url.rstrip('/')) or request.headers.get("Sec-Fetch-Site") == "cross-site":
+            return jsonify(success=False, error="same_origin_required"), 403
+        if not request.is_json or request.content_length and request.content_length > 4096:
+            return jsonify(success=False, error="invalid_request"), 400
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) - {'action', 'config'} or ('config' in body and not isinstance(body['config'], dict)):
+            return jsonify(success=False, error="invalid_request"), 400
+        payload, status = handle(user_store.db_path, body.get('action'), body.get('config') or {}, session['user'])
+    else:
+        payload, status = handle(user_store.db_path, 'status', {}, session['user'])
+    return jsonify(payload), status
+
+
 @app.route("/api/admin/dashboard")
 def api_admin_dashboard():
     if not require_dev_admin():
@@ -22531,6 +22551,8 @@ def dev_dashboard():
 
     generation = session_generation_client_context()
     tab = request.args.get("tab", "users")
+    if tab == 'narrative':
+        return render_template('admin_narrative.html', generation=generation, active_tab=tab, ui_locale=request_ui_locale())
     return render_template("admin_radio.html" if tab == "radio" else "admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
                            generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs", "ghostlab", "radio"} else "users")
 

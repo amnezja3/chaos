@@ -9,7 +9,7 @@ import time
 import uuid
 from dataclasses import dataclass
 
-from .ollama_client import ChaosOllamaClient, OllamaClientError
+from .llm.provider import NarrativeProviderError, create_narrative_provider
 from .ollama_policy import (
     build_ollama_task_package,
     parse_and_validate_ollama_content,
@@ -189,7 +189,8 @@ class OllamaNarrativeWorker:
         narrative_support=None,
     ):
         self.repository = repository or GhostNetworkRepository()
-        self.client = client or ChaosOllamaClient()
+        self.client = client or create_narrative_provider(db_path=self.repository.db_path)
+        self._stop_event = threading.Event()
         self.config = config or OllamaWorkerConfig.from_env()
         nonce = uuid.uuid4().hex[:10]
         self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{nonce}"
@@ -216,13 +217,14 @@ class OllamaNarrativeWorker:
             "queue": self.repository.narrative_task_queue_counts(self.policies),
             "runtime_safety": verify_ollama_runtime_policy(self.config),
             "runtime_metrics": dict(self._runtime_metrics),
+            "provider": self.client.config if getattr(self.client, 'routed', False) else None,
             "profiles_loaded": False,
         }
 
     def verify(self):
         try:
             result = self.client.verify()
-        except OllamaClientError as exc:
+        except NarrativeProviderError as exc:
             result = {"ok": False, "errors": [exc.code]}
         result["prompt_registry"] = verify_prompt_registry()
         result["narrative_support"] = self.narrative_support.verify()
@@ -354,7 +356,7 @@ class OllamaNarrativeWorker:
             lease_until,
             support["validation"],
             support["content"],
-            {},
+            {"provider": "deterministic_support"},
         )
         if not candidate:
             self._finish_attempt(
@@ -414,6 +416,8 @@ class OllamaNarrativeWorker:
         return result
 
     def _process_once(self, target_medium=None, source_event_id=None):
+        if getattr(self.client, 'routed', False) and self.client.refresh():
+            self._preflight_result = None
         if self.config.validate():
             return {"result": "invalid_worker_config", "errors": self.config.validate()}
         registry_status = verify_prompt_registry()
@@ -470,15 +474,22 @@ class OllamaNarrativeWorker:
         if not processing:
             return {"result": "lease_lost", "task_id": task["outbox_id"]}
         task = processing
+        # Legacy injected clients remain supported. Production adapters own
+        # model identity; task policy must not select the transport/model.
+        identity = getattr(self.client, "model_identity", None) or {
+            "provider": "ollama", "model": policy.model_name,
+            "model_digest": policy.model_digest,
+        }
         attempt = self.repository.begin_narrative_attempt(
             task,
             self.worker_id,
             task["lease_until"],
-            policy.model_name,
-            policy.model_digest,
+            identity["model"],
+            identity.get("model_digest", ""),
             request_hash=package["request_hash"],
             input_bytes=package["input_bytes"],
             fact_count=package["fact_count"],
+            provider=identity["provider"],
         )
         if not attempt:
             return {"result": "lease_lost", "task_id": task["outbox_id"]}
@@ -511,8 +522,14 @@ class OllamaNarrativeWorker:
             self.repository, task, self.worker_id, self.config
         ).start()
         try:
-            generation = self.client.generate(package, policy)
-        except OllamaClientError as exc:
+            if getattr(self.client, 'routed', False):
+                generation = self.client.generate(package, policy,
+                    guard=lambda: not heartbeat.lost and not self._stop_event.is_set()
+                        and self.repository.narrative_generation_is_owned(task['outbox_id'],self.worker_id),
+                    task_id=task['outbox_id'], attempt_id=attempt['attempt_id'])
+            else:
+                generation = self.client.generate(package, policy)
+        except NarrativeProviderError as exc:
             heartbeat.stop()
             if heartbeat.lost:
                 self._finish_attempt(
@@ -520,7 +537,7 @@ class OllamaNarrativeWorker:
                 )
                 return {"result": "lease_lost", "task_id": task["outbox_id"]}
             lease_until = heartbeat.lease_until
-            if not exc.retryable or task["attempt_count"] >= task["max_attempts"]:
+            if exc.code != 'generation_cancelled' and (not exc.retryable or task["attempt_count"] >= task["max_attempts"]):
                 supported = self._complete_with_support(
                     task,
                     attempt,
@@ -649,6 +666,7 @@ class OllamaNarrativeWorker:
 
     def run(self, stop_event=None, on_result=None):
         stop_event = stop_event or threading.Event()
+        self._stop_event = stop_event
         while not stop_event.is_set():
             if self.config.enabled:
                 result = self.process_once()

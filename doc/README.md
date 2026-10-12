@@ -5,7 +5,18 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
-- **154.7.3 — lokalne poprawki po częściowym odbiorze:** 3144 klucze / 13 domen;
+- **W realizacji: [154.8 — dostawcy narracji, Mistral i fallback Ollama](sprints/sprint_154_8_narrative_providers_mistral.md).**
+  Plan obejmuje wspólny adapter, konfigurację/model w panelu administratora,
+  automatyczne przełączenie tego samego zadania na Ollamę oraz live odbiór
+  całego pipeline'u. Kolejność: **154 PASS → 154.8 → 155**. Implementacja 154.8
+  gotowa lokalnie: adaptery, deadline, migracja, panel i fallback. Pełna regresja
+  160 testów + testy celowane PASS; Playwright PL/EN/mobile PASS.
+  [Odbiór przedwdrożeniowy](audits/sprint_154_8_predeployment.md),
+  [instrukcja wdrożenia](runbooks/narrative_providers_154_8.md).
+  Rzeczywisty Mistral i ruch serwerowy czekają na odbiór; 155 czeka na pełny PASS.
+  Klucz API wyłącznie w sekrecie serwera. Domyślnie nadal Ollama.
+
+- **154 — PASS użytkownika, pakiet 154.7.4:** 3146 kluczy / 13 domen;
   cztery przeznaczenia PvP w zwykłych kreatorach, publikacja/zakup/instalacja
   i pełna ścieżka ataku na gracza poza GhostLabem;
   preloadery i Secret Path PL/EN, 20 Supermocy, blokowanie natywnego prawego
@@ -13,7 +24,8 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
   nazwy generowanych obiektów w języku odkrywcy, opisy nowych projektów,
   klastry, BlackNet, etykiety PvP i kontrolki OFS.
   [Aktualny zakres i ograniczenia](audits/sprint_154_acceptance.md).
-  Pełny PASS otwarty; narracyjne sceny operacji OFS nadal w 155.
+  Potwierdzono nowe kategorie PvP i preloader mapy. Trwałe powiadomienia po
+  instalacji, historia i narracyjne sceny operacji OFS pozostają w 155.
 
 - [Wydanie przyrostowe 154.5.0](runbooks/deploy_154_5.md): kreatory, picker,
   menu mapy i zabezpieczenia PL/EN. 718 kluczy, 78 testów Python i dziewięć
@@ -83,7 +95,8 @@ od GhostLab v2 i nie obejmuje realizacji odłożonych funkcji.
 - [154 — aplikacje i produkty](sprints/sprint_154_ghost_system_apps_catalogs.md):
   mapa, workspace'y, Pro Tools, bilety, serwis, GhostLab i kreatory.
 - [155 — treści i pełny odbiór](sprints/sprint_155_ghost_system_content_acceptance.md):
-  wiadomości, narracja, historia, multimedia, rollout oraz runbook kolejnych języków.
+  wiadomości, narracja, historia, multimedia, rollout oraz runbook kolejnych języków;
+  start po odbiorze infrastruktury [154.8](sprints/sprint_154_8_narrative_providers_mistral.md).
 
 Treści graczy nie są automatycznie tłumaczone. RU/ES to przyszłe pakiety na tej
 samej infrastrukturze, nie dodatkowy zakres tłumaczeń 153–155.
@@ -91,7 +104,7 @@ samej infrastrukturze, nie dodatkowy zakres tłumaczeń 153–155.
 Aktualizacja 30 IX 2026: [podsumowanie i odbiory](history/project_journal.md).
 Pakiet do odbioru: [146.5 — domknięcie GhostLab 1.0](sprints/sprint_146_5_ghostlab_v1_completion.md),
 [wdrożenie i testy](runbooks/sprint_146_5_ghostlab_completion.md)
-→ 147 → 148 → 153–155. Sprinty 149–152 zamrożone decyzją z 6 X.
+→ 147 → 148 → 153 → 154 → 154.8 → 155. Sprinty 149–152 zamrożone decyzją z 6 X.
 Cały 146.4 zamknięty / PASS autora.
 
 - Kreatory gameplayowe — [audyt 24 IX 2026](audits/creators_gameplay_audit_2026_09_24.md),

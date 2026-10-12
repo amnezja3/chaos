@@ -1,6 +1,17 @@
 # Sprint 154 — Ghost System: aplikacje, narzędzia i katalogi PL/EN
 
-Status: **POPRAWKI PO CZĘŚCIOWYM ODBIORZE — 154.7.3**, 11 X 2026.
+Status: **PASS — odbiór użytkownika**, 11 X 2026. Pakiet `154.7.4`, 3146 kluczy / 13 domen.
+
+Autor potwierdził nowe kategorie generowanych narzędzi PvP oraz preloader okna
+mapy i zaakceptował 154 przy zachowaniu uzgodnionej granicy z 155.
+Polskie trwałe powiadomienia po instalacji (`googleplex_install`, „Instalacja
+zakończona”) należą do 155.1. Odpowiedź API instalatora ma `shop.installed`;
+nie wyłączamy zwykłych komunikatów interfejsu z zakresu 154.
+PASS 154 nie oznacza jeszcze pełnego odbioru wszystkich treści EN — to cel 155.
+
+## Historia przed końcowym odbiorem
+
+Status historyczny: **POPRAWKI PO CZĘŚCIOWYM ODBIORZE — 154.7.3**, 11 X 2026.
 3144 klucze / 13 domen. Poprawka lokalna; pełny PASS pozostaje otwarty.
 Dodano cztery przeznaczenia PvP do zwykłych kreatorów: skan gracza, exploit,
 monitoring ruchu i śledzenie pozycji, wraz z pickerem i ścieżką wykonania.

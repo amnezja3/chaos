@@ -393,7 +393,7 @@ class NarrativeSupportLayerTest(unittest.TestCase):
         self.assertIs(layer._definition("blacknet", "signal_sent", "owner"), public)
 
     def test_verify_fails_closed_when_required_endgame_fallback_is_missing(self):
-        source = Path("ghostnetwork/llm/narrative_support.v1.yaml").read_text(
+        source = (Path(__file__).resolve().parents[1] / "ghostnetwork/llm/narrative_support.v1.yaml").read_text(
             encoding="utf-8"
         )
         source = source.replace("    cycle_activated:\n", "    omitted_cycle_activated:\n", 1)

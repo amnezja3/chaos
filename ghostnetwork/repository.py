@@ -1353,6 +1353,10 @@ class GhostNetworkRepository:
                 conn, "ghost_narrative_inbox_candidates", "asset_ref",
                 "asset_ref TEXT NOT NULL DEFAULT ''",
             )
+            # Additive migration: old records predate provider routing.
+            for table in ("ghost_narrative_inbox_attempts", "ghost_narrative_inbox_candidates"):
+                for column, default in (("provider", ""), ("requested_model", ""), ("provider_request_id", "")):
+                    self._ensure_column(conn, table, column, f"{column} TEXT NOT NULL DEFAULT '{default}'")
             conn.execute(
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_narrative_one_accepted
@@ -1847,6 +1851,9 @@ class GhostNetworkRepository:
             "attempt_id": row["attempt_id"],
             "task_id": row["task_id"],
             "attempt_number": int(row["attempt_number"] or 0),
+            "provider": row["provider"] or ("ollama" if row["model_name"] else "deterministic_support"),
+            "requested_model": row["requested_model"] or row["model_name"],
+            "provider_request_id": row["provider_request_id"],
             "worker_id": row["worker_id"],
             "status": row["status"],
             "model_name": row["model_name"],
@@ -1882,6 +1889,9 @@ class GhostNetworkRepository:
         cta_payload = loads_json(row["cta_payload_json"], {})
         return {
             "candidate_id": row["candidate_id"],
+            "provider": row["provider"] or ("ollama" if row["model_name"] else "deterministic_support"),
+            "requested_model": row["requested_model"] or row["model_name"],
+            "provider_request_id": row["provider_request_id"],
             "task_id": row["task_id"],
             "attempt_id": row["attempt_id"],
             "source_scope": row["source_scope"],
@@ -5906,6 +5916,7 @@ class GhostNetworkRepository:
         input_bytes=0,
         fact_count=0,
         now=None,
+        provider="ollama",
     ):
         task = task if isinstance(task, dict) else {}
         task_id = _clean(task.get("outbox_id") or task.get("task_id"))
@@ -5937,8 +5948,8 @@ class GhostNetworkRepository:
                     model_name, model_digest, ollama_runtime_version,
                     prompt_version, output_schema_version, model_policy_version,
                     request_hash, input_bytes, fact_count,
-                    started_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'started', ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    started_at, created_at, updated_at, provider, requested_model
+                ) VALUES (?, ?, ?, ?, 'started', ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     attempt_id,
@@ -5956,6 +5967,8 @@ class GhostNetworkRepository:
                     now_iso,
                     now_iso,
                     now_iso,
+                    _clean(provider),
+                    _clean(model_name),
                 ),
             )
             return self._narrative_attempt(conn.execute(
@@ -5992,7 +6005,12 @@ class GhostNetworkRepository:
                     retryable = ?, response_hash = ?, ollama_runtime_version = ?,
                     total_duration_ns = ?, load_duration_ns = ?,
                     prompt_eval_count = ?, eval_count = ?,
-                    completed_at = ?, updated_at = ?
+                    completed_at = ?, updated_at = ?,
+                    provider = COALESCE(?, provider),
+                    model_name = COALESCE(?, model_name),
+                    model_digest = COALESCE(?, model_digest),
+                    requested_model = COALESCE(?, requested_model),
+                    provider_request_id = COALESCE(?, provider_request_id)
                 WHERE attempt_id = ?
                 """,
                 (
@@ -6009,6 +6027,11 @@ class GhostNetworkRepository:
                     int(generation.get("eval_count") or 0),
                     now_iso,
                     now_iso,
+                    _clean(generation["provider"]) if "provider" in generation else None,
+                    _clean(generation["model"]) if "model" in generation else None,
+                    _clean(generation["model_digest"]) if "model_digest" in generation else None,
+                    _clean(generation["requested_model"]) if generation.get("requested_model") else None,
+                    _clean(generation["request_id"])[:256] if "request_id" in generation else None,
                     _clean(attempt_id),
                 ),
             )
@@ -6087,10 +6110,11 @@ class GhostNetworkRepository:
                         title, body, tone, fact_refs_json, cta_ref, cta_action,
                         cta_payload_json, asset_ref, bounded_raw_output, output_hash,
                         validation_status, validation_errors_json,
-                        quarantine_reason, created_at, validated_at, updated_at
+                        quarantine_reason, created_at, validated_at, updated_at,
+                        provider, requested_model, provider_request_id
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     (
@@ -6131,6 +6155,9 @@ class GhostNetworkRepository:
                         now_iso,
                         now_iso,
                         now_iso,
+                        _clean(generation.get("provider") or ("ollama" if generation.get("model") else "deterministic_support")),
+                        _clean(generation.get("requested_model") or generation.get("model")),
+                        _clean(generation.get("request_id"))[:256],
                     ),
                 )
             except IntegrityError:
@@ -7064,6 +7091,15 @@ class GhostNetworkRepository:
         with self._conn() as conn:
             row = conn.execute('SELECT * FROM ghost_narrative_outbox WHERE outbox_id=?', (task_id,)).fetchone()
             return not self._narrative_source_invalid(conn, self._narrative_outbox(row), _iso(self.now()))
+
+    def narrative_generation_is_owned(self, task_id, worker_id):
+        """Recheck lease and source before provider calls, including fallback."""
+        now = _iso(self.now())
+        with self._conn() as conn:
+            row = conn.execute('''SELECT * FROM ghost_narrative_outbox
+                WHERE outbox_id=? AND claimed_by=? AND status IN ('claimed','processing')
+                  AND lease_until>?''', (task_id,worker_id,now)).fetchone()
+            return bool(row) and not self._narrative_source_invalid(conn,self._narrative_outbox(row),now)
 
     def maintain_narrative_freshness(self, now=None, limit=32):
         now = _iso(now if now is not None else self.now())

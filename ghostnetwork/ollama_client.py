@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from .llm.provider import NarrativeProviderError
+
 from .ollama_policy import (
     MAX_HTTP_RESPONSE_BYTES,
     MAX_MODEL_CONTENT_BYTES,
@@ -20,12 +22,10 @@ EXPECTED_BASE_URL = "http://127.0.0.1:11434"
 EXPECTED_RUNTIME_VERSION = "0.15.4"
 
 
-class OllamaClientError(RuntimeError):
+class OllamaClientError(NarrativeProviderError):
     def __init__(self, code, message="", *, retryable=False, http_status=0):
-        super().__init__(str(message or code))
-        self.code = str(code or "ollama_error")
-        self.retryable = bool(retryable)
-        self.http_status = int(http_status or 0)
+        super().__init__(code or "ollama_error", message, provider="ollama",
+                         retryable=retryable, http_status=http_status)
 
 
 @dataclass(frozen=True)
@@ -259,8 +259,8 @@ class ChaosOllamaClient:
 
     def generate(self, task_package, policy):
         self._ensure_config()
-        if policy.model_name != self.config.model or policy.model_digest != self.config.model_digest:
-            raise OllamaClientError("ollama_task_model_policy_mismatch", retryable=False)
+        # Model/runtime pins belong to the transport config, already validated
+        # above. Narrative policies describe prompts/schema, not model routing.
         payload = {
             "model": self.config.model,
             "stream": False,

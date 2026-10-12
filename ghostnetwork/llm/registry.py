@@ -28,7 +28,7 @@ ROLE_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-role-v1.json"
 
 
 @dataclass(frozen=True)
-class OllamaTaskPolicy:
+class NarrativeTaskPolicy:
     source_scope: str
     task_variant: str
     target_medium: str
@@ -38,8 +38,16 @@ class OllamaTaskPolicy:
     system_prompt_path: Path = SYSTEM_PROMPT_PATH
     output_schema_version: str = OUTPUT_SCHEMA_VERSION
     model_policy_version: str = MODEL_POLICY_VERSION
-    model_name: str = MODEL_NAME
-    model_digest: str = MODEL_DIGEST
+
+    # Compatibility accessors for old callers. They are not narrative policy
+    # fields and must not be used to choose a production provider or model.
+    @property
+    def model_name(self):
+        return MODEL_NAME
+
+    @property
+    def model_digest(self):
+        return MODEL_DIGEST
 
     def eligibility_tuple(self):
         return (
@@ -50,6 +58,10 @@ class OllamaTaskPolicy:
             self.output_schema_version,
             self.model_policy_version,
         )
+
+
+# Public legacy import retained while persisted task policy versions stay stable.
+OllamaTaskPolicy = NarrativeTaskPolicy
 
 
 GHOSTNETWORK_BLACKNET_VARIANTS = frozenset({

@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ghostnetwork.ollama_client import ChaosOllamaClient, OllamaClientConfig, OllamaClientError
+from ghostnetwork.ollama_client import OllamaClientConfig
+from ghostnetwork.llm.provider import NarrativeProviderError, create_narrative_provider
 from ghostnetwork.ollama_policy import (
     assign_ollama_task_policy,
     build_ollama_task_package,
@@ -31,7 +32,6 @@ def _print(payload):
 def _worker():
     return OllamaNarrativeWorker(
         repository=GhostNetworkRepository(),
-        client=ChaosOllamaClient(OllamaClientConfig.from_env()),
         config=OllamaWorkerConfig.from_env(),
     )
 
@@ -137,7 +137,7 @@ def main(argv=None):
         worker.run(stop_event, on_result=_print)
         _print({"ok": True, "status": "stopped", "worker_id": worker.worker_id})
         return 0
-    except OllamaClientError as exc:
+    except NarrativeProviderError as exc:
         _print({"ok": False, "error": exc.code, "retryable": exc.retryable})
         return 6
 

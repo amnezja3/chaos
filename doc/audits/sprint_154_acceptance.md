@@ -1,4 +1,18 @@
-# Sprint 154 — poprawki odbioru 154.7.3
+# Sprint 154 — PASS użytkownika
+
+11 X 2026: autor potwierdził PASS nowych kategorii generowanych narzędzi PvP
+i preloadera okna mapy. Sprint 154 zaakceptowany; aktualny pakiet `154.7.4`
+ma 3146 kluczy PL/EN w 13 domenach.
+
+Pozostałe polskie powiadomienia po instalacji są trwałymi wiadomościami
+`system_message_store`, źródło `googleplex_install`. Zgodnie z wcześniejszym
+podziałem należą do 155.1 (zdarzenia/wiadomości) oraz 155.3 (historia).
+Odpowiedź samego instalatora korzysta z `shop.installed`. Zwykłe błędy i statusy
+UI pozostają w zakresie 154; ten wyjątek dotyczy zapisanych powiadomień.
+
+Poniższe wpisy zachowują historię weryfikacji i wcześniejszych otwartych uwag.
+
+## Historia: poprawki odbioru 154.7.3
 
 11 X 2026. Lokalnie: **3144 klucze PL/EN / 13 domen**.
 
