@@ -216,6 +216,18 @@ class GhostSignalShowService:
         elapsed = bool(end and current >= end)
         active = show.get("status") == "active"
         phase = self.phase_at(show, now=current)
+        manifest = build_manifest(
+            self.repository.get_show_presentation_facts(show["signal_id"]), show.get("scene_snapshot"))
+        publications = (manifest.get('cycle_history',{}).get('settlement') or {}).get('publications') or []
+        if publications:
+            from .news_locales import NewsLocaleStore
+            variants = NewsLocaleStore(self.repository.db_path).for_frozen_publications(publications)
+            # Clone the presentation layer. Never write over the frozen archive.
+            manifest = {**manifest, 'cycle_history': {**manifest['cycle_history'],
+                'settlement': {**manifest['cycle_history']['settlement'],
+                    'publications': [{**{k:v for k,v in p.items() if k not in {'medium_record_id','source_version'}},
+                                      'localized_copy': variants.get(p.get('medium_record_id'),{})}
+                                     for p in publications]}}}
         return {
             "show_active": active,
             "show_time_elapsed": elapsed,
@@ -225,8 +237,7 @@ class GhostSignalShowService:
             "show_ends_at": show.get("show_ends_at") or None,
             "server_now": current.isoformat(),
             "show_phase": phase,
-            "show_manifest": build_manifest(
-                self.repository.get_show_presentation_facts(show["signal_id"]), show.get("scene_snapshot")),
+            "show_manifest": manifest,
             "from_system_version": show.get("from_system_version") or None,
             "to_system_version": show.get("to_system_version") or None,
             "phase_policy_version": show.get("phase_policy_version") or None,

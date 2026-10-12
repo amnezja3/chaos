@@ -213,6 +213,18 @@ class RouterTest(unittest.TestCase):
                 self.assertEqual(len(records),2)
                 self.assertEqual(len({c['attempt_id'] for c in records}),1)
 
+    def test_english_contract_survives_external_failure_and_local_fallback(self):
+        from tools.narrative_locale_canary import package_for
+        package = package_for('en', 'blacknet')
+        router = self.setup_router(NarrativeProviderError(
+            'mistral_http_403', provider='mistral', http_status=403))
+        router.generate(package, package['policy'])
+        self.assertEqual([call[0] for call in self.calls], ['mistral', 'ollama'])
+        self.assertIs(self.calls[0][1], self.calls[1][1])
+        self.assertEqual(self.calls[1][1]['language_contract']['output_locale'], 'en')
+        self.assertIn('English', self.calls[1][1]['messages'][0]['content'])
+        self.assertNotIn('po polsku', self.calls[1][1]['messages'][0]['content'])
+
     def test_invalid_json_falls_back_but_fact_rejection_does_not(self):
         router=self.setup_router(content='broken JSON')
         self.repo.enqueue_narrative_task(self.task())

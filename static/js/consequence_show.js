@@ -1,5 +1,7 @@
 /* 143.5a: live committed receipts only; history is intentionally not replayed. */
 (() => {
+    const t = (key, fallback, params = {}) => window.GhostLocale?.t('apps.detention.'+key,params) || fallback.replace(/\{(\w+)\}/g, (_, name) => params[name]);
+    const titleKeys = [null,'fine','repeat_fine','confiscation','confiscation','fine_confiscation','verdict','verdict','verdict','verdict'];
     const variants = Object.freeze([
         null,
         ['consequence_01_fine', 5250.563, 'MANDAT'],
@@ -43,18 +45,24 @@
             img.onerror = () => img.remove();
             const text = doc.createElement('div');
             const title = doc.createElement('h2');
-            title.className = 'chaos-ghost-ability-title'; title.textContent = variant[2];
+            title.className = 'chaos-ghost-ability-title';
             title.style.cssText = 'font-size:clamp(22px,5vw,54px);margin:0 0 10px;overflow-wrap:anywhere';
             const body = doc.createElement('p');
             body.style.cssText = 'color:#c4e6c6;font:700 clamp(12px,2vw,18px) monospace';
-            body.textContent = effects.detention_seconds
-                ? `Czas aresztu: ${Math.ceil(effects.detention_seconds / 60)} min online.`
-                : `Mandat: ${Number(effects.fine_hc || 0)} HC. Skonfiskowane narzędzia: ${(effects.tool_ids || []).length}.`;
+            const renderCopy = () => {
+                title.textContent = t(titleKeys[receipt.stage],variant[2]);
+                body.textContent = effects.detention_seconds
+                    ? t('verdict_time','Czas aresztu: {minutes} min online.',{minutes:String(Math.ceil(effects.detention_seconds/60))})
+                    : t('verdict_effects','Mandat: {amount} HC. Skonfiskowane narzędzia: {count}.',{amount:String(Number(effects.fine_hc||0)),count:String((effects.tool_ids||[]).length)});
+            };
+            renderCopy();
+            document.addEventListener?.('ghost:locale-changed',renderCopy);
             text.append(title, body); panel.append(img, text); overlay.append(panel);
             let done = false, started = false, handle, fallbackTimer, deadline, visibilityTimer;
             const finish = () => {
                 if (done) return;
                 done = true;
+                document.removeEventListener?.('ghost:locale-changed',renderCopy);
                 clearTimeout(fallbackTimer); clearTimeout(deadline);
                 clearInterval(visibilityTimer);
                 overlay.remove(); handle?.stop({fade_ms: 0}); resolve();

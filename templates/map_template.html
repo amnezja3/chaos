@@ -6990,7 +6990,7 @@
                     position_updated_at: data.position_updated_at }, { authoritative: true });
             }
             const seconds = Math.max(0, Number(data.remaining_seconds) || 0);
-            addSystemMessage('warning', 'Areszt', `${data.message || 'Ruch i teleporty zablokowane.'} Pozostalo: ${Math.ceil(seconds / 60)} min online.`);
+            addSystemMessage('warning', GhostLocale.t('apps.detention.prison'), GhostLocale.t('apps.detention.movement',{minutes:String(Math.ceil(seconds / 60))}));
             return true;
         }
 

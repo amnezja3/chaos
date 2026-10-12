@@ -16,6 +16,24 @@ REGISTRY_PATH = ROOT / "static" / "images" / "googleplx" / "asset_registry.json"
 
 
 class GoogleplexNewsFoundationTest(unittest.TestCase):
+    def test_foundation_locales_preserve_identity_actions_and_ugc(self):
+        pl = self.build(locale='pl')
+        en = self.build(locale='en')
+        for left, right in zip(pl['entries'],en['entries']):
+            self.assertEqual(left['content']['news_id'],right['content']['news_id'])
+            self.assertEqual(left['action'],right['action'])
+            self.assertEqual(left['content']['published_at'],right['content']['published_at'])
+            if left['content']['news_id'] == 'gp-home-featured':
+                self.assertEqual(left['content'],right['content'])
+                self.assertNotIn('system_copy_key',right['content'])
+            else:
+                self.assertNotEqual(left['content']['title'],right['content']['title'])
+        self.assertEqual(self.build(catalog=[],locale='en')['entries'][5]['content']['title'],'Tool catalog')
+        partial = self.build(catalog=[{'id':'x','name':'Moja aplikacja','published':True}],locale='en')['entries'][5]['content']
+        self.assertEqual(partial['title'],'Moja aplikacja')
+        self.assertEqual(partial['system_copy_fields'],['summary'])
+        self.assertEqual(partial['summary'],'Browse Googleplex apps and tools.')
+
     def setUp(self):
         load_asset_registry.cache_clear()
         self.now = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)

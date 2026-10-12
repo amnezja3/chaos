@@ -547,7 +547,7 @@ class GoogleplexLlmTaskIngress:
         self.repository = repository
         self.inventory_store = inventory_store
 
-    def submit(self, username, app_contract, request_payload):
+    def submit(self, username, app_contract, request_payload, *, output_locale=None):
         username = _clean(username)
         app_contract = app_contract if isinstance(app_contract, dict) else {}
         payload = request_payload if isinstance(request_payload, dict) else {}
@@ -644,6 +644,7 @@ class GoogleplexLlmTaskIngress:
         task_record = assign_ollama_task_policy({
             "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
             "source_scope": GOOGLEPLEX_SOURCE_SCOPE,
+            "output_locale": output_locale,
             "source_receipt_id": receipt_id,
             "source_app_id": app_id,
             "processor": NARRATIVE_TASK_PROCESSOR,

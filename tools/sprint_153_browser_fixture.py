@@ -19,7 +19,7 @@ os.chdir(temporary.name)
 os.environ['CHAOS_SESSION_FILE_DIR'] = str(Path(temporary.name) / 'sessions')
 os.environ['CHAOS_SECRET_KEY'] = 'sprint153-isolated-only'
 import run
-from database import WalletStore
+from database import WalletStore, MailStore
 from tests.test_file_manager_inventory import FileManagerInventoryTest
 from tests.test_player_hack_read_paths import valid_profile
 from flask import render_template
@@ -36,6 +36,10 @@ fixture.stack.enter_context(patch.object(run, 'wallet_store', WalletStore(fixtur
 fixture.stack.enter_context(patch.object(run, 'sync_session_profile', side_effect=lambda **kwargs: fixture.users.get_profile('attacker')))
 run.app.jinja_env.auto_reload = True
 generation = fixture.client.environ_base['HTTP_X_CHAOS_SESSION_GENERATION']
+fixture_mail = MailStore(fixture.path)
+mail_body = '👋 Gracz <img src=x> wysyla Ci gest przywitania. Odpowiedz, zeby dodac go do znajomych.'
+fixture_mail.add_direct_notification('attacker','recipient','recipient','Gest przywitania',mail_body)
+fixture_mail.add_message('attacker','direct','recipient','attacker',mail_body,subject='Gest przywitania')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -105,10 +109,41 @@ class Handler(BaseHTTPRequestHandler):
             data = fixture.users.get_profile('attacker')
             data['desktop_settings'] = fixture.identity.get_desktop_boot('attacker')['desktop_settings']
             body = json.dumps(data).encode()
+        elif path == '/admin':
+            from urllib.parse import parse_qs, urlsplit
+            query = parse_qs(urlsplit(self.path).query)
+            with run.app.test_request_context(self.path):
+                run.session['user'] = 'attacker'
+                run.g.ghost_ui_locale = query.get('locale',['en'])[0]
+                with patch.object(run,'require_dev_admin',return_value=True), patch.object(
+                        run,'session_generation_client_context',return_value={'query_token':'fixture','generation':generation,'username':'attacker'}):
+                    body = run.dev_dashboard().encode()
+            content_type = 'text/html; charset=utf-8'
+        elif path == '/api/admin/panel/list':
+            from admin_panel import page
+            from urllib.parse import parse_qs, urlsplit
+            query = parse_qs(urlsplit(self.path).query)
+            result = page(fixture.path,query.get('section',['users'])[0],search=query.get('search',[''])[0])
+            body = json.dumps({'success':True,**result}).encode()
+        elif path == '/api/dev/bug-reports':
+            body = json.dumps(dict(success=True,statuses=['new','fixed'],categories=['UI'],reports=[dict(
+                id=1,title='Polski tytuł gracza <img src=x>',description='Mój opis pozostaje po polsku.',
+                created_by='fixture',created_at='2026-10-12',category='UI',severity='low',status='new')])).encode()
+        elif path == '/api/admin/radio':
+            body = json.dumps(dict(success=True,channels=[dict(id='fixture',name='Własna audycja',language='PL')],
+                default_channel='fixture',language_validation=[])).encode()
         elif path == '/legacy-catalog-locale':
             from catalog_presentation import legacy_presentation, legacy_sources
             seeds = json.loads((root / 'static/app_config.json').read_text(encoding='utf8'))
             body = json.dumps([legacy_presentation(item) for item in seeds if item['id'] in legacy_sources()]).encode()
+        elif path == '/api/mail/bootstrap':
+            body = json.dumps(dict(username='attacker',contacts=[dict(name='recipient',status='online')],
+                group_messages=[],unread_counts={})).encode()
+        elif path == '/api/chats/messages':
+            from urllib.parse import parse_qs, urlsplit
+            query = parse_qs(urlsplit(self.path).query)
+            messages = fixture_mail.list_messages('attacker',query.get('scope',['group'])[0],query.get('peer',['global'])[0])
+            body = json.dumps(dict(messages=messages,unread_counts={})).encode()
         elif path in ('/api/ghostlab/files', '/api/ghostlab/documents'):
             body = b'{"files":[]}'
         elif path in ('/system-messages', '/launch-queue'):

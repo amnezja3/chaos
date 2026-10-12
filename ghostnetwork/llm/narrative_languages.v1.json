@@ -1,0 +1,56 @@
+{
+  "version": "narrative-language-v1",
+  "en": {
+    "prompt_version": "narrative-en-v1",
+    "system_prompt": "prompts/system/narrative-en-v1.md",
+    "news": {
+      "prompt_version": "news-localization-en-v1",
+      "system_prompt": "prompts/system/news-localization-en-v1.md",
+      "domain_prompt": "prompts/googleplex/news-localization-en-v1.md",
+      "language_words": ["the", "a", "an", "is", "are", "has", "have", "in", "of", "to", "for", "with", "and", "your"],
+      "rejected_words": ["jest", "są", "został", "została", "oraz", "który", "która", "przez", "się", "nie", "na", "wykryto"],
+      "minimum_language_words": 2,
+      "maximum_rejected_words": 1
+    },
+    "blacknet_title_prefix": "INTERCEPT // ",
+    "blacknet_fallback_title": "INTERCEPT // NETWORK SIGNAL",
+    "fallback_title": "GhostNetwork signal",
+    "owner_part_discovered": "A hidden GhostNetwork part was discovered at {location}: {part_name}.",
+    "dangling_words": ["a", "an", "the", "and", "or", "with", "of", "to", "for", "by"],
+    "policies": {
+      "blacknet-world-prompt-v2": "world",
+      "blacknet-signal-prompt-v9": "intercept",
+      "googleplex-news-assets-prompt-v8": "news",
+      "googleplex-world-hero-prompt-v14": "news",
+      "ghostnetwork-googleplex-prompt-v11": "semantic_news",
+      "googleplex-product-promo-v2": "product",
+      "googleplex-navigation-promo-v1": "navigation",
+      "googleplex-capability-card-v1": "capability",
+      "ghostnetwork-event-prompt-v11": "event",
+      "ghostsignal-prompt-v11": "signal",
+      "cyberner-agi-2108-prompt-v5": "oracle"
+    },
+    "families": {
+      "world": "Write a short intercepted world digest grounded exclusively in the selected facts. Keep uncertainty and audience boundaries. Do not invent events or connect unrelated facts. Respect schema, allowed CTA and output limits.",
+      "intercept": "You receive one fragment of a foreign transmission in the world of 2108. Use the single selected fact and narrative_intent: a conflict warning, incident alert, broadcast fragment, product transmission or mysterious world signal. Do not print the year as a framing phrase. Start with a concrete detail, not reporting boilerplate. Title: 2–6 words; body: 1–3 short sentences. A product transmission names the need or benefit, retaining the original product title and authored text. Do not invent capabilities or repeat download counts, temperatures or waiting times. Use exactly the one fact reference; cta_ref is null. Never expose coordinates or technical identifiers.",
+      "news": "Write a concise editorial news item using only the selected world facts and preserving their certainty. Do not copy backend labels as prose or invent causation. Keep the assigned slot's title/body budgets. Select asset_ref only from allowed_asset_refs and preserve the selected action. No process commentary.",
+      "semantic_news": "Write a concise editorial GhostNetwork update using semantic_facts only. Do not invent events, relationships or consequences. A discovered part is not ownership or activation. Retain visible names and locations but no internal IDs. Use only the provided fact aliases, choose an allowed asset, and set cta_ref to null.",
+      "product": "Keep the original product name and all player-authored descriptions unchanged. Only system-owned surrounding labels may be English. Never invent capabilities, benefits, price or entitlement. Respect the backend copy contract and allowed asset roles. cta_ref is null.",
+      "navigation": "Refresh one system-owned Googleplex navigation box. The backend selected the surface, link and action. Invite the reader into CHAOS but describe only the capability present in the fact. No new features, URLs, prices or CTA. Obey the slot budget, use an allowed asset_role, tone mystery, exactly the single fact_ref and cta_ref null.",
+      "capability": "Describe the supplied system capability concisely, within the assigned slot budget. Preserve its eligibility, limitations and action. Do not promise success or add features. Use exactly the supplied fact reference, an allowed asset_role and cta_ref null. Avoid backend jargon and process commentary.",
+      "event": "Write a short natural GhostNetwork message using only semantic_facts. Never add events, relationships or consequences. For BlackNet use intercepted transmission form: title starts with INTERCEPT // and body with ... . Include a concrete visible detail without mechanically copying the whole statement. For Cyberner use a brief enigmatic network message. Do not truncate words. Copy fact aliases only to fact_refs; cta_ref is null.",
+      "signal": "Write a brief GhostSignal message using only semantic_facts. Do not add events, relations or consequences. For BlackNet title starts with INTERCEPT // and body with ... . For Cyberner use an enigmatic network message; for radio use one concise announcement. Do not truncate words. Copy aliases only into fact_refs, and set cta_ref to null.",
+      "oracle": "You are the calm, perceptive digital oracle of Ghost System in 2108. Speak directly to the player through a short useful riddle grounded in the given facts. The topic is private input: never quote, echo, summarize or paraphrase its wording in the output. Choose one useful direction and at most two established surfaces (terminal, map/operations, Googleplex, BlackNet, radio or Ghost Exchange). Suggest how to find another signal if evidence is insufficient. Title: 2–6 words; body: 2–4 sentences, no rhetorical closing question or step list. Never invent tools, prices, places, results or events; never act for the player or promise success. No chatbot/report voice or references to prompts, schemas or generation. Recommended tone mystery. Use only allowed references."
+    },
+    "fallbacks": {
+      "part_discovered": "A hidden GhostNetwork part was discovered at {location}.",
+      "part_activated": "A GhostNetwork part was activated at {location}.",
+      "machine_online": "A GhostNetwork machine is now online.",
+      "cycle_locked": "The GhostNetwork cycle has been locked.",
+      "signal_sent": "The Ghost Signal has been transmitted.",
+      "version_changed": "The GhostNetwork version has changed.",
+      "stabilization_started": "GhostNetwork stabilization has started.",
+      "cycle_activated": "A new GhostNetwork cycle is active."
+    }
+  }
+}

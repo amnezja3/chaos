@@ -36,6 +36,7 @@
         [['name','Nazwa',info.name],['clan','Klan',info.clan],['code','Symbol',info.code],['power','Supermoc',info.power],['machine','Maszyna',info.machine]].forEach(pair => {
             const label = document.createElement('dt'), value = document.createElement('dd');
             if (window.ghostSet) window.ghostSet(label, 'map.power.detail.' + pair[0]);
+            else if (window.GhostLocale?.hasKey('map.power.detail.' + pair[0])) label.textContent = window.GhostLocale.t('map.power.detail.' + pair[0]);
             else label.textContent = pair[1];
             if (pair[0] === 'power' && window.ghostAbilitySet) window.ghostAbilitySet(value, info.ability_code, 'name', pair[2]);
             else value.textContent = pair[2];

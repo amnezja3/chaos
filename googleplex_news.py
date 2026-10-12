@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ghostnetwork.ollama_policy import presentation_safety_errors
+from ghost_i18n import translator, normalize_locale, approved_locales
 from ghostnetwork.editorial import GOOGLEPLEX_HOME_SLOT_REGISTRY
 
 
@@ -277,6 +278,7 @@ def build_googleplex_news_snapshot(
     limit: int = DEFAULT_LIMIT,
     now: datetime | None = None,
     registry_path: str = "",
+    locale: str = "pl",
 ) -> dict[str, Any]:
     """Build the deterministic Sprint 135.4.1 public foundation snapshot."""
     try:
@@ -309,6 +311,23 @@ def build_googleplex_news_snapshot(
         _entry(registry=registry, published_at=FOUNDATION_PUBLISHED_AT, **definition)
         for definition in definitions[:bounded_limit]
     ]
+    locale = normalize_locale(locale)
+    for entry in entries:
+        content = entry["content"]
+        slot = content["news_id"].removeprefix("gp-home-")
+        # Product names/descriptions are UGC, not system placeholders.
+        fields = [field for field in ("title", "summary") if not (
+            slot == "featured" and featured_id and featured.get({"title": "name", "summary": "description"}[field])
+        )]
+        if not fields:
+            continue
+        content["system_copy_key"] = "apps.news." + slot
+        content["system_copy_fields"] = fields
+        for field in fields:
+            content[field] = _bounded_text(
+                translator().t(content["system_copy_key"] + "." + field, locale=locale),
+                PRESENTATION_LIMITS[entry["presentation"]["weight"]][field],
+            )
     action_count = sum(1 for item in entries if item["action"]["kind"] == "ACTIONABLE")
     sources = sorted({item["content"]["source"] for item in entries})
     global_stats = [
@@ -362,10 +381,13 @@ def build_googleplex_news_snapshot(
 
 def merge_googleplex_news_publications(
     snapshot: dict[str, Any], records: Iterable[dict[str, Any]], *,
-    limit: int = DEFAULT_LIMIT, registry_path: str = ""
+    limit: int = DEFAULT_LIMIT, registry_path: str = "", locale: str = "pl",
+    locale_variants=None,
 ) -> dict[str, Any]:
     """Project publications into stable Home slots without growing the feed."""
     result = dict(snapshot or {})
+    locale = normalize_locale(locale)
+    locale_variants = locale_variants or {}
     try:
         bounded_limit = max(MIN_LIMIT, min(MAX_LIMIT, int(limit or DEFAULT_LIMIT)))
     except (TypeError, ValueError):
@@ -486,6 +508,28 @@ def merge_googleplex_news_publications(
             action_payload_ref=action_payload_ref,
             published_at=str(record.get("published_at") or result.get("generated_at") or ""),
         )
+        content = replacements[slot_id]['content']
+        variants = dict(locale_variants.get(record.get('medium_record_id'), {}))
+        # Legacy prose remains available in PL while reviewed variants are
+        # prepared offline. Never label that prose as an English translation.
+        variants.setdefault('pl', {'title':content['title'], 'summary':content['summary']})
+        for missing_locale in sorted(set(approved_locales('interface')) - set(variants)):
+            contract = GOOGLEPLEX_HOME_SLOT_REGISTRY.get(slot_id, {})
+            source_ref = (contract.get('source') or {}).get('ref')
+            if source_ref and record.get('selected_source_ref') == source_ref:
+                key = 'apps.news.' + slot_id.removeprefix('gp-home-')
+                variants[missing_locale] = {field:translator().t(key + '.' + field,locale=missing_locale) for field in ('title','summary')}
+            else:
+                variants[missing_locale] = {
+                    'title':translator().t('apps.news.pending_title',locale=missing_locale),
+                    'summary':translator().t('apps.news.pending_summary',locale=missing_locale),
+                }
+            content.setdefault('locale_fallbacks', []).append(missing_locale)
+        if content_kind == 'product_promo':
+            # The backend-owned title is the original product name (UGC).
+            variants = {tag:{**copy,'title':product_name} for tag,copy in variants.items()}
+        content['localized_copy'] = variants
+        content.update(variants.get(locale, variants['pl']))
     result["entries"] = [
         replacements.get(str(item.get("content", {}).get("news_id") or ""), item)
         for item in existing

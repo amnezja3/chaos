@@ -1,5 +1,174 @@
 # CHAOS — Project Journal
 
+## 2026-10-12 — 155.2.0: audyt lokalny i migracja obecnej produkcji
+
+Decyzja autora: bez dodatkowej instancji gry, katalogu aplikacji i portu.
+Przygotowano [procedurę komenda → spodziewany wynik](../runbooks/ghost_content_155.md):
+zapis commitów i środowiska PM2, zatrzymanie wyłącznie procesów CHAOS, spójny
+backup SQLite API z WAL, dry-run, migracja w transakcji, porównanie hashy wszystkich
+pierwotnych pól tabel, próby Mistral/Ollama PL/EN bez publikacji i etapowe wznowienie.
+Osobne warianty rollbacku: flaga funkcji, własny batch, kod; pełne odtworzenie bazy
+tylko po ocenie postępu od backupu. Nie wykonywano zmian serwera ani push.
+
+Audyt ujawnił brakujące teksty panelu administratora i aresztu/kaucji.
+Dodano katalogi PL/EN, przetłumaczone statusy/profesje/szablony, radio i model panel,
+zachowując UGC zgłoszeń/nazw. Otwarte okno kaucji aktualizuje tekst i format kwoty
+bez zmiany DOM lub wykonania płatności. Odczyt języka odmowy i formularza admina
+nie otwiera już dodatkowej transakcji z guardem — regresja wykryła zapętlenie
+odmowy aresztu i błędne odrzucenie aktualnego formularza po zmianie epoki.
+Zabezpieczenia rzeczywistych zapisów pozostają aktywne.
+
+Nowy `tools/ghost_content_155_migrate.py`: backup nie nadpisuje istniejącego pliku,
+kontrole integrity/FK, brak tworzenia gry przy złej ścieżce/schemacie, DDL dry-run
+na samym schemacie w pamięci, idempotencja i rollback transakcji przy błędzie.
+Sześć testów migracji PASS, w tym WAL, pełny schemat aplikacji oraz wykrycie zmiany
+salda przy niezmienionej liczbie rekordów. Wymuszone canary Mistrala nie uznaje
+odpowiedzi z fallbacku za PASS Mistrala; sekret pozostaje tylko w środowisku.
+
+Playwright MCP na lokalnym fixture: admin EN (lista/search/empty, bug reports,
+radio), niezmieniony tekst gracza i literalne HTML, mobile 390×844 bez overflow.
+Dialog kaucji EN → PL zachowuje element i stan; kwota 500,000 → 500 000.
+Konsola bez błędów; przeglądarka zamknięta, fixture zatrzymany. Dodatkowe zestawy
+47 oraz 23 testów Python PASS (częściowo wspólne), dziewięć zestawów detention/
+consequence JS, admin lazy, News i Show montage PASS. Pakiet: 3910 kluczy na
+język, 13 domen, PL 443439 B / EN 434912 B surowego JSON; cache URL podniesione.
+Próbki modeli, produkcyjna historia i pełny odbiór gry pozostają bramkami
+wdrożenia/akceptacji, nie są oznaczone jako wykonane lokalnie.
+Końcowa regresja po poprawkach: **92 testy PASS w 179,100 s**; osobny zestaw
+sześciu testów migracji także PASS (częściowo wspólny zakres). Składnia Bash
+runbooka i diff-check poprawne.
+
+## 2026-10-12 — 155: kontrakty narracji, Cyberner i pakiet odbioru
+
+Dopisano trwały wybór języka nowych zadań narracji i metadane publikacji.
+Wersja faktów/promptu jest sprawdzana przy odczycie; retry i przejście Mistral →
+Ollama zachowują język i jedno zadanie. Rejestr danych zawiera EN instrukcje
+11 aktywnych wersji promptów, fallbacki oraz konfigurację wariantów News.
+Automatyczny BN wybiera jeden język na event spośród włączonych przez operatora;
+News ma warianty czytelnika. Dodanie testowego locale w rejestrze i katalogach
+nie wymaga gałęzi aplikacji. Oryginalne UGC pozostaje poza tłumaczeniem.
+
+Systemowe wiadomości Cybernera otrzymały zapisane klucze/parametry, odczyt,
+deltę i renderer. Zwykła wiadomość gracza o identycznym tekście nie otrzymuje
+tych metadanych. Rozszerzono ścisłe szablony powiadomień o nagrody terenu,
+Response Network, więzienie, kartotekę, firmware, korespondencję handlową,
+wtargnięcia i roje. Poprawiono dopasowanie domyślnego źródła `system`.
+Inwentarz starych komunikatów jest read-only i nie eksportuje tekstów; migracja
+języka publikacji wymaga przeglądu, działa batchami, ma dry-run i rollback.
+Nie ustala języka starych wpisów na podstawie zgadywania.
+
+Playwright MCP: pełny renderer izolowanego pulpitu, rzeczywisty odczyt FM/MailStore,
+EN dokumenty about i tips-tricks, przełączanie UI bez zmiany otwartego dokumentu;
+systemowa wiadomość PL/EN obok niezmiennego UGC, zachowany draft i brak powielenia.
+Literalny HTML w nazwie nie tworzy elementów. Mobile 390×844 bez overflow;
+konsola bez błędów. Browser zamknięty, fixture zatrzymane. Nie jest to test
+produkcji ani fizycznej klawiatury ekranowej.
+
+Końcowa szeroka regresja: **320 testów Python PASS (547,845 s)**. Dodatkowe
+9 testów wiadomości/inwentarza PASS po poprawce zamknięcia połączenia SQLite
+read-only na Windows. Zestawy częściowo się pokrywają. Regresja JS katalogów,
+runtime, Cybernera, News oraz montage/audio/recovery Show PASS; diff-check czysty.
+Pakiety: 3673 klucze × PL/EN, 13 domen; surowe JSON 418734 B PL / 410652 B EN.
+To pomiar artefaktów, nie porównanie wydajności pulpitu z baseline.
+
+README, rejestr, macierz odbioru, runbook 155 i procedura kolejnego locale
+zaktualizowane. Brak pushu/wdrożenia. Pakiet 155.1.0 służy do odbioru
+przedwdrożeniowego; **nie ma pełnego PASS 155**. Pozostają audyt dostępnej
+historii i pełnego pokrycia, próbki rzeczywistych modeli, pełna pętla gry,
+administracja/recovery oraz fizyczne Android/iOS i pomiary docelowe.
+EN nadal `test`; zamrożone 149–152 bez zmian.
+
+## 2026-10-12 — 155: News worker, historia i zatwierdzony kontrakt Show
+
+Autor zatwierdził teksty Ghost Signal Show/Sender według języka gracza.
+Plansze i opisy PL/EN zachowują transmisję, zegar i wynik; audio/wideo pozostają
+oryginalne. Lokalizacja 49 scen nie modyfikuje manifestu źródłowego.
+Playwright wykrył reset filmu przy przeniesieniu istniejącego elementu video;
+poprawka aktualizuje same teksty bez odłączania odtwarzacza. Potwierdzono ten
+sam element i rodzica oraz rosnący currentTime po zmianie locale. Mobile 390×844:
+bez poziomego overflow, konsola bez błędów. Jest to test izolowanego komponentu,
+nie pełnego zalogowanego pulpitu ani fizycznego telefonu.
+
+Dodano opt-in asynchroniczne warianty EN News przez istniejący router dostawców,
+osobne EN warstwy promptów, dzierżawy, trzy próby, kontrolę aktualności źródła
+i wygaśnięcia publikacji. Bez generacji podczas odczytu i bez ponownej publikacji.
+Narzędzie news_locale_backfill obsługuje inwentarz, dry-run, ograniczone batche,
+wznowienie i rollback wyłącznie własnych wariantów. Produkty graczy wyłączone.
+Archiwum Show odczytuje wariant dokładnej zamrożonej wersji News; BN bez zmiany.
+Dodano osobne chaos.en.ptk / blacknet.en.ptk oraz ścisłe szablony kolejnych
+powiadomień. Nie jest to jeszcze komplet trwałych komunikatów całej gry.
+
+Regresja przed końcowymi kontrolami: 106 testów Python PASS i osiem zestawów JS
+PASS. Dawny błąd testu filaru wynikał z nieaktualnego mocka profilu; fixture
+używa teraz aktualnych ograniczonych projekcji, bez zmiany mechaniki gry.
+Nowe kontrole wygasania News i zamrożonej wersji archiwum również PASS.
+Końcowy zestaw News/Show/workera/Mistrala/routera/admina: 92 testy PASS
+(314,590 s); osiem zestawów JS PASS, diff-check bez błędów.
+Cały 155 pozostaje W TOKU: brak pełnego pokrycia rodzin narracji i wiadomości,
+odbioru żywych generacji EN oraz pełnej pętli gry. Bez pushu i wdrożenia.
+[Procedura i pozostałe bramki](../runbooks/ghost_content_155.md).
+
+## 2026-10-12 — 155.2: zapis i odczyt wariantów News
+
+Dodano addytywną tabelę `ghost_news_locale_variants` inicjalizowaną wraz
+z repozytorium; odczyt nie wykonuje migracji ani generacji. Wariant przypisany
+do medium_record_id, odcisku wersji źródła i zatwierdzonego locale. Zapis po
+przeglądzie redakcyjnym jest idempotentny; konflikt, stara wersja źródła i próba
+dopisania wariantu BN są odrzucane. Nie tworzy publikacji/nagród/CTA.
+News odczytuje warianty po filtrze widoczności odbiorcy; przerysowanie locale
+korzysta z tej samej karty. Zachowano tytuł produktu gracza. Dla braku EN
+opisów funkcji używany jest dopasowany szablon systemowy; dla pozostałych
+newsów jawny komunikat o niedostępnym EN, który nie zalicza pełnego PASS 155.
+To warstwa magazynu i prezentacji, nie ukończone generowanie wariantów:
+pozostały prompty PL/EN, kolejka przygotowania, walidacja faktów i backfill.
+38/38 testów Python PASS; JS PASS; Playwright izolowanego komponentu:
+ta sama karta PL→EN, 12 wpisów, CTA mapy, brak overflow na desktop i 390×844,
+tylko favicon 404 w konsoli. Przeglądarka i fixture zamknięte. Bez wdrożenia.
+
+## 2026-10-12 — 155.1: trwałe powiadomienia instalacji PL/EN
+
+SystemMessageStore dodaje wersjonowane klucze i nazwę produktu jako parametr
+dla `googleplex_install`, wspólnie dla obu ścieżek instalacji. Zachowano
+oryginał, message_id, dedupe key i status dostarczenia. Ścisłe rozpoznanie
+historycznego szablonu przy odczycie nie zapisuje danych ani nie wznawia toastu;
+obce źródła i niejednoznaczne teksty nie otrzymują tłumaczenia.
+Toast korzysta z bindings PL/EN i escapuje nazwę produktu zamiast interpretować
+ją jako HTML. Playwright na funkcjach produkcyjnych w izolowanym komponencie:
+EN → PL podczas wyświetlania, jedna instancja po replay, nazwa z HTML wyświetlana
+dosłownie (zero elementów img). Konsola: tylko favicon fixture 404.
+Regresja 45/46 PASS. Istniejący test przebudowanego filaru konfliktu dostaje
+409 zamiast 200; powtórzono również na kodzie run.py/database.py z HEAD z tym
+samym wynikiem. Nie poprawiano mechaniki terytorium w łatce lokalizacji.
+Zmiany pozostają lokalne. Pełna migracja historii i warianty narracji nadal w toku.
+
+## 2026-10-12 — start 155: Googleplex News, pierwszy etap PL/EN
+
+Autor zlecił start 155 po potwierdzonych generacjach Mistrala i trwałym zapisie
+sekretu dla web/workera w PM2 z aktywnym autostartem. Bez deklaracji reboot testu.
+Dodano systemowe copy PL/EN dla 12 slotów News i stanów interfejsu (155.1.0).
+Nazwy/opisy UGC pozostają oryginalne; brakujący opis ma lokalizowany fallback.
+Zmiana locale w otwartym Home przerysowuje bazowe teksty bez generacji narracji.
+Usunięto z widoku gracza mylące oznaczenia Ollamy na rzecz etykiety redakcyjnej,
+z zachowaniem dotychczasowego kontraktu danych. Opublikowana proza LLM nadal
+wymaga wariantów locale w następnym etapie; nie deklarujemy pełnego EN.
+Playwright: izolowany komponent, 12 kart PL/EN, CTA mapy, empty/loading/error,
+powrót do PL, desktop i mobile 390×844 bez poziomego overflow. Brak wyjątków JS;
+jedyny błąd konsoli to favicon 404 fixture. Przeglądarka i serwer zamknięte.
+Regresja końcowa: 20/20 testów Python PASS; testy JS News, i18n i runtime PASS;
+node --check oraz git diff --check PASS. Zmiany lokalne, bez wdrożenia.
+
+## 2026-10-12 — audyt placeholderów Googleplex News przed 155
+
+Przegląd kodu potwierdził 12 bazowych kart z copy PL/technicznym i literalne
+stany UI w googleplex_news.js. `ollama_enriched`/`ollama_used` są ustawiane
+przy scalaniu publikacji bez odczytu rzeczywistego dostawcy: napis ze zrzutu
+nie pozwala ustalić, czy narrację stworzył Mistral czy Ollama.
+155.2b już obejmował News i fallbacki według locale; dopisano jawny zakres
+wszystkich slotów, zastąpienie roboczych opisów copy gracza, stany loading/error/
+empty, neutralne etykiety redakcyjne, ochronę UGC i macierz odbioru PL/EN.
+Zakres narracji 155 obejmuje obu dostawców po 154.8. To audyt i uzupełnienie
+planu, bez zmiany runtime i bez deklaracji przetestowania UI w przeglądarce.
+
 ## 2026-10-12 — 154.8: zgodność kontraktu z trybem JSON Mistrala
 
 Po wdrożeniu 5d5a047 test live zwrócił HTTP 400, code 3051:

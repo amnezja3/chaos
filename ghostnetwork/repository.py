@@ -1472,6 +1472,10 @@ class GhostNetworkRepository:
                 conn, "ghost_narrative_medium_records", "asset_ref",
                 "asset_ref TEXT NOT NULL DEFAULT ''",
             )
+            from .news_locales import initialize as initialize_news_locales
+            initialize_news_locales(conn)
+            from .news_generation import initialize as initialize_news_locale_jobs
+            initialize_news_locale_jobs(conn)
             self._ensure_column(
                 conn, "ghost_narrative_medium_records", "presentation_slot",
                 "presentation_slot TEXT NOT NULL DEFAULT ''",
@@ -1493,6 +1497,7 @@ class GhostNetworkRepository:
                 "selected_source_version TEXT NOT NULL DEFAULT ''",
             )
             for column, ddl in (
+                ("output_locale", "output_locale TEXT NOT NULL DEFAULT ''"),
                 ("narrative_thread_id", "narrative_thread_id TEXT NOT NULL DEFAULT ''"),
                 ("event_family", "event_family TEXT NOT NULL DEFAULT ''"),
                 ("significance", "significance TEXT NOT NULL DEFAULT ''"),
@@ -2003,6 +2008,7 @@ class GhostNetworkRepository:
             "source_state_version": int(row["source_state_version"] or 0) if "source_state_version" in keys else 0,
             "presentation_family": row["presentation_family"] if "presentation_family" in keys else "",
             "publication_mode": row["publication_mode"] if "publication_mode" in keys else "model",
+            "output_locale": row["output_locale"] if "output_locale" in keys else "",
             "created_at": row["created_at"],
             "published_at": row["published_at"],
         }
@@ -4752,6 +4758,8 @@ class GhostNetworkRepository:
 
     def enqueue_narrative_task(self, item):
         item = item if isinstance(item, dict) else {}
+        from .narrative_locale import freeze_language
+        item = freeze_language(item)
         now = _iso(item.get("created_at") or self.now())
         target_medium = _clean(item.get("target_medium") or item.get("medium"))
         if not target_medium:
@@ -6699,6 +6707,9 @@ class GhostNetworkRepository:
                     row["created_at"], now_iso,
                 ),
             )
+            contract = (loads_json(row['task_validation_json'], {}) or {}).get('language_contract') or {}
+            conn.execute('UPDATE ghost_narrative_medium_records SET output_locale=? WHERE medium_record_id=? AND output_locale=?',
+                         (contract.get('output_locale', ''), row['medium_record_id'], ''))
             if lifecycle["supersedes_medium_record_id"]:
                 conn.execute(
                     """

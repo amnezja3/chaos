@@ -1,14 +1,17 @@
 # Ghost System PL/EN — mapa zakresu i rejestr startowy Sprintu 153
 
-Stan: **przygotowanie zakresu**, 6 X 2026. Dokument opisuje, co ma otrzymać
-wersje językowe; nie potwierdza wykonania tłumaczeń. Podstawa:
+Rejestr zakresu z 6 X 2026; aktualizacja statusu 12 X 2026. 153 i 154 mają PASS
+autora. Lokalny pakiet 155.2.0 ma osobną [macierz dowodów i braków](sprint_155_acceptance.md).
+Poniższe wiersze opisują wymagany zakres, nie stanowią deklaracji pełnego EN. Podstawa:
 [153](../sprints/sprint_153_ghost_system_i18n_foundation.md),
 [154](../sprints/sprint_154_ghost_system_apps_catalogs.md),
 [155](../sprints/sprint_155_ghost_system_content_acceptance.md).
 
 153: **PASS lokalny**, [rejestr 496 kluczy](sprint_153_key_register.md),
 [format v1](../architecture/ghost_i18n_v1.md), [odbiór](sprint_153_acceptance.md).
-Fundament i powłoka A01–A11 zakończone. Dalsze obszary tabeli należą do 154/155;
+Fundament i powłoka A01–A11 zakończone. Aplikacje 154 odebrane przez autora;
+trwałe treści, narracja, historia i pełny odbiór należą do 155.
+Pozostałe obszary tabeli należy odczytywać wraz z aktualną macierzą;
 ich opis jest planem, nie deklaracją gotowości angielskiej wersji całej gry.
 
 Przejrzano punkty wejścia szablonów i rendererów oraz plany funkcjonalne.
@@ -126,10 +129,10 @@ Stan wszystkich pozycji: **PLAN / wymagana analiza pochodzenia i trwałych danyc
   Inwentaryzacja obejmuje nazwy faz i scen, plansze, podpisy maszyn/części,
   odliczanie, statystyki, ranking, nagrody, błędy, przyciski i dostępność.
   Sprawdzić także tekst zaszyty w obrazach i filmie oraz mowę w nagraniach.
-- Systemowa prezentacja ma PL/EN; nicki, nazwy klanów i inne dane autorskie
-  pozostają oryginalne. Dla narracji GhostSignal trzeba przed generowaniem
-  zatwierdzić politykę języka medium, prompt, audio i napisów. Wyjątek BN
-  nie rozstrzyga tej polityki. Brak tego kontraktu blokuje odbiór 155.
+- Decyzja autora 12 X 2026: systemowe teksty i plansze Show/Sender według
+  języka gracza (`reader_locale`), wspólne oryginalne audio/wideo
+  (`original_language`). Nicki, nazwy klanów i dane autorskie bez tłumaczenia.
+  Jedna transmisja, zegar i wynik; wyjątek BN nie obejmuje plansz systemowych.
 - Zmiana locale nie restartuje pokazu ani jego zegara, nie wysyła sygnału,
   nie nalicza ponownie nagród i nie zmienia rozliczenia terenu. Zachować
   `signal_id`, `cycle_id`, checksum i deduplikację; lokalizować prezentację.

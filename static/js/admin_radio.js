@@ -6,7 +6,7 @@
     async function request(options) {
         const response = await fetch('/api/admin/radio', {cache: 'no-store', ...options});
         const data = await response.json();
-        if (!response.ok || !data.success) throw Error(data.message || 'Nie udało się zapisać ustawień.');
+        if (!response.ok || !data.success) throw Error(adminT('radio_save_error'));
         return data;
     }
     request().then(data => {
@@ -17,19 +17,19 @@
             row.textContent = `${item.channel}: ${item.code}${item.file ? ' — ' + item.file : ''}`;
             validation.appendChild(row);
         }
-        if (!validation.children.length) validation.textContent = 'Brak konfliktów języka w kontraktach.';
+        if (!validation.children.length) validation.textContent = adminT('no_language_conflicts');
         select.value = data.default_channel;
         select.disabled = save.disabled = false;
     }).catch(error => { notice.textContent = error.message; });
     form.addEventListener('submit', async event => {
         event.preventDefault();
         select.disabled = save.disabled = true;
-        notice.textContent = 'Zapisywanie…';
+        notice.textContent = adminT('saving');
         try {
             const data = await request({method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({autostart_channel: select.value})});
             select.value = data.default_channel;
-            notice.textContent = 'Zapisano kanał autostartu.';
+            notice.textContent = adminT('radio_saved');
         } catch (error) { notice.textContent = error.message; }
         finally { select.disabled = save.disabled = false; }
     });

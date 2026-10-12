@@ -203,7 +203,14 @@ class HackActionIdempotencyTests(unittest.TestCase):
         client = run.app.test_client()
         headers = self._authenticate_client(client)
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        # The endpoint now reads bounded runtime projections rather than the
+        # legacy session profile. Keep the target/receipt stores real and isolate
+        # unrelated projections so this tests rebuilt-target identity, not seeding.
+        with patch.object(run, "load_player_hack_runtime_context", return_value=profile), \
+                patch.object(run.player_marked_target_store, "is_seeded", return_value=True), \
+                patch.object(run.player_marked_target_store, "list_targets", return_value=[]), \
+                patch.object(run.territory_progression_receipt_store.progression, "get", return_value={}), \
+                patch.object(run.territory_store, "list_captured_targets", return_value=[]), \
                 patch.object(run, "create_missing_operations_for_app_target", return_value=[]):
             response = client.post(
                 "/gonna-win",
@@ -215,8 +222,8 @@ class HackActionIdempotencyTests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(200, response.status_code)
         payload = response.get_json()
+        self.assertEqual(200, response.status_code, payload)
         self.assertTrue(payload["success"])
         self.assertNotEqual("target_selection_changed", payload.get("reason"))
         stored = run.player_target_runtime_store.get_active_target("main")

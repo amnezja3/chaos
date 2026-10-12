@@ -6,19 +6,10 @@
     const ASSET_FAMILIES = new Set(["scene", "character", "tool", "map", "clan", "package", "storage", "market", "network", "system", "stamp"]);
     const ASSET_STATES = new Set(["neutral", "danger", "victory", "defence"]);
     const ACTIONS = new Set(["open_googleplex_search", "open_blacknet", "open_ghost_exchange", "open_map", "open_cyberner", "open_operation", "show_ghostnetwork_part", "show_ghostnetwork_territory", "open_ghostnetwork_suite", "open_ghostsignal_archive", "open_cyberner_channel"]);
-    const ACTION_LABELS = Object.freeze({
-        open_googleplex_search: "ZOBACZ NARZĘDZIE",
-        open_blacknet: "OTWÓRZ BLACKNET",
-        open_ghost_exchange: "ZOBACZ EXCHANGE",
-        open_map: "OTWÓRZ MAPĘ",
-        open_cyberner: "OTWÓRZ KANAŁ",
-        open_operation: "OPERACJE",
-        show_ghostnetwork_part: "POKAŻ ELEMENT",
-        show_ghostnetwork_territory: "POKAŻ TERYTORIUM",
-        open_ghostnetwork_suite: "OTWÓRZ GHOSTNETWORK",
-        open_ghostsignal_archive: "OTWÓRZ ARCHIWUM",
-        open_cyberner_channel: "OTWÓRZ KANAŁ"
-    });
+    const t = (key, params = {}) => global.GhostLocale?.t('apps.news.' + key, params) || key;
+    const COPY_KEYS = new Set(['world-grid','blacknet','exchange','map','cyberner','featured','operations','packages','storage','clans','integrity','protocol'].map(k => 'apps.news.' + k));
+    const category = value => ['MAPA','DATA','STORAGE','CLANS','INTEGRITY','PROTOCOL','OPERATIONS','WORLD GRID','canonical','system','rumor'].includes(value) ? t('category.' + value) : value;
+    const stat = value => ({'READ ONLY':'read_only','LIVE BRIDGE':'live','MARKET':'market','CATALOG':'catalog','VERIFIED':'verified','FAIL CLOSED':'verified','OLLAMA ENRICHED':'editorial','PUBLIC':'public'}[value] ? t({'READ ONLY':'read_only','LIVE BRIDGE':'live','MARKET':'market','CATALOG':'catalog','VERIFIED':'verified','FAIL CLOSED':'verified','OLLAMA ENRICHED':'editorial','PUBLIC':'public'}[value]) : value);
     const ASSET_PREFIX = "/static/images/googleplx/";
 
     const text = (value, max = 240) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -50,6 +41,9 @@
         return {
             content: {
                 news_id: newsId,
+                system_copy_key: COPY_KEYS.has(content.system_copy_key) ? content.system_copy_key : "",
+                system_copy_fields: Array.isArray(content.system_copy_fields) ? content.system_copy_fields.filter(field => ['title','summary'].includes(field)) : ['title','summary'],
+                localized_copy: Object.fromEntries((global.GhostLocale?.languages?.().map(language => language.tag) || ['pl','en']).filter(locale => content.localized_copy?.[locale] && typeof content.localized_copy[locale].title === 'string' && typeof content.localized_copy[locale].summary === 'string').map(locale => [locale, {title:text(content.localized_copy[locale].title,72),summary:text(content.localized_copy[locale].summary,220)}])),
                 source: text(content.source, 48),
                 source_ref: text(content.source_ref, 128),
                 category: text(content.category, 32),
@@ -115,59 +109,60 @@
         if (presentation.asset_kind === "symbol" && presentation.asset_path) {
             return `<span class="gp-news-card__asset gp-news-card__asset--symbol" style="${style}" aria-hidden="true"><svg viewBox="0 0 64 64"><use href="${escapeHtml(presentation.asset_path)}"></use></svg></span>`;
         }
-        return `<span class="gp-news-card__asset gp-news-card__asset--fallback" style="${style}" aria-hidden="true"><span>${escapeHtml(presentation.asset_family.toUpperCase())}</span></span>`;
+        return `<span class="gp-news-card__asset gp-news-card__asset--fallback" style="${style}" aria-hidden="true"><span>${escapeHtml(t("system"))}</span></span>`;
     };
 
     const cardMarkup = (entry, layoutIndex) => {
         const {content, presentation, action} = entry;
+        const localized = content.localized_copy?.[global.GhostLocale?.getLocale?.() || 'pl'];
         const interactive = action.kind === "ACTIONABLE";
         const tag = interactive ? "button" : "article";
         const type = interactive ? ' type="button"' : "";
         const actionData = interactive ? ` data-gp-news-action="${escapeHtml(content.news_id)}"` : "";
         const stats = presentation.primary_stat || presentation.secondary_stat
-            ? `<span class="gp-news-card__stats"><strong>${escapeHtml(presentation.primary_stat)}</strong><small>${escapeHtml(presentation.secondary_stat)}</small></span>`
+            ? `<span class="gp-news-card__stats"><strong>${escapeHtml(stat(presentation.primary_stat))}</strong><small>${escapeHtml(stat(presentation.secondary_stat))}</small></span>`
             : "";
-        const actionLabel = ACTION_LABELS[action.action_type] || "OTWÓRZ";
-        const cta = interactive ? `<span class="gp-news-card__cta"><svg aria-hidden="true"><use href="/static/images/googleplx/icons/googleplex-news-icons.svg#open"></use></svg> ${escapeHtml(actionLabel)}</span>` : `<span class="gp-news-card__stamp">READ ONLY</span>`;
+        const actionLabel = ACTIONS.has(action.action_type) ? t("action." + action.action_type) : t("open");
+        const cta = interactive ? `<span class="gp-news-card__cta"><svg aria-hidden="true"><use href="/static/images/googleplx/icons/googleplex-news-icons.svg#open"></use></svg> ${escapeHtml(actionLabel)}</span>` : `<span class="gp-news-card__stamp">${escapeHtml(t("read_only"))}</span>`;
         return `<${tag}${type} class="gp-news-card gp-news-card--${presentation.weight}" data-layout-index="${layoutIndex}" data-interactive="${interactive}" data-state="${presentation.state}" data-asset-family="${presentation.asset_family}" data-asset-state="${presentation.asset_state}"${actionData}>
             ${assetMarkup(presentation)}
             <span class="gp-news-card__shade" aria-hidden="true"></span>
             <span class="gp-news-card__body">
-                <span class="gp-news-card__eyebrow">${escapeHtml(content.category)} // ${escapeHtml(content.truth_class)}</span>
-                <span class="gp-news-card__title">${escapeHtml(content.title)}</span>
-                <span class="gp-news-card__summary">${escapeHtml(content.summary)}</span>
+                <span class="gp-news-card__eyebrow">${escapeHtml(category(content.category))} // ${escapeHtml(category(content.truth_class))}</span>
+                <span class="gp-news-card__title">${escapeHtml(localized?.title ?? (content.system_copy_key && content.system_copy_fields.includes('title') ? global.GhostLocale?.t(content.system_copy_key + ".title") || content.title : content.title))}</span>
+                <span class="gp-news-card__summary">${escapeHtml(localized?.summary ?? (content.system_copy_key && content.system_copy_fields.includes('summary') ? global.GhostLocale?.t(content.system_copy_key + ".summary") || content.summary : content.summary))}</span>
                 ${stats}
-                <span class="gp-news-card__footer"><small>${escapeHtml(content.source)}</small>${cta}</span>
+                <span class="gp-news-card__footer"><small>${escapeHtml(t(content.source === "ollama_enriched" ? "editorial" : "system"))}</small>${cta}</span>
             </span>
         </${tag}>`;
     };
 
-    const statsMarkup = stats => stats.map(item => `<span class="gp-news-stat" data-asset-state="${item.state}"><small>${escapeHtml(item.label)}</small><strong>${escapeHtml(item.value)}</strong></span>`).join("");
+    const statsMarkup = stats => stats.map(item => `<span class="gp-news-stat" data-asset-state="${item.state}"><small>${escapeHtml(["entries","sources","bridges","catalog","audience","mode"].includes(item.key) ? t(item.key) : item.label)}</small><strong>${escapeHtml(stat(item.value))}</strong></span>`).join("");
 
     const renderLoading = root => {
         if (!root) return;
-        root.innerHTML = `<main class="gp-home gp-home--loading" aria-busy="true"><section class="gp-news-loading"><strong>GOOGLEPLEX NEWS</strong><span></span><p>Synchronizacja canonical sources…</p></section></main>`;
+        root.innerHTML = `<main class="gp-home gp-home--loading" aria-busy="true"><section class="gp-news-loading"><strong>GOOGLEPLEX NEWS</strong><span></span><p>${escapeHtml(t("loading"))}</p></section></main>`;
     };
 
     const renderError = (root, message) => {
         if (!root) return;
-        root.innerHTML = `<main class="gp-home gp-home--error"><section class="gp-news-system-panel"><strong>NEWS FEED UNAVAILABLE</strong><p>${escapeHtml(message || "Nie udało się pobrać Googleplex News. Wyszukiwarka pozostaje aktywna.")}</p></section></main>`;
+        root.innerHTML = `<main class="gp-home gp-home--error"><section class="gp-news-system-panel"><strong>${escapeHtml(t("error_title"))}</strong><p>${escapeHtml(message || t("error"))}</p></section></main>`;
     };
 
     const renderHome = (root, rawSnapshot, options = {}) => {
         if (!root) return null;
         const snapshot = normalizeSnapshot(rawSnapshot);
         if (!snapshot) {
-            renderError(root, "Nieprawidłowy kontrakt Googleplex News.");
+            renderError(root, t("invalid"));
             return null;
         }
         const entries = snapshot.entries;
-        const cards = entries.length ? entries.map(cardMarkup).join("") : `<article class="gp-news-card gp-news-card--small" data-layout-index="0" data-interactive="false" data-state="stale" data-asset-family="stamp"><span class="gp-news-card__body"><span class="gp-news-card__eyebrow">SYSTEM</span><span class="gp-news-card__title">Brak nowych wpisów</span><span class="gp-news-card__summary">Canonical feed pozostaje pusty.</span><span class="gp-news-card__stamp">READ ONLY</span></span></article>`;
+        const cards = entries.length ? entries.map(cardMarkup).join("") : `<article class="gp-news-card gp-news-card--small" data-layout-index="0" data-interactive="false" data-state="stale" data-asset-family="stamp"><span class="gp-news-card__body"><span class="gp-news-card__eyebrow">SYSTEM</span><span class="gp-news-card__title">${escapeHtml(t("empty_title"))}</span><span class="gp-news-card__summary">${escapeHtml(t("empty"))}</span><span class="gp-news-card__stamp">${escapeHtml(t("read_only"))}</span></span></article>`;
         root.innerHTML = `<main class="gp-home" data-state-version="${escapeHtml(snapshot.state_version)}">
-            <header class="gp-home__intro"><span>WORLD INTELLIGENCE // EDITORIAL GRID</span><strong>${entries.length} SIGNALS</strong></header>
+            <header class="gp-home__intro"><span>${escapeHtml(t("intro"))}</span><strong>${escapeHtml(t("count", {count:entries.length}))}</strong></header>
             <section class="gp-news-grid" aria-label="Googleplex News">${cards}</section>
-            <section class="gp-news-stats" aria-label="Global status">${statsMarkup(snapshot.global_stats)}</section>
-            <footer class="gp-news-protocol"><span>SOURCE: ${escapeHtml(snapshot.protocol_status.source)}</span><span>INTEGRITY: ${escapeHtml(snapshot.protocol_status.integrity)}</span><span>ACCESS: ${escapeHtml(snapshot.protocol_status.access_mode)}</span><span>OLLAMA: ${snapshot.protocol_status.ollama_used ? "ACTIVE" : "NOT USED"}</span></footer>
+            <section class="gp-news-stats" aria-label="${escapeHtml(t("status"))}">${statsMarkup(snapshot.global_stats)}</section>
+            <footer class="gp-news-protocol"><span>${escapeHtml(t("system"))}: ${escapeHtml(stat(snapshot.protocol_status.integrity.toUpperCase()))}</span><span>${escapeHtml(t("access"))}: ${escapeHtml(t("read_only"))}</span></footer>
         </main>`;
         const entryById = new Map(entries.map(entry => [entry.content.news_id, entry]));
         root.querySelectorAll("[data-gp-news-action]").forEach(button => {

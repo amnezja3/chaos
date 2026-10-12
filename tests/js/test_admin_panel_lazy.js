@@ -9,7 +9,11 @@ class Element {
 }
 const ids=Object.fromEntries(['listing','detail','notice','search','prev','next','page-label','search-form'].map(id=>[id,new Element('div')]));
 const pending=[];
+const registry=JSON.parse(fs.readFileSync('static/locales/manifest.json','utf8'));
+const catalogs=Object.fromEntries(['pl','en'].map(locale=>[locale,JSON.parse(fs.readFileSync(`static/locales/${locale}/apps.json`,'utf8'))]));
+const translator=require('../../static/js/ghost_i18n.js').createTranslator(registry,catalogs);
 const ctx={window:{adminSection:'users'},document:{getElementById:id=>ids[id],createElement:tag=>new Element(tag)},
+ adminT:(key,params={})=>translator.t('apps.admin.'+key,params,'pl'),
  URLSearchParams,Option:class extends Element {constructor(text,value){super('option');this.textContent=text;this.value=value;}},
  fetch:(url,options)=>new Promise(resolve=>pending.push({url,options,resolve}))};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/js/admin_panel.js','utf8'),ctx);

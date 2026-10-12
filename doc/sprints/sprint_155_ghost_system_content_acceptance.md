@@ -1,13 +1,68 @@
 # Sprint 155 — Ghost System: treści, historia i pełny odbiór PL/EN
 
-Status: **ZAPLANOWANY — oczekuje na PASS 154.8**, aktualizacja 11 X 2026.
+Status: **LOKALNY PAKIET DO ODBIORU PRZEDWDROŻENIOWEGO — bez pełnego PASS**,
+12 X 2026. [Aktualna macierz dowodów i bramek](../audits/sprint_155_acceptance.md).
 [154](sprint_154_ghost_system_apps_catalogs.md) ma PASS użytkownika.
-Przed rozpoczęciem wymagany jest odbiór
+Autor zezwolił na rozpoczęcie po działających generacjach Mistrala i zapisie
+sekretu web/workera w PM2 (zgodne klucze; autostart enabled/active).
+Nie oznacza to automatycznie pełnego odbioru macierzy polityk i 30 minut ruchu
 [154.8 — Mistral API i fallback Ollama](sprint_154_8_narrative_providers_mistral.md).
 Zakres językowy 155 pozostaje bez zmian. Ostatni sprint programu
 rozpoczętego w [153](sprint_153_ghost_system_i18n_foundation.md).
 
 ## Cel
+
+### Postęp 12 X — implementacja lokalna, bez pełnego PASS
+
+- Pakiet 155.2.0: bazowe karty Googleplex News, loading/error/empty, CTA,
+  licznik, statystyki i etykiety PL/EN. Copy techniczne zastąpione tekstem gracza.
+- Neutralna etykieta redakcyjna zamiast mylącego oznaczenia Ollamy; zachowane
+  istniejące techniczne pola kompatybilności. Produkty graczy nie są tłumaczone.
+- Przełączenie locale przerysowuje bazowe treści w otwartym News bez wywołania LLM.
+- Testy Python i JS oraz Playwright na izolowanym komponencie desktop/mobile.
+  Pełny odbiór zalogowanego pulpitu i produkcji pozostaje do wykonania.
+- Komunikaty instalacji obu ścieżek zapisują metadane `system_copy` w store;
+  toasty PL/EN zmieniają język bez zmiany nazwy UGC i bez ponownej emisji.
+  Odczyt dokładnie rozpoznanych starszych wpisów źródła `googleplex_install`
+  dodaje metadane bez zapisu, resetu statusu lub zmiany ID. Niejednoznaczne
+  i autorskie wpisy pozostają bez tłumaczenia. Pełna migracja historii nadal osobno.
+- Rozszerzono ścisłe rozpoznawanie trwałych komunikatów. Nie obejmuje jeszcze
+  wszystkich zdarzeń i historii; cały sprint i pełne EN nie mają PASS.
+- Warstwa wariantów News: tabela `ghost_news_locale_variants` z kluczem
+  publikacja/weryfikowana wersja źródła/locale. `save_reviewed_variant` służy
+  do zapisu po przeglądzie redakcyjnym; nie publikuje ani nie wywołuje modelu.
+  Endpoint odczytuje warianty dopiero po ograniczeniu widoczności publikacji.
+  Stary wariant nie pasuje po zmianie faktów, tekstu lub CTA. Zmiana PL/EN
+  w otwartym Home zachowuje identyfikator, pozycję, datę i akcję.
+- Dla istniejących opisów funkcji systemu bez EN: zatwierdzony szablon tylko
+  po dopasowaniu kanonicznego source_ref. Pozostałe braki EN są jawnie opisane,
+  bez polskiego tekstu udającego tłumaczenie. Ten komunikat przejściowy nie
+  zalicza pełnego odbioru treści 155. Oryginały legacy nadal dostępne w PL.
+- Asynchroniczny worker wariantów EN News jest opt-in: wspólny router dostawców,
+  osobne EN warstwy promptów, ograniczone retry, lease i kontrola wersji/ważności
+  źródła. Nie tłumaczy produktów graczy. Wymaga odbioru rzeczywistych generacji.
+- Narzędzie backfillu: metadata-only inventory, dry-run, batche do 100 wpisów,
+  checkpoint, idempotencja i rollback tylko nowych wariantów. Historia nie została
+  jeszcze uzupełniona na produkcji. FM otrzymał osobne edycje EN about/tips-tricks.
+- Show: zatwierdzona polityka tekstów według języka gracza, oryginalne media;
+  49 scen PL/EN, archiwalne News powiązane z zamrożoną wersją publikacji.
+  Playwright potwierdził ciągłość filmu bez odłączania video oraz brak overflow
+  w 390×844. To odbiór komponentu, nie pełnego zalogowanego pulpitu.
+- Regresja rozszerzonego etapu: 106 testów Python i osiem zestawów JS PASS.
+  Dawny test filaru naprawiony przez aktualizację mocka ograniczonej projekcji
+  profilu; mechanika endpointu bez zmian. Nowe testy wygaśnięcia źródła oraz
+  odczytu zamrożonego archiwum również PASS.
+  Końcowa regresja News/Show/dostawców: 92 testy PASS (zestawy częściowo
+  pokrywają wcześniejsze 106; nie sumować jako unikalnych testów).
+- [Przygotowanie wdrożenia i pozostałe bramki](../runbooks/ghost_content_155.md).
+  Kolejny przyrost dodał trwały kontrakt języka i EN instrukcje wszystkich 11
+  aktywnych wersji promptów, fallbacki, metadane publikacji, migrację ich języka,
+  metadane systemowych wiadomości Cybernera, kolejne komunikaty terenu/więzienia
+  oraz deklaratywne locale narracji/News. Testy dodatkowego locale bez nowych
+  gałęzi aplikacji i [procedura](../runbooks/add_ghost_locale.md) są gotowe.
+  Playwright sprawdził FM i Cyberner w pełnym rendererze izolowanego pulpitu.
+  Pozostały końcowy audyt pokrycia wiadomości i historii, żywe próbki modeli,
+  pełna pętla gry, fizyczne mobile i porównanie wydajności.
 
 Zakres odbioru dotyczy wdrożonego Ghost Systemu; zamrożone sprinty 149–152
 nie są zależnością ani warunkiem PASS. Ich przyszłe funkcje przejmą kontrakt i18n
@@ -94,9 +149,11 @@ Googleplex News. Sygnały BN i audycje zachowują swój zatwierdzony język.
 Ghost Signal Show / Sender ma osobny obowiązkowy odbiór, opisany w B14/C06
 [rejestru](../audits/ghost_system_i18n_inventory.md): transmisja, manifest,
 sceny, odliczanie, plansze, podpisy, audio/wideo, wynik i archiwum/replay.
-UI i systemowe etykiety otrzymują PL/EN. Politykę narracji GhostSignal trzeba
-jawnie zatwierdzić dla tego medium przed generowaniem; nie dziedziczyć
-wyjątku BN. Zmiana języka nie restartuje zegara ani nie uruchamia transmisji,
+Decyzja autora 12 X 2026: teksty systemowe i plansze według języka gracza
+(`reader_locale`); oryginalne audio i wideo pozostają wspólne
+(`original_language`). Nie tworzymy drugiej transmisji ani drugiego wyniku.
+Nie dziedziczymy wyjątku BN dla tekstów systemowych. Zmiana języka nie
+restartuje zegara ani nie uruchamia transmisji,
 nagród lub rozliczenia terenu. Testy obejmują zmianę locale w trakcie,
 recovery, brak mediów i stare snapshoty, bez powtórzenia efektów gry.
 
@@ -141,6 +198,43 @@ recovery, brak mediów i stare snapshoty, bez powtórzenia efektów gry.
 
 ### 155.2b — Googleplex News zgodne z ustawieniem gracza
 
+#### Uzupełnienie audytu 12 X 2026 — karty bazowe i placeholdery
+
+- Objąć zatwierdzonym copy PL/EN wszystkie 12 bazowych slotów z
+  `build_googleplex_news_snapshot` w `googleplex_news.py`: world-grid, blacknet,
+  exchange, map, cyberner, featured, operations, packages, storage, clans,
+  integrity i protocol. Są renderowane także bez publikacji LLM, więc ich
+  odbiór nie może zależeć od wygenerowania narracji. W `featured` tłumaczyć
+  wyłącznie systemowy fallback katalogu; nazwy/opisy produktów graczy zachować.
+- Zastąpić robocze opisy implementacji tekstem przeznaczonym dla gracza
+  (m.in. „News nie jest source of truth”, „Capacity jest prezentowane bez odczytu
+  profilu”, „Pliki pozostają w swoich canonical surfaces”, „Audience projection”).
+  Nie tłumaczyć tych technicznych placeholderów dosłownie jako finalnego copy.
+  Nie sugerować prawdziwego zdarzenia ani aktualnej statystyki, gdy karta jest
+  tylko stałym wejściem do aplikacji lub informacją o braku danych.
+- W `static/js/googleplex_news.js` objąć PL/EN loading, error, empty, niepoprawny
+  snapshot, nagłówek i licznik SIGNALS (pluralizacja), CTA, READ ONLY, kategorie,
+  etykiety statystyk, aria-labels, tekstowy fallback grafiki i stopkę protokołu.
+- Usunąć mylące oznaczenia gracza `OLLAMA_ENRICHED`, `OLLAMA ENRICHED` oraz
+  `OLLAMA: ACTIVE/NOT USED`. Obecnie `merge_googleplex_narrative_publications`
+  ustawia `source=ollama_enriched` i `ollama_used=true` dla scalonych publikacji
+  bez rozróżnienia dostawcy, a renderer pokazuje je wprost. Użyć neutralnego,
+  lokalizowanego oznaczenia redakcyjnego. Jeżeli dostawca jest potrzebny w
+  diagnostyce, brać go z metadanych konkretnej próby/kandydata, nie z aktualnej
+  konfiguracji ani historycznej nazwy pola; nie zgadywać dostawcy starych wpisów.
+  Zachować kompatybilność technicznych pól/ID i odwołań do publikacji.
+- Odbiór obejmuje puste publikacje, wszystkie sloty bazowe, mieszany feed
+  bazowy + Mistral/Ollama/szablon deterministyczny, brak EN, awarię API i brak
+  grafiki. Dwa konta PL/EN i przełączenie locale w otwartym News mają zachować
+  ID, kolejność, CTA i brak ponownej publikacji. Brak modelu nie może ujawniać
+  polskiego ani technicznego placeholdera w EN. Testy UI desktop/mobile.
+- Polecenia i odbiór językowy 155.2a dotyczą wspólnego adaptera narracji po
+  154.8: Mistrala oraz fallbacku Ollamy. Wzmianki o Ollamie w starszym opisie
+  nie ograniczają zakresu do lokalnego modelu. Żaden dostawca nie jest wywoływany
+  podczas otwierania News lub zmiany języka.
+
+#### Kontrakt treści i publikacji
+
 - Ustawienie Polski wyświetla systemowe newsy po polsku, English po angielsku:
   tytuł, lead, treść, systemowe kategorie i etykiety CTA. Zmiana języka
   przełącza prezentację także już otwartej wiadomości.
@@ -175,7 +269,10 @@ recovery, brak mediów i stare snapshoty, bez powtórzenia efektów gry.
 - Skrypt: dry-run z raportem, ograniczone batche, checkpoint, idempotencja,
   możliwość wznowienia i rollback wyłącznie nowych danych lokalizacji.
   Brak ponownego wysyłania wiadomości, resetu read cursor i naliczania nagród.
-- Migracje poza requestami; test na kopii danych, backup i instrukcja operatorska.
+- Migracje poza requestami; izolowana regresja, dry-run, backup i instrukcja operatorska.
+  Decyzja autora 12 X: bez dodatkowej instancji gry/katalogu aplikacji/portu.
+  Izolowane testy lokalne, spójny backup, dry-run schematu i migracja na obecnej
+  produkcji. Kontrole hash/integralności i rollback: [komendy](../runbooks/ghost_content_155.md).
   Nie modyfikować hurtowo profili, artefaktów graczy ani podpisów kontraktów.
 
 ## 155.4 — pełne pokrycie i rollout

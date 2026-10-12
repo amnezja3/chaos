@@ -5,12 +5,25 @@ const fs = require("fs");
 const vm = require("vm");
 
 const source = fs.readFileSync("static/js/googleplex_news.js", "utf8");
-const sandbox = {console};
+const registry=JSON.parse(fs.readFileSync('static/locales/manifest.json','utf8'));
+const core=require('../../static/js/ghost_i18n.js');
+const bundles=Object.fromEntries(['pl','en'].map(locale=>{
+    const bundle={locale,format_version:1,content_version:registry.content_version,messages:{}};
+    for(const domain of registry.domains) Object.assign(bundle.messages,JSON.parse(fs.readFileSync(`static/locales/${locale}/${domain}.json`,'utf8')).messages);
+    return [locale,bundle];
+}));
+const translator=core.createTranslator(registry,bundles);
+let locale='pl';
+const sandbox = {console, GhostLocale:{t:(key,params={})=>translator.t(key,params,locale),getLocale:()=>locale}};
 vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 const ui = sandbox.GoogleplexNewsUI;
 assert.ok(ui, "GoogleplexNewsUI must be exported");
+// A third registered package is data, not a new renderer branch.
+sandbox.GhostLocale.languages = () => [{tag:'pl'}, {tag:'en'}, {tag:'zz'}];
+const extra = ui.normalizeSnapshot({success:true,view:'home',entries:[{content:{news_id:'extra',localized_copy:{zz:{title:'Test title',summary:'Test summary'}}}}]});
+assert.strictEqual(extra.entries[0].content.localized_copy.zz.title, 'Test title');
 
 const snapshot = ui.normalizeSnapshot({
     success: true,
@@ -83,3 +96,25 @@ assert.ok(newsCss.includes(".gp-news-card:nth-child(n+7)"), "remaining cards mus
 assert.ok(newsCss.includes("@media (min-width: 901px) and (min-height: 701px)"), "prototype layout must not override mobile");
 
 console.log("googleplex news tests: OK");
+
+locale='en';
+const localized={success:true,view:'home',entries:[{
+    content:{news_id:'gp-home-map',system_copy_key:'apps.news.map',title:'Polski tekst',summary:'Opis',category:'MAPA',truth_class:'system'},
+    presentation:{weight:'medium'},action:{kind:'ACTIONABLE',action_type:'open_map'}
+},{content:{news_id:'published',source:'ollama_enriched',title:'Autorski tekst',summary:'Original publication'},presentation:{},action:{}}],global_stats:[],protocol_status:{ollama_used:true}};
+ui.renderHome(renderedRoot,localized);
+assert.ok(renderedRoot.innerHTML.includes('World overview'));
+assert.ok(renderedRoot.innerHTML.includes('OPEN MAP'));
+assert.ok(renderedRoot.innerHTML.includes('2 SIGNALS'));
+assert.ok(renderedRoot.innerHTML.includes('Autorski tekst'));
+assert.ok(renderedRoot.innerHTML.includes('EDITORIAL'));
+assert.ok(!renderedRoot.innerHTML.includes('OLLAMA'));
+ui.renderLoading(renderedRoot);assert.ok(renderedRoot.innerHTML.includes('Synchronizing news'));
+ui.renderError(renderedRoot);assert.ok(renderedRoot.innerHTML.includes('Could not load news'));
+ui.renderHome(renderedRoot,{success:true,view:'home',entries:[]});assert.ok(renderedRoot.innerHTML.includes('No new updates'));
+locale='pl';ui.renderHome(renderedRoot,localized);assert.ok(renderedRoot.innerHTML.includes('Sytuacja świata'));
+console.log('googleplex news PL/EN tests: OK');
+const publicationCopy={success:true,view:'home',entries:[{content:{news_id:'same-id',title:'Oryginał',summary:'Opis',localized_copy:{pl:{title:'Wiadomość',summary:'Polska treść'},en:{title:'News',summary:'English copy <script>unsafe</script>'}}},presentation:{},action:{}}]};
+locale='en';ui.renderHome(renderedRoot,publicationCopy);assert.ok(renderedRoot.innerHTML.includes('English copy &lt;script&gt;'));
+locale='pl';ui.renderHome(renderedRoot,publicationCopy);assert.ok(renderedRoot.innerHTML.includes('Polska treść'));
+assert.strictEqual(publicationCopy.entries[0].content.news_id,'same-id');

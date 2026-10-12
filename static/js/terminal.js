@@ -3674,13 +3674,14 @@ function showGhostDecisionDialog({
     confirmLabel,
     cancelLabel,
     titleKey, messageKey, detailsKey, confirmKey = 'common.ok', cancelKey = 'common.cancel',
-    messageParams = {}, detailsParams = {},
+    messageParams = {}, detailsParams = {}, detailsParts = null,
+    confirmLabelKey, cancelLabelKey, confirmParams = {}, onLocaleChange = null,
     tone = "lime",
     showConfirm = true
 } = {}) {
     return new Promise(resolve => {
         const existing = document.querySelector(".blacknet-decision-backdrop");
-        if (existing) existing.remove();
+        if (existing) { if (existing.cancelDecision) existing.cancelDecision(); else existing.remove(); }
 
         const backdrop = document.createElement("div");
         backdrop.className = `blacknet-decision-backdrop tone-${String(tone || "lime").toLowerCase()}`;
@@ -3693,11 +3694,11 @@ function showGhostDecisionDialog({
                 </header>
                 <div class="blacknet-decision__body">
                     <p>${messageKey ? ghostLabel(messageKey, messageParams) : escapeHTML(message)}</p>
-                    ${details || detailsKey ? `<p class="blacknet-decision__details">${detailsKey ? ghostLabel(detailsKey, detailsParams) : escapeHTML(details)}</p>` : ""}
+                    ${detailsParts || details || detailsKey ? `<p class="blacknet-decision__details">${detailsParts ? detailsParts.map(part => ghostLabel(part.key, part.params || {})).join(' ') : detailsKey ? ghostLabel(detailsKey, detailsParams) : escapeHTML(details)}</p>` : ""}
                 </div>
                 <footer class="blacknet-decision__actions">
-                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${cancelLabel === undefined ? ghostLabel(cancelKey) : escapeHTML(cancelLabel)}</button>
-                    ${showConfirm ? `<button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${confirmLabel === undefined ? ghostLabel(confirmKey) : escapeHTML(confirmLabel)}</button>` : ''}
+                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${cancelLabelKey ? ghostLabel(cancelLabelKey) : cancelLabel === undefined ? ghostLabel(cancelKey) : escapeHTML(cancelLabel)}</button>
+                    ${showConfirm ? `<button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${confirmLabelKey ? ghostLabel(confirmLabelKey, confirmParams) : confirmLabel === undefined ? ghostLabel(confirmKey) : escapeHTML(confirmLabel)}</button>` : ''}
                 </footer>
             </section>
         `;
@@ -3707,9 +3708,12 @@ function showGhostDecisionDialog({
             if (settled) return;
             settled = true;
             document.removeEventListener("keydown", handleKeydown, true);
+            document.removeEventListener('ghost:locale-changed', refreshDialogLocale);
             backdrop.remove();
             resolve(Boolean(accepted && showConfirm));
         };
+        const refreshDialogLocale = () => { if (onLocaleChange) onLocaleChange(backdrop); };
+        backdrop.cancelDecision = () => finish(false);
         const handleKeydown = event => {
             if (event.key === "Escape") {
                 event.preventDefault();
@@ -3731,6 +3735,8 @@ function showGhostDecisionDialog({
         });
         document.addEventListener("keydown", handleKeydown, true);
         document.body.appendChild(backdrop);
+        document.addEventListener('ghost:locale-changed', refreshDialogLocale);
+        refreshDialogLocale();
         const confirmButton = backdrop.querySelector(showConfirm ? ".blacknet-decision__button.is-confirm" : ".blacknet-decision__button.is-cancel");
         if (confirmButton) requestAnimationFrame(() => confirmButton.focus());
     });
@@ -10450,7 +10456,7 @@ function createBrowser() {
         rememberGoogleplexHomeScroll();
         googleplexRenderedViewKey = "home";
         if (!googleplexHomeUi) {
-            results.innerHTML = '<div class="googolplex-empty">Modul Googleplex News jest niedostepny.</div>';
+            results.innerHTML = `<div class="googolplex-empty">${escapeHTML(ghostText('apps.news.unavailable'))}</div>`;
             return;
         }
         if (googleplexHomeSnapshot) {
@@ -10467,7 +10473,7 @@ function createBrowser() {
             return;
         }
         if (googleplexHomeError) {
-            googleplexHomeUi.renderError(results, googleplexHomeError);
+            googleplexHomeUi.renderError(results);
             return;
         }
         googleplexHomeUi.renderLoading(results);
@@ -11395,6 +11401,7 @@ function createBrowser() {
     const browserLocaleChanged = () => {
         if (!term.isConnected) { document.removeEventListener('ghost:locale-changed', browserLocaleChanged); return; }
         const scroll = results.scrollTop;
+        if (activeBrowserTab === 'googleplex' && !search.value.trim() && !term.querySelector('.gp-category-filter select').value) renderGoogleplexHome();
         if (activeBrowserTab === 'exchange') renderExchange();
         if (activeBrowserTab === 'blacknet' && !results.querySelector('[data-blacknet-capture]:disabled')) renderBlackNet();
         results.scrollTop = scroll;
@@ -16966,6 +16973,15 @@ async function createFileManager(options = {}) {
                 title: 'ABOUT CHAOS',
                 source: '/static/files/about/chaos.ptk',
                 format: 'markdown'
+            },
+            {
+                name: 'chaos.en.ptk',
+                title: 'ABOUT CHAOS — English',
+                source: '/static/files/about/chaos.en.ptk',
+                sourceDocument: 'chaos.ptk',
+                // SHA-256 of source UTF-8 text normalized to LF (portable across checkouts).
+                sourceVersion: '8d6c466fb98178cd5dcac56366e761f43ee91e8f10335451db5aed8d4570a076',
+                edition: '155.1', locale: 'en', format: 'markdown'
             }
         ],
         'tips-tricks': [
@@ -16974,6 +16990,14 @@ async function createFileManager(options = {}) {
                 title: 'BLACKNET SIGNALS',
                 source: '/static/files/tips-tricks/blacknet.ptk',
                 format: 'markdown'
+            },
+            {
+                name: 'blacknet.en.ptk',
+                title: 'BLACKNET SIGNALS — English',
+                source: '/static/files/tips-tricks/blacknet.en.ptk',
+                sourceDocument: 'blacknet.ptk',
+                sourceVersion: '53972c324e7642d9dd8bece78b8d25b6594d2fa149659c607e90f07dfd83dd99',
+                edition: '155.1', locale: 'en', format: 'markdown'
             }
         ]
     };
@@ -18020,6 +18044,12 @@ function createEmailClient() {
             ? `${thread.scope}:${thread.peer || thread.name}`
             : "";
         const summary = summaryKey ? threadSummaries.get(summaryKey) : null;
+        const copy = thread.system_copy || summary?.system_copy;
+        if (copy?.schema_version === 1 && /^apps\.notifications\.[a-z_]+_text$/.test(copy.text_key || '') &&
+            copy.params && typeof copy.params === 'object' && !Array.isArray(copy.params) &&
+            Object.values(copy.params).every(value => typeof value === 'string' || typeof value === 'number')) {
+            return ghostText(copy.text_key, copy.params);
+        }
         const preview = thread.preview || thread.last_message || thread.last_body || thread.body || thread.subject || thread.last_subject || thread.message || summary?.preview || summary?.subject;
         return preview ? String(preview) : fallback;
     };
@@ -18460,7 +18490,15 @@ function createEmailClient() {
             const system = isSystemMessage(msg);
             const unknown = currentChat.scope === "direct" && !own && !system && !isKnownContact(sender);
             item.className = `mail-message ${own ? "own is-own" : ""} ${system ? "system is-system" : ""} ${unknown ? "unknown" : ""}`.trim();
-            const subject = msg.subject ? `<div class="mail-message-subject">${escapeHTML(msg.subject)}</div>` : "";
+            const copy = msg.system_copy;
+            const copyKey = /^apps\.notifications\.([a-z_]+)_title$/.exec(copy?.title_key || '');
+            const localized = copy?.schema_version === 1 && copyKey &&
+                copy.text_key === `apps.notifications.${copyKey[1]}_text` &&
+                copy.params && typeof copy.params === 'object' && !Array.isArray(copy.params) &&
+                Object.values(copy.params).every(value => typeof value === 'string' || typeof value === 'number');
+            const subjectText = localized ? ghostLabel(copy.title_key) : escapeHTML(msg.subject || '');
+            const bodyText = localized ? ghostLabel(copy.text_key, copy.params) : escapeHTML(msg.body || '');
+            const subject = subjectText ? `<div class="mail-message-subject">${subjectText}</div>` : "";
             const sourceKey = cybernerSourceKeyForMessage(msg, own);
             const avatarClass = system ? `mail-avatar-${sourceKey}` : own ? "mail-avatar-own" : "mail-avatar-contact";
             item.innerHTML = `
@@ -18471,7 +18509,7 @@ function createEmailClient() {
                         <span class="mail-message-time">${escapeHTML(msg.created_at || "")}</span>
                     </span>
                     ${subject}
-                    <span class="mail-message-body">${escapeHTML(msg.body || "")}</span>
+                    <span class="mail-message-body">${bodyText}</span>
                 </span>
             `;
             window.DetentionUI?.appendNotice(item.querySelector('.mail-message-content'), msg.detention_notice);
@@ -19005,9 +19043,17 @@ function showSystemToast(message, type = 'success') {
     if (isCyberner) {
         div.setAttribute("role", "button");
         div.tabIndex = 0;
+        const copy = message.system_copy;
+        const copyValid = copy?.schema_version === 1 && copy.params &&
+            typeof copy.params === 'object' && !Array.isArray(copy.params) &&
+            Object.values(copy.params).every(value => typeof value === 'string');
+        const titleKey = copyValid && /^apps\.notifications\.cyberner_[a-z]+_title$/.test(copy.title_key || '') ? copy.title_key : '';
+        const textKey = copyValid && /^apps\.notifications\.cyberner_[a-z]+_text$/.test(copy.text_key || '') ? copy.text_key : '';
+        const title = titleKey ? `<span data-ghost-i18n="${titleKey}">${escapeHTML(ghostText(titleKey))}</span>` : escapeHTML(message.title || notificationConfig.label);
+        const text = textKey ? `<span data-ghost-i18n="${textKey}" data-ghost-params="${escapeHTML(JSON.stringify(copy.params))}">${escapeHTML(ghostText(textKey, copy.params))}</span>` : escapeHTML(message.text || notificationConfig.text);
         div.innerHTML = `
-            <h4><span class="cyberner-toast-icon">${escapeHTML(notificationConfig.icon)}</span>${escapeHTML(message.title || notificationConfig.label)}</h4>
-            <div>${escapeHTML(message.text || notificationConfig.text)}</div>
+            <h4><span class="cyberner-toast-icon">${escapeHTML(notificationConfig.icon)}</span>${title}</h4>
+            <div>${text}</div>
         `;
         const openToastThread = () => {
             if (cybernerThread && typeof window.openCybernerThread === "function") {
@@ -19023,9 +19069,22 @@ function showSystemToast(message, type = 'success') {
             }
         });
     } else {
+        const copy = message.system_copy;
+        const copyKey = /^apps\.notifications\.([a-z_]+)_title$/.exec(copy?.title_key || '');
+        const localizedCopy = copy?.schema_version === 1 && copyKey &&
+            copy.text_key === `apps.notifications.${copyKey[1]}_text` &&
+            copy.params && typeof copy.params === 'object' && !Array.isArray(copy.params) &&
+            Object.values(copy.params).every(value => typeof value === 'string' || typeof value === 'number');
+        const paramsMarkup = localizedCopy ? escapeHTML(JSON.stringify(copy.params)) : '';
+        const titleMarkup = localizedCopy
+            ? `<span data-ghost-i18n="${copy.title_key}">${escapeHTML(ghostText(copy.title_key))}</span>`
+            : escapeHTML(message.title || 'Komunikat');
+        const textMarkup = localizedCopy
+            ? `<span data-ghost-i18n="${copy.text_key}" data-ghost-params="${paramsMarkup}">${escapeHTML(ghostText(copy.text_key, copy.params))}</span>`
+            : sanitizeToastHTML(message.text || "");
         div.innerHTML = `
-            <h4>${escapeHTML(message.title || 'Komunikat')}</h4>
-            <div>${sanitizeToastHTML(message.text || "")}</div>
+            <h4>${titleMarkup}</h4>
+            <div>${textMarkup}</div>
         `;
     }
     container.appendChild(div);

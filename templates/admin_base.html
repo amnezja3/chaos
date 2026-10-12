@@ -1,13 +1,16 @@
 <!doctype html>
 <html lang="{{ ui_locale|default('pl') }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CHAOS / Administracja</title><link rel="stylesheet" href="/static/css/admin_panel.css?v=2">
+<title>CHAOS / {{ admin_t('title') }}</title><link rel="stylesheet" href="/static/css/admin_panel.css?v=2">
 </head><body>
-<header class="admin-header"><a class="brand" href="{{ url_for('dev_dashboard', _session_generation=generation.query_token) }}">CHAOS <span>/ ADMIN</span></a><span class="header-note">CENTRUM ADMINISTRACYJNE</span><a href="{{ url_for('desktop', _session_generation=generation.query_token) }}">Wróć do gry ↗</a></header>
-<div class="admin-layout"><nav class="admin-nav" aria-label="Sekcje administracji">
-{% for key,label in [('users','Użytkownicy'),('ghostlab','GhostLab'),('radio','Radio'),('narrative','Narrative models' if ui_locale|default('pl') == 'en' else 'Modele narracji'),('territories','Terytoria'),('vulnerabilities','Podatności'),('bugs','Zgłoszenia błędów')] %}
-<a href="{{ url_for('dev_dashboard', tab=key, _session_generation=generation.query_token) }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ label }}</a>
-{% endfor %}<p>GHOST NETWORK<br>Panel operatora</p></nav>
+<header class="admin-header"><a class="brand" href="{{ url_for('dev_dashboard', _session_generation=generation.query_token) }}">CHAOS <span>/ ADMIN</span></a><span class="header-note">{{ admin_t('center') }}</span><a href="{{ url_for('desktop', _session_generation=generation.query_token) }}">{{ admin_t('back_game') }}</a></header>
+<div class="admin-layout"><nav class="admin-nav" aria-label="{{ admin_t('sections') }}">
+{% for key in ['users','ghostlab','radio','narrative','territories','vulnerabilities','bugs'] %}
+<a href="{{ url_for('dev_dashboard', tab=key, _session_generation=generation.query_token) }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ 'GhostLab' if key == 'ghostlab' else admin_t(key) }}</a>
+{% endfor %}<p>GHOST NETWORK<br>{{ admin_t('operator') }}</p></nav>
 <main>{% block content %}{% endblock %}</main></div>
 <script id="session-generation-config" type="application/json">{{ generation|tojson }}</script>
 <script src="/static/js/session_generation.js"></script>
+<script id="admin-locale-config" type="application/json">{{ admin_i18n_config()|tojson }}</script>
+<script src="/static/js/ghost_i18n.js"></script>
+<script src="/static/js/admin_locale.js?v=155"></script>
 {% block scripts %}{% endblock %}</body></html>

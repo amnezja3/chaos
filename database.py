@@ -1788,6 +1788,8 @@ def init_db(db_path=DB_PATH):
             conn.execute("ALTER TABLE chat_messages ADD COLUMN read_at TEXT")
         if "delivery_id" not in columns:
             conn.execute("ALTER TABLE chat_messages ADD COLUMN delivery_id TEXT")
+        if "system_copy_json" not in columns:
+            conn.execute("ALTER TABLE chat_messages ADD COLUMN system_copy_json TEXT NOT NULL DEFAULT '{}'")
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_chat_messages_thread
@@ -11078,6 +11080,8 @@ class SystemMessageStore:
         message.setdefault("text", row["body"])
         message.setdefault("status", "new")
         message.setdefault("created_at", row["created_at"])
+        from system_message_i18n import project_system_copy
+        message = project_system_copy(message, row["source"])
         return message
 
     def add_message(self, username, message, source="", ttl_seconds=None, *, conn=None):
@@ -11102,6 +11106,8 @@ class SystemMessageStore:
         payload.setdefault("status", "new")
         payload.setdefault("created_at", now)
         source_text = self._clean_text(source or payload.get("source"), "system")
+        from system_message_i18n import project_system_copy
+        payload = project_system_copy(payload, source_text)
         payload_json = dumps_json(payload)
         duplicate = None
         owns_connection = conn is None
@@ -15161,7 +15167,7 @@ class MailStore:
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT id, scope, peer_name, sender, subject, body, created_at, delivery_id
+                SELECT id, scope, peer_name, sender, subject, body, created_at, delivery_id, system_copy_json
                 FROM chat_messages
                 WHERE owner_username = ? AND scope = ? AND peer_name = ?
                 ORDER BY id DESC
@@ -15179,6 +15185,7 @@ class MailStore:
                     "subject": row["subject"],
                     "body": row["body"],
                     "created_at": row["created_at"],
+                    "system_copy": loads_json(row['system_copy_json'], {}),
                 }
                 for row in rows
             ]
@@ -15320,13 +15327,14 @@ class MailStore:
         body = (body or "").strip()
         if not username or not body:
             return
-
+        from system_message_i18n import project_system_copy
+        copy = project_system_copy({'title':subject, 'text':body}, 'cyberner_system').get('system_copy', {})
         with db_connect(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO chat_messages
-                    (owner_username, scope, peer_name, sender, subject, body, created_at, read_at)
-                VALUES (?, 'direct', ?, ?, ?, ?, ?, NULL)
+                    (owner_username, scope, peer_name, sender, subject, body, created_at, read_at, system_copy_json)
+                VALUES (?, 'direct', ?, ?, ?, ?, ?, NULL, ?)
                 """,
                 (
                     username,
@@ -15335,6 +15343,7 @@ class MailStore:
                     subject or "",
                     body,
                     utc_now(),
+                    dumps_json(copy),
                 ),
             )
 

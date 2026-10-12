@@ -551,5 +551,33 @@ try {
         }
     }
     console.log('ghost signal full timeline: 49 scenes / 98 boundaries PASS');
+    // Use the real PL/EN catalogs. Locale changes retain the canonical clock,
+    // snapshot, UGC and the exact video element; no second media load.
+    const fs=require('fs'),path=require('path');
+    const catalogs={};
+    for(const language of ['pl','en']){
+        catalogs[language]={};
+        for(const domain of ['apps','map_workspace'])Object.assign(catalogs[language],JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales',language,domain+'.json'),'utf8')).messages);
+    }
+    let locale='en';
+    global.GhostLocale={getLocale:()=>locale,hasKey:key=>!!catalogs[locale][key],t:key=>catalogs[locale][key].text};
+    const beforeSnapshot=JSON.stringify(manifest);
+    for(const entry of manifest.scenes){
+        seek(entry.start+.01);
+        assert.strictEqual(root.querySelector('.ghost-signal-show__phase').textContent,catalogs.en['apps.signal.scene.'+entry.id].text);
+        assert(!doc.getElementById('ghost-signal-show-fallback'),'English renderer failure at '+entry.id);
+    }
+    seek(430);
+    const localeVideo=root.querySelector('.ghost-show-video');
+    localeVideo.duration=38.12;localeVideo.currentTime=5;localeVideo.readyState=2;localeVideo.paused=false;
+    const videoSource=localeVideo.src;
+    locale='pl';controller.render();
+    assert.strictEqual(root.querySelector('.ghost-show-video'),localeVideo,'same video after switching locale');
+    assert.strictEqual(localeVideo.src,videoSource);
+    assert.strictEqual(localeVideo.currentTime,5);
+    assert(!localeVideo.released,'locale change must not unload the video');
+    assert.strictEqual(JSON.stringify(manifest),beforeSnapshot,'localization must not mutate the canonical snapshot');
+    delete global.GhostLocale;
+    console.log('ghost signal PL/EN: 49 scenes, immutable snapshot and video continuity PASS');
 } finally {controller.stop();delete global.GhostRadio;delete global.top;delete global.requestAnimationFrame;delete global.cancelAnimationFrame;}
 console.log('ghost signal montage asset fallback/scene cleanup: PASS');

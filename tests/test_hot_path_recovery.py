@@ -187,7 +187,13 @@ class EndpointHotPathTests(unittest.TestCase):
         }
 
         with patch.dict(run.app.config, {"TESTING": True}), \
-                patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "load_player_hack_runtime_context", return_value=profile), \
+                patch.object(run.player_target_runtime_store, "get_active_target", return_value=profile['aimed_target']), \
+                patch.object(run.player_marked_target_store, "is_seeded", return_value=True), \
+                patch.object(run.player_marked_target_store, "list_targets", return_value=[]), \
+                patch.object(run.territory_progression_receipt_store.progression, "get", return_value={}), \
+                patch.object(run.territory_store, "list_captured_targets", return_value=[]), \
+                patch.object(run.player_operation_store, "list_active_operations", return_value=[]), \
                 patch.object(run, "UserProfileManager", side_effect=AssertionError("profile manager in hot path")), \
                 patch.object(run.user_store, "get_profile", side_effect=AssertionError("extra profile read")), \
                 patch.object(run, "apply_app_map_actions_to_aimed_target", return_value=(False, [])), \
@@ -198,8 +204,8 @@ class EndpointHotPathTests(unittest.TestCase):
                 "operation_only": True,
             })
 
-        self.assertEqual(200, response.status_code)
-        self.assertTrue(response.get_json()["operation_only"])
+        self.assertEqual(200, response.status_code, response.get_json())
+        self.assertTrue(response.get_json()["operation_only"], response.get_json())
 
     def test_ghostnetwork_service_is_initialized_once_per_process(self):
         service = object()

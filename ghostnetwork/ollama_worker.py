@@ -203,6 +203,7 @@ class OllamaNarrativeWorker:
         self._preflight_expires_at = 0.0
         self._event_reconcile_expires_at = 0.0
         self._event_reconcile_result = None
+        self._news_locale_next_at = 0.0
         self._runtime_metrics = {
             "database_contention_total": 0,
             "database_contention_consecutive": 0,
@@ -420,6 +421,22 @@ class OllamaNarrativeWorker:
             self._preflight_result = None
         if self.config.validate():
             return {"result": "invalid_worker_config", "errors": self.config.validate()}
+        # Opt-in rollout: one bounded variant between normal claims at most
+        # every 30 seconds, using the same router, token budget and provider slot.
+        # Never alter a diagnostic request narrowed to a medium/event.
+        if (getattr(self.client, 'routed', False)
+                and _env_bool('CHAOS_NEWS_LOCALE_GENERATION_ENABLED')
+                and target_medium is None and source_event_id is None
+                and not self.config.source_event_id
+                and time.monotonic() >= self._news_locale_next_at):
+            self._news_locale_next_at = time.monotonic() + 30
+            from .news_generation import NewsLocaleWorker
+            locale_worker = NewsLocaleWorker(self.repository, self.client)
+            locale_worker.enqueue_active()
+            result = locale_worker.process_once()
+            self._news_locale_next_at = time.monotonic() + 30
+            if result['result'] != 'idle':
+                return result
         registry_status = verify_prompt_registry()
         if not registry_status["ok"]:
             return {"result": "invalid_prompt_registry", "errors": registry_status["errors"]}

@@ -111,6 +111,8 @@ class DetentionCybernerHTTPTest(unittest.TestCase):
         alice = self.client_for('alice')
         with db_connect(self.db_path) as conn:
             conn.execute('CREATE TABLE detention_race_probe (value INTEGER)')
+            conn.execute("UPDATE user_identity_projection SET desktop_settings_json=? WHERE username='alice'",
+                         ('{"locale":"en"}',))
         endpoint = next(rule.endpoint for rule in run.app.url_map.iter_rules() if rule.rule == '/command')
         def racing_action():
             with ThreadPoolExecutor(max_workers=1) as worker:
@@ -123,6 +125,9 @@ class DetentionCybernerHTTPTest(unittest.TestCase):
             response=alice.post('/command',json={'command':'hack'})
         self.assertEqual(response.status_code,403,response.json)
         self.assertEqual(response.json['reason'],'detention_app_blocked')
+        self.assertEqual(response.json['message'], run.locale_translator().t(
+            'apps.detention.denied.detention_app_blocked', locale='en'))
+        self.assertEqual(response.json['message_i18n']['key'], 'apps.detention.denied.detention_app_blocked')
         self.assertNotIn('X-Chaos-Session-Error', response.headers)
         with db_connect(self.db_path) as conn:
             self.assertEqual(conn.execute('SELECT count(*) FROM detention_race_probe').fetchone()[0],0)

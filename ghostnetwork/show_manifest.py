@@ -39,6 +39,7 @@ MANIFEST_VERSION = "ghostsignal-show-manifest-v2"
 
 
 def prepare_settlement_scene(ranking, publications=(), production_conflicts=()):
+    from .news_locales import source_version
     """Small public replay prepared from the already validated ranking, never in polling."""
     snapshot = ranking.get("snapshot") or {}
     signal_id = ranking.get("signal_id")
@@ -112,6 +113,8 @@ def prepare_settlement_scene(ranking, publications=(), production_conflicts=()):
                                  for i, c in enumerate(production_conflicts[:20])],
         "production_conflicts_scope": "explicit_lock_and_receipt_references",
         "publications": [{"medium": text(p.get("target_medium")), "title": text(p.get("title"), 160),
+                          "medium_record_id": text(p.get("medium_record_id")),
+                          "source_version": source_version(p),
                           "body": text(p.get("body"), 480), "published_at": text(p.get("published_at"))}
                          for p in publications[:6]],
     }
@@ -200,6 +203,7 @@ def build_manifest(facts, scene_snapshot=None):
               for index, (start, code, label) in enumerate(SCENES)]
     return {
         "version": MANIFEST_VERSION, "nominal_duration_seconds": 900,
+        "text_locale_policy": "reader_locale", "media_locale_policy": "original_language",
         "catalog_version": CATALOG_VERSION, "scenes": scenes,
         "signal_sent_at": facts.get("sent_at") or None,
         "signal_confirmed": bool(facts.get("sent_at") and facts.get("sent_event")),

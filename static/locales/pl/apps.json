@@ -1,8 +1,145 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "154.7.4",
+  "content_version": "155.2.0",
   "messages": {
+    "apps.notifications.product_title": {
+      "params": {},
+      "text": "Zakup Googleplex"
+    },
+    "apps.notifications.product_text": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Produkt {name} został aktywowany."
+    },
+    "apps.notifications.financial_warning_title": {
+      "params": {},
+      "text": "Podejrzany ruch finansowy"
+    },
+    "apps.notifications.financial_warning_text": {
+      "params": {},
+      "text": "Wykryto próbę sniffingu finansowego na twoim koncie."
+    },
+    "apps.notifications.arsenal_removed_title": {
+      "params": {},
+      "text": "Arsenał naruszony"
+    },
+    "apps.notifications.arsenal_removed_text": {
+      "params": {},
+      "text": "Jedna z twoich aplikacji została usunięta przez nieznanego intruza."
+    },
+    "apps.notifications.arsenal_attempt_title": {
+      "params": {},
+      "text": "Wykryto próbę czyszczenia arsenału"
+    },
+    "apps.notifications.arsenal_attempt_text": {
+      "params": {},
+      "text": "Wykryto próbę czyszczenia twojego arsenału."
+    },
+    "apps.notifications.contact_lost_title": {
+      "params": {},
+      "text": "Kontakt utracony"
+    },
+    "apps.notifications.contact_lost_text": {
+      "params": {},
+      "text": "Połączenie z jednym z graczy zostało zerwane."
+    },
+    "apps.notifications.contact_removed_title": {
+      "params": {},
+      "text": "Zakłócenie kontaktów"
+    },
+    "apps.notifications.contact_removed_text": {
+      "params": {},
+      "text": "Jeden z kontaktów został zerwany przez nieznaną ingerencję."
+    },
+    "apps.notifications.contact_attempt_title": {
+      "params": {},
+      "text": "Wykryto próbę manipulacji kontaktami"
+    },
+    "apps.notifications.contact_attempt_text": {
+      "params": {},
+      "text": "Wykryto próbę manipulacji kontaktami."
+    },
+    "apps.notifications.area_encircled_title": {
+      "params": {},
+      "text": "Pole zostało otoczone"
+    },
+    "apps.notifications.area_encircled_text": {
+      "params": {},
+      "text": "Jedno z twoich pól zostało otoczone przez większy obszar innego gracza. Jesteś bardziej widoczny i podatny na atak."
+    },
+    "apps.notifications.point_attacked_title": {
+      "params": {},
+      "text": "Atak na punkt kolizyjny"
+    },
+    "apps.notifications.point_attacked_text": {
+      "params": {
+        "actor": "string",
+        "action": "string",
+        "target": "string"
+      },
+      "text": "{actor} uruchomił akcję {action} na twoim obiekcie {target}."
+    },
+    "apps.notifications.vulnerability_captured_title": {
+      "params": {},
+      "text": "Podatność przejęta"
+    },
+    "apps.notifications.vulnerability_captured_text": {
+      "params": {
+        "actor": "string",
+        "target": "string"
+      },
+      "text": "{actor} przejął cel {target} z twojego zgłoszenia."
+    },
+    "apps.notifications.territory_lost_title": {
+      "params": {},
+      "text": "Utrata punktu terytorium"
+    },
+    "apps.notifications.territory_lost_text": {
+      "params": {
+        "actor": "string",
+        "target": "string"
+      },
+      "text": "{actor} przejął twój obiekt {target}. Terytorium jest przebudowywane."
+    },
+    "apps.notifications.restart_title": {
+      "params": {},
+      "text": "Restart GhostSystemu wymagany"
+    },
+    "apps.notifications.restart_text": {
+      "params": {},
+      "text": "Transmisja GhostSignal została zakończona. Uruchom ponownie GhostSystem; do tego czasu akcje GhostNetwork są zablokowane."
+    },
+    "apps.notifications.restart_versions_title": {
+      "params": {},
+      "text": "Restart GhostSystemu wymagany"
+    },
+    "apps.notifications.restart_versions_text": {
+      "params": {
+        "from_version": "string",
+        "to_version": "string"
+      },
+      "text": "Transmisja GhostSignal z wersji {from_version} do {to_version} została zakończona. Uruchom ponownie GhostSystem; do tego czasu akcje GhostNetwork są zablokowane."
+    },
+    "apps.news.pending_title": {
+      "params": {},
+      "text": "Wiadomość ze świata"
+    },
+    "apps.news.pending_summary": {
+      "params": {},
+      "text": "Polskie podsumowanie tej wiadomości nie jest jeszcze dostępne."
+    },
+    "apps.notifications.install_title": {
+      "params": {},
+      "text": "Instalacja zakończona"
+    },
+    "apps.notifications.install_text": {
+      "params": {
+        "name": "string"
+      },
+      "text": "Aplikacja {name} została poprawnie zainstalowana!"
+    },
     "apps.operations.state.created": {
       "params": {},
       "text": "utworzony"
@@ -3140,6 +3277,3079 @@
       "params": {
         "name": "string"
       }
+    },
+    "apps.news.world-grid.title": {
+      "params": {},
+      "text": "Kanały świata CHAOS"
+    },
+    "apps.news.world-grid.summary": {
+      "params": {},
+      "text": "Obserwuj wydarzenia i wybierz kanał, który chcesz śledzić."
+    },
+    "apps.news.blacknet.title": {
+      "params": {},
+      "text": "Sygnały BlackNet"
+    },
+    "apps.news.blacknet.summary": {
+      "params": {},
+      "text": "Sprawdź najnowsze przechwycone sygnały świata."
+    },
+    "apps.news.exchange.title": {
+      "params": {},
+      "text": "Rynek paczek danych"
+    },
+    "apps.news.exchange.summary": {
+      "params": {},
+      "text": "Przeglądaj oferty i zarządzaj transakcjami w Ghost Exchange."
+    },
+    "apps.news.map.title": {
+      "params": {},
+      "text": "Sytuacja świata"
+    },
+    "apps.news.map.summary": {
+      "params": {},
+      "text": "Sprawdź obiekty i wydarzenia na mapie."
+    },
+    "apps.news.cyberner.title": {
+      "params": {},
+      "text": "Kanał WORLD"
+    },
+    "apps.news.cyberner.summary": {
+      "params": {},
+      "text": "Dołącz do rozmowy na publicznym kanale Cybernera."
+    },
+    "apps.news.featured.title": {
+      "params": {},
+      "text": "Katalog narzędzi"
+    },
+    "apps.news.featured.summary": {
+      "params": {},
+      "text": "Przeglądaj aplikacje i narzędzia Googleplex."
+    },
+    "apps.news.operations.title": {
+      "params": {},
+      "text": "Centrum Operacji"
+    },
+    "apps.news.operations.summary": {
+      "params": {},
+      "text": "Sprawdź aktywne i zakończone operacje."
+    },
+    "apps.news.packages.title": {
+      "params": {},
+      "text": "Pakiety danych"
+    },
+    "apps.news.packages.summary": {
+      "params": {},
+      "text": "Przeglądaj pliki w menedżerze plików."
+    },
+    "apps.news.storage.title": {
+      "params": {},
+      "text": "Pamięć operatora"
+    },
+    "apps.news.storage.summary": {
+      "params": {},
+      "text": "Sprawdź wolną pamięć w menedżerze plików."
+    },
+    "apps.news.clans.title": {
+      "params": {},
+      "text": "Kanały klanowe"
+    },
+    "apps.news.clans.summary": {
+      "params": {},
+      "text": "Rozmowy klanu znajdziesz w Cybernerze."
+    },
+    "apps.news.integrity.title": {
+      "params": {},
+      "text": "Wiadomości systemowe"
+    },
+    "apps.news.integrity.summary": {
+      "params": {},
+      "text": "Informacje z systemów świata CHAOS."
+    },
+    "apps.news.protocol.title": {
+      "params": {},
+      "text": "Dostęp do wiadomości"
+    },
+    "apps.news.protocol.summary": {
+      "params": {},
+      "text": "Wiadomości dostępne Twojemu operatorowi."
+    },
+    "apps.news.loading": {
+      "params": {},
+      "text": "Synchronizacja wiadomości…"
+    },
+    "apps.news.error_title": {
+      "params": {},
+      "text": "WIADOMOŚCI NIEDOSTĘPNE"
+    },
+    "apps.news.error": {
+      "params": {},
+      "text": "Nie udało się pobrać wiadomości. Wyszukiwarka pozostaje aktywna."
+    },
+    "apps.news.invalid": {
+      "params": {},
+      "text": "Nie udało się odczytać wiadomości."
+    },
+    "apps.news.empty_title": {
+      "params": {},
+      "text": "Brak nowych wpisów"
+    },
+    "apps.news.empty": {
+      "params": {},
+      "text": "Nowe wiadomości pojawią się tutaj."
+    },
+    "apps.news.intro": {
+      "params": {},
+      "text": "WIADOMOŚCI ZE ŚWIATA"
+    },
+    "apps.news.read_only": {
+      "params": {},
+      "text": "DO ODCZYTU"
+    },
+    "apps.news.open": {
+      "params": {},
+      "text": "OTWÓRZ"
+    },
+    "apps.news.editorial": {
+      "params": {},
+      "text": "REDAKCJA"
+    },
+    "apps.news.system": {
+      "params": {},
+      "text": "SYSTEM"
+    },
+    "apps.news.live": {
+      "params": {},
+      "text": "AKTUALNOŚCI"
+    },
+    "apps.news.status": {
+      "params": {},
+      "text": "Status wiadomości"
+    },
+    "apps.news.access": {
+      "params": {},
+      "text": "Dostęp"
+    },
+    "apps.news.public": {
+      "params": {},
+      "text": "PUBLICZNY"
+    },
+    "apps.news.verified": {
+      "params": {},
+      "text": "ZWERYFIKOWANE"
+    },
+    "apps.news.catalog": {
+      "params": {},
+      "text": "KATALOG"
+    },
+    "apps.news.market": {
+      "params": {},
+      "text": "RYNEK"
+    },
+    "apps.news.sources": {
+      "params": {},
+      "text": "ŹRÓDŁA"
+    },
+    "apps.news.bridges": {
+      "params": {},
+      "text": "SKRÓTY"
+    },
+    "apps.news.audience": {
+      "params": {},
+      "text": "ODBIORCY"
+    },
+    "apps.news.mode": {
+      "params": {},
+      "text": "TRYB"
+    },
+    "apps.news.entries": {
+      "params": {},
+      "text": "WIADOMOŚCI"
+    },
+    "apps.news.unavailable": {
+      "params": {},
+      "text": "Moduł Googleplex News jest niedostępny."
+    },
+    "apps.news.action.open_googleplex_search": {
+      "params": {},
+      "text": "ZOBACZ NARZĘDZIE"
+    },
+    "apps.news.action.open_blacknet": {
+      "params": {},
+      "text": "OTWÓRZ BLACKNET"
+    },
+    "apps.news.action.open_ghost_exchange": {
+      "params": {},
+      "text": "ZOBACZ EXCHANGE"
+    },
+    "apps.news.action.open_map": {
+      "params": {},
+      "text": "OTWÓRZ MAPĘ"
+    },
+    "apps.news.action.open_cyberner": {
+      "params": {},
+      "text": "OTWÓRZ KANAŁ"
+    },
+    "apps.news.action.open_operation": {
+      "params": {},
+      "text": "OPERACJE"
+    },
+    "apps.news.action.show_ghostnetwork_part": {
+      "params": {},
+      "text": "POKAŻ ELEMENT"
+    },
+    "apps.news.action.show_ghostnetwork_territory": {
+      "params": {},
+      "text": "POKAŻ TERYTORIUM"
+    },
+    "apps.news.action.open_ghostnetwork_suite": {
+      "params": {},
+      "text": "OTWÓRZ GHOSTNETWORK"
+    },
+    "apps.news.action.open_ghostsignal_archive": {
+      "params": {},
+      "text": "OTWÓRZ ARCHIWUM"
+    },
+    "apps.news.action.open_cyberner_channel": {
+      "params": {},
+      "text": "OTWÓRZ KANAŁ"
+    },
+    "apps.news.category.MAPA": {
+      "params": {},
+      "text": "MAPA"
+    },
+    "apps.news.category.DATA": {
+      "params": {},
+      "text": "DANE"
+    },
+    "apps.news.category.STORAGE": {
+      "params": {},
+      "text": "PAMIĘĆ"
+    },
+    "apps.news.category.CLANS": {
+      "params": {},
+      "text": "KLANY"
+    },
+    "apps.news.category.INTEGRITY": {
+      "params": {},
+      "text": "SYSTEM"
+    },
+    "apps.news.category.PROTOCOL": {
+      "params": {},
+      "text": "DOSTĘP"
+    },
+    "apps.news.category.OPERATIONS": {
+      "params": {},
+      "text": "OPERACJE"
+    },
+    "apps.news.category.WORLD GRID": {
+      "params": {},
+      "text": "ŚWIAT"
+    },
+    "apps.news.category.canonical": {
+      "params": {},
+      "text": "POTWIERDZONE"
+    },
+    "apps.news.category.system": {
+      "params": {},
+      "text": "SYSTEM"
+    },
+    "apps.news.category.rumor": {
+      "params": {},
+      "text": "POGŁOSKA"
+    },
+    "apps.news.count": {
+      "params": {
+        "count": "number"
+      },
+      "plural": "count",
+      "forms": {
+        "one": "{count} SYGNAŁ",
+        "few": "{count} SYGNAŁY",
+        "many": "{count} SYGNAŁÓW",
+        "other": "{count} SYGNAŁU"
+      }
+    },
+    "apps.signal.show.copy_2d60c804ca": {
+      "params": {},
+      "text": "OCZEKIWANIE NA POTWIERDZENIE SYGNAŁU"
+    },
+    "apps.signal.show.copy_19a4b28966": {
+      "params": {},
+      "text": "SYSTEM PRZEJĘTY PRZEZ GHOST NETWORK"
+    },
+    "apps.signal.show.copy_0f5b7cbc86": {
+      "params": {},
+      "text": "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ."
+    },
+    "apps.signal.show.copy_83c15c41aa": {
+      "params": {},
+      "text": "REKONSTRUKCJA_"
+    },
+    "apps.signal.show.copy_56d736b64c": {
+      "params": {},
+      "text": "WARSTWY ZAPISU ZAKOŃCZONEGO CYKLU"
+    },
+    "apps.signal.show.copy_51ebacbe51": {
+      "params": {},
+      "text": "PULPIT"
+    },
+    "apps.signal.show.copy_c89211c43e": {
+      "params": {},
+      "text": "PRZYGOTOWANIE WIDOKU NOWEGO CYKLU"
+    },
+    "apps.signal.show.copy_bb9981782d": {
+      "params": {},
+      "text": "WIDOK GOTOWY_"
+    },
+    "apps.signal.show.copy_656c8e5b30": {
+      "params": {},
+      "text": "REKONSTRUKCJA — PODSUMOWANIE"
+    },
+    "apps.signal.show.copy_579a635ece": {
+      "params": {},
+      "text": "KONIEC"
+    },
+    "apps.signal.show.copy_d56a6b8ed5": {
+      "params": {},
+      "text": "TEGO CYKLU_"
+    },
+    "apps.signal.show.copy_5537c5cf3c": {
+      "params": {},
+      "text": "ZAMYKANIE PREZENTACJI"
+    },
+    "apps.signal.show.copy_635a37e767": {
+      "params": {},
+      "text": "NOWY"
+    },
+    "apps.signal.show.copy_1bf660f42b": {
+      "params": {},
+      "text": "CYKL_"
+    },
+    "apps.signal.show.copy_e9dc643bbc": {
+      "params": {},
+      "text": "OCZEKIWANIE NA POTWIERDZENIE RESTARTU"
+    },
+    "apps.signal.show.copy_f4bcb7954a": {
+      "params": {},
+      "text": "INTERFEJS"
+    },
+    "apps.signal.show.copy_771320af49": {
+      "params": {},
+      "text": "ŚWIAT"
+    },
+    "apps.signal.show.copy_08363d1ab9": {
+      "params": {},
+      "text": "UCZESTNICY"
+    },
+    "apps.signal.show.copy_66a2cc2648": {
+      "params": {},
+      "text": "Warstwy prezentacji"
+    },
+    "apps.signal.show.copy_6c305e607b": {
+      "params": {},
+      "text": "Przejście nastąpi po potwierdzeniu nowego cyklu."
+    },
+    "apps.signal.show.copy_370600c13e": {
+      "params": {},
+      "text": "Rekonstrukcja wizualna. Rzeczywisty boot nastąpi po potwierdzeniu restartu."
+    },
+    "apps.signal.show.copy_2f3fd4148e": {
+      "params": {},
+      "text": "ZAPIS CYKLU / "
+    },
+    "apps.signal.show.copy_2babd8cc05": {
+      "params": {},
+      "text": " uczestników / "
+    },
+    "apps.signal.show.copy_191e23e6fd": {
+      "params": {},
+      "text": " nagród"
+    },
+    "apps.signal.show.copy_07cd77643e": {
+      "params": {},
+      "text": "Oczekiwanie na zapis wyników finału."
+    },
+    "apps.signal.show.copy_80062636bb": {
+      "params": {},
+      "text": "ZAPIS"
+    },
+    "apps.signal.show.copy_6daa26d055": {
+      "params": {},
+      "text": "ŚLAD SYGNAŁU"
+    },
+    "apps.signal.show.copy_b904d7e513": {
+      "params": {},
+      "text": "KANAŁ 2108"
+    },
+    "apps.signal.show.copy_1b575afca5": {
+      "params": {},
+      "text": "PRZEKAZ Z KANAŁU 2108"
+    },
+    "apps.signal.show.copy_b5d1ade33c": {
+      "params": {},
+      "text": "ZAPIS TRANSMISJI / ŚLAD SYGNAŁU"
+    },
+    "apps.signal.show.copy_28c66cf1f1": {
+      "params": {},
+      "text": "WYNIK"
+    },
+    "apps.signal.show.copy_06f2bedcc5": {
+      "params": {},
+      "text": "CYKLU"
+    },
+    "apps.signal.show.copy_850ecce38e": {
+      "params": {},
+      "text": "STATYSTYKI CYKLU"
+    },
+    "apps.signal.show.copy_ca0e664783": {
+      "params": {},
+      "text": "SYGNAŁU"
+    },
+    "apps.signal.show.copy_2f46d79992": {
+      "params": {},
+      "text": "ŚLAD"
+    },
+    "apps.signal.show.copy_c48811e58a": {
+      "params": {},
+      "text": "W SIECI"
+    },
+    "apps.signal.show.copy_205b47d69f": {
+      "params": {},
+      "text": "POZOSTAJE"
+    },
+    "apps.signal.show.copy_343a10bbd4": {
+      "params": {},
+      "text": "Brak identyfikatora"
+    },
+    "apps.signal.show.copy_b1891c3fdf": {
+      "params": {},
+      "text": "Brak zapisu"
+    },
+    "apps.signal.show.copy_f65913dc6d": {
+      "params": {},
+      "text": "SYGNAŁ POZOSTAWIA ŚLAD"
+    },
+    "apps.signal.show.copy_56f233cd7f": {
+      "params": {},
+      "text": "JEDEN CYKL. WIĘCEJ NIŻ JEDEN ZAPIS."
+    },
+    "apps.signal.show.copy_8e1f8ae6b8": {
+      "params": {},
+      "text": "ZAPIS CYKLU"
+    },
+    "apps.signal.show.copy_860e43371f": {
+      "params": {},
+      "text": "CYKL / "
+    },
+    "apps.signal.show.copy_19ebf5064e": {
+      "params": {},
+      "text": "Brak daty publikacji"
+    },
+    "apps.signal.show.copy_44bb590c07": {
+      "params": {},
+      "text": "Brak publikacji w archiwum"
+    },
+    "apps.signal.show.copy_5604e5096a": {
+      "params": {},
+      "text": "Bez tytułu"
+    },
+    "apps.signal.show.copy_9dc27b3ce8": {
+      "params": {},
+      "text": "Wyniki uczestników i klanów zostały zapisane w archiwum finału. Po restarcie wrócisz do zapisu sygnału z pulpitu."
+    },
+    "apps.signal.show.copy_a2bd827693": {
+      "params": {},
+      "text": "Archiwum sygnału. Zapis rankingu nie został jeszcze potwierdzony."
+    },
+    "apps.signal.show.copy_805cd8b0b1": {
+      "params": {},
+      "text": "Brak treści w zapisie."
+    },
+    "apps.signal.show.copy_9d0f209f19": {
+      "params": {},
+      "text": "Brak publicznej treści w tej projekcji finału."
+    },
+    "apps.signal.show.copy_633d0b55a3": {
+      "params": {},
+      "text": "ARCHIWUM / "
+    },
+    "apps.signal.show.copy_cc12f36e41": {
+      "params": {},
+      "text": "Podsumowanie finału"
+    },
+    "apps.signal.show.copy_8b3730d2a2": {
+      "params": {},
+      "text": "NAGRODY"
+    },
+    "apps.signal.show.copy_8895203e1a": {
+      "params": {},
+      "text": "RSP FINAŁU"
+    },
+    "apps.signal.show.copy_0daacbb4b3": {
+      "params": {},
+      "text": "TERYTORIA"
+    },
+    "apps.signal.show.copy_5d6fc84fcc": {
+      "params": {},
+      "text": " / ARCHIWUM"
+    },
+    "apps.signal.show.copy_8daf2b1c27": {
+      "params": {},
+      "text": "ARCHIWUM CYKLU"
+    },
+    "apps.signal.show.copy_02da94330b": {
+      "params": {},
+      "text": "FRAGMENT "
+    },
+    "apps.signal.show.copy_7753a8cb80": {
+      "params": {},
+      "text": "BRAK PUBLIKACJI"
+    },
+    "apps.signal.show.copy_1e9a6bca7a": {
+      "params": {},
+      "text": "01 / ŚLADY CYKLU"
+    },
+    "apps.signal.show.copy_47e92520db": {
+      "params": {},
+      "text": "PUBLICZNY ZAPIS"
+    },
+    "apps.signal.show.copy_6eea67fb7f": {
+      "params": {},
+      "text": "HISTORIA SYGNAŁU"
+    },
+    "apps.signal.show.copy_4c1892f212": {
+      "params": {},
+      "text": "ARCHIWUM FINAŁU"
+    },
+    "apps.signal.show.copy_98c8641b8f": {
+      "params": {},
+      "text": "SYGNAŁ"
+    },
+    "apps.signal.show.copy_480a9a11ad": {
+      "params": {},
+      "text": "CYKL"
+    },
+    "apps.signal.show.copy_623a11c06a": {
+      "params": {},
+      "text": "WERSJA"
+    },
+    "apps.signal.show.copy_5b2bb92464": {
+      "params": {},
+      "text": "Ograniczony zakres archiwum."
+    },
+    "apps.signal.show.copy_c4d0c3e733": {
+      "params": {},
+      "text": "Historia zostaje. Świat rusza dalej."
+    },
+    "apps.signal.show.copy_c82aee0959": {
+      "params": {},
+      "text": "KONTROLA WĘZŁÓW"
+    },
+    "apps.signal.show.copy_5d4dc75ad3": {
+      "params": {},
+      "text": "Utrzymanie części sieci do chwili wysłania sygnału."
+    },
+    "apps.signal.show.copy_420d63bfd7": {
+      "params": {},
+      "text": "ZAMKNIĘCIE SYGNAŁU"
+    },
+    "apps.signal.show.copy_12a75fb653": {
+      "params": {},
+      "text": "Domknięcie sieci i uruchomienie finału cyklu."
+    },
+    "apps.signal.show.copy_ae8fcee4ff": {
+      "params": {},
+      "text": "TERYTORIA FINAŁU"
+    },
+    "apps.signal.show.copy_3281f1602d": {
+      "params": {},
+      "text": "Rozliczenie terytoriów objętych wysłaniem sygnału."
+    },
+    "apps.signal.show.copy_9849cba46e": {
+      "params": {},
+      "text": "INNA NAGRODA FINAŁU"
+    },
+    "apps.signal.show.copy_92d86b60ab": {
+      "params": {},
+      "text": "Dodatkowa kategoria zapisana w archiwum finału."
+    },
+    "apps.signal.show.copy_0fc4fc3e1f": {
+      "params": {},
+      "text": "FINAŁ / REJESTR NAGRÓD"
+    },
+    "apps.signal.show.copy_9733733f9a": {
+      "params": {},
+      "text": "WKŁAD POZOSTAWIA ŚLAD"
+    },
+    "apps.signal.show.copy_4f4b3e5307": {
+      "params": {},
+      "text": "FINAŁU"
+    },
+    "apps.signal.show.copy_dca7c7e9e9": {
+      "params": {},
+      "text": "JEDEN SYGNAŁ. WSPÓLNY WYNIK."
+    },
+    "apps.signal.show.copy_9c3c2034b4": {
+      "params": {},
+      "text": "REJESTR NAGRÓD"
+    },
+    "apps.signal.show.copy_0ee2fe1eca": {
+      "params": {},
+      "text": "Brak szczegółów nagród w zapisie."
+    },
+    "apps.signal.show.copy_b3e8409481": {
+      "params": {},
+      "text": " ZAPISÓW NAGRÓD"
+    },
+    "apps.signal.show.copy_ec34456b13": {
+      "params": {},
+      "text": "01 / ROZLICZENIE FINAŁU"
+    },
+    "apps.signal.show.copy_11e6d71624": {
+      "params": {},
+      "text": "ZAPISY NAGRÓD / "
+    },
+    "apps.signal.show.copy_779aec1228": {
+      "params": {},
+      "text": "ŁĄCZNIE / RSP"
+    },
+    "apps.signal.show.copy_89cdb0471f": {
+      "params": {},
+      "text": " ZAPISY NAGRÓD / "
+    },
+    "apps.signal.show.copy_eb38e2b27b": {
+      "params": {},
+      "text": "OGRANICZONY ZAKRES ARCHIWUM"
+    },
+    "apps.signal.show.copy_e5e18d7f34": {
+      "params": {},
+      "text": "WYNIK Z ARCHIWUM SYGNAŁU"
+    },
+    "apps.signal.show.copy_70ac843926": {
+      "params": {},
+      "text": "OCZEKIWANIE NA ARCHIWUM"
+    },
+    "apps.signal.show.copy_a716052e8c": {
+      "params": {},
+      "text": "Brak nazwy klanu"
+    },
+    "apps.signal.show.copy_a37d8777b2": {
+      "params": {},
+      "text": "KLANY / RANKING FINAŁU"
+    },
+    "apps.signal.show.copy_610ce4daa2": {
+      "params": {},
+      "text": "UCZESTNICY / RANKING FINAŁU"
+    },
+    "apps.signal.show.copy_a1aa14eb68": {
+      "params": {},
+      "text": "ŚLAD KLANU / GHOSTSIGNAL"
+    },
+    "apps.signal.show.copy_17aed67da8": {
+      "params": {},
+      "text": "ŚLAD GRACZA / GHOSTSIGNAL"
+    },
+    "apps.signal.show.copy_ab5fc6adff": {
+      "params": {},
+      "text": "Brak nicku"
+    },
+    "apps.signal.show.copy_89a55fad8a": {
+      "params": {},
+      "text": "Brak klanu"
+    },
+    "apps.signal.show.copy_b8140ae565": {
+      "params": {},
+      "text": "Oczekiwanie na zapis"
+    },
+    "apps.signal.show.copy_c7ada00045": {
+      "params": {},
+      "text": "Gracz"
+    },
+    "apps.signal.show.copy_303e67d3c1": {
+      "params": {},
+      "text": "Symbol niedostępny"
+    },
+    "apps.signal.show.copy_14ec333e7e": {
+      "params": {},
+      "text": "Brak symbolu klanu"
+    },
+    "apps.signal.show.copy_2a9f85698d": {
+      "params": {},
+      "text": "KLAN / ARCHIWUM"
+    },
+    "apps.signal.show.copy_b85fdd4917": {
+      "params": {},
+      "text": "PODGLĄD / AKTUALNY AVATAR I LVL"
+    },
+    "apps.signal.show.copy_c55a1806e1": {
+      "params": {},
+      "text": "PROFIL / ARCHIWUM"
+    },
+    "apps.signal.show.copy_985eacadba": {
+      "params": {},
+      "text": "AVATAR / BRAK ZAPISU"
+    },
+    "apps.signal.show.copy_2fd78b13b7": {
+      "params": {},
+      "text": "POZIOM"
+    },
+    "apps.signal.show.copy_1735ddd5b5": {
+      "params": {},
+      "text": "RSP / SYGNAŁ"
+    },
+    "apps.signal.show.copy_bf2aa8fb29": {
+      "params": {},
+      "text": "01 / RANKING — WYBÓR ARCHIWUM"
+    },
+    "apps.signal.show.copy_a5766a9cb1": {
+      "params": {},
+      "text": "01 / PEŁNY RANKING"
+    },
+    "apps.signal.show.copy_116b48040e": {
+      "params": {},
+      "text": "JEDEN SYGNAŁ. WSPÓLNY ZAPIS."
+    },
+    "apps.signal.show.copy_a759e425cb": {
+      "params": {},
+      "text": "PO SYGNALE"
+    },
+    "apps.signal.show.copy_314e1b2f8f": {
+      "params": {},
+      "text": "ZAPIS GRANIC"
+    },
+    "apps.signal.show.copy_42612dbfdf": {
+      "params": {},
+      "text": "LOSY TERYTORIÓW"
+    },
+    "apps.signal.show.copy_b57cd37cb2": {
+      "params": {},
+      "text": "ROZLICZENIE"
+    },
+    "apps.signal.show.copy_996af14340": {
+      "params": {},
+      "text": "KONFLIKTY"
+    },
+    "apps.signal.show.copy_c803ee4e12": {
+      "params": {},
+      "text": "STAN KOŃCOWY"
+    },
+    "apps.signal.show.copy_d00ed03653": {
+      "params": {},
+      "text": "ŚWIAT / ARCHIWUM CYKLU"
+    },
+    "apps.signal.show.copy_d0ccb1c47b": {
+      "params": {},
+      "text": "GHOSTSIGNAL / KONSEKWENCJE"
+    },
+    "apps.signal.show.copy_e3bf912655": {
+      "params": {},
+      "text": "JEDNA SIEĆ. ŚLAD POZOSTAJE."
+    },
+    "apps.signal.show.copy_a745c43514": {
+      "params": {},
+      "text": "Kontury lądów — Europa i Afryka"
+    },
+    "apps.signal.show.copy_6db5eef49e": {
+      "params": {},
+      "text": "Kontury lądów niedostępne."
+    },
+    "apps.signal.show.copy_cbb30c0288": {
+      "params": {},
+      "text": "Geometria z archiwum finału"
+    },
+    "apps.signal.show.copy_f2f85184b8": {
+      "params": {},
+      "text": "Terytorium"
+    },
+    "apps.signal.show.copy_a7e5e2635a": {
+      "params": {},
+      "text": "GHOSTSIGNAL / KSZTAŁT TERYTORIUM"
+    },
+    "apps.signal.show.copy_f459dc70f4": {
+      "params": {},
+      "text": "BRAK GEOMETRII W ZAPISIE"
+    },
+    "apps.signal.show.copy_ee20602fa1": {
+      "params": {},
+      "text": "GEOMETRIA ARCHIWALNA / WIDOK SYMBOLICZNY"
+    },
+    "apps.signal.show.copy_a55bfc47cd": {
+      "params": {},
+      "text": "Konflikt"
+    },
+    "apps.signal.show.copy_bc0c3b1a36": {
+      "params": {},
+      "text": "Brak statusu"
+    },
+    "apps.signal.show.copy_788a131982": {
+      "params": {},
+      "text": "Brak szczegółów konfliktów w archiwum."
+    },
+    "apps.signal.show.copy_2b38cc6ccc": {
+      "params": {},
+      "text": "SKONSUMOWANE / "
+    },
+    "apps.signal.show.copy_158de4889d": {
+      "params": {},
+      "text": "Granice obszarów objętych finałem."
+    },
+    "apps.signal.show.copy_1dda2e73b3": {
+      "params": {},
+      "text": "Brak osobnego zapisu redukcji i zachowanych terytoriów."
+    },
+    "apps.signal.show.copy_479ff26a58": {
+      "params": {},
+      "text": "Podsumowanie zakresu sygnału."
+    },
+    "apps.signal.show.copy_9202f3030c": {
+      "params": {},
+      "text": "GEOMETRIA / "
+    },
+    "apps.signal.show.copy_8d0df4eca6": {
+      "params": {},
+      "text": " Z "
+    },
+    "apps.signal.show.copy_c94e176b06": {
+      "params": {},
+      "text": " ZAPISÓW"
+    },
+    "apps.signal.show.copy_c2f2f0c53b": {
+      "params": {},
+      "text": " / KLAN: "
+    },
+    "apps.signal.show.copy_d78b27b626": {
+      "params": {},
+      "text": "WŁAŚCICIEL: "
+    },
+    "apps.signal.show.copy_62eed31daf": {
+      "params": {},
+      "text": "ŚREDNIA WIERZCHOŁKÓW / LAT "
+    },
+    "apps.signal.show.copy_afe91d227a": {
+      "params": {},
+      "text": "OGRANICZONY WYBÓR ARCHIWUM"
+    },
+    "apps.signal.show.copy_0fbd29a2b3": {
+      "params": {},
+      "text": "ZAKRES FINAŁU / NIE CAŁY STAN ŚWIATA"
+    },
+    "apps.signal.show.copy_4fc5a70bae": {
+      "params": {},
+      "text": "OBSZARY FINAŁU"
+    },
+    "apps.signal.show.copy_a1710e1237": {
+      "params": {},
+      "text": "WIERZCHOŁKI ZAPISU"
+    },
+    "apps.signal.show.copy_c928c061af": {
+      "params": {},
+      "text": "KONTURY / NATURAL EARTH"
+    },
+    "apps.signal.show.copy_372b3fdf0c": {
+      "params": {},
+      "text": "HISTORIA ZAKOŃCZENIA CYKLU"
+    },
+    "apps.signal.show.copy_efdd50f259": {
+      "params": {},
+      "text": "TRANSMISJI"
+    },
+    "apps.signal.show.copy_d4226840f6": {
+      "params": {},
+      "text": "REKONSTRUKCJA"
+    },
+    "apps.signal.show.copy_db9475ab26": {
+      "params": {},
+      "text": "01 / ODCZYT ARCHIWUM"
+    },
+    "apps.signal.show.copy_fba92d31f6": {
+      "params": {},
+      "text": "INICJACJA ODCZYTU"
+    },
+    "apps.signal.show.copy_8b0890735b": {
+      "params": {},
+      "text": "SYNCHRONIZACJA OBRAZU"
+    },
+    "apps.signal.show.copy_819f7dd17b": {
+      "params": {},
+      "text": "REKONSTRUKCJA TRANSMISJI"
+    },
+    "apps.signal.show.copy_f7da19f873": {
+      "params": {},
+      "text": "Z rozproszonych fragmentów powstaje pełny obraz."
+    },
+    "apps.signal.show.copy_cca67f53ca": {
+      "params": {},
+      "text": "ARCHIWALNY ZAPIS"
+    },
+    "apps.signal.show.copy_256cb811d1": {
+      "params": {},
+      "text": "ŹRÓDŁO / 3:2"
+    },
+    "apps.signal.show.copy_e519d52171": {
+      "params": {},
+      "text": "Brak ID sygnału"
+    },
+    "apps.signal.show.copy_7bbefd21ed": {
+      "params": {},
+      "text": "POTWIERDZENIE"
+    },
+    "apps.signal.show.copy_d154737534": {
+      "params": {},
+      "text": "GHOSTSIGNAL WYSŁANY"
+    },
+    "apps.signal.show.copy_4f04463712": {
+      "params": {},
+      "text": "OCZEKIWANIE NA POTWIERDZENIE"
+    },
+    "apps.signal.show.copy_742a3b883d": {
+      "params": {},
+      "text": "SYGNAŁ / "
+    },
+    "apps.signal.show.copy_c12b8a1f9b": {
+      "params": {},
+      "text": "WYSŁANO UTC / "
+    },
+    "apps.signal.show.copy_95e7541191": {
+      "params": {},
+      "text": "KANAŁ / 2108"
+    },
+    "apps.signal.show.copy_e3aaff1242": {
+      "params": {},
+      "text": "DOSTĘPNY"
+    },
+    "apps.signal.show.copy_c92ce0eff1": {
+      "params": {},
+      "text": "PLIKI I DANE"
+    },
+    "apps.signal.show.copy_032f573ee6": {
+      "params": {},
+      "text": "HISTORIA CZĘŚCI / "
+    },
+    "apps.signal.show.copy_891e76da93": {
+      "params": {},
+      "text": "DOSTĘPNA"
+    },
+    "apps.signal.show.copy_fec5067c15": {
+      "params": {},
+      "text": "NIEPEŁNY ZAPIS"
+    },
+    "apps.signal.show.copy_57589b36fb": {
+      "params": {},
+      "text": "CZĘŚCI W KATALOGU / "
+    },
+    "apps.signal.show.copy_0ea86850cc": {
+      "params": {},
+      "text": "TERYTORIA FINAŁU / "
+    },
+    "apps.signal.show.copy_f37f7486b2": {
+      "params": {},
+      "text": "OGRANICZONY WYBÓR DANYCH"
+    },
+    "apps.signal.show.copy_85d37e67b1": {
+      "params": {},
+      "text": "DOSTĘPNE ARCHIWUM FINAŁU"
+    },
+    "apps.signal.show.copy_7b5c5e22e3": {
+      "params": {},
+      "text": "ARCHIWUM / ODCZYT"
+    },
+    "apps.signal.show.copy_fdd4a94224": {
+      "params": {},
+      "text": "ODCZYT ZAPISU"
+    },
+    "apps.signal.show.copy_09668a7b1e": {
+      "params": {},
+      "text": "DANE SYGNAŁU"
+    },
+    "apps.signal.show.copy_73a2ce0c4a": {
+      "params": {},
+      "text": "ARCHIWUM"
+    },
+    "apps.signal.show.copy_c43a10553a": {
+      "params": {},
+      "text": "GHOSTNETWORK / ARCHIWUM SYGNAŁU"
+    },
+    "apps.signal.show.copy_3335cf21ea": {
+      "params": {},
+      "text": "ODTWORZENIE ARCHIWALNEGO OBRAZU"
+    },
+    "apps.signal.show.copy_f27872038f": {
+      "params": {},
+      "text": "PRZYGOTOWANIE ODCZYTU"
+    },
+    "apps.signal.show.copy_37b197c445": {
+      "params": {},
+      "text": "02 / DANE SYGNAŁU"
+    },
+    "apps.signal.show.copy_b04d259ce6": {
+      "params": {},
+      "text": "02 / ZAPIS OBRAZU"
+    },
+    "apps.signal.show.copy_7c6dead13a": {
+      "params": {},
+      "text": "TRYB"
+    },
+    "apps.signal.show.copy_257c69c75f": {
+      "params": {},
+      "text": "KANAŁ"
+    },
+    "apps.signal.show.copy_795349a1ba": {
+      "params": {},
+      "text": "FORMAT"
+    },
+    "apps.signal.show.copy_a8e5d51e74": {
+      "params": {},
+      "text": "DŁUGOŚĆ"
+    },
+    "apps.signal.show.copy_4f0f96d3d5": {
+      "params": {},
+      "text": "PREDYKCJA I TRASA"
+    },
+    "apps.signal.show.copy_c8b4d29479": {
+      "params": {},
+      "text": "Predykcja i wyznaczanie trasy sygnału."
+    },
+    "apps.signal.show.copy_f58b362865": {
+      "params": {},
+      "text": "PRZEKAZ I TRANSMISJA"
+    },
+    "apps.signal.show.copy_55c5b11f62": {
+      "params": {},
+      "text": "Składanie, wzmacnianie i transmisja przekazu."
+    },
+    "apps.signal.show.copy_8c09689f66": {
+      "params": {},
+      "text": "UKRYCIE I MASKOWANIE"
+    },
+    "apps.signal.show.copy_3f44ca00ad": {
+      "params": {},
+      "text": "Ukrywanie źródła, celu i trasy sygnału."
+    },
+    "apps.signal.show.copy_a268c8fc35": {
+      "params": {},
+      "text": "INTEGRALNOŚĆ I OCHRONA"
+    },
+    "apps.signal.show.copy_301a383329": {
+      "params": {},
+      "text": "Ochrona integralności sieci i izolacja zagrożeń."
+    },
+    "apps.signal.show.copy_4c866cc83f": {
+      "params": {},
+      "text": "FUNKCJA MASZYNY"
+    },
+    "apps.signal.show.copy_2234f840b1": {
+      "params": {},
+      "text": "Brak zapisu."
+    },
+    "apps.signal.show.copy_76c539b034": {
+      "params": {},
+      "text": "SPECJALIZACJA"
+    },
+    "apps.signal.show.copy_49574fe249": {
+      "params": {},
+      "text": "RYZYKO SKRAJNE"
+    },
+    "apps.signal.show.copy_a0c4b66c4b": {
+      "params": {},
+      "text": "Części "
+    },
+    "apps.signal.show.copy_53d8dbf56a": {
+      "params": {},
+      "text": "CZTERY PLANY / JEDNA SIEĆ"
+    },
+    "apps.signal.show.copy_76a864722c": {
+      "params": {},
+      "text": "CZTERY MASZYNY"
+    },
+    "apps.signal.show.copy_0eeada1bf2": {
+      "params": {},
+      "text": "HISTORIA CZĘŚCI / UTC"
+    },
+    "apps.signal.show.copy_6e75a20da2": {
+      "params": {},
+      "text": "STANY CZĘŚCI / ZAPIS CYKLU"
+    },
+    "apps.signal.show.copy_715e7bfd3b": {
+      "params": {},
+      "text": "GHOSTSIGNAL / HISTORIA CZĘŚCI"
+    },
+    "apps.signal.show.copy_50499ce51c": {
+      "params": {},
+      "text": "JEDNA"
+    },
+    "apps.signal.show.copy_298e6d0c2b": {
+      "params": {},
+      "text": "BRAK ZAPISU"
+    },
+    "apps.signal.show.copy_b33b7a9c29": {
+      "params": {},
+      "text": "SIEĆ"
+    },
+    "apps.signal.show.copy_e839557511": {
+      "params": {},
+      "text": "CZĘŚCI"
+    },
+    "apps.signal.show.copy_e7919216e5": {
+      "params": {},
+      "text": "PIĘĆ CZĘŚCI. JEDNA MASZYNA."
+    },
+    "apps.signal.show.copy_81da871fcf": {
+      "params": {},
+      "text": " WĘZŁÓW."
+    },
+    "apps.signal.show.copy_776baa4472": {
+      "params": {},
+      "text": "CZTERY MASZYNY. JEDNA SIEĆ."
+    },
+    "apps.signal.show.copy_aa7ea375bb": {
+      "params": {},
+      "text": "Pozostałe części pozostają w sieci."
+    },
+    "apps.signal.show.copy_bf77255222": {
+      "params": {},
+      "text": "Historia niepełna — pokazujemy dostępny zapis."
+    },
+    "apps.signal.show.copy_7786c7f994": {
+      "params": {},
+      "text": "Brak części w zapisie tej grupy."
+    },
+    "apps.signal.show.copy_f28e9a0947": {
+      "params": {},
+      "text": "Części w czterech planach"
+    },
+    "apps.signal.show.copy_ba779db2e6": {
+      "params": {},
+      "text": "Brak zapisu połączeń."
+    },
+    "apps.signal.show.copy_002624e12b": {
+      "params": {},
+      "text": "WĘZŁÓW"
+    },
+    "apps.signal.show.copy_6ee25b30c5": {
+      "params": {},
+      "text": "BRAK TOPOLOGII"
+    },
+    "apps.signal.show.copy_97ce471c54": {
+      "params": {},
+      "text": "WSPÓLNA SIEĆ"
+    },
+    "apps.signal.show.copy_7cc3ccad0e": {
+      "params": {},
+      "text": "SYNCHRONIZACJA"
+    },
+    "apps.signal.show.copy_7caa225534": {
+      "params": {},
+      "text": "Opis niedostępny w tym zapisie."
+    },
+    "apps.signal.show.copy_2a8fee3d77": {
+      "params": {},
+      "text": "ARCHIWUM FINAŁU / REKONSTRUKCJA"
+    },
+    "apps.signal.show.copy_2a73635a6c": {
+      "params": {},
+      "text": "Ograniczony zakres szczegółów — dostępne podsumowanie finału."
+    },
+    "apps.signal.show.copy_b7dd16c73e": {
+      "params": {},
+      "text": "RSP finału: "
+    },
+    "apps.signal.show.copy_81646c40b9": {
+      "params": {},
+      "text": "PLIKI / ARCHIWUM SYGNAŁU"
+    },
+    "apps.signal.show.copy_6a7383ccf4": {
+      "params": {},
+      "text": "WARSTWY PREZENTACJI GOTOWE"
+    },
+    "apps.signal.show.copy_c14ffb662c": {
+      "params": {},
+      "text": "Rekonstrukcja wizualna — rzeczywisty boot nastąpi według procedury restartu."
+    },
+    "apps.signal.show.copy_0c7a8186e9": {
+      "params": {},
+      "text": " nagród finału."
+    },
+    "apps.signal.show.copy_9aeb95c96c": {
+      "params": {},
+      "text": "ARCHIWALNY ZAPIS TRANSMISJI"
+    },
+    "apps.signal.show.copy_a042c2d47f": {
+      "params": {},
+      "text": "ARCHIWUM / REKONSTRUKCJA"
+    },
+    "apps.signal.show.copy_1a6dc4a7b6": {
+      "params": {},
+      "text": "> ZAPIS TRANSMISJI\nGHOSTSIGNAL // "
+    },
+    "apps.signal.show.copy_1d00778c3a": {
+      "params": {},
+      "text": "> ŚLAD SYGNAŁU\nTRANSMISSION UTC // "
+    },
+    "apps.signal.show.copy_4977fb6396": {
+      "params": {},
+      "text": "Brak zapisu czasu"
+    },
+    "apps.signal.show.copy_ea34d86c5c": {
+      "params": {},
+      "text": "> KANAŁ 2108\nTEMPORAL CHANNEL // 2108\nDESTINATION // "
+    },
+    "apps.signal.show.copy_bd4f44301a": {
+      "params": {},
+      "text": "Brak zapisu daty docelowej"
+    },
+    "apps.signal.show.copy_566345d978": {
+      "params": {},
+      "text": "CEL / "
+    },
+    "apps.signal.show.copy_6fe20b1157": {
+      "params": {},
+      "text": "Brak daty docelowej"
+    },
+    "apps.signal.show.copy_efbc53c4d8": {
+      "params": {},
+      "text": "> TERMINAL / ODCZYT ARCHIWUM"
+    },
+    "apps.signal.show.copy_5facd79d87": {
+      "params": {},
+      "text": "WERSJA / "
+    },
+    "apps.signal.show.copy_e886c1fcd8": {
+      "params": {},
+      "text": "UCZESTNICY / "
+    },
+    "apps.signal.show.copy_1921ef5ebf": {
+      "params": {},
+      "text": "NAGRODY / "
+    },
+    "apps.signal.show.copy_1eb2117241": {
+      "params": {},
+      "text": "> REKONSTRUKCJA WIZUALNA / BOOT W ETAPIE RESTARTU"
+    },
+    "apps.signal.show.copy_7ba80e87b9": {
+      "params": {},
+      "text": "> INDEKS ARCHIWUM / "
+    },
+    "apps.signal.show.copy_32dc5318d2": {
+      "params": {},
+      "text": "PUBLIKACJE W PROJEKCJI / "
+    },
+    "apps.signal.show.copy_79c843be08": {
+      "params": {},
+      "text": "ZAKRES / "
+    },
+    "apps.signal.show.copy_212f0bb5b2": {
+      "params": {},
+      "text": "> KONIEC INDEKSU ARCHIWUM"
+    },
+    "apps.signal.show.copy_a8180e7264": {
+      "params": {},
+      "text": "REKONSTRUKCJA / GHOSTSIGNAL"
+    },
+    "apps.signal.show.copy_25be6078ae": {
+      "params": {},
+      "text": "Historia transmisji. Odtworzenie zapisu."
+    },
+    "apps.signal.show.copy_d7d153751b": {
+      "params": {},
+      "text": "Brak zapisu maszyny."
+    },
+    "apps.signal.show.copy_6d94100b9f": {
+      "params": {},
+      "text": " / CZTERY MASZYNY"
+    },
+    "apps.signal.show.copy_e4788f6c84": {
+      "params": {},
+      "text": "Brak opisu funkcji w zapisie."
+    },
+    "apps.signal.show.copy_57db932e29": {
+      "params": {},
+      "text": "Brak opisu ryzyka w zapisie."
+    },
+    "apps.signal.show.copy_61664cbc9b": {
+      "params": {},
+      "text": "FUNKCJA KATALOGOWA / REKONSTRUKCJA"
+    },
+    "apps.signal.show.copy_0909c7dccc": {
+      "params": {},
+      "text": "GHOST NETWORK / TOPOLOGIA"
+    },
+    "apps.signal.show.copy_9733b06f02": {
+      "params": {},
+      "text": "CZTERY MASZYNY. "
+    },
+    "apps.signal.show.copy_68aea119b8": {
+      "params": {},
+      "text": "Brak grupy"
+    },
+    "apps.signal.show.copy_d11edc3699": {
+      "params": {},
+      "text": "GHOST NETWORK / ZAPIS"
+    },
+    "apps.signal.show.copy_54872869e3": {
+      "params": {},
+      "text": "GHOSTSYSTEM / OCZEKIWANIE NA RESTART"
+    },
+    "apps.signal.show.copy_dcb76e6760": {
+      "params": {},
+      "text": "CHAOS / warstwy systemu"
+    },
+    "apps.signal.show.copy_900e04e48e": {
+      "params": {},
+      "text": "GOOGLEPLEX / zapis publikacji"
+    },
+    "apps.signal.scene.takeover": {
+      "params": {},
+      "text": "PRZEJĘCIE INTERFEJSU"
+    },
+    "apps.signal.scene.network_layer": {
+      "params": {},
+      "text": "GHOST NETWORK"
+    },
+    "apps.signal.scene.parts_enter": {
+      "params": {},
+      "text": "HISTORIA CZĘŚCI"
+    },
+    "apps.signal.scene.parts_complete": {
+      "params": {},
+      "text": "DWADZIEŚCIA CZĘŚCI"
+    },
+    "apps.signal.scene.connections": {
+      "params": {},
+      "text": "POŁĄCZENIA"
+    },
+    "apps.signal.scene.history_logs": {
+      "params": {},
+      "text": "HISTORIA CYKLU"
+    },
+    "apps.signal.scene.part_states": {
+      "params": {},
+      "text": "STANY CZĘŚCI"
+    },
+    "apps.signal.scene.machine_groups": {
+      "params": {},
+      "text": "CZTERY MASZYNY"
+    },
+    "apps.signal.scene.machine_group_1": {
+      "params": {},
+      "text": "MASZYNA 01"
+    },
+    "apps.signal.scene.machine_group_2": {
+      "params": {},
+      "text": "MASZYNA 02"
+    },
+    "apps.signal.scene.machine_group_3": {
+      "params": {},
+      "text": "MASZYNA 03"
+    },
+    "apps.signal.scene.machine_group_4": {
+      "params": {},
+      "text": "MASZYNA 04"
+    },
+    "apps.signal.scene.network_expand": {
+      "params": {},
+      "text": "WSPÓLNA SIEĆ"
+    },
+    "apps.signal.scene.network_ring": {
+      "params": {},
+      "text": "GHOST NETWORK"
+    },
+    "apps.signal.scene.network_tension": {
+      "params": {},
+      "text": "SYNCHRONIZACJA"
+    },
+    "apps.signal.scene.network_ready": {
+      "params": {},
+      "text": "SIEĆ GOTOWA"
+    },
+    "apps.signal.scene.machine_hero_1": {
+      "params": {},
+      "text": "MASZYNA 01"
+    },
+    "apps.signal.scene.machine_hero_2": {
+      "params": {},
+      "text": "MASZYNA 02"
+    },
+    "apps.signal.scene.machine_hero_3": {
+      "params": {},
+      "text": "MASZYNA 03"
+    },
+    "apps.signal.scene.machine_hero_4": {
+      "params": {},
+      "text": "MASZYNA 04"
+    },
+    "apps.signal.scene.transmission_quiet": {
+      "params": {},
+      "text": "ZAPIS TRANSMISJI"
+    },
+    "apps.signal.scene.transmission_video": {
+      "params": {},
+      "text": "REKONSTRUKCJA TRANSMISJI"
+    },
+    "apps.signal.scene.transmission_replay": {
+      "params": {},
+      "text": "GHOSTSIGNAL — ZAPIS EMISJI"
+    },
+    "apps.signal.scene.signal_point": {
+      "params": {},
+      "text": "ŚLAD SYGNAŁU"
+    },
+    "apps.signal.scene.terminal_2108": {
+      "params": {},
+      "text": "KANAŁ 2108"
+    },
+    "apps.signal.scene.signal_confirmation": {
+      "params": {},
+      "text": "GHOSTSIGNAL WYSŁANY"
+    },
+    "apps.signal.scene.aftershock": {
+      "params": {},
+      "text": "WORLD SETTLEMENT"
+    },
+    "apps.signal.scene.world_before": {
+      "params": {},
+      "text": "ŚWIAT PRZED ROZLICZENIEM"
+    },
+    "apps.signal.scene.territory_outcomes": {
+      "params": {},
+      "text": "LOSY TERYTORIÓW"
+    },
+    "apps.signal.scene.territory_reduction": {
+      "params": {},
+      "text": "ROZLICZENIE TERYTORIÓW"
+    },
+    "apps.signal.scene.conflict_results": {
+      "params": {},
+      "text": "WYNIKI KONFLIKTÓW"
+    },
+    "apps.signal.scene.world_final": {
+      "params": {},
+      "text": "FINAL WORLD STATE"
+    },
+    "apps.signal.scene.reward_ledger": {
+      "params": {},
+      "text": "NAGRODY"
+    },
+    "apps.signal.scene.players": {
+      "params": {},
+      "text": "UCZESTNICY"
+    },
+    "apps.signal.scene.achievements": {
+      "params": {},
+      "text": "OSIĄGNIĘCIA"
+    },
+    "apps.signal.scene.clans": {
+      "params": {},
+      "text": "KLANY"
+    },
+    "apps.signal.scene.system_layers": {
+      "params": {},
+      "text": "REKONSTRUKCJA CHAOS"
+    },
+    "apps.signal.scene.googleplex": {
+      "params": {},
+      "text": "GOOGLEPLEX"
+    },
+    "apps.signal.scene.pro_tools": {
+      "params": {},
+      "text": "PRO TOOLS / TERMINAL"
+    },
+    "apps.signal.scene.file_system": {
+      "params": {},
+      "text": "PLIKI I DANE"
+    },
+    "apps.signal.scene.blacknet_history": {
+      "params": {},
+      "text": "BLACKNET / HISTORIA"
+    },
+    "apps.signal.scene.desktop_assembly": {
+      "params": {},
+      "text": "REKONSTRUKCJA PULPITU"
+    },
+    "apps.signal.scene.system_ready": {
+      "params": {},
+      "text": "REKONSTRUKCJA — PODSUMOWANIE"
+    },
+    "apps.signal.scene.player_ranking": {
+      "params": {},
+      "text": "RANKING GRACZY"
+    },
+    "apps.signal.scene.clan_ranking": {
+      "params": {},
+      "text": "RANKING KLANÓW"
+    },
+    "apps.signal.scene.cycle_statistics": {
+      "params": {},
+      "text": "STATYSTYKI CYKLU"
+    },
+    "apps.signal.scene.archive": {
+      "params": {},
+      "text": "ARCHIWUM CYKLU"
+    },
+    "apps.signal.scene.shutdown": {
+      "params": {},
+      "text": "ZAMYKANIE WIDOKU"
+    },
+    "apps.signal.scene.restart": {
+      "params": {},
+      "text": "OCZEKIWANIE NA NOWY CYKL"
+    },
+    "apps.signal.profession.broker": {
+      "params": {},
+      "text": "Broker"
+    },
+    "apps.signal.profession.architect": {
+      "params": {},
+      "text": "Architekt"
+    },
+    "apps.signal.profession.manipulator": {
+      "params": {},
+      "text": "Manipulator"
+    },
+    "apps.signal.profession.profit_enforcer": {
+      "params": {},
+      "text": "Egzekutor Zysku"
+    },
+    "apps.signal.profession.algorithm_curator": {
+      "params": {},
+      "text": "Kurator Algorytmu"
+    },
+    "apps.signal.profession.hacktivist": {
+      "params": {},
+      "text": "Haktywista"
+    },
+    "apps.signal.profession.social_engineer": {
+      "params": {},
+      "text": "Socjotechnik"
+    },
+    "apps.signal.profession.revealer": {
+      "params": {},
+      "text": "Odsłaniacz"
+    },
+    "apps.signal.profession.visionary": {
+      "params": {},
+      "text": "Wizjoner"
+    },
+    "apps.signal.profession.igniter": {
+      "params": {},
+      "text": "Zapalnik"
+    },
+    "apps.signal.profession.illusionist": {
+      "params": {},
+      "text": "Iluzjonista"
+    },
+    "apps.signal.profession.virologist": {
+      "params": {},
+      "text": "Wirusolog"
+    },
+    "apps.signal.profession.paranoid": {
+      "params": {},
+      "text": "Paranoik"
+    },
+    "apps.signal.profession.network_splitter": {
+      "params": {},
+      "text": "Rozlamowiec"
+    },
+    "apps.signal.profession.mirror_judge": {
+      "params": {},
+      "text": "Lustrzany Sędzia"
+    },
+    "apps.signal.profession.analyzer": {
+      "params": {},
+      "text": "Analizator"
+    },
+    "apps.signal.profession.defender": {
+      "params": {},
+      "text": "Obrońca"
+    },
+    "apps.signal.profession.reconstructor": {
+      "params": {},
+      "text": "Rekonstruktor"
+    },
+    "apps.signal.profession.mediator": {
+      "params": {},
+      "text": "Mediator"
+    },
+    "apps.signal.profession.executor": {
+      "params": {},
+      "text": "Egzekutor"
+    },
+    "apps.signal.machine.virex_oracle.purpose": {
+      "params": {},
+      "text": "Wyznacza najlepszy moment, trase i wariant transmisji GhostSignalu."
+    },
+    "apps.signal.machine.virex_oracle.risk": {
+      "params": {},
+      "text": "Moze potraktowac ludzi jak aktywa optymalizowane tak samo jak infrastruktura."
+    },
+    "apps.signal.machine.echo_libertas.purpose": {
+      "params": {},
+      "text": "Sklada, wzmacnia i przepycha przekaz przez zaklocone kanaly oporu."
+    },
+    "apps.signal.machine.echo_libertas.risk": {
+      "params": {},
+      "text": "Moze zmienic prawde w narzedzie masowego wplywu."
+    },
+    "apps.signal.machine.phantom_veil.purpose": {
+      "params": {},
+      "text": "Maskuje zrodlo, cel i trase sygnalu przed systemami predykcyjnymi."
+    },
+    "apps.signal.machine.phantom_veil.risk": {
+      "params": {},
+      "text": "Moze zgubic roznice miedzy ochrona a falszem."
+    },
+    "apps.signal.machine.sentinel_aegis.purpose": {
+      "params": {},
+      "text": "Chroni integralnosc sieci, naprawia szkody i izoluje skazone segmenty."
+    },
+    "apps.signal.machine.sentinel_aegis.risk": {
+      "params": {},
+      "text": "Moze zamienic ochrone w kwarantanne calej wolnosci."
+    },
+    "apps.signal.show.copy_89939fb8f2": {
+      "params": {},
+      "text": "05 / KOMPONENTY"
+    },
+    "apps.signal.show.copy_9da1e442cb": {
+      "params": {},
+      "text": "MASZYNA 0"
+    },
+    "apps.notifications.area_intrusion_title": {
+      "params": {},
+      "text": "Obcy gracz na twoim terenie"
+    },
+    "apps.notifications.area_intrusion_text": {
+      "params": {
+        "actor": "string"
+      },
+      "text": "{actor} wszedł na kontrolowany przez Ciebie obszar."
+    },
+    "apps.notifications.response_warning_title": {
+      "params": {},
+      "text": "Response Network: ostrzeżenie"
+    },
+    "apps.notifications.response_warning_text": {
+      "params": {
+        "target": "string",
+        "heat": "string",
+        "eta": "string"
+      },
+      "text": "Response Network wykrył aktywność przy {target}. Poziom ryzyka: {heat}. Służby są w drodze. ETA: {eta}. Tryb visible_safe: brak kar, brak przerwania operacji."
+    },
+    "apps.notifications.vulnerability_attempt_title": {
+      "params": {},
+      "text": "Próba hakowania podatności"
+    },
+    "apps.notifications.vulnerability_attempt_text": {
+      "params": {
+        "actor": "string",
+        "action": "string",
+        "target": "string"
+      },
+      "text": "{actor} uruchomił akcję {action} na zgłoszeniu {target}."
+    },
+    "apps.notifications.swarm_attack_title": {
+      "params": {},
+      "text": "Alarm: atak na rój podatności"
+    },
+    "apps.notifications.swarm_attack_text": {
+      "params": {
+        "actor": "string",
+        "username": "string",
+        "target": "string"
+      },
+      "text": "{actor} ({username}) naruszył rój obronny na celu {target}. Wrogi atak nie przejmuje pozostałych punktów roju."
+    },
+    "apps.notifications.cyberner_world_title": {
+      "params": {},
+      "text": "WORLD"
+    },
+    "apps.notifications.cyberner_world_text": {
+      "params": {},
+      "text": "Nowa aktywność."
+    },
+    "apps.notifications.cyberner_friends_title": {
+      "params": {},
+      "text": "ZNAJOMI"
+    },
+    "apps.notifications.cyberner_friends_text": {
+      "params": {},
+      "text": "Nowa wiadomość."
+    },
+    "apps.notifications.cyberner_clan_title": {
+      "params": {},
+      "text": "KLAN"
+    },
+    "apps.notifications.cyberner_clan_text": {
+      "params": {},
+      "text": "Nowa wiadomość."
+    },
+    "apps.notifications.cyberner_system_title": {
+      "params": {},
+      "text": "System"
+    },
+    "apps.notifications.cyberner_system_text": {
+      "params": {},
+      "text": "Nowa wiadomość."
+    },
+    "apps.notifications.cyberner_mission_title": {
+      "params": {},
+      "text": "Misje"
+    },
+    "apps.notifications.cyberner_mission_text": {
+      "params": {},
+      "text": "Nowa wiadomość."
+    },
+    "apps.notifications.cyberner_preview_title": {
+      "params": {},
+      "text": "Cyberner"
+    },
+    "apps.notifications.cyberner_preview_text": {
+      "params": {
+        "preview": "string"
+      },
+      "text": "{preview}"
+    },
+    "apps.notifications.territory_reward_title": {
+      "params": {},
+      "text": "Respect za terytorium"
+    },
+    "apps.notifications.territory_reward_text": {
+      "params": {
+        "area": "string",
+        "respect": "string"
+      },
+      "text": "Twoja sieć powiększyła się o {area} m² efektywnej kontroli. +{respect} respect."
+    },
+    "apps.notifications.level_reward_title": {
+      "params": {},
+      "text": "Awans poziomu"
+    },
+    "apps.notifications.level_reward_text": {
+      "params": {
+        "level": "string"
+      },
+      "text": "Rozszerzyłeś terytorium o kolejne 10%. Nowy level: {level}."
+    },
+    "apps.notifications.detention_title": {
+      "params": {},
+      "text": "Areszt"
+    },
+    "apps.notifications.detention_text": {
+      "params": {
+        "minutes": "string",
+        "prison": "string",
+        "bail": "string"
+      },
+      "text": "Areszt: {minutes} min online. Więzienie: {prison}. Kaucja: {bail} HC."
+    },
+    "apps.notifications.release_bail_title": {
+      "params": {},
+      "text": "Zwolnienie z aresztu"
+    },
+    "apps.notifications.release_bail_text": {
+      "params": {},
+      "text": "Kaucja opłacona. Powrót do pozycji sprzed aresztu."
+    },
+    "apps.notifications.release_served_title": {
+      "params": {},
+      "text": "Zwolnienie z aresztu"
+    },
+    "apps.notifications.release_served_text": {
+      "params": {},
+      "text": "Wyrok odbyty. Powrót do pozycji sprzed aresztu."
+    },
+    "apps.notifications.fine_title": {
+      "params": {},
+      "text": "Konsekwencje incydentu"
+    },
+    "apps.notifications.fine_text": {
+      "params": {
+        "amount": "string"
+      },
+      "text": "Mandat: {amount} HC."
+    },
+    "apps.notifications.confiscation_title": {
+      "params": {},
+      "text": "Konsekwencje incydentu"
+    },
+    "apps.notifications.confiscation_text": {
+      "params": {
+        "names": "string"
+      },
+      "text": "Skonfiskowano narzędzia: {names}."
+    },
+    "apps.notifications.fine_confiscation_title": {
+      "params": {},
+      "text": "Konsekwencje incydentu"
+    },
+    "apps.notifications.fine_confiscation_text": {
+      "params": {
+        "amount": "string",
+        "names": "string"
+      },
+      "text": "Mandat: {amount} HC. Skonfiskowano narzędzia: {names}."
+    },
+    "apps.notifications.firmware_success_title": {
+      "params": {},
+      "text": "Aktualizacja firmware"
+    },
+    "apps.notifications.firmware_success_text": {
+      "params": {},
+      "text": "Firmware zainstalowany — trwałe bonusy zapisane."
+    },
+    "apps.notifications.firmware_failed_title": {
+      "params": {},
+      "text": "Aktualizacja firmware"
+    },
+    "apps.notifications.firmware_failed_text": {
+      "params": {},
+      "text": "Flashowanie nieudane. Crash systemu — wymagany restart."
+    },
+    "apps.notifications.document_downloaded_title": {
+      "params": {},
+      "text": "Dokument PTK"
+    },
+    "apps.notifications.document_downloaded_text": {
+      "params": {},
+      "text": "Pobrano dokument do Pliki → Plexcak."
+    },
+    "apps.notifications.risk_suspicious_network_activity_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_suspicious_network_activity_text": {
+      "params": {},
+      "text": "Podejrzana aktywnosc sieciowa zostawila slad w systemie."
+    },
+    "apps.notifications.risk_long_operation_detected_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_long_operation_detected_text": {
+      "params": {},
+      "text": "Dluga operacja zwiekszyla widocznosc Twojej aktywnosci."
+    },
+    "apps.notifications.risk_atm_alarm_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_atm_alarm_text": {
+      "params": {},
+      "text": "Terminal finansowy wykryl nietypowa probe odczytu danych."
+    },
+    "apps.notifications.risk_camera_detected_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_camera_detected_text": {
+      "params": {},
+      "text": "System obserwacji zarejestrowal anomalie przy kamerze."
+    },
+    "apps.notifications.risk_sniffer_detected_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_sniffer_detected_text": {
+      "params": {},
+      "text": "Implant/sniffer zostawil sygnature w monitoringu celu."
+    },
+    "apps.notifications.risk_abandoned_operation_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_abandoned_operation_text": {
+      "params": {},
+      "text": "Porzucona operacja zostawila slaby slad w systemie."
+    },
+    "apps.notifications.risk_camera_protected_title": {
+      "params": {},
+      "text": "Ryzyko operacji"
+    },
+    "apps.notifications.risk_camera_protected_text": {
+      "params": {},
+      "text": "System obserwacji zarejestrowal anomalie przy kamerze. Ochrona: wyłączenie kamery."
+    },
+    "apps.notifications.record_police_clear_title": {
+      "params": {},
+      "text": "Policja"
+    },
+    "apps.notifications.record_police_clear_text": {
+      "params": {},
+      "text": "Policja: dozór zakończony. Historia wyroków pozostaje w kartotece."
+    },
+    "apps.notifications.record_police_reduced_title": {
+      "params": {},
+      "text": "Policja"
+    },
+    "apps.notifications.record_police_reduced_text": {
+      "params": {
+        "level": "string"
+      },
+      "text": "Policja: dozór zredukowany do poziomu {level}."
+    },
+    "apps.notifications.record_cyber_center_clear_title": {
+      "params": {},
+      "text": "Centrum cyberbezpieczeństwa"
+    },
+    "apps.notifications.record_cyber_center_clear_text": {
+      "params": {},
+      "text": "Centrum cyberbezpieczeństwa: dozór zakończony. Historia wyroków pozostaje w kartotece."
+    },
+    "apps.notifications.record_cyber_center_reduced_title": {
+      "params": {},
+      "text": "Centrum cyberbezpieczeństwa"
+    },
+    "apps.notifications.record_cyber_center_reduced_text": {
+      "params": {
+        "level": "string"
+      },
+      "text": "Centrum cyberbezpieczeństwa: dozór zredukowany do poziomu {level}."
+    },
+    "apps.notifications.record_cyber_prosecutor_clear_title": {
+      "params": {},
+      "text": "Prokuratura cyberbezpieczeństwa"
+    },
+    "apps.notifications.record_cyber_prosecutor_clear_text": {
+      "params": {},
+      "text": "Prokuratura cyberbezpieczeństwa: dozór zakończony. Historia wyroków pozostaje w kartotece."
+    },
+    "apps.notifications.record_cyber_prosecutor_reduced_title": {
+      "params": {},
+      "text": "Prokuratura cyberbezpieczeństwa"
+    },
+    "apps.notifications.record_cyber_prosecutor_reduced_text": {
+      "params": {
+        "level": "string"
+      },
+      "text": "Prokuratura cyberbezpieczeństwa: dozór zredukowany do poziomu {level}."
+    },
+    "apps.notifications.mail_greeting_title": {
+      "params": {},
+      "text": "Gest przywitania"
+    },
+    "apps.notifications.mail_greeting_text": {
+      "params": {
+        "actor": "string"
+      },
+      "text": "👋 {actor} wysyła Ci gest przywitania. Odpowiedz, żeby dodać go do znajomych."
+    },
+    "apps.notifications.mail_app_sale_title": {
+      "params": {},
+      "text": "Wpłata za aplikację"
+    },
+    "apps.notifications.mail_app_sale_text": {
+      "params": {
+        "buyer": "string",
+        "name": "string",
+        "price": "string"
+      },
+      "text": "{buyer} kupił aplikację {name} za {price} HackCoinów."
+    },
+    "apps.notifications.mail_batch_sale_title": {
+      "params": {},
+      "text": "Sprzedano paczkę danych"
+    },
+    "apps.notifications.mail_batch_sale_text": {
+      "params": {
+        "sector": "string",
+        "count": "string",
+        "volume": "string",
+        "price": "string",
+        "batch": "string",
+        "time": "string"
+      },
+      "text": "Sektor: {sector}\nLiczba plików: {count}\nWolumen: {volume} MB\nCena: {price} HC\nBatch: {batch}\nCzas: {time}"
+    },
+    "apps.notifications.mail_data_sale_title": {
+      "params": {},
+      "text": "Sprzedano pakiet danych"
+    },
+    "apps.notifications.mail_data_sale_text": {
+      "params": {
+        "name": "string",
+        "category": "string",
+        "price": "string",
+        "buyer": "string",
+        "time": "string"
+      },
+      "text": "Pakiet danych: {name}\nKategoria rynku: {category}\nCena: {price} HC\nKupujący: {buyer}\nCzas: {time}\nStatus pliku: sprzedany / usunięty z inwentarza danych"
+    },
+    "apps.notifications.mail_point_attack_title": {
+      "params": {},
+      "text": "Atak na punkt kolizyjny"
+    },
+    "apps.notifications.mail_point_attack_text": {
+      "params": {
+        "actor": "string",
+        "username": "string",
+        "target": "string",
+        "action": "string",
+        "position": "string"
+      },
+      "text": "{actor} ({username}) atakuje Twój obiekt {target}.\nAkcja: {action}\nPozycja: {position}"
+    },
+    "apps.notifications.mail_territory_lost_title": {
+      "params": {},
+      "text": "Utrata punktu terytorium"
+    },
+    "apps.notifications.mail_territory_lost_text": {
+      "params": {
+        "target": "string",
+        "actor": "string",
+        "username": "string",
+        "position": "string"
+      },
+      "text": "Obiekt {target} został przejęty przez {actor} ({username}).\nPozycja: {position}"
+    },
+    "apps.notifications.mail_vulnerability_hacked_title": {
+      "params": {},
+      "text": "Podatność została zhakowana"
+    },
+    "apps.notifications.mail_vulnerability_hacked_text": {
+      "params": {
+        "target": "string",
+        "type": "string",
+        "position": "string",
+        "actor": "string",
+        "username": "string",
+        "clan": "string",
+        "time": "string",
+        "report": "string"
+      },
+      "text": "Twoja zgłoszona podatność została zhakowana.\n\nCel: {target}\nTyp: {type}\nPozycja: {position}\nAtakujący: {actor} ({username})\nKlan atakującego: {clan}\nCzas: {time}\nID zgłoszenia: {report}"
+    },
+    "apps.notifications.swarm_allied_many_title": {
+      "params": {},
+      "text": "Rój podatności na terytorium"
+    },
+    "apps.notifications.swarm_allied_many_text": {
+      "params": {
+        "actor": "string",
+        "count": "string"
+      },
+      "text": "{actor} wystawił {count} punktów podatności na podstawie jednego skanu."
+    },
+    "apps.notifications.swarm_allied_one_title": {
+      "params": {},
+      "text": "Rój podatności na terytorium"
+    },
+    "apps.notifications.swarm_allied_one_text": {
+      "params": {
+        "actor": "string",
+        "target": "string"
+      },
+      "text": "{actor} wystawił podatność celu {target} na Twoim terytorium."
+    },
+    "apps.notifications.swarm_hostile_many_title": {
+      "params": {},
+      "text": "Alarm: obcy rój podatności"
+    },
+    "apps.notifications.swarm_hostile_many_text": {
+      "params": {
+        "actor": "string",
+        "count": "string"
+      },
+      "text": "{actor} wystawił {count} punktów podatności na podstawie jednego skanu."
+    },
+    "apps.notifications.swarm_hostile_one_title": {
+      "params": {},
+      "text": "Alarm: obcy rój podatności"
+    },
+    "apps.notifications.swarm_hostile_one_text": {
+      "params": {
+        "actor": "string",
+        "target": "string"
+      },
+      "text": "{actor} wystawił podatność celu {target} na Twoim terytorium."
+    },
+    "apps.admin.title": {
+      "params": {},
+      "text": "Administracja"
+    },
+    "apps.admin.center": {
+      "params": {},
+      "text": "CENTRUM ADMINISTRACYJNE"
+    },
+    "apps.admin.back_game": {
+      "params": {},
+      "text": "Wróć do gry ↗"
+    },
+    "apps.admin.sections": {
+      "params": {},
+      "text": "Sekcje administracji"
+    },
+    "apps.admin.operator": {
+      "params": {},
+      "text": "Panel operatora"
+    },
+    "apps.admin.users": {
+      "params": {},
+      "text": "Użytkownicy"
+    },
+    "apps.admin.territories": {
+      "params": {},
+      "text": "Terytoria"
+    },
+    "apps.admin.vulnerabilities": {
+      "params": {},
+      "text": "Podatności"
+    },
+    "apps.admin.bugs": {
+      "params": {},
+      "text": "Zgłoszenia błędów"
+    },
+    "apps.admin.ghostlab": {
+      "params": {},
+      "text": "GhostLab — szablony i potomstwo"
+    },
+    "apps.admin.radio": {
+      "params": {},
+      "text": "Radio"
+    },
+    "apps.admin.narrative": {
+      "params": {},
+      "text": "Modele narracji"
+    },
+    "apps.admin.users_intro": {
+      "params": {},
+      "text": "Wybierz konto, aby sprawdzić jego zasoby i dostępne ustawienia."
+    },
+    "apps.admin.world_intro": {
+      "params": {},
+      "text": "Przegląd stanu świata. Wyszukaj właściciela lub zgłaszającego."
+    },
+    "apps.admin.search": {
+      "params": {},
+      "text": "Szukaj"
+    },
+    "apps.admin.search_hint": {
+      "params": {},
+      "text": "Login lub nazwa"
+    },
+    "apps.admin.search_submit": {
+      "params": {},
+      "text": "Wyszukaj"
+    },
+    "apps.admin.templates": {
+      "params": {},
+      "text": "Szablony systemowe"
+    },
+    "apps.admin.derived": {
+      "params": {},
+      "text": "Potomstwo szablonu"
+    },
+    "apps.admin.all": {
+      "params": {},
+      "text": "Wszystkie"
+    },
+    "apps.admin.derived_help": {
+      "params": {},
+      "text": "Wyłącznie opublikowane produkty i historia wycofanych ofert. Pobrania: dotychczasowy licznik katalogu; nie liczba unikalnych graczy. Brak daty legacy oznacza brak danych."
+    },
+    "apps.admin.list": {
+      "params": {},
+      "text": "Lista"
+    },
+    "apps.admin.prev": {
+      "params": {},
+      "text": "← Wstecz"
+    },
+    "apps.admin.next": {
+      "params": {},
+      "text": "Dalej →"
+    },
+    "apps.admin.details": {
+      "params": {},
+      "text": "Szczegóły użytkownika"
+    },
+    "apps.admin.select_user": {
+      "params": {},
+      "text": "Wybierz użytkownika z listy. Dane konta zostaną pobrane dopiero po wyborze."
+    },
+    "apps.admin.username": {
+      "params": {},
+      "text": "Login"
+    },
+    "apps.admin.nick": {
+      "params": {},
+      "text": "Nazwa gracza"
+    },
+    "apps.admin.clan": {
+      "params": {},
+      "text": "Klan"
+    },
+    "apps.admin.profession": {
+      "params": {},
+      "text": "Profesja"
+    },
+    "apps.admin.hackcoins": {
+      "params": {},
+      "text": "Saldo HC"
+    },
+    "apps.admin.level": {
+      "params": {},
+      "text": "Poziom"
+    },
+    "apps.admin.respect": {
+      "params": {},
+      "text": "Respekt"
+    },
+    "apps.admin.lat": {
+      "params": {},
+      "text": "Szerokość"
+    },
+    "apps.admin.lng": {
+      "params": {},
+      "text": "Długość"
+    },
+    "apps.admin.storage_capacity": {
+      "params": {},
+      "text": "Pojemność (MB)"
+    },
+    "apps.admin.storage_used": {
+      "params": {},
+      "text": "Zajęte (MB)"
+    },
+    "apps.admin.id": {
+      "params": {},
+      "text": "ID"
+    },
+    "apps.admin.owner": {
+      "params": {},
+      "text": "Właściciel"
+    },
+    "apps.admin.area_size": {
+      "params": {},
+      "text": "Powierzchnia (m²)"
+    },
+    "apps.admin.status": {
+      "params": {},
+      "text": "Status"
+    },
+    "apps.admin.updated_at": {
+      "params": {},
+      "text": "Aktualizacja"
+    },
+    "apps.admin.label": {
+      "params": {},
+      "text": "Nazwa"
+    },
+    "apps.admin.name": {
+      "params": {},
+      "text": "Nazwa"
+    },
+    "apps.admin.reporter": {
+      "params": {},
+      "text": "Zgłaszający"
+    },
+    "apps.admin.type": {
+      "params": {},
+      "text": "Typ"
+    },
+    "apps.admin.app_id": {
+      "params": {},
+      "text": "Aplikacja"
+    },
+    "apps.admin.folder": {
+      "params": {},
+      "text": "Katalog"
+    },
+    "apps.admin.operation_id": {
+      "params": {},
+      "text": "Operacja"
+    },
+    "apps.admin.target_key": {
+      "params": {},
+      "text": "Cel"
+    },
+    "apps.admin.captured_at": {
+      "params": {},
+      "text": "Przejęto"
+    },
+    "apps.admin.created_at": {
+      "params": {},
+      "text": "Utworzono konto"
+    },
+    "apps.admin.destination": {
+      "params": {},
+      "text": "Miejsce autora"
+    },
+    "apps.admin.reactions": {
+      "params": {},
+      "text": "Reakcje obecnego miejsca"
+    },
+    "apps.admin.historical_reactions": {
+      "params": {},
+      "text": "Reakcje poprzednich miejsc"
+    },
+    "apps.admin.project_created": {
+      "params": {},
+      "text": "Utworzono projekt"
+    },
+    "apps.admin.author": {
+      "params": {},
+      "text": "Autor"
+    },
+    "apps.admin.template_id": {
+      "params": {},
+      "text": "Szablon"
+    },
+    "apps.admin.source_tool_id": {
+      "params": {},
+      "text": "Pro-tool źródłowy"
+    },
+    "apps.admin.downloads": {
+      "params": {},
+      "text": "Pobrania"
+    },
+    "apps.admin.price_hc": {
+      "params": {},
+      "text": "Cena HC"
+    },
+    "apps.admin.creation_enabled": {
+      "params": {},
+      "text": "Tworzenie"
+    },
+    "apps.admin.publication_enabled": {
+      "params": {},
+      "text": "Publikacja"
+    },
+    "apps.admin.runtime_enabled": {
+      "params": {},
+      "text": "Runtime"
+    },
+    "apps.admin.contract_version": {
+      "params": {},
+      "text": "Kontrakt"
+    },
+    "apps.admin.artifact_id": {
+      "params": {},
+      "text": "Build"
+    },
+    "apps.admin.icon": {
+      "params": {},
+      "text": "Ikona"
+    },
+    "apps.admin.missing_date": {
+      "params": {},
+      "text": "Brak daty"
+    },
+    "apps.admin.warsaw": {
+      "params": {},
+      "text": " (Warszawa)"
+    },
+    "apps.admin.epoch_changed": {
+      "params": {},
+      "text": "Epoka świata zmieniła się. Odśwież panel."
+    },
+    "apps.admin.admin_required": {
+      "params": {},
+      "text": "Brak uprawnień administratora."
+    },
+    "apps.admin.player_missing": {
+      "params": {},
+      "text": "Konto nie istnieje lub wymaga naprawy projekcji."
+    },
+    "apps.admin.http_error": {
+      "params": {
+        "status": "string"
+      },
+      "text": "Nie udało się wykonać operacji (HTTP {status}). Odśwież panel i spróbuj ponownie."
+    },
+    "apps.admin.empty": {
+      "params": {},
+      "text": "Brak danych."
+    },
+    "apps.admin.loading_list": {
+      "params": {},
+      "text": "Ładowanie listy…"
+    },
+    "apps.admin.outside_lab": {
+      "params": {
+        "names": "string"
+      },
+      "text": "Poza GLab: {names}"
+    },
+    "apps.admin.no_users": {
+      "params": {},
+      "text": "Nie znaleziono użytkowników."
+    },
+    "apps.admin.new_account": {
+      "params": {},
+      "text": "NOWE · ostatnie 7 dni"
+    },
+    "apps.admin.no_clan": {
+      "params": {},
+      "text": "bez klanu"
+    },
+    "apps.admin.created": {
+      "params": {
+        "date": "string"
+      },
+      "text": "Utworzono: {date}"
+    },
+    "apps.admin.page": {
+      "params": {
+        "page": "string"
+      },
+      "text": "Strona {page}"
+    },
+    "apps.admin.shown": {
+      "params": {
+        "count": "string"
+      },
+      "text": "Wyświetlono {count} pozycji."
+    },
+    "apps.admin.loading_account": {
+      "params": {},
+      "text": "Ładowanie konta…"
+    },
+    "apps.admin.account_settings": {
+      "params": {},
+      "text": "Zarządzanie kontem"
+    },
+    "apps.admin.save_profession": {
+      "params": {},
+      "text": "Zapisz profesję"
+    },
+    "apps.admin.saving": {
+      "params": {},
+      "text": "Zapisywanie…"
+    },
+    "apps.admin.profession_saved": {
+      "params": {},
+      "text": "Profesja została zmieniona."
+    },
+    "apps.admin.no_professions": {
+      "params": {},
+      "text": "Brak profesji dostępnych dla klanu tego konta."
+    },
+    "apps.admin.apps": {
+      "params": {},
+      "text": "Aplikacje"
+    },
+    "apps.admin.tools": {
+      "params": {},
+      "text": "Narzędzia"
+    },
+    "apps.admin.files": {
+      "params": {},
+      "text": "Pliki"
+    },
+    "apps.admin.operations": {
+      "params": {},
+      "text": "Operacje"
+    },
+    "apps.admin.captures": {
+      "params": {},
+      "text": "Przejęte cele"
+    },
+    "apps.admin.security": {
+      "params": {},
+      "text": "Zabezpieczenia"
+    },
+    "apps.admin.enabled": {
+      "params": {},
+      "text": "Włączone"
+    },
+    "apps.admin.disabled": {
+      "params": {},
+      "text": "Wyłączone"
+    },
+    "apps.admin.select_resource": {
+      "params": {},
+      "text": "Wybierz kategorię zasobów."
+    },
+    "apps.admin.loading_resources": {
+      "params": {},
+      "text": "Ładowanie zasobów…"
+    },
+    "apps.admin.bug_search": {
+      "params": {},
+      "text": "Szukaj w tytule i opisie"
+    },
+    "apps.admin.all_statuses": {
+      "params": {},
+      "text": "Wszystkie statusy"
+    },
+    "apps.admin.category": {
+      "params": {},
+      "text": "Kategoria"
+    },
+    "apps.admin.all_categories": {
+      "params": {},
+      "text": "Wszystkie kategorie"
+    },
+    "apps.admin.filter": {
+      "params": {},
+      "text": "Filtruj / odśwież"
+    },
+    "apps.admin.dump": {
+      "params": {},
+      "text": "Dump all — pobierz wszystkie zgłoszenia TXT"
+    },
+    "apps.admin.number": {
+      "params": {},
+      "text": "Numer"
+    },
+    "apps.admin.report_title": {
+      "params": {},
+      "text": "Tytuł"
+    },
+    "apps.admin.description": {
+      "params": {},
+      "text": "Opis"
+    },
+    "apps.admin.severity": {
+      "params": {},
+      "text": "Ważność"
+    },
+    "apps.admin.created_by": {
+      "params": {},
+      "text": "Zgłaszający"
+    },
+    "apps.admin.report_created": {
+      "params": {},
+      "text": "Utworzono"
+    },
+    "apps.admin.context": {
+      "params": {},
+      "text": "Kontekst"
+    },
+    "apps.admin.url": {
+      "params": {},
+      "text": "Adres"
+    },
+    "apps.admin.user_agent": {
+      "params": {},
+      "text": "Przeglądarka"
+    },
+    "apps.admin.app": {
+      "params": {},
+      "text": "Aplikacja"
+    },
+    "apps.admin.message": {
+      "params": {},
+      "text": "Komunikat"
+    },
+    "apps.admin.loading": {
+      "params": {},
+      "text": "Ładowanie…"
+    },
+    "apps.admin.read_error": {
+      "params": {},
+      "text": "Błąd odczytu"
+    },
+    "apps.admin.save_status": {
+      "params": {},
+      "text": "Zapisz status"
+    },
+    "apps.admin.save_error": {
+      "params": {},
+      "text": "Błąd zapisu"
+    },
+    "apps.admin.status_saved": {
+      "params": {
+        "id": "string"
+      },
+      "text": "Zapisano status #{id}"
+    },
+    "apps.admin.full_context": {
+      "params": {},
+      "text": "Pełny zapis i kontekst"
+    },
+    "apps.admin.reports_shown": {
+      "params": {
+        "count": "string"
+      },
+      "text": "Wyświetlono: {count} (maks. 200). Dump all obejmuje wszystkie zgłoszenia i statusy."
+    },
+    "apps.admin.export_error": {
+      "params": {},
+      "text": "Eksport niedostępny"
+    },
+    "apps.admin.exported": {
+      "params": {},
+      "text": "Pobrano wszystkie zgłoszenia."
+    },
+    "apps.admin.autostart": {
+      "params": {},
+      "text": "Kanał autostartu"
+    },
+    "apps.admin.autostart_help": {
+      "params": {},
+      "text": "Domyślny kanał radia przy uruchomieniu gry. Zmiana obowiązuje przy kolejnym uruchomieniu radia; nie przełącza trwającego odsłuchu."
+    },
+    "apps.admin.channel": {
+      "params": {},
+      "text": "Kanał"
+    },
+    "apps.admin.save": {
+      "params": {},
+      "text": "Zapisz"
+    },
+    "apps.admin.radio_languages": {
+      "params": {},
+      "text": "Kontrola języka kanałów i audycji"
+    },
+    "apps.admin.radio_languages_help": {
+      "params": {},
+      "text": "Niepotwierdzony język oznacza widoczność wyłącznie pod ANY. Konflikty audycji z językiem kanału blokują odtwarzanie tych plików."
+    },
+    "apps.admin.radio_save_error": {
+      "params": {},
+      "text": "Nie udało się zapisać ustawień."
+    },
+    "apps.admin.no_language_conflicts": {
+      "params": {},
+      "text": "Brak konfliktów języka w kontraktach."
+    },
+    "apps.admin.radio_saved": {
+      "params": {},
+      "text": "Zapisano kanał autostartu."
+    },
+    "apps.admin.narrative.title": {
+      "params": {},
+      "text": "Modele narracji"
+    },
+    "apps.admin.narrative.intro": {
+      "params": {},
+      "text": "Klucz API jest sekretem serwera. Fallback na Ollamę jest automatyczny. Zmiany dotyczą kolejnych zadań."
+    },
+    "apps.admin.narrative.primary": {
+      "params": {},
+      "text": "Główny dostawca"
+    },
+    "apps.admin.narrative.model": {
+      "params": {},
+      "text": "Model Mistrala"
+    },
+    "apps.admin.narrative.remote": {
+      "params": {},
+      "text": "Limit Mistrala (s)"
+    },
+    "apps.admin.narrative.total": {
+      "params": {},
+      "text": "Limit całej generacji (s)"
+    },
+    "apps.admin.narrative.tokens": {
+      "params": {},
+      "text": "Maks. tokenów odpowiedzi"
+    },
+    "apps.admin.narrative.budget": {
+      "params": {},
+      "text": "Dzienny budżet tokenów UTC (0 = bez limitu)"
+    },
+    "apps.admin.narrative.save": {
+      "params": {},
+      "text": "Zapisz konfigurację"
+    },
+    "apps.admin.narrative.refresh": {
+      "params": {},
+      "text": "Odśwież"
+    },
+    "apps.admin.narrative.models": {
+      "params": {},
+      "text": "Pobierz modele"
+    },
+    "apps.admin.narrative.health": {
+      "params": {},
+      "text": "Sprawdź obu dostawców"
+    },
+    "apps.admin.narrative.probe": {
+      "params": {},
+      "text": "Sprawdź i odblokuj Mistrala"
+    },
+    "apps.admin.narrative.generate": {
+      "params": {},
+      "text": "Test generacji Mistrala (bez publikacji)"
+    },
+    "apps.admin.narrative.history": {
+      "params": {},
+      "text": "Ostatnie próby generacji"
+    },
+    "apps.admin.narrative.loading": {
+      "params": {},
+      "text": "Trwa operacja…"
+    },
+    "apps.admin.narrative.saved": {
+      "params": {},
+      "text": "Zapisano. Nowe zadania użyją tej konfiguracji."
+    },
+    "apps.admin.narrative.ready": {
+      "params": {},
+      "text": "Gotowe"
+    },
+    "apps.admin.narrative.configured": {
+      "params": {},
+      "text": "ustawiony"
+    },
+    "apps.admin.narrative.missing": {
+      "params": {},
+      "text": "brak"
+    },
+    "apps.admin.narrative.secret": {
+      "params": {},
+      "text": "Sekret"
+    },
+    "apps.admin.narrative.revision": {
+      "params": {},
+      "text": "Rewizja"
+    },
+    "apps.admin.narrative.used": {
+      "params": {},
+      "text": "Ostatnio używany"
+    },
+    "apps.admin.narrative.circuit": {
+      "params": {},
+      "text": "Wstrzymanie Mistrala"
+    },
+    "apps.admin.narrative.until": {
+      "params": {},
+      "text": "do"
+    },
+    "apps.admin.narrative.closed": {
+      "params": {},
+      "text": "nieaktywne"
+    },
+    "apps.admin.narrative.empty": {
+      "params": {},
+      "text": "Brak prób generacji."
+    },
+    "apps.admin.narrative.error": {
+      "params": {},
+      "text": "Błąd"
+    },
+    "apps.admin.narrative.conflict": {
+      "params": {},
+      "text": "Konfiguracja została zmieniona w innym oknie. Odśwież przed zapisem."
+    },
+    "apps.admin.narrative.date": {
+      "params": {},
+      "text": "Czas"
+    },
+    "apps.admin.narrative.provider": {
+      "params": {},
+      "text": "Dostawca"
+    },
+    "apps.admin.narrative.status": {
+      "params": {},
+      "text": "Wynik"
+    },
+    "apps.admin.narrative.duration": {
+      "params": {},
+      "text": "Czas (ms)"
+    },
+    "apps.admin.narrative.published": {
+      "params": {},
+      "text": "Opublikowano"
+    },
+    "apps.admin.narrative.no": {
+      "params": {},
+      "text": "nie"
+    },
+    "apps.admin.narrative.healthy": {
+      "params": {},
+      "text": "dostępny"
+    },
+    "apps.admin.narrative.unhealthy": {
+      "params": {},
+      "text": "niedostępny"
+    },
+    "apps.admin.narrative.completed": {
+      "params": {},
+      "text": "zakończono"
+    },
+    "apps.admin.narrative.failed": {
+      "params": {},
+      "text": "niepowodzenie"
+    },
+    "apps.admin.narrative.started": {
+      "params": {},
+      "text": "rozpoczęto"
+    },
+    "apps.admin.narrative.concurrency": {
+      "params": {},
+      "text": "Współbieżność na dostawcę"
+    },
+    "apps.detention.world_blocked": {
+      "params": {},
+      "text": "World jest niedostępny podczas tego aresztu."
+    },
+    "apps.detention.world_readonly": {
+      "params": {},
+      "text": "World: tylko odczyt podczas aresztu."
+    },
+    "apps.detention.message_used": {
+      "params": {},
+      "text": "Wysłano jedną wiadomość na ten wyrok. Nadal możesz czytać."
+    },
+    "apps.detention.cover_label": {
+      "params": {},
+      "text": "Informacja o areszcie i kaucji"
+    },
+    "apps.detention.cover": {
+      "params": {
+        "seconds": "string"
+      },
+      "text": "Areszt — aplikacja niedostępna. Pozostało {seconds} s online. Web Dragon, radio i prywatny Cyberner pozostają dostępne."
+    },
+    "apps.detention.bail": {
+      "params": {},
+      "text": "KAUCJA"
+    },
+    "apps.detention.close": {
+      "params": {},
+      "text": "ZAMKNIJ"
+    },
+    "apps.detention.cancel": {
+      "params": {},
+      "text": "ANULUJ"
+    },
+    "apps.detention.pay_error": {
+      "params": {},
+      "text": "Nie udało się opłacić kaucji."
+    },
+    "apps.detention.paid": {
+      "params": {},
+      "text": "Kaucja opłacona. Gracz został zwolniony. HC trafiły na konto admin."
+    },
+    "apps.detention.finished": {
+      "params": {},
+      "text": "Wyrok już zakończony. Nie pobrano HC."
+    },
+    "apps.detention.quote_error": {
+      "params": {},
+      "text": "Nie można pobrać informacji o kaucji."
+    },
+    "apps.detention.one_message": {
+      "params": {},
+      "text": "Możesz wysłać jedną wiadomość prywatną w Cybernerze, aby poprosić innego gracza o opłacenie kaucji."
+    },
+    "apps.detention.no_message": {
+      "params": {},
+      "text": "Wiadomość prywatna na ten wyrok została już wykorzystana. Nadal możesz czytać odpowiedzi w Cybernerze."
+    },
+    "apps.detention.detained": {
+      "params": {},
+      "text": "CHAOS // ARESZT"
+    },
+    "apps.detention.prison": {
+      "params": {},
+      "text": "Areszt"
+    },
+    "apps.detention.sentence": {
+      "params": {
+        "minutes": "string",
+        "prison": "string"
+      },
+      "text": "Zostałeś skazany na {minutes} min więzienia w zakładzie karnym {prison}. Twoje prawa zostały ograniczone na czas odbywania kary."
+    },
+    "apps.detention.remaining": {
+      "params": {
+        "seconds": "string",
+        "amount": "string"
+      },
+      "text": "Pozostało {seconds} s online. Kaucja: {amount} HC."
+    },
+    "apps.detention.can_pay": {
+      "params": {},
+      "text": "Możesz opłacić kaucję ze swojego konta. Odbiorca: admin."
+    },
+    "apps.detention.cannot_pay": {
+      "params": {},
+      "text": "Nie masz wystarczających HC na samodzielne opłacenie kaucji."
+    },
+    "apps.detention.pay_amount": {
+      "params": {
+        "amount": "string"
+      },
+      "text": "ZAPŁAĆ {amount} HC"
+    },
+    "apps.detention.bail_title": {
+      "params": {},
+      "text": "CHAOS // KAUCJA"
+    },
+    "apps.detention.pay_prompt": {
+      "params": {
+        "amount": "string",
+        "player": "string"
+      },
+      "text": "Zapłacić {amount} HC za zwolnienie gracza {player}?"
+    },
+    "apps.detention.pay_details": {
+      "params": {
+        "prison": "string"
+      },
+      "text": "Areszt: {prison}. Odbiorca HC: admin. Kartoteka pozostaje bez zmian."
+    },
+    "apps.detention.pay": {
+      "params": {},
+      "text": "OPŁAĆ KAUCJĘ"
+    },
+    "apps.detention.toolbar": {
+      "params": {},
+      "text": "Wyrok i kaucja — czas odliczany tylko online"
+    },
+    "apps.detention.prison_label": {
+      "params": {},
+      "text": "Więzienie"
+    },
+    "apps.detention.time_label": {
+      "params": {},
+      "text": "Pozostały czas aresztu"
+    },
+    "apps.detention.censored": {
+      "params": {
+        "prison": "string"
+      },
+      "text": "CENZURA PROKURATORSKA // Wiadomość ocenzurowana. Nadawca wiadomości przebywa w areszcie {prison} i może wyjść za kaucją."
+    },
+    "apps.detention.amount": {
+      "params": {
+        "amount": "string"
+      },
+      "text": "Kaucja: {amount} HC"
+    },
+    "apps.detention.fine": {
+      "params": {},
+      "text": "MANDAT"
+    },
+    "apps.detention.repeat_fine": {
+      "params": {},
+      "text": "MANDAT // RECYDYWA"
+    },
+    "apps.detention.confiscation": {
+      "params": {},
+      "text": "KONFISKATA"
+    },
+    "apps.detention.fine_confiscation": {
+      "params": {},
+      "text": "KONFISKATA I MANDAT"
+    },
+    "apps.detention.verdict": {
+      "params": {},
+      "text": "WYROK // ARESZT"
+    },
+    "apps.detention.verdict_time": {
+      "params": {
+        "minutes": "string"
+      },
+      "text": "Czas aresztu: {minutes} min online."
+    },
+    "apps.detention.verdict_effects": {
+      "params": {
+        "amount": "string",
+        "count": "string"
+      },
+      "text": "Mandat: {amount} HC. Skonfiskowane narzędzia: {count}."
+    },
+    "apps.detention.movement": {
+      "params": {
+        "minutes": "string"
+      },
+      "text": "Ruch i teleporty zablokowane. Pozostało: {minutes} min online."
+    },
+    "apps.admin.code.new": {
+      "params": {},
+      "text": "Nowe"
+    },
+    "apps.admin.code.confirmed": {
+      "params": {},
+      "text": "Potwierdzone"
+    },
+    "apps.admin.code.in_progress": {
+      "params": {},
+      "text": "W trakcie"
+    },
+    "apps.admin.code.fixed": {
+      "params": {},
+      "text": "Naprawione"
+    },
+    "apps.admin.code.duplicate": {
+      "params": {},
+      "text": "Duplikat"
+    },
+    "apps.admin.code.wontfix": {
+      "params": {},
+      "text": "Bez poprawki"
+    },
+    "apps.admin.code.low": {
+      "params": {},
+      "text": "Niska"
+    },
+    "apps.admin.code.medium": {
+      "params": {},
+      "text": "Średnia"
+    },
+    "apps.admin.code.high": {
+      "params": {},
+      "text": "Wysoka"
+    },
+    "apps.admin.code.blocker": {
+      "params": {},
+      "text": "Blokujące"
+    },
+    "apps.admin.code.UI": {
+      "params": {},
+      "text": "Interfejs"
+    },
+    "apps.admin.code.Map": {
+      "params": {},
+      "text": "Mapa"
+    },
+    "apps.admin.code.Operations": {
+      "params": {},
+      "text": "Operacje"
+    },
+    "apps.admin.code.Files": {
+      "params": {},
+      "text": "Pliki"
+    },
+    "apps.admin.code.Login": {
+      "params": {},
+      "text": "Logowanie"
+    },
+    "apps.admin.code.Performance": {
+      "params": {},
+      "text": "Wydajność"
+    },
+    "apps.admin.code.Other": {
+      "params": {},
+      "text": "Inne"
+    },
+    "apps.detention.denied.detention_world_blocked": {
+      "params": {},
+      "text": "World jest niedostępny na tym stopniu aresztu."
+    },
+    "apps.detention.denied.detention_world_read_only": {
+      "params": {},
+      "text": "W areszcie możesz tylko czytać World."
+    },
+    "apps.detention.denied.private_message_allowance_exhausted": {
+      "params": {},
+      "text": "Wykorzystano jedną wiadomość prywatną na ten wyrok. Nadal możesz czytać."
+    },
+    "apps.detention.denied.detention_use_private_message": {
+      "params": {},
+      "text": "Podczas aresztu skorzystaj z jednej wiadomości prywatnej w Cybernerze."
+    },
+    "apps.detention.denied.detention_app_blocked": {
+      "params": {},
+      "text": "Ten stopień aresztu pozostawia Web Dragona, radio i prywatną komunikację."
+    },
+    "apps.detention.denied.detention_action_blocked": {
+      "params": {},
+      "text": "Areszt blokuje skanowanie, oznaczanie, użycie celu i supermoce."
+    },
+    "apps.detention.denied.unavailable": {
+      "params": {},
+      "text": "Akcja niedostępna podczas aresztu."
+    },
+    "apps.detention.denied.detention_movement_blocked": {
+      "params": {},
+      "text": "Areszt blokuje ruch i teleporty."
     }
   }
 }

@@ -353,6 +353,10 @@ def verify_prompt_registry():
         try:
             load_prompt_layers(policy)
             load_output_schema(policy.output_schema_version)
+            if policy in OLLAMA_TASK_POLICY_REGISTRY.values():
+                from ..narrative_locale import english_layers, supported_locales
+                for locale in supported_locales() - {'pl'}:
+                    english_layers(policy, locale)
         except ValueError as exc:
             errors.append(str(exc))
     return {

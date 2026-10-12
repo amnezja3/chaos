@@ -209,9 +209,17 @@ class NarrativeSupportLayer:
         event_family = str(model_input.get("event_family") or "")
         audience = str((model_input.get("audience") or {}).get("scope") or "public")
         definition = self._definition(medium, event_family, audience)
+        if package.get('output_locale', 'pl') != 'pl':
+            from .narrative_locale import english_fallback
+            definition = english_fallback(medium, event_family, audience, package['output_locale'])
         if not isinstance(definition, dict):
             return None
         context = self._context(package, model_input)
+        if package.get('output_locale', 'pl') != 'pl':
+            details = (package.get('voice_contract') or {}).get('detail_values') or ()
+            if details and all('{' not in body for body in definition.get('body', ())):
+                context['detail'] = str(details[0])
+                definition = {**definition, 'body': [body + ' ({detail})' for body in definition['body']]}
         seed = "\0".join((
             str(task.get("source_event_id") or ""), medium, event_family, audience,
         ))

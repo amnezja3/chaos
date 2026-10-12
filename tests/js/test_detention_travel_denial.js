@@ -20,6 +20,8 @@ async function main() {
         addSystemMessage: (...args) => messages.push(args), getBikeDirection: () => 'right',
         renderMotorcycleMarkerVisual: () => {}, setTimeout: fn => timers.push(fn)};
     vm.createContext(context);
+    require('./locale_fixture')(context, 'en');
+    context.GhostLocale = context.window.GhostLocale;
     vm.runInContext(section('function handleDetentionTravelDenial', 'async function flushMotorcycleTravelCommit'), context);
     vm.runInContext(section('async function animateAvatarTravel', 'window.motorcycleTravelState ='), context);
     assert.strictEqual(context.handleDetentionTravelDenial({reason: 'unrelated'}), false);
@@ -35,7 +37,7 @@ async function main() {
     assert.strictEqual(state.pendingRouteWaypoints.length, 0);
     assert.deepStrictEqual(cleaned, ['one']);
     assert.strictEqual(messages.length, 1);
-    assert(messages[0][2].includes('5 min online'));
+    assert(messages[0][2].includes('5 minutes online'));
     console.log('detention travel denial: OK');
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});

@@ -36,7 +36,8 @@ class AcceptedClient:
         intercepted = bool(package.get("voice_contract"))
         output = {
             "title": (
-                "PRZECHWYT // AKTYWNY SYGNAL" if intercepted else "Canonical title"
+                ("INTERCEPT // ACTIVE SIGNAL" if package.get('output_locale') == 'en'
+                 else "PRZECHWYT // AKTYWNY SYGNAL") if intercepted else "Canonical title"
             ),
             "body": (
                 "...the canonical signal remains active." if intercepted
@@ -149,7 +150,7 @@ class NarrativePublicationTest(unittest.TestCase):
         audience_clan="", audience_owner="", source_scope="ghostnetwork",
         task_variant="part_activated", target_medium="blacknet", validation=None,
         client=None, narrative_thread_id="", world_state_version="1", priority=80,
-        narrative_intent="", allowed_actions=None, fixed_action=None,
+        narrative_intent="", allowed_actions=None, fixed_action=None, output_locale=None,
     ):
         task_validation = dict(validation or {})
         if source_scope == "ghostnetwork":
@@ -194,6 +195,8 @@ class NarrativePublicationTest(unittest.TestCase):
             "priority": priority,
             "validation": task_validation,
         })
+        if output_locale is not None:
+            task['output_locale'] = output_locale
         item = self.repo.enqueue_narrative_task(task)
         worker = OllamaNarrativeWorker(
             repository=self.repo,
@@ -262,6 +265,19 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["fact_refs"], ["fact:one"])
         self.assertEqual(records[0]["truth_class"], "canonical")
+
+    def test_english_publication_keeps_locale_after_reopen_and_duplicate(self):
+        self.accepted_candidate('english-signal', output_locale='en')
+        publisher = NarrativePublicationService(repository=self.repo, worker_id='en-publisher')
+        result = publisher.process_once()
+        self.assertEqual(result['result'], 'published', result)
+        reopened = GhostNetworkRepository(self.repo.db_path, clock=self.clock)
+        records = reopened.list_narrative_medium_records('blacknet', limit=10)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['output_locale'], 'en')
+        self.assertTrue(records[0]['title'].startswith('INTERCEPT //'))
+        publisher.process_once()
+        self.assertEqual(reopened.list_narrative_medium_records('blacknet', limit=10), records)
 
     def test_googleplex_asset_ref_survives_candidate_and_medium_projection(self):
         candidate = self.accepted_candidate(

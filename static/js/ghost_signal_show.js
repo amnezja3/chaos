@@ -20,6 +20,20 @@
                 systemText('apps.signal.phase.' + phase.code + '.description', fallback[1])];
     }
 
+    function localizedManifest(manifest) {
+        const catalog = manifest.catalog || {};
+        return {...manifest, catalog: {...catalog,
+            machines: (catalog.machines || []).map(machine => ({...machine,
+                purpose: systemText('apps.signal.machine.' + machine.code + '.purpose', machine.purpose),
+                risk_extreme: systemText('apps.signal.machine.' + machine.code + '.risk', machine.risk_extreme)})),
+            professions: (catalog.professions || []).map(profession => ({...profession,
+                name: systemText('apps.signal.profession.' + profession.code, profession.name)})),
+            abilities: (catalog.abilities || []).map(ability => ({...ability,
+                name: systemText('map.ability.' + ability.ability_code + '.name', ability.name),
+                description: systemText('map.ability.' + ability.ability_code + '.description', ability.description)}))
+        }};
+    }
+
     function serverOffset(snapshot, localNow) {
         const server = Date.parse(snapshot && snapshot.server_now || "");
         return Number.isFinite(server) ? server - Number(localNow || Date.now()) : 0;
@@ -112,10 +126,10 @@
         const elapsed = Math.max(0, Math.min(900, (now - start) * 900 / (end - start)));
         const scene = manifest.scenes.find(item => elapsed < item.end) || manifest.scenes[manifest.scenes.length - 1];
         if (scene.requires_signal_sent && !manifest.signal_confirmed) {
-            return {id: "waiting_for_signal_sent", label: "OCZEKIWANIE NA POTWIERDZENIE SYGNAŁU",
+            return {id: "waiting_for_signal_sent", label: systemText("apps.signal.show.copy_2d60c804ca", "OCZEKIWANIE NA POTWIERDZENIE SYGNAŁU"),
                 progress: 0, blocked: true};
         }
-        return {id: scene.id, label: scene.label,
+        return {id: scene.id, label: systemText('apps.signal.scene.' + scene.id, scene.label),
             elapsed,
             progress: Math.max(0, Math.min(1, (elapsed - scene.start) / (scene.end - scene.start))),
             blocked: false};
@@ -234,18 +248,18 @@
         }
     }
 
-    const INTERFACE_SCENES = {
-        takeover: ["CHAOS", "INTERFACE\nLOST_", "SYSTEM PRZEJĘTY PRZEZ GHOST NETWORK", 0],
-        network_layer: ["GHOST", "NETWORK_", "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ.", 1],
-        system_layers: ["CHAOS", "REKONSTRUKCJA_", "WARSTWY ZAPISU ZAKOŃCZONEGO CYKLU", 2],
-        desktop_assembly: ["PULPIT", "REKONSTRUKCJA_", "PRZYGOTOWANIE WIDOKU NOWEGO CYKLU", 3],
-        system_ready: ["CHAOS", "WIDOK GOTOWY_", "REKONSTRUKCJA — PODSUMOWANIE", 4],
-        shutdown: ["KONIEC", "TEGO CYKLU_", "ZAMYKANIE PREZENTACJI", 4],
-        restart: ["NOWY", "CYKL_", "OCZEKIWANIE NA POTWIERDZENIE RESTARTU", 4]
-    };
+    const interfaceScenes = () => ({
+        takeover: ["CHAOS", "INTERFACE\nLOST_", systemText("apps.signal.show.copy_19a4b28966", "SYSTEM PRZEJĘTY PRZEZ GHOST NETWORK"), 0],
+        network_layer: ["GHOST", "NETWORK_", systemText("apps.signal.show.copy_0f5b7cbc86", "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ."), 1],
+        system_layers: ["CHAOS", systemText("apps.signal.show.copy_83c15c41aa", "REKONSTRUKCJA_"), systemText("apps.signal.show.copy_56d736b64c", "WARSTWY ZAPISU ZAKOŃCZONEGO CYKLU"), 2],
+        desktop_assembly: [systemText("apps.signal.show.copy_51ebacbe51", "PULPIT"), systemText("apps.signal.show.copy_83c15c41aa", "REKONSTRUKCJA_"), systemText("apps.signal.show.copy_c89211c43e", "PRZYGOTOWANIE WIDOKU NOWEGO CYKLU"), 3],
+        system_ready: ["CHAOS", systemText("apps.signal.show.copy_bb9981782d", "WIDOK GOTOWY_"), systemText("apps.signal.show.copy_656c8e5b30", "REKONSTRUKCJA — PODSUMOWANIE"), 4],
+        shutdown: [systemText("apps.signal.show.copy_579a635ece", "KONIEC"), systemText("apps.signal.show.copy_d56a6b8ed5", "TEGO CYKLU_"), systemText("apps.signal.show.copy_5537c5cf3c", "ZAMYKANIE PREZENTACJI"), 4],
+        restart: [systemText("apps.signal.show.copy_635a37e767", "NOWY"), systemText("apps.signal.show.copy_1bf660f42b", "CYKL_"), systemText("apps.signal.show.copy_e9dc643bbc", "OCZEKIWANIE NA POTWIERDZENIE RESTARTU"), 4]
+    });
 
     function renderInterface(doc, stage, snapshot, scene) {
-        const spec = INTERFACE_SCENES[scene.id];
+        const spec = interfaceScenes()[scene.id];
         const make = (tag, cls, text) => {
             const n = doc.createElement(tag); n.className = cls;
             if (text !== undefined) n.textContent = text;
@@ -276,26 +290,26 @@
         message.appendChild(make("p", "gsi-statement", spec[2]));
         canvas.appendChild(message);
         const list = make("ol", "gsi-layers");
-        ["INTERFEJS", "GHOST NETWORK", "ŚWIAT", "UCZESTNICY", "GHOSTSIGNAL"].forEach((label, index) => {
+        [systemText("apps.signal.show.copy_f4bcb7954a", "INTERFEJS"), "GHOST NETWORK", systemText("apps.signal.show.copy_771320af49", "ŚWIAT"), systemText("apps.signal.show.copy_08363d1ab9", "UCZESTNICY"), "GHOSTSIGNAL"].forEach((label, index) => {
             const row = make("li", index === spec[3] ? "is-current" : "");
             row.style.setProperty("--gsi-fx-offset", (index * 2.4) + "s");
             row.appendChild(make("span", "gsi-index ofs-scene-icon", "0" + (index + 1) + " /"));
             row.appendChild(make("span", "gsi-label ofs-scene-text", label));
             list.appendChild(row);
         });
-        list.setAttribute("aria-label", "Warstwy prezentacji");
+        list.setAttribute("aria-label", systemText("apps.signal.show.copy_66a2cc2648", "Warstwy prezentacji"));
         canvas.appendChild(list);
         const data = (snapshot.show_manifest.cycle_history || {}).settlement;
         const late = scene.elapsed >= 720;
         const note = late ? (scene.id === "restart" || scene.id === "shutdown"
-            ? "Przejście nastąpi po potwierdzeniu nowego cyklu."
-            : "Rekonstrukcja wizualna. Rzeczywisty boot nastąpi po potwierdzeniu restartu.")
-            : "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ.";
+            ? systemText("apps.signal.show.copy_6c305e607b", "Przejście nastąpi po potwierdzeniu nowego cyklu.")
+            : systemText("apps.signal.show.copy_370600c13e", "Rekonstrukcja wizualna. Rzeczywisty boot nastąpi po potwierdzeniu restartu."))
+            : systemText("apps.signal.show.copy_0f5b7cbc86", "JEDEN ŚWIAT. CZTERY KLANY. JEDEN SYGNAŁ.");
         const details = make("div", "gsi-details");
         details.appendChild(make("p", "gsi-note", note));
         if (late) details.appendChild(make("p", "gsi-facts", data && data.available
-            ? "ZAPIS CYKLU / " + data.players_total + " uczestników / " + data.rewards_total + " nagród"
-            : "Oczekiwanie na zapis wyników finału."));
+            ? systemText("apps.signal.show.copy_2f3fd4148e", "ZAPIS CYKLU / ") + data.players_total + systemText("apps.signal.show.copy_2babd8cc05", " uczestników / ") + data.rewards_total + systemText("apps.signal.show.copy_191e23e6fd", " nagród")
+            : systemText("apps.signal.show.copy_07cd77643e", "Oczekiwanie na zapis wyników finału.")));
         canvas.appendChild(details);
         stage.appendChild(canvas);
     }
@@ -442,6 +456,7 @@
                 frame.appendChild(field);
                 const fallback = element("div", "ghost-show-video-fallback", "GHOSTSIGNAL // TRANSMISSION RECORD");
                 field.appendChild(fallback);
+                if (stage._textOnly) return;
                 const asset = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
                 if (asset && asset.available && asset.src === "/static/video/ghostsignal_transmission_video.mp4"
                         && Number.isFinite(asset.duration_seconds) && asset.duration_seconds > 0) {
@@ -527,8 +542,8 @@
             const progress = Math.max(0, Math.min(1, (elapsed - begins[phase]) / (duration * .85)));
             state.output.textContent = prior + current.slice(0, Math.floor(progress * current.length));
             state.output.scrollTop = state.output.scrollHeight;
-            state.title.textContent = ["ZAPIS", "ŚLAD SYGNAŁU", "KANAŁ 2108"][phase];
-            state.caption.textContent = phase === 2 ? "PRZEKAZ Z KANAŁU 2108" : "ZAPIS TRANSMISJI / ŚLAD SYGNAŁU";
+            state.title.textContent = [systemText("apps.signal.show.copy_80062636bb", "ZAPIS"), systemText("apps.signal.show.copy_6daa26d055", "ŚLAD SYGNAŁU"), systemText("apps.signal.show.copy_b904d7e513", "KANAŁ 2108")][phase];
+            state.caption.textContent = phase === 2 ? systemText("apps.signal.show.copy_1b575afca5", "PRZEKAZ Z KANAŁU 2108") : systemText("apps.signal.show.copy_b5d1ade33c", "ZAPIS TRANSMISJI / ŚLAD SYGNAŁU");
         }
         draw(start);
         if (!global.requestAnimationFrame) return;
@@ -545,6 +560,14 @@
     function publicationPages(data, medium) {
         const pages=[];
         (data.available?(data.publications||[]):[]).filter(p=>p.medium===medium).slice(0,6).forEach(record=>{
+            if (medium === 'googleplex_news') {
+                const locale = global.GhostLocale?.getLocale?.() || 'pl';
+                const copy = record.localized_copy?.[locale];
+                if (copy) record = {...record, title:copy.title, body:copy.body};
+                else if (locale !== 'pl') record = {...record,
+                    title:systemText('apps.news.pending_title','World update'),
+                    body:systemText('apps.news.pending_summary','The English summary of this update is not available yet.')};
+            }
             const body=String(record.body||'').slice(0,480), chunks=body.match(/[\s\S]{1,240}/g)||[''];
             chunks.forEach((text,i)=>pages.push(Object.assign({},record,{body:text,fragment:i+1,fragments:chunks.length})));
         });
@@ -553,58 +576,58 @@
     function renderPublications(doc, stage, snapshot, scene, pageIndex, element) {
         const manifest=snapshot.show_manifest,data=(manifest.cycle_history||{}).settlement||{};
         const view=scene.id==="googleplex"?"googleplex":scene.id==="blacknet_history"?"blacknet":scene.id==="cycle_statistics"?"statistics":"archive";
-        const settings={statistics:["WYNIK","CYKLU","STATYSTYKI CYKLU",""],googleplex:["ECHO","SYGNAŁU","GOOGLEPLEX NEWS","googleplex_news"],blacknet:["ŚLAD","W SIECI","BLACKNET / HISTORIA","blacknet"],archive:["ZAPIS","POZOSTAJE","SIGNAL REGISTRY",""]}[view];
+        const settings={statistics:[systemText("apps.signal.show.copy_28c66cf1f1", "WYNIK"),systemText("apps.signal.show.copy_06f2bedcc5", "CYKLU"),systemText("apps.signal.show.copy_850ecce38e", "STATYSTYKI CYKLU"),""],googleplex:["ECHO",systemText("apps.signal.show.copy_ca0e664783", "SYGNAŁU"),"GOOGLEPLEX NEWS","googleplex_news"],blacknet:[systemText("apps.signal.show.copy_2f46d79992", "ŚLAD"),systemText("apps.signal.show.copy_c48811e58a", "W SIECI"),"BLACKNET / HISTORIA","blacknet"],archive:[systemText("apps.signal.show.copy_80062636bb", "ZAPIS"),systemText("apps.signal.show.copy_205b47d69f", "POZOSTAJE"),"SIGNAL REGISTRY",""]}[view];
         const records=publicationPages(data,settings[3]),record=records[pageIndex];
-        const signal=snapshot.signal_public_id||"Brak identyfikatora",cycle=snapshot.cycle_id||"Brak zapisu";
+        const signal=snapshot.signal_public_id||systemText("apps.signal.show.copy_343a10bbd4", "Brak identyfikatora"),cycle=snapshot.cycle_id||systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu");
         const version=(snapshot.from_system_version||"—")+" → "+(snapshot.to_system_version||"—");
         const canvas=element("section","ghost-show-parts publications-scene");canvas.setAttribute("data-view",view);canvas.appendChild(element("div","background"));
         const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
         if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
         const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","",settings[2]));canvas.appendChild(header);
-        const heading=element("section","publication-heading"),title=element("h1","",settings[0]),sub=element("span","",settings[1]);sub.appendChild(element("span","underscore","_"));title.appendChild(sub);heading.appendChild(element("p","eyebrow","SYGNAŁ POZOSTAWIA ŚLAD"));heading.appendChild(title);heading.appendChild(element("p","","JEDEN CYKL. WIĘCEJ NIŻ JEDEN ZAPIS."));canvas.appendChild(heading);
-        const screen=element("article","publication-screen"),top=element("div","screen-top");top.appendChild(element("span","",settings[2]));top.appendChild(element("span","",record?String(pageIndex+1).padStart(2,"0")+" / "+records.length:"ZAPIS CYKLU"));screen.appendChild(top);
-        const content=element("div","screen-content");content.appendChild(element("p","publication-dateline",view==="archive"?"CYKL / "+cycle:record?record.published_at||"Brak daty publikacji":"Brak publikacji w archiwum"));
-        content.appendChild(element("h2","",view==="archive"?signal:record?record.title||"Bez tytułu":"Brak zapisu"));
-        content.appendChild(element("p","publication-body",view==="archive"?(manifest.ranking_available?"Wyniki uczestników i klanów zostały zapisane w archiwum finału. Po restarcie wrócisz do zapisu sygnału z pulpitu.":"Archiwum sygnału. Zapis rankingu nie został jeszcze potwierdzony."):record?record.body||"Brak treści w zapisie.":"Brak publicznej treści w tej projekcji finału."));
+        const heading=element("section","publication-heading"),title=element("h1","",settings[0]),sub=element("span","",settings[1]);sub.appendChild(element("span","underscore","_"));title.appendChild(sub);heading.appendChild(element("p","eyebrow",systemText("apps.signal.show.copy_f65913dc6d", "SYGNAŁ POZOSTAWIA ŚLAD")));heading.appendChild(title);heading.appendChild(element("p","",systemText("apps.signal.show.copy_56f233cd7f", "JEDEN CYKL. WIĘCEJ NIŻ JEDEN ZAPIS.")));canvas.appendChild(heading);
+        const screen=element("article","publication-screen"),top=element("div","screen-top");top.appendChild(element("span","",settings[2]));top.appendChild(element("span","",record?String(pageIndex+1).padStart(2,"0")+" / "+records.length:systemText("apps.signal.show.copy_8e1f8ae6b8", "ZAPIS CYKLU")));screen.appendChild(top);
+        const content=element("div","screen-content");content.appendChild(element("p","publication-dateline",view==="archive"?systemText("apps.signal.show.copy_860e43371f", "CYKL / ")+cycle:record?record.published_at||systemText("apps.signal.show.copy_19ebf5064e", "Brak daty publikacji"):systemText("apps.signal.show.copy_44bb590c07", "Brak publikacji w archiwum")));
+        content.appendChild(element("h2","",view==="archive"?signal:record?record.title||systemText("apps.signal.show.copy_5604e5096a", "Bez tytułu"):systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")));
+        content.appendChild(element("p","publication-body",view==="archive"?(manifest.ranking_available?systemText("apps.signal.show.copy_9dc27b3ce8", "Wyniki uczestników i klanów zostały zapisane w archiwum finału. Po restarcie wrócisz do zapisu sygnału z pulpitu."):systemText("apps.signal.show.copy_a2bd827693", "Archiwum sygnału. Zapis rankingu nie został jeszcze potwierdzony.")):record?record.body||systemText("apps.signal.show.copy_805cd8b0b1", "Brak treści w zapisie."):systemText("apps.signal.show.copy_9d0f209f19", "Brak publicznej treści w tej projekcji finału.")));
         if(view==='statistics'){
             content.textContent='';
-            content.appendChild(element('p','publication-dateline','ARCHIWUM / '+signal));
-            content.appendChild(element('h2','','Podsumowanie finału'));
+            content.appendChild(element('p','publication-dateline',systemText("apps.signal.show.copy_633d0b55a3", 'ARCHIWUM / ')+signal));
+            content.appendChild(element('h2','',systemText("apps.signal.show.copy_cc12f36e41", 'Podsumowanie finału')));
             const stats=element('dl','publication-statistics');
-            [['UCZESTNICY',data.players_total],['NAGRODY',data.rewards_total],['RSP FINAŁU',data.rsp_total],['TERYTORIA',data.territories_total]].forEach(pair=>{
+            [[systemText("apps.signal.show.copy_08363d1ab9", 'UCZESTNICY'),data.players_total],[systemText("apps.signal.show.copy_8b3730d2a2", 'NAGRODY'),data.rewards_total],[systemText("apps.signal.show.copy_8895203e1a", 'RSP FINAŁU'),data.rsp_total],[systemText("apps.signal.show.copy_0daacbb4b3", 'TERYTORIA'),data.territories_total]].forEach(pair=>{
                 stats.appendChild(element('dt','',pair[0]));stats.appendChild(element('dd','',data.available&&Number.isFinite(pair[1])?String(pair[1]):'—'));
             });content.appendChild(stats);
         }
-        const signature=element("div","publication-signature");signature.appendChild(element("span","",view==="archive"?version:settings[2]+" / ARCHIWUM"));signature.appendChild(element("span","cursor","▌"));content.appendChild(signature);screen.appendChild(content);
-        const bottom=element("div","screen-bottom");bottom.appendChild(element("span","",view==="archive"?"ARCHIWUM CYKLU":view==="statistics"?"STATYSTYKI CYKLU":record?"FRAGMENT "+record.fragment+" / "+record.fragments:"BRAK PUBLIKACJI"));bottom.appendChild(element("span","",signal));screen.appendChild(bottom);canvas.appendChild(screen);
-        const index=element("aside","publication-index");index.appendChild(element("p","section-label","01 / ŚLADY CYKLU"));const list=element("ol","");
-        [["googleplex","GOOGLEPLEX","PUBLICZNY ZAPIS"],["blacknet","BLACKNET","HISTORIA SYGNAŁU"],["archive","SIGNAL REGISTRY","ARCHIWUM FINAŁU"]].forEach(item=>{const row=element("li",item[0]===view?"active":"",item[1]);row.appendChild(element("small","",item[2]));if(item[0]===view)row.setAttribute("aria-current","true");list.appendChild(row);});index.appendChild(list);
-        const meta=element("dl","");[["SYGNAŁ",signal],["CYKL",cycle],["WERSJA",version]].forEach(pair=>{meta.appendChild(element("dt","",pair[0]));meta.appendChild(element("dd","",pair[1]));});index.appendChild(meta);index.appendChild(element("p","index-note",data.details_truncated?"Ograniczony zakres archiwum.":"Historia zostaje. Świat rusza dalej."));canvas.appendChild(index);stage.appendChild(canvas);
+        const signature=element("div","publication-signature");signature.appendChild(element("span","",view==="archive"?version:settings[2]+systemText("apps.signal.show.copy_5d6fc84fcc", " / ARCHIWUM")));signature.appendChild(element("span","cursor","▌"));content.appendChild(signature);screen.appendChild(content);
+        const bottom=element("div","screen-bottom");bottom.appendChild(element("span","",view==="archive"?systemText("apps.signal.show.copy_8daf2b1c27", "ARCHIWUM CYKLU"):view==="statistics"?systemText("apps.signal.show.copy_850ecce38e", "STATYSTYKI CYKLU"):record?systemText("apps.signal.show.copy_02da94330b", "FRAGMENT ")+record.fragment+" / "+record.fragments:systemText("apps.signal.show.copy_7753a8cb80", "BRAK PUBLIKACJI")));bottom.appendChild(element("span","",signal));screen.appendChild(bottom);canvas.appendChild(screen);
+        const index=element("aside","publication-index");index.appendChild(element("p","section-label",systemText("apps.signal.show.copy_1e9a6bca7a", "01 / ŚLADY CYKLU")));const list=element("ol","");
+        [["googleplex","GOOGLEPLEX",systemText("apps.signal.show.copy_47e92520db", "PUBLICZNY ZAPIS")],["blacknet","BLACKNET",systemText("apps.signal.show.copy_6eea67fb7f", "HISTORIA SYGNAŁU")],["archive","SIGNAL REGISTRY",systemText("apps.signal.show.copy_4c1892f212", "ARCHIWUM FINAŁU")]].forEach(item=>{const row=element("li",item[0]===view?"active":"",item[1]);row.appendChild(element("small","",item[2]));if(item[0]===view)row.setAttribute("aria-current","true");list.appendChild(row);});index.appendChild(list);
+        const meta=element("dl","");[[systemText("apps.signal.show.copy_98c8641b8f", "SYGNAŁ"),signal],[systemText("apps.signal.show.copy_480a9a11ad", "CYKL"),cycle],[systemText("apps.signal.show.copy_623a11c06a", "WERSJA"),version]].forEach(pair=>{meta.appendChild(element("dt","",pair[0]));meta.appendChild(element("dd","",pair[1]));});index.appendChild(meta);index.appendChild(element("p","index-note",data.details_truncated?systemText("apps.signal.show.copy_5b2bb92464", "Ograniczony zakres archiwum."):systemText("apps.signal.show.copy_c4d0c3e733", "Historia zostaje. Świat rusza dalej.")));canvas.appendChild(index);stage.appendChild(canvas);
     }
 
     function renderRewards(doc, stage, manifest, pageIndex, element) {
         const data=(manifest.cycle_history||{}).settlement||{}, groups=data.available?(data.reward_groups||[]).slice(0,16):[], current=groups[pageIndex];
-        const labels={ghost_signal_node_holder:["KONTROLA WĘZŁÓW","Utrzymanie części sieci do chwili wysłania sygnału."],ghost_signal_closer:["ZAMKNIĘCIE SYGNAŁU","Domknięcie sieci i uruchomienie finału cyklu."],ghost_signal_territory_consumed:["TERYTORIA FINAŁU","Rozliczenie terytoriów objętych wysłaniem sygnału."]};
-        const description=g=>labels[g.type]||["INNA NAGRODA FINAŁU","Dodatkowa kategoria zapisana w archiwum finału."];
+        const labels={ghost_signal_node_holder:[systemText("apps.signal.show.copy_c82aee0959", "KONTROLA WĘZŁÓW"),systemText("apps.signal.show.copy_5d4dc75ad3", "Utrzymanie części sieci do chwili wysłania sygnału.")],ghost_signal_closer:[systemText("apps.signal.show.copy_420d63bfd7", "ZAMKNIĘCIE SYGNAŁU"),systemText("apps.signal.show.copy_12a75fb653", "Domknięcie sieci i uruchomienie finału cyklu.")],ghost_signal_territory_consumed:[systemText("apps.signal.show.copy_ae8fcee4ff", "TERYTORIA FINAŁU"),systemText("apps.signal.show.copy_3281f1602d", "Rozliczenie terytoriów objętych wysłaniem sygnału.")]};
+        const description=g=>labels[g.type]||[systemText("apps.signal.show.copy_9849cba46e", "INNA NAGRODA FINAŁU"),systemText("apps.signal.show.copy_92d86b60ab", "Dodatkowa kategoria zapisana w archiwum finału.")];
         const value=n=>Number.isFinite(n)&&n>=0?String(n):"—";
         const canvas=element("section","ghost-show-parts rewards-scene");canvas.appendChild(element("div","background"));
         const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
         if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
-        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","","FINAŁ / REJESTR NAGRÓD"));canvas.appendChild(header);
-        const title=element("section","rewards-title");title.appendChild(element("p","eyebrow","WKŁAD POZOSTAWIA ŚLAD"));
-        const h=element("h1","","NAGRODY"),sub=element("span","","FINAŁU");sub.appendChild(element("span","underscore","_"));h.appendChild(sub);title.appendChild(h);title.appendChild(element("p","rewards-deck","JEDEN SYGNAŁ. WSPÓLNY WYNIK."));canvas.appendChild(title);
+        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","",systemText("apps.signal.show.copy_0fc4fc3e1f", "FINAŁ / REJESTR NAGRÓD")));canvas.appendChild(header);
+        const title=element("section","rewards-title");title.appendChild(element("p","eyebrow",systemText("apps.signal.show.copy_9733733f9a", "WKŁAD POZOSTAWIA ŚLAD")));
+        const h=element("h1","",systemText("apps.signal.show.copy_8b3730d2a2", "NAGRODY")),sub=element("span","",systemText("apps.signal.show.copy_4f4b3e5307", "FINAŁU"));sub.appendChild(element("span","underscore","_"));h.appendChild(sub);title.appendChild(h);title.appendChild(element("p","rewards-deck",systemText("apps.signal.show.copy_dca7c7e9e9", "JEDEN SYGNAŁ. WSPÓLNY WYNIK.")));canvas.appendChild(title);
         const focus=element("section","reward-focus");focus.appendChild(element("div","focus-corners"));
-        const index=element("p","",current?String(pageIndex+1).padStart(2,"0")+" / "+description(current)[0]:"REJESTR NAGRÓD");index.id="reward-index";focus.appendChild(index);
+        const index=element("p","",current?String(pageIndex+1).padStart(2,"0")+" / "+description(current)[0]:systemText("apps.signal.show.copy_9c3c2034b4", "REJESTR NAGRÓD"));index.id="reward-index";focus.appendChild(index);
         const amount=element("div","reward-value");amount.appendChild(element("strong","",current?value(current.rsp):"—"));amount.appendChild(element("span","","RSP"));focus.appendChild(amount);
         const meter=element("div","reward-meter"),bar=element("i","");bar.style.width=(current&&Number.isFinite(current.rsp)&&data.rsp_total>0?Math.max(0,Math.min(100,current.rsp/data.rsp_total*100)):0)+"%";meter.appendChild(bar);focus.appendChild(meter);
-        const text=element("p","",current?description(current)[1]:data.available?"Brak szczegółów nagród w zapisie.":"Oczekiwanie na zapis wyników finału.");text.id="reward-description";focus.appendChild(text);
-        focus.appendChild(element("p","reward-count",current?value(current.count)+" ZAPISÓW NAGRÓD":""));canvas.appendChild(focus);
+        const text=element("p","",current?description(current)[1]:data.available?systemText("apps.signal.show.copy_0ee2fe1eca", "Brak szczegółów nagród w zapisie."):systemText("apps.signal.show.copy_07cd77643e", "Oczekiwanie na zapis wyników finału."));text.id="reward-description";focus.appendChild(text);
+        focus.appendChild(element("p","reward-count",current?value(current.count)+systemText("apps.signal.show.copy_b3e8409481", " ZAPISÓW NAGRÓD"):""));canvas.appendChild(focus);
         const ledger=element("aside","reward-ledger"),label=element("p","section-label");
         const trophy=doc.createElementNS("http://www.w3.org/2000/svg","svg");Object.entries({class:"reward-trophy",viewBox:"0 0 32 32",fill:"none",stroke:"currentColor","stroke-width":"1.3","stroke-linecap":"round","stroke-linejoin":"round","aria-hidden":"true",focusable:"false"}).forEach(pair=>trophy.setAttribute(pair[0],pair[1]));
-        const path=doc.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("d","M9 4h14v7c0 6-3 9-7 9s-7-3-7-9V4Z M9 7H4v4c0 4 3 6 7 6 M23 7h5v4c0 4-3 6-7 6 M16 20v6 M11 26h10l2 3H9l2-3Z");trophy.appendChild(path);label.appendChild(trophy);label.appendChild(element("span","","01 / ROZLICZENIE FINAŁU"));ledger.appendChild(label);
+        const path=doc.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("d","M9 4h14v7c0 6-3 9-7 9s-7-3-7-9V4Z M9 7H4v4c0 4 3 6 7 6 M23 7h5v4c0 4-3 6-7 6 M16 20v6 M11 26h10l2 3H9l2-3Z");trophy.appendChild(path);label.appendChild(trophy);label.appendChild(element("span","",systemText("apps.signal.show.copy_ec34456b13", "01 / ROZLICZENIE FINAŁU")));ledger.appendChild(label);
         const list=element("ol","");let active;
-        groups.forEach((g,i)=>{const row=element("li","reward-row"+(i===pageIndex?" is-current":"")),line=element("div","");line.appendChild(element("span","",String(i+1).padStart(2,"0")+" / "+description(g)[0]));line.appendChild(element("b","",value(g.rsp)+" RSP"));row.appendChild(line);row.appendChild(element("small","","ZAPISY NAGRÓD / "+value(g.count)));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});ledger.appendChild(list);
-        const total=element("div","reward-total");total.appendChild(element("span","","ŁĄCZNIE / RSP"));total.appendChild(element("strong","",data.available?value(data.rsp_total):"—"));ledger.appendChild(total);ledger.appendChild(element("p","reward-footnote",data.available?value(data.rewards_total)+" ZAPISY NAGRÓD / "+(data.details_truncated?"OGRANICZONY ZAKRES ARCHIWUM":"WYNIK Z ARCHIWUM SYGNAŁU"):"OCZEKIWANIE NA ARCHIWUM"));canvas.appendChild(ledger);stage.appendChild(canvas);
+        groups.forEach((g,i)=>{const row=element("li","reward-row"+(i===pageIndex?" is-current":"")),line=element("div","");line.appendChild(element("span","",String(i+1).padStart(2,"0")+" / "+description(g)[0]));line.appendChild(element("b","",value(g.rsp)+" RSP"));row.appendChild(line);row.appendChild(element("small","",systemText("apps.signal.show.copy_11e6d71624", "ZAPISY NAGRÓD / ")+value(g.count)));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});ledger.appendChild(list);
+        const total=element("div","reward-total");total.appendChild(element("span","",systemText("apps.signal.show.copy_779aec1228", "ŁĄCZNIE / RSP")));total.appendChild(element("strong","",data.available?value(data.rsp_total):"—"));ledger.appendChild(total);ledger.appendChild(element("p","reward-footnote",data.available?value(data.rewards_total)+systemText("apps.signal.show.copy_89cdb0471f", " ZAPISY NAGRÓD / ")+(data.details_truncated?systemText("apps.signal.show.copy_eb38e2b27b", "OGRANICZONY ZAKRES ARCHIWUM"):systemText("apps.signal.show.copy_e5e18d7f34", "WYNIK Z ARCHIWUM SYGNAŁU")):systemText("apps.signal.show.copy_70ac843926", "OCZEKIWANIE NA ARCHIWUM")));canvas.appendChild(ledger);stage.appendChild(canvas);
         if(active&&Number.isFinite(active.offsetTop))list.scrollTop=Math.max(0,active.offsetTop-list.offsetTop-list.clientHeight/2+active.offsetHeight/2);
     }
 
@@ -613,40 +636,40 @@
         const symbols={virex:"virex_logo_pro.png",echo_freedom:"echo_logo_pro.png",phantom_mesh:"mesh_logo_pro.png",sentinel_order:"sentinel_logo_pro.png"};
         const players=!data.available?[]:isClan?(data.clans||[]).slice(0,8).map(c=>{
             const catalog=((manifest.catalog||{}).clans||[]).find(item=>item.code===c.code);
-            return {alias:catalog?catalog.name:c.code||"Brak nazwy klanu",clan:"CLAN GHOST SCORE",rank:c.rank,rsp:c.rsp,level:c.score,members:c.members,
+            return {alias:catalog?catalog.name:c.code||systemText("apps.signal.show.copy_a716052e8c", "Brak nazwy klanu"),clan:"CLAN GHOST SCORE",rank:c.rank,rsp:c.rsp,level:c.score,members:c.members,
                 avatar:Object.prototype.hasOwnProperty.call(symbols,c.code)?"/static/images/ghostnetwork/clans/"+symbols[c.code]:""};
         }):(data.players||[]).slice(0,20);
         const player=players[pageIndex], canvas=element("section","ghost-show-parts ranking-scene"+(isClan?" clans-scene":""));
         canvas.appendChild(element("div","background"));
         const glitch=element("div","chaos-map-glitch-overlay is-visible gsi-glitch parts-glitch");canvas.appendChild(glitch);
         if(global.ChaosMapGlitch){let seed=139140;global.ChaosMapGlitch.seed(glitch,doc,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});}
-        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","",isClan?"KLANY / RANKING FINAŁU":"UCZESTNICY / RANKING FINAŁU"));canvas.appendChild(header);
-        const title=element("section","ranking-title");title.appendChild(element("p","eyebrow",isClan?"ŚLAD KLANU / GHOSTSIGNAL":"ŚLAD GRACZA / GHOSTSIGNAL"));
-        title.appendChild(element("h1","",player?player.alias||"Brak nicku":"RANKING"));
-        const clan=element("p","ranking-clan",player?player.clan||"Brak klanu":"Oczekiwanie na zapis");clan.appendChild(element("span","underscore","_"));title.appendChild(clan);canvas.appendChild(title);
+        const header=element("header","");header.appendChild(element("span","","CHAOS / GHOST NETWORK"));header.appendChild(element("span","",isClan?systemText("apps.signal.show.copy_a37d8777b2", "KLANY / RANKING FINAŁU"):systemText("apps.signal.show.copy_610ce4daa2", "UCZESTNICY / RANKING FINAŁU")));canvas.appendChild(header);
+        const title=element("section","ranking-title");title.appendChild(element("p","eyebrow",isClan?systemText("apps.signal.show.copy_a1aa14eb68", "ŚLAD KLANU / GHOSTSIGNAL"):systemText("apps.signal.show.copy_17aed67da8", "ŚLAD GRACZA / GHOSTSIGNAL")));
+        title.appendChild(element("h1","",player?player.alias||systemText("apps.signal.show.copy_ab5fc6adff", "Brak nicku"):"RANKING"));
+        const clan=element("p","ranking-clan",player?player.clan||systemText("apps.signal.show.copy_89a55fad8a", "Brak klanu"):systemText("apps.signal.show.copy_b8140ae565", "Oczekiwanie na zapis"));clan.appendChild(element("span","underscore","_"));title.appendChild(clan);canvas.appendChild(title);
         if(player){
             const rank=Number.isFinite(player.rank)&&player.rank>0?player.rank:pageIndex+1;
             const hero=element("figure","ranking-hero");hero.appendChild(element("div","portrait-light"));
-            const avatar=element("img","");avatar.alt="Avatar / "+(player.alias||"Gracz");
+            const avatar=element("img","");avatar.alt="Avatar / "+(player.alias||systemText("apps.signal.show.copy_c7ada00045", "Gracz"));
             const safe=/^\/?static\/images\/avatar-(?:frakcja-[1-4]-player-[1-5]\.png|default\.jpg)$/;
             avatar.src=isClan?player.avatar:safe.test(player.avatar||"")?"/"+player.avatar.replace(/^\//,""):"/static/images/avatar-default.jpg";
-            avatar.onerror=()=>{avatar.onerror=null;if(isClan){avatar.remove();hero.appendChild(element("p","ranking-missing","Symbol niedostępny"));}else avatar.src="/static/images/avatar-default.jpg";};if(!isClan||player.avatar)hero.appendChild(avatar);else hero.appendChild(element("p","ranking-missing","Brak symbolu klanu"));
+            avatar.onerror=()=>{avatar.onerror=null;if(isClan){avatar.remove();hero.appendChild(element("p","ranking-missing",systemText("apps.signal.show.copy_303e67d3c1", "Symbol niedostępny")));}else avatar.src="/static/images/avatar-default.jpg";};if(!isClan||player.avatar)hero.appendChild(avatar);else hero.appendChild(element("p","ranking-missing",systemText("apps.signal.show.copy_14ec333e7e", "Brak symbolu klanu")));
             const badge=element("div","ranking-position");badge.appendChild(element("small","","RANKING"));badge.appendChild(element("span","","#"+String(rank).padStart(2,"0")));hero.appendChild(badge);
-            const caption=element("figcaption","",isClan?"KLAN / ARCHIWUM":player.visual_source==="current_profile"?"PODGLĄD / AKTUALNY AVATAR I LVL":player.avatar?"PROFIL / ARCHIWUM":"AVATAR / BRAK ZAPISU");hero.appendChild(caption);canvas.appendChild(hero);
-            const stats=element("section","ranking-stats");[[isClan?"GHOST SCORE":"POZIOM",Number.isFinite(player.level)?player.level:"—"],["RSP / SYGNAŁ",player.rsp]].concat(isClan?[["UCZESTNICY",player.members]]:[]).forEach(pair=>{const block=element("div","");block.appendChild(element("span","",pair[0]));block.appendChild(element("strong","",String(pair[1] == null ? "—" : pair[1])));stats.appendChild(block);});canvas.appendChild(stats);
+            const caption=element("figcaption","",isClan?systemText("apps.signal.show.copy_2a9f85698d", "KLAN / ARCHIWUM"):player.visual_source==="current_profile"?systemText("apps.signal.show.copy_b85fdd4917", "PODGLĄD / AKTUALNY AVATAR I LVL"):player.avatar?systemText("apps.signal.show.copy_c55a1806e1", "PROFIL / ARCHIWUM"):systemText("apps.signal.show.copy_985eacadba", "AVATAR / BRAK ZAPISU"));hero.appendChild(caption);canvas.appendChild(hero);
+            const stats=element("section","ranking-stats");[[isClan?"GHOST SCORE":systemText("apps.signal.show.copy_2fd78b13b7", "POZIOM"),Number.isFinite(player.level)?player.level:"—"],[systemText("apps.signal.show.copy_1735ddd5b5", "RSP / SYGNAŁ"),player.rsp]].concat(isClan?[[systemText("apps.signal.show.copy_08363d1ab9", "UCZESTNICY"),player.members]]:[]).forEach(pair=>{const block=element("div","");block.appendChild(element("span","",pair[0]));block.appendChild(element("strong","",String(pair[1] == null ? "—" : pair[1])));stats.appendChild(block);});canvas.appendChild(stats);
         }
-        const panel=element("aside","ranking-list");panel.appendChild(element("p","list-title",(!isClan&&data.players_truncated)||data.details_truncated?"01 / RANKING — WYBÓR ARCHIWUM":"01 / PEŁNY RANKING"));
+        const panel=element("aside","ranking-list");panel.appendChild(element("p","list-title",(!isClan&&data.players_truncated)||data.details_truncated?systemText("apps.signal.show.copy_bf2aa8fb29", "01 / RANKING — WYBÓR ARCHIWUM"):systemText("apps.signal.show.copy_a5766a9cb1", "01 / PEŁNY RANKING")));
         const list=element("ol","");let active;
-        players.forEach((p,i)=>{const row=element("li","ranking-row"+(i===pageIndex?" is-current":""));row.appendChild(element("span","",String(p.rank||i+1).padStart(2,"0")));const name=element("b","",p.alias||"Brak nicku");if(!isClan)name.appendChild(element("small","",p.clan||"Brak klanu"));row.appendChild(name);row.appendChild(element("span","",String(isClan?(p.level == null?"—":p.level):(p.rsp == null ? "—" : p.rsp))));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});
-        panel.appendChild(list);panel.appendChild(element("p","list-caption","JEDEN SYGNAŁ. WSPÓLNY ZAPIS."));canvas.appendChild(panel);stage.appendChild(canvas);
+        players.forEach((p,i)=>{const row=element("li","ranking-row"+(i===pageIndex?" is-current":""));row.appendChild(element("span","",String(p.rank||i+1).padStart(2,"0")));const name=element("b","",p.alias||systemText("apps.signal.show.copy_ab5fc6adff", "Brak nicku"));if(!isClan)name.appendChild(element("small","",p.clan||systemText("apps.signal.show.copy_89a55fad8a", "Brak klanu")));row.appendChild(name);row.appendChild(element("span","",String(isClan?(p.level == null?"—":p.level):(p.rsp == null ? "—" : p.rsp))));if(i===pageIndex){active=row;row.setAttribute("aria-current","true");}list.appendChild(row);});
+        panel.appendChild(list);panel.appendChild(element("p","list-caption",systemText("apps.signal.show.copy_116b48040e", "JEDEN SYGNAŁ. WSPÓLNY ZAPIS.")));canvas.appendChild(panel);stage.appendChild(canvas);
         // Keep the highlighted row inside the existing list viewport for larger archives.
         if(active && Number.isFinite(active.offsetTop))list.scrollTop=Math.max(0,active.offsetTop-list.offsetTop-list.clientHeight/2+active.offsetHeight/2);
     }
 
     function renderWorld(doc, stage, manifest, scene, pageIndex, element) {
         const data = (manifest.cycle_history || {}).settlement || {}, available = !!data.available;
-        const names = {aftershock:"PO SYGNALE",world_before:"ZAPIS GRANIC",territory_outcomes:"LOSY TERYTORIÓW",
-            territory_reduction:"ROZLICZENIE",conflict_results:"KONFLIKTY",world_final:"STAN KOŃCOWY"};
+        const names = {aftershock:systemText("apps.signal.show.copy_a759e425cb", "PO SYGNALE"),world_before:systemText("apps.signal.show.copy_314e1b2f8f", "ZAPIS GRANIC"),territory_outcomes:systemText("apps.signal.show.copy_42612dbfdf", "LOSY TERYTORIÓW"),
+            territory_reduction:systemText("apps.signal.show.copy_b57cd37cb2", "ROZLICZENIE"),conflict_results:systemText("apps.signal.show.copy_996af14340", "KONFLIKTY"),world_final:systemText("apps.signal.show.copy_c803ee4e12", "STAN KOŃCOWY")};
         const canvas = element("section", "ghost-show-parts world-scene");
         canvas.setAttribute("data-world-scene", scene.id);
         canvas.setAttribute("data-view", "territory");
@@ -658,16 +681,16 @@
             global.ChaosMapGlitch.seed(glitch, doc, () => {seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});
         }
         const header=element("header", ""); header.appendChild(element("span","","CHAOS / GHOST NETWORK"));
-        header.appendChild(element("span","","ŚWIAT / ARCHIWUM CYKLU"));canvas.appendChild(header);
-        const heading=element("section","world-title"), title=element("h1","","ŚWIAT"), sub=element("span","",names[scene.id]);
-        heading.appendChild(element("p","eyebrow","GHOSTSIGNAL / KONSEKWENCJE"));
+        header.appendChild(element("span","",systemText("apps.signal.show.copy_d00ed03653", "ŚWIAT / ARCHIWUM CYKLU")));canvas.appendChild(header);
+        const heading=element("section","world-title"), title=element("h1","",systemText("apps.signal.show.copy_771320af49", "ŚWIAT")), sub=element("span","",names[scene.id]);
+        heading.appendChild(element("p","eyebrow",systemText("apps.signal.show.copy_d0ccb1c47b", "GHOSTSIGNAL / KONSEKWENCJE")));
         sub.appendChild(element("span","underscore","_"));title.appendChild(sub);heading.appendChild(title);
-        heading.appendChild(element("p","world-deck","JEDNA SIEĆ. ŚLAD POZOSTAJE."));canvas.appendChild(heading);
+        heading.appendChild(element("p","world-deck",systemText("apps.signal.show.copy_e3bf912655", "JEDNA SIEĆ. ŚLAD POZOSTAJE.")));canvas.appendChild(heading);
         const map=element("section","world-map"), base=element("img","world-base");
-        base.alt="Kontury lądów — Europa i Afryka";base.src="/static/images/ghostnetwork/world-globe.svg";
-        base.onerror=()=>{base.remove();map.appendChild(element("p","world-coordinate","Kontury lądów niedostępne."));}; map.appendChild(base);
+        base.alt=systemText("apps.signal.show.copy_a745c43514", "Kontury lądów — Europa i Afryka");base.src="/static/images/ghostnetwork/world-globe.svg";
+        base.onerror=()=>{base.remove();map.appendChild(element("p","world-coordinate",systemText("apps.signal.show.copy_6db5eef49e", "Kontury lądów niedostępne.")));}; map.appendChild(base);
         const svgNode=(tag,attrs,parent)=>{const n=doc.createElementNS("http://www.w3.org/2000/svg",tag);Object.keys(attrs).forEach(k=>n.setAttribute(k,attrs[k]));if(parent)parent.appendChild(n);return n;};
-        const svg=svgNode("svg",{class:"world-overlay",viewBox:"0 0 1000 1000",role:"img","aria-label":"Geometria z archiwum finału"},map);
+        const svg=svgNode("svg",{class:"world-overlay",viewBox:"0 0 1000 1000",role:"img","aria-label":systemText("apps.signal.show.copy_cbb30c0288", "Geometria z archiwum finału")},map);
         const defs=svgNode("defs",{},svg), gradient=svgNode("radialGradient",{id:"world-halo"},defs);
         [["0","#d6ffe7",".8"],[".3","#94c9ab",".3"],["1","#94c9ab","0"]].forEach(r=>svgNode("stop",{offset:r[0],"stop-color":r[1],"stop-opacity":r[2]},gradient));
         const layer=svgNode("g",{class:"world-territory"},svg);
@@ -684,47 +707,47 @@
             const points=territory.points.map(p=>[500+(p[0]-(minX+maxX)/2)*scale,430-(p[1]-(minY+maxY)/2)*scale]);
             const path=points.map((p,i)=>(i?"L":"M")+p[0].toFixed(2)+","+p[1].toFixed(2)).join("")+"Z";
             const polygon=svgNode("path",{d:path,"data-territory":territory.label||""},layer);
-            svgNode("title",{},polygon).textContent=(territory.label||"Terytorium")+" / "+(territory.clan||"Brak klanu");
+            svgNode("title",{},polygon).textContent=(territory.label||systemText("apps.signal.show.copy_f2f85184b8", "Terytorium"))+" / "+(territory.clan||systemText("apps.signal.show.copy_89a55fad8a", "Brak klanu"));
             points.forEach(p=>{
                 svgNode("circle",{cx:p[0],cy:p[1],r:23,class:"world-node-halo"},layer);
                 svgNode("circle",{cx:p[0],cy:p[1],r:7,class:"world-node-ring"},layer);
                 svgNode("circle",{cx:p[0],cy:p[1],r:3.5,class:"world-node-core"},layer);
             });
         }
-        map.appendChild(element("p","world-coordinate","GHOSTSIGNAL / KSZTAŁT TERYTORIUM"));
-        map.appendChild(element("p","world-geometry-note",!available?"OCZEKIWANIE NA ARCHIWUM":!selected||!valid(selected)?"BRAK GEOMETRII W ZAPISIE":
-            "GEOMETRIA ARCHIWALNA / WIDOK SYMBOLICZNY"));
+        map.appendChild(element("p","world-coordinate",systemText("apps.signal.show.copy_a7e5e2635a", "GHOSTSIGNAL / KSZTAŁT TERYTORIUM")));
+        map.appendChild(element("p","world-geometry-note",!available?systemText("apps.signal.show.copy_70ac843926", "OCZEKIWANIE NA ARCHIWUM"):!selected||!valid(selected)?systemText("apps.signal.show.copy_f459dc70f4", "BRAK GEOMETRII W ZAPISIE"):
+            systemText("apps.signal.show.copy_ee20602fa1", "GEOMETRIA ARCHIWALNA / WIDOK SYMBOLICZNY")));
         canvas.appendChild(map);
         const log=element("aside","world-log"), list=element("ol","");
         log.appendChild(element("p","world-section-label","01 / "+names[scene.id]));
         const lines=[];
-        if(!available)lines.push("Oczekiwanie na zapis wyników finału.");
+        if(!available)lines.push(systemText("apps.signal.show.copy_07cd77643e", "Oczekiwanie na zapis wyników finału."));
         else if(scene.id==="conflict_results"){
             const conflicts=(data.conflicts||[]).slice(0,20).concat((data.production_conflicts||[]).slice(0,20));
             const conflictPage=Math.min(Math.max(0,Math.ceil(conflicts.length/4)-1),Math.floor(scene.progress*Math.max(1,Math.ceil(conflicts.length/4))));
-            conflicts.slice(conflictPage*4,conflictPage*4+4).forEach(c=>lines.push((c.label||"Konflikt")+" / "+(c.status||"Brak statusu")+(c.resolved_at?" / "+c.resolved_at:"")));
-            if(!conflicts.length)lines.push("Brak szczegółów konfliktów w archiwum.");
+            conflicts.slice(conflictPage*4,conflictPage*4+4).forEach(c=>lines.push((c.label||systemText("apps.signal.show.copy_a55bfc47cd", "Konflikt"))+" / "+(c.status||systemText("apps.signal.show.copy_bc0c3b1a36", "Brak statusu"))+(c.resolved_at?" / "+c.resolved_at:"")));
+            if(!conflicts.length)lines.push(systemText("apps.signal.show.copy_788a131982", "Brak szczegółów konfliktów w archiwum."));
         } else {
-            lines.push("SKONSUMOWANE / "+(Number.isFinite(data.territories_total)?data.territories_total:"Brak zapisu"));
-            if(scene.id==="world_before")lines.push("Granice obszarów objętych finałem.");
-            else if(scene.id==="territory_reduction")lines.push("Brak osobnego zapisu redukcji i zachowanych terytoriów.");
-            else if(scene.id==="world_final")lines.push("Podsumowanie zakresu sygnału.");
-            else if(territories.length){const t=territories[pageIndex%territories.length];lines.push((t.label||"Terytorium")+" / "+(t.clan||"Brak klanu"));}
-            lines.push("GEOMETRIA / "+shapes.length+" Z "+territories.length+" ZAPISÓW");
+            lines.push(systemText("apps.signal.show.copy_2b38cc6ccc", "SKONSUMOWANE / ")+(Number.isFinite(data.territories_total)?data.territories_total:systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")));
+            if(scene.id==="world_before")lines.push(systemText("apps.signal.show.copy_158de4889d", "Granice obszarów objętych finałem."));
+            else if(scene.id==="territory_reduction")lines.push(systemText("apps.signal.show.copy_1dda2e73b3", "Brak osobnego zapisu redukcji i zachowanych terytoriów."));
+            else if(scene.id==="world_final")lines.push(systemText("apps.signal.show.copy_479ff26a58", "Podsumowanie zakresu sygnału."));
+            else if(territories.length){const t=territories[pageIndex%territories.length];lines.push((t.label||systemText("apps.signal.show.copy_f2f85184b8", "Terytorium"))+" / "+(t.clan||systemText("apps.signal.show.copy_89a55fad8a", "Brak klanu")));}
+            lines.push(systemText("apps.signal.show.copy_9202f3030c", "GEOMETRIA / ")+shapes.length+systemText("apps.signal.show.copy_8d0df4eca6", " Z ")+territories.length+systemText("apps.signal.show.copy_c94e176b06", " ZAPISÓW"));
         }
         if(selected){
-            lines.push((selected.label||"Terytorium")+" / KLAN: "+(selected.clan||"Brak zapisu"));
-            lines.push("WŁAŚCICIEL: "+(selected.owner_alias||"Brak zapisu"));
+            lines.push((selected.label||systemText("apps.signal.show.copy_f2f85184b8", "Terytorium"))+systemText("apps.signal.show.copy_c2f2f0c53b", " / KLAN: ")+(selected.clan||systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")));
+            lines.push(systemText("apps.signal.show.copy_d78b27b626", "WŁAŚCICIEL: ")+(selected.owner_alias||systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")));
             if(valid(selected)){
                 const n=selected.points.length;
-                lines.push("ŚREDNIA WIERZCHOŁKÓW / LAT "+(selected.points.reduce((s,p)=>s+p[1],0)/n).toFixed(6)
+                lines.push(systemText("apps.signal.show.copy_62eed31daf", "ŚREDNIA WIERZCHOŁKÓW / LAT ")+(selected.points.reduce((s,p)=>s+p[1],0)/n).toFixed(6)
                     +" / LON "+(selected.points.reduce((s,p)=>s+p[0],0)/n).toFixed(6));
             }
         }
         lines.forEach(text=>list.appendChild(element("li","",text)));log.appendChild(list);
-        log.appendChild(element("p","world-caption",data.territories_truncated||data.details_truncated?"OGRANICZONY WYBÓR ARCHIWUM":"ZAKRES FINAŁU / NIE CAŁY STAN ŚWIATA"));canvas.appendChild(log);
-        const legend=element("aside","world-legend");["OBSZARY FINAŁU","WIERZCHOŁKI ZAPISU"].forEach(text=>{const row=element("span","",text);row.appendChild(element("i",""));legend.appendChild(row);});
-        legend.appendChild(element("p","","KONTURY / NATURAL EARTH"));canvas.appendChild(legend);stage.appendChild(canvas);
+        log.appendChild(element("p","world-caption",data.territories_truncated||data.details_truncated?systemText("apps.signal.show.copy_afe91d227a", "OGRANICZONY WYBÓR ARCHIWUM"):systemText("apps.signal.show.copy_0fbd29a2b3", "ZAKRES FINAŁU / NIE CAŁY STAN ŚWIATA")));canvas.appendChild(log);
+        const legend=element("aside","world-legend");[systemText("apps.signal.show.copy_4fc5a70bae", "OBSZARY FINAŁU"),systemText("apps.signal.show.copy_a1710e1237", "WIERZCHOŁKI ZAPISU")].forEach(text=>{const row=element("span","",text);row.appendChild(element("i",""));legend.appendChild(row);});
+        legend.appendChild(element("p","",systemText("apps.signal.show.copy_c928c061af", "KONTURY / NATURAL EARTH")));canvas.appendChild(legend);stage.appendChild(canvas);
     }
 
     function renderArchiveRecord(doc, root, stage, snapshot, scene, element) {
@@ -757,22 +780,22 @@
         light.appendChild(svgNode("circle", {class:"archive-source-pulse",cx:"835",cy:"357",r:"65",fill:"url(#ghost-show-archive-source-glow)"})); canvas.appendChild(light);
         const header = element("header", "");
         header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
-        header.appendChild(element("span", "", "ARCHIWUM / REKONSTRUKCJA")); canvas.appendChild(header);
+        header.appendChild(element("span", "", systemText("apps.signal.show.copy_a042c2d47f", "ARCHIWUM / REKONSTRUKCJA"))); canvas.appendChild(header);
         const heading = element("section", "archive-title");
-        heading.appendChild(element("p", "eyebrow", "HISTORIA ZAKOŃCZENIA CYKLU"));
-        const title = element("h1", ""), sub = element("span", "title-sub", "TRANSMISJI");
-        const titleText = element("span", "", isVideo ? "REKONSTRUKCJA" : "ZAPIS");
+        heading.appendChild(element("p", "eyebrow", systemText("apps.signal.show.copy_372b3fdf0c", "HISTORIA ZAKOŃCZENIA CYKLU")));
+        const title = element("h1", ""), sub = element("span", "title-sub", systemText("apps.signal.show.copy_efdd50f259", "TRANSMISJI"));
+        const titleText = element("span", "", isVideo ? systemText("apps.signal.show.copy_d4226840f6", "REKONSTRUKCJA") : systemText("apps.signal.show.copy_80062636bb", "ZAPIS"));
         title.appendChild(titleText); sub.appendChild(element("span", "underscore", "_"));
         title.appendChild(sub); heading.appendChild(title); canvas.appendChild(heading);
         const log = element("aside", "archive-log"), list = element("ol", "");
-        log.appendChild(element("p", "section-label", "01 / ODCZYT ARCHIWUM"));
-        ["INICJACJA ODCZYTU","SYNCHRONIZACJA OBRAZU","REKONSTRUKCJA TRANSMISJI","ŚLAD SYGNAŁU"].forEach(text => list.appendChild(element("li", "", text)));
-        log.appendChild(list); log.appendChild(element("p", "archive-quote", "Z rozproszonych fragmentów powstaje pełny obraz.")); canvas.appendChild(log);
+        log.appendChild(element("p", "section-label", systemText("apps.signal.show.copy_db9475ab26", "01 / ODCZYT ARCHIWUM")));
+        [systemText("apps.signal.show.copy_fba92d31f6", "INICJACJA ODCZYTU"),systemText("apps.signal.show.copy_8b0890735b", "SYNCHRONIZACJA OBRAZU"),systemText("apps.signal.show.copy_819f7dd17b", "REKONSTRUKCJA TRANSMISJI"),systemText("apps.signal.show.copy_6daa26d055", "ŚLAD SYGNAŁU")].forEach(text => list.appendChild(element("li", "", text)));
+        log.appendChild(list); log.appendChild(element("p", "archive-quote", systemText("apps.signal.show.copy_f7da19f873", "Z rozproszonych fragmentów powstaje pełny obraz."))); canvas.appendChild(log);
         const center = element("section", "archive-center");
         if (isVideo || isTerminal) {
             const shell = element("div", "archive-video-shell");
             const top = element("div", "video-topline"), bottom = element("div", "video-bottomline");
-            top.appendChild(element("span", "", "ARCHIWALNY ZAPIS")); top.appendChild(element("span", "", "ŹRÓDŁO / 3:2"));
+            top.appendChild(element("span", "", systemText("apps.signal.show.copy_cca67f53ca", "ARCHIWALNY ZAPIS"))); top.appendChild(element("span", "", systemText("apps.signal.show.copy_256cb811d1", "ŹRÓDŁO / 3:2")));
             shell.appendChild(top);
             if (isVideo) renderTransmissionVideo(stage, scene, manifest, shell, element);
             else {
@@ -785,9 +808,9 @@
                 stage._archive = {flash, terminal, output, title:titleText, start:replay ? replay.start : 463.12,
                     point:point ? point.start : 466.12, channel:channel ? channel.start : 469.12, end:channel ? channel.end : 477,
                     rate:span > 0 ? 900000 / span : 1,
-                    record:"> ZAPIS TRANSMISJI\nGHOSTSIGNAL // " + (snapshot.signal_public_id || "—") + "\n",
-                    trace:"> ŚLAD SYGNAŁU\nTRANSMISSION UTC // " + (manifest.signal_sent_at || "Brak zapisu czasu") + "\n",
-                    channelText:"> KANAŁ 2108\nTEMPORAL CHANNEL // 2108\nDESTINATION // " + ((manifest.cycle_history || {}).future_2108_timestamp || "Brak zapisu daty docelowej") + "\n"};
+                    record:systemText("apps.signal.show.copy_1a6dc4a7b6", "> ZAPIS TRANSMISJI\nGHOSTSIGNAL // ") + (snapshot.signal_public_id || "—") + "\n",
+                    trace:systemText("apps.signal.show.copy_1d00778c3a", "> ŚLAD SYGNAŁU\nTRANSMISSION UTC // ") + (manifest.signal_sent_at || systemText("apps.signal.show.copy_4977fb6396", "Brak zapisu czasu")) + "\n",
+                    channelText:systemText("apps.signal.show.copy_ea34d86c5c", "> KANAŁ 2108\nTEMPORAL CHANNEL // 2108\nDESTINATION // ") + ((manifest.cycle_history || {}).future_2108_timestamp || systemText("apps.signal.show.copy_bd4f44301a", "Brak zapisu daty docelowej")) + "\n"};
                 if (Number.isFinite(root._videoFinishedAt)) {
                     stage._archive.start = Math.max(stage._archive.start, root._videoFinishedAt);
                     root._videoFinishedAt = null;
@@ -796,31 +819,31 @@
                     const state = stage._archive, definition = find(scene.id);
                     const settlement = (manifest.cycle_history || {}).settlement || {};
                     const available = !!settlement.available;
-                    const value = key => available && Number.isFinite(settlement[key]) ? String(settlement[key]) : "Brak zapisu";
-                    const signal = snapshot.signal_public_id || "Brak ID sygnału";
+                    const value = key => available && Number.isFinite(settlement[key]) ? String(settlement[key]) : systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu");
+                    const signal = snapshot.signal_public_id || systemText("apps.signal.show.copy_e519d52171", "Brak ID sygnału");
                     const sent = manifest.signal_confirmed && manifest.signal_sent_at;
                     let rows, label;
                     if (scene.id === "signal_confirmation") {
-                        label = "POTWIERDZENIE";
-                        rows = [sent ? "GHOSTSIGNAL WYSŁANY" : "OCZEKIWANIE NA POTWIERDZENIE",
-                            "SYGNAŁ / " + signal, "WYSŁANO UTC / " + (sent || "Brak zapisu"),
-                            "KANAŁ / 2108", "CEL / " + ((manifest.cycle_history || {}).future_2108_timestamp || "Brak daty docelowej")];
+                        label = systemText("apps.signal.show.copy_7bbefd21ed", "POTWIERDZENIE");
+                        rows = [sent ? systemText("apps.signal.show.copy_d154737534", "GHOSTSIGNAL WYSŁANY") : systemText("apps.signal.show.copy_4f04463712", "OCZEKIWANIE NA POTWIERDZENIE"),
+                            systemText("apps.signal.show.copy_742a3b883d", "SYGNAŁ / ") + signal, systemText("apps.signal.show.copy_c12b8a1f9b", "WYSŁANO UTC / ") + (sent || systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")),
+                            systemText("apps.signal.show.copy_95e7541191", "KANAŁ / 2108"), systemText("apps.signal.show.copy_566345d978", "CEL / ") + ((manifest.cycle_history || {}).future_2108_timestamp || systemText("apps.signal.show.copy_6fe20b1157", "Brak daty docelowej"))];
                     } else if (scene.id === "pro_tools") {
                         label = "PRO TOOLS";
-                        rows = ["> TERMINAL / ODCZYT ARCHIWUM", "SYGNAŁ / " + signal,
-                            "WERSJA / " + (snapshot.from_system_version || "—") + " → " + (snapshot.to_system_version || "—"),
-                            "RANKING / " + (manifest.ranking_available ? "DOSTĘPNY" : "Brak zapisu"),
-                            "UCZESTNICY / " + value("players_total"), "NAGRODY / " + value("rewards_total"),
-                            "RSP / " + value("rsp_total"), "> REKONSTRUKCJA WIZUALNA / BOOT W ETAPIE RESTARTU"];
+                        rows = [systemText("apps.signal.show.copy_efbc53c4d8", "> TERMINAL / ODCZYT ARCHIWUM"), systemText("apps.signal.show.copy_742a3b883d", "SYGNAŁ / ") + signal,
+                            systemText("apps.signal.show.copy_5facd79d87", "WERSJA / ") + (snapshot.from_system_version || "—") + " → " + (snapshot.to_system_version || "—"),
+                            "RANKING / " + (manifest.ranking_available ? systemText("apps.signal.show.copy_e3aaff1242", "DOSTĘPNY") : systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")),
+                            systemText("apps.signal.show.copy_e886c1fcd8", "UCZESTNICY / ") + value("players_total"), systemText("apps.signal.show.copy_1921ef5ebf", "NAGRODY / ") + value("rewards_total"),
+                            "RSP / " + value("rsp_total"), systemText("apps.signal.show.copy_1eb2117241", "> REKONSTRUKCJA WIZUALNA / BOOT W ETAPIE RESTARTU")];
                     } else {
-                        label = "PLIKI I DANE";
-                        rows = ["> INDEKS ARCHIWUM / " + signal,
-                            "HISTORIA CZĘŚCI / " + ((manifest.cycle_history || {}).available ? "DOSTĘPNA" : "NIEPEŁNY ZAPIS"),
-                            "CZĘŚCI W KATALOGU / " + ((manifest.catalog || {}).parts || []).length,
-                            "TERYTORIA FINAŁU / " + value("territories_total"),
-                            "PUBLIKACJE W PROJEKCJI / " + (available ? (settlement.publications || []).length : "Brak zapisu"),
-                            "ZAKRES / " + (!available ? "Brak zapisu" : settlement.details_truncated ? "OGRANICZONY WYBÓR DANYCH" : "DOSTĘPNE ARCHIWUM FINAŁU"),
-                            "> KONIEC INDEKSU ARCHIWUM"];
+                        label = systemText("apps.signal.show.copy_c92ce0eff1", "PLIKI I DANE");
+                        rows = [systemText("apps.signal.show.copy_7ba80e87b9", "> INDEKS ARCHIWUM / ") + signal,
+                            systemText("apps.signal.show.copy_032f573ee6", "HISTORIA CZĘŚCI / ") + ((manifest.cycle_history || {}).available ? systemText("apps.signal.show.copy_891e76da93", "DOSTĘPNA") : systemText("apps.signal.show.copy_fec5067c15", "NIEPEŁNY ZAPIS")),
+                            systemText("apps.signal.show.copy_57589b36fb", "CZĘŚCI W KATALOGU / ") + ((manifest.catalog || {}).parts || []).length,
+                            systemText("apps.signal.show.copy_0ea86850cc", "TERYTORIA FINAŁU / ") + value("territories_total"),
+                            systemText("apps.signal.show.copy_32dc5318d2", "PUBLIKACJE W PROJEKCJI / ") + (available ? (settlement.publications || []).length : systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu")),
+                            systemText("apps.signal.show.copy_79c843be08", "ZAKRES / ") + (!available ? systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu") : settlement.details_truncated ? systemText("apps.signal.show.copy_f37f7486b2", "OGRANICZONY WYBÓR DANYCH") : systemText("apps.signal.show.copy_85d37e67b1", "DOSTĘPNE ARCHIWUM FINAŁU")),
+                            systemText("apps.signal.show.copy_212f0bb5b2", "> KONIEC INDEKSU ARCHIWUM")];
                     }
                     state.start = definition.start; state.end = definition.end;
                     state.screenLength = rows.reduce((sum, row) => sum + row.length, 0);
@@ -831,46 +854,46 @@
                     state.title.textContent = label;
                     canvas.setAttribute("data-screen", scene.id);
                     terminal.setAttribute("aria-label", label);
-                    top.children[0].textContent = label; top.children[1].textContent = "ARCHIWUM / ODCZYT";
-                    Array.from(list.children).forEach((node, index) => {node.textContent = ["ODCZYT ZAPISU", "DANE SYGNAŁU", "REKONSTRUKCJA", "ARCHIWUM"][index];});
+                    top.children[0].textContent = label; top.children[1].textContent = systemText("apps.signal.show.copy_7b5c5e22e3", "ARCHIWUM / ODCZYT");
+                    Array.from(list.children).forEach((node, index) => {node.textContent = [systemText("apps.signal.show.copy_fdd4a94224", "ODCZYT ZAPISU"), systemText("apps.signal.show.copy_09668a7b1e", "DANE SYGNAŁU"), systemText("apps.signal.show.copy_d4226840f6", "REKONSTRUKCJA"), systemText("apps.signal.show.copy_73a2ce0c4a", "ARCHIWUM")][index];});
                     if (scene.id !== "signal_confirmation") {
-                        sub.textContent = "ARCHIWUM";
+                        sub.textContent = systemText("apps.signal.show.copy_73a2ce0c4a", "ARCHIWUM");
                         sub.appendChild(element("span", "underscore", "_"));
                     }
                 }
             }
-            bottom.appendChild(element("span", "", "REKONSTRUKCJA / GHOSTSIGNAL"));
+            bottom.appendChild(element("span", "", systemText("apps.signal.show.copy_a8180e7264", "REKONSTRUKCJA / GHOSTSIGNAL")));
             bottom.appendChild(element("span", "archive-video-time", "")); shell.appendChild(bottom);
             center.appendChild(shell);
         }
-        const caption = element("p", "archive-caption", isScreen ? "GHOSTNETWORK / ARCHIWUM SYGNAŁU" : isVideo ? "ODTWORZENIE ARCHIWALNEGO OBRAZU" : "PRZYGOTOWANIE ODCZYTU");
+        const caption = element("p", "archive-caption", isScreen ? systemText("apps.signal.show.copy_c43a10553a", "GHOSTNETWORK / ARCHIWUM SYGNAŁU") : isVideo ? systemText("apps.signal.show.copy_3335cf21ea", "ODTWORZENIE ARCHIWALNEGO OBRAZU") : systemText("apps.signal.show.copy_f27872038f", "PRZYGOTOWANIE ODCZYTU"));
         if (stage._archive) stage._archive.caption = caption;
         center.appendChild(caption); canvas.appendChild(center);
         const data = element("aside", "archive-data"), params = element("dl", "");
-        data.appendChild(element("p", "section-label", isScreen ? "02 / DANE SYGNAŁU" : "02 / ZAPIS OBRAZU"));
+        data.appendChild(element("p", "section-label", isScreen ? systemText("apps.signal.show.copy_37b197c445", "02 / DANE SYGNAŁU") : systemText("apps.signal.show.copy_b04d259ce6", "02 / ZAPIS OBRAZU")));
         const video = (manifest.assets || []).find(a => a.id === "ghostsignal_transmission_video");
-        const duration = video && Number.isFinite(video.duration_seconds) ? String(video.duration_seconds).replace(".", ",") + " s" : "Brak zapisu";
-        (isScreen ? [["TRYB","ARCHIWUM"],["SYGNAŁ",snapshot.signal_public_id || "—"],["KANAŁ","2108"]]
-            : [["TRYB","ARCHIWUM"],["FORMAT","720 × 480"],["DŁUGOŚĆ",duration]]).forEach(row => {
+        const duration = video && Number.isFinite(video.duration_seconds) ? String(video.duration_seconds).replace(".", ",") + " s" : systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu");
+        (isScreen ? [[systemText("apps.signal.show.copy_7c6dead13a", "TRYB"),systemText("apps.signal.show.copy_73a2ce0c4a", "ARCHIWUM")],[systemText("apps.signal.show.copy_98c8641b8f", "SYGNAŁ"),snapshot.signal_public_id || "—"],[systemText("apps.signal.show.copy_257c69c75f", "KANAŁ"),"2108"]]
+            : [[systemText("apps.signal.show.copy_7c6dead13a", "TRYB"),systemText("apps.signal.show.copy_73a2ce0c4a", "ARCHIWUM")],[systemText("apps.signal.show.copy_795349a1ba", "FORMAT"),"720 × 480"],[systemText("apps.signal.show.copy_a8e5d51e74", "DŁUGOŚĆ"),duration]]).forEach(row => {
             params.appendChild(element("dt", "", row[0])); params.appendChild(element("dd", "", row[1]));
         });
         data.appendChild(params);
         const wave = element("div", "archive-wave"); wave.setAttribute("aria-hidden", "true"); data.appendChild(wave);
-        data.appendChild(element("p", "archive-note", "Historia transmisji. Odtworzenie zapisu.")); canvas.appendChild(data);
+        data.appendChild(element("p", "archive-note", systemText("apps.signal.show.copy_25be6078ae", "Historia transmisji. Odtworzenie zapisu."))); canvas.appendChild(data);
         stage.appendChild(canvas);
     }
 
     function renderMachineHero(doc, stage, manifest, layout, heroIndex, element, addImage) {
         const machine = layout.machines[heroIndex];
-        if (!machine) { stage.appendChild(element("p", "ghost-show-asset-fallback", "Brak zapisu maszyny.")); return; }
+        if (!machine) { stage.appendChild(element("p", "ghost-show-asset-fallback", systemText("apps.signal.show.copy_d7d153751b", "Brak zapisu maszyny."))); return; }
         const number = "0" + (heroIndex + 1);
         const labels = {
-            virex_oracle: ["PREDYKCJA I TRASA", "Predykcja i wyznaczanie trasy sygnału."],
-            echo_libertas: ["PRZEKAZ I TRANSMISJA", "Składanie, wzmacnianie i transmisja przekazu."],
-            phantom_veil: ["UKRYCIE I MASKOWANIE", "Ukrywanie źródła, celu i trasy sygnału."],
-            sentinel_aegis: ["INTEGRALNOŚĆ I OCHRONA", "Ochrona integralności sieci i izolacja zagrożeń."]
+            virex_oracle: [systemText("apps.signal.show.copy_4f0f96d3d5", "PREDYKCJA I TRASA"), systemText("apps.signal.show.copy_c8b4d29479", "Predykcja i wyznaczanie trasy sygnału.")],
+            echo_libertas: [systemText("apps.signal.show.copy_f58b362865", "PRZEKAZ I TRANSMISJA"), systemText("apps.signal.show.copy_55c5b11f62", "Składanie, wzmacnianie i transmisja przekazu.")],
+            phantom_veil: [systemText("apps.signal.show.copy_8c09689f66", "UKRYCIE I MASKOWANIE"), systemText("apps.signal.show.copy_3f44ca00ad", "Ukrywanie źródła, celu i trasy sygnału.")],
+            sentinel_aegis: [systemText("apps.signal.show.copy_a268c8fc35", "INTEGRALNOŚĆ I OCHRONA"), systemText("apps.signal.show.copy_301a383329", "Ochrona integralności sieci i izolacja zagrożeń.")]
         };
-        const label = labels[machine.code] || ["FUNKCJA MASZYNY", machine.purpose || "Brak zapisu."];
+        const label = labels[machine.code] || [systemText("apps.signal.show.copy_4c866cc83f", "FUNKCJA MASZYNY"), machine.purpose || systemText("apps.signal.show.copy_2234f840b1", "Brak zapisu.")];
         const names = (machine.name || machine.code).split(" ");
         const canvas = element("section", "ghost-show-parts hero-machine");
         canvas.setAttribute("data-machine", machine.code);
@@ -887,7 +910,7 @@
         }
         const header = element("header", "");
         header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
-        header.appendChild(element("span", "", number + " / CZTERY MASZYNY")); canvas.appendChild(header);
+        header.appendChild(element("span", "", number + systemText("apps.signal.show.copy_6d94100b9f", " / CZTERY MASZYNY"))); canvas.appendChild(header);
         const heading = element("section", "hero-heading");
         heading.appendChild(element("p", "eyebrow", names[0] + " / " + label[0]));
         const title = element("h1", "", names[0]), line = element("span", "", names.slice(1).join(" "));
@@ -903,18 +926,18 @@
         } else canvas.appendChild(element("p", "ghost-show-asset-fallback", machine.name));
         const purpose = element("section", "hero-purpose");
         purpose.appendChild(element("p", "hero-index", number + " / " + machine.name));
-        purpose.appendChild(element("p", "", machine.purpose || "Brak opisu funkcji w zapisie."));
+        purpose.appendChild(element("p", "", machine.purpose || systemText("apps.signal.show.copy_e4788f6c84", "Brak opisu funkcji w zapisie.")));
         const details = element("div", "hero-desktop-details");
-        [["SPECJALIZACJA", label[1]],
-            ["RYZYKO SKRAJNE", machine.risk_extreme || "Brak opisu ryzyka w zapisie."]].forEach(row => {
+        [[systemText("apps.signal.show.copy_76c539b034", "SPECJALIZACJA"), label[1]],
+            [systemText("apps.signal.show.copy_49574fe249", "RYZYKO SKRAJNE"), machine.risk_extreme || systemText("apps.signal.show.copy_57db932e29", "Brak opisu ryzyka w zapisie.")]].forEach(row => {
             const p = element("p", ""); p.appendChild(element("b", "", row[0]));
             p.appendChild(element("span", "", row[1])); details.appendChild(p);
         });
         purpose.appendChild(details);
-        purpose.appendChild(element("p", "hero-source", "FUNKCJA KATALOGOWA / REKONSTRUKCJA")); canvas.appendChild(purpose);
+        purpose.appendChild(element("p", "hero-source", systemText("apps.signal.show.copy_61664cbc9b", "FUNKCJA KATALOGOWA / REKONSTRUKCJA"))); canvas.appendChild(purpose);
         const components = element("section", "hero-components"), list = element("ol", "");
-        components.setAttribute("aria-label", "Części " + machine.name);
-        components.appendChild(element("p", "hero-components-title", "05 / KOMPONENTY"));
+        components.setAttribute("aria-label", systemText("apps.signal.show.copy_a0c4b66c4b", "Części ") + machine.name);
+        components.appendChild(element("p", "hero-components-title", systemText("apps.signal.show.copy_89939fb8f2", "05 / KOMPONENTY")));
         (machine.part_codes || []).slice(0, 5).forEach(code => {
             const node = layout.nodes.find(n => n.part.part_code === code);
             if (!node) return;
@@ -950,21 +973,21 @@
         }
         const header = element("header", "");
         header.appendChild(element("span", "", "CHAOS / GHOST NETWORK"));
-        header.appendChild(element("span", "", "CZTERY PLANY / JEDNA SIEĆ"));
+        header.appendChild(element("span", "", systemText("apps.signal.show.copy_53d8dbf56a", "CZTERY PLANY / JEDNA SIEĆ")));
         canvas.appendChild(header);
         const heading = element("section", "heading");
-        heading.appendChild(element("p", "eyebrow", focus ? "GHOST NETWORK / " + (groupIndex<0 ? "CZTERY MASZYNY" : "MASZYNA 0"+(groupIndex+1)) : network ? "GHOST NETWORK / TOPOLOGIA" : scene.id === "history_logs" ? "HISTORIA CZĘŚCI / UTC"
-            : scene.id === "part_states" ? "STANY CZĘŚCI / ZAPIS CYKLU" : "GHOSTSIGNAL / HISTORIA CZĘŚCI"));
+        heading.appendChild(element("p", "eyebrow", focus ? "GHOST NETWORK / " + (groupIndex<0 ? systemText("apps.signal.show.copy_76a864722c", "CZTERY MASZYNY") : systemText("apps.signal.show.copy_9da1e442cb", "MASZYNA 0")+(groupIndex+1)) : network ? systemText("apps.signal.show.copy_0909c7dccc", "GHOST NETWORK / TOPOLOGIA") : scene.id === "history_logs" ? systemText("apps.signal.show.copy_0eeada1bf2", "HISTORIA CZĘŚCI / UTC")
+            : scene.id === "part_states" ? systemText("apps.signal.show.copy_6e75a20da2", "STANY CZĘŚCI / ZAPIS CYKLU") : systemText("apps.signal.show.copy_715e7bfd3b", "GHOSTSIGNAL / HISTORIA CZĘŚCI")));
         const title = element("h1", "");
-        title.appendChild(element("span", network ? "word" : "twenty", focus && groupIndex>=0 ? "0"+(groupIndex+1) : network ? "JEDNA" : String(layout.nodes.length)));
-        const word = element("span", network ? "twenty" : "word", focus && groupIndex>=0 ? machine.name || "BRAK ZAPISU" : network ? "SIEĆ" : "CZĘŚCI");
+        title.appendChild(element("span", network ? "word" : "twenty", focus && groupIndex>=0 ? "0"+(groupIndex+1) : network ? systemText("apps.signal.show.copy_50499ce51c", "JEDNA") : String(layout.nodes.length)));
+        const word = element("span", network ? "twenty" : "word", focus && groupIndex>=0 ? machine.name || systemText("apps.signal.show.copy_298e6d0c2b", "BRAK ZAPISU") : network ? systemText("apps.signal.show.copy_b33b7a9c29", "SIEĆ") : systemText("apps.signal.show.copy_e839557511", "CZĘŚCI"));
         if (focus && groupIndex>=0 && machine.name) {
             word.textContent="";
             machine.name.split(" ").forEach(name=>word.appendChild(element("span","machine-name-line",name)));
         }
         word.appendChild(element("span", "underscore", "_")); title.appendChild(word);
         heading.appendChild(title);
-        heading.appendChild(element("p", "deck", focus && groupIndex>=0 ? "PIĘĆ CZĘŚCI. JEDNA MASZYNA." : network ? "CZTERY MASZYNY. " + layout.nodes.length + " WĘZŁÓW." : "CZTERY MASZYNY. JEDNA SIEĆ."));
+        heading.appendChild(element("p", "deck", focus && groupIndex>=0 ? systemText("apps.signal.show.copy_e7919216e5", "PIĘĆ CZĘŚCI. JEDNA MASZYNA.") : network ? systemText("apps.signal.show.copy_9733b06f02", "CZTERY MASZYNY. ") + layout.nodes.length + systemText("apps.signal.show.copy_81da871fcf", " WĘZŁÓW.") : systemText("apps.signal.show.copy_776baa4472", "CZTERY MASZYNY. JEDNA SIEĆ.")));
         const legend = element("div", "legend");
         layout.machines.forEach((machine, index) => {
             if (focus && groupIndex>=0 && index!==groupIndex) return;
@@ -972,9 +995,9 @@
             label.setAttribute("data-clan", machine.clan_code); legend.appendChild(label);
         });
         heading.appendChild(legend);
-        if (focus && groupIndex>=0) heading.appendChild(element("p","focus-note","Pozostałe części pozostają w sieci."));
+        if (focus && groupIndex>=0) heading.appendChild(element("p","focus-note",systemText("apps.signal.show.copy_aa7ea375bb", "Pozostałe części pozostają w sieci.")));
         const history = manifest.cycle_history || {};
-        if (!history.available) heading.appendChild(element("p", "parts-history-note", "Historia niepełna — pokazujemy dostępny zapis."));
+        if (!history.available) heading.appendChild(element("p", "parts-history-note", systemText("apps.signal.show.copy_bf77255222", "Historia niepełna — pokazujemy dostępny zapis.")));
         if (recordsView) {
             const records = element("ol", "parts-records");
             const codes = (layout.machines[pageIndex] || {}).part_codes || [];
@@ -993,13 +1016,13 @@
                 row.appendChild(element("span", "", "Aktywacja: " + timestamp(node.history.activated_at)));
                 records.appendChild(row);
             });
-            if (!rows.length) records.appendChild(element("li", "", "Brak części w zapisie tej grupy."));
+            if (!rows.length) records.appendChild(element("li", "", systemText("apps.signal.show.copy_7786c7f994", "Brak części w zapisie tej grupy.")));
             heading.appendChild(records);
-            heading.appendChild(element("p", "parts-page", (layout.machines[pageIndex] || {}).name || "Brak grupy"));
+            heading.appendChild(element("p", "parts-page", (layout.machines[pageIndex] || {}).name || systemText("apps.signal.show.copy_68aea119b8", "Brak grupy")));
         }
         canvas.appendChild(heading);
         const board = element("ol", "parts-board");
-        board.setAttribute("aria-label", "Części w czterech planach");
+        board.setAttribute("aria-label", systemText("apps.signal.show.copy_f28e9a0947", "Części w czterech planach"));
         // Connections carry the same addresses until the network template (.3).
         // Edges come exclusively from the frozen ring, never a guessed catalog order.
         if (scene.id === "connections" || network || focus) {
@@ -1045,7 +1068,7 @@
                 });
                 board.appendChild(svg);
             });
-            if (!layout.edges.length) heading.appendChild(element("p", "parts-history-note", "Brak zapisu połączeń."));
+            if (!layout.edges.length) heading.appendChild(element("p", "parts-history-note", systemText("apps.signal.show.copy_ba779db2e6", "Brak zapisu połączeń.")));
         }
         stage._partsRows = layout.nodes.map((node, index) => {
             const part = node.part, pose = node.pose || {depth: 4, values: [50,50,50,50,1,0]};
@@ -1077,11 +1100,11 @@
             stage._network.square=square;stage._network.field=field;
             const center = element("div", "network-center");
             center.appendChild(element("b", "", String(layout.nodes.length)));
-            center.appendChild(element("span", "", "WĘZŁÓW"));
-            center.appendChild(element("small", "", !layout.edges.length ? "BRAK TOPOLOGII"
-                : scene.id === "network_expand" ? "WSPÓLNA SIEĆ"
-                : scene.id === "network_tension" ? "SYNCHRONIZACJA"
-                : scene.id === "network_ready" ? "GHOST NETWORK / ZAPIS" : "GHOST NETWORK"));
+            center.appendChild(element("span", "", systemText("apps.signal.show.copy_002624e12b", "WĘZŁÓW")));
+            center.appendChild(element("small", "", !layout.edges.length ? systemText("apps.signal.show.copy_6ee25b30c5", "BRAK TOPOLOGII")
+                : scene.id === "network_expand" ? systemText("apps.signal.show.copy_97ce471c54", "WSPÓLNA SIEĆ")
+                : scene.id === "network_tension" ? systemText("apps.signal.show.copy_7cc3ccad0e", "SYNCHRONIZACJA")
+                : scene.id === "network_ready" ? systemText("apps.signal.show.copy_d11edc3699", "GHOST NETWORK / ZAPIS") : "GHOST NETWORK"));
             square.appendChild(center); square.appendChild(board); field.appendChild(square);
         }
         canvas.appendChild(field); stage.appendChild(canvas);
@@ -1092,8 +1115,8 @@
                 const clan = (catalog.clans || []).find(c => c.code === part.clan_code) || {};
                 const machine = layout.machines.find(m => m.code === part.machine_code) || {};
                 const power = (catalog.abilities || []).find(a => a.ability_code === part.ability_code) || {};
-                details[part.part_code] = {code:part.part_code,name:part.name,clan:clan.name || part.clan_code || "Brak zapisu",
-                    machine:machine.name || "Brak zapisu",ability_code:part.ability_code,power:power.name || "Brak zapisu",description:power.description || "Opis niedostępny w tym zapisie."};
+                details[part.part_code] = {code:part.part_code,name:part.name,clan:clan.name || part.clan_code || systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu"),
+                    machine:machine.name || systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu"),ability_code:part.ability_code,power:power.name || systemText("apps.signal.show.copy_b1891c3fdf", "Brak zapisu"),description:power.description || systemText("apps.signal.show.copy_7caa225534", "Opis niedostępny w tym zapisie.")};
             });
             stage._networkDetails = global.GhostSignalNetworkDetails.mount({document:doc,window:global,field,
                 host:doc.getElementById("ghost-signal-show"),square:network,catalog:details,parts:stage._partsRows.map(row => row.card)});
@@ -1110,8 +1133,9 @@
             root.classList.remove("has-montage");
             return;
         }
-        const manifest = snapshot.show_manifest;
-        const isInterface = !!INTERFACE_SCENES[scene.id];
+        const manifest = localizedManifest(snapshot.show_manifest);
+        snapshot = {...snapshot, show_manifest: manifest};
+        const isInterface = !!interfaceScenes()[scene.id];
         const isHero = /^machine_hero_[1-4]$/.test(scene.id);
         const isWorld = ["aftershock","world_before","territory_outcomes","territory_reduction","conflict_results","world_final"].includes(scene.id);
         const isArchiveTerminal = ["transmission_replay", "signal_point", "terminal_2108"].includes(scene.id);
@@ -1151,7 +1175,9 @@
             const count=Math.max(1,Math.min(40,(settlement.territories||[]).length));
             pageIndex=Math.max(0,Math.min(count-1,Math.floor((scene.elapsed-start)/Math.max(1,end-start)*count)));
         }
+        const locale = global.GhostLocale?.getLocale?.() || 'pl';
         const key = [snapshot.signal_public_id, isArchiveTerminal ? "archive_terminal" : scene.id, !!manifest.signal_confirmed,
+            locale,
             !!history.settlement,
             pageIndex,
             isPublications?JSON.stringify(settlement.publications||[]):""].join(":");
@@ -1180,7 +1206,33 @@
             }
         };
         if (stage._showKey === key) { syncVideo(stage, scene); syncGlitch(); syncParts(stage, scene); syncArchiveFlash(stage, scene); animateNetworkEntrance(stage, snapshot, scene); return; }
+        // Moving even the same <video> through a detached subtree can reset its
+        // playback in Chromium. Diff only surrounding text; never move media.
+        if (scene.id === 'transmission_video' && stage._video && stage._showLocale !== locale) {
+            const translated = doc.createElement('section');
+            translated._textOnly = true;
+            const make = (tag, cls, text) => {
+                const node = doc.createElement(tag); node.className = cls;
+                if (text !== undefined) node.textContent = text;
+                return node;
+            };
+            renderArchiveRecord(doc, root, translated, snapshot, scene, make);
+            const updateText = (current, next) => {
+                if (!current || !next || String(current.className || '').split(' ').includes('archive-video-field')) return;
+                if (current.nodeType === 3 && next.nodeType === 3) { current.data = next.data; return; }
+                if (!current.nodeType && next.textContent !== undefined) current.textContent = next.textContent;
+                const oldNodes = Array.from(current.childNodes || current.children || []);
+                const newNodes = Array.from(next.childNodes || next.children || []);
+                if (oldNodes.length !== newNodes.length) return;
+                oldNodes.forEach((node,index) => updateText(node,newNodes[index]));
+            };
+            updateText(stage, translated);
+            stage._showLocale = locale;
+            stage._showKey = key;
+            return;
+        }
         clearMontage(stage);
+        stage._showLocale = locale;
         const element = (tag, className, text) => {
             const node = doc.createElement(tag); node.className = className;
             if (text !== undefined) node.textContent = text;
@@ -1214,41 +1266,41 @@
         } else if (scene.elapsed >= 480) {
             const data = history.settlement;
             const panel = element("div", "ghost-show-settlement");
-            panel.appendChild(element("p", "ghost-show-kicker", "ARCHIWUM FINAŁU / REKONSTRUKCJA"));
+            panel.appendChild(element("p", "ghost-show-kicker", systemText("apps.signal.show.copy_2a8fee3d77", "ARCHIWUM FINAŁU / REKONSTRUKCJA")));
             const line = text => panel.appendChild(element("p", "", text));
-            if (data && data.details_truncated) line("Ograniczony zakres szczegółów — dostępne podsumowanie finału.");
+            if (data && data.details_truncated) line(systemText("apps.signal.show.copy_2a73635a6c", "Ograniczony zakres szczegółów — dostępne podsumowanie finału."));
             if (!data || !data.available) {
-                line("Oczekiwanie na zapis wyników finału.");
+                line(systemText("apps.signal.show.copy_07cd77643e", "Oczekiwanie na zapis wyników finału."));
             } else if (scene.elapsed >= 840) {
                 if (scene.id === "cycle_statistics") {
                     line("Uczestnicy: " + data.players_total + " / nagrody: " + data.rewards_total);
-                    line("RSP finału: " + data.rsp_total + " / terytoria: " + data.territories_total);
+                    line(systemText("apps.signal.show.copy_b7dd16c73e", "RSP finału: ") + data.rsp_total + " / terytoria: " + data.territories_total);
                 } else {
-                    line("GHOSTSYSTEM / OCZEKIWANIE NA RESTART");
-                    line("Przejście nastąpi po potwierdzeniu nowego cyklu.");
+                    line(systemText("apps.signal.show.copy_54872869e3", "GHOSTSYSTEM / OCZEKIWANIE NA RESTART"));
+                    line(systemText("apps.signal.show.copy_6c305e607b", "Przejście nastąpi po potwierdzeniu nowego cyklu."));
                 }
             } else {
                 const layers = {
-                    system_layers: "CHAOS / warstwy systemu",
-                    googleplex: "GOOGLEPLEX / zapis publikacji",
+                    system_layers: systemText("apps.signal.show.copy_dcb76e6760", "CHAOS / warstwy systemu"),
+                    googleplex: systemText("apps.signal.show.copy_900e04e48e", "GOOGLEPLEX / zapis publikacji"),
                     pro_tools: "PRO TOOLS / TERMINAL",
-                    file_system: "PLIKI / ARCHIWUM SYGNAŁU",
+                    file_system: systemText("apps.signal.show.copy_81646c40b9", "PLIKI / ARCHIWUM SYGNAŁU"),
                     blacknet_history: "BLACKNET / HISTORIA",
                     desktop_assembly: "PULPIT / REKONSTRUKCJA",
-                    system_ready: "WARSTWY PREZENTACJI GOTOWE"
+                    system_ready: systemText("apps.signal.show.copy_6a7383ccf4", "WARSTWY PREZENTACJI GOTOWE")
                 };
                 panel.appendChild(element("h2", "", layers[scene.id] || scene.label));
-                line("Rekonstrukcja wizualna — rzeczywisty boot nastąpi według procedury restartu.");
+                line(systemText("apps.signal.show.copy_c14ffb662c", "Rekonstrukcja wizualna — rzeczywisty boot nastąpi według procedury restartu."));
 
                     line("GhostSignal / " + snapshot.signal_public_id);
-                    line("Zapisano: " + data.players_total + " uczestników / " + data.rewards_total + " nagród finału.");
+                    line("Zapisano: " + data.players_total + systemText("apps.signal.show.copy_2babd8cc05", " uczestników / ") + data.rewards_total + systemText("apps.signal.show.copy_0c7a8186e9", " nagród finału."));
             }
             stage.appendChild(panel);
         } else if (scene.elapsed >= 420) {
             const frame = element("div", "ghost-show-transmission");
-            frame.appendChild(element("p", "ghost-show-kicker", "ARCHIWALNY ZAPIS TRANSMISJI"));
+            frame.appendChild(element("p", "ghost-show-kicker", systemText("apps.signal.show.copy_9aeb95c96c", "ARCHIWALNY ZAPIS TRANSMISJI")));
             if (scene.id === "signal_confirmation") {
-                frame.appendChild(element("h2", "", "GHOSTSIGNAL WYSŁANY"));
+                frame.appendChild(element("h2", "", systemText("apps.signal.show.copy_d154737534", "GHOSTSIGNAL WYSŁANY")));
                 frame.appendChild(element("p", "", manifest.signal_sent_at || ""));
                 if (history.future_2108_timestamp) frame.appendChild(element("p", "ghost-show-future", history.future_2108_timestamp));
             } else { frame.appendChild(element("div", "ghost-show-signal-point", "")); }
@@ -1607,6 +1659,7 @@
             pollTimer = global.setInterval(() => refresh("poll"), 5000);
             if (doc && doc.addEventListener) {
                 doc.addEventListener("visibilitychange", wake);
+                doc.addEventListener('ghost:locale-changed', render);
                 ["keydown", "keypress", "keyup", "click", "pointerdown", "contextmenu", "submit"].forEach(
                     type => doc.addEventListener(type, blockInput, true));
             }
@@ -1626,6 +1679,7 @@
             pollTimer = timer = 0;
             if (doc && doc.removeEventListener) {
                 doc.removeEventListener("visibilitychange", wake);
+                doc.removeEventListener('ghost:locale-changed', render);
                 ["keydown", "keypress", "keyup", "click", "pointerdown", "contextmenu", "submit"].forEach(
                     type => doc.removeEventListener(type, blockInput, true));
             }

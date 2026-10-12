@@ -1,0 +1,71 @@
+# BlackNet Signals — English edition
+
+Edition: 155.1. Source: `/tips-tricks/blacknet.ptk`. The Polish original remains available.
+
+BlackNet is the signal layer of the CHAOS world. It is neither a shop, a second Ghost Exchange nor a separate messenger. It gathers traces from existing game systems and presents them as short intercepted signals.
+
+## Reading a signal
+
+- **Channel:** where the signal comes from, such as operational activity, Ghost Market Watch, territorial conflict or BlackNet Audio.
+- **Title:** the shortest description of the event, for example ACTIVITY / PERSISTENT SNIFFER.
+- **Number:** the signal's value: an operation count, HC turnover, a price, a track number or activity strength.
+- **Stat:** additional context, such as a target, market sector, file count or active operation count.
+- **Timer:** how long the signal remains valid. An expired signal should not launch an action.
+- **CTA:** the action at the bottom of the signal. This is where the signal can trigger an action in the game.
+
+## Map signals
+
+Not every map signal identifies a point on the map.
+
+### Open the map
+
+Analytical signals open the map without centering it:
+
+- `operations_active_count`
+- `operations_top_type`
+- `contested_area_alert`
+
+For example, ACTIVITY / PERSISTENT SNIFFER means BlackNet detected a dominant operation type. `persistent_sniffer` is an activity type, not a target. The signal should open the map and Operation Center without moving the view to a particular point.
+
+### Show a target
+
+Point signals contain a target or coordinates:
+
+- `operation_hotspot_activity`
+- `target_operation_burst`
+- `conflict_target_alert`
+
+They can center the map on a particular shop, POI or conflict target.
+
+## Ghost Exchange
+
+Market signals lead to the existing Ghost Exchange:
+
+- `market_sales_7d` opens the general market view.
+- `market_top_sector_7d` opens a sector, such as GPS, Networks or Credentials.
+
+BlackNet does not sell files itself. It shows where the market is active.
+
+## Googleplex
+
+A Googleplex signal opens the existing catalog. A general signal uses `/all` to show the full catalog. A featured product is a starting point; purchasing still happens in Googleplex.
+
+## Radio
+
+Audio signals lead to Ghost Hack Radio. They may identify a channel, a particular MP3 file or a track number. The radio should play the indicated BlackNet track, rather than always starting with the first playlist item.
+
+## Cyberner
+
+System signals lead to Cyberner, most often its `WORLD` channel. BlackNet does not create a separate inbox. The full conversation remains in Cyberner.
+
+## Teleport
+
+Teleporting requires a decision. If the signal has real coordinates, the system should ask for confirmation: **OK / CANCEL**. After confirmation, the player or motorcycle may be moved near the signal. Without confirmation, BlackNet should not change the position.
+
+## Out of Signal
+
+When no real data is available, BlackNet shows **OUT OF SIGNAL**, a waiting state rather than fabricated activity. Start an operation, sell data, enter a conflict, receive a system message or turn on the radio to create activity in the game.
+
+## The main rule
+
+BlackNet is not the source of truth. The map, active operations, conflicts, Ghost Exchange, Googleplex, Ghost Hack Radio, Cyberner and system messages remain authoritative. BlackNet only intercepts and assembles signals from those systems.

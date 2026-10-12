@@ -486,7 +486,10 @@ def _ghostnetwork_voice_integrity_errors(title, body, model_input):
         (model_input or {}).get("semantic_facts") or [], ensure_ascii=False,
     )
     visible_tokens = set(_normalized_narrative_text(visible).split())
-    if _normalized_narrative_text(title) == "przechwyt":
+    locale = (model_input or {}).get('output_locale') or 'pl'
+    from .narrative_locale import language_registry
+    dangling_words = set(language_registry()[locale]['dangling_words']) if locale != 'pl' else _DANGLING_POLISH_WORDS
+    if _normalized_narrative_text(title) in {"przechwyt", "intercept"}:
         errors.append("voice_title_missing_subject")
     for field_name, value in (("title", title), ("body", body)):
         normalized = _normalized_narrative_text(value)
@@ -494,7 +497,7 @@ def _ghostnetwork_voice_integrity_errors(title, body, model_input):
         if not tokens:
             continue
         trailing = tokens[-1]
-        if trailing in _DANGLING_POLISH_WORDS:
+        if trailing in dangling_words:
             errors.append(f"voice_{field_name}_trailing_fragment")
             continue
         if (
@@ -503,7 +506,7 @@ def _ghostnetwork_voice_integrity_errors(title, body, model_input):
             and any(token.startswith(trailing) and token != trailing for token in visible_tokens)
         ):
             errors.append(f"voice_{field_name}_trailing_fragment")
-    if isinstance(body, str) and _ORPHANED_POLISH_SUFFIX_RE.search(body):
+    if locale == 'pl' and isinstance(body, str) and _ORPHANED_POLISH_SUFFIX_RE.search(body):
         errors.append("voice_body_leading_fragment")
     return errors
 
@@ -810,6 +813,8 @@ def assign_ollama_task_policy(task):
 
 def build_ollama_task_package(task, policy=None):
     task = task if isinstance(task, dict) else {}
+    from .narrative_locale import task_language, english_layers
+    output_locale, language_contract = task_language(task)
     policy = policy or resolve_ollama_task_policy(
         task.get("source_scope"),
         task.get("task_variant"),
@@ -1016,6 +1021,8 @@ def build_ollama_task_package(task, policy=None):
         allowed_asset_refs = googleplex_allowed_asset_refs(source_facts)
         model_input["allowed_asset_refs"] = list(allowed_asset_refs)
 
+    if language_contract:
+        model_input['output_locale'] = output_locale
     mandatory_bytes = len(_encoded_package(model_input).encode("utf-8"))
     if mandatory_bytes > MAX_TASK_PACKAGE_BYTES:
         raise ValueError("ollama_task_mandatory_skeleton_too_large")
@@ -1056,7 +1063,7 @@ def build_ollama_task_package(task, policy=None):
     input_bytes = len(encoded.encode("utf-8"))
     if input_bytes > MAX_TASK_PACKAGE_BYTES:
         raise ValueError("ollama_task_package_too_large")
-    system_prompt, domain_prompt = load_prompt_layers(policy)
+    system_prompt, domain_prompt = english_layers(policy, output_locale) if output_locale != 'pl' else load_prompt_layers(policy)
     voice_contract = {}
     active_ghost_prompt = (
         policy.source_scope == "ghostnetwork"
@@ -1076,6 +1083,7 @@ def build_ollama_task_package(task, policy=None):
                 source_facts, str(task.get("audience_scope") or "").strip()
             ))
             voice_contract["forbidden_relation_phrases"] = (
+                "belongs to", "owned by", "owner is",
                 "należy do", "nalezy do", "należący do", "należąca do",
                 "należące do", "nalezacy do", "nalezaca do", "nalezace do",
                 "jest własnością", "jest wlasnoscia", "właścicielem jest",
@@ -1106,12 +1114,15 @@ def build_ollama_task_package(task, policy=None):
         if detail_values:
             voice_contract["detail_values"] = detail_values
     if active_ghost_prompt and policy.target_medium == "blacknet":
+        from .narrative_locale import language_registry
         voice_contract.update({
-            "title_prefix": "PRZECHWYT // ",
+            "title_prefix": language_registry()[output_locale]['blacknet_title_prefix'] if output_locale != 'pl' else "PRZECHWYT // ",
             "body_prefix": "...",
         })
     return {
         "policy": policy,
+        "language_contract": language_contract,
+        "output_locale": output_locale,
         "messages": [
             {"role": "system", "content": system_prompt + "\n\n" + domain_prompt},
             {"role": "user", "content": encoded},
@@ -1124,7 +1135,7 @@ def build_ollama_task_package(task, policy=None):
         "fact_ref_map": copy.deepcopy(fact_ref_map),
         "canonical_fact_refs": frozenset(fact_refs),
         "cta_map": cta_map,
-        "request_hash": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+        "request_hash": hashlib.sha256((encoded + ('\n' + language_contract['locale_prompt_version'] if language_contract else '')).encode("utf-8")).hexdigest(),
         "input_bytes": input_bytes,
         "estimated_input_tokens": int(math.ceil(len(encoded) / ESTIMATED_TOKEN_CHARS)),
         "fact_count": len(source_facts),

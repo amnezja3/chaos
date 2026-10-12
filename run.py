@@ -127,7 +127,14 @@ app = Flask(__name__)
 @app.context_processor
 def ghost_locale_template_context():
     # Shared static catalogs plus the small canonical identity projection.
-    return {"ghost_i18n_bootstrap": {
+    return {"ui_locale": request_ui_locale(),
+        "admin_t": lambda key, **params: locale_translator().t('apps.admin.' + key, params, request_ui_locale()),
+        "admin_i18n_config": lambda: {
+            "manifest": locale_manifest(), "locale": request_ui_locale(),
+            "catalogs": {tag: {**{k: v for k, v in catalog.items() if k != 'messages'},
+                "messages": {k: v for k, v in catalog['messages'].items() if k.startswith('apps.admin.')}}
+                for tag, catalog in locale_translator().catalogs.items() if tag in {'pl', request_ui_locale()}},
+        }, "ghost_i18n_bootstrap": {
         "manifest": locale_manifest(),
         "fallback": locale_translator().catalogs["pl"],
         "locale": request_ui_locale(),
@@ -521,6 +528,8 @@ def mail_delta_payload(username, scope=None, peer_name=None, message=None, reaso
             "preview": message.get("body") or message.get("preview") or message.get("subject") or "",
             "created_at": message.get("created_at"),
         }
+        if message.get('system_copy'):
+            payload['thread']['system_copy'] = message['system_copy']
     return payload
 
 
@@ -2863,10 +2872,11 @@ def blacknet_signal_from_publication(record):
         importance = 1
     return {
         "id": str(record.get("medium_record_id") or ""),
+        "output_locale": record.get("output_locale") or None,
         "source": "ollama_enriched",
         "signal_type": presentation_family,
         "fact_id": (record.get("fact_refs") or [""])[0] if record.get("fact_refs") else "",
-        "channel": "BLACKNET // OLLAMA ENRICHED",
+        "channel": "BLACKNET // SIGNAL",
         "title": str(record.get("title") or "WORLD NARRATIVE")[:72],
         "label": str(record.get("truth_class") or "canonical")[:32].upper(),
         "value": "AI 2108",
@@ -9480,17 +9490,33 @@ def detention_capabilities(username):
 
 @app.errorhandler(DetentionDenied)
 def detention_capability_error(exc):
-    messages = {
-        'detention_world_blocked': 'World jest niedostępny na tym stopniu aresztu.',
-        'detention_world_read_only': 'W areszcie możesz tylko czytać World.',
-        'private_message_allowance_exhausted': 'Wykorzystano jedną wiadomość prywatną na ten wyrok. Nadal możesz czytać.',
-        'detention_use_private_message': 'Podczas aresztu skorzystaj z jednej wiadomości prywatnej w Cybernerze.',
-        'detention_app_blocked': 'Ten stopień aresztu pozostawia Web Dragona, radio i prywatną komunikację.',
-        'detention_action_blocked': 'Areszt blokuje skanowanie, oznaczanie, użycie celu i supermoce.',
-    }
-    message = messages.get(exc.reason, 'Akcja niedostępna podczas aresztu.')
+    reasons = {'detention_world_blocked', 'detention_world_read_only',
+        'private_message_allowance_exhausted', 'detention_use_private_message',
+        'detention_app_blocked', 'detention_action_blocked'}
+    key = 'apps.detention.denied.' + (exc.reason if exc.reason in reasons else 'unavailable')
+    message = locale_translator().t(key, locale=readonly_ui_locale())
     return jsonify({'ok': False, 'success': False, 'error': message, 'message': message,
+                    'message_i18n': ui_message(key),
                     'reason': exc.reason, 'detention': exc.state}), 403
+
+
+def readonly_ui_locale():
+    """Presentation must not open a second guarded application transaction."""
+    if hasattr(g, 'ghost_ui_locale'):
+        return g.ghost_ui_locale
+    locale = session.get('recovery_locale', 'pl')
+    if session.get('user'):
+        import sqlite3
+        from contextlib import closing
+        from pathlib import Path
+        with closing(sqlite3.connect(Path(identity_projection_store.db_path).resolve().as_uri() + '?mode=ro', uri=True)) as conn:
+            row = conn.execute("""SELECT COALESCE(json_extract(desktop_settings_json,'$.locale'),
+                json_extract(desktop_boot_json,'$.desktop_settings.locale'))
+                FROM user_identity_projection WHERE username=?""", (session['user'],)).fetchone()
+        if row and row[0]:
+            locale = row[0]
+    g.ghost_ui_locale = normalize_locale(locale)
+    return g.ghost_ui_locale
 
 
 @app.before_request
@@ -9516,7 +9542,8 @@ def detention_movement_error(exc):
     position = player_position_store.get(actor) if actor else None
     return jsonify({"success": False, "status": "error",
                     "error": "detention_movement_blocked", "reason": "detention_movement_blocked",
-                    "message": "Areszt blokuje ruch i teleporty.",
+                    "message": locale_translator().t('apps.detention.denied.detention_movement_blocked', locale=readonly_ui_locale()),
+                    "message_i18n": ui_message('apps.detention.denied.detention_movement_blocked'),
                     "remaining_seconds": exc.remaining_seconds,
                     "current_position": {"lat": position['lat'], "lng": position['lng']} if position else None,
                     "position_version": position.get('version') if position else None,
@@ -9791,14 +9818,15 @@ def append_profile_system_message(profile, msg_type, title, text):
         for item in messages
         if isinstance(item, dict) and str(item.get("id", "")).isdigit()
     ]
-    messages.append({
+    from system_message_i18n import project_system_copy
+    messages.append(project_system_copy({
         "id": max(numeric_ids, default=0) + 1,
         "type": msg_type,
         "title": title,
         "text": text,
         "status": "new",
         "created_at": runtime_file_now(),
-    })
+    }, 'domain_event'))
 
 
 def append_risk_event(
@@ -16338,6 +16366,7 @@ def add_cyberner_notification_to_user(username, scope, peer_name, sender, messag
         "sender": sender,
         "title": title,
         "text": cyberner_notification_text(source, body),
+        "system_preview": not bool(str(body or '').strip()),
         "status": "new",
     }, source="cyberner")
     return bool(message and created)
@@ -16588,7 +16617,7 @@ def get_profile_profession_display(profile):
     return raw_profession
 
 
-def build_admin_profession_contract(profile, requested_code=""):
+def build_admin_profession_contract(profile, requested_code="", *, locale='pl'):
     """Return clan-scoped profession choices and an optional guarded update."""
     profile = profile if isinstance(profile, dict) else {}
     identity = normalize_ghostnetwork_profile_identity(profile)
@@ -16617,7 +16646,7 @@ def build_admin_profession_contract(profile, requested_code=""):
     choices = [
         {
             "code": str(item.get("code") or ""),
-            "name": str(item.get("name") or ""),
+            "name": locale_translator().t('apps.signal.profession.' + str(item.get('code') or ''), locale=locale),
             "slot": index,
         }
         for index, item in enumerate(professions, start=1)
@@ -22012,7 +22041,7 @@ def api_googleplex_llm_task_submit():
     result = GoogleplexLlmTaskIngress(
         get_ghostnetwork_service().repository,
         player_inventory_store,
-    ).submit(username, app_contract, payload)
+    ).submit(username, app_contract, payload, output_locale=request_ui_locale())
     if not result.get("ok"):
         reason = str(result.get("reason_code") or "request_rejected")
         status_code = 403 if reason == "app_not_installed" else 422
@@ -22459,7 +22488,7 @@ def api_admin_panel_list():
         return jsonify(success=False, error="invalid_admin_query"), 400
     if section == 'ghostlab':
         from ghostlab_registry import TEMPLATES, PRO_TOOL_GLAB
-        result['templates'] = [{'id': t['id'], 'name': t['name'], 'source_tool_id': t.get('source_tool_id'),
+        result['templates'] = [{'id': t['id'], 'name': locale_translator().t('lab.template.' + t['id'] + '.name', locale=request_ui_locale()), 'source_tool_id': t.get('source_tool_id'),
             'creation_enabled': t['creation_enabled'], 'publication_enabled': t['publication_enabled'],
             'runtime_enabled': False, 'contract_version': t['contract_version']} for t in TEMPLATES.values()]
         result['non_glab'] = [key for key, value in PRO_TOOL_GLAB.items() if value is None]
@@ -22477,7 +22506,7 @@ def api_admin_panel_user():
         return jsonify(success=False, error="player_not_found"), 404
     profile = {"clan": identity.get("clan_code"), "ghost_profession": identity.get("profession_code")}
     try:
-        contract = build_admin_profession_contract(profile)
+        contract = build_admin_profession_contract(profile, locale=request_ui_locale())
     except ValueError:
         contract = {"choices": [], "selected": None}
     return jsonify(success=True, user=user_summary(user_store.db_path, username),
@@ -22501,7 +22530,7 @@ def api_admin_user_profession():
         return jsonify({"success": False, "error": "player_profile_recovery_required"}), 409
     profile = record["profile"]
     try:
-        contract = build_admin_profession_contract(profile, profession_code)
+        contract = build_admin_profession_contract(profile, profession_code, locale=readonly_ui_locale())
         candidate = dict(profile)
         candidate.update(contract["updates"])
         user_store.save_profile_guarded(
@@ -22529,7 +22558,7 @@ def api_admin_user_profession():
         "username": username,
         "profession_code": selected["code"],
         "profession_name": selected["name"],
-        "message": f"Profesja gracza {username} została zmieniona na {selected['name']}.",
+        "message": locale_translator().t('apps.admin.profession_saved', locale=request_ui_locale()),
     }
     if request.is_json:
         return jsonify(response)
@@ -28845,6 +28874,7 @@ def api_googleplex_news():
             viewer_key=username,
             session_generation=str(getattr(g, "session_generation", "") or ""),
             limit=request.args.get("limit", 20),
+            locale=request_ui_locale(),
         )
         identity = identity_projection_store.get_identity(username) or {}
         active_publication_slot_limit = sum(
@@ -28858,8 +28888,11 @@ def api_googleplex_news():
             clan=get_profile_clan(identity),
             limit=active_publication_slot_limit,
         )
+        from ghostnetwork.news_locales import NewsLocaleStore
+        variants = NewsLocaleStore(get_ghostnetwork_service().repository.db_path).for_records(published)
         snapshot = merge_googleplex_news_publications(
-            snapshot, published, limit=request.args.get("limit", 20)
+            snapshot, published, limit=request.args.get("limit", 20),
+            locale=request_ui_locale(), locale_variants=variants,
         )
     except GoogleplexNewsConfigurationError as exc:
         return jsonify({

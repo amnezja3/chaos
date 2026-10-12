@@ -1,8 +1,8 @@
 {% extends "admin_base.html" %}
 {% block content %}
-<h1>Zgłoszenia błędów</h1>
-<form id="filters" class="toolbar"><input name="search" placeholder="Szukaj w tytule i opisie" aria-label="Szukaj"><select name="status" aria-label="Status"><option value="">Wszystkie statusy</option></select><select name="category" aria-label="Kategoria"><option value="">Wszystkie kategorie</option></select><button>Filtruj / odśwież</button></form>
-<button id="dump">Dump all — pobierz wszystkie zgłoszenia TXT</button>
+<h1>{{ admin_t('bugs') }}</h1>
+<form id="filters" class="toolbar"><input name="search" placeholder="{{ admin_t('bug_search') }}" aria-label="{{ admin_t('search') }}"><select name="status" aria-label="{{ admin_t('status') }}"><option value="">{{ admin_t('all_statuses') }}</option></select><select name="category" aria-label="{{ admin_t('category') }}"><option value="">{{ admin_t('all_categories') }}</option></select><button>{{ admin_t('filter') }}</button></form>
+<button id="dump">{{ admin_t('dump') }}</button>
 <p id="notice" role="status"></p><div id="reports"></div>
 {% endblock %}
 {% block scripts %}
@@ -11,38 +11,38 @@ const filters=document.getElementById('filters'),notice=document.getElementById(
 const make=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
 let statuses=[];
 function renderReportContext(value){
- const labels={id:'Numer',title:'Tytuł',description:'Opis',category:'Kategoria',severity:'Ważność',status:'Status',created_by:'Zgłaszający',created_at:'Utworzono',updated_at:'Aktualizacja',context:'Kontekst',url:'Adres',user_agent:'Przeglądarka',username:'Login',app:'Aplikacja',message:'Komunikat'};
+ const labels={id:adminT('number'),title:adminT('report_title'),description:adminT('description'),category:adminT('category'),severity:adminT('severity'),status:adminT('status'),created_by:adminT('reporter'),created_at:adminT('report_created'),updated_at:adminT('updated_at'),context:adminT('context'),url:adminT('url'),user_agent:adminT('user_agent'),username:adminT('username'),app:adminT('app_id'),message:adminT('message')};
  if(value===null||typeof value!=='object')return make('span',value===null?'—':String(value));
  const list=make('dl');Object.entries(value).forEach(([key,item])=>{list.append(make('dt',labels[key]||key.replaceAll('_',' ')));const cell=make('dd');cell.append(renderReportContext(item));list.append(cell);});return list;
 }
 async function load(){
- notice.textContent='Ładowanie…';
+ notice.textContent=adminT('loading');
  try{
   const response=await fetch('/api/dev/bug-reports?'+new URLSearchParams(new FormData(filters)),{cache:'no-store'});
-  const data=await response.json();if(!response.ok||!data.success)throw new Error(data.message||'Błąd odczytu');
+  const data=await response.json();if(!response.ok||!data.success)throw new Error(adminT('read_error'));
   statuses=data.statuses;
   for(const [name,values] of [['status',statuses],['category',data.categories]]){
-   const select=filters.elements[name];if(select.options.length===1)values.forEach(value=>select.add(new Option(value,value)));
+   const select=filters.elements[name];if(select.options.length===1)values.forEach(value=>select.add(new Option(adminCode(value),value)));
   }
   reports.replaceChildren();
   data.reports.forEach(report=>{
    const card=make('article');card.append(make('h2','#'+report.id+' / '+report.title));
-   card.append(make('small',report.created_by+' / '+report.created_at+' / '+report.category+' / '+report.severity));
+   card.append(make('small',report.created_by+' / '+report.created_at+' / '+adminCode(report.category)+' / '+adminCode(report.severity)));
    const description=make('p',report.description);description.className='description';card.append(description);
-   const controls=make('div');controls.className='status';const label=make('label','Status '),select=make('select');
-   statuses.forEach(status=>select.add(new Option(status,status)));select.value=report.status;label.append(select);controls.append(label);
-   const save=make('button','Zapisz status');controls.append(save);card.append(controls);
-   save.onclick=async()=>{save.disabled=true;try{const res=await fetch('/api/dev/bug-reports/'+report.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:select.value})});const result=await res.json();if(!res.ok||!result.success)throw new Error(result.message||'Błąd zapisu');notice.textContent='Zapisano status #'+report.id;}catch(error){notice.textContent=error.message;}finally{save.disabled=false;}};
-   const detail=make('details');detail.append(make('summary','Pełny zapis i kontekst'));detail.append(renderReportContext(report));card.append(detail);reports.append(card);
+   const controls=make('div');controls.className='status';const label=make('label',adminT('status')+' '),select=make('select');
+   statuses.forEach(status=>select.add(new Option(adminCode(status),status)));select.value=report.status;label.append(select);controls.append(label);
+   const save=make('button',adminT('save_status'));controls.append(save);card.append(controls);
+   save.onclick=async()=>{save.disabled=true;try{const res=await fetch('/api/dev/bug-reports/'+report.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:select.value})});const result=await res.json();if(!res.ok||!result.success)throw new Error(adminT('save_error'));notice.textContent=adminT('status_saved',{id:String(report.id)});}catch(error){notice.textContent=error.message;}finally{save.disabled=false;}};
+   const detail=make('details');detail.append(make('summary',adminT('full_context')));detail.append(renderReportContext(report));card.append(detail);reports.append(card);
   });
-  notice.textContent='Wyświetlono: '+data.reports.length+' (maks. 200). Dump all obejmuje wszystkie zgłoszenia i statusy.';
+  notice.textContent=adminT('reports_shown',{count:String(data.reports.length)});
  }catch(error){notice.textContent=error.message;}
 }
 filters.onsubmit=event=>{event.preventDefault();load();};
 document.getElementById('dump').onclick=async function(){this.disabled=true;try{
- const response=await fetch('/api/admin/bug-reports/dump',{cache:'no-store'});if(!response.ok)throw new Error('Eksport niedostępny');
+ const response=await fetch('/api/admin/bug-reports/dump',{cache:'no-store'});if(!response.ok)throw new Error(adminT('export_error'));
  const url=URL.createObjectURL(await response.blob()),link=make('a');link.href=url;link.download='chaos-bug-reports.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
- notice.textContent='Pobrano wszystkie zgłoszenia.';
+ notice.textContent=adminT('exported');
 }catch(error){notice.textContent=error.message;}finally{this.disabled=false;}};
 load();
 </script>{% endblock %}
