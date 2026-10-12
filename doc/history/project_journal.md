@@ -1,5 +1,24 @@
 # CHAOS — Project Journal
 
+## 2026-10-12 — 155: poprawka po produkcyjnym canary BN EN
+
+Canary Mistrala odrzucił EN BlackNet (`voice_body_prefix_mismatch`): odpowiedź
+nie zaczynała się od trzech kropek. Dodatkowo model wymyślił pasmo 1200–1400 MHz,
+a wcześniejsza próbka PL dopisała rok 2108 mimo braku tej liczby w faktach.
+To odpowiedzi modelu, nie błąd migracji/transportu; wszystkie miały `published:false`.
+
+Żądanie BN otrzymało jawne, literalne prefiksy title/body; walidator nadal
+odrzuca brak prefiksu, bez automatycznego dopisywania go do błędnej narracji.
+Walidacja aktywnych narracji GhostNetwork PL/EN odrzuca nowe cyfry nieobecne
+w semantycznych faktach (pomija alias fact_ref). To ograniczona kontrola liczb,
+nie pełny dowód zgodności semantycznej. Hash żądania uwzględnia teraz obie
+warstwy instrukcji, więc zmiana wymagań jest widoczna w diagnostyce.
+
+Regresja locale/policy/News/support: 62 testy PASS. Bez wywołań modeli i bez
+zmian produkcji. Poprawka nie wymaga DDL ani powtórzenia migracji. Po dostarczeniu
+kodu powtórzyć całą macierz canary, także PL; nie traktować wcześniejszego
+`accepted` z dopisanym rokiem jako odbioru semantycznego.
+
 ## 2026-10-12 — 155.2.0: audyt lokalny i migracja obecnej produkcji
 
 Decyzja autora: bez dodatkowej instancji gry, katalogu aplikacji i portu.

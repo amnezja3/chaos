@@ -486,6 +486,15 @@ def _ghostnetwork_voice_integrity_errors(title, body, model_input):
         (model_input or {}).get("semantic_facts") or [], ensure_ascii=False,
     )
     visible_tokens = set(_normalized_narrative_text(visible).split())
+    # Numeric prose must be grounded in visible facts, not schema versions,
+    # opaque fact aliases or the setting's year in a prompt.
+    numeric_source = json.dumps([
+        {key: value for key, value in fact.items() if key != 'fact_ref'}
+        for fact in (model_input or {}).get('semantic_facts') or []
+        if isinstance(fact, dict)
+    ], ensure_ascii=False)
+    if set(re.findall(r'\d+', f'{title or ""} {body or ""}')) - set(re.findall(r'\d+', numeric_source)):
+        errors.append('voice_unsupported_number')
     locale = (model_input or {}).get('output_locale') or 'pl'
     from .narrative_locale import language_registry
     dangling_words = set(language_registry()[locale]['dangling_words']) if locale != 'pl' else _DANGLING_POLISH_WORDS
@@ -1119,6 +1128,15 @@ def build_ollama_task_package(task, policy=None):
             "title_prefix": language_registry()[output_locale]['blacknet_title_prefix'] if output_locale != 'pl' else "PRZECHWYT // ",
             "body_prefix": "...",
         })
+        # Repeat the precise per-medium constraint next to the generation
+        # request, rather than relying only on a conditional domain paragraph.
+        prefixes = json.dumps({field: voice_contract[field + '_prefix'] for field in ('title', 'body')}, ensure_ascii=False)
+        domain_prompt += ('\nObowiązkowe dosłowne początki pól JSON (wliczone w limity): '
+                          if output_locale == 'pl' else
+                          '\nMandatory literal JSON field prefixes (included in length limits): ') + prefixes
+        domain_prompt += (' Zacznij body dokładnie trzema kropkami ASCII (...), nie znakiem ….'
+                          if output_locale == 'pl' else
+                          ' Begin body with exactly three ASCII periods (...), not the Unicode ellipsis (…).')
     return {
         "policy": policy,
         "language_contract": language_contract,
@@ -1135,7 +1153,7 @@ def build_ollama_task_package(task, policy=None):
         "fact_ref_map": copy.deepcopy(fact_ref_map),
         "canonical_fact_refs": frozenset(fact_refs),
         "cta_map": cta_map,
-        "request_hash": hashlib.sha256((encoded + ('\n' + language_contract['locale_prompt_version'] if language_contract else '')).encode("utf-8")).hexdigest(),
+        "request_hash": hashlib.sha256((encoded + '\n' + system_prompt + '\n' + domain_prompt).encode("utf-8")).hexdigest(),
         "input_bytes": input_bytes,
         "estimated_input_tokens": int(math.ceil(len(encoded) / ESTIMATED_TOKEN_CHARS)),
         "fact_count": len(source_facts),

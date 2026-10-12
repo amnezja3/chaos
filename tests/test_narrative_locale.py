@@ -54,6 +54,24 @@ class NarrativeLocaleTest(unittest.TestCase):
                     self.assertEqual(report['provider'],actual)
                     self.assertEqual(router.return_value.provider,requested)
 
+    def test_bn_canary_enforces_literal_prefix_and_rejects_invented_frequencies(self):
+        from tools.narrative_locale_canary import package_for
+        package = package_for('en', 'blacknet')
+        instruction = package['messages'][0]['content']
+        self.assertIn('"body": "..."', instruction)
+        output = dict(title='INTERCEPT // Canary Station discovery',
+                      body='... A hidden GhostNetwork part was discovered at Canary Station.',
+                      tone='warning', fact_refs=list(package['fact_refs']), cta_ref=None)
+        self.assertEqual(parse_and_validate_ollama_content(json.dumps(output), package)['status'], 'accepted')
+        missing = {**output, 'body':output['body'][4:]}
+        self.assertIn('voice_body_prefix_mismatch', parse_and_validate_ollama_content(json.dumps(missing), package)['errors'])
+        invented = {**output, 'body':output['body'] + ' A pulse appears in the 1200–1400 MHz band.'}
+        self.assertIn('voice_unsupported_number', parse_and_validate_ollama_content(json.dumps(invented), package)['errors'])
+        for locale in ('pl', 'en'):
+            other = package_for(locale, 'cyberner')
+            bad = {**output, 'title':'Canary Station', 'body':'Canary Station: 2108 / 1200 MHz.', 'fact_refs':list(other['fact_refs'])}
+            self.assertIn('voice_unsupported_number', parse_and_validate_ollama_content(json.dumps(bad), other)['errors'])
+
     def test_selection_is_frozen_across_reopen_retry_and_dedupe(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'locale.sqlite3')
