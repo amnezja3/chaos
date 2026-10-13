@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-10-13 — 155: odbiór pięciu canary Ollamy po zwiększeniu budżetu
+
+Wszystkie pięć generacji zakończyło się w 127–355 s, bez publikacji i timeoutów.
+Formalnie 3 accepted / 2 rejected: BlackNet PL nie dodał prefiksu body i skopiował
+canonical statement, BlackNet EN pominął prefiks body. Cyberner EN mimo accepted
+użył instrukcji dwóch kanałów jako tytułu. News PL skrócił GhostNetwork do Ghost
+w tytule; wymaga korekty/ponownego odbioru. News EN zgodny z faktem.
+Nie uznano całej macierzy za jakościowy PASS ani nie wznowiono publikacji.
+
+Usunięto z promptu event PL/EN literalne etykiety stylów BlackNet/Cyberner,
+zastępując je poleceniem tytułu o zdarzeniu. Doprecyzowano parafrazę i pozycję
+trzech kropek ASCII przed pierwszym słowem body BN. Walidacja bez poluzowania;
+nie dopisujemy prefiksów ani nie przepisujemy odpowiedzi po generacji.
+44 testy prompt budget/locale/policy PASS. Poprawki lokalne nie stanowią dowodu
+poprawności kolejnej odpowiedzi modeli; wymagają rzeczywistego odbioru.
+
 ## 2026-10-13 — 155: budżet awaryjnej generacji dopasowany do CPU
 
 Rzeczywisty test: 340,89 s, w tym ładowanie 38,39 s, prefill 217,08 s

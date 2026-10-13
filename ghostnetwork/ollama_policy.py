@@ -1147,9 +1147,9 @@ def build_ollama_task_package(task, policy=None):
         domain_prompt += ('\nDosłowne początki pól (wliczone w limity): '
                           if output_locale == 'pl' else
                           '\nLiteral field prefixes (count toward limits): ') + prefixes
-        domain_prompt += (' Body: trzy kropki ASCII, nie ….'
+        domain_prompt += (' Pole body musi zaczynać się od "... " przed pierwszym słowem zdania. Trzy kropki ASCII, nie ….'
                           if output_locale == 'pl' else
-                          ' Body: three ASCII periods, not ….')
+                          ' The body field must start with "... " before the first word of the sentence. Three ASCII periods, not ….')
     return {
         "policy": policy,
         "language_contract": language_contract,

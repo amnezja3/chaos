@@ -33,6 +33,15 @@ class NarrativeLocaleTest(unittest.TestCase):
                 self.assertEqual(package['output_locale'],locale)
                 self.assertEqual(package['policy'].target_medium,medium)
 
+    def test_event_instructions_do_not_offer_cross_channel_text_as_headline(self):
+        from tools.narrative_locale_canary import package_for
+        for locale in ('pl', 'en'):
+            package = package_for(locale, 'cyberner')
+            instructions = package['messages'][0]['content'].lower()
+            self.assertNotIn('blacknet', instructions)
+            self.assertNotIn('cyberner', instructions)
+            self.assertEqual(package['model_input']['medium'], 'cyberner')
+
     def test_canary_reports_fallback_as_failure_for_explicit_mistral_probe(self):
         import io
         from contextlib import redirect_stdout
