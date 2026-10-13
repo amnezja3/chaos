@@ -1,8 +1,19 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.2.0",
+  "content_version": "155.2.1",
   "messages": {
+    "map.territory.mine": {"params": {}, "text": "Your territory"},
+    "map.territory.player": {"params": {}, "text": "Player territory"},
+    "map.territory.login": {"params": {}, "text": "Login"},
+    "map.territory.clan": {"params": {}, "text": "Clan"},
+    "map.territory.status": {"params": {}, "text": "Status"},
+    "map.territory.area": {"params": {}, "text": "Area"},
+    "map.territory.none": {"params": {}, "text": "none"},
+    "map.territory.active": {"params": {}, "text": "active"},
+    "map.teleport.invalid": {"params": {}, "text": "Invalid teleport coordinates."},
+    "map.teleport.copied": {"params": {"command": "string"}, "text": "Terminal command copied: {command}"},
+    "map.teleport.copy_failed": {"params": {"command": "string"}, "text": "Copy failed. Command: {command}"},
     "map.power.reason.select_target_before_activation": {
       "params": {},
       "text": "Mark a target on the map first."

@@ -1,5 +1,36 @@
 # CHAOS — Project Journal
 
+## 2026-10-13 — 155: zakończenie strojenia fallbacku, mapa i zakres BN
+
+Ostatni canary: BN PL rejected (canonical echo, ponadto ucięta nazwa Can),
+BN EN rejected (prefiks tytułu), Cyberner EN accepted z poprawnym tytułem.
+Nie ponawiamy strojenia Ollamy pod kreatywną parafrazę. Dla obsługiwanych zdarzeń
+routed Ollama po błędzie transportu lub invalid JSON przechodzi od razu do
+istniejącego walidowanego systemowego fallbacku, zamiast kolejnej kosztownej
+próby. Anulowanie/utrata lease/busy i ścieżki bez szablonu zachowują ochrony.
+Odrzucony tekst modelu nie jest automatycznie uznawany za poprawny.
+
+Regresja worker/router/support: pozostałe 61 testów bez błędów; nowy scenariusz
+po rozdzieleniu fixture na osobne wątki również PASS (PL/EN × timeout/rejected/
+invalid JSON, jeden Mistral i jeden Ollama, kandydat accepted, publikacja
+idempotentna). Dziewięć testów katalogu PASS. Żadnych wywołań modeli produkcji.
+
+Mapa: komunikaty kopiowania teleportu, błędne współrzędne, odmowa schowka oraz
+etykiety tooltipu terytorium PL/EN. Nick/login/klan i komenda pozostają oryginalne.
+Otwarty tooltip aktualizuje się przy zmianie locale. Wersja katalogów 155.2.1
+we wszystkich domenach i manifeście, aby odświeżyć cache bez mismatch loadera.
+Playwright MCP na izolowanym fixture: rzeczywiste funkcje mapy, kontrolowany
+schowek i warstwa, DOM/PL/EN/escape UGC/zmiana locale PASS. Pierwszy fixture
+wymagał inicjalizacji mapScanEffectState; po poprawnej inicjalizacji brak błędów
+konsoli. Nie jest to pełny test Leaflet ani realnego schowka urządzenia.
+Przeglądarka i fixture zamknięte.
+
+[155.3 BlackNet](../sprints/sprint_155_3_blacknet_languages.md) jest rozpisany:
+radio wyznacza język, neutralne sygnały rotują zatwierdzone locale, kreatory
+PL/EN/ANY, pojedyncza publikacja bez par tłumaczeń, UGC bez zmian, etykiety/grafiki
+radia i źródeł w obu językach. To plan, jeszcze nie implementacja. Gra pozostaje
+dostępna podczas odbioru. Brak zmian wykonanych na serwerze.
+
 ## 2026-10-13 — 155: odbiór pięciu canary Ollamy po zwiększeniu budżetu
 
 Wszystkie pięć generacji zakończyło się w 127–355 s, bez publikacji i timeoutów.

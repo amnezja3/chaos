@@ -554,7 +554,13 @@ class OllamaNarrativeWorker:
                 )
                 return {"result": "lease_lost", "task_id": task["outbox_id"]}
             lease_until = heartbeat.lease_until
-            if exc.code != 'generation_cancelled' and (not exc.retryable or task["attempt_count"] >= task["max_attempts"]):
+            # A routed local fallback already spent its one expensive attempt.
+            # Use validated system copy now, rather than another CPU retry cycle.
+            local_fallback_exhausted = (
+                getattr(self.client, 'routed', False) and exc.provider == 'ollama'
+                and exc.code not in {'generation_cancelled', 'provider_busy'}
+            )
+            if exc.code != 'generation_cancelled' and (local_fallback_exhausted or not exc.retryable or task["attempt_count"] >= task["max_attempts"]):
                 supported = self._complete_with_support(
                     task,
                     attempt,
@@ -620,7 +626,8 @@ class OllamaNarrativeWorker:
             return {'result': 'expired', 'task_id': task['outbox_id']}
         validation = parse_and_validate_ollama_content(generation.content, package)
         lease_until = heartbeat.lease_until
-        if validation["status"] == "invalid_json" and task["attempt_count"] < 2:
+        local_fallback_exhausted = getattr(self.client, 'routed', False) and generation_data.get('provider') == 'ollama'
+        if validation["status"] == "invalid_json" and task["attempt_count"] < 2 and not local_fallback_exhausted:
             self._finish_attempt(
                 attempt,
                 status="retry",

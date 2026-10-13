@@ -12,6 +12,12 @@ rozpoczętego w [153](sprint_153_ghost_system_i18n_foundation.md).
 
 ## Cel
 
+Aktualizacja 13 X: rozgrywka wznowiona, odbiór narracji prowadzony osobno.
+[155.3 — BlackNet: język źródła i naturalna rotacja sygnałów](sprint_155_3_blacknet_languages.md)
+wydziela radio, heurystyki GN i deklaracje języka w kreatorach. Zakres zaplanowany,
+nie zaliczony; pełny PASS 155 nadal wymaga odbioru. Fallback Ollamy nie ma być
+powodem dalszego zatrzymywania gry ani nieskończonego strojenia stylu.
+
 ### Postęp 12 X — implementacja lokalna, bez pełnego PASS
 
 - Pakiet 155.2.0: bazowe karty Googleplex News, loading/error/empty, CTA,

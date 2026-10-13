@@ -364,6 +364,15 @@ i uzgodnione wznowienie. Nie usuwamy ręcznie WAL/SHM. Zapisz stan PM2 przez
 
 ## Odbiór
 
+Aktualizacja 13 X: surowy canary modelu może zwrócić `rejected` dla BN.
+Nie oznacza to automatycznie awarii systemowego fallbacku: canary bada wyłącznie
+tekst dostawcy, nie uruchamia workerowego `narrative_support`. Odbiór awaryjnej
+ścieżki wymaga jednej próby modelu, walidowanego szablonu PL/EN dla obsługiwanego
+zdarzenia i jednej publikacji. Nie stroimy kolejnych promptów, aby wymusić sam
+prefiks lub kreatywność. Integracyjna regresja obejmuje timeout, odrzucenie i
+niepoprawny JSON w PL/EN. Przypadki bez zatwierdzonego szablonu nie otrzymują
+fikcyjnego tekstu ani automatycznego PASS. Osobny zakres języków BN: sprint 155.3.
+
 ### Pojedynczy canary po optymalizacji promptów
 
 #### Budżet CPU po pomiarze z 2026-10-13

@@ -247,6 +247,51 @@ class RouterTest(unittest.TestCase):
                 self.assertEqual(len(records),2)
                 self.assertEqual(len({c['attempt_id'] for c in records}),1)
 
+    def test_local_failure_uses_safe_localized_copy_once_and_publication_is_idempotent(self):
+        from ghostnetwork.narrative_locale import freeze_language
+        from ghostnetwork.llm.semantic_input import attach_semantic_content
+        for locale in ('pl', 'en'):
+            for failure in ('timeout', 'rejected', 'invalid_json'):
+                with self.subTest(locale=locale, failure=failure):
+                    router = self.setup_router()
+                    calls = []
+                    def execute(provider, config, operation, package=None, policy=None, **kwargs):
+                        if operation == 'verify':
+                            return {'ok': True, 'errors': []}
+                        calls.append(provider)
+                        if provider == 'mistral':
+                            raise NarrativeProviderError('mistral_http_403', provider=provider, http_status=403)
+                        if failure == 'timeout':
+                            raise NarrativeProviderError('ollama_timeout', provider=provider, retryable=True)
+                        content = 'broken' if failure == 'invalid_json' else json.dumps({
+                            'title': 'HIDDEN ELEMENT FOUND', 'body': 'A hidden component was revealed at Canary Station.',
+                            'tone': 'warning', 'fact_refs': ['f01'], 'cta_ref': None})
+                        return NarrativeGenerationResult(provider=provider, model='llama3.1:8b',
+                            content=content, done=True, done_reason='stop', raw_response_hash='hash')
+                    router.executor = execute
+                    fact = attach_semantic_content({'fact_id': 'canary:discovery', 'fact_type': 'part_discovered'},
+                        {'statement': 'Ujawniono wcześniej ukryty element sieci GhostNetwork.',
+                         'entities': [{'role': 'miejsce', 'kind': 'target', 'label': 'Canary Station'}]})
+                    task = self.repo.enqueue_narrative_task(freeze_language({
+                        **self.task(event_id='safe-' + locale + failure), 'output_locale': locale,
+                        'narrative_thread_id': 'safe-thread-' + locale + failure,
+                        'task_variant': 'part_discovered', 'narrative_intent': 'ghost_part_discovery',
+                        'facts': [fact], 'validation': {'event_family': 'part_discovered', 'significance': 'high'},
+                    }))
+                    result = self.worker(router).process_once()
+                    self.assertEqual(result['result'], 'completed', result)
+                    self.assertEqual(calls, ['mistral', 'ollama'])
+                    candidate = self.repo.get_narrative_candidate_for_task(task['outbox_id'])
+                    self.assertEqual(candidate['validation_status'], 'accepted')
+                    self.assertIn('Canary Station', candidate['body'])
+                    self.assertTrue(candidate['title'].startswith('PRZECHWYT' if locale == 'pl' else 'INTERCEPT'))
+                    self.repo.ensure_narrative_publication(candidate['candidate_id'])
+                    claim = self.repo.claim_next_narrative_publication('safe-publisher', lease_seconds=60)
+                    args = (claim['publication_receipt_id'], 'safe-publisher', claim['lease_until'])
+                    published = self.repo.publish_claimed_narrative_candidate(*args)
+                    self.assertEqual(published['receipt']['status'], 'published', published)
+                    self.assertTrue(self.repo.publish_claimed_narrative_candidate(*args)['duplicate'])
+
     def test_english_contract_survives_external_failure_and_local_fallback(self):
         from tools.narrative_locale_canary import package_for
         package = package_for('en', 'blacknet')

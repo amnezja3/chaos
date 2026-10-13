@@ -71,7 +71,9 @@ class Handler(BaseHTTPRequestHandler):
             content_type = 'application/javascript; charset=utf-8'
         elif path == '/map-workspace-locale.js':
             source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
-            boundaries = [('mapResponseText', 'handleForeignTerritoryProtectedResponse'),
+            boundaries = [('territoryTooltip', 'bindTerritoryTooltip'),
+                          ('copyTeleportCommandFromMap', 'showContextMenu'),
+                          ('mapResponseText', 'handleForeignTerritoryProtectedResponse'),
                           ('ensureMapScanOverlay', 'normalizeBootLoadedScopes'),
                           ('showContextMenu', 'showMarkerContextMenu'),
                           ('showCapturedObjectMenu', 'confirmCapturedObjectAbandon'),

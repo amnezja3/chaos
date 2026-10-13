@@ -2487,6 +2487,11 @@
         }
 
         document.addEventListener('ghost:locale-changed', () => {
+            (window.playerAreaLayers || []).forEach(layer => {
+                if (layer._chaosTerritorySnapshot && typeof layer.setTooltipContent === 'function') {
+                    layer.setTooltipContent(territoryTooltip(layer._chaosTerritorySnapshot));
+                }
+            });
             const overlay = window.mapScanEffectState.element;
             if (overlay && !overlay.classList.contains('deep-scanner-styled')) {
                 overlay.dataset.label = GhostLocale.t('map.workspace.scanning');
@@ -3960,10 +3965,12 @@
         function territoryTooltip(area = {}) {
             const ownerNick = window.escapeMapText(area.owner_nick || area.owner_username || area.owner_id || 'unknown');
             const ownerUsername = window.escapeMapText(area.owner_username || area.owner_id || 'unknown');
-            const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
-            const status = window.escapeMapText(area.status || 'active');
+            const ownerClan = window.escapeMapText(area.owner_clan || GhostLocale.t('map.territory.none'));
+            const status = window.escapeMapText((area.status || 'active') === 'active'
+                ? GhostLocale.t('map.territory.active') : area.status);
             const size = Math.round(Number(area.area_size || 0));
-            return `${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} m&sup2;`;
+            const label = key => window.escapeMapText(GhostLocale.t('map.territory.' + key));
+            return `${label(area.is_mine ? 'mine' : 'player')}: ${ownerNick}<br>${label('login')}: ${ownerUsername}<br>${label('clan')}: ${ownerClan}<br>${label('status')}: ${status}<br>${label('area')}: ${size} m&sup2;`;
         }
 
         function bindTerritoryTooltip(layer, content) {
@@ -4784,6 +4791,8 @@
             return [
                 'Pole gracza',
                 'Twoje pole',
+                'Player territory',
+                'Your territory',
                 'Konflikt terytorium'
             ].some(pattern => value.includes(pattern));
         }
@@ -5826,15 +5835,15 @@
         function copyTeleportCommandFromMap(lat, lng) {
             const command = formatTeleportTerminalCommand(lat, lng);
             if (!command) {
-                addSystemMessage("warning", "Mapa", "Nieprawidlowe wspolrzedne teleportu.");
+                addSystemMessage('warning', GhostLocale.t('shell.desktop.map'), GhostLocale.t('map.teleport.invalid'));
                 return;
             }
             copyTextToClipboard(command)
                 .then(() => {
-                    addSystemMessage("info", "Mapa", `Skopiowano komende terminala: ${command}`);
+                    addSystemMessage('info', GhostLocale.t('shell.desktop.map'), GhostLocale.t('map.teleport.copied', {command}));
                 })
                 .catch(() => {
-                    addSystemMessage("warning", "Mapa", `Nie udalo sie skopiowac. Komenda: ${command}`);
+                    addSystemMessage('warning', GhostLocale.t('shell.desktop.map'), GhostLocale.t('map.teleport.copy_failed', {command}));
                 });
         }
 
