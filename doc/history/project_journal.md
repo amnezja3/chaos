@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-10-13 — 155: tooltipy konfliktów, innerów i filarów
+
+Usunięto polskie etykiety konfliktów legacy i snapshot, multi-konfliktów,
+innerów, filarów i punktów kolizyjnych z wersji EN. Nazwy graczy, obiektów i POI
+pozostają oryginalne. Tooltipy konfliktów/innerów/filarów odświeżają treść przy
+zmianie locale; kolizyjny tooltip odczytuje język przy otwarciu. Katalogi 155.2.2
+z jednolitą wersją domen i cache. 9 testów katalogu PASS; Playwright MCP na
+izolowanym frame z rzeczywistymi funkcjami mapy: tekst PL/EN i aktualizacja
+otwartego innera PASS, końcowa konsola bez błędów. Wcześniejsze próby fixture
+wymagały restartu i ponownego załadowania zasobów po resetach połączeń.
+Przeglądarka i serwer fixture zamknięte; produkcja bez zmian.
+
 ## 2026-10-13 — 155: zakończenie strojenia fallbacku, mapa i zakres BN
 
 Ostatni canary: BN PL rejected (canonical echo, ponadto ucięta nazwa Can),

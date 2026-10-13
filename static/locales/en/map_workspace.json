@@ -1,8 +1,16 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.2.1",
+  "content_version": "155.2.2",
   "messages": {
+    "map.territory.inner": {"params": {}, "text": "Conflict inner"},
+    "map.territory.pillar": {"params": {}, "text": "Conflict pillar"},
+    "map.territory.collision": {"params": {}, "text": "Collision point"},
+    "map.territory.owner": {"params": {}, "text": "Owner"},
+    "map.territory.conflict": {"params": {}, "text": "Territory conflict"},
+    "map.territory.multi_conflict": {"params": {}, "text": "Multi-party conflict"},
+    "map.territory.participants": {"params": {}, "text": "Participants"},
+    "map.territory.zone": {"params": {}, "text": "Zone"},
     "map.territory.mine": {"params": {}, "text": "Your territory"},
     "map.territory.player": {"params": {}, "text": "Player territory"},
     "map.territory.login": {"params": {}, "text": "Login"},

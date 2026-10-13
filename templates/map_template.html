@@ -2487,6 +2487,15 @@
         }
 
         document.addEventListener('ghost:locale-changed', () => {
+            const conflictLayers = [...(window.conflictAreaLayers || [])];
+            ['territoryFrontLayers', 'territoryEngagementLayers', 'territoryConflictPillarLayers'].forEach(name => {
+                Object.values(window[name] || {}).forEach(entry => conflictLayers.push(entry.layer || entry));
+            });
+            new Set(conflictLayers).forEach(layer => {
+                if (layer && layer._chaosTooltipContent && typeof layer.setTooltipContent === 'function') {
+                    layer.setTooltipContent(layer._chaosTooltipContent());
+                }
+            });
             (window.playerAreaLayers || []).forEach(layer => {
                 if (layer._chaosTerritorySnapshot && typeof layer.setTooltipContent === 'function') {
                     layer.setTooltipContent(territoryTooltip(layer._chaosTerritorySnapshot));
@@ -3975,7 +3984,8 @@
 
         function bindTerritoryTooltip(layer, content) {
             if (!layer || typeof layer.bindTooltip !== 'function') return;
-            layer.bindTooltip(content, {
+            layer._chaosTooltipContent = typeof content === 'function' ? content : null;
+            layer.bindTooltip(layer._chaosTooltipContent ? content() : content, {
                 sticky: false,
                 direction: 'top',
                 opacity: 0.95
@@ -4282,7 +4292,7 @@
                 }));
                 polygon._chaosTerritoryConflictId = `${conflict.id || conflict.conflict_key || 'conflict'}:${index}`;
                 polygon.addTo(map);
-                bindTerritoryTooltip(polygon, `Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`);
+                bindTerritoryTooltip(polygon, () => territoryConflictCopy(participants, index));
                 bindTerritoryMapContextMenu(polygon);
                 window.territoryConflictLayers[polygon._chaosTerritoryConflictId] = {
                     id: polygon._chaosTerritoryConflictId,
@@ -4355,7 +4365,7 @@
                 const existing = window.territoryEngagementLayers[layerId];
                 const participants = (snapshot.participant_usernames || [])
                     .map(value => window.escapeMapText(value)).join(', ');
-                const tooltip = `Multi-konflikt<br>Uczestnicy: ${participants || 'brak'}`;
+                const tooltip = () => territoryConflictCopy(participants);
                 if (existing && existing.layer) {
                     if (Number(existing.version || 0) < geometryVersion) {
                         existing.layer.setLatLngs(points);
@@ -4525,12 +4535,23 @@
             return fronts.some(geometry => territoryPointInPolygonOrBoundary(point, geometry));
         }
 
+        function territoryNodeCopy(role, label, owner) {
+            const t = key => window.escapeMapText(GhostLocale.t('map.territory.' + key));
+            return `${t(role)}: ${label}<br>${t('owner')}: ${owner}`;
+        }
+
+        function territoryConflictCopy(participants, frontIndex = null) {
+            const label = key => window.escapeMapText(GhostLocale.t('map.territory.' + key));
+            return `${label(frontIndex === null ? 'multi_conflict' : 'conflict')}<br>${label('participants')}: ${participants || label('none')}`
+                + (frontIndex === null ? '' : `<br>${label('zone')}: ${frontIndex + 1}`);
+        }
+
         function territoryConflictTooltip(snapshot = {}, frontIndex = 0) {
             const conflict = snapshot.conflict || snapshot;
             const participants = (snapshot.participants || conflict.participants || conflict.participant_names || [])
                 .map(name => window.escapeMapText(name))
                 .join(', ');
-            return `Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${frontIndex + 1}`;
+            return territoryConflictCopy(participants, frontIndex);
         }
 
         function reconcileTerritoryFront(snapshot, front, frontIndex) {
@@ -4552,7 +4573,7 @@
                 }
                 existing.version = Math.max(Number(existing.version || 0), version);
                 existing.front = front;
-                bindTerritoryTooltip(existing.layer, territoryConflictTooltip(snapshot, frontIndex));
+                bindTerritoryTooltip(existing.layer, () => territoryConflictTooltip(snapshot, frontIndex));
                 bindTerritoryMapContextMenu(existing.layer);
                 return true;
             }
@@ -4565,7 +4586,7 @@
             layer._chaosLayerRegistry = 'territoryFrontLayers';
             layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
             layer._chaosTerritoryFrontId = frontId;
-            bindTerritoryTooltip(layer, territoryConflictTooltip(snapshot, frontIndex));
+            bindTerritoryTooltip(layer, () => territoryConflictTooltip(snapshot, frontIndex));
             bindTerritoryMapContextMenu(layer);
             window.territoryFrontLayers[frontId] = { layer, version, front, conflictId: snapshot.conflict_id };
             return true;
@@ -4595,8 +4616,7 @@
             const label = window.escapeMapText(target.label || target.name || targetId);
             const owner = window.escapeMapText(pillar.owner_username || pillar.captured_by || target.owner_username || 'unknown');
             const nodeRole = String(pillar.node_role || target.node_role || 'pillar');
-            const roleLabel = nodeRole === 'inner' ? 'Inner konfliktu' : 'Filar konfliktu';
-            const tooltip = `${roleLabel}: ${label}<br>Wlasciciel: ${owner}`;
+            const tooltip = () => territoryNodeCopy(nodeRole === 'inner' ? 'inner' : 'pillar', label, owner);
             const icon = target.icon || '!';
             const markerTarget = normalizeMapMenuTarget({
                 ...target,
@@ -4793,7 +4813,8 @@
                 'Twoje pole',
                 'Player territory',
                 'Your territory',
-                'Konflikt terytorium'
+                'Konflikt terytorium',
+                'Territory conflict'
             ].some(pattern => value.includes(pattern));
         }
 
@@ -10986,7 +11007,7 @@
                             })
                         }).addTo(map);
 
-                        marker.bindTooltip(`Punkt kolizyjny: ${label}<br>Wlasciciel: ${owner}`, { sticky: true });
+                        marker.bindTooltip(() => territoryNodeCopy('collision', label, owner), { sticky: true });
                         marker.on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
                             showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label, 'contestedTargetMarker');
