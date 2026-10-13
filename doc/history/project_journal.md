@@ -1,5 +1,24 @@
 # CHAOS — Project Journal
 
+## 2026-10-13 — 155: opcjonalny streaming Ollamy przez wrapper
+
+Produkcja: konfiguracja ze snapshotu zgodna z testem bezpośrednim, wrapper
+nadal timeout 240 s, bezpośredni stream zakończony w 78,6 s. Próbka PL/Cyberner
+przeszła lokalny walidator, ale różnica cache/rozgrzania nie pozwala przypisać
+przyczyny trybowi transportu. Pełna ścieżka fallbacku pozostaje bez PASS.
+
+Dodano opt-in `CHAOS_OLLAMA_STREAM=1` (domyślnie wyłączony). Router i worker
+korzystają z tego samego adaptera. Odbiór NDJSON ma limity bajtów transportu
+i złożonej treści, pin modelu, termin bez resetowania przy fragmentach i wymóg
+końcowego done. Błędy/przerwania zamykają odpowiedź; częściowe treści nie trafiają
+do walidacji. Istniejący killable executor ogranicza także blokujące odczyty.
+Canary raportuje tryb i istniejące metryki czasu/tokenów. Runbook: przełącznik
+wyłącznie w procesie testowym po odtworzeniu snapshotu, bez zmiany PM2.
+
+45 izolowanych testów client/locale/matrix/Mistral runtime PASS, w tym UTF-8,
+przerwane dane, limity, deadline, zamykanie transportu i regresja fallbacku.
+Bez DDL, zmian serwera ani generacji modeli podczas prac lokalnych.
+
 ## 2026-10-12 — 155: krótsze prompty i pomiar pełnych wiadomości
 
 Po pięciu timeoutach Ollamy w sześciu rzeczywistych canary oraz udanym małym

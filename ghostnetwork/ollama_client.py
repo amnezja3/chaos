@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -42,10 +43,12 @@ class OllamaClientConfig:
     connect_timeout_sec: float = 2.0
     read_timeout_sec: float = 240.0
     max_http_response_bytes: int = MAX_HTTP_RESPONSE_BYTES
+    stream: bool = False
 
     @classmethod
     def from_env(cls):
         return cls(
+            stream=os.environ.get('CHAOS_OLLAMA_STREAM', '0') == '1',
             base_url=os.environ.get("CHAOS_OLLAMA_BASE_URL", EXPECTED_BASE_URL),
             model=os.environ.get("CHAOS_OLLAMA_MODEL", MODEL_NAME),
             model_digest=os.environ.get("CHAOS_OLLAMA_MODEL_DIGEST", MODEL_DIGEST),
@@ -257,13 +260,79 @@ class ChaosOllamaClient:
             "quantization": quantization,
         }
 
+    def _request_chat_stream(self, payload):
+        """Assemble bounded NDJSON; incomplete output never reaches validation.
+
+        The router's killable executor also bounds blocking network reads.
+        Receiving another fragment does not reset the overall time budget.
+        """
+        deadline = time.monotonic() + self.config.read_timeout_sec
+        response = None
+        raw = bytearray()
+        pending = bytearray()
+        parts = []
+        content_bytes = 0
+        try:
+            response = self.session.request(
+                'POST', self._url('/api/chat'), json=payload,
+                headers={'Accept': 'application/x-ndjson', 'Content-Type': 'application/json'},
+                timeout=(self.config.connect_timeout_sec, self.config.read_timeout_sec),
+                stream=True,
+            )
+            if not 200 <= response.status_code < 300:
+                raise OllamaClientError(f'ollama_http_{response.status_code}',
+                    retryable=self._http_retryable(response.status_code),
+                    http_status=response.status_code)
+            # Byte chunks avoid buffering the first several kilobytes before
+            # enforcing the content and time limits. Total wire size is bounded.
+            for chunk in response.iter_content(chunk_size=1):
+                if time.monotonic() >= deadline:
+                    raise OllamaClientError('ollama_timeout', retryable=True)
+                raw.extend(chunk)
+                if len(raw) > self.config.max_http_response_bytes:
+                    raise OllamaClientError('ollama_response_too_large', retryable=True)
+                pending.extend(chunk)
+                while b'\n' in pending:
+                    line, _, rest = pending.partition(b'\n')
+                    pending = bytearray(rest)
+                    if not line.strip():
+                        continue
+                    try:
+                        item = json.loads(line)
+                    except (ValueError, UnicodeDecodeError) as exc:
+                        raise OllamaClientError('ollama_invalid_http_json', retryable=True) from exc
+                    if not isinstance(item, dict):
+                        raise OllamaClientError('ollama_response_not_object', retryable=True)
+                    if item.get('error'):
+                        raise OllamaClientError('ollama_stream_error', retryable=True)
+                    if item.get('model') != self.config.model:
+                        raise OllamaClientError('ollama_response_model_mismatch', retryable=False)
+                    message = item.get('message', {})
+                    if not isinstance(message, dict) or not isinstance(message.get('content', ''), str):
+                        raise OllamaClientError('ollama_invalid_http_json', retryable=True)
+                    content = message.get('content', '')
+                    content_bytes += len(content.encode('utf-8'))
+                    if content_bytes > MAX_MODEL_CONTENT_BYTES:
+                        raise OllamaClientError('ollama_content_too_large', retryable=True)
+                    parts.append(content)
+                    if item.get('done') is True:
+                        return {**item, 'message': {'content': ''.join(parts)}}, bytes(raw)
+            raise OllamaClientError('ollama_generation_incomplete', retryable=True)
+        except requests.Timeout as exc:
+            raise OllamaClientError('ollama_timeout', retryable=True) from exc
+        except requests.RequestException as exc:
+            raise OllamaClientError('ollama_stream_read_failed', retryable=True) from exc
+        finally:
+            if response is not None:
+                response.close()
+
     def generate(self, task_package, policy):
         self._ensure_config()
         # Model/runtime pins belong to the transport config, already validated
         # above. Narrative policies describe prompts/schema, not model routing.
         payload = {
             "model": self.config.model,
-            "stream": False,
+            "stream": self.config.stream,
             "think": False,
             "keep_alive": self.config.keep_alive,
             "messages": task_package["messages"],
@@ -274,7 +343,8 @@ class ChaosOllamaClient:
                 "num_predict": self.config.num_predict,
             },
         }
-        body, raw = self._request_json("POST", "/api/chat", payload)
+        body, raw = (self._request_chat_stream(payload) if self.config.stream
+                     else self._request_json("POST", "/api/chat", payload))
         message = body.get("message") if isinstance(body.get("message"), dict) else {}
         content = message.get("content")
         if body.get("done") is not True:

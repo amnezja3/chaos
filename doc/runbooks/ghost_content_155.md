@@ -366,6 +366,23 @@ i uzgodnione wznowienie. Nie usuwamy ręcznie WAL/SHM. Zapisz stan PM2 przez
 
 ### Pojedynczy canary po optymalizacji promptów
 
+Aktualizacja 2026-10-13: wrapper obsługuje opcjonalnie strumieniowanie Ollamy.
+Domyślnie `CHAOS_OLLAMA_STREAM=0` zachowuje dotychczasową ścieżkę. Do pojedynczego
+testu przez router dodaj w poniższym skrypcie, **po** `env.update(...)`, a przed
+`subprocess.run(...)`, linię:
+
+```python
+env['CHAOS_OLLAMA_STREAM'] = '1'
+```
+
+Wynik musi zawierać `ollama_stream:true`; pełna odpowiedź nadal wymaga
+`validation:accepted` i odbioru treści. `runtime_metrics` zawiera czas całej
+generacji i ładowania modelu w nanosekundach oraz liczby tokenów promptu/odpowiedzi.
+Ten przełącznik dotyczy tylko procesu canary i jego procesu potomnego, nie PM2.
+Nie zapisuj go w środowisku produkcyjnego workera przed odbiorem. Cofnięcie testu:
+usuń tę linię lub ustaw `0`. Nie ma migracji ani publikacji. Limit całości routera
+i kontrola anulowania nadal obowiązują; fragmenty nie resetują budżetu.
+
 Po pobraniu poprawki wystarczy jeden rzeczywisty test Ollama / PL / Cyberner.
 Nie wznawiaj workerów ani pełnej macierzy na podstawie samego HTTP 200.
 Poniższa komenda odtwarza wyłącznie zmienne CHAOS ze snapshotu workera

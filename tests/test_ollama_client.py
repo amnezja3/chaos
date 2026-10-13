@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 
 import requests
 
@@ -46,6 +47,76 @@ class FakeSession:
 
 
 class OllamaClientTest(unittest.TestCase):
+    def stream_client(self, items, **config):
+        response = FakeResponse({})
+        response.raw = b''.join(json.dumps(item, ensure_ascii=False).encode('utf-8') + b'\n'
+                                for item in items)
+        session = FakeSession([response])
+        return ChaosOllamaClient(config=OllamaClientConfig(stream=True, **config),
+                                 session=session), response
+
+    def test_stream_reassembles_utf8_only_after_done_and_preserves_metrics(self):
+        client, response = self.stream_client([
+            {'model': 'llama3.1:8b', 'message': {'content': '{"body":"żó'}, 'done': False},
+            {'model': 'llama3.1:8b', 'message': {'content': 'łć"}'}, 'done': False},
+            {'model': 'llama3.1:8b', 'message': {'content': ''}, 'done': True,
+             'done_reason': 'stop', 'eval_count': 9, 'load_duration': 123},
+        ])
+        package, policy = self.package()
+        result = client.generate(package, policy)
+        self.assertEqual(json.loads(result.content), {'body': 'żółć'})
+        self.assertEqual(result.eval_count, 9)
+        self.assertEqual(result.load_duration_ns, 123)
+        self.assertTrue(response.closed)
+        self.assertTrue(client.session.calls[0][2]['json']['stream'])
+        self.assertEqual(client.session.calls[0][2]['json']['format'], package['format'])
+
+    def test_stream_failures_never_return_partial_content_and_always_close(self):
+        first = {'model': 'llama3.1:8b', 'message': {'content': '{}'}, 'done': False}
+        cases = [
+            ([first], 'ollama_generation_incomplete'),
+            ([first, {'error': 'interrupted'}], 'ollama_stream_error'),
+            ([first, []], 'ollama_response_not_object'),
+            ([{**first, 'model': 'other:model'}], 'ollama_response_model_mismatch'),
+            ([{**first, 'message': {'content': 42}}], 'ollama_invalid_http_json'),
+            ([{**first, 'message': {'content': 'x' * 70000}}], 'ollama_response_too_large'),
+        ]
+        package, policy = self.package()
+        for items, error in cases:
+            with self.subTest(error=error):
+                client, response = self.stream_client(items)
+                with self.assertRaisesRegex(OllamaClientError, error):
+                    client.generate(package, policy)
+                self.assertTrue(response.closed)
+
+    def test_stream_content_limit_and_deadline_are_not_reset_by_fragments(self):
+        package, policy = self.package()
+        client, response = self.stream_client([
+            {'model': 'llama3.1:8b', 'message': {'content': 'abc'}, 'done': False},
+            {'model': 'llama3.1:8b', 'message': {'content': 'def'}, 'done': True},
+        ])
+        with patch('ghostnetwork.ollama_client.MAX_MODEL_CONTENT_BYTES', 5):
+            with self.assertRaisesRegex(OllamaClientError, 'ollama_content_too_large'):
+                client.generate(package, policy)
+        self.assertTrue(response.closed)
+        client, response = self.stream_client([{'model': 'llama3.1:8b', 'done': True}])
+        with patch('ghostnetwork.ollama_client.time.monotonic', side_effect=[0, 241]):
+            with self.assertRaisesRegex(OllamaClientError, 'ollama_timeout'):
+                client.generate(package, policy)
+        self.assertTrue(response.closed)
+
+    def test_stream_is_opt_in_and_network_failure_closes_response(self):
+        with patch.dict('os.environ', {'CHAOS_OLLAMA_STREAM': '0'}):
+            self.assertFalse(OllamaClientConfig.from_env().stream)
+        with patch.dict('os.environ', {'CHAOS_OLLAMA_STREAM': '1'}):
+            self.assertTrue(OllamaClientConfig.from_env().stream)
+        package, policy = self.package()
+        client, response = self.stream_client([])
+        with patch.object(response, 'iter_content', side_effect=requests.ConnectionError('closed')):
+            with self.assertRaisesRegex(OllamaClientError, 'ollama_stream_read_failed'):
+                client.generate(package, policy)
+        self.assertTrue(response.closed)
+
     def package(self):
         task = assign_ollama_task_policy({
             "source_scope": "blacknet_world",

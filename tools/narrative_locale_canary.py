@@ -43,9 +43,11 @@ def main():
         parser.error('Existing database required.')
     package=package_for(args.locale,args.medium)
     from ghostnetwork.llm.prompt_metrics import prompt_metrics
+    from ghostnetwork.ollama_client import OllamaClientConfig
     report=dict(ok=True,published=False,locale=args.locale,medium=args.medium,
         prompt=package['policy'].prompt_version,generated=False,
-        input_metrics=prompt_metrics(package))
+        input_metrics=prompt_metrics(package),
+        ollama_stream=OllamaClientConfig.from_env().stream)
     if args.generate:
         from ghostnetwork.llm.router import NarrativeRouter
         from ghostnetwork.llm.provider import NarrativeProviderError
@@ -63,6 +65,13 @@ def main():
                 validation=parse_and_validate_ollama_content(result.content,package)
             report.update(generated=True,provider=result.provider,model=result.model,
                 validation=validation['status'],errors=validation['errors'])
+            if result.provider == 'ollama':
+                report['runtime_metrics'] = {
+                    key: getattr(result, key, None) for key in (
+                        'total_duration_ns', 'load_duration_ns',
+                        'prompt_eval_count', 'eval_count',
+                    )
+                }
             report['ok']=validation['status']=='accepted'
             if args.provider == 'mistral' and result.provider != 'mistral':
                 report.update(ok=False, error='mistral_canary_used_fallback')
