@@ -10,9 +10,9 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      // Routing bounds generation to <=280 s. Allow database cleanup and
+      // Routing bounds generation to <=660 s. Allow database cleanup and
       // child termination before PM2 escalates to SIGKILL.
-      kill_timeout: 360000,
+      kill_timeout: 720000,
       env: {
         CHAOS_RESPONSE_QUALIFICATION_MODE: "observe",
         CHAOS_RESPONSE_ENCOUNTERS_ENABLED: "true",
@@ -39,7 +39,7 @@ module.exports = {
         CHAOS_OLLAMA_TEMPERATURE: "0",
         CHAOS_OLLAMA_KEEP_ALIVE: "5m",
         CHAOS_OLLAMA_CONNECT_TIMEOUT_SEC: "2",
-        CHAOS_OLLAMA_READ_TIMEOUT_SEC: "240",
+        CHAOS_OLLAMA_READ_TIMEOUT_SEC: "600",
         CHAOS_OLLAMA_MAX_HTTP_RESPONSE_BYTES: "65536",
         CHAOS_OLLAMA_POLL_SECONDS: "1.5",
         CHAOS_OLLAMA_POLL_JITTER_SECONDS: "0.25",

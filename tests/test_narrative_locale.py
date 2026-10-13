@@ -45,6 +45,7 @@ class NarrativeLocaleTest(unittest.TestCase):
                         'ghostnetwork.llm.router.NarrativeRouter') as router, patch(
                         'ghostnetwork.ollama_policy.parse_and_validate_ollama_content',
                         return_value={'status':'accepted','errors':[]}):
+                    router.return_value.config = {'total_seconds': 630}
                     router.return_value.generate.return_value=SimpleNamespace(content='{}',provider=actual,model='test')
                     output=io.StringIO()
                     with redirect_stdout(output):
@@ -52,6 +53,7 @@ class NarrativeLocaleTest(unittest.TestCase):
                     report=json.loads(output.getvalue())
                     self.assertFalse(report['published'])
                     self.assertEqual(report['provider'],actual)
+                    self.assertEqual(report['generation_budget_seconds'], 630)
                     self.assertEqual(router.return_value.provider,requested)
 
     def test_bn_canary_enforces_literal_prefix_and_rejects_invented_frequencies(self):

@@ -100,7 +100,7 @@ class OllamaClientConfig:
             errors.append("ollama_num_predict_out_of_policy")
         if float(self.temperature) != 0.0:
             errors.append("ollama_temperature_must_be_zero")
-        if float(self.read_timeout_sec) != 240.0:
+        if not 240.0 <= float(self.read_timeout_sec) <= 600.0:
             errors.append("ollama_read_timeout_out_of_policy")
         if not 1024 <= int(self.max_http_response_bytes) <= MAX_HTTP_RESPONSE_BYTES:
             errors.append("ollama_response_limit_out_of_policy")

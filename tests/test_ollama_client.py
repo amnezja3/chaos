@@ -117,6 +117,13 @@ class OllamaClientTest(unittest.TestCase):
                 client.generate(package, policy)
         self.assertTrue(response.closed)
 
+    def test_cpu_fallback_timeout_can_be_extended_but_remains_bounded(self):
+        for seconds in (240, 600):
+            self.assertEqual(OllamaClientConfig(read_timeout_sec=seconds).validate(), [])
+        for seconds in (239, 601, float('nan'), float('inf')):
+            self.assertIn('ollama_read_timeout_out_of_policy',
+                          OllamaClientConfig(read_timeout_sec=seconds).validate())
+
     def package(self):
         task = assign_ollama_task_policy({
             "source_scope": "blacknet_world",

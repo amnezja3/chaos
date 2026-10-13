@@ -198,6 +198,40 @@ class RouterTest(unittest.TestCase):
         self.assertTrue(replay['duplicate'])
         self.assertEqual(len(self.repo.list_narrative_medium_records('blacknet',limit=10)),1)
 
+    def test_cpu_fallback_budget_survives_remote_attempt_and_preserves_old_total(self):
+        from tools.narrative_locale_canary import package_for
+        router = self.setup_router()
+        package = package_for('pl', 'cyberner')
+        calls = []
+        now = [100.0]
+        def execute(provider, config, operation, package, policy, **kwargs):
+            calls.append((provider, kwargs['seconds']))
+            if provider == 'mistral':
+                now[0] += 25
+                raise NarrativeProviderError('mistral_timeout', provider='mistral', retryable=True)
+            return NarrativeGenerationResult(provider='ollama', model='llama3.1:8b',
+                content='{}', done=True, done_reason='stop', raw_response_hash='hash')
+        router.executor = execute
+        with patch.dict(os.environ, {'CHAOS_OLLAMA_READ_TIMEOUT_SEC': '600'}), patch(
+                'ghostnetwork.llm.router.time.monotonic', side_effect=lambda: now[0]):
+            router.generate(package, package['policy'])
+            self.assertEqual(calls, [('mistral', 25), ('ollama', 602)])
+            calls.clear()
+            router.provider = 'ollama'
+            router.config['total_seconds'] = 270
+            router.generate(package, package['policy'])
+            self.assertEqual(calls, [('ollama', 270)])
+
+    def test_cpu_budget_save_is_audited_and_does_not_rewrite_existing_config(self):
+        router = self.setup_router()
+        old = router.store.save({**router.config, 'total_seconds': 270}, 'operator')
+        self.assertEqual(ProviderStore(self.db_path).config()['total_seconds'], 270)
+        updated = router.store.save({**old, 'total_seconds': 630}, 'operator')
+        self.assertEqual(updated['revision'], old['revision'] + 1)
+        self.assertEqual(updated['total_seconds'], 630)
+        with self.assertRaises(ValueError):
+            router.store.save({**updated, 'total_seconds': 661}, 'operator')
+
     def test_http_fallback_keeps_same_task_and_package(self):
         for code in (400,401,402,403,404,408,409,422,429,500):
             with self.subTest(code=code):

@@ -366,6 +366,50 @@ i uzgodnione wznowienie. Nie usuwamy ręcznie WAL/SHM. Zapisz stan PM2 przez
 
 ### Pojedynczy canary po optymalizacji promptów
 
+#### Budżet CPU po pomiarze z 2026-10-13
+
+Rzeczywista generacja PL/Cyberner zakończyła się po 340,89 s: ładowanie 38,39 s,
+prefill 217,08 s (498 tokenów), generowanie 77,21 s (74 tokeny), walidacja accepted.
+Profil wdrożeniowy: Mistral główny, remote 25 s; Ollama fallback z read timeout
+600 s; cały router 630 s. CPUQuota=300% i jedna instancja pozostają bez zmian.
+600 s jest ograniczonym budżetem awaryjnym, nie gwarancją czasu każdej generacji.
+
+Po push/pull kodu uruchom regresję:
+
+```sh
+.venv/bin/python tools/run_isolated_tests.py test_ollama_client test_mistral_runtime test_ollama_ecosystem_shutdown_contract test_news_generation test_narrative_locale
+```
+
+Spodziewane: OK. Następnie restart samego web:
+
+```sh
+pm2 restart chaos
+```
+
+Spodziewane: web online, workery nadal stopped. W panelu Modele narracji zachowaj
+Mistrala i wybrany model, ustaw limit Mistrala 25 s oraz całej generacji 630 s,
+zapisz konfigurację (nowa audytowana rewizja). Stara wartość 270 s nie jest
+automatycznie podnoszona przez aktualizację kodu. Nowe instalacje startują z 630 s.
+
+Do poniższego canary dodaj po `env.update(...)`:
+
+```python
+env['CHAOS_OLLAMA_READ_TIMEOUT_SEC'] = '600'
+env['CHAOS_OLLAMA_STREAM'] = '0'
+```
+
+Spodziewane w raporcie: `generation_budget_seconds:630`,
+`ollama_read_timeout_seconds:600`, `ollama_stream:false`, `published:false`,
+`validation:accepted`. Pozostawiamy domyślny transport, bo streaming nie usunął
+kosztu przetwarzania wejścia. Przegląd treści nadal wymagany. Dopiero po odbiorze
+próbek i zgodzie na wznowienie pobrany `ecosystem.ollama-worker.config.js`
+ustawia workerowi timeout 600 s i PM2 kill_timeout 720000 ms. Sam restart
+istniejącego procesu nie wczyta nowych ustawień ecosystem. Nie wznawiamy teraz
+publikacji. Lease News bierze total+60 s, a worker narracji odnawia lease heartbeat.
+
+Rollback konfiguracji: przywróć poprzedni total w panelu i lokalny timeout 240 s;
+stream pozostaje 0. Zmiana nie wymaga migracji bazy ani cofania danych graczy.
+
 Aktualizacja 2026-10-13: wrapper obsługuje opcjonalnie strumieniowanie Ollamy.
 Domyślnie `CHAOS_OLLAMA_STREAM=0` zachowuje dotychczasową ścieżkę. Do pojedynczego
 testu przez router dodaj w poniższym skrypcie, **po** `env.update(...)`, a przed

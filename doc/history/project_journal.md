@@ -1,5 +1,25 @@
 # CHAOS — Project Journal
 
+## 2026-10-13 — 155: budżet awaryjnej generacji dopasowany do CPU
+
+Rzeczywisty test: 340,89 s, w tym ładowanie 38,39 s, prefill 217,08 s
+(498 tokenów), decode 77,21 s (74 tokeny), accepted. Streaming nie skraca prefill.
+Uzgodniono dostosowanie do zasobów: Mistral jako główny, lokalny fallback
+z limitem 600 s i budżetem routera 630 s przy remote 25 s. CPU quota bez zmian.
+
+Klient dopuszcza read timeout 240–600 s, domyślny standalone nadal 240 s;
+profil ecosystem workera ustawia 600 s. Router usuwa sztywny cap 242 s,
+respektuje timeout klienta + 2 s oraz pozostały globalny deadline. Panel/backend
+dopuszczają total do 660 s, bootstrap ma 630 s; istniejące konfiguracje pozostają
+bez zmian i wymagają audytowanego zapisu. PM2 kill_timeout 720 s. Lease workera
+odnawia heartbeat, lease News jest liczony od total+60 s. TTL i walidacja bez zmian.
+
+Canary drukuje oba efektywne limity. Runbook podaje kolejność: kod, testy,
+restart web, konfiguracja panelu, override 600 s w canary (stream 0), odbiór,
+dopiero później uzgodnione wznowienie workerów. Bez migracji i zmian produkcji.
+Testy obejmują rzeczywisty wybór budżetu po symulowanych 25 s Mistrala,
+zachowanie starego total 270 s, granice timeoutu, rewizje oraz fallback i News.
+
 ## 2026-10-13 — 155: opcjonalny streaming Ollamy przez wrapper
 
 Produkcja: konfiguracja ze snapshotu zgodna z testem bezpośrednim, wrapper

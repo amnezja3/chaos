@@ -71,7 +71,14 @@ class NarrativeRouter:
         for provider in providers:
             if not guard():
                 raise NarrativeProviderError('generation_cancelled',provider=provider,retryable=True)
-            seconds = min(self.config['remote_seconds'] if provider == 'mistral' else 242, end-time.monotonic())
+            attempt_seconds = self.config['remote_seconds']
+            if provider == 'ollama':
+                local_config = OllamaClientConfig.from_env()
+                errors = local_config.validate()
+                if errors:
+                    raise NarrativeProviderError(errors[0], provider='ollama')
+                attempt_seconds = local_config.read_timeout_sec + 2
+            seconds = min(attempt_seconds, end-time.monotonic())
             if seconds <= 0:
                 raise NarrativeProviderError('provider_deadline',provider=provider,retryable=True)
             call_id = self.store.start_call(self.config,provider,task_id,attempt_id,package)

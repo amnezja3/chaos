@@ -53,6 +53,8 @@ def main():
         from ghostnetwork.llm.provider import NarrativeProviderError
         from ghostnetwork.ollama_policy import parse_and_validate_ollama_content
         router=NarrativeRouter(args.db)
+        report['generation_budget_seconds'] = router.config['total_seconds']
+        report['ollama_read_timeout_seconds'] = OllamaClientConfig.from_env().read_timeout_sec
         if args.provider!='configured':
             router.provider=args.provider  # In-memory override; leaves admin config unchanged.
         started = time.monotonic()

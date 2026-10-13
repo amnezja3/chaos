@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from database import db_connect
 
 DEFAULTS = {"primary": "ollama", "model": "", "remote_seconds": 25,
-            "total_seconds": 270, "max_tokens": 256, "daily_token_budget": 0}
+            "total_seconds": 630, "max_tokens": 256, "daily_token_budget": 0}
 
 
 class ProviderConfigError(ValueError):
@@ -58,7 +58,7 @@ class ProviderStore:
             raise ProviderConfigError('invalid_model')
         if values['primary'] == 'mistral' and not model:
             raise ProviderConfigError('model_required')
-        for key, lo, hi in [('revision',1,2**31), ('remote_seconds',5,30), ('total_seconds',250,280),
+        for key, lo, hi in [('revision',1,2**31), ('remote_seconds',5,30), ('total_seconds',250,660),
                             ('max_tokens',64,1024), ('daily_token_budget',0,10**9)]:
             if type(values[key]) is not int or not lo <= values[key] <= hi:
                 raise ProviderConfigError('invalid_' + key)
