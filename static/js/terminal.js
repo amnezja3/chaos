@@ -1737,13 +1737,11 @@ function renderStartMenu() {
               </details>`).join('')}
         </div>
         <div class="system-start-footer">
-            <button class="system-start-item system-action-restart" type="button">
-                <span>↻</span>
-                ${ghostLabel("shell.restart")}
+            <button class="system-start-item system-action-restart" type="button" title="${escapeHTML(ghostText('shell.restart'))}" aria-label="${escapeHTML(ghostText('shell.restart'))}">
+                <span aria-hidden="true">↻</span>
             </button>
-            <button class="system-start-item system-action-logout" type="button">
-                <span>⏻</span>
-                ${ghostLabel("shell.logout")}
+            <button class="system-start-item system-action-logout" type="button" title="${escapeHTML(ghostText('shell.logout'))}" aria-label="${escapeHTML(ghostText('shell.logout'))}">
+                <span aria-hidden="true">⏻</span>
             </button>
         </div>
     `;

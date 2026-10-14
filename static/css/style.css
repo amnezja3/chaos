@@ -1106,6 +1106,9 @@ body {
 }
 
 .system-start-footer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 7px;
   padding-top: 7px;
   border-top: 1px solid rgba(90, 255, 135, 0.2);
@@ -1144,8 +1147,21 @@ body {
 .system-start-category-apps .system-start-item:focus-visible { outline: 1px solid #b2f179; outline-offset: -1px; }
 
 .system-start-footer .system-start-item {
-  color: #d9ffe1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0;
+  font-size: 25px;
+  line-height: 1;
+  color: var(--start-action-color);
+  border: 1px solid var(--start-action-color);
+  background: var(--start-action-background);
 }
+.system-start-footer .system-action-restart { --start-action-color: #65baff; --start-action-background: #0a2035; }
+.system-start-footer .system-action-logout { --start-action-color: #ff6969; --start-action-background: #340f14; }
+.system-start-footer .system-start-item:hover { filter: brightness(1.25); }
+.system-start-footer .system-start-item:focus-visible { outline: 2px solid var(--start-action-color); outline-offset: 2px; }
 
 #system-running-apps {
   display: grid;
