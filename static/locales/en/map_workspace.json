@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.3.0",
+  "content_version": "155.3.1",
   "messages": {
     "map.territory.inner": {"params": {}, "text": "Conflict inner"},
     "map.territory.pillar": {"params": {}, "text": "Conflict pillar"},

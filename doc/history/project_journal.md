@@ -1,5 +1,23 @@
 # CHAOS — Project Journal
 
+## 2026-10-14 — 155.3.1: kafelek języka GGPL i wartość faktu BN
+
+Dodano ósmy kafelek parametrów produktu: Język / Language, z deklaracją
+PL/EN/ANY; starsze produkty bez deklaracji pokazują „-”. Playwright potwierdził
+osiem kafelków, obie wersje językowe, mobile i brak błędów JavaScript.
+Podbito wersję katalogów i terminala dla odświeżenia cache.
+
+Usunięto stałe „AI 2108” z projekcji opublikowanej narracji BlackNet.
+Odczyt dla odbiorcy pobiera wartość dopasowanego fact_id z zapisanego zadania,
+bez nowej generacji, migracji ani publikacji. Zachowuje zero; brak lub
+niejednoznaczna wartość daje „-”. Test pełnej publikacji i test adaptera PASS.
+Regresja test_llm_publishers + test_narrative_publications: 43/45 PASS.
+Dwa błędy istnieją także przy klasie repozytorium z HEAD:
+test_newer_thread_state_invalidates_previous_head (StopIteration),
+test_late_older_state_cannot_replace_active_head (KeyError: record).
+Nie są oznaczone jako PASS i wymagają osobnego wyjaśnienia cyklu publikacji.
+Zmiany lokalne, bez działań na serwerze.
+
 ## 2026-10-14 — 155.3: język źródeł BlackNet, lokalnie
 
 Wykonano lokalny pakiet 155.3.0: 14 reguł świata i 6 kart statycznych mają

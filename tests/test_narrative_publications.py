@@ -151,6 +151,7 @@ class NarrativePublicationTest(unittest.TestCase):
         task_variant="part_activated", target_medium="blacknet", validation=None,
         client=None, narrative_thread_id="", world_state_version="1", priority=80,
         narrative_intent="", allowed_actions=None, fixed_action=None, output_locale=None,
+        source_value=None,
     ):
         task_validation = dict(validation or {})
         if source_scope == "ghostnetwork":
@@ -160,6 +161,8 @@ class NarrativePublicationTest(unittest.TestCase):
             "fact_id": "fact:one", "fact_type": "test",
             "title": "Canonical body",
         }
+        if source_value is not None:
+            fact["value"] = source_value
         if source_scope == "ghostnetwork":
             fact = attach_semantic_content(
                 fact, {"statement": "Czesc GhostNetwork zostala aktywowana."},
@@ -209,6 +212,16 @@ class NarrativePublicationTest(unittest.TestCase):
         )
         self.assertEqual(worker.process_once()["result"], "completed")
         return self.repo.get_narrative_candidate_for_task(item["outbox_id"])
+
+    def test_viewer_publication_retains_source_fact_value(self):
+        self.accepted_candidate(source_value=0)
+        result = NarrativePublicationService(
+            repository=self.repo, worker_id="source-value-publisher"
+        ).process_once()
+        self.assertEqual(result["result"], "published")
+        records = self.repo.list_narrative_medium_records_for_viewer("blacknet")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["source_value"], 0)
 
     def test_signal_fallback_publishes_archive_cta_with_canonical_target(self):
         action = {

@@ -38,6 +38,13 @@ def publication(record_id="medium-one", medium="googleplex_news", **overrides):
 
 
 class LlmPublisherAdapterTest(unittest.TestCase):
+    def test_blacknet_publication_uses_source_value_including_zero(self):
+        for value in (0, 4, "114", "23 HC"):
+            signal = run.blacknet_signal_from_publication(publication(
+                medium="blacknet", source_value=value))
+            self.assertEqual(signal["value"], str(value))
+        self.assertEqual(run.blacknet_signal_from_publication(publication())["value"], "-")
+
     def test_blacknet_mix_prefers_significance_and_one_head_per_thread(self):
         records = [
             publication(

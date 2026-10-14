@@ -10764,7 +10764,8 @@ function createBrowser() {
                 { key: "reliability", label: "Niezawodno\u015b\u0107", value: `${reliability}/100` },
                 { key: "creator", label: "Moc tw\u00f3rcy", value: `${creatorPower}/100` },
                 { key: "power", label: "Moc", value: `${powerScore}/100` },
-                { key: "price-hint", label: "Cena sugerowana", value: priceHint ? `${priceHint} HC` : "-" }
+                { key: "price-hint", label: "Cena sugerowana", value: priceHint ? `${priceHint} HC` : "-" },
+                { key: "language", label: "Language", value: item.signal_language ? String(item.signal_language).toUpperCase() : "-" }
             ];
             const renderSpecRows = (rows, rowClass) => rows.map(({ key, label, value }) => `
                 <div class="gp-app-spec ${rowClass}" data-spec-key="${escapeHTML(key)}">

@@ -7197,7 +7197,10 @@ class GhostNetworkRepository:
         with self._conn() as conn:
             rows = conn.execute(
                 f"""
-                SELECT rowid AS publication_ordinal, * FROM ghost_narrative_medium_records
+                SELECT rowid AS publication_ordinal, *,
+                  (SELECT facts_json FROM ghost_narrative_outbox o
+                   WHERE o.outbox_id = ghost_narrative_medium_records.task_id) AS source_facts_json
+                FROM ghost_narrative_medium_records
                 WHERE target_medium = ? AND active_state = 'active'
                   AND (valid_until = '' OR valid_until > ?)
                   AND ({' OR '.join(audience)})
@@ -7205,7 +7208,21 @@ class GhostNetworkRepository:
                 """,
                 tuple(params),
             ).fetchall()
-            return [self._narrative_medium_record(row) for row in rows]
+            records = []
+            for row in rows:
+                record = self._narrative_medium_record(row)
+                if target_medium == "blacknet":
+                    facts = loads_json(row["source_facts_json"], [])
+                    refs = record["fact_refs"]
+                    values = [fact.get("value") for fact in facts if isinstance(fact, dict)
+                              and fact.get("fact_id") in refs
+                              and isinstance(fact.get("value"), (str, int, float))
+                              and not isinstance(fact.get("value"), bool)
+                              and str(fact.get("value")).strip()]
+                    if len(values) == 1:
+                        record["source_value"] = values[0]
+                records.append(record)
+            return records
 
     def count_narrative_medium_records_for_viewer_after(
         self, target_medium, *, owner="", clan="", after_ordinal=0,

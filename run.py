@@ -2924,7 +2924,7 @@ def blacknet_signal_from_publication(record):
         "channel": "BLACKNET // SIGNAL",
         "title": str(record.get("title") or "WORLD NARRATIVE"),
         "label": str(record.get("truth_class") or "canonical")[:32].upper(),
-        "value": "AI 2108",
+        "value": str(record["source_value"]) if record.get("source_value") is not None else "-",
         "stat": str(record.get("body") or ""),
         "timer": "LIVE",
         "tone": signal_tone,

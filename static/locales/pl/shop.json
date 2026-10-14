@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "155.3.0",
+  "content_version": "155.3.1",
   "messages": {
     "shop.validation": {
       "params": {},
@@ -354,6 +354,10 @@
     "shop.spec.power": {
       "params": {},
       "text": "Moc"
+    },
+    "shop.spec.language": {
+      "params": {},
+      "text": "Język"
     },
     "shop.spec.price-hint": {
       "params": {},

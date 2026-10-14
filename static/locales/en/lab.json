@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.3.0",
+  "content_version": "155.3.1",
   "messages": {
     "lab.template.financial_sniffer.name": {
       "params": {},
