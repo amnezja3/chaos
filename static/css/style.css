@@ -1122,7 +1122,18 @@ body {
 .system-start-category summary:hover, .system-start-category summary:focus-visible { background: #102b1b; outline: 1px solid #9edf57; outline-offset: -1px; }
 .system-start-category[open] { border-color: #8fcb50; }
 .system-start-category[open] summary { box-shadow: inset 3px 0 #a9ed59; border-bottom: 1px solid #235332; }
-.system-start-category-icon { font-size: 25px; color: #00e9b2; text-align: center; }
+.system-start-category-icon { font-size: 25px; color: var(--start-icon-color, #00e9b2); text-align: center; }
+.system-start-category[data-start-category="recon"] { --start-icon-color: #00e9b2; }
+.system-start-category[data-start-category="exploits"] { --start-icon-color: #e5edf6; }
+.system-start-category[data-start-category="monitoring"] { --start-icon-color: #00dce8; }
+.system-start-category[data-start-category="pvp"] { --start-icon-color: #f3cf60; }
+.system-start-category[data-start-category="analysis"] { --start-icon-color: #80e990; }
+.system-start-category[data-start-category="finance"] { --start-icon-color: #36bce9; }
+.system-start-category[data-start-category="social"] { --start-icon-color: #af91ef; }
+.system-start-category[data-start-category="creators"] { --start-icon-color: #efaa69; }
+.system-start-category[data-start-category="service"] { --start-icon-color: #73b6f5; }
+.system-start-category[data-start-category="system"] { --start-icon-color: #b9c7d6; }
+.system-start-category[data-start-category="gameplay"] { --start-icon-color: #ee91c5; }
 .system-start-count { color: #9bbcab; font-variant-numeric: tabular-nums; }
 .system-start-chevron { color: #b2f179; transition: transform .15s; }
 .system-start-category[open] .system-start-chevron { transform: rotate(180deg); }
