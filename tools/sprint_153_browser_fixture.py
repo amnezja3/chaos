@@ -72,6 +72,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/map-workspace-locale.js':
             source = (root / 'templates/map_template.html').read_text(encoding='utf-8')
             boundaries = [('territoryTooltip', 'bindTerritoryTooltip'),
+                          ('bindTerritoryTooltip', 'territoryInteractionLayers'),
+                          ('reconcileTerritoryEngagementSnapshot', 'reconcileTerritoryEngagementSnapshots'),
                           ('territoryNodeCopy', 'reconcileTerritoryFront'),
                           ('copyTeleportCommandFromMap', 'showContextMenu'),
                           ('mapResponseText', 'handleForeignTerritoryProtectedResponse'),

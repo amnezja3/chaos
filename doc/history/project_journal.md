@@ -1,5 +1,24 @@
 # CHAOS — Project Journal
 
+## 2026-10-13 — multi-konflikty EN: regresja i plan 155.3
+
+Playwright MCP: `tests/browser/territory_multi_locale.js` na izolowanej fixture,
+rzeczywiste funkcje reconciliation/binding z mapy i katalogi; Leaflet/geometry
+zastąpione lokalnym test double. PASS: utworzenie multi z trzema uczestnikami,
+aktualizacja do czterech i nowej geometrii, zmiana istniejącego tooltipu EN/PL/EN,
+ochrona przed starszym snapshotem, brak duplikatu warstwy i escaping nazw.
+EN: `Multi-party conflict`, `Participants`; nazwy graczy niezmienione.
+Końcowy przebieg bez błędów JS/konsoli. Pierwsze wejście fixture miało reset
+połączeń zasobów; powtórzenie przeszło. Nie wywoływano konfliktu w produkcji.
+
+Rozpisano 155.3 na A–E: inwentarz, resolver i trwały język, kreatory/katalog,
+renderery oraz migracja/odbiór. Potwierdzono brak języka w producencie faktów
+radia i literały PL w regułach. Plan obejmuje pierwszeństwo audycji/kanału,
+unknown vs ANY, wersje artefaktów, deterministyczną naturalną rotację,
+fallback bez strojenia modelu, kompatybilne czytniki i rollback metadanych.
+Usunięto kolizję numeru 155.3 z dawną sekcją historii w planie nadrzędnym.
+Status BN: zaplanowany, nie wdrożony i bez PASS; bez zmian na serwerze.
+
 ## 2026-10-13 — 155: tooltipy konfliktów, innerów i filarów
 
 Usunięto polskie etykiety konfliktów legacy i snapshot, multi-konfliktów,

@@ -258,7 +258,11 @@ recovery, brak mediów i stare snapshoty, bez powtórzenia efektów gry.
 - Odbiór: dwa konta PL/EN widzą ten sam news w swoim języku; przełączenie
   otwartego artykułu, brak wariantu, retry i starsza wersja nie duplikują feedu.
 
-## 155.3 — historia i migracja
+## Historia i migracja — wymagania przekrojowe 155
+
+Pierwotnie punkt 155.3. Od 13 X numer 155.3 oznacza osobny
+[podsprint BlackNet](sprint_155_3_blacknet_languages.md); poniższe wymagania
+pozostają obowiązujące dla całości 155, także dla migracji BN.
 
 - Inwentaryzacja istniejących wiadomości, szablonów i produktów przed migracją:
   źródło, liczba, rozmiar, identyfikatory, możliwość odzyskania klucza/parametrów.
