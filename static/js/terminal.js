@@ -9280,6 +9280,23 @@ function createMap() {
     term.querySelector('.close-btn')?.addEventListener('click', () => term.remove());
 }
 
+function googleplexNavigationIcon(key) {
+    const paths = {
+        googleplex: '<path d="M5 8h22v21H5zM10 8V5h12v3M10 14h12v10H10zM16 14v10M10 19h12"/>',
+        exchange: '<path d="M5 10h22l-6-6M27 22H5l6 6M27 10l-6 6M5 22l6-6"/>',
+        blacknet: '<circle cx="16" cy="15" r="3"/><path d="M10 8a10 10 0 0 0 0 14M22 8a10 10 0 0 1 0 14M6 4a16 16 0 0 0 0 22M26 4a16 16 0 0 1 0 22M16 18v11M11 29h10"/>',
+        all: '<path d="M4 4h9v9H4zM19 4h9v9h-9zM4 19h9v9H4zM19 19h9v9h-9z"/>',
+        tools: '<path d="M20 4a8 8 0 0 0-9 10L4 23l5 5 9-9A8 8 0 0 0 28 10l-6 5-5-5z"/>',
+        documents: '<path d="M7 3h12l7 7v19H7zM19 3v8h7M11 16h11M11 21h11M11 25h7"/>',
+        travel_ticket: '<path d="M4 7h24v6a3 3 0 0 0 0 6v6H4v-6a3 3 0 0 0 0-6zM21 7v18M9 12h7M9 18h7"/>',
+        storage_upgrade: '<path d="M7 4h18l4 15v9H3v-9zM3 19h26M8 24h1M14 24h10"/>',
+        map: '<path d="m3 7 9-4 9 4 8-4v23l-8 4-9-4-9 4zM12 3v23M21 7v23"/>',
+        bike_upgrade: '<circle cx="7" cy="23" r="5"/><circle cx="25" cy="23" r="5"/><path d="m7 23 6-12 6 12H7l13-10 5 10M10 11h6M20 13l-2-7h5"/>',
+        other: '<path d="m16 3 13 7v14l-13 7-13-7V10zM3 10l13 7 13-7M16 17v14M10 6l13 7"/>'
+    };
+    return `<svg viewBox="0 0 32 34" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[key] || paths.other}</svg>`;
+}
+
 function createBrowser() {
     const term = document.createElement('div');
     term.className = 'terminal browser-window';
@@ -9327,16 +9344,13 @@ function createBrowser() {
             <h1 id="${terminalId}-title"><span class="gp-brand-lockup"><img src="/static/images/googleplx/brand/googleplex-news-wordmark.svg" alt="Googleplex News"></span></h1>
             <div id="${terminalId}-wallet" class="googolplex-wallet gp-account-context"><span>HC</span><strong>...</strong></div>
         </div>
-        <div class="browser-tabs">
-            <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
-            <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
-            <button type="button" class="browser-tab" data-browser-tab="blacknet">BlackNet</button>
-            <label class="gp-category-filter">${ghostLabel('shop.category')}
-                <select data-ghost-aria-label="shop.category">
-                    <option value="" data-ghost-i18n="shop.all_categories">${GhostLocale.t('shop.all_categories')}</option>
-                    ${(googleplexSearchPresentation?.categories || []).map(category => `<option value="${category.id}" data-ghost-i18n="shop.category.${category.id}">${GhostLocale.t('shop.category.' + category.id)}</option>`).join('')}
-                </select>
-            </label>
+        <div class="browser-tabs gp-icon-navigation">
+            <div class="gp-main-destinations">
+            ${[['googleplex','Google Plex'],['exchange','Ghost Exchange'],['blacknet','BlackNet']].map(([id,label]) => `<button type="button" class="browser-tab gp-nav-icon ${id === 'googleplex' ? 'is-active' : ''}" data-browser-tab="${id}" title="${label}" aria-label="${label}" aria-pressed="${id === 'googleplex'}">${googleplexNavigationIcon(id)}</button>`).join('')}
+            </div>
+            <div class="gp-category-filter" role="group" data-ghost-aria-label="shop.category">
+                ${[{id:'',key:'shop.all_categories',icon:'all'}, ...(googleplexSearchPresentation?.categories || []).map(category => ({id:category.id,key:'shop.category.'+category.id,icon:category.id}))].map(category => `<button type="button" class="gp-nav-icon gp-category-icon ${category.id ? '' : 'is-active'}" data-category="${category.id}" data-ghost-title="${category.key}" data-ghost-aria-label="${category.key}" title="${escapeHTML(ghostText(category.key))}" aria-label="${escapeHTML(ghostText(category.key))}" aria-pressed="${!category.id}">${googleplexNavigationIcon(category.icon)}</button>`).join('')}
+            </div>
         </div>
         <input type="text" id="${terminalId}-search" data-ghost-i18n-placeholder="shop.search" class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid">
@@ -9398,6 +9412,7 @@ function createBrowser() {
     let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
     let walletBalance = Number((toolbarProfile || {}).hackcoins || 0);
     let activeBrowserTab = "googleplex";
+    let selectedCategory = '';
     const browserQueries = {
         googleplex: "",
         exchange: "",
@@ -10681,7 +10696,6 @@ function createBrowser() {
         const rawQuery = search.value.trim();
         const query = rawQuery.toLowerCase();
         const showAll = query === "/all";
-        const selectedCategory = term.querySelector('.gp-category-filter select').value;
         if (!query && !selectedCategory) {
             renderGoogleplexHome();
             if (!googleplexHomeSnapshot && !googleplexHomeLoading && !googleplexHomeError) {
@@ -11448,6 +11462,7 @@ function createBrowser() {
         updateBrowserNarrowMode();
         term.querySelectorAll('.browser-tab').forEach(button => {
             button.classList.toggle('is-active', button.dataset.browserTab === tabName);
+            button.setAttribute('aria-pressed', String(button.dataset.browserTab === tabName));
         });
         const title = term.querySelector(`#${terminalId}-title`);
         if (tabName === "exchange") {
@@ -11467,7 +11482,7 @@ function createBrowser() {
             search.dataset.ghostI18nPlaceholder = 'shop.search';
             search.placeholder = GhostLocale.t('shop.search');
             renderCatalog();
-            if (!search.value.trim() && !term.querySelector('.gp-category-filter select').value) {
+            if (!search.value.trim() && !selectedCategory) {
                 loadGoogleplexHome({ force: true }).catch(() => {});
             }
         }
@@ -11476,14 +11491,22 @@ function createBrowser() {
     const browserLocaleChanged = () => {
         if (!term.isConnected) { document.removeEventListener('ghost:locale-changed', browserLocaleChanged); return; }
         const scroll = results.scrollTop;
-        if (activeBrowserTab === 'googleplex' && !search.value.trim() && !term.querySelector('.gp-category-filter select').value) renderGoogleplexHome();
+        if (activeBrowserTab === 'googleplex' && !search.value.trim() && !selectedCategory) renderGoogleplexHome();
         if (activeBrowserTab === 'exchange') renderExchange();
         if (activeBrowserTab === 'blacknet' && !results.querySelector('[data-blacknet-capture]:disabled')) renderBlackNet();
         results.scrollTop = scroll;
     };
     document.addEventListener('ghost:locale-changed', browserLocaleChanged);
     const browserRefreshButton = term.querySelector('.browser-refresh-btn');
-    term.querySelector('.gp-category-filter select').addEventListener('change', renderCatalog);
+    term.querySelectorAll('[data-category]').forEach(button => button.addEventListener('click', () => {
+        selectedCategory = button.dataset.category;
+        term.querySelectorAll('[data-category]').forEach(item => {
+            const active = item.dataset.category === selectedCategory;
+            item.classList.toggle('is-active', active);
+            item.setAttribute('aria-pressed', String(active));
+        });
+        renderCatalog();
+    }));
     search.placeholder = GhostLocale.t('shop.search');
     browserRefreshButton.addEventListener('click', async () => {
         if (browserRefreshButton.disabled) return;

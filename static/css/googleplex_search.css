@@ -6,32 +6,42 @@
  * data, ranking and purchase state remain canonical elsewhere.
  */
 
-.browser-window.is-browser-googleplex .browser-tabs {
-  flex-wrap: wrap;
-}
-.gp-category-filter {
+.browser-window .browser-tabs.gp-icon-navigation {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  overflow: visible;
+}
+.gp-main-destinations, .gp-category-filter {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-left: auto;
-  max-width: 100%;
-  color: #9ac7a6;
-  font: 12px Consolas, monospace;
-}
-.gp-category-filter[hidden] { display: none; }
-.gp-category-filter select {
+  gap: 6px;
   min-width: 0;
-  max-width: 100%;
-  padding: 8px;
-  border: 1px solid #367f49;
-  background: #02170b;
-  color: #c9ffda;
-  font: inherit;
 }
-.gp-category-filter select:focus-visible { outline: 2px solid #47ff75; }
-.browser-window.is-window-maximized.is-browser-googleplex .browser-tabs:has(.gp-category-filter) {
-  flex-wrap: wrap;
+.gp-main-destinations { flex: 0 0 auto; }
+.gp-category-filter { flex: 1 1 378px; }
+.gp-category-filter[hidden] { display: none; }
+.browser-window .browser-tabs.gp-icon-navigation .gp-nav-icon {
+  box-sizing: border-box;
+  width: 42px; height: 42px; min-width: 42px; min-height: 42px;
+  flex: 0 0 42px; padding: 7px; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #286747; border-radius: 3px;
+  background: #03110c; color: #84cdb0; cursor: pointer;
+}
+.gp-nav-icon svg { width: 100%; height: 100%; pointer-events: none; }
+.browser-window .browser-tabs.gp-icon-navigation .gp-nav-icon:hover,
+.browser-window .browser-tabs.gp-icon-navigation .gp-nav-icon.is-active {
+  border-color: #a4ff56; background: #123420; color: #d6ffbe;
+}
+.browser-window .browser-tabs.gp-icon-navigation .gp-nav-icon:focus-visible { outline: 2px solid #b4ff70; outline-offset: 2px; }
+.browser-window .gp-icon-navigation [data-browser-tab="googleplex"] { color: #5eeaa6; }
+.browser-window .gp-icon-navigation [data-browser-tab="exchange"] { color: #6fcfff; }
+.browser-window .gp-icon-navigation [data-browser-tab="blacknet"] { color: #c7ff00; }
+@media (max-width: 600px) {
+  .browser-window .browser-tabs.gp-icon-navigation { flex-direction: column; align-items: flex-start; }
+  .gp-category-filter { flex: 0 0 auto; width: 100%; display: grid; grid-template-columns: repeat(4, 42px); }
 }
 
 :where(.gp-search-view, .gp-search-view *) {

@@ -1,5 +1,22 @@
 # CHAOS — Project Journal
 
+## 2026-10-14 — WebDragons: ikonowa nawigacja Googleplexa
+
+Trzy główne miejsca mają osobne ikony SVG i kwadratowe przyciski 42×42.
+Select kategorii zastąpiono ośmioma ikonami (wszystkie + siedem kategorii),
+z etykietami title/aria PL/EN i oznaczeniem aktywnego filtra. Wybór filtra
+pozostaje po przełączeniu zakładek. Desktop zawija ikony według szerokości;
+mobile przenosi kategorie pod główne miejsca do siatki 4×2.
+Podbito cache CSS/JS. Zachowano istniejący immersyjny widok BlackNet.
+
+Playwright: filtrowanie biletów, zachowanie kategorii po Ghost Exchange,
+PL/EN, reset filtra, kwadratowe wymiary, fullscreen 1440px, okno 640px
+i mobile 390px PASS. Zrzut mobile sprawdzony wizualnie. Test wyszukiwania
+i kategorii Node PASS, składnia JS PASS. Starszy test statyczny układu
+`test_googleplex_search_layout.js` nadal oczekuje tekstów PL sprzed i18n
+(„Brak opisu”, tokeny bez tłumaczeń); nie oznaczono go jako PASS.
+Zmiany lokalne, bez działań na serwerze.
+
 ## 2026-10-14 — 155.3.2: kategorie aplikacji w Start
 
 Menu Start grupuje launchery w 11 sekcji PL/EN, pokazuje tylko niepuste grupy,

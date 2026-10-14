@@ -46,7 +46,7 @@ async(page)=>{
     assert((await system.textContent()).includes('Monitor active operations'),'builtin description translated');
     assert((await app.locator('[data-app-id="creator_test"]').textContent()).includes('catalog.system.operationControl.description'),'UGC key-shaped text remains literal');
     assert(await search.inputValue()==='/all','query retained on locale switch');
-    await app.locator('.gp-category-filter select').selectOption('travel_ticket');
+    await app.locator('[data-category=travel_ticket]').click();
     await app.locator('[data-app-id="ticket_londyn"]').waitFor();
     assert((await app.locator('[data-app-id="ticket_londyn"] h2').textContent()).includes('Ticket: London'),'ticket presentation');
     await app.locator('[data-app-id="ticket_londyn"] [data-googleplex-install]').click();
@@ -54,7 +54,7 @@ async(page)=>{
     assert((await page.locator('[role=dialog]').textContent()).includes('Potwierdzenie podróży'),'travel dialog locale switch');
     await page.locator('[data-choice=cancel]').click();
     assert(purchases.length===0,'cancel travel does not buy');
-    await app.locator('.gp-category-filter select').selectOption('tools');
+    await app.locator('[data-category=tools]').click();
     await page.evaluate(()=>GhostLocale.changeLocale('en',false));
     await system.locator('[data-googleplex-install]').click();
     await page.locator('[data-choice=confirm]').click();
@@ -65,7 +65,7 @@ async(page)=>{
     assert(purchases.length===1 && purchases[0].body.app_id==='operationControl' && purchases[0].body.expected_price===20,'canonical purchase payload');
     assert(purchases[0].key===purchases[0].body.client_action_key,'idempotency key unchanged');
     await page.setViewportSize({width:390,height:844});
-    assert(await app.locator('.gp-category-filter select').isVisible(),'mobile category filter');
+    assert(await app.locator('.gp-category-filter').isVisible(),'mobile category filter');
     assert(errors.length===0,JSON.stringify(errors));
     return {pass:true,scenarios:['catalog PL/EN','UGC','category filter','ticket cancel','purchase confirm','installer locale switch','canonical request/idempotency','mobile'],errors};
 }
