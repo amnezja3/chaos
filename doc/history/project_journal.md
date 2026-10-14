@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-10-14 — 155.3.2: kategorie aplikacji w Start
+
+Menu Start grupuje launchery w 11 sekcji PL/EN, pokazuje tylko niepuste grupy,
+liczniki i sortuje aplikacje po widocznej nazwie. Natywne rozwijane sekcje
+zachowują stan podczas odświeżania i zmiany języka. Reguły rozdzielają
+skanery mapowe, exploity, monitoring, dedykowane PvP oraz starsze Pro Tools
+i szablony GhostLaba. Nie zmieniono kluczy ikon pulpitu ani kontraktu instalacji.
+Istniejące odświeżenie arsenalu automatycznie przebudowuje menu.
+
+Plan i reguły: `doc/plans/start_menu_categories.md`.
+Node: test_start_categories PASS (przypadki reguł i 50 wpisów katalogu).
+Playwright: PL/EN, sortowanie i oryginalna akcja po sortowaniu, dopisanie/usunięcie
+aplikacji, liczniki, zachowanie rozwinięcia, klawiatura, desktop i mobile
+390×844 PASS; brak błędów JS. Zrzut układu sprawdzony wizualnie.
+Zmiany lokalne, bez wdrożenia na serwerze.
+
 ## 2026-10-14 — 155.3.1: kafelek języka GGPL i wartość faktu BN
 
 Dodano ósmy kafelek parametrów produktu: Język / Language, z deklaracją

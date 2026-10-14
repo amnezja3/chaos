@@ -1081,8 +1081,8 @@ body {
   position: absolute;
   left: 0;
   bottom: 42px;
-  width: 240px;
-  max-height: 360px;
+  width: min(370px, calc(100vw - 16px));
+  max-height: min(640px, calc(100dvh - 70px));
   overflow-y: auto;
   padding: 6px;
   background: rgba(2, 7, 4, 0.98);
@@ -1110,6 +1110,27 @@ body {
   padding-top: 7px;
   border-top: 1px solid rgba(90, 255, 135, 0.2);
 }
+
+.system-start-category { border: 1px solid #235332; border-radius: 3px; margin-bottom: 7px; }
+.system-start-category summary {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) auto 20px;
+  gap: 10px; align-items: center; min-height: 52px; padding: 8px 12px;
+  cursor: pointer; color: #e3f1e8; list-style: none;
+  background: linear-gradient(110deg, rgba(0, 40, 24, .5), rgba(0, 8, 5, .9));
+}
+.system-start-category summary::-webkit-details-marker { display: none; }
+.system-start-category summary:hover, .system-start-category summary:focus-visible { background: #102b1b; outline: 1px solid #9edf57; outline-offset: -1px; }
+.system-start-category[open] { border-color: #8fcb50; }
+.system-start-category[open] summary { box-shadow: inset 3px 0 #a9ed59; border-bottom: 1px solid #235332; }
+.system-start-category-icon { font-size: 25px; color: #00e9b2; text-align: center; }
+.system-start-count { color: #9bbcab; font-variant-numeric: tabular-nums; }
+.system-start-chevron { color: #b2f179; transition: transform .15s; }
+.system-start-category[open] .system-start-chevron { transform: rotate(180deg); }
+.system-start-category-apps { padding: 3px 6px; }
+.system-start-category-apps .system-start-item { min-height: 44px; margin: 0; border: 0; border-bottom: 1px solid #173522; background: transparent; }
+.system-start-category-apps .system-start-item:last-child { border-bottom: 0; }
+.system-start-category-apps .system-start-item span:last-child { overflow-wrap: anywhere; }
+.system-start-category-apps .system-start-item:focus-visible { outline: 1px solid #b2f179; outline-offset: -1px; }
 
 .system-start-footer .system-start-item {
   color: #d9ffe1;
@@ -8437,7 +8458,7 @@ button.file-manager-file:focus-visible {
   }
 
   #system-start-menu {
-    width: min(260px, calc(100vw - 12px));
+    width: min(370px, calc(100vw - 12px));
     max-height: calc(100vh - 58px);
     bottom: 46px;
   }

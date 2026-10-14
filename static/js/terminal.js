@@ -676,6 +676,7 @@ document.addEventListener('ghost:locale-changed', () => {
     });
     renderRunningApps();
     renderToolbarStatus();
+    renderStartMenu();
     document.querySelectorAll('[data-wallet-balance]').forEach(node => {
         if (node._localeBalance) renderWalletBalance(node, ...node._localeBalance);
     });
@@ -1666,19 +1667,74 @@ function setToolbarLaunchers(apps, profile = null) {
     renderStartMenu();
 }
 
+const START_CATEGORIES = [
+    ['recon', '◈'], ['exploits', '⌖'], ['monitoring', '⌘'], ['pvp', '⚔'],
+    ['analysis', '▤'], ['finance', '▥'], ['social', '♟'], ['creators', '⚒'],
+    ['service', '⛨'], ['system', '▣'], ['gameplay', '✦']
+];
+const startExpandedCategories = new Set();
+
+function startAppCategory(launcher) {
+    const app = launcher.entry || launcher;
+    const contract = app.creator_contract || {};
+    const id = String(app.id || app.app_id || '').toLowerCase();
+    const system = String(app.system_launcher || '').toLowerCase();
+    const family = String(contract.tool_family || app.tool_family || '').toLowerCase();
+    const type = String(contract.type || app.type || '').toLowerCase();
+    const actions = [...(contract.map_actions || app.map_actions || []), contract.action || ''];
+    const targets = contract.target_types || app.target_types || [];
+    const template = String(app.template_id || app.glab_template_id || '').toLowerCase();
+    const matches = values => values.includes(id) || values.includes(system);
+    if (matches(['victimpicker', 'createvictimpickerapp', 'territorycontrol', 'territory_control',
+        'financialsniffer', 'friendkicker', 'systemlogreader', 'securitypanelproxy', 'arsenalcleaner', 'intruderkicker'])
+        || ['financial_sniffer', 'friend_kicker', 'system_log_reader', 'security_panel_proxy', 'arsenal_cleaner', 'intruder_kicker'].includes(template)
+        || app.target_kind === 'player' || app.launch_mode === 'player_hack_access'
+        || (targets.length === 1 && targets[0] === 'player')
+        || actions.some(a => ['scan_player', 'exploit_player', 'sniff_player', 'trace_player'].includes(a))
+        || /pvp|player_hack|territory/.test(family)) return 'pvp';
+    if (matches(['buttonmaker', 'termcreator', 'windowmaker', 'appforge', 'ghostlab', 'ghost_lab',
+        'createbuttonmaker', 'createtermcreator', 'createwindowmaker', 'createappforge'])) return 'creators';
+    if (template === 'deep_scanner') return 'recon';
+    if (['file_cleanup', 'system_update', 'security_restore', 'firmware_update'].includes(template)) return 'service';
+    if (template === 'ptk_document') return 'analysis';
+    if (matches(['agi2108console', 'createagi2108consoleapp']) || /osint|analysis|decoder/.test(family + ' ' + type)) return 'analysis';
+    if (launcher.action === openWalletApp || /wallet|exchange|trading/.test(id + ' ' + type)) return 'finance';
+    if (launcher.action === createEmailClient || id === 'ghost_hack_radio' || /messenger|social|radio/.test(type)) return 'social';
+    if (/exploit/.test(family + ' ' + type) || actions.some(a => ['exploit', 'camera_shutdown', 'audio_hack', 'car_hack'].includes(a))) return 'exploits';
+    if (/sniff|monitor/.test(family + ' ' + type) || actions.some(a => ['sniff', 'install_sniffer', 'mic_sniff', 'atm_logs'].includes(a))
+        || matches(['operationcontrol', 'operation_control'])) return 'monitoring';
+    if (launcher.action === createMap || /scanner|tracker|recon/.test(family + ' ' + type)
+        || actions.some(a => ['scan_ports', 'trace', 'trace_gps', 'trace_device', 'scan_hotspots', 'camera_stream'].includes(a))) return 'recon';
+    if (/maintenance|cleaner|repair|security|vpn|stealth|os_component|file_explorer/.test(family + ' ' + type)
+        || /filecleaner|firmware/.test(id)) return 'service';
+    if (!launcher.entry || type === 'browser') return 'system';
+    return 'gameplay';
+}
+
 function renderStartMenu() {
     const menu = document.getElementById('system-start-menu');
     if (!menu) return;
 
     const apps = toolbarLauncherApps.length ? toolbarLauncherApps : desktopApps;
+    const focusedCategory = menu.contains(document.activeElement) ? document.activeElement.closest('[data-start-category]')?.dataset.startCategory : null;
+    const scrollTop = menu.scrollTop;
+    const collator = new Intl.Collator(window.GhostLocale?.getLocale() || desktopSettings.locale || 'pl', {numeric: true, sensitivity: 'base'});
+    const groups = START_CATEGORIES.map(([category, icon]) => ({category, icon, entries: apps.map((app, index) => ({app, index,
+        label: app.labelKey ? ghostText(app.labelKey) : (app.label || 'App')}))
+        .filter(({app}) => startAppCategory(app) === category)
+        .sort((a, b) => collator.compare(a.label, b.label) || a.index - b.index)})).filter(group => group.entries.length);
     menu.innerHTML = `
         <div class="system-start-programs">
-            ${apps.map((app, index) => `
+            ${groups.map(({category, icon, entries}) => `
+              <details class="system-start-category" data-start-category="${category}" ${startExpandedCategories.has(category) ? 'open' : ''}>
+                <summary><span class="system-start-category-icon" aria-hidden="true">${icon}</span>${ghostLabel('shell.start.' + category)}<span class="system-start-count">${entries.length}</span><span class="system-start-chevron" aria-hidden="true">⌄</span></summary>
+                <div class="system-start-category-apps">
+                ${entries.map(({app, index, label}) => `
                 <button class="system-start-item" type="button" data-launch-index="${index}">
-                    <span>${app.icon || '\u25A1'}</span>
-                    <span ${app.labelKey ? `data-ghost-i18n="${escapeHTML(app.labelKey)}"` : ''}>${escapeHTML(app.labelKey ? ghostText(app.labelKey) : (app.label || 'App'))}</span>
+                    <span>${app.icon || '\u25A1'}</span><span>${escapeHTML(label)}</span>
                 </button>
-            `).join("")}
+                `).join('')}</div>
+              </details>`).join('')}
         </div>
         <div class="system-start-footer">
             <button class="system-start-item system-action-restart" type="button">
@@ -1692,7 +1748,13 @@ function renderStartMenu() {
         </div>
     `;
 
-    menu.querySelectorAll('.system-start-item').forEach(button => {
+    menu.querySelectorAll('.system-start-category').forEach(section => section.addEventListener('toggle', () => {
+        if (section.open) startExpandedCategories.add(section.dataset.startCategory);
+        else startExpandedCategories.delete(section.dataset.startCategory);
+    }));
+    menu.scrollTop = scrollTop;
+    if (focusedCategory) menu.querySelector(`[data-start-category="${focusedCategory}"] summary`)?.focus({preventScroll: true});
+    menu.querySelectorAll('[data-launch-index]').forEach(button => {
         button.addEventListener('click', () => {
             const app = apps[Number(button.dataset.launchIndex)];
             if (!app || typeof app.action !== 'function') return;
@@ -3232,6 +3294,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         try {
             const action = () => launchApplicationFromEntry(app, "desktop_menu");
             icons.push({
+                entry: app,
                 icon: getLauncherAppIcon(app),
                 label: name,
                 action
