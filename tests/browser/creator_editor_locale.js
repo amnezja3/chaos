@@ -23,7 +23,7 @@ async (page) => {
         if (!sessionHeaders) sessionHeaders = (await route.fetch()).headers();
         const path = new URL(route.request().url()).pathname;
         const method = route.request().method();
-        if (path.endsWith('/policy')) return route.fulfill({headers: sessionHeaders, json: {success: true, enabled: true, installed_interfaces: kinds, effect_enabled: true, effect_min_level: 10, recipes: {car_hack: {resource_types: [], requires_file: false}}}});
+        if (path.endsWith('/policy')) return route.fulfill({headers: sessionHeaders, json: {success: true, enabled: true, signal_languages: ['pl', 'en', 'ANY'], installed_interfaces: kinds, effect_enabled: true, effect_min_level: 10, recipes: {car_hack: {resource_types: [], requires_file: false}}}});
         const id = path.split('/')[4], project = projects[id];
         if (method !== 'GET') {
             const body = route.request().postDataJSON();
@@ -47,6 +47,7 @@ async (page) => {
         await page.evaluate(() => GhostLocale.changeLocale('pl', false));
         await page.evaluate(kind => CreatorEditor.launch(kind, kind), kind);
         const win = page.locator('.creator-v2').last();
+        await win.locator('select[name="signal_language"]').selectOption('ANY');
         const name = win.locator('label').filter({has: page.locator('[data-ghost-i18n="creator.editor.name"]')}).locator('input');
         await name.fill('Zmieniona nazwa <keep> ' + kind);
         const before = await win.locator('input,textarea').evaluateAll(nodes => nodes.map(node => node.value));
@@ -54,6 +55,7 @@ async (page) => {
         await page.evaluate(() => GhostLocale.changeLocale('en', false));
         const after = await win.locator('input,textarea').evaluateAll(nodes => nodes.map(node => node.value));
         assert(JSON.stringify(before) === JSON.stringify(after), kind + ': authored fields changed');
+        assert(await win.locator('select[name="signal_language"]').inputValue() === 'ANY', 'Declaration lost on locale change');
         assert(await win.evaluate(node => node === window.localeTestWindow), 'Window replaced');
         await win.getByRole('button', {name: 'Preview text — without execution', exact: true}).click();
         assert((await win.locator('.creator-v2-preview').innerText()).includes('creator.editor.publish'), 'UGC key translated');
@@ -62,6 +64,7 @@ async (page) => {
         const saved = writes.filter(w => w.path.endsWith('/' + kind) && w.body.presentation).at(-1);
         assert(saved.body.presentation.name === 'Zmieniona nazwa <keep> ' + kind, 'Wrong saved name');
         assert(saved.body.presentation.title === 'creator.editor.publish', 'Wrong saved title');
+        assert(saved.body.presentation.signal_language === 'ANY', 'Signal language not saved');
         await win.getByRole('button', {name: 'Publish', exact: true}).click();
         await win.getByRole('status').filter({hasText: 'Version 1 published.'}).waitFor();
         assert(await win.locator('input[type="number"]').first().isDisabled(), 'Published price unlocked');

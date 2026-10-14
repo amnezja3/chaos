@@ -1,5 +1,33 @@
 # CHAOS — Project Journal
 
+## 2026-10-14 — 155.3: język źródeł BlackNet, lokalnie
+
+Wykonano lokalny pakiet 155.3.0: 14 reguł świata i 6 kart statycznych mają
+systemowe etykiety PL/EN; publikacja zachowuje jeden język i pełne nazwy.
+Radio przekazuje metadane kanału/audycji, pomija niekwalifikowane źródła,
+a neutralne źródła mają trwały wybór zatwierdzonego locale. ANY nie jest locale
+modelu. Osobna tabela przechowuje wybór dla ID i wersji źródła, bez zmiany
+publicznej tożsamości sygnału i receiptów. Nowa emisja pod flagą, domyślnie OFF.
+
+Cztery kreatory i ich legacy formularze, a także marka GhostLaba, zapisują
+signal_language. Wydanie/artefakt i instalacja zachowują snapshot; zmiana UI
+lub nowsza publikacja nie tłumaczy UGC ani nie przepisuje starej instalacji.
+Dodano migrator inventory/dry-run/apply/check/rollback i instrukcję operatora.
+Migracja nie zgaduje języka historii i nie publikuje jej ponownie.
+
+Testy etapowe: 93, 53 i 36 PASS (częściowo nakładające się), końcowa kontrola
+resolvera/radia 11 PASS. Dwa dodatkowe testy obejmują 12 przypadków starego/nowego
+kontraktu: PL/EN × odrzucenie/timeout/zły JSON Ollamy → bezpieczny szablon →
+jedna publikacja, replay duplicate. Bez wywoływania realnych modeli.
+Playwright: cztery kreatory, GhostLab i BN desktop/mobile PASS, zachowane UGC,
+deklaracje i identyfikatory. Składnia obu plików JS i diff-check poprawne.
+
+Macierz 155 zaktualizowana według decyzji autora: gameplay poza BN potwierdzony,
+Mistral wystarczająco sprawdzony generacyjnie; publikacje/News/historia do odbioru
+w grze. Show/Sender w naturalnym cyklu, około dwóch tygodni, bez przyspieszania.
+Nie zatrzymywano gry, nie wdrażano na serwerze, nie nadano pełnego PASS 155.
+Raport: doc/audits/sprint_155_3_blacknet.md; runbook: doc/runbooks/blacknet_155_3.md.
+
 ## 2026-10-13 — multi-konflikty EN: regresja i plan 155.3
 
 Playwright MCP: `tests/browser/territory_multi_locale.js` na izolowanej fixture,

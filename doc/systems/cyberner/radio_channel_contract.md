@@ -2,6 +2,13 @@
 
 Ten dokument definiuje kontrakt `meta.channel` dla Ghost Hack Radio.
 
+Aktualizacja 155.3 (14 X 2026): producent promocji BN używa istniejących pól
+`language` kanału i `programs[plik].language`. Kanał PL/EN determinuje tekst
+promocji zgodnej audycji; mixed/unknown może promować konkretną audycję z jawnym
+językiem. Nieznane audio nie staje się neutralne. ANY jest filtrem gracza lub
+deklaracją narzędzia, nigdy językiem nagrania/modelu. CTA zachowuje dokładny kanał
+i plik; przełączenie UI nie tłumaczy audio. [Kontrakt BN](../../sprints/sprint_155_3_blacknet_languages.md).
+
 Sprint 53 przygotowuje format kanalow pod przyszly BlackNet, ale nie zaklada,
 ze BlackNet istnieje juz fizycznie w runtime.
 

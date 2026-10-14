@@ -27,6 +27,7 @@ async(page)=>{
     await app.locator('[data-ghostlab-open-project]').click();
     const name=app.locator('[data-ghostlab-branding=name]');
     await name.fill('Nowa <nazwa>');
+    await app.locator('[data-ghostlab-branding=signal_language]').selectOption('en');
     await app.locator('[data-ghostlab-blueprint-key=log_limit]').fill('7');
     await page.evaluate(()=>GhostLocale.changeLocale('en',false));
     assert(await name.inputValue()==='Nowa <nazwa>','unsaved branding preserved');
@@ -37,6 +38,7 @@ async(page)=>{
     await app.locator('[data-ghostlab-save-blueprint]').click();
     await page.waitForFunction(()=>document.querySelector('[data-app=ghostlab] .ghostlab-shell')._ghostLabEditingProject.revision===2);
     assert(requests[0].blueprint.log_limit===7 && requests[0].branding.name==='Nowa <nazwa>' && requests[0].revision===1,'save payload stable');
+    assert(requests[0].branding.signal_language==='en','source language saved separately from UI');
     await page.evaluate(()=>openGhostLabInstalledApp('ghostlab_stable'));
     const tool=page.locator('.pro-tool-window').last();
     assert((await tool.innerText()).includes('Read target logs'),'installed action translated');

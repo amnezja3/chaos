@@ -1,5 +1,19 @@
 # BlackNet Deterministic Signal Publisher
 
+## Aktualizacja 155.3 — 14 X 2026
+
+Nowe metadane `output_locale` i `language_contract` określają jeden język
+publikacji; `system_copy` zawiera klucze/parametry otoczenia UI, bez tłumaczenia
+autorskiego tekstu. Renderer nie przepisuje tytułu/body przy zmianie języka gracza.
+Radio dziedziczy język źródła; produkty deklarację wersji `signal_language`
+(`pl`, `en`, `ANY`). Unknown jest stanem historycznym, nie synonimem ANY.
+Wybór jest utrwalany przed przekazaniem sygnału do zadania narracyjnego.
+Nowa polityka wymaga migracji i `CHAOS_BLACKNET_LANGUAGES_ENABLED=1`;
+szczegóły i rollback: [runbook](../../runbooks/blacknet_155_3.md).
+Wdrożenie produkcyjne tej aktualizacji pozostaje do wykonania.
+
+Poniżej pierwotny kontrakt źródeł i identyfikatorów, który pozostaje zgodny.
+
 Sprint 82 adds a deterministic publisher that turns `blacknet_world_facts` into
 ready BlackNet signals without AI.
 

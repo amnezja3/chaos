@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "155.2.2",
+  "content_version": "155.3.0",
   "messages": {
     "creator.editor.title": {
       "params": {},
@@ -1601,6 +1601,22 @@
     "creator.objects.players": {
       "params": {},
       "text": "Gracze · PvP"
+    },
+    "creator.editor.signal_language": {
+      "params": {},
+      "text": "Język sygnału BN"
+    },
+    "creator.editor.signal_language_unknown": {
+      "params": {},
+      "text": "Nie zadeklarowano"
+    },
+    "creator.editor.signal_language_help": {
+      "params": {},
+      "text": "Język systemowego sygnału promującego narzędzie. ANY pozwala wybrać język systemowi. Twoje teksty nie są tłumaczone."
+    },
+    "creator.validation.signal_language": {
+      "params": {},
+      "text": "Wybierz zatwierdzony język sygnału lub ANY."
     }
   }
 }

@@ -1225,6 +1225,20 @@ def parse_and_validate_ollama_content(content, task_package):
         errors.append("schema_fields_mismatch")
     title = output.get("title")
     body = output.get("body")
+    presentation_owned = (task_package.get('language_contract') or {}).get('presentation') == 'blacknet-prefix-v1'
+    if presentation_owned:
+        # Decoration belongs to the system. Unknown content and references still
+        # pass through all normal schema, semantic and language validators.
+        voice = task_package.get('voice_contract') or {}
+        for field in ('title', 'body'):
+            value = output.get(field)
+            prefix = voice.get(field + '_prefix')
+            if isinstance(value, str) and isinstance(prefix, str) and prefix:
+                value = value.strip()
+                while value.startswith(prefix):
+                    value = value[len(prefix):].lstrip()
+                output[field] = prefix + (' ' if field == 'body' else '') + value
+        title, body = output.get('title'), output.get('body')
     tone = output.get("tone")
     refs = output.get("fact_refs")
     cta_ref = output.get("cta_ref")
@@ -1249,8 +1263,11 @@ def parse_and_validate_ollama_content(content, task_package):
             errors.append("slot_copy_budget_exceeded")
         if not isinstance(body, str) or len(body) > body_limit:
             errors.append("slot_copy_budget_exceeded")
-    title, title_bounded = bound_presentation_text(title, title_limit)
-    body, body_bounded = bound_presentation_text(body, body_limit)
+    if presentation_owned:
+        title_bounded = body_bounded = False
+    else:
+        title, title_bounded = bound_presentation_text(title, title_limit)
+        body, body_bounded = bound_presentation_text(body, body_limit)
     if identifier_normalized or product_prefix_normalized:
         output = dict(output)
         output["title"] = title

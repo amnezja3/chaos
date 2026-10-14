@@ -1,7 +1,25 @@
 # Sprint 155 — dowody i bramki odbioru
 
-Stan: 12 X 2026, lokalny pakiet 155.2.0, **bez wdrożenia i bez pełnego PASS**.
+Stan bieżący: 14 X 2026, **bez pełnego PASS 155**. Pakiet 155 był wdrażany
+na produkcji; migracja schematu została wykonana i potwierdzona przez operatora.
+Nowy pakiet 155.3.0 pozostaje lokalny. Nie utożsamiać braku wdrożenia tego przyrostu
+z brakiem wcześniejszego wdrożenia 155.
 EN zachowuje status `test`. Sprinty 149–152 pozostają zamrożone.
+
+## Aktualizacja odbiorów 14 X
+
+| Obszar | Aktualny dowód / decyzja |
+| --- | --- |
+| Gameplay PL/EN poza BN | Użytkownik nie widzi pozostałych polskich tekstów w EN; multi-konflikty lokalnie sprawdzone Playwright |
+| BN 155.3 | Implementacja lokalna i testy; [szczegółowy raport](sprint_155_3_blacknet.md); produkcyjna emisja do odbioru |
+| Mistral i News | Generowanie wystarczająco sprawdzone według użytkownika; teraz rzeczywiste publikacje i warianty podczas gry |
+| Fallback awaryjny | Lokalny test PL/EN odrzucenia/timeout/złego JSON → bezpieczny szablon → pojedyncza publikacja PASS; bez strojenia stylu |
+| Historia | Schemat wykonany; kompletność starych komunikatów i wariantów News odbierana oddzielnie |
+| Show/Sender, FM, mobile | Odbiór w naturalnym cyklu Ghost Signal, możliwe około 2 tygodni; bez przyspieszania zdobywania części |
+
+Decyzja użytkownika: nie blokujemy gry. Pełny PASS dopiero po zebraniu odbiorów.
+Poniższa tabela i opisy testów są historycznym lokalnym audytem z 12 X;
+ich sformułowania „bez wdrożenia” opisują tamten moment, nie stan produkcji dziś.
 
 | Obszar | Implementacja / dowód lokalny | Bramka końcowa |
 | --- | --- | --- |

@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.2.2",
+  "content_version": "155.3.0",
   "messages": {
     "apps.notifications.product_title": {
       "params": {},
@@ -6348,6 +6348,389 @@
     "apps.detention.denied.detention_movement_blocked": {
       "params": {},
       "text": "Detention blocks movement and teleportation."
+    },
+    "apps.blacknet.rule.operations_active_count.channel": {
+      "params": {},
+      "text": "INTERCEPTED CHANNEL"
+    },
+    "apps.blacknet.rule.operations_active_count.title": {
+      "params": {},
+      "text": "HOTSPOT / OPERATIONS"
+    },
+    "apps.blacknet.rule.operations_active_count.label": {
+      "params": {},
+      "text": "ACTIVE OPERATIONS"
+    },
+    "apps.blacknet.rule.operations_active_count.stat": {
+      "params": {
+        "value": "number"
+      },
+      "plural": "value",
+      "forms": {
+        "one": "{value} OPERATION IN PROGRESS",
+        "other": "{value} OPERATIONS IN PROGRESS"
+      }
+    },
+    "apps.blacknet.rule.operations_top_type.channel": {
+      "params": {},
+      "text": "OPERATION ACTIVITY"
+    },
+    "apps.blacknet.rule.operations_top_type.title": {
+      "params": {
+        "category": "string"
+      },
+      "text": "ACTIVITY / {category}"
+    },
+    "apps.blacknet.rule.operations_top_type.label": {
+      "params": {},
+      "text": "MOST COMMON TYPE"
+    },
+    "apps.blacknet.rule.operations_top_type.stat": {
+      "params": {
+        "category": "string"
+      },
+      "text": "{category}"
+    },
+    "apps.blacknet.rule.operation_hotspot_activity.channel": {
+      "params": {},
+      "text": "INTERCEPTED CHANNEL"
+    },
+    "apps.blacknet.rule.operation_hotspot_activity.title": {
+      "params": {
+        "category": "string"
+      },
+      "text": "OPERATIONS / {category}"
+    },
+    "apps.blacknet.rule.operation_hotspot_activity.label": {
+      "params": {},
+      "text": "ACTIVE TARGET"
+    },
+    "apps.blacknet.rule.operation_hotspot_activity.stat": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "{target_label}"
+    },
+    "apps.blacknet.rule.operation_hotspot_teleport.channel": {
+      "params": {},
+      "text": "INTERCEPTED CHANNEL"
+    },
+    "apps.blacknet.rule.operation_hotspot_teleport.title": {
+      "params": {
+        "category": "string"
+      },
+      "text": "TELEPORT / {category}"
+    },
+    "apps.blacknet.rule.operation_hotspot_teleport.label": {
+      "params": {},
+      "text": "JUMP TO TARGET"
+    },
+    "apps.blacknet.rule.operation_hotspot_teleport.stat": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "{target_label}"
+    },
+    "apps.blacknet.rule.target_operation_burst.channel": {
+      "params": {},
+      "text": "OPERATION ACTIVITY"
+    },
+    "apps.blacknet.rule.target_operation_burst.title": {
+      "params": {
+        "category": "string"
+      },
+      "text": "HOTSPOT / {category}"
+    },
+    "apps.blacknet.rule.target_operation_burst.label": {
+      "params": {},
+      "text": "ACTIVITY INCREASE"
+    },
+    "apps.blacknet.rule.target_operation_burst.stat": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "{target_label}"
+    },
+    "apps.blacknet.rule.conflict_target_alert.channel": {
+      "params": {},
+      "text": "TERRITORY CONFLICT"
+    },
+    "apps.blacknet.rule.conflict_target_alert.title": {
+      "params": {
+        "category": "string"
+      },
+      "text": "CONFLICT / {category}"
+    },
+    "apps.blacknet.rule.conflict_target_alert.label": {
+      "params": {},
+      "text": "CONTESTED TARGET"
+    },
+    "apps.blacknet.rule.conflict_target_alert.stat": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "{target_label}"
+    },
+    "apps.blacknet.rule.contested_area_alert.channel": {
+      "params": {},
+      "text": "CONTESTED AREA"
+    },
+    "apps.blacknet.rule.contested_area_alert.title": {
+      "params": {},
+      "text": "CONFLICT / AREA"
+    },
+    "apps.blacknet.rule.contested_area_alert.label": {
+      "params": {},
+      "text": "CONTESTED AREA"
+    },
+    "apps.blacknet.rule.contested_area_alert.stat": {
+      "params": {
+        "value": "number"
+      },
+      "plural": "value",
+      "forms": {
+        "one": "{value} CONFLICT",
+        "other": "{value} CONFLICTS"
+      }
+    },
+    "apps.blacknet.rule.market_sales_7d.channel": {
+      "params": {},
+      "text": "GHOST MARKET WATCH"
+    },
+    "apps.blacknet.rule.market_sales_7d.title": {
+      "params": {},
+      "text": "DATA MARKET / 7D"
+    },
+    "apps.blacknet.rule.market_sales_7d.label": {
+      "params": {},
+      "text": "HC TURNOVER"
+    },
+    "apps.blacknet.rule.market_sales_7d.stat": {
+      "params": {
+        "file_count": "number",
+        "volume_mb": "string"
+      },
+      "plural": "file_count",
+      "forms": {
+        "one": "{file_count} FILE / {volume_mb} MB",
+        "other": "{file_count} FILES / {volume_mb} MB"
+      }
+    },
+    "apps.blacknet.rule.market_top_sector_7d.channel": {
+      "params": {},
+      "text": "GHOST MARKET WATCH"
+    },
+    "apps.blacknet.rule.market_top_sector_7d.title": {
+      "params": {
+        "category": "string"
+      },
+      "text": "{category} / DEMAND"
+    },
+    "apps.blacknet.rule.market_top_sector_7d.label": {
+      "params": {},
+      "text": "TOP SECTOR"
+    },
+    "apps.blacknet.rule.market_top_sector_7d.stat": {
+      "params": {
+        "volume_mb": "string"
+      },
+      "text": "{volume_mb} MB IN CIRCULATION"
+    },
+    "apps.blacknet.rule.googleplex_catalog_size.channel": {
+      "params": {},
+      "text": "UNVERIFIED DROP"
+    },
+    "apps.blacknet.rule.googleplex_catalog_size.title": {
+      "params": {},
+      "text": "GOOGLEPLEX / CATALOG"
+    },
+    "apps.blacknet.rule.googleplex_catalog_size.label": {
+      "params": {},
+      "text": "PRICE"
+    },
+    "apps.blacknet.rule.googleplex_catalog_size.stat": {
+      "params": {
+        "products": "number"
+      },
+      "plural": "products",
+      "forms": {
+        "one": "{products} SYSTEM PRODUCT",
+        "other": "{products} SYSTEM PRODUCTS"
+      }
+    },
+    "apps.blacknet.rule.googleplex_product_signal.channel": {
+      "params": {},
+      "text": "UNVERIFIED DROP"
+    },
+    "apps.blacknet.rule.googleplex_product_signal.title": {
+      "params": {
+        "product_name": "string"
+      },
+      "text": "GOOGLEPLEX / {product_name}"
+    },
+    "apps.blacknet.rule.googleplex_product_signal.label": {
+      "params": {},
+      "text": "PRICE"
+    },
+    "apps.blacknet.rule.googleplex_product_signal.stat": {
+      "params": {
+        "temperature": "string",
+        "downloads": "number"
+      },
+      "plural": "downloads",
+      "forms": {
+        "one": "{temperature} TEMP / {downloads} DOWNLOAD",
+        "other": "{temperature} TEMP / {downloads} DOWNLOADS"
+      }
+    },
+    "apps.blacknet.rule.radio_channels_available.channel": {
+      "params": {},
+      "text": "BLACKNET AUDIO"
+    },
+    "apps.blacknet.rule.radio_channels_available.title": {
+      "params": {},
+      "text": "GHOST HACK RADIO"
+    },
+    "apps.blacknet.rule.radio_channels_available.label": {
+      "params": {},
+      "text": "CHANNELS ONLINE"
+    },
+    "apps.blacknet.rule.radio_channels_available.stat": {
+      "params": {
+        "tracks_total": "number"
+      },
+      "plural": "tracks_total",
+      "forms": {
+        "one": "{tracks_total} TRACK ON AIR",
+        "other": "{tracks_total} TRACKS ON AIR"
+      }
+    },
+    "apps.blacknet.rule.system_messages_24h.channel": {
+      "params": {},
+      "text": "SYSTEM ALERT"
+    },
+    "apps.blacknet.rule.system_messages_24h.title": {
+      "params": {},
+      "text": "SYSTEM / 24H"
+    },
+    "apps.blacknet.rule.system_messages_24h.label": {
+      "params": {},
+      "text": "EVENTS"
+    },
+    "apps.blacknet.rule.system_messages_24h.stat": {
+      "params": {
+        "value": "number"
+      },
+      "plural": "value",
+      "forms": {
+        "one": "{value} MESSAGE",
+        "other": "{value} MESSAGES"
+      }
+    },
+    "apps.blacknet.rule.incident_hotspot_reaction.channel": {
+      "params": {},
+      "text": "RESPONSE NETWORK"
+    },
+    "apps.blacknet.rule.incident_hotspot_reaction.title": {
+      "params": {
+        "target_label": "string"
+      },
+      "text": "INCIDENT / {target_label}"
+    },
+    "apps.blacknet.rule.incident_hotspot_reaction.label": {
+      "params": {},
+      "text": "RESPONSE LEVEL"
+    },
+    "apps.blacknet.rule.incident_hotspot_reaction.stat": {
+      "params": {
+        "public_state": "string",
+        "trend": "string"
+      },
+      "text": "{public_state} / {trend}"
+    },
+    "apps.blacknet.rule.out_of_signal.label": {
+      "params": {},
+      "text": "NO ACTIVITY"
+    },
+    "apps.blacknet.rule.out_of_signal.stat": {
+      "params": {},
+      "text": "WAITING FOR WORLD ACTIVITY"
+    },
+    "apps.blacknet.rule.out_of_signal.title": {
+      "params": {},
+      "text": "OUT OF SIGNAL"
+    },
+    "apps.blacknet.rule.static.hotspot-mokotow.channel": {
+      "params": {},
+      "text": "INTERCEPTED CHANNEL"
+    },
+    "apps.blacknet.rule.static.hotspot-mokotow.label": {
+      "params": {},
+      "text": "ACTIVITY INCREASE"
+    },
+    "apps.blacknet.rule.static.hotspot-mokotow.stat": {
+      "params": {},
+      "text": "17 ACTIVE OPERATIONS"
+    },
+    "apps.blacknet.rule.static.market-gps.channel": {
+      "params": {},
+      "text": "GHOST MARKET WATCH"
+    },
+    "apps.blacknet.rule.static.market-gps.label": {
+      "params": {},
+      "text": "PRICE POTENTIAL"
+    },
+    "apps.blacknet.rule.static.market-gps.stat": {
+      "params": {},
+      "text": "62 PACKAGES IN CIRCULATION"
+    },
+    "apps.blacknet.rule.static.tool-drop.channel": {
+      "params": {},
+      "text": "UNVERIFIED DROP"
+    },
+    "apps.blacknet.rule.static.tool-drop.label": {
+      "params": {},
+      "text": "CHANNEL DISCOUNT"
+    },
+    "apps.blacknet.rule.static.tool-drop.stat": {
+      "params": {},
+      "text": "9 COPIES LEFT"
+    },
+    "apps.blacknet.rule.static.pvp-praga.channel": {
+      "params": {},
+      "text": "HIGH RISK SIGNAL"
+    },
+    "apps.blacknet.rule.static.pvp-praga.label": {
+      "params": {},
+      "text": "PVP ACTIVITY"
+    },
+    "apps.blacknet.rule.static.pvp-praga.stat": {
+      "params": {},
+      "text": "3 UNPROTECTED TARGETS"
+    },
+    "apps.blacknet.rule.static.leak-zoliborz.channel": {
+      "params": {},
+      "text": "GHOST INTELLIGENCE"
+    },
+    "apps.blacknet.rule.static.leak-zoliborz.label": {
+      "params": {},
+      "text": "CONFIDENCE"
+    },
+    "apps.blacknet.rule.static.leak-zoliborz.stat": {
+      "params": {},
+      "text": "11 LINKED NODES"
+    },
+    "apps.blacknet.rule.static.atm-srodmiescie.channel": {
+      "params": {},
+      "text": "SYSTEM ALERT"
+    },
+    "apps.blacknet.rule.static.atm-srodmiescie.label": {
+      "params": {},
+      "text": "OPERATION WINDOW"
+    },
+    "apps.blacknet.rule.static.atm-srodmiescie.stat": {
+      "params": {},
+      "text": "8 UNPROTECTED TERMINALS"
     }
   }
 }

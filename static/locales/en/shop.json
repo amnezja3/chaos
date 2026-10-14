@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.2.2",
+  "content_version": "155.3.0",
   "messages": {
     "shop.validation": {
       "params": {},

@@ -169,7 +169,7 @@ def validate_effect(value, *, action, interface, level):
 
 
 def generate_contract(data, level, rng=None):
-    allowed = {'name', 'icon', 'action', 'creates_file', 'interface', 'effect', 'price'}
+    allowed = {'name', 'icon', 'action', 'creates_file', 'interface', 'effect', 'price', 'signal_language'}
     if not isinstance(data, dict) or set(data) - allowed:
         raise CreatorValidationError('generator_fields', 'Niedozwolone pola generatora.')
     action, interface = data.get('action'), data.get('interface')
@@ -267,7 +267,7 @@ def runtime_effect(app, security, choice_id=None, *, operation_only=False):
 
 def validate_presentation(interface, value):
     """Only presentation fields: option effects, prices and action IDs are not text."""
-    common = {'name', 'icon', 'description', 'title'}
+    common = {'name', 'icon', 'description', 'title', 'signal_language'}
     fields = {
         'terminal': {'commands'}, 'window': {'logs', 'button_labels'},
         'button_choices': {'prompt', 'option_labels'},
@@ -288,7 +288,13 @@ def validate_presentation(interface, value):
             text(item, limit, required)
 
     for key, item in value.items():
-        if key == 'commands':
+        if key == 'signal_language':
+            from ghostnetwork.signal_language import validate_declaration
+            try:
+                validate_declaration(item)
+            except ValueError:
+                raise CreatorValidationError('signal_language', 'Wybierz zatwierdzony język sygnału lub ANY.')
+        elif key == 'commands':
             if not isinstance(item, list) or not 1 <= len(item) <= 32:
                 raise CreatorValidationError('commands', 'Wymagane 1 do 32 komend.')
             seen = set()

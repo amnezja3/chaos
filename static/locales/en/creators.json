@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.2.2",
+  "content_version": "155.3.0",
   "messages": {
     "creator.editor.title": {
       "params": {},
@@ -1601,6 +1601,22 @@
     "creator.objects.players": {
       "params": {},
       "text": "Players · PvP"
+    },
+    "creator.editor.signal_language": {
+      "params": {},
+      "text": "BN signal language"
+    },
+    "creator.editor.signal_language_unknown": {
+      "params": {},
+      "text": "Not declared"
+    },
+    "creator.editor.signal_language_help": {
+      "params": {},
+      "text": "Language of the system signal promoting this tool. ANY lets the system select a language. Your own text is not translated."
+    },
+    "creator.validation.signal_language": {
+      "params": {},
+      "text": "Select an approved signal language or ANY."
     }
   }
 }

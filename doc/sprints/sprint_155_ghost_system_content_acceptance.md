@@ -1,7 +1,8 @@
 # Sprint 155 — Ghost System: treści, historia i pełny odbiór PL/EN
 
-Status: **LOKALNY PAKIET DO ODBIORU PRZEDWDROŻENIOWEGO — bez pełnego PASS**,
-12 X 2026. [Aktualna macierz dowodów i bramek](../audits/sprint_155_acceptance.md).
+Status: **ODBIÓR W GAMEPLAYU + LOKALNY PRZYROST 155.3 — bez pełnego PASS**,
+14 X 2026. Wcześniejszy pakiet i migracja schematu wdrożone przez operatora.
+[Aktualna macierz dowodów i bramek](../audits/sprint_155_acceptance.md).
 [154](sprint_154_ghost_system_apps_catalogs.md) ma PASS użytkownika.
 Autor zezwolił na rozpoczęcie po działających generacjach Mistrala i zapisie
 sekretu web/workera w PM2 (zgodne klucze; autostart enabled/active).
@@ -14,8 +15,10 @@ rozpoczętego w [153](sprint_153_ghost_system_i18n_foundation.md).
 
 Aktualizacja 13 X: rozgrywka wznowiona, odbiór narracji prowadzony osobno.
 [155.3 — BlackNet: język źródła i naturalna rotacja sygnałów](sprint_155_3_blacknet_languages.md)
-wydziela radio, heurystyki GN i deklaracje języka w kreatorach. Zakres zaplanowany,
-nie zaliczony; pełny PASS 155 nadal wymaga odbioru. Fallback Ollamy nie ma być
+wydziela radio, heurystyki GN i deklaracje języka w kreatorach. Aktualizacja 14 X:
+implementacja lokalna i testy, publikacje produkcyjne niezaliczone; pełny PASS 155
+nadal wymaga odbioru. Show/Sender czeka na naturalny cykl gry (około 2 tygodni),
+bez sztucznego zdobywania części. Fallback Ollamy nie ma być
 powodem dalszego zatrzymywania gry ani nieskończonego strojenia stylu.
 
 ### Postęp 12 X — implementacja lokalna, bez pełnego PASS

@@ -9572,6 +9572,8 @@ function createBrowser() {
             source: String(signal.source || "unknown").trim() || "unknown",
             signal_type: String(signal.signal_type || signal.type || "").trim(),
             fact_id: String(signal.fact_id || "").trim(),
+            system_copy: signal.system_copy || {},
+            output_locale: signal.output_locale || '',
             world_version: String(signal.world_version || "").trim(),
             entity_id: String(signal.entity_id || signal.cta_target_id || signal.target_id || signal.product_id || "").trim(),
             channel: String(signal.channel || "BLACKNET SIGNAL").trim() || "BLACKNET SIGNAL",
@@ -10317,6 +10319,17 @@ function createBrowser() {
         };
     }
 
+    function blacknetSystemText(signal, field) {
+        if (signal?.signal_type === 'out_of_signal' && ['title', 'label', 'stat'].includes(field)) {
+            return ghostText('apps.blacknet.rule.out_of_signal.' + field);
+        }
+        const copy = signal?.system_copy?.[field];
+        if (copy && typeof copy.key === 'string' && copy.key.startsWith('apps.blacknet.rule.') && window.GhostLocale?.hasKey(copy.key)) {
+            return ghostText(copy.key, copy.params || {});
+        }
+        return signal?.[field] || '';
+    }
+
     const renderBlackNet = () => {
         if (activeBrowserTab !== "blacknet") return;
         updateBrowserNarrowMode();
@@ -10347,7 +10360,7 @@ function createBrowser() {
                         <button type="button" data-blacknet-open-tab="googleplex">GGPL</button>
                         <button type="button" data-blacknet-open-tab="exchange">GX</button>
                     </div>
-                    <div class="bn-channel"><span>&gt;</span> ${escapeHTML(featured?.channel || ghostText('apps.blacknet.none'))}</div>
+                    <div class="bn-channel"><span>&gt;</span> ${escapeHTML(blacknetSystemText(featured, 'channel') || ghostText('apps.blacknet.none'))}</div>
                 </header>
                 <div class="bn-signal-strength" data-ghost-aria-label="apps.blacknet.strength_aria" aria-label="${escapeHTML(ghostText('apps.blacknet.strength_aria'))}">
                     <div class="bn-bars"><i></i><i></i><i></i><i></i><i></i></div>
@@ -10361,9 +10374,9 @@ function createBrowser() {
                     <section class="bn-signal bn-layout-${Number(featured.layout || 1)} bn-enter-${escapeHTML(activeBlacknetDirection)}">
                         <div class="bn-signal-inner">
                             <div class="bn-copy">
-                                <h2>${escapeHTML(featured.title)}</h2>
-                                <div class="bn-stat"><span class="bn-target-icon">⊕</span>${escapeHTML(featured.stat)}</div>
-                                <div class="bn-metric-label">${escapeHTML(featured.label)}</div>
+                                <h2>${escapeHTML(blacknetSystemText(featured, 'title'))}</h2>
+                                <div class="bn-stat"><span class="bn-target-icon">⊕</span>${escapeHTML(blacknetSystemText(featured, 'stat'))}</div>
+                                <div class="bn-metric-label">${escapeHTML(blacknetSystemText(featured, 'label'))}</div>
                                 <div class="bn-metric">${escapeHTML(featured.value)}</div>
                             </div>
                             <div class="bn-visual">${blacknetRadarSvg(featured)}</div>
@@ -14497,6 +14510,8 @@ function appendCreatorMeta(form, keys, interfaceName) {
                     </label>
                 </div>
                 <label>${ghostLabel("creator.legacy.description")}<textarea name="description" rows="3" data-ghost-placeholder="creator.legacy.description_hint" placeholder="${escapeHTML(ghostText('creator.legacy.description_hint'))}"></textarea></label>
+                <label>${ghostLabel('creator.editor.signal_language')}<select name="signal_language">${[...(window.GhostLocale?.languages() || []).filter(item => item.approved_for?.includes('narration')).map(item => item.tag), 'ANY'].map(tag => `<option value="${escapeHTML(tag)}" ${tag === window.GhostLocale?.getLocale() ? 'selected' : ''}>${escapeHTML(tag.toUpperCase())}</option>`).join('')}</select></label>
+                <p>${ghostLabel('creator.editor.signal_language_help')}</p>
                 ${creatorPanelNav(false, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="1" hidden>
@@ -15569,6 +15584,7 @@ function renderGhostLabEditor(root, project) {
                 <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.name")}</span><input data-ghostlab-branding="name" maxlength="64" value="${escapeHTML(branding.name)}"></label>
                 <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.icon")}</span><input data-ghostlab-branding="icon" maxlength="32" value="${escapeHTML(branding.icon)}"></label>
                 <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.description")}</span><textarea data-ghostlab-branding="description" maxlength="1000">${escapeHTML(branding.description)}</textarea></label>
+                <label class="ghostlab-editor-field"><span>${ghostLabel('creator.editor.signal_language')}</span><select data-ghostlab-branding="signal_language">${!branding.signal_language ? `<option value="" selected disabled>${ghostText('creator.editor.signal_language_unknown')}</option>` : ''}${[...(window.GhostLocale?.languages() || []).filter(item => item.approved_for?.includes('narration')).map(item => item.tag), 'ANY'].map(tag => `<option value="${escapeHTML(tag)}" ${tag === branding.signal_language ? 'selected' : ''}>${escapeHTML(tag.toUpperCase())}</option>`).join('')}</select><small>${ghostLabel('creator.editor.signal_language_help')}</small></label>
                 <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.price")}</span><input type="number" min="0" ${project.template_id === 'travel_ticket' ? 'max="150"' : project.template_id === 'ptk_document' ? 'max="100"' : ''} step="1" data-ghostlab-branding="suggested_price" data-ghost-i18n-placeholder="lab.ui.price_placeholder" data-ghost-params='${escapeHTML(JSON.stringify({amount:Number(definition.price || 0)}))}' placeholder="${escapeHTML(ghostText('lab.ui.price_placeholder', {amount:Number(definition.price || 0)}))}" value="${branding.suggested_price ?? ''}"><small>${priceHelp}</small></label>
                 <label class="ghostlab-editor-field"><span>${ghostLabel("lab.ui.presentation")}</span><select data-ghostlab-branding="presentation_id">${(definition.presentation_ids || ['default']).map(id => `<option value="${escapeHTML(id)}" ${id === branding.presentation_id ? 'selected' : ''}>${id === 'default' ? ghostText('lab.ui.standard') : escapeHTML(id)}</option>`).join('')}</select></label>
             </div>
@@ -15961,6 +15977,7 @@ function collectGhostLabBranding(root, project) {
     const result = {...ghostLabSavedBranding(project)};
     root?.querySelectorAll?.('[data-ghostlab-branding]').forEach(input => {
         const key = input.dataset.ghostlabBranding;
+        if (key === 'signal_language' && !input.value) return;
         result[key] = key === 'suggested_price' ? (input.value.trim() === '' ? null : Number(input.value)) : input.value;
     });
     return result;

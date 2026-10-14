@@ -1878,6 +1878,8 @@ def build_blacknet_googleplex_facts(now_dt):
             subject_id=item_id,
             metadata={
                 "product_id": item_id,
+                "signal_language": item.get('signal_language', 'ANY' if not item.get('generated') and not item.get('creator_username') else 'unknown'),
+                "source_version": str(item.get('version') or ''),
                 "product_name": item_name,
                 "product_type": product_kind,
                 "price": price,
@@ -1893,9 +1895,14 @@ def build_blacknet_googleplex_facts(now_dt):
 
 
 def build_blacknet_radio_facts(now_dt):
+    import config
+    from radio_locale import track_metadata, track_allowed
+    from ghostnetwork.signal_language import radio_declaration, SignalLanguageError
+    language_enabled = config.env_bool('CHAOS_BLACKNET_LANGUAGES_ENABLED', False)
     radio_root = os.path.abspath(os.path.join(app.static_folder, "mp3", "radio", "channel"))
     channels = []
     tracks_total = 0
+    language_skipped_tracks = 0
     try:
         channel_ids = sorted(
             name for name in os.listdir(radio_root)
@@ -1919,6 +1926,18 @@ def build_blacknet_radio_facts(now_dt):
                 filename for filename in os.listdir(os.path.join(radio_root, channel_id))
                 if filename.lower().endswith(".mp3") and filename not in excluded
             ])
+            if language_enabled:
+                eligible = []
+                for filename in tracks:
+                    track = track_metadata(channel, filename)
+                    try:
+                        radio_declaration(channel, track)
+                    except SignalLanguageError:
+                        language_skipped_tracks += 1
+                        continue
+                    if track_allowed(channel, track):
+                        eligible.append(filename)
+                tracks = eligible
             track_count = len(tracks)
         except (OSError, json.JSONDecodeError):
             continue
@@ -1928,14 +1947,20 @@ def build_blacknet_radio_facts(now_dt):
             "slug": channel.get("slug") or channel_id,
             "name": channel.get("name") or channel_id,
             "source": channel.get("source") or "unknown",
+            "language": channel.get('language', 'unknown'),
+            "programs": channel.get('programs', {}),
             "tracks": track_count,
             "track_files": tracks[:24],
         })
         tracks_total += track_count
     preferred_channel = next(
-        (item for item in channels if str(item.get("source") or "").lower().startswith("blacknet")),
+        (item for item in channels if item.get('tracks') and str(item.get("source") or "").lower().startswith("blacknet")),
         None,
-    ) or (channels[0] if channels else {})
+    ) or next((item for item in channels if item.get('tracks')), {})
+    if language_enabled:
+        eligible_channels = [item for item in channels if item.get('tracks')]
+        if eligible_channels:
+            preferred_channel = eligible_channels[int(now_dt.strftime('%j%H')) % len(eligible_channels)]
     preferred_tracks = preferred_channel.get("track_files") if isinstance(preferred_channel.get("track_files"), list) else []
     track_count = len(preferred_tracks)
     track_index = 0
@@ -1948,17 +1973,20 @@ def build_blacknet_radio_facts(now_dt):
             "radio_channels_available",
             "radio",
             track_title or "radio",
-            track_index + 1 if track_count else 0,
+            (sum(bool(item.get('tracks')) for item in channels) if language_enabled else track_index + 1) if track_count else 0,
             now_dt,
             importance="low" if channels else "medium",
             confidence=0.9,
             metadata={
                 "channel_ids": [str(item.get("id") or "") for item in channels[:10] if item.get("id")],
                 "tracks_total": tracks_total,
+                "language_skipped_tracks": language_skipped_tracks,
                 "channel_id": preferred_channel.get("path_id") or preferred_channel.get("id") or "",
                 "channel_path_id": preferred_channel.get("path_id") or preferred_channel.get("id") or "",
                 "channel_meta_id": preferred_channel.get("id") or "",
                 "channel_name": preferred_channel.get("name") or "",
+                "channel_language": preferred_channel.get('language', 'unknown'),
+                "track_language": track_metadata(preferred_channel, track_file)['language'],
                 "track_file": track_file,
                 "track_title": track_title,
                 "track_index": track_index + 1 if track_count else 0,
@@ -2579,6 +2607,7 @@ def blacknet_out_of_signal(now_dt, world_version="", reason="no_real_facts"):
 
 
 def blacknet_signal_from_fact(fact, now_dt):
+    import config
     if not isinstance(fact, dict):
         return None
     rule = BLACKNET_SIGNAL_RULES.get(str(fact.get("fact_type") or ""))
@@ -2635,7 +2664,7 @@ def blacknet_signal_from_fact(fact, now_dt):
             or ""
         ),
         "channel": str(rule.get("channel") or "BLACKNET SIGNAL"),
-        "title": title[:48],
+        "title": title,
         "label": str(rule.get("label") or "STATUS")[:32],
         "value": blacknet_format_signal_value(value, rule)[:24],
         "stat": blacknet_format_signal_stat(rule, fact, value),
@@ -2656,10 +2685,25 @@ def blacknet_signal_from_fact(fact, now_dt):
         "region_id": str(fact.get("region_id") or "global"),
         "metadata": blacknet_safe_metadata(metadata),
     }
+    from ghostnetwork.blacknet_copy import descriptors, render
+    signal['system_copy'] = descriptors(fact, rule, value)
+    # Narrative titles are not retranslated when the viewer changes UI locale.
+    signal['system_copy'].pop('title', None)
+    if config.env_bool('CHAOS_BLACKNET_LANGUAGES_ENABLED', False):
+        from ghostnetwork.signal_language import pin, SignalLanguageError
+        try:
+            contract = pin(user_store.db_path, signal['id'], metadata)
+        except SignalLanguageError as error:
+            app.logger.info('blacknet_language_rejected signal=%s reason=%s', signal['id'], str(error))
+            return None
+        signal['language_contract'] = contract
+        signal['output_locale'] = contract['output_locale']
+        signal.update(render(descriptors(fact, rule, value), contract['output_locale']))
     return signal
 
 
 def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_SIGNALS_LIMIT, exclude_ids=None):
+    import config
     started = time.perf_counter()
     try:
         requested_limit = int(limit or BLACKNET_WORLD_SIGNALS_LIMIT)
@@ -2672,7 +2716,8 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
         if str(item or "").strip()
     }))
     can_use_cache = snapshot is None and now is None
-    cache_key = (requested_limit, exclude_key)
+    cache_key = (requested_limit, exclude_key, config.env_bool('CHAOS_BLACKNET_LANGUAGES_ENABLED', False),
+                 os.environ.get('CHAOS_NARRATIVE_LOCALES', 'pl'))
     if can_use_cache:
         cached_entry = BLACKNET_WORLD_SIGNALS_CACHE.get(cache_key)
         cached_at = float((cached_entry or {}).get("cached_at") or 0.0)
@@ -2877,10 +2922,10 @@ def blacknet_signal_from_publication(record):
         "signal_type": presentation_family,
         "fact_id": (record.get("fact_refs") or [""])[0] if record.get("fact_refs") else "",
         "channel": "BLACKNET // SIGNAL",
-        "title": str(record.get("title") or "WORLD NARRATIVE")[:72],
+        "title": str(record.get("title") or "WORLD NARRATIVE"),
         "label": str(record.get("truth_class") or "canonical")[:32].upper(),
         "value": "AI 2108",
-        "stat": str(record.get("body") or "")[:240],
+        "stat": str(record.get("body") or ""),
         "timer": "LIVE",
         "tone": signal_tone,
         "layout": layout,
@@ -17812,6 +17857,7 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     app = {
         "id": app_id,
         "name": branding['name'],
+        **({'signal_language': branding['signal_language']} if 'signal_language' in branding else {}),
         "icon": branding['icon'],
         "type": "pro-system-tool",
         "category": "pro-system-tools",
@@ -19753,6 +19799,9 @@ def validate_generated_app_icon(value):
 
 
 def build_generated_app(data, creator_username, creator_nick):
+    if 'signal_language' in data:
+        from ghostnetwork.signal_language import validate_declaration
+        validate_declaration(data['signal_language'])
     name = str(data.get("name", "")).strip()
     if not name:
         raise ValueError("Brak nazwy aplikacji.")
@@ -19836,6 +19885,8 @@ def build_generated_app(data, creator_username, creator_nick):
         raise ProfileRecoveryRequired('Creator level projection unavailable')
     creator_profile = {**identity_projection_store.get_creator_identity(creator_username),
                        **capabilities, 'hackcoins': canonical_wallet_balance(creator_username)}
+    if 'signal_language' in data:
+        app['signal_language'] = data['signal_language']
     app.update(build_generated_app_quality_fields(creator_profile, app))
     app = normalize_app_contract(app, infer_legacy=tool_family not in CREATOR_EXPLICIT_TOOL_FAMILIES)
     normalize_app_storage_fields(app)

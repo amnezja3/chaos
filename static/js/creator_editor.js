@@ -131,10 +131,28 @@ window.CreatorEditor = (() => {
             return input;
         }
         function lines(input) { return input.value.split('\n').map(s => s.trim()).filter(Boolean); }
+        function signalLanguageField(value) {
+            const label = node('label', undefined, form);
+            localized('span', 'creator.editor.signal_language', label);
+            const select = node('select', undefined, label);
+            select.name = 'signal_language';
+            if (!value) {
+                const unknown = localized('option', 'creator.editor.signal_language_unknown', select);
+                unknown.value = ''; unknown.disabled = true;
+            }
+            (policy.signal_languages || []).forEach(language => {
+                const option = node('option', language.toUpperCase(), select);
+                option.value = language;
+            });
+            select.value = value || '';
+            localized('p', 'creator.editor.signal_language_help', form);
+            return select;
+        }
         async function home() {
             reset('creator.editor.new'); dirty = false;
             const name = field('creator.editor.name', ''); name.maxLength = 80;
             const icon = iconField('🛠️');
+            const signalLanguage = signalLanguageField(window.GhostLocale?.getLocale() || 'pl');
             localized('p', 'creator.purpose.purpose', form);
             const choices = node('div', undefined, form); choices.className = 'creator-v2-choices';
             let selected = Object.keys(policy.recipes)[0], createsFile = false;
@@ -176,7 +194,7 @@ window.CreatorEditor = (() => {
             // Retain the request identity and payload after a lost response: no second roll.
             let pending;
             button('creator.editor.generate', async () => {
-                pending ||= {name: name.value, icon: icon.value, action: selected, creates_file: createsFile, interface: kind, request_id: crypto.randomUUID()};
+                pending ||= {name: name.value, icon: icon.value, action: selected, creates_file: createsFile, interface: kind, signal_language: signalLanguage.value, request_id: crypto.randomUUID()};
                 try { project = (await api('projects', 'POST', pending)).project; }
                 catch (error) { if (error.status >= 400 && error.status < 500) pending = undefined; throw error; }
                 dirty = false; edit();
@@ -209,6 +227,7 @@ window.CreatorEditor = (() => {
             const icon = iconField(p.icon);
             const title = field('creator.editor.interface_title', p.title || p.name);
             const description = field('creator.editor.description', p.description || '', true);
+            const signalLanguage = signalLanguageField(p.signal_language);
             const price = field('creator.editor.price', c.price); price.type = 'number'; price.min = '0'; price.step = '1'; price.disabled = !!project.version;
             const rows = [];
             let prompt, logs, buttons, steps, success, failure;
@@ -243,6 +262,7 @@ window.CreatorEditor = (() => {
             }
             function presentation() {
                 const value = {name: name.value, icon: icon.value, title: title.value, description: description.value};
+                if (signalLanguage.value) value.signal_language = signalLanguage.value;
                 if (kind === 'terminal') value.commands = rows.map(row => ({command: row.command.value, logs: lines(row.logs)}));
                 if (kind === 'window') Object.assign(value, {logs: lines(logs), button_labels: lines(buttons)});
                 if (kind === 'button_choices') Object.assign(value, {prompt: prompt.value, option_labels: rows.map(row => row.label.value)});

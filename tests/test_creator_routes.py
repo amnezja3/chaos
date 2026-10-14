@@ -16,6 +16,44 @@ class CreatorRoutesTest(unittest.TestCase):
     setUp = read_tests.PlayerHackReadPathsTest.setUp
     no_heavy = alignment_tests.GhostLabAlignmentTest.no_heavy
 
+    def test_signal_language_published_edition_and_install_are_immutable(self):
+        data = self.prepare()
+        from database import WalletStore, WalletBalanceStore
+        self.stack.enter_context(patch.object(run, 'wallet_store', WalletStore(self.path)))
+        self.stack.enter_context(patch.object(run, 'wallet_balance_store', WalletBalanceStore(self.path)))
+        self.stack.enter_context(patch.object(run, 'delta_bus', GameStateDeltaBus(self.path)))
+        from profileManagment import UserProfileManager
+        self.stack.enter_context(patch.object(run, 'UserProfileManager',
+            lambda username, **kwargs: UserProfileManager(username, store=self.users,
+                resource_store=JsonResourceStore(self.path), **kwargs)))
+        for declaration in ('pl', 'en', 'ANY'):
+            with self.subTest(declaration=declaration):
+                payload = dict(data, name='Language ' + declaration, request_id='language-' + declaration,
+                               signal_language=declaration)
+                response = self.client.post('/api/creators/projects', json=payload)
+                self.assertEqual(response.status_code, 200, response.json)
+                project = response.json['project']
+                base = '/api/creators/projects/' + project['id']
+                edition = self.client.post(base + '/publish', json={'revision':1}).json['app']
+                self.assertEqual(edition['signal_language'], declaration)
+                purchase = self.client.post('/install-app', json={'app_id':edition['id'], 'client_action_key':'signal-' + declaration})
+                self.assertEqual(purchase.status_code, 200, purchase.json)
+                self.assertEqual(purchase.json['status'], 'success', purchase.json)
+                replay = self.client.post('/install-app', json={'app_id':edition['id'], 'client_action_key':'signal-' + declaration})
+                self.assertTrue(replay.json['duplicate'], replay.json)
+                changed = self.client.patch(base, json={'revision':1, 'presentation': {
+                    'signal_language':'en' if declaration != 'en' else 'pl', 'description':'Mój tekst <keep>'}}).json['project']
+                second = self.client.post(base + '/publish', json={'revision':changed['revision']}).json['app']
+                self.assertNotEqual(second['signal_language'], declaration)
+                self.assertEqual(second['description'], 'Mój tekst <keep>')
+                with db_connect(self.path) as conn:
+                    import json
+                    installed = json.loads(conn.execute('SELECT app_json FROM player_apps WHERE username=? AND app_id=?',
+                        ('attacker', edition['id'])).fetchone()[0])
+                self.assertEqual(installed['signal_language'], declaration)
+                invalid = self.client.patch(base, json={'revision':changed['revision'], 'presentation':{'signal_language':'unknown'}})
+                self.assertEqual(invalid.status_code,400)
+
     def test_creator_locale_defaults_retries_and_authored_editions(self):
         data = dict(self.prepare(), interface='window')
         with self.no_heavy(), patch.object(run, 'request_ui_locale', return_value='en'):

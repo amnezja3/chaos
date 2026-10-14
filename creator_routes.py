@@ -81,6 +81,7 @@ def register(app, services):
     @app.get('/api/creators/policy')
     @guard
     def creator_policy_view():
+        from ghostnetwork.signal_language import declarations
         capabilities = services['capability_projection_store'].get_capabilities(owner())
         if not capabilities:
             raise GhostLabError('projection_unavailable', 'Brak projekcji poziomu.', 503)
@@ -88,7 +89,7 @@ def register(app, services):
         return jsonify(success=True, enabled=config.env_bool('CHAOS_CREATORS_V2_ENABLED', False),
             installed_interfaces=[kind for kind, app_id in creator_apps.items()
                                   if services['player_inventory_store'].has_app(owner(), app_id)],
-            recipes=RECIPES, security_keys=SECURITY_KEYS, level=level, power_cap=power_cap(level),
+            recipes=RECIPES, signal_languages=declarations(), security_keys=SECURITY_KEYS, level=level, power_cap=power_cap(level),
             maximum_chance=config.CREATOR_MAX_POWER_CHANCE,
             effect_min_level=config.CREATOR_EFFECT_MIN_LEVEL,
             effect_enabled=level >= config.CREATOR_EFFECT_MIN_LEVEL)

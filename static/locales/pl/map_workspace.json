@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "155.2.2",
+  "content_version": "155.3.0",
   "messages": {
     "map.territory.inner": {"params": {}, "text": "Inner konfliktu"},
     "map.territory.pillar": {"params": {}, "text": "Filar konfliktu"},

@@ -53,6 +53,13 @@ def freeze_language(item):
         facts_version=hashlib.sha256(json.dumps(item.get('facts') or [], sort_keys=True,
             ensure_ascii=False, separators=(',', ':')).encode()).hexdigest(),
         prompt_version=policy.prompt_version, locale_prompt_version=language_registry()[locale]['prompt_version'] if locale != 'pl' else policy.prompt_version)
+    source = (item.get('validation') or {}).get('source_language_contract')
+    if source:
+        if source.get('output_locale') != locale:
+            raise ValueError('source_language_contract_mismatch')
+        contract['source'] = dict(source)
+    if medium == 'blacknet' and os.environ.get('CHAOS_BLACKNET_LANGUAGES_ENABLED', '').lower() in ('1', 'true', 'yes'):
+        contract['presentation'] = 'blacknet-prefix-v1'
     return {**item, 'validation': {**(item.get('validation') or {}), 'language_contract': contract}}
 
 

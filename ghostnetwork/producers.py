@@ -365,6 +365,7 @@ class BlackNetNarrativeProducer:
         )
         expected_slot_version = int((slot_state or {}).get("version") or 0)
         task = self.repository.enqueue_narrative_task(assign_ollama_task_policy({
+            **({'output_locale': signal['output_locale']} if target_medium == 'blacknet' and signal.get('output_locale') else {}),
             "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
             "source_scope": BLACKNET_SOURCE_SCOPE,
             "source_receipt_id": source_receipt_id,
@@ -393,6 +394,7 @@ class BlackNetNarrativeProducer:
             "validation": {
                 "ok": True,
                 "producer": "deterministic_editorial_queue",
+                "source_language_contract": signal.get('language_contract') if target_medium == 'blacknet' else None,
                 "incident_context": incident_context,
                 "conflict_context": conflict_context,
                 "source_expires_at": incident_metadata.get('expires_at') or '',

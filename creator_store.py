@@ -84,7 +84,8 @@ class CreatorStore:
             project = dict(id=project_id, app_id='creator_' + uuid.uuid4().hex, owner=owner,
                 revision=1, version=0, created_at=now(), contract=contract, presentation_locale=normalize_locale(locale),
                 presentation=validate_presentation(contract['interface'], {
-                    **presentation_defaults(contract['interface'], locale), 'name':data['name'], 'icon':data['icon']}))
+                    **presentation_defaults(contract['interface'], locale), 'name':data['name'], 'icon':data['icon'],
+                    **({'signal_language': data['signal_language']} if 'signal_language' in data else {})}))
             conn.execute('INSERT INTO creator_projects VALUES(?,?,?,?,?,?)',
                          (project_id, owner, request_id, signature, 1, encoded(project)))
             return project
@@ -153,6 +154,8 @@ class CreatorStore:
                 except CreatorValidationError as error:
                     raise error.in_option(index + 1)
             app = builder(project, version)
+            if 'signal_language' in project['presentation']:
+                app['signal_language'] = project['presentation']['signal_language']
             if app.get('id') != project['app_id'] or app.get('creator_username') != owner:
                 raise CreatorValidationError('identity', 'Niezgodna tozsamosc produktu.')
             if app['name'].strip().casefold() in {str(name).strip().casefold() for name in reserved_names}:

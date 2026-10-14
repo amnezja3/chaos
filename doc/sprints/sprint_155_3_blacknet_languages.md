@@ -1,7 +1,11 @@
 # Sprint 155.3 — BlackNet: język źródła i naturalna rotacja sygnałów
 
-Status: ZAPLANOWANY, 13 X 2026. Osobny podsprint [155](sprint_155_ghost_system_content_acceptance.md).
-Nie blokuje dostępności rozgrywki. To zakres do implementacji, nie deklaracja PASS.
+Status: IMPLEMENTACJA LOKALNA DO ODBIORU WDROŻENIOWEGO, 14 X 2026.
+Osobny podsprint [155](sprint_155_ghost_system_content_acceptance.md).
+Nie blokuje dostępności rozgrywki i nie oznacza pełnego PASS 155.
+[Inwentarz i dowody](../audits/sprint_155_3_blacknet.md),
+[migracja i rollback](../runbooks/blacknet_155_3.md). Poniżej zachowany kontrakt
+i bramki planu; stan wykonania opisuje raport dowodów.
 
 ## Cel i ustalenia
 

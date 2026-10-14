@@ -265,7 +265,7 @@ class RouterTest(unittest.TestCase):
                             raise NarrativeProviderError('ollama_timeout', provider=provider, retryable=True)
                         content = 'broken' if failure == 'invalid_json' else json.dumps({
                             'title': 'HIDDEN ELEMENT FOUND', 'body': 'A hidden component was revealed at Canary Station.',
-                            'tone': 'warning', 'fact_refs': ['f01'], 'cta_ref': None})
+                            'tone': 'not-approved', 'fact_refs': ['f01'], 'cta_ref': None})
                         return NarrativeGenerationResult(provider=provider, model='llama3.1:8b',
                             content=content, done=True, done_reason='stop', raw_response_hash='hash')
                     router.executor = execute
@@ -284,6 +284,7 @@ class RouterTest(unittest.TestCase):
                     candidate = self.repo.get_narrative_candidate_for_task(task['outbox_id'])
                     self.assertEqual(candidate['validation_status'], 'accepted')
                     self.assertIn('Canary Station', candidate['body'])
+                    self.assertNotIn('HIDDEN ELEMENT FOUND', candidate['title'])
                     self.assertTrue(candidate['title'].startswith('PRZECHWYT' if locale == 'pl' else 'INTERCEPT'))
                     self.repo.ensure_narrative_publication(candidate['candidate_id'])
                     claim = self.repo.claim_next_narrative_publication('safe-publisher', lease_seconds=60)
@@ -291,6 +292,10 @@ class RouterTest(unittest.TestCase):
                     published = self.repo.publish_claimed_narrative_candidate(*args)
                     self.assertEqual(published['receipt']['status'], 'published', published)
                     self.assertTrue(self.repo.publish_claimed_narrative_candidate(*args)['duplicate'])
+
+    def test_new_blacknet_presentation_retains_safe_fallback_and_single_publication(self):
+        with patch.dict(os.environ, CHAOS_BLACKNET_LANGUAGES_ENABLED='1'):
+            self.test_local_failure_uses_safe_localized_copy_once_and_publication_is_idempotent()
 
     def test_english_contract_survives_external_failure_and_local_fallback(self):
         from tools.narrative_locale_canary import package_for

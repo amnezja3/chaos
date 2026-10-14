@@ -8,6 +8,7 @@ MAX_SAFE_PRICE = 9007199254740991  # Exact integer in the browser, not an econom
 def project_branding(project):
     definition = get_template(project.get('template_id')) or {}
     return {
+        **({'signal_language': project['signal_language']} if 'signal_language' in project else {}),
         'name': project.get('name') or 'Untitled',
         'icon': project.get('icon') or definition.get('icon') or '🧪',
         'description': project.get('description', definition.get('description', '')),
@@ -17,10 +18,13 @@ def project_branding(project):
 
 
 def validate_branding(value, template_id, icon_validator):
-    if not isinstance(value, dict) or set(value) != {
+    if not isinstance(value, dict) or set(value) - {'signal_language'} != {
         'name', 'icon', 'description', 'suggested_price', 'presentation_id'
     }:
         raise ValueError('Nieprawidlowe pola marki produktu.')
+    if 'signal_language' in value:
+        from ghostnetwork.signal_language import validate_declaration
+        validate_declaration(value['signal_language'])
     name, description = value['name'], value['description']
     if not isinstance(name, str) or not name.strip() or len(name.strip()) > 64:
         raise ValueError('Nazwa musi miec od 1 do 64 znakow.')

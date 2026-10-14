@@ -24,7 +24,53 @@
       },
       "radar": {
         "sides": 0,
-        "nodes": [[22, 26, 3], [34, 43, 2], [66, 27, 3], [78, 51, 4], [63, 72, 3], [31, 69, 2]]
+        "nodes": [
+          [
+            22,
+            26,
+            3
+          ],
+          [
+            34,
+            43,
+            2
+          ],
+          [
+            66,
+            27,
+            3
+          ],
+          [
+            78,
+            51,
+            4
+          ],
+          [
+            63,
+            72,
+            3
+          ],
+          [
+            31,
+            69,
+            2
+          ]
+        ]
+      },
+      "output_locale": "pl",
+      "system_copy": {
+        "channel": {
+          "key": "apps.blacknet.rule.static.hotspot-mokotow.channel",
+          "params": {}
+        },
+        "label": {
+          "key": "apps.blacknet.rule.static.hotspot-mokotow.label",
+          "params": {}
+        },
+        "stat": {
+          "key": "apps.blacknet.rule.static.hotspot-mokotow.stat",
+          "params": {}
+        }
       }
     },
     {
@@ -49,7 +95,53 @@
       },
       "radar": {
         "sides": 4,
-        "nodes": [[19, 57, 2], [31, 31, 4], [46, 62, 2], [61, 38, 3], [75, 66, 4], [82, 29, 2]]
+        "nodes": [
+          [
+            19,
+            57,
+            2
+          ],
+          [
+            31,
+            31,
+            4
+          ],
+          [
+            46,
+            62,
+            2
+          ],
+          [
+            61,
+            38,
+            3
+          ],
+          [
+            75,
+            66,
+            4
+          ],
+          [
+            82,
+            29,
+            2
+          ]
+        ]
+      },
+      "output_locale": "pl",
+      "system_copy": {
+        "channel": {
+          "key": "apps.blacknet.rule.static.market-gps.channel",
+          "params": {}
+        },
+        "label": {
+          "key": "apps.blacknet.rule.static.market-gps.label",
+          "params": {}
+        },
+        "stat": {
+          "key": "apps.blacknet.rule.static.market-gps.stat",
+          "params": {}
+        }
       }
     },
     {
@@ -76,7 +168,53 @@
       },
       "radar": {
         "sides": 5,
-        "nodes": [[18, 34, 3], [38, 21, 2], [43, 50, 4], [68, 35, 2], [76, 74, 3], [28, 76, 2]]
+        "nodes": [
+          [
+            18,
+            34,
+            3
+          ],
+          [
+            38,
+            21,
+            2
+          ],
+          [
+            43,
+            50,
+            4
+          ],
+          [
+            68,
+            35,
+            2
+          ],
+          [
+            76,
+            74,
+            3
+          ],
+          [
+            28,
+            76,
+            2
+          ]
+        ]
+      },
+      "output_locale": "pl",
+      "system_copy": {
+        "channel": {
+          "key": "apps.blacknet.rule.static.tool-drop.channel",
+          "params": {}
+        },
+        "label": {
+          "key": "apps.blacknet.rule.static.tool-drop.label",
+          "params": {}
+        },
+        "stat": {
+          "key": "apps.blacknet.rule.static.tool-drop.stat",
+          "params": {}
+        }
       }
     },
     {
@@ -101,7 +239,53 @@
       },
       "radar": {
         "sides": 6,
-        "nodes": [[16, 48, 2], [29, 24, 3], [41, 67, 3], [57, 21, 2], [70, 55, 4], [83, 39, 3]]
+        "nodes": [
+          [
+            16,
+            48,
+            2
+          ],
+          [
+            29,
+            24,
+            3
+          ],
+          [
+            41,
+            67,
+            3
+          ],
+          [
+            57,
+            21,
+            2
+          ],
+          [
+            70,
+            55,
+            4
+          ],
+          [
+            83,
+            39,
+            3
+          ]
+        ]
+      },
+      "output_locale": "pl",
+      "system_copy": {
+        "channel": {
+          "key": "apps.blacknet.rule.static.pvp-praga.channel",
+          "params": {}
+        },
+        "label": {
+          "key": "apps.blacknet.rule.static.pvp-praga.label",
+          "params": {}
+        },
+        "stat": {
+          "key": "apps.blacknet.rule.static.pvp-praga.stat",
+          "params": {}
+        }
       }
     },
     {
@@ -125,7 +309,53 @@
       },
       "radar": {
         "sides": 7,
-        "nodes": [[14, 33, 2], [29, 61, 3], [43, 23, 2], [58, 57, 4], [72, 31, 2], [86, 69, 3]]
+        "nodes": [
+          [
+            14,
+            33,
+            2
+          ],
+          [
+            29,
+            61,
+            3
+          ],
+          [
+            43,
+            23,
+            2
+          ],
+          [
+            58,
+            57,
+            4
+          ],
+          [
+            72,
+            31,
+            2
+          ],
+          [
+            86,
+            69,
+            3
+          ]
+        ]
+      },
+      "output_locale": "pl",
+      "system_copy": {
+        "channel": {
+          "key": "apps.blacknet.rule.static.leak-zoliborz.channel",
+          "params": {}
+        },
+        "label": {
+          "key": "apps.blacknet.rule.static.leak-zoliborz.label",
+          "params": {}
+        },
+        "stat": {
+          "key": "apps.blacknet.rule.static.leak-zoliborz.stat",
+          "params": {}
+        }
       }
     },
     {
@@ -150,7 +380,53 @@
       },
       "radar": {
         "sides": 8,
-        "nodes": [[17, 71, 3], [27, 38, 2], [46, 17, 3], [59, 46, 2], [71, 76, 4], [85, 28, 2]]
+        "nodes": [
+          [
+            17,
+            71,
+            3
+          ],
+          [
+            27,
+            38,
+            2
+          ],
+          [
+            46,
+            17,
+            3
+          ],
+          [
+            59,
+            46,
+            2
+          ],
+          [
+            71,
+            76,
+            4
+          ],
+          [
+            85,
+            28,
+            2
+          ]
+        ]
+      },
+      "output_locale": "pl",
+      "system_copy": {
+        "channel": {
+          "key": "apps.blacknet.rule.static.atm-srodmiescie.channel",
+          "params": {}
+        },
+        "label": {
+          "key": "apps.blacknet.rule.static.atm-srodmiescie.label",
+          "params": {}
+        },
+        "stat": {
+          "key": "apps.blacknet.rule.static.atm-srodmiescie.stat",
+          "params": {}
+        }
       }
     }
   ]

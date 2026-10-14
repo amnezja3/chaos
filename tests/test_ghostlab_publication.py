@@ -20,13 +20,14 @@ class GhostLabPublicationTest(unittest.TestCase):
         a = self.project(name='Brand A')
         b = self.project('bob', 'Brand B')
         a = self.store.update('alice', a['id'], a['revision'], {
-            'icon': '🔭', 'description': 'Opis autora A', 'suggested_price': 1, 'presentation_id': 'default'})
+            'icon': '🔭', 'description': 'Opis autora A', 'suggested_price': 1, 'presentation_id': 'default', 'signal_language': 'en'})
         b = self.store.update('bob', b['id'], b['revision'], {
             'icon': '🛰️', 'description': 'Opis autora B', 'suggested_price': 12000, 'presentation_id': 'default'})
         a, b = self.compile(a), self.compile(b)
         _, product_a = self.publish(a)
         _, product_b = self.publish(b)
         self.assertEqual(product_a['icon'], '🔭')
+        self.assertEqual(product_a['signal_language'], 'en')
         self.assertEqual(product_b['icon'], '🛰️')
         self.assertEqual(product_a['description'], 'Opis autora A')
         self.assertEqual(product_b['description'], 'Opis autora B')
