@@ -36,6 +36,18 @@ body.entry-page{margin:0;min-height:100vh;height:auto;overflow-x:hidden;overflow
 .entry-heading{font-size:29px;line-height:1.25;margin:0 0 10px;font-weight:700;letter-spacing:.02em}
 .entry-heading strong{color:var(--entry-green)}
 .entry-intro{color:#b6c9cc;margin:0 0 26px;font-size:13px}
+.identity-providers{display:grid;gap:10px}
+.entry-page .identity-button{position:relative;display:grid;grid-template-columns:28px 1fr 28px;align-items:center;gap:12px;width:100%;min-height:46px;padding:10px 18px;border:1px solid #405963;border-radius:4px;color:#f3f7fb;background:linear-gradient(110deg,#18262c,#0b1519);font:14px/1.3 Arial,sans-serif;text-align:center;opacity:1;cursor:not-allowed;box-shadow:inset 0 1px 0 #ffffff0a}
+.identity-button svg{width:25px;height:25px;display:block}
+.identity-button span{grid-column:2}
+.entry-page .identity-button--google{background:linear-gradient(110deg,#fff,#e9edf7);border-color:#edf3ff;color:#14191f}
+.entry-page .identity-button--discord{background:linear-gradient(110deg,#263c9d,#14213f);border-color:#4761a5;box-shadow:inset 0 1px 0 #ffffff16,0 0 20px #3545d21a}
+.identity-button--discord svg{filter:drop-shadow(0 0 6px #7185ff)}
+.entry-page .identity-button--steam{background:linear-gradient(110deg,#213956,#0c1727);border-color:#3a587d}
+.identity-provider-status{font-size:11px;line-height:1.5;color:#a9bec9;margin:2px 0 0}
+.identity-divider{display:flex;align-items:center;gap:18px;color:#b6c9cc;font-size:12px;margin:18px 0}
+.identity-divider:before,.identity-divider:after{content:'';height:1px;background:#2b4b50;flex:1}
+@media(max-width:680px){.entry-page .identity-button{font-size:13px;min-height:44px;padding:9px 12px;gap:8px}.identity-providers{gap:9px}}
 .login-form{display:grid;gap:20px;width:100%;margin:0}
 .login-form label{display:grid;gap:7px;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
 .login-form input{width:100%;min-height:46px;color:#ecfff9;border:1px solid #31635a;border-radius:3px;background:#00120f;padding:12px;font-size:14px;letter-spacing:0}

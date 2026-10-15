@@ -13,8 +13,11 @@ autora po odbiorze Windows/Android. Linux i iOS nadal wymagają odbioru na sprz�
   komunikaty błędów i istniejący kontrakt POST oraz trwałych sesji.
 - Instalacja opcjonalna, zwinięte instrukcje platform; rzeczywisty przycisk
   instalacji tylko po zdarzeniu przeglądarki. Brak fałszywego statusu instalacji.
-- Social login pozostaje w 157. Brak atrap przycisków Google/GitHub/Discord/Steam,
-  resetu hasła i fikcyjnych statystyk świata z referencji.
+- Social login pozostaje w 157. Na dodatkowe polecenie autora przygotowano
+  przyciski Google/GitHub/Discord/Steam jak w referencji: ikony SVG, Google biały,
+  GitHub grafitowy, Discord niebieski, Steam granatowy oraz separator „lub / or”.
+  Przyciski są wyłączone i opisane jako wkrótce dostępne. Bez endpointów OAuth,
+  atrap resetu hasła i fikcyjnych statystyk świata z referencji.
 
 ## Assety i implementacja
 

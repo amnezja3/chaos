@@ -1,0 +1,25 @@
+{# Visual preparation for 157. Enable only after server-side provider integration. #}
+<section class="identity-providers" aria-describedby="identity-provider-status" data-ghost-aria-label="entry.identity.methods">
+  {% for provider, name in [('google', 'Google'), ('github', 'GitHub'), ('discord', 'Discord'), ('steam', 'Steam')] %}
+  <button type="button" class="identity-button identity-button--{{ provider }}" data-identity-provider="{{ provider }}" disabled aria-describedby="identity-provider-status">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {% if provider == 'google' %}
+      <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z"/>
+      <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.12H3.04v2.59A10 10 0 0 0 12 22Z"/>
+      <path fill="#FBBC05" d="M6.39 13.92a6 6 0 0 1 0-3.84V7.49H3.04a10 10 0 0 0 0 9.02l3.35-2.59Z"/>
+      <path fill="#EA4335" d="M12 5.96c1.47 0 2.79.5 3.83 1.5L18.7 4.6A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.96 5.49l3.35 2.59C7.18 7.72 9.39 5.96 12 5.96Z"/>
+      {% elif provider == 'github' %}
+      <path fill="currentColor" d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.76-.24.76-.54v-2.08c-3.12.68-3.78-1.32-3.78-1.32-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.71 2.63 1.22 3.27.93.1-.72.39-1.22.71-1.5-2.49-.28-5.11-1.25-5.11-5.54 0-1.22.44-2.22 1.15-3-.12-.29-.5-1.42.11-2.96 0 0 .94-.3 3.08 1.15a10.7 10.7 0 0 1 5.6 0c2.14-1.45 3.08-1.15 3.08-1.15.61 1.54.23 2.67.11 2.96.72.78 1.15 1.78 1.15 3 0 4.3-2.62 5.25-5.12 5.53.4.35.76 1.03.76 2.08v3.08c0 .3.2.65.77.54A11.2 11.2 0 0 0 12 .8Z"/>
+      {% elif provider == 'discord' %}
+      <path fill="currentColor" d="M19.8 5.1a18.3 18.3 0 0 0-4.5-1.4l-.55 1.1a16.5 16.5 0 0 0-5.5 0L8.7 3.7a18.3 18.3 0 0 0-4.5 1.4C1.35 9.3.58 13.4.97 17.45a18.2 18.2 0 0 0 5.53 2.8l1.14-1.85a11.9 11.9 0 0 1-1.8-.87l.44-.34c3.48 1.6 7.96 1.6 11.44 0l.44.34c-.58.33-1.18.62-1.8.87l1.14 1.85a18.2 18.2 0 0 0 5.53-2.8c.46-4.7-.79-8.76-3.23-12.35ZM8.25 14.9c-1.08 0-1.95-.99-1.95-2.2s.87-2.2 1.95-2.2 1.95.99 1.95 2.2-.87 2.2-1.95 2.2Zm7.5 0c-1.08 0-1.95-.99-1.95-2.2s.87-2.2 1.95-2.2 1.95.99 1.95 2.2-.87 2.2-1.95 2.2Z"/>
+      {% else %}
+      <circle cx="12" cy="12" r="11" fill="currentColor"/>
+      <g fill="none" stroke="#132238" stroke-width="1.6"><circle cx="16" cy="8.5" r="3.8"/><circle cx="16" cy="8.5" r="2.2"/><circle cx="7.6" cy="16.3" r="3"/><path d="m9.7 14.2 2.6-5M10.5 17l6-4.7M1.6 12.6l7 2.6a1.4 1.4 0 0 1-1 2.6l-6-2.3"/></g>
+      {% endif %}
+    </svg>
+    <span data-ghost-i18n="entry.identity.{{ provider }}">Continue with {{ name }}</span>
+  </button>
+  {% endfor %}
+  <p id="identity-provider-status" class="identity-provider-status" data-ghost-i18n="entry.identity.pending">External sign-in is coming soon. Use your CHAOS account below.</p>
+</section>
+<div class="identity-divider"><span data-ghost-i18n="entry.identity.or">or</span></div>

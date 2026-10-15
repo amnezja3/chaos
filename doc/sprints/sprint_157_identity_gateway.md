@@ -1,6 +1,12 @@
 # Sprint 157 — Identity Gateway
 
 Status: **ZAPLANOWANY**, 15 X 2026. Bez implementacji i zmian na serwerze.
+
+Przygotowanie UI w 156.7: panel logowania zawiera cztery przyciski w kolejności
+Google / GitHub / Discord / Steam, z ikonami i kolorami według wizualizacji.
+Do wdrożenia adapterów pozostają `disabled`, z jawnym komunikatem PL/EN.
+157 ma podłączyć te kontrolki do zweryfikowanych endpointów backendu, zgodnie
+z dostępnością konfiguracji każdego dostawcy. Sam wygląd nie stanowi integracji.
 Źródło: koncepcja autora „CHAOS — Identity Gateway” v1.0 oraz decyzja
 o dodaniu **Steam już do pierwszej fazy**.
 

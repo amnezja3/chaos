@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-10-15 — 156.7: przyciski dostawców przygotowane pod 157
+
+Na polecenie autora dodano Google/GitHub/Discord/Steam według referencji:
+wektorowe ikony, biały/grafitowy/niebieski/granatowy przycisk oraz separator PL/EN.
+Kontrolki pozostają disabled z jawnym komunikatem o przyszłej dostępności;
+bez endpointów autoryzacji i zmian sesji. Wspólny fragment szablonu gotowy do
+podłączenia adapterów 157. Katalogi językowe 156.7.1.
+Lokalny Chrome/Playwright: cztery wyłączone kontrolki we właściwej kolejności,
+PL/EN, desktop/mobile i 320/768/1920 px, lokalny formularz → gra oraz regresja
+instalacji i launch PASS, brak błędów JS/konsoli. Podglądy sprawdzone wizualnie.
+Bez wdrożenia.
+
 ## 2026-10-15 — 156.7: nowy ekran wejścia i instalacji, lokalnie
 
 Na podstawie wizualizacji autora dodano wygenerowaną scenę Ziemi/operatora,

@@ -1,8 +1,15 @@
 {
   "format_version": 1,
-  "content_version": "156.7.0",
+  "content_version": "156.7.1",
   "locale": "pl",
   "messages": {
+    "entry.identity.discord": {"params": {}, "text": "Kontynuuj z Discord"},
+    "entry.identity.github": {"params": {}, "text": "Kontynuuj z GitHub"},
+    "entry.identity.google": {"params": {}, "text": "Kontynuuj z Google"},
+    "entry.identity.methods": {"params": {}, "text": "Logowanie zewnętrzne"},
+    "entry.identity.or": {"params": {}, "text": "lub"},
+    "entry.identity.pending": {"params": {}, "text": "Logowanie zewnętrzne będzie dostępne wkrótce. Poniżej użyj konta CHAOS."},
+    "entry.identity.steam": {"params": {}, "text": "Kontynuuj ze Steam"},
     "entry.gate.access": {"params": {}, "text": "Dostęp do systemu"},
     "entry.gate.create": {"params": {}, "text": "Utwórz konto"},
     "entry.gate.factions": {"params": {}, "text": "Frakcje"},

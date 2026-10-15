@@ -44,6 +44,10 @@ def main():
                         page.on('console', lambda message: console_errors.append(message.text) if message.type == 'error' else None)
                         page.goto(base+'/?login=1')
                         page.locator('.install-options summary').wait_for()
+                        providers = page.locator('[data-identity-provider]')
+                        assert providers.count() == 4
+                        assert providers.evaluate_all('(buttons) => buttons.every(b => b.disabled && b.type === "button")')
+                        assert providers.evaluate_all('(buttons) => buttons.map(b => b.dataset.identityProvider)') == ['google', 'github', 'discord', 'steam']
                         page.locator('[data-entry-locale]').select_option(locale)
                         page.wait_for_function('(locale) => document.querySelector(".entry-heading").innerText === (locale === "pl" ? "Witaj w CHAOS" : "Welcome to CHAOS")', arg=locale)
                         page.screenshot(path=str(ROOT/f'.playwright-mcp/entry-156-7-{locale}.png'), full_page=True)
