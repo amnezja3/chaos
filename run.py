@@ -21113,6 +21113,19 @@ def reject_old_ghostsystem_response(response):
                 response.status_code = 503
     return response
 
+def render_login_gate(**context):
+    from ghostnetwork.public_teaser import select_public_teaser
+    try:
+        teaser = select_public_teaser(get_ghostnetwork_service().repository)
+    except Exception:
+        # The public teaser must never make authentication unavailable.
+        app.logger.warning('Public BlackNet teaser unavailable')
+        teaser = None
+    response = make_response(render_template('login.html', public_blacknet_teaser=teaser, **context))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if (request.method == 'GET' and app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')
@@ -21141,7 +21154,7 @@ def index():
             ))
 
         locale = normalize_locale(request.form.get('locale'))
-        return render_template("login.html", error=locale_translator().t('entry.invalid_credentials', locale=locale),
+        return render_login_gate(error=locale_translator().t('entry.invalid_credentials', locale=locale),
                                error_key='entry.invalid_credentials')
 
     error = session.pop("login_error", None)
@@ -21153,7 +21166,7 @@ def index():
         # could overwrite a newer concurrent login. No identity is carried here.
         error_key = notice
         error = locale_translator().t(notice, locale=request_ui_locale())
-    return render_template("login.html", error=error, error_key=error_key)
+    return render_login_gate(error=error, error_key=error_key)
 
 @app.route("/register")
 def register_page():

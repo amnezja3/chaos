@@ -26,6 +26,10 @@ def main():
         profile['curently_possition'] = {'lat':52.2297, 'lng':21.0122}
         run.user_store.save_profile_guarded(profile, expected_revision=0, source='test.registration', allow_create=True)
         run.app.config.update(CHAOS_INSTALL_UI_ENABLED=True, CHAOS_PERSISTENT_SESSION_ENABLED=True, CHAOS_LAUNCH_CONTROLLER_ENABLED=True)
+        # Public teaser fixture, stored only in this temporary world database.
+        from test_public_blacknet_teaser import seed_teaser
+        seed_teaser(run.get_ghostnetwork_service().repository.db_path, 'gate-public')
+        seed_teaser(run.get_ghostnetwork_service().repository.db_path, 'gate-private', scope='owner')
         server = make_server('127.0.0.1', 0, run.app, threaded=True)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -44,6 +48,11 @@ def main():
                         page.on('console', lambda message: console_errors.append(message.text) if message.type == 'error' else None)
                         page.goto(base+'/?login=1')
                         page.locator('.install-options summary').wait_for()
+                        assert page.locator('[data-public-blacknet]').count() == 1
+                        assert 'Signal gate-public' in page.locator('[data-public-blacknet]').inner_text()
+                        assert 'gate-private' not in page.content()
+                        assert page.locator('[data-public-blacknet] a, [data-public-blacknet] button').count() == 0
+                        assert 'READ ONLY' in page.locator('[data-public-blacknet]').inner_text()
                         providers = page.locator('[data-identity-provider]')
                         assert providers.count() == 4
                         assert providers.evaluate_all('(buttons) => buttons.every(b => b.disabled && b.type === "button")')

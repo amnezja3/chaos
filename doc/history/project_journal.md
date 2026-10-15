@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-10-15 — publiczna zajawka BlackNetu w bramie, READ ONLY
+
+Na polecenie autora: jedna losowa aktywna publikacja publiczna przy odświeżeniu
+bramy, tytuł i fragment z zachowaniem języka źródła. Brak akcji i linków w karcie;
+oznaczenie READ ONLY oraz informacja o konieczności zalogowania. Prywatne,
+klanowe, nieaktywne i wygasłe publikacje wykluczone. Brak metadanych/CTA w HTML,
+Jinja escaping, no-store, bez generacji i zapisu. Przy pustym źródle/awarii
+neutralna cisza w eterze; logowanie pozostaje dostępne.
+Trzy nowe testy PASS; pozostałe 26 testów instalacji/launch/i18n PASS.
+Testy przeglądarkowe lokalne na izolowanym świecie. Bez wdrożenia.
+
 ## 2026-10-15 — 156.7: przyciski dostawców przygotowane pod 157
 
 Na polecenie autora dodano Google/GitHub/Discord/Steam według referencji:

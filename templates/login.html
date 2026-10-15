@@ -25,7 +25,7 @@
   <meta name="twitter:image" content="https://chaos.re/static/images/chaos-social-v1.png">
   <meta name="twitter:image:alt" content="CHAOS — Cyber Hacking Adventure Of Senses. Hack the digital senses of the modern world.">
   <link rel="icon" href="{{ url_for('static', filename='images/chaos_favicon.svg') }}" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/entry_gate.css') }}?v=156-7-2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/entry_gate.css') }}?v=156-7-3">
   {% include 'installation_head.html' %}
   <script defer src="{{ url_for('static', filename='js/entry_gate.js') }}?v=156-7-1"></script>
 </head>
@@ -39,7 +39,18 @@
         <p class="brand-expansion">Cyber Hacking Adventure Of Senses</p>
         <p class="entry-tagline" data-ghost-i18n="entry.gate.tagline"></p>
       </div>
-      <div class="world-label" aria-hidden="true">GHOST NETWORK</div>
+      <aside class="gate-blacknet" data-public-blacknet>
+        <div class="gate-blacknet-channel"><span aria-hidden="true"></span> BLACKNET // SIGNAL <span class="gate-blacknet-readonly">READ ONLY</span></div>
+        {% if public_blacknet_teaser %}
+        <div {% if public_blacknet_teaser.locale %}lang="{{ public_blacknet_teaser.locale }}"{% endif %}>
+          <h2>{{ public_blacknet_teaser.title }}</h2>
+          <p>{{ public_blacknet_teaser.body }}</p>
+        </div>
+        {% else %}
+        <p data-ghost-i18n="entry.blacknet.quiet">Cisza w eterze. Czekamy na kolejny sygnał.</p>
+        {% endif %}
+        <p class="gate-blacknet-login" data-ghost-i18n="entry.blacknet.login">Zaloguj się, aby skorzystać z sygnału w grze.</p>
+      </aside>
       <div class="world-coordinate" aria-hidden="true">REAL WORLD<br>CONNECTED</div>
       <div class="hero-bottom">
         <p class="entry-verbs" data-ghost-i18n="entry.gate.verbs"></p>
@@ -71,7 +82,7 @@
       <p class="entry-intro" data-ghost-i18n="entry.gate.intro"></p>
       <p role="status" data-entry-locale-status></p>
       {% include 'identity_provider_buttons.html' %}
-      <form class="login-form" method="POST" autocomplete="on">
+      <form id="gate-login" class="login-form" method="POST" autocomplete="on">
         <input type="hidden" name="locale" value="pl">
         <label><span data-ghost-i18n="entry.username">Login</span><input type="text" name="username" placeholder="operator" autocomplete="username" required></label>
         <label><span data-ghost-i18n="entry.password">Hasło</span>

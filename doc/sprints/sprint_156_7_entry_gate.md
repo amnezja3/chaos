@@ -35,6 +35,28 @@ Prompt końcowy imagegen:
 
 ## Dowody i wdrożenie
 
+### Publiczny sygnał BlackNet — read only
+
+Brama losuje jeden sygnał przy każdym renderowaniu, z maksymalnie 100 najnowszych
+aktywnych, niewygasłych publikacji BlackNetu o `audience_scope=public`.
+Losowanie może ponownie wskazać ten sam sygnał; nie zapisujemy historii gościa.
+Brak publicznych publikacji lub niedostępna baza daje „Cisza w eterze”, nie błąd
+logowania. Odpowiedź bramy ma `Cache-Control: no-store`.
+
+Publiczna projekcja zawiera wyłącznie tytuł (160 znaków), fragment (280 znaków)
+i oryginalny język publikacji. Nie ujawnia owner/clan, identyfikatorów, metadanych,
+CTA ani prywatnych publikacji. Tekst escapowany przez Jinja. Sygnał **READ ONLY**:
+bez linków, przycisków, otwierania celu i akcji; komunikat PL/EN prosi o logowanie
+do pełnego użycia w grze. Zmiana języka interfejsu nie tłumaczy narracji.
+Nie ma pollingu, generacji LLM, zapisu odczytu, pinowania języka ani publikowania
+podczas wizyty anonimowej. Chronione API BlackNetu pozostaje chronione.
+
+Testy `test_public_blacknet_teaser`: rzeczywista baza sprawdza public/private/clan,
+aktywny/wygasły, inne media, brak zapisu i ponowne losowanie; test HTML sprawdza
+escaping, brak metadanych i no-store; awaria repozytorium pozostawia formularz.
+Chrome/Playwright używa izolowanego publicznego sygnału i wyklucza prywatny;
+sprawdza jedną kartę READ ONLY, brak linków/przycisków, PL/EN i responsywność.
+
 - 26 testów: `test_installation`, `test_launch_controller`, `test_ghost_i18n` — PASS.
 - `node --check static/js/entry_gate.js`; test izolacji service workera — PASS.
 - Lokalny Chrome przez Python Playwright (MCP Playwright niedostępne), izolowana

@@ -1,8 +1,10 @@
 {
   "format_version": 1,
-  "content_version": "156.7.1",
+  "content_version": "156.7.2",
   "locale": "en",
   "messages": {
+    "entry.blacknet.login": {"params": {}, "text": "Log in to use this signal in the game."},
+    "entry.blacknet.quiet": {"params": {}, "text": "Airwaves quiet. Waiting for the next signal."},
     "entry.identity.discord": {"params": {}, "text": "Continue with Discord"},
     "entry.identity.github": {"params": {}, "text": "Continue with GitHub"},
     "entry.identity.google": {"params": {}, "text": "Continue with Google"},
