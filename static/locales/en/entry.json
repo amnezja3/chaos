@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "156.4.0",
+  "content_version": "156.4.1",
   "locale": "en",
   "messages": {
     "entry.description": {
@@ -85,7 +85,7 @@
     },
     "entry.install.ready": {
       "params": {},
-      "text": "Native installation is available on this device."
+      "text": "Installation is available. Click “Install on this device” — no need to search the browser menu."
     },
     "entry.install.cancelled": {
       "params": {},
@@ -122,6 +122,10 @@
     "entry.install.error": {
       "params": {},
       "text": "Installation could not start. Use the browser menu."
+    },
+    "entry.install.install_now": {
+      "params": {},
+      "text": "Install on this device"
     }
   }
 }

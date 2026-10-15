@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "156.4.0",
+  "content_version": "156.4.1",
   "locale": "pl",
   "messages": {
     "entry.description": {
@@ -85,7 +85,7 @@
     },
     "entry.install.ready": {
       "params": {},
-      "text": "Natywna instalacja jest dostępna na tym urządzeniu."
+      "text": "Instalacja jest dostępna. Kliknij „Zainstaluj na tym urządzeniu” — nie musisz szukać opcji w menu przeglądarki."
     },
     "entry.install.cancelled": {
       "params": {},
@@ -122,6 +122,10 @@
     "entry.install.error": {
       "params": {},
       "text": "Nie udało się rozpocząć instalacji. Użyj menu przeglądarki."
+    },
+    "entry.install.install_now": {
+      "params": {},
+      "text": "Zainstaluj na tym urządzeniu"
     }
   }
 }

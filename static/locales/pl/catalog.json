@@ -1,7 +1,7 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "156.4.0",
+  "content_version": "156.4.1",
   "messages": {
     "catalog.system.intruderKicker.name": {
       "params": {},

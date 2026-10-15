@@ -1,5 +1,8 @@
 .chaos-install {color:#c5ead1;background:#031109;border:1px solid #236a40;padding:16px;margin:12px 0;font:14px monospace;box-sizing:border-box}
 .chaos-install h3 {color:#79ff9f;margin:0 0 12px}
+.login-panel > .chaos-install {width:100%;min-width:0}
+.login-panel > .login-form {flex-shrink:0;max-width:100%}
+.chaos-install [data-install-now] {width:100%;margin-bottom:12px;border-color:#a4ff00;color:#a4ff00}
 .chaos-install-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px}
 .chaos-install button,.chaos-install a,.chaos-offline a {font:inherit;background:#061d12;color:#bcffcf;border:1px solid #2c8050;padding:12px;cursor:pointer;text-decoration:none}
 .chaos-install button[data-recommended=true] {border-color:#a4ff00;box-shadow:inset 0 -3px #a4ff00}

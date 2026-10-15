@@ -43,8 +43,8 @@ def main():
                         page.on('pageerror', lambda e: errors.append(str(e)))
                         page.on('console', lambda message: console_errors.append(message.text) if message.type == 'error' else None)
                         page.goto(base+'/?login=1')
-                        page.locator('[data-chaos-install] button').first.wait_for()
-                        assert page.locator('[data-chaos-install] button').count() == 4
+                        page.locator('[data-chaos-install] .chaos-install-grid button').first.wait_for()
+                        assert page.locator('[data-chaos-install] .chaos-install-grid button').count() == 4
                         # Entry locale can be explicitly selected, independent of browser language.
                         page.locator('[data-entry-locale]').select_option(locale)
                         page.locator('[data-platform="iOS"]').click()
@@ -54,6 +54,10 @@ def main():
                         page.locator('[data-platform="Linux"]').click()
                         assert page.locator('a[href="/chaos.desktop"]').is_visible()
                         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                        form = page.locator('.login-form').bounding_box()
+                        panel = page.locator('[data-chaos-install]').bounding_box()
+                        assert panel['y'] >= form['y'] + form['height'], (form, panel)
+                        page.screenshot(path=str(ROOT/f'.playwright-mcp/install-full-{locale}.png'), full_page=True)
                         page.locator('[data-chaos-install]').screenshot(path=str(ROOT/f'.playwright-mcp/install-156-4-{locale}.png'))
                         page.evaluate('navigator.serviceWorker.ready.then(()=>true)')
                         page.reload()
@@ -68,12 +72,12 @@ def main():
                             window.dispatchEvent(e);} """)
                         platform = page.evaluate('ChaosInstall.platform()')
                         if platform:
-                            page.locator(f'[data-platform="{platform}"]').click()
+                            page.locator('[data-install-now]').click()
                             assert page.locator('[data-chaos-install]').get_attribute('data-state') == 'cancelled'
                             page.evaluate("""() => {const e = new Event('beforeinstallprompt');
                                 e.prompt=async()=>{};e.userChoice=Promise.resolve({outcome:'accepted'});
                                 window.dispatchEvent(e);} """)
-                            page.locator(f'[data-platform="{platform}"]').click()
+                            page.locator('[data-install-now]').click()
                             assert page.locator('[data-chaos-install]').get_attribute('data-state') == 'accepted'
                         page.evaluate("window.dispatchEvent(new Event('appinstalled'))")
                         assert ('potwierdzona' if locale == 'pl' else 'confirmed') in page.locator('[data-install-status]').inner_text()
@@ -89,8 +93,8 @@ def main():
                         page.locator('#desktop-icons .icon').first.wait_for(timeout=30000)
                         page.wait_for_function('!!window.ChaosInstall')
                         page.evaluate('createSettings()')
-                        page.locator('[data-chaos-install] button').first.wait_for()
-                        assert page.locator('[data-chaos-install] button').count() == 4
+                        page.locator('[data-chaos-install] .chaos-install-grid button').first.wait_for()
+                        assert page.locator('[data-chaos-install] .chaos-install-grid button').count() == 4
                         assert not errors, errors
                         unexpected = [e for e in console_errors if 'net::ERR_INTERNET_DISCONNECTED' not in e and 'net::ERR_ABORTED' not in e]
                         assert not unexpected, unexpected
