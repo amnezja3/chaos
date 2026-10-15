@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-10-15 — 156.7: cały onboarding w stylu nowej bramy
+
+Przebudowano sześć kroków rejestracji: login, frakcję, rolę, hasło, e-mail
+i podsumowanie. Wspólna nawigacja, pasek etapów, karty i formularze, pełny scroll
+desktop/mobile. Zachowano fabularne assety oraz kontrakty rejestracji. Pierwszy
+krok zawiera wyłączone przyciski dostawców pod 157; komunikat PL/EN rozróżnia
+rejestrację i logowanie. `/launch` otrzymał pasującą paletę i panel bez ciężkiego
+hero ani dodatkowego kroku wejścia. Nie wdrażano kodu ani migracji.
+
+19 testów rejestracji/launch PASS, test JS wszystkich kroków/frakcji/ról PL/EN
+PASS, składnia JS i diff check OK. Chrome/Playwright na izolowanej bazie: sześć
+kroków PL/EN, szerokości 320–1920, cofanie, zachowanie danych, walidacja, błąd
+finalizacji i ponowienie. Finalizacja UI jest przechwycona; rzeczywiste tworzenie
+konta pokrywa backend. Podglądy wszystkich sześciu etapów zapisane i sprawdzone.
+
 ## 2026-10-15 — publiczna zajawka BlackNetu w bramie, READ ONLY
 
 Na polecenie autora: jedna losowa aktywna publikacja publiczna przy odświeżeniu

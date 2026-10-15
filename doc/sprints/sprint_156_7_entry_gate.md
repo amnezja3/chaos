@@ -35,6 +35,41 @@ Prompt końcowy imagegen:
 
 ## Dowody i wdrożenie
 
+### Spójny onboarding i przygotowanie 157
+
+Wszystkie sześć aktywnych kroków `/register` ma wspólny styl bramy: nagłówek
+CHAOS, logowanie/rejestracja, przełącznik PL/EN, wskaźnik etapu, fabularna
+ilustracja i panel formularza. Kroki: login, frakcja, rola, hasło, e-mail,
+nick/podsumowanie. Zachowano istniejące ilustracje fabularne, ID frakcji/ról,
+muzykę, walidację i payload backendu. `register_old.html` nie jest aktywną trasą.
+
+CSS przeniesiono z dużego bloku inline do `static/css/onboarding_gate.css`.
+Desktop: fabuła obok formularza; mobile: pionowy układ bez ukrywania opisów kart
+i blokowania przewijania. Wybór frakcji/roli zawiera podgląd i wyraźne zaznaczenie.
+Wpisane dane pozostają po cofnięciu i zmianie języka. Na mobile i przy reduced
+motion fabuła wyświetla się od razu, żeby animacja tekstu nie przesuwała pól.
+
+Pierwszy krok używa wspólnego fragmentu przycisków Google/GitHub/Discord/Steam,
+z komunikatem dotyczącym **rejestracji**, nadal disabled. Kolejne kroki nie
+pokazują tych przycisków. Przyszła zewnętrzna tożsamość nie omija frakcji ani roli:
+intencja rejestracji, aktywacja e-maila, połączenia kont i adaptery pozostają w 157.
+Nie dodano atrap weryfikacji ani działającego SSO. Katalogi 156.7.3.
+
+Publiczny `/launch` ma pasującą paletę, panel i przyciski; nie dodano ciężkiej
+grafiki do cichego bootstrapu ani dodatkowego ekranu wymagającego kliknięcia.
+
+Weryfikacja: 19 testów backendu rejestracji/launch PASS; test JS wszystkich
+frakcji/ról/kroków PL/EN PASS. `tools/onboarding_gate_browser_smoke.py` przechodzi
+sześć kroków w PL i EN w realnym Chrome na izolowanej bazie, sprawdza szerokości
+320/390/768/1280/1920, wymagane pola, niezgodne hasła, wybory i powrót, zmianę
+języka bez utraty danych, podsumowanie i ponowienie po błędzie zapisu.
+Finalizacja w tym teście UI jest przechwycona (błąd, następnie przekierowanie);
+rzeczywiste tworzenie konta pokrywają testy backendu `test_registration_locale`.
+Zrzuty `.playwright-mcp/onboarding-{pl,en}-{1..6}.png` sprawdzone wizualnie.
+Regresja `session_156_launch_browser_smoke.py` PASS: wznowienie PL/EN,
+stary iframe/reload i retry bez utraty cookie; zero błędów JS i nieoczekiwanych
+błędów konsoli. Kod pozostaje lokalny, bez wdrożenia.
+
 ### Publiczny sygnał BlackNet — read only
 
 Brama losuje jeden sygnał przy każdym renderowaniu, z maksymalnie 100 najnowszych

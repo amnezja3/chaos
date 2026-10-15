@@ -20,6 +20,6 @@
     <span data-ghost-i18n="entry.identity.{{ provider }}">Continue with {{ name }}</span>
   </button>
   {% endfor %}
-  <p id="identity-provider-status" class="identity-provider-status" data-ghost-i18n="entry.identity.pending">External sign-in is coming soon. Use your CHAOS account below.</p>
+  <p id="identity-provider-status" class="identity-provider-status" data-ghost-i18n="{{ 'entry.identity.registration_pending' if identity_provider_registration else 'entry.identity.pending' }}">{{ 'External registration is coming soon. Create your CHAOS account below.' if identity_provider_registration else 'External sign-in is coming soon. Use your CHAOS account below.' }}</p>
 </section>
 <div class="identity-divider"><span data-ghost-i18n="entry.identity.or">or</span></div>

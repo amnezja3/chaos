@@ -7,6 +7,12 @@ Google / GitHub / Discord / Steam, z ikonami i kolorami według wizualizacji.
 Do wdrożenia adapterów pozostają `disabled`, z jawnym komunikatem PL/EN.
 157 ma podłączyć te kontrolki do zweryfikowanych endpointów backendu, zgodnie
 z dostępnością konfiguracji każdego dostawcy. Sam wygląd nie stanowi integracji.
+
+Onboarding 156.7 ma już wspólny wygląd wszystkich sześciu kroków, PL/EN i ten sam
+fragment przycisków dostawców na pierwszym kroku rejestracji. Podłączając intencję
+zewnętrzną w 157, zachować wspólny wybór frakcji/roli i podsumowanie; stan
+zweryfikowanego dostawcy dostarcza backend, nie parametr klienta. Pomijanie hasła,
+potwierdzanie e-maila i zgody dodać dopiero razem z właściwymi kontraktami 157.
 Źródło: koncepcja autora „CHAOS — Identity Gateway” v1.0 oraz decyzja
 o dodaniu **Steam już do pierwszej fazy**.
 

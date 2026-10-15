@@ -1,9 +1,12 @@
-:root { color-scheme: dark; font-family: monospace; color: #bdfdcc; background: #06100c; }
+:root { color-scheme: dark; font-family: 'Courier New', monospace; color: #d5eee2; background: #030b0d; }
 body { margin: 0; min-height: 100dvh; display: grid; place-items: center; }
-main { max-width: 32rem; padding: 2rem; text-align: center; }
+body { background: radial-gradient(ellipse at 20% 10%,#14333e,transparent 65%); padding: 20px; box-sizing: border-box; }
+main { width: min(100%,32rem); box-sizing: border-box; padding: 2rem; text-align: center; border:1px solid #24514c; border-radius:4px; background:linear-gradient(130deg,#071417,#010909); box-shadow:0 24px 90px #0007; }
 h1 { letter-spacing: .25em; color: #54ff9c; }
 p { line-height: 1.6; }
 button, a { font: inherit; color: #bdfdcc; border: 1px solid #398653; background: #10271b;
   padding: .85rem 1.2rem; margin: .5rem; cursor: pointer; text-decoration: none; }
 [hidden] { display: none !important; }
+button, a { display:inline-block; border-radius:3px; min-height:44px; box-sizing:border-box; }
+button { background:#2dff90; color:#001d13; font-weight:bold; border-color:#60ffb4; }
 button:focus-visible, a:focus-visible { outline: 2px solid #b6ff00; outline-offset: 3px; }

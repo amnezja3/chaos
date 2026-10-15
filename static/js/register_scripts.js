@@ -27,6 +27,7 @@ function refreshOnboardingLocale() {
   const selected = document.querySelector('.avatar-button.selected');
   if (selected) document.getElementById('avatar-info').textContent = onboardingText('selected', {name: selected.dataset.name});
   setError(registrationErrorKey);
+  updateProgressBar(currentStep);
 }
 document.addEventListener('ghost:locale-changed', refreshOnboardingLocale);
 
@@ -115,6 +116,10 @@ function escapeHTML(value) {
 
 function typeText(element, text) {
   clearTimeout(typewriterTimer);
+  if (window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 680px)').matches) {
+    element.textContent = text;
+    return;
+  }
   element.textContent = "";
   let index = 0;
 
@@ -151,13 +156,13 @@ function renderShell(step, body, side = "") {
   return `
     <div class="step onboarding-step${layoutClass}">
       ${renderStoryPanel(step)}
-      ${side ? `<section class="identity-panel">${side}</section>` : ""}
       <section class="onboarding-console">
         <div class="console-topline">
           <span>${onboardingLabel("setup")}</span>
           <span>${step + 1}/6</span>
         </div>
-        <div class="console-body">${body}</div>
+        ${side ? `<section class="identity-panel">${side}</section>` : ""}
+        <div class="console-body">${step === 0 ? `<div class="onboarding-providers">${document.getElementById?.('onboarding-providers')?.innerHTML || ''}</div>` : ''}${body}</div>
         <div class="step-nav">
           ${step > 0 ? `<button type="button" class="ghost-btn secondary" onclick="prevStep()">${onboardingLabel("back")}</button>` : ""}
           <button type="button" class="ghost-btn primary js-next-step" onclick="handleNext()">${onboardingLabel(step === 5 ? "finish" : "next")}</button>
@@ -287,6 +292,7 @@ function showStep(index) {
   setError("");
 
   restoreStepInputs(index);
+  window.scrollTo({top: 0, behavior: 'instant'});
 
   if (index === 1 || index === 2) {
     avatarSelector = new AvatarSelector({
@@ -303,7 +309,7 @@ function showStep(index) {
 
   const firstInput = document.querySelector("#step-content input");
   if (firstInput) {
-    setTimeout(() => firstInput.focus(), 60);
+    setTimeout(() => firstInput.focus({preventScroll: true}), 60);
   }
 }
 
@@ -344,6 +350,10 @@ function updateProgressBar(step) {
   document.getElementById("progress-fill").style.width = percent + "%";
   const progressLabel = document.getElementById("progress-label");
   if (progressLabel) progressLabel.textContent = `${step + 1}/6`;
+  const stages = document.getElementById('onboarding-steps');
+  if (stages) stages.innerHTML = ['username', 'choose_faction', 'choose_role', 'password', 'email', 'nick'].map((key, index) =>
+    `<li ${index === step ? 'aria-current="step"' : ''} class="${index < step ? 'complete' : ''}" title="${escapeHTML(onboardingText(key))}"><b>${String(index + 1).padStart(2, '0')}</b><span>${onboardingLabel(key)}</span></li>`
+  ).join('');
 }
 
 function prevStep() {

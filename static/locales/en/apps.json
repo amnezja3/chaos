@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "156.7.2",
+  "content_version": "156.7.3",
   "messages": {
     "apps.notifications.product_title": {
       "params": {},

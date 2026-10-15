@@ -1,8 +1,9 @@
 {
   "format_version": 1,
-  "content_version": "156.7.2",
+  "content_version": "156.7.3",
   "locale": "en",
   "messages": {
+    "entry.identity.registration_pending": {"params": {}, "text": "External registration is coming soon. Create your CHAOS account below."},
     "entry.blacknet.login": {"params": {}, "text": "Log in to use this signal in the game."},
     "entry.blacknet.quiet": {"params": {}, "text": "Airwaves quiet. Waiting for the next signal."},
     "entry.identity.discord": {"params": {}, "text": "Continue with Discord"},

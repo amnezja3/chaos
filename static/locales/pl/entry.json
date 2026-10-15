@@ -1,8 +1,9 @@
 {
   "format_version": 1,
-  "content_version": "156.7.2",
+  "content_version": "156.7.3",
   "locale": "pl",
   "messages": {
+    "entry.identity.registration_pending": {"params": {}, "text": "Rejestracja przez dostawców będzie dostępna wkrótce. Poniżej utwórz konto CHAOS."},
     "entry.blacknet.login": {"params": {}, "text": "Zaloguj się, aby skorzystać z sygnału w grze."},
     "entry.blacknet.quiet": {"params": {}, "text": "Cisza w eterze. Czekamy na kolejny sygnał."},
     "entry.identity.discord": {"params": {}, "text": "Kontynuuj z Discord"},
