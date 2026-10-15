@@ -25,332 +25,70 @@
   <meta name="twitter:image" content="https://chaos.re/static/images/chaos-social-v1.png">
   <meta name="twitter:image:alt" content="CHAOS — Cyber Hacking Adventure Of Senses. Hack the digital senses of the modern world.">
   <link rel="icon" href="{{ url_for('static', filename='images/chaos_favicon.svg') }}" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      min-height: 100%;
-      height: auto;
-      margin: 0;
-      background: #030504;
-      color: #d7ffe0;
-      font-family: "Courier New", monospace;
-    }
-
-    body {
-      display: grid;
-      place-items: center;
-      min-height: 100vh;
-      padding: 24px;
-      overflow-x: hidden;
-      overflow-y: auto;
-      background:
-        radial-gradient(circle at 18% 18%, rgba(57, 255, 128, 0.16), transparent 26%),
-        radial-gradient(circle at 82% 72%, rgba(244, 223, 123, 0.1), transparent 28%),
-        linear-gradient(135deg, #030504 0%, #07140d 48%, #010301 100%);
-    }
-
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      opacity: 0.13;
-      background: repeating-linear-gradient(
-        to bottom,
-        rgba(255, 255, 255, 0.08),
-        rgba(255, 255, 255, 0.08) 1px,
-        transparent 1px,
-        transparent 5px
-      );
-    }
-
-    .login-gate {
-      width: min(980px, 100%);
-      min-height: min(620px, calc(100vh - 48px));
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.75fr);
-      border: 1px solid rgba(57, 255, 128, 0.44);
-      background: rgba(0, 8, 4, 0.78);
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62), 0 0 38px rgba(57, 255, 128, 0.1);
-      position: relative;
-      z-index: 1;
-      overflow: hidden;
-    }
-
-    .login-signal {
-      padding: clamp(24px, 4vw, 52px);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      min-width: 0;
-      background:
-        linear-gradient(120deg, rgba(57, 255, 128, 0.08), transparent 48%),
-        rgba(0, 0, 0, 0.28);
-    }
-
-    .login-brand {
-      display: grid;
-      gap: 12px;
-    }
-
-    .login-kicker {
-      color: #f4df7b;
-      font-size: 0.78rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }
-
-    .login-brand h1 {
-      margin: 0;
-      color: #39ff80;
-      font-size: clamp(2.6rem, 8vw, 6.8rem);
-      line-height: 0.9;
-      letter-spacing: 0;
-      text-shadow: 0 0 18px rgba(57, 255, 128, 0.28);
-    }
-
-    .login-brand p {
-      max-width: 58ch;
-      margin: 0;
-      color: #b8ffd0;
-      line-height: 1.55;
-    }
-
-    .login-status {
-      display: grid;
-      gap: 10px;
-      color: #8fd6a4;
-      font-size: 0.88rem;
-    }
-
-    .login-status span {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .login-status span::before {
-      content: "";
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #39ff80;
-      box-shadow: 0 0 12px rgba(57, 255, 128, 0.9);
-    }
-
-    .login-panel {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: clamp(20px, 3vw, 40px);
-      border-left: 1px solid rgba(57, 255, 128, 0.24);
-      background: rgba(0, 0, 0, 0.42);
-    }
-
-    .login-form {
-      width: 100%;
-      display: grid;
-      gap: 14px;
-    }
-
-    .login-form h2 {
-      margin: 0 0 4px;
-      color: #ffffff;
-      font-size: 1.2rem;
-      letter-spacing: 0;
-    }
-
-    .login-form label {
-      display: grid;
-      gap: 6px;
-      color: #8fd6a4;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .login-form input {
-      width: 100%;
-      min-height: 44px;
-      padding: 10px 12px;
-      border: 1px solid rgba(57, 255, 128, 0.44);
-      background: rgba(0, 0, 0, 0.72);
-      color: #d7ffe0;
-      font: inherit;
-      outline: none;
-    }
-
-    .login-form input:focus {
-      border-color: #39ff80;
-      box-shadow: 0 0 0 2px rgba(57, 255, 128, 0.14);
-    }
-
-    .login-form button {
-      min-height: 46px;
-      border: 1px solid #39ff80;
-      background: #39ff80;
-      color: #020802;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .login-form button:hover {
-      filter: brightness(1.08);
-    }
-
-    .login-link {
-      color: #8fd6a4;
-      line-height: 1.45;
-      font-size: 0.9rem;
-    }
-
-    .login-link a {
-      color: #f4df7b;
-      text-decoration: none;
-    }
-
-    .login-link a:hover {
-      text-decoration: underline;
-    }
-
-    .login-error {
-      color: #ff7b7b;
-      border: 1px solid rgba(255, 80, 80, 0.34);
-      background: rgba(80, 0, 0, 0.22);
-      padding: 10px;
-      line-height: 1.35;
-    }
-
-    @media (max-width: 760px) {
-      body {
-        padding: 0;
-        overflow: auto;
-      }
-
-      .login-gate {
-        min-height: 100vh;
-        grid-template-columns: 1fr;
-        border-left: 0;
-        border-right: 0;
-      }
-
-      .login-signal {
-        min-height: 0;
-        padding: 22px 18px 18px;
-        gap: 16px;
-      }
-
-      .login-brand {
-        gap: 8px;
-      }
-
-      .login-kicker {
-        font-size: 0.64rem;
-        letter-spacing: 0.1em;
-      }
-
-      .login-brand h1 {
-        font-size: clamp(2.25rem, 16vw, 3.9rem);
-        line-height: 0.95;
-      }
-
-      .login-brand p {
-        font-size: 0.86rem;
-        line-height: 1.42;
-      }
-
-      .login-status {
-        grid-template-columns: 1fr;
-        gap: 6px;
-        font-size: 0.74rem;
-      }
-
-      .login-status span::before {
-        width: 6px;
-        height: 6px;
-      }
-
-      .login-panel {
-        border-left: 0;
-        border-top: 1px solid rgba(57, 255, 128, 0.24);
-        align-items: flex-start;
-        padding: 18px;
-      }
-
-      .login-form {
-        gap: 11px;
-      }
-
-      .login-form h2 {
-        font-size: 1rem;
-      }
-
-      .login-form label {
-        font-size: 0.68rem;
-        letter-spacing: 0.06em;
-      }
-
-      .login-form input {
-        min-height: 40px;
-        padding: 8px 10px;
-        font-size: 0.9rem;
-      }
-
-      .login-form button {
-        min-height: 42px;
-        font-size: 0.9rem;
-      }
-
-      .login-link,
-      .login-error {
-        font-size: 0.8rem;
-      }
-    }
-  </style>
-{% include 'installation_head.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/entry_gate.css') }}?v=156-7-1">
+  {% include 'installation_head.html' %}
+  <script defer src="{{ url_for('static', filename='js/entry_gate.js') }}?v=156-7-1"></script>
 </head>
-<body>
+<body class="entry-page">
   {% include "_ghost_locale.html" %}
-  <main class="login-gate" aria-label="CHAOS login gate" data-ghost-aria-label="entry.gate">
+  <main class="login-gate" data-ghost-aria-label="entry.gate">
     <section class="login-signal">
       <div class="login-brand">
-        <div class="login-kicker" data-ghost-i18n="entry.secure">Ghost System / secure entry</div>
+        <div class="login-kicker">GHOST SYSTEM</div>
         <h1>CHAOS</h1>
-        <p data-ghost-i18n="entry.description">Cyber Hacking Adventure Of Senses. Wejdz do pulpitu operatora, wybierz cel, uruchom narzedzia i pozwol, zeby mapa zaczela mowic danymi.</p>
+        <p class="brand-expansion">Cyber Hacking Adventure Of Senses</p>
+        <p class="entry-tagline" data-ghost-i18n="entry.gate.tagline"></p>
       </div>
-      <div class="login-status" aria-label="System status" data-ghost-aria-label="entry.status">
-        <span data-ghost-i18n="entry.signal">Signal online</span>
-        <span data-ghost-i18n="entry.armed">Ghost Gate armed</span>
-        <span data-ghost-i18n="entry.standby">Cyberner standby</span>
+      <div class="world-label" aria-hidden="true">GHOST NETWORK</div>
+      <div class="world-coordinate" aria-hidden="true">REAL WORLD<br>CONNECTED</div>
+      <div class="hero-bottom">
+        <p class="entry-verbs" data-ghost-i18n="entry.gate.verbs"></p>
+        <div class="entry-features">
+          <article class="entry-feature">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><path d="M2 12h20M4 6h16M4 18h16"/></svg>
+            <h2 data-ghost-i18n="entry.gate.world"></h2><p data-ghost-i18n="entry.gate.world_desc"></p>
+          </article>
+          <article class="entry-feature">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 2h8v8H2zM14 2h8v8h-8zM2 14h8v8H2zM14 14h8v8h-8z"/></svg>
+            <h2 data-ghost-i18n="entry.gate.tools"></h2><p data-ghost-i18n="entry.gate.tools_desc"></p>
+          </article>
+          <article class="entry-feature">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 4-3 11-6 5-6-5L3 6zM12 2v20M3 6l9 6 9-6"/></svg>
+            <h2 data-ghost-i18n="entry.gate.factions"></h2><p data-ghost-i18n="entry.gate.factions_desc"></p>
+          </article>
+        </div>
       </div>
     </section>
-
     <section class="login-panel">
+      <div class="entry-topline">
+        <nav class="entry-tabs" data-ghost-aria-label="entry.gate.access">
+          <span aria-current="page" data-ghost-i18n="entry.submit">Zaloguj</span>
+          <a href="/register" data-ghost-i18n="entry.gate.create">Utwórz konto</a>
+        </nav>
+        <label class="entry-language"><select data-entry-locale data-ghost-aria-label="locale.label" aria-label="Polski / English"></select></label>
+      </div>
+      <h2 class="entry-heading"><span data-ghost-i18n="entry.gate.welcome">Witaj w</span> <strong>CHAOS</strong></h2>
+      <p class="entry-intro" data-ghost-i18n="entry.gate.intro"></p>
+      <p role="status" data-entry-locale-status></p>
       <form class="login-form" method="POST" autocomplete="on">
-        <label><span data-ghost-i18n="locale.label">Język interfejsu</span><select data-entry-locale aria-label="Polski / English"></select></label>
-        <p data-ghost-i18n="locale.test_notice"></p>
-        <p role="status" data-entry-locale-status></p>
         <input type="hidden" name="locale" value="pl">
-        <h2 data-ghost-i18n="entry.authorize">Autoryzacja operatora</h2>
-        <label>
-          <span data-ghost-i18n="entry.username">Login</span>
-          <input type="text" name="username" placeholder="operator" autocomplete="username" required>
+        <label><span data-ghost-i18n="entry.username">Login</span><input type="text" name="username" placeholder="operator" autocomplete="username" required></label>
+        <label><span data-ghost-i18n="entry.password">Hasło</span>
+          <span class="password-field">
+            <input type="password" name="password" data-ghost-i18n-placeholder="entry.password_hint" autocomplete="current-password" required>
+            <button type="button" class="password-toggle" data-password-toggle aria-pressed="false" data-ghost-aria-label="entry.gate.password_visibility" aria-label="Pokaż lub ukryj hasło">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </span>
         </label>
-        <label>
-          <span data-ghost-i18n="entry.password">Hasło</span>
-          <input type="password" name="password" placeholder="klucz dostepu" data-ghost-i18n-placeholder="entry.password_hint" autocomplete="current-password" required>
-        </label>
-        <button type="submit" data-ghost-i18n="entry.submit">Zaloguj</button>
-        <p class="login-link"><span data-ghost-i18n="entry.no_account">Nie masz konta?</span> <a href="/register" data-ghost-i18n="entry.register">Zainicjuj profil operatora</a></p>
-        {% if error %}<div class="login-error" {% if error_key %}data-ghost-i18n="{{ error_key }}"{% endif %}>{{ error }}</div>{% endif %}
+        {% if config.CHAOS_PERSISTENT_SESSION_ENABLED %}<p class="entry-session-note" data-ghost-i18n="entry.gate.session"></p>{% endif %}
+        {% if error %}<div class="login-error" role="alert" {% if error_key %}data-ghost-i18n="{{ error_key }}"{% endif %}>{{ error }}</div>{% endif %}
+        <button type="submit" class="entry-submit"><span data-ghost-i18n="entry.submit">Zaloguj</span><span aria-hidden="true">→</span></button>
+        <p class="login-link"><span data-ghost-i18n="entry.no_account"></span> <a href="/register" data-ghost-i18n="entry.gate.create"></a></p>
       </form>
-{% if chaos_install_enabled %}<section data-chaos-install></section>{% endif %}
+      {% if chaos_install_enabled %}<section data-chaos-install></section>{% endif %}
+      <p class="entry-locale-note" data-ghost-i18n="locale.test_notice"></p>
+      <footer class="entry-footer"><img src="{{ url_for('static', filename='images/chaos_favicon.svg') }}" alt=""><span>BUILD / BREAK / QUESTION</span><span>chaos.re</span></footer>
     </section>
   </main>
   <script src="{{ url_for('static', filename='js/ghost_i18n_entry.js') }}?v=153-3-1"></script>

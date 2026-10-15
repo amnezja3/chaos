@@ -113,6 +113,9 @@ od GhostLab v2 i nie obejmuje realizacji odłożonych funkcji.
   potwierdzone w zakresie [macierzy dowodów](audits/sprint_156_acceptance.md).
   Linux/iOS PENDING; Redmi A5 ma otwarty problem zgodności, widżet działa jako obejście.
   [156.6 — utrwalenie PM2 i rollback](runbooks/universal_installation_156_6.md).
+  [156.7 — lift ekranu wejścia i instalacji](sprints/sprint_156_7_entry_gate.md):
+  wygenerowana scena świata, responsywny formularz PL/EN i kompaktowa instalacja;
+  gotowe lokalnie, bez wdrożenia. Linux/iOS nadal oczekują odbioru.
 - [157 — Identity Gateway](sprints/sprint_157_identity_gateway.md):
   ZAPLANOWANY, dziewięć etapów; Google, Discord, GitHub i **Steam w pierwszej fazie**,
   obok lokalnego loginu. Jedno konto, krótka rejestracja, weryfikacja e-maila,

@@ -1,8 +1,23 @@
 {
   "format_version": 1,
-  "content_version": "156.4.2",
+  "content_version": "156.7.0",
   "locale": "pl",
   "messages": {
+    "entry.gate.access": {"params": {}, "text": "Dostęp do systemu"},
+    "entry.gate.create": {"params": {}, "text": "Utwórz konto"},
+    "entry.gate.factions": {"params": {}, "text": "Frakcje"},
+    "entry.gate.factions_desc": {"params": {}, "text": "Sojusze i konflikty. Kontroluj terytorium."},
+    "entry.gate.install_options": {"params": {}, "text": "Instalacja i instrukcje platform"},
+    "entry.gate.intro": {"params": {}, "text": "Wejdź do systemu. Twój następny ruch zmienia mapę."},
+    "entry.gate.password_visibility": {"params": {}, "text": "Pokaż lub ukryj hasło"},
+    "entry.gate.session": {"params": {}, "text": "Sesja pozostaje aktywna po zamknięciu aplikacji. Na wspólnym urządzeniu pamiętaj o wylogowaniu."},
+    "entry.gate.tagline": {"params": {}, "text": "Prawdziwe miejsca.\nPrawdziwi gracze.\nRealne konsekwencje."},
+    "entry.gate.tools": {"params": {}, "text": "Narzędzia i aplikacje"},
+    "entry.gate.tools_desc": {"params": {}, "text": "Zbuduj swój zestaw. Hakuj, handluj, komunikuj się."},
+    "entry.gate.verbs": {"params": {}, "text": "Odkrywaj\nHakuj\nBuduj\nPrzetrwaj"},
+    "entry.gate.welcome": {"params": {}, "text": "Witaj w"},
+    "entry.gate.world": {"params": {}, "text": "Otwarty świat"},
+    "entry.gate.world_desc": {"params": {}, "text": "Prawdziwa mapa. Żywe dane. Prawdziwi gracze."},
     "entry.description": {
       "params": {},
       "text": "Cyber Hacking Adventure Of Senses. Wejdź do pulpitu operatora, wybierz cel, uruchom narzędzia i pozwól, żeby mapa zaczęła mówić danymi."

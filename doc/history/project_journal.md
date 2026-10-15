@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-10-15 — 156.7: nowy ekran wejścia i instalacji, lokalnie
+
+Na podstawie wizualizacji autora dodano wygenerowaną scenę Ziemi/operatora,
+logo glitch w CSS, karty świata/narzędzi/frakcji oraz responsywny panel logowania.
+PL/EN, podgląd hasła, prawdziwy odnośnik rejestracji, zwijane instrukcje instalacji;
+przycisk natywnej instalacji nadal zależy od zdarzenia przeglądarki. Social login
+pozostaje w 157. Bez migracji, zmiany reguł sesji i wdrożenia na serwer.
+
+26 testów izolowanych PASS, test izolacji SW PASS, składnia JS i diff check OK.
+Chrome/Playwright na izolowanej bazie: PL/EN, desktop/mobile, dodatkowo szerokości
+320/768/1920, formularz → gra, `/launch`, podgląd hasła, scroll, platformy,
+offline i późny prompt po document.open; brak błędów JS/konsoli. MCP Playwright
+niedostępne — użyto lokalnego Python Playwright. Podglądy sprawdzone wizualnie.
+Linux/iOS nadal PENDING. [Zakres, asset i prompt](../sprints/sprint_156_7_entry_gate.md).
+
 ## 2026-10-15 — 156.3 domknięte lokalnie: LaunchController
 
 Dodano publiczny `/launch`, read-only status, bootstrap z osobnym CSRF i chroniony

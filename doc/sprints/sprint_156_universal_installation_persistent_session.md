@@ -1,5 +1,9 @@
 # Sprint 156 — Universal Installation System
 
+**Rozszerzenie 15 X 2026:** [156.7 — lift ekranu wejścia i instalacji](sprint_156_7_entry_gate.md)
+zaimplementowane i sprawdzone lokalnie; oczekuje wdrożenia. Poniższe zamknięcie
+dotyczy zakresu 156.1–156.6, nie nowego wyglądu 156.7.
+
 Status: IMPLEMENTACJA I WDROŻENIE ZAMKNIĘTE, 15 X 2026; odbiór platform częściowy.
 Windows i Android potwierdzone w zakresie [macierzy dowodów](../audits/sprint_156_acceptance.md).
 Linux oraz iOS pozostają PENDING decyzją autora. Redmi A5: problem zgodności,

@@ -43,10 +43,28 @@ def main():
                         page.on('pageerror', lambda e: errors.append(str(e)))
                         page.on('console', lambda message: console_errors.append(message.text) if message.type == 'error' else None)
                         page.goto(base+'/?login=1')
+                        page.locator('.install-options summary').wait_for()
+                        page.locator('[data-entry-locale]').select_option(locale)
+                        page.wait_for_function('(locale) => document.querySelector(".entry-heading").innerText === (locale === "pl" ? "Witaj w CHAOS" : "Welcome to CHAOS")', arg=locale)
+                        page.screenshot(path=str(ROOT/f'.playwright-mcp/entry-156-7-{locale}.png'), full_page=True)
+                        for probe in ([1920, 768] if locale == 'pl' else [320]):
+                            page.set_viewport_size({'width':probe,'height':900})
+                            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), probe
+                            assert page.locator('.entry-submit').is_visible()
+                        page.set_viewport_size({'width':width,'height':900})
+                        page.locator('.install-options summary').click()
+                        password = page.locator('[name="password"]')
+                        page.locator('[data-password-toggle]').click()
+                        assert password.get_attribute('type') == 'text'
+                        page.locator('[data-password-toggle]').click()
+                        assert password.get_attribute('type') == 'password'
+                        assert page.locator('.entry-tabs a').get_attribute('href') == '/register'
                         page.locator('[data-chaos-install] .chaos-install-grid button').first.wait_for()
                         assert page.locator('[data-chaos-install] .chaos-install-grid button').count() == 4
                         # Entry locale can be explicitly selected, independent of browser language.
                         page.locator('[data-entry-locale]').select_option(locale)
+                        page.wait_for_function('(locale) => window.GhostLocale?.getLocale() === locale', arg=locale)
+                        assert page.locator('.entry-heading').inner_text() == ('Witaj w CHAOS' if locale == 'pl' else 'Welcome to CHAOS')
                         page.locator('[data-platform="iOS"]').click()
                         detail = page.locator('[data-install-instructions]')
                         detail.wait_for(state='visible')
@@ -97,7 +115,10 @@ def main():
                         context.set_offline(False)
                         page.goto(base+'/?login=1')
                         run.identity_projection_store.update_desktop_settings('alice', {'locale':locale}, normalize=run.normalize_desktop_settings)
-                        context.request.post(base+'/', form={'username':'alice','password':'fixture'})
+                        page.locator('[name="username"]').fill('alice')
+                        page.locator('[name="password"]').fill('fixture')
+                        page.locator('.entry-submit').click()
+                        page.locator('#desktop-icons .icon').first.wait_for(timeout=20000)
                         page.goto(base+'/launch')
                         page.locator('#desktop-icons .icon').first.wait_for(timeout=30000)
                         page.wait_for_function('!!window.ChaosInstall')

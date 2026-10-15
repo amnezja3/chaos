@@ -1,8 +1,23 @@
 {
   "format_version": 1,
-  "content_version": "156.4.2",
+  "content_version": "156.7.0",
   "locale": "en",
   "messages": {
+    "entry.gate.access": {"params": {}, "text": "System access"},
+    "entry.gate.create": {"params": {}, "text": "Create account"},
+    "entry.gate.factions": {"params": {}, "text": "Factions"},
+    "entry.gate.factions_desc": {"params": {}, "text": "Alliances and conflicts. Control territory."},
+    "entry.gate.install_options": {"params": {}, "text": "Installation \u0026 platform instructions"},
+    "entry.gate.intro": {"params": {}, "text": "Enter the system. Your next move changes the map."},
+    "entry.gate.password_visibility": {"params": {}, "text": "Show or hide password"},
+    "entry.gate.session": {"params": {}, "text": "Your session stays active after closing the app. Sign out on shared devices."},
+    "entry.gate.tagline": {"params": {}, "text": "Real places.\nReal players.\nReal consequences."},
+    "entry.gate.tools": {"params": {}, "text": "Tools \u0026 apps"},
+    "entry.gate.tools_desc": {"params": {}, "text": "Build your setup. Hack, trade, communicate."},
+    "entry.gate.verbs": {"params": {}, "text": "Explore\nHack\nBuild\nSurvive"},
+    "entry.gate.welcome": {"params": {}, "text": "Welcome to"},
+    "entry.gate.world": {"params": {}, "text": "Open world"},
+    "entry.gate.world_desc": {"params": {}, "text": "Real world map. Live data. Real players."},
     "entry.description": {
       "params": {},
       "text": "Cyber Hacking Adventure Of Senses. Enter the operator desktop, choose a target, run your tools and let the map reveal its data."

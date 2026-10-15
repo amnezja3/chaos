@@ -1,5 +1,9 @@
 # Sprint 156 — zamknięcie implementacji i odbiór produkcyjny
 
+Dodano [156.7 — nowy ekran wejścia](../sprints/sprint_156_7_entry_gate.md):
+implementacja i testy lokalne, bez wdrożenia. Odbiory platform poniżej dotyczą
+wcześniejszego wydania; nie zastępują odbioru nowego ekranu na produkcji.
+
 15 X 2026. Decyzja autora: domknąć 156, pozostawić Linux i iOS do testów.
 **Implementacja i wdrożenie zamknięte; odbiór platform częściowy.** Nie oznacza
 pełnego PASS wszystkich scenariuszy ani automatycznego rozpoczęcia Sprintu 157.
