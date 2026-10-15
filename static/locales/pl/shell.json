@@ -2,17 +2,50 @@
   "format_version": 1,
   "locale": "pl",
   "messages": {
-    "shell.start.recon": {"params": {}, "text": "Recon / Mapa"},
-    "shell.start.exploits": {"params": {}, "text": "Exploity"},
-    "shell.start.monitoring": {"params": {}, "text": "Sniffery / Monitoring"},
-    "shell.start.pvp": {"params": {}, "text": "PvP / Terytoria"},
-    "shell.start.analysis": {"params": {}, "text": "OSINT / Analiza"},
-    "shell.start.finance": {"params": {}, "text": "Finanse / Trading"},
-    "shell.start.social": {"params": {}, "text": "Społeczność"},
-    "shell.start.creators": {"params": {}, "text": "Kreatory"},
-    "shell.start.service": {"params": {}, "text": "Serwis / Ochrona"},
-    "shell.start.system": {"params": {}, "text": "System"},
-    "shell.start.gameplay": {"params": {}, "text": "Dodatki gameplayowe"},
+    "shell.start.recon": {
+      "params": {},
+      "text": "Recon / Mapa"
+    },
+    "shell.start.exploits": {
+      "params": {},
+      "text": "Exploity"
+    },
+    "shell.start.monitoring": {
+      "params": {},
+      "text": "Sniffery / Monitoring"
+    },
+    "shell.start.pvp": {
+      "params": {},
+      "text": "PvP / Terytoria"
+    },
+    "shell.start.analysis": {
+      "params": {},
+      "text": "OSINT / Analiza"
+    },
+    "shell.start.finance": {
+      "params": {},
+      "text": "Finanse / Trading"
+    },
+    "shell.start.social": {
+      "params": {},
+      "text": "Społeczność"
+    },
+    "shell.start.creators": {
+      "params": {},
+      "text": "Kreatory"
+    },
+    "shell.start.service": {
+      "params": {},
+      "text": "Serwis / Ochrona"
+    },
+    "shell.start.system": {
+      "params": {},
+      "text": "System"
+    },
+    "shell.start.gameplay": {
+      "params": {},
+      "text": "Dodatki gameplayowe"
+    },
     "profile.title": {
       "params": {},
       "text": "Profil gracza"
@@ -575,6 +608,14 @@
     "session.expired": {
       "params": {},
       "text": "Sesja wygasła. Zaloguj się ponownie."
+    },
+    "session.password_changed": {
+      "text": "Hasło zmienione. Zaloguj się ponownie.",
+      "params": {}
+    },
+    "session.logout_failed": {
+      "text": "Nie udało się wylogować. Spróbuj ponownie.",
+      "params": {}
     },
     "session.signed_out": {
       "params": {},
@@ -1515,5 +1556,5 @@
       "text": "Brak dostępu do schowka. Użyj Ctrl+V lub ⌘V."
     }
   },
-  "content_version": "155.3.2"
+  "content_version": "156.4.0"
 }

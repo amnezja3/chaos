@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHAOS</title>
+<link rel="icon" href="/static/images/chaos_favicon.svg" type="image/svg+xml">
+<style>body{background:#07100c;color:#bbffbb;font:16px monospace;display:grid;place-content:center;min-height:90vh}button{background:#321010;color:#ffbbbb;border:1px solid #ff5555;padding:1rem;cursor:pointer}p{max-width:28rem}</style>
+<main><h1>CHAOS</h1><button id="logout">{{ logout_label }}</button><p id="status" role="status"></p></main>
+<script id="session-generation-config" type="application/json">{{ session_generation|tojson }}</script>
+<script src="/static/js/session_generation.js?v=156-3"></script>
+<script>document.getElementById('logout').onclick=async()=>{try{await ChaosSessionGeneration.logout();}catch(e){document.getElementById('status').textContent={{ logout_error|tojson }};}};</script>
+</html>

@@ -75,6 +75,8 @@ class SessionGenerationFixture:
             flask_session["user"] = username
             flask_session[run.SESSION_LINEAGE_KEY] = lineage
             flask_session[run.SESSION_GENERATION_KEY] = generation
+            flask_session['session_csrf'] = 'endpoint-fixture-csrf'
+        client.environ_base.update(HTTP_ORIGIN='http://localhost', HTTP_X_CHAOS_CSRF='endpoint-fixture-csrf')
         environ_header = "HTTP_" + run.SESSION_GENERATION_HEADER.upper().replace("-", "_")
         client.environ_base[environ_header] = generation
         return {run.SESSION_GENERATION_HEADER: generation}

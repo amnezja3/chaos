@@ -1,27 +1,88 @@
 {
   "locale": "en",
   "format_version": 1,
-  "content_version": "155.3.2",
+  "content_version": "156.4.0",
   "messages": {
-    "map.territory.inner": {"params": {}, "text": "Conflict inner"},
-    "map.territory.pillar": {"params": {}, "text": "Conflict pillar"},
-    "map.territory.collision": {"params": {}, "text": "Collision point"},
-    "map.territory.owner": {"params": {}, "text": "Owner"},
-    "map.territory.conflict": {"params": {}, "text": "Territory conflict"},
-    "map.territory.multi_conflict": {"params": {}, "text": "Multi-party conflict"},
-    "map.territory.participants": {"params": {}, "text": "Participants"},
-    "map.territory.zone": {"params": {}, "text": "Zone"},
-    "map.territory.mine": {"params": {}, "text": "Your territory"},
-    "map.territory.player": {"params": {}, "text": "Player territory"},
-    "map.territory.login": {"params": {}, "text": "Login"},
-    "map.territory.clan": {"params": {}, "text": "Clan"},
-    "map.territory.status": {"params": {}, "text": "Status"},
-    "map.territory.area": {"params": {}, "text": "Area"},
-    "map.territory.none": {"params": {}, "text": "none"},
-    "map.territory.active": {"params": {}, "text": "active"},
-    "map.teleport.invalid": {"params": {}, "text": "Invalid teleport coordinates."},
-    "map.teleport.copied": {"params": {"command": "string"}, "text": "Terminal command copied: {command}"},
-    "map.teleport.copy_failed": {"params": {"command": "string"}, "text": "Copy failed. Command: {command}"},
+    "map.territory.inner": {
+      "params": {},
+      "text": "Conflict inner"
+    },
+    "map.territory.pillar": {
+      "params": {},
+      "text": "Conflict pillar"
+    },
+    "map.territory.collision": {
+      "params": {},
+      "text": "Collision point"
+    },
+    "map.territory.owner": {
+      "params": {},
+      "text": "Owner"
+    },
+    "map.territory.conflict": {
+      "params": {},
+      "text": "Territory conflict"
+    },
+    "map.territory.multi_conflict": {
+      "params": {},
+      "text": "Multi-party conflict"
+    },
+    "map.territory.participants": {
+      "params": {},
+      "text": "Participants"
+    },
+    "map.territory.zone": {
+      "params": {},
+      "text": "Zone"
+    },
+    "map.territory.mine": {
+      "params": {},
+      "text": "Your territory"
+    },
+    "map.territory.player": {
+      "params": {},
+      "text": "Player territory"
+    },
+    "map.territory.login": {
+      "params": {},
+      "text": "Login"
+    },
+    "map.territory.clan": {
+      "params": {},
+      "text": "Clan"
+    },
+    "map.territory.status": {
+      "params": {},
+      "text": "Status"
+    },
+    "map.territory.area": {
+      "params": {},
+      "text": "Area"
+    },
+    "map.territory.none": {
+      "params": {},
+      "text": "none"
+    },
+    "map.territory.active": {
+      "params": {},
+      "text": "active"
+    },
+    "map.teleport.invalid": {
+      "params": {},
+      "text": "Invalid teleport coordinates."
+    },
+    "map.teleport.copied": {
+      "params": {
+        "command": "string"
+      },
+      "text": "Terminal command copied: {command}"
+    },
+    "map.teleport.copy_failed": {
+      "params": {
+        "command": "string"
+      },
+      "text": "Copy failed. Command: {command}"
+    },
     "map.power.reason.select_target_before_activation": {
       "params": {},
       "text": "Mark a target on the map first."

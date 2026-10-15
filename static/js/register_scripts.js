@@ -526,6 +526,9 @@ function finalizeRegistration() {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
+        if (data.launch_authenticated) {
+            try { sessionStorage.removeItem('chaos-launch-binding-v1'); } catch (_) { /* launch handles storage */ }
+        }
         window.location.href = data.redirect;
       } else {
         isSubmitting = false;

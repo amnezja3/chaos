@@ -144,9 +144,11 @@ class GhostClientRestartTest(unittest.TestCase):
             sessions.activate("lineage", "generation", username, reason="test.boot")
             execute = InstrumentedConnection.execute
             count = [0]
+            statements = []
             def counted(conn, sql, *args, **kwargs):
                 self.assertNotIn("profile_json", sql.lower())
                 count[0] += 1
+                statements.append(' '.join(sql.split())[:120])
                 return execute(conn, sql, *args, **kwargs)
             token = reset_hot_path_metrics()
             try:
@@ -177,7 +179,7 @@ class GhostClientRestartTest(unittest.TestCase):
                 self.assertEqual(metrics[key], 0, key)
             counts.append(count[0])
         self.assertEqual(counts[0], counts[1])
-        self.assertLess(counts[0], 35)
+        self.assertLess(counts[0], 35, statements)
 
     def test_request_started_before_rollover_cannot_commit_or_return_old_response(self):
         from concurrent.futures import ThreadPoolExecutor

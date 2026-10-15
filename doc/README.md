@@ -97,6 +97,23 @@ od GhostLab v2 i nie obejmuje realizacji odłożonych funkcji.
 - [155 — treści i pełny odbiór](sprints/sprint_155_ghost_system_content_acceptance.md):
   wiadomości, narracja, historia, multimedia, rollout oraz runbook kolejnych języków;
   start po odbiorze infrastruktury [154.8](sprints/sprint_154_8_narrative_providers_mistral.md).
+- [156 — instalacja wieloplatformowa i trwała sesja](sprints/sprint_156_universal_installation_persistent_session.md):
+  plan z 15 X 2026, sześć etapów; PWA Windows/Linux/Android/iOS, cichy start,
+  izolacja magazynów i zachowanie jednego aktywnego logowania.
+  [156.1 — audyt i kontrakt](audits/sprint_156_1_installation_session_contract.md)
+  gotowe; [156.2 — trwała sesja](runbooks/persistent_session_156_2.md) gotowe lokalnie:
+  TTL 30/90, activity/CSRF, logout POST, atomowa revocation hasła i testy PL/EN.
+  [156.3 — cichy start](runbooks/launch_controller_156_3.md) gotowe lokalnie:
+  status/bootstrap, izolacja kart/iframe, brak tokenów w nowym URL; 98 testów
+  backendu, cztery zestawy JS i Chrome/Playwright desktop PL/mobile EN PASS.
+  [156.4 — instalacja PWA](runbooks/installation_156_4.md) gotowa lokalnie:
+  panel czterech platform PL/EN, manifest, ikony, neutralny offline i rollback SW.
+  Bez wdrożenia; kolejny etap 156.5 (rzeczywiste instalacje urządzeń).
+- [157 — Identity Gateway](sprints/sprint_157_identity_gateway.md):
+  ZAPLANOWANY, dziewięć etapów; Google, Discord, GitHub i **Steam w pierwszej fazie**,
+  obok lokalnego loginu. Jedno konto, krótka rejestracja, weryfikacja e-maila,
+  połączenia/hasło, sesja i PWA 156, usuwanie konta oraz panel administratora.
+  Bez implementacji i wdrożenia; nie zmienia statusu odbiorów 155/156.
 
 Treści graczy nie są automatycznie tłumaczone. RU/ES to przyszłe pakiety na tej
 samej infrastrukturze, nie dodatkowy zakres tłumaczeń 153–155.

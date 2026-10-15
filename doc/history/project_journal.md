@@ -1,5 +1,107 @@
 # CHAOS — Project Journal
 
+## 2026-10-15 — 156.3 domknięte lokalnie: LaunchController
+
+Dodano publiczny `/launch`, read-only status, bootstrap z osobnym CSRF i chroniony
+dokument pulpitu. Ważna sesja wchodzi bez formularza loginu i tokenu w URL.
+Znacznik porównawczy w sessionStorage nie autoryzuje API; zostaje po odrzuceniu
+starej karty, żeby reload nie adoptował nowszego cookie. Jawny udany login go resetuje.
+Mapa/dev używają shellu i przypiętej generacji; iframe dostaje kontekst od rodzica
+z kontrolą origin/source/nonce. Powrót aplikacji sprawdza aktualność, sieć → retry.
+Statyczne assety nie zapisują cookie; restart Show zachowuje epoch/receipts.
+
+Regresja wykryła nadmiar zapytań boot snapshot. Wspólne połączenie małych projekcji
+i pominięcie niewykorzystywanego security przywróciły dotychczasowy limit bez
+pełnego odczytu profilu, również dla 35 MB. Katalogi PL/EN 156.3.0.
+Końcowo: **98/98 testów backendu PASS (196,739 s)**, cztery zestawy Node PASS.
+Chrome przez lokalny Playwright (MCP niedostępny): desktop PL/mobile EN, rzeczywisty
+pulpit i mapa, stale iframe/reload, ponowny formularz loginu, offline retry i cookie
+PASS. Brak pageerror i nieoczekiwanych console errors; browser zamknięty.
+[Runbook i dowody](../runbooks/launch_controller_156_3.md).
+Flaga domyślnie OFF; bez wdrożenia, testu instalacji PWA i pełnego PASS 156.
+Następny etap: 156.4. Plan 157 pozostaje planem.
+
+## 2026-10-15 — plan 157: Identity Gateway, Steam w pierwszej fazie
+
+Na podstawie koncepcji autora v1.0 rozpisano dziewięć etapów Sprintu 157.
+Google, Discord, GitHub i Steam są objęte pierwszym wydaniem, obok lokalnego
+logowania. Steam ma osobny adapter OpenID 2.0 i ścieżkę weryfikacji e-maila CHAOS.
+Plan zachowuje istniejące ID/username i sesje 30/90 z 156; zabrania automatycznego
+łączenia kont po e-mailu i odłączenia ostatniej metody uwierzytelnienia.
+Uwzględnia wymagane frakcję/rolę w onboardingu, mail aktywacyjny, połączenia,
+opcjonalne hasło, Danger Zone, panel admina, migrację i kompatybilny rollback.
+Dokument: [Sprint 157](../sprints/sprint_157_identity_gateway.md).
+Wyłącznie planowanie: bez implementacji, konfiguracji dostawców i zmian na serwerze.
+156.2 pozostaje gotowe lokalnie; kolejnym etapem realizacji 156 jest 156.3.
+
+## 2026-10-15 — 156.2 domknięte lokalnie: aktywność, CSRF, logout i hasła
+
+Powiązano trwały renewal z trusted input w widocznym dokumencie, z throttlingiem
+klienta i serwera co 5 minut. Polling nie przedłuża sesji. Dodano osobny CSRF
+oraz Origin/Host dla activity, logout i credentials; stary GET logout potwierdza,
+trzy akcje terminala wylogowują przez POST. Recovery poprawnego nowego loginu
+jest read-only, a logout i anonimowy login GET nie usuwają cookie nowszego loginu.
+
+Guarded UserStore kolejkuje revocation po rzeczywistej zmianie credentials;
+InstrumentedConnection sprawdza request guard, unieważnia sesje i zatwierdza
+hasło w jednej transakcji. Awaria revocation wycofuje hasło. Zwykłe zmiany
+profilu nie wylogowują. Komunikaty i potwierdzenie PL/EN; katalogi 156.2.0.
+
+Narzędzie `session_156_maintenance.py`: addytywna migracja z dry-run i kontrolą
+oryginalnych danych, bezpieczny cleanup wygasłych plików bez pickle (apply offline).
+Runbook: `doc/runbooks/persistent_session_156_2.md`.
+Końcowy backend z katalogami PL/EN: 90/90 PASS (61,707 s).
+Testy Node activity/logout i izolacji PASS.
+Chrome przez Playwright lokalny (MCP niedostępny): desktop PL 1280×800 oraz
+mobile EN 390×844, renewal potwierdzony w DB, brak CSRF → 403, logout → login,
+brak pageerror, browser zamknięty. Instalacja PWA nie była przedmiotem tego testu.
+Flaga domyślnie OFF; nic nie zmieniano na produkcji. Następny etap 156.3.
+
+## 2026-10-15 — 156.2: backend expiry i zapis trwałych sesji
+
+Dodano lokalnie daty idle/absolute expiry w lineage, politykę 30/90 dni oraz
+odnowienie CAS ograniczone do jednego zapisu na 5 minut. Guardy request/precommit
+odrzucają wygasłą sesję także po restarcie i po wyłączeniu flagi wydawania.
+Flask-Session otrzymał adapter ograniczający TTL storage/cookie i blokujący zapis
+wykrytej zastąpionej sesji; cookie trwałe jest Secure/HttpOnly/SameSite=Lax.
+Recovery zachowuje komunikat przez publiczny klucz w redirect, bez nadpisywania
+cookie nowszego logowania. Sesje legacy nie otrzymują automatycznie 90 dni.
+
+Regresja: 62/62 PASS (37,799 s): persistent_session, session_generation_store,
+session_generation_isolation, session_generation_precommit. Testy obejmują
+granice TTL, restart aplikacji/magazynu, rollback wygasłego zapisu i stale cookie.
+Po dodaniu integracyjnego scenariusza wyłączenia flagi: isolation 39/39 PASS
+(13,072 s), w tym wydanie trwałego cookie przez właściwy login i odmowa po expiry.
+156.2 pozostaje W REALIZACJI: aktywność klienta/CSRF, logout POST, hasła i storage
+cleanup/dry-run wymagają domknięcia. Flaga domyślnie wyłączona; bez wdrożenia.
+
+## 2026-10-15 — 156.1: audyt i kontrakt sesji zamknięte
+
+Autor zatwierdził 30 dni nieaktywności i 90 dni maksymalnie od logowania.
+Zbadano Flask-Session, ownership/lineage, rotację SID, dokumenty i iframe,
+URL generation, fetch bridge/recovery, logout, credentials oraz restart receipts.
+Kontrakt obejmuje jawny lifecycle TTL w guardzie request/precommit, kontrolowany
+save_session, brak renewal przez polling, neutralny launch i bootstrap bez URL
+sekretów, migrację logout do POST i transakcyjną revocation po zmianie hasła.
+Storage pozostaje lokalny, bez nowej infrastruktury. Wykryte luki są zadaniami
+156.2/156.3, nie istniejącą implementacją.
+Testy bazowe: session_generation_store 5/5 PASS (0,597 s), JS isolation PASS.
+Dokument: `doc/audits/sprint_156_1_installation_session_contract.md`.
+Bez zmian runtime, instalacji PWA ani działań na serwerze. Gotowe do 156.2.
+
+## 2026-10-15 — plan Sprintu 156: Universal Installation System
+
+Rozpisano sześć etapów instalacji PWA i trwałej sesji na bazie specyfikacji autora
+oraz audytu istniejącego Flask-Session, lineage/account ownership i wejścia `/`.
+Ważna sesja ma prowadzić przez neutralny ekran startowy bez widoku loginu.
+PWA bez credentialu wymaga pierwszego logowania; kopiowanie cookies na iOS
+nie jest założeniem architektury. Nowe logowanie na innym urządzeniu nadal
+zastępuje poprzednie, a odnowienie sesji nie zmienia właściciela logowania.
+Plan obejmuje PL/EN, TTL do zatwierdzenia, regresję precommit, cache bez danych
+kont, rzeczywiste odbiory urządzeń oraz wdrożenie na obecnej instancji z rollbackiem.
+Dokument: `doc/sprints/sprint_156_universal_installation_persistent_session.md`.
+Status: plan, bez kodu wykonawczego i bez zmian na serwerze. Nie zamyka odbiorów 155.
+
 ## 2026-10-14 — WebDragons: ikonowa nawigacja Googleplexa
 
 Trzy główne miejsca mają osobne ikony SVG i kwadratowe przyciski 42×42.
@@ -7200,3 +7302,23 @@ Testy Playwright przeszły dla obu języków, zachowania szkicu/UGC, stabilnych
 żądań, pustych stanów, zmiany języka przy odtwarzaniu i mobile. Osobne regresje
 API i Ghost Signal Show audio PASS. Pakiet 886 klucze, 10 domen, `154.6.0`.
 Zmiany lokalne; bez pushu/wdrożenia i bez pełnego PASS 154.
+
+
+## 2026-10-15 — 156.4: instalacja PWA, lokalnie
+
+- Panel przed logowaniem i w Ustawieniach; cztery platformy, PL/EN w entry,
+  wersja katalogów 156.4.0. Natywny prompt tylko po kliknięciu; potwierdzenie
+  instalacji oddzielone od akceptacji żądania. iOS z instrukcją i osobną sesją.
+- Manifest ze startem /launch, ikony z istniejącego wektora, Linux Type=Link.
+- SW cache ograniczony do pięciu publicznych zasobów, credentials omit; brak
+  API/HTML kont/mutacji. Aktualizacje czekają na zamknięcie okien.
+- Wycofujący worker zachowuje inne cache i sesję. Test ujawnił wyścig, gdy
+  stary odczyt caches.open odtwarzał usunięty cache; odczyty zmieniono na caches.match.
+- 20 testów installation+launch oraz 10 installation+i18n PASS, test izolacji
+  workera Node PASS. Przeglądarka: lokalny Chrome/Playwright, izolowana baza;
+  Playwright MCP niedostępny. Szczegóły: doc/runbooks/installation_156_4.md.
+- Bez wdrożenia; flagi OFF. Nie deklarujemy fizycznego iOS/Android ani pełnego PASS 156.
+- Końcowy Chrome/Playwright PASS: PL 1280 px i EN 390 px, po pięć wpisów cache,
+  brak błędów JS i nieoczekiwanych błędów konsoli. Wycofanie zarejestrowanego SW
+  usuwa cache CHAOS i zachowuje obcy cache. Harness czeka na zakończenie
+  asynchronicznej aktywacji i wyrejestrowania, nie tylko zakończenie update().

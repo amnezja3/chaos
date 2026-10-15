@@ -5,12 +5,13 @@ remain in the Flask server-side session and are never written to this table.
 """
 
 import hashlib
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 
 from database import DB_PATH, db_connect, utc_now
 
 
-SESSION_LINEAGE_SCHEMA_VERSION = 2
+SESSION_LINEAGE_SCHEMA_VERSION = 3
 
 SESSION_ACTIVE = "active"
 SESSION_REPLACED = "replaced"
@@ -57,9 +58,25 @@ def username_digest(value):
     return _secret_digest("username", str(value or "").strip().casefold())
 
 
+def revoke_credentials_with_conn(conn, username):
+    """Called only after the request precommit guard, inside credential COMMIT."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_generation_lineages'").fetchone():
+        return  # A standalone UserStore may predate session storage entirely.
+    stamp = utc_now()
+    user_hash = username_digest(username)
+    conn.execute("""UPDATE session_generation_lineages SET status='revoked',
+        lifecycle_status='logged_out', revision=revision+1, updated_at=?,
+        invalidated_at=?, last_reason='credentials_changed'
+        WHERE username_hash=? AND status='active'""", (stamp, stamp, user_hash))
+    conn.execute("""UPDATE account_login_ownership SET active_login_id_hash='',
+        status='logged_out', updated_at=?, last_reason='credentials_changed'
+        WHERE username_hash=? AND status='active'""", (stamp, user_hash))
+
+
 class SessionGenerationStore:
-    def __init__(self, db_path=DB_PATH):
+    def __init__(self, db_path=DB_PATH, clock=None):
         self.db_path = db_path
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.ensure_schema()
 
     def ensure_schema(self):
@@ -86,6 +103,8 @@ class SessionGenerationStore:
                     "PRAGMA table_info(session_generation_lineages)"
                 ).fetchall()
             }
+            from persistent_session_schema import ensure_persistence_schema
+            ensure_persistence_schema(conn)
             if "login_id_hash" not in columns:
                 conn.execute(
                     "ALTER TABLE session_generation_lineages "
@@ -197,8 +216,14 @@ class SessionGenerationStore:
         *,
         reason,
         login_identity_secret=None,
+        persistence_days=None,
         conn=None,
     ):
+        if persistence_days is not None:
+            idle_days, absolute_days = persistence_days
+            if (type(idle_days) is not int or type(absolute_days) is not int
+                    or not 0 < idle_days <= absolute_days <= 365):
+                raise ValueError('Invalid session persistence limits')
         lineage_hash = lineage_digest(lineage_secret)
         generation_hash = generation_digest(generation_secret)
         login_id_hash = login_identity_digest(
@@ -365,6 +390,15 @@ class SessionGenerationStore:
                         user_hash,
                     ),
                 )
+            stamp = self.clock()
+            active_conn.execute('''UPDATE session_generation_lineages SET
+                authenticated_at=?, last_activity_at=?, idle_expires_at=?,
+                absolute_expires_at=?, persistence_policy_version=? WHERE lineage_hash=?''', (
+                stamp.isoformat() if persistence_days else None,
+                stamp.isoformat() if persistence_days else None,
+                (stamp + timedelta(days=idle_days)).isoformat() if persistence_days else None,
+                (stamp + timedelta(days=absolute_days)).isoformat() if persistence_days else None,
+                1 if persistence_days else 0, lineage_hash))
         return {
             "active": True,
             "revision": revision,
@@ -505,7 +539,8 @@ class SessionGenerationStore:
                 SELECT lineage_hash, generation_hash, username_hash, status,
                        revision, schema_version, created_at, updated_at,
                        invalidated_at, last_reason, login_id_hash,
-                       account_revision, lifecycle_status
+                       account_revision, lifecycle_status, authenticated_at, last_activity_at,
+                       idle_expires_at, absolute_expires_at, persistence_policy_version
                 FROM session_generation_lineages
                 WHERE lineage_hash = ?
                 """,
@@ -518,6 +553,8 @@ class SessionGenerationStore:
                 "revision", "schema_version", "created_at", "updated_at",
                 "invalidated_at", "last_reason", "login_id_hash",
                 "account_revision", "lifecycle_status",
+                "authenticated_at", "last_activity_at", "idle_expires_at",
+                "absolute_expires_at", "persistence_policy_version",
             )
             return {
                 key: self._row_value(row, key, index)
@@ -568,6 +605,15 @@ class SessionGenerationStore:
         lifecycle_status = str(state.get("lifecycle_status") or "expired")
         if lifecycle_status != SESSION_ACTIVE:
             raise SessionGenerationStateError(f"lineage_{lifecycle_status}")
+        if state.get('persistence_policy_version'):
+            if state['persistence_policy_version'] != 1:
+                raise SessionGenerationStateError('session_policy_unsupported')
+            try:
+                expiry = min(datetime.fromisoformat(state[key]) for key in ('idle_expires_at', 'absolute_expires_at'))
+                if expiry.tzinfo is None or self.clock() >= expiry:
+                    raise SessionGenerationStateError('session_expired')
+            except (ValueError, TypeError, KeyError):
+                raise SessionGenerationStateError('session_expiry_invalid') from None
         if state.get("generation_hash") != generation_digest(generation_secret):
             raise SessionGenerationStateError("generation_replaced")
         if state.get("username_hash") != username_digest(username):
@@ -617,6 +663,35 @@ class SessionGenerationStore:
         if active_revision != int(state.get("account_revision") or 0):
             raise SessionGenerationStateError("account_revision_replaced")
         return True
+
+    def has_newer_login(self, lineage, generation):
+        """Check replacement even when the old lineage was logged out first."""
+        with db_connect(self.db_path, enforce_request_guard=False) as conn:
+            state = self.get_state(lineage, conn=conn)
+            if not state or state['generation_hash'] != generation_digest(generation):
+                return True
+            owner = conn.execute(
+                'SELECT active_revision FROM account_login_ownership WHERE username_hash=?',
+                (state['username_hash'],)).fetchone()
+            return owner is None or int(owner[0]) != int(state['account_revision'])
+
+    def renew(self, lineage, generation, username, *, idle_days=30,
+              login_identity_secret=None, account_revision=None):
+        if type(idle_days) is not int or not 0 < idle_days <= 365:
+            raise ValueError('Invalid idle lifetime')
+        with self._writer() as conn:
+            self.assert_current(lineage, generation, username,
+                login_identity_secret=login_identity_secret, account_revision=account_revision, conn=conn)
+            state = self.get_state(lineage, conn=conn)
+            if not state.get('persistence_policy_version'):
+                return False
+            now = self.clock()
+            if (now - datetime.fromisoformat(state['last_activity_at'])).total_seconds() < 300:
+                return False
+            expiry = min(now + timedelta(days=idle_days), datetime.fromisoformat(state['absolute_expires_at']))
+            conn.execute('''UPDATE session_generation_lineages SET last_activity_at=?, idle_expires_at=?
+                WHERE lineage_hash=?''', (now.isoformat(), expiry.isoformat(), lineage_digest(lineage)))
+            return True
 
     def build_precommit_guard(
         self,

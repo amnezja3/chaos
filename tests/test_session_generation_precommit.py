@@ -123,6 +123,8 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
             flask_session["user"] = username
             flask_session[run.SESSION_LINEAGE_KEY] = lineage
             flask_session[run.SESSION_GENERATION_KEY] = generation
+            flask_session['session_csrf'] = 'precommit-csrf'
+        client.environ_base.update(HTTP_ORIGIN='http://localhost', HTTP_X_CHAOS_CSRF='precommit-csrf')
 
     def _manager(self, username):
         return UserProfileManager(

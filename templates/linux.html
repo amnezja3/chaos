@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ghost_radio.css') }}?v=154-6">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/creator_editor.css') }}?v=148-8">
     <script src="{{ url_for('static', filename='js/creator_editor.js') }}?v=155-3-0"></script>
+{% include 'installation_head.html' %}
 </head>
 <body>
   {% include "_ghost_locale.html" %}
@@ -37,7 +38,7 @@
   <script id="session-generation-config" type="application/json">
     {{ session_generation | tojson }}
   </script>
-  <script src="{{ url_for('static', filename='js/session_generation.js') }}?v=session-isolation-139-3-self-bail-1"></script>
+  <script src="{{ url_for('static', filename='js/session_generation.js') }}?v=session-156-3"></script>
   <script src="{{ url_for('static', filename='js/game_sfx.js') }}?v=deep-scanner-146-4-2"></script>
   <script src="{{ url_for('static', filename='js/ghost_radio.js') }}?v=radio-i18n-154-7-4"></script>
   <script src="{{ url_for('static', filename='js/operation_feedback.js') }}?v=ofs-locale-154-7-4"></script>
@@ -45,7 +46,7 @@
 <link rel="stylesheet" href="/static/css/map_glitch.css?v=map-glitch-shared-1">
 <script src="/static/js/map_glitch.js?v=map-glitch-shared-1"></script>
   <script src="/static/js/ghost_signal_network_details.js?v=155-2"></script>
-<script src="{{ url_for('static', filename='js/ghost_signal_show.js') }}?v=155-2"></script>
+<script src="{{ url_for('static', filename='js/ghost_signal_show.js') }}?v=156-4-install"></script>
   <script src="{{ url_for('static', filename='js/googleplex_news.js') }}?v=155-2"></script>
   <script src="{{ url_for('static', filename='js/googleplex_search_presentation.js') }}?v=googleplex-search-154-7-4"></script>
   <script src="{{ url_for('static', filename='js/detention.js') }}?v=155-2"></script>
@@ -55,6 +56,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ghostlab_scanner.css') }}?v=146-4-2-viewfinder-1">
   <script src="{{ url_for('static', filename='js/ghostlab_scanner.js') }}?v=i18n-154-7-4"></script>
   <script src="{{ url_for('static', filename='js/ghostlab_maintenance.js') }}?v=i18n-154-7-4"></script>
-  <script src="{{ url_for('static', filename='js/terminal.js') }}?v=155-3-2-icon-nav-1"></script>
+  <script src="{{ url_for('static', filename='js/terminal.js') }}?v=156-4-install"></script>
 </body>
 </html>

@@ -51,6 +51,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             flask_session["user"] = username
             flask_session[run.SESSION_LINEAGE_KEY] = lineage
             flask_session[run.SESSION_GENERATION_KEY] = generation
+            flask_session['session_csrf'] = 'test-csrf'
         return lineage
 
     def read_session(self, client=None):
@@ -62,6 +63,12 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 "generation": flask_session.get(run.SESSION_GENERATION_KEY),
                 "sid": getattr(flask_session, "sid", None),
             }
+
+    def logout_current(self):
+        with self.client.session_transaction() as current:
+            headers = {run.SESSION_GENERATION_HEADER: current[run.SESSION_GENERATION_KEY],
+                       'X-Chaos-CSRF': current['session_csrf'], 'Origin': 'http://localhost'}
+        return self.client.post('/logout', headers=headers)
 
     def assert_desktop_generation(self, response, username, generation):
         self.assertEqual(response.status_code, 200)
@@ -117,6 +124,26 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(before["user"], after["user"])
         self.assertEqual(before["lineage"], after["lineage"])
         self.assertEqual(before["generation"], after["generation"])
+
+    def test_persistent_login_issues_policy_and_flag_off_does_not_remove_expiry(self):
+        from datetime import datetime, timedelta, timezone
+        with patch.dict(run.app.config, {"CHAOS_PERSISTENT_SESSION_ENABLED": True}), \
+                patch.object(run, "authenticate_user", return_value=True):
+            response = self.client.post('/', data={"username": "alice", "password": "secret"})
+        self.assertEqual(302, response.status_code)
+        self.assertIn('Secure', response.headers['Set-Cookie'])
+        self.assertIn('Expires=', response.headers['Set-Cookie'])
+        state = self.read_session()
+        durable = run.session_generation_store.get_state(state['lineage'])
+        self.assertEqual(1, durable['persistence_policy_version'])
+        expiry = datetime.fromisoformat(durable['idle_expires_at'])
+        self.assertGreater(expiry, datetime.now(timezone.utc) + timedelta(days=29))
+        with patch.dict(run.app.config, {"CHAOS_PERSISTENT_SESSION_ENABLED": False}), \
+                patch.object(run.session_generation_store, 'clock', return_value=expiry):
+            response = self.client.get('/api/state/changes', headers={
+                run.SESSION_GENERATION_HEADER: state['generation']})
+        self.assertEqual(409, response.status_code)
+        self.assertNotIn('Set-Cookie', response.headers)
 
     def test_rotation_failure_after_activation_leaves_no_authenticated_cookie(self):
         activated = {}
@@ -385,10 +412,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 first_desktop_url,
             )
             self.assertNotIn(first_a, first_desktop_url)
-            self.client.get(
-                "/logout?_session_generation="
-                f"{run._session_generation_query_token(first_a)}"
-            )
+            self.logout_current()
             self.client.post(
                 "/",
                 data={"username": "bob", "password": "secret"},
@@ -398,10 +422,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             self.assertEqual(409, stale_desktop.status_code)
             self.assertEqual("stale_generation", stale_desktop.get_json()["reason"])
             self.assertEqual("bob", self.read_session()["user"])
-            self.client.get(
-                "/logout?_session_generation="
-                f"{run._session_generation_query_token(bob)}"
-            )
+            self.logout_current()
             self.client.post(
                 "/",
                 data={"username": "alice", "password": "secret"},
@@ -448,11 +469,8 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             return state
 
         def logout_generation(generation):
-            response = self.client.get(
-                "/logout?_session_generation="
-                f"{run._session_generation_query_token(generation)}"
-            )
-            self.assertEqual(response.status_code, 302)
+            response = self.logout_current()
+            self.assertEqual(response.status_code, 200)
             self.assertIsNone(self.read_session()["user"])
 
         with patch.object(run, "authenticate_user", return_value=True), \
@@ -588,7 +606,8 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertTrue(run.session_generation_store.is_current(
             second_state["lineage"], second_state["generation"], "alice"
         ))
-        login = first.get("/")
+        self.assertNotIn("Set-Cookie", recovered.headers)
+        login = first.get(recovered.headers["Location"])
         self.assertIn(
             "Konto zostało zalogowane na innym urządzeniu",
             login.get_data(as_text=True),
@@ -848,10 +867,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             side_effect=RuntimeError("database unavailable"),
         ):
             with self.assertRaises(RuntimeError):
-                self.client.get(
-                    "/logout?_session_generation="
-                    f"{run._session_generation_query_token(before['generation'])}"
-                )
+                self.logout_current()
 
         self.assertEqual(before, self.read_session())
 
@@ -868,7 +884,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertIn("X-Chaos-Session-Reason", bridge)
         self.assertIn("/session/recover?reason=", bridge)
         self.assertEqual(terminal.count("currentSessionGenerationQuery()"), 3)
-        self.assertEqual(terminal.count("authenticatedLogoutUrl()"), 4)
+        self.assertEqual(terminal.count("authenticatedLogout()"), 4)
 
     def test_profile_write_errors_use_controlled_status_without_exception_details(self):
         self.seed_session()
@@ -887,7 +903,8 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 response = self.client.post(
                     "/api/profile/account",
                     json={"email": "alice-new@example.test"},
-                    headers=self.generation_headers("generation-alice"),
+                    headers={**self.generation_headers("generation-alice"),
+                             'Origin': 'http://localhost', 'X-Chaos-CSRF': 'test-csrf'},
                 )
 
             self.assertEqual(expected_status, response.status_code)

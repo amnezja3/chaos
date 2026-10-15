@@ -1434,7 +1434,8 @@
                 return true;
             }
             if (typeof global.teardownDesktopForInvalidatedSession === "function") global.teardownDesktopForInvalidatedSession();
-            const destination = "/desktop?_session_generation=" + encodeURIComponent(session.query_token || session.generation);
+            const destination = session.launch_enabled ? '/launch'
+                : "/desktop?_session_generation=" + encodeURIComponent(session.query_token || session.generation);
             global.setTimeout(() => global.location.replace(destination), 750);
             return true;
         }

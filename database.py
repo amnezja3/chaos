@@ -521,6 +521,7 @@ class InstrumentedConnection(sqlite3.Connection):
         self._writer_origin = "unknown"
         self._writer_statements = 0
         self._enforce_request_guard = True
+        self._credential_revocations = set()
 
     def execute(self, sql, parameters=(), /):
         statement = str(sql or "").lstrip().upper()
@@ -582,6 +583,12 @@ class InstrumentedConnection(sqlite3.Connection):
         try:
             if self.in_transaction and self._enforce_request_guard:
                 _run_request_transaction_precommit_guard(self)
+            # Terminal authentication transition: check the actor first, then
+            # revoke in the SAME transaction, immediately before COMMIT.
+            if self.in_transaction and self._credential_revocations:
+                from session_generation_store import revoke_credentials_with_conn
+                for username in self._credential_revocations:
+                    revoke_credentials_with_conn(self, username)
             result = super().commit()
         except Exception:
             try:
@@ -593,11 +600,14 @@ class InstrumentedConnection(sqlite3.Connection):
             commit_ms = int(round((time.perf_counter() - started) * 1000))
             self._finish_writer_metric("commit", commit_ms=commit_ms)
             return result
+        finally:
+            self._credential_revocations.clear()
 
     def rollback(self):
         try:
             return super().rollback()
         finally:
+            self._credential_revocations.clear()
             self._finish_writer_metric("rollback")
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -4145,6 +4155,9 @@ class UserStore:
                         raise ProfileWriteConflict(
                             "Profile revision changed before the guarded write committed."
                         )
+                    if (candidate.get("password", ""), candidate.get("salt", "")) != (
+                            current_row["password"], current_row["salt"]):
+                        conn._credential_revocations.add(username)
                     _upsert_identity_projection_with_conn(
                         conn, candidate, revision, checksum, updated_at=now
                     )
@@ -4860,9 +4873,10 @@ class UserIdentityProjectionStore:
             record_hot_path_metric("bounded_identity_count")
         return identity
 
-    def get_desktop_boot(self, username):
-        with db_connect(self.db_path) as conn:
-            conn.execute('BEGIN')
+    def get_desktop_boot(self, username, *, conn=None, include_security=True):
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as conn:
+            if not conn.in_transaction:
+                conn.execute('BEGIN')
             row = conn.execute(self._select_sql("p.username = ?", desktop=True), (username,)).fetchone()
             from player_progression import projection_values
             raw_desktop = loads_json(row['desktop_boot_json'], {}) if row else {}
@@ -4877,7 +4891,8 @@ class UserIdentityProjectionStore:
             raise ProfileRecoveryRequired("Desktop projection is stale")
         if row['desktop_settings_json'] is not None:
             desktop['desktop_settings'] = loads_json(row['desktop_settings_json'], {})
-        desktop['player_security'] = self.get_player_security(username)
+        if include_security:
+            desktop['player_security'] = self.get_player_security(username)
         desktop['respect'] = current_respect
         return {**desktop, "identity": identity}
 

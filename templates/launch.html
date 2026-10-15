@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="{{ launch_config.locale }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>CHAOS</title>
+  <link rel="icon" href="/static/images/chaos_favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/launch.css?v=156-3">
+{% include 'installation_head.html' %}
+</head>
+<body>
+  <main aria-live="polite">
+    <img src="/static/images/chaos_favicon.svg" alt="" width="80" height="80">
+    <h1>CHAOS</h1>
+    <p id="launch-status">{{ launch_config.text.start }}</p>
+    <button id="launch-retry" hidden>{{ launch_config.text.retry_button }}</button>
+    <a id="launch-login" href="/?login=1" hidden>{{ launch_config.text.login }}</a>
+    <noscript>{{ launch_config.text.javascript }}</noscript>
+  </main>
+  <script id="launch-config" type="application/json">{{ launch_config | tojson }}</script>
+  <script src="/static/js/launch_controller.js?v=156-3"></script>
+</body>
+</html>

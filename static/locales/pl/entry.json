@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "155.3.2",
+  "content_version": "156.4.0",
   "locale": "pl",
   "messages": {
     "entry.description": {
@@ -38,6 +38,90 @@
     "entry.invalid_credentials": {
       "params": {},
       "text": "Nieprawidłowe dane logowania."
+    },
+    "entry.launch.start": {
+      "params": {},
+      "text": "Uruchamianie CHAOS"
+    },
+    "entry.launch.retry": {
+      "params": {},
+      "text": "Po??czenie niedost?pne. Spr?buj ponownie."
+    },
+    "entry.launch.stale": {
+      "params": {},
+      "text": "Ta sesja nie jest ju? aktualna. Zaloguj si? ponownie."
+    },
+    "entry.launch.storage": {
+      "params": {},
+      "text": "Zezw?l na pami?? sesji, aby bezpiecznie uruchomi? CHAOS."
+    },
+    "entry.launch.retry_button": {
+      "params": {},
+      "text": "Spr?buj ponownie"
+    },
+    "entry.launch.login": {
+      "params": {},
+      "text": "Zaloguj si?"
+    },
+    "entry.launch.javascript": {
+      "params": {},
+      "text": "W??cz JavaScript, aby uruchomi? CHAOS."
+    },
+    "entry.install.title": {
+      "params": {},
+      "text": "ZAINSTALUJ CHAOS"
+    },
+    "entry.install.optional": {
+      "params": {},
+      "text": "Instalacja jest opcjonalna. Obowiązują dotychczasowe warunki konta. Zainstalowana aplikacja może wymagać osobnego logowania."
+    },
+    "entry.install.manual": {
+      "params": {},
+      "text": "Otwórz menu przeglądarki i wybierz Zainstaluj aplikację lub Dodaj do ekranu głównego. Jeśli opcji nie ma, użyj przeglądarki obsługującej instalację PWA."
+    },
+    "entry.install.ios": {
+      "params": {},
+      "text": "Na iPhonie lub iPadzie otwórz CHAOS w Safari, wybierz Udostępnij → Dodaj do ekranu początkowego. W aplikacji może być potrzebne ponowne logowanie."
+    },
+    "entry.install.ready": {
+      "params": {},
+      "text": "Natywna instalacja jest dostępna na tym urządzeniu."
+    },
+    "entry.install.cancelled": {
+      "params": {},
+      "text": "Instalacja anulowana. Możesz spróbować ponownie później."
+    },
+    "entry.install.accepted": {
+      "params": {},
+      "text": "Żądanie zaakceptowane. Oczekiwanie na potwierdzenie instalacji."
+    },
+    "entry.install.installed": {
+      "params": {},
+      "text": "Instalacja potwierdzona."
+    },
+    "entry.install.standalone": {
+      "params": {},
+      "text": "Uruchomiono jako zainstalowaną aplikację."
+    },
+    "entry.install.unavailable": {
+      "params": {},
+      "text": "Natywna instalacja jest tutaj niedostępna. Sprawdź instrukcję dla platformy."
+    },
+    "entry.install.shortcut": {
+      "params": {},
+      "text": "Pobierz skrót Linux (to nie instalacja PWA)"
+    },
+    "entry.install.update": {
+      "params": {},
+      "text": "Aktualizacja gotowa. Zakończ operacje i zamknij wszystkie okna CHAOS; uruchom ponownie, aby ją zastosować."
+    },
+    "entry.install.recommend": {
+      "params": {},
+      "text": "Zalecane dla tego urządzenia"
+    },
+    "entry.install.error": {
+      "params": {},
+      "text": "Nie udało się rozpocząć instalacji. Użyj menu przeglądarki."
     }
   }
 }

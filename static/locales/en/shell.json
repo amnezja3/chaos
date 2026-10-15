@@ -2,17 +2,50 @@
   "format_version": 1,
   "locale": "en",
   "messages": {
-    "shell.start.recon": {"params": {}, "text": "Recon / Map"},
-    "shell.start.exploits": {"params": {}, "text": "Exploits"},
-    "shell.start.monitoring": {"params": {}, "text": "Sniffers / Monitoring"},
-    "shell.start.pvp": {"params": {}, "text": "PvP / Territories"},
-    "shell.start.analysis": {"params": {}, "text": "OSINT / Analysis"},
-    "shell.start.finance": {"params": {}, "text": "Finance / Trading"},
-    "shell.start.social": {"params": {}, "text": "Community"},
-    "shell.start.creators": {"params": {}, "text": "Creators"},
-    "shell.start.service": {"params": {}, "text": "Maintenance / Protection"},
-    "shell.start.system": {"params": {}, "text": "System"},
-    "shell.start.gameplay": {"params": {}, "text": "Gameplay additions"},
+    "shell.start.recon": {
+      "params": {},
+      "text": "Recon / Map"
+    },
+    "shell.start.exploits": {
+      "params": {},
+      "text": "Exploits"
+    },
+    "shell.start.monitoring": {
+      "params": {},
+      "text": "Sniffers / Monitoring"
+    },
+    "shell.start.pvp": {
+      "params": {},
+      "text": "PvP / Territories"
+    },
+    "shell.start.analysis": {
+      "params": {},
+      "text": "OSINT / Analysis"
+    },
+    "shell.start.finance": {
+      "params": {},
+      "text": "Finance / Trading"
+    },
+    "shell.start.social": {
+      "params": {},
+      "text": "Community"
+    },
+    "shell.start.creators": {
+      "params": {},
+      "text": "Creators"
+    },
+    "shell.start.service": {
+      "params": {},
+      "text": "Maintenance / Protection"
+    },
+    "shell.start.system": {
+      "params": {},
+      "text": "System"
+    },
+    "shell.start.gameplay": {
+      "params": {},
+      "text": "Gameplay additions"
+    },
     "profile.title": {
       "params": {},
       "text": "Player profile"
@@ -575,6 +608,14 @@
     "session.expired": {
       "params": {},
       "text": "Your session expired. Please sign in again."
+    },
+    "session.password_changed": {
+      "text": "Password changed. Please sign in again.",
+      "params": {}
+    },
+    "session.logout_failed": {
+      "text": "Could not sign out. Please try again.",
+      "params": {}
     },
     "session.signed_out": {
       "params": {},
@@ -1515,5 +1556,5 @@
       "text": "Clipboard access unavailable. Use Ctrl+V or ⌘V."
     }
   },
-  "content_version": "155.3.2"
+  "content_version": "156.4.0"
 }

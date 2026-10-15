@@ -9566,6 +9566,20 @@ def readonly_ui_locale():
 
 @app.before_request
 def detention_request_gate():
+    if request.endpoint in {'static', 'installation_manifest', 'installation_worker', 'installation_shortcut'}:
+        # Public assets neither inspect nor refresh account credentials. A late
+        # icon response from A must not write a cookie after login B.
+        g.suppress_session_cookie = True
+        if request.endpoint != 'static' or request.path.startswith('/static/pwa/'):
+            g.launch_public_response = True
+        return None
+    if request.endpoint in {'launch', 'launch_status', 'launch_bootstrap', 'desktop_shell', 'installation_manifest', 'installation_worker', 'installation_shortcut'}:
+        return None
+    if (app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')
+            and request.endpoint in {'desktop', 'map_view', 'dev_dashboard'}
+            and request.method in {'GET', 'HEAD'}
+            and not request.headers.get('X-Chaos-Session-Generation')):
+        return None
     if session.get('user'):
         from database import db_connect
         with db_connect(detention_service.db_path) as conn:
@@ -19963,6 +19977,16 @@ ensure_profile_template_projects_folder()
 app.config.update(FLASK_SESSION_CONFIG)
 
 Session(app)
+from persistent_session import install_persistent_session_interface
+install_persistent_session_interface(app, lambda: session_generation_store)
+if not 0 < app.config['CHAOS_SESSION_IDLE_DAYS'] <= app.config['CHAOS_SESSION_ABSOLUTE_DAYS'] <= 365:
+    raise ValueError('Invalid persistent session lifetime')
+if app.config['CHAOS_PERSISTENT_SESSION_ENABLED']:
+    if not os.environ.get('CHAOS_SECRET_KEY'):
+        raise ValueError('Persistent sessions require a stable CHAOS_SECRET_KEY')
+    if app.config['SESSION_TYPE'] != 'filesystem':
+        raise ValueError('Sprint 156.2 supports persistent filesystem sessions only')
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 
 SESSION_GENERATION_KEY = "session_generation"
@@ -19973,6 +19997,8 @@ SESSION_GENERATION_HEADER = "X-Chaos-Session-Generation"
 SESSION_GENERATION_USER_HEADER = "X-Chaos-Session-User"
 SESSION_GENERATION_ERROR_HEADER = "X-Chaos-Session-Error"
 SESSION_GENERATION_PUBLIC_ENDPOINTS = {
+    "launch", "launch_status", "launch_bootstrap",
+    "installation_manifest", "installation_worker", "installation_shortcut",
     "static",
     "index",
     "register_page",
@@ -20033,9 +20059,12 @@ def begin_authenticated_session(username):
         username,
         reason="authentication_success",
         login_identity_secret=login_identity,
+        persistence_days=(app.config['CHAOS_SESSION_IDLE_DAYS'], app.config['CHAOS_SESSION_ABSOLUTE_DAYS'])
+            if app.config['CHAOS_PERSISTENT_SESSION_ENABLED'] else None,
     )
     _rotate_server_session_id()
     session["user"] = username
+    session["session_csrf"] = secrets.token_urlsafe(32)
     session[SESSION_LINEAGE_KEY] = lineage
     session[SESSION_GENERATION_KEY] = generation
     session[SESSION_LOGIN_IDENTITY_KEY] = login_identity
@@ -20084,6 +20113,9 @@ def invalidate_authenticated_session(reason="logout", *, durable_already_revoked
             # must be retried by the worker. Never resurrect a revoked login.
             print(f"[DETENTION] logout recovery deferred error={type(exc).__name__}", flush=True)
     g.session_invalidated = True
+    # Keep the browser's now-invalid SID until its next login. A delayed logout
+    # response must never delete a cookie installed by a newer login.
+    g.suppress_session_cookie = True
     _rotate_server_session_id()
     print(
         "[SESSION] event=session.invalidated "
@@ -20250,11 +20282,18 @@ def reset_request_profile_precommit_guard(_error=None):
 
 def session_generation_client_context():
     generation = ensure_session_generation()
+    if generation and not session.get("session_csrf"):
+        session["session_csrf"] = secrets.token_urlsafe(32)
+    state = session_generation_store.get_state(session.get(SESSION_LINEAGE_KEY)) if generation else None
     return {
         "generation": generation,
         "query_token": _session_generation_query_token(generation),
         "username": str(session.get("user") or ""),
         "header": SESSION_GENERATION_HEADER,
+        "csrf_token": session.get("session_csrf", ""),
+        "persistent": bool(state and state.get("persistence_policy_version")),
+        "launch_enabled": bool(app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')),
+        "launch_binding": launch_controller['binding']() if app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED') else '',
         "ghost_epoch": (get_ghostsignal_show_service().restart_projection() or {}).get("epoch", ""),
     }
 
@@ -20285,6 +20324,8 @@ def _session_generation_request_is_protected():
         return bool(str(session.get(SESSION_GENERATION_KEY) or "").strip())
     if request.endpoint in SESSION_GENERATION_PUBLIC_ENDPOINTS:
         return False
+    if request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS and request.headers.get(SESSION_GENERATION_HEADER):
+        return True
     if request.endpoint == "map_view" and request.method in {"GET", "HEAD"}:
         # A top-level map navigation may bootstrap a pre-deploy session. Map
         # iframes created by the desktop are always bound to the generation
@@ -20306,6 +20347,7 @@ def _session_generation_request_is_protected():
 
 
 def _session_generation_mismatch(reason, provided=""):
+    g.suppress_session_cookie = True
     expected = str(session.get(SESSION_GENERATION_KEY) or "")
     username = str(session.get("user") or "")
     request_id = (
@@ -20464,6 +20506,16 @@ def _discard_stale_document_session(reason):
 
 @app.before_request
 def enforce_authenticated_session_generation():
+    if (app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')
+            and request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS
+            and request.method in {'GET', 'HEAD'}
+            and not request.headers.get(SESSION_GENERATION_HEADER)):
+        old_binding = request.args.get('_session_generation', '')
+        if old_binding and not secrets.compare_digest(old_binding, _session_generation_query_token(session.get(SESSION_GENERATION_KEY))):
+            g.launch_public_response = True
+            return _session_generation_mismatch('stale_generation')
+        view = {'desktop': 'desktop', 'map_view': 'map', 'dev_dashboard': 'dev'}[request.endpoint]
+        return launch_controller['shell'](view)
     protected = _session_generation_request_is_protected()
     document_boot = (
         request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS
@@ -20552,6 +20604,13 @@ def enforce_authenticated_session_generation():
 
 @app.after_request
 def attach_authenticated_session_generation(response):
+    if getattr(g, 'launch_public_response', False) or response.headers.get(SESSION_GENERATION_ERROR_HEADER) == 'mismatch':
+        response.headers.pop(SESSION_GENERATION_HEADER, None)
+        response.headers.pop(SESSION_GENERATION_USER_HEADER, None)
+        response.headers['Cache-Control'] = 'no-store, private, max-age=0'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers['Pragma'] = 'no-cache'
+        return response
     generation = str(session.get(SESSION_GENERATION_KEY) or "").strip()
     username = str(session.get("user") or "").strip()
     if generation and username and not request.path.startswith("/static/"):
@@ -20948,6 +21007,8 @@ def get_ghostsignal_show_service():
 
 
 def ghostsignal_request_is_exempt():
+    if request.endpoint in {'launch', 'launch_status', 'launch_bootstrap', 'desktop_shell', 'installation_manifest', 'installation_worker', 'installation_shortcut'} or getattr(g, 'launch_public_response', False):
+        return True
     # Login authenticates a new document; an existing cookie may still belong
     # to the previous world. A plain HTML form has no Ghost epoch header.
     if request.endpoint == "index" and request.method == "POST":
@@ -21054,6 +21115,12 @@ def reject_old_ghostsystem_response(response):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    if (request.method == 'GET' and app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')
+            and request.args.get('login') != '1' and not request.args.get('session_notice')):
+        return redirect(url_for('launch'))
+    if request.method == "GET":
+        # A delayed anonymous login-page response cannot delete a new login SID.
+        g.suppress_session_cookie = True
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
@@ -21062,6 +21129,8 @@ def index():
 
         if authenticate_user(username, password):
             generation = begin_authenticated_session(username)
+            if app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED'):
+                return render_template('launch_authenticated.html')
             # /desktop loads the current read-only boot snapshot immediately
             # after this redirect. Do not construct the legacy profile manager
             # here: it scans, normalizes and deep-copies all large player profiles
@@ -21075,7 +21144,16 @@ def index():
         return render_template("login.html", error=locale_translator().t('entry.invalid_credentials', locale=locale),
                                error_key='entry.invalid_credentials')
 
-    return render_template("login.html", error=session.pop("login_error", None), error_key=session.pop("login_error_key", None))
+    error = session.pop("login_error", None)
+    error_key = session.pop("login_error_key", None)
+    notice = request.args.get("session_notice")
+    if notice in {"session.replaced_login", "session.expired", "session.signed_out",
+                  "session.renew", "session.stale", "session.password_changed"}:
+        # A fixed public notice survives recovery without issuing a cookie that
+        # could overwrite a newer concurrent login. No identity is carried here.
+        error_key = notice
+        error = locale_translator().t(notice, locale=request_ui_locale())
+    return render_template("login.html", error=error, error_key=error_key)
 
 @app.route("/register")
 def register_page():
@@ -21278,6 +21356,8 @@ def api_register_finalize():
         })
 
         generation = begin_authenticated_session(username)
+        if app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED'):
+            return jsonify(success=True, redirect=url_for('launch'), launch_authenticated=True)
         return jsonify(
             success=True,
             redirect=url_for(
@@ -22614,6 +22694,8 @@ def api_admin_user_profession():
     if request.is_json:
         return jsonify(response)
     generation = session_generation_client_context()
+    if app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED'):
+        return redirect(url_for('dev_dashboard', profession_updated=username))
     return redirect(url_for(
         "dev_dashboard",
         _session_generation=generation["query_token"],
@@ -22636,10 +22718,55 @@ def dev_dashboard():
     return render_template("admin_radio.html" if tab == "radio" else "admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
                            generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs", "ghostlab", "radio"} else "users")
 
-@app.route("/logout")
+def session_csrf_failure():
+    """Session-bound token plus exact Origin; never accept a URL token as CSRF."""
+    if not session.get("user"):
+        return jsonify(ok=False, error="authentication_required"), 401
+    expected = str(session.get("session_csrf") or "")
+    provided = str(request.headers.get("X-Chaos-CSRF") or "")
+    # TLS may terminate at the reverse proxy. Match the effective Host exactly;
+    # do not trust arbitrary forwarded-host headers or accept sibling origins.
+    if (request.headers.get("Origin") not in {request.host_url.rstrip("/"), "https://" + request.host}
+            or request.headers.get("Sec-Fetch-Site") == "cross-site"
+            or not expected or not secrets.compare_digest(expected, provided)):
+        return jsonify(ok=False, error="csrf_rejected"), 403
+    return None
+
+
+@app.post("/api/session/activity")
+def session_activity():
+    failure = session_csrf_failure()
+    if failure:
+        return failure
+    try:
+        renewed = session_generation_store.renew(
+            session.get(SESSION_LINEAGE_KEY), session.get(SESSION_GENERATION_KEY), session["user"],
+            idle_days=app.config["CHAOS_SESSION_IDLE_DAYS"],
+            login_identity_secret=session.get(SESSION_LOGIN_IDENTITY_KEY),
+            account_revision=session.get(SESSION_ACCOUNT_REVISION_KEY))
+    except SessionGenerationStateError as exc:
+        return _session_generation_mismatch(exc.reason)
+    if renewed:
+        session.modified = True
+    return jsonify(ok=True, renewed=renewed)
+
+
+@app.route("/logout", methods=["GET", "POST"])
 def logout():
+    if request.method == "GET":
+        locale = request_ui_locale()
+        return render_template("session_logout.html", session_generation=session_generation_client_context(),
+                               locale=locale, logout_label=locale_translator().t("shell.logout", locale=locale),
+                               logout_error=locale_translator().t("session.logout_failed", locale=locale))
+    failure = session_csrf_failure()
+    if failure:
+        return failure
+    generation, username = session.get(SESSION_GENERATION_KEY), session.get("user")
     invalidate_authenticated_session("logout")
-    return redirect(url_for("index"))
+    response = jsonify(ok=True, redirect=url_for("index", session_notice="session.signed_out"))
+    response.headers[SESSION_GENERATION_HEADER] = generation
+    response.headers[SESSION_GENERATION_USER_HEADER] = username
+    return response
 
 
 def session_recovery_key(reason):
@@ -22664,13 +22791,14 @@ def session_recovery_message(reason):
 
 @app.route("/session/recover")
 def session_recover():
-    """Discard only this browser's stale cookie and return to login."""
+    """Recovery is read-only for a currently valid cookie (possibly newer B)."""
     reason = str(request.args.get("reason") or "session_stale")[:96]
     request_ui_locale()  # Retain the recipient locale before clearing this cookie.
-    _rotate_server_session_id()
-    session["login_error"] = session_recovery_message(reason)
-    session.modified = True
-    return redirect(url_for("index"))
+    g.suppress_session_cookie = True
+    if session.get("user") and not session_generation_store.is_current(
+            session.get(SESSION_LINEAGE_KEY), session.get(SESSION_GENERATION_KEY), session["user"]):
+        _rotate_server_session_id()
+    return redirect(url_for("index", session_notice=session_recovery_key(reason)))
 
 
 
@@ -25653,9 +25781,13 @@ def hack_action():
 
 def desktop_boot_snapshot():
     username = session["user"]
-    presentation = identity_projection_store.get_desktop_boot(username)
+    from database import db_connect
+    # Read identity and capabilities from one bounded snapshot. The security
+    # payload is not part of the desktop boot response and need not be loaded.
+    with db_connect(identity_projection_store.db_path) as conn:
+        presentation = identity_projection_store.get_desktop_boot(username, conn=conn, include_security=False)
+        capabilities = capability_projection_store.get_capabilities(username, conn=conn)
     identity = presentation["identity"]
-    capabilities = capability_projection_store.get_capabilities(username)
     if not identity or not capabilities:
         raise ProfileRecoveryRequired("Desktop identity projection missing")
     profile = {key: identity[key] for key in ("username", "nick", "clan", "ghost_profession")}
@@ -26467,6 +26599,10 @@ def update_profile_account():
     if "user" not in session:
         return jsonify({"error": "Brak danych uzytkownika"}), 401
 
+    failure = session_csrf_failure()
+    if failure:
+        return failure
+
     data = request.get_json(silent=True) or {}
     username = session["user"]
     profile_record = load_profile_write_record(username)
@@ -26525,6 +26661,15 @@ def update_profile_account():
         profile,
         "profile.account_credentials",
     )
+    if requested_password is not None:
+        old_generation = session.get(SESSION_GENERATION_KEY)
+        old_user = session.get("user")
+        invalidate_authenticated_session("credentials_changed", durable_already_revoked=True)
+        response = jsonify(success=True, password_changed=True, reauthenticate=True,
+                           redirect=url_for("index", session_notice="session.password_changed"))
+        response.headers[SESSION_GENERATION_HEADER] = old_generation
+        response.headers[SESSION_GENERATION_USER_HEADER] = old_user
+        return response
     profile = copy.deepcopy(result["profile"])
     profile.pop("password", None)
     profile.pop("salt", None)
@@ -32186,6 +32331,12 @@ def _gonna_win_runtime():
 
 
 
+
+from installation import register_installation
+register_installation(app)
+
+from launch_controller import register_launch_controller
+launch_controller = register_launch_controller(app, globals())
 
 if __name__ == "__main__":
     app.run(debug=True)

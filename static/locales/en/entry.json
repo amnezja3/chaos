@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "155.3.2",
+  "content_version": "156.4.0",
   "locale": "en",
   "messages": {
     "entry.description": {
@@ -38,6 +38,90 @@
     "entry.invalid_credentials": {
       "params": {},
       "text": "Invalid login credentials."
+    },
+    "entry.launch.start": {
+      "params": {},
+      "text": "Starting CHAOS"
+    },
+    "entry.launch.retry": {
+      "params": {},
+      "text": "Connection unavailable. Try again."
+    },
+    "entry.launch.stale": {
+      "params": {},
+      "text": "This session is no longer current. Log in again."
+    },
+    "entry.launch.storage": {
+      "params": {},
+      "text": "Allow session storage to start CHAOS safely."
+    },
+    "entry.launch.retry_button": {
+      "params": {},
+      "text": "Retry"
+    },
+    "entry.launch.login": {
+      "params": {},
+      "text": "Log in"
+    },
+    "entry.launch.javascript": {
+      "params": {},
+      "text": "Enable JavaScript to start CHAOS."
+    },
+    "entry.install.title": {
+      "params": {},
+      "text": "INSTALL CHAOS"
+    },
+    "entry.install.optional": {
+      "params": {},
+      "text": "Installation is optional. Your existing account terms still apply. An installed app may require a separate login."
+    },
+    "entry.install.manual": {
+      "params": {},
+      "text": "Open your browser menu and choose Install app or Add to Home screen. If unavailable, use a browser supporting PWA installation."
+    },
+    "entry.install.ios": {
+      "params": {},
+      "text": "On iPhone or iPad, open CHAOS in Safari, choose Share → Add to Home Screen. You may need to sign in again in the installed app."
+    },
+    "entry.install.ready": {
+      "params": {},
+      "text": "Native installation is available on this device."
+    },
+    "entry.install.cancelled": {
+      "params": {},
+      "text": "Installation cancelled. You can try again later."
+    },
+    "entry.install.accepted": {
+      "params": {},
+      "text": "Request accepted. Waiting for installation confirmation."
+    },
+    "entry.install.installed": {
+      "params": {},
+      "text": "Installation confirmed."
+    },
+    "entry.install.standalone": {
+      "params": {},
+      "text": "Running as an installed app."
+    },
+    "entry.install.unavailable": {
+      "params": {},
+      "text": "Native installation is unavailable here. See the platform instructions."
+    },
+    "entry.install.shortcut": {
+      "params": {},
+      "text": "Download Linux shortcut (not a PWA installation)"
+    },
+    "entry.install.update": {
+      "params": {},
+      "text": "Update ready. Finish your operations and close all CHAOS windows; reopen CHAOS to apply it."
+    },
+    "entry.install.recommend": {
+      "params": {},
+      "text": "Recommended for this device"
+    },
+    "entry.install.error": {
+      "params": {},
+      "text": "Installation could not start. Use the browser menu."
     }
   }
 }

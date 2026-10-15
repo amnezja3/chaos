@@ -34,6 +34,10 @@
         controllers: new Set(),
         channel: null,
         redirectScheduled: false,
+        csrfToken: "",
+        lastActivity: 0,
+        activityPending: false,
+        launchEnabled: false,
     };
 
     class SessionGenerationMismatchError extends Error {
@@ -114,9 +118,12 @@
         }
     }
 
-    function clearUserScopedClientState() {
+    function clearUserScopedClientState(keepLaunchBinding = true) {
         try {
+            const launchBinding = keepLaunchBinding && state.launchEnabled
+                ? root.sessionStorage?.getItem?.('chaos-launch-binding-v1') : null;
             root.sessionStorage?.clear?.();
+            if (launchBinding) root.sessionStorage.setItem('chaos-launch-binding-v1', launchBinding);
         } catch (_error) {
             // Storage can be disabled by browser policy.
         }
@@ -238,6 +245,10 @@
             else headers[state.header] = state.generation;
             if (HeadersCtor) headers.set("X-Chaos-Ghost-Epoch", state.ghostEpoch);
             else headers["X-Chaos-Ghost-Epoch"] = state.ghostEpoch;
+            if (state.csrfToken) {
+                if (HeadersCtor) headers.set("X-Chaos-CSRF", state.csrfToken);
+                else headers["X-Chaos-CSRF"] = state.csrfToken;
+            }
 
             const requestGeneration = state.generation;
             const requestInit = { ...init, headers };
@@ -296,6 +307,70 @@
         }
     }
 
+    function installActivity(persistent) {
+        if (!persistent || !state.csrfToken || !root.document?.addEventListener) return;
+        const activity = async (event) => {
+            if (!event.isTrusted || root.document.visibilityState !== 'visible'
+                || state.invalidated || state.activityPending
+                || Date.now() - state.lastActivity < 300000) return;
+            state.lastActivity = Date.now();
+            state.activityPending = true;
+            try {
+                await root.fetch('/api/session/activity', {method: 'POST', credentials: 'same-origin'});
+            } catch (_error) {
+                // Network failure does not log the user out. Retry on later input.
+            } finally { state.activityPending = false; }
+        };
+        for (const event of ['pointerdown', 'keydown', 'touchstart']) {
+            root.document.addEventListener(event, activity, {passive: true, capture: true});
+        }
+    }
+
+    async function logout() {
+        const response = await root.fetch('/logout', {method: 'POST', credentials: 'same-origin'});
+        if (!response.ok) throw new Error('logout_failed');
+        const data = await response.json();
+        if (!data.ok) throw new Error('logout_failed');
+        state.invalidated = true;
+        clearUserScopedClientState(false);
+        root.location.replace('/?session_notice=session.signed_out');
+    }
+
+    function installLaunchBinding(config) {
+        if (!config.launch_enabled) return;
+        state.launchEnabled = true;
+        if (root.parent === root) {
+            try { root.sessionStorage.setItem('chaos-launch-binding-v1', config.launch_binding); }
+            catch (_) { invalidate('launch_storage_unavailable'); return; }
+        }
+        root.addEventListener?.('message', (event) => {
+            if (event.origin !== root.location.origin || event.data?.type !== 'chaos:launch-request') return;
+            const child = Array.from(root.document.querySelectorAll('iframe')).some(frame => frame.contentWindow === event.source);
+            if (!child) return;
+            event.source.postMessage({type: 'chaos:launch-context', nonce: event.data.nonce,
+                context: state.invalidated ? null : getState()}, root.location.origin);
+        });
+        let checking = false;
+        async function resume() {
+            if (root.document.visibilityState !== 'visible' || checking || state.invalidated) return;
+            checking = true;
+            const controller = new root.AbortController();
+            const timeout = root.setTimeout(() => controller.abort(), 20000);
+            try {
+                const response = await state.nativeFetch('/api/session/status', {
+                    cache: 'no-store', credentials: 'same-origin', signal: controller.signal, headers: {
+                        'X-Chaos-Launch': '1', 'X-Chaos-Launch-Binding': config.launch_binding
+                    }
+                });
+                if (response.status === 409 || response.status === 401) invalidate('resume_replaced');
+                else if (response.ok && !(await response.json()).authenticated) invalidate('resume_expired');
+            } catch (_) { /* transport errors never invalidate an authenticated session */ }
+            finally { root.clearTimeout(timeout); checking = false; }
+        }
+        root.document.addEventListener('visibilitychange', resume);
+        root.addEventListener?.('pageshow', event => { if (event.persisted) resume(); });
+    }
+
     function install(options = {}) {
         if (state.installed) return getState();
         const config = options.config || readDocumentConfig();
@@ -303,10 +378,13 @@
         state.queryToken = String(config.query_token || "").trim();
         state.ghostEpoch = String(config.ghost_epoch || "").trim();
         state.username = String(config.username || "").trim();
+        state.csrfToken = String(config.csrf_token || "");
         state.header = String(config.header || DEFAULT_HEADER).trim() || DEFAULT_HEADER;
         state.installed = true;
         installFetchBridge(options.fetch);
+        installLaunchBinding(config);
         installBroadcastBridge();
+        installActivity(config.persistent);
         return getState();
     }
 
@@ -319,6 +397,7 @@
             ghost_epoch: state.ghostEpoch,
             username: state.username,
             header: state.header,
+            launch_enabled: state.launchEnabled,
             active_requests: state.controllers.size,
         };
     }
@@ -329,6 +408,7 @@
         invalidate,
         validateResponse,
         getState,
+        logout,
         constants: {
             CHANNEL_NAME,
             DEFAULT_HEADER,

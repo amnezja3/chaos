@@ -764,18 +764,17 @@ function sendDesktopSettingsBeacon(partial = {}) {
 
 function currentSessionGenerationQuery() {
     const state = window.ChaosSessionGeneration?.getState?.() || {};
+    if (state.launch_enabled) return `&_embedded=1&_ghost_epoch=${encodeURIComponent(state.ghost_epoch || '')}`;
     const queryToken = state.query_token || state.generation || "";
     return queryToken
         ? `&_embedded=1&_session_generation=${encodeURIComponent(queryToken)}&_ghost_epoch=${encodeURIComponent(state.ghost_epoch || "")}`
         : "&_embedded=1";
 }
 
-function authenticatedLogoutUrl() {
-    const state = window.ChaosSessionGeneration?.getState?.() || {};
-    const queryToken = state.query_token || state.generation || "";
-    return queryToken
-        ? `/logout?_session_generation=${encodeURIComponent(queryToken)}`
-        : "/logout";
+function authenticatedLogout() {
+    return window.ChaosSessionGeneration.logout().catch(() => {
+        window.alert(ghostText('session.logout_failed'));
+    });
 }
 
 function reloadOpenMapWindowsForSettings() {
@@ -1768,7 +1767,7 @@ function renderStartMenu() {
 
     menu.querySelector('.system-action-logout')?.addEventListener('click', () => {
         menu.hidden = true;
-        window.location.href = authenticatedLogoutUrl();
+        authenticatedLogout();
     });
 }
 
@@ -3558,7 +3557,7 @@ function attachTerminalInputHandler(input, content) {
 
             if (data.logout) {
                 setTimeout(() => {
-                    window.location.href = authenticatedLogoutUrl();
+                    authenticatedLogout();
                 }, 350);
                 return;
             }
@@ -4121,7 +4120,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
 
         if (data.logout) {
             setTimeout(() => {
-                window.location.href = authenticatedLogoutUrl();
+                authenticatedLogout();
             }, 350);
             return false;
         }
@@ -12209,6 +12208,7 @@ function createSettings() {
         </div>
         <div class="settings-shell">
             <div class="settings-status" data-settings-status></div>
+            ${window.ChaosInstall ? '<section data-chaos-install></section>' : ""}
 
             <section class="settings-section">
                 <label>
@@ -12326,6 +12326,7 @@ function createSettings() {
     bringWindowToFront(term);
 
     window.GhostLocale?.render(term);
+    window.ChaosInstall?.mount(term.querySelector('[data-chaos-install]'));
     const localeSelect = term.querySelector('[data-settings-locale]');
     localeSelect?.addEventListener('change', async () => {
         const output = term.querySelector('[data-settings-locale-status]');
@@ -12463,6 +12464,11 @@ function createSettings() {
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || data.success === false) throw new Error(data.message_i18n?.key || 'settings.password_failed');
+            if (data.reauthenticate) {
+                window.sessionStorage?.clear();
+                window.location.replace('/?session_notice=session.password_changed');
+                return;
+            }
             term.querySelector('[data-current-password]').value = "";
             term.querySelector('[data-new-password]').value = "";
             setStatus('settings.password_saved', "success");

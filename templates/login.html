@@ -310,6 +310,7 @@
       }
     }
   </style>
+{% include 'installation_head.html' %}
 </head>
 <body>
   {% include "_ghost_locale.html" %}
@@ -346,6 +347,7 @@
         <p class="login-link"><span data-ghost-i18n="entry.no_account">Nie masz konta?</span> <a href="/register" data-ghost-i18n="entry.register">Zainicjuj profil operatora</a></p>
         {% if error %}<div class="login-error" {% if error_key %}data-ghost-i18n="{{ error_key }}"{% endif %}>{{ error }}</div>{% endif %}
       </form>
+{% if chaos_install_enabled %}<section data-chaos-install></section>{% endif %}
     </section>
   </main>
   <script src="{{ url_for('static', filename='js/ghost_i18n_entry.js') }}?v=153-3-1"></script>

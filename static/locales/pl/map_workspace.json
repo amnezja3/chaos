@@ -1,27 +1,88 @@
 {
   "locale": "pl",
   "format_version": 1,
-  "content_version": "155.3.2",
+  "content_version": "156.4.0",
   "messages": {
-    "map.territory.inner": {"params": {}, "text": "Inner konfliktu"},
-    "map.territory.pillar": {"params": {}, "text": "Filar konfliktu"},
-    "map.territory.collision": {"params": {}, "text": "Punkt kolizyjny"},
-    "map.territory.owner": {"params": {}, "text": "Właściciel"},
-    "map.territory.conflict": {"params": {}, "text": "Konflikt terytorium"},
-    "map.territory.multi_conflict": {"params": {}, "text": "Multi-konflikt"},
-    "map.territory.participants": {"params": {}, "text": "Uczestnicy"},
-    "map.territory.zone": {"params": {}, "text": "Strefa"},
-    "map.territory.mine": {"params": {}, "text": "Twoje pole"},
-    "map.territory.player": {"params": {}, "text": "Pole gracza"},
-    "map.territory.login": {"params": {}, "text": "Login"},
-    "map.territory.clan": {"params": {}, "text": "Klan"},
-    "map.territory.status": {"params": {}, "text": "Status"},
-    "map.territory.area": {"params": {}, "text": "Pow."},
-    "map.territory.none": {"params": {}, "text": "brak"},
-    "map.territory.active": {"params": {}, "text": "aktywne"},
-    "map.teleport.invalid": {"params": {}, "text": "Nieprawidłowe współrzędne teleportu."},
-    "map.teleport.copied": {"params": {"command": "string"}, "text": "Skopiowano komendę terminala: {command}"},
-    "map.teleport.copy_failed": {"params": {"command": "string"}, "text": "Nie udało się skopiować. Komenda: {command}"},
+    "map.territory.inner": {
+      "params": {},
+      "text": "Inner konfliktu"
+    },
+    "map.territory.pillar": {
+      "params": {},
+      "text": "Filar konfliktu"
+    },
+    "map.territory.collision": {
+      "params": {},
+      "text": "Punkt kolizyjny"
+    },
+    "map.territory.owner": {
+      "params": {},
+      "text": "Właściciel"
+    },
+    "map.territory.conflict": {
+      "params": {},
+      "text": "Konflikt terytorium"
+    },
+    "map.territory.multi_conflict": {
+      "params": {},
+      "text": "Multi-konflikt"
+    },
+    "map.territory.participants": {
+      "params": {},
+      "text": "Uczestnicy"
+    },
+    "map.territory.zone": {
+      "params": {},
+      "text": "Strefa"
+    },
+    "map.territory.mine": {
+      "params": {},
+      "text": "Twoje pole"
+    },
+    "map.territory.player": {
+      "params": {},
+      "text": "Pole gracza"
+    },
+    "map.territory.login": {
+      "params": {},
+      "text": "Login"
+    },
+    "map.territory.clan": {
+      "params": {},
+      "text": "Klan"
+    },
+    "map.territory.status": {
+      "params": {},
+      "text": "Status"
+    },
+    "map.territory.area": {
+      "params": {},
+      "text": "Pow."
+    },
+    "map.territory.none": {
+      "params": {},
+      "text": "brak"
+    },
+    "map.territory.active": {
+      "params": {},
+      "text": "aktywne"
+    },
+    "map.teleport.invalid": {
+      "params": {},
+      "text": "Nieprawidłowe współrzędne teleportu."
+    },
+    "map.teleport.copied": {
+      "params": {
+        "command": "string"
+      },
+      "text": "Skopiowano komendę terminala: {command}"
+    },
+    "map.teleport.copy_failed": {
+      "params": {
+        "command": "string"
+      },
+      "text": "Nie udało się skopiować. Komenda: {command}"
+    },
     "map.power.reason.select_target_before_activation": {
       "params": {},
       "text": "Najpierw oznacz cel na mapie."
