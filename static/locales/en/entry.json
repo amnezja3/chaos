@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "content_version": "156.4.1",
+  "content_version": "156.4.2",
   "locale": "en",
   "messages": {
     "entry.description": {
@@ -126,6 +126,10 @@
     "entry.install.install_now": {
       "params": {},
       "text": "Install on this device"
+    },
+    "entry.install.android": {
+      "params": {},
+      "text": "On Android, open https://chaos.re directly in a regular Chrome tab. If “Install on this device” appears, use it. If neither this button nor a browser installation option is available, installation is not currently offered in this tab. You can keep playing in the browser. Browsers, including DuckDuckGo, do not all offer the same installation flow."
     }
   }
 }

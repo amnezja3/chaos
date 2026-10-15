@@ -51,12 +51,21 @@ def main():
                         detail = page.locator('[data-install-instructions]')
                         detail.wait_for(state='visible')
                         assert ('Safari' in detail.inner_text())
+                        page.locator('[data-platform="Android"]').click()
+                        assert 'https://chaos.re' in detail.inner_text()
                         page.locator('[data-platform="Linux"]').click()
                         assert page.locator('a[href="/chaos.desktop"]').is_visible()
                         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                         form = page.locator('.login-form').bounding_box()
                         panel = page.locator('[data-chaos-install]').bounding_box()
                         assert panel['y'] >= form['y'] + form['height'], (form, panel)
+                        # Real wheel scrolling; locator.click() can auto-scroll even
+                        # when overflow:hidden makes content unreachable to users.
+                        page.evaluate('window.scrollTo(0,0)')
+                        page.mouse.move(10, 100)
+                        page.mouse.wheel(0, 5000)
+                        page.wait_for_function('window.scrollY > 0')
+                        page.wait_for_function('window.scrollY + innerHeight >= document.documentElement.scrollHeight - 3')
                         page.screenshot(path=str(ROOT/f'.playwright-mcp/install-full-{locale}.png'), full_page=True)
                         page.locator('[data-chaos-install]').screenshot(path=str(ROOT/f'.playwright-mcp/install-156-4-{locale}.png'))
                         page.evaluate('navigator.serviceWorker.ready.then(()=>true)')
@@ -95,6 +104,16 @@ def main():
                         page.evaluate('createSettings()')
                         page.locator('[data-chaos-install] .chaos-install-grid button').first.wait_for()
                         assert page.locator('[data-chaos-install] .chaos-install-grid button').count() == 4
+                        # Launch replaces the document: late install events must
+                        # still reach the Settings panel after document.open().
+                        page.evaluate("""() => {window.installPromptCalls=0;
+                            const e=new Event('beforeinstallprompt');
+                            e.prompt=async()=>{window.installPromptCalls++;};
+                            e.userChoice=Promise.resolve({outcome:'accepted'});
+                            window.dispatchEvent(e);} """)
+                        page.locator('[data-install-now]').wait_for(state='visible', timeout=3000)
+                        page.locator('[data-install-now]').click()
+                        assert page.evaluate('window.installPromptCalls') == 1
                         assert not errors, errors
                         unexpected = [e for e in console_errors if 'net::ERR_INTERNET_DISCONNECTED' not in e and 'net::ERR_ABORTED' not in e]
                         assert not unexpected, unexpected

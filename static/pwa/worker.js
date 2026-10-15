@@ -1,8 +1,8 @@
 'use strict';
-const CACHE = 'chaos-install-156-4-1';
-const OFFLINE = '/static/pwa/offline.html?v=156-4-1';
-const PUBLIC = [OFFLINE, '/static/pwa/offline.js?v=156-4-1', '/static/pwa/install.css?v=156-4-1',
-    '/static/pwa/icon-192.png?v=156-4-1', '/static/pwa/icon-512.png?v=156-4-1'];
+const CACHE = 'chaos-install-156-4-2';
+const OFFLINE = '/static/pwa/offline.html?v=156-4-2';
+const PUBLIC = [OFFLINE, '/static/pwa/offline.js?v=156-4-2', '/static/pwa/install.css?v=156-4-2',
+    '/static/pwa/icon-192.png?v=156-4-2', '/static/pwa/icon-512.png?v=156-4-2'];
 self.addEventListener('install', event => event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     for (const url of PUBLIC) {

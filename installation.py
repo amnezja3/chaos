@@ -12,7 +12,7 @@ def register_installation(app):
     @app.context_processor
     def context():
         active = enabled()
-        keys = ('install_now', 'title', 'optional', 'manual', 'ios', 'ready', 'cancelled', 'accepted',
+        keys = ('android', 'install_now', 'title', 'optional', 'manual', 'ios', 'ready', 'cancelled', 'accepted',
                 'installed', 'standalone', 'unavailable', 'shortcut', 'update', 'recommend', 'error')
         return {'chaos_install_enabled': active,
                 'chaos_install_text': {locale: {key: translator().t('entry.install.' + key, locale=locale)

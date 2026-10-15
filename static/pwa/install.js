@@ -1,9 +1,9 @@
 (() => {
     'use strict';
-    if (window.ChaosInstall) return;
+    if (window.ChaosInstall) { window.ChaosInstall.rebind(); return; }
     let promptEvent = null, installed = false, waiting = false;
     const panels = new Set();
-    const words = JSON.parse(document.getElementById('chaos-install-text').textContent);
+    let words = JSON.parse(document.getElementById('chaos-install-text').textContent);
     function language() {return (window.GhostLocale?.getLocale?.() || document.documentElement.lang || navigator.language).startsWith('pl') ? 'pl' : 'en';}
     function platform() {
         const ua = navigator.userAgent;
@@ -47,7 +47,7 @@
             button.dataset.platform = name; button.dataset.recommended = String(name === platform());
             button.addEventListener('click', async () => {
                 const detail = host.querySelector('[data-install-instructions]');
-                detail.dataset.installWord = name === 'iOS' ? 'ios' : 'manual'; detail.hidden = false;
+                detail.dataset.installWord = name === 'iOS' ? 'ios' : name === 'Android' ? 'android' : 'manual'; detail.hidden = false;
                 host.querySelector('a').hidden = name !== 'Linux';
                 if (name === platform() && name !== 'iOS' && promptEvent && !standalone() && !installed) {
                     await installHere();
@@ -58,11 +58,23 @@
         }
         panels.add(host); refresh();
     }
-    window.addEventListener('beforeinstallprompt', event => {event.preventDefault(); promptEvent = event; panels.forEach(p=>delete p.dataset.state); refresh();});
-    window.addEventListener('appinstalled', () => {installed = true; promptEvent = null; refresh();});
-    document.addEventListener('ghost:locale-changed', refresh);
-    window.ChaosInstall = {mount, platform};
-    document.querySelectorAll('[data-chaos-install]').forEach(mount);
+    function onPrompt(event) {event.preventDefault(); promptEvent = event; panels.forEach(p=>delete p.dataset.state); refresh();}
+    function onInstalled() {installed = true; promptEvent = null; refresh();}
+    function rebind() {
+        // document.open() preserves this manager but removes window/document
+        // listeners. Reattach without discarding an already deferred prompt.
+        words = JSON.parse(document.getElementById('chaos-install-text').textContent);
+        window.removeEventListener('beforeinstallprompt', onPrompt);
+        window.removeEventListener('appinstalled', onInstalled);
+        document.removeEventListener('ghost:locale-changed', refresh);
+        window.addEventListener('beforeinstallprompt', onPrompt);
+        window.addEventListener('appinstalled', onInstalled);
+        document.addEventListener('ghost:locale-changed', refresh);
+        document.querySelectorAll('[data-chaos-install]').forEach(mount);
+        refresh();
+    }
+    window.ChaosInstall = {mount, platform, rebind};
+    rebind();
     if ('serviceWorker' in navigator && window.isSecureContext) {
         navigator.serviceWorker.register('/chaos-sw.js', {scope:'/', updateViaCache:'none'}).then(value => {
             waiting = !!value.waiting; refresh();
