@@ -1,13 +1,16 @@
 # Sprint 156 — Universal Installation System
 
-Status: 156.1–156.3 — GOTOWE LOKALNIE, 15 X 2026. Trwała sesja, CSRF,
-odnowienie, logout, revocation i LaunchController przetestowane; bez zmian na serwerze.
+Status: IMPLEMENTACJA I WDROŻENIE ZAMKNIĘTE, 15 X 2026; odbiór platform częściowy.
+Windows i Android potwierdzone w zakresie [macierzy dowodów](../audits/sprint_156_acceptance.md).
+Linux oraz iOS pozostają PENDING decyzją autora. Redmi A5: problem zgodności,
+działa dostęp przez widżet zakładek. Nie deklarujemy pełnego PASS wszystkich platform.
+[156.6 — utrwalenie konfiguracji i rollback](../runbooks/universal_installation_156_6.md).
 Źródło: specyfikacja autora „CHAOS — Universal Installation System”
 oraz doprecyzowanie dotyczące izolacji PWA i startu bez ekranu logowania.
 
 [Audyt i kontrakt 156.1](../audits/sprint_156_1_installation_session_contract.md)
 ustala szczegóły storage, bootstrapu, guardów i flag. Autor zatwierdził limity
-30 dni nieaktywności / 90 dni maksymalnie. Następny etap: 156.5.
+30 dni nieaktywności / 90 dni maksymalnie. Pozostałe odbiory: Linux i iOS w 156.5.
 [Runbook i dowody 156.3](../runbooks/launch_controller_156_3.md).
 
 ## Cel
@@ -153,7 +156,8 @@ instrukcje. Nazwa platformy nie przesądza dostępności natywnego prompta.
 
 ## Etapy realizacji
 
-156.1–156.4: GOTOWE LOKALNIE. 156.5–156.6: TODO.
+156.1–156.4: WDROŻONE. 156.5: ODBIÓR CZĘŚCIOWY. 156.6: procedura wykonana,
+runbook gotowy; zapis końcowych flag w PM2 oczekuje potwierdzenia operatora.
 Kolejność 156.1 → 156.2 → 156.3 → 156.4 → 156.5 → 156.6.
 
 156.2 — stan lokalny: trwałe daty uwierzytelnienia, aktywności, idle/absolute expiry
@@ -199,6 +203,11 @@ nieistniejących komend jako gotowych do wykonania. 156.6 dostarcza instrukcje
 „komenda → spodziewany wynik → warunek STOP → rollback”.
 
 ## Macierz odbioru
+
+Aktualny stan i rozróżnienie testów lokalnych/produkcyjnych:
+[macierz odbioru 156](../audits/sprint_156_acceptance.md). Poniższa lista jest
+pełnym kontraktem testów; nie należy traktować jej jako potwierdzenia wszystkich
+scenariuszy na każdym urządzeniu.
 
 Każdy rekord dowodowy: data, OS/przeglądarka i wersja, browser/standalone,
 scenariusz, wynik oraz zanonimizowane logi. Tokenów/cookies nie kopiować do raportów.

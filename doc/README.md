@@ -108,7 +108,11 @@ od GhostLab v2 i nie obejmuje realizacji odłożonych funkcji.
   backendu, cztery zestawy JS i Chrome/Playwright desktop PL/mobile EN PASS.
   [156.4 — instalacja PWA](runbooks/installation_156_4.md) gotowa lokalnie:
   panel czterech platform PL/EN, manifest, ikony, neutralny offline i rollback SW.
-  Bez wdrożenia; kolejny etap 156.5 (rzeczywiste instalacje urządzeń).
+  **Aktualizacja 15 X 2026: implementacja i wdrożenie zamknięte.**
+  Trwałe sesje i cichy start PASS użytkownika; Windows, GrapheneOS i Samsung
+  potwierdzone w zakresie [macierzy dowodów](audits/sprint_156_acceptance.md).
+  Linux/iOS PENDING; Redmi A5 ma otwarty problem zgodności, widżet działa jako obejście.
+  [156.6 — utrwalenie PM2 i rollback](runbooks/universal_installation_156_6.md).
 - [157 — Identity Gateway](sprints/sprint_157_identity_gateway.md):
   ZAPLANOWANY, dziewięć etapów; Google, Discord, GitHub i **Steam w pierwszej fazie**,
   obok lokalnego loginu. Jedno konto, krótka rejestracja, weryfikacja e-maila,
