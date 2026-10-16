@@ -1,5 +1,31 @@
 # Sprint 156.7 — lift ekranu startowego i instalacji CHAOS
 
+## 16 X 2026 — odświeżenie assetów onboardingu
+
+Wbudowany `image_gen` wygenerował 31 grafik na podstawie dotychczasowych motywów
+i stylu `static/images/entry/chaos-world-156-7.png`: sześć scen fabularnych,
+20 portretów ról, cztery ilustracje frakcji i neutralny portret przed wyborem.
+Sceny, frakcje i placeholder: `static/images/onboarding/156-7/`.
+Portrety zastępują `static/images/avatar-frakcja-{1..4}-player-{1..5}.png`;
+zachowane nazwy utrzymują zgodność z zapisanymi profilami i kontraktem backendu.
+Wszystkie portrety mają 1024×1536 (2:3), jak poprzednio. Podgląd używa `contain`
+i proporcji 2:3, bez rozciągania. Ilustracje frakcji zastępują stare plakaty
+z polskimi napisami; nazwy pozostają tłumaczone przez interfejs.
+Onboarding wersjonuje URL portretów oraz CSS/JS, aby odświeżyć cache.
+
+Prompty i mapowanie źródło → asset: `doc/audits/onboarding_156_7_assets.json`.
+Każda grafika ma własny plik; oryginały generatora pozostają poza repozytorium.
+Bez migracji, zmian ról, kont, sesji lub aktywowania OAuth 157.
+
+Weryfikacja lokalna: `node tests/js/test_registration_locale.js` PASS;
+`onboarding_gate_browser_smoke.py` PASS (PL/EN, 6 etapów, wszystkie 4 frakcje
+i 20 ról, dekodowanie i proporcje grafik, cofanie i przywracanie podglądu,
+walidacja, brak overflow 320–1920 px i błędów JS/konsoli). Finalizacja UI
+przechwycona zgodnie z dotychczasowym testem. Dodatkowo Playwright MCP:
+wybór frakcji GHOST i piątej roli, desktop/mobile, brak błędów konsoli.
+Podglądy `.playwright-mcp/onboarding-{pl,en}-{1..6}.png` odświeżone.
+Zmiana lokalna, bez wdrożenia.
+
 15 X 2026. Implementacja lokalna; bez wdrożenia. Rozszerzenie 156 na polecenie
 autora po odbiorze Windows/Android. Linux i iOS nadal wymagają odbioru na sprzęcie.
 

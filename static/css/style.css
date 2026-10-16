@@ -79,7 +79,7 @@ body {
   z-index: 100000;
   background:
     linear-gradient(90deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.18)),
-    url("../images/preloader-1.png") right center / auto 100% no-repeat,
+    url("../images/entry/preloader-156-7.png") right center / auto 100% no-repeat,
     #020503;
   color: #b9ff82;
   overflow: hidden;
@@ -223,11 +223,18 @@ body {
 }
 
 @media (max-width: 760px) {
+  .boot-preloader {
+    background-position: center, 68% center, center;
+  }
   .boot-panel {
     left: 8vw;
     top: 25vh;
     width: 42vw;
     min-width: 220px;
+    padding: 14px;
+    background: rgba(2, 10, 12, 0.88);
+    border: 1px solid rgba(80, 220, 155, 0.3);
+    border-radius: 4px;
   }
 }
 .terminal {

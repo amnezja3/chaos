@@ -1,0 +1,15 @@
+{
+  "generator": "Built-in image_gen",
+  "date": "2026-10-16",
+  "asset": "static/images/entry/preloader-156-7.png",
+  "size": [
+    1536,
+    1024
+  ],
+  "references": [
+    "static/images/preloader-1.png",
+    "static/images/entry/chaos-world-156-7.png"
+  ],
+  "prompt": "Production CHAOS system boot preloader background. Reimagine reference 1 preserving the motifs: stern dark-haired male operator in a dark high collar jacket, three-quarter profile looking left; spectral digital skull/ghost behind his right shoulder. Reference 2 defines REQUIRED cinematic photorealistic rendering, petroleum teal black and emerald network lighting, tactile fabric, atmospheric city depth. Replace comic halftone with realistic movie concept art. Landscape exactly 1536x1024 (3:2), operator and ethereal emerald ghost in RIGHT half; LEFT 45 percent near-black teal calm negative space for HTML loading status. Subtle network particles, restrained cyan rimlight, no lettering, no baked UI, no logo, no watermark, no border. Keep head entirely in frame and ghost readable; ominous but not gore. Left edge fades to #020503.",
+  "verification": "Playwright MCP local component preview using actual linux.html preloader markup and style.css; 320/390/768/1440 widths, image decode, panel bounds, done transition. No full authenticated boot test."
+}

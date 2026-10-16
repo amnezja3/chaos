@@ -1,5 +1,30 @@
 # CHAOS — Project Journal
 
+## 2026-10-16 — 156.7: grafika preloadera systemu
+
+Nowy `static/images/entry/preloader-156-7.png` (1536×1024) zachowuje operatora
+i cyfrowego ducha, w filmowym stylu gatewaya. CSS wskazuje wersjonowany asset,
+`linux.html` odświeża wersję arkusza. Na mobile skorygowano kadrowanie i dodano
+ciemne tło pod komunikatami. Logika bootowania pozostaje bez zmian.
+Playwright MCP: lokalny podgląd rzeczywistego HTML/CSS komponentu, dekodowanie
+grafiki, panel w granicach 320/390/768/1440 px, przejście `.done` i konsola OK.
+To kontrola wizualna komponentu, nie pełny test zalogowanego startu gry.
+Prompt i źródła: `doc/audits/preloader_156_7_asset.json`. Bez wdrożenia.
+
+## 2026-10-16 — 156.7: nowe grafiki onboardingu i avatarów
+
+Wygenerowano i podłączono 31 assetów pasujących do filmowego gatewaya: sześć
+scen, 20 avatarów, cztery frakcje i neutralny placeholder. Portrety zachowują
+motywy, przypisania do ról oraz proporcje 2:3. Usunięto z onboardingu plakaty
+frakcji z tekstem zapisanym w obrazie; etykiety PL/EN są w interfejsie.
+Zachowane ścieżki avatarów nie wymagają migracji profili. URL w onboardingu
+i CSS/JS mają nowe wersje cache. Prompty i mapa plików w audycie assetów.
+
+PASS: JS lokalizacji; izolowany Chrome/Playwright, sześć kroków PL/EN,
+wszystkie frakcje/role i proporcje, walidacja, cofanie, 320–1920 px.
+Playwright MCP potwierdził wybór nowego portretu desktop/mobile bez błędów
+konsoli. Finalizacja UI przechwycona; brak zmian backendu. Bez wdrożenia.
+
 ## 2026-10-15 — 156.7: cały onboarding w stylu nowej bramy
 
 Przebudowano sześć kroków rejestracji: login, frakcję, rolę, hasło, e-mail

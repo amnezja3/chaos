@@ -43,12 +43,12 @@ let formData = {
 };
 
 const stepImages = {
-  0: "/static/images/install/step1.jpg",
-  1: "/static/images/install/step2.jpg",
-  2: "/static/images/install/step3.jpg",
-  3: "/static/images/install/step4.jpg",
-  4: "/static/images/install/step5.jpg",
-  5: "/static/images/install/step6.jpg"
+  0: "/static/images/onboarding/156-7/story-1.png",
+  1: "/static/images/onboarding/156-7/story-2.png",
+  2: "/static/images/onboarding/156-7/story-3.png",
+  3: "/static/images/onboarding/156-7/story-4.png",
+  4: "/static/images/onboarding/156-7/story-5.png",
+  5: "/static/images/onboarding/156-7/story-6.png"
 };
 
 const rolesByFaction = {
@@ -59,10 +59,10 @@ const rolesByFaction = {
 };
 
 const factions = [
-  { id: 1, icon: "ORDER", image: "/static/images/logo_faction_img_1.png" },
-  { id: 2, icon: "ECHO", image: "/static/images/logo_faction_img_2.png" },
-  { id: 3, icon: "VIRX", image: "/static/images/logo_faction_img_3.png" },
-  { id: 4, icon: "GHOST", image: "/static/images/logo_faction_img_4.png" }
+  { id: 1, icon: "ORDER", image: "/static/images/onboarding/156-7/faction-1.png" },
+  { id: 2, icon: "ECHO", image: "/static/images/onboarding/156-7/faction-2.png" },
+  { id: 3, icon: "VIRX", image: "/static/images/onboarding/156-7/faction-3.png" },
+  { id: 4, icon: "GHOST", image: "/static/images/onboarding/156-7/faction-4.png" }
 ];
 
 const avatarData = {
@@ -74,27 +74,27 @@ const avatarData = {
 
 const prelogContent = [
   {
-    image: "/static/images/epizod-1.png",
+    image: "/static/images/onboarding/156-7/story-1.png",
     titleKey: "story.0.title", textKey: "story.0.text"
   },
   {
-    image: "/static/images/epizod-2.png",
+    image: "/static/images/onboarding/156-7/story-2.png",
     titleKey: "story.1.title", textKey: "story.1.text"
   },
   {
-    image: "/static/images/epizod-3.png",
+    image: "/static/images/onboarding/156-7/story-3.png",
     titleKey: "story.2.title", textKey: "story.2.text"
   },
   {
-    image: "/static/images/epizod-4.png",
+    image: "/static/images/onboarding/156-7/story-4.png",
     titleKey: "story.3.title", textKey: "story.3.text"
   },
   {
-    image: "/static/images/epizod-5.png",
+    image: "/static/images/onboarding/156-7/story-5.png",
     titleKey: "story.4.title", textKey: "story.4.text"
   },
   {
-    image: "/static/images/epizod-6.png",
+    image: "/static/images/onboarding/156-7/story-6.png",
     titleKey: "story.5.title", textKey: "story.5.text"
   }
 ];
@@ -209,7 +209,7 @@ const steps = [
     const avatars = avatarData[factionId] || [];
     const content = roles.length
       ? roles.map((roleName, index) => {
-          const imgPath = `/static/images/${avatars[index]}`;
+          const imgPath = `/static/images/${avatars[index]}?v=156-7-art`;
           return `
             <button class="choice-card avatar-button" type="button"
               data-img="${imgPath}" data-name-key="role.${factionId}.${index + 1}"
@@ -255,7 +255,7 @@ const steps = [
 
   () => {
     const faction = factions.find(item => item.id === Number(formData.faction));
-    const avatar = formData.avatarImage || "/static/images/avatar-default.jpg";
+    const avatar = formData.avatarImage || "/static/images/onboarding/156-7/avatar-default.png";
 
     return renderShell(5, `
       <div class="summary-card">
@@ -301,8 +301,8 @@ function showStep(index) {
       buttonSelector: ".avatar-button",
       selectedLabel: name => onboardingText("selected", {name}),
       defaultImage: index === 1
-        ? "/static/images/logo_faction-default.jpg"
-        : "/static/images/avatar-default.jpg"
+        ? "/static/images/onboarding/156-7/avatar-default.png"
+        : "/static/images/onboarding/156-7/avatar-default.png"
     });
     restoreChoiceSelection(index);
   }

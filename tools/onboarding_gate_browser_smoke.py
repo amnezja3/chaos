@@ -62,6 +62,15 @@ def main():
                                 page.locator('[data-entry-locale]').select_option(locale)
                                 assert page.locator('#username').input_value() == 'ui_operator_' + locale
                             elif step == 1:
+                                # Every refreshed faction/role asset must decode and retain 2:3.
+                                for faction_index in range(4):
+                                    page.locator('.faction-options button').nth(faction_index).click()
+                                    assert_preview(page)
+                                    page.locator('.js-next-step').click()
+                                    for role_index in range(5):
+                                        page.locator('.role-options button').nth(role_index).click()
+                                        assert_preview(page)
+                                    page.locator('.ghost-btn.secondary').click()
                                 page.locator('.faction-options button').nth(1).click()
                                 assert page.locator('.faction-options .selected').count() == 1
                             elif step == 2:
@@ -82,6 +91,11 @@ def main():
                                 page.locator('#nick').fill('Operator ' + locale)
                                 assert 'ui_operator_' + locale in page.locator('.summary-card').inner_text()
                             page.evaluate('window.scrollTo(0,0)')
+                            page.mouse.move(0, 0)
+                            if step in (1, 2):
+                                selected_image = page.locator('.avatar-button.selected').get_attribute('data-img')
+                                assert selected_image in page.locator('#avatar-preview').evaluate('el => el.style.backgroundImage')
+                            page.locator('.story-image-wrap img').evaluate('(img) => img.decode()')
                             page.screenshot(path=str(ROOT / f'.playwright-mcp/onboarding-{locale}-{step + 1}.png'), full_page=True)
                             page.locator('.js-next-step').click()
                         page.wait_for_function('!isSubmitting')
@@ -102,6 +116,18 @@ def main():
             server.shutdown()
             os.chdir(previous)
         print(json.dumps({'ok': True, 'finalize': 'intercepted; backend covered by test_registration_locale', 'evidence': evidence}))
+
+
+def assert_preview(page):
+    result = page.locator('#avatar-preview').evaluate('''async el => {
+        const image = new Image();
+        image.src = el.style.backgroundImage.slice(5, -2);
+        await image.decode();
+        return {width: image.naturalWidth, height: image.naturalHeight,
+                fit: getComputedStyle(el).backgroundSize};
+    }''')
+    assert result['width'] * 3 == result['height'] * 2, result
+    assert result['fit'] == 'contain', result
 
 
 if __name__ == '__main__':

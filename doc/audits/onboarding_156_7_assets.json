@@ -1,0 +1,192 @@
+{
+  "generator": "Built-in image_gen; 2026-10-16",
+  "style_reference": "static/images/entry/chaos-world-156-7.png",
+  "assets": [
+    {
+      "key": "story_1",
+      "destination": "static/images/onboarding/156-7/story-1.png",
+      "prompt": "Use case: style-transfer. Production CHAOS onboarding illustration 1. Image 1 is the old story motif reference; image 2 is the REQUIRED cinematic rendering, palette and material style reference. Reimagine the old motif as An operator discovering an encrypted data package at a glowing terminal, faint ghostlike digital presence behind him; mysterious first contact. Match image 2: realistic cinematic cyberpunk concept art, tactile fabric and metal, black/petroleum teal, emerald network glow and restrained icy cyan, atmospheric depth, no comic halftone or poster grain. Output one portrait 1024x1536 (2:3) illustration, central subject safe for responsive cropping, upper/middle focal area and lower quarter dark for HTML captions. No text, letters, interface, logos, borders or watermark. Not a website mockup.",
+      "reference": "static/images/epizod-1.png"
+    },
+    {
+      "key": "story_2",
+      "destination": "static/images/onboarding/156-7/story-2.png",
+      "prompt": "Use case: style-transfer. Production CHAOS onboarding illustration 2. Image 1 is the old story motif reference; image 2 is the REQUIRED cinematic rendering, palette and material style reference. Reimagine the old motif as Four distinct faction presences around a holographic network table: disciplined armored guardian, hooded freedom hacker, elegant corporate broker, masked enigmatic ghost. Alliance and choice, no insignia text. Match image 2: realistic cinematic cyberpunk concept art, tactile fabric and metal, black/petroleum teal, emerald network glow and restrained icy cyan, atmospheric depth, no comic halftone or poster grain. Output one portrait 1024x1536 (2:3) illustration, central subject safe for responsive cropping, upper/middle focal area and lower quarter dark for HTML captions. No text, letters, interface, logos, borders or watermark. Not a website mockup.",
+      "reference": "static/images/epizod-2.png"
+    },
+    {
+      "key": "story_3",
+      "destination": "static/images/onboarding/156-7/story-3.png",
+      "prompt": "Use case: style-transfer. Production CHAOS onboarding illustration 3. Image 1 is the old story motif reference; image 2 is the REQUIRED cinematic rendering, palette and material style reference. Reimagine the old motif as A lone operator entering a wet futuristic city canyon beneath distant surveillance light and data projections. Finding one's operational role. Match image 2: realistic cinematic cyberpunk concept art, tactile fabric and metal, black/petroleum teal, emerald network glow and restrained icy cyan, atmospheric depth, no comic halftone or poster grain. Output one portrait 1024x1536 (2:3) illustration, central subject safe for responsive cropping, upper/middle focal area and lower quarter dark for HTML captions. No text, letters, interface, logos, borders or watermark. Not a website mockup.",
+      "reference": "static/images/epizod-3.png"
+    },
+    {
+      "key": "story_4",
+      "destination": "static/images/onboarding/156-7/story-4.png",
+      "prompt": "Use case: style-transfer. Production CHAOS onboarding illustration 4. Image 1 is the old story motif reference; image 2 is the REQUIRED cinematic rendering, palette and material style reference. Reimagine the old motif as An operator securing a small glowing encryption key at a hardened terminal, background hints of danger, protection of identity; one coherent scene, not panels. Match image 2: realistic cinematic cyberpunk concept art, tactile fabric and metal, black/petroleum teal, emerald network glow and restrained icy cyan, atmospheric depth, no comic halftone or poster grain. Output one portrait 1024x1536 (2:3) illustration, central subject safe for responsive cropping, upper/middle focal area and lower quarter dark for HTML captions. No text, letters, interface, logos, borders or watermark. Not a website mockup.",
+      "reference": "static/images/epizod-4.png"
+    },
+    {
+      "key": "story_5",
+      "destination": "static/images/onboarding/156-7/story-5.png",
+      "prompt": "Use case: style-transfer. Production CHAOS onboarding illustration 5. Image 1 is the old story motif reference; image 2 is the REQUIRED cinematic rendering, palette and material style reference. Reimagine the old motif as A hooded operator establishing a quiet encrypted communications link at a relay terminal; luminous thin threads connecting distant nodes, secret contact. Match image 2: realistic cinematic cyberpunk concept art, tactile fabric and metal, black/petroleum teal, emerald network glow and restrained icy cyan, atmospheric depth, no comic halftone or poster grain. Output one portrait 1024x1536 (2:3) illustration, central subject safe for responsive cropping, upper/middle focal area and lower quarter dark for HTML captions. No text, letters, interface, logos, borders or watermark. Not a website mockup.",
+      "reference": "static/images/epizod-5.png"
+    },
+    {
+      "key": "story_6",
+      "destination": "static/images/onboarding/156-7/story-6.png",
+      "prompt": "Use case: style-transfer. Production CHAOS onboarding illustration 6. Image 1 is the old story motif reference; image 2 is the REQUIRED cinematic rendering, palette and material style reference. Reimagine the old motif as Four operators with distinct guardian, hacker, corporate and ghost silhouettes looking toward an immense glowing city gateway, beginning their journey together. Match image 2: realistic cinematic cyberpunk concept art, tactile fabric and metal, black/petroleum teal, emerald network glow and restrained icy cyan, atmospheric depth, no comic halftone or poster grain. Output one portrait 1024x1536 (2:3) illustration, central subject safe for responsive cropping, upper/middle focal area and lower quarter dark for HTML captions. No text, letters, interface, logos, borders or watermark. Not a website mockup.",
+      "reference": "static/images/epizod-6.png"
+    },
+    {
+      "key": "avatar_1_1",
+      "destination": "static/images/avatar-frakcja-1-player-1.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-1-player-1.png (previous git revision)"
+    },
+    {
+      "key": "avatar_1_2",
+      "destination": "static/images/avatar-frakcja-1-player-2.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-1-player-2.png (previous git revision)"
+    },
+    {
+      "key": "avatar_1_3",
+      "destination": "static/images/avatar-frakcja-1-player-3.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-1-player-3.png (previous git revision)"
+    },
+    {
+      "key": "avatar_1_4",
+      "destination": "static/images/avatar-frakcja-1-player-4.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-1-player-4.png (previous git revision)"
+    },
+    {
+      "key": "avatar_1_5",
+      "destination": "static/images/avatar-frakcja-1-player-5.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-1-player-5.png (previous git revision)"
+    },
+    {
+      "key": "avatar_2_1",
+      "destination": "static/images/avatar-frakcja-2-player-1.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-2-player-1.png (previous git revision)"
+    },
+    {
+      "key": "avatar_2_2",
+      "destination": "static/images/avatar-frakcja-2-player-2.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-2-player-2.png (previous git revision)"
+    },
+    {
+      "key": "avatar_2_3",
+      "destination": "static/images/avatar-frakcja-2-player-3.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-2-player-3.png (previous git revision)"
+    },
+    {
+      "key": "avatar_2_4",
+      "destination": "static/images/avatar-frakcja-2-player-4.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-2-player-4.png (previous git revision)"
+    },
+    {
+      "key": "avatar_2_5",
+      "destination": "static/images/avatar-frakcja-2-player-5.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-2-player-5.png (previous git revision)"
+    },
+    {
+      "key": "avatar_3_1",
+      "destination": "static/images/avatar-frakcja-3-player-1.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-3-player-1.png (previous git revision)"
+    },
+    {
+      "key": "avatar_3_2",
+      "destination": "static/images/avatar-frakcja-3-player-2.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-3-player-2.png (previous git revision)"
+    },
+    {
+      "key": "avatar_3_3",
+      "destination": "static/images/avatar-frakcja-3-player-3.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-3-player-3.png (previous git revision)"
+    },
+    {
+      "key": "avatar_3_4",
+      "destination": "static/images/avatar-frakcja-3-player-4.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-3-player-4.png (previous git revision)"
+    },
+    {
+      "key": "avatar_3_5",
+      "destination": "static/images/avatar-frakcja-3-player-5.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-3-player-5.png (previous git revision)"
+    },
+    {
+      "key": "avatar_4_1",
+      "destination": "static/images/avatar-frakcja-4-player-1.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-4-player-1.png (previous git revision)"
+    },
+    {
+      "key": "avatar_4_2",
+      "destination": "static/images/avatar-frakcja-4-player-2.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-4-player-2.png (previous git revision)"
+    },
+    {
+      "key": "avatar_4_3",
+      "destination": "static/images/avatar-frakcja-4-player-3.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-4-player-3.png (previous git revision)"
+    },
+    {
+      "key": "avatar_4_4",
+      "destination": "static/images/avatar-frakcja-4-player-4.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-4-player-4.png (previous git revision)"
+    },
+    {
+      "key": "avatar_4_5",
+      "destination": "static/images/avatar-frakcja-4-player-5.png",
+      "prompt": "Refresh this CHAOS character avatar. Reference 1 defines the exact character motif, pose, outfit, gender, age and accessories to retain. Reference 2 defines cinematic realistic rendering and dark petroleum teal / emerald lighting. Replace comic halftone with realistic tactile material, cinematic depth, subtle network bokeh backdrop. Keep original character recognizable and faction accent colors, center figure and entire head, same 2:3 portrait 1024x1536. No text, watermark, UI or border. One individual avatar, not a sheet.",
+      "reference": "static/images/avatar-frakcja-4-player-5.png (previous git revision)"
+    },
+    {
+      "key": "faction_1",
+      "destination": "static/images/onboarding/156-7/faction-1.png",
+      "prompt": "Create a refreshed CHAOS faction selection illustration. Reference 1 contains old faction character and transport motifs. Preserve these motifs (outfit, mask/visor, vehicle or equipment), but REMOVE ALL lettering, signboards, slogans and frames. Reference 2 is cinematic style reference: realistic tactile dark fabric and metal, petroleum teal shadows, emerald network light, atmospheric cyberpunk city, restrained original faction accent. One centered full character with equipment, 2:3 portrait 1024x1536. No text, UI, watermark. This is game artwork, not a poster or webpage.",
+      "reference": "static/images/logo_faction_img_1.png"
+    },
+    {
+      "key": "faction_2",
+      "destination": "static/images/onboarding/156-7/faction-2.png",
+      "prompt": "Create a refreshed CHAOS faction selection illustration. Reference 1 contains old faction character and transport motifs. Preserve these motifs (outfit, mask/visor, vehicle or equipment), but REMOVE ALL lettering, signboards, slogans and frames. Reference 2 is cinematic style reference: realistic tactile dark fabric and metal, petroleum teal shadows, emerald network light, atmospheric cyberpunk city, restrained original faction accent. One centered full character with equipment, 2:3 portrait 1024x1536. No text, UI, watermark. This is game artwork, not a poster or webpage.",
+      "reference": "static/images/logo_faction_img_2.png"
+    },
+    {
+      "key": "faction_3",
+      "destination": "static/images/onboarding/156-7/faction-3.png",
+      "prompt": "Create a refreshed CHAOS faction selection illustration. Reference 1 contains old faction character and transport motifs. Preserve these motifs (outfit, mask/visor, vehicle or equipment), but REMOVE ALL lettering, signboards, slogans and frames. Reference 2 is cinematic style reference: realistic tactile dark fabric and metal, petroleum teal shadows, emerald network light, atmospheric cyberpunk city, restrained original faction accent. One centered full character with equipment, 2:3 portrait 1024x1536. No text, UI, watermark. This is game artwork, not a poster or webpage.",
+      "reference": "static/images/logo_faction_img_3.png"
+    },
+    {
+      "key": "faction_4",
+      "destination": "static/images/onboarding/156-7/faction-4.png",
+      "prompt": "Create a refreshed CHAOS faction selection illustration. Reference 1 contains old faction character and transport motifs. Preserve these motifs (outfit, mask/visor, vehicle or equipment), but REMOVE ALL lettering, signboards, slogans and frames. Reference 2 is cinematic style reference: realistic tactile dark fabric and metal, petroleum teal shadows, emerald network light, atmospheric cyberpunk city, restrained original faction accent. One centered full character with equipment, 2:3 portrait 1024x1536. No text, UI, watermark. This is game artwork, not a poster or webpage.",
+      "reference": "static/images/logo_faction_img_4.png"
+    },
+    {
+      "key": "default",
+      "destination": "static/images/onboarding/156-7/avatar-default.png",
+      "prompt": "CHAOS onboarding neutral avatar placeholder, reimagine reference1 anonymous blurry silhouette using reference2 cinematic realistic style. A mysterious hooded unassigned operator in black tactical fabric, face completely concealed in shadow, subtle emerald rim light, dark petroleum teal background with faint network bokeh. Clear readable silhouette, centered head and shoulders, no faction emblem, no text, no UI, no border. Portrait 2:3 1024x1536. Not bright white or gray. Premium cinematic game artwork matching the gateway.",
+      "reference": "static/images/avatar-default.jpg"
+    }
+  ]
+}

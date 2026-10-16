@@ -1,5 +1,11 @@
 # Sprint 157 — Identity Gateway
 
+[Audyt kodu i ustalone callbacki do rejestracji aplikacji — 16 X 2026](../audits/sprint_157_1_auth_callback_contract.md).
+Kontrakt: `https://chaos.re/auth/google/callback`,
+`https://chaos.re/auth/discord/callback`, `https://chaos.re/auth/github/callback`.
+Adresy bez końcowego ukośnika; endpointy oczekują implementacji. Przegląd kodu
+nie oznacza pełnego PASS 157.1 ani uruchomienia OAuth.
+
 Status: **ZAPLANOWANY**, 15 X 2026. Bez implementacji i zmian na serwerze.
 
 Przygotowanie UI w 156.7: panel logowania zawiera cztery przyciski w kolejności
