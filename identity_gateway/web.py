@@ -386,7 +386,7 @@ def install(runtime):
         with tx() as conn:
             user_id=actor(conn)
             if data.get('underage') is True:
-                conn.execute('UPDATE identity_account_security SET age_restricted=1 WHERE user_id=?',(user_id,))
+                adult_policy.restrict(conn,user_id,restricted=True,reason='self_declaration_below_minimum',actor_id=user_id,threshold=adult_policy.MINIMUM_AGE)
                 svc.event(conn,'age_restricted',user_id,user_id)
         return jsonify(ok=True,redirect='/account/terms')
 

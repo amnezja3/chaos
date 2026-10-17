@@ -5646,6 +5646,8 @@ class GhostNetworkRepository:
             if target_medium:
                 clauses.append("target_medium = ?")
                 params.append(_clean(target_medium))
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='safety_paused_sources'").fetchone():
+                clauses.append('source_scope NOT IN (SELECT source_scope FROM safety_paused_sources)')
             if source_event_id:
                 clauses.append("source_event_id = ?")
                 params.append(_clean(source_event_id))
@@ -6377,6 +6379,8 @@ class GhostNetworkRepository:
         lease_until = _iso(now_dt + timedelta(seconds=max(10, int(lease_seconds or 60))))
         with self.transaction():
             conn = self._transaction_conn
+            pause_clause = ('AND o.source_scope NOT IN (SELECT source_scope FROM safety_paused_sources)'
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE name='safety_paused_sources'").fetchone() else '')
             conn.execute(
                 """
                 UPDATE ghost_narrative_publication_receipts
@@ -6387,10 +6391,11 @@ class GhostNetworkRepository:
                 (now_iso, now_iso, now_iso),
             )
             row = conn.execute(
-                """
+                f"""
                 SELECT r.* FROM ghost_narrative_publication_receipts r
                 JOIN ghost_narrative_outbox o ON o.outbox_id=r.task_id
                 WHERE r.status IN ('ready', 'retry_wait') AND r.next_attempt_at <= ?
+                {pause_clause}
                 ORDER BY o.priority DESC, r.created_at, r.publication_receipt_id LIMIT 1
                 """,
                 (now_iso,),
@@ -6445,6 +6450,8 @@ class GhostNetworkRepository:
             ).fetchone()
             if not row:
                 return None
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='safety_paused_sources'").fetchone() and conn.execute('SELECT 1 FROM safety_paused_sources WHERE source_scope=?',(row['source_scope'],)).fetchone():
+                return None  # Preserve receipt for retry after an explicit resume.
             if row["status"] == "published":
                 return {
                     "receipt": self._narrative_publication_receipt(row),
@@ -6936,7 +6943,12 @@ class GhostNetworkRepository:
                 """,
                 tuple(params),
             ).fetchall()
-            return [self._narrative_medium_record(row) for row in rows]
+            records = [self._narrative_medium_record(row) for row in rows]
+            from flask import has_app_context
+            import communication_safety as safety
+            if active_only and has_app_context() and safety.enabled():
+                records = safety.visible_publications(conn, records)
+            return records
 
     def has_recent_narrative_content(
         self, target_medium, title, body, *, audience_scope="public",
@@ -7222,6 +7234,10 @@ class GhostNetworkRepository:
                     if len(values) == 1:
                         record["source_value"] = values[0]
                 records.append(record)
+            from flask import has_app_context
+            import communication_safety as safety
+            if has_app_context() and safety.enabled():
+                records = safety.visible_publications(conn, records)
             return records
 
     def count_narrative_medium_records_for_viewer_after(

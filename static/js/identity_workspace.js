@@ -4,9 +4,10 @@
     const returnKey = 'chaos.identity.return';
     const label = () => (window.GhostLocale?.getLocale() || document.documentElement.lang) === 'en'
         ? 'Account & security' : 'Konto i bezpieczeństwo';
-    window.createIdentitySettingsWindow = () => {
+    window.createIdentitySettingsWindow = (safetyContext = null) => {
+        const safetyUrl = safetyContext ? '/account/safety?' + new URLSearchParams(safetyContext).toString() : null;
         const existing = document.querySelector('[data-app="identity-settings"]');
-        if (existing) { bringWindowToFront(existing); return existing; }
+        if (existing) { if(safetyUrl)existing.querySelector('iframe').src=safetyUrl; bringWindowToFront(existing); return existing; }
         const win = document.createElement('div');
         win.className = 'terminal identity-settings-window';
         win.dataset.app = 'identity-settings';
@@ -27,7 +28,7 @@
         const frame = document.createElement('iframe');
         frame.title = label();
         frame.style.cssText = 'width:100%;flex:1;min-height:0;border:0;background:#020b0d';
-        frame.src = '/account/identity?embedded=1';
+        frame.src = safetyUrl || '/account/identity?embedded=1';
         win.append(bar, frame);
         document.body.append(win);
         close.addEventListener('click', () => win.remove());

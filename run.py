@@ -704,7 +704,13 @@ def cyberner_unread_counts(username, profile=None, channel_states=None):
 
 def cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
     from response_network.chat_delivery import enrich
-    return enrich(detention_service.db_path, _cyberner_list_route_messages(username, route, limit, after_id, before_id))
+    messages = enrich(detention_service.db_path, _cyberner_list_route_messages(username, route, limit, after_id, before_id))
+    import communication_safety as safety
+    if safety.enabled():
+        from database import db_connect
+        with db_connect(user_store.db_path) as conn:
+            messages = safety.visible_messages(conn, username, route, messages)
+    return messages
 
 
 def _cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
@@ -805,12 +811,20 @@ def cyberner_store_message(username, profile, route, body, subject="", client_me
         cyberner_clan_store if channel == 'clan' and cyberner_shared_store_enabled(channel) else mail_store)
     # Production stores share a database; transaction must not span separate stores.
     if os.path.abspath(store.db_path) != os.path.abspath(detention_service.db_path):
+        import communication_safety as safety
+        if safety.enabled():
+            raise ValueError('communication_database_mismatch')
         from database import db_connect
         with db_connect(detention_service.db_path) as conn:
             if detention_snapshot(conn, username):
                 raise ValueError('detention_chat_database_mismatch')
         return _cyberner_store_message(username, profile, route, body, subject, client_message_id)
     def writer(conn):
+        import communication_safety as safety
+        if safety.enabled():
+            if not isinstance(body,str) or not body.strip() or len(body)>4000 or not isinstance(subject,str) or len(subject)>200:
+                raise ValueError('invalid_message')
+            safety.require_send(conn, username, route)
         return _cyberner_store_message(username, profile, route, body, subject, client_message_id,
                                       conn=conn, recipients=recipients, auto_contact=auto_contact)
     return deliver(store.db_path, username, route, body, subject, client_message_id, writer)
@@ -29652,6 +29666,11 @@ def add_contact():
     contact_name = data.get("name", "")
     status = data.get("status", "offline")
 
+    import communication_safety as safety
+    if safety.enabled():
+        # The legacy UI cannot silently accept a contact or fabricate friendship.
+        return jsonify(success=False, error='use_contact_invitation', redirect='/account/safety'), 409
+
     try:
         mail_store.add_contact(username, contact_name, status)
     except ValueError as e:
@@ -29667,6 +29686,18 @@ def request_player_contact():
     username = ensure_mail_seed()
     data = request.get_json() or {}
     target_username = str(data.get("target_username") or "").strip()
+
+    import communication_safety as safety
+    if safety.enabled():
+        try:
+            identity_gateway['csrf']()
+            from database import atomic_runtime_transaction
+            with atomic_runtime_transaction(user_store.db_path, foreign_keys=True) as conn:
+                identity_gateway['actor'](conn)
+                result = safety.invite(conn, username, target_username)
+            return jsonify(success=True, status=result, contacts=mail_store.list_contacts(username))
+        except ValueError as exc:
+            return jsonify(success=False, error=str(exc)), 400
 
     if not target_username:
         return jsonify({"success": False, "error": "Brak nazwy gracza."}), 400
@@ -32422,6 +32453,8 @@ launch_controller = register_launch_controller(app, globals())
 import sys as _identity_sys
 from identity_gateway.web import install as install_identity_gateway
 identity_gateway = install_identity_gateway(_identity_sys.modules[__name__])
+from communication_safety_web import install as install_communication_safety
+install_communication_safety(_identity_sys.modules[__name__])
 from identity_gateway.adult_policy import install as install_adult_policy
 install_adult_policy(_identity_sys.modules[__name__])
 

@@ -21,8 +21,16 @@ def main():
         import run
         fixture=GatewayWebTests()
         fixture.setUp()
+        if '--safety' in sys.argv:
+            import communication_safety
+            from database import MailStore
+            from unittest.mock import patch
+            with db_connect(fixture.path) as conn:
+                communication_safety.initialize(conn)
+            fixture.stack.enter_context(patch.object(run,'mail_store',MailStore(fixture.path)))
+            run.app.config['CHAOS_COMMUNICATION_SAFETY_ENABLED']=True
         if '--adult' in sys.argv:
-            run.app.config['CHAOS_ADULT_POLICY_ENABLED']=True
+            run.app.config['CHAOS_AGE_POLICY_ENABLED']=True
         if '--mock-providers' in sys.argv:
             from unittest.mock import patch
             def resolved_provider(provider, args, flow):

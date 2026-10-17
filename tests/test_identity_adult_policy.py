@@ -11,11 +11,26 @@ class AdultPolicyTests(gateway_tests.GatewayWebTests):
     # Inherit fixture helpers, not the legacy-policy tests.
     def setUp(self):
         super().setUp()
-        self.stack.enter_context(patch.dict(run.app.config, CHAOS_ADULT_POLICY_ENABLED=True))
+        self.stack.enter_context(patch.dict(run.app.config, CHAOS_AGE_POLICY_ENABLED=True))
 
     def agreement(self):
         return dict(age_confirmed=True, age_statement_version=adult_policy.AGE_VERSION,
                     terms=adult_policy.TERMS_VERSION)
+
+    def test_old_adult_declaration_is_not_reinterpreted_as_16(self):
+        self.authenticate()
+        with db_connect(self.path) as conn:
+            uid=service.account(conn,'alice')[0]
+            conn.execute('INSERT INTO identity_consents VALUES (?,?,?,1,?)',(uid,'157-18-v1',1,'18-v1'))
+        self.assertEqual(self.client.get('/launch').location,'/account/terms')
+        self.assertEqual(self.post('/api/account/terms',self.agreement()).status_code,200)
+        with db_connect(self.path) as conn:
+            rows=conn.execute('SELECT terms_version,age_statement_version FROM identity_consents WHERE user_id=? ORDER BY terms_version',(uid,)).fetchall()
+        self.assertEqual([tuple(r) for r in rows],[('157-16-v1','16-v1'),('157-18-v1','18-v1')])
+
+    def test_legacy_flag_cannot_enable_new_age_policy(self):
+        with run.app.test_request_context('/'), patch.dict(run.app.config,CHAOS_AGE_POLICY_ENABLED=False,CHAOS_ADULT_POLICY_ENABLED=True):
+            self.assertFalse(adult_policy.enabled())
 
     def local(self):
         return dict(username='adultnew',password='Secret123',faction='3',role='1',

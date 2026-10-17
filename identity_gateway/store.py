@@ -38,6 +38,10 @@ def initialize(conn):
     from .schema import EXTRA
     for sql in DDL + EXTRA:
         conn.execute(sql)
+    conn.execute('''CREATE TABLE IF NOT EXISTS identity_age_restriction_history (
+        id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        action TEXT NOT NULL,threshold INTEGER,reason TEXT NOT NULL,created_at INTEGER NOT NULL)''')
     for table, additions in {
         'identity_consents': [('age_confirmed', 'INTEGER NOT NULL DEFAULT 0 CHECK(age_confirmed IN (0,1))'),
                               ('age_statement_version', 'TEXT')],
@@ -47,6 +51,10 @@ def initialize(conn):
         for name, definition in additions:
             if name not in columns:
                 conn.execute('ALTER TABLE ' + table + ' ADD COLUMN ' + name + ' ' + definition)
+    conn.execute('''INSERT INTO identity_age_restriction_history(user_id,action,threshold,reason,created_at)
+        SELECT s.user_id,'legacy_review',NULL,'legacy_origin_unknown',strftime('%s','now')
+        FROM identity_account_security s WHERE s.age_restricted=1 AND NOT EXISTS
+        (SELECT 1 FROM identity_age_restriction_history h WHERE h.user_id=s.user_id)''')
     if 'user_id' not in {row[1] for row in conn.execute('PRAGMA table_info(identity_mail_challenges)')}:
         conn.execute('ALTER TABLE identity_mail_challenges ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE')
     # Preserve all existing credentials/profiles; missing credentials are disabled.

@@ -1,0 +1,26 @@
+{% macro tr(pl,en) %}{{ en if locale == 'en' else pl }}{% endmacro %}
+<!doctype html><html lang="{{ locale }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CHAOS · {{ tr('Bezpieczeństwo komunikacji','Communication safety') }}</title>
+<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157-8">
+<style>body{margin:0;background:#020b0d;color:#b5fbd3}.identity-shell{box-sizing:border-box;max-width:900px;margin:auto;padding:24px}button,input,select,textarea{max-width:100%;box-sizing:border-box}article{border:1px solid #245b48;padding:12px;margin:12px 0;overflow-wrap:anywhere}textarea{width:100%;min-height:80px;background:#031611;color:#b5fbd3;border:1px solid #245b48;padding:10px}button{margin:4px}label[hidden]{display:none}form{margin:20px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}.feedback{min-height:1.5em;color:#45ffaa}.error{color:#ff9988}</style></head>
+<body><main class="identity-shell"><header>GHOST SYSTEM / SAFETY</header>
+<h1>{{ tr('Kontakt i bezpieczeństwo','Contact and safety') }}</h1>
+<p>{{ tr('Wiadomości prywatne przyjmujesz od zaakceptowanych kontaktów. Blokada dotyczy komunikacji, nie rywalizacji w grze.','Private messages are accepted from confirmed contacts. Blocking affects communication, not competition in the game.') }}</p>
+<a href="/account/identity?embedded=1">{{ tr('Konto i bezpieczeństwo','Account and security') }}</a>
+<form id="contact-form"><label>{{ tr('Login gracza','Player login') }}<input name="username" required maxlength="100"></label>
+<button name="action" value="invite">{{ tr('Zaproś','Invite') }}</button><button name="action" value="block">{{ tr('Zablokuj komunikację','Block communication') }}</button><p class="feedback" role="status"></p></form>
+<h2>{{ tr('Zaproszenia','Invitations') }}</h2><div id="invites"></div>
+<h2>{{ tr('Zablokowani','Blocked players') }}</h2><div id="blocks"></div>
+<h2>{{ tr('Zgłoś treść lub użytkownika','Report content or a player') }}</h2>
+<form id="report-form"><label>{{ tr('Rodzaj','Type') }}<select name="kind"><option value="profile">{{ tr('Profil','Profile') }}</option><option value="message">Cyberner</option><option value="publication">BlackNet</option></select></label>
+<label>{{ tr('Login lub identyfikator treści','Login or content ID') }}<input name="key" required maxlength="200"></label>
+<label>{{ tr('Kanał wiadomości','Message channel') }}<select name="scope"><option value="world">WORLD</option><option value="clan">CLAN</option><option value="direct">DM</option><option value="channel">FRIENDS</option></select></label>
+<label>{{ tr('Rozmówca lub kanał (dla wiadomości)','Peer or channel (for messages)') }}<input name="peer" value="global" maxlength="100"></label>
+<label>{{ tr('Powód','Reason') }}<select name="category"><option value="harassment">{{ tr('Nękanie','Harassment') }}</option><option value="threat">{{ tr('Groźby','Threats') }}</option><option value="privacy">{{ tr('Ujawnienie danych','Privacy violation') }}</option><option value="unsafe">{{ tr('Niebezpieczna treść','Unsafe content') }}</option><option value="spam">Spam</option></select></label>
+<label>{{ tr('Opis — nie podawaj zbędnych danych osobowych','Details — avoid unnecessary personal data') }}<textarea name="details" maxlength="2000"></textarea></label>
+<button>{{ tr('Wyślij zgłoszenie','Send report') }}</button><p class="feedback" role="status"></p></form>
+<h2>{{ tr('Zgłoszenia i decyzje','Reports and decisions') }}</h2><div id="reports"></div>
+{% if moderator %}<h2>{{ tr('Kolejka moderatora','Moderation queue') }}</h2><div id="moderation"></div>{% endif %}
+<p id="load-status" role="status"></p></main>
+<script id="safety-config" type="application/json">{{ dict(locale=locale,csrf=csrf,generation=generation,moderator=moderator)|tojson }}</script>
+<script src="/static/js/communication_safety.js?v=157-8" defer></script></body></html>

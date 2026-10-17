@@ -279,6 +279,37 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(records[0]["fact_refs"], ["fact:one"])
         self.assertEqual(records[0]["truth_class"], "canonical")
 
+    def test_moderation_pause_stops_claim_and_inflight_publication_without_deletion(self):
+        candidate=self.accepted_candidate()
+        self.repo.ensure_narrative_publication(candidate['candidate_id'])
+        with self.repo.transaction():
+            conn=self.repo._transaction_conn
+            conn.execute('CREATE TABLE safety_paused_sources(source_scope TEXT PRIMARY KEY,report_id INTEGER)')
+            conn.execute("INSERT INTO safety_paused_sources VALUES ('ghostnetwork',1)")
+        self.assertIsNone(self.repo.claim_next_narrative_publication('publisher'))
+        with self.repo.transaction():
+            self.repo._transaction_conn.execute('DELETE FROM safety_paused_sources')
+        claim=self.repo.claim_next_narrative_publication('publisher')
+        self.assertIsNotNone(claim)
+        with self.repo.transaction():
+            self.repo._transaction_conn.execute("INSERT INTO safety_paused_sources VALUES ('ghostnetwork',1)")
+        self.assertIsNone(self.repo.publish_claimed_narrative_candidate(claim['publication_receipt_id'],'publisher',claim['lease_until']))
+        with self.repo.transaction():
+            self.repo._transaction_conn.execute('DELETE FROM safety_paused_sources')
+        published=self.repo.publish_claimed_narrative_candidate(claim['publication_receipt_id'],'publisher',claim['lease_until'])
+        self.assertEqual(published['receipt']['status'],'published')
+        from flask import Flask
+        app=Flask('safety-publication-test')
+        app.config['CHAOS_COMMUNICATION_SAFETY_ENABLED']=True
+        with self.repo.transaction():
+            conn=self.repo._transaction_conn
+            conn.execute('CREATE TABLE safety_hidden(object_type TEXT,object_key TEXT,report_id INTEGER)')
+            conn.execute("INSERT INTO safety_hidden VALUES ('publication',?,1)",(published['record']['medium_record_id'],))
+        with app.app_context():
+            self.assertEqual(self.repo.list_narrative_medium_records_for_viewer('blacknet'),[])
+            self.assertEqual(self.repo.list_narrative_medium_records('blacknet',active_only=True),[])
+        self.assertEqual(len(self.repo.list_narrative_medium_records('blacknet')),1)
+
     def test_english_publication_keeps_locale_after_reopen_and_duplicate(self):
         self.accepted_candidate('english-signal', output_locale='en')
         publisher = NarrativePublicationService(repository=self.repo, worker_id='en-publisher')

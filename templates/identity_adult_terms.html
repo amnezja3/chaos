@@ -1,15 +1,15 @@
 {% macro tr(pl,en) %}{{ en if identity_locale == 'en' else pl }}{% endmacro %}
 <!doctype html><html lang="{{ identity_locale }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CHAOS · {{ tr('Nowe warunki','Updated terms') }}</title><link rel="stylesheet" href="/static/css/identity_gateway.css?v=157-18-1"><link rel="stylesheet" href="/static/css/legal.css?v=157-18-1"></head>
-<body class="identity-page"><main class="identity-shell"><header><span class="identity-eyebrow">CHAOS — UPDATED TERMS</span><strong>18+</strong></header>
-<h1>{{ tr('CHAOS jest platformą wyłącznie dla osób pełnoletnich.','CHAOS is an adults-only platform.') }}</h1>
+<title>CHAOS · {{ tr('Nowe warunki','Updated terms') }}</title><link rel="stylesheet" href="/static/css/identity_gateway.css?v=157-8-1"><link rel="stylesheet" href="/static/css/legal.css?v=157-8-1"></head>
+<body class="identity-page"><main class="identity-shell"><header><span class="identity-eyebrow">CHAOS — UPDATED TERMS</span><strong>16+</strong></header>
+<h1>{{ tr('CHAOS jest platformą dla osób, które ukończyły 16 lat.','CHAOS is an platform for users aged 16 or older.') }}</h1>
 {% if age_restricted %}<p role="alert">{{ tr('Dostęp do gry jest zablokowany z powodu niespełnienia wymogu wieku. Ponowne zaznaczenie oświadczenia nie usuwa blokady. Jeśli to pomyłka, napisz na year2108@chaos.re.','Gameplay access is restricted because the age requirement is not met. Submitting another declaration cannot remove this restriction. If this is a mistake, contact year2108@chaos.re.') }}</p>
-{% else %}<p>{{ tr('Aby kontynuować, potwierdź ukończenie 18 lat i zaakceptuj aktualny Regulamin. Odmowa nie usuwa konta ani postępów.','To continue, confirm that you are at least 18 and accept the updated Terms. Declining does not delete your account or progress.') }}</p>
+{% else %}<p>{{ tr('Aby kontynuować, potwierdź ukończenie 16 lat i zaakceptuj aktualny Regulamin. Odmowa nie usuwa konta ani postępów.','To continue, confirm that you are at least 16 and accept the updated Terms. Declining does not delete your account or progress.') }}</p>
 <form id="adult-acceptance">{% include '_adult_declaration.html' %}<button class="ghost-btn" type="submit">{{ tr('Kontynuuj','Continue') }}</button></form>
-<div class="row"><button type="button" id="adult-decline">{{ tr('Nie akceptuję — pozostaję poza grą','Decline — stay out of the game') }}</button><button type="button" id="adult-underage">{{ tr('Mam mniej niż 18 lat','I am under 18') }}</button></div>{% endif %}
+<div class="row"><button type="button" id="adult-decline">{{ tr('Nie akceptuję — pozostaję poza grą','Decline — stay out of the game') }}</button><button type="button" id="adult-underage">{{ tr('Mam mniej niż 16 lat','I am under 16') }}</button></div>{% endif %}
 <p id="identity-status" role="status" aria-live="polite"></p>
 <p><a href="/account/identity">{{ tr('Obsługa i usunięcie konta','Manage or delete account') }}</a></p><button type="button" id="adult-logout">{{ tr('Wyloguj','Log out') }}</button>
 <p>{{ tr('Oświadczenie jest deklaracją użytkownika. Nie zbieramy daty urodzenia ani dokumentu tożsamości.','This is a user declaration. We do not collect a date of birth or identity document.') }}</p>
 </main>{% include '_legal_links.html' %}
 <script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script>
-<script src="/static/js/identity_gateway.js?v=157-18-1" defer></script></body></html>
+<script src="/static/js/identity_gateway.js?v=157-8-1" defer></script></body></html>

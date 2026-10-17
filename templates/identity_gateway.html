@@ -9,7 +9,7 @@
 <p class="brand-expansion">Cyber Hacking Adventure Of Senses</p>
 <div class="identity-hero-caption"><span>IDENTITY // OPERATOR</span><h2>{{ tr('Twój dostęp. Twoja tożsamość.','Your access. Your identity.') }}</h2><p>{{ tr('Wszystkie połączenia prowadzą do tej samej postaci i historii.','Every connection leads to the same character and history.') }}</p></div></aside>
 <main class="identity-shell"><header><span class="identity-eyebrow">GHOST SYSTEM / IDENTITY</span>{% if mode == 'account' %}<a class="identity-back" data-identity-return href="/launch">{{ tr('Wróć do gry','Back to game') }} ↗</a>{% endif %}</header>
-<p id="identity-status" role="status" aria-live="polite"></p>
+{% if communication_safety_enabled and mode == 'account' %}<p><a class="ghost-btn" href="/account/safety">{{ tr('Kontakt i bezpieczeństwo', 'Contact and safety') }}</a></p>{% endif %}<p id="identity-status" role="status" aria-live="polite"></p>
 {% if mode == 'error' %}
 <h1>{{ tr('Nie udało się dokończyć logowania','Sign-in could not be completed') }}</h1>
 <p>{{ tr('Wróć do okna lub instalacji CHAOS, w której rozpoczęto logowanie, i spróbuj ponownie. Zmiana przeglądarki lub wygaśnięcie próby wymaga nowego logowania.','Return to the CHAOS window or installation where you started and try again. Switching browsers or an expired attempt requires a new sign-in.') }}</p>
@@ -39,4 +39,4 @@
 <form id="identity-delete"><label>{{ tr('Wpisz swój login, aby potwierdzić','Type your login to confirm') }}<input name="confirm" required autocomplete="off"></label><button>{{ tr('Usuń konto trwale','Permanently delete account') }}</button></form></details>
 <a class="button" data-identity-return href="/launch">{{ tr('Wróć do gry','Return to game') }}</a>
 {% endif %}
-</main></div><script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script><script src="/static/js/identity_gateway.js?v=157-18-1" defer></script></body></html>
+</main></div><script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script><script src="/static/js/identity_gateway.js?v=157-8-1" defer></script></body></html>

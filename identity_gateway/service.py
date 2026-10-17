@@ -109,6 +109,19 @@ def unlink(conn, user_id, provider):
 
 def retire(conn, user_id, actor_id):
     username=conn.execute('SELECT username FROM users WHERE id=?',(user_id,)).fetchone()[0]
+    # Additive 157.8 schemas may not yet be installed while flags are off.
+    present={r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for table,column in (('identity_age_restriction_history','user_id'),('communication_limits','actor_id'),('communication_sanctions','user_id')):
+        if table in present:
+            conn.execute(f'DELETE FROM {table} WHERE {column}=?',(user_id,))
+    if 'communication_blocks' in present:
+        conn.execute('DELETE FROM communication_blocks WHERE owner_id=? OR target_id=?',(user_id,user_id))
+    if 'communication_invites' in present:
+        conn.execute('DELETE FROM communication_invites WHERE sender_id=? OR recipient_id=?',(user_id,user_id))
+    if 'safety_reports' in present:
+        conn.execute('UPDATE safety_reports SET reporter_id=NULL WHERE reporter_id=?',(user_id,))
+        conn.execute('UPDATE safety_reports SET target_id=NULL WHERE target_id=?',(user_id,))
+        conn.execute('UPDATE safety_actions SET actor_id=NULL WHERE actor_id=?',(user_id,))
     for provider, subject in conn.execute('SELECT provider,provider_user_id FROM user_identities WHERE user_id=?',(user_id,)):
         conn.execute('INSERT OR IGNORE INTO identity_retired_subjects VALUES (?,?,?)',
                      (provider,digest(subject),int(time.time())))

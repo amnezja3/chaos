@@ -9,7 +9,7 @@
 {% endfor %}<a href="{{ url_for('dev_dashboard', tab='identity') if generation.launch_enabled else url_for('dev_dashboard', tab='identity', _session_generation=generation.query_token) }}" {% if active_tab == 'identity' %}aria-current="page"{% endif %}>Identity Gateway</a><p>GHOST NETWORK<br>{{ admin_t('operator') }}</p></nav>
 <main>{% block content %}{% endblock %}</main></div>
 <script id="session-generation-config" type="application/json">{{ generation|tojson }}</script>
-<script src="/static/js/session_generation.js?v=session-157-18-1"></script>
+<script src="/static/js/session_generation.js?v=session-157-8-1"></script>
 <script id="admin-locale-config" type="application/json">{{ admin_i18n_config()|tojson }}</script>
 <script src="/static/js/ghost_i18n.js"></script>
 <script src="/static/js/admin_locale.js?v=155"></script>

@@ -16,7 +16,7 @@
     <script src="{{ url_for('static', filename='js/creator_editor.js') }}?v=155-3-0"></script>
 {% include 'installation_head.html' %}
 </head>
-<body data-identity-gateway="{{ '1' if identity_gateway_enabled else '0' }}">
+<body data-identity-gateway="{{ '1' if identity_gateway_enabled else '0' }}" data-communication-safety="{{ '1' if communication_safety_enabled else '0' }}">
   {% include "_ghost_locale.html" %}
   <div id="boot-preloader" class="boot-preloader" aria-live="polite">
     <div class="boot-panel">
@@ -38,7 +38,7 @@
   <script id="session-generation-config" type="application/json">
     {{ session_generation | tojson }}
   </script>
-  <script src="{{ url_for('static', filename='js/session_generation.js') }}?v=session-157-18-1"></script>
+  <script src="{{ url_for('static', filename='js/session_generation.js') }}?v=session-157-8-1"></script>
   <script src="{{ url_for('static', filename='js/game_sfx.js') }}?v=deep-scanner-146-4-2"></script>
   <script src="{{ url_for('static', filename='js/ghost_radio.js') }}?v=radio-i18n-154-7-4"></script>
   <script src="{{ url_for('static', filename='js/operation_feedback.js') }}?v=ofs-locale-154-7-4"></script>
@@ -56,7 +56,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ghostlab_scanner.css') }}?v=146-4-2-viewfinder-1">
   <script src="{{ url_for('static', filename='js/ghostlab_scanner.js') }}?v=i18n-154-7-4"></script>
   <script src="{{ url_for('static', filename='js/ghostlab_maintenance.js') }}?v=i18n-154-7-4"></script>
-  <script src="{{ url_for('static', filename='js/terminal.js') }}?v=157-ux-1"></script>
-  <script src="{{ url_for('static', filename='js/identity_workspace.js') }}?v=157-ux-1"></script>
+  <script src="{{ url_for('static', filename='js/terminal.js') }}?v=157-8-1"></script>
+  <script src="{{ url_for('static', filename='js/identity_workspace.js') }}?v=157-8-1"></script>
 </body>
 </html>

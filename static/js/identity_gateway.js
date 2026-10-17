@@ -82,7 +82,7 @@
  $('registration-send')?.addEventListener('click',run(()=>api('/auth/register/email',{email:$('identity-registration').elements.email.value}),tr('Kod został wysłany na podany adres.','Code sent to the supplied address.')));
  $('registration-verify')?.addEventListener('click',run(async()=>{const result=await api('/auth/register/email',{email:$('identity-registration').elements.email.value,code:$('registration-code').value});registration.dispatchEvent(new CustomEvent('identity:email-verified',{detail:{email:result.verified_email}}));},tr('Adres e-mail potwierdzony.','Email address verified.')));
  $('identity-registration')?.addEventListener('submit',run(async()=>{const result=await api('/auth/complete-registration',formData('identity-registration'));navigate(result.redirect);}));
- errors.adult_declaration_required=tr('Potwierdź ukończenie 18 lat.','Confirm that you are at least 18.');
+ errors.adult_declaration_required=tr('Potwierdź ukończenie 16 lat.','Confirm that you are at least 16.');
  errors.current_terms_required=tr('Zaakceptuj aktualny Regulamin.','Accept the current Terms.');
  errors.age_restricted=tr('Dostęp do gry jest zablokowany ze względu na wiek.','Gameplay is restricted due to the age requirement.');
  if(config.mode==='adult'){try{sessionStorage.removeItem(returnKey);}catch(_){}}

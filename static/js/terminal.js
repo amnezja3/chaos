@@ -10471,6 +10471,7 @@ function createBrowser() {
                     </section>
                 ` : `<div class="bn-empty">${escapeHTML(blacknetSignalsError || ghostText('apps.blacknet.empty'))}</div>`}
                 <footer class="bn-footer">
+                    ${document.body.dataset.communicationSafety === '1' && featured?.source === 'ollama_enriched' ? `<button type="button" data-safety-publication>${escapeHTML((window.GhostLocale?.getLocale() || 'pl')==='en'?'Report':'Zgłoś')}</button>` : ''}
                     <span>${String(visibleSignals.length ? activeIndex + 1 : 0).padStart(2, "0")} / ${String(visibleSignals.length).padStart(2, "0")}</span>
                     <span>${ghostLabel('apps.blacknet.navigation')}</span>
                     <span>BLACKNET SIGNAL BUS</span>
@@ -10478,6 +10479,7 @@ function createBrowser() {
             </main>
         `;
         const blacknetStage = results.querySelector('.blacknet-stage');
+        results.querySelector('[data-safety-publication]')?.addEventListener('click',event=>{event.stopPropagation();window.createIdentitySettingsWindow({embedded:'1',kind:'publication',key:featured.id});});
         results.querySelectorAll('[data-blacknet-nav]').forEach(button => {
             button.addEventListener('click', event => {
                 event.stopPropagation();
@@ -17985,6 +17987,7 @@ function createEmailClient() {
                         <div id="${terminalId}-chat-subtitle" class="mail-chat-subtitle">${ghostLabel('apps.cyberner.world_subtitle')}</div>
                     </div>
                     <div class="mail-header-actions">
+                        ${document.body.dataset.communicationSafety === '1' ? `<button type="button" data-safety-open>${escapeHTML((window.GhostLocale?.getLocale() || 'pl') === 'en' ? 'Contact & safety' : 'Kontakt i bezpieczeństwo')}</button>` : ''}
                         <button id="${terminalId}-accept-contact" type="button" style="display:none;">${ghostLabel('apps.cyberner.add_contact')}</button>
                         <button id="${terminalId}-remove-contact" type="button" class="mail-danger" style="display:none;">${ghostLabel('apps.cyberner.remove')}</button>
                     </div>
@@ -18011,6 +18014,7 @@ function createEmailClient() {
     const chatTitle = term.querySelector(`#${terminalId}-chat-title`);
     const chatSubtitle = term.querySelector(`#${terminalId}-chat-subtitle`);
     const acceptBtn = term.querySelector(`#${terminalId}-accept-contact`);
+    term.querySelector('[data-safety-open]')?.addEventListener('click',()=>window.createIdentitySettingsWindow({embedded:'1'}));
     const removeBtn = term.querySelector(`#${terminalId}-remove-contact`);
     const backBtn = term.querySelector(`#${terminalId}-back`);
     const contactForm = term.querySelector(`#${terminalId}-contact-form`);
@@ -18508,6 +18512,7 @@ function createEmailClient() {
     };
 
     const applyMailDeltaPayload = (payload = {}) => {
+        if(payload.safety_refresh){setTimeout(()=>loadMessages({recovery:true,preserveScroll:true}),0);}
         if (window.DetentionUI?.chatReason('world', false) &&
             (payload.channel === 'world' || payload.message?.channel === 'world' || payload.scope === 'group' || payload.thread?.scope === 'group')) return;
         latestMailDeltaVersion = Math.max(latestMailDeltaVersion, Number(payload.delta_version || 0));
@@ -18631,6 +18636,15 @@ function createEmailClient() {
                 </span>
             `;
             window.DetentionUI?.appendNotice(item.querySelector('.mail-message-content'), msg.detention_notice);
+            if (document.body.dataset.communicationSafety === '1' && msg.safety_key) {
+                const tools=document.createElement('div');
+                const report=document.createElement('button');report.type='button';
+                report.textContent=(window.GhostLocale?.getLocale() || 'pl')==='en'?'Report':'Zgłoś';
+                report.onclick=()=>window.createIdentitySettingsWindow({embedded:'1',kind:'message',key:msg.safety_key,scope:currentChat.scope,peer:currentChat.peer});
+                tools.append(report);
+                if(!system&&!own){const block=document.createElement('button');block.type='button';block.textContent=(window.GhostLocale?.getLocale() || 'pl')==='en'?'Contact settings':'Ustawienia kontaktu';block.onclick=()=>window.createIdentitySettingsWindow({embedded:'1',username:msg.sender||sender});tools.append(block);}
+                item.querySelector('.mail-message-content').append(tools);
+            }
             messagesBox.appendChild(item);
         });
         if (shouldStickToBottom) {
@@ -18799,6 +18813,7 @@ function createEmailClient() {
         e.preventDefault();
         const name = contactInput.value.trim();
         if (!name) return;
+        if(document.body.dataset.communicationSafety==='1'){window.createIdentitySettingsWindow({embedded:'1',username:name});return;}
 
         const res = await fetch('/api/contacts', {
             method: 'POST',
@@ -18821,6 +18836,7 @@ function createEmailClient() {
     acceptBtn.addEventListener('click', async () => {
         if (currentChat.scope !== "direct") return;
         const name = currentChat.peer;
+        if(document.body.dataset.communicationSafety==='1'){window.createIdentitySettingsWindow({embedded:'1',username:name});return;}
         const res = await fetch('/api/contacts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

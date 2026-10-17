@@ -1,5 +1,7 @@
 # Sprint 157 — Identity Gateway
 
+[Plan 157.8 — polityka 16+ i bezpieczeństwo komunikacji](sprint_157_8_age_policy_16_communication_safety.md): etapy 157.8.1–157.8.4, kryteria odbioru i decyzje przed aktywacją. Polityka wieku pozostaje wyłączona na produkcji.
+
 [Audyt kodu i ustalone callbacki do rejestracji aplikacji — 16 X 2026](../audits/sprint_157_1_auth_callback_contract.md).
 Kontrakt: `https://chaos.re/auth/google/callback`,
 `https://chaos.re/auth/discord/callback`, `https://chaos.re/auth/github/callback`.
