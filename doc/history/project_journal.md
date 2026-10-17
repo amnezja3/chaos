@@ -1,5 +1,27 @@
 # CHAOS — Project Journal
 
+## 2026-10-17 — 157: publiczne dokumenty prawne PL/EN, projekt
+
+- Dodano publiczne `/privacy` i `/terms`, niezależne od flag Identity,
+  generacji sesji i blokady gameplayu. Responsywny wygląd bramy, spis treści,
+  przełącznik języka i przewijanie. Dokumenty mają jawny status projektu,
+  noindex oraz no-store; nie są jeszcze ostatecznymi warunkami.
+- Operator potwierdził: Michał Cezary Jankiewicz, year2108@chaos.re, wiek 13+.
+  Pozostały adres operatora, odpłatność, procedury dla niepełnoletnich,
+  retencja/logi/backupy, odbiorcy i transfery danych, cookies/analityka,
+  zakres danych AI, reklamacje/moderacja/odwołania i zasady zmian dokumentów.
+- Projekt odnosi się do rzeczywistego działania kont, OAuth, sesji, PWA
+  i usuwania. Nie zmienia zgody 157-v1 ani nie udaje, że gracze zaakceptowali
+  nowy regulamin. Wiek 13+ w dokumencie nie wdraża jeszcze kontroli wieku.
+- Źródło do opracowania projektu: RODO, w szczególności art. 6, 8, 13–22:
+  https://eur-lex.europa.eu/eli/reg/2016/679/oj
+  Nie deklarujemy kompletności prawnej na podstawie samej implementacji.
+- Linki w logowaniu i obu rejestracjach otwierają natywne okno dialogowe
+  wewnątrz strony; zamknięcie/Escape zachowuje formularz. Bez nowej karty.
+- Lokalny Playwright Chromium (MCP niedostępny): publiczne strony 200,
+  PL desktop i EN mobile, brak overflow/błędów JS, dialog i zachowanie nicku
+  PASS. Przeglądarkę i fixture zamknięto. Bez wdrożenia i migracji.
+
 ## 2026-10-17 — 157: aktywne bramki w rejestracji lokalnej
 
 - Naprawiono przyciski dostawców na `/register`: skrypt obsługi kliknięć

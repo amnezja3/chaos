@@ -19999,6 +19999,7 @@ SESSION_GENERATION_HEADER = "X-Chaos-Session-Generation"
 SESSION_GENERATION_USER_HEADER = "X-Chaos-Session-User"
 SESSION_GENERATION_ERROR_HEADER = "X-Chaos-Session-Error"
 SESSION_GENERATION_PUBLIC_ENDPOINTS = {
+    "legal_page",
     "launch", "launch_status", "launch_bootstrap",
     "installation_manifest", "installation_worker", "installation_shortcut",
     "static",
@@ -21011,6 +21012,8 @@ def get_ghostsignal_show_service():
 
 
 def ghostsignal_request_is_exempt():
+    if request.endpoint == 'legal_page':
+        return True
     if str(request.endpoint or '').startswith('identity.'):
         return True
     if request.endpoint in {'launch', 'launch_status', 'launch_bootstrap', 'desktop_shell', 'installation_manifest', 'installation_worker', 'installation_shortcut'} or getattr(g, 'launch_public_response', False):
@@ -21186,6 +21189,22 @@ def index():
 @app.route("/register")
 def register_page():
     return render_template("register.html")
+
+
+@app.get('/privacy')
+@app.get('/terms')
+def legal_page():
+    from legal_documents import PRIVACY, TERMS, VERSION
+    locale = request.args.get('locale')
+    if locale not in ('pl', 'en'):
+        locale = request.accept_languages.best_match(['pl', 'en']) or 'pl'
+    kind = 'privacy' if request.path == '/privacy' else 'terms'
+    response = make_response(render_template('legal_document.html', legal_locale=locale,
+        legal_kind=kind, legal_sections=PRIVACY if kind == 'privacy' else TERMS,
+        legal_version=VERSION))
+    response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{2,23}$")

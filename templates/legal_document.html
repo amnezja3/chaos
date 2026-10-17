@@ -1,0 +1,14 @@
+{% set en = legal_locale == 'en' %}
+{% set title = ('Privacy policy' if en else 'Polityka prywatności') if legal_kind == 'privacy' else ('Terms of use' if en else 'Warunki korzystania') %}
+<!doctype html><html lang="{{ legal_locale }}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>{{ title }} · CHAOS</title><link rel="icon" href="/static/images/chaos_favicon.svg">
+<link rel="stylesheet" href="/static/css/legal.css?v=157-1"></head>
+<body class="legal-page"><main class="legal-document">
+<header><a class="legal-brand" href="/launch">CHAOS</a><nav aria-label="{{ 'Language' if en else 'Język' }}"><a href="/{{ legal_kind }}?locale=pl" lang="pl" {% if not en %}aria-current="page"{% endif %}>PL</a> / <a href="/{{ legal_kind }}?locale=en" lang="en" {% if en %}aria-current="page"{% endif %}>EN</a></nav></header>
+<p class="legal-kicker">GHOST SYSTEM / {{ legal_version }}</p><h1>{{ title }}</h1>
+<p class="legal-draft" role="note">{{ 'Draft for review — contact details and operating rules remain to be completed. Not yet the final published document.' if en else 'Projekt do weryfikacji — dane kontaktowe i zasady działania wymagają uzupełnienia. To jeszcze nie jest ostateczny dokument.' }}</p>
+<nav class="legal-toc" aria-label="{{ 'Contents' if en else 'Spis treści' }}">{% for pl,en_title,pl_text,en_text in legal_sections %}<a href="#section-{{ loop.index }}">{{ loop.index }}. {{ en_title if en else pl }}</a>{% endfor %}</nav>
+{% for pl,en_title,pl_text,en_text in legal_sections %}<section id="section-{{ loop.index }}"><h2>{{ loop.index }}. {{ en_title if en else pl }}</h2><p>{{ en_text if en else pl_text }}</p></section>{% endfor %}
+<footer><a href="/privacy?locale={{ legal_locale }}">{{ 'Privacy policy' if en else 'Polityka prywatności' }}</a><a href="/terms?locale={{ legal_locale }}">{{ 'Terms of use' if en else 'Warunki korzystania' }}</a><a href="/launch">{{ 'Back to CHAOS' if en else 'Wróć do CHAOS' }}</a></footer>
+</main></body></html>
