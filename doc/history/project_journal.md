@@ -1,5 +1,47 @@
 # CHAOS — Project Journal
 
+## 2026-10-16 — 157: Identity Gateway i poczta w adminie, przed wdrożeniem
+
+- Zaimplementowano Google/Discord/GitHub/Steam, wspólne sesje, atomową
+  rejestrację, powiązania kont, potwierdzanie e-maila i świeży reauth.
+- Admin → Identity Gateway udostępnia SMTP: host, port, TLS, nadawcę,
+  login i szyfrowane hasło; zapis bez restartu, test wysyłki, brak ujawniania
+  sekretu w API. Bez danych operatora poczta pozostaje wyłączona.
+- Usuwanie korzysta ze wspólnej ścieżki, zachowuje kopie wiadomości odbiorców
+  i blokuje ponowne użycie usuniętej tożsamości. Stare ustawienia e-maila
+  oraz polecenie usuwania kierują do obsługi Gateway po migracji.
+- Lokalna regresja 146 testów PASS; końcowe przypadki i ograniczenia w
+  `doc/audits/sprint_157_evidence.md`. Playwright: admin desktop/mobile,
+  konfiguracja poczty, konto i rejestracja EN na izolowanych danych.
+- Przygotowano `doc/runbooks/identity_gateway_157.md`: backup, dry-run,
+  apply/check, flagi, odbiory i rollback bez cofania aktywnego świata.
+- Brak wdrożenia. Rzeczywiści dostawcy, SMTP i fizyczny powrót PWA pozostają
+  do odbioru. Nie nadano pełnego PASS 157.
+
+## 2026-10-16 — 157.2: lokalny schemat i jednorazowe intencje
+
+- Cztery tabele tożsamości, stanu bezpieczeństwa, zgód i intencji; FK i
+  ograniczenia unikalności. Bez zmiany profili, ID i potwierdzania e-maili legacy.
+- Migrator dry-run/apply z kontrolą integralności i porównaniem pierwotnych danych.
+  Dry-run używa snapshotu w pamięci, nie drugiej instancji gry.
+- Pakiet regresji 25/25 PASS, następnie rozszerzony store 7/7 PASS: także
+  konkurencyjne zużycie tokenu i rollback nowego konta wraz z intencją.
+- Brak callbacków, wdrożenia i pełnego PASS 157.2; szczegóły oraz pozostały zakres
+  w `doc/audits/sprint_157_2_data_foundation.md`.
+
+## 2026-10-16 — 157.1: rozpoczęcie Identity Gateway
+
+- Konfiguracja czterech dostawców i stałych callbacków, flagi OFF, status bez
+  sekretów. Poczta zgodnie z decyzją autora: puste pola SMTP, disabled;
+  mock wyłącznie testowy, bez deklarowania dostarczenia wiadomości.
+- Narzędzie audytu legacy read-only i normalizacja kluczy bez zmiany kont.
+  Lokalnie 21 kont, brak kolizji nick/e-mail; raport nie zastępuje produkcji.
+- Naprawiono akceptację pustych poświadczeń w porównaniu legacy.
+  19 testów fundamentu, poświadczeń i rejestracji PASS.
+- Szczegóły i otwarte warunki: `doc/audits/sprint_157_1_foundation.md`.
+  Adaptery, migracja i transport poczty jeszcze niewdrożone. Bez zmian serwera,
+  bez pełnego PASS 157.1/157.
+
 ## 2026-10-16 — 156.7: grafika preloadera systemu
 
 Nowy `static/images/entry/preloader-156-7.png` (1536×1024) zachowuje operatora

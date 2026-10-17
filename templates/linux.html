@@ -16,7 +16,7 @@
     <script src="{{ url_for('static', filename='js/creator_editor.js') }}?v=155-3-0"></script>
 {% include 'installation_head.html' %}
 </head>
-<body>
+<body data-identity-gateway="{{ '1' if identity_gateway_enabled else '0' }}">
   {% include "_ghost_locale.html" %}
   <div id="boot-preloader" class="boot-preloader" aria-live="polite">
     <div class="boot-panel">

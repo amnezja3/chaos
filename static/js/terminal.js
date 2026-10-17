@@ -3475,6 +3475,10 @@ function attachTerminalInputHandler(input, content) {
                 }
 
                 if (pending.action === "userdel") {
+                    if (document.body.dataset.identityGateway === '1') {
+                        window.location.assign('/account/identity');
+                        return;
+                    }
                     const deleteRes = await fetch('/api/users/delete', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -4044,6 +4048,10 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
             }
 
             if (pending.action === "userdel") {
+                if (document.body.dataset.identityGateway === '1') {
+                    window.location.assign('/account/identity');
+                    return false;
+                }
                 const deleteRes = await fetch('/api/users/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -12259,6 +12267,7 @@ function createSettings() {
                     <h3 data-ghost-i18n="settings.account"></h3>
                     <span data-ghost-i18n="settings.account_hint"></span>
                 </div>
+                ${document.body.dataset.identityGateway === '1' ? '<p><a href="/account/identity" target="_blank" rel="noopener">Identity Gateway · PL / EN</a></p>' : ''}
                 <form class="settings-form" data-settings-password-form>
                     <label>
                         <span data-ghost-i18n="settings.current_password"></span>
@@ -12270,7 +12279,7 @@ function createSettings() {
                     </label>
                     <button type="submit" data-ghost-i18n="settings.change_password"></button>
                 </form>
-                <form class="settings-form" data-settings-email-form>
+                <form class="settings-form" data-settings-email-form ${document.body.dataset.identityGateway === '1' ? 'hidden' : ''}>
                     <label>
                         <span data-ghost-i18n="settings.email"></span>
                         <input type="email" autocomplete="email" data-settings-email placeholder="operator@chaos.net">

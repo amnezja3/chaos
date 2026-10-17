@@ -3,10 +3,15 @@
 [Audyt kodu i ustalone callbacki do rejestracji aplikacji — 16 X 2026](../audits/sprint_157_1_auth_callback_contract.md).
 Kontrakt: `https://chaos.re/auth/google/callback`,
 `https://chaos.re/auth/discord/callback`, `https://chaos.re/auth/github/callback`.
-Adresy bez końcowego ukośnika; endpointy oczekują implementacji. Przegląd kodu
-nie oznacza pełnego PASS 157.1 ani uruchomienia OAuth.
+Adresy bez końcowego ukośnika; endpointy zaimplementowano lokalnie, także
+`https://chaos.re/auth/steam/callback`. Odbiór rzeczywistych dostawców pozostaje przed nami.
 
-Status: **ZAPLANOWANY**, 15 X 2026. Bez implementacji i zmian na serwerze.
+Status: **IMPLEMENTACJA LOKALNA — PRZED WDROŻENIEM**, 16 X 2026.
+Adaptery, rejestracja, zarządzanie kontem i poczta w adminie są zaimplementowane.
+Bez zmian na serwerze; pełny PASS wymaga odbiorów opisanych w
+[macierzy dowodów](../audits/sprint_157_evidence.md) i
+[procedurze wdrożenia](../runbooks/identity_gateway_157.md).
+[Wyniki i otwarte punkty 157.1](../audits/sprint_157_1_foundation.md).
 
 Przygotowanie UI w 156.7: panel logowania zawiera cztery przyciski w kolejności
 Google / GitHub / Discord / Steam, z ikonami i kolorami według wizualizacji.
@@ -44,10 +49,10 @@ odzyskiwania kont pozostają poza pierwszym wydaniem.
 ## Zależności i stan zastany
 
 [156](sprint_156_universal_installation_persistent_session.md) pozostaje osobnym
-sprintem: 156.1 i 156.2 gotowe lokalnie; start aplikacji i instalacja PWA wymagają
-jeszcze 156.3–156.6. Audyt 157 można przygotować wcześniej, ale odbiór integracji
-sesji/PWA wymaga gotowego i odebranego fundamentu 156. Ten plan nie uruchamia
-implementacji 157 ani nie nadaje PASS sprintom 155/156. 149–152 nadal zamrożone.
+sprintem: trwałe sesje i start wdrożono; użytkownik potwierdził działanie Windows
+i wybranych urządzeń Android. Linux/iOS pozostają do odbioru. Integrację OAuth
+z PWA trzeba sprawdzić osobno. Użytkownik autoryzował rozpoczęcie 157;
+nie nadaje to PASS sprintom 155/156. 149–152 nadal zamrożone.
 
 Wstępny przegląd kodu z 15 X 2026:
 
@@ -122,8 +127,11 @@ oraz [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html).
 
 ## Etapy realizacji
 
-Wszystkie etapy poniżej mają status **DO ZROBIENIA**. Numeracja oznacza kolejność
-prac wewnątrz pierwszego wydania z czterema dostawcami.
+157.1–157.5 i 157.7: implementacja i lokalna weryfikacja wykonane; odbiór
+produkcyjny oczekuje. 157.6: wspólna sesja podłączona, fizyczne PWA do odbioru.
+157.8: regresja lokalna wykonana, macierz pozostaje otwarta. 157.9: procedura
+gotowa, wdrożenia nie wykonano. Poniższe listy opisują zakres i kryteria odbioru,
+nie deklarację pełnego PASS.
 
 ### 157.1 — audyt i kontrakt Identity Gateway
 
@@ -142,6 +150,9 @@ prac wewnątrz pierwszego wydania z czterema dostawcami.
 lista ustawień/sekretów i jawnie zapisane decyzje. Bez zmian świata gry.
 
 ### 157.2 — dane, migracja i operacje atomowe
+
+[Lokalny schemat, migrator i dowody transakcyjne](../audits/sprint_157_2_data_foundation.md).
+Nie nadano pełnego PASS: usługa rejestracji profilu i uprawnienia reauth pozostają otwarte.
 
 - Dodać `user_identities`: ID, FK do istniejącego `users.id`, provider,
   `provider_user_id` TEXT, opcjonalny provider_email, email_verified,

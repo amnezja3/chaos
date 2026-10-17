@@ -1,0 +1,37 @@
+{% macro tr(pl,en) %}{{ en if identity_locale == 'en' else pl }}{% endmacro %}
+<!doctype html><html lang="{{ identity_locale }}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>CHAOS · Identity Gateway</title>
+<link rel="icon" href="/static/pwa/icon-192.png">
+<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157"></head>
+<body><main class="identity-shell"><header><a href="/?login=1">CHAOS</a><span>IDENTITY GATEWAY</span></header>
+<p id="identity-status" role="status" aria-live="polite"></p>
+{% if mode == 'error' %}
+<h1>{{ tr('Nie udało się dokończyć logowania','Sign-in could not be completed') }}</h1>
+<p>{{ tr('Wróć do okna lub instalacji CHAOS, w której rozpoczęto logowanie, i spróbuj ponownie. Zmiana przeglądarki lub wygaśnięcie próby wymaga nowego logowania.','Return to the CHAOS window or installation where you started and try again. Switching browsers or an expired attempt requires a new sign-in.') }}</p>
+<p data-identity-error="{{ identity_error }}"></p><a class="button" href="/?login=1">{{ tr('Wróć do bramy','Return to gateway') }}</a>
+{% elif mode == 'register' %}
+<h1>{{ tr('Dokończ profil operatora','Complete your operator profile') }}</h1>
+<p>{{ tr('Jedno konto, jedna postać. Jeśli masz już konto CHAOS, zaloguj się do niego i podłącz dostawcę w ustawieniach.','One account, one character. Already have a CHAOS account? Sign in to it and link the provider in settings.') }}</p>
+<form id="identity-registration"><label>{{ tr('Nick publiczny','Public nickname') }}<input name="nick" required maxlength="32" autocomplete="nickname"></label>
+<label>E-mail<input name="email" type="email" required maxlength="254" value="{{ registration_email }}"></label>
+<p>{{ tr('Potwierdzony adres','Verified address') }}: <span id="verified-email">{{ verified_email or '—' }}</span></p>
+<div class="row"><button type="button" id="registration-send">{{ tr('Wyślij kod','Send code') }}</button><input id="registration-code" aria-label="{{ tr('Kod z e-maila','Email code') }}" inputmode="numeric" autocomplete="one-time-code" maxlength="8"><button type="button" id="registration-verify">{{ tr('Potwierdź adres','Verify address') }}</button></div>
+<div class="row"><label>{{ tr('Frakcja','Faction') }}<select name="faction" required><option value="">—</option>{% for id,name in factions.items() %}<option value="{{ id }}">{{ name }}</option>{% endfor %}</select></label>
+<label>{{ tr('Rola','Role') }}<select name="role" required><option value="">—</option></select></label></div><script id="identity-roles" type="application/json">{{ roles|tojson }}</script>
+<details><summary>{{ tr('Warunki konta','Account terms') }} · {{ terms_version }}</summary><p>{{ tr('Konto reprezentuje jednego operatora CHAOS. Nie udostępniaj danych logowania. Połączone metody otwierają tę samą postać. Nowe logowanie unieważnia poprzednią sesję. Usunięcie konta jest trwałe; historia wspólnego świata i kopie wiadomości innych graczy pozostają.','Your account represents one CHAOS operator. Do not share credentials. Linked methods open the same character. A new login replaces the previous session. Account deletion is permanent; shared world history and other players’ message copies remain.') }}</p></details>
+<label class="check"><input type="checkbox" name="terms" value="{{ terms_version }}" required>{{ tr('Akceptuję powyższe warunki konta','I accept the account terms above') }}</label>
+<button type="submit">{{ tr('Utwórz operatora','Create operator') }}</button></form>
+{% else %}
+<h1>{{ tr('Konto i bezpieczeństwo','Account and security') }}</h1>
+<p>{{ tr('Login lokalny','Local login') }}: <strong id="local-username"></strong> · <span id="password-state"></span></p>
+<p>{{ tr('Potwierdzony e-mail','Verified email') }}: <span id="verified-email"></span></p>
+{% include 'identity_reauth.html' %}
+<h2>{{ tr('Połączone konta','Linked accounts') }}</h2><div id="identity-methods"></div>
+<h2>{{ tr('Hasło lokalne','Local password') }}</h2><form id="identity-password"><label>{{ tr('Nowe hasło','New password') }}<input type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>{{ tr('Powtórz hasło','Repeat password') }}<input type="password" name="confirm" required autocomplete="new-password"></label><button>{{ tr('Zapisz i wyloguj','Save and sign out') }}</button></form>
+<h2>E-mail</h2><form id="identity-email"><label>{{ tr('Adres do potwierdzenia','Address to verify') }}<input type="email" name="email" required></label><button>{{ tr('Wyślij kod na adres','Send code to address') }}</button></form>
+<form id="identity-email-confirm"><label>{{ tr('Kod potwierdzenia adresu','Address verification code') }}<input name="code" required maxlength="8" inputmode="numeric" autocomplete="one-time-code"></label><button>{{ tr('Potwierdź adres','Verify address') }}</button></form>
+<section class="danger"><h2>{{ tr('Usunięcie konta','Delete account') }}</h2><p>{{ tr('Nieodwracalne: utracisz postać i dostęp. Kopie wiadomości innych graczy oraz historia świata pozostają. Zewnętrzne konta dostawców nie są usuwane.','Permanent: you lose your character and access. Other players’ message copies and world history remain. Provider accounts are not deleted.') }}</p>
+<form id="identity-delete"><label>{{ tr('Wpisz swój login, aby potwierdzić','Type your login to confirm') }}<input name="confirm" required autocomplete="off"></label><button>{{ tr('Usuń konto trwale','Permanently delete account') }}</button></form></section>
+<a href="/launch">{{ tr('Wróć do gry','Return to game') }}</a>
+{% endif %}
+</main><script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script><script src="/static/js/identity_gateway.js?v=157" defer></script></body></html>

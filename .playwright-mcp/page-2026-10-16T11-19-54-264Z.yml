@@ -1,0 +1,39 @@
+- main [ref=f2e2]:
+  - generic [ref=f2e3]:
+    - link "CHAOS" [ref=f2e4] [cursor=pointer]:
+      - /url: /?login=1
+    - text: IDENTITY GATEWAY
+  - status
+  - heading "Complete your operator profile" [level=1] [ref=f2e5]
+  - paragraph [ref=f2e6]: One account, one character. Already have a CHAOS account? Sign in to it and link the provider in settings.
+  - generic [ref=f2e7]:
+    - generic [ref=f2e8]:
+      - text: Public nickname
+      - textbox "Public nickname" [ref=f2e9]
+    - generic [ref=f2e10]:
+      - text: E-mail
+      - textbox "E-mail" [ref=f2e11]: browser@example.test
+    - paragraph [ref=f2e12]: "Verified address: browser@example.test"
+    - generic [ref=f2e13]:
+      - button "Send code" [ref=f2e14] [cursor=pointer]
+      - textbox "Email code" [ref=f2e15]
+      - button "Verify address" [ref=f2e16] [cursor=pointer]
+    - generic [ref=f2e17]:
+      - generic [ref=f2e18]:
+        - text: Faction
+        - combobox "Faction" [ref=f2e19]:
+          - option "—" [selected]
+          - option "Guardians of Order"
+          - option "Echo of Freedom"
+          - option "VIREX"
+          - option "Ghost Network"
+      - generic [ref=f2e20]:
+        - text: Role
+        - combobox "Role" [ref=f2e21]:
+          - option "—" [selected]
+    - group [ref=f2e22]:
+      - generic "Account terms · 157-v1" [ref=f2e23]
+    - generic [ref=f2e24]:
+      - checkbox "I accept the account terms above" [ref=f2e25]
+      - text: I accept the account terms above
+    - button "Create operator" [ref=f2e26] [cursor=pointer]

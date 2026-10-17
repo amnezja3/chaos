@@ -1,0 +1,100 @@
+- generic [active] [ref=f4e1]:
+  - banner [ref=f4e2]:
+    - link "CHAOS / ADMIN" [ref=f4e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+    - link "Return to game ↗" [ref=f4e4] [cursor=pointer]:
+      - /url: /desktop?_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+  - generic [ref=f4e5]:
+    - navigation "Administration sections" [ref=f4e6]:
+      - link "Users" [ref=f4e7] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "GhostLab" [ref=f4e8] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "Radio" [ref=f4e9] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "Narrative models" [ref=f4e10] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "Territories" [ref=f4e11] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "Vulnerabilities" [ref=f4e12] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "Bug reports" [ref=f4e13] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+      - link "Identity Gateway" [ref=f4e14] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=77e1fe906877bfc64886dd04b2707855568f235db61b149029f38faf06706983
+    - main [ref=f4e15]:
+      - generic [ref=f4e16]:
+        - heading "Identity Gateway" [level=1] [ref=f4e17]
+        - status
+        - heading "Providers" [level=2] [ref=f4e18]
+        - group "Confirm your identity before making changes" [ref=f4e19]:
+          - generic [ref=f4e21]:
+            - text: Current password (if configured)
+            - textbox "Current password (if configured)" [ref=f4e22]
+          - paragraph [ref=f4e23]: "Without a password: select an action, send a code to your verified email, enter it and perform that action."
+          - generic [ref=f4e24]:
+            - generic [ref=f4e25]:
+              - text: Action
+              - combobox "Action" [ref=f4e26]:
+                - option "Link" [selected]
+                - option "Unlink"
+                - option "Password"
+                - option "E-mail"
+                - option "Deletion"
+                - option "SMTP"
+            - button "Send code" [ref=f4e27] [cursor=pointer]
+          - generic [ref=f4e28]:
+            - text: Reauthentication code
+            - textbox "Reauthentication code" [ref=f4e29]
+        - heading "Mail configuration" [level=2] [ref=f4e30]
+        - paragraph [ref=f4e31]: The password is encrypted on the server. An empty field preserves the stored secret. Changing the server key requires entering the SMTP password again.
+        - generic [ref=f4e32]:
+          - generic [ref=f4e33]:
+            - text: Mode
+            - combobox "Mode" [ref=f4e34]:
+              - option "Disabled" [selected]
+              - option "SMTP"
+          - generic [ref=f4e35]:
+            - generic [ref=f4e36]:
+              - text: Host SMTP
+              - textbox "Host SMTP" [ref=f4e37]
+            - generic [ref=f4e38]:
+              - text: Port
+              - spinbutton "Port" [ref=f4e39]: "587"
+          - generic [ref=f4e40]:
+            - text: TLS
+            - combobox "TLS" [ref=f4e41]:
+              - option "STARTTLS" [selected]
+              - option "TLS / SSL"
+          - generic [ref=f4e42]:
+            - text: Sender address
+            - textbox "Sender address" [ref=f4e43]
+          - generic [ref=f4e44]:
+            - text: Login SMTP
+            - textbox "Login SMTP" [ref=f4e45]
+          - generic [ref=f4e46]:
+            - text: SMTP password
+            - textbox "SMTP password" [ref=f4e47]
+          - paragraph
+          - generic [ref=f4e48]:
+            - checkbox "Remove saved password" [ref=f4e49]
+            - text: Remove saved password
+          - button "Save configuration" [ref=f4e50] [cursor=pointer]
+        - generic [ref=f4e51]:
+          - generic [ref=f4e52]:
+            - text: Test email recipient
+            - textbox "Test email recipient" [ref=f4e53]
+          - button "Send SMTP test" [ref=f4e54] [cursor=pointer]
+        - heading "Account connections" [level=2] [ref=f4e55]
+        - generic [ref=f4e56]:
+          - generic [ref=f4e57]:
+            - text: Login
+            - textbox "Login" [ref=f4e58]
+          - button "Inspect" [ref=f4e59] [cursor=pointer]
+        - heading "Security events (90 days)" [level=2] [ref=f4e60]
+        - heading "Delete account" [level=2] [ref=f4e61]
+        - generic [ref=f4e62]:
+          - generic [ref=f4e63]:
+            - text: Account login — confirm permanent deletion
+            - textbox "Account login — confirm permanent deletion" [ref=f4e64]
+          - button "Delete account" [ref=f4e65] [cursor=pointer]

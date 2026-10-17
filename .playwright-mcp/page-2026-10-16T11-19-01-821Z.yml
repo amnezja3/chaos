@@ -1,0 +1,105 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "CHAOS / ADMIN" [ref=e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+    - generic [ref=e4]: CENTRUM ADMINISTRACYJNE
+    - link "Wróć do gry ↗" [ref=e5] [cursor=pointer]:
+      - /url: /desktop?_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+  - generic [ref=e6]:
+    - navigation "Sekcje administracji" [ref=e7]:
+      - link "Użytkownicy" [ref=e8] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "GhostLab" [ref=e9] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "Radio" [ref=e10] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "Modele narracji" [ref=e11] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "Terytoria" [ref=e12] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "Podatności" [ref=e13] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "Zgłoszenia błędów" [ref=e14] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - link "Identity Gateway" [ref=e15] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=a5ff665f548c94749a43adf8de363a6fed66d2db02c75f9e14558cf0368f73ab
+      - paragraph [ref=e16]: GHOST NETWORKPanel operatora
+    - main [ref=e17]:
+      - generic [ref=e18]:
+        - heading "Identity Gateway" [level=1] [ref=e19]
+        - status [ref=e20]: Gotowe.
+        - heading "Dostawcy" [level=2] [ref=e21]
+        - generic [ref=e22]: "google: włączony · discord: włączony · github: włączony · steam: włączony"
+        - group "Potwierdź tożsamość przed zmianą" [ref=e23]:
+          - generic [ref=e25]:
+            - text: Obecne hasło (jeśli ustawione)
+            - textbox "Obecne hasło (jeśli ustawione)" [ref=e26]
+          - paragraph [ref=e27]: "Bez hasła: wybierz operację, wyślij kod na potwierdzony e-mail, wpisz kod i wykonaj wybraną zmianę."
+          - generic [ref=e28]:
+            - generic [ref=e29]:
+              - text: Operacja
+              - combobox "Operacja" [ref=e30]:
+                - option "Podłączenie" [selected]
+                - option "Odłączenie"
+                - option "Hasło"
+                - option "E-mail"
+                - option "Usunięcie"
+                - option "SMTP"
+            - button "Wyślij kod" [ref=e31] [cursor=pointer]
+          - generic [ref=e32]:
+            - text: Kod ponownego uwierzytelnienia
+            - textbox "Kod ponownego uwierzytelnienia" [ref=e33]
+        - heading "Konfiguracja poczty" [level=2] [ref=e34]
+        - paragraph [ref=e35]: Hasło jest szyfrowane na serwerze. Puste pole zachowuje zapisany sekret. Zmiana klucza serwera wymaga ponownego wpisania hasła SMTP.
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - text: Tryb
+            - combobox "Tryb" [ref=e38]:
+              - option "Wyłączona"
+              - option "SMTP"
+          - generic [ref=e39]:
+            - generic [ref=e40]:
+              - text: Host SMTP
+              - textbox "Host SMTP" [ref=e41]
+            - generic [ref=e42]:
+              - text: Port
+              - spinbutton "Port" [ref=e43]: "587"
+          - generic [ref=e44]:
+            - text: TLS
+            - combobox "TLS" [ref=e45]:
+              - option "STARTTLS" [selected]
+              - option "TLS / SSL"
+          - generic [ref=e46]:
+            - text: Adres nadawcy
+            - textbox "Adres nadawcy" [ref=e47]
+          - generic [ref=e48]:
+            - text: Login SMTP
+            - textbox "Login SMTP" [ref=e49]
+          - generic [ref=e50]:
+            - text: Hasło SMTP
+            - textbox "Hasło SMTP" [ref=e51]
+          - paragraph [ref=e52]: "Sekret SMTP: brak"
+          - generic [ref=e53]:
+            - checkbox "Usuń zapisane hasło" [ref=e54]
+            - text: Usuń zapisane hasło
+          - button "Zapisz konfigurację" [ref=e55] [cursor=pointer]
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - text: Odbiorca wiadomości testowej
+            - textbox "Odbiorca wiadomości testowej" [ref=e58]
+          - button "Wyślij test SMTP" [ref=e59] [cursor=pointer]
+        - heading "Połączenia konta" [level=2] [ref=e60]
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - text: Login
+            - textbox "Login" [ref=e63]
+          - button "Sprawdź" [ref=e64] [cursor=pointer]
+        - generic [ref=e65]: "[]"
+        - heading "Zdarzenia bezpieczeństwa (90 dni)" [level=2] [ref=e66]
+        - generic [ref=e67]: "[]"
+        - heading "Usunięcie konta" [level=2] [ref=e68]
+        - generic [ref=e69]:
+          - generic [ref=e70]:
+            - text: Login konta — potwierdzenie trwałego usunięcia
+            - textbox "Login konta — potwierdzenie trwałego usunięcia" [ref=e71]
+          - button "Usuń konto" [ref=e72] [cursor=pointer]

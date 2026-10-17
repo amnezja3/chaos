@@ -1,7 +1,7 @@
 {# Visual preparation for 157. Enable only after server-side provider integration. #}
 <section class="identity-providers" aria-describedby="identity-provider-status" data-ghost-aria-label="entry.identity.methods">
   {% for provider, name in [('google', 'Google'), ('github', 'GitHub'), ('discord', 'Discord'), ('steam', 'Steam')] %}
-  <button type="button" class="identity-button identity-button--{{ provider }}" data-identity-provider="{{ provider }}" disabled aria-describedby="identity-provider-status">
+  <button type="button" class="identity-button identity-button--{{ provider }}" data-identity-provider="{{ provider }}" {% if not identity_provider_ready.get(provider, false) %}disabled{% endif %} aria-describedby="identity-provider-status">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       {% if provider == 'google' %}
       <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z"/>
@@ -20,6 +20,7 @@
     <span data-ghost-i18n="entry.identity.{{ provider }}">Continue with {{ name }}</span>
   </button>
   {% endfor %}
-  <p id="identity-provider-status" class="identity-provider-status" data-ghost-i18n="{{ 'entry.identity.registration_pending' if identity_provider_registration else 'entry.identity.pending' }}">{{ 'External registration is coming soon. Create your CHAOS account below.' if identity_provider_registration else 'External sign-in is coming soon. Use your CHAOS account below.' }}</p>
+  {% if not identity_provider_ready.values()|select|list %}<p id="identity-provider-status" class="identity-provider-status" data-ghost-i18n="{{ 'entry.identity.registration_pending' if identity_provider_registration else 'entry.identity.pending' }}">{{ 'External registration is coming soon. Create your CHAOS account below.' if identity_provider_registration else 'External sign-in is coming soon. Use your CHAOS account below.' }}</p>{% else %}<span id="identity-provider-status"></span>{% endif %}
 </section>
 <div class="identity-divider"><span data-ghost-i18n="entry.identity.or">or</span></div>
+<script src="/static/js/identity_start.js?v=157" defer></script>

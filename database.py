@@ -897,6 +897,9 @@ def hash_password(password, salt=None):
 
 
 def verify_password(password, stored_password):
+    # Absent credentials are not a local authentication method (including legacy).
+    if not isinstance(password, str) or not password or not isinstance(stored_password, str) or not stored_password:
+        return False
     if not is_password_hash(stored_password):
         return hmac.compare_digest(str(stored_password or ""), str(password or ""))
 
@@ -959,11 +962,13 @@ class _RuntimeConnection:
 
 
 @contextmanager
-def atomic_runtime_transaction(db_path):
+def atomic_runtime_transaction(db_path, *, foreign_keys=False):
     """Opt-in: join bounded stores in one transaction, isolated per request/thread."""
     if _runtime_transaction.get() is not None:
         raise RuntimeError('A gameplay transaction is already active')
     with db_connect(db_path) as conn:
+        if foreign_keys:
+            conn.execute('PRAGMA foreign_keys=ON')
         conn.execute('BEGIN IMMEDIATE')
         token = _runtime_transaction.set((os.path.normcase(os.path.abspath(db_path)), conn))
         try:
@@ -3849,6 +3854,8 @@ class UserStore:
                             now,
                             prepared=prepared_lkg,
                         )
+                        from identity_gateway.service import sync_profile
+                        sync_profile(conn, candidate, current_profile)
                 if retry:
                     continue
                 prepared = (
@@ -4168,6 +4175,9 @@ class UserStore:
                             "reset_receipt" if destructive["destructive"] else "validated"
                         ),
                     })
+
+                from identity_gateway.service import sync_profile
+                sync_profile(conn, candidate, current_profile)
 
             _profile_event("profile.write_applied", username, source, **telemetry)
             _profile_event(
@@ -4655,6 +4665,12 @@ class UserStore:
             ).fetchone()
             if not row:
                 return False
+            from identity_gateway.service import ready
+            if ready(conn):
+                method = conn.execute('''SELECT local_password_enabled FROM identity_account_security
+                    WHERE user_id=(SELECT id FROM users WHERE username=?)''',(username,)).fetchone()
+                if method is not None and not method[0]:
+                    return False
             stored_password = row["password"] or ""
             if not verify_password(password, stored_password):
                 return False
@@ -4724,14 +4740,19 @@ class UserStore:
             )
         return True
 
-    def delete_user(self, username, reason="account_deleted"):
+    def delete_user(self, username, reason="account_deleted", *, preserve_peer_history=False, identity_actor_id=None):
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT profile_revision FROM users WHERE username = ?",
+                "SELECT id, profile_revision FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
             if not row:
                 return False
+
+            from identity_gateway.service import ready, retire
+            if ready(conn):
+                retire(conn,row['id'],identity_actor_id)
+                preserve_peer_history=True
 
             conn.execute(
                 """
@@ -4754,17 +4775,18 @@ class UserStore:
                 ),
             )
 
-            conn.execute(
-                "DELETE FROM chat_messages WHERE owner_username = ? OR peer_name = ?",
-                (username, username),
-            )
+            if preserve_peer_history:
+                conn.execute('DELETE FROM chat_messages WHERE owner_username=?',(username,))
+            else:
+                conn.execute("DELETE FROM chat_messages WHERE owner_username = ? OR peer_name = ?",(username, username))
             conn.execute(
                 "DELETE FROM contacts WHERE owner_username = ? OR contact_name = ?",
                 (username, username),
             )
             conn.execute("DELETE FROM mail_presence WHERE username = ?", (username,))
             conn.execute("DELETE FROM kv_store WHERE key = ?", (f"mail_seed:{username}",))
-            conn.execute("DELETE FROM area_events WHERE owner_username = ? OR actor_username = ?", (username, username))
+            if not preserve_peer_history:
+                conn.execute("DELETE FROM area_events WHERE owner_username = ? OR actor_username = ?", (username, username))
             conn.execute("DELETE FROM player_areas WHERE owner_username = ?", (username,))
             conn.execute("DELETE FROM captured_targets WHERE owner_username = ?", (username,))
             conn.execute("DELETE FROM player_marked_targets WHERE username = ?", (username,))
@@ -4779,10 +4801,11 @@ class UserStore:
             conn.execute("DELETE FROM player_launcher_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launch_entries WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_launch_risk_events WHERE username = ?", (username,))
-            conn.execute(
-                "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
-                (username, username),
-            )
+            if not preserve_peer_history:
+                conn.execute(
+                    "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
+                    (username, username),
+                )
             conn.execute("DELETE FROM users WHERE username = ?", (username,))
             return True
 

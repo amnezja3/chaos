@@ -9566,6 +9566,8 @@ def readonly_ui_locale():
 
 @app.before_request
 def detention_request_gate():
+    if str(request.endpoint or '').startswith('identity.'):
+        return None  # Account access is not a gameplay action; gateway checks session ownership.
     if request.endpoint in {'static', 'installation_manifest', 'installation_worker', 'installation_shortcut'}:
         # Public assets neither inspect nor refresh account credentials. A late
         # icon response from A must not write a cookie after login B.
@@ -20223,6 +20225,8 @@ def bind_request_profile_precommit_guard():
     )
     def guarded_commit(*, conn):
         transaction_guard(conn=conn)
+        if str(request.endpoint or '').startswith('identity.'):
+            return  # Account maintenance does not execute gameplay actions.
         from ghostlab_firmware import guard as firmware_guard
         firmware_guard(conn, str(getattr(g, 'session_generation_user', '') or ''))
         try:
@@ -21007,6 +21011,8 @@ def get_ghostsignal_show_service():
 
 
 def ghostsignal_request_is_exempt():
+    if str(request.endpoint or '').startswith('identity.'):
+        return True
     if request.endpoint in {'launch', 'launch_status', 'launch_bootstrap', 'desktop_shell', 'installation_manifest', 'installation_worker', 'installation_shortcut'} or getattr(g, 'launch_public_response', False):
         return True
     # Login authenticates a new document; an existing cookie may still belong
@@ -21137,6 +21143,15 @@ def index():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
+        if '@' in str(username or '') and identity_gateway['schema_ready']():
+            from database import db_connect
+            from identity_gateway.service import ready
+            with db_connect(user_store.db_path) as conn:
+                if ready(conn):
+                    matches=conn.execute('''SELECT u.username FROM identity_account_security s
+                        JOIN users u ON u.id=s.user_id WHERE s.verified_email=? AND s.local_password_enabled=1''',
+                        (str(username).strip().lower(),)).fetchall()
+                    username=matches[0][0] if len(matches)==1 else username
         if username == "admin":
             ensure_dev_admin_account()
 
@@ -21345,12 +21360,7 @@ def api_register_finalize():
     faction_name = identity["faction_name"]
 
     try:
-        mgr = UserProfileManager("admin")
-        if not mgr.add_new_user(username, password, desktop_settings={"locale": locale}):
-            return registration_failure("onboarding.username_taken", 200, locale)
-
-        mgr = UserProfileManager(username)
-        mgr.update_profile({
+        registration_updates = {
             "avatar": avatar_path,
             "nick": str(nick),
             "email": str(email),
@@ -21366,7 +21376,21 @@ def api_register_finalize():
                 "name": faction_name,
                 "role": identity["role_slot"],
             },
-        })
+        }
+        if identity_gateway['schema_ready']():
+            from database import atomic_runtime_transaction
+            candidate=copy.deepcopy(resources_store.get('user_template',default={}))
+            candidate.update(registration_updates,username=username,password=password,salt='')
+            candidate['desktop_settings']={**(candidate.get('desktop_settings') or {}),'locale':locale}
+            with atomic_runtime_transaction(user_store.db_path,foreign_keys=True):
+                user_store.save_profile_guarded(candidate,expected_revision=0,
+                    source='profile_manager.registration',allow_create=True)
+        else:
+            mgr = UserProfileManager("admin")
+            if not mgr.add_new_user(username, password, desktop_settings={"locale": locale}):
+                return registration_failure("onboarding.username_taken", 200, locale)
+            mgr = UserProfileManager(username)
+            mgr.update_profile(registration_updates)
 
         generation = begin_authenticated_session(username)
         if app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED'):
@@ -22728,6 +22752,10 @@ def dev_dashboard():
     tab = request.args.get("tab", "users")
     if tab == 'narrative':
         return render_template('admin_narrative.html', generation=generation, active_tab=tab, ui_locale=request_ui_locale())
+    if tab == 'identity':
+        return render_template('admin_identity.html', generation=generation, active_tab=tab,
+            ui_locale=request_ui_locale(), identity_locale=request_ui_locale(),
+            identity_csrf=session.get('session_csrf',''), identity_generation=session.get(SESSION_GENERATION_KEY,''))
     return render_template("admin_radio.html" if tab == "radio" else "admin_bug_reports.html" if tab == "bugs" else "admin_dashboard.html",
                            generation=generation, active_tab=tab if tab in {"users", "territories", "vulnerabilities", "bugs", "ghostlab", "radio"} else "users")
 
@@ -22976,6 +23004,12 @@ def command():
 
 @app.route("/api/users/delete", methods=["POST"])
 def delete_user_account():
+    if identity_gateway['schema_ready']():
+        from identity_gateway.service import IdentityError
+        try:
+            return identity_gateway['delete']()
+        except IdentityError as exc:
+            return identity_gateway['error'](exc)
     if "user" not in session:
         return jsonify({"success": False, "message": locale_translator().t("terminal.delete_login", locale=request_ui_locale()), "message_i18n": ui_message("terminal.delete_login")}), 401
 
@@ -26628,6 +26662,8 @@ def update_profile_account():
     requested_password = None
 
     if "email" in data:
+        if identity_gateway['schema_ready']():
+            return jsonify(ok=False, error='identity_email_verification_required', redirect='/account/identity'), 409
         email, email_error = validate_registration_email(data.get("email"))
         if email_error:
             return ui_failure("onboarding.email_invalid")
@@ -32350,6 +32386,10 @@ register_installation(app)
 
 from launch_controller import register_launch_controller
 launch_controller = register_launch_controller(app, globals())
+
+import sys as _identity_sys
+from identity_gateway.web import install as install_identity_gateway
+identity_gateway = install_identity_gateway(_identity_sys.modules[__name__])
 
 if __name__ == "__main__":
     app.run(debug=True)

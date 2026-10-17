@@ -2028,6 +2028,7 @@ body.wall-chaos-violet {
   border-bottom: 1px solid rgba(38, 255, 106, 0.2);
 }
 
+.settings-form[hidden] { display: none; }
 .settings-form {
   display: grid;
   gap: 8px;
