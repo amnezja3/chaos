@@ -1,6 +1,6 @@
 {% extends 'admin_base.html' %}
 {% macro tr(pl,en) %}{{ en if identity_locale == 'en' else pl }}{% endmacro %}
-{% block content %}<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157">
+{% block content %}<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157-ux-1">
 <section class="identity-shell admin-identity"><h1>Identity Gateway</h1><p id="identity-status" role="status" aria-live="polite"></p>
 <h2>{{ tr('Dostawcy','Providers') }}</h2><div id="provider-status"></div>
 {% include 'identity_reauth.html' %}
@@ -17,4 +17,4 @@
 <h2>{{ tr('Zdarzenia bezpieczeństwa (90 dni)','Security events (90 days)') }}</h2><pre id="identity-events"></pre>
 <h2>{{ tr('Usunięcie konta','Delete account') }}</h2><form id="identity-delete"><label>{{ tr('Login konta — potwierdzenie trwałego usunięcia','Account login — confirm permanent deletion') }}<input name="confirm" required></label><button>{{ tr('Usuń konto','Delete account') }}</button></form>
 </section>{% endblock %}
-{% block scripts %}<script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode='admin')|tojson }}</script><script src="/static/js/identity_gateway.js?v=157" defer></script>{% endblock %}
+{% block scripts %}<script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode='admin')|tojson }}</script><script src="/static/js/identity_gateway.js?v=157-ux-1" defer></script>{% endblock %}

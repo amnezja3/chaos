@@ -21,6 +21,11 @@ def main():
         import run
         fixture=GatewayWebTests()
         fixture.setUp()
+        @run.app.get('/__fixture/workspace')
+        def identity_workspace_fixture():
+            # Render the actual desktop with the fixture stores. The launch
+            # controller has its own captured stores and is tested separately.
+            return run.desktop()
         @run.app.get('/__fixture/account/<name>')
         def seed_account(name):
             if name not in ('admin','alice'):
@@ -40,12 +45,19 @@ def main():
             session['identity_client']=secrets.token_urlsafe(32)
             session['identity_ticket']=secrets.token_urlsafe(32)
             session['identity_locale']='en' if request.args.get('locale')=='en' else 'pl'
+            email='browser-'+secrets.token_hex(4)+'@example.test'
+            verified=None if request.args.get('unverified')=='1' else email
             with db_connect(fixture.path) as conn:
                 conn.execute('INSERT INTO identity_tickets VALUES (?,?,?,?,?,?,?)',
                     (digest(session['identity_ticket']),digest(session['identity_client']),'google',secrets.token_hex(8),
-                     'browser@example.test','browser@example.test',int(time.time())+1800))
+                     email,verified,int(time.time())+1800))
             return redirect('/auth/register')
-        run.SESSION_GENERATION_PUBLIC_ENDPOINTS.update({'seed_account','seed_registration'})
+        @run.app.get('/__fixture/mail-code')
+        def fixture_mail_code():
+            from flask import jsonify
+            messages=run.app.config.get('IDENTITY_TEST_OUTBOX',[])
+            return jsonify(code=messages[-1]['code'] if messages else '')
+        run.SESSION_GENERATION_PUBLIC_ENDPOINTS.update({'seed_account','seed_registration','identity_workspace_fixture','fixture_mail_code'})
         try:
             run.app.run(host='127.0.0.1',port=8997,debug=False,use_reloader=False)
         finally:

@@ -1,0 +1,57 @@
+{% macro tr(pl,en) %}{{ en if identity_locale == 'en' else pl }}{% endmacro %}
+<!doctype html><html lang="{{ identity_locale }}"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CHAOS · {{ tr('Rejestracja operatora','Operator registration') }}</title>
+<link rel="icon" href="/static/images/chaos_favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/css/entry_gate.css?v=157-ux-1">
+<link rel="stylesheet" href="/static/css/onboarding_gate.css?v=156-7-2">
+<link rel="stylesheet" href="/static/css/identity_registration.css?v=157-registration-1">
+</head><body class="entry-page onboarding-page identity-registration-page">
+<div id="installer"><header class="onboarding-header">
+<a class="onboarding-brand" href="/?login=1"><img src="/static/images/chaos_favicon.svg" alt="">CHAOS</a>
+<nav class="entry-tabs"><a href="/?login=1">{{ tr('Zaloguj','Log in') }}</a><span aria-current="page">{{ tr('Utwórz operatora','Create operator') }}</span></nav>
+<span class="story-kicker">IDENTITY // {{ identity_locale|upper }}</span></header>
+<ol class="onboarding-steps" id="identity-steps">
+{% for pl,en in [('Nick','Nickname'),('Klan','Clan'),('Profesja','Profession'),('Potwierdzenie','Confirmation')] %}<li {% if loop.first %}aria-current="step"{% endif %}><b>{{ loop.index }}</b><span>{{ tr(pl,en) }}</span></li>{% endfor %}
+</ol>
+<form id="identity-registration" novalidate data-verified-email="{{ verified_email }}">
+<input type="hidden" name="faction"><input type="hidden" name="role">
+<div class="onboarding-step">
+<aside class="onboarding-story"><div class="story-image-wrap"><img id="setup-story" src="/static/images/onboarding/156-7/story-1.png" alt=""></div>
+<div class="story-copy"><span class="story-kicker">GHOST SYSTEM / OPERATOR SETUP</span>
+<h1 id="setup-story-title">{{ tr('Twoja historia zaczyna się tutaj.','Your story starts here.') }}</h1>
+<p id="setup-story-copy">{{ tr('Wybierz imię, pod którym poznają Cię inni operatorzy.','Choose the name other operators will know you by.') }}</p></div></aside>
+<main class="onboarding-console"><div class="console-topline"><span>CHAOS // IDENTITY</span><span id="setup-progress">1 / 4</span></div>
+<p id="identity-status" role="status" aria-live="polite"></p>
+<section data-setup-step="0"><h2 tabindex="-1">{{ tr('Jak mamy Cię nazywać?','What should we call you?') }}</h2>
+<p class="field-hint">{{ tr('Logowanie u dostawcy jest potwierdzone. Teraz tworzysz swoją postać w CHAOS.','Your provider sign-in is confirmed. Now create your CHAOS character.') }}</p>
+<label class="ghost-field">{{ tr('Nick publiczny','Public nickname') }}<input name="nick" required minlength="2" maxlength="32" autocomplete="nickname"></label>
+<p class="field-hint">{{ tr('Masz już postać? Wróć do logowania i podłącz dostawcę w ustawieniach istniejącego konta.','Already have a character? Return to sign-in and connect the provider in your existing account settings.') }}</p></section>
+<section data-setup-step="1" hidden><h2 tabindex="-1">{{ tr('Wybierz swój klan','Choose your clan') }}</h2>
+<p class="field-hint">{{ tr('Kliknij avatar i poznaj ideę klanu. Wybór określi dostępne profesje.','Select an avatar and discover the clan’s identity. Your choice determines the available professions.') }}</p>
+<div class="choice-grid faction-options">
+{% for id,name in factions.items() %}<button class="choice-card avatar-button" type="button" data-faction="{{ id }}" aria-pressed="false" data-name="{{ name }}" data-description="{{ faction_descriptions[id] }}">
+<img src="/static/images/onboarding/156-7/faction-{{ id }}.png" alt="" loading="lazy"><strong>{{ name }}</strong><small>{{ faction_descriptions[id] }}</small></button>{% endfor %}
+</div></section>
+<section data-setup-step="2" hidden><h2 tabindex="-1">{{ tr('Wybierz swoją profesję','Choose your profession') }}</h2>
+<p class="field-hint" id="setup-clan-name"></p><div id="setup-roles" class="choice-grid role-options"></div></section>
+<section data-setup-step="3" hidden><h2 tabindex="-1">{{ tr('Twój operator jest prawie gotowy','Your operator is almost ready') }}</h2>
+<div class="summary-card"><img id="setup-summary-avatar" alt=""><div><strong id="setup-summary-nick"></strong><p id="setup-summary-clan"></p><p id="setup-summary-role"></p></div></div>
+<label class="ghost-field">E-mail<input name="email" type="email" required maxlength="254" autocomplete="email" value="{{ registration_email }}"></label>
+<p id="registration-email-state" class="field-hint" role="status"></p>
+<div id="registration-email-verification" {% if verified_email and verified_email == registration_email %}hidden{% endif %}>
+<p class="field-hint">{{ tr('Ten adres wymaga potwierdzenia. Wyślij kod, odczytaj wiadomość i wpisz go poniżej.','This address needs verification. Send a code, check your inbox and enter it below.') }}</p>
+<button class="ghost-btn secondary" type="button" id="registration-send">{{ tr('Wyślij kod','Send code') }}</button>
+<label class="ghost-field">{{ tr('Kod z wiadomości','Email code') }}<input id="registration-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label>
+<button class="ghost-btn secondary" type="button" id="registration-verify">{{ tr('Potwierdź adres','Verify address') }}</button></div>
+<details class="setup-terms"><summary>{{ tr('Warunki konta','Account terms') }} · {{ terms_version }}</summary><p>{{ tr('Konto reprezentuje jednego operatora CHAOS. Nie udostępniaj danych logowania. Połączone metody otwierają tę samą postać. Nowe logowanie unieważnia poprzednią sesję. Usunięcie konta jest trwałe; historia wspólnego świata i kopie wiadomości innych graczy pozostają.','Your account represents one CHAOS operator. Do not share credentials. Linked methods open the same character. A new login replaces the previous session. Account deletion is permanent; shared world history and other players’ message copies remain.') }}</p></details>
+<label class="setup-consent"><input type="checkbox" name="terms" value="{{ terms_version }}" required>{{ tr('Akceptuję powyższe warunki konta','I accept the account terms above') }}</label>
+<button class="ghost-btn primary" type="submit" id="registration-complete">{{ tr('Utwórz operatora','Create operator') }} →</button>
+</section>
+<div class="step-nav"><button class="ghost-btn secondary" type="button" id="setup-back" hidden>← {{ tr('Wstecz','Back') }}</button><button class="ghost-btn primary" type="button" id="setup-next">{{ tr('Dalej','Next') }} →</button></div>
+</main></div></form><div id="progress-bar"><div id="progress-fill" style="width:25%"></div></div></div>
+<script id="identity-roles" type="application/json">{{ roles|tojson }}</script>
+<script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script>
+<script src="/static/js/identity_registration.js?v=157-registration-1" defer></script>
+<script src="/static/js/identity_gateway.js?v=157-registration-1" defer></script>
+</body></html>

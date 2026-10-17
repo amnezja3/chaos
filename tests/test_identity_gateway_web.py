@@ -18,6 +18,28 @@ from test_ghostnetwork_suite_snapshot import valid_profile
 
 
 class GatewayWebTests(unittest.TestCase):
+    def test_smtp_rate_limit_returns_retry_after_without_secrets(self):
+        self.authenticate('admin')
+        from identity_gateway.store import digest
+        import time
+        with db_connect(self.path) as conn:
+            user_id=service.account(conn,'admin')[0]
+            conn.execute('INSERT OR REPLACE INTO identity_rate_limits VALUES (?,?,?)',
+                         (digest('mail-test:'+str(user_id)),int(time.time()),5))
+        result=self.post('/api/admin/identity/mail/test',{'recipient':'test@example.test'})
+        self.assertEqual(result.status_code,429)
+        self.assertEqual(result.json['error'],'rate_limited')
+        self.assertTrue(0<int(result.headers['Retry-After'])<=3600)
+        self.assertEqual(result.json['retry_after_seconds'],int(result.headers['Retry-After']))
+        self.assertNotIn('password',result.json)
+
+    def test_account_can_embed_same_origin_only(self):
+        self.authenticate()
+        result=self.client.get('/account/identity?embedded=1')
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.headers['X-Frame-Options'],'SAMEORIGIN')
+        self.assertIn('no-store',result.headers['Cache-Control'])
+
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -89,6 +111,9 @@ class GatewayWebTests(unittest.TestCase):
             self.assertEqual(response.location,'/auth/register')
             page=self.client.get(response.location)
             self.assertEqual(page.status_code,200)
+            self.assertIn(b'data-setup-step="1"',page.data)
+            self.assertIn(b'faction-3.png',page.data)
+            self.assertNotIn(b'<select name="faction"',page.data)
             data=dict(nick=f'new{index}',email=email,faction='3',role='2',terms='157-v1')
             result=self.post('/auth/complete-registration',data)
             self.assertEqual(result.status_code,200,result.json)
@@ -115,7 +140,9 @@ class GatewayWebTests(unittest.TestCase):
         self.assertEqual(result.json['error'],'email_verification_required')
         self.assertEqual(self.post('/auth/register/email',{'email':data['email']}).status_code,200)
         code=run.app.config['IDENTITY_TEST_OUTBOX'][-1]['code']
-        self.assertEqual(self.post('/auth/register/email',{'email':data['email'],'code':code}).status_code,200)
+        confirmed=self.post('/auth/register/email',{'email':data['email'],'code':code})
+        self.assertEqual(confirmed.status_code,200)
+        self.assertEqual(confirmed.json['verified_email'],data['email'])
         self.assertEqual(self.post('/auth/complete-registration',data).status_code,200)
 
     def test_mail_settings_admin_only_encrypted_and_preserved(self):

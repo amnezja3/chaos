@@ -1,5 +1,36 @@
 # Sprint 157 — macierz dowodów, 16 X 2026
 
+## Aktualizacja 17 X 2026
+
+Operator wdrożył `230a40c`: backup bazy/sesji, dry-run, migrated,
+baseline_matches, already_migrated i HTTP 200 potwierdzone wynikami z serwera.
+Audyt: 43 konta, 1 grupa kolizji nicków, brak kolizji e-maili, 2 brakujące
+e-maile, 1 konto bez hasła, 0 uszkodzonych profili. Nie zmieniano tych kont.
+Użytkownik potwierdził dostarczenie poczty, podłączanie i logowanie dostawców
+(Google również osobnym odbiorem). Nie wnioskujemy z tego kompletnego testu
+wszystkich dostawców na wszystkich urządzeniach. Nowa rejestracja jest w odbiorze.
+
+Lokalna poprawka UX: okno konta wewnątrz CHAOS, styl bramy, właściwy kursor,
+wyniki przy przyciskach + powiadomienia systemowe. Backend: 28 testów PASS.
+Playwright Chromium lokalnie (MCP niedostępny): rzeczywisty formularz konta,
+settings i admin; desktop/mobile, jedno okno przeglądarki, symulowany dostawca
+i powrót do panelu; błędy przy przycisku i toast. Kolejki gameplayu są atrapami
+z zachowaniem kontraktu nagłówków sesji, bez testowania świata gry.
+Nowa poprawka nie wymaga zmiany schematu ani zatrzymania workerów.
+
+Rejestracja po OAuth: nick → klan → profesja → podsumowanie, karty klanów
+z opisami oraz avatary profesji z istniejącego onboardingu. Kod e-mail dopiero
+na końcu, gdy adres nie jest już potwierdzony. Weryfikacja zachowuje wybory.
+`tools/test_identity_registration_ui.py`: PASS desktop EN (adres dostawcy)
+i mobile PL (kod z mock poczty), oba z rzeczywistym utworzeniem konta
+w izolowanej bazie. Sprawdzono zmianę klanu/reset profesji, zmianę adresu,
+komunikat pustego kodu, brak overflow i błędów JS. Końcowe przejście do świata
+jest zastąpione stroną testową; nie jest to odbiór gameplayu ani prawdziwego OAuth.
+Regresja web/store/providers: 28 PASS (24,085 s). Przeglądarka i fixture zamknięte.
+Nowy UI rejestracji nadal wymaga wdrożenia i odbioru użytkownika.
+
+Poniższy zapis opisuje stan przed pierwszym wdrożeniem i historyczne testy.
+
 Status: implementacja lokalna przed wdrożeniem. **Nie nadano pełnego PASS.**
 Nie uruchomiono nowych funkcji na produkcji ani nie używano sekretów dostawców.
 

@@ -2,8 +2,13 @@
 <!doctype html><html lang="{{ identity_locale }}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>CHAOS · Identity Gateway</title>
 <link rel="icon" href="/static/pwa/icon-192.png">
-<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157"></head>
-<body><main class="identity-shell"><header><a href="/?login=1">CHAOS</a><span>IDENTITY GATEWAY</span></header>
+<link rel="stylesheet" href="/static/css/entry_gate.css?v=157-ux-1">
+<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157-ux-1"></head>
+<body class="entry-page identity-page"><div class="identity-layout">
+<aside class="identity-hero"><div class="login-kicker">GHOST SYSTEM</div><div class="login-brand"><h1>CHAOS</h1></div>
+<p class="brand-expansion">Cyber Hacking Adventure Of Senses</p>
+<div class="identity-hero-caption"><span>IDENTITY // OPERATOR</span><h2>{{ tr('Twój dostęp. Twoja tożsamość.','Your access. Your identity.') }}</h2><p>{{ tr('Wszystkie połączenia prowadzą do tej samej postaci i historii.','Every connection leads to the same character and history.') }}</p></div></aside>
+<main class="identity-shell"><header><span class="identity-eyebrow">GHOST SYSTEM / IDENTITY</span>{% if mode == 'account' %}<a class="identity-back" data-identity-return href="/launch">{{ tr('Wróć do gry','Back to game') }} ↗</a>{% endif %}</header>
 <p id="identity-status" role="status" aria-live="polite"></p>
 {% if mode == 'error' %}
 <h1>{{ tr('Nie udało się dokończyć logowania','Sign-in could not be completed') }}</h1>
@@ -26,12 +31,12 @@
 <p>{{ tr('Login lokalny','Local login') }}: <strong id="local-username"></strong> · <span id="password-state"></span></p>
 <p>{{ tr('Potwierdzony e-mail','Verified email') }}: <span id="verified-email"></span></p>
 {% include 'identity_reauth.html' %}
-<h2>{{ tr('Połączone konta','Linked accounts') }}</h2><div id="identity-methods"></div>
-<h2>{{ tr('Hasło lokalne','Local password') }}</h2><form id="identity-password"><label>{{ tr('Nowe hasło','New password') }}<input type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>{{ tr('Powtórz hasło','Repeat password') }}<input type="password" name="confirm" required autocomplete="new-password"></label><button>{{ tr('Zapisz i wyloguj','Save and sign out') }}</button></form>
-<h2>E-mail</h2><form id="identity-email"><label>{{ tr('Adres do potwierdzenia','Address to verify') }}<input type="email" name="email" required></label><button>{{ tr('Wyślij kod na adres','Send code to address') }}</button></form>
+<h2>{{ tr('Połączone konta','Linked accounts') }}</h2><p class="identity-hint">{{ tr('Podłącz metodę logowania lub zarządzaj istniejącym połączeniem. Autoryzacja dostawcy odbywa się w tej samej karcie; po powrocie otworzymy to okno ponownie.','Connect a sign-in method or manage an existing connection. Provider authorization uses this same tab; we reopen this window when you return.') }}</p><div id="identity-methods" class="identity-method-grid"></div>
+<details class="identity-section"><summary>{{ tr('Hasło lokalne','Local password') }}</summary><form id="identity-password"><label>{{ tr('Nowe hasło','New password') }}<input type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>{{ tr('Powtórz hasło','Repeat password') }}<input type="password" name="confirm" required autocomplete="new-password"></label><button>{{ tr('Zapisz i wyloguj','Save and sign out') }}</button></form>
+</details><details class="identity-section"><summary>E-mail</summary><form id="identity-email"><label>{{ tr('Adres do potwierdzenia','Address to verify') }}<input type="email" name="email" required></label><button>{{ tr('Wyślij kod na adres','Send code to address') }}</button></form>
 <form id="identity-email-confirm"><label>{{ tr('Kod potwierdzenia adresu','Address verification code') }}<input name="code" required maxlength="8" inputmode="numeric" autocomplete="one-time-code"></label><button>{{ tr('Potwierdź adres','Verify address') }}</button></form>
-<section class="danger"><h2>{{ tr('Usunięcie konta','Delete account') }}</h2><p>{{ tr('Nieodwracalne: utracisz postać i dostęp. Kopie wiadomości innych graczy oraz historia świata pozostają. Zewnętrzne konta dostawców nie są usuwane.','Permanent: you lose your character and access. Other players’ message copies and world history remain. Provider accounts are not deleted.') }}</p>
-<form id="identity-delete"><label>{{ tr('Wpisz swój login, aby potwierdzić','Type your login to confirm') }}<input name="confirm" required autocomplete="off"></label><button>{{ tr('Usuń konto trwale','Permanently delete account') }}</button></form></section>
-<a href="/launch">{{ tr('Wróć do gry','Return to game') }}</a>
+</details><details class="identity-section danger"><summary>{{ tr('Usunięcie konta','Delete account') }}</summary><p>{{ tr('Nieodwracalne: utracisz postać i dostęp. Kopie wiadomości innych graczy oraz historia świata pozostają. Zewnętrzne konta dostawców nie są usuwane.','Permanent: you lose your character and access. Other players’ message copies and world history remain. Provider accounts are not deleted.') }}</p>
+<form id="identity-delete"><label>{{ tr('Wpisz swój login, aby potwierdzić','Type your login to confirm') }}<input name="confirm" required autocomplete="off"></label><button>{{ tr('Usuń konto trwale','Permanently delete account') }}</button></form></details>
+<a class="button" data-identity-return href="/launch">{{ tr('Wróć do gry','Return to game') }}</a>
 {% endif %}
-</main><script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script><script src="/static/js/identity_gateway.js?v=157" defer></script></body></html>
+</main></div><script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script><script src="/static/js/identity_gateway.js?v=157-ux-1" defer></script></body></html>

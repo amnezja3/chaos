@@ -162,7 +162,11 @@ def install(runtime):
                 'stale_session':409,'rate_limited':429,'migration_required':503,
                 'provider_unavailable':503,'mail_delivery_failed':503,'mail_unavailable':503}.get(key,400)
         if request.path.startswith('/api/') or request.method=='POST':
-            return jsonify(ok=False,error=key),status
+            response = jsonify(ok=False,error=key,**({'retry_after_seconds': exc.retry_after}
+                if key=='rate_limited' and hasattr(exc,'retry_after') else {}))
+            if key=='rate_limited' and hasattr(exc,'retry_after'):
+                response.headers['Retry-After']=str(exc.retry_after)
+            return response,status
         return page('identity_gateway.html',mode='error',identity_error=key),status
 
     @bp.errorhandler(sqlite3.IntegrityError)
@@ -173,6 +177,7 @@ def install(runtime):
     def private(response):
         response.headers['Cache-Control']='no-store'
         response.headers['Referrer-Policy']='no-referrer'
+        response.headers['X-Frame-Options']='SAMEORIGIN'
         return response
 
     def start_flow(provider, purpose, user_id=None, reauth_expires=None):
@@ -268,9 +273,10 @@ def install(runtime):
     def registration():
         with tx() as conn:
             row = ticket(conn)
-        return page('identity_gateway.html',mode='register',registration_email=row['email'] or '',
+        return page('identity_registration.html',mode='register',registration_email=row['email'] or '',
                     verified_email=row['verified_email'] or '',
                     factions={f:runtime.locale_translator().t(f'onboarding.faction.{f}.name',locale=locale()) for f in runtime.FACTION_NAMES},
+                    faction_descriptions={f:runtime.locale_translator().t(f'onboarding.faction.{f}.summary',locale=locale()) for f in runtime.FACTION_NAMES},
                     roles={str(f):[dict(role_slot=str(r),profession_name=runtime.locale_translator().t(
                         f'onboarding.role.{f}.{r}',locale=locale())) for r in range(1,6)] for f in runtime.FACTION_NAMES})
 
@@ -291,7 +297,7 @@ def install(runtime):
                              (verified,verified,row['token_hash']))
         else:
             send_code(binding,address)
-        return jsonify(ok=True)
+        return jsonify(ok=True, **({'verified_email': verified} if data.get('code') else {'code_sent': True}))
 
     @bp.post('/auth/complete-registration')
     def complete():

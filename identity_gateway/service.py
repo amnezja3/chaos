@@ -25,7 +25,9 @@ def rate_limit(conn, bucket, maximum=10, window=600):
     row = conn.execute('SELECT window_start,attempts FROM identity_rate_limits WHERE bucket=?',(key,)).fetchone()
     if row and row[0] > now-window:
         if row[1] >= maximum:
-            raise IdentityError('rate_limited')
+            error = IdentityError('rate_limited')
+            error.retry_after = max(1, row[0] + window - now)
+            raise error
         conn.execute('UPDATE identity_rate_limits SET attempts=attempts+1 WHERE bucket=?',(key,))
     else:
         conn.execute('INSERT OR REPLACE INTO identity_rate_limits VALUES (?,?,1)',(key,now))

@@ -1,5 +1,40 @@
 # CHAOS — Project Journal
 
+## 2026-10-17 — 157: rejestracja z avatarami i etapami
+
+- Rejestracja po logowaniu zewnętrznym ma cztery kroki: nick, klan,
+  profesja, podsumowanie. Wykorzystuje styl i grafiki dotychczasowego onboardingu.
+- Klany są klikalnymi kartami z opisami, profesje kartami avatarów o zachowanych
+  proporcjach. Zmiana klanu zeruje poprzednią profesję; cofanie zachowuje dane.
+- E-mail jest potwierdzany na końcu i tylko gdy to potrzebne. Adres potwierdzony
+  przez dostawcę nie wymaga kolejnego kodu. Weryfikacja kodu nie przeładowuje
+  formularza i nie gubi wyborów; komunikaty są przy odpowiednich przyciskach.
+- Backend web/store/providers: 28 testów PASS. Lokalny Playwright Chromium:
+  desktop EN z potwierdzonym adresem i mobile PL z kodem z poczty mock — oba
+  przepływy kończą się utworzeniem konta. Bez błędów JS i poziomego overflow.
+  Playwright MCP niedostępny; użyto izolowanego fixture i lokalnego Playwright.
+- Zmiany lokalne, bez migracji i bez deklaracji pełnego PASS 157.
+
+## 2026-10-17 — 157: odbiór serwera i poprawa UX konta
+
+- Operator potwierdził migrację, zgodność baseline, ponowienie bez zmian,
+  start HTTP 200, dostarczanie poczty oraz podłączanie/logowanie dostawców.
+  Nowa rejestracja nadal w odbiorze; kolizja nicków z audytu wymaga rozstrzygnięcia.
+- Poprawiono kursor aktywnych bramek. Ustawienia otwierają przycisk „Konto
+  i bezpieczeństwo” w zarządzanym oknie CHAOS, bez nowej karty/PWA.
+- Panel używa grafiki i stylistyki bramy startowej, kart dostawców i zwijanych
+  sekcji hasła, e-maila oraz usunięcia. Autoryzacja dostawcy wychodzi do tej
+  samej karty, a powrót ponownie otwiera panel w pulpicie. Nie osadzamy OAuth
+  dostawcy w iframe; wewnętrzny panel ma SAMEORIGIN i kontrolę generacji sesji.
+- Wyniki/potwierdzenia/błędy są bezpośrednio przy przyciskach i w komunikatach
+  systemowych CHAOS. Panel poza pulpitem pokazuje własne powiadomienia.
+  Limit zwraca Retry-After i czas do ponowienia; nie wyłączono ochrony.
+- Regresja backendu: 28 testów PASS. Lokalne testy Playwright Chromium
+  sprawdzają desktop/mobile, inline + toast, jedną kartę i powrót do okna.
+  Kolejki gameplayu i strona dostawcy są atrapami; API konta/SMTP jest prawdziwe
+  na izolowanym fixture. Playwright MCP niedostępny w tej sesji.
+- Poprawka lokalna, bez kolejnej migracji. Pełny PASS 157 pozostaje otwarty.
+
 ## 2026-10-16 — 157: Identity Gateway i poczta w adminie, przed wdrożeniem
 
 - Zaimplementowano Google/Discord/GitHub/Steam, wspólne sesje, atomową

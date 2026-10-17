@@ -1,0 +1,27 @@
+.identity-registration-page [hidden]{display:none!important}
+.identity-registration-page .onboarding-steps{grid-template-columns:repeat(4,minmax(0,1fr))}
+.identity-registration-page .onboarding-console{gap:10px}
+.identity-registration-page h2{font-size:24px;line-height:1.35;color:#e5fff1;margin:0 0 16px}
+.identity-registration-page .choice-card img{display:block;width:100%;height:170px;object-fit:contain;aspect-ratio:2/3}
+.identity-registration-page .choice-card[aria-pressed=true]{border-color:#52ffac;background:#103c2b;box-shadow:0 0 0 1px #52ffac}
+.identity-registration-page .choice-card:hover{border-color:#7de9b7}
+.identity-registration-page .choice-card small{line-height:1.65}
+.identity-registration-page .summary-card{margin-bottom:24px}
+.identity-registration-page .summary-card strong{display:block;margin-bottom:12px;color:#7bffb9}
+.identity-registration-page .setup-terms{border-top:1px solid #2c554b;padding-top:16px;margin-top:24px;font-size:12px;line-height:1.7;color:#b7d2c6}
+.identity-registration-page .setup-terms summary{cursor:pointer;color:#7cffb5}
+.identity-registration-page .setup-consent{display:flex;align-items:center;gap:12px;margin:20px 0;font-size:13px;line-height:1.6}
+.identity-registration-page .setup-consent input{width:20px;height:20px;flex:none;accent-color:#37ff93}
+.identity-registration-page #registration-complete{width:100%}
+.identity-registration-page #registration-email-verification{padding:16px;border:1px solid #365b50;background:#071c16}
+.identity-registration-page #registration-email-verification .ghost-field{margin:16px 0}
+.identity-registration-page [data-verified=true]{color:#75ffb4}
+.identity-registration-page #setup-story-copy{font-size:14px;line-height:1.8;color:#c0d9d3}
+.identity-registration-page [data-operation-status]{padding:12px;border-left:3px solid #43dd94;background:#09281c;color:#c6ffe2;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.identity-registration-page [data-operation-status][data-level=error]{border-color:#ff7385;background:#32151b;color:#ffc4ce}
+.identity-registration-page .step-nav{flex-wrap:wrap}.identity-registration-page .step-nav>[data-operation-status]{flex-basis:100%}
+.identity-registration-page #identity-status:empty{display:none}
+.identity-registration-page #identity-notifications{position:fixed;right:18px;bottom:18px;max-width:360px;z-index:10000}
+.identity-registration-page .identity-toast{position:relative;padding:16px 36px 16px 16px;background:#05231bf5;border:1px solid #45bf90;color:#d2ffe5;margin-top:10px;font-size:13px}
+.identity-registration-page .identity-toast.error{border-color:#ff7385;background:#32151bf5}.identity-registration-page .identity-toast button{position:absolute;right:4px;top:4px;background:none;border:0;color:inherit;cursor:pointer;font-size:24px}
+@media(max-width:680px){.identity-registration-page .onboarding-story{min-height:160px}.identity-registration-page .story-copy{padding:20px}.identity-registration-page .story-copy h1{font-size:22px;margin:8px 0}.identity-registration-page #setup-story-copy{font-size:12px}.identity-registration-page .choice-card img{height:150px}.identity-registration-page .onboarding-steps li span{display:inline}.identity-registration-page .onboarding-steps li{font-size:9px;gap:4px}.identity-registration-page .onboarding-steps b{width:19px;height:19px}.identity-registration-page #identity-notifications{left:16px;right:16px}}

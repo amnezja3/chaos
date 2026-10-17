@@ -3476,7 +3476,7 @@ function attachTerminalInputHandler(input, content) {
 
                 if (pending.action === "userdel") {
                     if (document.body.dataset.identityGateway === '1') {
-                        window.location.assign('/account/identity');
+                        window.createIdentitySettingsWindow();
                         return;
                     }
                     const deleteRes = await fetch('/api/users/delete', {
@@ -4049,7 +4049,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
 
             if (pending.action === "userdel") {
                 if (document.body.dataset.identityGateway === '1') {
-                    window.location.assign('/account/identity');
+                    window.createIdentitySettingsWindow();
                     return false;
                 }
                 const deleteRes = await fetch('/api/users/delete', {
@@ -12267,8 +12267,8 @@ function createSettings() {
                     <h3 data-ghost-i18n="settings.account"></h3>
                     <span data-ghost-i18n="settings.account_hint"></span>
                 </div>
-                ${document.body.dataset.identityGateway === '1' ? '<p><a href="/account/identity" target="_blank" rel="noopener">Identity Gateway · PL / EN</a></p>' : ''}
-                <form class="settings-form" data-settings-password-form>
+                ${document.body.dataset.identityGateway === '1' ? `<button type="button" class="settings-identity-button" data-settings-identity><span aria-hidden="true">◇</span> ${escapeHTML((window.GhostLocale?.getLocale() || 'pl') === 'en' ? 'Account & security' : 'Konto i bezpieczeństwo')} <span aria-hidden="true">→</span></button>` : ''}
+                <form class="settings-form" data-settings-password-form ${document.body.dataset.identityGateway === '1' ? 'hidden' : ''}>
                     <label>
                         <span data-ghost-i18n="settings.current_password"></span>
                         <input type="password" autocomplete="current-password" data-current-password>
@@ -12336,6 +12336,7 @@ function createSettings() {
 
     window.GhostLocale?.render(term);
     window.ChaosInstall?.mount(term.querySelector('[data-chaos-install]'));
+    term.querySelector('[data-settings-identity]')?.addEventListener('click', () => window.createIdentitySettingsWindow());
     const localeSelect = term.querySelector('[data-settings-locale]');
     localeSelect?.addEventListener('change', async () => {
         const output = term.querySelector('[data-settings-locale-status]');
