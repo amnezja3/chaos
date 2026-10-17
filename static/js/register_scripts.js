@@ -271,6 +271,7 @@ const steps = [
         <span>${onboardingLabel("nick")}</span>
         <input type="text" id="nick" data-ghost-i18n-placeholder="onboarding.nick_placeholder" placeholder="${escapeHTML(onboardingText("nick_placeholder"))}" autocomplete="nickname">
       </label>
+      ${document.getElementById('onboarding-adult')?.innerHTML || ''}
     `);
   }
 ];
@@ -425,10 +426,18 @@ function initOnboardingMusic() {
 }
 
 async function validateStep() {
+  if (currentStep === 5 && document.getElementById('age_confirmed')) {
+    const age = document.getElementById('age_confirmed'), terms = document.getElementById('terms');
+    if (!age.checked || !terms.checked) { setError('onboarding.adult_required'); return false; }
+    formData.age_confirmed = true;
+    formData.terms = terms.value;
+    formData.age_statement_version = document.getElementById('age_statement_version').value;
+  }
   const inputFields = document.querySelectorAll("#step-content input");
   let valid = true;
 
   inputFields.forEach(input => {
+    if (input.type === 'checkbox') return;
     const value = input.value.trim();
     formData[input.id] = value;
     if (!value) valid = false;

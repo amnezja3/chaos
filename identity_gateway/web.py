@@ -10,6 +10,8 @@ from database import atomic_runtime_transaction, db_connect
 from .config import load_config
 from .store import issue_intent, consume_intent, digest, cleanup
 from . import service as svc, providers, mail
+from . import adult_policy
+from session_generation_store import SessionGenerationStateError
 
 TERMS_VERSION = '157-v1'
 
@@ -38,6 +40,8 @@ def install(runtime):
         with atomic_runtime_transaction(runtime.user_store.db_path,foreign_keys=True) as conn:
             if not svc.ready(conn):
                 raise svc.IdentityError('migration_required')
+            if adult_policy.enabled():
+                adult_policy.require_schema(conn)
             yield conn
 
     def client():
@@ -54,7 +58,10 @@ def install(runtime):
         guard = runtime.current_request_profile_precommit_guard()
         if guard is None:
             raise svc.IdentityError('authentication_required')
-        guard(conn=conn,username=session['user'],current_revision=0)
+        try:
+            guard(conn=conn,username=session['user'],current_revision=0)
+        except SessionGenerationStateError:
+            raise svc.IdentityError('stale_session') from None
         if not getattr(g,'transaction_precommit_guard_token',None):
             g.session_lineage=session.get(runtime.SESSION_LINEAGE_KEY)
             g.session_generation=generation()
@@ -82,7 +89,7 @@ def install(runtime):
         session.setdefault('identity_csrf',secrets.token_urlsafe(32))
         return render_template(name, identity_locale=locale(),
             identity_csrf=session.get('session_csrf') if session.get('user') else session['identity_csrf'],
-            identity_generation=generation(), terms_version=TERMS_VERSION, **values)
+            identity_generation=generation(), terms_version=adult_policy.TERMS_VERSION if adult_policy.enabled() else TERMS_VERSION, **values)
 
     def available(provider):
         cfg = config()
@@ -306,7 +313,9 @@ def install(runtime):
         data=request.get_json(silent=True) or {}
         nick, invalid=runtime.validate_registration_nick(data.get('nick'))
         email, bad_email=runtime.validate_registration_email(data.get('email'))
-        if invalid or bad_email or data.get('terms')!=TERMS_VERSION:
+        if adult_policy.enabled():
+            adult_policy.validate(data)
+        if invalid or bad_email or (not adult_policy.enabled() and data.get('terms')!=TERMS_VERSION):
             raise svc.IdentityError('invalid_registration')
         try:
             identity=runtime.build_registration_identity_contract(data.get('faction'),data.get('role'))
@@ -335,7 +344,10 @@ def install(runtime):
             svc.link(conn,user_id,dict(provider=row['provider'],subject=row['subject'],email=email,email_verified=True))
             conn.execute('UPDATE identity_account_security SET verified_email=?,email_verified_at=? WHERE user_id=?',
                          (email,int(time.time()),user_id))
-            conn.execute('INSERT INTO identity_consents VALUES (?,?,?)',(user_id,TERMS_VERSION,int(time.time())))
+            if adult_policy.enabled():
+                adult_policy.record(conn,user_id,data)
+            else:
+                conn.execute('INSERT INTO identity_consents (user_id,terms_version,accepted_at) VALUES (?,?,?)',(user_id,TERMS_VERSION,int(time.time())))
             conn.execute('DELETE FROM identity_tickets WHERE token_hash=?',(row['token_hash'],))
             svc.event(conn,'account_registered',user_id,user_id)
         gen=runtime.begin_authenticated_session(username)
@@ -345,6 +357,38 @@ def install(runtime):
     @bp.get('/account/identity')
     def account_page():
         return page('identity_gateway.html',mode='account')
+
+    @bp.get('/account/terms')
+    def adult_terms():
+        with tx() as conn:
+            actor(conn)
+            reason=adult_policy.state(conn,session['user']) if adult_policy.enabled() else ''
+        if not reason:
+            return redirect('/launch')
+        return page('identity_adult_terms.html',mode='adult',age_restricted=reason=='age_restricted')
+
+    @bp.post('/api/account/terms')
+    def accept_adult_terms():
+        if not adult_policy.enabled():
+            raise svc.IdentityError('adult_policy_disabled')
+        data=request.get_json(silent=True) or {}
+        adult_policy.validate(data)
+        with tx() as conn:
+            user_id=actor(conn)
+            adult_policy.record(conn,user_id,data)
+        return jsonify(ok=True,redirect='/launch')
+
+    @bp.post('/api/account/terms/decline')
+    def decline_adult_terms():
+        if not adult_policy.enabled():
+            raise svc.IdentityError('adult_policy_disabled')
+        data=request.get_json(silent=True) or {}
+        with tx() as conn:
+            user_id=actor(conn)
+            if data.get('underage') is True:
+                conn.execute('UPDATE identity_account_security SET age_restricted=1 WHERE user_id=?',(user_id,))
+                svc.event(conn,'age_restricted',user_id,user_id)
+        return jsonify(ok=True,redirect='/account/terms')
 
     @bp.get('/api/account/identities')
     def identities():

@@ -1,0 +1,8 @@
+{% if adult_policy_enabled %}
+<fieldset class="adult-declaration"><legend>CHAOS · 18+</legend>
+<label><input id="age_confirmed" name="age_confirmed" type="checkbox" required><span lang="pl">Potwierdzam, że mam ukończone 18 lat.</span><span lang="en">I confirm that I am at least 18 years old.</span></label>
+<label><input id="terms" name="terms" type="checkbox" value="{{ adult_terms_version }}" required><span lang="pl">Zapoznałem się z Regulaminem i akceptuję go.</span><span lang="en">I have read and accept the Terms of Service.</span></label>
+<input id="age_statement_version" name="age_statement_version" type="hidden" value="{{ age_statement_version }}">
+<p><a href="/terms" data-legal-link><span lang="pl">Przeczytaj Regulamin</span><span lang="en">Read the Terms</span></a> · <a href="/privacy" data-legal-link><span lang="pl">Polityka prywatności</span><span lang="en">Privacy policy</span></a></p>
+</fieldset>
+{% endif %}

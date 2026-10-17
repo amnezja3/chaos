@@ -1,5 +1,27 @@
 # CHAOS — Project Journal
 
+## 2026-10-17 — 157: Identity Gateway, deklaracja 18+ i projekty prawne
+
+- Wymaganie 18+ zastępuje wcześniejsze 13+. Audyt przed implementacją:
+  doc/audits/identity_18_audit.md. Flaga CHAOS_ADULT_POLICY_ENABLED domyślnie OFF;
+  produkcja nietknięta, finalne dokumenty wymagają zatwierdzenia.
+- Obie rejestracje: dwa niezaznaczone potwierdzenia, backend wymaga dokładnych
+  typów i wersji. Zgoda zapisywana atomowo razem z kontem; stare zgody zachowane
+  bez automatycznego potwierdzenia wieku. Migracja trzech kolumn addytywna.
+- Istniejące konta: wspólna bramka dostępu przed gameplay/API/launch/PWA.
+  Odmowa zachowuje konto; niepełnoletność blokuje grę, pozostawiając obsługę,
+  logout i usuwanie. CLI operatora do restriction/release bez usuwania danych.
+- Poprawiono obsługę starej generacji sesji w Identity: kontrolowane 409 zamiast
+  wyjątku. Nie tworzono drugiego systemu autoryzacji ani nowych identyfikatorów.
+- Dokumenty PL/EN rozszerzone o audytowane dane OAuth/OpenID, retencję rekordów,
+  AI i konsekwencje usuwania. Nadal 157-18-draft-2, bez deklaracji zatwierdzenia
+  prawnego/Google. Oświadczenie nie jest technicznym dowodem wieku.
+- Backend 76 PASS; testy JS sesji/wznowienia/i18n PASS; lokalny Playwright
+  rejestracja local/OAuth, stara sesja, akceptacja/odmowa, blokada, dokumenty
+  i logout PASS. Dostawcy symulowani; fizyczne PWA pozostaje odbiorem wdrożenia.
+- Raport/pliki/otwarte decyzje: doc/audits/identity_18_report.md.
+  Wdrożenie i ograniczenia rollbacku: doc/runbooks/identity_18_rollout.md.
+
 ## 2026-10-17 — 157: publiczne dokumenty prawne PL/EN, projekt
 
 - Dodano publiczne `/privacy` i `/terms`, niezależne od flag Identity,

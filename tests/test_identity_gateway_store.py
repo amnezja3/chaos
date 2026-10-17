@@ -35,7 +35,7 @@ class IdentityStoreTests(unittest.TestCase):
 
     def test_legacy_not_verified_and_absent_password_disabled(self):
         self.assertEqual(self.conn.execute('SELECT * FROM identity_account_security ORDER BY user_id').fetchall(),
-                         [(1,1,None,None), (2,0,None,None)])
+                         [(1,1,None,None,0), (2,0,None,None,0)])
         self.assertEqual(self.conn.execute('SELECT count(*) FROM identity_consents').fetchone()[0], 0)
 
     def test_bound_expiring_one_time_intent(self):

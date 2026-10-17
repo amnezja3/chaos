@@ -49,6 +49,15 @@ bridge.install({
 });
 
 (async () => {
+    for (const error of ['adult_acceptance_required','age_restricted']) {
+        forcedResponse = {status:403,clone:()=>({json:async()=>({error})})};
+        const denial = await global.fetch('/api/profile');
+        assert.strictEqual(denial.status,403);
+        assert.strictEqual(redirect,'/account/terms');
+        assert.strictEqual(storageCleared,false, 'age gate does not log out or clear the account');
+    }
+    forcedResponse=null;
+    redirect=null;
     const response = await global.fetch("/api/profile");
     assert.strictEqual(response.status, 200);
     assert.strictEqual(

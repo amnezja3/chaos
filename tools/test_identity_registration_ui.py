@@ -53,6 +53,10 @@ with sync_playwright() as playwright:
                 expect(page.locator('input[name=faction]')).to_have_value('2')
                 expect(page.locator('input[name=role]')).to_have_value('3')
                 expect(page.locator('#registration-send')).not_to_be_visible()
+            if page.locator('input[name=age_confirmed]').count():
+                expect(page.locator('input[name=age_confirmed]')).not_to_be_checked()
+                expect(page.locator('input[name=terms]')).not_to_be_checked()
+                page.locator('input[name=age_confirmed]').check()
             page.locator('input[name=terms]').check()
             page.screenshot(path=f'.playwright-mcp/identity-registration-summary-{locale}.png',full_page=True)
             page.route('**/desktop?*',lambda route:route.fulfill(content_type='text/html',body='<h1>Created</h1>'))

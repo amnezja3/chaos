@@ -21,6 +21,8 @@ def main():
         import run
         fixture=GatewayWebTests()
         fixture.setUp()
+        if '--adult' in sys.argv:
+            run.app.config['CHAOS_ADULT_POLICY_ENABLED']=True
         if '--mock-providers' in sys.argv:
             from unittest.mock import patch
             def resolved_provider(provider, args, flow):

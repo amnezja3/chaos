@@ -344,10 +344,14 @@
       "params": {},
       "text": "Nie wybrano"
     },
+    "onboarding.adult_required": {
+      "params": {},
+      "text": "Potwierdź ukończenie 18 lat i zaakceptuj aktualny Regulamin."
+    },
     "onboarding.title": {
       "params": {},
       "text": "CHAOS - Rejestracja operatora"
     }
   },
-  "content_version": "156.7.3"
+  "content_version": "157.18.1"
 }

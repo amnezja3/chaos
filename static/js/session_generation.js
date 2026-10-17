@@ -260,6 +260,13 @@
             }
             try {
                 const response = await state.nativeFetch(input, requestInit);
+                if (response.status === 403 && typeof response.clone === 'function') {
+                    const denied = await response.clone().json().catch(() => ({}));
+                    if (['adult_acceptance_required','age_restricted'].includes(denied.error)) {
+                        (root.top || root).location.replace('/account/terms');
+                        return response;
+                    }
+                }
                 const validated = validateResponse(response, requestGeneration, {
                     requireIdentityHeaders: responseRequiresIdentityHeaders(input),
                 });
@@ -362,7 +369,13 @@
                         'X-Chaos-Launch': '1', 'X-Chaos-Launch-Binding': config.launch_binding
                     }
                 });
-                if (response.status === 409 || response.status === 401) invalidate('resume_replaced');
+                if (response.status === 403) {
+                    const denied = await response.json();
+                    if (['adult_acceptance_required','age_restricted'].includes(denied.error)) {
+                        (root.top || root).location.replace('/account/terms');
+                    }
+                }
+                else if (response.status === 409 || response.status === 401) invalidate('resume_replaced');
                 else if (response.ok && !(await response.json()).authenticated) invalidate('resume_expired');
             } catch (_) { /* transport errors never invalidate an authenticated session */ }
             finally { root.clearTimeout(timeout); checking = false; }

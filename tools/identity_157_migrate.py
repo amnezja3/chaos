@@ -55,6 +55,10 @@ def check(path, baseline=None):
         present={r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required.issubset(present):
             raise ValueError('identity_schema_missing')
+        for table, names in {'identity_consents': {'age_confirmed','age_statement_version'},
+                             'identity_account_security': {'age_restricted'}}.items():
+            if not names.issubset({r[1] for r in conn.execute('PRAGMA table_info('+table+')')}):
+                raise ValueError('adult_schema_missing')
         result=dict(ok=True,status='checked',integrity='ok',foreign_keys='ok')
         if baseline:
             before=json.loads(Path(baseline).read_text(encoding='utf-8'))

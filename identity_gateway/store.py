@@ -38,6 +38,15 @@ def initialize(conn):
     from .schema import EXTRA
     for sql in DDL + EXTRA:
         conn.execute(sql)
+    for table, additions in {
+        'identity_consents': [('age_confirmed', 'INTEGER NOT NULL DEFAULT 0 CHECK(age_confirmed IN (0,1))'),
+                              ('age_statement_version', 'TEXT')],
+        'identity_account_security': [('age_restricted', 'INTEGER NOT NULL DEFAULT 0 CHECK(age_restricted IN (0,1))')],
+    }.items():
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(' + table + ')')}
+        for name, definition in additions:
+            if name not in columns:
+                conn.execute('ALTER TABLE ' + table + ' ADD COLUMN ' + name + ' ' + definition)
     if 'user_id' not in {row[1] for row in conn.execute('PRAGMA table_info(identity_mail_challenges)')}:
         conn.execute('ALTER TABLE identity_mail_challenges ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE')
     # Preserve all existing credentials/profiles; missing credentials are disabled.

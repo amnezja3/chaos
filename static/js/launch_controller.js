@@ -20,6 +20,13 @@
         try {
             const response = await nativeFetch(path, {...options, credentials: 'same-origin',
                 cache: 'no-store', redirect: 'error', signal: controller.signal});
+            if (response.status === 403) {
+                const denied = await response.clone().json().catch(() => ({}));
+                if (['adult_acceptance_required','age_restricted'].includes(denied.error)) {
+                    window.top.location.replace('/account/terms');
+                    throw new Error('network');
+                }
+            }
             if (response.status === 409 || response.status === 401) throw new Error('stale');
             if (!response.ok) throw new Error('network');
             return response;

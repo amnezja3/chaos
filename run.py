@@ -9566,6 +9566,8 @@ def readonly_ui_locale():
 
 @app.before_request
 def detention_request_gate():
+    if request.endpoint == 'legal_page':
+        return None
     if str(request.endpoint or '').startswith('identity.'):
         return None  # Account access is not a gameplay action; gateway checks session ownership.
     if request.endpoint in {'static', 'installation_manifest', 'installation_worker', 'installation_shortcut'}:
@@ -21316,6 +21318,14 @@ def registration_failure(key, status=400, locale="pl"):
 def api_register_finalize():
 
     data = request.get_json(silent=True) or {}
+    from identity_gateway import adult_policy
+    if adult_policy.enabled():
+        try:
+            adult_policy.validate(data)
+        except ValueError as exc:
+            return jsonify(success=False, error=str(exc), error_key='onboarding.adult_required'), 400
+        if not identity_gateway['schema_ready']():
+            return jsonify(success=False, error='adult_policy_unavailable'), 503
     locale = normalize_locale(data.get("locale", "pl"), default=None)
     if locale is None:
         return registration_failure("locale.invalid", 400, "pl")
@@ -21401,9 +21411,12 @@ def api_register_finalize():
             candidate=copy.deepcopy(resources_store.get('user_template',default={}))
             candidate.update(registration_updates,username=username,password=password,salt='')
             candidate['desktop_settings']={**(candidate.get('desktop_settings') or {}),'locale':locale}
-            with atomic_runtime_transaction(user_store.db_path,foreign_keys=True):
+            with atomic_runtime_transaction(user_store.db_path,foreign_keys=True) as conn:
                 user_store.save_profile_guarded(candidate,expected_revision=0,
                     source='profile_manager.registration',allow_create=True)
+                if adult_policy.enabled():
+                    from identity_gateway.service import account
+                    adult_policy.record(conn,account(conn,username)[0],data)
         else:
             mgr = UserProfileManager("admin")
             if not mgr.add_new_user(username, password, desktop_settings={"locale": locale}):
@@ -32409,6 +32422,8 @@ launch_controller = register_launch_controller(app, globals())
 import sys as _identity_sys
 from identity_gateway.web import install as install_identity_gateway
 identity_gateway = install_identity_gateway(_identity_sys.modules[__name__])
+from identity_gateway.adult_policy import install as install_adult_policy
+install_adult_policy(_identity_sys.modules[__name__])
 
 if __name__ == "__main__":
     app.run(debug=True)

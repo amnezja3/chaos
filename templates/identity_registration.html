@@ -45,7 +45,8 @@
 <label class="ghost-field">{{ tr('Kod z wiadomości','Email code') }}<input id="registration-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label>
 <button class="ghost-btn secondary" type="button" id="registration-verify">{{ tr('Potwierdź adres','Verify address') }}</button></div>
 <details class="setup-terms"><summary>{{ tr('Warunki konta','Account terms') }} · {{ terms_version }}</summary><p>{{ tr('Konto reprezentuje jednego operatora CHAOS. Nie udostępniaj danych logowania. Połączone metody otwierają tę samą postać. Nowe logowanie unieważnia poprzednią sesję. Usunięcie konta jest trwałe; historia wspólnego świata i kopie wiadomości innych graczy pozostają.','Your account represents one CHAOS operator. Do not share credentials. Linked methods open the same character. A new login replaces the previous session. Account deletion is permanent; shared world history and other players’ message copies remain.') }}</p></details>
-<label class="setup-consent"><input type="checkbox" name="terms" value="{{ terms_version }}" required>{{ tr('Akceptuję powyższe warunki konta','I accept the account terms above') }}</label>
+{% if adult_policy_enabled %}{% include '_adult_declaration.html' %}{% else %}
+<label class="setup-consent"><input type="checkbox" name="terms" value="{{ terms_version }}" required>{{ tr('Akceptuję powyższe warunki konta','I accept the account terms above') }}</label>{% endif %}
 <button class="ghost-btn primary" type="submit" id="registration-complete">{{ tr('Utwórz operatora','Create operator') }} →</button>
 </section>
 <div class="step-nav"><button class="ghost-btn secondary" type="button" id="setup-back" hidden>← {{ tr('Wstecz','Back') }}</button><button class="ghost-btn primary" type="button" id="setup-next">{{ tr('Dalej','Next') }} →</button></div>
@@ -53,6 +54,6 @@
 <script id="identity-roles" type="application/json">{{ roles|tojson }}</script>
 <script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode=mode)|tojson }}</script>
 <script src="/static/js/identity_registration.js?v=157-registration-1" defer></script>
-<script src="/static/js/identity_gateway.js?v=157-registration-1" defer></script>
+<script src="/static/js/identity_gateway.js?v=157-18-1" defer></script>
 {% include '_legal_links.html' %}
 </body></html>

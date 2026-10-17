@@ -30,6 +30,14 @@ function setup() {
 }
 
 (async () => {
+    const adult = setup();
+    let adultRedirect;
+    adult.root.location.replace = value => {adultRedirect = value;};
+    adult.setResult({status:403,ok:false,json:async()=>({error:'adult_acceptance_required'})});
+    await adult.listeners.visibilitychange();
+    assert.equal(adultRedirect,'/account/terms','warm PWA resumes into acceptance gate');
+    assert.equal(adult.root.ChaosSessionGeneration.getState().invalidated,false);
+    assert.equal(adult.storage.get('chaos-launch-binding-v1'),'binding-a');
     const r = setup();
     assert.equal(r.storage.get('chaos-launch-binding-v1'), 'binding-a');
     const event = {origin:'https://chaos.test', source:r.child, data:{type:'chaos:launch-request', nonce:'test'}};

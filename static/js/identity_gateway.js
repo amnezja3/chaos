@@ -41,7 +41,7 @@
  }
  async function api(path,data){const response=await fetch(path,{method:data?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-Chaos-CSRF':config.csrf,'X-Chaos-Session-Generation':config.generation},...(data?{body:JSON.stringify(data)}:{})}); const result=await response.json();if(!response.ok||result.ok===false){let message=errors[result.error]||tr('Operacja nie powiodła się. Odśwież lub zaloguj się ponownie.','Operation failed. Refresh or sign in again.');if(result.error==='rate_limited'&&result.retry_after_seconds){message+=tr(' Ponów za około ',' Retry in about ')+Math.ceil(result.retry_after_seconds/60)+tr(' min.',' min.');}throw new Error(message);}return result;}
  function run(fn,success=tr('Zmiany zapisane.','Changes saved.')){return async event=>{event?.preventDefault(); const button=event?.submitter||event?.currentTarget;if(button?.tagName==='BUTTON')button.disabled=true;if(event)status(tr('Trwa wykonywanie…','Working…'),'pending',button,false);try{await fn();if(event)status(success,'success',button);}catch(e){status(e.message,'error',button);}finally{if(button?.tagName==='BUTTON')button.disabled=false;}};}
- const formData=id=>Object.fromEntries(new FormData($(id)));
+ const formData=id=>{const data=Object.fromEntries(new FormData($(id)));if($(id).elements.age_confirmed)data.age_confirmed=$(id).elements.age_confirmed.checked;return data;};
  const registration=$('identity-registration');
  async function grant(action){const result=await api('/api/account/reauth',{action,password:$('reauth-password').value,code:$('reauth-code').value});if(!result.grant)throw new Error(tr('Wysłano kod. Wpisz go i ponów operację.','Code sent. Enter it and retry the action.'));$('reauth-code').value='';return result.grant;}
  $('reauth-send')?.addEventListener('click',run(()=>api('/api/account/reauth',{action:$('reauth-action').value}),tr('Kod został wysłany.','Code sent.')));
@@ -82,5 +82,13 @@
  $('registration-send')?.addEventListener('click',run(()=>api('/auth/register/email',{email:$('identity-registration').elements.email.value}),tr('Kod został wysłany na podany adres.','Code sent to the supplied address.')));
  $('registration-verify')?.addEventListener('click',run(async()=>{const result=await api('/auth/register/email',{email:$('identity-registration').elements.email.value,code:$('registration-code').value});registration.dispatchEvent(new CustomEvent('identity:email-verified',{detail:{email:result.verified_email}}));},tr('Adres e-mail potwierdzony.','Email address verified.')));
  $('identity-registration')?.addEventListener('submit',run(async()=>{const result=await api('/auth/complete-registration',formData('identity-registration'));navigate(result.redirect);}));
+ errors.adult_declaration_required=tr('Potwierdź ukończenie 18 lat.','Confirm that you are at least 18.');
+ errors.current_terms_required=tr('Zaakceptuj aktualny Regulamin.','Accept the current Terms.');
+ errors.age_restricted=tr('Dostęp do gry jest zablokowany ze względu na wiek.','Gameplay is restricted due to the age requirement.');
+ if(config.mode==='adult'){try{sessionStorage.removeItem(returnKey);}catch(_){}}
+ $('adult-acceptance')?.addEventListener('submit',run(async()=>{const result=await api('/api/account/terms',formData('adult-acceptance'));navigate(result.redirect);}));
+ $('adult-decline')?.addEventListener('click',run(()=>api('/api/account/terms/decline',{}),tr('Konto pozostaje zachowane. Dostęp do gry wymaga obu potwierdzeń.','Your account is preserved. Gameplay requires both confirmations.')));
+ $('adult-underage')?.addEventListener('click',run(async()=>{const result=await api('/api/account/terms/decline',{underage:true});navigate(result.redirect);}));
+ $('adult-logout')?.addEventListener('click',run(async()=>{const result=await api('/logout',{});navigate(result.redirect);}));
  if(config.mode==='account')run(loadAccount)();if(config.mode==='admin')run(()=>loadAdmin())();
 })();

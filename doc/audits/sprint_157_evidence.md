@@ -1,5 +1,15 @@
 # Sprint 157 — macierz dowodów, 16 X 2026
 
+## Rozszerzenie 18+ — 17 X 2026, lokalnie
+
+76 testów backendu oraz testy JS/Playwright PASS. Dwie ścieżki rejestracji,
+czterej symulowani dostawcy, stare konta i zgody, aktywne sesje, odmowa,
+blokada wieku i usuwanie. Migracja addytywna/idempotentna, bez zmian kont.
+Raport: [identity_18_report.md](identity_18_report.md).
+Flaga domyślnie OFF, dokumenty DRAFT. Nie aktywowano produkcyjnie; nie nadano
+pełnego PASS prawnego ani Google. Fizyczne PWA i prawdziwi dostawcy w odbiorze
+wdrożenia. Źródła i otwarte decyzje operatora zapisane w raporcie.
+
 ## Aktualizacja 17 X 2026
 
 Operator wdrożył `230a40c`: backup bazy/sesji, dry-run, migrated,
