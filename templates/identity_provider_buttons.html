@@ -23,4 +23,3 @@
   {% if not identity_provider_ready.values()|select|list %}<p id="identity-provider-status" class="identity-provider-status" data-ghost-i18n="{{ 'entry.identity.registration_pending' if identity_provider_registration else 'entry.identity.pending' }}">{{ 'External registration is coming soon. Create your CHAOS account below.' if identity_provider_registration else 'External sign-in is coming soon. Use your CHAOS account below.' }}</p>{% else %}<span id="identity-provider-status"></span>{% endif %}
 </section>
 <div class="identity-divider"><span data-ghost-i18n="entry.identity.or">or</span></div>
-<script src="/static/js/identity_start.js?v=157" defer></script>

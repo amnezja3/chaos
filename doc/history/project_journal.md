@@ -1,5 +1,15 @@
 # CHAOS — Project Journal
 
+## 2026-10-17 — 157: aktywne bramki w rejestracji lokalnej
+
+- Naprawiono przyciski dostawców na `/register`: skrypt obsługi kliknięć
+  znajdował się w inertnym template kopiowanym przez innerHTML i nie wykonywał
+  się. Skrypt ładowany jest teraz jawnie przez strony logowania i rejestracji.
+- Lokalny Playwright Chromium: 8 PASS (Google/GitHub/Discord/Steam przy
+  1440 i 390 px), od kliknięcia ikony do skróconej rejestracji. Start/callback
+  i ticket są rzeczywiste w izolowanej bazie; zewnętrzny dostawca jest atrapą.
+  Brak błędów JS. MCP niedostępny. Bez migracji; poprawka jeszcze niewdrożona.
+
 ## 2026-10-17 — 157: rejestracja z avatarami i etapami
 
 - Rejestracja po logowaniu zewnętrznym ma cztery kroki: nick, klan,

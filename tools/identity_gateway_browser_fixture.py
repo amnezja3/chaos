@@ -21,6 +21,12 @@ def main():
         import run
         fixture=GatewayWebTests()
         fixture.setUp()
+        if '--mock-providers' in sys.argv:
+            from unittest.mock import patch
+            def resolved_provider(provider, args, flow):
+                return dict(provider=provider.name, subject=secrets.token_hex(16),
+                            email='provider@example.test', email_verified=True)
+            fixture.stack.enter_context(patch('identity_gateway.providers.resolve', side_effect=resolved_provider))
         @run.app.get('/__fixture/workspace')
         def identity_workspace_fixture():
             # Render the actual desktop with the fixture stores. The launch
