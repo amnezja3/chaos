@@ -56,3 +56,15 @@ zmieniono oczekiwanego 403. Dodatkowy test sprawdza 423 przy starej epoce,
 Oba testy panelu lokalnie PASS (8,008 s). Pakiet zawiera teraz 70 testów;
 pełne ponowienie na VPS pozostaje do potwierdzenia. Migracji/restartu na podstawie
 nieudanego przebiegu nie zatwierdzono.
+
+Operator następnie potwierdził 70 testów PASS na VPS (59,537 s), dry-run,
+schema_ready z integrity/foreign_keys OK i HTTP 200 po restarcie z flagami OFF.
+Backup: `/home/johndoe/chaos-backups/160-20261018T140307Z`.
+Skan zarejestrował ReadTimeout overpass-api.de i circuit_open, bez dowodu globalnej
+awarii. Po uruchomieniu panelu operator zgłosił link poza boczną nawigacją.
+
+Poprawiono pozycję POI / Overpass i aria-current w sidebarze. Playwright ponownie
+PASS w PL/EN przy 1440/390 px, z kontrolą obecności linku w nav i braku w main.
+Dodano `tools/poi_provider_seed.py`: import istniejących endpointów bez HTTP,
+aktywacji i nadpisania rekordów. Dwa testy seeda PASS (0,222 s), w tym dry-run,
+zgodność z listą skanera, idempotencja i odmowa pracy na obcej bazie.

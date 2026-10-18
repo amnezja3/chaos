@@ -7,6 +7,9 @@ async(page)=>{
   await page.setViewportSize({width,height:850});
   await page.goto('http://127.0.0.1:8997/?fixture_locale='+lang);
   await page.waitForFunction(()=>document.getElementById('poi-admin')?.dataset.ready==='true');
+  const nav=page.locator('.admin-nav a',{hasText:'POI / Overpass'});
+  if(await nav.count()!==1||await nav.getAttribute('aria-current')!=='page')throw Error('POI missing from active sidebar navigation');
+  if(await page.locator('main > a',{hasText:'POI / Overpass'}).count())throw Error('POI link escaped sidebar');
   const id='fixture-'+width+'-'+lang;
   for(const [key,value] of Object.entries({id,name:'Test '+id,url:'https://example.org/api/interpreter',operator_group:'example.org'}))await page.locator('#poi-form [name='+key+']').fill(value);
   await page.locator('#poi-form button').click();

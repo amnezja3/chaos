@@ -65,6 +65,19 @@ Monitor CLI pozostaje nieuruchomiony. `pm2 save` dopiero po odbiorze konfiguracj
 
 ## Aktywacja w oddzielnym kroku
 
+Istniejące cztery endpointy skanera można wprowadzić bez przepisywania formularzy:
+
+```bash
+.venv/bin/python tools/poi_provider_seed.py --db data/poi_cache.sqlite3
+.venv/bin/python tools/poi_provider_seed.py --db data/poi_cache.sqlite3 --apply
+```
+
+Pierwsze polecenie tylko pokazuje plan. Drugie dodaje brakujących kandydatów jako
+disabled/untested/unknown, bez scope i bez HTTP. Istniejący ID albo URL jest pomijany;
+konfiguracja operatora nie jest nadpisywana. Oba aliasy overpass-api.de otrzymują
+wspólną grupę operatora. Narzędzie wymaga istniejącej zmigrowanej bazy POI.
+Nie jest to potwierdzenie dostępności ani warunków użycia tych endpointów.
+
 1. Włączyć wyłącznie `CHAOS_POI_PROVIDER_ADMIN_ENABLED=1` na web. Otworzyć panel
    deweloperski → POI. Sam odczyt panelu nie wysyła żądań do dostawców.
 2. Operator zatwierdza źródło: URL, wspólna grupa operatora, warunki, dowód i termin
