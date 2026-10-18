@@ -30,7 +30,7 @@ def publish(source, policy=None, restored=False):
     policy = policy or {}
     state = ('degraded' if source == 'stale' else
              'restored' if source == 'upstream' and restored else
-             'ready' if source in ('fresh', 'upstream') else policy.get('state'))
+             'ready' if source in ('fresh', 'world', 'upstream') else policy.get('state'))
     if state not in ('ready', 'degraded', 'restored', 'blocked', 'recovering'):
         return
     now = time.time()

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="CHAOS isolated synthetic geometry fixture">
+  <node id="1" lat="0" lon="0" version="1"><tag k="shop" v="books"/><tag k="name" v="Origin"/></node>
+  <node id="2" lat="0" lon="0.002" version="1"><tag k="amenity" v="atm"/></node>
+  <node id="3" lat="0" lon="0.004" version="1"><tag k="office" v="company"/></node>
+  <node id="4" lat="0.01" lon="0.01" version="1"><tag k="shop" v="supermarket"/></node>
+  <node id="10" lat="-0.01" lon="-0.001" version="1"/>
+  <node id="11" lat="0.02" lon="0.001" version="1"/>
+  <node id="12" lat="0.003" lon="-0.003" version="1"/>
+  <node id="13" lat="0.003" lon="0.003" version="1"/>
+  <node id="14" lat="-0.003" lon="0.003" version="1"/>
+  <node id="15" lat="-0.003" lon="-0.003" version="1"/>
+  <node id="16" lat="0.02" lon="0.02" version="1"/>
+  <node id="17" lat="0.021" lon="0.021" version="1"/>
+  <node id="18" lat="0.001" lon="0.001" version="1"/>
+  <node id="19" lat="0.001" lon="0.006" version="1"/>
+  <way id="100" version="1"><nd ref="10"/><nd ref="11"/><tag k="shop" v="mall"/></way>
+  <way id="101" version="1"><nd ref="12"/><nd ref="13"/><nd ref="14"/><nd ref="15"/><nd ref="12"/><tag k="amenity" v="school"/></way>
+  <way id="102" version="1"><nd ref="16"/><nd ref="17"/></way>
+  <way id="103" version="1"><nd ref="18"/><nd ref="19"/></way>
+  <relation id="200" version="1"><member type="way" ref="100" role=""/><member type="way" ref="102" role=""/><tag k="office" v="company"/><tag k="type" v="site"/></relation>
+  <relation id="201" version="1"><member type="node" ref="2" role=""/><member type="way" ref="103" role=""/><tag k="amenity" v="hospital"/><tag k="type" v="site"/></relation>
+  <relation id="202" version="1"><member type="relation" ref="201" role=""/><tag k="shop" v="mall"/><tag k="type" v="site"/></relation>
+</osm>

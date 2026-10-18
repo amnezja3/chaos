@@ -1,0 +1,2 @@
+# Preserve the exact bytes imported by the independent Overpass reference run.
+tests/fixtures/poi/geometry_source.osm -text

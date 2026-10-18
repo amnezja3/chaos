@@ -109,9 +109,14 @@ def retry_delay(value):
     return max(0, seconds) if math.isfinite(seconds) else 86400
 
 
-def _http_child(pipe, config, endpoint, query, timeout, deadline):
+def _http_child(pipe, config, endpoint, query, timeout, deadline, secure=False):
     try:
-        pipe.send((True, Service(config=config).http(endpoint, query, timeout, deadline), False))
+        if secure:
+            from .secure_transport import request
+            result = request(config, endpoint, query, timeout, deadline)
+        else:
+            result = Service(config=config).http(endpoint, query, timeout, deadline)
+        pipe.send((True, result, False))
     except Exception as exc:
         pipe.send((False, str(exc) if isinstance(exc, POIError) else type(exc).__name__,
                    isinstance(exc, (requests.Timeout, requests.ConnectionError, UpstreamUnavailable))))
@@ -119,11 +124,11 @@ def _http_child(pipe, config, endpoint, query, timeout, deadline):
         pipe.close()
 
 
-def bounded_http(config, endpoint, query, timeout, deadline):
+def bounded_http(config, endpoint, query, timeout, deadline, secure=False):
     """Same killable spawn pattern as LLM executor; no abandoned HTTP threads."""
     context = multiprocessing.get_context('spawn')
     parent, child = context.Pipe(duplex=False)
-    process = context.Process(target=_http_child, args=(child, config, endpoint, query, timeout, deadline), daemon=True)
+    process = context.Process(target=_http_child, args=(child, config, endpoint, query, timeout, deadline, secure), daemon=True)
     try:
         process.start()
         child.close()
@@ -159,6 +164,9 @@ class Service:
         self._initialized_pid = None
 
     def http(self, endpoint, query, timeout, deadline):
+        if os.environ.get('CHAOS_POI_PROVIDER_REGISTRY_ENABLED', '').strip() == '1':
+            from .secure_transport import request
+            return request(self.config, endpoint, query, timeout, deadline)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise POIError('deadline')
@@ -185,12 +193,27 @@ class Service:
         deadline = started + self.config.deadline
         key = key_for(query)
         owner = slot = None
+        fill_owner = fill_key = fill_bounds = fill_query = None
+        spatial = options.get('_spatial')
+        wide_attempted = False
         source, error, attempts = 'error', '', 0
         joined, wait_seconds = False, 0.0
         request_id = uuid.uuid4().hex
         restored = False
         policy = {}
         policy_eligible = True
+        registry = None
+        candidates = {}
+        world = None
+
+        def local_world(stale=False):
+            if not world or os.environ.get('CHAOS_POI_WORLD_REPOSITORY_ENABLED','').strip()!='1':
+                return None
+            data = world.read_exact(key, allow_stale=stale, config=self.config)
+            if data is None and spatial:
+                data = world.read_geometry(**spatial, allow_stale=stale, config=self.config)
+            active()
+            return data
 
         def active():
             if not live():
@@ -210,18 +233,56 @@ class Service:
             active()
             data = cached(stale_ttl)
             if data is None:
+                data = local_world(True)
+            if data is None:
                 raise POIError(error or 'upstream_unavailable')
+            active()
             return data
 
         try:
             active()
+            if os.environ.get('CHAOS_POI_WIDE_FETCH_ENABLED','').strip()=='1' and any(
+                    os.environ.get(f,'').strip()!='1' for f in ('CHAOS_POI_WORLD_INGEST_ENABLED',
+                    'CHAOS_POI_WORLD_REPOSITORY_ENABLED','CHAOS_POI_PROVIDER_REGISTRY_ENABLED')):
+                raise POIError('wide_fetch_dependencies')
             if self._initialized_pid != os.getpid():
                 self.repo.initialize()
                 self._initialized_pid = os.getpid()
+            if os.environ.get('CHAOS_POI_PROVIDER_REGISTRY_ENABLED', '').strip() == '1':
+                from .providers import Registry
+                registry = Registry(self.repo)
+                registry.initialize()
+                candidates = {v['url']: v for v in registry.eligible('normal_scan')}
+                # Keep the caller's attempt budget, but not its old static URLs.
+                urls = list(candidates)
+                endpoints = [urls[i % len(urls)] for i in range(len(endpoints))] if urls else []
+            if any(os.environ.get(flag, '').strip() == '1' for flag in
+                   ('CHAOS_POI_WORLD_INGEST_ENABLED','CHAOS_POI_WORLD_REPOSITORY_ENABLED')):
+                from .world import WorldRepository
+                world = WorldRepository(self.repo)
+                try:
+                    world.initialize()
+                    world.prune_expired(limit=20)
+                except (sqlite3.Error,OSError,POIError):
+                    if os.environ.get('CHAOS_POI_WORLD_REPOSITORY_ENABLED','').strip()=='1':
+                        raise
+                    world = None
+                    LOG.warning('poi_world shadow_initialize_failed')
             data = cached(fresh_ttl)
             if data is not None:
                 source = 'fresh'
                 return data
+            if world and os.environ.get('CHAOS_POI_WORLD_REPOSITORY_ENABLED', '').strip() == '1':
+                data = local_world()
+                if data is not None:
+                    active()
+                    source = 'world'
+                    return data
+            if registry and not endpoints:
+                policy_eligible = False
+                error = 'provider_configuration_unavailable'
+                source = 'stale'
+                return fallback()
             wait_until = min(deadline, started + self.config.join_wait)
             while owner is None:
                 active()
@@ -245,12 +306,39 @@ class Service:
                 active()
                 source = 'fresh'
                 return data
+            if (spatial and world and registry and os.environ.get('CHAOS_POI_WIDE_FETCH_ENABLED','').strip()=='1'
+                    and any(registry.approved(c,'wide_fetch') and registry.approved(c,'storage') for c in candidates.values())):
+                from .geometry import fill_plan, UncertifiedGeometry
+                try:
+                    fill_bounds,fill_query = fill_plan(**spatial)
+                    fill_key = 'world-fill:'+key_for(fill_query)
+                except UncertifiedGeometry:
+                    fill_query = None
+                if fill_query:
+                    while fill_owner is None:
+                        active()
+                        data = local_world()
+                        if data is not None:
+                            source = 'world'
+                            return data
+                        fill_owner = self.repo.acquire(fill_key,self.config.deadline+5)
+                        if fill_owner:
+                            break
+                        if time.monotonic() >= wait_until:
+                            error,source = 'join_timeout','stale'
+                            return fallback()
+                        time.sleep(.05)
+                    data = local_world()
+                    if data is not None:
+                        source = 'world'
+                        return data
             for index, endpoint in enumerate(endpoints):
                 active()
                 if time.monotonic() >= deadline or not self.repo.owns(key, owner):
                     error = 'deadline_or_lease_lost'
                     break
-                group = group_for(endpoint)
+                candidate = candidates.get(endpoint)
+                group = candidate['operator_group'] if candidate else group_for(endpoint)
                 if not self.repo.allowed(group):
                     error = 'circuit_open'
                     continue
@@ -262,27 +350,61 @@ class Service:
                 delay = 0
                 permanent = False
                 probe = slot if self.repo.owns('@probe:' + group, slot) else None
+                transport_started = None
+                transport_status = 'not_sent'
+                operation = 'normal_scan'
                 try:
+                    if registry:
+                        # Re-read before every new network call: disable and edits
+                        # propagate across all workers without a process restart.
+                        current = next((v for v in registry.eligible('normal_scan') if v['id']==candidate['id']),None)
+                        if not current or current['revision'] != candidate['revision']:
+                            policy_eligible = False
+                            error = 'provider_configuration_changed'
+                            continue
                     if not self.repo.allowed(group):
                         error = 'circuit_open'
                         continue
                     attempts += 1
-                    status, retry, data = self.transport(endpoint, query, timeout, deadline)
+                    transport_started = time.monotonic()
+                    use_wide = bool(fill_owner and not wide_attempted and candidate
+                                    and registry.approved(current,'wide_fetch') and registry.approved(current,'storage')
+                                    and self.repo.owns(fill_key,fill_owner))
+                    if use_wide:
+                        wide_attempted = True
+                        operation = 'wide_fetch'
+                    status, retry, data = self.transport(endpoint, fill_query if use_wide else query, timeout, deadline)
+                    transport_status = str(status)
                     LOG.info('poi_http %s', json.dumps(dict(provider=group, status=status)))
                     if status == 200:
                         data = validate(data, self.config)
                         if time.monotonic() >= deadline or not self.repo.owns('@upstream', slot):
                             raise POIError('deadline_or_slot_lost')
+                        if use_wide:
+                            from .geometry import CoveredGeometry
+                            # Incomplete/unsupported geometry consumes this attempt;
+                            # the remaining exact attempts retain the same deadline.
+                            selected = CoveredGeometry(data,**fill_bounds).select(**spatial)
+                            if not world.publish_geometry(fill_key,fill_owner,data,candidate['id'],
+                                    fresh_ttl,stale_ttl,**fill_bounds,config=self.config):
+                                raise POIError('fill_lease_lost')
+                            data = validate(selected,self.config)
                         if not self.repo.write(key, owner, data, stale_ttl):
                             raise POIError('cache_capacity_or_lease_lost')
                         self.repo.outcome(group, True)
+                        if (not use_wide and world and os.environ.get('CHAOS_POI_WORLD_INGEST_ENABLED','').strip()=='1'
+                                and candidate and registry.approved(candidate,'storage')):
+                            try:
+                                world.publish_exact(key,owner,data,candidate['id'],fresh_ttl,stale_ttl,self.config)
+                            except (sqlite3.Error,OSError,POIError,ValueError):
+                                LOG.warning('poi_world shadow_write_failed')
                         restored = bool(probe)
                         active()
                         source = 'upstream'
                         return data
                     error = 'http_' + str(status)
                     delay = retry_delay(retry)
-                    permanent = status not in (429, 502, 503, 504)
+                    permanent = status not in (429, 500, 502, 503, 504)
                     policy_eligible = not permanent
                     if policy_eligible:
                         self.repo.outcome(group, False, delay or (30 if status == 429 else 0))
@@ -290,11 +412,18 @@ class Service:
                     raise
                 except (requests.RequestException, POIError, ValueError) as exc:
                     error = str(exc) if isinstance(exc, POIError) else type(exc).__name__
+                    transport_status = error
                     LOG.info('poi_http %s', json.dumps(dict(provider=group, status='error', error=error)))
                     policy_eligible = isinstance(exc, (requests.Timeout, requests.ConnectionError, UpstreamUnavailable))
                     if policy_eligible:
                         self.repo.outcome(group, False)
                 finally:
+                    if registry and transport_started is not None:
+                        try:
+                            registry.record_health(candidate['id'],candidate['revision'],operation,
+                                transport_status,time.monotonic()-transport_started)
+                        except (sqlite3.Error,OSError):
+                            LOG.warning('poi_health write_failed')
                     if probe:
                         self.repo.release('@probe:' + group, probe)
                     self.repo.release('@upstream', slot)
@@ -323,14 +452,16 @@ class Service:
             # Only the shared policy proves a block. A timeout, malformed JSON,
             # application exception or exhausted budget alone does not.
             try:
-                policy = self.repo.presentation_policy(group_for(e) for e in endpoints) if policy_eligible else {}
+                policy = self.repo.presentation_policy(
+                    candidates[e]['operator_group'] if e in candidates else group_for(e)
+                    for e in endpoints) if policy_eligible else {}
             except (sqlite3.Error, OSError):
                 policy = {}
             raise
         finally:
             from .presentation import publish
             publish(source, policy, restored)
-            for lease_key, token in [('@upstream', slot), (key, owner)]:
+            for lease_key, token in [('@upstream', slot), (key, owner), (fill_key,fill_owner)]:
                 if token:
                     try:
                         self.repo.release(lease_key, token)

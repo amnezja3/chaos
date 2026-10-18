@@ -7,7 +7,7 @@
 {% for key in ['users','ghostlab','radio','narrative','territories','vulnerabilities','bugs'] %}
 <a href="{{ url_for('dev_dashboard', tab=key) if generation.launch_enabled else url_for('dev_dashboard', tab=key, _session_generation=generation.query_token) }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ 'GhostLab' if key == 'ghostlab' else admin_t(key) }}</a>
 {% endfor %}<a href="{{ url_for('dev_dashboard', tab='identity') if generation.launch_enabled else url_for('dev_dashboard', tab='identity', _session_generation=generation.query_token) }}" {% if active_tab == 'identity' %}aria-current="page"{% endif %}>Identity Gateway</a><p>GHOST NETWORK<br>{{ admin_t('operator') }}</p></nav>
-<main>{% block content %}{% endblock %}</main></div>
+<main>{% if poi_admin_enabled is defined and poi_admin_enabled() %}<a class="button" href="{{ url_for('dev_dashboard', tab='poi') if generation.launch_enabled else url_for('dev_dashboard', tab='poi', _session_generation=generation.query_token) }}">POI / Overpass</a>{% endif %}{% block content %}{% endblock %}</main></div>
 <script id="session-generation-config" type="application/json">{{ generation|tojson }}</script>
 <script src="/static/js/session_generation.js?v=session-157-8-1"></script>
 <script id="admin-locale-config" type="application/json">{{ admin_i18n_config()|tojson }}</script>

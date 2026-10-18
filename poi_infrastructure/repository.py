@@ -17,6 +17,7 @@ class Repository:
     def connect(self):
         conn = sqlite3.connect(self.path, timeout=.5, isolation_level=None)
         conn.row_factory = sqlite3.Row
+        conn.execute('PRAGMA foreign_keys=ON')
         conn.execute('PRAGMA busy_timeout=500')
         conn.execute('PRAGMA wal_autocheckpoint=64')
         conn.execute('PRAGMA journal_size_limit=1048576')

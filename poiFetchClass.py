@@ -68,6 +68,8 @@ out center;
                 if self._poi_service is None:
                     self._poi_service = Service()
             endpoints = self.endpoints[:self.endpoint_limit] + [self.endpoints[i % len(self.endpoints)] for i in range(extra)]
+            options = dict(options, _spatial=dict(lat=lat, lon=lon, radius=self.radius,
+                                                 filters=list(self.tag_filters)))
             raw = self._poi_service.fetch(self._build_query(lat, lon), endpoints,
                 self.request_timeout + timeout_extra, self.cache_ttl, self.stale_cache_ttl, options)
             return overpy.Result.from_json(raw)

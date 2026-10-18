@@ -1,5 +1,7 @@
 # Sprint 159 — MASA / stan kanału rozpoznania
 
+Aktualizacja 2026-10-18: wizualny PASS potwierdzony przez operatora w gameplayu. Dostępność POI/upstream pozostaje otwarta; kolejny zakres opisuje [Sprint 160](sprint_160_poi_world_repository_provider_control.md). Poniżej zachowano plan i stan lokalnego pakietu z momentu przygotowania.
+
 Data: 2026-10-18. Status: implementacja i weryfikacja lokalna gotowe; pakiet oczekuje publikacji i odbioru na VPS. Bez produkcyjnego PASS. [Dowody](../audits/sprint_159_evidence.md).
 
 Źródło: [koncepcja](../prototypes/poi/sprint_159_masa_scan_interference_ux.md). Operator polecił realizację przed wznowieniem testów POI. Pakiet można wdrożyć z flagami OFF; włączenie 159 zależy od kontrolowanego odbioru infrastruktury 158. Nie zmieniamy samodzielnie konfiguracji VPS.

@@ -1,0 +1,39 @@
+{% extends "admin_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/admin_poi.css?v=160-1">
+<section id="poi-admin" class="panel" data-locale="{{ ui_locale }}" data-csrf="{{ poi_csrf }}">
+<h1>POI / Overpass</h1>
+<p data-copy="intro"></p>
+<button id="poi-refresh" type="button" data-copy="refresh" disabled></button>
+<p id="poi-status" role="status" aria-live="polite"></p>
+<div id="poi-providers" class="table-scroll"></div>
+<h2 data-copy="edit"></h2>
+<form id="poi-form" class="provider-form">
+<label>ID <input name="id" required pattern="[a-z0-9_\-]{1,60}" maxlength="60"></label>
+<label><span data-copy="name"></span><input name="name" required maxlength="80"></label>
+<label>HTTPS / interpreter <input name="url" type="url" required maxlength="300"></label>
+<label><span data-copy="group"></span><input name="operator_group" required maxlength="100"></label>
+<label><span data-copy="priority"></span><input name="priority" type="number" min="0" max="100" value="0" required></label>
+<button type="submit" data-copy="save" disabled></button><p class="poi-feedback" role="status"></p>
+</form>
+<h2 data-copy="decision"></h2>
+<form id="poi-decision" class="provider-form">
+<p data-copy="scopeHint"></p>
+<label>ID <input name="id" required></label>
+<label><span data-copy="policy"></span><select name="policy">
+{% for value in ['unknown','public_declaration_only','operator_confirmation_pending','approved_for_defined_use','restricted','rejected','expired_review'] %}<option>{{ value }}</option>{% endfor %}
+</select></label>
+<fieldset><legend data-copy="scopes"></legend>
+{% for scope in ['small_probe','normal_scan','wide_fetch','background_refresh','storage'] %}<label><input type="checkbox" name="scope" value="{{ scope }}">{{ scope }}</label>{% endfor %}
+</fieldset>
+<label><span data-copy="source"></span><input name="source_url" type="url" required></label>
+<label><span data-copy="reference"></span><input name="reference" required maxlength="2000"></label>
+<label><span data-copy="notes"></span><textarea name="notes" required maxlength="2000"></textarea></label>
+<label><span data-copy="review"></span><input name="review" type="date" required></label>
+<button type="submit" data-copy="saveDecision" disabled></button><p class="poi-feedback" role="status"></p>
+</form>
+<h2 data-copy="health"></h2><div id="poi-health" class="table-scroll"></div>
+<h2 data-copy="audit"></h2><div id="poi-audit" class="table-scroll"></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin_poi.js?v=160-1"></script>{% endblock %}

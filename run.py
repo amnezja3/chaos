@@ -22776,6 +22776,12 @@ def dev_dashboard():
 
     generation = session_generation_client_context()
     tab = request.args.get("tab", "users")
+    if tab == 'poi':
+        from poi_infrastructure.admin import enabled as poi_admin_enabled
+        if not poi_admin_enabled():
+            return jsonify(ok=False,error='poi_admin_disabled'),404
+        return render_template('admin_poi.html',generation=generation,active_tab=tab,
+            ui_locale=request_ui_locale(),poi_csrf=session.get('session_csrf',''))
     if tab == 'narrative':
         return render_template('admin_narrative.html', generation=generation, active_tab=tab, ui_locale=request_ui_locale())
     if tab == 'identity':
@@ -32445,6 +32451,10 @@ from communication_safety_web import install as install_communication_safety
 install_communication_safety(_identity_sys.modules[__name__])
 from identity_gateway.adult_policy import install as install_adult_policy
 install_adult_policy(_identity_sys.modules[__name__])
+
+from poi_infrastructure.admin import register as register_poi_admin
+register_poi_admin(app, require_dev_admin, session_csrf_failure)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
