@@ -50,3 +50,7 @@ Operator przeczytał dokumenty i zatwierdził zdjęcie oznaczeń projektu. Wersj
 Usunięto język audytu z §11 i §13 PL/EN. Nie potwierdzamy nieznanego użycia proxy ani podstaw transferów: ustalenia organizacyjne pozostają otwarte w administracji. Operator potwierdził, że nie ustanawiamy żadnego nowego progu wieku; 13+ było projektem, 18+ nieaktywnym mechanizmem, 16+ kierunkiem przyszłej zmiany. §2 opisuje brak nowego ograniczenia, nie ogłasza gry bez limitu wieku. Kod zwykłej akceptacji 157-v1 nie zawiera progu; 157-16-v1 jest powiązany z flagą. Faktycznie zaakceptowane wersje wymagają odczytu produkcyjnego. Historyczna publiczna wersja 157-16-draft-1 była projektem, sam jej odczyt nie dowodzi akceptacji.
 
 SSH odrzucone przez VPS (publickey,password). Nie potwierdzono aktywności zabezpieczeń na produkcji. Przygotowano tools/privacy_production_check.py: odczyt plików, środowiska uruchomionych procesów i zbiorczych wersji akceptacji, bez sekretów i danych graczy. Uruchomić na VPS: .venv/bin/python tools/privacy_production_check.py. Wynik trzeba ocenić przed publikacją; nie jest śledzeniem ruchu sieciowego. Lokalna kontrola czterech stron PL/EN w Playwright PASS. Bez zmian Identity Gateway i flagi wieku.
+
+## Odbiór końcowy
+
+18 X 2026: operator potwierdził PASS Google i publiczne działanie logowania. [Etap publikacji 156.8 zamknięty](../sprints/sprint_156_8_google_publication_closure.md). Ten zapis zastępuje wcześniejszy status oczekiwania na zgłoszenie, nie historyczne wyniki kontroli. Umowy powierzenia nadal otwarte; bramka wieku nieaktywna.

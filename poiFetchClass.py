@@ -21,6 +21,7 @@ class POIFetcher:
         self.stale_cache_ttl = max(self.cache_ttl, float(os.getenv("CHAOS_POI_STALE_CACHE_TTL_SECONDS", "1800")))
         self._cache = {}
         self._cache_lock = threading.Lock()
+        self._poi_service = None
 
         self.endpoints = [
             "https://overpass-api.de/api/interpreter",
@@ -58,6 +59,18 @@ out center;
         if type(extra) is not int or not 0 <= extra <= 3 or type(timeout_extra) is not int or not 0 <= timeout_extra <= 10:
             raise ValueError('Invalid scanner retry policy')
         live = options.get('still_active', lambda: True)
+        if os.environ.get('CHAOS_POI_INFRASTRUCTURE_ENABLED', '').strip() == '1':
+            from poi_infrastructure.service import Service
+            import math
+            if not all(math.isfinite(float(v)) for v in (lat, lon)) or not -90 <= float(lat) <= 90 or not -180 <= float(lon) <= 180:
+                raise ValueError('Invalid scan coordinates')
+            with self._cache_lock:
+                if self._poi_service is None:
+                    self._poi_service = Service()
+            endpoints = self.endpoints[:self.endpoint_limit] + [self.endpoints[i % len(self.endpoints)] for i in range(extra)]
+            raw = self._poi_service.fetch(self._build_query(lat, lon), endpoints,
+                self.request_timeout + timeout_extra, self.cache_ttl, self.stale_cache_ttl, options)
+            return overpy.Result.from_json(raw)
         deadline = time.monotonic() + 110
         query = self._build_query(lat, lon, result_limit)
         cache_key = (round(float(lat), 4), round(float(lon), 4), self.radius, tuple(self.tag_filters))
@@ -173,7 +186,7 @@ out center;
         return categories
 
     def get_all_categories(self, lat: float, lon: float, result_limit: int = 60, scan_options=None) -> Dict[str, List[Dict]]:
-        print(f"POI scan for point {lat}, {lon} (local limit: {result_limit})")
+        # Coordinates belong in the raw cache, not operational scan logs.
         result = self._fetch(lat, lon, result_limit, scan_options=scan_options)
         categories = self._categorize_data(result)
         if result_limit > 0:
@@ -181,6 +194,19 @@ out center;
         return categories
 
     def get_all(self, lat: float, lon: float, result_limit: int = 60, scan_options=None) -> List[Dict]:
+        started = time.monotonic()
+        outcome = 'api_error'
+        try:
+            result = self._get_all(lat, lon, result_limit, scan_options)
+            outcome = 'success' if result else 'empty'
+            return result
+        finally:
+            from poi_infrastructure import logger
+            logger().info('poi_scan %s', json.dumps({
+                'result': outcome, 'seconds': round(time.monotonic() - started, 4),
+                'infrastructure': os.environ.get('CHAOS_POI_INFRASTRUCTURE_ENABLED', '').strip() == '1'}))
+
+    def _get_all(self, lat: float, lon: float, result_limit: int = 60, scan_options=None) -> List[Dict]:
         categories = self.get_all_categories(lat, lon, result_limit, scan_options=scan_options)
         items = []
         seen = set()

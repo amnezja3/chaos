@@ -92,3 +92,7 @@ kolizji nicków/e-maili wymaga audytu na serwerze. Nie łączymy kont po samym e
 
 Instrukcja: [wdrożenie 157](../runbooks/identity_gateway_157.md).
 Wcześniejsze raporty 157.1/157.2 są zapisami etapów, nie opisem końcowej implementacji.
+
+## Publiczny Google OAuth — 18 X 2026
+
+PASS potwierdzony przez operatora: Google działa publicznie dla użytkowników spoza listy testerów. Etap publikacji zamknięto na polecenie operatora pod oznaczeniem [156.8](../sprints/sprint_156_8_google_publication_closure.md). Nie oznacza to zamknięcia pełnej polityki wieku/komunikacji 157.8, odbioru innych dostawców ani zgodności z RODO. Umowy pozostają osobnym pilnym zadaniem. Flaga wieku 0, Mistral pozostaje zablokowany. Wynik VPS: cztery procesy online po aktualizacji plików, właściwy katalog, losowanie miasta bez dawnego ip-api; cztery akceptacje 157-v1 bez oświadczeń wieku.

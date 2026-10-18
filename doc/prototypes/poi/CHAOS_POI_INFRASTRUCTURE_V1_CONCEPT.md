@@ -458,3 +458,7 @@ Projekt jest gotowy, gdy:
 - Overpass API — geometryczne działanie `around`: https://dev.overpass-api.de/overpass-doc/en/full_data/polygon.html
 
 *Dokument koncepcyjny, nie opis wdrożonego stanu produkcyjnego. Parametry i nazwy nowych modułów są propozycją do walidacji w repozytorium.*
+
+## Plan realizacji
+
+Koncepcję rozpisano na [Sprint 158 — niezawodna infrastruktura POI](../../sprints/sprint_158_poi_infrastructure.md), etapy 158.1–158.7. Status: plan, bez implementacji. Geograficzne współdzielenie sąsiednich obszarów pozostaje poza zakresem v1.

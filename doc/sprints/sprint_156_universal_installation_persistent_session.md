@@ -285,3 +285,7 @@ Manifest, ikony, publiczny SW, panel Windows/Linux/Android/iOS przed logowaniem
 i w Ustawieniach, instrukcje, skrót Linux oraz PL/EN gotowe lokalnie.
 [Runbook i dowody 156.4](../runbooks/installation_156_4.md). Flagi nadal OFF;
 bez wdrożenia. Odbiór rzeczywistej instalacji na urządzeniach należy do 156.5.
+
+## 156.8 — odbiór publikacji Google
+
+[Zamknięcie etapu 156.8](sprint_156_8_google_publication_closure.md): PASS operatora 18 X 2026, Google OAuth działa publicznie. Zakres i odrębne otwarte zadania opisano w protokole.
