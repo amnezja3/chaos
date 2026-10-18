@@ -1,0 +1,148 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - link "CHAOS" [ref=e4] [cursor=pointer]:
+      - /url: /launch
+    - navigation "Język" [ref=e5]:
+      - link "PL" [ref=e6] [cursor=pointer]:
+        - /url: /privacy?locale=pl
+      - text: /
+      - link "EN" [ref=e7] [cursor=pointer]:
+        - /url: /privacy?locale=en
+  - paragraph [ref=e8]: GHOST SYSTEM / 157-legal-proposal-4
+  - heading "Polityka prywatności" [level=1] [ref=e9]
+  - paragraph [ref=e10]:
+    - text: "Aktualizacja projektu:"
+    - time [ref=e11]: 2026-10-18
+  - note [ref=e12]: Końcowa propozycja do akceptacji operatora. Jeszcze nieopublikowana i nieobowiązująca. Decyzje do zamknięcia zebrano osobno; nieustalone fakty dotyczące przetwarzania wskazano w treści.
+  - complementary "Operator i kontakt" [ref=e13]:
+    - strong [ref=e14]: Michał Cezary Jankiewicz
+    - text: · Osoba prywatna ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, Polska
+    - link "year2108@chaos.re" [ref=e15] [cursor=pointer]:
+      - /url: mailto:year2108@chaos.re
+  - navigation "Spis treści" [ref=e16]:
+    - link "1. Administrator i kontakt" [ref=e17] [cursor=pointer]:
+      - /url: "#section-1"
+    - link "2. Dane konta i rozgrywki" [ref=e18] [cursor=pointer]:
+      - /url: "#section-2"
+    - link "3. Logowanie i zewnętrzni dostawcy" [ref=e19] [cursor=pointer]:
+      - /url: "#section-3"
+    - 'link "4. Google: zakres i wykorzystanie danych" [ref=e20] [cursor=pointer]':
+      - /url: "#section-4"
+    - 'link "5. Google: zabezpieczenia i odbiorcy danych" [ref=e21] [cursor=pointer]':
+      - /url: "#section-5"
+    - link "6. Odłączenie Google i usunięcie danych" [ref=e22] [cursor=pointer]:
+      - /url: "#section-6"
+    - link "7. Discord, GitHub i Steam" [ref=e23] [cursor=pointer]:
+      - /url: "#section-7"
+    - link "8. Minimalny wiek i zapis akceptacji" [ref=e24] [cursor=pointer]:
+      - /url: "#section-8"
+    - link "9. Sesje i pamięć urządzenia" [ref=e25] [cursor=pointer]:
+      - /url: "#section-9"
+    - link "10. Dane techniczne i mapa" [ref=e26] [cursor=pointer]:
+      - /url: "#section-10"
+    - link "11. Pseudonimowość, analityka i reklamy" [ref=e27] [cursor=pointer]:
+      - /url: "#section-11"
+    - link "12. Cele i podstawy przetwarzania" [ref=e28] [cursor=pointer]:
+      - /url: "#section-12"
+    - link "13. Odbiorcy i usługi zewnętrzne" [ref=e29] [cursor=pointer]:
+      - /url: "#section-13"
+    - link "14. Narracja i systemy AI" [ref=e30] [cursor=pointer]:
+      - /url: "#section-14"
+    - link "15. Techniczny cykl życia danych Identity" [ref=e31] [cursor=pointer]:
+      - /url: "#section-15"
+    - link "16. Logi i kopie zapasowe serwera" [ref=e32] [cursor=pointer]:
+      - /url: "#section-16"
+    - link "17. Co usuwa procedura konta" [ref=e33] [cursor=pointer]:
+      - /url: "#section-17"
+    - link "18. Dane pozostające po zamknięciu konta" [ref=e34] [cursor=pointer]:
+      - /url: "#section-18"
+    - link "19. Twoje prawa" [ref=e35] [cursor=pointer]:
+      - /url: "#section-19"
+    - link "20. Jak złożyć żądanie dotyczące danych" [ref=e36] [cursor=pointer]:
+      - /url: "#section-20"
+    - link "21. Zgłoszenia i zmiany polityki" [ref=e37] [cursor=pointer]:
+      - /url: "#section-21"
+  - generic [ref=e38]:
+    - heading "1. Administrator i kontakt" [level=2] [ref=e39]
+    - paragraph [ref=e40]: "Administratorem danych osobowych w CHAOS — Cyber Hacking Adventure Of Senses — jest Michał Cezary Jankiewicz, prowadzący grę jako osoba prywatna. Adres: ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, Polska. Kontakt w sprawach konta, ochrony danych i realizacji praw: year2108@chaos.re. Polityka dotyczy serwisu chaos.re i jego instalowanej aplikacji internetowej (PWA)."
+  - generic [ref=e41]:
+    - heading "2. Dane konta i rozgrywki" [level=2] [ref=e42]
+    - paragraph [ref=e43]: CHAOS przetwarza identyfikator konta, login lub nick, adres e-mail, wybrany klan, profesję, avatar, postęp i działania w grze oraz treści przesyłane przez gracza. Nick, profil, publikacje i działania we wspólnym świecie mogą być widoczne dla innych graczy. Nie publikuj danych, których nie chcesz udostępniać.
+  - generic [ref=e44]:
+    - heading "3. Logowanie i zewnętrzni dostawcy" [level=2] [ref=e45]
+    - paragraph [ref=e46]: Możesz korzystać z lokalnego konta lub dostępnych metod Google, GitHub, Discord i Steam. Przy logowaniu zewnętrznym otrzymujemy identyfikator u dostawcy oraz, jeśli jest dostępny, adres e-mail i informację o jego potwierdzeniu. CHAOS nie otrzymuje hasła do konta dostawcy. Hasła lokalne są przechowywane jako skróty kryptograficzne. Sam zgodny adres e-mail nie powoduje automatycznego połączenia kont.
+  - generic [ref=e47]:
+    - 'heading "4. Google: zakres i wykorzystanie danych" [level=2] [ref=e48]'
+    - paragraph [ref=e49]: Logowanie przez Google jest opcjonalne. Po wybraniu tej metody przechodzisz na stronę Google; CHAOS prosi wyłącznie o zakresy openid i email. Z podpisanego tokenu odczytujemy identyfikator konta Google (sub), adres e-mail i informację o jego potwierdzeniu (email_verified). Zapisujemy te dane oraz daty powiązania i użycia metody w bazie kont CHAOS. Służą utworzeniu konta, logowaniu i powiązaniu Google z istniejącym kontem na Twoje żądanie. Potwierdzony e-mail może zostać adresem bezpieczeństwa konta, używanym do kodów i potwierdzeń. Sam zgodny adres e-mail nie łączy automatycznie dwóch kont. Nie otrzymujemy hasła Google, nie pobieramy zdjęcia profilowego i nie żądamy dostępu do Gmaila, Dysku, Kontaktów ani Kalendarza.
+  - generic [ref=e50]:
+    - 'heading "5. Google: zabezpieczenia i odbiorcy danych" [level=2] [ref=e51]'
+    - paragraph [ref=e52]: Wymiana kodu logowania i sprawdzenie podpisanego tokenu odbywają się po stronie serwera przez HTTPS. Tokeny dostępu i odświeżania nie są zapisywane w tabelach Identity Gateway. Powiązanie Google nie jest publiczną częścią profilu gracza. Dane konta są przetwarzane na infrastrukturze serwerowej CHAOS; adres odbiorcy i treść wiadomości bezpieczeństwa trafiają do usługi pocztowej cyber_Folks oraz do dostawcy poczty odbiorcy podczas doręczenia. Google obsługuje swoją część logowania i otrzymuje dane niezbędne do autoryzacji. Korzystanie ze strony Google podlega także polityce prywatności Google. Zakres dostępu do infrastruktury, lokalizacje i ewentualne transfery opisuje sekcja o odbiorcach; jej ustalenia produkcyjne wymagają jeszcze potwierdzenia.
+  - generic [ref=e53]:
+    - heading "6. Odłączenie Google i usunięcie danych" [level=2] [ref=e54]
+    - paragraph [ref=e55]: W grze otwórz Ustawienia → Konto → Identity Gateway. Odłączenie Google usuwa bieżące powiązanie dostawcy; musi pozostać inna metoda logowania. Nie usuwa to konta CHAOS ani adresu e-mail zapisanego osobno jako adres bezpieczeństwa. Dostęp aplikacji możesz również cofnąć w ustawieniach połączeń z aplikacjami na swoim koncie Google; samo cofnięcie dostępu nie usuwa danych już zapisanych w CHAOS. Usunięcie konta w Identity Gateway wymaga ponownego uwierzytelnienia i usuwa bieżące powiązania oraz dane bezpieczeństwa opisane poniżej. Żądania dostępu lub usunięcia pozostałych danych możesz przesłać na year2108@chaos.re. Nie wysyłaj hasła, tokenów ani kodów logowania w takim zgłoszeniu.
+  - generic [ref=e56]:
+    - heading "7. Discord, GitHub i Steam" [level=2] [ref=e57]
+    - paragraph [ref=e58]: "Discord używa identify i email: odpowiedź /users/@me służy odczytaniu identyfikatora, e-maila i statusu verified. GitHub używa read:user i user:email: /user oraz /user/emails służą odczytaniu identyfikatora i głównego potwierdzonego e-maila. API dostawców mogą zwracać dodatkowe pola profilu; adapter utrwala tylko wskazane dane tożsamości. Steam OpenID potwierdza SteamID; nie dostarcza e-maila, więc adres wymaga osobnego potwierdzenia w CHAOS. Użycie zewnętrznej metody jest opcjonalne. Dostawca obsługuje własną stronę logowania na swoich zasadach. Odłączenie metody w ustawieniach usuwa jej bieżące powiązanie; musi pozostać co najmniej jedna metoda logowania."
+  - generic [ref=e59]:
+    - heading "8. Minimalny wiek i zapis akceptacji" [level=2] [ref=e60]
+    - paragraph [ref=e61]: Przygotowywana polityka CHAOS przewiduje minimalny wiek 16 lat. Mechanizm wymagający nowego oświadczenia 16+ nie został jeszcze aktywowany na produkcji. Po jego uruchomieniu zapis obejmie identyfikator użytkownika, wersję Regulaminu, czas akceptacji oraz fakt i wersję oświadczenia o wieku. Historyczne oświadczenia pozostają odrębnymi zapisami i nie są automatycznie zamieniane na nowe. Nie zbieramy w tym celu daty urodzenia, dokumentów tożsamości ani potwierdzenia wieku z Google. Logowanie Google nie stanowi weryfikacji wieku. Wprowadzenie nowej polityki i ograniczeń wymaga osobnego ogłoszenia; ten projekt nie aktywuje ich ani nie zmienia istniejących kont.
+  - generic [ref=e62]:
+    - heading "9. Sesje i pamięć urządzenia" [level=2] [ref=e63]
+    - paragraph [ref=e64]: Cookies i pamięć przeglądarki obsługują logowanie, zabezpieczenia, język i ustawienia interfejsu. Trwała sesja ma limit 30 dni nieaktywności i 90 dni od logowania; nowe logowanie unieważnia poprzednią sesję. Wylogowanie kończy dostęp w danej sesji. Instalacja PWA jest opcjonalna i może używać osobnej pamięci, wymagając ponownego logowania.
+  - generic [ref=e65]:
+    - heading "10. Dane techniczne i mapa" [level=2] [ref=e66]
+    - paragraph [ref=e67]: Obsługa połączeń i bezpieczeństwa obejmuje dane techniczne, takie jak IP, informacje o przeglądarce, czas żądania i zdarzenia logowania. Rejestracja lokalna może przesłać publiczne IP do ip-api.com przez HTTP, aby wybrać przybliżone miasto startowe; nie jest to pomiar GPS. Proponowane wyłączenie tego zapytania nie zostało jeszcze wykonane. Mapa może pobierać kafelki OpenStreetMap lub OpenTopoMap, osadzoną mapę OpenStreetMap i biblioteki Leaflet z unpkg.com. Dostawcy otrzymują wtedy IP i dane żądania, a adresy kafelków wskazują obszar mapy. Skanery wysyłają z serwera zapytania Overpass o obiekty w wybranym obszarze; usługa otrzymuje współrzędne zapytania i IP serwera. Pozycja postaci jest daną gry, nie deklaracją rzeczywistego położenia gracza.
+  - generic [ref=e68]:
+    - heading "11. Pseudonimowość, analityka i reklamy" [level=2] [ref=e69]
+    - paragraph [ref=e70]: "Możesz używać nicku; nie wymagamy publicznego imienia i nazwiska. Pseudonimowość wobec graczy nie oznacza anonimowości wobec operatora: konto może być powiązane z e-mailem, identyfikatorem logowania i zdarzeniami technicznymi. W sprawdzonym kodzie interfejsu nie znaleziono integracji reklamowych ani zewnętrznej analityki zachowania. Logi techniczne nadal obejmują przetwarzanie danych. Nie potwierdzono korzystania z Cloudflare jako CDN lub proxy; samo używanie resolvera DNS nie jest taką usługą."
+  - generic [ref=e71]:
+    - heading "12. Cele i podstawy przetwarzania" [level=2] [ref=e72]
+    - paragraph [ref=e73]: Dane potrzebne do konta, wybranej metody logowania, komunikacji i rozgrywki przetwarzamy w celu świadczenia usługi — art. 6 ust. 1 lit. b RODO. Ochrona kont, zapobieganie nadużyciom, obsługa zgłoszeń i obrona roszczeń opierają się na prawnie uzasadnionym interesie operatora — art. 6 ust. 1 lit. f. Gdy konkretny obowiązek wynika z prawa, podstawą jest lit. c. Brak danych wymaganych do danej funkcji może uniemożliwić jej użycie. Wybór Google jest dobrowolny i nie uprawnia do dowolnego innego wykorzystania danych. Zapoznanie się z polityką nie jest zgodą marketingową.
+  - generic [ref=e74]:
+    - heading "13. Odbiorcy i usługi zewnętrzne" [level=2] [ref=e75]
+    - paragraph [ref=e76]: CHAOS korzysta z cyber_Folks w zakresie hostingu VPS, obsługi DNS i poczty elektronicznej. Zgodnie z potwierdzeniem operatora VPS znajduje się w Polsce i przechowuje dane kont oraz rozgrywki. Poczta transakcyjna zawiera adres odbiorcy, kody i potwierdzenia bezpieczeństwa. Umowa powierzenia przetwarzania danych z cyber_Folks nie została jeszcze zawarta i jest w trakcie przygotowania; ten dokument nie potwierdza jej zawarcia. Wybrani dostawcy logowania to Google, GitHub, Discord i Steam. Dane otrzymywane przez usługi mapowe i ip-api.com opisano powyżej, a dane narracji przekazywane do Mistral w sekcji AI. Lokalizacja VPS w Polsce nie oznacza, że wszystkie usługi zewnętrzne przetwarzają dane w Polsce lub EOG. Role prawne pozostałych odbiorców, lokalizacje i zabezpieczenia ewentualnych transferów wymagają osobnego potwierdzenia.
+  - generic [ref=e77]:
+    - heading "14. Narracja i systemy AI" [level=2] [ref=e78]
+    - paragraph [ref=e79]: CHAOS generuje narrację i publikacje na podstawie zdarzeń gry. Pakiet obejmuje instrukcje, język, medium, opisy faktów, nazwy podmiotów, miejsca i kontekst odbiorców; zależnie od zadania może zawierać nick, oznaczenie właściciela lub klanu. Nie uznajemy tych danych automatycznie za anonimowe. Gdy używany jest Mistral, pakiet trafia przez HTTPS do api.mistral.ai. Alternatywny adapter Ollamy wymusza lokalny endpoint 127.0.0.1 i nie wysyła pakietu do zewnętrznego API. Pakiet nie jest automatyczną kopią całej historii Cybernera ani bazy kont; adapter narracji nie pobiera danych powiązania Google jako wejścia AI. Wyniki AI mogą być błędne i stanowią treść gry, nie wiarygodne informacje o rzeczywistych osobach. Warunki retencji, trenowania i transferów właściwe dla konta Mistral CHAOS pozostają do potwierdzenia przed zatwierdzeniem propozycji; nie deklarujemy aktywnego trybu zero retencji ani wyłączenia trenowania.
+  - generic [ref=e80]:
+    - heading "15. Techniczny cykl życia danych Identity" [level=2] [ref=e81]
+    - paragraph [ref=e82]: "Próba autoryzacji jest ważna przez 10 minut, możliwość dokończenia rejestracji przez 30 minut, a potwierdzenie uprawniające do zmiany zabezpieczeń przez 5 minut. Rozpoczęcie kolejnego procesu autoryzacji uruchamia porządkowanie wygasłych rekordów oraz usunięcie zdarzeń bezpieczeństwa Identity starszych niż 90 dni. Nie jest to gwarancja usunięcia dokładnie w chwili wygaśnięcia: bez kolejnego uruchomienia procedury rekord może pozostać w bazie. Czas ważności sesji nie wyznacza okresu przechowywania backupów ani logów serwera. Potwierdzone przez operatora 28 dni retencji backupów i miesięczne czyszczenie logów opisano osobno; dodatkowy harmonogram porządkowania Identity wymaga sprawdzenia."
+  - generic [ref=e83]:
+    - heading "16. Logi i kopie zapasowe serwera" [level=2] [ref=e84]
+    - paragraph [ref=e85]: Kopie zapasowe są przechowywane przez 28 dni. Służą odtworzeniu usługi po awarii i mogą do końca tego okresu zawierać dane usunięte już z aktywnej bazy. Logi są czyszczone raz w miesiącu. Częstotliwość czyszczenia nie jest dokładnym limitem 30 dni dla każdego wpisu ani okresem przechowywania zdarzeń bezpieczeństwa Identity w bazie. Okresy te potwierdził operator; nie wynikają z domniemania na podstawie oferty hostingowej.
+  - generic [ref=e86]:
+    - heading "17. Co usuwa procedura konta" [level=2] [ref=e87]
+    - paragraph [ref=e88]: Usunięcie konta wymaga świeżego potwierdzenia tożsamości. Procedura usuwa bieżące połączenia dostawców, ustawienia bezpieczeństwa konta, zgody, powiązane próby i kody oraz własne kopie wybranych danych gracza. Zachowuje zabezpieczające hashe identyfikatorów wycofanych tożsamości i blokadę ponownego użycia nazwy konta, a także odniesienia w historii świata, rozliczeniach i kopiach wiadomości innych graczy. Żądania dotyczące pozostałych danych kieruj na year2108@chaos.re.
+  - generic [ref=e89]:
+    - heading "18. Dane pozostające po zamknięciu konta" [level=2] [ref=e90]
+    - paragraph [ref=e91]: Dane konta służą obsłudze aktywnego profilu. Po usunięciu konta pozostają m.in. skrót identyfikatora wycofanego dostawcy, blokada ponownego użycia nazwy oraz odniesienia we wspólnej historii i wiadomościach innych graczy. Nie mają obecnie jednolitego automatycznego terminu usunięcia; skrót identyfikatora nie oznacza pełnej anonimizacji. Dalsze przechowywanie wymaga oceny niezbędności. Żądania dotyczące tych danych przyjmujemy na year2108@chaos.re. Nie deklarujemy, że odłączenie dostawcy lub usunięcie konta natychmiast usuwa wszystkie kopie, ani że historia świata stanowi bezterminową podstawę do zachowania danych osobowych.
+  - generic [ref=e92]:
+    - heading "19. Twoje prawa" [level=2] [ref=e93]
+    - paragraph [ref=e94]: Na warunkach określonych w RODO możesz żądać dostępu do danych, sprostowania, usunięcia, ograniczenia przetwarzania i przenoszenia danych oraz wnieść sprzeciw. Gdy podstawą jest zgoda, możesz ją wycofać bez wpływu na zgodność wcześniejszego przetwarzania. Możesz złożyć skargę do Prezesa UODO lub właściwego organu nadzorczego. Weryfikacja tożsamości może być potrzebna do bezpiecznej realizacji żądania.
+  - generic [ref=e95]:
+    - heading "20. Jak złożyć żądanie dotyczące danych" [level=2] [ref=e96]
+    - paragraph [ref=e97]: Napisz na year2108@chaos.re, wskazując konto, zakres żądania i sposób kontaktu. Nie musisz przesyłać kopii dokumentu tożsamości. W razie uzasadnionych wątpliwości konieczne może być dodatkowe potwierdzenie kontroli nad kontem, adekwatne do żądania. Zgodnie z RODO informacja o podjętych działaniach powinna zostać udzielona bez zbędnej zwłoki, co do zasady w ciągu miesiąca od otrzymania żądania. Dopuszczalne przedłużenie o maksymalnie dwa kolejne miesiące wymaga powiadomienia w pierwszym miesiącu wraz z uzasadnieniem. Odmowa wymaga podania przyczyn i informacji o możliwości skargi oraz ochrony sądowej.
+  - generic [ref=e98]:
+    - heading "21. Zgłoszenia i zmiany polityki" [level=2] [ref=e99]
+    - paragraph [ref=e100]: Zgłoszenia można kierować na year2108@chaos.re; ich treść i korespondencja mogą zawierać dane osobowe. Przygotowany moduł ochrony komunikacji nie został jeszcze aktywowany i nie opisujemy go jako działającego. Zmiany polityki będą wskazywać faktyczne zmiany przetwarzania i ich datę. Sam dokument nie aktywuje nowych funkcji.
+  - region "Przydatne odnośniki" [ref=e101]:
+    - heading "Zarządzanie dostępem Google" [level=2] [ref=e102]
+    - paragraph [ref=e103]:
+      - link "Połączenia na koncie Google" [ref=e104] [cursor=pointer]:
+        - /url: https://myaccount.google.com/connections
+      - text: ·
+      - link "Polityka prywatności Google" [ref=e105] [cursor=pointer]:
+        - /url: https://policies.google.com/privacy
+    - paragraph [ref=e106]:
+      - link "Urząd Ochrony Danych Osobowych" [ref=e107] [cursor=pointer]:
+        - /url: https://uodo.gov.pl/
+  - paragraph [ref=e108]:
+    - link "Specyfikacja techniczna VPS Root cyber_Folks" [ref=e109] [cursor=pointer]:
+      - /url: https://cyberfolks.pl/parametry-techniczne/
+  - generic [ref=e110]:
+    - link "Polityka prywatności" [ref=e111] [cursor=pointer]:
+      - /url: /privacy?locale=pl
+    - link "Warunki korzystania" [ref=e112] [cursor=pointer]:
+      - /url: /terms?locale=pl
+    - link "Wróć do CHAOS" [ref=e113] [cursor=pointer]:
+      - /url: /launch

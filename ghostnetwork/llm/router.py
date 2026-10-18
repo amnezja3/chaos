@@ -4,7 +4,7 @@ import os
 import time
 
 from .executor import execute
-from .mistral_provider import token_reservation
+from .mistral_provider import token_reservation, data_review_approved
 from .provider import NarrativeProviderError
 from .provider_store import ProviderStore
 from ..ollama_client import OllamaClientConfig
@@ -36,6 +36,9 @@ class NarrativeRouter:
     def verify(self):
         health = {}
         for provider in (('mistral','ollama') if self.provider == 'mistral' else ('ollama',)):
+            if provider == 'mistral' and not data_review_approved():
+                health[provider] = {'ok':False,'errors':['mistral_data_review_required']}
+                continue
             if provider == 'mistral' and self.store.circuit(self.circuit_key)['until_at'] > time.time():
                 health[provider] = {'ok':False,'errors':['circuit_open']}
                 continue
@@ -90,6 +93,8 @@ class NarrativeRouter:
                     if not guard():
                         raise NarrativeProviderError('generation_cancelled',provider=provider,retryable=True)
                     if provider == 'mistral':
+                        if not data_review_approved():
+                            raise NarrativeProviderError('mistral_data_review_required',provider=provider)
                         if self.store.circuit(self.circuit_key)['until_at'] > time.time():
                             raise NarrativeProviderError('circuit_open',provider=provider,retryable=True)
                         reserve = token_reservation(package, self.config['max_tokens'])
@@ -113,6 +118,6 @@ class NarrativeRouter:
                 if provider == 'ollama':
                     # External failures must never turn a local outage into a dead worker.
                     raise
-                if exc.code not in {'circuit_open','provider_busy','mistral_local_budget'}:
+                if exc.code not in {'circuit_open','provider_busy','mistral_local_budget','mistral_data_review_required'}:
                     self.store.circuit_result(self.circuit_key,exc)
         raise NarrativeProviderError('all_providers_unavailable',retryable=True)

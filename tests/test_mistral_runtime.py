@@ -46,7 +46,8 @@ def successful_child(pipe, *args):
 
 class MistralAdapterTest(unittest.TestCase):
     def setUp(self):
-        self.env=patch.dict(os.environ,{'CHAOS_MISTRAL_API_KEY':'secret-test-only'})
+        self.env=patch.dict(os.environ,{'CHAOS_MISTRAL_API_KEY':'secret-test-only',
+                                      'CHAOS_MISTRAL_DATA_REVIEW_APPROVED':'1'})
         self.env.start()
         self.addCleanup(self.env.stop)
         self.config={**DEFAULTS,'model':'configured-model'}
@@ -54,6 +55,16 @@ class MistralAdapterTest(unittest.TestCase):
     def response(self, content='{}', reason='stop'):
         return {'model':'resolved-model','id':'req-1','choices':[{'finish_reason':reason,'message':{'content':content}}],
                 'usage':{'prompt_tokens':10,'completion_tokens':4}}
+
+    def test_unreviewed_data_never_reaches_http_even_for_direct_adapter(self):
+        session=Session(Response(self.response()))
+        for value in ('', '0', 'true'):
+            with patch.dict(os.environ, CHAOS_MISTRAL_DATA_REVIEW_APPROVED=value):
+                with self.assertRaises(NarrativeProviderError) as caught:
+                    MistralNarrativeProvider(self.config,session).generate(
+                        {'messages':[{'role':'user','content':'alice private@example.test'}]},None)
+                self.assertEqual(caught.exception.code,'mistral_data_review_required')
+        self.assertEqual(session.calls,[])
 
     def test_exact_canonical_messages_and_metadata(self):
         response=Response(self.response())
@@ -158,7 +169,11 @@ class MistralAdapterTest(unittest.TestCase):
 
 
 class RouterTest(unittest.TestCase):
-    setUp=worker_tests.OllamaWorkerTest.setUp
+    def setUp(self):
+        worker_tests.OllamaWorkerTest.setUp(self)
+        release=patch.dict(os.environ,CHAOS_MISTRAL_DATA_REVIEW_APPROVED='1')
+        release.start()
+        self.addCleanup(release.stop)
     tearDown=worker_tests.OllamaWorkerTest.tearDown
     task=worker_tests.OllamaWorkerTest.task
     worker=worker_tests.OllamaWorkerTest.worker
@@ -197,6 +212,17 @@ class RouterTest(unittest.TestCase):
         replay=self.repo.publish_claimed_narrative_candidate(claim['publication_receipt_id'],'publisher-test',claim['lease_until'])
         self.assertTrue(replay['duplicate'])
         self.assertEqual(len(self.repo.list_narrative_medium_records('blacknet',limit=10)),1)
+
+    def test_privacy_hold_routes_locally_without_remote_executor(self):
+        router=self.setup_router()
+        task=self.repo.enqueue_narrative_task(self.task())
+        with patch.dict(os.environ,CHAOS_MISTRAL_DATA_REVIEW_APPROVED='0'):
+            result=self.worker(router).process_once()
+        self.assertEqual(result['result'],'completed',result)
+        self.assertEqual([c[0] for c in self.calls],['ollama'])
+        candidate=self.repo.get_narrative_candidate_for_task(task['outbox_id'])
+        self.assertEqual(candidate['provider'],'ollama')
+        self.assertFalse(router.store.circuit(router.circuit_key)['until_at'])
 
     def test_cpu_fallback_budget_survives_remote_attempt_and_preserves_old_total(self):
         from tools.narrative_locale_canary import package_for

@@ -13,6 +13,11 @@ ENDPOINT = "https://api.mistral.ai/v1"
 MAX_BYTES = 262144
 
 
+def data_review_approved():
+    """Explicit operator release after reviewing the account's API data terms."""
+    return os.environ.get('CHAOS_MISTRAL_DATA_REVIEW_APPROVED', '').strip() == '1'
+
+
 def secret_configured():
     return bool(os.environ.get("CHAOS_MISTRAL_API_KEY", "").strip())
 
@@ -55,6 +60,10 @@ class MistralNarrativeProvider:
         return {"provider": self.provider, "model": self.config["model"], "model_digest": ""}
 
     def request(self, method, path, payload=None):
+        # Free-text facts may identify players. Do not guess anonymity from a
+        # public audience or field names. Block all generation until reviewed.
+        if method.upper() != 'GET' and not data_review_approved():
+            raise NarrativeProviderError('mistral_data_review_required', provider=self.provider)
         key = os.environ.get("CHAOS_MISTRAL_API_KEY", "").strip()
         if not key:
             raise NarrativeProviderError("mistral_secret_missing", provider=self.provider)

@@ -20997,29 +20997,8 @@ def fallback_start_city():
 
 
 def get_start_location_by_ip(ip):
-    if not ip:
-        return fallback_start_city()
-
-    try:
-        response = requests.get(
-            f"http://ip-api.com/json/{ip}",
-            params={"fields": "status,message,country,regionName,city,lat,lon,query"},
-            timeout=2.5
-        )
-        data = response.json()
-        if response.ok and data.get("status") == "success" and data.get("lat") is not None and data.get("lon") is not None:
-            return {
-                "city": data.get("city") or data.get("regionName") or data.get("country") or "Unknown",
-                "lat": float(data["lat"]),
-                "lng": float(data["lon"]),
-                "source": "ip",
-                "ip": data.get("query") or ip
-            }
-    except requests.RequestException:
-        pass
-    except (TypeError, ValueError):
-        pass
-
+    # Compatibility entry point: never disclose the supplied IP externally.
+    # Registration still resolves the selected city outside controlled areas.
     return fallback_start_city()
 
 
@@ -21210,14 +21189,14 @@ def register_page():
 @app.get('/privacy')
 @app.get('/terms')
 def legal_page():
-    from legal_documents import PRIVACY, TERMS, VERSION
+    from legal_documents import PRIVACY, TERMS, VERSION, UPDATED
     locale = request.args.get('locale')
     if locale not in ('pl', 'en'):
         locale = request.accept_languages.best_match(['pl', 'en']) or 'pl'
     kind = 'privacy' if request.path == '/privacy' else 'terms'
     response = make_response(render_template('legal_document.html', legal_locale=locale,
         legal_kind=kind, legal_sections=PRIVACY if kind == 'privacy' else TERMS,
-        legal_version=VERSION))
+        legal_version=VERSION, legal_updated=UPDATED))
     response.headers['X-Robots-Tag'] = 'noindex, nofollow'
     response.headers['Cache-Control'] = 'no-store'
     return response

@@ -5,6 +5,15 @@ import run
 
 
 class FirstRespawnTerritoryEdgeTest(unittest.TestCase):
+    def test_start_city_does_not_send_ip_or_use_network(self):
+        with patch('requests.sessions.Session.request', side_effect=AssertionError('network forbidden')):
+            for ip in ('185.201.114.123', '', '2001:db8::1'):
+                result = run.get_start_location_by_ip(ip)
+                self.assertEqual(result['source'], 'fallback_city')
+                self.assertNotIn('ip', result)
+                self.assertTrue(any(city['city'] == result['city'] and city['lat'] == result['lat']
+                                    and city['lng'] == result['lng'] for city in run.START_CITY_FALLBACKS))
+
     @staticmethod
     def area(area_id, owner, center_lat=52.2, center_lng=21.0, half_span=0.01, status="active"):
         return {
