@@ -1,12 +1,12 @@
 # Regulamin / Terms / PL + EN
 
-Proposal 157-legal-proposal-6 | 2026-10-18 | NOT PUBLISHED
+157-legal-1 | 2026-10-18 | Treść zatwierdzona do publikacji / Approved for publication
 
 ## PL
 
 ### Operator i zakres
 
-CHAOS — Cyber Hacking Adventure Of Senses — jest internetową grą ze wspólnym światem, kontami graczy, mapą, narzędziami i komunikacją. Operatorem jest Michał Cezary Jankiewicz, osoba prywatna, ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, Polska. Kontakt w sprawach usługi i konta: year2108@chaos.re. Serwis jest dostępny pod https://chaos.re, także jako instalowana aplikacja internetowa (PWA). To projekt warunków do zatwierdzenia; nie wprowadza nowych obowiązków istniejących graczy.
+CHAOS — Cyber Hacking Adventure Of Senses — jest internetową grą ze wspólnym światem, kontami graczy, mapą, narzędziami i komunikacją. Operatorem jest Michał Cezary Jankiewicz, osoba prywatna, ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, Polska. Kontakt w sprawach usługi i konta: year2108@chaos.re. Serwis jest dostępny pod https://chaos.re, także jako instalowana aplikacja internetowa (PWA). Aktualizacja dokumentu nie nakłada nowych obowiązków wstecz.
 
 ### Wiek gracza
 
@@ -52,7 +52,7 @@ Zmiany zasad wymagają wskazania zakresu i daty obowiązywania oraz poinformowan
 
 ### Operator and scope
 
-CHAOS — Cyber Hacking Adventure Of Senses — is an online shared-world game with player accounts, a map, tools and communication. It is operated by Michał Cezary Jankiewicz as a private individual, at ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, Poland. Service and account contact: year2108@chaos.re. The service is available at https://chaos.re, including as an installable web application (PWA). These terms are a proposal for approval and do not impose new obligations on existing players.
+CHAOS — Cyber Hacking Adventure Of Senses — is an online shared-world game with player accounts, a map, tools and communication. It is operated by Michał Cezary Jankiewicz as a private individual, at ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, Poland. Service and account contact: year2108@chaos.re. The service is available at https://chaos.re, including as an installable web application (PWA). This document update does not impose new obligations retroactively.
 
 ### Player age
 

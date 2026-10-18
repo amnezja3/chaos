@@ -1,7 +1,7 @@
 {% set en = legal_locale == 'en' %}
 {% set title = ('Privacy policy' if en else 'Polityka prywatności') if legal_kind == 'privacy' else ('Terms of use' if en else 'Warunki korzystania') %}
 <!doctype html><html lang="{{ legal_locale }}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="index,follow">
 <title>{{ title }} · CHAOS</title><link rel="icon" href="/static/images/chaos_favicon.svg">
 <link rel="canonical" href="https://chaos.re/{{ legal_kind }}">
 <link rel="alternate" hreflang="pl" href="https://chaos.re/{{ legal_kind }}?locale=pl">
@@ -11,8 +11,7 @@
 <body class="legal-page"><main class="legal-document">
 <header><a class="legal-brand" href="/launch">CHAOS</a><nav aria-label="{{ 'Language' if en else 'Język' }}"><a href="/{{ legal_kind }}?locale=pl" lang="pl" {% if not en %}aria-current="page"{% endif %}>PL</a> / <a href="/{{ legal_kind }}?locale=en" lang="en" {% if en %}aria-current="page"{% endif %}>EN</a></nav></header>
 <p class="legal-kicker">GHOST SYSTEM / {{ legal_version }}</p><h1>{{ title }}</h1>
-<p>{{ 'Revised' if en else 'Aktualizacja projektu' }}: <time datetime="{{ legal_updated }}">{{ legal_updated }}</time></p>
-<p class="legal-draft" role="note">{{ 'Final proposal for operator approval. Not yet published or effective. Outstanding decisions are tracked separately; unresolved processing facts are stated in the text.' if en else 'Końcowa propozycja do akceptacji operatora. Jeszcze nieopublikowana i nieobowiązująca. Decyzje do zamknięcia zebrano osobno; nieustalone fakty dotyczące przetwarzania wskazano w treści.' }}</p>
+<p>{{ 'Revised' if en else 'Aktualizacja' }}: <time datetime="{{ legal_updated }}">{{ legal_updated }}</time></p>
 <aside class="legal-contact" aria-label="{{ 'Operator and contact' if en else 'Operator i kontakt' }}">
 <strong>Michał Cezary Jankiewicz</strong> · {{ 'Private individual' if en else 'Osoba prywatna' }}<br>
 ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, {{ 'Poland' if en else 'Polska' }}<br>
@@ -24,7 +23,6 @@ ul. Relaksowa 5 lok. 1, 27-400 Ostrowiec Świętokrzyski, {{ 'Poland' if en else
 <section aria-label="{{ 'Useful links' if en else 'Przydatne odnośniki' }}"><h2>{{ 'Manage Google access' if en else 'Zarządzanie dostępem Google' }}</h2>
 <p><a href="https://myaccount.google.com/connections" rel="noreferrer">{{ 'Google Account connections' if en else 'Połączenia na koncie Google' }}</a> · <a href="https://policies.google.com/privacy" rel="noreferrer">{{ 'Google privacy policy' if en else 'Polityka prywatności Google' }}</a></p>
 <p><a href="https://uodo.gov.pl/" rel="noreferrer">{{ 'Polish data protection authority (UODO)' if en else 'Urząd Ochrony Danych Osobowych' }}</a></p></section>
-<p><a href="https://cyberfolks.pl/parametry-techniczne/" rel="noreferrer">{{ 'cyber_Folks VPS Root technical specifications' if en else 'Specyfikacja techniczna VPS Root cyber_Folks' }}</a></p>
 {% endif %}
 <footer><a href="/privacy?locale={{ legal_locale }}">{{ 'Privacy policy' if en else 'Polityka prywatności' }}</a><a href="/terms?locale={{ legal_locale }}">{{ 'Terms of use' if en else 'Warunki korzystania' }}</a><a href="/launch">{{ 'Back to CHAOS' if en else 'Wróć do CHAOS' }}</a></footer>
 </main></body></html>

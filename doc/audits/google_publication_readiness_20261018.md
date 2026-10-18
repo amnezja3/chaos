@@ -40,3 +40,7 @@ Umowy powierzenia między administratorem CHAOS, DMD Inwestycje i cyber_Folks po
 ## Decyzja
 
 Oczekujemy zgody operatora na wdrożenie opisanego zakresu. Niczego nie opublikowano, nie zmieniono środowiska VPS ani statusu aplikacji Google. Raport nie gwarantuje wyniku weryfikacji marki.
+
+## Zatwierdzenie treści do publikacji
+
+Operator przeczytał dokumenty i zatwierdził zdjęcie oznaczeń projektu. Wersja 157-legal-1: usunięto baner projektu, wewnętrzne uwagi wdrożeniowe i odsyłacz do oferty technicznej hostingu; dokumenty pozwalają na indeksowanie. Pozostawiono fakty o odbiorcach, retencji, braku potwierdzonego ZDR i nieaktywnym mechanizmie wieku. Status umów pozostaje administracyjny. Playwright lokalnie: 8 wariantów PL/EN desktop/mobile PASS, bez błędów JS/konsoli. Zmiana treści nie potwierdza jej wdrożenia na VPS. Wersję należy wdrożyć razem z już przygotowanym usunięciem ip-api i blokadą Mistrala; sprawdzić po restarcie, zanim ponownie zgłosi się Google. Nie zmieniono Identity Gateway ani flag wieku.
