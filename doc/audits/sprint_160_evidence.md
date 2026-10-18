@@ -68,3 +68,18 @@ PASS w PL/EN przy 1440/390 px, z kontrolą obecności linku w nav i braku w main
 Dodano `tools/poi_provider_seed.py`: import istniejących endpointów bez HTTP,
 aktywacji i nadpisania rekordów. Dwa testy seeda PASS (0,222 s), w tym dry-run,
 zgodność z listą skanera, idempotencja i odmowa pracy na obcej bazie.
+
+## Diagnostyka sieci podczas próby overpass-de
+
+Po dopuszczeniu wyłącznie small_probe operator zgłosił `network_failed`.
+Test TCP/TLS na VPS potwierdził poprawny IPv4 do obu adresów dostawcy (TLSv1.3,
+około 0,1 s), a dla obu IPv6 `ENETUNREACH`. Nie dowodzi to, że wcześniejszy błąd
+wynikał właśnie z IPv6: mógł wystąpić po wysłaniu HTTP.
+
+Transport wcześniej wybierał pierwszy adres DNS. Poprawka próbuje do czterech
+uprzednio zwalidowanych adresów w jednym budżecie connect. Zmiana adresu tylko
+przed wysłaniem HTTP, bez ponownego DNS, redirect, proxy lub rozluźnienia TLS.
+Timeouty mają etap connect/tls/http_write/http_read; nie odtwarzamy POST po
+timeoutie odpowiedzi. Siedem testów secure_transport PASS (0,031 s), w tym
+fallback IPv6→IPv4, brak drugiego POST i wyczerpanie budżetu. Stan ponownego
+probe na VPS pozostaje do potwierdzenia; flagi i zakres zgody bez zmian.
