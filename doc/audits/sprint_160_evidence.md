@@ -40,3 +40,19 @@ modyfikowała UI i nie wykonywano ponownego testu przeglądarkowego.
   kontrolowanego wdrożenia z flagami OFF. Nie wykonano commita, pusha ani deploya.
 - To nie zamyka pełnego 160: zatwierdzenie rzeczywistych źródeł, pilotaż,
   produkcyjne metryki, rozszerzenia panelu/monitoringu i pełny odbiór są otwarte.
+
+## Pierwsza regresja VPS i poprawka izolacji testu
+
+Operator uruchomił pakiet `be9dafb`: 69 testów w 45,467 s, jeden FAIL.
+`test_auth_csrf_candidates_and_page` otrzymał HTTP 423 zamiast 403.
+Fixture izolował konta i bazę POI, ale pozostawiał `ghostsignal_show_db_path`
+wskazujące środowisko uruchomienia. Żądanie przechodzi przez bramkę Ghost Signal
+przed sprawdzeniem uprawnień, co uzależniało wynik od cyklu/epoki serwera.
+
+Poprawka dotyczy wyłącznie testów: osobny schemat GhostNetwork w tymczasowej
+bazie i przekierowanie ścieżki na czas fixture. Nie wyłączono bramki ani nie
+zmieniono oczekiwanego 403. Dodatkowy test sprawdza 423 przy starej epoce,
+403 dla gracza z bieżącą epoką i 200 dla admina z bieżącą epoką.
+Oba testy panelu lokalnie PASS (8,008 s). Pakiet zawiera teraz 70 testów;
+pełne ponowienie na VPS pozostaje do potwierdzenia. Migracji/restartu na podstawie
+nieudanego przebiegu nie zatwierdzono.

@@ -7,7 +7,27 @@ import test_player_hack_read_paths as fixtures
 
 
 class AdminTests(unittest.TestCase):
-    setUp=fixtures.PlayerHackReadPathsTest.setUp
+    def setUp(self):
+        fixtures.PlayerHackReadPathsTest.setUp(self)
+        # Keep the actual gate, but read only the isolated test world's state.
+        run.GhostNetworkRepository(db_path=self.path)
+        self.stack.enter_context(patch.object(run,'ghostsignal_show_db_path',self.path))
+
+    def test_isolated_world_gate_preserves_epoch_and_admin_checks(self):
+        route='/api/admin/poi-providers'
+        self.assertEqual(run.ghostsignal_show_db_path,self.path)
+        self.assertIsNone(run.get_ghostsignal_show_service().restart_projection())
+        with patch.dict(os.environ,CHAOS_POI_PROVIDER_ADMIN_ENABLED='1',
+                        CHAOS_POI_CACHE_PATH=str(Path(self.tmp.name)/'poi-admin.sqlite3')):
+            with patch.object(run.GhostSignalShowService,'restart_projection',return_value={'epoch':'test-world'}):
+                response=self.client.get(route)
+                self.assertEqual(response.status_code,423,response.json)
+                self.assertEqual(response.json['error'],'ghostsystem_restart_required')
+                response=self.client.get(route,headers={'X-Chaos-Ghost-Epoch':'test-world'})
+                self.assertEqual(response.status_code,403,response.json)
+                self.generation.authenticate(self.client,'admin')
+                response=self.client.get(route,headers={'X-Chaos-Ghost-Epoch':'test-world'})
+                self.assertEqual(response.status_code,200,response.json)
 
     def test_auth_csrf_candidates_and_page(self):
         route='/api/admin/poi-providers'
