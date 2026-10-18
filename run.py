@@ -25,6 +25,7 @@ import secrets
 from flask_session import Session
 # import redis
 from poiFetchClass import POIFetcher
+from poi_infrastructure.presentation import capture as capture_poi_presentation, public_fields as poi_public_fields, enabled as poi_masa_enabled
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
 from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, UserIdentityProjectionStore, UserCapabilityProjectionStore, VulnerabilityStore, PlayerScanSnapshotStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
@@ -23609,6 +23610,7 @@ def map_view():
         folium_js=Markup('<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>'),
         profile=map_profile_boot_payload(profile),
         map_viewer_username=session.get("user", ""),
+        poi_masa_ux_enabled=poi_masa_enabled(),
         map_tile_scheme={
             "selected": scheme_id,
             "fallback": "osm",
@@ -24101,21 +24103,27 @@ def map_action():
         # Zbierz unikalne wyniki ze wszystkich kategorii
         all_results = []
 
+        poi_evidence = {}
         try:
             scanner_options = None
             if data.get('deep_scanner_token'):
                 from ghostlab_scanner import scan_options, generation as scanner_generation
                 scanner_options = scan_options(player_inventory_store.db_path, session['user'], scanner_generation(), data['deep_scanner_token'])
-            fetched_results = fetcher.get_all(lat=lat, lon=lng, result_limit=60, **({'scan_options': scanner_options} if scanner_options else {}))
+            with capture_poi_presentation() as poi_evidence:
+                fetched_results = fetcher.get_all(lat=lat, lon=lng, result_limit=60, **({'scan_options': scanner_options} if scanner_options else {}))
         except GhostLabError:
             raise
         except Exception as e:
+            app.logger.warning('poi_scan_failure error_type=%s', type(e).__name__)
+            presentation = poi_public_fields(poi_evidence)
+            state = presentation.get('interference', {}).get('state')
             return jsonify({
-                "status": f"Nie udało się pobrać danych mapy: {e}",
+                "status": "Nie udało się pobrać danych mapy.",
                 "scan_outcome": "api_error",
 
-                "message_i18n": ui_message('map.result.upstream'),
-                "markers": []
+                "message_i18n": ui_message('map.scan.masa.' + state if state in ('blocked', 'recovering') else 'map.result.upstream'),
+                "markers": [],
+                **presentation,
             })
         scan_location_context = infer_scan_location(fetched_results)
         scan_location = scan_location_context.get("location") or {}
@@ -24310,6 +24318,7 @@ def map_action():
         return jsonify({
             "status": f"🔍 Zeskanowano {len(all_results)} nowych obiektów.",
             "scan_outcome": "success" if all_results else "empty",
+            **poi_public_fields(poi_evidence),
 
             "message_i18n": ui_message('map.result.scanned', {'count': len(all_results)}),
             "markers": all_results,

@@ -3,6 +3,43 @@
   "format_version": 1,
   "content_version": "157.8.1",
   "messages": {
+    "map.scan.masa.blocked": {
+      "params": {},
+      "text": "MASA zakłóca sieć rozpoznania. Skanowanie jest chwilowo zablokowane."
+    },
+    "map.scan.masa.cooldown": {
+      "params": {
+        "time": "string"
+      },
+      "text": "Blokada MASA trwa. Kolejna próba możliwa za {time}."
+    },
+    "map.scan.masa.unknown_time": {
+      "params": {},
+      "text": "Kanał rozpoznania pozostaje niedostępny. Nie znamy jeszcze czasu przywrócenia."
+    },
+    "map.scan.masa.degraded": {
+      "params": {},
+      "text": "Zakłócenia MASA. Odczytano ostatni dostępny zapis terenu."
+    },
+    "map.scan.masa.recovering": {
+      "params": {},
+      "text": "Trwa odzyskiwanie kanału rozpoznania…"
+    },
+    "map.scan.masa.restored": {
+      "params": {},
+      "text": "Zakłócenia MASA ustąpiły. Kanał rozpoznania przywrócony."
+    },
+    "map.scan.masa.retry_ready": {
+      "params": {},
+      "text": "Blokada czasowa minęła. Możesz sprawdzić sygnał ponownie."
+    },
+    "map.scan.masa.duration": {
+      "params": {
+        "minutes": "number",
+        "seconds": "number"
+      },
+      "text": "{minutes} min {seconds} s"
+    },
     "map.picker.choose": {
       "params": {
         "action": "string"

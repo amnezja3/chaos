@@ -84,7 +84,7 @@ class Repository:
         except (ValueError, UnicodeError):
             return None
 
-    def acquire(self, key, seconds):
+    def acquire(self, key, seconds, probe_group=None):
         # Joiners must not contend for SQLite's writer lock merely to discover
         # an existing owner. The transaction below still decides ownership.
         c = self.connect()
@@ -100,7 +100,13 @@ class Repository:
                 now = time.time()
                 c.execute('DELETE FROM leases WHERE key=? AND until_at<=?', (key, now))
                 cur = c.execute('INSERT OR IGNORE INTO leases VALUES (?,?,?)', (key, owner, now + seconds))
-                return owner if cur.rowcount else None
+                acquired = bool(cur.rowcount)
+                if acquired and probe_group:
+                    row = c.execute('SELECT failures,until_at FROM providers WHERE name=?', (probe_group,)).fetchone()
+                    if row and row['failures'] and 0 < row['until_at'] <= now:
+                        c.execute('INSERT OR REPLACE INTO leases VALUES (?,?,?)',
+                                  ('@probe:' + probe_group, owner, now + seconds))
+                return owner if acquired else None
         except sqlite3.OperationalError as exc:
             # Python 3.10 lacks sqlite_errorcode. Only BUSY is retryable; full,
             # corrupt, readonly and I/O failures must remain fail-closed.
@@ -153,6 +159,25 @@ class Repository:
         try:
             row = c.execute('SELECT until_at FROM providers WHERE name=?', (group,)).fetchone()
             return row is None or row[0] <= time.time()
+        finally:
+            c.close()
+
+    def presentation_policy(self, groups):
+        """Read-only policy projection for this scan's eligible providers."""
+        groups = set(groups)
+        if not groups:
+            return {}
+        now = time.time()
+        c = self.connect()
+        try:
+            rows = {r['name']: dict(r) for r in c.execute('SELECT * FROM providers')}
+            until = [rows.get(g, {}).get('until_at', 0) for g in groups]
+            if all(t > now for t in until):
+                return {'state': 'blocked', 'blocked_until': min(until)}
+            probes = {r[0] for r in c.execute('SELECT key FROM leases WHERE until_at>?', (now,))}
+            if any('@probe:' + g in probes for g in groups):
+                return {'state': 'recovering'}
+            return {}
         finally:
             c.close()
 

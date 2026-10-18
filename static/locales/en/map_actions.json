@@ -3,6 +3,43 @@
   "format_version": 1,
   "content_version": "157.8.1",
   "messages": {
+    "map.scan.masa.blocked": {
+      "params": {},
+      "text": "MASA is disrupting the recon network. Scanning is temporarily blocked."
+    },
+    "map.scan.masa.cooldown": {
+      "params": {
+        "time": "string"
+      },
+      "text": "MASA interference persists. Another attempt is possible in {time}."
+    },
+    "map.scan.masa.unknown_time": {
+      "params": {},
+      "text": "The recon channel remains unavailable. Restoration time is not yet known."
+    },
+    "map.scan.masa.degraded": {
+      "params": {},
+      "text": "MASA interference. The latest available terrain snapshot was loaded."
+    },
+    "map.scan.masa.recovering": {
+      "params": {},
+      "text": "Restoring the recon channel…"
+    },
+    "map.scan.masa.restored": {
+      "params": {},
+      "text": "MASA interference has cleared. Recon channel restored."
+    },
+    "map.scan.masa.retry_ready": {
+      "params": {},
+      "text": "The temporary block has expired. You can check the signal again."
+    },
+    "map.scan.masa.duration": {
+      "params": {
+        "minutes": "number",
+        "seconds": "number"
+      },
+      "text": "{minutes}m {seconds}s"
+    },
     "map.picker.choose": {
       "params": {
         "action": "string"

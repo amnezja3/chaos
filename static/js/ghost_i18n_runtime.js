@@ -50,7 +50,7 @@
                 try {
                     const messages = {};
                     for (const domain of manifest.domains) {
-                        const response = await fetcher(`/static/locales/${encodeURIComponent(locale)}/${encodeURIComponent(domain)}.json?v=${encodeURIComponent(manifest.content_version)}`,
+                        const response = await fetcher(`/static/locales/${encodeURIComponent(locale)}/${encodeURIComponent(domain)}.json?v=${encodeURIComponent(manifest.asset_revision || manifest.content_version)}`,
                             {signal: controller.signal, cache: 'default'});
                         if (!response.ok) throw Error('catalog_unavailable');
                         const bundle = await response.json();

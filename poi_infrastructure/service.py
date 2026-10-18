@@ -29,6 +29,10 @@ class Cancelled(POIError):
     pass
 
 
+class UpstreamUnavailable(POIError):
+    """A transport outage, not a parsing/configuration/application error."""
+
+
 @dataclass(frozen=True)
 class Config:
     deadline: float = 110
@@ -107,9 +111,10 @@ def retry_delay(value):
 
 def _http_child(pipe, config, endpoint, query, timeout, deadline):
     try:
-        pipe.send((True, Service(config=config).http(endpoint, query, timeout, deadline)))
+        pipe.send((True, Service(config=config).http(endpoint, query, timeout, deadline), False))
     except Exception as exc:
-        pipe.send((False, str(exc) if isinstance(exc, POIError) else type(exc).__name__))
+        pipe.send((False, str(exc) if isinstance(exc, POIError) else type(exc).__name__,
+                   isinstance(exc, (requests.Timeout, requests.ConnectionError, UpstreamUnavailable))))
     finally:
         pipe.close()
 
@@ -123,15 +128,15 @@ def bounded_http(config, endpoint, query, timeout, deadline):
         process.start()
         child.close()
         if not parent.poll(max(0, deadline - time.monotonic())):
-            raise POIError('deadline')
+            raise UpstreamUnavailable('deadline')
         try:
-            ok, result = parent.recv()
+            ok, result, unavailable = parent.recv()
         except EOFError as exc:
             raise POIError('http_process_failed') from exc
         if time.monotonic() >= deadline:
             raise POIError('deadline')
         if not ok:
-            raise POIError(result)
+            raise (UpstreamUnavailable if unavailable else POIError)(result)
         return result
     finally:
         parent.close()
@@ -183,6 +188,9 @@ class Service:
         source, error, attempts = 'error', '', 0
         joined, wait_seconds = False, 0.0
         request_id = uuid.uuid4().hex
+        restored = False
+        policy = {}
+        policy_eligible = True
 
         def active():
             if not live():
@@ -247,12 +255,13 @@ class Service:
                     error = 'circuit_open'
                     continue
                 # One global network slot also serializes half-open probes.
-                slot = self.repo.acquire('@upstream', self.config.deadline + 5)
+                slot = self.repo.acquire('@upstream', self.config.deadline + 5, probe_group=group)
                 if slot is None:
                     error = 'upstream_busy'
                     break
                 delay = 0
                 permanent = False
+                probe = slot if self.repo.owns('@probe:' + group, slot) else None
                 try:
                     if not self.repo.allowed(group):
                         error = 'circuit_open'
@@ -267,20 +276,27 @@ class Service:
                         if not self.repo.write(key, owner, data, stale_ttl):
                             raise POIError('cache_capacity_or_lease_lost')
                         self.repo.outcome(group, True)
+                        restored = bool(probe)
                         active()
                         source = 'upstream'
                         return data
                     error = 'http_' + str(status)
                     delay = retry_delay(retry)
                     permanent = status not in (429, 502, 503, 504)
-                    self.repo.outcome(group, False, delay or (30 if status == 429 else 0))
+                    policy_eligible = not permanent
+                    if policy_eligible:
+                        self.repo.outcome(group, False, delay or (30 if status == 429 else 0))
                 except Cancelled:
                     raise
                 except (requests.RequestException, POIError, ValueError) as exc:
                     error = str(exc) if isinstance(exc, POIError) else type(exc).__name__
                     LOG.info('poi_http %s', json.dumps(dict(provider=group, status='error', error=error)))
-                    self.repo.outcome(group, False)
+                    policy_eligible = isinstance(exc, (requests.Timeout, requests.ConnectionError, UpstreamUnavailable))
+                    if policy_eligible:
+                        self.repo.outcome(group, False)
                 finally:
+                    if probe:
+                        self.repo.release('@probe:' + group, probe)
                     self.repo.release('@upstream', slot)
                     slot = None
                 if permanent:
@@ -304,8 +320,16 @@ class Service:
             raise POIError(error) from exc
         except POIError as exc:
             source, error = 'error', str(exc)
+            # Only the shared policy proves a block. A timeout, malformed JSON,
+            # application exception or exhausted budget alone does not.
+            try:
+                policy = self.repo.presentation_policy(group_for(e) for e in endpoints) if policy_eligible else {}
+            except (sqlite3.Error, OSError):
+                policy = {}
             raise
         finally:
+            from .presentation import publish
+            publish(source, policy, restored)
             for lease_key, token in [('@upstream', slot), (key, owner)]:
                 if token:
                     try:

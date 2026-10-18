@@ -1,5 +1,7 @@
 # Sprint 158 — dowody i stan odbioru
 
+Aktualizacja po testach operatora 2026-10-18: VPS POI 26/26 PASS (14.596 s), GhostLab 17/17 PASS (98.102 s), restart OFF i Launch HTTP 200 potwierdzone. Dwa skany OFF zwróciły api_error po 8.8635 i 56.7548 s. Log dostawcy: timeouty i HTTP 502 z komunikatem o zajętych workerach i pełnej kolejce; brak wyniku końcowej próby Kumi w dostarczonym fragmencie. To początkowy baseline awarii, nie pomiar normalnej dostępności ani dowód regresji nowego cache. Na polecenie operatora dalszy odbiór POI nastąpi po przygotowaniu [159](../sprints/sprint_159_masa_scan_interference_ux.md). Flaga infrastruktury pozostaje OFF.
+
 Data: 2026-10-18. Status: **lokalnie gotowe do przeglądu i publikacji pakietu OFF; brak pełnego PASS sprintu**.
 
 ## Implementacja

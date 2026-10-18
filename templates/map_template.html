@@ -2159,6 +2159,11 @@
 </head>
 <body>
 {% include "_ghost_locale.html" %}
+{% if poi_masa_ux_enabled %}
+  <link rel="stylesheet" href="/static/css/poi_masa.css?v=159-1">
+  <aside id="poi-channel-status" role="status" aria-live="polite" hidden></aside>
+  <script src="/static/js/poi_masa.js?v=159-1"></script>
+{% endif %}
   
   <div style="height: 100%; width: 100%;">
     {{ map_html|safe }}
@@ -5896,6 +5901,7 @@
             menu.innerHTML = html;
             document.body.appendChild(menu);
             window.DeepScannerMap?.paintMenus();
+            window.PoiMasa?.paint(lat, lng);
         }
 
 
@@ -7142,6 +7148,7 @@
         }
 
         async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false, targetContext = {}) {
+            if (action === 'scan' && window.PoiMasa?.begin(lat, lng) === false) return null;
             const finishScanEffect = action === 'scan'
                 ? beginMapScanEffect()
                 : null;
@@ -7218,6 +7225,7 @@
                     })
                 });
                 const data = await res.json();
+                const masaInline = action === 'scan' && window.PoiMasa?.accept(data);
                 if (!res.ok || data.success === false || data.blocked) {
                     if (data.reason === 'scanner_inactive') window.DeepScannerMap?.stop();
                     const narrative = action === 'scan' && res.status === 403 ? window.DeepScannerMap?.log(scannerJob,'denied') : '';
@@ -7244,7 +7252,7 @@
                 const narrative = phase ? window.DeepScannerMap?.log(scannerJob,phase === 'api_error' ? 'error' : phase) : '';
                 const resultText = window.escapeMapText(mapResponseText(data));
                 const scanText = narrative ? window.escapeMapText(narrative) + '<br>' + resultText : resultText;
-                addSystemMessage(phase === 'api_error' ? 'danger' : phase === 'denied' ? 'warning' : 'success', GhostLocale.t('map.result.title'), scanText, phase ? window.DeepScannerMap?.messageKey(scannerJob,phase) : undefined);
+                if (!masaInline) addSystemMessage(phase === 'api_error' ? 'danger' : phase === 'denied' ? 'warning' : 'success', GhostLocale.t('map.result.title'), scanText, phase ? window.DeepScannerMap?.messageKey(scannerJob,phase) : undefined);
                 if (phase === 'api_error' || phase === 'denied') return data;
 
                 if (action === 'mark_target') {
@@ -7406,6 +7414,7 @@
                 console.error(err);
             } finally {
                 scannerJob?.dispose();
+                if (action === 'scan') window.PoiMasa?.finish();
                 finishMapScanEffectAfterPaint(finishScanEffect);
                 if (typeof finishTravelPulse === 'function') {
                     finishTravelPulse();

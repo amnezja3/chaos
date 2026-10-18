@@ -21,6 +21,7 @@ def main():
         os.environ['CHAOS_SESSION_FILE_DIR'] = str(Path(directory) / 'sessions')
         os.environ['CHAOS_SECRET_KEY'] = 'isolated-poi-only'
         os.environ['CHAOS_POI_INFRASTRUCTURE_ENABLED'] = '1'
+        os.environ['CHAOS_POI_MASA_UX_ENABLED'] = '1'
         import run
         from test_ghostlab_scanner import ScannerTest
         from poiFetchClass import POIFetcher
@@ -32,8 +33,12 @@ def main():
         mode = {'value': 'upstream', 'calls': 0}
         def transport(*args):
             mode['calls'] += 1
-            if mode['value'] != 'upstream':
-                return 503, None, None
+            if mode['value'] == 'invalid':
+                return 200, None, {'remark': 'invalid fixture', 'elements': []}
+            if mode['value'] == 'empty':
+                return 200, None, {'elements': []}
+            if mode['value'] not in ('upstream', 'restore'):
+                return 503, '2' if mode['value'] == 'timer' else '60', None
             return 200, None, {'elements':[{'type':'node','id':777,'lat':52,'lon':21,
                 'tags':{'office':'company','name':'Fixture office'}}]}
         fetcher = POIFetcher(tag_filters=['shop','amenity','office'])
@@ -57,10 +62,12 @@ def main():
                     for lang, catalog in translator().catalogs.items()}
         html = '''<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>POI map component</title>
 <style>body{background:#061710;color:#3f9;font:16px monospace;padding:12px}button,select{padding:12px}#markers{overflow-wrap:anywhere}#message{margin:12px 0}</style>
-<select id="locale"><option>pl</option><option>en</option></select><label><input type="checkbox" id="deep">GhostLab</label><button id="scan">SCAN</button><div id="message" role="status"></div><ul id="markers"></ul>
+<link rel="stylesheet" href="/static/css/poi_masa.css"><aside id="poi-channel-status" role="status" hidden></aside>
+<select id="locale"><option>pl</option><option>en</option></select><label><input type="checkbox" id="deep">GhostLab</label><button id="scan" data-default-scan>SCAN</button><div id="message" role="status"></div><ul id="markers"></ul>
 <script>
 const catalogs=__FIXTURE_CATALOGS__;
 const GhostLocale={t:(k,p={})=>{let s=catalogs[locale.value][k]||k;for(const [k,v]of Object.entries(p))s=s.replaceAll('{'+k+'}',v);return s}};
+window.GhostLocale=GhostLocale;
 window.escapeMapText=s=>String(s);function mapResponseText(d){return d.message_i18n?GhostLocale.t(d.message_i18n.key,d.message_i18n.params):d.status||d.message||'error'}
 window.mapScanEffectState={element:null};function beginMapScanEffect(){return ()=>{}}function finishMapScanEffectAfterPaint(f){f?.()}
 function guardMapGameplayAction(){return false}function handleDetentionTravelDenial(){return false}function handleForeignTerritoryProtectedResponse(){return false}
@@ -71,6 +78,7 @@ function clearScanResultLayers(){markers.replaceChildren()}function mapTargetDis
 function normalizeMapMenuTarget(o){return o}function bindMarkerContextSnapshot(){}function registerTargetMarker(){}function mapTargetLabelHtml(o){return o.name}
 function rememberScanResultLayer(m){let e=document.createElement('li');e.textContent=m._scanTarget.name;markers.append(e)}
 const L={divIcon:o=>o,marker:()=>({bindTooltip(){},on(){}})};
+</script><script src="/static/js/poi_masa.js"></script><script>
 __FIXTURE_ACTION__
 scan.onclick=async()=>{let d=await mapAction('scan',52,21);document.body.dataset.outcome=d?.scan_outcome||'denied'};
 </script></html>'''.replace('__FIXTURE_CATALOGS__',json.dumps(catalogs)).replace('__FIXTURE_TOKEN__',json.dumps(token)).replace('__FIXTURE_ACTION__',production_action)
@@ -80,12 +88,20 @@ scan.onclick=async()=>{let d=await mapAction('scan',52,21);document.body.dataset
                     status, body, content = 200,html.encode(),'text/html; charset=utf-8'
                 elif self.path == '/__activate':
                     status,body,content=200,json.dumps(fixture.activate()).encode(),'application/json'
+                elif self.path == '/__stats':
+                    status,body,content=200,json.dumps(mode).encode(),'application/json'
                 elif self.path.startswith('/__mode/'):
                     mode['value'] = self.path.rsplit('/',1)[1]
                     with service.repo.transaction() as c:
                         c.execute('DELETE FROM providers')
-                        if mode['value']=='cold':c.execute('DELETE FROM cache')
-                        elif mode['value']=='stale':c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
+                        c.execute('DELETE FROM leases')
+                        if mode['value']=='stale':c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
+                        else:c.execute('DELETE FROM cache')
+                        if mode['value'] in ('restore', 'recovering'):
+                            c.execute('INSERT INTO providers VALUES (?,?,?)', ('fixture.invalid',3,time.time()-1))
+                        if mode['value']=='recovering':
+                            for key in ('@upstream','@probe:fixture.invalid'):
+                                c.execute('INSERT INTO leases VALUES (?,?,?)', (key,'fixture-probe',time.time()+30))
                     status,body,content=200,json.dumps(mode).encode(),'application/json'
                 else:
                     raw=self.rfile.read(int(self.headers.get('Content-Length',0)))

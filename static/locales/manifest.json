@@ -1,6 +1,7 @@
 {
   "format_version": 1,
   "content_version": "157.8.1",
+  "asset_revision": "159-1",
   "default_locale": "pl",
   "domains": [
     "foundation",
