@@ -10,7 +10,7 @@ CHAOS — Cyber Hacking Adventure Of Senses — jest internetową grą ze wspól
 
 ### Wiek gracza
 
-Docelowy minimalny wiek to 16 lat. Nowe zasady wieku oraz mechanizm wymagający oświadczenia od nowych i istniejących graczy oczekują na osobne zatwierdzenie i uruchomienie. Nie są aktywowane przez tę aktualizację dokumentów. Planowane oświadczenie jest deklaracją, a nie sprawdzeniem dokumentów czy daty urodzenia. Google ani inna metoda logowania nie zastępują oświadczenia. Przed uruchomieniem zostaną określone zasady ograniczenia dostępu i odwołania od błędnej decyzji; obsługa konta i jego usunięcie mają pozostać dostępne.
+Ta aktualizacja regulaminu nie ustanawia nowego minimalnego wieku ani nie wprowadza obowiązku złożenia nowego oświadczenia o wieku. Nie zastępuje ani nie rozszerza warunków wcześniej zaakceptowanych przez użytkownika. Przejście na zasady 16+ jest planowane jako osobna zmiana, wymagająca zatwierdzenia, ogłoszenia oraz przygotowania zabezpieczeń. Mechanizm bramki wieku pozostaje wyłączony. Logowanie przez dostawcę zewnętrznego nie stanowi weryfikacji wieku.
 
 ### Dostęp i konto
 
@@ -56,7 +56,7 @@ CHAOS — Cyber Hacking Adventure Of Senses — is an online shared-world game w
 
 ### Player age
 
-The target minimum age is 16. The new age rules and declaration requirement for new and existing players await separate approval and activation. This document update does not activate them. The planned declaration is a statement, not verification of documents or date of birth. Google or another sign-in method does not replace it. Access-restriction rules and appeals against incorrect decisions will be specified before activation; account management and deletion are to remain available.
+This Terms update does not establish a new minimum age or require a new age declaration. It does not replace or extend terms previously accepted by the user. A transition to 16+ rules is planned as a separate change requiring approval, notice and safeguards. The age gate remains disabled. Signing in through an external provider does not verify age.
 
 ### Access and account
 

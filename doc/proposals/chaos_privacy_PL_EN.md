@@ -34,7 +34,7 @@ Discord używa identify i email: odpowiedź /users/@me służy odczytaniu identy
 
 ### Minimalny wiek i zapis akceptacji
 
-Przygotowywana polityka CHAOS przewiduje minimalny wiek 16 lat. Mechanizm wymagający nowego oświadczenia 16+ nie został jeszcze aktywowany na produkcji. Po jego uruchomieniu zapis obejmie identyfikator użytkownika, wersję Regulaminu, czas akceptacji oraz fakt i wersję oświadczenia o wieku. Historyczne oświadczenia pozostają odrębnymi zapisami i nie są automatycznie zamieniane na nowe. Nie zbieramy w tym celu daty urodzenia, dokumentów tożsamości ani potwierdzenia wieku z Google. Logowanie Google nie stanowi weryfikacji wieku. Wprowadzenie nowej polityki i ograniczeń wymaga osobnego ogłoszenia; publikacja dokumentu nie aktywuje ich ani nie zmienia istniejących kont.
+Ta aktualizacja nie ustanawia nowego progu wieku. Zasady 16+ pozostają planowaną, odrębną zmianą. Mechanizm wymagający nowego oświadczenia 16+ nie został jeszcze aktywowany na produkcji. Po jego uruchomieniu zapis obejmie identyfikator użytkownika, wersję Regulaminu, czas akceptacji oraz fakt i wersję oświadczenia o wieku. Historyczne oświadczenia pozostają odrębnymi zapisami i nie są automatycznie zamieniane na nowe. Nie zbieramy w tym celu daty urodzenia, dokumentów tożsamości ani potwierdzenia wieku z Google. Logowanie Google nie stanowi weryfikacji wieku. Wprowadzenie nowej polityki i ograniczeń wymaga osobnego ogłoszenia; publikacja dokumentu nie aktywuje ich ani nie zmienia istniejących kont.
 
 ### Sesje i pamięć urządzenia
 
@@ -46,7 +46,7 @@ Obsługa połączeń i bezpieczeństwa obejmuje dane techniczne, takie jak IP, i
 
 ### Pseudonimowość, analityka i reklamy
 
-Możesz używać nicku; nie wymagamy publicznego imienia i nazwiska. Pseudonimowość wobec graczy nie oznacza anonimowości wobec operatora: konto może być powiązane z e-mailem, identyfikatorem logowania i zdarzeniami technicznymi. W sprawdzonym kodzie interfejsu nie znaleziono integracji reklamowych ani zewnętrznej analityki zachowania. Logi techniczne nadal obejmują przetwarzanie danych. Nie potwierdzono korzystania z Cloudflare jako CDN lub proxy; samo używanie resolvera DNS nie jest taką usługą.
+Możesz używać nicku; nie wymagamy publicznego imienia i nazwiska. Pseudonimowość wobec graczy nie oznacza anonimowości wobec operatora: konto może być powiązane z e-mailem, identyfikatorem logowania i zdarzeniami technicznymi. Interfejs gry nie zawiera integracji reklamowych ani narzędzi zewnętrznej analityki zachowania. Dane techniczne w logach służą obsłudze i bezpieczeństwu usługi.
 
 ### Cele i podstawy przetwarzania
 
@@ -54,7 +54,7 @@ Dane potrzebne do konta, wybranej metody logowania, komunikacji i rozgrywki prze
 
 ### Odbiorcy i usługi zewnętrzne
 
-CHAOS korzysta z cyber_Folks w zakresie hostingu VPS, obsługi DNS i poczty elektronicznej. Zgodnie z potwierdzeniem operatora VPS znajduje się w Polsce i przechowuje dane kont oraz rozgrywki. Poczta transakcyjna zawiera adres odbiorcy, kody i potwierdzenia bezpieczeństwa. Wybrani dostawcy logowania to Google, GitHub, Discord i Steam. Przepływy do usług mapowych opisano powyżej, a ograniczenia wysyłki narracji do Mistral w sekcji AI. Lokalizacja VPS w Polsce nie oznacza, że wszystkie usługi zewnętrzne przetwarzają dane w Polsce lub EOG. Role prawne pozostałych odbiorców, lokalizacje i zabezpieczenia ewentualnych transferów wymagają osobnego potwierdzenia.
+CHAOS korzysta z cyber_Folks w zakresie hostingu VPS, obsługi DNS i poczty elektronicznej. Zgodnie z potwierdzeniem operatora VPS znajduje się w Polsce i przechowuje dane kont oraz rozgrywki. Poczta transakcyjna zawiera adres odbiorcy, kody i potwierdzenia bezpieczeństwa. Wybrani dostawcy logowania to Google, GitHub, Discord i Steam. Przepływy do usług mapowych opisano powyżej, a ograniczenia wysyłki narracji do Mistral w sekcji AI. Lokalizacja VPS w Polsce nie oznacza, że wszystkie usługi zewnętrzne przetwarzają dane w Polsce lub EOG.
 
 ### Narracja i systemy AI
 
@@ -120,7 +120,7 @@ Discord uses identify and email: /users/@me provides an identifier, email and ve
 
 ### Minimum age and acceptance records
 
-The planned CHAOS policy sets a minimum age of 16. The mechanism requiring a new 16+ declaration has not yet been enabled in production. Once enabled, records will include the user ID, Terms version, acceptance time, and the fact and version of the age declaration. Historical declarations remain separate and are not automatically converted. We do not collect dates of birth, identity documents or Google age confirmation for this purpose. Google sign-in does not verify age. Introducing the policy and restrictions requires a separate announcement; publishing this document neither activates them nor changes existing accounts.
+This update does not establish a new age threshold. The 16+ rules remain a planned, separate change. The mechanism requiring a new 16+ declaration has not yet been enabled in production. Once enabled, records will include the user ID, Terms version, acceptance time, and the fact and version of the age declaration. Historical declarations remain separate and are not automatically converted. We do not collect dates of birth, identity documents or Google age confirmation for this purpose. Google sign-in does not verify age. Introducing the policy and restrictions requires a separate announcement; publishing this document neither activates them nor changes existing accounts.
 
 ### Sessions and device storage
 
@@ -132,7 +132,7 @@ Connection handling and security involve technical data such as IP addresses, br
 
 ### Pseudonymity, analytics and advertising
 
-You may use a nickname; a public real name is not required. Pseudonymity towards players does not mean anonymity towards the operator: an account may be linked to an email, sign-in identifier and technical events. The reviewed interface code contains no advertising or external behavioural-analytics integration. Technical logs still involve data processing. Cloudflare CDN or proxy use has not been confirmed; using a DNS resolver alone is not such a service.
+You may use a nickname; a public real name is not required. Pseudonymity towards players does not mean anonymity towards the operator: an account may be linked to an email, sign-in identifier and technical events. The game interface contains no advertising integrations or external behavioural analytics tools. Technical log data supports operation and security of the service.
 
 ### Purposes and legal bases
 
@@ -140,7 +140,7 @@ Data needed for the account, chosen sign-in method, communication and gameplay i
 
 ### Recipients and external services
 
-CHAOS uses cyber_Folks for VPS hosting, DNS and email. The operator confirms that the VPS is located in Poland and stores account and gameplay data. Transactional mail includes recipient addresses, security codes and confirmations. Available sign-in providers are Google, GitHub, Discord and Steam. Map-service flows are described above, and restrictions on sending narrative to Mistral in the AI section. A VPS located in Poland does not mean all external services process data in Poland or the EEA. Other recipients’ legal roles, processing locations and safeguards for any transfers require separate confirmation.
+CHAOS uses cyber_Folks for VPS hosting, DNS and email. The operator confirms that the VPS is located in Poland and stores account and gameplay data. Transactional mail includes recipient addresses, security codes and confirmations. Available sign-in providers are Google, GitHub, Discord and Steam. Map-service flows are described above, and restrictions on sending narrative to Mistral in the AI section. A VPS located in Poland does not mean all external services process data in Poland or the EEA.
 
 ### Narrative and AI systems
 
