@@ -26,6 +26,22 @@ Data: 2026-10-18. Status: **lokalnie gotowe do przeglądu i publikacji pakietu O
 
 ## Granice gotowości
 
-Nowa warstwa jest domyślnie OFF. Nie wykonano push, wdrożenia, migracji bazy gry ani zmian flag Identity/AI/wieku. Dotychczasowa ścieżka pozostaje dostępna po OFF. Nie obiecuje się procentowej poprawy bez pomiarów. Harmonogram maintenance i alarmowanie nie zostały zainstalowane na VPS.
+### Ponowny test VPS — kontencja zapisu SQLite
+
+Kolejny log operatora: 24 testy POI, 1 FAIL w `test_multiprocess_singleflight` (18.117 s). Dwa procesy zakończyły się `storage_unavailable` po około 0.5 s, trzeci zwrócił wynik po 2.63 s. GhostLab nie uruchomił się z powodu `&&`. Poprzedni PASS nie dowodził stabilności przy wolniejszym zapisie na VPS; odbiór pozostaje wstrzymany.
+
+Poprawka acquire: istniejący aktywny lease jest najpierw sprawdzany odczytem bez blokady pisarza. Przejęcie nadal rozstrzyga atomowa transakcja. SQLITE_BUSY przy przejęciu wraca do ograniczonej czasowo pętli join; pozostałe błędy storage nadal przerywają operację. Czas ważności lease jest liczony po uzyskaniu transakcji. Bez podnoszenia limitu oczekiwania SQLite i bez ominięcia limitu HTTP.
+
+Dodano test rzeczywistej blokady zapisu przez 0.8 s (dłużej niż busy timeout) i test dołączenia do istniejącego właściciela przy zablokowanym pisarzu. Lokalnie 26/26 testów POI PASS (12.753 s), następnie trzy dodatkowe powtórzenia testu wieloprocesowego PASS i pełne 17/17 GhostLab PASS (67.550 s). Wymagane ponowne uruchomienie na VPS po publikacji poprawki.
+
+### Weryfikacja VPS po pobraniu a6ff305
+
+Operator przekazał wynik: POI 24/24 PASS (16.538 s), GhostLab 16 testów, 8 FAIL (42.963 s). Wszystkie błędy endpointów miały HTTP 423 `ghostsystem_restart_required` / `document_epoch_replaced`. Fixture izolowało konta, ale nie `ghostsignal_show_db_path`, więc bramka odczytywała rzeczywisty restart cyklu serwera. To blokuje akceptację testów przed restartem aplikacji; nie jest podstawą do wyłączenia bramki gameplayu.
+
+Poprawka: testy ScannerTest inicjalizują GhostNetworkRepository w tymczasowej bazie i podmieniają wyłącznie testową ścieżkę Show. Dodano regresję, która nadal wymaga właściwej epoki: 423 bez nagłówka, 200 z aktualnym nagłówkiem. Produkcyjny mechanizm bramki pozostaje bez zmian. Wcześniejsza liczba 17 testów GhostLab w raporcie nie odpowiadała pakietowi a6ff305 (16); po dodaniu regresji zestaw ma 17 testów. Powtórny wynik VPS wymaga potwierdzenia po pobraniu poprawki.
+
+Lokalna weryfikacja poprawki: wszystkie 16 dotychczasowych testów przeszło; nowa regresja po korekcie testowego identyfikatora okna przeszła w osobnym uruchomieniu (1/1 PASS). `git diff --check` bez błędów. Poprawka testów oczekuje publikacji i ponownego uruchomienia zestawu na VPS.
+
+Nowa warstwa jest domyślnie OFF. Operator pobrał pakiet a6ff305 na VPS; restart z nowym kodem i baseline nie zostały jeszcze potwierdzone. Nie wykonano migracji bazy gry ani zmian flag Identity/AI/wieku. Dotychczasowa ścieżka pozostaje dostępna po OFF. Nie obiecuje się procentowej poprawy bez pomiarów. Harmonogram maintenance i alarmowanie nie zostały zainstalowane na VPS.
 
 Przed ON potrzebne są odczyty topologii i typu workerów, pomiar ruchu OFF, potwierdzenie wspólnego lokalnego pliku cache i aktualnych endpointów. Następnie smoke w pełnej grze, pomiary ON oraz obserwacja. Sposób wykonania i rollback: [runbook](../runbooks/poi_infrastructure_158.md).

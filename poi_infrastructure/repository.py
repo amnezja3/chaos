@@ -85,12 +85,30 @@ class Repository:
             return None
 
     def acquire(self, key, seconds):
-        now = time.time()
+        # Joiners must not contend for SQLite's writer lock merely to discover
+        # an existing owner. The transaction below still decides ownership.
+        c = self.connect()
+        try:
+            if c.execute('SELECT 1 FROM leases WHERE key=? AND until_at>?',
+                         (key, time.time())).fetchone():
+                return None
+        finally:
+            c.close()
         owner = uuid.uuid4().hex
-        with self.transaction() as c:
-            c.execute('DELETE FROM leases WHERE key=? AND until_at<=?', (key, now))
-            cur = c.execute('INSERT OR IGNORE INTO leases VALUES (?,?,?)', (key, owner, now + seconds))
-            return owner if cur.rowcount else None
+        try:
+            with self.transaction() as c:
+                now = time.time()
+                c.execute('DELETE FROM leases WHERE key=? AND until_at<=?', (key, now))
+                cur = c.execute('INSERT OR IGNORE INTO leases VALUES (?,?,?)', (key, owner, now + seconds))
+                return owner if cur.rowcount else None
+        except sqlite3.OperationalError as exc:
+            # Python 3.10 lacks sqlite_errorcode. Only BUSY is retryable; full,
+            # corrupt, readonly and I/O failures must remain fail-closed.
+            code = getattr(exc, 'sqlite_errorcode', None)
+            if ((code is not None and code & 255 == 5)
+                    or (code is None and str(exc) == 'database is locked')):
+                return None  # Service's bounded join loop owns the retry budget.
+            raise
 
     def owns(self, key, owner):
         c = self.connect()

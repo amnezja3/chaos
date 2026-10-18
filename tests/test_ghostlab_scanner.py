@@ -22,11 +22,27 @@ class ScannerTest(unittest.TestCase):
 
     def setUp(self):
         fixture.GhostLabAlignmentTest.setUp(self)
+        # Exercise the real gameplay gate against the fixture database, never
+        # the server's current Ghost Signal cycle/restart projection.
+        run.GhostNetworkRepository(db_path=self.path)
+        self.stack.enter_context(patch.object(run, 'ghostsignal_show_db_path', self.path))
         self.seed()
         self.stack.enter_context(patch.dict(os.environ, CHAOS_GHOSTLAB_SCANNER_RUNTIME_ENABLED='true',
                                             CHAOS_GHOSTLAB_RUNTIME_ACTORS='*'))
         self.store, self.project, self.app = self.product('Scanner', 'deep_scanner')
         self.url = '/api/ghostlab/scanner/' + self.app['id'] + '/activate'
+
+    def test_isolated_restart_gate_still_requires_current_epoch(self):
+        self.assertEqual(run.ghostsignal_show_db_path, self.path)
+        self.assertIsNone(run.get_ghostsignal_show_service().restart_projection())
+        with patch.object(run.GhostSignalShowService, 'restart_projection',
+                          return_value={'epoch': 'fixture-epoch'}):
+            response = self.client.post(self.url, json={'window_id': 'fixture-window'})
+            self.assertEqual(response.status_code, 423, response.json)
+            self.assertEqual(response.json['error'], 'ghostsystem_restart_required')
+            response = self.client.post(self.url, json={'window_id': 'fixture-window'},
+                                        headers={'X-Chaos-Ghost-Epoch': 'fixture-epoch'})
+            self.assertEqual(response.status_code, 200, response.json)
 
     def activate(self, window='window-one'):
         response = self.client.post(self.url, json={'window_id': window, 'extra_retries': 999})

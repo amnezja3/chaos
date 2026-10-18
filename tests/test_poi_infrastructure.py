@@ -197,6 +197,41 @@ class POIInfrastructureTest(unittest.TestCase):
             results.close()
             results.join_thread()
 
+    def test_sqlite_writer_contention_waits_within_join_budget(self):
+        self.service.repo.initialize()
+        ready = threading.Event()
+        def hold_writer():
+            conn = sqlite3.connect(self.path, isolation_level=None)
+            try:
+                conn.execute('BEGIN IMMEDIATE')
+                ready.set()
+                time.sleep(.8)  # Longer than SQLite's 500 ms busy timeout.
+                conn.commit()
+            finally:
+                conn.close()
+        thread = threading.Thread(target=hold_writer)
+        thread.start()
+        try:
+            self.assertTrue(ready.wait(3))
+            self.assertEqual(self.fetch(), self.raw)
+            self.assertEqual(self.transport.call_count, 1)
+        finally:
+            thread.join(3)
+
+    def test_existing_owner_can_be_joined_while_writer_is_locked(self):
+        self.service.repo.initialize()
+        owner = self.service.repo.acquire('q', 10)
+        conn = sqlite3.connect(self.path, isolation_level=None)
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            started = time.monotonic()
+            self.assertIsNone(self.service.repo.acquire('q', 10))
+            self.assertLess(time.monotonic() - started, .4)
+            self.assertTrue(self.service.repo.owns('q', owner))
+        finally:
+            conn.rollback()
+            conn.close()
+
     def test_ghostlab_extra_attempt_can_succeed(self):
         with patch.dict(os.environ,CHAOS_POI_INFRASTRUCTURE_ENABLED='1'):
             for extra in (0,1):
