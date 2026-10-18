@@ -57,17 +57,22 @@ def main():
         fixture.stack.enter_context(patch.object(run.player_scan_snapshot_store,'record',return_value={'scan_id':'fixture-scan'}))
         text = (ROOT/'templates/map_template.html').read_text(encoding='utf-8')
         production_action = text[text.index('        async function mapAction('):text.index('        const bikeDirectionIcons =')]
+        production_loading = text[text.index('            window.mapLoadingState ='):text.index('            window.bootStep =')]
         catalogs = {lang: {key: entry.get('text', entry.get('forms', {}).get('other', key))
                           for key, entry in catalog['messages'].items()}
                     for lang, catalog in translator().catalogs.items()}
         html = '''<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>POI map component</title>
 <style>body{background:#061710;color:#3f9;font:16px monospace;padding:12px}button,select{padding:12px}#markers{overflow-wrap:anywhere}#message{margin:12px 0}</style>
-<link rel="stylesheet" href="/static/css/poi_masa.css"><aside id="poi-channel-status" role="status" hidden></aside>
+<link rel="stylesheet" href="/static/css/map_glitch.css"><link rel="stylesheet" href="/static/css/poi_masa.css">
+<div id="fixture-map" style="position:fixed;inset:0;pointer-events:none"></div><span id="poi-channel-status" role="status"></span>
 <select id="locale"><option>pl</option><option>en</option></select><label><input type="checkbox" id="deep">GhostLab</label><button id="scan" data-default-scan>SCAN</button><div id="message" role="status"></div><ul id="markers"></ul>
 <script>
 const catalogs=__FIXTURE_CATALOGS__;
 const GhostLocale={t:(k,p={})=>{let s=catalogs[locale.value][k]||k;for(const [k,v]of Object.entries(p))s=s.replaceAll('{'+k+'}',v);return s}};
 window.GhostLocale=GhostLocale;
+const map={getContainer:()=>document.getElementById('fixture-map')};
+window.mapBootState={ready:true};
+function ghostCopy(k){return GhostLocale.t(k)}function ghostSetCopy(e,t){e.textContent=t;}
 window.escapeMapText=s=>String(s);function mapResponseText(d){return d.message_i18n?GhostLocale.t(d.message_i18n.key,d.message_i18n.params):d.status||d.message||'error'}
 window.mapScanEffectState={element:null};function beginMapScanEffect(){return ()=>{}}function finishMapScanEffectAfterPaint(f){f?.()}
 function guardMapGameplayAction(){return false}function handleDetentionTravelDenial(){return false}function handleForeignTerritoryProtectedResponse(){return false}
@@ -78,10 +83,11 @@ function clearScanResultLayers(){markers.replaceChildren()}function mapTargetDis
 function normalizeMapMenuTarget(o){return o}function bindMarkerContextSnapshot(){}function registerTargetMarker(){}function mapTargetLabelHtml(o){return o.name}
 function rememberScanResultLayer(m){let e=document.createElement('li');e.textContent=m._scanTarget.name;markers.append(e)}
 const L={divIcon:o=>o,marker:()=>({bindTooltip(){},on(){}})};
-</script><script src="/static/js/poi_masa.js"></script><script>
+</script><script src="/static/js/map_glitch.js"></script><script src="/static/js/map_recon_log.js"></script><script src="/static/js/poi_masa.js"></script><script>
+__FIXTURE_LOADING__
 __FIXTURE_ACTION__
 scan.onclick=async()=>{let d=await mapAction('scan',52,21);document.body.dataset.outcome=d?.scan_outcome||'denied'};
-</script></html>'''.replace('__FIXTURE_CATALOGS__',json.dumps(catalogs)).replace('__FIXTURE_TOKEN__',json.dumps(token)).replace('__FIXTURE_ACTION__',production_action)
+</script></html>'''.replace('__FIXTURE_CATALOGS__',json.dumps(catalogs)).replace('__FIXTURE_TOKEN__',json.dumps(token)).replace('__FIXTURE_LOADING__',production_loading).replace('__FIXTURE_ACTION__',production_action)
         class Handler(BaseHTTPRequestHandler):
             def route(self):
                 if self.path == '/':

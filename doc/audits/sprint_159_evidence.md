@@ -4,7 +4,13 @@
 
 ## Zrealizowane
 
-159.1: kontrakt i koszty opisane w [planie](../sprints/sprint_159_masa_scan_interference_ux.md). 159.2: request-local metadane, jawne stany, brak surowych wyjątków w publicznym status. 159.3: panel, lokalny countdown, brak automatycznych prób, blokada powtórzeń, PL/EN. 159.4: testy wieloprocesowe, endpoint, Playwright, flagi i rollback.
+159.1: kontrakt i koszty opisane w [planie](../sprints/sprint_159_masa_scan_interference_ux.md). 159.2: request-local metadane, jawne stany, brak surowych wyjątków w publicznym status. 159.3: Chaos Log, lokalny countdown, brak automatycznych prób, blokada powtórzeń, PL/EN. 159.4: testy wieloprocesowe, endpoint, Playwright, flagi i rollback.
+
+### Korekta prezentacji MASA — 2026-10-18
+
+Usunięto osobną belkę. MASA korzysta z istniejącej nakładki glitcha i Chaos Logu w prawym dolnym rogu mapy. Aktywna blokada daje drugi poziom (`slow`), bez osłabiania cięższych efektów rzeczywistego ładowania. Po wygaśnięciu terminu wpis i efekt MASA znikają po cichu: bez tekstu o końcu blokady, bez auto-retry. Inne logi i efekty pozostają.
+
+Playwright MCP: `tests/browser/poi_chaos_log.js` PASS dla 1440/390 px × PL/EN: pozycja i zawijanie logu, niewidoczna belka, poziomy glitcha, współistnienie z loaderem i ciche wygaśnięcie. Powtórzony `tests/browser/poi_masa.js`: osiem kombinacji zwykły/GhostLab × PL/EN × desktop/mobile PASS, bez dodatkowego HTTP i bez błędów JS/konsoli. Fixture używa teraz także produkcyjnych funkcji ładowania oraz CSS/JS glitcha; nadal zastępuje Leaflet. Screenshoty komponentu desktop/mobile obejrzane lokalnie. Kontrola składni zmienionego JS i `git diff --check` PASS. Nie wykonano wdrożenia na VPS.
 
 ## Testy
 

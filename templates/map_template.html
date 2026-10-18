@@ -2160,9 +2160,10 @@
 <body>
 {% include "_ghost_locale.html" %}
 {% if poi_masa_ux_enabled %}
-  <link rel="stylesheet" href="/static/css/poi_masa.css?v=159-1">
-  <aside id="poi-channel-status" role="status" aria-live="polite" hidden></aside>
-  <script src="/static/js/poi_masa.js?v=159-1"></script>
+  <link rel="stylesheet" href="/static/css/poi_masa.css?v=159-2">
+  <span id="poi-channel-status" role="status" aria-live="polite"></span>
+  <script src="/static/js/map_recon_log.js?v=159-2"></script>
+  <script src="/static/js/poi_masa.js?v=159-2"></script>
 {% endif %}
   
   <div style="height: 100%; width: 100%;">
@@ -8638,6 +8639,7 @@
 
             window.setMapLoadingIntensity = function(level = 'normal') {
                 const state = window.mapLoadingState;
+                state.intensity = level;
                 const overlay = state.overlay || window.ensureMapGlitchOverlay();
                 [state.element, overlay].forEach(element => {
                     if (!element) return;
@@ -8646,6 +8648,7 @@
                     element.classList.toggle('is-heavy', overloaded);
                     element.classList.toggle('is-overloaded', overloaded);
                 });
+                window.MapReconLog?.sync();
             };
 
             window.ensureMapLoadingStatus = function() {
@@ -8690,6 +8693,7 @@
                 }
                 status.classList.add('is-visible');
                 window.mapLoadingState.visible = true;
+                window.MapReconLog?.sync();
             };
 
             window.beginMapLoading = function(message) {
@@ -8750,6 +8754,7 @@
                 }
                 state.visible = false;
                 state.startedAt = 0;
+                window.MapReconLog?.sync();
             };
 
             window.bootStep = async function(label, scope, fn, options = {}) {

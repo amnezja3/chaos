@@ -37,13 +37,13 @@ Potwierdzić integralność cache, wspólną lokalną ścieżkę dla czterech wo
 CHAOS_POI_INFRASTRUCTURE_ENABLED=1 CHAOS_POI_MASA_UX_ENABLED=1 pm2 restart chaos --update-env
 ```
 
-Ponownie otworzyć mapę, aby pobrać panel i katalogi. Testować zwykły skan i GhostLab w PL/EN na desktop/mobile. Sprawdzić prawdziwe markery i układ kontrolek. W logach oczekiwać infrastructure=true. Świeży cache nie pokazuje MASA; kompletny stale daje sukces z informacją o ostatnim zapisie; rzeczywisty wspólny cooldown daje blokadę. Sam 502 przed otwarciem polityki może nadal dać zwykły błąd. Nie prowokować awarii ani obciążać publicznego Overpass seryjnymi próbami — te scenariusze są deterministycznie testowane lokalnie.
+Ponownie otworzyć mapę, aby pobrać aktualne assety i katalogi. Status MASA powinien pojawić się w Chaos Logu w prawym dolnym rogu, bez osobnej belki. Aktywna blokada daje drugi poziom glitcha; po jej wygaśnięciu wpis i efekt MASA znikają bez komunikatu końcowego i bez automatycznej próby. Testować zwykły skan i GhostLab w PL/EN na desktop/mobile. Sprawdzić prawdziwe markery i układ kontrolek. W logach oczekiwać infrastructure=true. Świeży cache nie pokazuje MASA; kompletny stale daje sukces z informacją o ostatnim zapisie; rzeczywisty wspólny cooldown daje blokadę. Sam 502 przed otwarciem polityki może nadal dać zwykły błąd. Nie prowokować awarii ani obciążać publicznego Overpass seryjnymi próbami — te scenariusze są deterministycznie testowane lokalnie.
 
 Przy wyłączonej infrastrukturze samo MASA_UX_ENABLED=1 niczego nie uruchamia. Obsługa cooldownu nie naprawia dostawcy: zimny cache podczas jego awarii nadal nie dostarczy POI. Obserwacja 158 i końcowy produkcyjny PASS pozostają osobnym odbiorem.
 
 ## Rollback
 
-Sam panel/kontrakt MASA:
+Sama prezentacja/kontrakt MASA:
 
 ```bash
 CHAOS_POI_MASA_UX_ENABLED=0 pm2 restart chaos --update-env

@@ -24,17 +24,20 @@
     }
     function render() {
         const milliseconds = remaining(currentKey);
+        // Expiry is silent: remove MASA's visual state, without claiming recovery.
+        if (state === 'blocked' && blocks.has(currentKey) && milliseconds <= 0) state = '';
         let text = state ? t(state) : '';
         if (state === 'blocked') {
             if (blocks.has(currentKey)) {
                 const seconds = Math.ceil(milliseconds / 1000);
-                text = seconds > 0 ? t('cooldown', {time: t('duration', {
-                    minutes: Math.floor(seconds / 60), seconds: seconds % 60})}) : t('retry_ready');
+                text = t('cooldown', {time: t('duration', {
+                    minutes: Math.floor(seconds / 60), seconds: seconds % 60})});
             } else text += ' ' + t('unknown_time');
         }
-        panel.hidden = !text;
         panel.dataset.state = state;
         if (panel.textContent !== text) panel.textContent = text;
+        global.MapReconLog?.set(text, state === 'blocked' &&
+            (!blocks.has(currentKey) || milliseconds > 0));
         paint();
         clearTimeout(timer);
         if (milliseconds > 0) timer = setTimeout(render, 250); // Local clock only; no fetch.
@@ -75,7 +78,7 @@
                 clearTimeout(timer);
                 timer = setTimeout(() => {state = ''; render();}, 5000);
             }
-            // Inline error already explains the result; suppress repeated toasts.
+            // Chaos Log already explains the result; suppress repeated toasts.
             return next === 'blocked' || next === 'recovering';
         }
     };

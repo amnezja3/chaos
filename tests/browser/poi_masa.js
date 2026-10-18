@@ -41,7 +41,7 @@ async (page) => {
         assert((await scan()).interference.state === 'blocked', 'timer');
         const before = await calls();
         await page.waitForTimeout(2300);
-        assert(/Możesz sprawdzić|check the signal again/.test(await page.locator('#poi-channel-status').innerText()), 'expiry not restored');
+        assert(await page.locator('#poi-channel-status').textContent() === '', 'silent expiry');
         assert(await calls() === before, 'no auto-retry');
         await mode('recovering'); assert((await scan()).interference.state === 'recovering', 'real probe');
         await mode('restore'); assert((await scan()).interference.state === 'restored', 'restored');

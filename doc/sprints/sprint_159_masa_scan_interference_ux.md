@@ -29,7 +29,9 @@ To doprecyzowuje M159-01: sam HTTP 502 bez otwartej polityki nie uzasadnia BLOCK
 
 ## 159.3 — mapa PL/EN
 
-Niewielki panel statusu, bez modala, z zachowaniem mapy i markerów. SCAN blokuje ponowne wysłanie tego samego punktu tylko przez znany relatywny czas z backendu; inny punkt może mieć poprawny cache. Jeden aktywny skan klienta. Licznik lokalny, bez polling/retry. Zero sekund oznacza możliwość ręcznego sprawdzenia, nie sukces. Brak przenoszenia blokady przez localStorage między sesjami.
+Status MASA trafia do istniejącego Chaos Logu w prawym dolnym rogu mapy, razem z logiem synchronizacji/przeciążenia. Bez osobnej belki. Aktywna blokada uruchamia drugi poziom istniejącego glitcha (`slow`); cięższy efekt rzeczywistego ładowania ma pierwszeństwo. Po upływie terminu wpis MASA i jego glitch znikają bez komunikatu o zakończeniu blokady. Logi i efekty innych operacji pozostają niezależne.
+
+SCAN blokuje ponowne wysłanie tego samego punktu tylko przez znany relatywny czas z backendu; inny punkt może mieć poprawny cache. Jeden aktywny skan klienta. Licznik lokalny, bez polling/retry. Wygaśnięcie umożliwia ręczne sprawdzenie, nie oznacza sukcesu. Brak przenoszenia blokady przez localStorage między sesjami.
 
 Odświeżenie nie uruchamia skanu: dopiero ręczna akcja odczytuje współdzieloną politykę. Ten odczyt nie wywołuje Overpass przy aktywnej blokadzie. Nie dodajemy endpointu tylko do napisu MASA. RESTORED wygasa po 5 s; powtórzone blocked nie wysyła toastów. prefers-reduced-motion wyłącza efekt.
 

@@ -1,9 +1,4 @@
-#poi-channel-status {position:fixed;z-index:1000;top:12px;left:50%;transform:translateX(-50%);max-width:min(440px,calc(100% - 112px));box-sizing:border-box;padding:8px 12px;border:1px solid #91b96a;border-radius:4px;background:#071914ed;color:#d6f4d2;font:12px/1.45 monospace;pointer-events:none;overflow-wrap:anywhere}
-#poi-channel-status[hidden] {display:none}
-#poi-channel-status[data-state="blocked"] {border-color:#e1be56;color:#ffe3a1;animation:poi-channel-glitch 3s ease-in-out 1}
-#poi-channel-status[data-state="degraded"] {border-color:#a0b87c;color:#dbe6b9}
-#poi-channel-status[data-state="restored"] {border-color:#24fb8b;color:#78ffb7}
+/* Accessible status only; visual output uses the shared bottom-right Chaos Log. */
+#poi-channel-status {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
 .poi-scan-disabled {opacity:.55;cursor:wait!important}
-@keyframes poi-channel-glitch {0%,15%,25%,100%{opacity:1}18%,23%{opacity:.65}}
-@media(prefers-reduced-motion:reduce) {#poi-channel-status {animation:none!important}}
-@media(max-width:480px) {#poi-channel-status {top:8px;font-size:11px;padding:6px 8px}}
+.chaos-map-glitch-overlay.has-recon-log::after {box-sizing:border-box;max-width:min(360px,calc(100% - 24px));white-space:pre-line;overflow-wrap:anywhere;text-overflow:clip}
