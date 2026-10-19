@@ -37,3 +37,31 @@ odbiór kosztów/tokenów, markerów ani całego cyklu skanowania w gameplayu.
 Ważne przed kolejnym krokiem: skaner gry ma nadal domyślnie odczyt HTTP 8 s
 (`CHAOS_OVERPASS_TIMEOUT_SECONDS`) i limit zapytania 15 s. Zmiana limitów probe
 nie zmieniła tych ustawień. Nie aktywowano teraz ruchu gry.
+
+## Wyniki operatora i kolejna diagnostyka
+
+Pełne zapytanie na VK zakończyło się `http_read_timeout` przy odczycie 25 s.
+DE zwrócił HTTP 502 po 0,727 s. Nie stanowi to dowodu blokady IP ani błędnej
+składni zapytania. Dotychczas transport pomijał treść odpowiedzi non-200.
+
+Dodano opcjonalny odczyt maksymalnie 2049 bajtów błędu (publikowany fragment
+do 2048 bajtów) z timeoutem 2 s ograniczonym wspólnym deadline. Błąd odczytu
+treści zachowuje oryginalny status HTTP. Opcja jest domyślnie wyłączona i
+włączana tylko przez narzędzie CLI; nie zmienia transportu gameplayu.
+
+Następny pojedynczy pomiar, po upływie limitu 15 minut dla DE:
+
+```bash
+.venv/bin/python tools/poi_controlled_scan.py --db data/poi_cache.sqlite3 --provider overpass-de --query simple --execute
+```
+
+`simple` wybiera tylko node z tagiem amenity w tym samym promieniu i miejscu.
+`full` zachowuje dotychczasowe filtry i nwr. Nie zmieniono timeoutów, wspólnego
+slotu, circuit ani limitu częstotliwości; warianty nie obchodzą tego limitu.
+Narzędzie wypisuje `query_kind` oraz `diagnostic` dla odpowiedzi non-200.
+Pomiary nie są równoczesne: sukces prostego zapytania tylko zawęzi diagnozę,
+nie dowiedzie sam w sobie przyczyny wcześniejszego błędu.
+
+Walidacja lokalna: 9 testów secure transport i 4 testy controlled scan PASS,
+bez publicznego HTTP. Potwierdzono ograniczenie fragmentu, zachowanie statusu
+po timeoutcie treści błędu, pojedynczy POST i wybór prostego zapytania.

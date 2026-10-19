@@ -79,6 +79,26 @@ def request(config, endpoint, query, timeout, deadline):
         stage = 'http_read'
         response = connection.getresponse()
         if response.status != 200:
+            if config.diagnostic_errors:
+                detail = {'content_type': str(response.getheader('Content-Type', ''))[:200]}
+                # Opt-in CLI diagnostics only; never follow redirects or read an
+                # unbounded error page. Preserve the HTTP status on body failure.
+                try:
+                    remaining = deadline-time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError()
+                    tls_sock.settimeout(min(2, remaining))
+                    if response.getheader('Content-Encoding', 'identity').lower() != 'identity':
+                        detail['body_unavailable'] = 'unsupported_content_encoding'
+                    else:
+                        raw = response.read(2049)
+                        detail['body_excerpt'] = ''.join(
+                            c if c.isprintable() or c in '\n\t' else ' '
+                            for c in raw[:2048].decode('utf-8', errors='replace'))
+                        detail['body_truncated'] = len(raw) > 2048
+                except (OSError, http.client.HTTPException) as exc:
+                    detail['body_unavailable'] = type(exc).__name__
+                return response.status,response.getheader('Retry-After'),detail
             return response.status,response.getheader('Retry-After'),None
         if response.getheader('Content-Encoding','identity').lower() != 'identity':
             raise POIError('unsupported_content_encoding')

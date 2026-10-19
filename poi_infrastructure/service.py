@@ -42,6 +42,7 @@ class Config:
     max_elements: int = 20000
     max_cache: int = 64 * 1024 * 1024
     max_entries: int = 2000
+    diagnostic_errors: bool = False
 
     @classmethod
     def environment(cls):

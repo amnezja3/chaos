@@ -53,6 +53,17 @@ class ControlledScanTests(unittest.TestCase):
         self.assertEqual(self.registry.health()[0]['status'], 'http_read_timeout')
         self.assertIsNotNone(self.repo.acquire('@upstream', 1))
 
+    def test_simple_query_and_error_detail_do_not_retry(self):
+        detail = {'body_excerpt':'upstream unavailable'}
+        with patch('tools.poi_controlled_scan.bounded_http', return_value=(502, None, detail)) as http:
+            result = scan(self.path, 'fixture', True, 'simple')
+            self.assertEqual(result['diagnostic'],detail)
+            self.assertEqual(result['query_kind'],'simple')
+            self.assertTrue(http.call_args.args[0].diagnostic_errors)
+            self.assertIn('node(around:300,52.2319,21.0067)["amenity"]',http.call_args.args[2])
+            self.assertNotIn('nwr',http.call_args.args[2])
+            http.assert_called_once()
+
     def test_partial_response_never_passes(self):
         with patch('tools.poi_controlled_scan.bounded_http', return_value=(200, None,
                 {'elements': [], 'remark':'runtime error'})):

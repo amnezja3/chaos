@@ -10,10 +10,12 @@ from poi_infrastructure.service import Config,POIError
 
 
 class SecureTransportTests(unittest.TestCase):
-    def perform(self,status=200,raw=None):
+    def perform(self,status=200,raw=None,diagnostic=False,body_error=None):
         response=Mock(status=status)
         response.getheader.side_effect=lambda key,default=None: default
         response.read.side_effect=[raw or b'{"elements":[]}',b'']
+        if body_error:
+            response.read.side_effect=body_error
         connection=Mock()
         connection.getresponse.return_value=response
         sock=Mock()
@@ -22,12 +24,28 @@ class SecureTransportTests(unittest.TestCase):
         rows=[(socket.AF_INET,socket.SOCK_STREAM,6,'',('8.8.8.8',443))]
         with patch('socket.getaddrinfo',return_value=rows) as dns,patch('socket.socket',return_value=sock), \
              patch('ssl.create_default_context',return_value=ctx),patch('http.client.HTTPSConnection',return_value=connection):
-            result=request(Config(),'https://example.org/api/interpreter','query',2,time.monotonic()+5)
+            result=request(Config(diagnostic_errors=diagnostic),'https://example.org/api/interpreter','query',2,time.monotonic()+5)
         self.assertEqual(dns.call_count,1)
         sock.connect.assert_called_once_with(('8.8.8.8',443))
         ctx.wrap_socket.assert_called_once_with(sock,server_hostname='example.org')
         self.assertEqual(connection.request.call_count,1)
+        if status != 200 and diagnostic:
+            response.read.assert_called_once_with(2049)
+        elif status != 200:
+            response.read.assert_not_called()
         return result
+
+    def test_error_excerpt_is_bounded_and_opt_in(self):
+        status, retry, detail = self.perform(status=502, raw=b'x'*2049, diagnostic=True)
+        self.assertEqual(status,502)
+        self.assertEqual(len(detail['body_excerpt']),2048)
+        self.assertTrue(detail['body_truncated'])
+        self.assertEqual(self.perform(status=502),(502,None,None))
+
+    def test_error_body_timeout_preserves_http_status(self):
+        status, retry, detail = self.perform(status=502, diagnostic=True, body_error=TimeoutError())
+        self.assertEqual(status,502)
+        self.assertEqual(detail['body_unavailable'],'TimeoutError')
 
     def test_public_dns_is_pinned_and_tls_uses_original_hostname(self):
         self.assertEqual(self.perform(),(200,None,{'elements':[]}))
