@@ -96,6 +96,9 @@ class ProviderTests(unittest.TestCase):
             with self.assertRaisesRegex(POIError,'rate_limited'):
                 probe(service,self.registry,'fixture',current['revision'],'admin')
             self.assertEqual(http.call_count,1)
+            self.assertEqual(http.call_args.args[0].deadline,35)
+            self.assertEqual(http.call_args.args[3],25)
+            self.assertIn('[timeout:25]',http.call_args.args[2])
             self.assertEqual(self.registry.health()[0]['status'],'invalid_response')
             self.assertIsNotNone(self.repo.acquire('@upstream',1))
 

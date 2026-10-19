@@ -1,0 +1,181 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.3 00a720d2",
+  "osm3s": {
+    "timestamp_osm_base": "chaos-synthetic-v1",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 1,
+  "lat": 0.0000000,
+  "lon": 0.0000000,
+  "tags": {
+    "name": "Origin",
+    "shop": "books"
+  }
+},
+{
+  "type": "node",
+  "id": 2,
+  "lat": 0.0000000,
+  "lon": 0.0020000,
+  "tags": {
+    "amenity": "atm"
+  }
+},
+{
+  "type": "node",
+  "id": 3,
+  "lat": 0.0000000,
+  "lon": 0.0040000,
+  "tags": {
+    "office": "company"
+  }
+},
+{
+  "type": "node",
+  "id": 10,
+  "lat": -0.0100000,
+  "lon": -0.0010000
+},
+{
+  "type": "node",
+  "id": 11,
+  "lat": 0.0200000,
+  "lon": 0.0010000
+},
+{
+  "type": "node",
+  "id": 12,
+  "lat": 0.0030000,
+  "lon": -0.0030000
+},
+{
+  "type": "node",
+  "id": 13,
+  "lat": 0.0030000,
+  "lon": 0.0030000
+},
+{
+  "type": "node",
+  "id": 14,
+  "lat": -0.0030000,
+  "lon": 0.0030000
+},
+{
+  "type": "node",
+  "id": 15,
+  "lat": -0.0030000,
+  "lon": -0.0030000
+},
+{
+  "type": "node",
+  "id": 16,
+  "lat": 0.0200000,
+  "lon": 0.0200000
+},
+{
+  "type": "node",
+  "id": 17,
+  "lat": 0.0210000,
+  "lon": 0.0210000
+},
+{
+  "type": "node",
+  "id": 18,
+  "lat": 0.0010000,
+  "lon": 0.0010000
+},
+{
+  "type": "node",
+  "id": 19,
+  "lat": 0.0010000,
+  "lon": 0.0060000
+},
+{
+  "type": "way",
+  "id": 100,
+  "nodes": [
+    10,
+    11
+  ],
+  "tags": {
+    "shop": "mall"
+  }
+},
+{
+  "type": "way",
+  "id": 101,
+  "nodes": [
+    12,
+    13,
+    14,
+    15,
+    12
+  ],
+  "tags": {
+    "amenity": "school"
+  }
+},
+{
+  "type": "way",
+  "id": 102,
+  "nodes": [
+    16,
+    17
+  ]
+},
+{
+  "type": "way",
+  "id": 103,
+  "nodes": [
+    18,
+    19
+  ]
+},
+{
+  "type": "relation",
+  "id": 200,
+  "members": [
+    {
+      "type": "way",
+      "ref": 100,
+      "role": ""
+    },
+    {
+      "type": "way",
+      "ref": 102,
+      "role": ""
+    }
+  ],
+  "tags": {
+    "office": "company",
+    "type": "site"
+  }
+},
+{
+  "type": "relation",
+  "id": 201,
+  "members": [
+    {
+      "type": "node",
+      "ref": 2,
+      "role": ""
+    },
+    {
+      "type": "way",
+      "ref": 103,
+      "role": ""
+    }
+  ],
+  "tags": {
+    "amenity": "hospital",
+    "type": "site"
+  }
+}
+
+  ]
+}

@@ -6,6 +6,9 @@ import time
 from .providers import Registry
 from .service import Service, POIError, UpstreamUnavailable, bounded_http, validate, retry_delay
 
+PROBE_TIMEOUT = 25
+PROBE_DEADLINE = 35
+
 
 def enabled():
     return os.environ.get('CHAOS_POI_PROVIDER_ADMIN_ENABLED','').strip()=='1'
@@ -23,7 +26,7 @@ def probe(service, registry, provider_id, revision, actor):
     # A durable rate lease is intentionally retained, even if the probe fails.
     if not service.repo.acquire('@health-rate:'+group,900):
         raise POIError('probe_rate_limited')
-    slot=service.repo.acquire('@upstream',15,probe_group=group)
+    slot=service.repo.acquire('@upstream',PROBE_DEADLINE+7,probe_group=group)
     if not slot:
         raise POIError('upstream_busy')
     started=time.monotonic()
@@ -34,9 +37,10 @@ def probe(service, registry, provider_id, revision, actor):
             raise POIError('circuit_open')
         # Always secure, including candidate tests before registry rollout.
         # HTTP is executed in the existing killable child with explicit mode.
-        config=replace(service.config,deadline=8,max_response=65536,max_elements=100)
+        config=replace(service.config,deadline=PROBE_DEADLINE,max_response=65536,max_elements=100)
         status,retry,data=bounded_http(config,candidate['url'],
-            '[out:json][timeout:5];node(1);out;',5,started+8,secure=True)
+            f'[out:json][timeout:{PROBE_TIMEOUT}];node(1);out;',
+            PROBE_TIMEOUT,started+PROBE_DEADLINE,secure=True)
         result=str(status)
         if status==200:
             validate(data,config)
