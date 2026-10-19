@@ -12,6 +12,7 @@ from poi_infrastructure.service import Config,POIError
 class SecureTransportTests(unittest.TestCase):
     def perform(self,status=200,raw=None,diagnostic=False,body_error=None):
         response=Mock(status=status)
+        response.isclosed.return_value=False
         response.getheader.side_effect=lambda key,default=None: default
         response.read.side_effect=[raw or b'{"elements":[]}',b'']
         if body_error:
@@ -69,6 +70,7 @@ class SecureTransportTests(unittest.TestCase):
         bad,good=Mock(),Mock()
         bad.connect.side_effect=OSError(errno.ENETUNREACH,'unreachable')
         response=Mock(status=200)
+        response.isclosed.return_value=False
         response.getheader.side_effect=lambda k,default=None:default
         response.read.side_effect=[b'{"elements":[]}',b'']
         conn=Mock();conn.getresponse.return_value=response

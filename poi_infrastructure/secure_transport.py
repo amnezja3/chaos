@@ -115,6 +115,11 @@ def request(config, endpoint, query, timeout, deadline):
             raw.extend(chunk)
             if len(raw)>config.max_response:
                 raise POIError('response_limit')
+            # HTTPResponse closes its file after consuming Content-Length.
+            # With Connection: close this also closes the detached TLS socket;
+            # another settimeout on that socket would reject a complete 200.
+            if response.isclosed():
+                break
         try:
             return 200,None,json.loads(raw)
         except (ValueError,UnicodeError) as exc:
