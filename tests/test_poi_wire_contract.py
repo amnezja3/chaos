@@ -52,10 +52,15 @@ class WireContractTests(unittest.TestCase):
             context = Mock()
             context.wrap_socket.side_effect = lambda sock, **kwargs: sock
             addresses = [(socket.AF_INET, socket.SOCK_STREAM, 6, server.server_address)]
+            trace = {}
             with patch('poi_infrastructure.secure_transport.public_addresses',return_value=addresses), \
                  patch('ssl.create_default_context',return_value=context):
                 self.assertEqual(request(Config(), 'https://example.org'+path,
-                                         query,3,time.monotonic()+5), (200,None,json.loads(body)))
+                                         query,3,time.monotonic()+5, trace=trace), (200,None,json.loads(body)))
+            self.assertEqual(trace['stage'],'complete')
+            self.assertEqual(trace['bytes_received'],len(body))
+            self.assertEqual(trace['http_status'],200)
+            self.assertGreaterEqual(trace['body_complete_seconds'],trace['headers_seconds'])
             self.assertEqual(len(captured),2)
             old,new = captured
             self.assertEqual(old[0],new[0])

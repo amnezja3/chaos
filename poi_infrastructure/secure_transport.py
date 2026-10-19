@@ -29,9 +29,19 @@ def public_addresses(host):
     return addresses
 
 
-def request(config, endpoint, query, timeout, deadline):
+def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace=None):
+    started = time.monotonic()
+    def mark(stage, **fields):
+        if trace is not None:
+            trace.update(stage=stage, seconds=round(time.monotonic()-started, 4), **fields)
     host = endpoint_host(endpoint)
+    mark('dns')
     addresses = public_addresses(host)
+    if pinned_ip is not None:
+        # Diagnostic pinning is restricted to this hostname's validated DNS set.
+        addresses = [row for row in addresses if row[3][0] == pinned_ip]
+        if not addresses:
+            raise POIError('pinned_ip_not_in_public_dns')
     remaining = deadline-time.monotonic()
     if remaining <= 0:
         raise UpstreamUnavailable('deadline')
@@ -51,6 +61,7 @@ def request(config, endpoint, query, timeout, deadline):
                 sock = socket.socket(family,kind,proto)
                 sock.settimeout(available/(len(candidates)-index))
                 sock.connect(sockaddr)
+                mark('tcp_connected', remote_ip=sockaddr[0], tcp_seconds=round(time.monotonic()-started,4))
                 break
             except OSError as exc:
                 if sock:
@@ -68,6 +79,7 @@ def request(config, endpoint, query, timeout, deadline):
         sock.settimeout(min(config.connect_timeout,remaining))
         connection.sock = ssl.create_default_context().wrap_socket(sock,server_hostname=host)
         tls_sock = connection.sock
+        mark('tls_connected', tls_seconds=round(time.monotonic()-started,4))
         if time.monotonic() >= deadline:
             raise UpstreamUnavailable('deadline')
         connection.sock.settimeout(min(timeout,max(.01,deadline-time.monotonic())))
@@ -77,7 +89,9 @@ def request(config, endpoint, query, timeout, deadline):
             'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json',
             'Accept-Encoding':'identity','User-Agent':'CHAOS/POI-v160 (+https://chaos.re; year2108@chaos.re)'})
         stage = 'http_read'
+        mark('waiting_headers')
         response = connection.getresponse()
+        mark('reading_body', http_status=response.status, headers_seconds=round(time.monotonic()-started,4))
         if response.status != 200:
             if config.diagnostic_errors:
                 detail = {'content_type': str(response.getheader('Content-Type', ''))[:200]}
@@ -113,6 +127,7 @@ def request(config, endpoint, query, timeout, deadline):
             if not chunk:
                 break
             raw.extend(chunk)
+            mark('reading_body', bytes_received=len(raw))
             if len(raw)>config.max_response:
                 raise POIError('response_limit')
             # HTTPResponse closes its file after consuming Content-Length.
@@ -121,7 +136,9 @@ def request(config, endpoint, query, timeout, deadline):
             if response.isclosed():
                 break
         try:
-            return 200,None,json.loads(raw)
+            data = json.loads(raw)
+            mark('complete', body_complete_seconds=round(time.monotonic()-started,4))
+            return 200,None,data
         except (ValueError,UnicodeError) as exc:
             raise POIError('invalid_json') from exc
     except ssl.SSLError as exc:

@@ -10,6 +10,14 @@ from poi_infrastructure.service import Config,POIError
 
 
 class SecureTransportTests(unittest.TestCase):
+    def test_diagnostic_pin_cannot_escape_checked_dns(self):
+        rows=[(socket.AF_INET,socket.SOCK_STREAM,6,('8.8.8.8',443))]
+        with patch('poi_infrastructure.secure_transport.public_addresses',return_value=rows), \
+             patch('socket.socket') as sockets, self.assertRaisesRegex(POIError,'pinned_ip_not_in_public_dns'):
+            request(Config(),'https://example.org/api/interpreter','q',2,time.monotonic()+5,
+                    pinned_ip='127.0.0.1')
+        sockets.assert_not_called()
+
     def perform(self,status=200,raw=None,diagnostic=False,body_error=None):
         response=Mock(status=status)
         response.isclosed.return_value=False
