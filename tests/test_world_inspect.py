@@ -22,3 +22,16 @@ class InspectTests(unittest.TestCase):
         self.assertEqual(result['network_calls'], 0)
         self.assertEqual(len(digest), 64)
         self.assertNotIn('coordinates', json.dumps(result))
+
+    def test_preview_reports_counts_without_granting_approval(self):
+        body = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'id': 'node/1', 'properties': {'tags': {'shop': 'books'}},
+             'geometry': {'type': 'Point', 'coordinates': [21, 52]}}]}
+        with patch('socket.socket', side_effect=AssertionError('unexpected network')):
+            result = module.inspect('maplark', body,
+                {'X-Returned': '1', 'X-Has-More': 'false'}, preview=(52, 21, 300))
+        self.assertEqual(result['candidate']['selected_objects'], 1)
+        self.assertFalse(result['candidate']['gameplay_approved'])
+        self.assertFalse(result['candidate']['coverage_approved'])
+        self.assertNotIn('response', result['candidate'])
+        self.assertEqual(len(result['candidate']['response_sha256']), 64)

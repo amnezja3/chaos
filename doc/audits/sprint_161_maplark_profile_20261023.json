@@ -1,0 +1,12 @@
+{
+  "profile": "maplark-radius-bounds-v1",
+  "source_objects": 680,
+  "exported_objects": 680,
+  "gameplay_markers": 60,
+  "network_calls": 0,
+  "production_changed": false,
+  "live_scanner_pass": false,
+  "overpass_parity_claim": false,
+  "attachment_sha256": "cdb2cc20895e17c6317a8cf2479fac0a5110401d6b276575d2cd20f4a26ad813",
+  "response_sha256": "3056c676d4bcdb10ecc7457403afd4a7a01f76c8aa8fe4a9effe9db84a08495f"
+}

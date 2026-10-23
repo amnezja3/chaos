@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "mode": "offline",
+  "provider": "maplark",
+  "objects": 680,
+  "layers": {
+    "poi": 680,
+    "roads": 1,
+    "inland_water": 1
+  },
+  "geometries": {
+    "Point": 417,
+    "LineString": 2,
+    "Polygon": 261
+  },
+  "response_completeness": "complete",
+  "reasons": [],
+  "selection": "maplark-radius-unverified",
+  "gameplay_approved": false,
+  "network_calls": 0,
+  "production_changed": false,
+  "candidate": {
+    "status": "rejected",
+    "error": "candidate_boundary_uncertain",
+    "gameplay_approved": false
+  },
+  "boundary_uncertain": [
+    {
+      "id": "node/1780190394",
+      "nearest_metres": 299.399662
+    },
+    {
+      "id": "node/10669281643",
+      "nearest_metres": 299.58706
+    },
+    {
+      "id": "way/337430995",
+      "nearest_metres": 299.765675
+    },
+    {
+      "id": "way/1409403390",
+      "nearest_metres": 299.518438
+    }
+  ],
+  "attachment_sha256": "cdb2cc20895e17c6317a8cf2479fac0a5110401d6b276575d2cd20f4a26ad813"
+}

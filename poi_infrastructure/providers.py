@@ -79,7 +79,12 @@ class Registry:
             raise POIError('provider_invalid_id')
         if not isinstance(fields,dict) or set(fields) != {'name','url','operator_group','priority'}:
             raise POIError('provider_invalid_fields')
-        endpoint_host(fields['url'])
+        # Feature API has a separate authenticated transport; never allow
+        # arbitrary feature URLs or query-string credentials into the registry.
+        if fields['url'] != 'https://api.maplark.com/v3/osm_features':
+            endpoint_host(fields['url'])
+        elif fields['operator_group'] != 'api.maplark.com':
+            raise POIError('provider_invalid_fields')
         if (not isinstance(fields['name'],str) or not 1 <= len(fields['name']) <= 80
                 or not isinstance(fields['operator_group'],str)
                 or not re.fullmatch('[a-z0-9.-]{1,100}',fields['operator_group'])

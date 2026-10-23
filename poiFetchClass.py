@@ -54,6 +54,8 @@ out center;
 
     def _fetch(self, lat: float, lon: float, result_limit: int = 0, scan_options=None) -> overpy.Result:
         options = scan_options or {}
+        if options.get('_maplark_pilot') is True and os.environ.get('CHAOS_POI_INFRASTRUCTURE_ENABLED', '').strip() != '1':
+            raise ValueError('MapLark pilot requires POI infrastructure')
         extra = options.get('extra_retries', 0)
         timeout_extra = options.get('extra_timeout', 0)
         if type(extra) is not int or not 0 <= extra <= 3 or type(timeout_extra) is not int or not 0 <= timeout_extra <= 10:

@@ -1,0 +1,46 @@
+{
+  "headers": {
+    "X-Returned": "680",
+    "X-Has-More": "false",
+    "X-Usage-Units-Charged": "9"
+  },
+  "features": 680,
+  "types": {
+    "node": 417,
+    "way": 263
+  },
+  "geometries": {
+    "Point": 417,
+    "LineString": 2,
+    "Polygon": 261
+  },
+  "tags": {
+    "amenity": 614,
+    "without_name": 579,
+    "shop": 62,
+    "surveillance": 3,
+    "office": 4,
+    "addr:city": 29,
+    "amenity=atm": 6,
+    "healthcare": 1,
+    "internet_access": 2
+  },
+  "vertices": 2232,
+  "adjacent_id_descents": {
+    "node": 204,
+    "way": 129,
+    "relation": 0
+  },
+  "outside_legacy_boundary_radius": [],
+  "diagnostic_export_only": true,
+  "native_vs_sorted_first60": {
+    "native": 60,
+    "sorted": 60,
+    "common_id_count": 59,
+    "same_sequence": false
+  },
+  "attachment_sha256": "cdb2cc20895e17c6317a8cf2479fac0a5110401d6b276575d2cd20f4a26ad813",
+  "body_canonical_sha256": "814f011cab239e4b68ef5046c19c9386a61bbd314c58362ad752ed9b97b6c526",
+  "trailing_nonwhite_chars": 0,
+  "network_calls": 0
+}

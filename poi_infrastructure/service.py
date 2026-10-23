@@ -192,6 +192,19 @@ class Service:
 
     def fetch(self, query, endpoints, timeout, fresh_ttl, stale_ttl, options=None):
         options = options or {}
+        if options.get('_maplark_pilot') is True:
+            from .maplark_pilot import fetch_pilot
+            from .presentation import publish
+            try:
+                data, pilot_source = fetch_pilot(self, options.get('_spatial'), fresh_ttl, stale_ttl,
+                                   options.get('still_active', lambda: True))
+                publish(pilot_source, {}, False)
+                LOG.info('poi_maplark %s', json.dumps(dict(source=pilot_source, result='success')))
+                return data
+            except Exception as exc:
+                publish('error', {}, False)
+                LOG.info('poi_maplark %s', json.dumps(dict(result='error', error_type=type(exc).__name__)))
+                raise
         live = options.get('still_active', lambda: True)
         started = time.monotonic()
         deadline = started + self.config.deadline
@@ -256,7 +269,8 @@ class Service:
                 from .providers import Registry
                 registry = Registry(self.repo)
                 registry.initialize()
-                candidates = {v['url']: v for v in registry.eligible('normal_scan')}
+                candidates = {v['url']: v for v in registry.eligible('normal_scan')
+                              if v['url'] != 'https://api.maplark.com/v3/osm_features'}
                 # Keep the caller's attempt budget, but not its old static URLs.
                 urls = list(candidates)
                 endpoints = [urls[i % len(urls)] for i in range(len(endpoints))] if urls else []

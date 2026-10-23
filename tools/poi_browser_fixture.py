@@ -46,6 +46,32 @@ def main():
         fetcher._poi_service = Service(Path(directory)/'poi.sqlite3', transport=transport)
         service = fetcher._poi_service
         service.repo.initialize()
+        if '--maplark' in sys.argv:
+            from tools.world_discovery_pilot import operate
+            from poi_infrastructure.providers import Registry
+            from poi_infrastructure.world_contract import FILTERS
+            fetcher.tag_filters = list(FILTERS)
+            operate(service.repo.path, 'prepare', apply=True)
+            registry = Registry(service.repo)
+            v = registry.list()[0]
+            v = registry.tested(v['id'], v['revision'], True, 'isolated-browser-fixture')
+            registry.enable(v['id'], v['revision'], True, 'isolated-browser-fixture')
+            with fixture.client.session_transaction() as session:
+                actor = session['user']
+            fixture.stack.enter_context(patch.dict(os.environ,
+                CHAOS_POI_MAPLARK_PILOT_ENABLED='1', CHAOS_POI_MAPLARK_PILOT_USERS=actor,
+                CHAOS_MAPLARK_CREDIT_RESERVATION='20', CHAOS_MAPLARK_ACCEPT_VARIABLE_COST='1',
+                CHAOS_MAPLARK_API_KEY='isolated-browser-fixture'))
+            def feature_transport(*args, **kwargs):
+                mode['calls'] += 1
+                features = [] if mode['value'] == 'empty' else [dict(type='Feature', id='node/777',
+                    geometry=dict(type='Point', coordinates=[21,52]),
+                    properties=dict(tags={'office':'company','name':'MapLark fixture office'}))]
+                return 200, None, dict(response_headers={'X-Returned':str(len(features)),
+                    'X-Has-More':'true' if mode['value']=='invalid' else 'false',
+                    'X-Usage-Units-Charged':'9'}, body=dict(type='FeatureCollection', features=features))
+            fixture.stack.enter_context(patch('poi_infrastructure.world_acquisition.bounded_http',
+                                               side_effect=feature_transport))
         for target, key, value in [
             (run,'fetcher',fetcher), (run,'GHOSTNETWORK_ABILITIES_ENABLED',False),
         ]:

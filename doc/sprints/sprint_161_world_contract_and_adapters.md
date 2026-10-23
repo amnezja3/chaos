@@ -1,7 +1,12 @@
 # Sprint 161 — przywrócenie skanera POI przez alternatywnych dostawców
 
 Data planu: 20.10.2026. Aktualizacja: 23.10.2026.
-Status: **W REALIZACJI — komponenty offline, bez pilota i aktywacji produkcji**.
+Status: **W REALIZACJI — kod pilota MapLark i testy lokalne gotowe; bez aktywacji produkcji**.
+Aktualny profil: `maplark-radius-bounds-v1`; selekcja MapLark, oryginalne OSM ID
+i tagi oraz niezmienieni konsumenci gameplayu. Nie deklarujemy ścisłej zgodności
+z Overpass. Operator powierzył dobór rozwiązania; przed uruchomieniem pozostają
+zatwierdzenie zakresu/budżetu, próba VPS i odbiór w grze. Instrukcja:
+[pilot MapLark](../runbooks/world_discovery_maplark_pilot_161.md).
 Wyniki i granice: [dowody 161](../audits/sprint_161_evidence.md).
 Źródło: [koncepcja World Discovery](../prototypes/poi/CHAOS_WORLD_DISCOVERY_ENGINE_KONCEPCJA_BEZ_NUMERU.md).
 Podział zatwierdzony do opracowania przez operatora: 161–163. To zastępuje brak

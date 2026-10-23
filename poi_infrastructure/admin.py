@@ -18,6 +18,8 @@ def probe(service, registry, provider_id, revision, actor):
     candidate=next((v for v in registry.list() if v['id']==provider_id),None)
     if not candidate or candidate['revision']!=revision:
         raise POIError('provider_revision_conflict')
+    if candidate['url'] == 'https://api.maplark.com/v3/osm_features':
+        raise POIError('maplark_budgeted_probe_required')
     if (not candidate['probe_allowed'] or candidate['review_due_at']<=time.time()):
         raise POIError('provider_probe_not_approved')
     group=candidate['operator_group']

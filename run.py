@@ -24115,6 +24115,9 @@ def map_action():
             if data.get('deep_scanner_token'):
                 from ghostlab_scanner import scan_options, generation as scanner_generation
                 scanner_options = scan_options(player_inventory_store.db_path, session['user'], scanner_generation(), data['deep_scanner_token'])
+            from poi_infrastructure.maplark_pilot import pilot_user
+            if pilot_user(session['user']):
+                scanner_options = dict(scanner_options or {}, _maplark_pilot=True)
             with capture_poi_presentation() as poi_evidence:
                 fetched_results = fetcher.get_all(lat=lat, lon=lng, result_limit=60, **({'scan_options': scanner_options} if scanner_options else {}))
         except GhostLabError:
