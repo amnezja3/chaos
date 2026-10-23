@@ -92,7 +92,9 @@ def register(app, authorize, csrf_failure):
         try:
             registry.initialize()
             if request.method=='GET':
-                return jsonify(ok=True,providers=registry.list(),health=registry.health(),audit=registry.audit())
+                from .world_operations import status as world_status
+                return jsonify(ok=True,providers=registry.list(),health=registry.health(),audit=registry.audit(),
+                               world=world_status(service.repo))
             body=request.get_json(silent=True)
             if not isinstance(body,dict) or set(body)-{'action','id','revision','fields','policy','scopes','evidence','review_due_at','enabled'}:
                 raise POIError('invalid_request')

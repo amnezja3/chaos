@@ -55,7 +55,7 @@ Same operation ID can never cause a second upstream request.
             if status in (429, 500, 502, 503, 504):
                 repo.outcome(group, False, retry_delay(retry) or (30 if status == 429 else 0))
             raise POIError('http_' + str(status))
-        provenance = Provenance('maplark', MAPLARK_VERSION, operation, time.time())
+        provenance = Provenance('maplark', MAPLARK_VERSION, operation, time.time(), license_ref='ODbL-1.0')
         batch = normalize_maplark(envelope.get('body'), headers, provenance,
                                   profile=plan.profile, maximum=int(dict(plan.params)['limit']))
         if batch.completeness != 'complete':

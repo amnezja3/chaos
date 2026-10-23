@@ -6,6 +6,17 @@
 <p data-copy="intro"></p>
 <button id="poi-refresh" type="button" data-copy="refresh" disabled></button>
 <p id="poi-status" role="status" aria-live="polite"></p>
+<section class="panel" id="poi-world">
+<h2>World Discovery</h2>
+<p data-copy="worldHint"></p>
+<div id="poi-world-summary" role="status" aria-live="polite"></div>
+<div id="poi-world-budget"></div>
+<h3 data-copy="demandTitle"></h3>
+<p data-copy="demandHint"></p>
+<div id="poi-demand-summary"></div>
+<svg id="poi-demand-map" viewBox="0 0 640 240" role="img" style="width:100%;max-height:240px;border:1px solid #285747"></svg>
+<p id="poi-demand-extent"></p>
+</section>
 <div id="poi-providers" class="table-scroll"></div>
 <h2 data-copy="edit"></h2>
 <form id="poi-form" class="provider-form">
@@ -24,7 +35,7 @@
 {% for value in ['unknown','public_declaration_only','operator_confirmation_pending','approved_for_defined_use','restricted','rejected','expired_review'] %}<option>{{ value }}</option>{% endfor %}
 </select></label>
 <fieldset><legend data-copy="scopes"></legend>
-{% for scope in ['small_probe','normal_scan','wide_fetch','background_refresh','storage'] %}<label><input type="checkbox" name="scope" value="{{ scope }}">{{ scope }}</label>{% endfor %}
+{% for scope in ['small_probe','normal_scan','wide_fetch','background_refresh','storage','world_storage'] %}<label><input type="checkbox" name="scope" value="{{ scope }}">{{ scope }}</label>{% endfor %}
 </fieldset>
 <label><span data-copy="source"></span><input name="source_url" type="url" required></label>
 <label><span data-copy="reference"></span><input name="reference" required maxlength="2000"></label>
@@ -36,4 +47,4 @@
 <h2 data-copy="audit"></h2><div id="poi-audit" class="table-scroll"></div>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/admin_poi.js?v=160-1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/admin_poi.js?v=163-passive-1"></script>{% endblock %}

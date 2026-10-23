@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from .service import POIError
 
-SCOPES = frozenset(('small_probe', 'normal_scan', 'wide_fetch', 'background_refresh', 'storage'))
+SCOPES = frozenset(('small_probe', 'normal_scan', 'wide_fetch', 'background_refresh', 'storage', 'world_storage'))
 POLICIES = frozenset(('unknown', 'public_declaration_only', 'operator_confirmation_pending',
                       'approved_for_defined_use', 'restricted', 'rejected', 'expired_review'))
 

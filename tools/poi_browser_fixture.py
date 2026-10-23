@@ -78,6 +78,25 @@ def main():
                     'X-Usage-Units-Charged':'9'}, body=dict(type='FeatureCollection', features=features))
             fixture.stack.enter_context(patch('poi_infrastructure.world_acquisition.bounded_http',
                                                side_effect=feature_transport))
+            if '--world' in sys.argv:
+                from poi_infrastructure.world_storage import CanonicalWorldRepository
+                from poi_infrastructure.discovery_queue import DemandQueue
+                world=CanonicalWorldRepository(service.repo);world.initialize_canonical()
+                DemandQueue(service.repo).initialize()
+                v=registry.list()[0]
+                v=registry.decision(v['id'],v['revision'],'approved_for_defined_use',
+                    ['normal_scan','storage','world_storage'],
+                    dict(source_url='https://maplark.com/terms-of-service',reference='fixture-only',notes='Offline browser fixture'),
+                    time.time()+3600,'fixture')
+                registry.enable(v['id'],v['revision'],True,'fixture')
+                fixture.stack.enter_context(patch.dict(os.environ,CHAOS_POI_WORLD_INGEST_ENABLED='1',
+                    CHAOS_POI_WORLD_REPOSITORY_ENABLED='1',CHAOS_POI_DISCOVERY_MODE='passive'))
+                original_publish=CanonicalWorldRepository.publish_batch
+                def optional_publish(instance,*args,**kwargs):
+                    if mode['value']=='world-failure':
+                        raise RuntimeError('simulated optional storage failure')
+                    return original_publish(instance,*args,**kwargs)
+                fixture.stack.enter_context(patch.object(CanonicalWorldRepository,'publish_batch',optional_publish))
         for target, key, value in [
             (run,'fetcher',fetcher), (run,'GHOSTNETWORK_ABILITIES_ENABLED',False),
         ]:
@@ -127,7 +146,10 @@ scan.onclick=async()=>{let d=await mapAction('scan',52,21);document.body.dataset
                 elif self.path == '/__activate':
                     status,body,content=200,json.dumps(fixture.activate()).encode(),'application/json'
                 elif self.path == '/__stats':
-                    status,body,content=200,json.dumps(mode).encode(),'application/json'
+                    stats=dict(mode)
+                    if '--world' in sys.argv:
+                        stats['world']=world.status()
+                    status,body,content=200,json.dumps(stats).encode(),'application/json'
                 elif self.path.startswith('/__mode/'):
                     mode['value'] = self.path.rsplit('/',1)[1]
                     with service.repo.transaction() as c:
@@ -135,6 +157,8 @@ scan.onclick=async()=>{let d=await mapAction('scan',52,21);document.body.dataset
                         c.execute('DELETE FROM leases')
                         if mode['value'] in ('stale','budget'):c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
                         else:c.execute('DELETE FROM cache')
+                        if mode['value']=='world-failure' and '--world' in sys.argv:
+                            c.execute('DELETE FROM world_snapshot')
                         if mode['value'] in ('restore', 'recovering'):
                             c.execute('INSERT INTO providers VALUES (?,?,?)', ('fixture.invalid',3,time.time()-1))
                         if mode['value']=='recovering':

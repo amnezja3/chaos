@@ -20,9 +20,25 @@ def main():
         fixture=PlayerHackReadPathsTest()
         fixture.setUp()
         fixture.generation.authenticate(fixture.client,'admin')
+        if '--world' in sys.argv:
+            from poi_infrastructure.repository import Repository
+            from poi_infrastructure.world_storage import CanonicalWorldRepository
+            from poi_infrastructure.discovery_queue import DemandQueue
+            from poi_infrastructure.credit_budget import CreditBudget
+            repo=Repository(os.environ['CHAOS_POI_CACHE_PATH'])
+            CanonicalWorldRepository(repo).initialize_canonical()
+            queue=DemandQueue(repo);queue.initialize()
+            for lon,lat in ((21.001,52.001),(21.021,52.011),(21.031,52.031)):
+                queue.record(lon,lat)
+            ledger=CreditBudget(repo);ledger.initialize();ledger.configure_recurring('maplark',800,24000)
+            os.environ['CHAOS_POI_DISCOVERY_MODE']='passive'
         client_lock=threading.Lock()
         class Handler(BaseHTTPRequestHandler):
             def route(self):
+                if self.path == '/favicon.ico':
+                    self.send_response(204)
+                    self.end_headers()
+                    return
                 path='/dev?tab=poi' if self.path.startswith('/?') or self.path=='/' else self.path
                 raw=self.rfile.read(int(self.headers.get('Content-Length',0)))
                 headers={}

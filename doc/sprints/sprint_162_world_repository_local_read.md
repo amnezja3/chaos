@@ -1,6 +1,12 @@
 # Sprint 162 — World Discovery: trwała pamięć świata i odczyt lokalny
 
-Data: 20.10.2026. Status: **PLAN — implementacja nierozpoczęta**.
+Data: 20.10.2026. Aktualizacja: 23.10.2026. Status: **W REALIZACJI — magazyn obserwacji offline**.
+Rozpoczęte 162.0–162.3: jawna migracja istniejących snapshot/member do v2,
+kanoniczne obserwacje, ograniczony odczyt przecięć i planer jednego snapshotu.
+Dowody exact query i certyfikowanej selekcji bbox zapisywane atomowo; certyfikaty
+obszarowe sprawdzone wyłącznie na fixtures. MapLark radius nadal exact-only.
+Opcjonalna integracja skanera za flagami OFF została sprawdzona lokalnie;
+produkcja nadal bez ingest/read. Dowody: [162](../audits/sprint_162_evidence.md).
 Wejście: [161](sprint_161_world_contract_and_adapters.md), istniejący kod 158–160,
 [koncepcja](../prototypes/poi/CHAOS_WORLD_DISCOVERY_ENGINE_KONCEPCJA_BEZ_NUMERU.md).
 Wyjście: [163](sprint_163_world_discovery_operations_rollout.md).

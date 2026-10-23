@@ -40,6 +40,8 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
     candidate = eligible()
     if not candidate:
         raise POIError('maplark_not_approved')
+    from . import world_shadow
+    world_shadow.demand(service,spatial)
     plan = plan_maplark(spatial['lat'], spatial['lon'], spatial['radius'], limit=1000)
     key = batch_key('maplark', PROFILE, plan.profile, PROFILE,
                     {'params': plan.params, 'revision': candidate['revision']})
@@ -60,6 +62,9 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
     data = cached(fresh_ttl)
     if data is not None:
         return result(data, 'fresh')
+    data = world_shadow.read(service,candidate,key,active)
+    if data is not None:
+        return result(data,'world')
     owner = None
     wait_until = time.monotonic() + service.config.join_wait
     try:
@@ -78,6 +83,9 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
         data = cached(fresh_ttl)
         if data is not None:
             return result(data, 'fresh')
+        data = world_shadow.read(service,candidate,key,active)
+        if data is not None:
+            return result(data,'world')
         if os.environ.get('CHAOS_POI_MAPLARK_ENABLED') == '1':
             from .credit_budget import CreditBudget
             windows = CreditBudget(service.repo).status('maplark')
@@ -94,6 +102,9 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
             data = validate(export_maplark(batch), service.config)
             if not active() or not service.repo.write(key, owner, data, stale_ttl):
                 raise POIError('cache_capacity_or_lease_lost')
+            world_shadow.store(service,candidate,key,owner,batch,fresh_ttl,stale_ttl)
+            if not active():
+                raise POIError('scanner_inactive_or_provider_changed')
             status = '200'
             return result(data, 'upstream')
         except (POIError, ContractError) as exc:
@@ -112,6 +123,9 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
             stale = cached(stale_ttl)
             if stale is not None:
                 return result(stale, 'stale')
+            stale = world_shadow.read(service,candidate,key,active,allow_stale=True)
+            if stale is not None:
+                return result(stale,'stale')
         raise
     finally:
         if owner:

@@ -7,6 +7,13 @@
   refresh:['Odśwież stan','Refresh status'],edit:['Dodaj / edytuj źródło','Add / edit provider'],name:['Nazwa','Name'],group:['Grupa operatora','Operator group'],priority:['Priorytet','Priority'],save:['Zapisz kandydata','Save candidate'],decision:['Decyzja o zakresie użycia','Usage scope decision'],scopeHint:['Wybierz zapisane źródło. Zgoda na probe nie oznacza zgody na skany ani trwały zapis. Decyzja nie włącza źródła.','Select a saved provider. Probe approval does not approve scans or storage. A decision does not enable the provider.'],policy:['Warunki','Policy'],scopes:['Dozwolony zakres','Allowed scopes'],source:['Adres źródła warunków','Terms source URL'],reference:['Referencja dowodu','Evidence reference'],notes:['Uzasadnienie','Notes'],review:['Następny przegląd','Next review'],saveDecision:['Zapisz decyzję','Save decision'],health:['Ostatnie obserwacje','Recent observations'],probe:['Sprawdź interpreter','Probe interpreter'],enable:['Włącz','Enable'],disable:['Wyłącz','Disable'],saved:['Zapisano.','Saved.'],loading:['Przetwarzanie…','Processing…'],empty:['Brak danych.','No data.']
  };
  Object.assign(labels,{
+  worldHint:['Zapis świata wymaga osobnej zgody world_storage. Ten widok nie uruchamia pobierania danych.','World storage requires separate world_storage approval. This view does not fetch provider data.'],
+  demandTitle:['Zapotrzebowanie na regiony','Regional demand'],
+  demandHint:['Sektory zainteresowania graczy, nie dowód pokrycia. Do 100 ostatnich sektorów; bez tras i identyfikatorów graczy.','Player demand sectors, not coverage evidence. Up to 100 recent sectors; no player routes or identifiers.'],
+  worldReady:['Magazyn przygotowany','Storage prepared'],worldMissing:['Magazyn nieprzygotowany','Storage not prepared'],
+  snapshots:['Snapshoty','Snapshots'],canonical:['Kanoniczne','Canonical'],ingest:['Zapis','Ingest'],read:['Odczyt','Read'],
+  pending:['Oczekujące warstwy regionów','Pending region layers'],backgroundOff:['Pobieranie w tle: wyłączone','Background fetching: disabled'],
+  credits:['Kredyty: wykorzystane / limit','Credits: committed / limit'],extent:['Zakres widoku (lon, lat)','View extent (lon, lat)'],
   audit:['Historia zmian','Change history'],
   provider_not_approved:['Źródło wymaga poprawnego testu i zatwierdzenia zakresu użycia.','The provider needs a successful test and approved usage scope.'],
   provider_probe_not_approved:['Najpierw zatwierdź zakres small_probe na podstawie warunków dostawcy.','Approve the small_probe scope based on provider terms first.'],
@@ -21,6 +28,34 @@
  root.querySelectorAll('[data-copy]').forEach(e=>e.textContent=t(e.dataset.copy));
  let providers=[];
  const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+ function renderWorld(w){
+  if(!w)return;
+  const summary=document.getElementById('poi-world-summary');summary.replaceChildren();
+  summary.append(node('p',t(w.world_prepared?'worldReady':'worldMissing')),
+   node('p',`${t('snapshots')}: ${w.snapshots} · ${t('canonical')}: ${w.canonical_snapshots} · ${(w.payload_bytes/1048576).toFixed(2)} MiB`),
+   node('p',`fresh: ${w.fresh} · stale: ${w.stale} · expired: ${w.expired}`),
+   node('p',`${t('ingest')}: ${w.ingest_enabled?'ON':'OFF'} · ${t('read')}: ${w.read_enabled?'ON':'OFF'} · discovery: ${w.discovery_mode}`),
+   node('p',t('backgroundOff')));
+  const budgets=document.getElementById('poi-world-budget');budgets.replaceChildren();
+  for(const b of w.budget_windows||[])budgets.append(node('p',`${t('credits')} · ${b.period}: ${b.committed} / ${b.credit_limit}`));
+  const demand=w.demand||{pending:0,cells:[],layers:{}};
+  document.getElementById('poi-demand-summary').textContent=`${t('pending')}: ${demand.pending} · `+Object.entries(demand.layers).map(([k,v])=>`${k}: ${v}`).join(' · ');
+  const svg=document.getElementById('poi-demand-map');svg.replaceChildren();svg.setAttribute('aria-label',t('demandTitle'));
+  const extent=document.getElementById('poi-demand-extent');
+  if(!demand.cells.length){extent.textContent=t('empty');return;}
+  const xs=demand.cells.map(c=>c.cell_x),ys=demand.cells.map(c=>c.cell_y);
+  const minX=Math.min(...xs)-1,maxX=Math.max(...xs)+2,minY=Math.min(...ys)-1,maxY=Math.max(...ys)+2;
+  for(const c of demand.cells){
+   const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+   r.setAttribute('x',20+(c.cell_x-minX)/(maxX-minX)*600);
+   r.setAttribute('y',220-(c.cell_y-minY+1)/(maxY-minY)*200);
+   r.setAttribute('width',Math.max(2,600/(maxX-minX)));r.setAttribute('height',Math.max(2,200/(maxY-minY)));
+   r.setAttribute('fill','#43ffa1');r.setAttribute('opacity','.65');
+   const title=document.createElementNS('http://www.w3.org/2000/svg','title');title.textContent=`${c.cell_x/100}, ${c.cell_y/100} · ${c.layers} layers · ${c.hits} demands`;
+   r.append(title);svg.append(r);
+  }
+  extent.textContent=`${t('extent')}: ${(minX/100).toFixed(2)}, ${(minY/100).toFixed(2)} — ${(maxX/100).toFixed(2)}, ${(maxY/100).toFixed(2)}`;
+ }
  async function call(body){
   const response=await fetch('/api/admin/poi-providers',{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json','X-Chaos-CSRF':root.dataset.csrf}:{},body:body?JSON.stringify(body):undefined});
   const data=await response.json();if(!response.ok||!data.ok)throw Error(t(data.error||String(response.status)));return data;
@@ -28,6 +63,7 @@
  async function action(button,output,body){button.disabled=true;output.textContent=t('loading');try{await call(body);const provider=output.dataset.provider;await refresh();if(provider)output=root.querySelector('[data-provider="'+provider+'"]')||output;output.textContent=t('saved');}catch(e){output.textContent=e.message;}finally{button.disabled=false;}}
  async function refresh(){
   const data=await call();providers=data.providers;
+  renderWorld(data.world);
   const list=document.getElementById('poi-providers');list.replaceChildren();
   if(!providers.length)list.textContent=t('empty');
   for(const p of providers){

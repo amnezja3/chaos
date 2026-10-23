@@ -24,7 +24,7 @@ class WorldRepository:
         with self.repo.transaction() as c:
             c.execute('CREATE TABLE IF NOT EXISTS world_schema (version INTEGER NOT NULL)')
             row = c.execute('SELECT version FROM world_schema').fetchone()
-            if row and row[0] != self.VERSION:
+            if row and row[0] not in (self.VERSION, 2):
                 raise POIError('world_schema_version')
             c.execute('''CREATE TABLE IF NOT EXISTS world_snapshot (
                 id TEXT PRIMARY KEY, query_key TEXT NOT NULL, provider TEXT NOT NULL,
@@ -94,7 +94,7 @@ class WorldRepository:
             c.execute('INSERT INTO world_snapshot VALUES (?,?,?,?,?,?,?,?,?,?)',
                       (snapshot, key, provider, fetched, profile, raw,
                        digest, len(raw), fetched + fresh_ttl, fetched + usable_ttl))
-            c.executemany('INSERT INTO world_member VALUES (?,?,?,?,?)',
+            c.executemany('INSERT INTO world_member(snapshot_id,osm_type,osm_id,ordinal,element) VALUES (?,?,?,?,?)',
                           [(snapshot, e['type'], e['id'], i,
                             json.dumps(e, ensure_ascii=False, separators=(',', ':'), allow_nan=False))
                            for i, e in enumerate(data['elements'])])

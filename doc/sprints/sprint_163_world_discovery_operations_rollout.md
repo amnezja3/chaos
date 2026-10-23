@@ -1,6 +1,10 @@
 # Sprint 163 — World Discovery: kolejka, panel operacyjny i kontrolowany rollout
 
-Data: 20.10.2026. Status: **PLAN — implementacja i pilot nierozpoczęte**.
+Data: 20.10.2026. Aktualizacja: 23.10.2026. Status: **W REALIZACJI — pasywne zapotrzebowanie i panel lokalny**.
+Zaimplementowano ograniczony rejestr sektorów/warstw PENDING oraz podgląd stanu
+magazynu i budżetu. Nie ma jeszcze workera pobierającego dane, pełnej maszyny
+stanów kolejki, mapy dowodów coverage ani pilota produkcyjnego.
+Dowody: [163](../audits/sprint_163_evidence.md).
 Zależności: [161](sprint_161_world_contract_and_adapters.md),
 [162](sprint_162_world_repository_local_read.md), otwarte dowody 160.
 Źródło: [koncepcja](../prototypes/poi/CHAOS_WORLD_DISCOVERY_ENGINE_KONCEPCJA_BEZ_NUMERU.md), etapy E–H.

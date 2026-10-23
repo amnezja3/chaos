@@ -1,5 +1,18 @@
 # Sprint 161 — stan realizacji 23.10.2026
 
+## Potwierdzenie wdrożenia globalnego — 23.10.2026
+
+Operator: 63 testy na VPS PASS (13,034 s), promote configured, revision=6,
+budżety 800 UTC day / 24000 rolling 31 days, committed=21, account_hold=null,
+unresolved_operations=0. Po restarcie z flagą globalną log upstream success,
+revision=6, PID=3840191, at=1792784254.656. Następnie pull do f724e8f.
+Dowód pochodzi z wyników przekazanych przez operatora; nie jest odczytem SSH.
+Nie mamy osobnego potwierdzenia loginu wykonującego ostatni skan ani pm2 save.
+Produkcja nie potwierdziła jeszcze fresh cache hit; wcześniejszy cache write
+z poprawnym digest pozostaje osobnym dowodem. To odbiór uruchomienia globalnej
+ścieżki, nie pełna certyfikacja wszystkich scen, regionów lub repozytorium świata.
+Poniższe wcześniejsze wpisy opisują historię implementacji, nie aktualne blokady.
+
 ## Rozszerzenie na wszystkich — zatwierdzone przez operatora
 
 Operator polecił „odpalmy grę” i zaakceptował 800 kredytów dziennie / 24 000

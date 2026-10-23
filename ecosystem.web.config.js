@@ -14,6 +14,10 @@ module.exports = {
         CHAOS_POI_MAPLARK_PILOT_ENABLED: "0",
         CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: "1",
         CHAOS_MAPLARK_CREDIT_RESERVATION: "20",
+        // 162/163 remain opt-in after schema preparation and separate storage approval.
+        CHAOS_POI_WORLD_INGEST_ENABLED: "0",
+        CHAOS_POI_WORLD_REPOSITORY_ENABLED: "0",
+        CHAOS_POI_DISCOVERY_MODE: "off",
         // Enable explicitly after the offline 148 project migration.
         CHAOS_CREATORS_V2_ENABLED: process.env.CHAOS_CREATORS_V2_ENABLED || "false",
         CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",
