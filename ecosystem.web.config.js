@@ -7,6 +7,13 @@ module.exports = {
       args: "run:app --bind 127.0.0.1:6666 --workers 4 --timeout 120 --access-logfile - --error-logfile -",
       interpreter: "none",
       env: {
+        // Sprint 161: production scanner; budgets live in the POI database.
+        // API credentials remain in the private server environment, never Git.
+        CHAOS_POI_INFRASTRUCTURE_ENABLED: "1",
+        CHAOS_POI_MAPLARK_ENABLED: "1",
+        CHAOS_POI_MAPLARK_PILOT_ENABLED: "0",
+        CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: "1",
+        CHAOS_MAPLARK_CREDIT_RESERVATION: "20",
         // Enable explicitly after the offline 148 project migration.
         CHAOS_CREATORS_V2_ENABLED: process.env.CHAOS_CREATORS_V2_ENABLED || "false",
         CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",

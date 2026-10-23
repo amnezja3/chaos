@@ -22,6 +22,13 @@ module.exports = {
       watch: false,
       max_memory_restart: "512M",
       env: {
+        // Enable only after configuring the provider and budget with
+        // tools/world_discovery_rollout.py. Keep API keys outside Git.
+        CHAOS_POI_INFRASTRUCTURE_ENABLED: "0",
+        CHAOS_POI_MAPLARK_ENABLED: "0",
+        CHAOS_POI_MAPLARK_PILOT_ENABLED: "0",
+        CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: "0",
+        CHAOS_MAPLARK_CREDIT_RESERVATION: "20",
         PORT: "5000",
         APP_ENV: "staging",
         CHAOS_DEV_MODE: "true",

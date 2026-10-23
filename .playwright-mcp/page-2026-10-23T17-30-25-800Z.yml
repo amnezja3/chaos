@@ -1,0 +1,14 @@
+- generic [ref=e1]:
+  - generic:
+    - generic [aria-hidden]: Chaos Log // Zakłócenia MASA. Odczytano ostatni dostępny zapis terenu.
+  - status: Zakłócenia MASA. Odczytano ostatni dostępny zapis terenu.
+  - combobox [ref=e2]:
+    - option "pl" [selected]
+    - option "en"
+  - generic [ref=e3]:
+    - checkbox "GhostLab" [ref=e4]
+    - text: GhostLab
+  - button "SCAN" [active] [ref=e5]
+  - status [ref=e6]: 🔍 Zeskanowano 1 nowych obiektów.
+  - list [ref=e7]:
+    - listitem [ref=e10]: MapLark fixture office

@@ -69,6 +69,20 @@ z dotychczasowymi restrykcyjnymi prawami — zawierają również istniejące se
 
 ## Diagnostyka i granice
 
+### Trwała konfiguracja ecosystem
+
+`ecosystem.web.config.js` zawiera pięć flag uruchomienia MapLark z powyższej
+komendy. W lokalnym, nieśledzonym `ecosystem.config.js` serwera należy zachować
+te same wartości w `env` procesu `chaos`. Przykład deweloperski pozostaje wyłączony.
+Klucz API należy przechowywać w prywatnej konfiguracji serwera, poza Git.
+Limity 800/24000 i historia zużycia pozostają w bazie POI, nie w zmiennych ENV.
+
+Nie zastępować całego produkcyjnego ecosystem plikiem web z repo bez porównania
+pozostałych ustawień: zawiera on także wcześniejsze ustawienia staging/development.
+Przeniesienie pozostałych historycznych ENV wymaga porównania z konfiguracją VPS;
+ten krok utrwala wyłącznie pięć flag wdrożenia MapLark. Po odbiorze działającego
+wdrożenia wykonać `pm2 save`.
+
 ```bash
 .venv/bin/python tools/world_discovery_rollout.py status --apply
 pm2 logs chaos --lines 100 --nostream 2>&1 | grep 'poi_maplark'

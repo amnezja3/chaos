@@ -1,0 +1,12 @@
+- generic [ref=e1]:
+  - status
+  - combobox [ref=e2]:
+    - option "pl" [selected]
+    - option "en"
+  - generic [ref=e3]:
+    - checkbox "GhostLab" [ref=e4]
+    - text: GhostLab
+  - button "SCAN" [active] [ref=e5]
+  - status [ref=e6]: Nie udało się pobrać danych mapy. Spróbuj ponownie.
+  - list [ref=e7]:
+    - listitem [ref=e10]: MapLark fixture office
