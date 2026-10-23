@@ -112,7 +112,10 @@ def retry_delay(value):
 
 def _http_child(pipe, config, endpoint, query, timeout, deadline, secure=False):
     try:
-        if secure:
+        if secure == 'world-features':
+            from .secure_transport import request
+            result = request(config, endpoint, '', timeout, deadline, feature_plan=query)
+        elif secure:
             from .secure_transport import request
             result = request(config, endpoint, query, timeout, deadline)
         else:

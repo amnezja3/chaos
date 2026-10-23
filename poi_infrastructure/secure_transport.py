@@ -29,12 +29,29 @@ def public_addresses(host):
     return addresses
 
 
-def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace=None):
+def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace=None, feature_plan=None):
     started = time.monotonic()
     def mark(stage, **fields):
         if trace is not None:
             trace.update(stage=stage, seconds=round(time.monotonic()-started, 4), **fields)
-    host = endpoint_host(endpoint)
+    wire_headers = {'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json',
+                    'Accept-Encoding':'identity','User-Agent':'CHAOS/POI-v160 (+https://chaos.re; year2108@chaos.re)'}
+    method, path, body = 'POST', urlsplit(endpoint).path, urlencode({'data':query}).encode()
+    if feature_plan is None:
+        host = endpoint_host(endpoint)
+    else:
+        from .world_adapters import RequestPlan
+        from .world_contract import ContractError
+        if not isinstance(feature_plan, RequestPlan) or endpoint != feature_plan.endpoint:
+            raise POIError('request_plan_not_allowlisted')
+        try:
+            path, auth_headers = feature_plan.authenticated_wire()
+        except ContractError as exc:
+            raise POIError(str(exc)) from None
+        host = urlsplit(endpoint).hostname
+        method, body = 'GET', None
+        wire_headers.update(auth_headers)
+        wire_headers['Accept'] = 'application/geo+json,application/json'
     mark('dns')
     addresses = public_addresses(host)
     if pinned_ip is not None:
@@ -83,17 +100,21 @@ def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace
         if time.monotonic() >= deadline:
             raise UpstreamUnavailable('deadline')
         connection.sock.settimeout(min(timeout,max(.01,deadline-time.monotonic())))
-        body = urlencode({'data':query}).encode()
         stage = 'http_write'
-        connection.request('POST',urlsplit(endpoint).path,body=body,headers={
-            'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json',
-            'Accept-Encoding':'identity','User-Agent':'CHAOS/POI-v160 (+https://chaos.re; year2108@chaos.re)'})
+        connection.request(method,path,body=body,headers=wire_headers)
         stage = 'http_read'
         mark('waiting_headers')
         response = connection.getresponse()
+        feature_headers = {name: response.getheader(name) for name in (
+            'X-Returned', 'X-Has-More', 'X-Next-Cursor', 'X-Usage-Units-Charged')
+            if response.getheader(name) is not None} if feature_plan is not None else None
+        def result(status, retry, data):
+            if feature_plan is not None:
+                return status, retry, {'response_headers': feature_headers, 'body': data}
+            return status, retry, data
         mark('reading_body', http_status=response.status, headers_seconds=round(time.monotonic()-started,4))
         if response.status != 200:
-            if config.diagnostic_errors:
+            if config.diagnostic_errors and feature_plan is None:
                 detail = {'content_type': str(response.getheader('Content-Type', ''))[:200]}
                 # Opt-in CLI diagnostics only; never follow redirects or read an
                 # unbounded error page. Preserve the HTTP status on body failure.
@@ -113,7 +134,7 @@ def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace
                 except (OSError, http.client.HTTPException) as exc:
                     detail['body_unavailable'] = type(exc).__name__
                 return response.status,response.getheader('Retry-After'),detail
-            return response.status,response.getheader('Retry-After'),None
+            return result(response.status,response.getheader('Retry-After'),None)
         if response.getheader('Content-Encoding','identity').lower() != 'identity':
             raise POIError('unsupported_content_encoding')
         raw = bytearray()
@@ -138,7 +159,7 @@ def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace
         try:
             data = json.loads(raw)
             mark('complete', body_complete_seconds=round(time.monotonic()-started,4))
-            return 200,None,data
+            return result(200,None,data)
         except (ValueError,UnicodeError) as exc:
             raise POIError('invalid_json') from exc
     except ssl.SSLError as exc:

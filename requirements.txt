@@ -7,3 +7,4 @@ requests>=2.31,<3
 pytest>=8,<9
 PyYAML>=6.0,<7
 Authlib==1.9.1
+Shapely==2.1.2

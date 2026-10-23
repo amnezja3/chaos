@@ -1,5 +1,12 @@
 # Sprint 160 — macierz dowodów
 
+**Aktualizacja 23.10.2026:** 160 jest częściowo wdrożony, bez pełnego PASS.
+Poniższe wpisy są chronologiczne; początkowy status „lokalny” nie opisuje
+obecnego etapu. Najnowsza relacja operatora: skany sporadycznie działają,
+większość nie przechodzi. Przekazanie dowodów i otwartych wymagań do 161–163:
+[stan 161](sprint_161_evidence.md). Brak świeżego odczytu konfiguracji VPS;
+nie aktywowano world/wide/monitor na podstawie pojedynczych sukcesów.
+
 2026-10-18. Status: realizacja lokalna, bez pełnego PASS i wdrożenia. [Plan wykonawczy](../sprints/sprint_160_poi_world_repository_provider_control.md), [koncepcja](../prototypes/poi/sprint_160_poi_world_repository_provider_control.md), [kontrakt i wyniki](sprint_160_0_contract_baseline.md).
 
 | Etap | Status | Dowód do uzupełnienia |

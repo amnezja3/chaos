@@ -1,0 +1,23 @@
+{
+  "schema": "chaos-world-fixtures-v1",
+  "created": "2026-10-23",
+  "fixtures": [
+    {
+      "body": "world_maplark_synthetic.json",
+      "body_sha256": "b364d4c4c73162cea22514f1806803d5703c5cfb9f8c35e6f6faa5c3a765712a",
+      "headers": "world_maplark_headers_synthetic.json",
+      "headers_sha256": "f2c74e39f7fde2ef4ca5faf444847a15667292f1285041dc08f0699f42cda705",
+      "origin": "synthetic, authored locally; not an API response",
+      "adapter": "maplark-v3-offline-v1",
+      "profile": "mixed geometry decoder example, not a gameplay scan",
+      "documentation": "https://api.maplark.com/openapi.json",
+      "live_certification": false
+    },
+    {
+      "body": "geometry_reference.json",
+      "origin": "existing Sprint 160 independent Overpass fixture, provenance embedded in file",
+      "usage": "reference adapter export through unchanged POIFetcher",
+      "live_certification": false
+    }
+  ]
+}
