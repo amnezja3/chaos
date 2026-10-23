@@ -46,7 +46,7 @@ def main():
         fetcher._poi_service = Service(Path(directory)/'poi.sqlite3', transport=transport)
         service = fetcher._poi_service
         service.repo.initialize()
-        if '--maplark' in sys.argv:
+        if '--maplark' in sys.argv or '--maplark-global' in sys.argv:
             from tools.world_discovery_pilot import operate
             from poi_infrastructure.providers import Registry
             from poi_infrastructure.world_contract import FILTERS
@@ -62,6 +62,12 @@ def main():
                 CHAOS_POI_MAPLARK_PILOT_ENABLED='1', CHAOS_POI_MAPLARK_PILOT_USERS=actor,
                 CHAOS_MAPLARK_CREDIT_RESERVATION='20', CHAOS_MAPLARK_ACCEPT_VARIABLE_COST='1',
                 CHAOS_MAPLARK_API_KEY='isolated-browser-fixture'))
+            if '--maplark-global' in sys.argv:
+                from tools.world_discovery_rollout import operate as rollout
+                rollout(service.repo.path, 'promote', apply=True)
+                fixture.stack.enter_context(patch.dict(os.environ,
+                    CHAOS_POI_MAPLARK_ENABLED='1', CHAOS_POI_MAPLARK_PILOT_ENABLED='0',
+                    CHAOS_POI_MAPLARK_PILOT_USERS='not-this-fixture-user'))
             def feature_transport(*args, **kwargs):
                 mode['calls'] += 1
                 features = [] if mode['value'] == 'empty' else [dict(type='Feature', id='node/777',
@@ -127,13 +133,16 @@ scan.onclick=async()=>{let d=await mapAction('scan',52,21);document.body.dataset
                     with service.repo.transaction() as c:
                         c.execute('DELETE FROM providers')
                         c.execute('DELETE FROM leases')
-                        if mode['value']=='stale':c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
+                        if mode['value'] in ('stale','budget'):c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
                         else:c.execute('DELETE FROM cache')
                         if mode['value'] in ('restore', 'recovering'):
                             c.execute('INSERT INTO providers VALUES (?,?,?)', ('fixture.invalid',3,time.time()-1))
                         if mode['value']=='recovering':
                             for key in ('@upstream','@probe:fixture.invalid'):
                                 c.execute('INSERT INTO leases VALUES (?,?,?)', (key,'fixture-probe',time.time()+30))
+                    if mode['value']=='budget' and '--maplark-global' in sys.argv:
+                        from poi_infrastructure.credit_budget import CreditBudget
+                        CreditBudget(service.repo).configure_recurring('maplark',1,1)
                     status,body,content=200,json.dumps(mode).encode(),'application/json'
                 else:
                     raw=self.rfile.read(int(self.headers.get('Content-Length',0)))

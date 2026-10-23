@@ -43,6 +43,7 @@ class PilotTests(unittest.TestCase):
         v=self.registry.tested(v['id'],v['revision'],True,'test')
         self.registry.enable(v['id'],v['revision'],True,'test')
         env=patch.dict(os.environ,CHAOS_POI_MAPLARK_PILOT_ENABLED='1',
+            CHAOS_POI_MAPLARK_ENABLED='0',
             CHAOS_POI_MAPLARK_PILOT_USERS='tester',CHAOS_MAPLARK_CREDIT_RESERVATION='20',
             CHAOS_MAPLARK_ACCEPT_VARIABLE_COST='1',CHAOS_POI_INFRASTRUCTURE_ENABLED='1')
         env.start();self.addCleanup(env.stop)
@@ -97,3 +98,53 @@ class PilotTests(unittest.TestCase):
         from dataclasses import replace
         with self.assertRaises(ContractError):
             export_maplark(replace(normalized([point()]),completeness='partial'))
+
+    def test_separate_service_instances_share_exact_cache(self):
+        # Gunicorn workers do not share Python objects, but do share SQLite.
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(normalized([point()]),{})) as acquire:
+            expected = self.fetch()
+            for _ in range(3):
+                independent = Service(path=self.service.repo.path, config=Config(join_wait=0))
+                self.assertEqual(independent.fetch('same', [], 8, 300, 1800, self.options), expected)
+            acquire.assert_called_once()
+
+    def test_changed_map_click_is_a_different_query(self):
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(normalized([point()]),{})) as acquire:
+            self.fetch()
+            self.options['_spatial']['lon'] += .00001
+            self.fetch()
+            self.assertEqual(acquire.call_count, 2)
+
+    def test_global_switch_routes_other_users_without_allowlist(self):
+        self.assertFalse(pilot_user('another-player'))
+        with patch.dict(os.environ,CHAOS_POI_MAPLARK_ENABLED='1',CHAOS_POI_MAPLARK_PILOT_ENABLED='0'):
+            self.assertTrue(pilot_user('another-player'))
+            self.assertFalse(pilot_user('')); self.assertFalse(pilot_user(None))
+            with self.assertRaisesRegex(POIError,'rollout_budget_not_configured'):
+                self.fetch()
+            CreditBudget(self.service.repo).configure_recurring('maplark',800,24000)
+            with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(normalized([point()]),{})):
+                self.assertTrue(self.fetch()['elements'])
+
+    def test_budget_exhaustion_can_use_exact_stale_cache(self):
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(normalized([point()]),{})):
+            expected=self.fetch()
+        with self.service.repo.transaction() as c:
+            c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
+        from poi_infrastructure.presentation import capture
+        with patch.dict(os.environ,CHAOS_POI_MASA_UX_ENABLED='1'), capture() as evidence:
+            with patch('poi_infrastructure.maplark_pilot.acquire_maplark',side_effect=ContractError('budget_exhausted')):
+                self.assertEqual(self.fetch(),expected)
+        self.assertEqual(evidence['poi_data_mode'],'stale')
+        self.assertEqual(evidence['interference']['state'],'degraded')
+        with self.service.repo.transaction() as c:
+            c.execute('UPDATE cache SET fetched=?',(time.time()-1900,))
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',side_effect=ContractError('budget_exhausted')):
+            with self.assertRaisesRegex(ContractError,'budget_exhausted'): self.fetch()
+
+    def test_invalid_response_does_not_fall_back_to_stale(self):
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(normalized([point()]),{})):
+            self.fetch()
+        with self.service.repo.transaction() as c: c.execute('UPDATE cache SET fetched=?',(time.time()-400,))
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',side_effect=ContractError('provider_response_incomplete')):
+            with self.assertRaisesRegex(ContractError,'incomplete'): self.fetch()

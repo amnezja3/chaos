@@ -45,6 +45,46 @@ class CreditBudget:
                 FOREIGN KEY(account, period) REFERENCES world_credit_window(account, period))''')
             c.execute('''CREATE TABLE IF NOT EXISTS world_credit_hold (
                 account TEXT PRIMARY KEY, reason TEXT NOT NULL)''')
+            c.execute('''CREATE TABLE IF NOT EXISTS world_credit_policy (
+                account TEXT PRIMARY KEY, daily_limit INTEGER NOT NULL,
+                rolling_limit INTEGER NOT NULL, configured REAL NOT NULL)''')
+            c.execute('CREATE INDEX IF NOT EXISTS world_credit_operation_account_time ON world_credit_operation(account,created)')
+
+    def configure_recurring(self, account, daily_limit, rolling_limit):
+        """UTC days + trailing 31 days, independent of provider billing reset.
+
+Includes previous pilot operations; never deletes or resets usage. An enabled
+policy supersedes legacy fixed windows for NEW reservations only.
+"""
+        _token(account); _amount(daily_limit); _amount(rolling_limit)
+        if not 1 <= daily_limit <= rolling_limit <= 30000:
+            raise ContractError('budget_policy_invalid')
+        with self.repo.transaction() as c:
+            c.execute('''INSERT INTO world_credit_policy VALUES (?,?,?,?)
+                ON CONFLICT(account) DO UPDATE SET daily_limit=excluded.daily_limit,
+                rolling_limit=excluded.rolling_limit,configured=excluded.configured''',
+                (account,daily_limit,rolling_limit,time.time()))
+
+    @staticmethod
+    def _recurring_status(c, account, now):
+        # Rolling upgrades may still have the pre-rollout ledger schema.
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='world_credit_policy'").fetchone():
+            return []
+        policy = c.execute('SELECT * FROM world_credit_policy WHERE account=?',(account,)).fetchone()
+        if not policy:
+            return []
+        day = int(now // 86400) * 86400
+        rows = []
+        for period, start, end, limit in (
+                ('utc_day',day,day+86400,policy['daily_limit']),
+                ('rolling_31_days',now-31*86400,now,policy['rolling_limit'])):
+            # Unresolved requests remain counted even across day/window changes.
+            used = c.execute('''SELECT COALESCE(SUM(COALESCE(charged,reserved)),0)
+                FROM world_credit_operation WHERE account=? AND
+                (created>=? OR state IN ('reserved','uncertain'))''',(account,start)).fetchone()[0]
+            rows.append(dict(period=period, starts=start, ends=end, credit_limit=limit,
+                committed=used, remaining=max(0,limit-used),source='chaos_internal_ledger'))
+        return rows
 
     def configure_window(self, account, period, starts, ends, limit):
         """Explicit windows from approved configuration; never reset usage in place."""
@@ -76,6 +116,13 @@ class CreditBudget:
                 return False
             if c.execute('SELECT 1 FROM world_credit_hold WHERE account=?', (account,)).fetchone():
                 raise ContractError('budget_account_held')
+            recurring = self._recurring_status(c, account, now)
+            if recurring:
+                if any(w['committed'] + upper_bound > w['credit_limit'] for w in recurring):
+                    raise ContractError('budget_exhausted')
+                c.execute('INSERT INTO world_credit_operation VALUES (?,?,?,?,?,?,?)',
+                    (account,operation,upper_bound,None,'reserved','[]',now))
+                return True
             # Unresolved in-flight requests across a reset must not become free.
             if c.execute('''SELECT 1 FROM world_credit_entry e
                 JOIN world_credit_operation o USING(account, operation)
@@ -131,6 +178,9 @@ class CreditBudget:
         now = time.time() if now is None else now
         c = self.repo.connect()
         try:
+            recurring = self._recurring_status(c, account, now)
+            if recurring:
+                return recurring
             rows = c.execute('''SELECT w.period, w.credit_limit, w.starts, w.ends,
                 COALESCE(SUM(e.amount),0) AS committed FROM world_credit_window w
                 LEFT JOIN world_credit_entry e USING(account,period)

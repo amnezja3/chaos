@@ -1,6 +1,48 @@
 # Sprint 161 — stan realizacji 23.10.2026
 
-## Najnowszy wynik — pakiet kontrolowanego pilota
+## Rozszerzenie na wszystkich — zatwierdzone przez operatora
+
+Operator polecił „odpalmy grę” i zaakceptował 800 kredytów dziennie / 24 000
+w ruchomych 31 dniach. Dodano `CHAOS_POI_MAPLARK_ENABLED` niezależne od listy
+pilota. Brak konfiguracji budżetów cyklicznych blokuje nowe pobrania w tym trybie.
+`world_discovery_rollout.py promote` konfiguruje registry i nową tabelę polityki
+w tej samej bazie POI; decyzja ma jawny przegląd po roku. Dotychczasowe operacje
+pilota pozostają i są sumowane; ponowne wdrożenie nie resetuje limitów/zużycia.
+Doba to UTC, drugie okno to ostatnie 31 dni, nie deklarowany cykl billingowy API.
+Rezerwacje niepewne pozostają liczone niezależnie od wieku. Obserwowane naliczenie
+ponad rezerwację nadal wstrzymuje konto. Nie odczytujemy salda dostawcy.
+
+Potwierdzenia VPS przekazane przez operatora: profile_probe_pass, 680 obiektów,
+9 kredytów; skan robot pokazał 54 nowe obiekty. Kolejne logi były upstream.
+Odczyt ostatniego zapisu wykazał cache_found=true, age=199,3 s, digest_ok=true.
+Nie oznaczamy tego jako produkcyjnego cache hit. Ustalono, że skan bierze punkt
+kliknięcia, nie pozycję avatara — wcześniejsza instrukcja „stój w miejscu” nie
+gwarantowała identycznego zapytania. Dodatkowe testy osobnych Service na tej samej
+bazie potwierdziły jeden upstream i trzy fresh; zmiana kliknięcia tworzy nowy key.
+
+Log `poi_maplark_cache` dodaje fingerprint key, revision, PID, TTL i czas, bez
+surowych współrzędnych/logina. Po wyczerpaniu budżetu fresh działa normalnie;
+na chwilowy błąd/budżet można zwrócić exact stale w dotychczasowym TTL. Nie
+używamy stale przy wyłączonym/revidowanym dostawcy lub nieprawidłowej odpowiedzi.
+
+Playwright MCP: `tools/poi_browser_fixture.py --maplark-global`, konto fixture
+celowo poza listą pilota. Rzeczywisty `/map-action` i produkcyjny JS: success
+z markerem (upstream=1), ponowienie fresh (licznik nadal 1), następnie sztucznie
+wyczerpany budżet i 400-sekundowy exact cache -> success, source=stale/degraded,
+licznik API nadal 1. Konsola bez błędów. HTTP dostawcy jest fixture, nie API live.
+
+Instrukcja wdrożenia: `doc/runbooks/world_discovery_maplark_rollout_161.md`.
+Globalny odbiór produkcyjny pozostaje do potwierdzenia po pull/config/restart.
+
+Weryfikacja końcowa rollout’u: 63 testy `test_world_*.py` PASS (18,089 s),
+87 testów `test_poi_*.py` PASS (80,279 s). Pierwszy przebieg POI przy równoległym
+obciążeniu miał jeden timeout w dwusekundowym lokalnym teście transportu;
+ten sam test osobno oraz pełne ponowienie bez obciążenia przeszły, bez zmiany
+limitu ani implementacji transportu. Dodatkowe 2 testy CLI rollout PASS po
+dodaniu odmowy promocji konta z aktywnym budget hold. Nie usuwamy hold przy
+promocji i nie uruchamiamy automatycznie ruchu na takim koncie.
+
+## Wcześniejszy etap — pakiet kontrolowanego pilota
 
 Po decyzji operatora „zrób żeby było dobrze, potrzebujemy tego co ma CHAOS”
 przyjęto osobny profil `maplark-radius-bounds-v1`. Nie wymaga identycznej
