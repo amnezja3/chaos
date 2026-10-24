@@ -299,3 +299,13 @@ stan procesu zamiast stałego komunikatu o wyłączonym pobieraniu. Playwright M
 izolowana aplikacja, pusta przygotowana kolejka, odświeżenie, PL/EN oraz ekran
 390x844 — brak overflow, błędów i ostrzeżeń konsoli; brak zasobów zewnętrznych.
 Nie zmieniano stanu produkcji ani zgód na pobieranie danych.
+
+## Zatwierdzony pilot roads — przygotowanie
+
+Operator zatwierdził komórkę 2036/5153, roads, godzinę i wewnętrzny limit 20.
+Dodano tools/discovery_pilot_prepare.py: backup SQLite + poprzedni provider,
+permit i niezmienne scope limitów, zachowanie enabled/normal_scan, plan bez HTTP.
+Nie resetuje naliczeń ani czasu przy ponowieniu, nie odtwarza usuniętego permitu
+nad istniejącym budżetem i nie tworzy popytu. Trzy izolowane testy PASS (1.743 s).
+Produkcja nadal wymaga uruchomienia przygotowania przez operatora; nie wykonano
+HTTP, nie aktywowano procesu ani priorytetu na VPS.

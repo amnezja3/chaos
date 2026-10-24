@@ -62,6 +62,28 @@ i publikację podczas trwającego żądania.
 
 ## Plan i wykonanie
 
+Operator zatwierdził 24.10.2026 opisany pilot roads (2036,5153), jedna godzina,
+wewnętrzny limit 20. Przygotowanie nie oznacza uruchomienia HTTP.
+Po push/pull pakietu przygotowującego:
+
+```bash
+umask 077
+DISCOVERY_PILOT_BACKUP="$HOME/chaos-backups/163-roads-$(date -u +%Y%m%dT%H%M%SZ)"
+.venv/bin/python tools/discovery_pilot_prepare.py --db data/poi_cache.sqlite3 --permit data/discovery-permit.json --backup "$DISCOVERY_PILOT_BACKUP/poi_cache.sqlite3"
+```
+
+Narzędzie tworzy spójną kopię SQLite i zapis poprzedniej konfiguracji dostawcy,
+permit oraz dwa limity 20: cały pilot i roads (nie sumują się do 40).
+Zachowuje aktywne skany i ich zakresy, dodaje background_refresh/world_storage,
+nie zmienia globalnych limitów ani naliczeń. Zmiana rewizji dostawcy może
+spowodować pominięcie wcześniejszego cache. Nie zmienia flag i nie uruchamia HTTP.
+Wynik zawiera plan. Pusta lista jobs oznacza brak nowego kwalifikującego się popytu;
+nie należy wtedy uruchamiać wykonania. Narzędzie nie tworzy sztucznego popytu.
+Ponowienie nie przedłuża pozwolenia. Wygasłego lub usuniętego pozwolenia nie
+odtwarza z nowym budżetem. Błąd częściowego przygotowania wymaga sprawdzenia
+stanu, nie kasowania permitu ani wpisów księgi. Przed HTTP nadal potrzebne
+włączenie priorytetu web i jednorazowe wykonanie; nie uruchamiać --serve.
+
 ```bash
 .venv/bin/python tools/world_discovery_worker.py --db data/poi_cache.sqlite3 --permit data/discovery-permit.json
 ```
