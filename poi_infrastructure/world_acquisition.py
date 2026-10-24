@@ -4,6 +4,7 @@ No automatic schema initialization, retries, gameplay export or cache writes.
 Reservation is an internal allowance, NOT a provider-enforced price cap.
 """
 import time
+import os
 
 from .credit_budget import CreditBudget
 from .service import Config, POIError, UpstreamUnavailable, bounded_http, retry_delay
@@ -12,7 +13,8 @@ from .world_contract import ContractError, Provenance
 
 
 def acquire_maplark(repo, plan, operation, reservation, *,
-                    accept_variable_cost=False, transport=None, still_active=lambda: True):
+                    accept_variable_cost=False, transport=None, still_active=lambda: True,
+                    lane='live'):
     """Caller must configure ledger windows and authorize this provider first.
 
 Returns a normalized, UNAPPROVED batch plus nonsecret billing metadata.
@@ -28,7 +30,29 @@ Same operation ID can never cause a second upstream request.
     group = 'api.maplark.com'
     if not repo.allowed(group):
         raise POIError('circuit_open')
-    slot = repo.acquire('@upstream', 42, probe_group=group)
+    if lane not in ('live','background'):
+        raise ContractError('acquisition_lane')
+    priority=os.environ.get('CHAOS_POI_PRIORITY_ENABLED')=='1'
+    if lane=='background':
+        # No production background caller is wired yet. This is an admission
+        # primitive, never a replacement for provider/background scope checks.
+        if not priority:raise ContractError('background_priority_required')
+    if priority:
+        from .upstream_priority import UpstreamPriority
+        gate=UpstreamPriority(repo)
+        ticket=gate.register() if lane=='live' else None
+        slot=None
+        try:
+            until=time.monotonic()+2
+            while still_active():
+                if lane=='live' and ticket is None:break
+                slot=gate.acquire(lane=lane,ticket=ticket,group=group)
+                if slot or lane=='background' or time.monotonic()>=until:break
+                time.sleep(.05)
+        finally:
+            gate.cancel(ticket)
+    else:
+        slot = repo.acquire('@upstream', 42, probe_group=group)
     if not slot:
         raise POIError('upstream_busy')
     ledger = CreditBudget(repo)

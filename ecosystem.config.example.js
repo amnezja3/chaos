@@ -32,6 +32,7 @@ module.exports = {
         CHAOS_POI_WORLD_INGEST_ENABLED: "0",
         CHAOS_POI_WORLD_REPOSITORY_ENABLED: "0",
         CHAOS_POI_DISCOVERY_MODE: "off",
+        CHAOS_POI_PRIORITY_ENABLED: "0",
         PORT: "5000",
         APP_ENV: "staging",
         CHAOS_DEV_MODE: "true",

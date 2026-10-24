@@ -17,6 +17,19 @@ Nowe pola: `process_lifetime_peak_rss_bytes` (Linux, maksimum całego procesu),
 `max_transaction_entry_seconds` i `max_transaction_hold_and_close_seconds`.
 Pomiar syntetyczny z tracemalloc nie zastępuje pilota na rzeczywistych danych.
 
+Pomiar RSS/transakcji został już dostarczony przez operatora (patrz evidence 162).
+Kolejny pakiet dodaje priorytet HTTP MapLark domyślnie OFF. Po pobraniu kodu
+wykonać bez restartu/migracji, z izolowanymi bazami i mockowanym transportem:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -p 'test_world_upstream_priority.py'
+.venv/bin/python -m unittest discover -s tests -p 'test_world_shadow.py'
+```
+
+Oczekiwane 6 + 7 PASS. Nie ustawiać jeszcze `CHAOS_POI_PRIORITY_ENABLED=1`;
+nie ma produkcyjnego workera background. Obecny skaner i passive działają dalej.
+Po odbiorze Linux można przygotować osobny rollout priorytetu i pilot ingest.
+
 Pakiet dodaje kanoniczny magazyn, odczyt dokładnego zapytania i pasywny rejestr
 zapotrzebowania. Nie oznacza pełnego odbioru sprintów ani zgody na background.
 W pierwszym wdrożeniu pozostawić ingest/read OFF i discovery off.

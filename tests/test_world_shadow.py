@@ -82,3 +82,24 @@ class WorldShadowTests(unittest.TestCase):
         self.registry.enable(v['id'],v['revision'],False,'fixture')
         with self.assertRaisesRegex(POIError,'not_approved'):
             self.fetch()
+
+    def test_local_world_survives_busy_network_and_exhausted_shared_budget(self):
+        self.grant()
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})):
+            expected=self.fetch()
+        self.evict_cache()
+        from poi_infrastructure.credit_budget import CreditBudget
+        from poi_infrastructure.upstream_priority import UpstreamPriority
+        ledger=CreditBudget(self.service.repo)
+        self.assertTrue(ledger.reserve('maplark','other-in-flight',100))
+        gate=UpstreamPriority(self.service.repo)
+        slot=gate.acquire(lane='background');ticket=gate.register()
+        self.assertIsNotNone(slot)
+        try:
+            with (patch.dict(os.environ,CHAOS_POI_PRIORITY_ENABLED='1'),
+                  patch('poi_infrastructure.maplark_pilot.acquire_maplark',side_effect=AssertionError('network forbidden'))):
+                self.assertEqual(self.fetch(),expected)
+            self.assertTrue(self.service.repo.owns('@upstream',slot))
+            self.assertEqual(ledger.status('maplark')[0]['committed'],100)
+        finally:
+            self.service.repo.release('@upstream',slot);gate.cancel(ticket)

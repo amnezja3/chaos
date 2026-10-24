@@ -88,6 +88,43 @@ operacji kosztowej, żeby dwa zadania nie wskazywały tego samego naliczenia;
 ukierunkowana regresja 11 testów zadań PASS (2,342 s), w tym rollback błędnego
 przejścia przy konflikcie. `git diff --check`: PASS. UI nie zmieniano.
 
-Nie jest to jeszcze D01–D04 w całości: brak wspólnego priorytetu live, fairness
-regionów, wywołań adapterów i atomowego połączenia z księgą. Nie wolno uruchamiać
+Nie jest to jeszcze D01–D04 w całości: priorytet live opisano poniżej; pozostaje fairness
+regionów, worker adapterów i połączenie jego cyklu z księgą. Nie wolno uruchamiać
 tej biblioteki jako produkcyjnego workera ani traktować claim jako zgody na HTTP.
+
+## Wspólne dopuszczanie do HTTP — 24.10.2026
+
+`upstream_priority.py` używa istniejącej tabeli leases i slotu `@upstream`.
+Brak nowego schematu, osobnej równoległości i identyfikatorów graczy. Maksymalnie
+256 krótkich biletów live, TTL 10 s, kolejność według wygaśnięcia i tokena.
+Rejestracja biletu oraz przyznanie slotu są odrębnymi krótkimi transakcjami;
+konkurujące przyznania slotu i sprawdzenie oczekujących live są atomowe.
+Pierwszeństwo dotyczy już zarejestrowanych oczekujących, nie przyszłych skanów.
+
+W `acquire_maplark` opcjonalna flaga `CHAOS_POI_PRIORITY_ENABLED=1` uruchamia
+tę ścieżkę. Domyślnie 0 w obu ecosystemach; produkcyjny passive bez zmian.
+Live czeka do 2 s na istniejący slot, tło dostaje natychmiastową odmowę przy
+oczekujących live. Rozpoczęte HTTP nie jest przerywane przez nowego gracza.
+Transport ma dotychczasowy deadline 35 s, slot 42 s; czekanie poprzedza start
+deadline transportu. Anulowanie biletu nie zwalnia slotu innego właściciela.
+
+Po przyznaniu slotu nadal działa ta sama księga: rezerwacja przed HTTP,
+idempotencja operation id, rozliczenie/uncertain po wyniku, wspólny circuit.
+Ścieżka background odmawia działania bez flagi priorytetu. Sama flaga ani
+parametr lane nie nadają praw do pobierania w tle — przyszły worker musi
+sprawdzić scope, revision, zdolności warstwy i limity przed wywołaniem.
+Nie podłączono background do żadnego procesu PM2 ani zadań produkcyjnych.
+
+6 testów priorytetu PASS (3,085 s), w tym rzeczywiste 4 procesy live + 1 proces
+symulujący tło, wspólna SQLite/księga, limit 30, operacje po 10:
+wszystkie cztery dopuszczenia live przed tłem, łączne naliczenie 30, bez API.
+Pozostałe dowody: FIFO, nieprzerywanie in-flight, wygasły bilet, współdzielony
+circuit, rzeczywisty acquire_maplark z mock HTTP i idempotencją kosztów.
+Dodatkowy test skanera: poprawny world hit przy wyczerpanej księdze i zajętym
+slocie HTTP, bez nowego pozyskania i bez zmiany naliczenia.
+
+Pełna regresja World: **125 PASS, 19,922 s**. Składnia ecosystemów i
+`git diff --check`: PASS. UI nie zmieniano; brak nowego testu przeglądarkowego.
+To dowód mechanizmu dopuszczania MapLark, nie pełnego workera ani odbiór
+priorytetu legacy Overpass. Fairness między regionami i obciążenie około 100
+testerów nadal wymagają osobnego testu. Ingest/read/background na VPS OFF.

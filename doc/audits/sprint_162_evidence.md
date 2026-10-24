@@ -20,6 +20,13 @@ jedna transakcja, wejście 0,000867 s, hold+close 0,030958 s, WAL po commit
 1042392 B. RSS na Windows null. Potrzebny odpowiadający pomiar Linux/VPS,
 bez restartu gry, migracji lub wywołań API.
 
+Operator dostarczył rozszerzony pomiar VPS: dla 680 obiektów publikacja 0,8138 s,
+odczyt 0,0687 s, jedna transakcja, wejście 0,000789 s, hold+close 0,114078 s,
+WAL po commit 1042392 B, lifetime peak RSS 62435328 B (około 59,5 MiB).
+Dla 50 obiektów RSS 54697984 B, hold+close 0,046956 s. Brak truncation,
+coverage UNKNOWN zgodnie z charakterem inspekcji. network_calls 0,
+production_changed false. To pomiar bez równoległego obciążenia, nie końcowy R08.
+
 ## Kolejny etap — dowód selekcji i planer lokalny
 
 `world_read.py`: `SelectionProof` i `WorldReadPlanner`. Dowód zapisuje się
