@@ -462,3 +462,34 @@ udaje kontroli brakujących obiektów. Weryfikuje sumę sąsiednich wycinków.
 Testy test_world_region*.py: **16 PASS / 5.609 s**, syntetyczne, bez API.
 Do dalszej niezależnej walidacji potrzebne są zachowane body.json i headers.json;
 nie ma potrzeby kolejnego pobierania tej próbki od dostawcy.
+
+### Niezależna inspekcja plików i odczyt lokalny — PASS geometrii
+
+Operator dostarczył body.json i headers.json do doc/audits. Agent odczytał
+oba pliki lokalnie, bez HTTP. SHA-256 oryginałów zapisano w
+tests/fixtures/poi/maplark_roads_bbox_20261024.metadata.json.
+Próbka regresyjna zachowuje wszystkie 76 OSM ID i pełne geometrie; usuwa tagi
+inne niż klasyfikacyjne. Pochodzenie MapLark/OSM i atrybucja są w metadanych.
+Oryginalnych plików o ogólnych nazwach nie dodano do commita.
+
+Potwierdzono: 76 wyników, dokładnie jeden envelope false positive
+osm:way:201343570, 75 dokładnych przecięć, 0 blokujących błędów geometrii,
+33/54/12 w sąsiednich wycinkach. Surowy boundary_selection_pass pozostaje false;
+local_filter.observed_geometry_pass=true; region_certified=false.
+
+Regresja na prawdziwych geometriach w tymczasowym SQLite:
+
+- Zapis surowych obserwacji i ponowne otwarcie bazy nie odblokowują area read.
+- Jawny certyfikat wyłącznie fixture pozwala przetestować silnik: po restarcie
+  odczyty dwóch wycinków zwracają 33 i 54 obiekty, 12 wspólnych, suma 75.
+  Każda geometria jest identyczna z pełną geometrią wejściową, bez clipowania.
+- Wyjście poza granice snapshotu daje MISS.
+- Próba publikacji area z nadmiarową linią jest odrzucana; po odfiltrowaniu
+  nadal wymagany jest osobny certyfikat. Nie dopisano certyfikatu MapLark.
+
+test_world_region*.py: **20 PASS / 7.430 s**, w tym 4 testy rzeczywistej próbki.
+Ten etap zamyka odbiór geometrii i działania lokalnego silnika na próbce.
+Nie dowodzi braku obiektów pominiętych przez API ani spójnej wersji źródła.
+Następny etap kwalifikacji: porównanie selekcji niezależnych zapytań o sąsiednie
+wycinki z lokalnymi wynikami i rozstrzygnięcie semantyki danych źródłowych.
+Żadnych kolejnych zapytań dostawcy ani zmian VPS nie wykonano.

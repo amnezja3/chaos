@@ -1,0 +1,23 @@
+{
+  "source": "MapLark v3 / OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "attribution_url": "https://www.openstreetmap.org/copyright",
+  "captured_by": "CHAOS operator",
+  "capture_date": "2026-10-24",
+  "bbox": [
+    20.36,
+    51.53,
+    20.37,
+    51.54
+  ],
+  "source_body_sha256": "a5442b2cd3c3cbcb5cb96d1979b4c823df4f570c6c1c2fbe097606f9a960a067",
+  "source_headers_sha256": "4c9946e8b020c04132f1619f6663abcece109fee2c5528400a5b6c2405bdda6f",
+  "transform": "Preserved all 76 IDs and geometries; retained classification tags only. Other tags removed.",
+  "provider_certified": false,
+  "headers": {
+    "X-Returned": "76",
+    "X-Has-More": "false",
+    "X-Usage-Units-Charged": "3"
+  },
+  "fixture_sha256_lf": "116e85b4da28846e8446ff928cd5cc6dfa562a800f241e0986ba1d5653b74d72"
+}
