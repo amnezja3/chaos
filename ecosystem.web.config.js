@@ -17,7 +17,8 @@ module.exports = {
         // 162/163 remain opt-in after schema preparation and separate storage approval.
         CHAOS_POI_WORLD_INGEST_ENABLED: "0",
         CHAOS_POI_WORLD_REPOSITORY_ENABLED: "0",
-        CHAOS_POI_DISCOVERY_MODE: "off",
+        // Schema v2 and gameplay verified on VPS; collect demand without background HTTP.
+        CHAOS_POI_DISCOVERY_MODE: "passive",
         // Enable explicitly after the offline 148 project migration.
         CHAOS_CREATORS_V2_ENABLED: process.env.CHAOS_CREATORS_V2_ENABLED || "false",
         CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",
