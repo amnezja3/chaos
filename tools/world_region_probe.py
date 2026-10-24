@@ -23,12 +23,16 @@ SCOPE='region-probe:roads-2036-5153-bbox-v1'
 PARTS={'parent':BOUNDS,'left':(20.36,51.53,20.365,51.54),'right':(20.365,51.53,20.37,51.54)}
 
 
-def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent'):
+def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False):
     if part not in PARTS:raise ContractError('region_part_invalid')
     bounds=PARTS[part]
     operation=OPERATION if part=='parent' else 'region:roads-2036-5153-neighbor-v1:'+part
     scope_id=SCOPE if part=='parent' else 'region-probe:roads-2036-5153-neighbors-v1'
     scope_limit=20 if part=='parent' else 40
+    if _pilot:
+        if part!='parent':raise ContractError('pilot_parent_only')
+        operation='region:roads-2036-5153-storage-pilot-v1'
+        scope_id=operation;scope_limit=20
     plan=plan_maplark_region(bounds)
     result=dict(status='plan',profile='roads',part=part,params=dict(plan.params),operation=operation,
         network_calls=0,max_network_calls=1,reservation=20,deadline=35,
@@ -48,11 +52,14 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
     if (not candidate or not candidate['enabled'] or candidate['url']!=plan.endpoint
             or not Registry.approved(candidate,'storage')):
         raise ContractError('approved_maplark_storage_required')
+    if _pilot and not Registry.approved(candidate,'world_storage'):
+        raise ContractError('approved_maplark_world_storage_required')
     revision=candidate['revision']
     def active():
         current=provider()
         return bool(current and current['revision']==revision and current['enabled']
-                    and Registry.approved(current,'storage'))
+                    and Registry.approved(current,'storage')
+                    and (not _pilot or Registry.approved(current,'world_storage')))
     ledger=CreditBudget(repo)
     # Reuse the live account limits; do not create/reset a budget or policy.
     windows=ledger.status('maplark')
@@ -75,7 +82,7 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
         status,retry,envelope=(transport or bounded_http)(*args,**kwargs)
         if status==200 and isinstance(envelope,dict):captured.update(envelope)
         return status,retry,envelope
-    _,billing=acquire_maplark(repo,plan,operation,20,accept_variable_cost=True,
+    batch,billing=acquire_maplark(repo,plan,operation,20,accept_variable_cost=True,
         transport=send,still_active=active,budget_scopes=(scope_id,),lane='background')
     # Persist only successful JSON and allowlisted response metadata, never request auth.
     allowed={'X-Returned','X-Has-More','X-Next-Cursor','X-Usage-Units-Charged'}
@@ -84,6 +91,7 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
     inspection=evaluate(bounds,'roads',body,headers)
     result.update(status='captured_not_certified',network_calls=1,billing=billing,
                   approval='operator_cli_single_bbox_probe',provider_revision=revision,
+                  fetched_at=min((o.provenance.fetched_at for o in batch.objects),default=time.time()),
                   inspection=inspection,output=str(destination))
     values={'body.json':body,'headers.json':headers,'report.json':result}
     encoded={name:json.dumps(value,ensure_ascii=False,allow_nan=False) for name,value in values.items()}

@@ -20,7 +20,8 @@ def prepare(batch,plan):
     """Keep full geometry and provenance; remove only bbox-envelope false positives.
 
     Complete here describes the source response, never provider area coverage.
-    This helper is deliberately not wired into acquisition, publication or gameplay.
+    This helper never approves publication or gameplay. An explicitly accepted
+    CLI pilot may consume its output under a separate isolated adapter contract.
     """
     try:
         params=dict(plan.params)

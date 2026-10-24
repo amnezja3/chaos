@@ -554,3 +554,35 @@ Walidacja lokalna: 32 testy regionalne PASS / 9.760 s; po podłączeniu adaptera
 do porównywarki ponownie 5 testów porównania PASS / 1.099 s. Żadnych nowych API.
 Warunki single-snapshot są technicznie obsługiwane przez obecny planner, który
 nie łączy snapshotów; kwalifikacja źródła/zakresu i osobny pilot area nadal otwarte.
+
+### 2026-10-24 — pakiet ograniczonego pilota regionalnego roads
+
+Przygotowano `tools/world_region_pilot.py` i runbook
+`doc/runbooks/world_region_storage_pilot.md`. Domyślny plan: zero HTTP/zapisów.
+Jawne wykonanie wymaga akceptacji pojedynczego regionu i zmiennego kosztu,
+aktualnych storage/world_storage, istniejącej schema v2 oraz nowego backupu.
+Spójny SQLite backup przed mutacją; jeden request, stałe ID operacji,
+nieodnawiane okno 20/1 h, wspólne limity konta i priorytet skanów graczy.
+
+Kwalifikacja jest ograniczona do operator-controlled empirical pilot:
+jeden świeży snapshot roads w bbox 20.36,51.53,20.37,51.54. Izolowany adapter
+`maplark-roads-single-region-pilot-v1` zapobiega odczytowi przez normalny
+adapter produkcyjny. Nie jest to poświadczenie dostawcy ani globalny certyfikat.
+Nieznany source_dataset_at pozostaje nieznany. Brak łączenia źródłowych wersji.
+Automatyczny filtr nie tworzy certyfikatu; jawne wykonanie CLI akceptuje tylko
+ten ograniczony profil pilota, na podstawie odebranego porównania wycinków.
+
+Testy na rzeczywistych geometriach zapisanej próbki: 76 raw / 75 stored;
+left 33 / right 54, pełne geometrie i suma ID zachowane po ponownym otwarciu
+bazy. Zwykły adapter oraz zapytanie poza bbox dają MISS. Błąd częściowości,
+pusta próbka, zmiana rewizji, brak world_storage i powtórzenie operacji nie
+publikują danych; koszty wykonanego requestu nie są cofane. Wygaśnięcie daje
+MISS bez sieci. Backup nie jest nadpisywany. Inspekcja --check używa mode=ro.
+
+Walidacja lokalna: 40 testów regionalnych PASS (9.852 s), 16 testów odczytu
+PASS (4.524 s), 8 testów acquisition PASS (2.596 s); łącznie 64. CLI plan PASS,
+network_calls=0. Wszystkie transporty testowe izolowane; zero prawdziwych API.
+Nie zmieniono flag, ecosystem, rejestru ani routingu gry.
+
+**Gotowe do push i jednorazowego odbioru na VPS; wykonanie pilota VPS nadal
+niepotwierdzone.** Ten etap nie zamyka innych warstw ani stałego rolloutu.
