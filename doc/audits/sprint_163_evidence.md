@@ -406,3 +406,21 @@ Całe 161–163 pozostają w realizacji ze względu na otwarte bramki regionalne
 Polecenie offline z /prywatny/katalog/body.json zakończyło się FileNotFoundError:
 była to ścieżka przykładowa, nie istniejący artefakt. Nie wykonano HTTP ani zapisu;
 nie stanowi to wyniku testu bbox. Następny etap: rzeczywista próbka bbox i granice.
+
+## Regionalne bbox — przygotowanie pojedynczej próby
+
+Dodano tools/world_region_probe.py i
+[instrukcję VPS](../runbooks/world_region_bbox_probe.md). Narzędzie domyślnie
+planuje bez HTTP. Wykonanie wymaga jawnego zatwierdzenia pojedynczej próby
+i zmiennego kosztu; korzysta z istniejących limitów MapLark oraz osobnego,
+nieodnawianego okna 20 kredytów/1 h. Stała operacja zapobiega drugiemu żądaniu.
+Diagnostyka ustępuje oczekującym skanom live, nie dodaje zadań do kolejki świata
+i nie zmienia rejestru, flag, certyfikatów ani cache. Zapisuje prywatną próbkę
+odpowiedzi i metadane rozliczenia, nie sekret ani nagłówki żądania.
+
+Testy lokalne: test_world_region*.py **12 PASS / 4.271 s**;
+test_world_acquisition.py **8 PASS / 2.549 s**. Obejmują koszt rzeczywisty,
+timeout z zachowaniem rezerwacji, niekompletną odpowiedź, zmianę rewizji,
+wygaśnięcie polityki/okna, brak zgody, brak budżetu, priorytet gracza,
+odmowę nadpisania plików i brak ponownego HTTP.
+Próba dostawcy pozostaje **NIEWYKONANA**; region_certified=false.
