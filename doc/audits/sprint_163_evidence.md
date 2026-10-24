@@ -246,3 +246,35 @@ Nie zmieniano UI, ecosystemu, bazy produkcyjnej ani flag. Brak nowych wywołań 
 Nadal otwarte przed background: nadzorowana pętla, jawna migracja, operacyjne
 uzgadnianie niepewnych operacji, test obciążenia i zatwierdzenie parametrów pilota.
 Nie jest to odbiór całego sprintu 163 ani aktywacja tła.
+# Proces operacyjny i ograniczony claim — 24.10.2026
+
+Dodano discovery_runtime, CLI world_discovery_worker i osobny ecosystem
+z workerem domyślnie OFF. Domyślne CLI planuje bez enqueue/claim/HTTP;
+--execute wymaga flagi, aktualnego pliku pozwolenia i istniejących budżetów.
+--serve wykonuje pojedyncze cykle z oczekiwaniem i obsługą zakończenia.
+Pozwolenie jest ponownie czytane przed HTTP/publikacją; usunięcie/zmiana
+zatrzymuje pracę bez kasowania wykorzystanych kredytów. Proces nie tworzy
+nowych zgód dostawcy, scope ani budżetu globalnego.
+
+Poprawka claim: SQL filtruje komórki/warstwy pozwolenia przed przejęciem.
+Wcześniej worker mógł przejąć cudzy sektor i dopiero potem oznaczyć zadanie
+POLICY_BLOCKED. Teraz pozostawia je PENDING bez zwiększenia attempts.
+Stary test oczekiwał policy_blocked; zmieniono oczekiwanie na idle + nietknięte
+zadanie. Nie usunięto testu ani warunku bezpieczeństwa.
+
+tools/poi_world.py --jobs rozszerza istniejący dry-run/backup/apply o tabele
+kolejki i księgi scope. Wymaga --canonical, zachowuje naliczenia i nie aktywuje
+workera. Runbook: [worker 163](../runbooks/world_discovery_worker_163.md).
+
+Testy lokalne: discovery 52 PASS (14.596 s), końcowy runtime 8 PASS
+(2.896 s), pełny World **190 PASS (42.318 s)**. Rzeczywiste izolowane SQLite,
+HTTP mockowany. Składnia ecosystemu i diff-check poprawne. Wyłączony CLI:
+disabled, network_calls=0. Brak wywołań publicznych API, zmian VPS i UI.
+Żaden nowy odbiór przeglądarkowy nie jest deklarowany.
+
+Geoapify rozliczenie pozostaje otwarte: raport panelu 3 Places/6 kredytów
+i 1 Geocoding/1 kredyt nie odpowiada czterem operacjom Places w CHAOS.
+Nie zwolniono rezerwacji i nie zresetowano limitów. Nie blokuje pakietu MapLark.
+
+Nadal nie zamykamy całego 163: regionalne coverage, panel dowodów/agregatów,
+land_water i pilot obciążenia/produkcji pozostają otwarte, jak w runbooku.

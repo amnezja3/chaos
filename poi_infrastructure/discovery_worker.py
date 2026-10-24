@@ -93,7 +93,7 @@ class DiscoveryWorker:
         self.permit.validate_budgets(self.repo)
         if os.environ.get('CHAOS_POI_PRIORITY_ENABLED') != '1':
             return dict(status='priority_required', network_calls=0)
-        job = self.jobs.claim(120)
+        job = self.jobs.claim(120, cells=self.permit.cells, profiles=self.permit.profiles)
         if job is None:
             return dict(status='idle', network_calls=0)
         key, owner = job['id'], job['owner']

@@ -88,10 +88,20 @@ class DiscoveryJobs:
         c.execute('''UPDATE world_discovery_job SET state='CANCELLED',reason='demand_expired',updated=?
             WHERE expires<=? AND state IN ('PENDING','DEFERRED','RETRY_AFTER')''',(now,now))
 
-    def claim(self,seconds=60):
+    def claim(self,seconds=60, *, cells=None, profiles=None):
         if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 1<=seconds<=120:
             raise ValueError('job_lease')
         now=time.time();owner=uuid.uuid4().hex
+        clauses=[]; params=[]
+        if cells is not None:
+            if not cells or len(cells)>10: raise ValueError('job_claim_scope')
+            clauses.append('('+' OR '.join('(d.cell_x=? AND d.cell_y=?)' for _ in cells)+')')
+            for x,y in sorted(cells): params.extend((x,y))
+        if profiles is not None:
+            if not profiles or len(profiles)>6: raise ValueError('job_claim_scope')
+            clauses.append('j.profile IN ('+','.join('?' for _ in profiles)+')')
+            params.extend(sorted(profiles))
+        scope=(' AND '+' AND '.join(clauses)) if clauses else ''
         with self.repo.transaction() as c:
             self._recover(c,now)
             cursor=c.execute('SELECT cell_x,cell_y FROM world_discovery_cursor WHERE singleton=1').fetchone()
@@ -102,9 +112,9 @@ class DiscoveryJobs:
                 JOIN world_discovery_demand d ON d.key=j.demand_key
                 WHERE j.state IN ('PENDING','DEFERRED','RETRY_AFTER')
                 AND j.available_at<=? AND j.expires>? AND d.expires>? AND j.attempts<?
-                ORDER BY CASE WHEN d.cell_x>? OR (d.cell_x=? AND d.cell_y>?)
+                '''+scope+''' ORDER BY CASE WHEN d.cell_x>? OR (d.cell_x=? AND d.cell_y>?)
                     THEN 0 ELSE 1 END,d.cell_x,d.cell_y,j.updated,j.id LIMIT 1''',
-                (now,now,now,self.max_attempts,x,x,y)).fetchone()
+                (now,now,now,self.max_attempts,*params,x,x,y)).fetchone()
             if not row:
                 return None
             c.execute("UPDATE world_discovery_job SET state='LEASED',owner=?,lease_until=?,attempts=attempts+1,updated=?,reason='' WHERE id=?",

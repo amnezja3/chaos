@@ -103,7 +103,9 @@ class DiscoveryWorkerTests(unittest.TestCase):
     def test_outside_permit_never_fetches(self):
         self.worker.permit = DiscoveryPermit(frozenset({(0, 0)}), frozenset({'roads'}), time.time()+60,
                                               budget_id='test')
-        self.assertEqual(self.worker.run_one()['status'], 'policy_blocked')
+        self.assertEqual(self.worker.run_one()['status'], 'idle')
+        self.assertEqual(self.jobs.get(self.key)['state'], 'PENDING')
+        self.assertEqual(self.jobs.get(self.key)['attempts'], 0)
         self.transport.assert_not_called()
 
     def test_live_waiter_defers_without_charge(self):

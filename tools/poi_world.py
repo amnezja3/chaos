@@ -16,7 +16,7 @@ from poi_infrastructure.world import WorldRepository
 from poi_infrastructure.providers import Registry
 
 
-def initialize(path, canonical=False, discovery=False):
+def initialize(path, canonical=False, discovery=False, jobs=False):
     repo=Repository(path)
     WorldRepository(repo).initialize()
     Registry(repo).initialize()
@@ -26,6 +26,12 @@ def initialize(path, canonical=False, discovery=False):
     if discovery:
         from poi_infrastructure.discovery_queue import DemandQueue
         DemandQueue(repo).initialize()
+    if jobs:
+        if not canonical: raise ValueError('jobs_require_canonical_schema')
+        from poi_infrastructure.discovery_jobs import DiscoveryJobs
+        from poi_infrastructure.credit_budget import CreditBudget
+        DiscoveryJobs(repo).initialize()
+        CreditBudget(repo).initialize()
     c=repo.connect()
     try:
         return dict(world=WorldRepository(repo).status(),providers=len(Registry(repo).list()),
@@ -43,8 +49,10 @@ def main():
     parser.add_argument('--apply',action='store_true')
     parser.add_argument('--canonical',action='store_true',help='Explicit offline Sprint 162 schema v2; no runtime activation')
     parser.add_argument('--discovery',action='store_true',help='Prepare passive demand table; no background fetching')
+    parser.add_argument('--jobs',action='store_true',help='Prepare worker, priority and budget tables; no scopes, budgets or activation')
     parser.add_argument('--backup',help='New backup file; required for apply to an existing database')
     args=parser.parse_args()
+    if args.jobs and not args.canonical: parser.error('--jobs requires --canonical')
     source=Path(args.db).resolve()
     if source.name=='game.sqlite3':
         parser.error('Refusing player database')
@@ -68,13 +76,13 @@ def main():
     if args.apply:
         if args.backup:
             copy_to(Path(args.backup).resolve())
-        result=initialize(source, args.canonical, args.discovery)
+        result=initialize(source, args.canonical, args.discovery, args.jobs)
         result['status']='schema_ready'
     else:
         with tempfile.TemporaryDirectory(prefix='poi-world-check-') as directory:
             target=Path(directory)/'poi.sqlite3'
             copy_to(target)
-            result=initialize(target, args.canonical, args.discovery)
+            result=initialize(target, args.canonical, args.discovery, args.jobs)
             result.update(status='dry_run',original_data_unchanged=True)
     print(json.dumps(result))
 

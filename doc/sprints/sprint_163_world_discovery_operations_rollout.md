@@ -12,8 +12,10 @@ Operator potwierdził zwykły skan w nowej lokalizacji po rollbacku: ograniczony
 pilot exact-query odebrany. Nie jest to odbiór regionalnego pokrycia ani tła.
 Dodano jednorazowego wykonawcę MapLark z krótkotrwałym limitem sektorów/warstw,
 scope background_refresh/storage/world_storage i wspólną księgą/priorytetem.
-Jest domyślnie wyłączoną biblioteką, bez automatycznego enqueue, pętli i PM2.
-Nie ma jeszcze produkcyjnego workera ani mapy dowodów coverage.
+Dodano lokalny proces CLI z ograniczoną pętlą, plikiem pozwolenia i osobnym
+ecosystemem OFF; wymaga odbioru na VPS. Nie ma jeszcze produkcyjnego odbioru
+workera ani mapy dowodów coverage. Procedura:
+[worker 163](../runbooks/world_discovery_worker_163.md).
 Dowody: [163](../audits/sprint_163_evidence.md).
 Zależności: [161](sprint_161_world_contract_and_adapters.md),
 [162](sprint_162_world_repository_local_read.md), otwarte dowody 160.
