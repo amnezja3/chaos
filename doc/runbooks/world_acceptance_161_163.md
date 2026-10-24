@@ -121,7 +121,13 @@ tracemalloc jako RSS ani jednego odczytu WAL jako maksimum obciążenia.
   okresu oznaczanym jako nieaktualne. Nie zmienia księgi, rezerwacji ani limitów.
   Progi 70/85/95 dotyczą budżetu wewnętrznego. Brak odczytu dostawcy = unknown.
 
-## 6. Regionalny test — przygotowany, bez wykonania API
+## 6. Regionalny test — roads odebrany w ograniczonym pilocie
+
+Aktualizacja 24.10.2026: niezależne parent/left/right porównane, następnie
+pilot 21f62b5 zapisał świeży snapshot 75 dróg. Lokalne wycinki 33/54 oraz
+osobny proces --check: PASS, zero HTTP. Pozyskanie: jeden request / 3 kredyty
+settled. Procedura i ograniczenia: [pilot roads](world_region_storage_pilot.md).
+Nie powtarzać odebranych prób. Poniższy plan offline nadal nie wykonuje HTTP.
 
 ```bash
 .venv/bin/python tools/world_region_plan.py --layer roads --bbox 20.36 51.53 20.37 51.54
@@ -139,8 +145,8 @@ certyfikatu dostawcy na podstawie jednego sukcesu. Dokumentacja źródłowa:
 https://maplark.com/products/osm-features-api (odczyt 24.10.2026; v3 bbox/intersects).
 Dotychczasowy zaakceptowany skaner radius pozostaje bez zmian.
 
-Otwarte bramki wymagające rzeczywistych danych: kompletność bbox na granicach,
-spójność wersji źródła; pilot cieku/jeziora z wyspą/wybrzeża; źródło land_water;
+Otwarte bramki wymagające rzeczywistych danych: kwalifikacja bbox poza odebraną
+próbką, spójność wersji źródła; pilot cieku/jeziora z wyspą/wybrzeża; źródło land_water;
 Geoapify pełny profil i rozliczenie. Nie odtwarzać oceanu przez domknięcie coastline
 do bbox. Ten pakiet nie ogłasza pełnego PASS 161–163 ani włączenia stałego tła.
 

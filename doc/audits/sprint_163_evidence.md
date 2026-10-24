@@ -586,3 +586,33 @@ Nie zmieniono flag, ecosystem, rejestru ani routingu gry.
 
 **Gotowe do push i jednorazowego odbioru na VPS; wykonanie pilota VPS nadal
 niepotwierdzone.** Ten etap nie zamyka innych warstw ani stałego rolloutu.
+
+### 2026-10-24 — odbiór regionalnego pilota roads na VPS: PASS
+
+Operator przekazał pełny wynik aktualizacji fff8d1b → 21f62b5 i wykonania
+procedury. Testy VPS: regionalne 40 PASS / 15.140 s, odczyt 16 PASS / 5.640 s,
+acquisition 8 PASS / 3.638 s. Razem 64 PASS. Plan: zero HTTP.
+
+- Artefakty: `/home/johndoe/chaos-region-storage-Bzz83O/capture`.
+- Backup: `/home/johndoe/chaos-region-storage-Bzz83O/poi_cache.sqlite3`.
+- Snapshot: `015779ba722f850f2fd85ef4c484096c1210f77c1c24d2e30004a50411df5285`.
+- Operacja: `region:roads-2036-5153-storage-pilot-v1`.
+- Pozyskanie: jeden request, reserved 20 / reported 3, billing settled.
+- Raw 76 / stored 75; wykluczony wyłącznie `osm:way:201343570`.
+- Publikacja: `published_pilot`; wszystkie odczyty COMPLETE_FRESH,
+  reason single_snapshot. Parent 75, left 33, right 54; ten sam snapshot.
+- Pełne geometrie i suma ID: `full_geometry_and_union_pass=true`.
+- Osobny proces CLI: `local_pilot_pass`, network_calls=0, production_writes=0.
+- Gameplay, environment i registry unchanged. Global_region_certified=false,
+  dataset_version_verified=false; nie nadano szerszej kwalifikacji.
+
+Zamknięto odbiór trwałego zapisu i lokalnego wyboru podobszarów **tego jednego
+profilu/regionu**. Dowód ponownego procesu CLI nie jest restartem PM2 ani restore
+produkcyjnego backupu. Nie ponawiać tej płatnej operacji. Źródłem potwierdzenia
+są wyniki przesłane przez operatora, nie bezpośrednia sesja SSH agenta.
+
+Kolejność pozostałej pracy: kwalifikacja profili cieku i jeziora z otworami,
+następnie osobny kontrakt wybrzeża/land_water oraz szerszy rollout per warstwa.
+Geoapify pozostaje bez pełnej kwalifikacji gameplay i bez uzgodnienia czterech
+niepewnych operacji; niniejszy odbiór nie zmienia jego księgi. Infrastruktura
+może być rozwijana offline bez ponawiania zaakceptowanych prób roads.

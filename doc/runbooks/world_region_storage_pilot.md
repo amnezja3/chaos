@@ -1,8 +1,12 @@
 # 162–163 — jeden regionalny snapshot roads
 
-Stan: przygotowany i przetestowany lokalnie; odbiór VPS jeszcze otwarty.
+Stan: **odbiór VPS PASS — 24.10.2026, commit 21f62b5**. Polecenia poniżej
+są zapisem procedury; wykonanej operacji nie powtarzać.
 Poprzednie porównanie parent/left/right ma PASS. Nie powtarzamy tych trzech
-zapytań. Teraz sprawdzamy świeże pobranie, trwały zapis i lokalny odczyt.
+zapytań. Świeże pobranie, trwały zapis i lokalny odczyt potwierdzone:
+76 raw / 75 stored, wycinki 33 i 54, jeden request / 3 kredyty settled.
+Osobny proces --check: local_pilot_pass, zero HTTP i zapisów.
+Artefakty: `/home/johndoe/chaos-region-storage-Bzz83O`.
 
 ## Co zatwierdza wykonanie
 

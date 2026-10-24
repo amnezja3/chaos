@@ -20,7 +20,11 @@ przeszły testy lokalne. Operator wdrożył 7e18c1d, potwierdził migrację,
 301 testów PASS na VPS, HTTP 200, zatrzymany worker i zapis PM2.
 Zwykły skan zapisał 1 sukces / 0 błędów / 1 próbę transportu, koszt 3 kredyty.
 Odbiór techniczny pakietu zamknięty; UI produkcyjne nie było osobno potwierdzone.
-Dowody bbox, pozostałe warstwy i rollout regionalny pozostają otwarte. Procedura:
+Porównanie niezależnych bbox roads oraz pilot trwałego zapisu i lokalnego odczytu
+jednego regionu mają PASS na VPS: 75 dróg, wycinki 33/54, jeden request za
+3 kredyty, osobny proces odczytu bez HTTP. Profil pilota pozostaje izolowany
+od skanera; nie potwierdzono wersji datasetu ani szerszej kwalifikacji źródła.
+Pozostałe warstwy i stały rollout regionalny pozostają otwarte. Procedura:
 [odbiór 161–163](../runbooks/world_acceptance_161_163.md). Procedura workera:
 [worker 163](../runbooks/world_discovery_worker_163.md).
 Dowody: [163](../audits/sprint_163_evidence.md).

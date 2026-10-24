@@ -250,3 +250,18 @@ Pierwsza próbka obejmuje koszt importu geometrii. Dane nie są reprezentatywnym
 wycinkami miast ani gęstymi rzeczywistymi relacjami. Te pomiary NIE zamykają R08
 ani benchmarku 162.0. Potrzebne dalsze pomiary czasu transakcji/RSS/WAL przed ON.
 Nie zwiększono budżetu magazynu na podstawie tych wyników.
+
+## 24.10.2026 — regionalny zapis i odczyt roads na VPS
+
+Operator potwierdził pilot z 21f62b5: jeden świeży request MapLark (3 kredyty,
+settled), 76 surowych / 75 zapisanych dróg. Parent 75, left 33, right 54:
+COMPLETE_FRESH z tego samego snapshotu, pełne geometrie i suma ID zgodne.
+Osobny proces --check potwierdził local_pilot_pass przy 0 HTTP / 0 zapisów.
+64 testy VPS PASS. Backup wykonany przed publikacją.
+
+Szczegółowy raport, identyfikatory i ścieżki: końcowy wpis regionalnego pilota
+w [dowodach 163](sprint_163_evidence.md). Zakres: izolowany adapter jednego
+regionu roads, bez przełączenia routingu graczy i bez deklaracji wersji OSM.
+R04 ma tym samym dowód rzeczywistego lokalnego odczytu dwóch podobszarów dla
+tego profilu; nie oznacza to pełnego R04 dla POI/pozostałych warstw ani restore
+tego snapshotu na VPS. Nie trzeba powtarzać odebranych zapytań regionalnych.

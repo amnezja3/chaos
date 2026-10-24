@@ -1,10 +1,13 @@
 # Sprint 162 — World Discovery: trwała pamięć świata i odczyt lokalny
 
-Data: 20.10.2026. Aktualizacja: 23.10.2026. Status: **W REALIZACJI — magazyn obserwacji offline**.
+Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — magazyn i ograniczony pilot regionalny roads odebrane na VPS**.
 Rozpoczęte 162.0–162.3: jawna migracja istniejących snapshot/member do v2,
 kanoniczne obserwacje, ograniczony odczyt przecięć i planer jednego snapshotu.
 Dowody exact query i certyfikowanej selekcji bbox zapisywane atomowo; certyfikaty
-obszarowe sprawdzone wyłącznie na fixtures. MapLark radius nadal exact-only.
+obszarowe sprawdzone na fixtures oraz w izolowanym pilocie jednego regionu roads
+na VPS (75 dróg, lokalne wycinki 33/54, osobny proces, zero HTTP przy odczycie).
+To empiryczny kontrakt jednego snapshotu, nie kwalifikacja wszystkich regionów.
+MapLark radius nadal exact-only.
 Opcjonalna integracja skanera za flagami OFF została sprawdzona lokalnie;
 produkcja nadal bez ingest/read. Dowody: [162](../audits/sprint_162_evidence.md).
 Wejście: [161](sprint_161_world_contract_and_adapters.md), istniejący kod 158–160,
