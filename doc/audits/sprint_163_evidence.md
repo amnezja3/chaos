@@ -424,3 +424,20 @@ timeout z zachowaniem rezerwacji, niekompletną odpowiedź, zmianę rewizji,
 wygaśnięcie polityki/okna, brak zgody, brak budżetu, priorytet gracza,
 odmowę nadpisania plików i brak ponownego HTTP.
 Próba dostawcy pozostaje **NIEWYKONANA**; region_certified=false.
+
+### Wynik pierwszego bbox roads na VPS
+
+Operator potwierdził 12 testów PASS / 5.474 s oraz pojedyncze pobranie:
+region:roads-2036-5153-bbox-v1, provider revision=9, 76 obiektów,
+completeness=complete według odpowiedzi, brak powodów niekompletności,
+reported_credits=3, reserved_credits=20, billing_state=settled.
+Artefakt: /home/johndoe/chaos-bbox-roads-oXi9gp/capture.
+Nie zmieniono gameplayu, rejestru ani world ingest.
+
+Kontrola granic **NIEZALICZONA**: invalid_objects=1; lewa połowa 33,
+prawa 54, wspólne 12. Nie wnioskujemy z tych liczników, czy problem dotyczy
+selekcji, klasyfikacji czy geometrii. Nie wystawiono certyfikatu regionu.
+Rozszerzono inspekcję offline o ograniczoną listę OSM ID, konkretne przyczyny,
+typ i bounds geometrii oraz rozróżnienie przecięcia obrysu od samej geometrii.
+Raport nie wypisuje nazw/adresów obiektów. Kolejna kontrola używa zapisanych
+body.json/headers.json, bez ponownego API i bez nowych kosztów.

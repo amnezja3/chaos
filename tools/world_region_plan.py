@@ -19,14 +19,34 @@ def evaluate(bounds,layer,body=None,headers=None):
     from shapely.geometry import box,shape
     batch=normalize_maplark(body,headers,Provenance('maplark',MAPLARK_VERSION,'offline-region-check',0),profile=layer,maximum=1000)
     area=box(*bounds)
-    invalid=[o.identity for o in batch.objects if not o.geometry or o.geometry.crosses_antimeridian
-             or layer not in o.layers or not shape(o.geometry.geojson()).intersects(area)]
     west,south,east,north=bounds;mid=(west+east)/2
     left=box(west,south,mid,north);right=box(mid,south,east,north)
-    left_ids={o.identity for o in batch.objects if shape(o.geometry.geojson()).intersects(left)}
-    right_ids={o.identity for o in batch.objects if shape(o.geometry.geojson()).intersects(right)}
+    invalid=[];left_ids=set();right_ids=set();reason_counts={}
+    for obj in batch.objects:
+        reasons=[];geometry=None
+        if layer not in obj.layers:reasons.append('layer_mismatch')
+        if not obj.geometry:reasons.append('missing_geometry')
+        elif obj.geometry.crosses_antimeridian:reasons.append('antimeridian_geometry')
+        else:
+            geometry=shape(obj.geometry.geojson())
+            if geometry.is_empty:reasons.append('empty_geometry')
+            elif not geometry.is_valid:reasons.append('invalid_geometry')
+            else:
+                if not geometry.intersects(area):reasons.append('geometry_outside_bbox')
+                if geometry.intersects(left):left_ids.add(obj.identity)
+                if geometry.intersects(right):right_ids.add(obj.identity)
+        if reasons:
+            for reason in reasons:reason_counts[reason]=reason_counts.get(reason,0)+1
+            tags=dict(obj.tags)
+            invalid.append(dict(identity=obj.identity,reasons=reasons,layers=list(obj.layers),
+                geometry_type=obj.geometry.kind if obj.geometry else None,
+                bounds=list(geometry.bounds) if geometry is not None and not geometry.is_empty else None,
+                envelope_intersects_bbox=bool(geometry.envelope.intersects(area)) if geometry is not None and not geometry.is_empty and geometry.is_valid else None,
+                classification_tags={key:tags[key] for key in ('highway','waterway','natural','area','type') if key in tags}))
     result.update(status='response_checked_not_certified',objects=len(batch.objects),
         completeness=batch.completeness,reasons=list(batch.reasons),invalid_objects=len(invalid),
+        invalid_reasons=reason_counts,invalid_details=invalid[:20],invalid_details_truncated=len(invalid)>20,
+        missing=['source dataset consistency','separate area certification']+(['boundary selection investigation'] if invalid else []),
         neighbor_candidates=dict(left=len(left_ids),right=len(right_ids),crossing=len(left_ids & right_ids)),
         boundary_selection_pass=not invalid and batch.completeness=='complete')
     return result
