@@ -642,3 +642,38 @@ acquisition 8 PASS / 2.046 s. Po doprecyzowaniu nazwy pola otworów ponownie
 9 testów wodnych PASS / 1.940 s. Nie wykonano prawdziwych wywołań dostawcy.
 Pozyskanie tych odpowiedzi na VPS i rzeczywisty odbiór jeziora z wyspą
 pozostają otwarte. Nie zmieniono flag produkcyjnych ani zakresu kwalifikacji.
+
+### 2026-10-24 — rzeczywiste odpowiedzi waterways i inland_water odebrane
+
+Źródło: kompletny log operatora z VPS, pull 21f62b5 → fc8a3dd. Testy:
+49 regionalnych PASS / 16.612 s, 16 read PASS / 7.124 s, 8 acquisition PASS /
+2.884 s; łącznie 73 PASS. Oba plany bez HTTP; potem dwa pojedyncze pobrania.
+Nie była to sesja SSH agenta; pełne geometrie pozostają w plikach na VPS.
+
+Katalog: `/home/johndoe/chaos-water-region-ZLZnBM`, podkatalogi waterways
+i inland_water, każdy body.json / headers.json / report.json.
+Oba raporty: captured_not_certified, kompletność complete bez reasons,
+provider_revision=9, po 3 reported credits / 20 reserved, settled.
+Łącznie 2 HTTP / 6 kredytów. Rejestr, gameplay i world ingest bez zmian.
+
+| Profil | Surowe | Kandydat po filtrze | Geometria | Lewy / prawy |
+| --- | ---: | ---: | --- | --- |
+| waterways | 2 | 1 | 2 LineString w odpowiedzi | 1 / 0 |
+| inland_water | 4 | 4 | 4 Polygon, zero otworów | 3 / 1 |
+
+Z waterways wykluczono `osm:way:1158230038` (waterway=ditch): sama geometria
+poza bbox, envelope przecina bbox. Bounds raportu:
+`[20.363869,51.5374067,20.3931653,51.5431479]`. To ten sam rodzaj nadmiarowej
+selekcji jak w próbie roads. Raw boundary_selection_pass=false, filtr ma
+blocking_objects=0 i observed_geometry_pass=true. Nie ukryto surowego błędu.
+Inland_water: zero invalid_objects, boundary_selection_pass=true.
+Oba candidate=prepared_not_certified; żaden wynik nie został dopuszczony
+jako kompletny regionalny odczyt produkcyjny.
+
+**Odbiór pozyskania obu odpowiedzi zamknięty.** Nie powtarzać tych operacji.
+**Jezioro z wyspą pozostaje otwarte:** zero interior_rings w próbce. Odpowiedź
+nie dostarcza także rzeczywistego MultiPolygon ani cieku przecinającego oba
+wycinki. Nie przypisujemy tych przypadków do PASS na podstawie fixtures.
+Następny krok: transfer istniejących artefaktów do ignorowanego lokalnego
+instance/provider-captures, minimalizacja fixtures i testy offline na pełnych
+geometriach. Sama liczebność raportu nie zastępuje dostępu do geometrii.

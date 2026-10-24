@@ -1,7 +1,27 @@
 # 162–163 — cieki i powierzchnie wód: dwie ograniczone odpowiedzi
 
-Pakiet przygotowany lokalnie. Brak wykonania API/VPS dla tych profili.
+**24.10.2026: obie próby wykonane na VPS, pobranie i walidacja PASS.**
+Cieki: 2 surowe / 1 po filtrze; powierzchnie wód: 4 Polygon, zero otworów.
+Łącznie 2 HTTP / 6 kredytów settled; 73 testy VPS PASS. Nie powtarzać poleceń
+pobrania zamieszczonych niżej. To zapis wykonanej procedury, nie nowe zlecenie.
+Artefakty: `/home/johndoe/chaos-water-region-ZLZnBM`.
+Brak odbioru jeziora z wyspą i brak kwalifikacji area dla obu profili.
 Drogi zostały odebrane; ich operacji nie powtarzamy i nie zmieniamy.
+
+## Przekazanie zapisanych odpowiedzi do pracy offline
+
+Na lokalnym Windows, z katalogu repozytorium (PowerShell):
+
+```powershell
+New-Item -ItemType Directory -Force -Path '.\instance\provider-captures' | Out-Null
+scp -O -r 'johndoe@185.201.114.123:/home/johndoe/chaos-water-region-ZLZnBM' '.\instance\provider-captures\'
+```
+
+Katalog instance jest już ignorowany przez Git. Zachowujemy oddzielne
+body.json, headers.json i report.json dla obu profili; bez nadpisywania
+próbki dróg. Transfer nie wykonuje zapytań do dostawcy i nie zmienia VPS.
+Przed utworzeniem wersjonowanych fixtures wyodrębnić jedynie geometrię,
+tożsamość OSM, niezbędne tagi klasyfikacji i dowody pochodzenia.
 
 ## Zakres
 
