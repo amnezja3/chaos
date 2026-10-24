@@ -1,4 +1,37 @@
-# Ograniczony pilot ingest/local — przygotowany, jeszcze nieaktywny
+# Ograniczony pilot ingest/local — odbiór trwałości i rollback
+
+## Aktualny etap — 24.10.2026
+
+Pilot robot / 51.531034,20.366130 / 300 m przeszedł odczyt world przez innego
+workera i po restarcie; operator zapisał PM2. Dowód w sprint_162_evidence.md.
+Repo przygotowuje teraz flagi OFF w ecosystem.web.config.js. Produkcja pozostaje
+w poprzednim stanie do wykonania poniższego reloadu przez operatora.
+
+Po wypchnięciu zmian, na VPS:
+
+```bash
+cd /home/johndoe/app/chaos &&
+git pull --ff-only &&
+pm2 startOrReload ecosystem.web.config.js --only chaos --update-env
+```
+
+Potwierdzić /launch HTTP 200, panel Ingest OFF / Read OFF / discovery passive,
+jeden zwykły udany skan w grze i `pm2 save`. Nie zmieniać revision/scopes
+MapLark przed sprzątaniem; nie przywracać starej bazy ponad aktualną księgę.
+
+Po 1800 s od ostatniego ingest, przy wyłączonym pilocie:
+
+```bash
+.venv/bin/python tools/world_storage_pilot.py --lat 51.531034 --lon 20.366130 --prune-expired --apply
+```
+
+Oczekiwane network_calls=0, ledger_unchanged=true, removed_cache_entries=0.
+pruned_snapshots>0 potwierdza usunięcie; zero przed wygaśnięciem jest poprawnym
+no-op, nie dowodem sprzątnięcia. Wynik world_state opisuje odczyt PRZED prune.
+Kolejna inspekcja bez flag mutujących powinna wykazać MISS dla usuniętego wyniku.
+Nie uruchamiać dodatkowych skanów API wyłącznie do testowania sprzątania.
+
+## Historyczna procedura przygotowania
 
 24.10.2026. Produkcja: discovery passive, ingest/read OFF. Priorytet live
 przeszedł na VPS 6 testów (3,494 s); shadow 7 (7,148 s). Nie oznacza to zgody

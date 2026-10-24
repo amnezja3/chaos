@@ -1,5 +1,34 @@
 # Sprint 162 — magazyn obserwacji, 23.10.2026
 
+## Odbiór trwałości na VPS — 24.10.2026
+
+Operator uruchomił zatwierdzony pilot: robot, 51.531034/20.366130, 300 m,
+MapLark revision 8, scopes normal_scan/storage/world_storage. Backup przed
+zmianą: `/home/johndoe/chaos-backups/162-pilot-20261024T063901Z/poi_cache.sqlite3`.
+Inspekcja klucza `6bc3ce570121`: COMPLETE_FRESH, single_snapshot, 19 obiektów,
+digest poprawny w ścieżce odczytu, network_calls=0, bez mutacji księgi/świata.
+
+Logi tego samego klucza i revision 8:
+
+| Źródło | PID | Timestamp |
+| --- | ---: | ---: |
+| upstream | 3900749 | 1792824924.483 |
+| world | 3900750 | 1792825024.815 |
+| world po restarcie | 3902812 | 1792825142.811 |
+
+PASS: ingest, odczyt przez inny worker i trwałość po restarcie w oknie świeżości.
+Operator potwierdził `pm2 save`. Dowód pochodzi z wyników CLI/logów przekazanych
+przez operatora; nie jest niezależnym przechwyceniem ruchu ani rachunkiem dostawcy.
+Ścieżka source=world omija pozyskanie danych od dostawcy.
+
+Przygotowano w ecosystem.web.config.js wyłączenie ingest/read i wyczyszczenie
+zakresu pilota do testu rollbacku. Nie oznacza to jeszcze wykonania na VPS.
+Otwarte: odbiór zwykłego skanu po wyłączeniu oraz selective prune po wygaśnięciu.
+Nie zamykamy pełnych sprintów 162/163 ani nie włączamy świata dla wszystkich.
+Kontrola przygotowanego rollbacku lokalnie: 9 testów shadow PASS (4,827 s),
+asercje wartości ecosystemu i node --check PASS, git diff --check bez błędów.
+Poniższe sekcje są historią wcześniejszych etapów, nie aktualnym stanem pilota.
+
 ## Pakiet ograniczonego pilota — 24.10.2026
 
 Dodano fail-closed zakres optional world: jedno konto z serwerowej sesji,
