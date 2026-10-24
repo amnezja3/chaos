@@ -1,5 +1,10 @@
 # Sprint 163 — kontrolowany proces discovery
 
+Aktualizacja odbioru 24.10.2026: pilot roads wykonał committed (1 HTTP,
+3 kredyty settled), a restart zwrócił idle (0 HTTP). Flaga workera w ecosystemie
+ponownie OFF po odbiorze. Poniższe kroki aktywacji opisują zakończony pilot;
+nie powtarzać ich automatycznie. Nie resetować jego permitu ani limitów.
+
 Status 24.10.2026: implementacja lokalna, produkcyjna aktywacja OFF.
 Nie jest to instrukcja włączenia pełnego regionalnego coverage.
 

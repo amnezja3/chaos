@@ -3,12 +3,13 @@ module.exports = { apps: [{
   name: 'chaos-world-discovery-worker',
   cwd: '/home/johndoe/app/chaos',
   script: '/home/johndoe/app/chaos/.venv/bin/python',
-  // Operator-approved pilot: one cycle only, no daemon or automatic retry.
+  // Roads pilot accepted on VPS; parked OFF after committed -> idle acceptance.
+  // Keep one cycle only for any future explicitly approved pilot.
   args: 'tools/world_discovery_worker.py --execute',
   interpreter: 'none', instances: 1, autorestart: false,
   kill_timeout: 40000,
   env: {
-    CHAOS_POI_DISCOVERY_WORKER_ENABLED: '1',
+    CHAOS_POI_DISCOVERY_WORKER_ENABLED: '0',
     CHAOS_POI_PRIORITY_ENABLED: '1',
     CHAOS_POI_ROUTING_ENABLED: '0',
     CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: '1',

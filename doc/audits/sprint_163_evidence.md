@@ -330,3 +330,13 @@ nie potwierdza pełnego regionalnego coverage, wykorzystania przez gameplay,
 braku powtórki po restarcie ani opóźnień skanera przy konkurencyjnym ruchu.
 Kolejny odbiór: pojedyncze ponowienie w ważnym oknie permitu powinno zwrócić
 idle/network_calls=0. Nie odnawiać wygasłego pozwolenia do tego testu.
+
+Operator potwierdził następnie nowy wpis po restarcie: status=idle,
+network_calls=0. Odbiór deduplikacji po restarcie PASS; wcześniejszy committed
+w tail logu jest wpisem historycznym, nie drugim pobraniem. Brak nowej operacji
+HTTP w tym cyklu. Łączny zgłoszony koszt pierwszego pobrania: 3 kredyty.
+Po odbiorze zaparkowano flagę workera w ecosystem.discovery.config.js na 0;
+wdrożenie tej zmiany i zatrzymanie procesu na VPS pozostają po stronie operatora.
+Priorytet skanów web pozostaje aktywny. Pełne 161–163 nie są jeszcze zamknięte:
+regionalne pokrycie, pozostałe warstwy i odbiór konkurencyjnego obciążenia
+nie wynikają z tego pilota roads.
