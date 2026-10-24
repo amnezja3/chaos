@@ -75,6 +75,46 @@ def register(app, authorize, csrf_failure):
     from flask import jsonify,request,session
     app.jinja_env.globals['poi_admin_enabled'] = enabled
 
+    @app.route('/api/admin/poi-provider-observation',methods=['POST'])
+    def poi_provider_observation():
+        if not authorize(): return jsonify(ok=False,error='admin_required'),403
+        if not enabled(): return jsonify(ok=False,error='poi_admin_disabled'),404
+        failure=csrf_failure()
+        if failure:return failure
+        if not request.is_json or not request.content_length or request.content_length>2048:
+            return jsonify(ok=False,error='invalid_request'),400
+        body=request.get_json(silent=True)
+        fields={'account','revision','credit_limit','used','period_start','period_end','observed_at'}
+        if not isinstance(body,dict) or set(body)!=fields:return jsonify(ok=False,error='invalid_request'),400
+        from .repository import Repository
+        from .provider_observation import save
+        import sqlite3
+        try:
+            data=save(Repository(os.environ.get('CHAOS_POI_CACHE_PATH','data/poi_cache.sqlite3')),**body)
+            return jsonify(ok=True,observation=data)
+        except ValueError as exc:
+            return jsonify(ok=False,error=str(exc)),409 if 'conflict' in str(exc) else 400
+        except sqlite3.OperationalError:
+            return jsonify(ok=False,error='observation_storage_unavailable'),503
+
+    @app.route('/api/admin/poi-world-view',methods=['GET'])
+    def poi_world_view():
+        if not authorize(): return jsonify(ok=False,error='admin_required'),403
+        if not enabled(): return jsonify(ok=False,error='poi_admin_disabled'),404
+        from .world_dashboard import coverage, budget_projection
+        from .repository import Repository
+        from pathlib import Path
+        layer=request.args.get('layer','all')
+        empty=request.args.get('empty','0')
+        if empty not in ('0','1'): return jsonify(ok=False,error='invalid_filter'),400
+        repo=Repository(os.environ.get('CHAOS_POI_CACHE_PATH','data/poi_cache.sqlite3'))
+        try:
+            data=coverage(repo,layer,empty=='1')
+            from .scan_metrics import summary
+            return jsonify(ok=True,coverage=data,metrics=summary(repo),budgets=budget_projection(repo) if Path(repo.path).is_file() else [])
+        except ValueError:
+            return jsonify(ok=False,error='invalid_filter'),400
+
     @app.route('/api/admin/poi-routing',methods=['GET','POST'])
     def poi_routing_admin():
         if not authorize():

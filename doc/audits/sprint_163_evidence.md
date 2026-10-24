@@ -340,3 +340,36 @@ wdrożenie tej zmiany i zatrzymanie procesu na VPS pozostają po stronie operato
 Priorytet skanów web pozostaje aktywny. Pełne 161–163 nie są jeszcze zamknięte:
 regionalne pokrycie, pozostałe warstwy i odbiór konkurencyjnego obciążenia
 nie wynikają z tego pilota roads.
+
+## Pakiet panelu, metryk i odbioru — 24.10.2026
+
+Gotowy lokalnie do wdrożenia, bez nowych wywołań dostawców:
+
+- Atlas ograniczony do 100 snapshotów / 8 MiB / 2 s SQL. Oddziela dowody area
+  od exact-query i obrysów UNKNOWN; filtry 6 warstw, kompletne puste wyniki,
+  szczegóły zgody, pan/zoom i zakres ważności. Brak mapy tras graczy.
+- Godzinowe agregaty POIFetcher.get_all: sukces/błąd/pusty wynik, rozłączne
+  źródła, próby transportu, przedziały latencji. Opcjonalne zapisy fail-soft;
+  4 procesy zapisujące równocześnie przeszły test bez utraty liczników.
+- Ostrzeżenia 70/85/95% budżetu wewnętrznego. Ręczny, datowany odczyt konta
+  dostawcy z CAS i CSRF nie rozlicza ani nie zwalnia rezerwacji Geoapify.
+- Jawna migracja --metrics; read-only tools/world_release_check.py bada spójną
+  kopię bazy, integralność, kolejkę, dowody, budżety i liczniki bez HTTP.
+- Plan bbox i offline inspekcja warstw liniowych/powierzchniowych. Nie jest
+  podłączony do skanera radius, nie nadaje certyfikatu regionalnej kompletności.
+
+Walidacja finalna na Windows, izolowane bazy/transporty:
+
+- test_world_*.py: **209 PASS, 115.561 s**.
+- test_poi_*.py: **92 PASS, 104.613 s**.
+- Playwright MCP: tests/browser/world_atlas.js, PL/EN, 1440 i 390 px,
+  filtry, puste dowody, szczegóły, zoom/fit, próg 95%, brak overflow.
+  Zero page errors, zero zewnętrznych requestów, konsola bez błędów/ostrzeżeń.
+  Dodatkowo sprawdzono zapis ręcznej obserwacji i pan w izolowanym panelu.
+- Node sprawdził składnię JS. Browser oraz lokalny fixture zamknięte po QA.
+
+Procedura migracji, backupu, reloadu, testów po wdrożeniu i rollbacku:
+[world_acceptance_161_163.md](../runbooks/world_acceptance_161_163.md).
+VPS tego pakietu jeszcze nie potwierdził. Nie zmieniono produkcji ani naliczeń.
+Otwarte pozostają realne dowody regionalne, piloci pozostałych warstw, źródło
+land_water, pełny profil Geoapify i uzgodnienie kosztów jego diagnostyki.

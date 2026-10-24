@@ -78,6 +78,8 @@ def acquire_features(repo, plan, operation, reservation, *, account,
         if not still_active() or not repo.owns('@upstream', slot):
             raise POIError('scanner_inactive_or_slot_lost')
         sent = True
+        from .scan_metrics import transport_attempt
+        transport_attempt()
         status, retry, envelope = (transport or bounded_http)(
             Config(deadline=35), plan.endpoint, plan, min(30, deadline-time.monotonic()), deadline,
             secure='world-features')
@@ -96,6 +98,9 @@ def acquire_features(repo, plan, operation, reservation, *, account,
         if account=='maplark':
             batch = normalize_maplark(envelope.get('body'), headers, provenance,
                                       profile=plan.profile, maximum=int(dict(plan.params)['limit']))
+            if 'bbox' in dict(plan.params):
+                from dataclasses import replace
+                batch=replace(batch,selection='maplark-bbox-unverified')
         else:
             batch = normalize_geoapify(envelope.get('body'), provenance,
                                        page_limit=int(dict(plan.params)['limit']))

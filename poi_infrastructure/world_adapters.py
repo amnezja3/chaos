@@ -36,9 +36,13 @@ class RequestPlan:
             if len(params) != len(self.params):
                 raise ValueError()
             if self.endpoint == 'https://api.maplark.com/v3/osm_features':
-                lat, lon = map(float, params['location'].split(','))
-                expected = plan_maplark(lat, lon, float(params['radius']),
-                                        profile=self.profile, limit=int(params['limit']))
+                if 'bbox' in params:
+                    expected = plan_maplark_region(tuple(map(float,params['bbox'].split(','))),
+                                                   profile=self.profile,limit=int(params['limit']))
+                else:
+                    lat, lon = map(float, params['location'].split(','))
+                    expected = plan_maplark(lat, lon, float(params['radius']),
+                                            profile=self.profile, limit=int(params['limit']))
             elif self.endpoint == 'https://api.geoapify.com/v2/places':
                 shape, values = params['filter'].split(':', 1)
                 lon, lat, radius = values.split(',')
@@ -76,6 +80,21 @@ def plan_maplark(lat, lon, radius, *, profile=POI_PROFILE, limit=20000):
                        (('location', f'{float(lat)},{float(lon)}'), ('radius', str(float(radius))),
                         ('tags', filters[profile]), ('limit', str(limit)), ('clipGeometry', 'false')),
                        'Authorization', 'CHAOS_MAPLARK_API_KEY', profile, MAPLARK_VERSION)
+
+
+def plan_maplark_region(bounds, *, profile='roads',limit=1000):
+    """Small experimental bbox contract; not a certified area or live scanner."""
+    from .world_read import checked_bounds
+    west,south,east,north=checked_bounds(bounds)
+    if east-west>.020001 or north-south>.020001:
+        raise ContractError('region_probe_bounds_limit')
+    filters={'roads':'highway','waterways':'waterway','inland_water':'natural=water','coastline':'natural=coastline'}
+    if profile not in filters: raise ContractError('region_profile_unsupported')
+    if type(limit) is not int or not 1<=limit<=1000:raise ContractError('feature_limit')
+    return RequestPlan('https://api.maplark.com/v3/osm_features',
+        (('bbox',','.join(str(float(v)) for v in (west,south,east,north))),
+         ('tags',filters[profile]),('limit',str(limit)),('clipGeometry','false')),
+        'Authorization','CHAOS_MAPLARK_API_KEY',profile,MAPLARK_VERSION)
 
 
 def plan_geoapify(lat, lon, radius, *, categories, limit=100, offset=0):

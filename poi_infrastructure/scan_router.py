@@ -54,6 +54,8 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
         if not active():
             raise POIError('routing_changed_or_cancelled')
         stop=min(deadline,time.monotonic()+35)
+        from .scan_metrics import transport_attempt
+        transport_attempt()
         status,retry,data=bounded_http(service.config,candidate['url'],query,min(timeout,30),stop,secure=True)
         if status!=200:
             if status in (429,500,502,503,504):

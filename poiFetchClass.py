@@ -198,6 +198,8 @@ out center;
         return categories
 
     def get_all(self, lat: float, lon: float, result_limit: int = 60, scan_options=None) -> List[Dict]:
+        from poi_infrastructure import scan_metrics
+        metric_token = scan_metrics.begin()
         started = time.monotonic()
         outcome = 'api_error'
         try:
@@ -205,6 +207,7 @@ out center;
             outcome = 'success' if result else 'empty'
             return result
         finally:
+            scan_metrics.finish(metric_token, outcome)
             from poi_infrastructure import logger
             logger().info('poi_scan %s', json.dumps({
                 'result': outcome, 'seconds': round(time.monotonic() - started, 4),

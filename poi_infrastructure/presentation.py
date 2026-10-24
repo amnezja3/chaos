@@ -24,6 +24,8 @@ def capture():
 
 
 def publish(source, policy=None, restored=False):
+    from .scan_metrics import source as record_source
+    record_source(source)
     evidence = _capture.get()
     if evidence is None or not enabled():
         return

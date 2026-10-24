@@ -396,6 +396,8 @@ class Service:
                     if use_wide:
                         wide_attempted = True
                         operation = 'wide_fetch'
+                    from .scan_metrics import transport_attempt
+                    transport_attempt()
                     status, retry, data = self.transport(endpoint, fill_query if use_wide else query, timeout, deadline)
                     transport_status = str(status)
                     LOG.info('poi_http %s', json.dumps(dict(provider=group, status=status)))

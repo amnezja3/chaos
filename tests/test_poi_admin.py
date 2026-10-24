@@ -77,5 +77,26 @@ class AdminTests(unittest.TestCase):
             with patch.dict(os.environ,CHAOS_POI_PROVIDER_ADMIN_ENABLED='0'):
                 self.assertEqual(self.client.get(route).status_code,404)
 
+    def test_world_view_and_manual_observation_auth_validation_no_schema_on_get(self):
+        from poi_infrastructure.repository import Repository
+        from poi_infrastructure.provider_observation import initialize
+        import time
+        path=Path(self.tmp.name)/'world-view.sqlite3'
+        with patch.dict(os.environ,CHAOS_POI_PROVIDER_ADMIN_ENABLED='1',CHAOS_POI_CACHE_PATH=str(path)):
+            self.assertEqual(self.client.get('/api/admin/poi-world-view').status_code,403)
+            self.generation.authenticate(self.client,'admin')
+            self.assertEqual(self.client.get('/api/admin/poi-world-view').status_code,200)
+            self.assertFalse(path.exists())
+            self.assertEqual(self.client.get('/api/admin/poi-world-view?layer=nope').status_code,400)
+            repo=Repository(path);repo.initialize();initialize(repo)
+            now=time.time();body=dict(account='maplark',revision=0,credit_limit=30000,used=5,period_start=now-3600,period_end=now+3600,observed_at=now)
+            route='/api/admin/poi-provider-observation'
+            self.assertEqual(self.client.post(route,json=body,headers={'X-Chaos-CSRF':'wrong'}).status_code,403)
+            with self.client.session_transaction() as session:session['session_csrf']='fixture-csrf'
+            headers={'Origin':'http://localhost','X-Chaos-CSRF':'fixture-csrf'}
+            self.assertEqual(self.client.post(route,json=body,headers=headers).status_code,200)
+            self.assertEqual(self.client.post(route,json=body,headers=headers).status_code,409)
+            self.assertEqual(self.client.post(route,json=dict(body,revision=1,used=-1),headers=headers).status_code,400)
+
 
 if __name__=='__main__':unittest.main()

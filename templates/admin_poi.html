@@ -1,6 +1,6 @@
 {% extends "admin_base.html" %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/admin_poi.css?v=163-routing-1">
+<link rel="stylesheet" href="/static/css/admin_poi.css?v=163-atlas-1">
 <section id="poi-admin" class="panel" data-locale="{{ ui_locale }}" data-csrf="{{ poi_csrf }}">
 <h1>POI / World Discovery</h1>
 <p data-copy="intro"></p>
@@ -27,6 +27,25 @@
 <p data-copy="worldHint"></p>
 <div id="poi-world-summary" role="status" aria-live="polite"></div>
 <div id="poi-world-budget"></div>
+<section id="world-atlas" class="panel">
+<h3 id="atlas-title"></h3>
+<p id="atlas-hint"></p>
+<div class="atlas-controls">
+<label><span id="atlas-layer-label"></span> <select id="atlas-layer"></select></label>
+<label><input id="atlas-empty" type="checkbox"> <span id="atlas-empty-label"></span></label>
+<button type="button" id="atlas-refresh"></button>
+<button type="button" id="atlas-in">+</button><button type="button" id="atlas-out">−</button>
+<button type="button" id="atlas-fit"></button>
+</div>
+<p id="atlas-feedback" role="status" aria-live="polite"></p>
+<p id="atlas-legend"></p>
+<svg id="atlas-map" viewBox="0 0 800 360" role="img"></svg>
+<p id="atlas-empty-map"></p>
+<div id="atlas-details" aria-live="polite"></div>
+<div id="atlas-list"></div>
+<h3 id="atlas-budget-title"></h3><div id="atlas-budgets"></div>
+<div id="atlas-metrics"></div>
+</section>
 <h3 data-copy="demandTitle"></h3>
 <p data-copy="demandHint"></p>
 <div id="poi-demand-summary"></div>
@@ -63,4 +82,4 @@
 <h2 data-copy="audit"></h2><div id="poi-audit" class="table-scroll"></div>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/admin_poi.js?v=163-jobs-1"></script><script src="/static/js/admin_poi_routing.js?v=163-routing-1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/admin_poi.js?v=163-jobs-1"></script><script src="/static/js/admin_poi_routing.js?v=163-routing-1"></script><script src="/static/js/admin_world_atlas.js?v=163-1"></script>{% endblock %}

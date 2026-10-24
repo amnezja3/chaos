@@ -48,7 +48,17 @@ def main():
             for lon,lat in ((21.001,52.001),(21.021,52.011),(21.031,52.031)):
                 queue.record(lon,lat)
             ledger=CreditBudget(repo);ledger.initialize();ledger.configure_recurring('maplark',800,24000)
+            ledger.reserve('maplark','synthetic-warning-fixture',760)
+            ledger.settle('maplark','synthetic-warning-fixture',760)
             os.environ['CHAOS_POI_DISCOVERY_MODE']='passive'
+            from world_dashboard_fixture import seed
+            seed(repo)
+            from poi_infrastructure import scan_metrics
+            scan_metrics.initialize(repo)
+            from poi_infrastructure.provider_observation import initialize as init_observations
+            init_observations(repo)
+            for source in ('world','fresh','upstream'):
+                scan_metrics.record(repo,{source},int(source=='upstream'),'success',.5)
         client_lock=threading.Lock()
         class Handler(BaseHTTPRequestHandler):
             def route(self):

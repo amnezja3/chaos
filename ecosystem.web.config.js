@@ -26,6 +26,8 @@ module.exports = {
         CHAOS_POI_DISCOVERY_MODE: "passive",
         // Sprint 163: live scans take admission priority over the bounded roads pilot.
         CHAOS_POI_PRIORITY_ENABLED: "1",
+        // Apply tools/poi_world.py --metrics before enabling aggregate writes.
+        CHAOS_POI_METRICS_ENABLED: "1",
         // Enable explicitly after the offline 148 project migration.
         CHAOS_CREATORS_V2_ENABLED: process.env.CHAOS_CREATORS_V2_ENABLED || "false",
         CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",
