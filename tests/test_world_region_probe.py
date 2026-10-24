@@ -121,3 +121,19 @@ class RegionProbeTests(unittest.TestCase):
             self.transport.assert_not_called()
             self.assertEqual(self.ledger.status('maplark')[0]['committed'],0)
         finally:gate.cancel(ticket)
+
+    def test_two_neighbors_have_distinct_operations_shared_scope_and_no_retry(self):
+        left=self.call(part='left')
+        self.output=Path(self.tmp.name)/'right'
+        right=self.call(part='right')
+        self.assertNotEqual(left['operation'],right['operation'])
+        self.assertEqual(self.transport.call_count,2)
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],6)
+        scope=self.ledger.scope_status('maplark','region-probe:roads-2036-5153-neighbors-v1')
+        self.assertEqual((scope['credit_limit'],scope['committed']),(40,6))
+        with self.assertRaisesRegex(ContractError,'already_used'):self.call(part='left')
+        self.assertEqual(self.transport.call_count,2)
+
+    def test_arbitrary_region_part_rejected_without_http(self):
+        with self.assertRaisesRegex(ContractError,'part_invalid'):self.call(part='anything')
+        self.transport.assert_not_called()

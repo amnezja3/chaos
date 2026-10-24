@@ -493,3 +493,24 @@ Nie dowodzi braku obiektów pominiętych przez API ani spójnej wersji źródła
 Następny etap kwalifikacji: porównanie selekcji niezależnych zapytań o sąsiednie
 wycinki z lokalnymi wynikami i rozstrzygnięcie semantyki danych źródłowych.
 Żadnych kolejnych zapytań dostawcy ani zmian VPS nie wykonano.
+
+### Przygotowanie niezależnej kontroli sąsiednich wycinków
+
+Rozszerzono istniejącą diagnostykę o dwa sztywno zdefiniowane warianty left/right.
+Każdy ma własną stałą operację, oba wspólne nieodnawiane okno 40 kredytów/1 h,
+rezerwację 20 na żądanie i współdzielone limity konta. Parent zachowuje poprzednią
+tożsamość; nowe warianty nie umożliwiają ponowienia poprzedniego pobrania.
+Nadal jest to ręczna diagnostyka o niższym priorytecie, bez ingest i aktywacji tła.
+
+tools/world_region_compare.py odczytuje trzy istniejące katalogi, sprawdza
+powiązanie raportów z bbox i rewizję, porównuje lokalne ID z niezależnymi
+odpowiedziami oraz pełną topologię geometrii i highway. Braki, dodatkowe obiekty,
+clipowanie, zmienione dane i niepełne odpowiedzi nie otrzymują PASS.
+Przy zgodności próbek nadal region_certified=false i dataset_version_verified=false.
+
+test_world_region*.py: **27 PASS / 9.220 s**. Nowe testy używają symulowanych
+odpowiedzi wycinków opartych na prawdziwej geometrii; nie są to niezależne
+odpowiedzi MapLark. Zweryfikowano też wspólny limit obu operacji i brak retry.
+Runbook: [world_region_neighbors.md](../runbooks/world_region_neighbors.md).
+Następna rzeczywiście potrzebna czynność operatora: push i dwa ograniczone
+wywołania na VPS. Agent nie wykonał nowych HTTP ani nie zmienił produkcji.
