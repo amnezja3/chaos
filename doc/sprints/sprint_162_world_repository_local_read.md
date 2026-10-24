@@ -13,6 +13,10 @@ produkcja nadal bez ingest/read. Dowody: [162](../audits/sprint_162_evidence.md)
 Wejście: [161](sprint_161_world_contract_and_adapters.md), istniejący kod 158–160,
 [koncepcja](../prototypes/poi/CHAOS_WORLD_DISCOVERY_ENGINE_KONCEPCJA_BEZ_NUMERU.md).
 Wyjście: [163](sprint_163_world_discovery_operations_rollout.md).
+Pakiet lokalny 24.10: gotowy kontrakt regionalnego produktu land_water,
+opcjonalne pochodzenie w istniejącym magazynie, walidacja pełnej partycji
+ląd/morze i unieważnianie odczytu przy zmianie zależności. Testy syntetyczne
+nie kwalifikują źródła live. [Wyniki i granice](../audits/world_local_release_161_163_20261024.md).
 Etapy koncepcji C i D. Produkcyjny rollout 160 pozostaje wstrzymany.
 
 ## Cel i granica

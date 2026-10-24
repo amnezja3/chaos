@@ -21,11 +21,13 @@ FORMAT = 'canonical-observations-v1'
 
 
 def encode_object(obj):
-    return dict(identity=obj.identity, external_id=obj.external_id,
+    raw=dict(identity=obj.identity, external_id=obj.external_id,
                 osm_type=obj.osm_type, osm_id=obj.osm_id, tags=dict(obj.tags),
                 geometry=obj.geometry.geojson() if obj.geometry else None,
                 marker=obj.marker, marker_method=obj.marker_method,
                 provenance=asdict(obj.provenance), ordinal=obj.ordinal)
+    if obj.land_water_origin is not None:raw['land_water_origin']=asdict(obj.land_water_origin)
+    return raw
 
 
 def decode_object(raw):
@@ -33,6 +35,11 @@ def decode_object(raw):
     identity = value.pop('identity')
     value['provenance'] = Provenance(**value['provenance'])
     value['geometry'] = Geometry.parse(value['geometry']) if value['geometry'] else None
+    if value.get('land_water_origin') is not None:
+        from .world_contract import LandWaterOrigin
+        origin=dict(value['land_water_origin'])
+        origin['bounds']=tuple(origin['bounds']);origin['dependencies']=tuple(origin['dependencies'])
+        value['land_water_origin']=LandWaterOrigin(**origin)
     obj = WorldObject.create(**value)
     if obj.identity != identity:
         raise ContractError('stored_identity_mismatch')

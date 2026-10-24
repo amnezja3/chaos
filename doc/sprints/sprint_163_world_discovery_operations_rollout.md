@@ -28,6 +28,9 @@ Pozostałe warstwy i stały rollout regionalny pozostają otwarte. Procedura:
 [odbiór 161–163](../runbooks/world_acceptance_161_163.md). Procedura workera:
 [worker 163](../runbooks/world_discovery_worker_163.md).
 Dowody: [163](../audits/sprint_163_evidence.md).
+Pakiet wspólnego odbioru 24.10: [lokalne wyniki](../audits/world_local_release_161_163_20261024.md)
+i [jedna instrukcja VPS](../runbooks/world_final_acceptance_161_163.md).
+Przygotowanie nie aktywuje tła/ingest/read ani nie zamyka kwalifikacji źródeł.
 Zależności: [161](sprint_161_world_contract_and_adapters.md),
 [162](sprint_162_world_repository_local_read.md), otwarte dowody 160.
 Źródło: [koncepcja](../prototypes/poi/CHAOS_WORLD_DISCOVERY_ENGINE_KONCEPCJA_BEZ_NUMERU.md), etapy E–H.

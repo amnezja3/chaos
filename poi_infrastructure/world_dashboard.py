@@ -79,8 +79,10 @@ def coverage(repo, layer='all', show_empty=False):
                     result['items'].append(dict(id=row['id'],provider=row['provider'],profile=profile,
                         layers=counts,objects=count,state=state,scope='area' if area else 'observations',
                         bounds=list(proof.bounds) if area else bounds,
-                        reason='area_proof' if area and proof_matches else 'no_regional_selection_proof',
-                        policy_allowed=permitted,local_read_allowed=bool(permitted and area and proof_matches and now<row['fresh_until']),
+                        reason=('source_dependencies_not_checked' if selected=='land_water' and area and proof_matches
+                                else 'area_proof' if area and proof_matches else 'no_regional_selection_proof'),
+                        policy_allowed=permitted,local_read_allowed=bool(permitted and area and proof_matches
+                            and selected!='land_water' and now<row['fresh_until']),
                         fetched=row['fetched'],fresh_until=row['fresh_until'],usable_until=row['usable_until'],
                         bytes=row['payload_size'],empty=count==0,
                         proof_mode=proof.mode if proof else None,

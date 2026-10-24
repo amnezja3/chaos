@@ -15,7 +15,7 @@ from .world_contract import ContractError, ProviderBatch, SCHEMA_VERSION, positi
 
 READ_FORMAT = 'canonical-local-read-v1'
 AREA_SELECTION = 'bbox-intersects-full-v1'
-AREA_LAYERS = frozenset(('roads', 'waterways', 'inland_water', 'coastline'))
+AREA_LAYERS = frozenset(('roads', 'waterways', 'inland_water', 'coastline','land_water'))
 
 
 def checked_bounds(bounds):
@@ -54,6 +54,8 @@ class SelectionProof:
             if self.bounds is not None or self.certificate is not None or self.layer != 'poi':
                 raise ContractError('local_exact_profile')
         else:
+            if self.layer=='land_water' and not self.dataset_version:
+                raise ContractError('local_land_water_dataset_required')
             if (self.layer not in AREA_LAYERS or self.profile != self.layer
                     or self.selection != AREA_SELECTION or not isinstance(self.certificate,str)
                     or not re.fullmatch(r'[a-zA-Z0-9_.:-]{1,160}',self.certificate)):
@@ -80,6 +82,9 @@ class SelectionProof:
             area=box(*self.bounds)
             if any(not shape(o.geometry.geojson()).intersects(area) for o in batch.objects):
                 raise ContractError('local_area_selection_mismatch')
+            if self.layer=='land_water':
+                from .land_water import validate_partition
+                validate_partition(batch.objects,self.bounds,self.dataset_version)
 
     def document(self):
         return asdict(self)
@@ -106,7 +111,7 @@ class WorldReadPlanner:
     def read(self, *, provider, revision, storage_reference, profile, selection,
              adapter_version, layer='poi', query_key=None, bounds=None,
              allow_stale=False, still_active=lambda: True, max_objects=1000,
-             max_seconds=2.0, dataset_version=None):
+             max_seconds=2.0, dataset_version=None,dependency_digests=None):
         from .world_storage import FORMAT, decode_object
         if type(max_objects) is not int or not 1 <= max_objects <= 10000:
             raise ContractError('local_read_limit')
@@ -172,6 +177,14 @@ class WorldReadPlanner:
                         or raw.get('fresh_until') != row['fresh_until'] or raw.get('usable_until') != row['usable_until']):
                     continue
                 objects=tuple(decode_object(o) for o in raw['objects'])
+                if layer=='land_water':
+                    # The caller must supply the current source dependencies;
+                    # an old derived product must not outlive their revision.
+                    if not dependency_digests or any(not o.land_water_origin or
+                            o.land_water_origin.dependencies!=tuple(dependency_digests) for o in objects):
+                        continue
+                    from .land_water import validate_partition
+                    validate_partition(objects,proof.bounds,dataset_version)
                 if any(o.provenance.provider != provider or o.provenance.adapter_version != adapter_version
                        or o.provenance.source_dataset_at != dataset_version for o in objects):
                     continue

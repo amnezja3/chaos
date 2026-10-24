@@ -144,6 +144,31 @@ class Provenance:
 
 
 @dataclass(frozen=True)
+class LandWaterOrigin:
+    """Explicit product lineage; never inferred from OSM tags or coastline."""
+    dataset_version: str
+    product_digest: str
+    role: str
+    bounds: tuple
+    dependencies: tuple
+    algorithm: str = 'regional-product-v1'
+
+    def __post_init__(self):
+        if (not isinstance(self.dataset_version,str) or not 1<=len(self.dataset_version)<=160
+                or not isinstance(self.product_digest,str) or not re.fullmatch('[0-9a-f]{64}',self.product_digest)
+                or self.role not in ('land','sea') or self.algorithm!='regional-product-v1'):
+            raise ContractError('land_water_origin_invalid')
+        if not isinstance(self.bounds,tuple) or len(self.bounds)!=4:
+            raise ContractError('land_water_bounds')
+        w,s=position(self.bounds[:2]);e,n=position(self.bounds[2:])
+        if not 0<e-w<=.020001 or not 0<n-s<=.020001:raise ContractError('land_water_bounds')
+        if (not isinstance(self.dependencies,tuple) or not 1<=len(self.dependencies)<=16
+                or any(not isinstance(d,str) or not re.fullmatch('[0-9a-f]{64}',d) for d in self.dependencies)
+                or len(set(self.dependencies))!=len(self.dependencies)):
+            raise ContractError('land_water_dependencies')
+
+
+@dataclass(frozen=True)
 class WorldObject:
     identity: str
     external_id: str
@@ -156,10 +181,11 @@ class WorldObject:
     marker_method: str | None
     provenance: Provenance
     ordinal: int
+    land_water_origin: LandWaterOrigin | None = None
 
     @classmethod
     def create(cls, *, external_id, tags, geometry, marker, marker_method, provenance,
-               ordinal, osm_type=None, osm_id=None):
+               ordinal, osm_type=None, osm_id=None,land_water_origin=None):
         if not isinstance(provenance, Provenance):
             raise ContractError('provenance_required')
         if not isinstance(external_id, str) or not external_id or len(external_id) > 2048:
@@ -183,9 +209,17 @@ class WorldObject:
             raise ContractError('marker_method_invalid')
         if (marker is None) != (marker_method is None):
             raise ContractError('marker_method_missing')
+        layers=layers_for(tags)
+        if land_water_origin is not None:
+            if (not isinstance(land_water_origin,LandWaterOrigin) or osm_type is not None or osm_id is not None
+                    or tags or marker is not None or not geometry or geometry.kind not in ('Polygon','MultiPolygon')
+                    or geometry.validation!='planar_topology_valid' or geometry.crosses_antimeridian
+                    or provenance.source_dataset_at!=land_water_origin.dataset_version):
+                raise ContractError('land_water_object_invalid')
+            layers=frozenset(('land_water',))
         return cls(identity, external_id, osm_type, osm_id, tuple(sorted(tags.items())),
-                   layers_for(tags), geometry, position(marker) if marker is not None else None,
-                   marker_method, provenance, ordinal)
+                   layers, geometry, position(marker) if marker is not None else None,
+                   marker_method, provenance, ordinal,land_water_origin)
 
     def attribute(self, key, yes='yes', no='no'):
         value = dict(self.tags).get(key)
