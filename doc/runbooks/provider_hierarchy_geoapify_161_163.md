@@ -117,6 +117,24 @@ Nie odtwarzać starej bazy nad aktualną księgą kosztów. Przywrócenie kolejn
 w adminie jest osobną operacją i nie zeruje historii ani opłat.
 # Diagnostyka małej liczby wyników Geoapify — 24.10.2026
 
+Aktualizacja: commercial potwierdzony na VPS — 63 obiekty, wszystkie z OSM ID
+i shop. Nie ponawiać już tej próby. Przed następnym testem sprawdzić bez klucza:
+
+```bash
+.venv/bin/python tools/geoapify_probe.py --db data/poi_cache.sqlite3 --status
+```
+
+Pozostały czas jest w retry_after_seconds. Budżet jest wewnętrzny, nie saldem
+Geoapify. Po zakończeniu blokady i przy co najmniej 5 dostępnych jednostkach
+można wykonać jedną próbę broad z identyczną lokalizacją i nowym raportem query:
+
+```bash
+( read -r -s -p 'Klucz API Geoapify: ' CHAOS_GEOAPIFY_API_KEY; printf '\n'; export CHAOS_GEOAPIFY_API_KEY; .venv/bin/python tools/geoapify_probe.py --db data/poi_cache.sqlite3 --profile broad --lat 52.2319 --lon 21.0067 --radius 300 --pages 1 --execute )
+```
+
+Nie zmieniać planu kosztów ani aktywować gameplay na podstawie liczby wyników.
+Poniższa procedura commercial pozostaje opisem wykonanej już próby.
+
 Po próbie z jednym obiektem nie uruchamiać ponownie tego samego szerokiego
 zapytania. Dostępny `--profile commercial` ogranicza diagnostykę do jednej
 kategorii, nie zmienia działającego skanera. Domyślny `broad` pozostaje dla

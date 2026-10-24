@@ -11,7 +11,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 def main():
     from poi_infrastructure.repository import Repository
     from poi_infrastructure.credit_budget import CreditBudget
-    from poi_infrastructure.geoapify import inspect_places, PROFILES
+    from poi_infrastructure.geoapify import inspect_places, probe_status, PROFILES
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db',required=True)
     parser.add_argument('--provider',default='geoapify')
@@ -23,8 +23,9 @@ def main():
     actions=parser.add_mutually_exclusive_group()
     actions.add_argument('--prepare-budget',action='store_true')
     actions.add_argument('--execute',action='store_true')
+    actions.add_argument('--status',action='store_true')
     args=parser.parse_args()
-    if not args.execute and not args.prepare_budget:
+    if not args.execute and not args.prepare_budget and not args.status:
         print(json.dumps(dict(status='plan',network_calls=0,max_network_calls=args.pages,
             reservation_per_page=5,deadline=35,secret_ref='CHAOS_GEOAPIFY_API_KEY',
             gameplay_changed=False,required_scope='small_probe',
@@ -33,7 +34,9 @@ def main():
         return
     repo=Repository(args.db)
     try:
-        if args.prepare_budget:
+        if args.status:
+            result=probe_status(args.db)
+        elif args.prepare_budget:
             from poi_infrastructure.providers import Registry
             from poi_infrastructure.routing import GEOAPIFY
             registry=Registry(repo);registry.initialize()
@@ -59,7 +62,13 @@ def main():
         from poi_infrastructure.service import POIError
         from poi_infrastructure.world_contract import ContractError
         message=str(exc) if isinstance(exc,(POIError,ContractError)) else type(exc).__name__
-        print(json.dumps(dict(ok=False,error=message)))
+        result=dict(ok=False,error=message)
+        if message=='probe_rate_limited':
+            try:
+                result['retry_after_seconds']=probe_status(args.db)['retry_after_seconds']
+            except Exception:
+                pass
+        print(json.dumps(result))
         sys.exit(1)
 
 

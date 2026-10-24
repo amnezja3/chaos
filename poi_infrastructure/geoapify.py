@@ -6,6 +6,10 @@ prove coverage of CHAOS tags, OSM identity or complete geographic geometry.
 import time
 import uuid
 from collections import Counter
+from contextlib import closing
+import math
+import sqlite3
+from pathlib import Path
 
 from .providers import Registry
 from .routing import GEOAPIFY
@@ -17,6 +21,26 @@ CATEGORIES = ('commercial','catering','accommodation','education','healthcare',
               'service','entertainment','parking','public_transport')
 PROFILES = {'broad': CATEGORIES, 'commercial': ('commercial',),
             'catering': ('catering',)}
+
+
+def probe_status(path, *, now=None):
+    """Read-only cooldown and diagnostic budget; no secret, schema creation or HTTP."""
+    now = time.time() if now is None else now
+    with closing(sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True)) as c:
+        c.row_factory = sqlite3.Row
+        row = c.execute('SELECT until_at FROM leases WHERE key=?',
+                        ('@geoapify-diagnostic-rate',)).fetchone()
+        remaining = max(0, math.ceil(row['until_at']-now)) if row else 0
+        windows = [dict(r) for r in c.execute('''SELECT w.period,w.credit_limit,
+            COALESCE(SUM(e.amount),0) AS committed FROM world_credit_window w
+            LEFT JOIN world_credit_entry e USING(account,period)
+            WHERE w.account='geoapify' AND w.starts<=? AND w.ends>?
+            GROUP BY w.account,w.period''', (now,now))]
+        for w in windows: w['remaining'] = max(0,w['credit_limit']-w['committed'])
+        uncertain = c.execute("SELECT COUNT(*) FROM world_credit_operation WHERE account='geoapify' AND state IN ('reserved','uncertain')").fetchone()[0]
+    return dict(status='read_only',network_calls=0,retry_after_seconds=remaining,
+                budget_windows=windows,unresolved_operations=uncertain,
+                note='Status does not approve a request; policy and budget are rechecked on execution.')
 
 
 def inspect_places(repo, provider_id, lat, lon, radius, *, pages=1, transport=None, profile='broad'):

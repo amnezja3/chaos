@@ -57,6 +57,28 @@ sterowanie kolejnością w adminie; praca lokalna do próby wymagającej operato
 
 ## Granica odbioru
 
+### VPS: commercial — potwierdzony wynik operatora
+
+24.10.2026: POST, commercial, 52.2319/21.0067, 300 m, limit 100:
+63 obiekty, 63 OSM ID, 63 Point, krótka strona. Surowe tagi: shop=63,
+amenity=3, healthcare=1 (liczniki nakładają się, nie sumować jako obiektów).
+Operacja cbae1c7feb5b4be583a737872f9616e4: koszt niezgłoszony, rezerwacja 5.
+Gameplay i world ingest false. Potwierdzony transport/dekoder i przydatność
+kategorii commercial, nie pełny profil skanera lub geometrie dróg/wód.
+
+Dokumentacja https://apidocs.geoapify.com/docs/places/ opisuje wyszukiwanie
+wielu kategorii jako np. restauracje i kawiarnie. Nie przyjmujemy hipotezy AND
+bez dowodu. Poprzednia próba broad nie zawierała query w raporcie: różnica
+1 vs 63 nie pozwala ustalić błędu dostawcy/żądania. Następny test porównawczy
+to broad z jawnymi identycznymi współrzędnymi/promieniem i nowym raportem,
+jedna strona, tylko po sprawdzeniu istniejącego limitu i budżetu. Nie zwiększać
+budżetu ani nie uruchamiać automatycznie dziewięciu zapytań kategorii.
+
+Dodano --status (SQLite mode=ro) i retry_after_seconds do błędu limitu.
+Status nie odnawia blokady, nie zmienia księgi, nie potrzebuje klucza i nie
+stanowi pozwolenia na zapytanie. Testy 9 PASS, 2.847 s, w tym brak tworzenia
+nieistniejącej bazy i zamknięcie połączenia. Podczas implementacji 0 API calls.
+
 ### Wynik operatora i przygotowanie porównania
 
 Operator potwierdził po poprawce: captured_not_approved, 1 wywołanie,

@@ -5,7 +5,7 @@ from unittest.mock import patch, Mock
 
 import test_world_maplark_pilot as fixtures
 from poi_infrastructure.credit_budget import CreditBudget
-from poi_infrastructure.geoapify import inspect_places
+from poi_infrastructure.geoapify import inspect_places, probe_status
 from poi_infrastructure.routing import GEOAPIFY
 from poi_infrastructure.service import POIError, UpstreamUnavailable
 
@@ -78,6 +78,26 @@ class GeoapifyTests(unittest.TestCase):
         with self.assertRaisesRegex(POIError,'approved'):
             inspect_places(self.service.repo,'geoapify',52,21,300,transport=http)
         http.assert_not_called()
+
+    def test_status_does_not_reset_lease_or_usage(self):
+        self.service.repo.acquire('@geoapify-diagnostic-rate',900)
+        self.ledger.reserve('geoapify','observed',5)
+        self.ledger.settle('geoapify','observed',None)
+        now=time.time()
+        before=probe_status(self.service.repo.path,now=now)
+        after=probe_status(self.service.repo.path,now=now)
+        self.assertEqual(before,after)
+        self.assertGreater(before['retry_after_seconds'],890)
+        self.assertEqual(before['budget_windows'][0]['remaining'],15)
+        self.assertEqual(before['unresolved_operations'],1)
+        self.assertEqual(before['network_calls'],0)
+
+    def test_status_missing_database_does_not_create_it(self):
+        from pathlib import Path
+        import sqlite3
+        path=Path(self.service.repo.path).with_name('missing-status.sqlite3')
+        with self.assertRaises(sqlite3.OperationalError):probe_status(path)
+        self.assertFalse(path.exists())
 
     def test_budget_exhaustion_stops_before_http(self):
         from poi_infrastructure.world_contract import ContractError
