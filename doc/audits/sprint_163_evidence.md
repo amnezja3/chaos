@@ -373,3 +373,36 @@ Procedura migracji, backupu, reloadu, testów po wdrożeniu i rollbacku:
 VPS tego pakietu jeszcze nie potwierdził. Nie zmieniono produkcji ani naliczeń.
 Otwarte pozostają realne dowody regionalne, piloci pozostałych warstw, źródło
 land_water, pełny profil Geoapify i uzgodnienie kosztów jego diagnostyki.
+
+## Zamknięcie odbioru technicznego pakietu 7e18c1d na VPS
+
+24.10.2026 operator przekazał log wdrożenia oraz raport po zwykłym skanie.
+To dowody dostarczone przez operatora, nie samodzielny dostęp agenta do VPS.
+
+- Pull do 7e18c1d; World: 209 testów PASS / 92.940 s; POI: 92 PASS / 70.266 s.
+- Migracja schema_ready, world_schema=2, integrity/foreign_keys=ok.
+- Reload ecosystem.web.config.js, worker discovery zatrzymany, Launch HTTP 200,
+  pm2 save potwierdzony. Nie uruchomiono stałego pobierania w tle.
+- Raport po skanie: metrics prepared=true, attempts=1, successful=1,
+  errors=0, empty_successes=0, sources.network=1, transport_attempts=1.
+  p50/p95 upper=3 s to granica histogramu, nie dokładny czas ani miarodajny
+  percentyl populacji na podstawie jednej próbki.
+- MapLark: committed dzienny 31→34, rolling 55→58, operations 17→18,
+  unresolved=0; koszt przyrostowy 3 kredyty. Pozostało 766/800 oraz 23942/24000.
+- Roads: 29 obiektów, UNKNOWN, local_read_allowed=false. Nie ma dowodu
+  kompletności regionu; historyczny snapshot nie jest aktywnym lokalnym źródłem.
+- Geoapify: nadal 4 nierozliczone operacje i 20 zarezerwowanych kredytów.
+  Alert 95 przy wykorzystaniu 100% dotyczy wewnętrznego budżetu diagnostycznego,
+  nie wyczerpania planu dostawcy. Żadnych rezerwacji nie zwolniono.
+- Raport kontrolny: network_calls=0, production_writes=0, integralność OK.
+  Te zera dotyczą raportu, nie poprzedzającego go skanu gracza.
+- Syntetyczny benchmark VPS: dla 3000 obiektów zapis 3.3942 s, odczyt 0.1387 s,
+  transakcja hold+close 0.183781 s, lifetime RSS 90300416 B,
+  post-commit WAL 4548512 B. Bez testu obciążenia współbieżnymi graczami.
+
+Odbiór techniczny tego pakietu: **ZAMKNIĘTY / PASS**. Testy UI PL/EN desktop/mobile
+pozostają dowodami lokalnymi; nie deklarujemy osobnego odbioru UI produkcyjnego.
+Całe 161–163 pozostają w realizacji ze względu na otwarte bramki regionalne.
+Polecenie offline z /prywatny/katalog/body.json zakończyło się FileNotFoundError:
+była to ścieżka przykładowa, nie istniejący artefakt. Nie wykonano HTTP ani zapisu;
+nie stanowi to wyniku testu bbox. Następny etap: rzeczywista próbka bbox i granice.

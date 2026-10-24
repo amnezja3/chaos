@@ -128,12 +128,10 @@ tracemalloc jako RSS ani jednego odczytu WAL jako maksimum obciążenia.
 ```
 
 To plan 0 HTTP. Alternatywne profile: waterways, inland_water, coastline.
-Zapisane odpowiedzi z przyszłej zatwierdzonej próby można sprawdzić offline:
-
-```bash
-.venv/bin/python tools/world_region_plan.py --layer roads --bbox 20.36 51.53 20.37 51.54 \
-  --body /prywatny/katalog/body.json --headers /prywatny/katalog/headers.json
-```
+Inspekcję offline z argumentami `--body` i `--headers` uruchamiamy dopiero po
+uzyskaniu rzeczywistych plików odpowiedzi z zatwierdzonej próby. Ten pakiet
+nie tworzy tych plików. Nie wklejać przykładowych ścieżek; konkretne polecenie
+zostanie przygotowane razem z artefaktem próby bbox.
 
 Kontrola sprawdza kompletność odpowiedzi, przecięcie geometrii i kandydatów
 w dwóch sąsiednich wycinkach. Nadal zwraca region_certified=false. Nie przyznaje

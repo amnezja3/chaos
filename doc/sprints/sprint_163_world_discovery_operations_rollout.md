@@ -1,6 +1,6 @@
 # Sprint 163 — World Discovery: kolejka, panel operacyjny i kontrolowany rollout
 
-Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — pilot roads committed/idle PASS na VPS; panel i metryki gotowe do odbioru**.
+Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — pakiet infrastruktury i metryk wdrożony, odbiór techniczny VPS PASS; regionalny rollout otwarty**.
 Zaimplementowano ograniczony rejestr sektorów/warstw PENDING oraz podgląd stanu
 magazynu i budżetu. Pasywny zapis odebrany na VPS; ingest/read nadal OFF.
 Lokalna biblioteka zadań ma lease/fencing i uzgadnianie publikacji po crash,
@@ -16,7 +16,11 @@ Dodano lokalny proces CLI z ograniczoną pętlą, plikiem pozwolenia i osobnym
 ecosystemem OFF. Pilot roads na VPS zapisał jeden snapshot UNKNOWN za 3 kredyty;
 ponowienie po restarcie zwróciło idle bez HTTP. Nie jest to pełny rollout tła.
 Mapa dowodów i obserwacji, metryki skanera oraz ręczne odczyty konta dostawcy
-przeszły testy lokalne i czekają na migrację/odbiór VPS. Procedura pakietu:
+przeszły testy lokalne. Operator wdrożył 7e18c1d, potwierdził migrację,
+301 testów PASS na VPS, HTTP 200, zatrzymany worker i zapis PM2.
+Zwykły skan zapisał 1 sukces / 0 błędów / 1 próbę transportu, koszt 3 kredyty.
+Odbiór techniczny pakietu zamknięty; UI produkcyjne nie było osobno potwierdzone.
+Dowody bbox, pozostałe warstwy i rollout regionalny pozostają otwarte. Procedura:
 [odbiór 161–163](../runbooks/world_acceptance_161_163.md). Procedura workera:
 [worker 163](../runbooks/world_discovery_worker_163.md).
 Dowody: [163](../audits/sprint_163_evidence.md).
