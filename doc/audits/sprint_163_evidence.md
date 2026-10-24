@@ -616,3 +616,29 @@ następnie osobny kontrakt wybrzeża/land_water oraz szerszy rollout per warstwa
 Geoapify pozostaje bez pełnej kwalifikacji gameplay i bez uzgodnienia czterech
 niepewnych operacji; niniejszy odbiór nie zmienia jego księgi. Infrastruktura
 może być rozwijana offline bez ponawiania zaakceptowanych prób roads.
+
+### 2026-10-24 — przygotowane profile cieku i powierzchni wód
+
+Wspólny regionalny kandydat obejmuje roads, waterways i inland_water; nigdy
+nie wystawia samodzielnie SelectionProof. Powierzchnie wód wymagają Polygon
+lub MultiPolygon, nie punktu zastępującego geometrię. Zachowuje całe części,
+otwory i pochodzenie; partial, mieszane źródła i coastline pozostają odrzucone.
+Inspekcja zapisanej odpowiedzi pokazuje typy, części, otwory oraz jawny stan
+kandydata; brak otworów nie jest odbiorem jeziora z wyspą.
+
+Rozszerzono istniejące world_region_probe o dwa profile parent w tym samym
+ograniczonym bbox. Osobne stałe operacje, wspólny nieodnawiany limit 40/1 h,
+maksymalnie dwa HTTP, po 20 rezerwacji; wspólna księga i priorytet graczy.
+Nie zmieniono wcześniejszych operacji ani pilota roads. Wodne profile nie
+mogą użyć pilota roads ani jego certyfikatu, nie publikują do magazynu świata.
+Procedura: [dwie odpowiedzi wodne](../runbooks/world_region_water_probe.md).
+
+Nowe testy syntetyczne: 9 PASS. Obejmują przecinającą granicę linię, pełny
+MultiPolygon z otworem i częścią poza bbox, backup/restore SQLite, lokalny
+pusty wynik wewnątrz otworu, MISS poza dowodem, izolację warstw, brak area
+approval oraz wspólne rozliczenie dwóch profili i brak powtórki operacji.
+Łącznie regionalne 49 PASS / 10.944 s, read 16 PASS / 3.880 s,
+acquisition 8 PASS / 2.046 s. Po doprecyzowaniu nazwy pola otworów ponownie
+9 testów wodnych PASS / 1.940 s. Nie wykonano prawdziwych wywołań dostawcy.
+Pozyskanie tych odpowiedzi na VPS i rzeczywisty odbiór jeziora z wyspą
+pozostają otwarte. Nie zmieniono flag produkcyjnych ani zakresu kwalifikacji.

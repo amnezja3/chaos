@@ -1,4 +1,4 @@
-"""One explicit roads bbox capture; shares live budgets, never ingests or enables discovery."""
+"""One explicit roads/water bbox capture; shares budgets, never enables discovery."""
 import argparse
 from contextlib import closing
 import json
@@ -23,18 +23,25 @@ SCOPE='region-probe:roads-2036-5153-bbox-v1'
 PARTS={'parent':BOUNDS,'left':(20.36,51.53,20.365,51.54),'right':(20.365,51.53,20.37,51.54)}
 
 
-def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False):
+def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False,profile='roads'):
+    if profile not in ('roads','waterways','inland_water'):
+        raise ContractError('region_profile_unsupported')
+    if profile!='roads' and (part!='parent' or _pilot):
+        raise ContractError('water_probe_parent_only_no_pilot')
     if part not in PARTS:raise ContractError('region_part_invalid')
     bounds=PARTS[part]
     operation=OPERATION if part=='parent' else 'region:roads-2036-5153-neighbor-v1:'+part
     scope_id=SCOPE if part=='parent' else 'region-probe:roads-2036-5153-neighbors-v1'
     scope_limit=20 if part=='parent' else 40
+    if profile!='roads':
+        operation='region:water-2036-5153-bbox-v1:'+profile
+        scope_id='region-probe:water-2036-5153-bbox-v1';scope_limit=40
     if _pilot:
         if part!='parent':raise ContractError('pilot_parent_only')
         operation='region:roads-2036-5153-storage-pilot-v1'
         scope_id=operation;scope_limit=20
-    plan=plan_maplark_region(bounds)
-    result=dict(status='plan',profile='roads',part=part,params=dict(plan.params),operation=operation,
+    plan=plan_maplark_region(bounds,profile=profile)
+    result=dict(status='plan',profile=profile,part=part,params=dict(plan.params),operation=operation,
         network_calls=0,max_network_calls=1,reservation=20,deadline=35,
         shared_probe_limit=scope_limit,
         provider_price_cap=False,gameplay_changed=False,world_ingest=False,
@@ -88,7 +95,7 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
     allowed={'X-Returned','X-Has-More','X-Next-Cursor','X-Usage-Units-Charged'}
     headers={k:v for k,v in captured.get('response_headers',{}).items() if k in allowed}
     body=captured['body']
-    inspection=evaluate(bounds,'roads',body,headers)
+    inspection=evaluate(bounds,profile,body,headers)
     result.update(status='captured_not_certified',network_calls=1,billing=billing,
                   approval='operator_cli_single_bbox_probe',provider_revision=revision,
                   fetched_at=min((o.provenance.fetched_at for o in batch.objects),default=time.time()),
@@ -108,13 +115,14 @@ def main():
     p.add_argument('--db',default='data/poi_cache.sqlite3')
     p.add_argument('--output')
     p.add_argument('--part',choices=tuple(PARTS),default='parent')
+    p.add_argument('--profile',choices=('roads','waterways','inland_water'),default='roads')
     p.add_argument('--execute',action='store_true')
     p.add_argument('--approve-bbox-probe',action='store_true')
     p.add_argument('--accept-variable-credit-cost',action='store_true')
     a=p.parse_args()
     try:
         result=capture(a.db,a.output,execute=a.execute,approve=a.approve_bbox_probe,
-                       accept_variable_cost=a.accept_variable_credit_cost,part=a.part)
+                       accept_variable_cost=a.accept_variable_credit_cost,part=a.part,profile=a.profile)
     except Exception as exc:
         # Do not print arbitrary transport exceptions, URLs or credentials.
         result=dict(ok=False,error=str(exc) if isinstance(exc,(POIError,ContractError)) else type(exc).__name__,

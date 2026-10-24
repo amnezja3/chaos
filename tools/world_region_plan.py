@@ -22,6 +22,7 @@ def evaluate(bounds,layer,body=None,headers=None):
     west,south,east,north=bounds;mid=(west+east)/2
     left=box(west,south,mid,north);right=box(mid,south,east,north)
     invalid=[];left_ids=set();right_ids=set();reason_counts={};selected_ids=set()
+    types={};polygon_parts=0;interior_rings=0;hole_objects=0
     for obj in batch.objects:
         reasons=[];geometry=None
         if layer not in obj.layers:reasons.append('layer_mismatch')
@@ -29,6 +30,11 @@ def evaluate(bounds,layer,body=None,headers=None):
         elif obj.geometry.crosses_antimeridian:reasons.append('antimeridian_geometry')
         else:
             geometry=shape(obj.geometry.geojson())
+            types[obj.geometry.kind]=types.get(obj.geometry.kind,0)+1
+            polygons=list(geometry.geoms) if geometry.geom_type=='MultiPolygon' else [geometry] if geometry.geom_type=='Polygon' else []
+            polygon_parts+=len(polygons)
+            holes=sum(len(p.interiors) for p in polygons)
+            interior_rings+=holes;hole_objects+=bool(holes)
             if geometry.is_empty:reasons.append('empty_geometry')
             elif not geometry.is_valid:reasons.append('invalid_geometry')
             else:
@@ -61,6 +67,19 @@ def evaluate(bounds,layer,body=None,headers=None):
             observed_geometry_pass=not blocking and batch.completeness=='complete',
             proves_provider_completeness=False,mutates_saved_response=False),
         boundary_selection_pass=not invalid and batch.completeness=='complete')
+    result['topology']=dict(geometry_types=types,polygon_parts=polygon_parts,
+        interior_rings=interior_rings,objects_with_holes=hole_objects,
+        water_surface_with_holes_observed=layer=='inland_water' and hole_objects>0,
+        note='Interior rings are observed geometry, not independent proof of real islands or coverage.')
+    if layer in ('roads','waterways','inland_water'):
+        from poi_infrastructure.world_region_candidate import prepare
+        from poi_infrastructure.world_contract import ContractError
+        try:
+            candidate=prepare(batch,plan)
+            result['candidate']=dict(status='prepared_not_certified',objects=len(candidate.batch.objects),
+                                     excluded=len(candidate.excluded_ids),region_certified=False)
+        except ContractError as exc:
+            result['candidate']=dict(status='blocked',reason=str(exc),region_certified=False)
     return result
 
 
