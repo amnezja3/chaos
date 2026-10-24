@@ -170,6 +170,9 @@ def normalize_geoapify(raw, provenance, *, page_limit=100):
         # Preserve only original string tags; never invent OSM tags from categories.
         tags = {k: v for k, v in raw_osm.items() if isinstance(v, str) and k not in ('osm_id', 'osm_type')}
         osm_type, osm_id = raw_osm.get('osm_type'), raw_osm.get('osm_id')
+        # Geoapify uses n/w/r in datasource.raw; keep canonical world types.
+        if isinstance(osm_type, str):
+            osm_type = {'n': 'node', 'w': 'way', 'r': 'relation'}.get(osm_type, osm_type)
         if osm_type is None and osm_id is None:
             pass
         elif osm_type not in ('node', 'way', 'relation') or type(osm_id) is not int or osm_id <= 0:

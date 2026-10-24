@@ -57,6 +57,21 @@ sterowanie kolejnością w adminie; praca lokalna do próby wymagającej operato
 
 ## Granica odbioru
 
+### Korekta po pierwszej próbie VPS
+
+Operator otrzymał `geoapify_osm_identity_unverified`. Ta ścieżka oznacza HTTP
+200 przed normalizacją, ale surowej odpowiedzi nie zachowano, więc dokładny
+odrzucony rekord pozostaje nieznany. Adapter nie obsługiwał udokumentowanych
+skrótów `n/w/r` w `datasource.raw.osm_type`; dodano ścisłe mapowanie do
+`node/way/relation`. Nie poluzowano walidacji identyfikatorów ani dopuszczenia
+Geoapify do gameplay. Źródło formatu:
+https://apidocs.geoapify.com/how-to/place-discovery/place-details-by-id-or-coordinates
+
+Testy po poprawce: kontrakt 18 PASS (0.939 s), pozyskiwanie Geoapify 5 PASS
+(2.813 s), z fixture używającym `n`. Brak nowych wywołań sieciowych.
+Wcześniejsza próba VPS zachowuje rezerwację nieznanego kosztu; nie resetujemy
+księgi ani 15-minutowego limitu. Potrzebny ponowny kontrolowany odbiór na VPS.
+
 Brak wywołań API danych MapLark/Geoapify/Overpass w tej pracy. Odczytano
 publiczną [oficjalną dokumentację Geoapify Places](https://apidocs.geoapify.com/docs/places/).
 Nie ma jeszcze realnej próbki Geoapify ani dowodu zgodności wszystkich

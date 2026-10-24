@@ -141,6 +141,26 @@ class WorldContractTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             batch.export_overpass()
 
+    def test_geoapify_short_osm_types_are_canonicalized(self):
+        for source, canonical in [('n', 'node'), ('w', 'way'), ('r', 'relation'), ('node', 'node')]:
+            with self.subTest(source=source):
+                f = feature()
+                f['properties'] = {'place_id': 'x', 'datasource': {'raw': {
+                    'osm_type': source, 'osm_id': 123, 'amenity': 'bank'}}}
+                batch = normalize_geoapify(collection(f), provenance('geoapify'))
+                self.assertEqual(batch.objects[0].osm_type, canonical)
+                self.assertEqual(batch.objects[0].osm_id, 123)
+                self.assertEqual(batch.completeness, 'unknown')
+
+    def test_geoapify_invalid_identity_still_rejected(self):
+        for kind, identity in [('x', 1), ('n', True), ('n', '123'), ('w', -1), ('r', None), (None, 1)]:
+            with self.subTest(kind=kind, identity=identity):
+                f = feature()
+                f['properties'] = {'place_id': 'x', 'datasource': {'raw': {
+                    'osm_type': kind, 'osm_id': identity}}}
+                with self.assertRaisesRegex(ContractError, 'geoapify_osm_identity_unverified'):
+                    normalize_geoapify(collection(f), provenance('geoapify'))
+
     def test_geoapify_full_page_requires_more_work(self):
         f = feature(); f['properties'] = {'place_id': 'x'}
         batch = normalize_geoapify(collection(f), provenance('geoapify'), page_limit=1)

@@ -14,7 +14,7 @@ def response(count, start=0):
     return 200,None,{'response_headers':{},'body':{'type':'FeatureCollection','features':[
         {'type':'Feature','geometry':{'type':'Point','coordinates':[21,52]},
          'properties':{'place_id':'place'+str(i),'datasource':{'raw':{
-             'osm_type':'node','osm_id':i+1,'amenity':'bank'}}}} for i in range(start,start+count)]}}
+             'osm_type':'n','osm_id':i+1,'amenity':'bank'}}}} for i in range(start,start+count)]}}
 
 
 class GeoapifyTests(unittest.TestCase):
