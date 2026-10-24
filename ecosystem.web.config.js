@@ -15,11 +15,11 @@ module.exports = {
         CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: "1",
         CHAOS_MAPLARK_CREDIT_RESERVATION: "20",
         // 162/163 remain opt-in after schema preparation and separate storage approval.
-        CHAOS_POI_WORLD_INGEST_ENABLED: "0",
-        CHAOS_POI_WORLD_REPOSITORY_ENABLED: "0",
+        CHAOS_POI_WORLD_INGEST_ENABLED: "1",
+        CHAOS_POI_WORLD_REPOSITORY_ENABLED: "1",
         CHAOS_POI_WORLD_PILOT_USER: "robot",
         CHAOS_POI_WORLD_PILOT_CENTER: "51.531034,20.366130",
-        CHAOS_POI_WORLD_PILOT_UNTIL: "0",
+        CHAOS_POI_WORLD_PILOT_UNTIL: "1792910425",
         // Schema v2 and gameplay verified on VPS; collect demand without background HTTP.
         CHAOS_POI_DISCOVERY_MODE: "passive",
         // Admission pilot is separate from passive demand; no background worker yet.
