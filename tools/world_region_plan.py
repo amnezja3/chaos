@@ -21,7 +21,7 @@ def evaluate(bounds,layer,body=None,headers=None):
     area=box(*bounds)
     west,south,east,north=bounds;mid=(west+east)/2
     left=box(west,south,mid,north);right=box(mid,south,east,north)
-    invalid=[];left_ids=set();right_ids=set();reason_counts={}
+    invalid=[];left_ids=set();right_ids=set();reason_counts={};selected_ids=set()
     for obj in batch.objects:
         reasons=[];geometry=None
         if layer not in obj.layers:reasons.append('layer_mismatch')
@@ -33,8 +33,10 @@ def evaluate(bounds,layer,body=None,headers=None):
             elif not geometry.is_valid:reasons.append('invalid_geometry')
             else:
                 if not geometry.intersects(area):reasons.append('geometry_outside_bbox')
-                if geometry.intersects(left):left_ids.add(obj.identity)
-                if geometry.intersects(right):right_ids.add(obj.identity)
+                if not reasons:
+                    selected_ids.add(obj.identity)
+                    if geometry.intersects(left):left_ids.add(obj.identity)
+                    if geometry.intersects(right):right_ids.add(obj.identity)
         if reasons:
             for reason in reasons:reason_counts[reason]=reason_counts.get(reason,0)+1
             tags=dict(obj.tags)
@@ -43,11 +45,21 @@ def evaluate(bounds,layer,body=None,headers=None):
                 bounds=list(geometry.bounds) if geometry is not None and not geometry.is_empty else None,
                 envelope_intersects_bbox=bool(geometry.envelope.intersects(area)) if geometry is not None and not geometry.is_empty and geometry.is_valid else None,
                 classification_tags={key:tags[key] for key in ('highway','waterway','natural','area','type') if key in tags}))
+    # A bbox-index false positive can be removed locally, but this says nothing
+    # about features absent from the response. Keep the raw test and certification separate.
+    removable=[item for item in invalid if item['reasons']==['geometry_outside_bbox']
+               and item['envelope_intersects_bbox']]
+    blocking=len(invalid)-len(removable)
     result.update(status='response_checked_not_certified',objects=len(batch.objects),
         completeness=batch.completeness,reasons=list(batch.reasons),invalid_objects=len(invalid),
         invalid_reasons=reason_counts,invalid_details=invalid[:20],invalid_details_truncated=len(invalid)>20,
-        missing=['source dataset consistency','separate area certification']+(['boundary selection investigation'] if invalid else []),
+        missing=['source dataset consistency','separate area certification']+(['provider selection semantics'] if removable else [])+(['boundary selection investigation'] if blocking else []),
         neighbor_candidates=dict(left=len(left_ids),right=len(right_ids),crossing=len(left_ids & right_ids)),
+        local_filter=dict(predicate='geometry.intersects(bbox), full geometry retained',
+            selected_objects=len(selected_ids),excluded_envelope_false_positives=len(removable),
+            blocking_objects=blocking,neighbor_union_matches=(left_ids|right_ids)==selected_ids,
+            observed_geometry_pass=not blocking and batch.completeness=='complete',
+            proves_provider_completeness=False,mutates_saved_response=False),
         boundary_selection_pass=not invalid and batch.completeness=='complete')
     return result
 

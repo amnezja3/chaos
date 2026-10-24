@@ -76,6 +76,13 @@ Próbka służy następnie do porównania dwóch lokalnych wycinków, zachowania
 geometrii i zaplanowania niezależnej kontroli selekcji oraz wersji danych.
 Nie wystawiamy SelectionProof area i nie włączamy read/ingest po samym HTTP 200.
 
+Inspekcja rozdziela surowy `boundary_selection_pass` od
+`local_filter.observed_geometry_pass`. Wyłącznie nadmiarowe, poprawne obiekty
+spoza bbox z przecinającym go prostokątem otaczającym mogą zostać odfiltrowane
+lokalnie. Pozostałe błędy nie są pomijane. `selected_objects` i zgodność sumy
+dwóch wycinków dotyczą zapisanej próbki, nie dowodzą kompletności dostawcy.
+Surowe pliki pozostają bez zmian, a pełne geometrie nie są przycinane.
+
 Źródło kontraktu (sprawdzone 24.10.2026):
 https://maplark.com/products/osm-features-api — bbox selects intersecting features;
 limit może uciąć wynik. Pełna kwalifikacja pozostaje osobnym odbiorem.

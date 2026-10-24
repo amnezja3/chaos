@@ -441,3 +441,24 @@ Rozszerzono inspekcję offline o ograniczoną listę OSM ID, konkretne przyczyny
 typ i bounds geometrii oraz rozróżnienie przecięcia obrysu od samej geometrii.
 Raport nie wypisuje nazw/adresów obiektów. Kolejna kontrola używa zapisanych
 body.json/headers.json, bez ponownego API i bez nowych kosztów.
+
+### Wyjaśnienie odrzucenia granicy i lokalny filtr
+
+Operator przekazał diagnozę: osm:way:201343570, LineString, highway=unclassified,
+bounds=[20.3637689,51.5164428,20.3754074,51.5301756], geometry_outside_bbox,
+envelope_intersects_bbox=true. Klasyfikacja roads jest poprawna; prostokąt
+otaczający obiekt przecina region, lecz linia nie. Jest to zgodne z hipotezą
+selekcji po obrysie, ale jedna próbka nie dowodzi implementacji dostawcy ani
+braku pominiętych obiektów. W odpowiedzi pozostaje 75 obiektów przecinających
+obszar; zgodność liczników: 33+54−12=75. Są to dane raportu operatora,
+nie niezależna inspekcja pełnego pliku przez agenta.
+
+Inspekcja offline rozdziela teraz surowe boundary_selection_pass od
+local_filter.observed_geometry_pass. Lokalnie odrzucalne są wyłącznie poprawne
+geometrie spoza bbox, których obrys go przecina. Błędna warstwa, geometria,
+brak geometrii albo całkowicie obcy region pozostają blokadą. Filtr nie
+przycina linii, nie zmienia pliku źródłowego, nie tworzy dowodu area i nie
+udaje kontroli brakujących obiektów. Weryfikuje sumę sąsiednich wycinków.
+Testy test_world_region*.py: **16 PASS / 5.609 s**, syntetyczne, bez API.
+Do dalszej niezależnej walidacji potrzebne są zachowane body.json i headers.json;
+nie ma potrzeby kolejnego pobierania tej próbki od dostawcy.
