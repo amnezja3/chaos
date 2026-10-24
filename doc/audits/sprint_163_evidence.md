@@ -677,3 +677,29 @@ wycinki. Nie przypisujemy tych przypadków do PASS na podstawie fixtures.
 Następny krok: transfer istniejących artefaktów do ignorowanego lokalnego
 instance/provider-captures, minimalizacja fixtures i testy offline na pełnych
 geometriach. Sama liczebność raportu nie zastępuje dostępu do geometrii.
+
+### 2026-10-24 — pełne geometrie wodne: fixtures i odtworzenie lokalne
+
+Odczytano skopiowane artefakty z ignorowanego instance/provider-captures/
+chaos-water-region-ZLZnBM. Zapisano minimalne fixtures obu profili, zachowując
+wszystkie ID, współrzędne i tagi klasyfikacji; pominięto pomiary area_m2/length_m.
+Metadata zawiera SHA-256 osobno body/headers/report, hash fixture z LF,
+fetched_at, revision 9, nagłówki kompletności, ODbL i atrybucję OSM/MapLark.
+Surowe pliki pozostają prywatne i nie są dodane do commita.
+
+Nowy test_world_region_water_reference.py: 5 PASS / 1.120 s. Testy wykazały:
+- waterways: właściwa linia osm:way:287683438 przecina bbox, choć oba końce
+  znajdują się poza nim; cała linia zachowana, bez clippingu;
+- nadmiarowy osm:way:1158230038 wykluczany dokładnym predykatem; nieprzefiltrowany
+  batch nie przechodzi walidacji area i nie zostawia częściowego snapshotu;
+- zapis i SQLite backup/restore do osobnej bazy zachowują pełne obiekty;
+  podobszary waterways 1/0 i inland_water 3/1 odczytane bez HTTP;
+- pusty prawy wycinek cieku jest pełnym pustym wynikiem w syntetycznym kontrakcie
+  testu, a zapytanie poza dowodem lub o inną warstwę daje MISS;
+- sam zapis obserwacji nie daje regionalnego odczytu bez jawnego certyfikatu.
+
+Certyfikaty, provider fixture i czas publikacji w testach są syntetyczne.
+Geometrie rzeczywiste. Nie odświeżono starych danych produkcyjnych ani nie
+przeniesiono testowej zgody do MapLark. Żadnego nowego HTTP lub zapisu na VPS.
+Brak otworów/multipart w rzeczywistej próbce pozostaje jawną luką odbioru.
+Cały zestaw regionalny po dodaniu fixtures: **54 PASS / 24.230 s**.

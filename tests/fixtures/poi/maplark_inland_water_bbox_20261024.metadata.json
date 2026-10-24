@@ -1,0 +1,27 @@
+{
+  "synthetic": false,
+  "profile": "inland_water",
+  "bbox": [
+    20.36,
+    51.53,
+    20.37,
+    51.54
+  ],
+  "headers": {
+    "X-Returned": "4",
+    "X-Has-More": "false",
+    "X-Usage-Units-Charged": "3"
+  },
+  "provider_revision": 9,
+  "fetched_at": 1792870677.5549476,
+  "source_sha256": {
+    "body": "859069e4140c64b307d86a69e3e3a62e782699aad811cb671fba7cb709180ba1",
+    "headers": "962ae6a5dabb42ce5ed20a8fbeb0395b13ba713d9c8f369253460e7cfb872fcf",
+    "report": "69b10718e2b8b90bad58d3856aa820d0c7482731653cfecaa064a893da9a3343"
+  },
+  "fixture_sha256_lf": "5186baef3c0df6de78a91cab01dc6daf5fae8279698dfaf89ba8d8573534de37",
+  "license": "ODbL-1.0",
+  "attribution": "OpenStreetMap contributors; response via MapLark",
+  "minimization": "Full IDs and geometries preserved; classification tags only. Derived measurements omitted.",
+  "region_certified": false
+}

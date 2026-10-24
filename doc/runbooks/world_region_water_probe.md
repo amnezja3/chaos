@@ -23,6 +23,14 @@ próbki dróg. Transfer nie wykonuje zapytań do dostawcy i nie zmienia VPS.
 Przed utworzeniem wersjonowanych fixtures wyodrębnić jedynie geometrię,
 tożsamość OSM, niezbędne tagi klasyfikacji i dowody pochodzenia.
 
+Transfer wykonany i sprawdzony lokalnie 24.10.2026. Minimalne fixtures są
+w tests/fixtures/poi/maplark_{waterways,inland_water}_bbox_20261024.json,
+z metadanymi i hashami surowych body/headers/report. Pięć testów rzeczywistych
+geometrii obejmuje selekcję, pełną linię z końcami poza bbox, odrzucenie
+nadmiarowego obiektu, backup/restore i izolację dowodów. Nie potrzeba kolejnego
+transferu tych plików ani powtórki API. Jezioro z otworem nadal nie występuje
+w tych odpowiedziach; nie włączono ich jako regionalnego źródła produkcyjnego.
+
 ## Zakres
 
 W istniejącym regionie `20.36,51.53,20.37,51.54` pobieramy osobno `waterway`

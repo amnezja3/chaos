@@ -1,0 +1,27 @@
+{
+  "synthetic": false,
+  "profile": "waterways",
+  "bbox": [
+    20.36,
+    51.53,
+    20.37,
+    51.54
+  ],
+  "headers": {
+    "X-Returned": "2",
+    "X-Has-More": "false",
+    "X-Usage-Units-Charged": "3"
+  },
+  "provider_revision": 9,
+  "fetched_at": 1792870675.3243833,
+  "source_sha256": {
+    "body": "7fbf9f7757ce8df4dcc9fe2e70eb8f4ca55c72ee6a76c0f65b4c603e589f5465",
+    "headers": "aacc79b2cd9d8ac9bdae24ed8e6f7bc6fe16c77bbe810bb07ba9de650e48fcd4",
+    "report": "474a546df6657450b3d1b2c58ec3687aaf39261c32eab129432ed5ac5b95e17f"
+  },
+  "fixture_sha256_lf": "75513c9191448ba48a6cf431947190c7250630f1cfa7f6acfca1766abd735cce",
+  "license": "ODbL-1.0",
+  "attribution": "OpenStreetMap contributors; response via MapLark",
+  "minimization": "Full IDs and geometries preserved; classification tags only. Derived measurements omitted.",
+  "region_certified": false
+}
