@@ -1,0 +1,17 @@
+- generic [active] [ref=e1]:
+  - button "Capture pillar / grow main" [ref=e2]
+  - button "Reload snapshot" [ref=e3]
+  - status [ref=e4]: "OK / territories: 2"
+  - generic [ref=e5]:
+    - generic:
+      - generic:
+        - img:
+          - generic:
+            - generic [ref=e6] [cursor=pointer]
+            - generic [ref=e7] [cursor=pointer]
+    - generic:
+      - generic [ref=e8]:
+        - button "Zoom in" [ref=e9] [cursor=pointer]: +
+        - button "Zoom out" [ref=e10] [cursor=pointer]: −
+      - link "Leaflet" [ref=e12] [cursor=pointer]:
+        - /url: https://leafletjs.com

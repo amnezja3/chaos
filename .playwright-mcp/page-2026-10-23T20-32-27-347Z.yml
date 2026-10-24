@@ -1,0 +1,111 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - link "CHAOS / ADMIN" [ref=f2e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+    - generic [ref=f2e4]: ADMINISTRATION CENTER
+    - link "Return to game ↗" [ref=f2e5] [cursor=pointer]:
+      - /url: /desktop?_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+  - generic [ref=f2e6]:
+    - navigation "Administration sections" [ref=f2e7]:
+      - link "Users" [ref=f2e8] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "GhostLab" [ref=f2e9] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "Radio" [ref=f2e10] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "Narrative models" [ref=f2e11] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "Territories" [ref=f2e12] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "Vulnerabilities" [ref=f2e13] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "Bug reports" [ref=f2e14] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "Identity Gateway" [ref=f2e15] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - link "POI / Overpass" [ref=f2e16] [cursor=pointer]:
+        - /url: /dev?tab=poi&_session_generation=ed0cc3c923973bc7b5aba9a2575cdd64ee4a42a0e6acac5c15ed4b9c4b53ef0c
+      - paragraph [ref=f2e17]: GHOST NETWORKOperator panel
+    - main [ref=f2e18]:
+      - generic [ref=f2e19]:
+        - heading "POI / Overpass" [level=1] [ref=f2e20]
+        - paragraph [ref=f2e21]: Technical availability and provider approval are separate. Refreshing this panel does not call Overpass.
+        - button "Refresh status" [ref=f2e22] [cursor=pointer]
+        - status
+        - generic [ref=f2e23]:
+          - heading "World Discovery" [level=2] [ref=f2e24]
+          - paragraph [ref=f2e25]: World storage requires separate world_storage approval. This view does not fetch provider data.
+          - status
+          - heading "Regional demand" [level=3] [ref=f2e26]
+          - paragraph [ref=f2e27]: Player demand sectors, not coverage evidence. Up to 100 recent sectors; no player routes or identifiers.
+          - paragraph
+        - heading "Add / edit provider" [level=2] [ref=f2e29]
+        - generic [ref=f2e30]:
+          - generic [ref=f2e31]:
+            - text: ID
+            - textbox "ID" [ref=f2e32]
+          - generic [ref=f2e33]:
+            - generic [ref=f2e34]: Name
+            - textbox "Name" [ref=f2e35]
+          - generic [ref=f2e36]:
+            - text: HTTPS / interpreter
+            - textbox "HTTPS / interpreter" [ref=f2e37]
+          - generic [ref=f2e38]:
+            - generic [ref=f2e39]: Operator group
+            - textbox "Operator group" [ref=f2e40]
+          - generic [ref=f2e41]:
+            - generic [ref=f2e42]: Priority
+            - spinbutton "Priority" [ref=f2e43]: "0"
+          - button "Save candidate" [ref=f2e44] [cursor=pointer]
+          - status [ref=f2e45]
+        - heading "Usage scope decision" [level=2] [ref=f2e46]
+        - generic [ref=f2e47]:
+          - paragraph [ref=f2e48]: Select a saved provider. Probe approval does not approve scans or storage. A decision does not enable the provider.
+          - generic [ref=f2e49]:
+            - text: ID
+            - textbox "ID" [ref=f2e50]
+          - generic [ref=f2e51]:
+            - generic [ref=f2e52]: Policy
+            - combobox "Policy" [ref=f2e53]:
+              - option "unknown" [selected]
+              - option "public_declaration_only"
+              - option "operator_confirmation_pending"
+              - option "approved_for_defined_use"
+              - option "restricted"
+              - option "rejected"
+              - option "expired_review"
+          - group "Allowed scopes" [ref=f2e54]:
+            - generic [ref=f2e56]:
+              - checkbox "small_probe" [ref=f2e57]
+              - text: small_probe
+            - generic [ref=f2e58]:
+              - checkbox "normal_scan" [ref=f2e59]
+              - text: normal_scan
+            - generic [ref=f2e60]:
+              - checkbox "wide_fetch" [ref=f2e61]
+              - text: wide_fetch
+            - generic [ref=f2e62]:
+              - checkbox "background_refresh" [ref=f2e63]
+              - text: background_refresh
+            - generic [ref=f2e64]:
+              - checkbox "storage" [ref=f2e65]
+              - text: storage
+            - generic [ref=f2e66]:
+              - checkbox "world_storage" [ref=f2e67]
+              - text: world_storage
+          - generic [ref=f2e68]:
+            - generic [ref=f2e69]: Terms source URL
+            - textbox "Terms source URL" [ref=f2e70]
+          - generic [ref=f2e71]:
+            - generic [ref=f2e72]: Evidence reference
+            - textbox "Evidence reference" [ref=f2e73]
+          - generic [ref=f2e74]:
+            - generic [ref=f2e75]: Notes
+            - textbox "Notes" [ref=f2e76]
+          - generic [ref=f2e77]:
+            - generic [ref=f2e78]: Next review
+            - textbox "Next review" [ref=f2e79]
+          - button "Save decision" [ref=f2e80] [cursor=pointer]
+          - status [ref=f2e81]
+        - heading "Recent observations" [level=2] [ref=f2e82]
+        - heading "Change history" [level=2] [ref=f2e83]

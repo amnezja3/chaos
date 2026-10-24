@@ -1,0 +1,109 @@
+- generic [active] [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - link "CHAOS / ADMIN" [ref=f1e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+    - link "Wróć do gry ↗" [ref=f1e4] [cursor=pointer]:
+      - /url: /desktop?_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+  - generic [ref=f1e5]:
+    - navigation "Sekcje administracji" [ref=f1e6]:
+      - link "Użytkownicy" [ref=f1e7] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "GhostLab" [ref=f1e8] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "Radio" [ref=f1e9] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "Modele narracji" [ref=f1e10] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "Terytoria" [ref=f1e11] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "Podatności" [ref=f1e12] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "Zgłoszenia błędów" [ref=f1e13] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "Identity Gateway" [ref=f1e14] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+      - link "POI / Overpass" [ref=f1e15] [cursor=pointer]:
+        - /url: /dev?tab=poi&_session_generation=6b9b5c674fef934f15f0800bae1c07442c18d5779c29684b3ba77ea4c5b096fe
+    - main [ref=f1e16]:
+      - generic [ref=f1e17]:
+        - heading "POI / Overpass" [level=1] [ref=f1e18]
+        - paragraph [ref=f1e19]: Dostępność techniczna i dopuszczenie źródła są oceniane osobno. Odświeżenie panelu nie wywołuje Overpass.
+        - button "Odśwież stan" [ref=f1e20] [cursor=pointer]
+        - status
+        - generic [ref=f1e21]:
+          - heading "World Discovery" [level=2] [ref=f1e22]
+          - paragraph [ref=f1e23]: Zapis świata wymaga osobnej zgody world_storage. Ten widok nie uruchamia pobierania danych.
+          - status
+          - heading "Zapotrzebowanie na regiony" [level=3] [ref=f1e24]
+          - paragraph [ref=f1e25]: Sektory zainteresowania graczy, nie dowód pokrycia. Do 100 ostatnich sektorów; bez tras i identyfikatorów graczy.
+          - paragraph
+        - heading "Dodaj / edytuj źródło" [level=2] [ref=f1e27]
+        - generic [ref=f1e28]:
+          - generic [ref=f1e29]:
+            - text: ID
+            - textbox "ID" [ref=f1e30]
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]: Nazwa
+            - textbox "Nazwa" [ref=f1e33]
+          - generic [ref=f1e34]:
+            - text: HTTPS / interpreter
+            - textbox "HTTPS / interpreter" [ref=f1e35]
+          - generic [ref=f1e36]:
+            - generic [ref=f1e37]: Grupa operatora
+            - textbox "Grupa operatora" [ref=f1e38]
+          - generic [ref=f1e39]:
+            - generic [ref=f1e40]: Priorytet
+            - spinbutton "Priorytet" [ref=f1e41]: "0"
+          - button "Zapisz kandydata" [ref=f1e42] [cursor=pointer]
+          - status
+        - heading "Decyzja o zakresie użycia" [level=2] [ref=f1e43]
+        - generic [ref=f1e44]:
+          - paragraph [ref=f1e45]: Wybierz zapisane źródło. Zgoda na probe nie oznacza zgody na skany ani trwały zapis. Decyzja nie włącza źródła.
+          - generic [ref=f1e46]:
+            - text: ID
+            - textbox "ID" [ref=f1e47]
+          - generic [ref=f1e48]:
+            - generic [ref=f1e49]: Warunki
+            - combobox "Warunki" [ref=f1e50]:
+              - option "unknown" [selected]
+              - option "public_declaration_only"
+              - option "operator_confirmation_pending"
+              - option "approved_for_defined_use"
+              - option "restricted"
+              - option "rejected"
+              - option "expired_review"
+          - group "Dozwolony zakres" [ref=f1e51]:
+            - generic [ref=f1e53]:
+              - checkbox "small_probe" [ref=f1e54]
+              - text: small_probe
+            - generic [ref=f1e55]:
+              - checkbox "normal_scan" [ref=f1e56]
+              - text: normal_scan
+            - generic [ref=f1e57]:
+              - checkbox "wide_fetch" [ref=f1e58]
+              - text: wide_fetch
+            - generic [ref=f1e59]:
+              - checkbox "background_refresh" [ref=f1e60]
+              - text: background_refresh
+            - generic [ref=f1e61]:
+              - checkbox "storage" [ref=f1e62]
+              - text: storage
+            - generic [ref=f1e63]:
+              - checkbox "world_storage" [ref=f1e64]
+              - text: world_storage
+          - generic [ref=f1e65]:
+            - generic [ref=f1e66]: Adres źródła warunków
+            - textbox "Adres źródła warunków" [ref=f1e67]
+          - generic [ref=f1e68]:
+            - generic [ref=f1e69]: Referencja dowodu
+            - textbox "Referencja dowodu" [ref=f1e70]
+          - generic [ref=f1e71]:
+            - generic [ref=f1e72]: Uzasadnienie
+            - textbox "Uzasadnienie" [ref=f1e73]
+          - generic [ref=f1e74]:
+            - generic [ref=f1e75]: Następny przegląd
+            - textbox "Następny przegląd" [ref=f1e76]
+          - button "Zapisz decyzję" [ref=f1e77] [cursor=pointer]
+          - status
+        - heading "Ostatnie obserwacje" [level=2] [ref=f1e78]
+        - heading "Historia zmian" [level=2] [ref=f1e79]

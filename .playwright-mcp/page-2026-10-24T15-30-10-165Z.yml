@@ -1,0 +1,172 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "CHAOS / ADMIN" [ref=e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+    - generic [ref=e4]: ADMINISTRATION CENTER
+    - link "Return to game ↗" [ref=e5] [cursor=pointer]:
+      - /url: /desktop?_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+  - generic [ref=e6]:
+    - navigation "Administration sections" [ref=e7]:
+      - link "Users" [ref=e8] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "GhostLab" [ref=e9] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "Radio" [ref=e10] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "Narrative models" [ref=e11] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "Territories" [ref=e12] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "Vulnerabilities" [ref=e13] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "Bug reports" [ref=e14] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "Identity Gateway" [ref=e15] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - link "POI / Overpass" [ref=e16] [cursor=pointer]:
+        - /url: /dev?tab=poi&_session_generation=50cc2773f0c7336150c6ee298b17bf4bf4842a1c55e863344bc1bb1be730a40d
+      - paragraph [ref=e17]: GHOST NETWORKOperator panel
+    - main [ref=e18]:
+      - generic [ref=e19]:
+        - heading "POI / World Discovery" [level=1] [ref=e20]
+        - paragraph [ref=e21]: Technical tests, usage approval and profile compatibility are separate. Refreshing this panel does not query providers.
+        - button "Refresh status" [ref=e22] [cursor=pointer]
+        - status
+        - generic [ref=e23]:
+          - heading "Provider hierarchy" [level=2] [ref=e24]
+          - status
+          - paragraph [ref=e25]: Fresh local data takes precedence over APIs. The order applies only to compatible, approved providers. Saving does not enable providers or background fetching.
+          - generic [ref=e26]:
+            - generic [ref=e27]:
+              - text: Layer
+              - combobox "Layer" [ref=e28]:
+                - option "POI" [selected]
+                - option "Roads"
+                - option "Rivers and canals"
+                - option "Lakes and reservoirs"
+                - option "Coastlines"
+                - option "Land and sea"
+            - generic [ref=e29]:
+              - text: Usage lane
+              - combobox "Usage lane" [ref=e30]:
+                - option "Player scan" [selected]
+                - option "World background"
+            - generic [ref=e31]:
+              - generic [ref=e32]:
+                - text: Primary provider
+                - combobox "Primary provider" [ref=e33]
+              - generic [ref=e34]:
+                - text: First fallback
+                - combobox "First fallback" [ref=e35]
+              - generic [ref=e36]:
+                - text: Second fallback
+                - combobox "Second fallback" [ref=e37]
+            - button "Save order" [ref=e38] [cursor=pointer]
+            - button "Restore previous order" [ref=e39] [cursor=pointer]
+            - status [ref=e40]
+          - list
+          - group [ref=e41]:
+            - generic "Routing history" [ref=e42] [cursor=pointer]
+        - generic [ref=e43]:
+          - heading "World Discovery" [level=2] [ref=e44]
+          - paragraph [ref=e45]: World storage requires separate world_storage approval. This view does not fetch provider data.
+          - status
+          - generic [ref=e46]:
+            - heading "Stored world — evidence and observations" [level=3] [ref=e47]
+            - paragraph [ref=e48]: An observation footprint is not complete coverage. This map shows a bounded snapshot set, without player positions. Drag to pan.
+            - generic [ref=e49]:
+              - generic [ref=e50]:
+                - text: Layer
+                - combobox "Layer" [ref=e51]:
+                  - option "All layers" [selected]
+                  - option "POI"
+                  - option "Roads"
+                  - option "Waterways"
+                  - option "Inland water"
+                  - option "Coastline"
+                  - option "Land–water"
+              - generic [ref=e52]:
+                - checkbox "Show complete empty results" [ref=e53]
+                - text: Show complete empty results
+              - button "Refresh local data" [ref=e54] [cursor=pointer]
+              - button "Zoom in" [ref=e55] [cursor=pointer]: +
+              - button "Zoom out" [ref=e56] [cursor=pointer]: −
+              - button "Fit" [ref=e57] [cursor=pointer]
+            - status [ref=e58]: Reading local data…
+            - paragraph [ref=e59]: "Green: COMPLETE_FRESH. Orange: STALE/EXPIRED. Yellow: PARTIAL. Dashed grey: UNKNOWN / observations. Read restrictions are labelled separately."
+            - img "Stored world — evidence and observations" [ref=e60]
+            - paragraph
+            - heading "CHAOS budgets and provider account" [level=3] [ref=e61]
+          - heading "Regional demand" [level=3] [ref=e62]
+          - paragraph [ref=e63]: Player demand sectors, not coverage evidence. Up to 100 recent sectors; no player routes or identifiers.
+          - paragraph
+        - heading "Add / edit provider" [level=2] [ref=e65]
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - text: ID
+            - textbox "ID" [ref=e68]
+          - generic [ref=e69]:
+            - generic [ref=e70]: Name
+            - textbox "Name" [ref=e71]
+          - generic [ref=e72]:
+            - text: HTTPS API endpoint
+            - textbox "HTTPS API endpoint" [ref=e73]
+          - generic [ref=e74]:
+            - generic [ref=e75]: Operator group
+            - textbox "Operator group" [ref=e76]
+          - generic [ref=e77]:
+            - generic [ref=e78]: List priority (hierarchy is configured separately)
+            - spinbutton "List priority (hierarchy is configured separately)" [ref=e79]: "0"
+          - button "Save candidate" [ref=e80] [cursor=pointer]
+          - status [ref=e81]
+        - heading "Usage scope decision" [level=2] [ref=e82]
+        - generic [ref=e83]:
+          - paragraph [ref=e84]: Select a saved provider. Probe approval does not approve scans or storage. A decision does not enable the provider.
+          - generic [ref=e85]:
+            - text: ID
+            - textbox "ID" [ref=e86]
+          - generic [ref=e87]:
+            - generic [ref=e88]: Policy
+            - combobox "Policy" [ref=e89]:
+              - option "unknown" [selected]
+              - option "public_declaration_only"
+              - option "operator_confirmation_pending"
+              - option "approved_for_defined_use"
+              - option "restricted"
+              - option "rejected"
+              - option "expired_review"
+          - group "Allowed scopes" [ref=e90]:
+            - generic [ref=e92]:
+              - checkbox "small_probe" [ref=e93]
+              - text: small_probe
+            - generic [ref=e94]:
+              - checkbox "normal_scan" [ref=e95]
+              - text: normal_scan
+            - generic [ref=e96]:
+              - checkbox "wide_fetch" [ref=e97]
+              - text: wide_fetch
+            - generic [ref=e98]:
+              - checkbox "background_refresh" [ref=e99]
+              - text: background_refresh
+            - generic [ref=e100]:
+              - checkbox "storage" [ref=e101]
+              - text: storage
+            - generic [ref=e102]:
+              - checkbox "world_storage" [ref=e103]
+              - text: world_storage
+          - generic [ref=e104]:
+            - generic [ref=e105]: Terms source URL
+            - textbox "Terms source URL" [ref=e106]
+          - generic [ref=e107]:
+            - generic [ref=e108]: Evidence reference
+            - textbox "Evidence reference" [ref=e109]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Notes
+            - textbox "Notes" [ref=e112]
+          - generic [ref=e113]:
+            - generic [ref=e114]: Next review
+            - textbox "Next review" [ref=e115]
+          - button "Save decision" [ref=e116] [cursor=pointer]
+          - status [ref=e117]
+        - heading "Recent observations" [level=2] [ref=e118]
+        - heading "Change history" [level=2] [ref=e119]
