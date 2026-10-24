@@ -46,6 +46,10 @@ class DiscoveryJobs:
                 operation TEXT, snapshot TEXT, reason TEXT NOT NULL)''')
             c.execute('CREATE INDEX IF NOT EXISTS world_job_ready ON world_discovery_job(state,available_at,updated)')
             c.execute('CREATE UNIQUE INDEX IF NOT EXISTS world_job_operation ON world_discovery_job(operation) WHERE operation IS NOT NULL')
+            # One durable cursor, no per-player history or unbounded region table.
+            c.execute('''CREATE TABLE IF NOT EXISTS world_discovery_cursor (
+                singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                cell_x INTEGER NOT NULL, cell_y INTEGER NOT NULL)''')
 
     def enqueue(self,demand_key,provider,revision,profile):
         token(demand_key);token(provider);token(profile)
@@ -90,13 +94,23 @@ class DiscoveryJobs:
         now=time.time();owner=uuid.uuid4().hex
         with self.repo.transaction() as c:
             self._recover(c,now)
-            row=c.execute('''SELECT * FROM world_discovery_job WHERE state IN
-                ('PENDING','DEFERRED','RETRY_AFTER') AND available_at<=? AND expires>?
-                AND attempts<? ORDER BY updated,id LIMIT 1''',(now,now,self.max_attempts)).fetchone()
+            cursor=c.execute('SELECT cell_x,cell_y FROM world_discovery_cursor WHERE singleton=1').fetchone()
+            # Rotate sectors, then oldest job within the chosen sector. Eligibility
+            # excludes expired/deleted demand; hits never buy a higher priority.
+            x,y=(cursor['cell_x'],cursor['cell_y']) if cursor else (-18001,-9001)
+            row=c.execute('''SELECT j.*,d.cell_x,d.cell_y FROM world_discovery_job j
+                JOIN world_discovery_demand d ON d.key=j.demand_key
+                WHERE j.state IN ('PENDING','DEFERRED','RETRY_AFTER')
+                AND j.available_at<=? AND j.expires>? AND d.expires>? AND j.attempts<?
+                ORDER BY CASE WHEN d.cell_x>? OR (d.cell_x=? AND d.cell_y>?)
+                    THEN 0 ELSE 1 END,d.cell_x,d.cell_y,j.updated,j.id LIMIT 1''',
+                (now,now,now,self.max_attempts,x,x,y)).fetchone()
             if not row:
                 return None
             c.execute("UPDATE world_discovery_job SET state='LEASED',owner=?,lease_until=?,attempts=attempts+1,updated=?,reason='' WHERE id=?",
                       (owner,min(now+seconds,row['expires']),now,row['id']))
+            c.execute('INSERT OR REPLACE INTO world_discovery_cursor VALUES (1,?,?)',
+                      (row['cell_x'],row['cell_y']))
             return dict(c.execute('SELECT * FROM world_discovery_job WHERE id=?',(row['id'],)).fetchone())
 
     def transition(self,key,owner,target,*,delay=0,operation=None):

@@ -54,7 +54,13 @@ class Repository:
     @contextmanager
     def transaction(self):
         wal = Path(self.path + '-wal')
-        if wal.exists() and wal.stat().st_size > self.max_bytes + 8 * 1024 * 1024:
+        try:
+            wal_bytes = wal.stat().st_size
+        except FileNotFoundError:
+            # SQLite may remove WAL when another process closes its last reader.
+            # Do not mask permission/I/O failures or bypass the capacity check.
+            wal_bytes = 0
+        if wal_bytes > self.max_bytes + 8 * 1024 * 1024:
             raise sqlite3.OperationalError('poi_wal_capacity')
         c = self.connect()
         try:

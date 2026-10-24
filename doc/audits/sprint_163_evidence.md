@@ -128,3 +128,37 @@ Pełna regresja World: **125 PASS, 19,922 s**. Składnia ecosystemów i
 To dowód mechanizmu dopuszczania MapLark, nie pełnego workera ani odbiór
 priorytetu legacy Overpass. Fairness między regionami i obciążenie około 100
 testerów nadal wymagają osobnego testu. Ingest/read/background na VPS OFF.
+# Uzupełnienie 24.10.2026 — rotacja regionów offline
+
+DiscoveryJobs.claim wybiera sektory round-robin, następnie najstarsze gotowe
+zadanie w sektorze. Trwały jednoelementowy kursor jest aktualizowany atomowo
+z lease w tej samej transakcji SQLite; restart nie resetuje kolejności.
+Licznik popularności sektora nie podnosi priorytetu. Brak aktualnego popytu,
+odroczenie i limit prób wykluczają zadanie z wyboru. Kolejka nie tworzy sąsiadów.
+To sprawiedliwość przydziału zadań, nie równość kosztów/wierzchołków między regionami.
+Pierwszeństwo live nadal należy do osobnego mechanizmu admission MapLark.
+
+14 testów cyklu zadań PASS (3,074 s), w tym rotacja po restarcie, popularny
+sektor, usunięty popyt, odroczony sektor i konkurencja czterech procesów.
+Nowa tabela kursora powstaje wyłącznie przez jawne DiscoveryJobs.initialize;
+nie ma migracji na VPS, aktywacji workera ani wywołań API. Integracja tła,
+symulacja około 100 testerów i limity kosztów per warstwa pozostają otwarte.
+
+## Przegląd przedwdrożeniowy — 24.10.2026
+
+Pełna pierwsza regresja World ujawniła rzeczywisty wyścig w Repository.transaction:
+plik WAL usunięty przez zamknięcie połączenia innego procesu między exists i stat
+powodował FileNotFoundError. Wynik pierwszego przebiegu: 132 testy, 1 failure
+(konkurencja 4 live + background). Nie uznano tego za PASS ani nie pominięto testu.
+Kontrola używa teraz pojedynczego stat i obsługuje wyłącznie FileNotFoundError.
+Limit WAL pozostaje taki sam, błędy uprawnień/I/O propagują się.
+Trzy deterministyczne testy regresji WAL PASS (0,199 s).
+Po poprawce pełne World: 132 PASS (54,767 s).
+Pełne POI po poprawce: 90 PASS (85,838 s), w tym trzy nowe przypadki WAL.
+node --check ecosystem.web.config.js oraz git diff --check: PASS.
+
+Zakres pakietu: rotacja sektorów offline, poprawka wspólnego Repository,
+udokumentowany odbiór pilota i runbook przedwdrożeniowy. Brak zmian UI;
+w tym pakiecie nie wykonywano nowego testu Playwright. Nowa biblioteka zadań
+nie jest wywoływana przez procesy produkcyjne. Nie dodano workera ani migracji
+VPS. Konfiguracja ecosystem.web.config.js zachowuje OFF/OFF/passive, priority 0.

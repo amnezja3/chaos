@@ -21,9 +21,19 @@ Operator potwierdził `pm2 save`. Dowód pochodzi z wyników CLI/logów przekaza
 przez operatora; nie jest niezależnym przechwyceniem ruchu ani rachunkiem dostawcy.
 Ścieżka source=world omija pozyskanie danych od dostawcy.
 
-Przygotowano w ecosystem.web.config.js wyłączenie ingest/read i wyczyszczenie
-zakresu pilota do testu rollbacku. Nie oznacza to jeszcze wykonania na VPS.
-Otwarte: odbiór zwykłego skanu po wyłączeniu oraz selective prune po wygaśnięciu.
+Operator potwierdził na VPS Ingest OFF / Read OFF / discovery passive oraz
+zapis PM2 po wdrożeniu konfiguracji wyłączającej pilota.
+Selective prune klucza `6bc3ce570121`, revision 8: expired_pruned,
+pruned_snapshots=1, removed_cache_entries=0, network_calls=0,
+ledger_unchanged=true. Następna inspekcja read_only: MISS/no_compatible_coverage,
+pruned_snapshots=0, world_unchanged=true, ledger_unchanged=true, network_calls=0.
+PASS: selektywne usunięcie wygasłego snapshotu bez mutacji cache i księgi.
+Nie jest to dowód usunięcia danych z kopii zapasowych ani całego magazynu.
+Operator potwierdził udany zwykły skan w nowej lokalizacji po wyłączeniu pilota.
+Załączony zrzut pokazuje marker OSP w Liciążnej i menu akcji obiektu.
+PASS: gameplay po rollbacku. Zrzut nie rozstrzyga źródła danych ani naliczenia API.
+Ograniczony pilot exact-query odebrany: ingest, cross-worker local read,
+restart, wyłączenie, selektywne sprzątanie oraz zwykły skan po rollbacku.
 Nie zamykamy pełnych sprintów 162/163 ani nie włączamy świata dla wszystkich.
 Kontrola przygotowanego rollbacku lokalnie: 9 testów shadow PASS (4,827 s),
 asercje wartości ecosystemu i node --check PASS, git diff --check bez błędów.

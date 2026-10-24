@@ -66,6 +66,37 @@ class DiscoveryJobTests(unittest.TestCase):
         self.assertEqual(sum(output.get(timeout=2) is not None for _ in workers),1)
         output.close();output.join_thread()
 
+    def test_region_rotation_survives_restart_and_ignores_popularity(self):
+        self.demand.record(22,52,['poi','roads','waterways'])
+        self.demand.record(21,52,['roads','waterways'])
+        for _ in range(10):self.demand.record(21,52,['poi'])
+        with closing(self.repo.connect()) as c:
+            demands=c.execute('SELECT key,cell_x FROM world_discovery_demand').fetchall()
+        regions={d['key']:d['cell_x'] for d in demands}
+        for d in demands:self.jobs.enqueue(d['key'],'fixture',1,'poi')
+        claimed=[]
+        for _ in range(6):
+            job=DiscoveryJobs(self.repo).claim()
+            claimed.append(regions[job['demand_key']])
+            self.jobs.transition(job['id'],job['owner'],'CANCELLED')
+        self.assertEqual(claimed,[2100,2200,2100,2200,2100,2200])
+        with closing(self.repo.connect()) as c:
+            self.assertEqual(c.execute('SELECT count(*) FROM world_discovery_cursor').fetchone()[0],1)
+
+    def test_deleted_demand_cannot_start_job(self):
+        with self.repo.transaction() as c:
+            c.execute('DELETE FROM world_discovery_demand')
+        self.assertIsNone(self.jobs.claim())
+
+    def test_deferred_sector_does_not_block_eligible_sector(self):
+        first=self.jobs.claim()
+        self.jobs.transition(first['id'],first['owner'],'DEFERRED',delay=300)
+        self.demand.record(22,52,['poi'])
+        with closing(self.repo.connect()) as c:
+            key=c.execute('SELECT key FROM world_discovery_demand WHERE cell_x=2200').fetchone()[0]
+        second=self.jobs.enqueue(key,'fixture',1,'poi')
+        self.assertEqual(self.jobs.claim()['id'],second)
+
     def test_restart_before_http_reclaims_with_new_fence(self):
         first=self.jobs.claim(1)
         with patch('poi_infrastructure.discovery_jobs.time.time',return_value=time.time()+2):

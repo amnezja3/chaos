@@ -4,8 +4,13 @@ Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — pasywny e
 Zaimplementowano ograniczony rejestr sektorów/warstw PENDING oraz podgląd stanu
 magazynu i budżetu. Pasywny zapis odebrany na VPS; ingest/read nadal OFF.
 Lokalna biblioteka zadań ma lease/fencing i uzgadnianie publikacji po crash,
-bez automatycznych pobrań. Nie ma jeszcze workera, wspólnego priorytetu live,
-mapy dowodów coverage ani pilota ingest/local.
+bez automatycznych pobrań. Priorytet live MapLark i rotacja sektorów są
+zaimplementowane lokalnie; pilot exact ingest/local przeszedł na VPS odczyt
+przez innego workera i po restarcie. Operator potwierdził wyłączenie flag i
+zapis PM2 oraz usunięcie jednego wygasłego snapshotu bez zmian cache/księgi.
+Operator potwierdził zwykły skan w nowej lokalizacji po rollbacku: ograniczony
+pilot exact-query odebrany. Nie jest to odbiór regionalnego pokrycia ani tła.
+Nie ma jeszcze produkcyjnego workera ani mapy dowodów coverage.
 Dowody: [163](../audits/sprint_163_evidence.md).
 Zależności: [161](sprint_161_world_contract_and_adapters.md),
 [162](sprint_162_world_repository_local_read.md), otwarte dowody 160.

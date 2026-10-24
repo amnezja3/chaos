@@ -1,5 +1,51 @@
 # 162/163 — przygotowanie schematu i etap pasywny
 
+## Wersja przedwdrożeniowa po odbiorze pilota — 24.10.2026
+
+Ograniczony pilot exact-query odebrano na VPS: zapis, odczyt przez inny worker,
+restart, wyłączenie, usunięcie jednego wygasłego snapshotu i udany skan w nowej
+lokalizacji. PM2 zapisany. Nowy pakiet dodaje lokalną rotację sektorów
+w bibliotece DiscoveryJobs, poprawia kontrolę rozmiaru WAL przy współbieżnym
+zamykaniu połączeń SQLite oraz aktualizuje dowody. Nie uruchamia workera.
+
+Konfiguracja docelowa pozostaje w `ecosystem.web.config.js`: MapLark ON,
+ingest/read OFF, discovery passive, priority OFF, zakres pilota pusty/until 0.
+Budżety 800/dobę UTC i 24000/31 dni pozostają w bazie. Nie zmieniać registry,
+rewizji providera, sekretów ani scope. Nie wykonywać ponownie migracji świata.
+Tabela world_discovery_cursor należy do jawnego initialize biblioteki zadań;
+produkcja nie wywołuje tej biblioteki, więc ten pakiet nie wymaga migracji VPS.
+
+Po osobnym wypchnięciu zatwierdzonego commita, preflight na VPS:
+
+```bash
+cd /home/johndoe/app/chaos &&
+git pull --ff-only &&
+.venv/bin/python -m unittest discover -s tests -p 'test_world_*.py' &&
+.venv/bin/python -m unittest discover -s tests -p 'test_poi_*.py'
+```
+
+Testy korzystają z izolowanych baz i mocków, nie z produkcyjnych providerów.
+Nie przechodzić dalej przy błędzie. Poprawka WAL dotyczy wspólnego Repository
+używanego również przez skaner; po PASS przeładować proces web:
+
+```bash
+pm2 startOrReload ecosystem.web.config.js --only chaos --update-env
+```
+
+Sprawdzić /launch 200 po gotowości procesu oraz zachowanie panelu OFF/OFF/passive.
+Po udanym odbiorze zapisać `pm2 save`. Nie włączać background ani world dla
+wszystkich. Rollback tej wersji: wycofać pakiet przez revert
+commita i wdrożyć ponownie; zachować obecną konfigurację OFF/OFF/passive i bazę.
+Nie wracać do historycznego commita z aktywnym pilotem i nie odtwarzać księgi.
+
+Przed osobnym uruchomieniem tła pozostają: integracja workera poza Gunicornem,
+sprawdzenie scope/capabilities przy każdym zadaniu, kosztów i pojemności magazynu,
+limity per warstwa, symulacja obciążenia oraz zatwierdzony region/budżet/okno.
+Rotacja sektorów równoważy przydziały, nie koszty zapytań. Pełne sprinty 162/163
+pozostają otwarte; wersja przedwdrożeniowa nie oznacza gotowości tła produkcyjnego.
+
+## Historyczne checkpointy
+
 Aktualizacja 24.10.2026: sekcje 1–3 poniżej opisują odebrany etap migracji
 i uruchomienia passive. Nie powtarzać migracji ani nie wyłączać tego trybu.
 Ingest/read pozostają OFF. Dalsza biblioteka `discovery_jobs.py` jest testowana
