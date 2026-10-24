@@ -1,5 +1,25 @@
 # Sprint 162 — magazyn obserwacji, 23.10.2026
 
+## Uzupełnienie VPS i pomiarów — 24.10.2026
+
+Operator potwierdził 107 World PASS (44,138 s), 87 POI PASS (72,296 s), migrację
+schematu 2 i udany skan po restarcie. Ingest/read nadal OFF. Backup i odbiór
+trybu pasywnego opisano w [163](sprint_163_evidence.md).
+
+Pierwszy benchmark VPS (50/680 syntetycznych obiektów): publikacja 0,1685/0,9393 s,
+odczyt 0,0157/0,0701 s. Nie mierzył RSS ani czasu trzymania transakcji.
+Rozszerzono `world_storage_benchmark.py` o czas wejścia w transakcję i czas
+od BEGIN do commit/close oraz obserwację WAL przed zamknięciem ostatniego
+połączenia. RSS na Linuksie pochodzi z ru_maxrss i jest maksymalnym zużyciem
+całego procesu od startu, nie przyrostem tej próbki. Na innych systemach null.
+WAL nadal jest obserwacją po commit, nie ciągłym pomiarem szczytu. Tracemalloc
+pozostaje włączony; syntetyczna próbka nie dowodzi wydajności przy konkurencji.
+
+Lokalny pomiar po zmianie, 680 obiektów: publikacja 0,3978 s, odczyt 0,0408 s,
+jedna transakcja, wejście 0,000867 s, hold+close 0,030958 s, WAL po commit
+1042392 B. RSS na Windows null. Potrzebny odpowiadający pomiar Linux/VPS,
+bez restartu gry, migracji lub wywołań API.
+
 ## Kolejny etap — dowód selekcji i planer lokalny
 
 `world_read.py`: `SelectionProof` i `WorldReadPlanner`. Dowód zapisuje się

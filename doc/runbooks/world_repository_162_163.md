@@ -1,5 +1,22 @@
 # 162/163 — przygotowanie schematu i etap pasywny
 
+Aktualizacja 24.10.2026: sekcje 1–3 poniżej opisują odebrany etap migracji
+i uruchomienia passive. Nie powtarzać migracji ani nie wyłączać tego trybu.
+Ingest/read pozostają OFF. Dalsza biblioteka `discovery_jobs.py` jest testowana
+lokalnie; nie podłączono jej do produkcyjnego kolektora ani żadnego workera.
+
+Następny checkpoint, po pobraniu nowego kodu: rozszerzony pomiar bez restartu,
+bez migracji i bez HTTP, na tymczasowej bazie:
+
+```bash
+.venv/bin/python tools/world_storage_benchmark.py --counts 50 680
+```
+
+Nowe pola: `process_lifetime_peak_rss_bytes` (Linux, maksimum całego procesu),
+`post_commit_wal_bytes` (obserwacja, nie szczyt), `publication_transactions`,
+`max_transaction_entry_seconds` i `max_transaction_hold_and_close_seconds`.
+Pomiar syntetyczny z tracemalloc nie zastępuje pilota na rzeczywistych danych.
+
 Pakiet dodaje kanoniczny magazyn, odczyt dokładnego zapytania i pasywny rejestr
 zapotrzebowania. Nie oznacza pełnego odbioru sprintów ani zgody na background.
 W pierwszym wdrożeniu pozostawić ingest/read OFF i discovery off.

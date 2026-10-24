@@ -1,9 +1,11 @@
 # Sprint 163 — World Discovery: kolejka, panel operacyjny i kontrolowany rollout
 
-Data: 20.10.2026. Aktualizacja: 23.10.2026. Status: **W REALIZACJI — pasywne zapotrzebowanie i panel lokalny**.
+Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — pasywny etap PASS na VPS, cykl zadań lokalnie**.
 Zaimplementowano ograniczony rejestr sektorów/warstw PENDING oraz podgląd stanu
-magazynu i budżetu. Nie ma jeszcze workera pobierającego dane, pełnej maszyny
-stanów kolejki, mapy dowodów coverage ani pilota produkcyjnego.
+magazynu i budżetu. Pasywny zapis odebrany na VPS; ingest/read nadal OFF.
+Lokalna biblioteka zadań ma lease/fencing i uzgadnianie publikacji po crash,
+bez automatycznych pobrań. Nie ma jeszcze workera, wspólnego priorytetu live,
+mapy dowodów coverage ani pilota ingest/local.
 Dowody: [163](../audits/sprint_163_evidence.md).
 Zależności: [161](sprint_161_world_contract_and_adapters.md),
 [162](sprint_162_world_repository_local_read.md), otwarte dowody 160.
