@@ -115,3 +115,28 @@ muszą odpowiadać wykorzystaniu. Po odbiorze konfiguracji wykonać pm2 save.
 Rollback: ustawić routing=0 w ecosystem.web.config.js i przeładować tylko chaos.
 Nie odtwarzać starej bazy nad aktualną księgą kosztów. Przywrócenie kolejności
 w adminie jest osobną operacją i nie zeruje historii ani opłat.
+# Diagnostyka małej liczby wyników Geoapify — 24.10.2026
+
+Po próbie z jednym obiektem nie uruchamiać ponownie tego samego szerokiego
+zapytania. Dostępny `--profile commercial` ogranicza diagnostykę do jednej
+kategorii, nie zmienia działającego skanera. Domyślny `broad` pozostaje dla
+porównań; nie jest certyfikowanym profilem gameplayu. Najpierw plan (0 HTTP):
+
+```bash
+.venv/bin/python tools/geoapify_probe.py --db data/poi_cache.sqlite3 --profile commercial --lat 52.2319 --lon 21.0067 --radius 300 --pages 1
+```
+
+Po aktualizacji kodu i upływie blokady poprzedniej próby, przy dostępnej zgodzie
+small_probe i pozostałym budżecie, pojedyncza próba na VPS:
+
+```bash
+( read -r -s -p 'Klucz API Geoapify: ' CHAOS_GEOAPIFY_API_KEY; printf '\n'; export CHAOS_GEOAPIFY_API_KEY; .venv/bin/python tools/geoapify_probe.py --db data/poi_cache.sqlite3 --profile commercial --lat 52.2319 --lon 21.0067 --radius 300 --pages 1 --execute )
+```
+
+Nie resetować rate limit ani nie zwiększać budżetu w reakcji na odmowę.
+Raport zawiera parametry query, geometry_types i raw_tag_matches. Ostatnie
+pole jest jedynie inspekcją oryginalnych tagów, nie nową kwalifikacją obiektów
+do gry. Większa liczba wyników nie dowodzi parity z Overpass/MapLark.
+Przy ponownie małej liczbie wyników sprawdzić transport i rzeczywiste dane
+dostawcy w kolejnym zaplanowanym teście; nie przechodzić automatycznie przez
+wszystkie kategorie. Brak nowego HTTP przy samym planie i odczycie admina.

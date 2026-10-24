@@ -44,6 +44,25 @@ class GeoapifyTests(unittest.TestCase):
         self.assertTrue(result['repeated_page']);self.assertTrue(result['truncated'])
         self.assertEqual(http.call_count,2)
 
+    def test_single_category_probe_is_bounded_and_reports_actual_query(self):
+        http=Mock(return_value=response(2))
+        result=inspect_places(self.service.repo,'geoapify',52.2319,21.0067,300,
+                              profile='commercial',transport=http)
+        self.assertEqual(dict(http.call_args.args[2].params)['categories'],'commercial')
+        self.assertEqual(result['query']['longitude'],21.0067)
+        self.assertEqual(result['query']['latitude'],52.2319)
+        self.assertEqual(result['raw_tag_matches'],{'amenity':2})
+        self.assertEqual(result['geometry_types'],{'Point':2})
+        self.assertFalse(result['gameplay_approved'])
+        http.assert_called_once()
+
+    def test_invalid_profile_never_sends_or_reserves(self):
+        http=Mock()
+        with self.assertRaisesRegex(POIError,'profile_invalid'):
+            inspect_places(self.service.repo,'geoapify',52,21,300,profile='arbitrary',transport=http)
+        http.assert_not_called()
+        self.assertEqual(self.ledger.status('geoapify')[0]['committed'],0)
+
     def test_timeout_keeps_reservation_no_retry(self):
         http=Mock(side_effect=UpstreamUnavailable('http_read_timeout'))
         with self.assertRaises(UpstreamUnavailable):inspect_places(self.service.repo,'geoapify',52,21,300,transport=http)

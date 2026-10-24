@@ -11,7 +11,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 def main():
     from poi_infrastructure.repository import Repository
     from poi_infrastructure.credit_budget import CreditBudget
-    from poi_infrastructure.geoapify import inspect_places
+    from poi_infrastructure.geoapify import inspect_places, PROFILES
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db',required=True)
     parser.add_argument('--provider',default='geoapify')
@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--lon',type=float,default=21.0067)
     parser.add_argument('--radius',type=float,default=300)
     parser.add_argument('--pages',type=int,choices=(1,2,3),default=1)
+    parser.add_argument('--profile',choices=tuple(PROFILES),default='broad')
     actions=parser.add_mutually_exclusive_group()
     actions.add_argument('--prepare-budget',action='store_true')
     actions.add_argument('--execute',action='store_true')
@@ -26,7 +27,9 @@ def main():
     if not args.execute and not args.prepare_budget:
         print(json.dumps(dict(status='plan',network_calls=0,max_network_calls=args.pages,
             reservation_per_page=5,deadline=35,secret_ref='CHAOS_GEOAPIFY_API_KEY',
-            gameplay_changed=False,required_scope='small_probe')))
+            gameplay_changed=False,required_scope='small_probe',
+            query=dict(profile=args.profile,categories=list(PROFILES[args.profile]),
+                       latitude=args.lat,longitude=args.lon,radius=args.radius,limit=100,method='POST'))))
         return
     repo=Repository(args.db)
     try:
@@ -48,7 +51,8 @@ def main():
                         provider_enabled=candidate['enabled'],environment_changed=False,
                         approval_required='small_probe',provider_revision=candidate['revision'])
         else:
-            result=inspect_places(repo,args.provider,args.lat,args.lon,args.radius,pages=args.pages)
+            result=inspect_places(repo,args.provider,args.lat,args.lon,args.radius,
+                                  pages=args.pages,profile=args.profile)
         print(json.dumps(result))
     except Exception as exc:
         # Transport exceptions can include URLs/credentials. Only safe known codes.

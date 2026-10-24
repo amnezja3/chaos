@@ -57,6 +57,26 @@ sterowanie kolejnością w adminie; praca lokalna do próby wymagającej operato
 
 ## Granica odbioru
 
+### Wynik operatora i przygotowanie porównania
+
+Operator potwierdził po poprawce: captured_not_approved, 1 wywołanie,
+1 obiekt z OSM ID, jedna krótka strona, koszt niezgłoszony (rezerwacja 5),
+gameplay/world_ingest false. Tag keys zawierały tourism/building, ale nie
+shop/amenity/office/healthcare/atm/man_made. To nie wystarcza do ustalenia
+przyczyny ani pełności. Raport nie zawierał parametrów query; historyczne
+680 MapLark nie stanowi jeszcze kontrolowanego porównania.
+
+Sprawdzono https://apidocs.geoapify.com/docs/places/ — POST z kategoriami,
+circle lon/lat/radius i nagłówkiem x-api-key odpowiada opisanemu kontraktowi.
+Nie potwierdzono hipotezy błędnego łączenia kategorii; nie zmieniano transportu
+na podstawie przypuszczenia. Dodano jawne profile diagnostyczne commercial
+i catering oraz parametry query i agregaty typów geometrii/tagów. Następna
+próba: wyłącznie commercial, 300 m, 52.2319/21.0067, jedna strona. Te same
+limity i księga; nic nie aktywuje źródła w grze.
+
+Testy diagnostyki: 7 PASS, 2.540 s. Brak wywołań API podczas implementacji.
+Pozostaje test VPS; nie deklarujemy zakończenia certyfikacji Geoapify.
+
 ### Korekta po pierwszej próbie VPS
 
 Operator otrzymał `geoapify_osm_identity_unverified`. Ta ścieżka oznacza HTTP

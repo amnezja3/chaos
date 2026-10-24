@@ -5,6 +5,7 @@ prove coverage of CHAOS tags, OSM identity or complete geographic geometry.
 """
 import time
 import uuid
+from collections import Counter
 
 from .providers import Registry
 from .routing import GEOAPIFY
@@ -14,12 +15,17 @@ from .world_adapters import plan_geoapify
 
 CATEGORIES = ('commercial','catering','accommodation','education','healthcare',
               'service','entertainment','parking','public_transport')
+PROFILES = {'broad': CATEGORIES, 'commercial': ('commercial',),
+            'catering': ('catering',)}
 
 
-def inspect_places(repo, provider_id, lat, lon, radius, *, pages=1, transport=None):
+def inspect_places(repo, provider_id, lat, lon, radius, *, pages=1, transport=None, profile='broad'):
+    if profile not in PROFILES:
+        raise POIError('geoapify_probe_profile_invalid')
+    categories = PROFILES[profile]
     if type(pages) is not int or not 1<=pages<=3:
         raise POIError('geoapify_page_limit')
-    plan_geoapify(lat,lon,radius,categories=CATEGORIES,limit=100).authenticated_wire()
+    plan_geoapify(lat,lon,radius,categories=categories,limit=100).authenticated_wire()
     registry=Registry(repo)
     candidate=next((p for p in registry.list() if p['id']==provider_id),None)
     if (not candidate or candidate['url']!=GEOAPIFY or not candidate.get('probe_allowed')
@@ -36,7 +42,7 @@ def inspect_places(repo, provider_id, lat, lon, radius, *, pages=1, transport=No
     for page in range(pages):
         if time.monotonic()>=deadline or not active():
             raise POIError('deadline_or_provider_changed')
-        plan=plan_geoapify(lat,lon,radius,categories=CATEGORIES,limit=100,offset=page*100)
+        plan=plan_geoapify(lat,lon,radius,categories=categories,limit=100,offset=page*100)
         batch,bill=acquire_features(repo,plan,uuid.uuid4().hex,5,account='geoapify',
             accept_variable_cost=True,transport=transport,still_active=active,deadline=deadline)
         bills.append(bill)
@@ -49,7 +55,18 @@ def inspect_places(repo, provider_id, lat, lon, radius, *, pages=1, transport=No
         if len(objects)==before:
             repeated=True
             break
+    tag_matches = Counter()
+    for obj in objects.values():
+        tags = dict(obj.tags)
+        matches = [key for key in ('shop','amenity','office','healthcare') if tags.get(key)]
+        if tags.get('atm') == 'yes': matches.append('atm=yes')
+        if tags.get('man_made') == 'surveillance': matches.append('man_made=surveillance')
+        tag_matches.update(matches or ['no_chaos_tag_match'])
     return dict(status='captured_not_approved', provider=provider_id, network_calls=len(bills),
+        query=dict(profile=profile,categories=list(categories),latitude=lat,longitude=lon,
+                   radius=radius,limit=100,method='POST'),
+        raw_tag_matches=dict(tag_matches),
+        geometry_types=dict(Counter(o.geometry.kind if o.geometry else 'missing' for o in objects.values())),
         objects=len(objects), pages=len(bills), page_end_observed=page_end,
         repeated_page=repeated, truncated=not page_end,
         osm_identified=sum(o.osm_id is not None for o in objects.values()),
