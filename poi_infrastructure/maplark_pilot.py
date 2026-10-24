@@ -27,7 +27,7 @@ def pilot_user(user):
                 v.strip() for v in os.environ.get('CHAOS_POI_MAPLARK_PILOT_USERS', '').split(',') if v.strip()})
 
 
-def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
+def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
     if not enabled():
         raise POIError('maplark_pilot_disabled')
     if not spatial or tuple(spatial['filters']) != FILTERS:
@@ -41,6 +41,7 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
     if not candidate:
         raise POIError('maplark_not_approved')
     from . import world_shadow
+    from .world_pilot import allowed as world_allowed
     world_shadow.demand(service,spatial)
     plan = plan_maplark(spatial['lat'], spatial['lon'], spatial['radius'], limit=1000)
     key = batch_key('maplark', PROFILE, plan.profile, PROFILE,
@@ -62,7 +63,11 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
     data = cached(fresh_ttl)
     if data is not None:
         return result(data, 'fresh')
-    data = world_shadow.read(service,candidate,key,active)
+    def world_read(stale=False):
+        if not world_allowed(world_user,spatial):return None
+        return world_shadow.read(service,candidate,key,
+            lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
+    data = world_read()
     if data is not None:
         return result(data,'world')
     owner = None
@@ -83,7 +88,7 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
         data = cached(fresh_ttl)
         if data is not None:
             return result(data, 'fresh')
-        data = world_shadow.read(service,candidate,key,active)
+        data = world_read()
         if data is not None:
             return result(data,'world')
         if os.environ.get('CHAOS_POI_MAPLARK_ENABLED') == '1':
@@ -102,7 +107,8 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
             data = validate(export_maplark(batch), service.config)
             if not active() or not service.repo.write(key, owner, data, stale_ttl):
                 raise POIError('cache_capacity_or_lease_lost')
-            world_shadow.store(service,candidate,key,owner,batch,fresh_ttl,stale_ttl)
+            if world_allowed(world_user,spatial):
+                world_shadow.store(service,candidate,key,owner,batch,min(fresh_ttl,300),min(stale_ttl,1800))
             if not active():
                 raise POIError('scanner_inactive_or_provider_changed')
             status = '200'
@@ -123,7 +129,7 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live):
             stale = cached(stale_ttl)
             if stale is not None:
                 return result(stale, 'stale')
-            stale = world_shadow.read(service,candidate,key,active,allow_stale=True)
+            stale = world_read(stale=True)
             if stale is not None:
                 return result(stale,'stale')
         raise

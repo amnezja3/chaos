@@ -90,7 +90,9 @@ def main():
                     time.time()+3600,'fixture')
                 registry.enable(v['id'],v['revision'],True,'fixture')
                 fixture.stack.enter_context(patch.dict(os.environ,CHAOS_POI_WORLD_INGEST_ENABLED='1',
-                    CHAOS_POI_WORLD_REPOSITORY_ENABLED='1',CHAOS_POI_DISCOVERY_MODE='passive'))
+                    CHAOS_POI_WORLD_REPOSITORY_ENABLED='1',CHAOS_POI_DISCOVERY_MODE='passive',
+                    CHAOS_POI_WORLD_PILOT_USER=actor,CHAOS_POI_WORLD_PILOT_CENTER='52,21',
+                    CHAOS_POI_WORLD_PILOT_UNTIL=str(time.time()+3600)))
                 original_publish=CanonicalWorldRepository.publish_batch
                 def optional_publish(instance,*args,**kwargs):
                     if mode['value']=='world-failure':

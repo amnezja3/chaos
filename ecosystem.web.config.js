@@ -17,6 +17,9 @@ module.exports = {
         // 162/163 remain opt-in after schema preparation and separate storage approval.
         CHAOS_POI_WORLD_INGEST_ENABLED: "0",
         CHAOS_POI_WORLD_REPOSITORY_ENABLED: "0",
+        CHAOS_POI_WORLD_PILOT_USER: "",
+        CHAOS_POI_WORLD_PILOT_CENTER: "",
+        CHAOS_POI_WORLD_PILOT_UNTIL: "0",
         // Schema v2 and gameplay verified on VPS; collect demand without background HTTP.
         CHAOS_POI_DISCOVERY_MODE: "passive",
         // Admission pilot is separate from passive demand; no background worker yet.

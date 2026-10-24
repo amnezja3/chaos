@@ -1,6 +1,7 @@
 from dataclasses import replace
 import os
 import sqlite3
+import time
 from unittest.mock import patch
 import unittest
 
@@ -16,6 +17,10 @@ class WorldShadowTests(unittest.TestCase):
         self.world.initialize_canonical()
         env=patch.dict(os.environ,CHAOS_POI_WORLD_INGEST_ENABLED='1',CHAOS_POI_WORLD_REPOSITORY_ENABLED='1')
         env.start();self.addCleanup(env.stop)
+        scope=patch.dict(os.environ,CHAOS_POI_WORLD_PILOT_USER='tester',
+            CHAOS_POI_WORLD_PILOT_CENTER='52,21',CHAOS_POI_WORLD_PILOT_UNTIL=str(time.time()+3600))
+        scope.start();self.addCleanup(scope.stop)
+        self.options['_world_pilot_user']='tester'
         batch=fixtures.normalized([fixtures.point()])
         self.batch=replace(batch,objects=tuple(replace(o,provenance=replace(o.provenance,license_ref='fixture-only')) for o in batch.objects))
 
@@ -82,6 +87,45 @@ class WorldShadowTests(unittest.TestCase):
         self.registry.enable(v['id'],v['revision'],False,'fixture')
         with self.assertRaisesRegex(POIError,'not_approved'):
             self.fetch()
+
+    def test_scope_exclusion_uses_normal_scanner_without_world(self):
+        self.grant()
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})):
+            self.fetch()
+        self.evict_cache()
+        self.options['_world_pilot_user']='someone-else'
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})) as upstream:
+            self.assertEqual(len(self.fetch()['elements']),1)
+            upstream.assert_called_once()
+        self.assertEqual(self.world.status()['snapshots'],1)
+
+    def test_pilot_tool_selective_eviction_and_busy_protection(self):
+        from tools.world_storage_pilot import inspect
+        self.grant()
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})):
+            self.fetch()
+        repo=self.service.repo
+        with repo.transaction() as c:
+            key=c.execute('SELECT key FROM cache').fetchone()[0]
+            ledger_before=[tuple(r) for r in c.execute('SELECT * FROM world_credit_operation')]
+        result=inspect(repo.path,52,21,evict=True)
+        self.assertEqual(result['removed_cache_entries'],0)
+        lease=repo.acquire(key,60)
+        with self.assertRaisesRegex(ValueError,'scan_in_flight'):
+            inspect(repo.path,52,21,evict=True,apply=True)
+        repo.release(key,lease)
+        result=inspect(repo.path,52,21,evict=True,apply=True)
+        self.assertEqual(result['removed_cache_entries'],1)
+        self.assertEqual(self.world.status()['snapshots'],1)
+        with repo.transaction() as c:
+            self.assertEqual([tuple(r) for r in c.execute('SELECT * FROM world_credit_operation')],ledger_before)
+        with self.assertRaisesRegex(ValueError,'fresh_world_result_required'):
+            inspect(repo.path,53,22,evict=True,apply=True)
+        self.assertEqual(inspect(repo.path,52,21,prune=True,apply=True)['pruned_snapshots'],0)
+        with repo.transaction() as c:
+            c.execute('UPDATE world_snapshot SET usable_until=?',(time.time()-1,))
+        self.assertEqual(inspect(repo.path,53,22,prune=True,apply=True)['pruned_snapshots'],0)
+        self.assertEqual(inspect(repo.path,52,21,prune=True,apply=True)['pruned_snapshots'],1)
 
     def test_local_world_survives_busy_network_and_exhausted_shared_budget(self):
         self.grant()

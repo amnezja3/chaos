@@ -197,7 +197,8 @@ class Service:
             from .presentation import publish
             try:
                 data, pilot_source = fetch_pilot(self, options.get('_spatial'), fresh_ttl, stale_ttl,
-                                   options.get('still_active', lambda: True))
+                                   options.get('still_active', lambda: True),
+                                   world_user=options.get('_world_pilot_user'))
                 publish(pilot_source, {}, False)
                 LOG.info('poi_maplark %s', json.dumps(dict(source=pilot_source, result='success')))
                 return data

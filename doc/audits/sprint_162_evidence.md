@@ -1,5 +1,33 @@
 # Sprint 162 — magazyn obserwacji, 23.10.2026
 
+## Pakiet ograniczonego pilota — 24.10.2026
+
+Dodano fail-closed zakres optional world: jedno konto z serwerowej sesji,
+jeden punkt (6 miejsc po przecinku), promień dokładnie 300 m i stały koniec
+okna nie dalej niż 24 h. Brak/niepoprawna konfiguracja, inne konto/punkt/promień
+lub koniec okna omijają wyłącznie world, zachowując dotychczasowy skaner.
+Login nie wchodzi do payloadu snapshotu ani klucza cache. Zapis ogranicza
+fresh TTL do 300 s i usable TTL do 1800 s. Wszystkie nowe wartości w ecosystemach
+są puste/0, ingest/read nadal OFF; produkcja nie została aktywowana.
+
+`tools/world_storage_pilot.py`: odczyt jednego klucza bez HTTP, jawne usunięcie
+tylko jego disposable cache po potwierdzeniu świeżego świata i braku skanu
+in-flight, osobne bounded prune wygasłych snapshotów tego klucza. Brak resetu
+księgi i kasowania innych punktów. Prune nie jest automatyczną retencją czasową.
+
+World 129 PASS (22,085 s); POI 87 PASS (32,328 s). Po dodaniu selective prune:
+9 testów shadow PASS (3,228 s). Testy obejmują wykluczone konto, fail-closed
+konfigurację, busy lease, cudzy punkt i zachowanie księgi. Playwright MCP przez
+rzeczywiste `/map-action`, mockowany provider: PL pierwszy skan zapisuje świat,
+po evict exact cache kolejny skan ma nadal calls=1 i poprawny marker. EN mobile
+390×844 z wymuszonym błędem publikacji: sukces skanu, calls=2, świat pusty.
+Konsola: 0 błędów/ostrzeżeń; fixture i przeglądarka zamknięte.
+
+Warunki MapLark odczytano z oficjalnej strony; dowód i granice interpretacji
+w [pakiecie pilota](../runbooks/world_storage_pilot_162.md). Zgoda operatora,
+login i punkt są jeszcze wymagane przed ON. Nie nadano scope world_storage,
+nie wykonano API ani żadnej zmiany na VPS.
+
 ## Uzupełnienie VPS i pomiarów — 24.10.2026
 
 Operator potwierdził 107 World PASS (44,138 s), 87 POI PASS (72,296 s), migrację
