@@ -10,6 +10,9 @@ przez innego workera i po restarcie. Operator potwierdził wyłączenie flag i
 zapis PM2 oraz usunięcie jednego wygasłego snapshotu bez zmian cache/księgi.
 Operator potwierdził zwykły skan w nowej lokalizacji po rollbacku: ograniczony
 pilot exact-query odebrany. Nie jest to odbiór regionalnego pokrycia ani tła.
+Dodano jednorazowego wykonawcę MapLark z krótkotrwałym limitem sektorów/warstw,
+scope background_refresh/storage/world_storage i wspólną księgą/priorytetem.
+Jest domyślnie wyłączoną biblioteką, bez automatycznego enqueue, pętli i PM2.
 Nie ma jeszcze produkcyjnego workera ani mapy dowodów coverage.
 Dowody: [163](../audits/sprint_163_evidence.md).
 Zależności: [161](sprint_161_world_contract_and_adapters.md),

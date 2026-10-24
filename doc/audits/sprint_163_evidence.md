@@ -162,3 +162,43 @@ udokumentowany odbiór pilota i runbook przedwdrożeniowy. Brak zmian UI;
 w tym pakiecie nie wykonywano nowego testu Playwright. Nowa biblioteka zadań
 nie jest wywoływana przez procesy produkcyjne. Nie dodano workera ani migracji
 VPS. Konfiguracja ecosystem.web.config.js zachowuje OFF/OFF/passive, priority 0.
+
+## Jednorazowy wykonawca discovery — 24.10.2026
+
+`discovery_worker.py` łączy istniejące DiscoveryJobs, acquire_maplark,
+CreditBudget, UpstreamPriority i CanonicalWorldRepository. Bez automatycznej
+migracji, enqueue, pętli, CLI wykonującego HTTP ani procesu PM2. Domyślny callback
+enabled zwraca false: brak claim, sekretów i HTTP. Jawny permit: maksymalnie
+10 sektorów 0,01 stopnia, okno do 24 h, wybrane roads/waterways/inland_water/coastline.
+Brak profilu land_water/POI i brak obietnicy kompletnego pokrycia regionu.
+
+Jedno zadanie pobiera promień 300 m od środka sektora, limit 1000 obiektów.
+To obserwacja, nie coverage komórki; publish bez dowodu coverage, status UNKNOWN.
+Nie rozszerza kolejki na sąsiadów. Rezerwacja <=20, wspólne istniejące okna
+kredytów, koszt nadal zmienny dostawcy; wymagane jawne accept_variable_cost.
+Sprawdza miejsce na maksymalny payload przed HTTP; commit nadal atomowo sprawdza
+rzeczywisty limit. Równoległy zapis może zużyć miejsce po preflight i zatrzymać
+publikację po pobraniu — nie obiecujemy rezerwacji dysku przed HTTP.
+
+Scope background_refresh/storage/world_storage, enabled, tested_ok, endpoint,
+revision, popyt, lease, permit i kill callback są sprawdzane przed pozyskaniem
+i w kolejnych kontrolach. Wymagany priority ON; oczekujące live odraczają tło.
+Identyfikator operacji jest stały per job i zapisywany przed wejściem w transport.
+Wspólna księga nie umożliwia ponownego pobrania tej samej operacji. Niepewny HTTP
+zostaje POLICY_BLOCKED, z zachowanym kosztem/rezerwacją; nie ma automatycznego retry.
+Awaria po publikacji może zostać uzgodniona istniejącym acknowledge bez HTTP.
+
+13 nowych testów PASS (12,274 s): wyłączenie, zakres/polityka, pierwszeństwo live,
+budżet, timeout, partial, cofnięcie revision/kill podczas HTTP, commit raz,
+odzyskanie ack po awarii. Pierwsza próba ujawniła błąd fixture (próba zmiany
+niezmiennego okna kredytów); fixture teraz wyczerpuje budżet prawidłowym naliczeniem.
+Wszystkie żądania mockowane, wyłącznie tymczasowe bazy.
+Pełna regresja World z wykonawcą: 145 PASS (75,840 s). Nie zmieniano UI ani
+aktywnej ścieżki skanera; nie wykonywano nowego testu przeglądarkowego.
+
+Przed tłem produkcyjnym nadal wymagane: ograniczony producent zadań, limity
+kosztu per warstwa/okno pilota, bezpieczna obsługa nierozliczonych operacji,
+superwizja/pętla i jawna migracja job schema, test obciążenia i osobne zatwierdzenie
+regionu/warstw oraz background_refresh. Istniejące zgody na skaner/pilot exact
+nie są zgodą na background. Żadna konfiguracja VPS ani ecosystemu nie została
+w tym etapie zmieniona. Nie zamykamy 163.

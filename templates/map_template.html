@@ -4881,19 +4881,16 @@
         function isSaneTerritoryPolygon(points) {
             if (!Array.isArray(points) || points.length < 3) return false;
 
-            const lats = points.map(point => Number(point[0])).filter(Number.isFinite);
-            const lngs = points.map(point => Number(point[1])).filter(Number.isFinite);
-            if (lats.length !== points.length || lngs.length !== points.length) return false;
-
-            const latSpan = Math.max(...lats) - Math.min(...lats);
-            const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+            if (!points.every(point => Array.isArray(point) && point.length >= 2
+                && Number.isFinite(point[0]) && Number.isFinite(point[1])
+                && point[0] >= -90 && point[0] <= 90
+                && point[1] >= -180 && point[1] <= 180)) return false;
             const uniquePoints = new Set(points.map(point => `${Number(point[0]).toFixed(6)}:${Number(point[1]).toFixed(6)}`));
             if (uniquePoints.size < 3) return false;
-            // Globalna mapa dopuszcza kanoniczne klastry przekraczajace jeden
-            // stopien dlugosci geograficznej.
-            // Zachowujemy bezpiecznik przeciw przypadkowemu poligonowi o skali
-            // kontynentu, ale nie odcinamy poprawnych, rozleglych terytoriow.
-            return latSpan <= 2.0 && lngSpan <= 2.0;
+            // Territory size/connectivity belongs to the canonical server geometry.
+            // A display-only degree limit hides valid growing territories (main:
+            // 2.1701599 degrees longitude) while their conflict markers remain.
+            return true;
         }
 
         function normalizeMapLatLngPair(latValue, lngValue) {

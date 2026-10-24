@@ -142,7 +142,9 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         sanity_start = self.map_template.index("function isSaneTerritoryPolygon")
         sanity_end = self.map_template.index("function normalizeMapLatLngPair", sanity_start)
         sanity = self.map_template[sanity_start:sanity_end]
-        self.assertIn("latSpan <= 2.0 && lngSpan <= 2.0", sanity)
+        self.assertNotIn("latSpan", sanity)
+        self.assertNotIn("lngSpan", sanity)
+        self.assertIn("Number.isFinite(point[0])", sanity)
 
     def test_territory_palette_accepts_lightweight_canonical_clan_codes(self):
         normalizer = self.map_template[

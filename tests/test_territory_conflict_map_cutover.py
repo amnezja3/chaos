@@ -528,7 +528,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         with (pathlib.Path(__file__).resolve().parents[1] / "templates/map_template.html").open(encoding="utf-8") as handle:
             source = handle.read()
 
-        self.assertIn("latSpan <= 2.0 && lngSpan <= 2.0", source)
+        self.assertNotIn("latSpan <= 2.0 && lngSpan <= 2.0", source)
         self.assertIn("'player_actors', window.refreshPlayerActors", source)
         self.assertIn("fetch('/api/map/player-actors'", source)
         self.assertIn("signal: controller.signal", source)
