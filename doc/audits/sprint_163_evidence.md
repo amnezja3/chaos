@@ -309,3 +309,11 @@ Nie resetuje naliczeń ani czasu przy ponowieniu, nie odtwarza usuniętego permi
 nad istniejącym budżetem i nie tworzy popytu. Trzy izolowane testy PASS (1.743 s).
 Produkcja nadal wymaga uruchomienia przygotowania przez operatora; nie wykonano
 HTTP, nie aktywowano procesu ani priorytetu na VPS.
+
+Operator następnie potwierdził prepared, plan z jednym zadaniem roads revision 9,
+network_calls=0, permit until=1792856596.6014156 i backup
+/home/johndoe/chaos-backups/163-roads-20261024T144316Z/poi_cache.sqlite3.
+Przygotowano ecosystemy do kolejnego kroku: priority ON w web i workerze,
+worker --execute bez --serve, autorestart=false. Nie jest to dowód wykonania HTTP
+ani uruchomienia nowej konfiguracji na VPS. Składnia i ograniczenie jednego cyklu
+sprawdzone przez Node.

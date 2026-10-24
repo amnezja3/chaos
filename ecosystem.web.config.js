@@ -24,8 +24,8 @@ module.exports = {
         CHAOS_POI_WORLD_PILOT_UNTIL: "0",
         // Schema v2 and gameplay verified on VPS; collect demand without background HTTP.
         CHAOS_POI_DISCOVERY_MODE: "passive",
-        // Admission pilot is separate from passive demand; no background worker yet.
-        CHAOS_POI_PRIORITY_ENABLED: "0",
+        // Sprint 163: live scans take admission priority over the bounded roads pilot.
+        CHAOS_POI_PRIORITY_ENABLED: "1",
         // Enable explicitly after the offline 148 project migration.
         CHAOS_CREATORS_V2_ENABLED: process.env.CHAOS_CREATORS_V2_ENABLED || "false",
         CHAOS_GHOSTLAB_LOG_RUNTIME_ENABLED: "true",

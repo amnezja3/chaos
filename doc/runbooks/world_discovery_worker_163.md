@@ -92,7 +92,8 @@ Bez --execute to wyłącznie plan, bez enqueue/claim/HTTP. Przed uruchomieniem
 worker wymaga schematu i scope; nie inicjalizuje ich ukradkiem.
 Najpierw pojedyncze wykonanie z --execute, dopiero po odbiorze --serve.
 Dedykowany `ecosystem.discovery.config.js` zawiera nazwę procesu, bazę,
-ścieżkę pozwolenia i wszystkie niesekretne flagi, początkowo OFF. Sekret API
+ścieżkę pozwolenia i wszystkie niesekretne flagi. Dla zatwierdzonego pilota
+ustawiono worker/priority ON i pojedyncze --execute (bez --serve). Sekret API
 z istniejącego prywatnego środowiska serwera. Web nadal w ecosystem.web.config.js.
 
 Przy zatwierdzonej konfiguracji uruchamianie:
@@ -101,9 +102,10 @@ Przy zatwierdzonej konfiguracji uruchamianie:
 pm2 startOrReload ecosystem.discovery.config.js --only chaos-world-discovery-worker --update-env
 ```
 
-Domyślna konfiguracja natychmiast zwraca disabled, 0 HTTP i kończy proces.
-Brak autorestart zapobiega odradzaniu błędnego/wygasłego pilota. Pętla ma
-30-sekundową przerwę, obsługę SIGTERM/SIGINT i maks. jedno run_one na cykl.
+Konfiguracja wykonuje jeden cykl i kończy proces; stopped po zakończeniu jest
+oczekiwane. Brak autorestart zapobiega odradzaniu błędnego/wygasłego pilota.
+Nie włączono pętli --serve. Najpierw przeładować ecosystem.web.config.js,
+aby oczekujące skany gry zgłaszały priorytet przed startem pilota.
 Koszt/quota/termin pozwolenia są sprawdzane dalej przez istniejące mechanizmy.
 PM2 kill_timeout 40 s pozostawia czas na ograniczone do 35 s żądanie.
 Nie zapisywać nowej listy PM2 przed odbiorem prawidłowego zachowania.
