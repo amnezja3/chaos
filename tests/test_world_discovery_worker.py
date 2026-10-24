@@ -39,7 +39,10 @@ class DiscoveryWorkerTests(unittest.TestCase):
         with closing(self.repo.connect()) as c:
             demand = c.execute('SELECT key FROM world_discovery_demand').fetchone()[0]
         self.key = self.jobs.enqueue(demand, 'maplark', 1, 'roads')
-        self.permit = DiscoveryPermit(frozenset({(2100, 5200)}), frozenset({'roads'}), time.time()+3600)
+        self.permit = DiscoveryPermit(frozenset({(2100, 5200)}), frozenset({'roads'}), time.time()+3600,
+                                      budget_id='test')
+        for scope in self.permit.budget_scopes('roads'):
+            self.ledger.configure_scope('maplark', scope, time.time()-1, self.permit.until, 100)
         self.transport = Mock(return_value=(200, None, dict(response_headers={
             'X-Usage-Units-Charged': '3', 'X-Returned': '0', 'X-Has-More': 'false'},
             body={'type': 'FeatureCollection', 'features': []})))
@@ -83,7 +86,8 @@ class DiscoveryWorkerTests(unittest.TestCase):
         self.assertEqual(self.ledger.status('maplark')[0]['committed'], 0)
 
     def test_outside_permit_never_fetches(self):
-        self.worker.permit = DiscoveryPermit(frozenset({(0, 0)}), frozenset({'roads'}), time.time()+60)
+        self.worker.permit = DiscoveryPermit(frozenset({(0, 0)}), frozenset({'roads'}), time.time()+60,
+                                              budget_id='test')
         self.assertEqual(self.worker.run_one()['status'], 'policy_blocked')
         self.transport.assert_not_called()
 
@@ -98,6 +102,24 @@ class DiscoveryWorkerTests(unittest.TestCase):
         self.ledger.reserve('maplark', 'existing-use', 100)
         self.ledger.settle('maplark', 'existing-use', 100)
         self.assertEqual(self.worker.run_one()['status'], 'deferred')
+        self.transport.assert_not_called()
+
+    def test_layer_budget_exhausted_with_global_credits_remaining(self):
+        scopes = self.permit.budget_scopes('roads')
+        self.ledger.reserve('maplark', 'earlier-background', 100, scopes=scopes)
+        self.ledger.settle('maplark', 'earlier-background', 100)
+        # Global policy can change without resetting historical usage.
+        self.ledger.configure_recurring('maplark', 800, 24000)
+        self.assertEqual(self.worker.run_one()['status'], 'deferred')
+        self.transport.assert_not_called()
+        self.assertEqual(self.ledger.status('maplark')[0]['remaining'], 700)
+
+    def test_missing_scoped_budget_blocks_before_claim(self):
+        from dataclasses import replace
+        self.worker.permit = replace(self.permit, budget_id='not-configured')
+        with self.assertRaises(ValueError):
+            self.worker.run_one()
+        self.assertEqual(self.jobs.get(self.key)['state'], 'PENDING')
         self.transport.assert_not_called()
 
     def test_priority_required_before_claim(self):

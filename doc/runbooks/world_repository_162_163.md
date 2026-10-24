@@ -155,3 +155,38 @@ Zachować kod kompatybilny ze schematami 1/2. Nie nadpisywać aktualnej bazy kop
 sprzed migracji po nowych skanach: cofnięcie księgi usunęłoby naliczone kredyty.
 Nie kasować snapshotów, cache ani księgi jako sposobu na odblokowanie skanera.
 Przy nieudanej migracji zachować backup i log, nie aktywować nowych funkcji.
+
+## Lokalny producent zadań i budżety warstw — 24.10.2026
+
+Biblioteka `discovery_producer.prepare_jobs(repo, permit)` domyślnie pokazuje plan.
+`apply=True` tworzy maksymalnie 40 zadań z istniejącego, niewygasłego popytu:
+do 10 wskazanych sektorów i czterech profili (roads, waterways, inland_water,
+coastline). Nie wykonuje HTTP, nie tworzy sąsiadów, pomija istniejące zadania
+tej samej rewizji, także zakończone i wymagające uzgodnienia. Kolejne małe partie
+przechodzą do pozostałych zadań. Producent wymaga aktualnej zgody dostawcy
+na background_refresh, storage i world_storage; wykonawca sprawdza ją ponownie.
+
+Przed użyciem na izolowanej bazie potrzebne są jawne inicjalizacje DiscoveryJobs,
+Registry, CanonicalWorldRepository i CreditBudget oraz zatwierdzona konfiguracja.
+CreditBudget.initialize dodaje tabele world_credit_scope/world_credit_allocation.
+Nie jest to polecenie migracji ani uruchomienia na VPS.
+
+DiscoveryPermit ma obowiązkowy dla wykonania identyfikator `budget_id`.
+Przez `CreditBudget.configure_scope` trzeba wcześniej zdefiniować:
+
+- `discovery:<budget_id>` — wspólny limit pilota;
+- `discovery:<budget_id>:<profile>` — osobny limit każdej dopuszczonej warstwy.
+
+Okna trwają najwyżej 24 h i obejmują cały czas pozwolenia. Granic ani limitu
+istniejącego scope nie można zmienić; nie kasować scope, aby odnowić budżet.
+Rezerwacja sprawdza oba limity i globalną księgę w jednej transakcji SQLite.
+Rozliczenie tej samej operacji aktualizuje wszystkie widoki kosztu, bez osobnej
+księgi tła. Niepewny koszt pozostaje zarezerwowany; koszt ponad rezerwację
+blokuje konto dostawcy zgodnie z dotychczasowym mechanizmem. Rezerwacja nadal
+nie jest limitem ceny egzekwowanym przez MapLark.
+
+Skaner live działa również bez nowych tabel. Brak konfiguracji budżetów blokuje
+wykonawcę przed przejęciem zadania. Nadal brak pętli/daemona i automatycznego
+enqueue na produkcji. Przed wdrożeniem tła pozostają: procedura migracji i
+uzgadniania operacji, nadzór procesu, test obciążenia oraz zatwierdzenie konkretnego
+regionu, warstw i budżetu. Nie zmieniać obecnych flag ani ecosystemu w tym kroku.

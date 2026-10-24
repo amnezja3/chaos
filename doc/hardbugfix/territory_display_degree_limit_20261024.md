@@ -46,4 +46,6 @@ Po push/pull przeładować wyłącznie web:
 Po HTTP 200 ponownie otworzyć mapę, aby przeglądarka pobrała nowy szablon.
 Samo odświeżenie snapshotu w starej karcie nie wymienia załadowanej funkcji JS.
 Nie przebudowywać terytoriów i nie modyfikować bazy ani stanu workera.
-Odbiór VPS pozostaje do wykonania; lokalny test nie zastępuje odczytu realnej mapy.
+Odbiór VPS PASS: po wdrożeniu pakietu 4c6322e operator potwierdził powrót pola
+main i przekazał zrzut mapy z widocznym zielonym wielokątem oraz markerami.
+Potwierdzenie dotyczy renderowania w grze; nie wykonywano naprawy danych.

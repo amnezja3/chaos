@@ -9,6 +9,7 @@ import os
 import time
 
 from .discovery_jobs import DiscoveryJobs
+from .credit_budget import CreditBudget, _token
 from .providers import Registry
 from .service import POIError, bounded_http
 from .world_acquisition import acquire_maplark
@@ -23,6 +24,25 @@ class DiscoveryPermit:
     profiles: frozenset
     until: float
     reservation: int = 20
+    budget_id: str = ''
+
+    def budget_scopes(self, profile):
+        _token(self.budget_id)
+        if profile not in self.profiles:
+            raise ValueError('discovery_profile_outside_permit')
+        scopes = ('discovery:' + self.budget_id, 'discovery:' + self.budget_id + ':' + profile)
+        for scope in scopes:
+            _token(scope)
+        return scopes
+
+    def validate_budgets(self, repo):
+        ledger = CreditBudget(repo)
+        now = time.time()
+        for profile in self.profiles:
+            for scope in self.budget_scopes(profile):
+                status = ledger.scope_status('maplark', scope)
+                if not status or not status['starts'] <= now < self.until <= status['ends']:
+                    raise ValueError('discovery_budget_missing_or_expired')
 
     def validate(self):
         if (not isinstance(self.cells, frozenset) or not 1 <= len(self.cells) <= 10
@@ -63,6 +83,7 @@ class DiscoveryWorker:
         if not self.enabled():
             return dict(status='disabled', network_calls=0)
         self.permit.validate()
+        self.permit.validate_budgets(self.repo)
         if os.environ.get('CHAOS_POI_PRIORITY_ENABLED') != '1':
             return dict(status='priority_required', network_calls=0)
         job = self.jobs.claim(120)
@@ -126,7 +147,8 @@ class DiscoveryWorker:
             batch, billing = acquire_maplark(self.repo, plan, 'discovery:' + key,
                 self.permit.reservation,
                 accept_variable_cost=os.environ.get('CHAOS_MAPLARK_ACCEPT_VARIABLE_COST') == '1',
-                transport=send, still_active=active, lane='background')
+                transport=send, still_active=active, lane='background',
+                budget_scopes=self.permit.budget_scopes(job['profile']))
             if not active() or not self.jobs.transition(key, owner, 'VALIDATING'):
                 raise POIError('discovery_fence_lost')
             candidate = self.candidate(job)

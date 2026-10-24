@@ -202,3 +202,43 @@ superwizja/pętla i jawna migracja job schema, test obciążenia i osobne zatwie
 regionu/warstw oraz background_refresh. Istniejące zgody na skaner/pilot exact
 nie są zgodą na background. Żadna konfiguracja VPS ani ecosystemu nie została
 w tym etapie zmieniona. Nie zamykamy 163.
+
+## Odbiór testów wykonawcy na VPS — 24.10.2026
+
+Po wdrożeniu pakietu 4c6322e operator przekazał wyniki:
+- test_world_discovery_worker.py: 13 PASS, 10.288 s;
+- test_world_discovery_jobs.py: 14 PASS, 7.570 s;
+- test_world_upstream_priority.py: 6 PASS, 2.998 s.
+
+33 testy PASS na VPS, izolowane bazy i mockowany transport. Nie jest to test
+realnego background HTTP ani zgoda na jego włączenie. Ograniczony producent
+zadań i limity per warstwa pozostają kolejnym etapem lokalnej implementacji.
+Nie polecono migracji, restartu ani zmiany flag w ramach tego odbioru.
+
+## Producent zadań i wspólne limity pilota/warstw — 24.10.2026
+
+Dodano lokalną bibliotekę discovery_producer: plan domyślnie read-only,
+opcjonalny zapis do 40 zadań z istniejącego popytu w maksymalnie 10 sektorach.
+Nie tworzy sąsiadów, nie wykonuje HTTP, pomija istniejące zadania także przy
+kolejnych małych partiach. Wymaga aktualnej polityki dostawcy oraz budżetów.
+
+CreditBudget otrzymał dodatkowe scope pilota i warstw, egzekwowane atomowo
+razem z dotychczasowym budżetem globalnym. Tabele allocation wskazują te same
+operacje księgowe: settle/reconciliation nie wymaga podwójnego rozliczenia.
+Niepewne naliczenie nie zwalnia rezerwacji; nadwyżka utrzymuje blokadę konta.
+Okna scope są niezmienne, do 24 h. Wykonawca wymaga budget_id i kompletu
+skonfigurowanych scope przed claim. Stary schemat bez tabel scope nadal obsługuje live.
+
+Regresja lokalna World: **157 PASS, 57.421 s**, izolowane SQLite i mockowany HTTP.
+Regresja skanera POI: **90 PASS, 72.329 s**. `git diff --check`: PASS.
+Nowe scenariusze: czterech równoczesnych rezerwujących ostatnie środki warstwy,
+limit globalny mimo wolnego budżetu warstwy, suma między warstwami, restart,
+rozliczenie niepewnego kosztu, nadwyżka, wygasły/brakujący scope, kompatybilność
+live ze starym schematem, plan bez zapisu, dedup i postęp ograniczonych partii,
+cofnięta polityka i wygasły popyt. Pierwsze uruchomienie wykryło literówkę nazwy
+parametru starts w walidacji okna; poprawiono ją przed pełną regresją.
+
+Nie zmieniano UI, ecosystemu, bazy produkcyjnej ani flag. Brak nowych wywołań API.
+Nadal otwarte przed background: nadzorowana pętla, jawna migracja, operacyjne
+uzgadnianie niepewnych operacji, test obciążenia i zatwierdzenie parametrów pilota.
+Nie jest to odbiór całego sprintu 163 ani aktywacja tła.

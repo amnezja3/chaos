@@ -14,7 +14,7 @@ from .world_contract import ContractError, Provenance
 
 def acquire_maplark(repo, plan, operation, reservation, *,
                     accept_variable_cost=False, transport=None, still_active=lambda: True,
-                    lane='live'):
+                    lane='live', budget_scopes=()):
     """Caller must configure ledger windows and authorize this provider first.
 
 Returns a normalized, UNAPPROVED batch plus nonsecret billing metadata.
@@ -59,7 +59,7 @@ Same operation ID can never cause a second upstream request.
     reserved = sent = settled = False
     started = time.monotonic()
     try:
-        reserved = ledger.reserve('maplark', operation, reservation)
+        reserved = ledger.reserve('maplark', operation, reservation, scopes=budget_scopes)
         if not reserved:
             raise ContractError('budget_operation_already_used')
         if not still_active() or not repo.owns('@upstream', slot):

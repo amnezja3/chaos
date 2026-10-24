@@ -49,6 +49,49 @@ class CreditBudget:
                 account TEXT PRIMARY KEY, daily_limit INTEGER NOT NULL,
                 rolling_limit INTEGER NOT NULL, configured REAL NOT NULL)''')
             c.execute('CREATE INDEX IF NOT EXISTS world_credit_operation_account_time ON world_credit_operation(account,created)')
+            c.execute('''CREATE TABLE IF NOT EXISTS world_credit_scope (
+                account TEXT NOT NULL, scope TEXT NOT NULL, starts REAL NOT NULL,
+                ends REAL NOT NULL, credit_limit INTEGER NOT NULL,
+                PRIMARY KEY(account,scope))''')
+            c.execute('''CREATE TABLE IF NOT EXISTS world_credit_allocation (
+                account TEXT NOT NULL, operation TEXT NOT NULL, scope TEXT NOT NULL,
+                PRIMARY KEY(account,operation,scope),
+                FOREIGN KEY(account,operation) REFERENCES world_credit_operation(account,operation),
+                FOREIGN KEY(account,scope) REFERENCES world_credit_scope(account,scope))''')
+
+    def configure_scope(self, account, scope, starts, ends, limit):
+        """Explicit immutable pilot/layer cap; never resets existing spending."""
+        import math
+        _token(account); _token(scope); _amount(limit)
+        if (any(type(v) not in (int, float) or not math.isfinite(v) for v in (starts, ends))
+                or not 0 <= starts < ends or ends-starts > 86400 or limit == 0):
+            raise ContractError('budget_scope_window')
+        with self.repo.transaction() as c:
+            old = c.execute('SELECT starts,ends,credit_limit FROM world_credit_scope WHERE account=? AND scope=?',
+                            (account, scope)).fetchone()
+            if old and tuple(old) != (starts, ends, limit):
+                raise ContractError('budget_scope_immutable')
+            c.execute('INSERT OR IGNORE INTO world_credit_scope VALUES (?,?,?,?,?)',
+                      (account, scope, starts, ends, limit))
+
+    @staticmethod
+    def _scope_usage(c, account, scope):
+        return c.execute('''SELECT COALESCE(SUM(COALESCE(o.charged,o.reserved)),0)
+            FROM world_credit_allocation a JOIN world_credit_operation o USING(account,operation)
+            WHERE a.account=? AND a.scope=?''', (account, scope)).fetchone()[0]
+
+    def scope_status(self, account, scope):
+        _token(account); _token(scope)
+        c = self.repo.connect()
+        try:
+            row = c.execute('SELECT * FROM world_credit_scope WHERE account=? AND scope=?',
+                            (account, scope)).fetchone()
+            if not row:
+                return None
+            used = self._scope_usage(c, account, scope)
+            return dict(row, committed=used, remaining=max(0, row['credit_limit']-used))
+        finally:
+            c.close()
 
     def configure_recurring(self, account, daily_limit, rolling_limit):
         """UTC days + trailing 31 days, independent of provider billing reset.
@@ -101,8 +144,12 @@ policy supersedes legacy fixed windows for NEW reservations only.
                 ON CONFLICT(account,period) DO UPDATE SET credit_limit=excluded.credit_limit''',
                 (account, period, starts, ends, limit))
 
-    def reserve(self, account, operation, upper_bound, *, now=None):
+    def reserve(self, account, operation, upper_bound, *, now=None, scopes=()):
         _token(account); _token(operation); _amount(upper_bound)
+        if not isinstance(scopes, tuple) or len(scopes) > 2 or len(set(scopes)) != len(scopes):
+            raise ContractError('budget_scopes')
+        for scope in scopes:
+            _token(scope)
         if upper_bound == 0:
             raise ContractError('budget_cost_unproven')
         now = time.time() if now is None else now
@@ -116,12 +163,22 @@ policy supersedes legacy fixed windows for NEW reservations only.
                 return False
             if c.execute('SELECT 1 FROM world_credit_hold WHERE account=?', (account,)).fetchone():
                 raise ContractError('budget_account_held')
+            for scope in scopes:
+                window = c.execute('SELECT * FROM world_credit_scope WHERE account=? AND scope=?',
+                                   (account, scope)).fetchone()
+                if not window or not window['starts'] <= now < window['ends']:
+                    raise ContractError('budget_scope_inactive')
+                if self._scope_usage(c, account, scope) + upper_bound > window['credit_limit']:
+                    raise ContractError('budget_scope_exhausted')
             recurring = self._recurring_status(c, account, now)
             if recurring:
                 if any(w['committed'] + upper_bound > w['credit_limit'] for w in recurring):
                     raise ContractError('budget_exhausted')
                 c.execute('INSERT INTO world_credit_operation VALUES (?,?,?,?,?,?,?)',
                     (account,operation,upper_bound,None,'reserved','[]',now))
+                if scopes:
+                    c.executemany('INSERT INTO world_credit_allocation VALUES (?,?,?)',
+                                  [(account, operation, s) for s in scopes])
                 return True
             # Unresolved in-flight requests across a reset must not become free.
             if c.execute('''SELECT 1 FROM world_credit_entry e
@@ -144,6 +201,9 @@ policy supersedes legacy fixed windows for NEW reservations only.
                       (account, operation, upper_bound, None, 'reserved', json.dumps(periods), now))
             c.executemany('INSERT INTO world_credit_entry VALUES (?,?,?,?)',
                           [(account, operation, p, upper_bound) for p in periods])
+            if scopes:
+                c.executemany('INSERT INTO world_credit_allocation VALUES (?,?,?)',
+                              [(account, operation, s) for s in scopes])
             return True
 
     def settle(self, account, operation, charged=None):
