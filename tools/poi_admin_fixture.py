@@ -43,6 +43,8 @@ def main():
             repo=Repository(os.environ['CHAOS_POI_CACHE_PATH'])
             CanonicalWorldRepository(repo).initialize_canonical()
             queue=DemandQueue(repo);queue.initialize()
+            from poi_infrastructure.discovery_jobs import DiscoveryJobs
+            DiscoveryJobs(repo).initialize()
             for lon,lat in ((21.001,52.001),(21.021,52.011),(21.031,52.031)):
                 queue.record(lon,lat)
             ledger=CreditBudget(repo);ledger.initialize();ledger.configure_recurring('maplark',800,24000)

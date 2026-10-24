@@ -7,6 +7,30 @@ from .credit_budget import CreditBudget
 from .world_storage import FORMAT
 
 
+def job_summary(connection, tables, now):
+    """Recorded queue state only; never infer a running process or recover leases."""
+    result=dict(prepared='world_discovery_job' in tables, total=0, states={},
+                ready_by_time=0, expired_waiting=0, expired_leases=0,
+                unresolved=0, oldest_wait_seconds=None, recent=[], runtime='unknown')
+    if not result['prepared']: return result
+    for row in connection.execute('SELECT state,count(*) n FROM world_discovery_job GROUP BY state'):
+        result['states'][row['state']]=row['n']; result['total']+=row['n']
+    row=connection.execute('''SELECT
+        coalesce(sum(state IN ('PENDING','DEFERRED','RETRY_AFTER') AND expires>? AND available_at<=?),0) ready,
+        coalesce(sum(state IN ('PENDING','DEFERRED','RETRY_AFTER') AND expires<=?),0) expired,
+        coalesce(sum(state IN ('LEASED','FETCHING','VALIDATING') AND lease_until<=?),0) lost,
+        coalesce(sum(state='POLICY_BLOCKED' AND reason='outcome_unknown'),0) unresolved,
+        min(CASE WHEN state IN ('PENDING','DEFERRED','RETRY_AFTER') AND expires>?
+            THEN updated END) oldest FROM world_discovery_job''',(now,now,now,now,now)).fetchone()
+    result.update(ready_by_time=row['ready'],expired_waiting=row['expired'],
+                  expired_leases=row['lost'],unresolved=row['unresolved'],
+                  oldest_wait_seconds=max(0,round(now-row['oldest'],1)) if row['oldest'] is not None else None)
+    # No owner tokens, request/operation IDs, player identities or paths.
+    result['recent']=[dict(r) for r in connection.execute('''SELECT provider,profile,state,
+        attempts,updated,expires,reason FROM world_discovery_job ORDER BY updated DESC,id LIMIT 20''')]
+    return result
+
+
 def status(repo):
     c=repo.connect()
     try:
@@ -28,6 +52,7 @@ def status(repo):
                 coalesce(sum(usable_until<=?),0) expired FROM world_snapshot''',(now,now,now,now)).fetchone()
             result.update(dict(row))
         has_ledger={'world_credit_operation','world_credit_window'}<=tables
+        result['jobs']=job_summary(c,tables,time.time())
     finally:
         c.close()
     result['demand']=DemandQueue(repo).summary()

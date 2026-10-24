@@ -278,3 +278,24 @@ Nie zwolniono rezerwacji i nie zresetowano limitów. Nie blokuje pakietu MapLark
 
 Nadal nie zamykamy całego 163: regionalne coverage, panel dowodów/agregatów,
 land_water i pilot obciążenia/produkcji pozostają otwarte, jak w runbooku.
+# Odbiór migracji workera na VPS — 24.10.2026
+
+Operator potwierdził 53 testy PASS (33.248 s), następnie dry_run z
+original_data_unchanged=true i schema_ready po --canonical --discovery --jobs
+--apply z kopią SQLite w katalogu 163-worker. W obu wynikach: world_schema=2,
+providers=7, snapshots=0, integrity/FK=ok, network_calls=0.
+Nie przekazano ścieżki końcowego katalogu backupu, dlatego nie wpisujemy jej
+na podstawie przypuszczenia. To odbiór schematu i izolowanych testów,
+nie potwierdzenie uruchomienia procesu ani pozyskania geografii.
+
+Kontynuacja lokalna: pasywna projekcja jobs w istniejącym admin API, counts
+per state, ready_by_time (wyłącznie kryterium czasu, nie pozwolenie na HTTP),
+expired_waiting/leases, unresolved oraz 20 ostatnich stanów. Brak tokenów
+lease, operation ID i danych gracza. runtime=unknown: tabela zadań nie jest
+dowodem działania procesu. Odczyt nie odzyskuje lease i nie inicjalizuje tabel.
+Test 20 odczytów zachowuje POLICY_BLOCKED i księgę, bez HTTP. Runtime:
+9 PASS, 5.513 s. Panel PL/EN pokazuje projekcję kolejki i jawnie niepotwierdzony
+stan procesu zamiast stałego komunikatu o wyłączonym pobieraniu. Playwright MCP:
+izolowana aplikacja, pusta przygotowana kolejka, odświeżenie, PL/EN oraz ekran
+390x844 — brak overflow, błędów i ostrzeżeń konsoli; brak zasobów zewnętrznych.
+Nie zmieniano stanu produkcji ani zgód na pobieranie danych.

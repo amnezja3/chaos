@@ -40,7 +40,20 @@
    node('p',`${t('snapshots')}: ${w.snapshots} · ${t('canonical')}: ${w.canonical_snapshots} · ${(w.payload_bytes/1048576).toFixed(2)} MiB`),
    node('p',`fresh: ${w.fresh} · stale: ${w.stale} · expired: ${w.expired}`),
    node('p',`${t('ingest')}: ${w.ingest_enabled?'ON':'OFF'} · ${t('read')}: ${w.read_enabled?'ON':'OFF'} · discovery: ${w.discovery_mode}`),
-   node('p',t('backgroundOff')));
+   node('p',pl?'Stan procesu pobierania w tle: niepotwierdzony.':'Background process status: unverified.'));
+  const jobs=w.jobs;
+  if(jobs){
+   const queue=node('section');queue.id='poi-job-summary';
+   queue.append(node('h3',pl?'Kolejka discovery':'Discovery queue'));
+   queue.append(node('p',jobs.prepared?(pl?'Schemat kolejki gotowy.':'Queue schema ready.'):(pl?'Schemat kolejki nieprzygotowany.':'Queue schema not prepared.')));
+   queue.append(node('p',`${pl?'Zadania':'Jobs'}: ${jobs.total} · ${pl?'Gotowe czasowo':'Ready by time'}: ${jobs.ready_by_time} · ${pl?'Nierozstrzygnięte':'Unresolved'}: ${jobs.unresolved}`));
+   queue.append(node('p',`${pl?'Wygasłe oczekujące':'Expired waiting'}: ${jobs.expired_waiting} · ${pl?'Wygasłe dzierżawy':'Expired leases'}: ${jobs.expired_leases}`));
+   queue.append(node('p',pl?'Gotowość czasowa nie oznacza zgody na pobranie. Widok nie uruchamia zadań.':'Time readiness is not permission to fetch. This view does not start jobs.'));
+   const recent=node('ul');
+   for(const job of jobs.recent||[])recent.append(node('li',`${job.provider} / ${job.profile}: ${job.state} · ${pl?'Próby':'Attempts'}: ${job.attempts}${job.reason?' · '+job.reason:''}`));
+   if(!jobs.total)recent.append(node('li',pl?'Brak zadań.':'No jobs.'));
+   queue.append(recent);summary.append(queue);
+  }
   const budgets=document.getElementById('poi-world-budget');budgets.replaceChildren();
   for(const b of w.budget_windows||[])budgets.append(node('p',`${t('credits')} · ${b.period}: ${b.committed} / ${b.credit_limit}`));
   const demand=w.demand||{pending:0,cells:[],layers:{}};

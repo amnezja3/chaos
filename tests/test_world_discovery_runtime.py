@@ -84,3 +84,22 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(result['foreign_keys'],'ok')
             self.assertEqual(self.ledger.status('maplark')[0]['committed'],3)
             self.assertEqual(self.jobs.get(self.key)['attempts'],0)
+
+    def test_admin_queue_projection_is_passive_and_distinguishes_unresolved(self):
+        from poi_infrastructure.world_operations import status
+        before=status(self.repo)['jobs']
+        self.assertEqual(before['total'],1)
+        self.assertEqual(before['ready_by_time'],1)
+        self.assertEqual(before['runtime'],'unknown')
+        job=self.jobs.claim()
+        self.jobs.transition(job['id'],job['owner'],'FETCHING',operation='fixture-op')
+        self.jobs.transition(job['id'],job['owner'],'POLICY_BLOCKED')
+        for _ in range(20):
+            value=status(self.repo)['jobs']
+            self.assertEqual(value['unresolved'],1)
+            self.assertEqual(value['ready_by_time'],0)
+            self.assertNotIn('owner',value['recent'][0])
+            self.assertNotIn('operation',value['recent'][0])
+        self.assertEqual(self.jobs.get(self.key)['state'],'POLICY_BLOCKED')
+        self.transport.assert_not_called()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],0)
