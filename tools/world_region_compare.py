@@ -5,7 +5,8 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from shapely.geometry import box,shape
-from poi_infrastructure.world_adapters import normalize_maplark,MAPLARK_VERSION
+from poi_infrastructure.world_adapters import normalize_maplark,MAPLARK_VERSION,plan_maplark_region
+from poi_infrastructure.world_region_candidate import prepare
 from poi_infrastructure.world_contract import Provenance,ContractError
 from tools.world_discovery_inspect import read_json
 from tools.world_region_plan import evaluate
@@ -18,6 +19,8 @@ def compare(samples):
         body,headers=samples[part]
         checks[part]=evaluate(PARTS[part],'roads',body,headers)
         batches[part]=normalize_maplark(body,headers,Provenance('maplark',MAPLARK_VERSION,'compare:'+part,0),profile='roads',maximum=1000)
+        if checks[part]['local_filter']['observed_geometry_pass']:
+            batches[part]=prepare(batches[part],plan_maplark_region(PARTS[part])).batch
     comparisons={}
     for part in ('left','right'):
         area=box(*PARTS[part])

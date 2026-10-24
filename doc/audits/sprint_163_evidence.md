@@ -514,3 +514,43 @@ odpowiedzi MapLark. Zweryfikowano też wspólny limit obu operacji i brak retry.
 Runbook: [world_region_neighbors.md](../runbooks/world_region_neighbors.md).
 Następna rzeczywiście potrzebna czynność operatora: push i dwa ograniczone
 wywołania na VPS. Agent nie wykonał nowych HTTP ani nie zmienił produkcji.
+
+### Niezależne wycinki na VPS — zgodność próbki PASS
+
+Operator dostarczył log pull do fff8d1b oraz 27 testów PASS / 7.073 s.
+Katalog odpowiedzi: /home/johndoe/chaos-bbox-neighbors-5Soi0x.
+
+| Odpowiedź | Surowe obiekty | Dokładne przecięcie | Charge |
+| --- | ---: | ---: | ---: |
+| Parent (wcześniejsza) | 76 | 75 | 3 |
+| Left (nowa) | 34 | 33 | 3 |
+| Right (nowa) | 55 | 54 | 3 |
+
+Każda odpowiedź zawierała ten sam jeden envelope false positive
+osm:way:201343570. Po filtrze local_objects=independent_objects dla obu
+wycinków; missing/additional/changed_full_geometry/changed_highway puste.
+sample_comparison_pass=true, provider_revisions_match=true (revision 9).
+Obie nowe operacje settled; 2 HTTP / 6 kredytów. Łącznie parent+left+right
+3 HTTP / 9 kredytów. Porównanie offline: network_calls=0, production_changed=false.
+region_certified=false oraz dataset_version_verified=false pozostają jawne.
+
+SHA-256 body nowych odpowiedzi z raportu operatora:
+- left: b0397dccbfe1c2d319bb9aa87efa7a05f70fa4d73ac528c5c3b9e1fe45ff9225
+- right: de3ab38704f569b337dbd84db9a6dad487ba9c9aca8025edb87e1059b39d5ac2
+
+Odbiór zgodności tych sąsiednich wycinków **ZAMKNIĘTY / PASS**.
+Nie wymaga ponowienia zapytań. Wynik nie kwalifikuje innych warstw ani całej
+planety; brak wersji datasetu nie jest zastępowany czasem pobrania/revision 9.
+
+Po odbiorze dodano world_region_candidate.py, używany przez porównywarkę offline:
+roads only, ścisły plan bbox, kompletny batch, jedno źródłowe snapshot/dataset,
+zachowanie całych obiektów i provenance. Odrzuca tylko envelope false positives,
+blokuje braki geometrii, obce warstwy, częściowość i mieszanie źródeł.
+Selection maplark-bbox-local-filter-v1 celowo nie jest AREA_SELECTION i nie
+przechodzi jako certyfikat do SelectionProof. Brak połączenia z gameplayem,
+workerem czy publikacją produkcyjną. To gotowy adapter kandydujący, nie rollout.
+
+Walidacja lokalna: 32 testy regionalne PASS / 9.760 s; po podłączeniu adaptera
+do porównywarki ponownie 5 testów porównania PASS / 1.099 s. Żadnych nowych API.
+Warunki single-snapshot są technicznie obsługiwane przez obecny planner, który
+nie łączy snapshotów; kwalifikacja źródła/zakresu i osobny pilot area nadal otwarte.
