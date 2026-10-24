@@ -317,3 +317,16 @@ Przygotowano ecosystemy do kolejnego kroku: priority ON w web i workerze,
 worker --execute bez --serve, autorestart=false. Nie jest to dowód wykonania HTTP
 ani uruchomienia nowej konfiguracji na VPS. Składnia i ograniczenie jednego cyklu
 sprawdzone przez Node.
+
+### Pierwsze wykonanie roads na VPS — PASS pobrania i zapisu
+
+Operator przekazał wynik procesu chaos-world-discovery-worker:
+status=committed, network_calls=1, coverage=UNKNOWN,
+snapshot=e807da396a7015dcb3475e354d429b5848d5ce00e8f7bad8dacdb2f4172c0b28.
+Operacja discovery:f4a9d8a703f9ef881e53394ce3bef7806e275e29d86bced79b6f1c57852790a6:
+reported_credits=3, reserved_credits=20, billing_state=settled.
+To potwierdza pojedyncze pobranie i publikację obserwacji oraz rozliczenie;
+nie potwierdza pełnego regionalnego coverage, wykorzystania przez gameplay,
+braku powtórki po restarcie ani opóźnień skanera przy konkurencyjnym ruchu.
+Kolejny odbiór: pojedyncze ponowienie w ważnym oknie permitu powinno zwrócić
+idle/network_calls=0. Nie odnawiać wygasłego pozwolenia do tego testu.
