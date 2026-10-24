@@ -67,6 +67,13 @@ class DiscoveryWorker:
         self.jobs = DiscoveryJobs(repo)
 
     def candidate(self, job):
+        if os.environ.get('CHAOS_POI_ROUTING_ENABLED')=='1' and job.get('profile'):
+            from .routing import Routing, reason
+            chain=Routing(self.repo).get(job['profile'],'background')['chain']
+            providers={p['id']:p for p in Registry(self.repo).list()}
+            eligible=[p for p in chain if p in providers and not reason(providers[p],job['profile'],'background')]
+            if not eligible or eligible[0]!=job['provider']:
+                return None
         for item in Registry(self.repo).list():
             if (item['id'] == job['provider'] == 'maplark'
                     and item['revision'] == job['revision']

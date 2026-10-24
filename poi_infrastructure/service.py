@@ -192,6 +192,9 @@ class Service:
 
     def fetch(self, query, endpoints, timeout, fresh_ttl, stale_ttl, options=None):
         options = options or {}
+        if os.environ.get('CHAOS_POI_ROUTING_ENABLED') == '1' and options.get('_spatial'):
+            from .scan_router import fetch_routed
+            return fetch_routed(self,query,timeout,fresh_ttl,stale_ttl,options)
         if options.get('_maplark_pilot') is True:
             from .maplark_pilot import fetch_pilot
             from .presentation import publish
@@ -271,7 +274,8 @@ class Service:
                 registry = Registry(self.repo)
                 registry.initialize()
                 candidates = {v['url']: v for v in registry.eligible('normal_scan')
-                              if v['url'] != 'https://api.maplark.com/v3/osm_features'}
+                              if v['url'] not in ('https://api.maplark.com/v3/osm_features',
+                                                  'https://api.geoapify.com/v2/places')}
                 # Keep the caller's attempt budget, but not its old static URLs.
                 urls = list(candidates)
                 endpoints = [urls[i % len(urls)] for i in range(len(endpoints))] if urls else []

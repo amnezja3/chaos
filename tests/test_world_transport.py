@@ -12,6 +12,29 @@ from poi_infrastructure.world_contract import ContractError
 
 
 class WorldTransportTests(unittest.TestCase):
+    def test_geoapify_uses_structured_post_with_header_secret(self):
+        import json
+        plan=plan_geoapify(52,21,300,categories=('commercial',),limit=100,offset=100)
+        response=Mock(status=200)
+        response.getheader.side_effect=lambda key,default=None: default
+        response.read.return_value=b'{"type":"FeatureCollection","features":[]}'
+        response.isclosed.return_value=True
+        connection=Mock();connection.getresponse.return_value=response
+        context=Mock();context.wrap_socket.return_value=Mock()
+        rows=[(socket.AF_INET,socket.SOCK_STREAM,6,'',('8.8.8.8',443))]
+        with patch.dict(os.environ,CHAOS_GEOAPIFY_API_KEY='synthetic-key'),patch('socket.getaddrinfo',return_value=rows),\
+                patch('socket.socket'),patch('ssl.create_default_context',return_value=context),\
+                patch('http.client.HTTPSConnection',return_value=connection):
+            result=request(Config(),plan.endpoint,'',25,time.monotonic()+35,feature_plan=plan)
+        args,kwargs=connection.request.call_args
+        self.assertEqual(args,('POST','/v2/places'))
+        self.assertEqual(kwargs['headers']['x-api-key'],'synthetic-key')
+        body=json.loads(kwargs['body'])
+        self.assertEqual(body['offset'],100)
+        self.assertEqual(body['filter'],dict(type='circle',lon=21.,lat=52.,radius=300.))
+        self.assertNotIn('synthetic-key',str(result))
+        self.assertNotIn('synthetic-key',str(body))
+
     def test_wire_allows_only_reconstructed_plans(self):
         plans = [plan_maplark(52.23198765, 21.00671234, 300),
                  plan_geoapify(52.23198765, 21.00671234, 300, categories=('commercial',))]

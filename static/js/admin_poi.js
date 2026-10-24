@@ -24,6 +24,11 @@
   circuit_open:['Źródło jest w okresie oczekiwania. Test nie omija tej blokady.','The provider is cooling down. Probes do not bypass this block.'],
   upstream_busy:['Trwa inne zapytanie. Spróbuj później.','Another request is running. Try later.']
  });
+ Object.assign(labels,{
+  priority:['Priorytet listy (hierarchia jest ustawiana osobno)','List priority (hierarchy is configured separately)'],
+  intro:['Test techniczny, dopuszczenie źródła i zgodność profilu są oceniane osobno. Odświeżenie panelu nie odpytuje dostawców.','Technical tests, usage approval and profile compatibility are separate. Refreshing this panel does not query providers.'],
+  feature_budgeted_probe_required:['To API wymaga ograniczonego testu CLI z budżetem.','This API requires a bounded CLI test with a budget.']
+ });
  const t=k=>labels[k]?.[pl?0:1]||k;
  root.querySelectorAll('[data-copy]').forEach(e=>e.textContent=t(e.dataset.copy));
  let providers=[];
@@ -72,7 +77,10 @@
    if(p.evidence)card.append(node('p',p.evidence.source_url),node('p',p.evidence.reference),node('p',p.evidence.notes),node('p',p.evidence.checked_by+' · '+new Date(p.evidence.checked_at*1000).toLocaleString()),node('p',t('review')+': '+new Date(p.review_due_at*1000).toLocaleDateString()));
    const feedback=node('p');feedback.setAttribute('role','status');feedback.dataset.provider=p.id;
    const edit=node('button',t('edit'));edit.type='button';edit.onclick=()=>{const f=document.getElementById('poi-form');for(const k of ['id','name','url','operator_group','priority'])f.elements[k].value=p[k];document.getElementById('poi-decision').elements.id.value=p.id;f.scrollIntoView({block:'start'});};card.append(edit);
-   for(const type of ['probe','enable']){const b=node('button',t(type==='enable'?(p.enabled?'disable':'enable'):type));b.type='button';b.onclick=()=>action(b,feedback,{action:type,id:p.id,revision:p.revision,...(type==='enable'?{enabled:!p.enabled}:{})});card.append(b);}
+   for(const type of ['probe','enable']){const b=node('button',t(type==='enable'?(p.enabled?'disable':'enable'):type));b.type='button';
+    if(type==='probe'&&['https://api.maplark.com/v3/osm_features','https://api.geoapify.com/v2/places'].includes(p.url)){
+     b.disabled=true;b.textContent=pl?'Test API przez ograniczone narzędzie CLI':'API test through bounded CLI';
+    }else b.onclick=()=>action(b,feedback,{action:type,id:p.id,revision:p.revision,...(type==='enable'?{enabled:!p.enabled}:{})});card.append(b);}
    card.append(feedback);list.append(card);
   }
   const health=document.getElementById('poi-health');health.replaceChildren();

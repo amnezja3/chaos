@@ -42,11 +42,12 @@ def prepare_jobs(repo, permit, *, apply=False, limit=40):
         if apply:
             permit.validate()
             permit.validate_budgets(repo)
-            if not worker.candidate(dict(provider='maplark', revision=revision)):
-                break
+            if not worker.candidate(dict(provider='maplark', revision=revision, profile=row['layer'])):
+                continue
             key = worker.jobs.enqueue(row['key'], 'maplark', revision, row['layer'])
             if key:
                 jobs.append(key)
         else:
-            jobs.append(dict(demand_key=row['key'], profile=row['layer'], revision=revision))
+            if worker.candidate(dict(provider='maplark', revision=revision, profile=row['layer'])):
+                jobs.append(dict(demand_key=row['key'], profile=row['layer'], revision=revision))
     return dict(status='prepared' if apply else 'plan', jobs=jobs, network_calls=0)

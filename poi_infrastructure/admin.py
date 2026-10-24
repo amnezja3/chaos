@@ -18,8 +18,8 @@ def probe(service, registry, provider_id, revision, actor):
     candidate=next((v for v in registry.list() if v['id']==provider_id),None)
     if not candidate or candidate['revision']!=revision:
         raise POIError('provider_revision_conflict')
-    if candidate['url'] == 'https://api.maplark.com/v3/osm_features':
-        raise POIError('maplark_budgeted_probe_required')
+    if candidate['url'] in ('https://api.maplark.com/v3/osm_features','https://api.geoapify.com/v2/places'):
+        raise POIError('feature_budgeted_probe_required')
     if (not candidate['probe_allowed'] or candidate['review_due_at']<=time.time()):
         raise POIError('provider_probe_not_approved')
     group=candidate['operator_group']
@@ -74,6 +74,47 @@ def probe(service, registry, provider_id, revision, actor):
 def register(app, authorize, csrf_failure):
     from flask import jsonify,request,session
     app.jinja_env.globals['poi_admin_enabled'] = enabled
+
+    @app.route('/api/admin/poi-routing',methods=['GET','POST'])
+    def poi_routing_admin():
+        if not authorize():
+            return jsonify(ok=False,error='admin_required'),403
+        if not enabled():
+            return jsonify(ok=False,error='poi_admin_disabled'),404
+        if request.method=='POST':
+            failure=csrf_failure()
+            if failure:
+                return failure
+            if not request.is_json or not request.content_length or request.content_length>4096:
+                return jsonify(ok=False,error='invalid_request'),400
+        from .routing import Routing
+        import sqlite3
+        service=Service(); registry=Registry(service.repo)
+        try:
+            registry.initialize()
+            routing=Routing(service.repo); routing.initialize()
+            if request.method=='POST':
+                body=request.get_json(silent=True)
+                if not isinstance(body,dict) or set(body)-{'action','layer','lane','revision','chain'}:
+                    raise POIError('invalid_request')
+                args=(body.get('layer'),body.get('lane'),body.get('revision'))
+                if body.get('action')=='save':
+                    routing.save(*args,body.get('chain'),session['user'])
+                elif body.get('action')=='restore':
+                    routing.restore(*args,session['user'])
+                else:
+                    raise POIError('invalid_action')
+            data=routing.describe()
+            from .credit_budget import CreditBudget
+            data['budgets']={}
+            for account in ('maplark','geoapify'):
+                try:
+                    data['budgets'][account]=CreditBudget(service.repo).status(account)
+                except sqlite3.OperationalError:
+                    data['budgets'][account]=[]
+            return jsonify(ok=True,**data)
+        except POIError as exc:
+            return jsonify(ok=False,error=str(exc)),409 if 'conflict' in str(exc) else 400
 
     @app.route('/api/admin/poi-providers',methods=['GET','POST'])
     def poi_provider_admin():

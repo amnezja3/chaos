@@ -11,6 +11,7 @@ module.exports = {
         // API credentials remain in the private server environment, never Git.
         CHAOS_POI_INFRASTRUCTURE_ENABLED: "1",
         CHAOS_POI_MAPLARK_ENABLED: "1",
+        CHAOS_POI_ROUTING_ENABLED: "0", // Enable only after controlled routing acceptance.
         CHAOS_POI_MAPLARK_PILOT_ENABLED: "0",
         CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: "1",
         CHAOS_MAPLARK_CREDIT_RESERVATION: "20",

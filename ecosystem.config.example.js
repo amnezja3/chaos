@@ -26,6 +26,7 @@ module.exports = {
         // tools/world_discovery_rollout.py. Keep API keys outside Git.
         CHAOS_POI_INFRASTRUCTURE_ENABLED: "0",
         CHAOS_POI_MAPLARK_ENABLED: "0",
+        CHAOS_POI_ROUTING_ENABLED: "0",
         CHAOS_POI_MAPLARK_PILOT_ENABLED: "0",
         CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: "0",
         CHAOS_MAPLARK_CREDIT_RESERVATION: "20",

@@ -2,6 +2,10 @@
 
 Data planu: 20.10.2026. Aktualizacja: 23.10.2026.
 Status: **SKANER MAPLARK WDROŻONY GLOBALNIE — pozostałe bramki kontraktu nadal otwarte**.
+Aktualizacja 24.10: lokalnie przygotowano wspólny router MapLark/Overpass,
+panel hierarchii i budżetowaną diagnostykę Geoapify. Geoapify nie jest jeszcze
+pełnym zamiennikiem skanera; wymaga próbki VPS i odbioru kontraktu.
+[Dowody i zakres](../audits/provider_hierarchy_geoapify_20261024.md).
 Operator zaakceptował uruchomienie dla wszystkich i budżety 800/dobę UTC oraz
 24 000/31 dni. Instrukcja: [rollout MapLark](../runbooks/world_discovery_maplark_rollout_161.md).
 Operator przekazał konfigurację budżetu i udany skan revision=6 na VPS.

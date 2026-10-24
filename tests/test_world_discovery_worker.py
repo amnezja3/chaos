@@ -65,6 +65,21 @@ class DiscoveryWorkerTests(unittest.TestCase):
         self.assertEqual(self.jobs.get(self.key)['state'], 'PENDING')
         self.transport.assert_not_called()
 
+    def test_background_hierarchy_requires_layer_selection_and_rechecks_changes(self):
+        from poi_infrastructure.routing import Routing
+        routing=Routing(self.repo);routing.initialize()
+        routing.save('roads','background',0,['maplark'],'test')
+        response=self.transport.return_value
+        def revoke(*a,**kw):
+            routing.save('roads','background',1,[],'test')
+            return response
+        self.transport.side_effect=revoke
+        with patch.dict(os.environ,CHAOS_POI_ROUTING_ENABLED='1'):
+            self.assertEqual(self.worker.run_one()['status'],'reconciliation_required')
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],3)
+        with closing(self.repo.connect()) as c:
+            self.assertEqual(c.execute('SELECT count(*) FROM world_snapshot').fetchone()[0],0)
+
     def test_commit_once_no_coverage_no_neighbors(self):
         result = self.worker.run_one()
         self.assertEqual(result['status'], 'committed')

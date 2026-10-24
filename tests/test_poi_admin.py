@@ -13,6 +13,27 @@ class AdminTests(unittest.TestCase):
         run.GhostNetworkRepository(db_path=self.path)
         self.stack.enter_context(patch.object(run,'ghostsignal_show_db_path',self.path))
 
+    def test_routing_auth_csrf_conflict_and_restore(self):
+        route='/api/admin/poi-routing'
+        with patch.dict(os.environ,CHAOS_POI_PROVIDER_ADMIN_ENABLED='1',
+                        CHAOS_POI_CACHE_PATH=str(Path(self.tmp.name)/'routing.sqlite3')):
+            self.assertEqual(self.client.get(route).status_code,403)
+            self.generation.authenticate(self.client,'admin')
+            self.assertEqual(len(self.client.get(route).json['routes']),12)
+            body=dict(action='save',layer='poi',lane='live',revision=0,chain=[])
+            self.assertEqual(self.client.post(route,json=body,headers={'X-Chaos-CSRF':'wrong'}).status_code,403)
+            with self.client.session_transaction() as session:
+                session['session_csrf']='fixture-csrf'
+            headers={'Origin':'http://localhost','X-Chaos-CSRF':'fixture-csrf'}
+            self.assertEqual(self.client.post(route,json=body,headers=headers).status_code,200)
+            self.assertEqual(self.client.post(route,json=body,headers=headers).status_code,409)
+            result=self.client.post(route,json=dict(action='restore',layer='poi',lane='live',revision=1),headers=headers)
+            self.assertEqual(result.status_code,200,result.json)
+            self.assertEqual(len(result.json['history']),2)
+            self.assertFalse(result.json['enabled'])
+            with patch.dict(os.environ,CHAOS_POI_PROVIDER_ADMIN_ENABLED='0'):
+                self.assertEqual(self.client.get(route).status_code,404)
+
     def test_isolated_world_gate_preserves_epoch_and_admin_checks(self):
         route='/api/admin/poi-providers'
         self.assertEqual(run.ghostsignal_show_db_path,self.path)

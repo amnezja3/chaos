@@ -27,7 +27,8 @@ def pilot_user(user):
                 v.strip() for v in os.environ.get('CHAOS_POI_MAPLARK_PILOT_USERS', '').split(',') if v.strip()})
 
 
-def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
+def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
+                *, provider_id=None, phase='all', deadline=None):
     if not enabled():
         raise POIError('maplark_pilot_disabled')
     if not spatial or tuple(spatial['filters']) != FILTERS:
@@ -36,13 +37,15 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
     # Schema/configuration must have been prepared explicitly, not by a player.
     def eligible():
         return next((v for v in registry.eligible('normal_scan') if v['url'] == ENDPOINT
+                     and (provider_id is None or v['id']==provider_id)
                      and registry.approved(v, 'storage')), None)
     candidate = eligible()
     if not candidate:
         raise POIError('maplark_not_approved')
     from . import world_shadow
     from .world_pilot import allowed as world_allowed
-    world_shadow.demand(service,spatial)
+    if phase in ('all','local','fresh'):
+        world_shadow.demand(service,spatial)
     plan = plan_maplark(spatial['lat'], spatial['lon'], spatial['radius'], limit=1000)
     key = batch_key('maplark', PROFILE, plan.profile, PROFILE,
                     {'params': plan.params, 'revision': candidate['revision']})
@@ -63,6 +66,8 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
     data = cached(fresh_ttl)
     if data is not None:
         return result(data, 'fresh')
+    if phase == 'fresh':
+        return None, 'miss'
     def world_read(stale=False):
         if not world_allowed(world_user,spatial):return None
         return world_shadow.read(service,candidate,key,
@@ -70,8 +75,17 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
     data = world_read()
     if data is not None:
         return result(data,'world')
+    if phase in ('local','world'):
+        return None, 'miss'
+    if phase == 'stale':
+        data = cached(stale_ttl)
+        if data is None:
+            data = world_read(stale=True)
+        return (result(data, 'stale') if data is not None else (None, 'miss'))
     owner = None
     wait_until = time.monotonic() + service.config.join_wait
+    if deadline is not None:
+        wait_until = min(wait_until, deadline)
     try:
         while owner is None:
             if not active():
@@ -103,7 +117,8 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
         try:
             batch, billing = acquire_maplark(service.repo, plan, uuid.uuid4().hex, reservation,
                 accept_variable_cost=os.environ.get('CHAOS_MAPLARK_ACCEPT_VARIABLE_COST') == '1',
-                still_active=lambda: active() and service.repo.owns(key, owner))
+                still_active=lambda: active() and service.repo.owns(key, owner),
+                **({'deadline':deadline} if deadline is not None else {}))
             data = validate(export_maplark(batch), service.config)
             if not active() or not service.repo.write(key, owner, data, stale_ttl):
                 raise POIError('cache_capacity_or_lease_lost')
@@ -122,7 +137,7 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None):
     except (POIError, ContractError) as exc:
         # Exact, time-bounded stale data remains usable on temporary upstream
         # failure/budget exhaustion. Never bypass disabled/revised providers.
-        if (isinstance(exc, UpstreamUnavailable) or str(exc) in (
+        if phase == 'all' and (isinstance(exc, UpstreamUnavailable) or str(exc) in (
                 'budget_exhausted','budget_account_held','budget_previous_period_unresolved',
                 'circuit_open','upstream_busy','join_timeout','http_429','http_500',
                 'http_502','http_503','http_504')):

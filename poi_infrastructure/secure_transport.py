@@ -52,6 +52,15 @@ def request(config, endpoint, query, timeout, deadline, *, pinned_ip=None, trace
         method, body = 'GET', None
         wire_headers.update(auth_headers)
         wire_headers['Accept'] = 'application/geo+json,application/json'
+        if endpoint == 'https://api.geoapify.com/v2/places':
+            # Official POST contract supports x-api-key: never put secrets in URLs.
+            params = dict(feature_plan.params)
+            lon,lat,radius = map(float,params['filter'].split(':',1)[1].split(','))
+            method,path = 'POST','/v2/places'
+            body = json.dumps(dict(categories=params['categories'].split(','),
+                filter=dict(type='circle',lon=lon,lat=lat,radius=radius),
+                limit=int(params['limit']),offset=int(params['offset']))).encode()
+            wire_headers['Content-Type'] = 'application/json'
     mark('dns')
     addresses = public_addresses(host)
     if pinned_ip is not None:

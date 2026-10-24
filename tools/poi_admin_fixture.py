@@ -20,6 +20,21 @@ def main():
         fixture=PlayerHackReadPathsTest()
         fixture.setUp()
         fixture.generation.authenticate(fixture.client,'admin')
+        if '--routing' in sys.argv:
+            from poi_infrastructure.repository import Repository
+            from poi_infrastructure.providers import Registry
+            from poi_infrastructure.routing import MAPLARK,GEOAPIFY,Routing
+            import time
+            registry=Registry(Repository(os.environ['CHAOS_POI_CACHE_PATH']));registry.initialize()
+            for name,url,group in [('maplark',MAPLARK,'api.maplark.com'),('geoapify',GEOAPIFY,'api.geoapify.com'),
+                                   ('overpass','https://fixture.invalid/api/interpreter','fixture.invalid')]:
+                p=registry.save(name,0,dict(name=name,url=url,operator_group=group,priority=0),'fixture')
+                if name!='geoapify':
+                    p=registry.decision(name,p['revision'],'approved_for_defined_use',['normal_scan','storage'],
+                        dict(source_url='https://example.org/terms',reference='fixture',notes='offline only'),time.time()+3600,'fixture')
+                    p=registry.tested(name,p['revision'],True,'fixture')
+                    registry.enable(name,p['revision'],True,'fixture')
+            Routing(registry.repo).initialize()
         if '--world' in sys.argv:
             from poi_infrastructure.repository import Repository
             from poi_infrastructure.world_storage import CanonicalWorldRepository

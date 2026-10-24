@@ -81,9 +81,11 @@ class Registry:
             raise POIError('provider_invalid_fields')
         # Feature API has a separate authenticated transport; never allow
         # arbitrary feature URLs or query-string credentials into the registry.
-        if fields['url'] != 'https://api.maplark.com/v3/osm_features':
+        feature_hosts = {'https://api.maplark.com/v3/osm_features': 'api.maplark.com',
+                         'https://api.geoapify.com/v2/places': 'api.geoapify.com'}
+        if fields['url'] not in feature_hosts:
             endpoint_host(fields['url'])
-        elif fields['operator_group'] != 'api.maplark.com':
+        elif fields['operator_group'] != feature_hosts[fields['url']]:
             raise POIError('provider_invalid_fields')
         if (not isinstance(fields['name'],str) or not 1 <= len(fields['name']) <= 80
                 or not isinstance(fields['operator_group'],str)

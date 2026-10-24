@@ -8,26 +8,36 @@ import os
 
 from .credit_budget import CreditBudget
 from .service import Config, POIError, UpstreamUnavailable, bounded_http, retry_delay
-from .world_adapters import MAPLARK_VERSION, normalize_maplark
+from .world_adapters import MAPLARK_VERSION, GEOAPIFY_VERSION, normalize_maplark, normalize_geoapify
 from .world_contract import ContractError, Provenance
 
 
 def acquire_maplark(repo, plan, operation, reservation, *,
                     accept_variable_cost=False, transport=None, still_active=lambda: True,
-                    lane='live', budget_scopes=()):
+                    lane='live', budget_scopes=(), deadline=None):
     """Caller must configure ledger windows and authorize this provider first.
 
 Returns a normalized, UNAPPROVED batch plus nonsecret billing metadata.
 Same operation ID can never cause a second upstream request.
 """
+    return acquire_features(repo, plan, operation, reservation, accept_variable_cost=accept_variable_cost,
+        transport=transport, still_active=still_active, lane=lane, budget_scopes=budget_scopes,
+        deadline=deadline, account='maplark')
+
+
+def acquire_features(repo, plan, operation, reservation, *, account,
+                     accept_variable_cost=False, transport=None, still_active=lambda:True,
+                     lane='live', budget_scopes=(), deadline=None):
     if not accept_variable_cost:
         raise ContractError('variable_credit_cost_acceptance_required')
-    if plan.adapter_version != MAPLARK_VERSION or plan.endpoint != 'https://api.maplark.com/v3/osm_features':
+    expected = {'maplark': (MAPLARK_VERSION,'https://api.maplark.com/v3/osm_features'),
+                'geoapify': (GEOAPIFY_VERSION,'https://api.geoapify.com/v2/places')}
+    if account not in expected or (plan.adapter_version,plan.endpoint)!=expected[account]:
         raise ContractError('acquisition_provider_unsupported')
     plan.authenticated_wire()
     if not still_active():
         raise POIError('scanner_inactive')
-    group = 'api.maplark.com'
+    group = 'api.'+account+'.com'
     if not repo.allowed(group):
         raise POIError('circuit_open')
     if lane not in ('live','background'):
@@ -58,33 +68,40 @@ Same operation ID can never cause a second upstream request.
     ledger = CreditBudget(repo)
     reserved = sent = settled = False
     started = time.monotonic()
+    deadline = min(started + 35, deadline) if deadline is not None else started + 35
     try:
-        reserved = ledger.reserve('maplark', operation, reservation, scopes=budget_scopes)
+        if deadline <= time.monotonic():
+            raise POIError('deadline')
+        reserved = ledger.reserve(account, operation, reservation, scopes=budget_scopes)
         if not reserved:
             raise ContractError('budget_operation_already_used')
         if not still_active() or not repo.owns('@upstream', slot):
             raise POIError('scanner_inactive_or_slot_lost')
         sent = True
         status, retry, envelope = (transport or bounded_http)(
-            Config(deadline=35), plan.endpoint, plan, 30, started + 35,
+            Config(deadline=35), plan.endpoint, plan, min(30, deadline-time.monotonic()), deadline,
             secure='world-features')
         headers = envelope.get('response_headers', {}) if isinstance(envelope, dict) else {}
         # Bill errors and malformed responses too. Never infer free requests
         # from HTTP status or a missing/invalid charge header.
-        value = headers.get('X-Usage-Units-Charged') if isinstance(headers, dict) else None
+        value = headers.get('X-Usage-Units-Charged') if account=='maplark' and isinstance(headers, dict) else None
         charged = int(value) if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 12 else None
-        ledger.settle('maplark', operation, charged)
+        ledger.settle(account, operation, charged)
         settled = True
         if status != 200:
             if status in (429, 500, 502, 503, 504):
                 repo.outcome(group, False, retry_delay(retry) or (30 if status == 429 else 0))
             raise POIError('http_' + str(status))
-        provenance = Provenance('maplark', MAPLARK_VERSION, operation, time.time(), license_ref='ODbL-1.0')
-        batch = normalize_maplark(envelope.get('body'), headers, provenance,
-                                  profile=plan.profile, maximum=int(dict(plan.params)['limit']))
-        if batch.completeness != 'complete':
+        provenance = Provenance(account, plan.adapter_version, operation, time.time(), license_ref='ODbL-1.0')
+        if account=='maplark':
+            batch = normalize_maplark(envelope.get('body'), headers, provenance,
+                                      profile=plan.profile, maximum=int(dict(plan.params)['limit']))
+        else:
+            batch = normalize_geoapify(envelope.get('body'), provenance,
+                                       page_limit=int(dict(plan.params)['limit']))
+        if account=='maplark' and batch.completeness != 'complete':
             raise ContractError('provider_response_incomplete')
-        if time.monotonic() >= started + 35 or not repo.owns('@upstream', slot):
+        if time.monotonic() >= deadline or not repo.owns('@upstream', slot):
             raise POIError('deadline_or_slot_lost')
         if not still_active():
             raise POIError('scanner_inactive')
@@ -98,7 +115,7 @@ Same operation ID can never cause a second upstream request.
     finally:
         try:
             if reserved and not settled:
-                ledger.settle('maplark', operation, None if sent else 0)
+                ledger.settle(account, operation, None if sent else 0)
         finally:
             try:
                 repo.release('@probe:' + group, slot)

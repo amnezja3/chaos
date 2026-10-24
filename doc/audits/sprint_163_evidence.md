@@ -3,6 +3,10 @@
 Status: etap pasywny odebrany na VPS 24.10.2026; dalsza implementacja lokalna,
 nie pełny PASS 163.
 
+Najnowszy pakiet lokalny: hierarchia źródeł per warstwa/live/background,
+panel PL/EN, router skanera i diagnostyka Geoapify; routing domyślnie OFF.
+[Szczegółowe dowody i granice](provider_hierarchy_geoapify_20261024.md).
+
 `discovery_queue.py` ponownie wykorzystuje SQLite POI. Jawna inicjalizacja przez
 `tools/poi_world.py --discovery`; brak migracji przy skanie gracza. Tryb domyślny
 `CHAOS_POI_DISCOVERY_MODE=off`, opcjonalnie `passive`.
