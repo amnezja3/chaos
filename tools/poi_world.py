@@ -31,6 +31,8 @@ def initialize(path, canonical=False, discovery=False, jobs=False, metrics=False
         from poi_infrastructure.discovery_jobs import DiscoveryJobs
         from poi_infrastructure.credit_budget import CreditBudget
         DiscoveryJobs(repo).initialize()
+        from poi_infrastructure.regular_discovery import initialize as initialize_regular
+        initialize_regular(repo)
         CreditBudget(repo).initialize()
     if metrics:
         from poi_infrastructure.scan_metrics import initialize as initialize_metrics

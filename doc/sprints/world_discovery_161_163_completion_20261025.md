@@ -135,3 +135,25 @@ storage/background scopes i retencja źródeł, dostępne regionalne produkty,
 obecność klucza Geoapify, zapisane profile/kolejność i aktualny limit konta.
 Jeżeli konkretnej informacji zabraknie również tam, zebrać ją w jedną listę
 decyzji przed uruchomieniem; nie deklarować jej na podstawie przypuszczenia.
+
+## Aktualizacja — regularny pakiet przygotowany lokalnie
+
+Poprzednie tabele opisują punkt wyjścia. Potwierdzony później VPS: skaner
+przez routing=1, siedmiodniowe archiwum MapLark/Geoapify, kolektor jednego
+sektora oraz migracja/profile regions PASS. Pełna dokumentacja odbiorów
+w world_collection_integration_20261025.md.
+
+Nowy lokalny pakiet dodaje regularną selekcję odwiedzanych regionów,
+rotację i dzienne budżety, pełną geometrię Overpass, hierarchię background,
+kontrolowany powrót Overpass po cooldownie i osobny monitor read-only.
+Geoapify jest regularnym źródłem obserwacji POI, nadal nie pełnym fallbackiem
+skanera CHAOS. Nie dodano sztucznego profilu zgodności ani źródła ląd–morze.
+Przyjęto 7 dni odświeżania/retencji i 30 dni do przeglądu polityki.
+
+Wdrożenie i zbiorczy odbiór: tools/world_regular_rollout.sh --execute;
+szczegóły, źródła kontraktów, rollback i ograniczenia w
+doc/runbooks/world_archive_geo_acceptance.md. Stan obecny: kod/testy lokalne
+PASS, uruchomienie regularnego profilu na VPS jeszcze nieodebrane.
+Overpass wymaga faktycznie dopuszczonej instancji; setup nie podnosi dawnych
+zgód small_probe. Nie ogłaszać pełnego zakończenia sprintów na podstawie
+samego lokalnego testu ani wpisu worker online.

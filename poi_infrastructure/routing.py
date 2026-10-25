@@ -27,11 +27,11 @@ def capability(provider, layer, lane):
         if layer == 'poi' and lane == 'background':
             return None
         return 'geoapify_contract_unverified' if layer == 'poi' else 'unsupported_layer'
-    if layer == 'land_water' or (kind == 'overpass' and layer != 'poi'):
+    if layer == 'land_water':
         return 'unsupported_layer'
     if lane == 'live' and layer != 'poi':
         return 'observation_only'
-    if lane == 'background' and (kind != 'maplark' or layer == 'poi'):
+    if lane == 'background' and (kind not in ('maplark','overpass') or layer == 'poi'):
         return 'unsupported_background_profile'
     return None
 
@@ -95,7 +95,12 @@ class Routing:
                     break
             default += paid
         elif lane=='background':
-            default = [p['id'] for p in candidates][:3]
+            candidates.sort(key=lambda p:({'overpass':0,'maplark':1,'geoapify':2}[adapter(p)],p.get('priority',100),p['id']))
+            groups=set()
+            for p in candidates:
+                if p['operator_group'] not in groups:
+                    default.append(p['id']);groups.add(p['operator_group'])
+                if len(default)==3:break
         return dict(layer=layer, lane=lane, revision=row['revision'] if row else 0,
                     chain=json.loads(row['chain']) if row else default)
 

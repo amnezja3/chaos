@@ -134,6 +134,8 @@ class CanonicalWorldRepository(WorldRepository):
             params = observation_context['request_params']
             expected = ({'bbox', 'tags', 'limit', 'clipGeometry'}
                         if observation_context['acquisition']=='sector-bbox-v1'
+                        else {'bbox','profile','limit','geometry'}
+                        if observation_context['acquisition']=='overpass-bbox-geom-v1'
                         else {'categories','filter','limit','offset'}
                         if observation_context['acquisition']=='geoapify-commercial-v1'
                         else {'location', 'radius', 'tags', 'limit', 'clipGeometry'})

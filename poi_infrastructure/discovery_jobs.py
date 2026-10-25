@@ -21,7 +21,7 @@ STATES = ('PENDING','LEASED','FETCHING','VALIDATING','COMMITTED','DEFERRED',
 ADMISSION_DEFERRALS=frozenset(('upstream_busy','circuit_open','world_capacity',
     'publication_busy','budget_exhausted','budget_scope_exhausted'))
 
-ACQUISITIONS = frozenset(('radius-300-v1', 'sector-bbox-v1', 'geoapify-commercial-v1'))
+ACQUISITIONS = frozenset(('radius-300-v1', 'sector-bbox-v1', 'geoapify-commercial-v1','overpass-bbox-geom-v1'))
 
 
 def token(value):
@@ -64,6 +64,8 @@ class DiscoveryJobs:
                 base_id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE,
                 generation INTEGER NOT NULL, due REAL NOT NULL,
                 settled INTEGER NOT NULL CHECK(settled IN (0,1)))''')
+            c.execute('''INSERT OR IGNORE INTO world_discovery_refresh
+                SELECT id,id,0,updated+604800,1 FROM world_discovery_job WHERE state='COMMITTED' ''')
 
     def enqueue(self,demand_key,provider,revision,profile, *, acquisition='radius-300-v1',
                 refresh_seconds=0, plan_only=False):
@@ -86,11 +88,17 @@ class DiscoveryJobs:
                 return None
             base_key=key
             generation=0
+            unsent_cancel=False
             if refresh_seconds:
                 receipt=c.execute('SELECT * FROM world_discovery_refresh WHERE base_id=?',(base_key,)).fetchone()
                 old=c.execute('SELECT * FROM world_discovery_job WHERE id=?',
                               (receipt['job_id'] if receipt else key,)).fetchone()
-                if receipt:
+                unsent_cancel=bool(old and old['state']=='CANCELLED' and old['operation'] is None
+                    and not c.execute('SELECT 1 FROM world_credit_operation WHERE account=? AND operation=?',
+                                      (provider,'discovery:'+old['id'])).fetchone())
+                if unsent_cancel:
+                    generation=(receipt['generation'] if receipt else 0)+1
+                elif receipt:
                     if not receipt['settled'] or receipt['due']>now:
                         return None
                     generation=receipt['generation']+1
@@ -107,7 +115,7 @@ class DiscoveryJobs:
                     prior=receipt['job_id'] if receipt else base_key
                     charge=c.execute('SELECT state FROM world_credit_operation WHERE account=? AND operation=?',
                                      (provider,'discovery:'+prior)).fetchone()
-                    if not charge or charge['state']!='settled':
+                    if not unsent_cancel and (not charge or charge['state'] not in ('settled','estimated')):
                         return None
                     key=hashlib.sha256(f'{base_key}:refresh:{generation}'.encode()).hexdigest()
                 if not receipt and c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0]>=self.max_jobs:
@@ -146,11 +154,13 @@ class DiscoveryJobs:
         c.execute('''UPDATE world_discovery_job SET state='CANCELLED',reason='demand_expired',updated=?
             WHERE expires<=? AND state IN ('PENDING','DEFERRED','RETRY_AFTER')''',(now,now))
 
-    def claim(self,seconds=60, *, cells=None, profiles=None, acquisition=None, allow_refresh=False):
+    def claim(self,seconds=60, *, cells=None, profiles=None, acquisition=None, allow_refresh=False,provider=None):
         if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 1<=seconds<=120:
             raise ValueError('job_lease')
         now=time.time();owner=uuid.uuid4().hex
         clauses=[]; params=[]
+        if provider is not None:
+            token(provider);clauses.append('j.provider=?');params.append(provider)
         if not allow_refresh:
             clauses.append('NOT EXISTS (SELECT 1 FROM world_discovery_refresh r WHERE r.job_id=j.id AND r.generation>0)')
         if acquisition is not None:
@@ -268,6 +278,9 @@ class DiscoveryJobs:
                       (snapshot,now,key))
             c.execute('UPDATE world_discovery_refresh SET settled=1,due=? WHERE job_id=?',
                       (now+604800,key))
+            if not c.execute('SELECT 1 FROM world_discovery_refresh WHERE job_id=?',(key,)).fetchone():
+                if c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0]<self.max_jobs:
+                    c.execute('INSERT INTO world_discovery_refresh VALUES (?,?,?,?,?)',(key,key,0,now+604800,1))
             return True
 
     def prune(self,limit=100):
@@ -276,7 +289,9 @@ class DiscoveryJobs:
         with self.repo.transaction() as c:
             return c.execute('''DELETE FROM world_discovery_job WHERE id IN
                 (SELECT id FROM world_discovery_job WHERE expires<=? AND
-                 state IN ('COMMITTED','CANCELLED','FAILED_TERMINAL') LIMIT ?)''',
+                 state IN ('COMMITTED','CANCELLED','FAILED_TERMINAL')
+                 AND NOT (state='CANCELLED' AND EXISTS (SELECT 1 FROM world_discovery_refresh r
+                    WHERE r.job_id=world_discovery_job.id AND r.settled=0)) LIMIT ?)''',
                  (time.time(),limit)).rowcount
 
     def get(self,key):
@@ -285,3 +300,15 @@ class DiscoveryJobs:
             row=c.execute('SELECT * FROM world_discovery_job WHERE id=?',(key,)).fetchone()
             return dict(row) if row else None
         finally:c.close()
+
+    def schedule_overpass_retry(self,key,delay=3600):
+        """Read-only remote service: count the attempt, back off; never retry paid requests here."""
+        with self.repo.transaction() as c:
+            row=c.execute('SELECT * FROM world_discovery_job WHERE id=?',(key,)).fetchone()
+            if not row or row['acquisition']!='overpass-bbox-geom-v1' or row['state']!='POLICY_BLOCKED':return False
+            operation=c.execute('SELECT state FROM world_credit_operation WHERE account=? AND operation=?',
+                                (row['provider'],'discovery:'+key)).fetchone()
+            if not operation or operation['state']!='settled':return False
+            c.execute("UPDATE world_discovery_job SET state='FAILED_TERMINAL',reason='overpass_backoff' WHERE id=?",(key,))
+            c.execute('UPDATE world_discovery_refresh SET settled=1,due=? WHERE job_id=?',(time.time()+delay,key))
+            return True

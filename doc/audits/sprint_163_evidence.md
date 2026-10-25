@@ -876,3 +876,12 @@ at=1792935684.944692. Runtime web i workera zgodny; stderr pusty.
 Odhaczono start i cykl procesu. Nie wykonano nowego pobrania ani ekspansji;
 brak automatycznego odnawiania permitu i harmonogramu odświeżania 7 dni.
 Szczegóły i ograniczenia: world_collection_integration_20261025.md.
+
+## 2026-10-25 — VPS 9aa3ffb: regiony i generacje odświeżania
+
+94 testy PASS, migracja integrity/FK ok, zachowane 6 snapshotów/249 members.
+Profil regions uruchomiony po zatrzymaniu poprzedniego kolektora. Nowy pid
+4088154 wykonał idle/network_calls=0. Web i flagi gameplay bez zmian.
+Obecny sektor, permit 24 h, retencja/refresh 7 dni; brak rozszerzania obszaru
+i automatycznego odnowienia. Upływ siedmiu dni sprawdzony lokalnie, nie na VPS.
+Szczegóły: world_collection_integration_20261025.md, sekcja VPS 9aa3ffb.

@@ -33,9 +33,11 @@ class DiscoveryPermit:
     acquisition: str = 'radius-300-v1'
     retention_seconds: int = 1800
     refresh_seconds: int = 0
+    provider_id: str = ''
 
     @property
     def account(self):
+        if self.provider_id:return self.provider_id
         return 'geoapify' if self.acquisition == 'geoapify-commercial-v1' else 'maplark'
 
     def budget_scopes(self, profile):
@@ -73,8 +75,11 @@ class DiscoveryPermit:
                 or not isinstance(self.acquisition, str) or self.acquisition not in ACQUISITIONS
                 or type(self.retention_seconds) is not int or not 1800 <= self.retention_seconds <= 31*86400):
             raise ValueError('discovery_permit_invalid_or_expired')
+        if self.provider_id:
+            _token(self.provider_id)
+            if self.acquisition!='overpass-bbox-geom-v1':raise ValueError('discovery_provider_acquisition')
         if (type(self.refresh_seconds) is not int or self.refresh_seconds not in (0,604800)
-                or self.refresh_seconds and (self.account!='maplark' or self.retention_seconds!=604800)):
+                or self.refresh_seconds and self.retention_seconds!=604800):
             raise ValueError('discovery_refresh_requires_maplark_seven_day_archive')
 
 
@@ -92,10 +97,16 @@ class DiscoveryWorker:
             chain=Routing(self.repo).get(job['profile'],'background')['chain']
             providers={p['id']:p for p in Registry(self.repo).list()}
             eligible=[p for p in chain if p in providers and not reason(providers[p],job['profile'],'background')]
-            if not eligible or eligible[0]!=job['provider']:
+            if job['provider'] not in eligible:
                 return None
         for item in Registry(self.repo).list():
             account = self.permit.account
+            if self.permit.acquisition=='overpass-bbox-geom-v1':
+                from .routing import adapter,reason
+                if (item['id']==job['provider']==account and item['revision']==job['revision']
+                        and adapter(item)=='overpass' and not reason(item,job.get('profile','roads'),'background')
+                        and item.get('review_due_at',0)>=time.time()+self.permit.retention_seconds):return item
+                continue
             endpoint = ('https://api.geoapify.com/v2/places' if account=='geoapify'
                         else 'https://api.maplark.com/v3/osm_features')
             if (item['id'] == job['provider'] == account
@@ -119,7 +130,7 @@ class DiscoveryWorker:
         if os.environ.get('CHAOS_POI_PRIORITY_ENABLED') != '1':
             return dict(status='priority_required', network_calls=0)
         job = self.jobs.claim(120, cells=self.permit.cells, profiles=self.permit.profiles,
-                              acquisition=self.permit.acquisition, allow_refresh=bool(self.permit.refresh_seconds))
+                              acquisition=self.permit.acquisition, allow_refresh=bool(self.permit.refresh_seconds),provider=self.permit.account)
         if job is None:
             return dict(status='idle', network_calls=0)
         key, owner = job['id'], job['owner']
@@ -161,7 +172,9 @@ class DiscoveryWorker:
                                       (job['demand_key'],)).fetchone()
             finally:
                 conn.close()
-            if job['acquisition'] == 'geoapify-commercial-v1':
+            if job['acquisition']=='overpass-bbox-geom-v1':
+                plan=None
+            elif job['acquisition'] == 'geoapify-commercial-v1':
                 plan = plan_geoapify((demand['cell_y']+.5)/100, (demand['cell_x']+.5)/100,
                                     300, categories=('commercial',), limit=100)
             elif job['acquisition'] == 'sector-bbox-v1':
@@ -185,13 +198,20 @@ class DiscoveryWorker:
             publication_owner = self.repo.acquire(key, 120)
             if not publication_owner:
                 raise POIError('publication_busy')
-            batch, billing = acquire_features(self.repo, plan, 'discovery:' + key,
+            if plan is None:
+                from .overpass_world import acquire
+                x,y=demand['cell_x'],demand['cell_y']
+                batch,billing=acquire(self.repo,self.candidate(job),(x/100,y/100,(x+1)/100,(y+1)/100),
+                    job['profile'],'discovery:'+key,self.permit.budget_scopes(job['profile']),transport=send,active=active)
+            else:
+                batch, billing = acquire_features(self.repo, plan, 'discovery:' + key,
                 self.permit.reservation, account=self.permit.account,
                 accept_variable_cost=(self.permit.account=='geoapify' or
                                       os.environ.get('CHAOS_MAPLARK_ACCEPT_VARIABLE_COST') == '1'),
                 transport=send, still_active=active, lane='background',
                 allow_partial_observations=job['acquisition']=='sector-bbox-v1',
-                budget_scopes=self.permit.budget_scopes(job['profile']))
+                budget_scopes=self.permit.budget_scopes(job['profile']),
+                conservative_geoapify=self.permit.account=='geoapify' and self.permit.reservation==6)
             if not active() or not self.jobs.transition(key, owner, 'VALIDATING'):
                 raise POIError('discovery_fence_lost')
             candidate = self.candidate(job)
@@ -203,7 +223,8 @@ class DiscoveryWorker:
                 observation_context=dict(acquisition=job['acquisition'],
                     demand_bounds=(demand['cell_x']/100, demand['cell_y']/100,
                                    (demand['cell_x']+1)/100, (demand['cell_y']+1)/100),
-                    request_params=dict(plan.params)))
+                    request_params=dict(plan.params) if plan else dict(geometry='full',profile=job['profile'],limit='1001',
+                        bbox=','.join(map(str,(demand['cell_x']/100,demand['cell_y']/100,(demand['cell_x']+1)/100,(demand['cell_y']+1)/100))))))
             if not snapshot or not self.jobs.acknowledge(key, snapshot, owner):
                 raise POIError('publication_ack_pending')
             return dict(status='committed', network_calls=calls, coverage='UNKNOWN',
@@ -221,6 +242,8 @@ class DiscoveryWorker:
                 target = 'DEFERRED' if current['state'] == 'LEASED' else 'POLICY_BLOCKED'
                 self.jobs.transition(key, owner, target, delay=60 if target == 'DEFERRED' else 0)
             current = self.jobs.get(key)
+            if calls and job['acquisition']=='overpass-bbox-geom-v1':
+                self.jobs.schedule_overpass_retry(key)
             deferred = current and current['state'] in ('DEFERRED', 'RETRY_AFTER')
             return dict(status='deferred' if deferred else 'reconciliation_required',
                         network_calls=calls, error_type=type(exc).__name__)

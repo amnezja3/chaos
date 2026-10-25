@@ -290,3 +290,121 @@ Rollback: `pm2 stop chaos-world-discovery-worker`, kontrola runtime
 ani starego kodu workera nad nowszą kolejką, nie usuwać receiptów odświeżania.
 Restart bieżącego profilu przez pm2 restart zachowuje permit i historię;
 nie odnawia terminu jego ważności.
+
+## Regularne zbieranie — pakiet do wdrożenia 25.10.2026
+
+Operator zatwierdził regularne zbieranie, integrację Overpass i Geoapify
+(plan 3000 kredytów/dzień, allowance 93000), delegując dobór odświeżania.
+Poniższy pakiet zastępuje codzienne ręczne permity polityką obserwacji
+przeglądaną po 30 dniach. Nie zmienia gry w konsumenta geometrii.
+
+Parametry:
+
+- Najwyżej jeden request kolektora w cyklu 60 s; wspólny slot z priorytetem gry.
+- Do 100 ostatnio odwiedzanych komórek z ważnego anonimowego popytu.
+  Rotacja zadań zapisana w SQLite; bez sąsiadów i skanowania całej planety.
+- Roads, waterways, inland_water, coastline: dopuszczony Overpass, następnie
+  MapLark. Geoapify: osobna obserwacja POI commercial/100, nie pełny skan gry.
+- Retencja 7 dni, odświeżanie 7 dni od publikacji, tylko przy aktualnym popycie.
+  Lokalne niedawne obserwacje dopuszczonego źródła hamują duplikaty między źródłami.
+  Dane nie dostają certyfikatu COMPLETE regionu. Coastline nie tworzy oceanu.
+- MapLark: niezmienione 800/dzień i 24000/31 dni; background najwyżej 200/dzień.
+- Geoapify: wewnętrznie 2700/dzień i 83700/31 dni; background 200/dzień.
+  Zapas względem limitu konta nie gwarantuje salda po użyciu innych aplikacji/API.
+- Dla nowej, poprawnej strony Geoapify do 100 wyników pozostaje całe 6 jednostek
+  rezerwacji jako `estimated_upper_bound`, bez wpisywania reported_credits.
+  Szacunek liczy się w oknie dnia i 31 dni. Niepowodzenia i wszystkie stare
+  uncertain nadal pozostają zarezerwowane do osobnego rozliczenia.
+  Dostarczone sumy panelu 6 requests / 15 credits nie są mapowane na operacje.
+- Overpass: 120 prób/dzień na dopuszczony endpoint, 3720/31 dni, jednostką
+  są request_attempts, nie płatne kredyty. Timeout 25 s w QL, odczyt 30 s,
+  wspólny deadline 35 s, odpowiedź do 4 MiB i 1001 obiektów z sygnałem limitu.
+  Błąd daje przynajmniej godzinę cooldownu (dłuższy Retry-After zachowany).
+  Późniejsza próba ma nowe ID i zużywa limit; fallback jest w kolejnym cyklu.
+- Oddzielny `chaos-world-monitor` czyta SQLite mode=ro co 300 s, raportuje
+  budżety, stan kolejki, szacowane/niepewne koszty, pojemność i nieświeży cykl.
+
+Źródła interpretacji kontraktu: [Geoapify Places](https://apidocs.geoapify.com/docs/places/),
+[Geoapify pricing details](https://www.geoapify.com/pricing-details/),
+[Overpass full geometry](https://dev.overpass-api.de/overpass-doc/en/full_data/osm_types.html).
+Przyjęto konserwatywne 6, mimo przykładu 1/20 wyników, zamiast udawać nagłówek
+z rzeczywistym kosztem. Potwierdzona geometria obejmuje linie, zamknięte obszary
+i relacje multipolygon z otworami. Niekompletne/zagnieżdżone/nieobsługiwane
+relacje pozostają oznaczone jako niepełne; nie fabrykujemy brakujących części.
+
+### Jedno wdrożenie i zbiorczy odbiór
+
+```bash
+cd ~/app/chaos &&
+git pull --ff-only &&
+bash tools/world_regular_rollout.sh --execute
+```
+
+Skrypt uruchamia całą regresję `test_world_*.py` i `test_poi_providers.py`, dry run migracji i plan,
+zatrzymuje tylko kolektor, wykonuje backup, migruje i zapisuje politykę.
+Setup rozszerza istniejące przetestowane MapLark/Geoapify o zgodę operatora
+na obserwacje w tle i retencję; nie nadaje Geoapify uprawnienia normal_scan.
+Ustawia wyłącznie trasy background. Live routing i web pozostają bez reloadu.
+Klucz MapLark bierze w pamięci z procesu web; Geoapify z web/env, a jeśli go
+nie ma, pyta ukrytym promptem. Kluczy nie wklejać do rozmowy. Pozostają w
+chronionym środowisku PM2 i jego dump po save, nie w repozytorium.
+
+Profil `regular` jest w ecosystem.discovery.config.js. Polityka:
+`data/world-collection-policy.json`. Ponowne setup nie odnawia review ani
+nie czyści kosztów. Codzienne zakresy budżetu tworzy kolektor, account ledger
+przenosi wcześniejsze koszty. Po 30 dniach potrzebny przegląd; nie następuje
+ciche przedłużenie polityki. Monitor ma odrębny proces i nie pobiera danych API.
+
+Skrypt czeka do 100 s na świeży zapis cyklu, drukuje raport i Launch HTTP.
+Odbiór: 200; runtime zgodny; nowy cykl committed lub idle; przy committed
+zapis UNKNOWN i koszt jawny. `reconciliation_required`/monitor warnings
+oznaczają wynik do analizy, nie PASS dostawcy. Nie uruchamiać w pętli nowych
+testów na publicznym API. Wklejenie całego wyniku wystarczy do oceny etapu.
+
+Po poprawnym odbiorze:
+
+```bash
+pm2 save
+```
+
+Odczyt stanu bez requestów:
+
+```bash
+.venv/bin/python tools/world_collection_monitor.py
+pm2 logs chaos-world-monitor --lines 2 --nostream
+```
+
+Restart/stop są możliwe bez ruszania gry i baz:
+
+```bash
+pm2 restart chaos-world-discovery-worker
+.venv/bin/python tools/world_runtime_check.py --routing 1 --worker online
+# rollback uruchomienia, bez cofania kosztów:
+pm2 stop chaos-world-discovery-worker chaos-world-monitor
+pm2 save
+```
+
+Nie wykonuj stop/rollback razem z restartem jako jednego zestawu poleceń;
+wybierz działanie odpowiednie do odbioru. Restart nie resetuje częstotliwości,
+terminów, historii ani kosztów. Kod nie uruchamia ponownie zakończonego
+odświeżania po restarcie.
+
+### Overpass: gotowy wykonawca a dopuszczenie instancji
+
+Setup wypisuje `overpass_eligible` i `overpass_skipped`. Nie rozszerza zgody
+small_probe do background_refresh/storage/world_storage i nie włącza
+wyłączonych instancji. [Operator DE](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html)
+odradza użycie publicznych instancji jako stałego backendu aplikacji.
+Nie przedstawiać wcześniejszego testu 200 jako zgody na regularny ruch.
+
+Instancja dopuszczona w registry do tych trzech zakresów, tested_ok, enabled
+i z review obejmującym retencję wejdzie na początek trasy po ponownym jawnym
+setup --apply. Pozostałe pozostają pomijane, MapLark działa dalej. Kod i testy
+Overpass można odebrać lokalnie, rzeczywisty request dopiero dla dopuszczonej
+instancji. Brak dopuszczonego endpointu jest jedyną osobną decyzją źródłową
+tego pakietu; nie blokuje uruchomienia regularnego MapLark/Geoapify.
+
+Nowy Registry pozwala włączyć źródło przeznaczone wyłącznie do archiwizacji
+z trzema zakresami background_refresh/storage/world_storage, bez normal_scan.
+Setup korzysta z tego od razu przez CLI. Panel web załaduje tę zmianę przy
+najbliższym reloadzie ecosystem.web.config.js; ten rollout nie restartuje gry.

@@ -27,7 +27,10 @@ Same operation ID can never cause a second upstream request.
 
 def acquire_features(repo, plan, operation, reservation, *, account,
                      accept_variable_cost=False, transport=None, still_active=lambda:True,
-                     lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False):
+                     lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False,
+                     conservative_geoapify=False):
+    if conservative_geoapify and (account!='geoapify' or reservation!=6 or int(dict(plan.params)['limit'])>100):
+        raise ContractError('geoapify_estimate_profile')
     if type(allow_partial_observations) is not bool or (allow_partial_observations and lane != 'background'):
         raise ContractError('partial_observations_background_only')
     if not accept_variable_cost:
@@ -113,8 +116,10 @@ def acquire_features(repo, plan, operation, reservation, *, account,
         if not still_active():
             raise POIError('scanner_inactive')
         repo.outcome(group, True)
+        if conservative_geoapify:
+            ledger.estimate_geoapify(operation)
         return batch, dict(operation=operation, reported_credits=charged,
-            reserved_credits=reservation, billing_state='settled' if charged is not None else 'uncertain',
+            reserved_credits=reservation, billing_state='estimated_upper_bound' if conservative_geoapify else 'settled' if charged is not None else 'uncertain',
             network_calls=1, gameplay_approved=False)
     except UpstreamUnavailable:
         repo.outcome(group, False)

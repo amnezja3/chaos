@@ -141,7 +141,8 @@ class Registry:
             old = self._load(c,provider_id)
             if not old or old['revision'] != revision:
                 raise POIError('provider_revision_conflict')
-            if enabled and not self.approved(old,'normal_scan'):
+            background=all(self.approved(old,scope) for scope in ('background_refresh','storage','world_storage'))
+            if enabled and not (self.approved(old,'normal_scan') or background):
                 raise POIError('provider_not_approved')
             return self._write(c,dict(old,enabled=enabled),old,actor,'enable' if enabled else 'disable')
 

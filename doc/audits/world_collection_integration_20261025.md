@@ -327,3 +327,79 @@ collector 7 PASS (15.207s). Collection prepare 5 PASS (14.835s).
 Sprawdzono bash -n, node --check i git diff --check. Testy korzystały z
 izolowanych baz i atrap transportu/PM2; nie wykonano wdrożenia ani HTTP
 do dostawców. Nowa tabela wymaga migracji przed startem nowego workera.
+
+### VPS 9aa3ffb — profil regions odebrany
+
+Operator wykonał world_regions_rollout.sh --execute. Testy: discovery
+82 PASS (58.913s), bounded collector 7 PASS (7.268s), collection prepare
+5 PASS (6.561s): łącznie 94 PASS. Dry run i migracja: integrity/FK ok,
+6 snapshotów, 249 members, 342097 payload_bytes przed i po migracji.
+
+Zatrzymano poprzedni kolektor, sprawdzono runtime, przygotowano permit
+`data/collection-regions-v1/permit.json` i backup w tym samym katalogu.
+Zakres: sektor 2036/5153, trzy warstwy, retencja/refresh 604800 s,
+budżet 60/20, do 24 h, bez automatycznego odnowienia. Plan jobs=[].
+Po starcie profil regions: worker online, routing/priority/enabled=1,
+cwd poprawne. Web online, routing=1, ingest/read=0, discovery=passive,
+age=0. Świeży cykl idle/network_calls=0 z NOWYM pid=4088154,
+at=1792937083.874129; wcześniejsze wpisy pid=4086017 są historyczne.
+Wyświetlony stderr pusty. Permit until=1793023481.2894413.
+
+Odhaczono migrację, stop poprzedniego procesu, start nowego profilu i świeży
+cykl bez zbędnego HTTP. Nie jest to produkcyjny test upływu siedmiu dni,
+nowego pobrania ani rozszerzenia obszaru. pm2 save nie ma jeszcze potwierdzenia.
+
+### Lokalnie — regularne zbieranie, Overpass i stały budżet Geoapify
+
+Dyspozycja operatora: regularna kolekcja + Overpass + Geoapify 3000/dzień;
+dobór odświeżania po stronie implementacji. Pakiet korzysta z istniejących
+DiscoveryJobs/Worker, CreditBudget, Registry, Routing, UpstreamPriority i
+CanonicalWorldRepository. Dodatkowy koordynator wybiera anonimowy popyt,
+nie tworzy drugiego magazynu ani pobrań pełnej planety.
+
+Polityka regular-world-v1: cykl 60 s, jeden request/cykl, 100 ostatnio
+odwiedzanych aktywnych komórek, trwały kursor rotacji, retencja/refresh 7 dni,
+review 30 dni bez automatycznego odnowienia. Background 200 kredytów/dzień
+na MapLark i Geoapify, globalne MapLark 800/24000, Geoapify 2700/83700.
+Codzienne scopes współdzielą istniejące konto, nigdy nie zerują ledgeru.
+Nowy popyt może wznowić wyłącznie anulowane przed wysłaniem zadanie z nowym ID.
+Niepewne płatne requesty pozostają zablokowane; starych kosztów nie rozliczamy
+na podstawie sum z panelu.
+
+Overpass: out body geom, pełne linie/poligony, multipolygon z otworami i
+odłącznymi częściami, niepełne relacje oznaczone jawnie. Provenance zawiera
+timestamp bazy OSM, jeśli obecny. Nie certyfikujemy bbox ani oceanów.
+Limit 120 prób/dzień, 3720/31 dni (jednostka request_attempts, nie credits),
+35 s deadline, 4 MiB, 1001 elementów, godzinny circuit lub dłuższy Retry-After.
+Odczytowy błąd Overpass ma osobną generację po backoff; następny cykl może
+wybrać MapLark. Jeden cykl nie robi serii requestów fallback.
+
+Geoapify: nowa poprawna strona do 100 wyników zachowuje 6 jednostek jako
+estimated_upper_bound, charged/reported_credits pozostają null. Szacunek
+liczony w dniu i rolling31; niepewne błędy i stare operacje nadal przenoszone.
+Nie jest to rozliczenie według panelu ani cena gwarantowana przez dostawcę.
+Źródła dokumentacji i instrukcja: world_archive_geo_acceptance.md.
+
+Osobny monitor SQLite mode=ro co 300 s: stan cyklu, kolejka, archiwum,
+budżety z jednostkami, unresolved/estimated oraz ostrzeżenia. Profil regular
+w ecosystem.discovery.config.js; klucze z web/env, opcjonalnie ukryty prompt
+Geoapify, bez logowania sekretów. Live routes i wiek bez zmian.
+
+Testy lokalne: Overpass geometry/worker 5 PASS (2.846s); refresh 8 PASS
+(9.398s); discovery 82 PASS (69.431s); routing 16 PASS (17.314s); credit budget
+6 PASS (3.614s). Pełne test_world_*.py: 373 PASS (268.603s). Po dopracowaniu
+pochodzenia danych i przeglądu polityki regular collection 9 PASS (19.418s).
+Bash syntax, Node syntax i diff whitespace PASS. Użyto syntetycznych baz,
+atrap HTTP/PM2; brak wdrożenia i rzeczywistych requestów do API w tej pracy.
+
+Gotowy tools/world_regular_rollout.sh --execute obejmuje testy, backup,
+migrację, konfigurację, start, świeży raport i Launch. Setup nie rozszerza
+small_probe Overpass do regularnego użycia. Raport overpass_eligible/skipped
+jest warunkiem uczciwego odbioru źródła; lokalny PASS adaptera nie potwierdza
+dostępności ani dopuszczenia instancji na VPS. Nie zamykamy całego 161–163
+przed odbiorem tego pakietu i rozstrzygnięciem konkretnego źródła Overpass.
+
+Końcowe sprawdzenie po rozszerzeniu Registry.enable o źródła wyłącznie
+archiwalne: test_poi_providers 6 PASS (4.919s), Overpass collection 6 PASS
+(3.532s), regular collection 9 PASS (14.893s). Włączenie archiwizacji nie
+nadaje normal_scan. Zbiorczy skrypt VPS obejmuje również testy Registry.

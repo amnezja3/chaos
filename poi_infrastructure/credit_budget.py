@@ -100,7 +100,8 @@ Includes previous pilot operations; never deletes or resets usage. An enabled
 policy supersedes legacy fixed windows for NEW reservations only.
 """
         _token(account); _amount(daily_limit); _amount(rolling_limit)
-        if not 1 <= daily_limit <= rolling_limit <= 30000:
+        ceiling=93000 if account=='geoapify' else 30000
+        if not 1 <= daily_limit <= rolling_limit <= ceiling:
             raise ContractError('budget_policy_invalid')
         with self.repo.transaction() as c:
             c.execute('''INSERT INTO world_credit_policy VALUES (?,?,?,?)
@@ -276,6 +277,14 @@ policy supersedes legacy fixed windows for NEW reservations only.
                 # Record reality, never clamp it to an incorrect estimate.
                 c.execute('INSERT OR REPLACE INTO world_credit_hold VALUES (?,?)',
                           (account, 'observed_charge_exceeded_reservation'))
+
+    def estimate_geoapify(self,operation):
+        """Keep all six reserved units for a validated <=100 result page; no reported charge claim."""
+        with self.repo.transaction() as c:
+            row=c.execute("SELECT reserved,state FROM world_credit_operation WHERE account='geoapify' AND operation=?",(operation,)).fetchone()
+            if not row or row['reserved']!=6 or row['state']!='uncertain':
+                raise ContractError('geoapify_estimate_not_eligible')
+            c.execute("UPDATE world_credit_operation SET state='estimated' WHERE account='geoapify' AND operation=?",(operation,))
 
     def status(self, account, *, now=None):
         _token(account)

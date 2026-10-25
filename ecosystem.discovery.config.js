@@ -9,6 +9,7 @@ module.exports = { apps: [{
   kill_timeout: 40000,
   env: {
     CHAOS_POI_DISCOVERY_WORKER_ENABLED: '0',
+    CHAOS_POI_DISCOVERY_POLICY_PATH: '',
     CHAOS_POI_PRIORITY_ENABLED: '1',
     CHAOS_POI_ROUTING_ENABLED: '0',
     CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: '1',
@@ -29,5 +30,19 @@ module.exports = { apps: [{
     CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: '1',
     CHAOS_POI_DISCOVERY_PERMIT_PATH: '/home/johndoe/app/chaos/data/collection-regions-v1/permit.json'
   },
+  env_regular: {
+    CHAOS_POI_DISCOVERY_WORKER_ENABLED: '1',
+    CHAOS_POI_PRIORITY_ENABLED: '1',
+    CHAOS_POI_ROUTING_ENABLED: '1',
+    CHAOS_MAPLARK_ACCEPT_VARIABLE_COST: '1',
+    CHAOS_POI_DISCOVERY_POLICY_PATH: '/home/johndoe/app/chaos/data/world-collection-policy.json'
+  },
   env_baseline: { CHAOS_POI_DISCOVERY_WORKER_ENABLED: '0', CHAOS_POI_ROUTING_ENABLED: '0' }
+}, {
+  name: 'chaos-world-monitor',
+  cwd: '/home/johndoe/app/chaos',
+  script: '/home/johndoe/app/chaos/.venv/bin/python',
+  args: 'tools/world_collection_monitor.py --serve',
+  interpreter: 'none', instances: 1, autorestart: false,
+  kill_timeout: 5000
 }] };

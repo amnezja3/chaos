@@ -20,6 +20,7 @@ def main():
     p.add_argument('--permit',default=os.environ.get('CHAOS_POI_DISCOVERY_PERMIT_PATH','data/discovery-permit.json'))
     p.add_argument('--execute',action='store_true')
     p.add_argument('--serve',action='store_true')
+    p.add_argument('--policy',default=os.environ.get('CHAOS_POI_DISCOVERY_POLICY_PATH') or None)
     p.add_argument('--interval',type=int,default=30)
     args=p.parse_args()
     if args.serve and not args.execute: p.error('--serve requires --execute')
@@ -33,7 +34,12 @@ def main():
                 result=dict(status='disabled',network_calls=0)
             else:
                 if not Path(args.db).is_file(): raise ValueError('existing_database_required')
-                result=cycle(Repository(args.db),args.permit,execute=args.execute,stopping=stop.is_set)
+                if args.policy:
+                    from poi_infrastructure.regular_discovery import cycle as regular_cycle
+                    result=regular_cycle(Repository(args.db),args.policy,execute=args.execute,
+                        enabled=lambda:not stop.is_set() and os.environ.get('CHAOS_POI_DISCOVERY_WORKER_ENABLED')=='1')
+                else:
+                    result=cycle(Repository(args.db),args.permit,execute=args.execute,stopping=stop.is_set)
             print(json.dumps(dict(result,pid=os.getpid(),at=time.time())),flush=True)
         except PermitExpired:
             print(json.dumps(dict(status='permit_expired',network_calls=0,automatic_renewal=False,

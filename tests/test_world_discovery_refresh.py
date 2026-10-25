@@ -105,6 +105,20 @@ class RefreshTests(unittest.TestCase):
         for value in (True,60,604800.0):
             with self.assertRaises(ValueError):replace(self.permit,refresh_seconds=value).validate()
 
+    def test_expired_unsent_generation_can_serve_new_demand_without_reusing_operation(self):
+        self.enable_refresh()
+        prepare_jobs(self.repo,self.permit,apply=True)
+        with self.repo.transaction() as c:
+            c.execute("UPDATE world_discovery_job SET state='CANCELLED',expires=0 WHERE id=?",(self.key,))
+        self.assertEqual(self.jobs.prune(),0)
+        DemandQueue(self.repo).record(21,52,['roads'])
+        new=prepare_jobs(self.repo,self.permit,apply=True)['jobs']
+        self.assertEqual(len(new),1)
+        self.assertNotEqual(new[0],self.key)
+        self.assertEqual(self.jobs.get(self.key)['state'],'CANCELLED')
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],0)
+        self.transport.assert_not_called()
+
     def test_region_admission_does_not_manufacture_demand_or_expand_budget(self):
         self.enable_refresh()
         output=Path(self.tmp.name)/'regions'
