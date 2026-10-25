@@ -1,5 +1,13 @@
 # Sprint 163 — World Discovery: kolejka, panel operacyjny i kontrolowany rollout
 
+**Dyspozycja operatora 25.10:** obowiązuje
+[plan domknięcia mechanizmu 161–163](world_discovery_161_163_completion_20261025.md).
+Zbiorczy pakiet kod → wdrożenie → uruchomienie → testy → stopniowe aktywacje.
+Zbiór obserwacji i gotowość do przyszłego użycia geografii są bieżącym celem;
+nowe mechaniki gry z drogami/wodami nie są bramką odbioru. Kontrola kosztów
+i monitoring stanowią ciągłe utrzymanie. Pełny polish panelu następuje po
+uruchomieniu mechanizmu; źródła i fallback należy spiąć w bieżącym zakresie.
+
 Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — pakiet infrastruktury i metryk wdrożony, odbiór techniczny VPS PASS; regionalny rollout otwarty**.
 Zaimplementowano ograniczony rejestr sektorów/warstw PENDING oraz podgląd stanu
 magazynu i budżetu. Pasywny zapis odebrany na VPS; ingest/read nadal OFF.

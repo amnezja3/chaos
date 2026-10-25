@@ -1,5 +1,13 @@
 # Sprint 162 — World Discovery: trwała pamięć świata i odczyt lokalny
 
+**Dyspozycja operatora 25.10:** obowiązuje
+[plan domknięcia mechanizmu 161–163](world_discovery_161_163_completion_20261025.md).
+Priorytetem jest zbieranie i przygotowanie geografii oraz jej odczyt techniczny,
+nie wykorzystanie nowych warstw przez mechaniki gry. Zapis obserwacji UNKNOWN
+nie wymaga certyfikatu kompletnego regionu; nie daje jednak prawa do użycia
+takich obserwacji jako pełnej odpowiedzi skanera. Retencję zbioru ustalamy
+oddzielnie od świeżości cache. Otwarte próby dostawców nie blokują wszystkich warstw.
+
 Data: 20.10.2026. Aktualizacja: 24.10.2026. Status: **W REALIZACJI — magazyn i ograniczony pilot regionalny roads odebrane na VPS**.
 Rozpoczęte 162.0–162.3: jawna migracja istniejących snapshot/member do v2,
 kanoniczne obserwacje, ograniczony odczyt przecięć i planer jednego snapshotu.

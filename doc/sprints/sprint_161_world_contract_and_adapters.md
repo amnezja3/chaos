@@ -1,5 +1,12 @@
 # Sprint 161 — przywrócenie skanera POI przez alternatywnych dostawców
 
+**Dyspozycja operatora 25.10:** obowiązuje
+[plan domknięcia mechanizmu 161–163](world_discovery_161_163_completion_20261025.md).
+Zintegrować źródła według profilu i wspólnego fallbacku, z Overpass wysoko
+w hierarchii, gdy jest dopuszczony i dostępny. Geoapify ma istniejący adapter
+diagnostyczny — brak podłączenia nie jest brakiem całego źródła. Zbiorcze
+wdrożenie/testy; nie wymagamy przyszłych konsumentów geometrii w gameplay.
+
 Data planu: 20.10.2026. Aktualizacja: 23.10.2026.
 Status: **SKANER MAPLARK WDROŻONY GLOBALNIE — pozostałe bramki kontraktu nadal otwarte**.
 Aktualizacja 24.10: lokalnie przygotowano wspólny router MapLark/Overpass,
@@ -17,8 +24,9 @@ w grze odebrane. Globalna konfiguracja uruchomiona 23.10.2026. Instrukcja pilota
 [pilot MapLark](../runbooks/world_discovery_maplark_pilot_161.md).
 Wyniki i granice: [dowody 161](../audits/sprint_161_evidence.md).
 Źródło: [koncepcja World Discovery](../prototypes/poi/CHAOS_WORLD_DISCOVERY_ENGINE_KONCEPCJA_BEZ_NUMERU.md).
-Podział zatwierdzony do opracowania przez operatora: 161–163. To zastępuje brak
-numeracji w koncepcji, ale nie stanowi zgody na implementację ani działania produkcyjne.
+Pierwotny podział 161–163 zatwierdzono do opracowania; późniejsze dyspozycje
+operatora obejmują implementację. Aktywacje produkcyjne przeprowadzamy etapami
+w uzgodnionym zakresie, zgodnie z aktualnym planem domknięcia powyżej.
 Kolejne etapy: [162](sprint_162_world_repository_local_read.md), [163](sprint_163_world_discovery_operations_rollout.md).
 
 Aktualizacja priorytetów według decyzji operatora z 20.10.2026:
