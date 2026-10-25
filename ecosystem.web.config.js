@@ -83,7 +83,10 @@ module.exports = {
         CHAOS_GHOSTNETWORK_RANK_TERRITORY_POOL: "300",
         CHAOS_GHOSTNETWORK_RANK_CONFLICT_POOL: "200",
         CHAOS_GHOSTNETWORK_RANK_CLOSER_POOL: "100"
-      }
+      },
+      // Explicit rollout/rollback profiles; normal reload retains the parked baseline.
+      env_routing: { CHAOS_POI_ROUTING_ENABLED: "1" },
+      env_baseline: { CHAOS_POI_ROUTING_ENABLED: "0" }
     }
   ]
 };

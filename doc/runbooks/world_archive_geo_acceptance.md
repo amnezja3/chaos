@@ -97,3 +97,68 @@ operacja pozostaje uncertain z rezerwacją 5. Powtórzenie narzędzia zwraca
 `already_attempted_inspect_saved_report` bez sieci. Błąd nie uprawnia do resetu
 rezerwacji. Gra, PM2 i flagi środowiskowe pozostają bez zmian; tymczasowy
 priorytet tła dotyczy wyłącznie procesu testowego.
+
+## Kolejny pakiet — zachowanie MapLark i włączenie routingu
+
+Po PASS Geoapify przygotowano `world_routing_archive_rollout.sh`. Nie wykonuje
+zapytań do dostawców. Wykorzystuje trzy dokładne identyfikatory snapshotów
+odebranych wcześniej w sektorze 2036/5153 (roads, waterways, inland_water).
+
+```bash
+cd ~/app/chaos &&
+git pull --ff-only &&
+bash tools/world_routing_archive_rollout.sh --execute
+```
+
+Pakiet: kontrola baseline OFF → 32 testy izolowane → weryfikacja trasy live
+`[maplark]` → kontrola istniejących snapshotów → backup SQLite → retencja
+tych trzech snapshotów → ponowna kontrola trasy → reload wyłącznie web
+z profilem `routing` → kontrola flag → Launch HTTP 200.
+Wariant `--check` kończy się przed backupem i mutacjami.
+
+Retencja biegnie przez 7 dni **od pierwotnego pobrania**, nie od wykonania
+polecenia. Można zachować nadal istniejącą obserwację, której przydatność dla
+skanera już wygasła: fresh_until, usable_until, payload, digest, provenance,
+ledger i dowody coverage pozostają nietknięte. Decyzja archiwalna trafia do
+istniejącej tabeli world_retention. Ponowienie nie odnawia zegara. Wszystkie
+trzy snapshoty muszą przejść walidację przed zapisem; brak jednego zatrzymuje
+pakiet przed reloadem i nie powoduje pobrania zastępczego.
+
+To uzupełnia wcześniejszą zasadę „nie przedłużamy wygasłych snapshotów”:
+nie przywracamy świeżości wyniku ani usuniętych danych. Zachowujemy wyłącznie
+jeszcze obecne, poprawne obserwacje mieszczące się w zatwierdzonym okresie
+archiwalnym. Zmiana nie ustawia automatycznie retencji przyszłych permitów
+kolektora i nie uruchamia pobierania w tle.
+
+Konfiguracja jest zapisana w `ecosystem.web.config.js`:
+
+- `--env routing`: routing 1;
+- `--env baseline`: routing 0, wycofanie aktywacji;
+- pozostałe flagi (world ingest/read OFF, passive discovery, age 0) bez zmian.
+
+Zwykły reload bez `--env routing` wraca do bazowej konfiguracji OFF.
+Po odbiorze routingu używać tego profilu przy kolejnych reloadach.
+Runtime checker dla nowego stanu: `tools/world_runtime_check.py --routing 1`.
+
+Po HTTP 200 wykonać jeden skan w grze i odczytać:
+
+```bash
+pm2 logs chaos --lines 80 --nostream 2>&1 | grep 'poi_route'
+```
+
+Oczekiwany wpis z dostawcą maplark i result success. Test może korzystać z
+cache albo wykonać zwykłe płatne pobranie w ramach dotychczasowego budżetu.
+Po poprawnym skanie: `pm2 save`. Nie deklarować działania Overpass tylko
+dlatego, że router jest ON: aktualny rejestr dopuszcza wyłącznie MapLark.
+Nie nadajemy nowych scopes, nie nadpisujemy zapisanych tras ani nie aktywujemy
+Geoapify w skanerze.
+
+Rollback routingu (zachowuje archiwum i ledger):
+
+```bash
+pm2 startOrReload ecosystem.web.config.js --only chaos --env baseline --update-env
+.venv/bin/python tools/world_runtime_check.py --routing 0
+```
+
+Po potwierdzeniu działania wersji bazowej można wykonać `pm2 save`. Nie
+przywracać całej starej bazy POI dla wycofania flagi — cofnęłoby to nowe koszty.

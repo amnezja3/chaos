@@ -1,5 +1,6 @@
 """Allowlisted PM2 metadata only; no secrets, mutations or worker-memory claims."""
 import json
+import argparse
 from pathlib import Path
 import subprocess
 
@@ -9,7 +10,9 @@ FLAGS={'CHAOS_POI_INFRASTRUCTURE_ENABLED':'1','CHAOS_POI_MAPLARK_ENABLED':'1',
        'CHAOS_ADULT_POLICY_ENABLED':'0'}
 
 
-def inspect(processes,expected_cwd):
+def inspect(processes,expected_cwd, *, routing='0'):
+    if routing not in ('0','1'):raise ValueError('runtime_routing_expectation')
+    expected=dict(FLAGS, CHAOS_POI_ROUTING_ENABLED=routing)
     if not isinstance(processes,list):raise ValueError('pm2_list_required')
     selected=[]
     for item in processes:
@@ -26,16 +29,19 @@ def inspect(processes,expected_cwd):
     web=[p for p in selected if p['name']=='chaos']
     workers=[p for p in selected if p['name']=='chaos-world-discovery-worker']
     ready=(len(web)==1 and web[0]['status']=='online' and web[0]['cwd_matches']
-           and web[0]['flags']==FLAGS and all(p['status']=='stopped' for p in workers))
+           and web[0]['flags']==expected and all(p['status']=='stopped' for p in workers))
     return dict(status='baseline_matches' if ready else 'review_required',ok=ready,
                 processes=selected,network_calls=0,production_writes=0,
                 scope='PM2 metadata only; not live worker environment or network tracing')
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--routing', choices=('0','1'), default='0')
+    args=parser.parse_args()
     try:
         response=subprocess.run(['pm2','jlist'],capture_output=True,text=True,timeout=15,check=True)
-        result=inspect(json.loads(response.stdout),Path(__file__).resolve().parents[1])
+        result=inspect(json.loads(response.stdout),Path(__file__).resolve().parents[1], routing=args.routing)
         print(json.dumps(result));return 0 if result['ok'] else 2
     except Exception as exc:
         # Raw PM2 output/env and subprocess error strings may contain secrets.

@@ -10,6 +10,16 @@ from test_world_land_water import product,BOUNDS,DEPS
 
 
 class ReleasePackageTests(unittest.TestCase):
+    def test_routing_profile_changes_only_expected_routing_flag(self):
+        env=dict(FLAGS,status='online',pm_cwd=str(Path.cwd()))
+        processes=[dict(name='chaos',pm2_env=env)]
+        self.assertFalse(inspect_runtime(processes,Path.cwd(),routing='1')['ok'])
+        env['CHAOS_POI_ROUTING_ENABLED']='1'
+        self.assertTrue(inspect_runtime(processes,Path.cwd(),routing='1')['ok'])
+        self.assertFalse(inspect_runtime(processes,Path.cwd())['ok'])
+        env['CHAOS_ADULT_POLICY_ENABLED']='1'
+        self.assertFalse(inspect_runtime(processes,Path.cwd(),routing='1')['ok'])
+
     def test_runtime_baseline_filters_secrets_and_does_not_echo_invalid_values(self):
         env=dict(FLAGS,status='online',pm_cwd=str(Path.cwd()),SECRET_KEY='do-not-echo')
         processes=[dict(name='chaos',pm2_env=env),dict(name='unrelated',pm2_env={'secret':'private'})]

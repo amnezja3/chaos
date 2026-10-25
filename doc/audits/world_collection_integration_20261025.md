@@ -220,3 +220,26 @@ zapis 7 dni → kontrolę odczytu. Nie odhaczono ciągłego workera Geoapify,
 automatycznej hierarchii skanera ani siedmiodniowej retencji kolekcji MapLark.
 Następny pakiet obejmuje te odrębne konfiguracje w granicach już ustalonych
 limitów i regionów; dalsze wydatki Geoapify wykraczają poza ten pojedynczy test.
+
+### Lokalnie — retencja istniejącego MapLark i profil routingu
+
+Dodano atomowe retain_saved dla maksymalnie 10 jawnych identyfikatorów;
+CLI tego wdrożenia obejmuje dokładnie trzy wcześniej odebrane snapshoty.
+Waliduje digest, bieżącą rewizję MapLark, scopes storage/world_storage,
+termin review i wiek danych. Zapisuje decyzję w istniejącej world_retention,
+bez zmiany payloadu, pochodzenia, świeżości, kosztów lub pokrycia.
+Deadline to fetched + 7 dni; idempotencja nie przedłuża terminu.
+Brak snapshotu lub sprzeczna decyzja zatrzymuje całość bez refetch.
+
+Przygotowano profile ecosystem.web.config.js routing/baseline i jawne
+oczekiwanie --routing 0/1 w runtime checkerze. Domyślny profil nadal OFF;
+wdrożeniowy skrypt wymaga początkowej trasy wyłącznie MapLark i nie zmienia
+decyzji o dostawcach. Nie wykonano jeszcze reloadu produkcyjnego.
+
+Lokalnie: saved retention 7 PASS (7.229s), release package 4 PASS (0.114s),
+readiness 6 PASS (4.186s), routing 15 PASS (12.079s): 32 PASS.
+Sprawdzono bash -n i node --check ecosystem.web.config.js.
+Brak zmian UI, żądań do dostawców i produkcyjnych mutacji w lokalnym teście.
+Instrukcja wspólnego wdrożenia/odbioru/rollbacku w world_archive_geo_acceptance.md.
+Retencja przyszłych permitów i ciągłe uruchomienie workera pozostają osobnym
+nieodebranym etapem; ten pakiet ich nie oznacza jako wdrożonych.

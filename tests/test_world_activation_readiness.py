@@ -7,12 +7,22 @@ import unittest
 
 import test_world_discovery_worker as fixtures
 from poi_infrastructure.routing import Routing
-from tools.world_activation_readiness import inspect
+from tools.world_activation_readiness import inspect, initial_route_ready
 
 
 class ActivationReadinessTests(unittest.TestCase):
     setUp = fixtures.DiscoveryWorkerTests.setUp
     save_provider = fixtures.DiscoveryWorkerTests.save_provider
+
+    def test_initial_route_gate_does_not_ignore_saved_empty_or_disabled_route(self):
+        self.provider['scopes'].append('normal_scan'); self.save_provider()
+        self.assertTrue(initial_route_ready(inspect(self.repo.path)))
+        routing=Routing(self.repo); routing.initialize()
+        routing.save('poi','live',0,[],'test')
+        self.assertFalse(initial_route_ready(inspect(self.repo.path)))
+        routing.save('poi','live',1,['maplark'],'test')
+        self.provider['enabled']=False; self.save_provider()
+        self.assertFalse(initial_route_ready(inspect(self.repo.path)))
 
     def dump(self):
         with closing(self.repo.connect()) as c:

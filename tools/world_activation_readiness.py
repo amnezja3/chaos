@@ -104,14 +104,24 @@ def inspect(db, retention_seconds=7 * 86400):
                        'An empty route is preserved. Uncertain costs remain reserved.')
 
 
+def initial_route_ready(result):
+    route = next(r for r in result['routes'] if (r['layer'],r['lane'])==('poi','live'))
+    return (route['chain']==['maplark'] and len(route['candidates'])==1
+            and route['candidates'][0]['blocked_by'] is None)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db', default='data/poi_cache.sqlite3')
     parser.add_argument('--retention-seconds', type=int, default=7 * 86400)
+    parser.add_argument('--require-initial-route', action='store_true')
     args = parser.parse_args()
     try:
-        print(json.dumps(inspect(args.db, args.retention_seconds), ensure_ascii=False))
-        return 0
+        result=inspect(args.db, args.retention_seconds)
+        if args.require_initial_route:
+            result['initial_route_ready']=initial_route_ready(result)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if not args.require_initial_route or result['initial_route_ready'] else 2
     except Exception as exc:
         print(json.dumps(dict(status='stopped', error_type=type(exc).__name__, network_calls=0)))
         return 1
