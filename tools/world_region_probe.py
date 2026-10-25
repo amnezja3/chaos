@@ -64,6 +64,8 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
     if not execute:return result
     if not approve:raise ContractError('explicit_bbox_probe_approval_required')
     if not accept_variable_cost:raise ContractError('variable_credit_cost_acceptance_required')
+    if os.environ.get('CHAOS_POI_PRIORITY_ENABLED')!='1':
+        raise ContractError('background_priority_required')
     plan.authenticated_wire()
     if not Path(db).is_file():raise ContractError('existing_poi_database_required')
     if not output:raise ContractError('new_output_directory_required')

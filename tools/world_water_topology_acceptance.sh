@@ -18,6 +18,9 @@ if [[ $# -eq 0 ]]; then
 fi
 
 (
+    # CLI does not inherit the PM2 ecosystem environment. Enable admission
+    # coordination for this subprocess only; never change the web process.
+    export CHAOS_POI_PRIORITY_ENABLED=1
     if [[ -z "${CHAOS_MAPLARK_API_KEY:-}" ]]; then
         read -r -s -p 'Klucz API MapLark: ' CHAOS_MAPLARK_API_KEY
         printf '\n'

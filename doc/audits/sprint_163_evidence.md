@@ -729,3 +729,12 @@ Walidacja lokalna: **8 nowych testów PASS (1.429 s)**, regresja regionalna
 16.79,52.26,16.80,52.27: zero HTTP, rezerwacja 20, deadline 35 s.
 Żadnego produkcyjnego wywołania MapLark ani aktywacji. Źródła wyboru jeziora,
 komendy i interpretacja wyniku: [instrukcja wodna](../runbooks/world_region_water_probe.md).
+
+VPS na 4628c91: 8 testów nowej próby PASS (5.533 s), regionalne 54 PASS
+(22.496 s). Wykonanie zatrzymało się na `background_priority_required`,
+capture `/home/johndoe/chaos-water-topology-2bbMFJ`. Z kolejności kodu wynika
+zatrzymanie przed reserve i transportem; nie jest to awaria dostawcy.
+Naprawa: jawny priorytet w podpowłoce skryptu, kontrola konfiguracji przed
+zapisami w capture. Regresja brak flagi → zero kosztów/wyjścia/scope →
+wznowienie tej samej operacji: PASS. Lokalne zestawy po poprawce:
+9 PASS (1.588 s) i 54 PASS (7.276 s). Wynik pobrania nadal oczekiwany.

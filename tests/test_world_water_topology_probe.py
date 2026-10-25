@@ -38,6 +38,16 @@ class WaterTopologyProbeTests(unittest.TestCase):
         self.assertEqual((a['network_calls'],a['max_network_calls'],a['shared_probe_limit']),(0,1,40))
         self.assertFalse(missing.exists());self.fixture.transport.assert_not_called()
 
+    def test_missing_cli_priority_fails_before_scope_or_output_and_can_resume(self):
+        with patch.dict('os.environ',CHAOS_POI_PRIORITY_ENABLED='0'):
+            with self.assertRaisesRegex(ContractError,'background_priority_required'):self.call()
+        self.assertFalse(self.fixture.output.exists())
+        self.assertIsNone(self.fixture.ledger.scope_status('maplark',SCOPE))
+        self.assertEqual(self.fixture.ledger.status('maplark')[0]['committed'],0)
+        self.fixture.transport.assert_not_called()
+        # Once configuration is corrected, the same operation remains unused.
+        self.assertEqual(self.call()['network_calls'],1)
+
     def test_bounds_profile_and_existing_region_rejected_before_network(self):
         for kwargs in (dict(water_bounds=REGION,profile='roads'),
                        dict(water_bounds=REGION,profile='waterways'),

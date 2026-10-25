@@ -158,3 +158,21 @@ poza region, więc sam otwór nie musi leżeć wewnątrz bbox.
 Przekazać wydruk raportu oraz zachowane capture. Po analizie przygotować
 fixture i sprawdzenie zachowania otworu w magazynie/odczycie/restore.
 Nie pobierać ponownie, nie deklarować pełności regionu ani włączać ingest.
+
+### Poprawka uruchomienia CLI (25.10)
+
+Pierwsza próba na `4628c91` zakończyła się `background_priority_required`:
+powłoka nie dziedziczy zmiennych procesu PM2. Błąd w acquire wystąpił przed
+rezerwacją operacji i transportem; capture mogło utworzyć puste wyjście oraz
+okno diagnostyczne. Nie kasować ich ani nie resetować księgi.
+Skrypt ustawia teraz `CHAOS_POI_PRIORITY_ENABLED=1` tylko w podpowłoce,
+a capture sprawdza ten warunek przed zapisami. Dla już wdrożonego `4628c91`
+równoważne wznowienie po tym konkretnym błędzie:
+
+```bash
+CHAOS_POI_PRIORITY_ENABLED=1 bash tools/world_water_topology_acceptance.sh --execute
+```
+
+Ta sama operacja, nowy katalog wyjściowy; bez restartu gry i zmiany PM2.
+Jeśli okno diagnostyczne zdążyło wygasnąć, zatrzymać się i przekazać wynik;
+nie zmieniać ID ani dat okna, żeby wymusić pobranie.
