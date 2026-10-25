@@ -39,7 +39,7 @@ class RoutingTests(unittest.TestCase):
         self.overpass();r=self.route(['overpass','maplark'])
         with self.assertRaisesRegex(POIError,'conflict'):
             r.save('poi','live',0,['maplark'],'test')
-        self.assertEqual(r.restore('poi','live',1,'test')['chain'],['maplark'])
+        self.assertEqual(r.restore('poi','live',1,'test')['chain'],['overpass','maplark'])
         self.assertTrue(all(p['enabled'] for p in self.registry.list()))
         for chain in (['maplark','maplark'],['missing'],['a']*4):
             with self.assertRaises(POIError):r.save('poi','live',2,chain,'test')
@@ -52,6 +52,21 @@ class RoutingTests(unittest.TestCase):
             self.assertEqual(self.fetch()['elements'][0]['id'],1)
             over.assert_called_once();maplark.assert_called_once()
             self.assertGreater(maplark.call_args.kwargs['deadline'],time.monotonic())
+
+    def test_unsaved_route_prefers_approved_overpass_and_keeps_maplark_fallback(self):
+        self.overpass()
+        routing=Routing(self.service.repo)
+        self.assertEqual(routing.get('poi','live')['chain'],['overpass','maplark'])
+        with patch.dict(os.environ,CHAOS_POI_ROUTING_ENABLED='1'),patch(
+                'poi_infrastructure.scan_router.bounded_http',return_value=(502,None,None)) as over,patch(
+                'poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(fixtures.normalized([fixtures.point()]),{})) as paid:
+            self.assertEqual(self.fetch()['elements'][0]['id'],1)
+            over.assert_called_once();paid.assert_called_once()
+
+    def test_explicit_empty_route_is_not_replaced_by_automatic_defaults(self):
+        self.overpass()
+        routing=self.route([])
+        self.assertEqual(routing.get('poi','live')['chain'],[])
 
     def test_all_fresh_local_before_first_network(self):
         self.overpass();r=self.route(['maplark'])

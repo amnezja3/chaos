@@ -57,6 +57,20 @@ class AcquisitionTests(unittest.TestCase):
             self.call(Mock(return_value=self.response(body={'broken': True})))
         self.assertEqual(self.ledger.status('maplark')[0]['committed'], 9)
 
+    def test_live_never_accepts_partial_observation_option(self):
+        transport = Mock()
+        with self.assertRaisesRegex(ContractError, 'partial_observations_background_only'):
+            self.call(transport, allow_partial_observations=True)
+        transport.assert_not_called()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'], 0)
+
+    def test_live_partial_is_still_rejected_and_charged(self):
+        response = self.response()
+        response[2]['response_headers']['X-Has-More'] = 'true'
+        with self.assertRaisesRegex(ContractError, 'provider_response_incomplete'):
+            self.call(Mock(return_value=response))
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'], 9)
+
     def test_timeout_keeps_reservation_and_releases_slot(self):
         with self.assertRaises(UpstreamUnavailable):
             self.call(Mock(side_effect=UpstreamUnavailable('deadline')))

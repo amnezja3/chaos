@@ -21,6 +21,8 @@ STATES = ('PENDING','LEASED','FETCHING','VALIDATING','COMMITTED','DEFERRED',
 ADMISSION_DEFERRALS=frozenset(('upstream_busy','circuit_open','world_capacity',
     'publication_busy','budget_exhausted','budget_scope_exhausted'))
 
+ACQUISITIONS = frozenset(('radius-300-v1', 'sector-bbox-v1', 'geoapify-commercial-v1'))
+
 
 def token(value):
     if not isinstance(value,str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}',value):
@@ -48,18 +50,26 @@ class DiscoveryJobs:
                 available_at REAL NOT NULL, expires REAL NOT NULL, updated REAL NOT NULL,
                 operation TEXT, snapshot TEXT, reason TEXT NOT NULL)''')
             c.execute('CREATE INDEX IF NOT EXISTS world_job_ready ON world_discovery_job(state,available_at,updated)')
+            columns = {row[1] for row in c.execute('PRAGMA table_info(world_discovery_job)')}
+            if 'acquisition' not in columns:
+                c.execute("ALTER TABLE world_discovery_job ADD COLUMN acquisition TEXT NOT NULL DEFAULT 'radius-300-v1'")
             c.execute('CREATE UNIQUE INDEX IF NOT EXISTS world_job_operation ON world_discovery_job(operation) WHERE operation IS NOT NULL')
             # One durable cursor, no per-player history or unbounded region table.
             c.execute('''CREATE TABLE IF NOT EXISTS world_discovery_cursor (
                 singleton INTEGER PRIMARY KEY CHECK(singleton=1),
                 cell_x INTEGER NOT NULL, cell_y INTEGER NOT NULL)''')
 
-    def enqueue(self,demand_key,provider,revision,profile):
+    def enqueue(self,demand_key,provider,revision,profile, *, acquisition='radius-300-v1'):
         token(demand_key);token(provider);token(profile)
+        if acquisition not in ACQUISITIONS:
+            raise ValueError('job_acquisition')
         if type(revision) is not int or revision<1:
             raise ValueError('job_revision')
         now=time.time()
-        key=hashlib.sha256(json.dumps([demand_key,provider,revision,profile]).encode()).hexdigest()
+        identity = [demand_key,provider,revision,profile]
+        if acquisition != 'radius-300-v1':
+            identity.append(acquisition)
+        key=hashlib.sha256(json.dumps(identity).encode()).hexdigest()
         with self.repo.transaction() as c:
             demand=c.execute('SELECT expires FROM world_discovery_demand WHERE key=? AND expires>?',
                              (demand_key,now)).fetchone()
@@ -70,8 +80,11 @@ class DiscoveryJobs:
                 return key
             if c.execute('SELECT count(*) FROM world_discovery_job').fetchone()[0]>=self.max_jobs:
                 return None
-            c.execute('INSERT INTO world_discovery_job VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                (key,demand_key,provider,revision,profile,'PENDING',0,None,0,now,demand['expires'],now,None,None,''))
+            c.execute('''INSERT INTO world_discovery_job
+                (id,demand_key,provider,revision,profile,state,attempts,owner,lease_until,
+                 available_at,expires,updated,operation,snapshot,reason,acquisition)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (key,demand_key,provider,revision,profile,'PENDING',0,None,0,now,demand['expires'],now,None,None,'',acquisition))
         return key
 
     def _recover(self,c,now):
@@ -91,11 +104,16 @@ class DiscoveryJobs:
         c.execute('''UPDATE world_discovery_job SET state='CANCELLED',reason='demand_expired',updated=?
             WHERE expires<=? AND state IN ('PENDING','DEFERRED','RETRY_AFTER')''',(now,now))
 
-    def claim(self,seconds=60, *, cells=None, profiles=None):
+    def claim(self,seconds=60, *, cells=None, profiles=None, acquisition=None):
         if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 1<=seconds<=120:
             raise ValueError('job_lease')
         now=time.time();owner=uuid.uuid4().hex
         clauses=[]; params=[]
+        if acquisition is not None:
+            if acquisition not in ACQUISITIONS:
+                raise ValueError('job_acquisition')
+            clauses.append('j.acquisition=?')
+            params.append(acquisition)
         if cells is not None:
             if not cells or len(cells)>10: raise ValueError('job_claim_scope')
             clauses.append('('+' OR '.join('(d.cell_x=? AND d.cell_y=?)' for _ in cells)+')')

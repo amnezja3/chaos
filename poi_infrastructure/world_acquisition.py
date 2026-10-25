@@ -14,7 +14,7 @@ from .world_contract import ContractError, Provenance
 
 def acquire_maplark(repo, plan, operation, reservation, *,
                     accept_variable_cost=False, transport=None, still_active=lambda: True,
-                    lane='live', budget_scopes=(), deadline=None):
+                    lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False):
     """Caller must configure ledger windows and authorize this provider first.
 
 Returns a normalized, UNAPPROVED batch plus nonsecret billing metadata.
@@ -22,12 +22,14 @@ Same operation ID can never cause a second upstream request.
 """
     return acquire_features(repo, plan, operation, reservation, accept_variable_cost=accept_variable_cost,
         transport=transport, still_active=still_active, lane=lane, budget_scopes=budget_scopes,
-        deadline=deadline, account='maplark')
+        deadline=deadline, account='maplark', allow_partial_observations=allow_partial_observations)
 
 
 def acquire_features(repo, plan, operation, reservation, *, account,
                      accept_variable_cost=False, transport=None, still_active=lambda:True,
-                     lane='live', budget_scopes=(), deadline=None):
+                     lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False):
+    if type(allow_partial_observations) is not bool or (allow_partial_observations and lane != 'background'):
+        raise ContractError('partial_observations_background_only')
     if not accept_variable_cost:
         raise ContractError('variable_credit_cost_acceptance_required')
     expected = {'maplark': (MAPLARK_VERSION,'https://api.maplark.com/v3/osm_features'),
@@ -104,7 +106,7 @@ def acquire_features(repo, plan, operation, reservation, *, account,
         else:
             batch = normalize_geoapify(envelope.get('body'), provenance,
                                        page_limit=int(dict(plan.params)['limit']))
-        if account=='maplark' and batch.completeness != 'complete':
+        if account=='maplark' and batch.completeness != 'complete' and not allow_partial_observations:
             raise ContractError('provider_response_incomplete')
         if time.monotonic() >= deadline or not repo.owns('@upstream', slot):
             raise POIError('deadline_or_slot_lost')

@@ -22,6 +22,8 @@ def prepare(db, permit_path, backup):
     if path.exists():
         permit = load_permit(path)
         if (permit.budget_id != PILOT or permit.cells != frozenset({(2036,5153)})
+                or permit.acquisition != 'radius-300-v1'
+                or permit.retention_seconds != 1800
                 or permit.profiles != frozenset({'roads'}) or permit.reservation != 20):
             raise ValueError('existing_permit_differs')
         return dict(status='already_prepared', network_calls=0, plan=cycle(repo,path))

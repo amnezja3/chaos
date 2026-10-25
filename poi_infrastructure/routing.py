@@ -24,6 +24,8 @@ def adapter(provider):
 def capability(provider, layer, lane):
     kind = adapter(provider)
     if kind == 'geoapify':
+        if layer == 'poi' and lane == 'background':
+            return None
         return 'geoapify_contract_unverified' if layer == 'poi' else 'unsupported_layer'
     if layer == 'land_water' or (kind == 'overpass' and layer != 'poi'):
         return 'unsupported_layer'
@@ -73,11 +75,26 @@ class Routing:
                             (layer,lane)).fetchone() if exists else None
         finally:
             c.close()
-        # Match the existing MapLark selection, not arbitrary Overpass priorities.
-        default = [p['id'] for p in Registry(self.repo).eligible('normal_scan')
-                   if p['url'] == MAPLARK and Registry.approved(p, 'storage')][:1]
+        # Explicit saved routes win, including an intentionally empty route.
+        # Defaults are used only by the opt-in router, never by the legacy scan.
+        candidates = [p for p in Registry(self.repo).list() if not reason(p,layer,lane)]
+        candidates.sort(key=lambda p:(p['priority'],p['id']))
+        default = []
+        if (layer,lane)==('poi','live'):
+            paid = [p['id'] for p in candidates if adapter(p)=='maplark'][:1]
+            groups = set()
+            for provider in candidates:
+                if adapter(provider)!='overpass' or provider['operator_group'] in groups:
+                    continue
+                groups.add(provider['operator_group'])
+                default.append(provider['id'])
+                if len(default)>=3-len(paid):
+                    break
+            default += paid
+        elif lane=='background':
+            default = [p['id'] for p in candidates][:3]
         return dict(layer=layer, lane=lane, revision=row['revision'] if row else 0,
-                    chain=json.loads(row['chain']) if row else default if (layer,lane)==('poi','live') else [])
+                    chain=json.loads(row['chain']) if row else default)
 
     def save(self, layer, lane, revision, chain, actor):
         if layer not in LAYERS or lane not in LANES or type(revision) is not int:

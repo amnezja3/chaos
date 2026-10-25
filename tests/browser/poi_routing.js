@@ -14,7 +14,7 @@ async(page)=>{
   const message=await page.locator('#routing-preview').innerText();
   if(!message.includes(locale==='pl'?'niezweryfikowany':'unverified'))throw Error(message);
   await page.locator('#routing-restore').click();
-  await page.waitForFunction(()=>document.querySelector('[name=provider0]').value==='maplark');
+  await page.waitForFunction(()=>document.querySelector('[name=provider0]').value==='overpass');
   if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('overflow');
   results.push({width,locale,saved:true,restored:true});
  }

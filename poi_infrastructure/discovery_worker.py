@@ -8,12 +8,12 @@ import math
 import os
 import time
 
-from .discovery_jobs import DiscoveryJobs, ADMISSION_DEFERRALS
+from .discovery_jobs import DiscoveryJobs, ADMISSION_DEFERRALS, ACQUISITIONS
 from .credit_budget import CreditBudget, _token
 from .providers import Registry
 from .service import POIError, bounded_http
-from .world_acquisition import acquire_maplark
-from .world_adapters import plan_maplark
+from .world_acquisition import acquire_features
+from .world_adapters import plan_maplark, plan_maplark_region, plan_geoapify
 from .world_storage import CanonicalWorldRepository
 from .world_shadow import reference
 from .world_contract import ContractError
@@ -26,6 +26,12 @@ class DiscoveryPermit:
     until: float
     reservation: int = 20
     budget_id: str = ''
+    acquisition: str = 'radius-300-v1'
+    retention_seconds: int = 1800
+
+    @property
+    def account(self):
+        return 'geoapify' if self.acquisition == 'geoapify-commercial-v1' else 'maplark'
 
     def budget_scopes(self, profile):
         _token(self.budget_id)
@@ -41,7 +47,7 @@ class DiscoveryPermit:
         now = time.time()
         for profile in self.profiles:
             for scope in self.budget_scopes(profile):
-                status = ledger.scope_status('maplark', scope)
+                status = ledger.scope_status(self.account, scope)
                 if not status or not status['starts'] <= now < self.until <= status['ends']:
                     raise ValueError('discovery_budget_missing_or_expired')
 
@@ -52,10 +58,13 @@ class DiscoveryPermit:
                        or not -18000 <= c[0] < 18000 or not -9000 <= c[1] < 9000
                        for c in self.cells)
                 or not isinstance(self.profiles, frozenset) or not self.profiles
-                or not self.profiles <= {'roads', 'waterways', 'inland_water', 'coastline'}
+                or not self.profiles <= ({'poi'} if self.account=='geoapify' else
+                                        {'roads', 'waterways', 'inland_water', 'coastline'})
                 or type(self.until) not in (int, float) or not math.isfinite(self.until)
                 or not 0 < self.until - time.time() <= 86400
-                or type(self.reservation) is not int or not 1 <= self.reservation <= 20):
+                or type(self.reservation) is not int or not 1 <= self.reservation <= 20
+                or not isinstance(self.acquisition, str) or self.acquisition not in ACQUISITIONS
+                or type(self.retention_seconds) is not int or not 1800 <= self.retention_seconds <= 31*86400):
             raise ValueError('discovery_permit_invalid_or_expired')
 
 
@@ -76,12 +85,17 @@ class DiscoveryWorker:
             if not eligible or eligible[0]!=job['provider']:
                 return None
         for item in Registry(self.repo).list():
-            if (item['id'] == job['provider'] == 'maplark'
+            account = self.permit.account
+            endpoint = ('https://api.geoapify.com/v2/places' if account=='geoapify'
+                        else 'https://api.maplark.com/v3/osm_features')
+            if (item['id'] == job['provider'] == account
                     and item['revision'] == job['revision']
                     and item.get('enabled') and item.get('technical_status') == 'tested_ok'
-                    and item.get('url') == 'https://api.maplark.com/v3/osm_features'
-                    and item.get('operator_group') == 'api.maplark.com'
+                    and item.get('url') == endpoint
+                    and item.get('operator_group') == 'api.'+account+'.com'
                     and Registry.approved(item, 'background_refresh')
+                    and (self.permit.retention_seconds == 1800 or
+                         item.get('review_due_at',0) >= time.time()+self.permit.retention_seconds)
                     and Registry.approved(item, 'storage') and reference(item)):
                 return item
         return None
@@ -94,7 +108,8 @@ class DiscoveryWorker:
         self.permit.validate_budgets(self.repo)
         if os.environ.get('CHAOS_POI_PRIORITY_ENABLED') != '1':
             return dict(status='priority_required', network_calls=0)
-        job = self.jobs.claim(120, cells=self.permit.cells, profiles=self.permit.profiles)
+        job = self.jobs.claim(120, cells=self.permit.cells, profiles=self.permit.profiles,
+                              acquisition=self.permit.acquisition)
         if job is None:
             return dict(status='idle', network_calls=0)
         key, owner = job['id'], job['owner']
@@ -136,7 +151,15 @@ class DiscoveryWorker:
                                       (job['demand_key'],)).fetchone()
             finally:
                 conn.close()
-            plan = plan_maplark((demand['cell_y'] + .5) / 100,
+            if job['acquisition'] == 'geoapify-commercial-v1':
+                plan = plan_geoapify((demand['cell_y']+.5)/100, (demand['cell_x']+.5)/100,
+                                    300, categories=('commercial',), limit=100)
+            elif job['acquisition'] == 'sector-bbox-v1':
+                x, y = demand['cell_x'], demand['cell_y']
+                plan = plan_maplark_region((x / 100, y / 100, (x + 1) / 100, (y + 1) / 100),
+                                           profile=job['profile'], limit=1000)
+            else:
+                plan = plan_maplark((demand['cell_y'] + .5) / 100,
                                 (demand['cell_x'] + .5) / 100, 300,
                                 profile=job['profile'], limit=1000)
             # The existing store enforces its global limits atomically at commit.
@@ -152,22 +175,30 @@ class DiscoveryWorker:
             publication_owner = self.repo.acquire(key, 120)
             if not publication_owner:
                 raise POIError('publication_busy')
-            batch, billing = acquire_maplark(self.repo, plan, 'discovery:' + key,
-                self.permit.reservation,
-                accept_variable_cost=os.environ.get('CHAOS_MAPLARK_ACCEPT_VARIABLE_COST') == '1',
+            batch, billing = acquire_features(self.repo, plan, 'discovery:' + key,
+                self.permit.reservation, account=self.permit.account,
+                accept_variable_cost=(self.permit.account=='geoapify' or
+                                      os.environ.get('CHAOS_MAPLARK_ACCEPT_VARIABLE_COST') == '1'),
                 transport=send, still_active=active, lane='background',
+                allow_partial_observations=job['acquisition']=='sector-bbox-v1',
                 budget_scopes=self.permit.budget_scopes(job['profile']))
             if not active() or not self.jobs.transition(key, owner, 'VALIDATING'):
                 raise POIError('discovery_fence_lost')
             candidate = self.candidate(job)
             now = time.time()
-            snapshot = world.publish_batch(key, publication_owner, batch, provider='maplark',
+            snapshot = world.publish_batch(key, publication_owner, batch, provider=self.permit.account,
                 revision=job['revision'], storage_reference=reference(candidate),
-                fresh_until=now + 300, usable_until=now + 1800)
+                fresh_until=now + 300, usable_until=now + 1800,
+                retain_until=now+self.permit.retention_seconds if self.permit.retention_seconds>1800 else None,
+                observation_context=dict(acquisition=job['acquisition'],
+                    demand_bounds=(demand['cell_x']/100, demand['cell_y']/100,
+                                   (demand['cell_x']+1)/100, (demand['cell_y']+1)/100),
+                    request_params=dict(plan.params)))
             if not snapshot or not self.jobs.acknowledge(key, snapshot, owner):
                 raise POIError('publication_ack_pending')
             return dict(status='committed', network_calls=calls, coverage='UNKNOWN',
-                        snapshot=snapshot, billing=billing)
+                        snapshot=snapshot, billing=billing, acquisition=job['acquisition'],
+                        response_completeness=batch.completeness, reasons=batch.reasons)
         except Exception as exc:
             current = self.jobs.get(key)
             reason=str(exc) if isinstance(exc,(POIError,ContractError)) else None

@@ -32,6 +32,9 @@ class WorldRepository:
                 payload BLOB NOT NULL, digest TEXT NOT NULL, bytes INTEGER NOT NULL,
                 fresh_until REAL NOT NULL, usable_until REAL NOT NULL)''')
             c.execute('CREATE INDEX IF NOT EXISTS world_query ON world_snapshot(query_key, fetched DESC)')
+            c.execute('''CREATE TABLE IF NOT EXISTS world_retention (
+                snapshot_id TEXT PRIMARY KEY REFERENCES world_snapshot(id) ON DELETE CASCADE,
+                retain_until REAL NOT NULL, decision_reference TEXT NOT NULL)''')
             c.execute('''CREATE TABLE IF NOT EXISTS world_member (
                 snapshot_id TEXT NOT NULL REFERENCES world_snapshot(id) ON DELETE CASCADE,
                 osm_type TEXT NOT NULL, osm_id INTEGER NOT NULL, ordinal INTEGER NOT NULL,
@@ -170,8 +173,14 @@ class WorldRepository:
         if type(limit) is not int or not 1 <= limit <= 500:
             raise POIError('world_cleanup_limit')
         with self.repo.transaction() as c:
-            rows=c.execute('SELECT id FROM world_snapshot WHERE usable_until<? ORDER BY usable_until LIMIT ?',
-                           (time.time(),limit)).fetchall()
+            now = time.time()
+            # Old deployments without the optional additive archive table keep
+            # their existing cleanup behavior until explicit schema preparation.
+            prepared = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='world_retention'").fetchone()
+            protected = (''' AND NOT EXISTS (SELECT 1 FROM world_retention r
+                WHERE r.snapshot_id=world_snapshot.id AND r.retain_until>?)''' if prepared else '')
+            rows=c.execute('SELECT id FROM world_snapshot WHERE usable_until<?'+protected+' ORDER BY usable_until LIMIT ?',
+                           (now,now,limit) if prepared else (now,limit)).fetchall()
             c.executemany('DELETE FROM world_snapshot WHERE id=?',[(r[0],) for r in rows])
         return len(rows)
 

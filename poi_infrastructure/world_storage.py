@@ -78,7 +78,7 @@ class CanonicalWorldRepository(WorldRepository):
 
     def publish_batch(self, key, owner, batch, *, provider, revision,
                       storage_reference, fresh_until, usable_until, coverage=None,
-                      certified_selections=()):
+                      certified_selections=(), observation_context=None, retain_until=None):
         """Store immutable observations under lease and registry revision fencing.
 
         storage_reference must refer to a separately approved durable-storage
@@ -86,7 +86,7 @@ class CanonicalWorldRepository(WorldRepository):
         existing exact-cache scope. The optional scanner caller additionally
         requires the explicit world_storage registry scope and an ingest flag.
         """
-        if not isinstance(batch, ProviderBatch) or not batch.objects and batch.completeness == 'unknown':
+        if not isinstance(batch, ProviderBatch):
             raise POIError('world_batch_invalid')
         if (type(revision) is not int or revision < 1 or not isinstance(storage_reference, str)
                 or not 1 <= len(storage_reference) <= 300):
@@ -95,6 +95,9 @@ class CanonicalWorldRepository(WorldRepository):
         if (any(type(t) not in (int, float) or not math.isfinite(t) for t in (fresh_until, usable_until))
                 or not now <= fresh_until <= usable_until):
             raise POIError('world_invalid_time')
+        if retain_until is not None and (type(retain_until) not in (int,float)
+                or not math.isfinite(retain_until) or not usable_until <= retain_until <= now+31*86400):
+            raise POIError('world_retention_invalid')
         if len(batch.objects) > 10000 or sum(o.geometry.vertices if o.geometry else 0 for o in batch.objects) > 200000:
             raise POIError('world_capacity')
         objects = []
@@ -118,8 +121,30 @@ class CanonicalWorldRepository(WorldRepository):
                         selection=batch.selection, order=batch.order, objects=objects,
                         revision=revision, storage_reference=storage_reference,
                         fresh_until=fresh_until, usable_until=usable_until)
+        if observation_context is not None:
+            # Request extent is provenance, never completeness evidence. Keep a
+            # small typed allowlist rather than arbitrary headers/secret fields.
+            from .discovery_jobs import ACQUISITIONS
+            from .world_read import checked_bounds
+            if (not isinstance(observation_context, dict)
+                    or set(observation_context) != {'acquisition', 'demand_bounds', 'request_params'}
+                    or observation_context['acquisition'] not in ACQUISITIONS):
+                raise POIError('world_observation_context_invalid')
+            bounds = checked_bounds(observation_context['demand_bounds'])
+            params = observation_context['request_params']
+            expected = ({'bbox', 'tags', 'limit', 'clipGeometry'}
+                        if observation_context['acquisition']=='sector-bbox-v1'
+                        else {'categories','filter','limit','offset'}
+                        if observation_context['acquisition']=='geoapify-commercial-v1'
+                        else {'location', 'radius', 'tags', 'limit', 'clipGeometry'})
+            if (not isinstance(params, dict) or set(params) != expected
+                    or any(not isinstance(v, str) or len(v)>500 for v in params.values())):
+                raise POIError('world_observation_context_invalid')
+            envelope['observation_context'] = dict(observation_context, demand_bounds=bounds)
         if coverage is not None:
             envelope['coverage']=coverage.document()
+        if retain_until is not None:
+            envelope['retain_until']=retain_until
         payload = pack(envelope)
         member_payloads = [pack(o) for o in objects]
         # Account for both stored copies; never silently raise the old world budget.
@@ -149,6 +174,9 @@ class CanonicalWorldRepository(WorldRepository):
             if (not config.get('enabled') or config.get('policy_status') != 'approved_for_defined_use'
                     or 'storage' not in config.get('scopes', []) or config.get('review_due_at', 0) <= time.time()):
                 raise POIError('world_provider_storage_denied')
+            if retain_until is not None and ('world_storage' not in config.get('scopes', [])
+                                             or retain_until > config.get('review_due_at',0)):
+                raise POIError('world_retention_policy_required')
             if c.execute('SELECT 1 FROM world_snapshot WHERE id=?', (snapshot,)).fetchone():
                 return snapshot
             total, count = c.execute('SELECT coalesce(sum(bytes),0),count(*) FROM world_snapshot').fetchone()
@@ -156,6 +184,9 @@ class CanonicalWorldRepository(WorldRepository):
                 raise POIError('world_capacity')
             c.execute('INSERT INTO world_snapshot VALUES (?,?,?,?,?,?,?,?,?,?)',
                       (snapshot, key, provider, now, FORMAT, payload, digest, size, fresh_until, usable_until))
+            if retain_until is not None:
+                c.execute('INSERT INTO world_retention VALUES (?,?,?)',
+                          (snapshot,retain_until,storage_reference))
             c.executemany('''INSERT INTO world_member
                     (snapshot_id,osm_type,osm_id,ordinal,element,identity,layer_mask,west,south,east,north,spatial_valid,element_digest)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', members)
