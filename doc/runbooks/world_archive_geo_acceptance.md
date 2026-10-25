@@ -237,3 +237,56 @@ pm2 save
 
 Nie przywracać backupu dla zatrzymania procesu: zniszczyłoby to nowsze wpisy
 ledgeru. Przerwane zapytanie może pozostawić niepewny koszt, który zachowujemy.
+
+## Następny pakiet — regiony i siedmiodniowe generacje
+
+`world_discovery_refresh` przechowuje osobno ostatnią generację zadania
+i termin następnego zbioru. Nie jest kasowana przy sprzątaniu zadań/snapshotów.
+Odświeżenie dopuszcza wyłącznie COMMITTED po 604800 sekundach, aktualny popyt,
+ważny permit i istniejące dopuszczenia/koszty. Nie resetuje historii zadania ani
+księgi. Zegar liczy od potwierdzenia publikacji, nie od restartu lub zmiany permitu.
+PENDING i niepewne/nieudane generacje nie są omijane przez kolejną generację.
+Przy limicie wpisów planowanie zatrzymuje się bez usuwania historii.
+
+Permity pozostają ważne do 24 h i nie odnawiają się automatycznie. Mechanizm
+7 dni działa także pod późniejszym, oddzielnie dopuszczonym permitem;
+obecne uruchomienie nie daje uprawnienia na stały, bezterminowy zbiór.
+Stary permit z refresh_seconds=0 nie wykonuje nowych generacji odświeżania.
+
+Zbiorcze sprawdzenie bez zatrzymania działającego kolektora:
+
+```bash
+cd ~/app/chaos
+git pull --ff-only
+bash tools/world_regions_rollout.sh --check
+```
+
+Wdrożenie tego samego sektora 2036/5153 (bez nowego obszaru):
+
+```bash
+bash tools/world_regions_rollout.sh --execute
+```
+
+Skrypt testuje, zatrzymuje tylko kolektor, tworzy backup SQLite, migruje przez
+istniejące poi_world.py, przygotowuje `data/collection-regions-v1/permit.json`
+i startuje profil `regions` z ecosystem.discovery.config.js. Web/age/read/ingest
+pozostają niezmienione. Popyt nie jest sztucznie odnawiany: idle jest poprawnym
+wynikiem przy świeżych danych lub braku bieżącego popytu. Po świeżym cyklu:
+
+```bash
+pm2 save
+```
+
+Dla przyszłego rozszerzenia jawna lista maksymalnie 10 komórek trafia do
+`world_collection_prepare.py --bounded --cell X Y [--cell X Y ...]`.
+Najpierw plan, potem --apply. Bez nowych komórek w poleceniu pozostaje tylko
+obecny sektor. Wszystkie komórki dzielą te same 60 kredytów / 20 na warstwę;
+limit konta 800/24000 również nadal obowiązuje. Brak rekurencyjnych sąsiadów.
+Istniejący permit nie może być nadpisany ani rozszerzony tym samym ID.
+Geoapify i Overpass nie są aktywowane przez ten pakiet.
+
+Rollback: `pm2 stop chaos-world-discovery-worker`, kontrola runtime
+`--routing 1 --worker stopped`, następnie `pm2 save`. Nie przywracać bazy
+ani starego kodu workera nad nowszą kolejką, nie usuwać receiptów odświeżania.
+Restart bieżącego profilu przez pm2 restart zachowuje permit i historię;
+nie odnawia terminu jego ważności.

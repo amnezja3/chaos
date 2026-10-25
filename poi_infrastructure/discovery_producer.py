@@ -32,20 +32,30 @@ def prepare_jobs(repo, permit, *, apply=False, limit=40):
             for profile in sorted(permit.profiles):
                 rows.extend(c.execute('''SELECT d.key,d.layer FROM world_discovery_demand d
                     WHERE cell_x=? AND cell_y=? AND layer=? AND contract=? AND expires>?
-                    AND NOT EXISTS (SELECT 1 FROM world_discovery_job j WHERE j.demand_key=d.key
-                        AND j.provider=? AND j.revision=? AND j.profile=d.layer AND j.acquisition=?)
+                    AND (? OR NOT EXISTS (SELECT 1 FROM world_discovery_job j WHERE j.demand_key=d.key
+                        AND j.provider=? AND j.revision=? AND j.profile=d.layer AND j.acquisition=?))
                     ORDER BY d.key LIMIT 1''',
-                    (x, y, profile, SCHEMA_VERSION, time.time(), account, revision, permit.acquisition)).fetchall())
+                    (x, y, profile, SCHEMA_VERSION, time.time(), permit.refresh_seconds,
+                     account, revision, permit.acquisition)).fetchall())
     finally:
         c.close()
     jobs = []
-    for row in rows[:limit]:
+    for row in rows:
+        if len(jobs)>=limit: break
+        if permit.refresh_seconds and not worker.jobs.enqueue(row['key'],account,revision,row['layer'],
+                acquisition=permit.acquisition,refresh_seconds=permit.refresh_seconds,plan_only=True):
+            # Apply also records legacy completed/uncertain receipts before pruning.
+            if apply:
+                worker.jobs.enqueue(row['key'],account,revision,row['layer'],
+                    acquisition=permit.acquisition,refresh_seconds=permit.refresh_seconds)
+            continue
         if apply:
             permit.validate()
             permit.validate_budgets(repo)
             if not worker.candidate(dict(provider=account, revision=revision, profile=row['layer'])):
                 continue
-            key = worker.jobs.enqueue(row['key'], account, revision, row['layer'], acquisition=permit.acquisition)
+            key = worker.jobs.enqueue(row['key'], account, revision, row['layer'],
+                acquisition=permit.acquisition,refresh_seconds=permit.refresh_seconds)
             if key:
                 jobs.append(key)
         else:

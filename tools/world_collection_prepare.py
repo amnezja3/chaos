@@ -18,12 +18,21 @@ IDENTITY='collection-sector-2036-5153-v1'
 PROFILES=('inland_water','roads','waterways')
 
 
-def prepare(db, output, *, apply=False, bounded=False):
-    identity = 'collection-daemon-2036-5153-v1' if bounded else IDENTITY
+def prepare(db, output, *, apply=False, bounded=False, cells=None, identity=None, refresh=False):
+    custom = cells is not None or identity is not None
+    if custom and (not bounded or not cells or not identity):
+        raise ValueError('bounded_region_scope_required')
+    cells = frozenset(tuple(c) for c in cells) if custom else frozenset({(2036,5153)})
+    identity = identity or ('collection-daemon-2036-5153-v1' if bounded else IDENTITY)
+    if refresh and not bounded: raise ValueError('bounded_refresh_required')
     hours = 24 if bounded else 1
     retention = 604800 if bounded else 1800
-    plan=dict(status='plan',network_calls=0,cells=[[2036,5153]],profiles=list(PROFILES),
-              acquisition='sector-bbox-v1',max_jobs=3,reservation_per_job=20,
+    preview=DiscoveryPermit(cells,frozenset(PROFILES),time.time()+86399,20,identity,
+                            'sector-bbox-v1',retention,604800 if refresh else 0)
+    preview.validate()
+    for profile in PROFILES: preview.budget_scopes(profile)
+    plan=dict(status='plan',network_calls=0,cells=sorted(cells),profiles=list(PROFILES),
+              acquisition='sector-bbox-v1',max_jobs=3*len(cells),refresh_seconds=preview.refresh_seconds,reservation_per_job=20,
               shared_credit_limit=60,hours=hours,retention_seconds=retention,
               environment_changed=False,registry_changed=False,provider_price_cap=False)
     if not apply:
@@ -36,8 +45,9 @@ def prepare(db, output, *, apply=False, bounded=False):
     if output.exists():
         permit=load_permit(permit_path)
         if (permit.budget_id!=identity or permit.acquisition!='sector-bbox-v1'
-                or permit.cells!=frozenset({(2036,5153)}) or permit.profiles!=frozenset(PROFILES)
-                or permit.reservation!=20 or permit.retention_seconds!=retention):
+                or permit.cells!=cells or permit.profiles!=frozenset(PROFILES)
+                or permit.reservation!=20 or permit.retention_seconds!=retention
+                or permit.refresh_seconds!=preview.refresh_seconds):
             raise ValueError('existing_permit_differs')
         return dict(plan,status='already_prepared',plan=cycle(repo,permit_path),permit=str(permit_path))
     now=time.time();until=now+hours*3600
@@ -62,8 +72,9 @@ def prepare(db, output, *, apply=False, bounded=False):
         if (target.execute('PRAGMA integrity_check').fetchone()[0]!='ok'
                 or target.execute('PRAGMA foreign_key_check').fetchall()):
             raise ValueError('backup_integrity')
-    data=dict(cells=[[2036,5153]],profiles=list(PROFILES),until=until,reservation=20,
-              budget_id=identity,acquisition='sector-bbox-v1',retention_seconds=retention)
+    data=dict(cells=sorted(cells),profiles=list(PROFILES),until=until,reservation=20,
+              budget_id=identity,acquisition='sector-bbox-v1',retention_seconds=retention,
+              refresh_seconds=preview.refresh_seconds)
     with permit_path.open('x',encoding='utf8') as f:
         json.dump(data,f,indent=2)
     with repo.transaction() as c:
@@ -74,7 +85,8 @@ def prepare(db, output, *, apply=False, bounded=False):
             c.execute('INSERT INTO world_credit_scope VALUES (?,?,?,?,?)',
                       ('maplark',scope,now,until,60 if index==0 else 20))
     # Explicit operator acceptance sector, previously tested; no neighboring cells.
-    DemandQueue(repo).record(20.365,51.535,PROFILES)
+    if not custom:
+        DemandQueue(repo).record(20.365,51.535,PROFILES)
     return dict(plan,status='prepared',permit=str(permit_path),backup=str(backup),
                 plan=cycle(repo,permit_path))
 
@@ -85,10 +97,13 @@ def main():
     p.add_argument('--output')
     p.add_argument('--bounded',action='store_true',help='24h permit, seven-day archive, same sector and budget cap')
     p.add_argument('--apply',action='store_true')
+    p.add_argument('--cell',nargs=2,type=int,action='append',help='Explicit approved cell; repeat up to ten. Does not create demand.')
     args=p.parse_args()
     try:
-        output=args.output or ('data/collection-daemon-2036-5153-v1' if args.bounded else 'data/'+IDENTITY)
-        print(json.dumps(prepare(args.db,output,apply=args.apply,bounded=args.bounded)))
+        output=args.output or ('data/collection-regions-v1' if args.cell else
+                              'data/collection-daemon-2036-5153-v1' if args.bounded else 'data/'+IDENTITY)
+        print(json.dumps(prepare(args.db,output,apply=args.apply,bounded=args.bounded,
+            cells=args.cell,identity='collection-regions-v1' if args.cell else None,refresh=bool(args.cell))))
         return 0
     except Exception as exc:
         print(json.dumps(dict(status='stopped',error_type=type(exc).__name__)))

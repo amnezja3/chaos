@@ -866,3 +866,13 @@ Baseline produkcyjny bez zmian. Szczegóły i identyfikator snapshotu:
 `world_collection_integration_20261025.md`, sekcja „VPS fa7fc69”.
 Źródło nie ma uprawnień normal_scan/background_refresh; nie deklarować
 uruchomienia Geoapify jako fallbacku gry ani ciągłego kolektora.
+
+## 2026-10-25 — VPS 07fd761: ograniczony kolektor online
+
+90 testów PASS. Permit 24 h dla sektora 2036/5153 i trzech warstw,
+retencja 7 dni, budżet zakresu 60/20. Zachowano wcześniejsze COMMITTED:
+plan jobs=[]; świeży cykl idle/network_calls=0, pid=4086017,
+at=1792935684.944692. Runtime web i workera zgodny; stderr pusty.
+Odhaczono start i cykl procesu. Nie wykonano nowego pobrania ani ekspansji;
+brak automatycznego odnawiania permitu i harmonogramu odświeżania 7 dni.
+Szczegóły i ograniczenia: world_collection_integration_20261025.md.

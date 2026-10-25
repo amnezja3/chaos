@@ -58,13 +58,22 @@ class DiscoveryJobs:
             c.execute('''CREATE TABLE IF NOT EXISTS world_discovery_cursor (
                 singleton INTEGER PRIMARY KEY CHECK(singleton=1),
                 cell_x INTEGER NOT NULL, cell_y INTEGER NOT NULL)''')
+            # Survives job/snapshot pruning: an uncertain generation cannot be
+            # forgotten and a completed generation cannot be immediately refetched.
+            c.execute('''CREATE TABLE IF NOT EXISTS world_discovery_refresh (
+                base_id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE,
+                generation INTEGER NOT NULL, due REAL NOT NULL,
+                settled INTEGER NOT NULL CHECK(settled IN (0,1)))''')
 
-    def enqueue(self,demand_key,provider,revision,profile, *, acquisition='radius-300-v1'):
+    def enqueue(self,demand_key,provider,revision,profile, *, acquisition='radius-300-v1',
+                refresh_seconds=0, plan_only=False):
         token(demand_key);token(provider);token(profile)
         if acquisition not in ACQUISITIONS:
             raise ValueError('job_acquisition')
         if type(revision) is not int or revision<1:
             raise ValueError('job_revision')
+        if type(refresh_seconds) is not int or refresh_seconds not in (0,604800):
+            raise ValueError('job_refresh_interval')
         now=time.time()
         identity = [demand_key,provider,revision,profile]
         if acquisition != 'radius-300-v1':
@@ -75,16 +84,49 @@ class DiscoveryJobs:
                              (demand_key,now)).fetchone()
             if not demand:
                 return None
+            base_key=key
+            generation=0
+            if refresh_seconds:
+                receipt=c.execute('SELECT * FROM world_discovery_refresh WHERE base_id=?',(base_key,)).fetchone()
+                old=c.execute('SELECT * FROM world_discovery_job WHERE id=?',
+                              (receipt['job_id'] if receipt else key,)).fetchone()
+                if receipt:
+                    if not receipt['settled'] or receipt['due']>now:
+                        return None
+                    generation=receipt['generation']+1
+                elif old:
+                    if old['state']!='COMMITTED' or old['updated']+refresh_seconds>now:
+                        if not plan_only:
+                            if c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0]>=self.max_jobs:
+                                return None
+                            c.execute('INSERT INTO world_discovery_refresh VALUES (?,?,?,?,?)',
+                                      (base_key,key,0,old['updated']+refresh_seconds,int(old['state']=='COMMITTED')))
+                        return None
+                    generation=1
+                if generation:
+                    prior=receipt['job_id'] if receipt else base_key
+                    charge=c.execute('SELECT state FROM world_credit_operation WHERE account=? AND operation=?',
+                                     (provider,'discovery:'+prior)).fetchone()
+                    if not charge or charge['state']!='settled':
+                        return None
+                    key=hashlib.sha256(f'{base_key}:refresh:{generation}'.encode()).hexdigest()
+                if not receipt and c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0]>=self.max_jobs:
+                    return None
             # Dedup never resets a completed/uncertain operation or extends its TTL.
             if c.execute('SELECT 1 FROM world_discovery_job WHERE id=?',(key,)).fetchone():
                 return key
             if c.execute('SELECT count(*) FROM world_discovery_job').fetchone()[0]>=self.max_jobs:
                 return None
+            if plan_only:
+                return key
             c.execute('''INSERT INTO world_discovery_job
                 (id,demand_key,provider,revision,profile,state,attempts,owner,lease_until,
                  available_at,expires,updated,operation,snapshot,reason,acquisition)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (key,demand_key,provider,revision,profile,'PENDING',0,None,0,now,demand['expires'],now,None,None,'',acquisition))
+            if refresh_seconds:
+                c.execute('INSERT OR REPLACE INTO world_discovery_refresh VALUES (?,?,?,?,?)',
+                          (base_key,key,generation,0,0))
         return key
 
     def _recover(self,c,now):
@@ -104,11 +146,13 @@ class DiscoveryJobs:
         c.execute('''UPDATE world_discovery_job SET state='CANCELLED',reason='demand_expired',updated=?
             WHERE expires<=? AND state IN ('PENDING','DEFERRED','RETRY_AFTER')''',(now,now))
 
-    def claim(self,seconds=60, *, cells=None, profiles=None, acquisition=None):
+    def claim(self,seconds=60, *, cells=None, profiles=None, acquisition=None, allow_refresh=False):
         if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 1<=seconds<=120:
             raise ValueError('job_lease')
         now=time.time();owner=uuid.uuid4().hex
         clauses=[]; params=[]
+        if not allow_refresh:
+            clauses.append('NOT EXISTS (SELECT 1 FROM world_discovery_refresh r WHERE r.job_id=j.id AND r.generation>0)')
         if acquisition is not None:
             if acquisition not in ACQUISITIONS:
                 raise ValueError('job_acquisition')
@@ -222,6 +266,8 @@ class DiscoveryJobs:
             if payload.get('revision')!=job['revision'] or payload.get('profile')!=job['profile']:return False
             c.execute("UPDATE world_discovery_job SET state='COMMITTED',snapshot=?,owner=NULL,lease_until=0,reason='',updated=? WHERE id=?",
                       (snapshot,now,key))
+            c.execute('UPDATE world_discovery_refresh SET settled=1,due=? WHERE job_id=?',
+                      (now+604800,key))
             return True
 
     def prune(self,limit=100):

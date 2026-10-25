@@ -32,6 +32,7 @@ class DiscoveryPermit:
     budget_id: str = ''
     acquisition: str = 'radius-300-v1'
     retention_seconds: int = 1800
+    refresh_seconds: int = 0
 
     @property
     def account(self):
@@ -72,6 +73,9 @@ class DiscoveryPermit:
                 or not isinstance(self.acquisition, str) or self.acquisition not in ACQUISITIONS
                 or type(self.retention_seconds) is not int or not 1800 <= self.retention_seconds <= 31*86400):
             raise ValueError('discovery_permit_invalid_or_expired')
+        if (type(self.refresh_seconds) is not int or self.refresh_seconds not in (0,604800)
+                or self.refresh_seconds and (self.account!='maplark' or self.retention_seconds!=604800)):
+            raise ValueError('discovery_refresh_requires_maplark_seven_day_archive')
 
 
 class DiscoveryWorker:
@@ -115,7 +119,7 @@ class DiscoveryWorker:
         if os.environ.get('CHAOS_POI_PRIORITY_ENABLED') != '1':
             return dict(status='priority_required', network_calls=0)
         job = self.jobs.claim(120, cells=self.permit.cells, profiles=self.permit.profiles,
-                              acquisition=self.permit.acquisition)
+                              acquisition=self.permit.acquisition, allow_refresh=bool(self.permit.refresh_seconds))
         if job is None:
             return dict(status='idle', network_calls=0)
         key, owner = job['id'], job['owner']

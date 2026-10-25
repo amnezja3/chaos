@@ -279,3 +279,51 @@ ma 7 dni; expiry kończy proces; brak sekretu/pusta trasa blokuje start.
 Składnia ecosystemu i skryptu Bash sprawdzona. Nie uruchomiono jeszcze tego
 profilu na VPS. Odbiór online → nowy idle/committed → restart/stop pozostaje
 produkcyjnym krokiem w world_archive_geo_acceptance.md.
+
+### VPS 07fd761 — start ograniczonego kolektora odebrany
+
+Operator uruchomił world_bounded_collector_rollout.sh --execute.
+Testy: bounded collector 6 PASS (6.937s), collection prepare 5 PASS
+(6.606s), discovery 75 PASS (58.318s), release package 4 PASS (0.029s).
+Łącznie 90 PASS. Przygotowano permit i backup w
+`/home/johndoe/app/chaos/data/collection-daemon-2036-5153-v1/`.
+Plan zawierał jobs=[]: zachowano wcześniejsze wykonane zadania.
+
+Runtime checker potwierdził worker online, poprawne cwd, worker_enabled=1,
+priority=1 i routing=1. Web pozostał online z routing=1, ingest/read=0,
+discovery=passive i age=0. Świeży cykl: idle, network_calls=0,
+pid=4086017, at=1792935684.944692. Wyświetlony stderr był pusty.
+Starszy wpis committed bez pid/at pochodzi z wcześniejszego pilota;
+nie zaliczamy go do bieżących pobrań ani kosztów.
+
+Odhaczono start procesu i rzeczywisty cykl bez powtórnego pobrania.
+Permit wygasa o 1793022081.9930966, bez automatycznego odnowienia.
+Zakres nadal obejmuje jeden sektor i trzy warstwy, retencję nowych
+publikacji 7 dni oraz budżet zakresu 60/20. Nie jest to dowód nowego
+pobrania przez daemon, automatycznego odświeżania ani ekspansji regionów.
+Potwierdzenie pm2 save oraz restart/stop tego nowego profilu na VPS
+nie zostały dostarczone. Nie oznaczamy całego 161–163 jako ukończonego.
+
+### Lokalnie — generacje odświeżania i jawne dopuszczanie regionów
+
+Dodano trwały, ograniczony pojemnością receipt ostatniej generacji dla
+demand/provider/revision/profile/acquisition. Nowe ID zadania/kosztu po
+siedmiu dniach od COMMITTED, bez resetowania poprzedniego. Niepewna generacja
+blokuje następną; receipt przetrwa prune zadań. Przy braku ważnego popytu,
+permitu lub dopuszczenia nie powstaje pobranie. Permity domyślnie mają
+refresh_seconds=0; nowe jawne 604800 wymaga MapLark i retencji 7 dni.
+Legacy permit nie może claimować wygenerowanego zadania odświeżania.
+
+Przygotowanie regionów współdzieli istniejący prepare/ledger/worker i może
+wskazać do 10 komórek, bez sztucznego record popytu. Nadal cap 60/20,
+24 h bez odnowienia, account limits bez zmian. Dodano profil ecosystem regions
+i zbiorczy rollout z backupem/migracją. Skrypt wdraża tylko obecny sektor;
+brak aktywacji nowych regionów i brak zmian gameplay w lokalnej pracy.
+
+Weryfikacja lokalna: discovery 81 PASS (82.012s); pełne test_world_*.py
+358 PASS (271.336s). Po końcowej kontroli kosztu poprzedniej generacji
+refresh 7 PASS (12.001s); po dodaniu odbioru launchera regionalnego bounded
+collector 7 PASS (15.207s). Collection prepare 5 PASS (14.835s).
+Sprawdzono bash -n, node --check i git diff --check. Testy korzystały z
+izolowanych baz i atrap transportu/PM2; nie wykonano wdrożenia ani HTTP
+do dostawców. Nowa tabela wymaga migracji przed startem nowego workera.

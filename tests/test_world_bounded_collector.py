@@ -85,6 +85,21 @@ class BoundedCollectorTests(unittest.TestCase):
         self.assertIn('bounded',runner.call_args.args[0])
         self.transport.assert_not_called()
 
+    def test_regions_launcher_uses_explicit_ecosystem_profile(self):
+        root=Path(self.tmp.name)
+        prepare(self.repo.path,root/'data/collection-regions-v1',apply=True,bounded=True,
+                cells=[(2100,5200)],identity='collection-regions-v1',refresh=True)
+        env=dict(FLAGS,status='online',pm_cwd=str(root),CHAOS_MAPLARK_API_KEY='private-fixture')
+        env['CHAOS_POI_ROUTING_ENABLED']='1'
+        runner=Mock(side_effect=[SimpleNamespace(stdout=json.dumps([dict(name='chaos',pm2_env=env)])),SimpleNamespace()])
+        with patch('tools.world_collector_start.__file__',str(root/'tools/start.py')), \
+                patch('tools.world_collector_start.Repository',return_value=self.repo):
+            result=start(runner=runner,regions=True)
+        self.assertEqual(result['status'],'start_requested')
+        self.assertIn('regions',runner.call_args.args[0])
+        self.assertNotIn('private-fixture',json.dumps(result))
+        self.transport.assert_not_called()
+
     def test_runtime_online_requires_worker_flags_and_matching_cwd(self):
         root=Path(self.tmp.name)
         web=dict(name='chaos',pm2_env=dict(FLAGS,status='online',pm_cwd=str(root)))

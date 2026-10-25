@@ -12,13 +12,13 @@ def load_permit(path):
     if len(raw)>8192: raise ValueError('permit_size')
     data=json.loads(raw)
     required={'cells','profiles','until','reservation','budget_id'}
-    if not isinstance(data,dict) or not required <= set(data) or set(data)-required-{'acquisition','retention_seconds'}:
+    if not isinstance(data,dict) or not required <= set(data) or set(data)-required-{'acquisition','retention_seconds','refresh_seconds'}:
         raise ValueError('permit_fields')
     if not isinstance(data['cells'],list) or not isinstance(data['profiles'],list):
         raise ValueError('permit_fields')
     permit=DiscoveryPermit(frozenset(tuple(c) for c in data['cells']),
         frozenset(data['profiles']),data['until'],data['reservation'],data['budget_id'],
-        data.get('acquisition','radius-300-v1'),data.get('retention_seconds',1800))
+        data.get('acquisition','radius-300-v1'),data.get('retention_seconds',1800),data.get('refresh_seconds',0))
     permit.validate()
     for profile in permit.profiles: permit.budget_scopes(profile)
     return permit
