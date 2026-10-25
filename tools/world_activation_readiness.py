@@ -75,8 +75,14 @@ def inspect(db, retention_seconds=7 * 86400):
                 old_uncertain = c.execute('''SELECT 1 FROM world_credit_entry e
                     JOIN world_credit_operation o USING(account,operation)
                     JOIN world_credit_window w USING(account,period)
-                    WHERE e.account=? AND o.state IN ('reserved','uncertain') AND w.ends<=? LIMIT 1''',
-                    (pid, now)).fetchone()
+                    WHERE e.account=? AND o.state IN ('reserved','uncertain') AND w.ends<=?
+                    AND NOT EXISTS (SELECT 1 FROM world_credit_entry carried
+                        JOIN world_credit_window active USING(account,period)
+                        WHERE carried.account=o.account AND carried.operation=o.operation
+                          AND active.starts<=? AND active.ends>?
+                          AND active.period LIKE 'carry:%'
+                          AND carried.amount>=coalesce(o.charged,o.reserved)) LIMIT 1''',
+                    (pid, now, now, now)).fetchone()
             if hold:
                 blockers.append('account_hold')
             if old_uncertain and not recurring:

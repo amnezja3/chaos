@@ -133,6 +133,8 @@ policy supersedes legacy fixed windows for NEW reservations only.
         """Explicit windows from approved configuration; never reset usage in place."""
         import math
         _token(account); _token(period); _amount(limit)
+        if period.startswith('carry:'):
+            raise ContractError('carry_forward_reserved_period')
         if (any(type(v) not in (float, int) or not math.isfinite(v) for v in (starts, ends))
                 or not 0 <= starts < ends):
             raise ContractError('budget_window')
@@ -143,6 +145,41 @@ policy supersedes legacy fixed windows for NEW reservations only.
             c.execute('''INSERT INTO world_credit_window VALUES (?,?,?,?,?)
                 ON CONFLICT(account,period) DO UPDATE SET credit_limit=excluded.credit_limit''',
                 (account, period, starts, ends, limit))
+
+    def carry_forward(self, account, period, starts, ends, allowance):
+        """One immutable window: retain every unresolved cost plus an explicit allowance.
+
+        Does not settle operations, reset old entries or enable recurring spending.
+        Existing period IDs cannot be reused, even when expired.
+        """
+        import math
+        _token(account); _token(period); _amount(allowance)
+        period = 'carry:' + period
+        _token(period)
+        if (not 0 < allowance <= 20 or
+                any(type(v) not in (float, int) or not math.isfinite(v) for v in (starts, ends))
+                or not starts <= time.time() < ends or ends-starts > 3600):
+            raise ContractError('carry_forward_window_invalid')
+        with self.repo.transaction() as c:
+            if c.execute('SELECT 1 FROM world_credit_window WHERE account=? AND period=?',
+                         (account, period)).fetchone():
+                raise ContractError('carry_forward_already_exists')
+            if c.execute('SELECT 1 FROM world_credit_policy WHERE account=?', (account,)).fetchone():
+                raise ContractError('carry_forward_recurring_policy_exists')
+            if c.execute('SELECT 1 FROM world_credit_hold WHERE account=?', (account,)).fetchone():
+                raise ContractError('budget_account_held')
+            if c.execute('SELECT 1 FROM world_credit_window WHERE account=? AND starts<=? AND ends>?',
+                         (account, starts, starts)).fetchone():
+                raise ContractError('carry_forward_active_window_exists')
+            old = c.execute("SELECT operation,coalesce(charged,reserved) amount FROM world_credit_operation "
+                            "WHERE account=? AND state IN ('reserved','uncertain')", (account,)).fetchall()
+            carried = sum(row['amount'] for row in old)
+            c.execute('INSERT INTO world_credit_window VALUES (?,?,?,?,?)',
+                      (account, period, starts, ends, carried+allowance))
+            c.executemany('INSERT INTO world_credit_entry VALUES (?,?,?,?)',
+                          [(account, row['operation'], period, row['amount']) for row in old])
+        return dict(carried=carried, allowance=allowance, credit_limit=carried+allowance,
+                    unresolved_operations=len(old), period=period)
 
     def reserve(self, account, operation, upper_bound, *, now=None, scopes=()):
         _token(account); _token(operation); _amount(upper_bound)
@@ -184,8 +221,15 @@ policy supersedes legacy fixed windows for NEW reservations only.
             if c.execute('''SELECT 1 FROM world_credit_entry e
                 JOIN world_credit_operation o USING(account, operation)
                 JOIN world_credit_window w USING(account, period)
-                WHERE e.account=? AND o.state IN ('reserved','uncertain') AND w.ends<=? LIMIT 1''',
-                         (account, now)).fetchone():
+                WHERE e.account=? AND o.state IN ('reserved','uncertain') AND w.ends<=?
+                AND NOT EXISTS (
+                    SELECT 1 FROM world_credit_entry carried
+                    JOIN world_credit_window active USING(account,period)
+                    WHERE carried.account=o.account AND carried.operation=o.operation
+                      AND active.starts<=? AND active.ends>?
+                      AND active.period LIKE 'carry:%'
+                      AND carried.amount>=coalesce(o.charged,o.reserved)) LIMIT 1''',
+                         (account, now, now, now)).fetchone():
                 raise ContractError('budget_previous_period_unresolved')
             windows = c.execute('SELECT * FROM world_credit_window WHERE account=? AND starts<=? AND ends>?',
                                 (account, now, now)).fetchall()

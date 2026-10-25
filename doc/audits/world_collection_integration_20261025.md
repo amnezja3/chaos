@@ -169,3 +169,23 @@ Nie uruchomiono jeszcze tego pakietu na VPS. Aktualny stan rejestru i budżetu
 Geoapify potrzebny jest przed przygotowaniem wykonawczej zmiany; szczególnie
 nie należy obchodzić `budget_previous_period_unresolved` nowym oknem ani
 nadpisywać zapisanej, celowo pustej trasy.
+
+### Odbiór VPS i wykonawcze przygotowanie Geoapify
+
+VPS c8bdaf1: retencja 7/5.140s, readiness 5/3.368s, Geoapify
+5/4.635s, routing 15/9.442s, sector 7/5.181s — 39 PASS.
+Baseline przed i po zgodny; zero requestów i zapisów produkcyjnych.
+MapLark revision 9 bez blokad; Geoapify revision 2: disabled/untested,
+small_probe, brak aktywnego budżetu, 4 uncertain / 20 kredytów.
+Retencja produkcyjna: 0 rekordów. Routing live domyślnie tylko MapLark;
+Overpass nie jest faktycznie dopuszczony do tej trasy.
+
+Przygotowano jednorazowy `world_geo_archive_execute.sh`: backup, jawne
+carry-forward kosztów, maksymalnie jeden request, kwalifikacja techniczna
+na podstawie odpowiedzi, obserwacyjny zapis 7 dni i kontrola odczytu.
+Wspólne acquire_features i CanonicalWorldRepository, bez nowego transportu.
+Nie nadaje normal_scan/background_refresh, nie uruchamia ciągłego workera.
+Nowy scenariusz integracyjny 8 PASS; budżety 17 PASS (w tym kontrola zwykłego
+nowego okna, które nadal nie może ukryć starych kosztów); acquisition 10 PASS;
+readiness 5 PASS. Łącznie pakiet 40 testów. Testy izolowane z atrapami HTTP;
+wykonanie nowego skryptu z prawdziwym Geoapify pozostaje do odbioru na VPS.
