@@ -243,3 +243,39 @@ Brak zmian UI, żądań do dostawców i produkcyjnych mutacji w lokalnym teście
 Instrukcja wspólnego wdrożenia/odbioru/rollbacku w world_archive_geo_acceptance.md.
 Retencja przyszłych permitów i ciągłe uruchomienie workera pozostają osobnym
 nieodebranym etapem; ten pakiet ich nie oznacza jako wdrożonych.
+
+### VPS c1f4608 — retencja MapLark i routing odebrane
+
+32 testy PASS: saved retention 7/6.299s, routing 15/9.678s,
+release package 4/0.028s, readiness 6/4.233s. Trzy wskazane snapshoty
+MapLark zachowano do fetched+604800 bez nowego HTTP, zmian ledgeru,
+payloadu lub świeżości. Raport: cztery aktywne rekordy retencji wraz z Geoapify.
+Backup: `/home/johndoe/chaos-backups/routing-archive-G9Hzl4li/poi_cache.sqlite3`.
+Reload web z profilem routing: routing=1, web online, worker stopped,
+pozostałe flagi zgodne. Launch: trzy timeouty 000, następnie HTTP 200.
+Operator potwierdził skan 37 nowych obiektów i dwa wpisy poi_route revision 0,
+maplark/result success/source upstream. Jest to PASS skanu przez aktywny router;
+nie dowód działania Overpass. Nie otrzymano osobnego potwierdzenia pm2 save.
+
+### Lokalnie — ograniczony proces kolektora
+
+Rozszerzono istniejące prepare o --bounded: ten sam sektor/profil, nowy
+permit do 24 h, retencja 7 dni, cap 60/20, niezmienione limity konta.
+Nie zmienia identyfikatorów istniejących zadań i nie odtwarza COMMITTED.
+Kolektor --serve wykorzystuje tę samą kolejkę i transport; ma jawny profil
+bounded w ecosystem.discovery.config.js, autorestart false. PermitExpired
+kończy proces normalnie bez odnowienia. Dodano pid/at do logów cykli.
+
+Launcher waliduje baseline routingu, zakres permitu, budżety i kolejność
+background, po czym przekazuje klucz MapLark z weba do środowiska workera
+bez drukowania wartości/PM2 JSON. Runtime checker ma jawne --worker online
+lub stopped i weryfikuje włączony priorytet/routing workera oraz jego cwd.
+
+Testy lokalne: bounded collector 6 PASS (10.806s), dawny collection prepare
+5 PASS (13.411s), discovery 75 PASS (70.562s), release package 4 PASS (0.143s).
+Łącznie 90 testów z izolowanymi bazami i atrapami HTTP. Scenariusze: trzy
+stare COMMITTED pozostają idle po nowym permicie/restarcie; nowa publikacja
+ma 7 dni; expiry kończy proces; brak sekretu/pusta trasa blokuje start.
+Składnia ecosystemu i skryptu Bash sprawdzona. Nie uruchomiono jeszcze tego
+profilu na VPS. Odbiór online → nowy idle/committed → restart/stop pozostaje
+produkcyjnym krokiem w world_archive_geo_acceptance.md.

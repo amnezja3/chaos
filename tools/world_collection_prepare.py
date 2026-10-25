@@ -18,10 +18,13 @@ IDENTITY='collection-sector-2036-5153-v1'
 PROFILES=('inland_water','roads','waterways')
 
 
-def prepare(db, output, *, apply=False):
+def prepare(db, output, *, apply=False, bounded=False):
+    identity = 'collection-daemon-2036-5153-v1' if bounded else IDENTITY
+    hours = 24 if bounded else 1
+    retention = 604800 if bounded else 1800
     plan=dict(status='plan',network_calls=0,cells=[[2036,5153]],profiles=list(PROFILES),
               acquisition='sector-bbox-v1',max_jobs=3,reservation_per_job=20,
-              shared_credit_limit=60,hours=1,retention_seconds=1800,
+              shared_credit_limit=60,hours=hours,retention_seconds=retention,
               environment_changed=False,registry_changed=False,provider_price_cap=False)
     if not apply:
         return plan
@@ -32,20 +35,20 @@ def prepare(db, output, *, apply=False):
     permit_path=output/'permit.json'
     if output.exists():
         permit=load_permit(permit_path)
-        if (permit.budget_id!=IDENTITY or permit.acquisition!='sector-bbox-v1'
+        if (permit.budget_id!=identity or permit.acquisition!='sector-bbox-v1'
                 or permit.cells!=frozenset({(2036,5153)}) or permit.profiles!=frozenset(PROFILES)
-                or permit.reservation!=20 or permit.retention_seconds!=1800):
+                or permit.reservation!=20 or permit.retention_seconds!=retention):
             raise ValueError('existing_permit_differs')
         return dict(plan,status='already_prepared',plan=cycle(repo,permit_path),permit=str(permit_path))
-    now=time.time();until=now+3600
+    now=time.time();until=now+hours*3600
     provider=next((p for p in Registry(repo).list() if p['id']=='maplark'),None)
     if (not provider or not provider.get('enabled')
             or provider.get('url')!='https://api.maplark.com/v3/osm_features'
             or provider.get('operator_group')!='api.maplark.com'
-            or provider.get('review_due_at',0)<until
+            or provider.get('review_due_at',0)<until+(retention if bounded else 0)
             or not all(Registry.approved(provider,s) for s in ('storage','world_storage','background_refresh'))):
         raise ValueError('collection_approval_required')
-    scopes=['discovery:'+IDENTITY]+['discovery:'+IDENTITY+':'+p for p in PROFILES]
+    scopes=['discovery:'+identity]+['discovery:'+identity+':'+p for p in PROFILES]
     with closing(repo.connect()) as c:
         if c.execute('SELECT 1 FROM world_credit_scope WHERE account=? AND scope=?',('maplark',scopes[0])).fetchone():
             raise ValueError('collection_already_exists_do_not_reset')
@@ -60,7 +63,7 @@ def prepare(db, output, *, apply=False):
                 or target.execute('PRAGMA foreign_key_check').fetchall()):
             raise ValueError('backup_integrity')
     data=dict(cells=[[2036,5153]],profiles=list(PROFILES),until=until,reservation=20,
-              budget_id=IDENTITY,acquisition='sector-bbox-v1',retention_seconds=1800)
+              budget_id=identity,acquisition='sector-bbox-v1',retention_seconds=retention)
     with permit_path.open('x',encoding='utf8') as f:
         json.dump(data,f,indent=2)
     with repo.transaction() as c:
@@ -79,11 +82,13 @@ def prepare(db, output, *, apply=False):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--db',default='data/poi_cache.sqlite3')
-    p.add_argument('--output',default='data/collection-sector-2036-5153-v1')
+    p.add_argument('--output')
+    p.add_argument('--bounded',action='store_true',help='24h permit, seven-day archive, same sector and budget cap')
     p.add_argument('--apply',action='store_true')
     args=p.parse_args()
     try:
-        print(json.dumps(prepare(args.db,args.output,apply=args.apply)))
+        output=args.output or ('data/collection-daemon-2036-5153-v1' if args.bounded else 'data/'+IDENTITY)
+        print(json.dumps(prepare(args.db,output,apply=args.apply,bounded=args.bounded)))
         return 0
     except Exception as exc:
         print(json.dumps(dict(status='stopped',error_type=type(exc).__name__)))

@@ -162,3 +162,78 @@ pm2 startOrReload ecosystem.web.config.js --only chaos --env baseline --update-e
 
 Po potwierdzeniu działania wersji bazowej można wykonać `pm2 save`. Nie
 przywracać całej starej bazy POI dla wycofania flagi — cofnęłoby to nowe koszty.
+
+## Ograniczony kolektor w tle — 24 h, sektor 2036/5153
+
+Po potwierdzonym skanie 37 obiektów i logach poi_route/maplark/success
+przygotowano uruchomienie osobnego procesu PM2. Web pozostaje na profilu
+routing, bez reloadu i bez zmian age/ingest/read.
+
+```bash
+cd ~/app/chaos &&
+git pull --ff-only &&
+bash tools/world_bounded_collector_rollout.sh --execute
+```
+
+Skrypt sprawdza runtime routing=1/worker stopped i testy izolowane, a następnie
+przygotowuje nowy, **nieodnawialny automatycznie** permit:
+
+- bbox sektora 20.36,51.53–20.37,51.54;
+- roads, waterways, inland_water, acquisition sector-bbox-v1;
+- do 24 godzin działania, retencja nowych publikacji 604800 s;
+- 60 kredytów wspólnych / 20 na warstwę, rezerwacja 20 na operację;
+- nadal obowiązuje limit konta MapLark 800/dzień i 24000/31 dni;
+- brak nowych dopuszczeń źródeł, pobierania Geoapify i rozbudowy obszaru.
+
+Backup i permit: `data/collection-daemon-2036-5153-v1/`.
+Ponowne prepare nie przedłuża permitu, nie zeruje zakresów budżetu, nie
+resetuje wykonanych ani niepewnych zadań. Po wygaśnięciu nie kasować katalogu,
+aby automatycznie wznowić: nowa decyzja operacyjna wymaga osobnego zakresu.
+
+Worker używa istniejącej kolejki, shared slot, pierwszeństwa graczy,
+księgi kosztów i magazynu. Wykonane zadania dla obecnego sektora/rewizji są
+zachowane. Zatem **idle z network_calls 0 jest poprawnym oczekiwanym wynikiem**,
+nie wymaga sztucznego refetch ani usunięcia COMMITTED. Ten etap nie dodaje
+harmonogramu odświeżania po siedmiu dniach ani samoczynnej ekspansji regionów.
+
+Launcher pobiera w pamięci wyłącznie klucz MapLark z metadanych procesu web
+i przekazuje go do środowiska potomnego procesu PM2. Nie wypisuje wartości,
+nie zapisuje jej do kodu ani argumentów polecenia. Tak jak inne sekrety PM2,
+wartość pozostaje w środowisku procesu i może trafić do chronionego dump.pm2
+po pm2 save. Błąd web_maplark_credential_unavailable wymaga osobnej konfiguracji
+klucza; nie wklejać go do rozmowy.
+
+Wszystkie jawne flagi są w `ecosystem.discovery.config.js`, profil `bounded`;
+autorestart false, jedna instancja, odstęp 30 s. Wygaśnięcie permitu kończy
+proces kodem 0 i wpisem permit_expired. Sam restart PM2 go nie odnawia.
+Logi cykli mają pid/at, dzięki czemu można odróżnić bieżący odbiór od dawnych
+wpisów roads pilot. Status online nie jest jeszcze dowodem udanego cyklu.
+
+Po nowym wpisie idle lub committed i braku błędów:
+
+```bash
+pm2 save
+```
+
+Odbiór restartu bez zmiany env/permitu, jeśli potrzebny:
+
+```bash
+pm2 restart chaos-world-discovery-worker
+.venv/bin/python tools/world_runtime_check.py --routing 1 --worker online
+pm2 logs chaos-world-discovery-worker --lines 12 --nostream
+```
+
+Nie używać bezpośredniego startOrReload z przypadkowej powłoki do odtwarzania
+sekretu. Narzędzie world_collector_start.py kontroluje baseline, permit,
+budżety i trasy przed startem. Zwykły pm2 restart zachowuje bieżące env.
+
+Stop/rollback kolektora (web i jego routing pozostają aktywne):
+
+```bash
+pm2 stop chaos-world-discovery-worker
+.venv/bin/python tools/world_runtime_check.py --routing 1 --worker stopped
+pm2 save
+```
+
+Nie przywracać backupu dla zatrzymania procesu: zniszczyłoby to nowsze wpisy
+ledgeru. Przerwane zapytanie może pozostawić niepewny koszt, który zachowujemy.

@@ -19,6 +19,10 @@ from .world_shadow import reference
 from .world_contract import ContractError
 
 
+class PermitExpired(ValueError):
+    """A bounded process should stop normally rather than restart an expired permit."""
+
+
 @dataclass(frozen=True)
 class DiscoveryPermit:
     cells: frozenset
@@ -52,6 +56,8 @@ class DiscoveryPermit:
                     raise ValueError('discovery_budget_missing_or_expired')
 
     def validate(self):
+        if type(self.until) in (int,float) and math.isfinite(self.until) and self.until<=time.time():
+            raise PermitExpired('discovery_permit_expired')
         if (not isinstance(self.cells, frozenset) or not 1 <= len(self.cells) <= 10
                 or any(not isinstance(c, tuple) or len(c) != 2
                        or any(type(v) is not int for v in c)

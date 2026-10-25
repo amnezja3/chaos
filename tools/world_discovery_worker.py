@@ -6,10 +6,12 @@ from pathlib import Path
 import signal
 import sys
 import threading
+import time
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from poi_infrastructure.repository import Repository
 from poi_infrastructure.discovery_runtime import cycle
+from poi_infrastructure.discovery_worker import PermitExpired
 
 
 def main():
@@ -32,7 +34,11 @@ def main():
             else:
                 if not Path(args.db).is_file(): raise ValueError('existing_database_required')
                 result=cycle(Repository(args.db),args.permit,execute=args.execute,stopping=stop.is_set)
-            print(json.dumps(result),flush=True)
+            print(json.dumps(dict(result,pid=os.getpid(),at=time.time())),flush=True)
+        except PermitExpired:
+            print(json.dumps(dict(status='permit_expired',network_calls=0,automatic_renewal=False,
+                                  pid=os.getpid(),at=time.time())),flush=True)
+            return 0
         except Exception as exc:
             # No raw exception messages: transport/config errors may include secrets.
             print(json.dumps(dict(status='stopped',error_type=type(exc).__name__)),flush=True)
