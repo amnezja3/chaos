@@ -88,6 +88,32 @@ Zachować addytywną kolumnę/tabelę oraz nowe rekordy. Dla rollbacku kodu uży
 wersji obsługującej dodatkową kolumnę (starsze INSERT bez listy kolumn nie są
 zgodne). Zatrzymany worker i działający skaner to bezpieczny stan bazowy.
 
+## Zbiorczy odbiór trzech warstw po reloadzie web
+
+```bash
+bash tools/world_collection_execute.sh --execute
+```
+
+Bez argumentu skrypt pokazuje tylko plan, bez odczytu/zmiany bazy czy HTTP.
+Zakres: sektor 2036/5153, trzy zadania MapLark, roads/waterways/inland_water;
+pozwolenie 1 h, rezerwacja 20 na zapytanie, wspólny limit wewnętrzny 60,
+retencja 1800 s. Limity 800/dzień i 24000/31 dni nadal obowiązują. Rezerwacja
+nie jest gwarancją maksymalnej ceny dostawcy. Nie pobieramy coastline ani
+Geoapify w tym odbiorze, nie włączamy geometrii w gameplay.
+
+Przygotowanie wymaga już dopuszczonych storage/world_storage/background_refresh;
+nie nadaje nowych uprawnień. Backup i pozwolenie znajdują się w prywatnym
+`data/collection-sector-2036-5153-v1/`. Dane testowego zapotrzebowania dotyczą
+wyłącznie tego wcześniej odwiedzanego i testowanego sektora; nie zawierają gracza.
+Skrypt poprosi o klucz MapLark, jeśli brakuje go w środowisku. Flagi wykonania
+są ograniczone do jednorazowego procesu testowego, nie zmieniają PM2/ecosystemu.
+
+Oczekiwane: trzy committed, następnie collection_batch_complete; osobny proces
+planowania zwraca pustą listę nowych zadań; raport magazynu i baseline PASS.
+DEFERRED, brak uprawnień lub nieznany wynik HTTP zatrzymują skrypt. Nie ponawiać
+w pętli i nie usuwać permitu/ledgeru. Zachować wynik do ustalenia przyczyny.
+Powtórne przygotowanie tego samego pozwolenia nie resetuje kosztów ani zadań.
+
 ## Nadal otwarte przed finalnym odbiorem 161–163
 
 Aktywacja ograniczonego profilu Geoapify po nadaniu zakresów zbierania,

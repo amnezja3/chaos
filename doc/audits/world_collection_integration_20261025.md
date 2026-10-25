@@ -81,3 +81,34 @@ Końcowa regresja poprawki: 317 testów `test_world*.py` PASS / 196,548 s.
 Kod nie był zmieniany w trakcie tego przebiegu. `git diff --check` PASS.
 Na VPS powtórzyć dotychczasowy skrypt `world_collection_acceptance.sh --prepare`;
 nie omijać jego testów ani nie uruchamiać workera przed przygotowaniem schematu.
+
+## Potwierdzony odbiór przygotowania VPS — a480269
+
+Operator przekazał pełny wynik `world_collection_acceptance.sh --prepare`:
+
+- 317 testów World PASS / 147,065 s; 92 testy POI PASS / 77,170 s.
+- Baseline PM2 zgodny: web online, discovery worker stopped; routing/ingest/
+  world read OFF, discovery passive, age flag 0.
+- Dry-run: original_data_unchanged true; migracja: schema_ready.
+- Końcowy raport: integrity/FK ok, collection_schema_ready true,
+  metrics_schema_ready true, world_schema 2.
+- Przed/po: 2 snapshoty, 135186 logicznych bajtów, 104 elementy; jedno stare
+  zadanie COMMITTED, brak nierozstrzygniętych zadań i wygasłych leases.
+- MapLark: 23/800 dziennie, 99/24000 rolling, 0 unresolved. Geoapify:
+  brak aktywnego okna, zachowane 4 wcześniejsze niepewne operacje / 20 rezerwacji.
+- Backup: `/home/johndoe/chaos-backups/collection-4vrQG8Os`.
+- Raporty: `/home/johndoe/chaos-world-acceptance-38D2M4`.
+
+Początkowe collection_schema_ready false pochodzi z kontroli przed migracją;
+końcowe true potwierdza przygotowanie. Nie jest to błąd przebiegu.
+Skrypt nie restartował web, nie uruchamiał workera, nie wykonywał zapytań
+do dostawców i nie zmieniał środowiska. Reload web i odbiór aktywnej kolekcji
+pozostają oddzielnymi, jeszcze niepotwierdzonymi etapami.
+
+Operator następnie potwierdził reload web: baseline_matches, HTTP 200 i pm2 save.
+Web online, routing/ingest/read OFF, discovery passive, worker stopped.
+Przygotowano następny odbiór: trzy warstwy MapLark (roads, waterways,
+inland_water) w sektorze 2036/5153, do trzech requestów, 60 kredytów wspólnie,
+20 na warstwę, jedno pozwolenie godzinne, retencja 1800 s. Bez zmiany rejestru,
+limitów konta i konfiguracji PM2. Nowe narzędzia mają domyślny tryb planowania,
+backup przed zmianami i nie odnawiają istniejących limitów/pozwolenia.
