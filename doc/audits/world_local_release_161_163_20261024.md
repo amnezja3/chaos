@@ -75,5 +75,41 @@ Brak źródła nie jest implementowany jako fałszywe COMPLETE. Nie twierdzimy,
 że pełny zakres 161–163 został ukończony. Warunki zależne od danych i decyzji
 zostały zebrane w jednym planie, bez żądania kolejnych działań operatora teraz.
 
+## Odbiór VPS — faza 1, 2026-10-24
+
+Operator dostarczył wynik `tools/world_vps_acceptance.sh` po aktualizacji do
+`9927254`. Raporty: `/home/johndoe/chaos-world-acceptance-KGe8to`.
+
+- World: 273 testy PASS (121.880 s); POI: 92 PASS (68.584 s), łącznie 365.
+- Kontrola kopii bazy: integrity/foreign_keys OK, schema 2, metryki gotowe,
+  2 snapshoty, 135186 logical bytes; zero zapytań do dostawców i zapisów produkcyjnych.
+- Jedno zadanie COMMITTED, brak unresolved i wygasłych lease.
+- Pilot regionalny roads (75 obiektów) jest EXPIRED i niedopuszczony do odczytu;
+  to oczekiwany upływ TTL. Starsze 29 obserwacji roads pozostaje UNKNOWN.
+- MapLark: 52/800 dziennie, 76/24000 rolling; brak niepewnych operacji.
+  Geoapify: nadal 4 niepewne operacje i 20 zarezerwowanych kredytów, bez resetu.
+- PM2: baseline_matches; web online, MapLark ON, ingest/read/routing OFF,
+  discovery passive, age=0; discovery worker stopped.
+
+Faza 1 PASS. Wynik nie potwierdza załadowania nowego kodu do procesów web:
+skrypt nie wykonuje restartu. Pozostaje faza 2 (przeładowanie web i odbiór gry)
+oraz otwarte kwalifikacje źródeł i kontrolowany rollout z powyższej tabeli.
+Pojedynczy udany skan w metrykach nie stanowi pomiaru SLO.
+
+## Odbiór runtime i gry — faza 2 PASS, potwierdzenie 2026-10-25
+
+Po poleceniach wdrożeniowych operator przekazał `baseline_matches`, HTTP 200
+na /launch oraz udane `pm2 save`. Konfiguracja pozostaje bez zmian:
+MapLark ON, world ingest/read/routing OFF, discovery passive, age=0,
+worker discovery stopped. Odczyt PM2 jest kontrolą metadanych, nie pamięci workerów.
+
+2026-10-25 operator potwierdził poprawne skanowanie, hakowanie i łączenie
+w terytorium na nowym koncie testowym oraz na istniejącym koncie.
+Źródło dowodu: test manualny operatora na produkcji; nie test wykonany przez
+agenta. Odbiór wdrożonego pakietu zamknięty PASS, bez potrzeby ponawiania skanów.
+Nie rozszerzamy tego potwierdzenia na pozostałe scenariusze ani kwalifikację
+Geoapify, warstw wodnych/ląd–morze czy aktywację regionalnego discovery.
+Te pozycje pozostają otwarte zgodnie z planem faz 3–4.
+
 Instrukcja wspólnego przejścia: [world_final_acceptance_161_163.md](../runbooks/world_final_acceptance_161_163.md).
 Źródła i kontrakt produktu: [world_land_water_product.md](../runbooks/world_land_water_product.md).

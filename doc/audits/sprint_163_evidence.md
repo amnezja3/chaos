@@ -703,3 +703,29 @@ Geometrie rzeczywiste. Nie odświeżono starych danych produkcyjnych ani nie
 przeniesiono testowej zgody do MapLark. Żadnego nowego HTTP lub zapisu na VPS.
 Brak otworów/multipart w rzeczywistej próbce pozostaje jawną luką odbioru.
 Cały zestaw regionalny po dodaniu fixtures: **54 PASS / 24.230 s**.
+
+## 25.10.2026 — odbiór pakietu i następny dowód wodny
+
+Operator potwierdził skanowanie, hakowanie i łączenie w terytorium na nowym
+oraz istniejącym koncie. Wcześniej przekazał 365 testów VPS PASS,
+baseline_matches, HTTP 200 i pm2 save. Odbiór wdrożonego pakietu PASS;
+nie oznacza to uruchomienia geografii ani zamknięcia wszystkich D01–D16.
+
+Przygotowano jeden kolejny blok serwerowy dla brakującej geometrii wodnej:
+`tools/world_water_topology_acceptance.sh`. Domyślnie plan bez DB/HTTP,
+--execute najwyżej jeden request; prywatne capture i ocena offline, bez
+ingest/registry/PM2. Bbox deterministycznie identyfikuje operację, niepewny
+koszt pozostaje zarezerwowany, wspólne okno 40 kredytów nie odnawia się samo.
+Stary region jest odrzucany na rzecz zapisanych odpowiedzi.
+
+Naprawiono ocenę dowodów: otwór/MultiPolygon w obiekcie spoza bbox lub
+niewłaściwej warstwy nie zalicza próby wybranej wody. Liczniki raw zachowano,
+dodano selected IDs i osobne flagi holes/multipart. CLI --require-water-holes
+i --require-water-multipart zwraca exit 2 przy braku dowodu, bez ponawiania API.
+Otwór jest cechą pełnego wybranego obiektu; nie twierdzimy, że leży w bbox.
+
+Walidacja lokalna: **8 nowych testów PASS (1.429 s)**, regresja regionalna
+**54 PASS (7.739 s)**, bash -n oraz git diff --check PASS. Plan dla kandydata
+16.79,52.26,16.80,52.27: zero HTTP, rezerwacja 20, deadline 35 s.
+Żadnego produkcyjnego wywołania MapLark ani aktywacji. Źródła wyboru jeziora,
+komendy i interpretacja wyniku: [instrukcja wodna](../runbooks/world_region_water_probe.md).

@@ -23,6 +23,7 @@ def evaluate(bounds,layer,body=None,headers=None):
     left=box(west,south,mid,north);right=box(mid,south,east,north)
     invalid=[];left_ids=set();right_ids=set();reason_counts={};selected_ids=set()
     types={};polygon_parts=0;interior_rings=0;hole_objects=0
+    selected_holes=0;selected_multipart=0;selected_hole_ids=[];selected_multipart_ids=[]
     for obj in batch.objects:
         reasons=[];geometry=None
         if layer not in obj.layers:reasons.append('layer_mismatch')
@@ -41,6 +42,10 @@ def evaluate(bounds,layer,body=None,headers=None):
                 if not geometry.intersects(area):reasons.append('geometry_outside_bbox')
                 if not reasons:
                     selected_ids.add(obj.identity)
+                    selected_holes+=bool(holes)
+                    selected_multipart+=geometry.geom_type=='MultiPolygon'
+                    if holes:selected_hole_ids.append(obj.identity)
+                    if geometry.geom_type=='MultiPolygon':selected_multipart_ids.append(obj.identity)
                     if geometry.intersects(left):left_ids.add(obj.identity)
                     if geometry.intersects(right):right_ids.add(obj.identity)
         if reasons:
@@ -69,7 +74,12 @@ def evaluate(bounds,layer,body=None,headers=None):
         boundary_selection_pass=not invalid and batch.completeness=='complete')
     result['topology']=dict(geometry_types=types,polygon_parts=polygon_parts,
         interior_rings=interior_rings,objects_with_holes=hole_objects,
-        water_surface_with_holes_observed=layer=='inland_water' and hole_objects>0,
+        selected_objects_with_holes=selected_holes,
+        selected_multipolygon_objects=selected_multipart,
+        selected_hole_ids=selected_hole_ids[:20],selected_multipolygon_ids=selected_multipart_ids[:20],
+        selected_topology_ids_truncated=len(selected_hole_ids)>20 or len(selected_multipart_ids)>20,
+        water_surface_with_holes_observed=layer=='inland_water' and selected_holes>0,
+        water_multipolygon_observed=layer=='inland_water' and selected_multipart>0,
         note='Interior rings are observed geometry, not independent proof of real islands or coverage.')
     if layer in ('roads','waterways','inland_water'):
         from poi_infrastructure.world_region_candidate import prepare
@@ -88,11 +98,24 @@ def main():
     p.add_argument('--bbox',nargs=4,type=float,default=[20.36,51.53,20.37,51.54])
     p.add_argument('--layer',choices=['roads','waterways','inland_water','coastline'],default='roads')
     p.add_argument('--body');p.add_argument('--headers')
+    p.add_argument('--require-water-holes',action='store_true')
+    p.add_argument('--require-water-multipart',action='store_true')
     a=p.parse_args()
     if bool(a.body)!=bool(a.headers):p.error('--body and --headers must be supplied together')
+    if (a.require_water_holes or a.require_water_multipart) and (not a.body or a.layer!='inland_water'):
+        p.error('water topology requirements need saved inland_water body and headers')
     body=read_json(a.body)[0] if a.body else None
     headers=read_json(a.headers)[0] if a.headers else None
-    print(json.dumps(evaluate(a.bbox,a.layer,body,headers)))
+    result=evaluate(a.bbox,a.layer,body,headers)
+    if a.require_water_holes or a.require_water_multipart:
+        topology=result['topology']
+        passed=(result['completeness']=='complete' and not result['reasons']
+                and result.get('candidate',{}).get('status')=='prepared_not_certified'
+                and (not a.require_water_holes or topology['water_surface_with_holes_observed'])
+                and (not a.require_water_multipart or topology['water_multipolygon_observed']))
+        result['requested_topology_pass']=passed
+    print(json.dumps(result))
+    return 2 if result.get('requested_topology_pass') is False else 0
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':raise SystemExit(main())

@@ -36,6 +36,12 @@ przez stary commit. Dotychczasowe obiekty są kodowane bez nowego pola.
 
 ## 2. Runtime i gameplay — wspólnie po fazie 1
 
+Faza 1 odebrana na VPS 2026-10-24 dla `9927254`: 273 World + 92 POI PASS,
+storage OK i runtime baseline_matches. Raporty operatora:
+`/home/johndoe/chaos-world-acceptance-KGe8to`. Nie powtarzać tego zestawu
+bez zmiany kodu lub nowego problemu. Przeładowanie web i odbiór gry pozostają
+do wykonania; EXPIRED poprzedniego pilota roads nie wymaga ponownego pobierania.
+
 Jeżeli przyjmujemy kod do procesu web, używamy wyłącznie istniejącego
 ecosystem.web.config.js, po kontroli flag i konfiguracji sekretów. Nie uruchamiać
 nowych flag razem z restartem. Polecenie operatora:
@@ -58,6 +64,12 @@ nie może tworzyć requestów do dostawcy. Lokalny Playwright sprawdza te intera
 na fixtures; nie zastępuje odbioru konfiguracji produkcyjnej.
 
 ## 3. Dalsze dane źródłowe — jeden uzgodniony plan, nie retry w ciemno
+
+25.10: kolejny konkretny blok jest przygotowany w
+[instrukcji wodnej](world_region_water_probe.md#następny-blok-odbioru--jezioro-z-wyspą-25102026).
+`world_water_topology_acceptance.sh` domyślnie pokazuje plan;
+--execute to jedno uzgodnione pobranie, potem wyłącznie kontrola offline.
+Nie wymaga restartu gry ani zmiany flag.
 
 Nie powtarzać już odebranych roads ani water-2036-5153. Zachowane body/headers
 mają fixtures i hash, można pracować offline. Rzeczywista próbka 4 wód nie ma
@@ -89,6 +101,12 @@ gry zatrzymują rozszerzenie. Pełny rollout wymaga tej obserwacji; testy lokaln
 ani pojedynczy pilot nie są jej substytutem.
 
 ## Status domknięcia
+
+2026-10-25: odbiór wdrożonego pakietu PASS. Faza 1: 365 testów i spójność
+bazy PASS. Faza 2: operator przekazał baseline_matches, HTTP 200, pm2 save
+oraz potwierdził skanowanie, hakowanie i łączenie w terytorium na nowym
+i istniejącym koncie. Nie powtarzać tych testów bez nowej zmiany lub regresji.
+Flagi pozostają w stanie bazowym; fazy 3–4 i kwalifikacje źródeł są otwarte.
 
 Zamykamy osobno: kod/testy lokalne, odbiór serwera, kwalifikację źródeł i
 aktywację produkcyjną. Ten pakiet nie ogłasza pełnego PASS 161–163. Otwartych

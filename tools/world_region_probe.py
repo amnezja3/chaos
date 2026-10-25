@@ -1,5 +1,6 @@
 """One explicit roads/water bbox capture; shares budgets, never enables discovery."""
 import argparse
+import hashlib
 from contextlib import closing
 import json
 import os
@@ -23,7 +24,7 @@ SCOPE='region-probe:roads-2036-5153-bbox-v1'
 PARTS={'parent':BOUNDS,'left':(20.36,51.53,20.365,51.54),'right':(20.365,51.53,20.37,51.54)}
 
 
-def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False,profile='roads'):
+def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False,profile='roads',water_bounds=None):
     if profile not in ('roads','waterways','inland_water'):
         raise ContractError('region_profile_unsupported')
     if profile!='roads' and (part!='parent' or _pilot):
@@ -40,6 +41,20 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
         if part!='parent':raise ContractError('pilot_parent_only')
         operation='region:roads-2036-5153-storage-pilot-v1'
         scope_id=operation;scope_limit=20
+    if water_bounds is not None:
+        if profile!='inland_water' or part!='parent' or _pilot:
+            raise ContractError('water_topology_probe_profile_required')
+        # Validate before reading credentials, creating DB state or reserving credits.
+        checked=plan_maplark_region(tuple(water_bounds),profile=profile)
+        bounds=tuple(map(float,dict(checked.params)['bbox'].split(',')))
+        if bounds==BOUNDS:
+            raise ContractError('water_region_already_captured_use_saved_response')
+        if bounds[2]-bounds[0]>.010001 or bounds[3]-bounds[1]>.010001:
+            raise ContractError('water_topology_bbox_too_large')
+        digest=hashlib.sha256(dict(checked.params)['bbox'].encode('ascii')).hexdigest()[:24]
+        operation='region:water-topology-v1:'+digest
+        # All new regions share a finite diagnostic allowance, never reset on retry.
+        scope_id='region-probe:water-topology-v1';scope_limit=40
     plan=plan_maplark_region(bounds,profile=profile)
     result=dict(status='plan',profile=profile,part=part,params=dict(plan.params),operation=operation,
         network_calls=0,max_network_calls=1,reservation=20,deadline=35,
@@ -116,13 +131,16 @@ def main():
     p.add_argument('--output')
     p.add_argument('--part',choices=tuple(PARTS),default='parent')
     p.add_argument('--profile',choices=('roads','waterways','inland_water'),default='roads')
+    p.add_argument('--water-bbox',nargs=4,type=float,metavar=('WEST','SOUTH','EAST','NORTH'),
+                   help='One inland_water topology probe, at most 0.01 degrees per axis; no ingest')
     p.add_argument('--execute',action='store_true')
     p.add_argument('--approve-bbox-probe',action='store_true')
     p.add_argument('--accept-variable-credit-cost',action='store_true')
     a=p.parse_args()
     try:
         result=capture(a.db,a.output,execute=a.execute,approve=a.approve_bbox_probe,
-                       accept_variable_cost=a.accept_variable_credit_cost,part=a.part,profile=a.profile)
+                       accept_variable_cost=a.accept_variable_credit_cost,part=a.part,profile=a.profile,
+                       water_bounds=a.water_bbox)
     except Exception as exc:
         # Do not print arbitrary transport exceptions, URLs or credentials.
         result=dict(ok=False,error=str(exc) if isinstance(exc,(POIError,ContractError)) else type(exc).__name__,

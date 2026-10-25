@@ -104,3 +104,57 @@ jeziora z wyspą otwarty bez ponawiania tego samego zapytania.
 
 Wybrzeża i morza pozostają osobnym kontraktem. Nie domykamy coastline do bbox,
 nie wyprowadzamy oceanu z braku danych, nie kwalifikujemy land_water.
+
+## Następny blok odbioru — jezioro z wyspą (25.10.2026)
+
+Poprzednich waterways/inland_water nie pobierać ponownie. Ich utrwalone dane
+mają testy offline, ale nie zawierają otworów ani MultiPolygon.
+Nowy kandydat: bbox `16.79,52.26,16.80,52.27` przy Jeziorze Góreckim.
+[Oficjalny materiał Wielkopolskiego Parku Narodowego](https://wpn.gov.pl/pliki-do-pobrania/otworz/7051427d-c41f-4b98-9d02-631c6a17116b.pdf)
+opisuje wyspy Kopczysko i Zamkową;
+[materiał parków narodowych](https://ppn.gov.pl/pliki-do-pobrania/otworz/18014297-63c7-4479-a49b-99c258c067b5.pdf)
+podaje punkt przy jeziorze 52.268806, 16.797111. To uzasadnia wybór regionu,
+nie dowodzi formatu odpowiedzi API, dokładnego położenia wyspy ani coverage.
+Żądamy pełnej geometrii przecinającej mały bbox, bez clipGeometry.
+
+Po push/pull, jeden blok na VPS:
+
+```bash
+cd ~/app/chaos
+git pull --ff-only
+.venv/bin/python -m unittest discover -s tests -p 'test_world_water_topology_probe.py'
+.venv/bin/python -m unittest discover -s tests -p 'test_world_region*.py'
+bash tools/world_water_topology_acceptance.sh
+```
+
+Ostatnie polecenie drukuje tylko plan, nie otwiera bazy ani nie wymaga klucza.
+Po przyjęciu tego konkretnego requestu operator uruchamia:
+
+```bash
+bash tools/world_water_topology_acceptance.sh --execute
+```
+
+Jedno wywołanie MapLark, deadline 35 s, rezerwacja 20 kredytów w istniejącym
+budżecie 800/24000; nowy wspólny zakres diagnostyki topologii maksymalnie 40
+kredytów na godzinę, bez automatycznego odnawiania. To nie limit ceny dostawcy.
+Operacja ma deterministyczny ID z bbox. Timeout pozostaje zarezerwowany;
+powtórzenie tej operacji nie powoduje nowego requestu. Zmiana regionu wymaga
+nowego uzgodnienia; nie służy obchodzeniu odmowy/timeoutu. Wygasłego okna nie resetować.
+Domyślny region poprzedniej próby jest odrzucany: użyć istniejącego capture.
+
+Skrypt zapisuje prywatny katalog `~/chaos-water-topology-*` z body/headers/report
+i `topology.json`. Nie restartuje PM2, nie zmienia registry/flag, nie publikuje
+world snapshotów. Księga kosztów jest aktualizowana normalnie przez acquire.
+Nie uruchamiać skryptu z `bash -x` (klucz wprowadzany cicho w podpowłoce).
+
+Odczyt offline zwraca exit 0 dopiero dla kompletnej, poprawnej odpowiedzi
+z wybraną powierzchnią zawierającą otwór. Exit 2 oznacza brak wymaganego dowodu,
+nie zachętę do ponowienia API. `water_multipolygon_observed` jest sprawdzany
+osobno — sam otwór Polygon nie oznacza MultiPolygon. Liczniki `selected_*`
+i flagi topology obejmują tylko poprawne obiekty właściwej warstwy przecinające
+bbox; liczniki raw pozostają diagnostyczne. Pełna geometria może wychodzić
+poza region, więc sam otwór nie musi leżeć wewnątrz bbox.
+
+Przekazać wydruk raportu oraz zachowane capture. Po analizie przygotować
+fixture i sprawdzenie zachowania otworu w magazynie/odczycie/restore.
+Nie pobierać ponownie, nie deklarować pełności regionu ani włączać ingest.
