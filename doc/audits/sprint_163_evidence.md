@@ -823,3 +823,27 @@ nie wymagają klucza API, restartu ani aktywacji discovery.
 Regresja `test_world_upstream_priority.py`: 6 PASS (2.345 s), obejmuje FIFO,
 pierwszeństwo oczekujących live, in-flight bez preempcji, cztery procesy+tło
 i wspólny budżet. Łącznie z nowym narzędziem 8 testów PASS.
+
+## 25.10.2026 — odroczenie admission nie zużywa prób pobrania
+
+Przegląd po benchmarku wykazał błąd: claim zwiększa attempts, a każda odmowa
+admission trafiała do ogólnego DEFERRED. Trzy ustąpienia graczom mogły zakończyć
+zadanie FAILED_TERMINAL bez HTTP. Test regresyjny najpierw odtworzył błąd
+(attempts 1 zamiast 0), następnie przeszedł po poprawce.
+
+Dodano atomową ścieżkę `defer_admission`: dla sześciu jawnych powodów
+braku slotu/circuit/pojemności/budżetu oddaje wyłącznie bieżącą próbę claim,
+zachowuje historyczne próby i expires, ustawia 60 s oczekiwania oraz reason.
+Warunki: aktualny owner, LEASED, ważny lease/popyt, brak operation w zadaniu
+i brak `discovery:<job>` w księdze kosztów. Worker wywołuje ją wyłącznie przy
+zero wywołań transportu i znanym błędzie POI/kontraktu. Nie obniża licznika
+po możliwym HTTP; kwarantanna, koszt i limit rzeczywistych prób nie są resetowane.
+
+Testy: pięć kolejnych ustąpień live, potem pojedynczy commit; wielokrotne
+oczekiwanie na budżet z wcześniejszą próbą i niezmiennym expires; odmowa
+odroczenia po rezerwacji, w FETCHING, przy złym ownerze i wygasłym popycie;
+błąd o nazwie upstream_busy rzucony przez transport nadal daje kwarantannę.
+Cały discovery: **63 PASS (20.275 s)**. Bez migracji, zmian flag, HTTP ani VPS.
+Historycznych FAILED_TERMINAL nie przywraca się automatycznie.
+
+Pełna regresja `test_world_*.py` po zmianie: **294 PASS (67.996 s)**.

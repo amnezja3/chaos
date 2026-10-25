@@ -8,7 +8,7 @@ import math
 import os
 import time
 
-from .discovery_jobs import DiscoveryJobs
+from .discovery_jobs import DiscoveryJobs, ADMISSION_DEFERRALS
 from .credit_budget import CreditBudget, _token
 from .providers import Registry
 from .service import POIError, bounded_http
@@ -16,6 +16,7 @@ from .world_acquisition import acquire_maplark
 from .world_adapters import plan_maplark
 from .world_storage import CanonicalWorldRepository
 from .world_shadow import reference
+from .world_contract import ContractError
 
 
 @dataclass(frozen=True)
@@ -169,6 +170,11 @@ class DiscoveryWorker:
                         snapshot=snapshot, billing=billing)
         except Exception as exc:
             current = self.jobs.get(key)
+            reason=str(exc) if isinstance(exc,(POIError,ContractError)) else None
+            if (calls==0 and reason in ADMISSION_DEFERRALS
+                    and self.jobs.defer_admission(key,owner,reason)):
+                return dict(status='deferred',network_calls=0,reason=reason,
+                            retry_after_seconds=60,error_type=type(exc).__name__)
             if current and current['owner'] == owner:
                 # Any possible HTTP is quarantined, never repeated automatically.
                 target = 'DEFERRED' if current['state'] == 'LEASED' else 'POLICY_BLOCKED'

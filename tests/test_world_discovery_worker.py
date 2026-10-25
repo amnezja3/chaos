@@ -121,6 +121,26 @@ class DiscoveryWorkerTests(unittest.TestCase):
         self.assertEqual(self.worker.run_one()['status'], 'deferred')
         self.transport.assert_not_called()
 
+    def test_repeated_live_admission_deferrals_do_not_exhaust_job_attempts(self):
+        gate=UpstreamPriority(self.repo)
+        for _ in range(5):
+            ticket=gate.register()
+            try:
+                self.assertEqual(self.worker.run_one()['status'],'deferred')
+            finally:gate.cancel(ticket)
+            job=self.jobs.get(self.key)
+            self.assertEqual(job['attempts'],0)
+            self.assertEqual(job['reason'],'upstream_busy')
+            self.assertGreater(job['available_at'],time.time())
+            # Advance only eligibility in this fixture; no real retry delay is removed.
+            with self.repo.transaction() as c:
+                c.execute('UPDATE world_discovery_job SET available_at=0 WHERE id=?',(self.key,))
+        self.transport.assert_not_called()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],0)
+        self.assertEqual(self.worker.run_one()['status'],'committed')
+        self.assertEqual(self.jobs.get(self.key)['attempts'],1)
+        self.transport.assert_called_once()
+
     def test_layer_budget_exhausted_with_global_credits_remaining(self):
         scopes = self.permit.budget_scopes('roads')
         self.ledger.reserve('maplark', 'earlier-background', 100, scopes=scopes)
@@ -130,6 +150,58 @@ class DiscoveryWorkerTests(unittest.TestCase):
         self.assertEqual(self.worker.run_one()['status'], 'deferred')
         self.transport.assert_not_called()
         self.assertEqual(self.ledger.status('maplark')[0]['remaining'], 700)
+
+    def test_budget_wait_preserves_prior_attempts_and_original_expiry(self):
+        self.ledger.reserve('maplark','used',100)
+        self.ledger.settle('maplark','used',100)
+        with self.repo.transaction() as c:
+            c.execute('UPDATE world_discovery_job SET attempts=1 WHERE id=?',(self.key,))
+        expires=self.jobs.get(self.key)['expires']
+        for _ in range(4):
+            result=self.worker.run_one()
+            self.assertEqual(result['reason'],'budget_exhausted')
+            job=self.jobs.get(self.key)
+            self.assertEqual((job['state'],job['attempts'],job['expires']),('DEFERRED',1,expires))
+            with self.repo.transaction() as c:
+                c.execute('UPDATE world_discovery_job SET available_at=0 WHERE id=?',(self.key,))
+        self.transport.assert_not_called()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],100)
+
+    def test_admission_deferral_cannot_reset_reserved_operation(self):
+        job=self.jobs.claim()
+        self.ledger.reserve('maplark','discovery:'+self.key,20)
+        before=self.jobs.get(self.key)
+        self.assertFalse(self.jobs.defer_admission(self.key,job['owner'],'upstream_busy'))
+        self.assertEqual(self.jobs.get(self.key),before)
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],20)
+
+    def test_admission_deferral_cannot_reset_possible_http_or_wrong_owner(self):
+        job=self.jobs.claim()
+        before=self.jobs.get(self.key)
+        self.assertFalse(self.jobs.defer_admission(self.key,'wrong-owner','upstream_busy'))
+        self.assertEqual(self.jobs.get(self.key),before)
+        self.jobs.transition(self.key,job['owner'],'FETCHING',operation='discovery:'+self.key)
+        before=self.jobs.get(self.key)
+        self.assertFalse(self.jobs.defer_admission(self.key,job['owner'],'upstream_busy'))
+        self.assertEqual(self.jobs.get(self.key),before)
+
+    def test_admission_deferral_cannot_extend_expired_demand_or_lease(self):
+        job=self.jobs.claim()
+        with self.repo.transaction() as c:
+            c.execute('UPDATE world_discovery_job SET expires=? WHERE id=?',(time.time()-1,self.key))
+        before=self.jobs.get(self.key)
+        self.assertFalse(self.jobs.defer_admission(self.key,job['owner'],'world_capacity'))
+        self.assertEqual(self.jobs.get(self.key),before)
+
+    def test_post_http_busy_named_error_is_still_quarantined(self):
+        from poi_infrastructure.service import POIError
+        self.transport.side_effect=POIError('upstream_busy')
+        result=self.worker.run_one()
+        self.assertEqual((result['status'],result['network_calls']),('reconciliation_required',1))
+        self.assertEqual(self.jobs.get(self.key)['state'],'POLICY_BLOCKED')
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],20)
+        self.assertEqual(self.worker.run_one()['status'],'idle')
+        self.transport.assert_called_once()
 
     def test_missing_scoped_budget_blocks_before_claim(self):
         from dataclasses import replace

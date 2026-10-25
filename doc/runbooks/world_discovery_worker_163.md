@@ -128,6 +128,23 @@ Zachować DB, scope, operacje i snapshoty. Wyczerpanie/expiry nie resetuje
 niepewnych kosztów. Wyłączyć worker w ecosystemie przed jego ponownym użyciem.
 Nie zmieniać przy tym działającego adaptera MapLark, wieku ani Identity Gateway.
 
+## Odroczenie przed pobraniem (poprawka 25.10)
+
+`upstream_busy`, `circuit_open`, `world_capacity`, `publication_busy`,
+`budget_exhausted` i `budget_scope_exhausted` oznaczają odroczenie o 60 s,
+bez zużycia próby pobrania, wyłącznie gdy zadanie nadal jest LEASED,
+właściciel i terminy są ważne, nie ma operation ani rezerwacji kosztu.
+Komunikat zawiera reason i retry_after_seconds; do DB zapisuje się powód.
+Nie wydłuża się popytu/permitu, nie zeruje wcześniejszych nieudanych prób
+i nie zmienia limitów kosztów. Wygaśnięcie kończy oczekiwanie normalną ścieżką.
+
+Możliwe HTTP, wcześniejsza operacja w księdze, nieznany błąd, zmiana właściciela
+lub wygasły lease nie korzystają z tego zwolnienia licznika. Dotychczasowa
+kwarantanna kosztów i odzyskiwanie po crash pozostają obowiązujące.
+Poprawka nie resetuje istniejących FAILED_TERMINAL ani nie aktywuje workera.
+Przy kolejnym wspólnym odbiorze wystarczy uwzględnić zestaw
+`test_world_discovery*.py`; nie wymaga to requestów do dostawcy.
+
 ## Otwarte odbiory całych 161–163
 
 Geoapify pozostaje odłożone: commercial technicznie działa, szeroki profil

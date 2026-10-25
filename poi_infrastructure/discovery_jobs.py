@@ -18,6 +18,9 @@ from .world_storage import FORMAT
 STATES = ('PENDING','LEASED','FETCHING','VALIDATING','COMMITTED','DEFERRED',
           'RETRY_AFTER','POLICY_BLOCKED','FAILED_TERMINAL','CANCELLED')
 
+ADMISSION_DEFERRALS=frozenset(('upstream_busy','circuit_open','world_capacity',
+    'publication_busy','budget_exhausted','budget_scope_exhausted'))
+
 
 def token(value):
     if not isinstance(value,str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}',value):
@@ -147,6 +150,29 @@ class DiscoveryJobs:
                 updated=?,operation=?,reason=? WHERE id=?''',
                 (target,owner if retained else None,row['lease_until'] if retained else 0,now+delay,now,
                  operation if target=='FETCHING' else row['operation'],reason,key))
+            return True
+
+    def defer_admission(self,key,owner,reason,delay=60):
+        """Yield before any cost reservation/HTTP without consuming a fetch attempt.
+
+        Keep demand expiry and existing failed-attempt count. A known operation,
+        changed owner, expired lease or possible HTTP prohibits this path.
+        """
+        token(key);token(owner)
+        if (reason not in ADMISSION_DEFERRALS or type(delay) not in (int,float)
+                or not math.isfinite(delay) or not 1<=delay<=300):
+            raise ValueError('job_admission_deferral')
+        now=time.time()
+        with self.repo.transaction() as c:
+            row=c.execute('''SELECT * FROM world_discovery_job WHERE id=? AND owner=?
+                AND state='LEASED' AND operation IS NULL AND lease_until>? AND expires>?''',
+                (key,owner,now,now)).fetchone()
+            if not row:return False
+            if c.execute('SELECT 1 FROM world_credit_operation WHERE account=? AND operation=?',
+                         (row['provider'],'discovery:'+key)).fetchone():return False
+            c.execute('''UPDATE world_discovery_job SET state='DEFERRED',owner=NULL,
+                lease_until=0,attempts=max(0,attempts-1),available_at=?,updated=?,reason=?
+                WHERE id=?''',(now+delay,now,reason,key))
             return True
 
     def acknowledge(self,key,snapshot,owner=None):
