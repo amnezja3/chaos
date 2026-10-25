@@ -738,3 +738,51 @@ Naprawa: jawny priorytet w podpowłoce skryptu, kontrola konfiguracji przed
 zapisami w capture. Regresja brak flagi → zero kosztów/wyjścia/scope →
 wznowienie tej samej operacji: PASS. Lokalne zestawy po poprawce:
 9 PASS (1.588 s) i 54 PASS (7.276 s). Wynik pobrania nadal oczekiwany.
+
+## 25.10.2026 — rzeczywista powierzchnia wody z otworami, VPS PASS
+
+Po ustawieniu priorytetu tylko dla CLI operator przekazał udaną próbę
+`region:water-topology-v1:4620c4a60d067b8199ec124e`, revision 9.
+Capture: `/home/johndoe/chaos-water-topology-wSpl56/capture`;
+fetched_at 1792917291.8601255. Jeden request, 3 kredyty reported/settled
+z rezerwacji 20. Brak zmiany gameplay, registry i world ingest.
+
+Raport: bbox 16.79,52.26,16.8,52.27, natural=water, clipGeometry=false;
+complete, jeden obiekt `osm:relation:3654250`, Polygon z dwoma otworami,
+zero invalid/wykluczeń. Obiekt przecina obie połowy regionu; unia wyborów
+zgodna z parent. `requested_topology_pass=true` w osobnym odczycie offline.
+To dowód rzeczywistej odpowiedzi z otworami; nie MultiPolygon (liczba 0).
+Pełność odpowiedzi nie certyfikuje selekcji regionalnej ani wersji datasetu.
+
+Źródło tego odbioru: JSON-y przekazane przez operatora. Pliki body/headers/report
+nie są jeszcze dostępne lokalnie; ich transfer jest potrzebny do utrwalenia
+fixture z hashami i sprawdzenia rzeczywistych pierścieni po storage/restore.
+Nie odtwarzać współrzędnych z samego raportu i nie ponawiać requestu.
+
+### Otrzymane pliki — realne otwory i restore lokalny PASS
+
+Operator skopiował `chaos-water-topology-wSpl56` do
+`instance/provider-captures/`. Odczytano body/headers/report; oryginały
+pozostały niezmienione i poza commitem. Minimalny fixture
+`maplark_inland_water_holes_20261025.json` zachowuje OSM ID oraz wszystkie
+współrzędne, tylko tagi natural/water/type; pomija nazwę, odnośniki i area_m2.
+Metadane zawierają SHA-256 trzech źródeł oraz fixture, datę źródłową,
+revision 9, nagłówki kompletności/kosztu i atrybucję ODbL/OSM/MapLark.
+
+Rzeczywista geometria: Polygon, 608 punktów obrysu, otwory 40 i 46 punktów.
+Pierwszy otwór leży poza bbox, drugi przecina bbox. Cztery nowe testy:
+
+- tożsamość, dokładne współrzędne, topology holes=true i multipart=false;
+- publikacja w izolowanej bazie, ponowne otwarcie, SQLite backup/restore:
+  obie połowy regionu zachowują cały obiekt z oboma otworami bez uproszczeń;
+- mały bbox wewnątrz części wyspy objętej dowodem zwraca COMPLETE_FRESH
+  z pustą wodą; bbox drugiej wyspy poza dowodem daje MISS; bbox w wodzie
+  zwraca pełne jezioro, zapytanie o land_water nie przejmuje coverage;
+- prawdziwe otwory nie nadają certyfikatu regionalnego: bez certyfikatu
+  publikacja area jest odrzucana, same obserwacje nie dają local hit.
+
+Certyfikat, provider i zegar publikacji są testowe; nie odświeżono snapshotów
+produkcyjnych. Żadnego HTTP, użycia kluczy ani zmiany PM2. Testy nowej próbki:
+4 PASS (0.466 s); cała regresja regionalna: **58 PASS (8.434 s)**.
+Zamknięto brak rzeczywistej próbki Polygon z otworami i jej lokalny storage/restore.
+Rzeczywisty MultiPolygon, kwalifikacja źródła/wersji i aktywacja pozostają osobno.

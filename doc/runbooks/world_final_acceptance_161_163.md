@@ -72,9 +72,12 @@ na fixtures; nie zastępuje odbioru konfiguracji produkcyjnej.
 Nie wymaga restartu gry ani zmiany flag.
 
 Nie powtarzać już odebranych roads ani water-2036-5153. Zachowane body/headers
-mają fixtures i hash, można pracować offline. Rzeczywista próbka 4 wód nie ma
-otworu ani multipart: potrzebny osobny mały region takiego jeziora, z ustalonym
-ID operacji, limitem i kosztem przed requestem. Bez danych nie oznaczamy PASS.
+mają fixtures i hash, można pracować offline. Dodatkowa próba jeziora z 25.10
+zwróciła Polygon z dwoma otworami za 3 kredyty. Pliki otrzymano lokalnie,
+utworzono fixture z hashami; zachowanie otworów, pusty odczyt wyspy wewnątrz
+dowodu, MISS poza nim i backup/restore przeszły testy (regresja regionalna 58 PASS).
+Nie powtarzać również tego requestu. Rzeczywisty MultiPolygon nie został jeszcze
+otrzymany; syntetyczne testy tego typu nie są dowodem danych dostawcy.
 
 Warstwa ląd–morze ma lokalny kontrakt gotowego regionalnego produktu,
 opisany w world_land_water_product.md. Brak zatwierdzonego regionalnego źródła
