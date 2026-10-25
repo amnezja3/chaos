@@ -112,3 +112,36 @@ inland_water) w sektorze 2036/5153, do trzech requestów, 60 kredytów wspólnie
 20 na warstwę, jedno pozwolenie godzinne, retencja 1800 s. Bez zmiany rejestru,
 limitów konta i konfiguracji PM2. Nowe narzędzia mają domyślny tryb planowania,
 backup przed zmianami i nie odnawiają istniejących limitów/pozwolenia.
+
+## Odbiór trzech warstw na VPS — 84e68bd, PASS
+
+Operator przekazał wynik `world_collection_execute.sh --execute`:
+
+- 5 testów przygotowania PASS / 8,540 s; baseline zgodny przed i po.
+- Sektor 2036/5153; trzy nowe zadania COMMITTED, po jednej próbie.
+- inland_water: 4 obiekty; roads: 76; waterways: 2. Łącznie 82 obiekty
+  w trzech nowych snapshotach observations/UNKNOWN.
+- Dokładnie 3 requesty po 3 kredyty settled: łącznie 9. MapLark dziennie
+  23→32/800, rolling 99→108/24000, unresolved 0.
+- Oddzielny proces planowania: jobs [], network_calls 0. Potwierdza brak
+  ponownego przygotowania tych zadań; nie jest testem restartu demona PM2.
+- Magazyn: 5 snapshotów, 245972 logicznych bajtów; integrity/FK ok;
+  wszystkie 4 historyczne i nowe zadania COMMITTED, brak wygasłych leases
+  i nierozstrzygniętych zadań.
+- Web online, worker stopped; discovery passive; routing/ingest/read OFF,
+  age 0. Geoapify zachował 4 stare niepewne operacje, bez aktywnego okna.
+- Backup/permit: `data/collection-sector-2036-5153-v1/` na VPS.
+
+Complete odpowiedzi dostawcy nie oznacza potwierdzonego pokrycia regionu.
+76 dróg i 2 cieki to obiekty źródłowego wyniku, nie liczba po dokładnym
+filtrowaniu przecięcia geometrii sektora. Wcześniejszy kwalifikowany pilot
+odrzucał envelope false positives, dając 75 dróg/1 ciek. Collector zachowuje
+materiał źródłowy bez dowodu area coverage; nie twierdzi, że false positives
+zniknęły. Snapshoty zachowują pełne geometrie.
+
+Odhaczono bounded collection → commit → raport administracyjny → osobny plan
+bez nowych zadań → settled koszt → niezmieniony baseline. Nie ponawiać tych
+trzech pobrań dla samego odtworzenia PASS. Retencja nadal 1800 s; nie deklarować
+stale rosnącego archiwum ani aktywnego ciągłego uzupełniania.
+Odbiór dłuższej retencji, Geoapify i aktywnej hierarchii pozostaje otwarty,
+podobnie jak nieobsługiwane profile geograficzne Overpass i źródło land_water.

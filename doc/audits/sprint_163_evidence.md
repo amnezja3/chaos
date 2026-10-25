@@ -847,3 +847,12 @@ Cały discovery: **63 PASS (20.275 s)**. Bez migracji, zmian flag, HTTP ani VPS.
 Historycznych FAILED_TERMINAL nie przywraca się automatycznie.
 
 Pełna regresja `test_world_*.py` po zmianie: **294 PASS (67.996 s)**.
+
+## 2026-10-25 — zbiorczy odbiór sektora na VPS
+
+Pakiet a480269: 317 World + 92 POI PASS, migracja i reload web potwierdzone.
+Pakiet 84e68bd: roads/waterways/inland_water, trzy COMMITTED, 82 obiekty,
+9 kredytów settled, osobny proces planowania bez nowych zadań, integralność
+bazy i końcowy baseline PASS. Szczegóły: `world_collection_integration_20261025.md`.
+Collector jednorazowy, worker PM2 stopped, retencja 1800 s. Nie oznacza to
+aktywacji stałego archiwum, pełnego pokrycia ani ukończenia całego 161–163.
