@@ -44,6 +44,20 @@ class RoutingTests(unittest.TestCase):
         for chain in (['maplark','maplark'],['missing'],['a']*4):
             with self.assertRaises(POIError):r.save('poi','live',2,chain,'test')
 
+    def test_missing_priority_uses_lowest_rank_without_mutating_registry(self):
+        first=self.overpass()
+        missing=dict(first,id='legacy',operator_group='legacy.invalid')
+        missing.pop('priority')
+        with patch('poi_infrastructure.routing.Registry.list',return_value=[missing,first]):
+            result=Routing(self.service.repo).get('poi','live')
+        self.assertEqual(result['chain'],['overpass','legacy'])
+        self.assertNotIn('priority',missing)
+
+    def test_saved_route_does_not_recompute_defaults(self):
+        routing=self.route([])
+        with patch('poi_infrastructure.routing.Registry.list',side_effect=AssertionError('unexpected registry read')):
+            self.assertEqual(routing.get('poi','live')['chain'],[])
+
     def test_overpass_then_maplark_fallback_one_attempt_each(self):
         self.overpass();self.route(['overpass','maplark'])
         with patch.dict(os.environ,CHAOS_POI_ROUTING_ENABLED='1'),patch(

@@ -77,8 +77,11 @@ class Routing:
             c.close()
         # Explicit saved routes win, including an intentionally empty route.
         # Defaults are used only by the opt-in router, never by the legacy scan.
+        if row is not None:
+            return dict(layer=layer,lane=lane,revision=row['revision'],chain=json.loads(row['chain']))
         candidates = [p for p in Registry(self.repo).list() if not reason(p,layer,lane)]
-        candidates.sort(key=lambda p:(p['priority'],p['id']))
+        # Missing ordering metadata must not crash routing or promote a source.
+        candidates.sort(key=lambda p:(p.get('priority',100),p['id']))
         default = []
         if (layer,lane)==('poi','live'):
             paid = [p['id'] for p in candidates if adapter(p)=='maplark'][:1]

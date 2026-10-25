@@ -59,3 +59,25 @@ profile geograficzne, Geoapify ograniczone obserwacje POI. Dalsze rozszerzenie
 tych profili nie może być raportowane jako już działające.
 
 Instrukcja: ../runbooks/world_collection_sector_upgrade.md.
+
+## Korekta po pierwszym przebiegu VPS
+
+Operator uruchomił `world_collection_acceptance.sh --prepare` na b9de0da.
+Baseline PASS; 315 testów World zakończyło się jednym błędem:
+`test_background_hierarchy_requires_layer_selection_and_rechecks_changes`,
+`KeyError: priority`. Minimalny wpis dostawcy w fixture workera nie zawierał
+pola porządkującego. Nowy domyślny routing odczytywał je bez wartości zastępczej.
+To błąd finalnego pakietu, nie potwierdzona różnica działania Windows/Linux.
+Wcześniejszy lokalny PASS nie stanowił pełnej regresji końcowego b9de0da.
+
+Skrypt zakończył się w testach, przed dry-run, backupem i migracją produkcji.
+Raport VPS: `/home/johndoe/chaos-world-acceptance-jYi0eY`.
+Poprawka daje brakującemu priorytetowi najniższy ranking 100 i nie przelicza
+domyślnych kandydatów podczas odczytu zapisanej trasy. Dodano regresję obu
+przypadków; istniejący test workera nadal odtwarza pierwotny przypadek.
+Nie zmieniono uprawnień źródeł ani flag aktywacji.
+
+Końcowa regresja poprawki: 317 testów `test_world*.py` PASS / 196,548 s.
+Kod nie był zmieniany w trakcie tego przebiegu. `git diff --check` PASS.
+Na VPS powtórzyć dotychczasowy skrypt `world_collection_acceptance.sh --prepare`;
+nie omijać jego testów ani nie uruchamiać workera przed przygotowaniem schematu.
