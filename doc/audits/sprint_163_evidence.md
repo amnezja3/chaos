@@ -786,3 +786,40 @@ produkcyjnych. Żadnego HTTP, użycia kluczy ani zmiany PM2. Testy nowej próbki
 4 PASS (0.466 s); cała regresja regionalna: **58 PASS (8.434 s)**.
 Zamknięto brak rzeczywistej próbki Polygon z otworami i jej lokalny storage/restore.
 Rzeczywisty MultiPolygon, kwalifikacja źródła/wersji i aktywacja pozostają osobno.
+
+## 25.10.2026 — seria 100 acquisition i kontrola budżetu, offline
+
+Dodano `tools/world_concurrency_benchmark.py`: cztery procesy acquisition,
+jeden background, izolowana tymczasowa SQLite, rzeczywisty kod admission
+i rezerwacji/rozliczenia z wbudowanym transportem testowym. 100 prób live,
+jedna próba tła konkurująca i dziewięć po zakończeniu procesów live.
+Ograniczenia CLI: 4–100 live, 2–10 tła, budżet 20–1000; brak parametru bazy.
+Procesy są sprzątane także przy błędzie/watchdogu. Zero HTTP i produkcyjnych zapisów.
+
+Windows, oddzielne przebiegi, transport pusty 20 ms, koszt 3, rezerwacja 20:
+
+| Budżet | Live sukces / budget / busy | Tło sukces / budget / busy | Naliczono | Czas całkowity |
+| --- | --- | --- | ---: | ---: |
+| 100 | 27 / 72 / 1 | 0 / 9 / 1 | 81 | 34.000 s |
+| 500 | 95 / 0 / 5 | 9 / 0 / 1 | 312 | 59.547 s |
+
+W obu próbach checks wszystkie true: 110 wyników, max_inflight=1,
+naliczenia = 3 × wywołania transportu = 3 × operacje, bez przekroczenia budżetu,
+bez pozostawionych lease, integrity OK. Pozostałe 19 przy limicie 100 nie
+wystarcza na rezerwację 20, więc odmowy są oczekiwane. PASS dotyczy tych
+niezmienników, nie gwarancji sukcesu każdego skanu.
+
+P50/P95 wszystkich prób (łącznie z odmowami): dla limitu 100 live 1.063/2.141 s,
+tło 0.078/0.109 s; limit 500 live 2.281/2.704 s, tło 0.219/0.266 s.
+To nie SLO: brak serwera web, rzeczywistego HTTP, geometrii, 100 jednoczesnych
+użytkowników i produkcyjnej maszyny. Priorytet FIFO i fairness wymagają
+odrębnych testów; benchmark ich nie dowodzi. Nie zmieniono limitów produkcji.
+
+Testy narzędzia: 2 PASS (2.399 s), w tym pięć procesów przy budżecie 20,
+jeden transport/3 kredyty i brak tworzenia bazy dla niepoprawnych limitów.
+Komendy do następnego wspólnego odbioru dodano do runbooka fazy 4;
+nie wymagają klucza API, restartu ani aktywacji discovery.
+
+Regresja `test_world_upstream_priority.py`: 6 PASS (2.345 s), obejmuje FIFO,
+pierwszeństwo oczekujących live, in-flight bez preempcji, cztery procesy+tło
+i wspólny budżet. Łącznie z nowym narzędziem 8 testów PASS.

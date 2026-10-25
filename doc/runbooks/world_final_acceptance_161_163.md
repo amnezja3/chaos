@@ -92,6 +92,40 @@ samych 63 obiektów commercial ani nie traktować Point jako pełnej geometrii.
 
 ## 4. Kontrolowane ON i obserwacja
 
+### Pomiar koordynacji przed kolejnym ON
+
+Przy następnym wspólnym odbiorze (bez nowego zapytania do dostawcy):
+
+```bash
+.venv/bin/python tools/world_concurrency_benchmark.py
+.venv/bin/python tools/world_concurrency_benchmark.py --credit-limit 500
+```
+
+Każdy przebieg tworzy i usuwa własną tymczasową SQLite, uruchamia cztery
+procesy acquisition oraz jeden tła. Nie przyjmuje ścieżki bazy produkcyjnej,
+nie zmienia PM2 ani flag gry, używa wyłącznie wbudowanego transportu testowego
+(pusta poprawna odpowiedź po 20 ms, 3 symulowane kredyty). Klucz odziedziczony
+z otoczenia jest zastępowany wartością testową wewnątrz procesów.
+
+100 prób skanu jest rozłożonych między cztery procesy. Pierwsza próba tła
+konkuruje z live; pozostałe dziewięć czeka na zakończenie live. To zadany
+scenariusz koordynacji, nie 100 jednoczesnych graczy ani test HTTP aplikacji.
+Operacje są odrębne; odmowa nie powoduje ponowienia tego samego requestu.
+
+Oczekiwane: status pass i wszystkie checks=true, dokładnie 100+10 wyników,
+maksymalnie jeden transport w toku, rozliczenia zgodne z symulowanymi
+wywołaniami, brak pozostawionych lease i spójna baza. Przy limicie 100
+oczekiwane odmowy budget_exhausted: pozostałe środki muszą wystarczyć na
+rezerwację 20, nie tylko na symulowany koszt 3. upstream_busy raportowany
+osobno; dopuszczony wynik nie znaczy, że skan odniósł sukces.
+
+Przy limicie 500 środki wystarczają na scenariusz, ale konkurencja nadal może
+odmówić admission. Raport pokazuje wyniki i p50/p95 wszystkich prób osobno
+dla live/tła. Nie są to opóźnienia MapLark, pomiar geometrii/WAL/RSS, dowód
+fairness regionalnego ani SLO produkcji. Testy priorytetu FIFO i nieprzerywania
+in-flight pozostają w `test_world_upstream_priority.py`. Wynik tego benchmarku
+uzupełnia D02/D14, nie zamyka całego D08 ani nie zwiększa limitów produkcji.
+
 Osobny uzgodniony zakres per warstwa: regiony, prawa storage/background,
 fresh/usable, czas pozwolenia, liczba zadań, limity konta i warstwy, progi stop.
 Istniejący jednorazowy worker i permit są mechanizmem wdrożenia; nie ustawiamy
