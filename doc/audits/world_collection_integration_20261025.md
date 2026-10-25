@@ -189,3 +189,34 @@ Nowy scenariusz integracyjny 8 PASS; budżety 17 PASS (w tym kontrola zwykłego
 nowego okna, które nadal nie może ukryć starych kosztów); acquisition 10 PASS;
 readiness 5 PASS. Łącznie pakiet 40 testów. Testy izolowane z atrapami HTTP;
 wykonanie nowego skryptu z prawdziwym Geoapify pozostaje do odbioru na VPS.
+
+### VPS fa7fc69 — Geoapify i archiwum 7 dni: PASS
+
+Operator dostarczył wynik `world_geo_archive_execute.sh --execute`:
+
+- Testy izolowane: 8/7.092s, budżety 17/4.622s, acquisition 10/2.753s,
+  readiness 5/3.101s — łącznie 40 PASS.
+- Dokładnie jeden request commercial, Warszawa 52.2319/21.0067, 300 m,
+  limit 100; 63 obiekty, `archived_observations`, `local_readback_pass=true`.
+- Snapshot `ec02e02699468cc52cb18c0211ffbf52bcccd363d6b5d217f809f9ae7ec7f806`,
+  coverage UNKNOWN, 604800 s retencji, retain_until 1793538509.4345217.
+- Raport potwierdza jeden aktywny rekord retencji. Nie jest to obserwacja
+  rzeczywistego upływu siedmiu dni; wygaśnięcie i cleanup sprawdzono testami.
+- Carry-forward: zachowano 4 stare uncertain / 20 kredytów; dodano jedną
+  uncertain / 5. Łącznie 5 operacji / 25 rezerwacji, bez wymyślonego kosztu.
+  Okno godzinne ma 0 dostępnych kredytów. Jego 100% oznacza wykorzystanie
+  wewnętrznego limitu tego testu, nie wyczerpanie planu Geoapify.
+- Geoapify revision 5: dopuszczenie do zapisu obserwacji, bez normal_scan
+  i background_refresh. Pozostałe blokady background_refresh i budżetu
+  są oczekiwanym wynikiem ograniczonego zakresu, nie błędem odbioru.
+- MapLark nadal revision 9, 32/800 dziennie, 108/24000 rolling, bez uncertain.
+- Baseline przed i po zgodny: web online, worker stopped, routing/read/ingest
+  OFF, discovery passive, age 0. Nie wykonano restartu PM2.
+- Backup i report: `data/geo-archive-7d-20261025-v1/` na VPS.
+
+Nie ponawiać zapytania dla samego potwierdzenia PASS ani zwiększać limitu
+testowego. Odhaczono rzeczywiste pobranie Geoapify → zachowanie kosztów →
+zapis 7 dni → kontrolę odczytu. Nie odhaczono ciągłego workera Geoapify,
+automatycznej hierarchii skanera ani siedmiodniowej retencji kolekcji MapLark.
+Następny pakiet obejmuje te odrębne konfiguracje w granicach już ustalonych
+limitów i regionów; dalsze wydatki Geoapify wykraczają poza ten pojedynczy test.

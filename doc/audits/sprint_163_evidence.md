@@ -856,3 +856,13 @@ Pakiet 84e68bd: roads/waterways/inland_water, trzy COMMITTED, 82 obiekty,
 bazy i końcowy baseline PASS. Szczegóły: `world_collection_integration_20261025.md`.
 Collector jednorazowy, worker PM2 stopped, retencja 1800 s. Nie oznacza to
 aktywacji stałego archiwum, pełnego pokrycia ani ukończenia całego 161–163.
+
+## 2026-10-25 — Geoapify: rzeczywisty zapis archiwalny
+
+VPS fa7fc69: 40 testów PASS, jeden request Geoapify, 63 obserwacje POI,
+7 dni retencji i kontrola odczytu PASS. Zachowano stare 20 kredytów uncertain,
+nowe 5 pozostaje uncertain; 25/25 dotyczy wyłącznie jednorazowego okna.
+Baseline produkcyjny bez zmian. Szczegóły i identyfikator snapshotu:
+`world_collection_integration_20261025.md`, sekcja „VPS fa7fc69”.
+Źródło nie ma uprawnień normal_scan/background_refresh; nie deklarować
+uruchomienia Geoapify jako fallbacku gry ani ciągłego kolektora.
