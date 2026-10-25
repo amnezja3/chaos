@@ -145,3 +145,27 @@ trzech pobrań dla samego odtworzenia PASS. Retencja nadal 1800 s; nie deklarowa
 stale rosnącego archiwum ani aktywnego ciągłego uzupełniania.
 Odbiór dłuższej retencji, Geoapify i aktywnej hierarchii pozostaje otwarty,
 podobnie jak nieobsługiwane profile geograficzne Overpass i źródło land_water.
+
+## Pakiet archiwum / Geoapify — przygotowanie lokalne
+
+Operator zatwierdził 7 dni retencji oraz jeden test kolektora Geoapify z
+rezerwacją 5 kredytów, z zachowaniem wcześniejszych kosztów niepewnych.
+Nie aktywowano tych parametrów produkcyjnie.
+
+Dodano `world_activation_readiness.py`: odczyt spójnej kopii SQLite, zestawienie
+brakujących scopes, terminów review, budżetów, dawnych niepewnych operacji,
+tras live/background i aktualnych rekordów retencji. Nie zmienia rejestru,
+budżetu ani uprawnień; nie sprawdza sieci i nie deklaruje gotowości endpointu.
+
+Test integracyjny retencji przechodzi przez publikację workerem, otwarcie
+repozytorium z dysku, symulowane wygaśnięcie świeżości, zachowanie geometrii
+w archiwum i końcowe usunięcie. Zegar produkcyjny nie jest zmieniany.
+Lokalne zestawy: retencja 7, diagnostyka 5, Geoapify 5, routing 15,
+sector collection 7 — łącznie 39 testów PASS. Transporty są atrapami.
+Składnia skryptu Bash sprawdzona przez `bash -n`.
+
+Zbiorcza instrukcja VPS: `doc/runbooks/world_archive_geo_acceptance.md`.
+Nie uruchomiono jeszcze tego pakietu na VPS. Aktualny stan rejestru i budżetu
+Geoapify potrzebny jest przed przygotowaniem wykonawczej zmiany; szczególnie
+nie należy obchodzić `budget_previous_period_unresolved` nowym oknem ani
+nadpisywać zapisanej, celowo pustej trasy.
