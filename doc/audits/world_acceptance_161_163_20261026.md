@@ -1,7 +1,11 @@
-# Odbiór 161–163 — zamknięty na aktualnym poziomie, 26.10.2026
+# Odbiór wdrożonego podzakresu 161–163, 26.10.2026
 
-Operator zatwierdził zamknięcie mechanizmu zbierania i przygotowania geografii.
+Operator odebrał wdrożony podzakres zbierania i przygotowania geografii.
 Wykorzystanie wszystkich warstw w mechanikach gry pozostaje przyszłym zakresem.
+
+**Korekta po przeglądzie: ten protokół nie zamyka pełnego zakresu 161–163.**
+Globalny odczyt repozytorium dla skanera i pozostałe braki opisuje
+[aktualna macierz zakresu](world_scope_reconciliation_161_163_20261026.md).
 
 ## Potwierdzone na VPS
 
