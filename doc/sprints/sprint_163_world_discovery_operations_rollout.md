@@ -1,5 +1,8 @@
 # Sprint 163 — World Discovery: kolejka, panel operacyjny i kontrolowany rollout
 
+**Plan wykonawczy pozostałego zakresu:** [163.5 — domknięcie pamięci świata](sprint_163_5_world_repository_completion.md).
+Obejmuje brakujące integracje 161–163 oraz wspólny pakiet wdrożenia i odbioru.
+
 **Stan po przeglądzie 26.10.2026: zakres częściowo odebrany, pełny zakres nadal otwarty.**
 Działają skaner i regularny kolektor; globalny odczyt świata dla skanera nie jest gotowy.
 Aktualna macierz kodu, wdrożeń i braków:

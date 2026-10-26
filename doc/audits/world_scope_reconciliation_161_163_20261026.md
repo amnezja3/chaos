@@ -6,6 +6,10 @@ zmian flag, pobrań dostawców ani deklaracji aktualnego stanu pamięci procesó
 
 ## Wniosek
 
+Na dyspozycję operatora zadania z tego audytu rozpisano w
+[planie wykonawczym 163.5](../sprints/sprint_163_5_world_repository_completion.md).
+Utworzenie planu nie oznacza zakończenia wymienionych braków.
+
 **Pełny zakres 161–163 nie jest zakończony.** Odebrano działający skaner,
 archiwum obserwacji, regularny kolektor, koszty i podstawową administrację.
 Nie odebrano globalnej ścieżki „zapis świata → kolejne skany z repozytorium”.
