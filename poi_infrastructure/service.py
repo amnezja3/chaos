@@ -192,6 +192,9 @@ class Service:
 
     def fetch(self, query, endpoints, timeout, fresh_ttl, stale_ttl, options=None):
         options = options or {}
+        if options.get('_spatial'):
+            from .world_shadow import demand
+            demand(self, options['_spatial'])
         if os.environ.get('CHAOS_POI_ROUTING_ENABLED') == '1' and options.get('_spatial'):
             from .scan_router import fetch_routed
             return fetch_routed(self,query,timeout,fresh_ttl,stale_ttl,options)

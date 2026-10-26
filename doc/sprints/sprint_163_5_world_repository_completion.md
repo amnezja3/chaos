@@ -6,6 +6,10 @@ Postęp: [mapa wymagań i dowodów](../audits/sprint_163_5_traceability.md).
 Przygotowany [odbiór pierwszego pakietu](../runbooks/world_global_exact_163_5.md).
 Nie uruchomiono trybu globalnego na produkcji; pozostałe etapy nadal otwarte.
 
+Drugi pakiet lokalny: regionalny Overpass pod aktywnym routerem i wspólny zapis
+popytu skanera — 116 testów PASS. [Instrukcja](../runbooks/world_regional_read_163_5.md).
+Regionalne MapLark/Geoapify, ruch bez skanu i halo pozostają do wykonania.
+
 Dyspozycja operatora: zebrać w 163.5 pozostały zakres 161–163 i wykonać go
 etapami: lokalny kod → wdrożenie → zbiorczy test → korekta → odbiór.
 To kontynuacja zobowiązań 161–163, nie przeniesienie ich poza uzgodniony zakres.
@@ -104,7 +108,7 @@ jawną zależnością; nie oznaczamy całego pełnego fallbacku jako ukończoneg
 Ponowne użycie: DemandQueue, `regular_discovery.py`, `discovery_worker.py`,
 istniejące lease/fencing, priorytet gracza, harmonogram i wspólna księga.
 
-- [ ] Przenieść rejestrację sektora do wspólnej ścieżki skanera, także dla trafień
+- [x] Przenieść rejestrację sektora do wspólnej ścieżki skanera, także dla trafień
   cache/world i Overpass, bez podwójnego naliczania z gałęzi MapLark.
 - [ ] Dodać rejestrację odwiedzenia sektora bez skanu, bez tras i identyfikatorów
   graczy w kolejce regionalnej; deduplikacja i ograniczenie częstości zapisu.

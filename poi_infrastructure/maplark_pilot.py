@@ -44,8 +44,6 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
         raise POIError('maplark_not_approved')
     from . import world_shadow
     from .world_access import allowed as world_allowed, network_paused
-    if phase in ('all','local','fresh'):
-        world_shadow.demand(service,spatial)
     plan = plan_maplark(spatial['lat'], spatial['lon'], spatial['radius'], limit=1000)
     key = batch_key('maplark', PROFILE, plan.profile, PROFILE,
                     {'params': plan.params, 'revision': candidate['revision']})

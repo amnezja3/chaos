@@ -67,7 +67,7 @@ class WorldRepository:
                              config, fetched, coverage.PROFILE, bounds)
 
     def _publish(self, key, owner, data, provider, fresh_ttl, usable_ttl,
-                 config, fetched, profile, bounds=None):
+                 config, fetched, profile, bounds=None, publication_guard=None, retain_until=None):
         """Publish only under the still-valid 158 query lease; all or nothing."""
         config = config or Config()
         validate(data, config)
@@ -76,6 +76,9 @@ class WorldRepository:
         if (not all(math.isfinite(v) for v in (fetched, fresh_ttl, usable_ttl))
                 or not 0 <= fresh_ttl <= usable_ttl or fetched > now):
             raise POIError('world_invalid_time')
+        if retain_until is not None and (type(retain_until) not in (int,float)
+                or not math.isfinite(retain_until) or not fetched+usable_ttl <= retain_until <= now+31*86400):
+            raise POIError('world_retention_invalid')
         raw = json.dumps(data, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
         if len(raw) > min(config.max_response, self.max_bytes):
             raise POIError('world_capacity')
@@ -88,6 +91,8 @@ class WorldRepository:
             if not c.execute('SELECT 1 FROM leases WHERE key=? AND owner=? AND until_at>?',
                              (key, owner, time.time())).fetchone():
                 return False
+            if publication_guard is not None and not publication_guard(c):
+                return False
             total, count = c.execute('SELECT coalesce(sum(bytes),0),count(*) FROM world_snapshot').fetchone()
             if c.execute('SELECT 1 FROM world_snapshot WHERE id=?', (snapshot,)).fetchone():
                 return True
@@ -97,6 +102,9 @@ class WorldRepository:
             c.execute('INSERT INTO world_snapshot VALUES (?,?,?,?,?,?,?,?,?,?)',
                       (snapshot, key, provider, fetched, profile, raw,
                        digest, len(raw), fetched + fresh_ttl, fetched + usable_ttl))
+            if retain_until is not None:
+                c.execute('INSERT INTO world_retention VALUES (?,?,?)',
+                          (snapshot,retain_until,bounds['_source']['storage_reference']))
             c.executemany('INSERT INTO world_member(snapshot_id,osm_type,osm_id,ordinal,element) VALUES (?,?,?,?,?)',
                           [(snapshot, e['type'], e['id'], i,
                             json.dumps(e, ensure_ascii=False, separators=(',', ':'), allow_nan=False))
@@ -127,23 +135,36 @@ class WorldRepository:
             return None
         return data
 
-    def read_geometry(self, lat, lon, radius, filters, allow_stale=False, config=None):
+    def read_geometry(self, lat, lon, radius, filters, allow_stale=False, config=None,
+                      *, provider=None, profile=None, metadata=None, still_active=lambda: True):
         """Experimental read; unsupported or incomplete geometry is a miss."""
         from .geometry import CoveredGeometry, UncertifiedGeometry
+        profile = profile or CoveredGeometry.PROFILE
+        deadline = time.monotonic()+2
+        bytes_read = 0
+        if not still_active():
+            return None
         c = self.repo.connect()
         try:
             rows = c.execute('''SELECT s.id, s.fresh_until, s.usable_until, c.bounds FROM world_coverage c
                 JOIN world_snapshot s ON s.id=c.snapshot_id WHERE c.profile=?
                 AND s.profile=c.profile AND s.fetched<=? AND s.usable_until>=?
-                ORDER BY s.fetched DESC''', (CoveredGeometry.PROFILE,time.time(),time.time())).fetchall()
+                AND (? IS NULL OR s.provider=?)
+                ORDER BY s.fetched DESC LIMIT 64''', (profile,time.time(),time.time(),provider,provider)).fetchall()
         finally:
             c.close()
         for row in rows:
+            if not still_active() or time.monotonic()>=deadline:
+                return None
             expires = row['usable_until' if allow_stale else 'fresh_until']
             if time.time() > expires:
                 continue
             try:
-                bounds = json.loads(row['bounds'])
+                original_bounds = json.loads(row['bounds'])
+                bounds = dict(original_bounds)
+                saved_metadata = bounds.pop('_source', None)
+                if saved_metadata != metadata:
+                    continue
                 # Reject non-covering candidates before loading large payloads.
                 CoveredGeometry({'elements':[]}, **bounds).select(lat,lon,radius,filters)
             except (UncertifiedGeometry,ValueError,TypeError,KeyError):
@@ -156,7 +177,14 @@ class WorldRepository:
             if row is None:
                 continue
             raw = row['payload']
+            bytes_read += len(raw)
+            if bytes_read > 8*1024*1024:
+                return None
             if len(raw) != row['bytes'] or hashlib.sha256(raw).hexdigest() != row['digest']:
+                continue
+            expected = hashlib.sha256(
+                f"{row['query_key']}:{row['fetched']}:{row['digest']}:{row['profile']}:{json.dumps(original_bounds,sort_keys=True)}".encode()).hexdigest()
+            if row['id'] != expected:
                 continue
             try:
                 covered = CoveredGeometry(json.loads(raw), **bounds)
@@ -164,7 +192,7 @@ class WorldRepository:
                 validate(result, config or Config())
             except (UncertifiedGeometry, ValueError, TypeError, KeyError, POIError):
                 continue
-            if time.time() <= expires:
+            if time.time() <= expires and time.monotonic()<deadline and still_active():
                 return result
         return None
 

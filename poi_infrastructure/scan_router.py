@@ -17,8 +17,10 @@ RETRYABLE = frozenset(('scan_network_paused','circuit_open','upstream_busy','joi
 
 
 def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, active, deadline,
-              world_access=lambda: False):
+              world_access=lambda: False, spatial=None):
     from . import world_shadow
+    from . import routed_region
+    from .geometry import CoveredGeometry, UncertifiedGeometry
     from .world_access import network_paused
     # Namespace by source/revision: changing a chain cannot reuse an unrelated result.
     key = key_for(json.dumps([candidate['id'],candidate['revision'],query]))
@@ -33,6 +35,12 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
     if phase in ('world', 'network', 'stale') and world_access():
         data = world_shadow.read(service, candidate, key, lambda: active() and world_access(),
                                  allow_stale=phase=='stale', overpass=True)
+        if data is None:
+            try:
+                data = routed_region.read(service, candidate, spatial,
+                    lambda: active() and world_access(), stale=phase=='stale')
+            except Exception as exc:
+                world_shadow.failed('regional_read', exc)
         if data is not None:
             return data, 'stale' if phase=='stale' else 'world'
     if phase != 'network':
@@ -45,13 +53,37 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
     owner = service.repo.acquire(key, min(115,max(1,deadline-time.monotonic()+5)))
     if not owner:
         raise POIError('join_timeout')
-    slot = None
+    slot = fill_owner = None
+    fill = None
     try:
         data = local(fresh_ttl)
         if data is not None:
             return data,'fresh'
         if time.monotonic() >= deadline:
             raise POIError('deadline')
+        if world_access():
+            try:
+                fill = routed_region.plan(candidate, spatial)
+            except UncertifiedGeometry:
+                fill = None
+        if fill:
+            join_until = min(deadline, time.monotonic()+service.config.join_wait)
+            while True:
+                if not active() or not world_access():
+                    raise POIError('routing_changed_or_cancelled')
+                fill_owner = service.repo.acquire(fill[0], min(115,max(1,deadline-time.monotonic()+5)))
+                try:
+                    data = routed_region.read(service, candidate, spatial, lambda: active() and world_access())
+                except Exception as exc:
+                    world_shadow.failed('regional_read', exc)
+                    data = None
+                if data is not None:
+                    return data, 'world'
+                if fill_owner:
+                    break
+                if time.monotonic() >= join_until:
+                    raise POIError('join_timeout')
+                time.sleep(.05)
         if os.environ.get('CHAOS_POI_PRIORITY_ENABLED')=='1':
             from .upstream_priority import UpstreamPriority
             gate=UpstreamPriority(service.repo); ticket=gate.register()
@@ -68,12 +100,28 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
         stop=min(deadline,time.monotonic()+35)
         from .scan_metrics import transport_attempt
         transport_attempt()
-        status,retry,data=bounded_http(service.config,candidate['url'],query,min(timeout,30),stop,secure=True)
+        status,retry,data=bounded_http(service.config,candidate['url'],fill[2] if fill else query,
+                                      min(timeout,30),stop,secure=True)
         if status!=200:
             if status in (429,500,502,503,504):
                 service.repo.outcome(group,False,retry_delay(retry))
             raise POIError('http_'+str(status))
         data=validate(data,service.config)
+        if time.monotonic()>=deadline or not active() or not service.repo.owns('@upstream',slot):
+            raise POIError('routing_changed_or_cancelled')
+        if fill:
+            try:
+                selected = validate(CoveredGeometry(data, **fill[1]).select(**spatial), service.config)
+                if not service.repo.owns(fill[0], fill_owner):
+                    raise POIError('routing_changed_or_cancelled')
+            except UncertifiedGeometry as exc:
+                raise POIError('provider_response_incomplete') from exc
+            try:
+                if world_access():
+                    routed_region.store(service, candidate, fill[0], fill_owner, fill[1], data, fresh_ttl, stale_ttl)
+            except Exception as exc:
+                world_shadow.failed('regional_store', exc)
+            data = selected
         if time.monotonic()>=deadline or not active() or not service.repo.owns('@upstream',slot):
             raise POIError('routing_changed_or_cancelled')
         if not service.repo.write(key,owner,data,stale_ttl):
@@ -86,6 +134,8 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
         service.repo.outcome(group,False)
         raise
     finally:
+        if fill_owner:
+            service.repo.release(fill[0], fill_owner)
         if slot:
             service.repo.release('@probe:'+group,slot)
             service.repo.release('@upstream',slot)
@@ -138,7 +188,7 @@ def fetch_routed(service, query, timeout, fresh_ttl, stale_ttl, options):
                     else:
                         from .world_access import allowed
                         data,source=_overpass(service,candidate,query,timeout,fresh_ttl,stale_ttl,phase,guard,deadline,
-                            lambda: allowed(options.get('_world_pilot_user'), options.get('_spatial')))
+                            lambda: allowed(options.get('_world_pilot_user'), options.get('_spatial')), options.get('_spatial'))
                     if data is not None:
                         if not active(candidate):
                             raise POIError('routing_changed_or_cancelled')

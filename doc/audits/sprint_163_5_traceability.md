@@ -69,3 +69,24 @@ world_pilot_scope, world_routing, world_read, world_maplark_pilot i poi_infrastr
 Transport dostawców mockowany; test infrastruktury dodatkowo używa izolowanego
 serwera loopback. Brak zewnętrznych wywołań dostawców. `git diff --check` PASS.
 Nie wykonywano nowego testu UI: ten pakiet nie zmienia interfejsu.
+
+## Drugi pakiet — regionalny Overpass i wspólny popyt
+
+26.10.2026: `routed_region` łączy istniejącą pełną topologię i selektor 160 z
+aktywnym routerem. Osobny profil, kontrola provider/revision/reference, atomowa
+publikacja, bounded odczyt, retencja i wspólny fill lease. Sąsiednie zapytania
+origin/nearby/edge/small/larger porównano z zapisanymi niezależnymi odpowiedziami
+Overpass. Referencja empty leży poza regionem — poprawnie nie jest uznawana za
+pokrytą. Osobny test pustej pełnej odpowiedzi sprawdza ponowny pusty wynik lokalny.
+
+Test czterech procesów: jeden mockowany request fill i cztery poprawne odpowiedzi.
+Regresja uszkodzenia danych i metadanych, odwołania uprawnień, expiry, wyłączenia
+regionalnej flagi i awarii opcjonalnego zapisu. Wspólny popyt rejestrowany raz na
+`Service.fetch`, także dla Overpass/world. Ruch bez skanu i halo nie są ukończone.
+
+**88 + 28 = 116 testów PASS**: routed_region, poi_wide_fetch, poi_world,
+global_access, routing, shadow, discovery_queue, poi_infrastructure oraz
+poi_geometry_storage, world_storage, archive_retention, collection_retention.
+Bez wywołań dostawców; transport mockowany/loopback. Nowa konfiguracja OFF.
+Instrukcja: [regionalny odbiór](../runbooks/world_regional_read_163_5.md).
+Nie deklarujemy pełnego odbioru R04/R06 na produkcji ani regionalnego MapLark/Geoapify.
