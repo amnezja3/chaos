@@ -1,5 +1,10 @@
 # Sprint 161 — przywrócenie skanera POI przez alternatywnych dostawców
 
+**Odbi?r 26.10.2026:** dzia?aj?cy mechanizm MapLark/Geoapify odebrany na VPS.
+Aktualny status, ograniczenia i otwarta aktywacja Overpass s? zebrane w
+[odbiorze 161?163](world_discovery_161_163_completion_20261025.md#odbi?r-mechanizmu--26102026).
+Starsze statusy poni?ej dokumentuj? przebieg prac, nie aktualny stan produkcji.
+
 **Dyspozycja operatora 25.10:** obowiązuje
 [plan domknięcia mechanizmu 161–163](world_discovery_161_163_completion_20261025.md).
 Zintegrować źródła według profilu i wspólnego fallbacku, z Overpass wysoko

@@ -7,7 +7,49 @@ aktywacje. Ciągła kontrola kosztów i obserwacja operacyjna nie czekają na sp
 Ten dokument koryguje kolejność i kryteria odbioru wcześniejszych planów,
 nie deklaruje zakończenia brakujących integracji ani aktywacji na produkcji.
 
-## Co faktycznie istnieje
+## Odbi?r mechanizmu ? 26.10.2026
+
+**Mechanizm regularnego zbierania MapLark + Geoapify: ODEBRANY na VPS.**
+Nie oznacza to aktywacji wszystkich ?r?de? ani pe?nej geografii planety.
+Poni?sza wcze?niejsza analiza jest histori? punktu wyj?cia.
+
+| Zakres | Stan odbioru |
+| --- | --- |
+| 161: skaner i kontrakty ?r?de? | MapLark live PASS, hierarchia aktywna; Geoapify dzia?a jako obserwacje POI, nie pe?ny zamiennik skanera |
+| 162: archiwum i odczyt | Migracje/backup/integrity PASS; zapis i pilota? odczytu lokalnego PASS; archiwum 7 dni, scanner fresh/stale 5/30 min |
+| 163: regularna kolekcja | MapLark roads/waterways/inland_water/coastline oraz Geoapify commercial COMMITTED; restart i pm2 save PASS |
+| Koszty i monitoring | Osobny monitor online, warnings=[]; wsp?lne limity, rezerwacje, niepewne operacje zachowane |
+| Overpass | Adapter geometrii, hierarchia, fallback i cooldown przetestowane lokalnie; aktywacja konkretnej instancji na VPS OTWARTA |
+
+Dowody: [audyt integracji](../audits/world_collection_integration_20261025.md).
+Wdro?enia edc749c, 7be9497 i 04d4b2b; pe?na regresja VPS 376+6 PASS,
+odbi?r poprawek 11 oraz 85 PASS. Ostatni proces 23610 zapisa? Geoapify
+po jednym requestcie. Koszt tej operacji jest szacunkiem 6, nie raportem
+rozliczeniowym dostawcy. Nie resetowano wcze?niejszych 5 uncertain/25.
+
+### Otwarte aktywacje i utrzymanie
+
+- Overpass: wybra? konkretn? instancj? z potwierdzonym dopuszczeniem regularnego
+  ruchu/background/storage, w??czy? j? i odebra? rzeczywisty cykl. Wcze?niejszy
+  test HTTP 200 i zgoda small_probe nie spe?niaj? tego warunku. Bez tej decyzji
+  nie deklarujemy zamkni?cia produkcyjnej aktywacji wszystkich ?r?de?.
+- Obserwowa? naturalne od?wie?enie po 7 dniach, pojemno?? i koszty przez
+  istniej?cy monitor. Nie wymusza? nowych p?atnych pr?b tylko dla odbioru.
+- Przegl?d polityki regular-world-v1 po 30 dniach: termin w pliku polityki
+  jest egzekwowany; kolektor nie przed?u?a go automatycznie.
+- Osobne uzgodnienie historycznych uncertain Geoapify, bez rozliczania
+  pojedynczych operacji na podstawie zbiorczych warto?ci panelu.
+
+### Nast?pny zakres, bez blokowania dzia?aj?cego zbioru
+
+Polish panelu (czytelne sekcje i powody status?w, PL/EN/mobile), konsumpcja
+geometrii przez gameplay, pe?ny profil skanera Geoapify oraz ?r?d?o danych
+l?d?morze. Coastline nie jest gotow? geometri? ocean?w. Obserwacje UNKNOWN
+nie staj? si? certyfikowanym COMPLETE wskutek zamkni?cia dokumentacji.
+
+Nie potrzeba ponownego wdro?enia dla tego wpisu odbioru ani zmiany flag gry.
+
+## Historyczny punkt wyj?cia ? 25.10.2026
 
 Przejrzano moduły routing/scan_router/geoapify/discovery_worker/discovery_queue,
 konfigurację web, fixtures oraz lokalne instance/provider-captures.

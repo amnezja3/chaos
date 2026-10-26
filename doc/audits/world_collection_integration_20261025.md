@@ -456,3 +456,18 @@ Każda rezerwacja, również uncertain lub settled, wyklucza tę ścieżkę.
 Nie kasujemy historii kosztów ani nie ponawiamy potencjalnie wysłanego HTTP.
 Regresja discovery: 85 PASS (33.669s), w tym odzyskanie osieroconego zadania,
 read-only plan, nowe ID i utrzymanie blokady przy uncertain.
+
+### VPS — odbiór naprawy kolejki 04d4b2b, 2026-10-26
+
+85 testów discovery PASS (71.347s); restart kolektora i pm2 save potwierdzone.
+Nowy proces 23610: Geoapify POI COMMITTED, jeden request, snapshot
+`8973106d7f29e5b734487f991acf27a7e8c875553067716464a04f47d1593869`.
+Rezerwacja 6, billing_state=estimated_upper_bound, reported_credits=null;
+nie jest to potwierdzony rachunek dostawcy. Poprzednie 5 uncertain/25 reserved
+pozostaje zachowane. Budżet Geoapify 31/2700 dnia, MapLark 25/800 dnia.
+Monitor warnings=[], 13 snapshotów/388395 bytes, 14 refresh receipts.
+Coverage UNKNOWN i response_completeness unknown pozostają prawidłowym
+oznaczeniem obserwacji commercial: kategorie/selekcja przestrzenna nie są
+certyfikowane jako pełny skan regionu lub gameplay. Potwierdzone regularne
+pobranie i zapis MapLark oraz Geoapify; Overpass nadal nieaktywny.
+Nie jest to jeszcze dowód siedmiodniowego odświeżenia na produkcji.
