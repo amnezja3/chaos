@@ -126,14 +126,35 @@ class RegularCollectionTests(unittest.TestCase):
         target.parent.mkdir();target.write_bytes(self.path.read_bytes())
         env=dict(FLAGS,status='online',pm_cwd=str(root),CHAOS_POI_ROUTING_ENABLED='1',
                  CHAOS_MAPLARK_API_KEY='map-fixture',CHAOS_GEOAPIFY_API_KEY='geo-fixture',OTHER_SECRET='not-copied')
-        runner=Mock(side_effect=[SimpleNamespace(stdout=json.dumps([dict(name='chaos',pm2_env=env)])),SimpleNamespace()])
+        runner=Mock(side_effect=[SimpleNamespace(stdout=json.dumps([dict(name='chaos',pm2_env=env)])),SimpleNamespace(),
+            SimpleNamespace(stdout=json.dumps([dict(name='chaos-world-discovery-worker',pm2_env=env)]))])
         with patch('tools.world_collector_start.__file__',str(root/'tools/start.py')),patch('tools.world_collector_start.Repository',return_value=self.repo):
             result=start(runner=runner,regular=True)
-        self.assertIn('regular',runner.call_args.args[0])
-        self.assertEqual(runner.call_args.kwargs['env']['CHAOS_GEOAPIFY_API_KEY'],'geo-fixture')
-        self.assertNotIn('OTHER_SECRET',runner.call_args.kwargs['env'])
+        invocation=runner.call_args_list[1]
+        self.assertIn('regular',invocation.args[0])
+        self.assertEqual(invocation.kwargs['env']['CHAOS_GEOAPIFY_API_KEY'],'geo-fixture')
+        self.assertNotIn('OTHER_SECRET',invocation.kwargs['env'])
+        self.assertTrue(result['credentials_verified'])
         self.assertNotIn('geo-fixture',json.dumps(result))
         self.transport.assert_not_called()
+
+    def test_launcher_rejects_missing_or_old_worker_key_without_exposing_it(self):
+        from tools.world_collector_start import verify_credentials
+        expected={'CHAOS_GEOAPIFY_API_KEY':'new-private-fixture'}
+        for env in ({},{'CHAOS_GEOAPIFY_API_KEY':'old-private-fixture'}):
+            with self.assertRaisesRegex(ValueError,'^worker_credentials_not_applied$'):
+                verify_credentials([dict(name='chaos-world-discovery-worker',pm2_env=env)],expected)
+
+    def test_ecosystem_explicitly_forwards_keys_and_omits_absent_values(self):
+        import subprocess
+        root=Path(__file__).resolve().parents[1]
+        script="const e=require('./ecosystem.discovery.config.js').apps[0].env_regular; console.log(JSON.stringify([e.CHAOS_MAPLARK_API_KEY,e.CHAOS_GEOAPIFY_API_KEY]));"
+        env=dict(os.environ,CHAOS_MAPLARK_API_KEY='map-fixture',CHAOS_GEOAPIFY_API_KEY='geo-fixture')
+        result=subprocess.run(['node','-e',script],cwd=root,env=env,capture_output=True,text=True,check=True)
+        self.assertEqual(json.loads(result.stdout),['map-fixture','geo-fixture'])
+        env.pop('CHAOS_MAPLARK_API_KEY');env.pop('CHAOS_GEOAPIFY_API_KEY')
+        result=subprocess.run(['node','-e',script],cwd=root,env=env,capture_output=True,text=True,check=True)
+        self.assertEqual(json.loads(result.stdout),[None,None])
 
     def test_review_expiry_does_not_renew_or_fetch(self):
         from poi_infrastructure.discovery_worker import PermitExpired

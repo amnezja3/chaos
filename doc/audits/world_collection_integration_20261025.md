@@ -403,3 +403,42 @@ Końcowe sprawdzenie po rozszerzeniu Registry.enable o źródła wyłącznie
 archiwalne: test_poi_providers 6 PASS (4.919s), Overpass collection 6 PASS
 (3.532s), regular collection 9 PASS (14.893s). Włączenie archiwizacji nie
 nadaje normal_scan. Zbiorczy skrypt VPS obejmuje również testy Registry.
+
+### VPS — 2026-10-26, edc749c: regularny kolektor uruchomiony
+
+Dowód: przekazany przez operatora log world_regular_rollout.sh --execute.
+376 testów world PASS (208.878s), 6 testów providers PASS (2.326s).
+Dry run i migracja: integrity/FK ok, backup
+`/home/johndoe/chaos-backups/163-regular-UbBHrz/poi_cache.sqlite3`.
+Kolektor i monitor online; web bez restartu, routing=1, ingest/read=0,
+discovery=passive, age=0. Launch HTTP 200.
+
+Świeży cykl pid 22413: MapLark roads, 3 regiony popytu, 1 request,
+COMMITTED, response_completeness=complete, coverage=UNKNOWN,
+3 kredyty reported/settled przy rezerwacji 20. Snapshot
+`b095a42da1b604824e3d14898c44f2e96e691de78f310503efd3f7bf9b1773a2`.
+Monitor: warnings=[], 5 snapshotów/288973 bytes, 5 refresh receipts.
+MapLark dzień 3/800, rolling31 116/24000.
+
+Geoapify background POI skonfigurowane, lecz w tym logu nie ma jeszcze
+regularnego requestu Geoapify. Stare 5 uncertain/25 reserved zachowane;
+estimated_operations=0. Overpass eligible=[]: wszystkie 5 instancji disabled.
+Nie jest to odbiór produkcyjnego Overpass ani potwierdzenie pełnego cyklu
+odświeżania 7 dni. PM2 save po tym wdrożeniu nie jest jeszcze potwierdzone.
+
+### VPS — dalszy odbiór i poprawka przekazania klucza
+
+Operator potwierdził pm2 save. Następny raport: 8 COMMITTED MapLark,
+roads/waterways/inland_water/coastline, 22 kredyty dnia, 135 rolling31.
+Geoapify: DEFERRED/ContractError przed HTTP (network_calls=0), bez nowych
+kosztów. Odczyt PM2 wykazał MapLark present/valid, Geoapify present=false.
+Przekazanie sekretu wyłącznie w środowisku klienta PM2 nie wystarczyło przy
+reloadzie istniejącego procesu. env_regular przekazuje teraz klucze jawnie
+z process.env (bez wartości w repo), pomijając nieobecne. Launcher po starcie
+porównuje wartości w metadanych PM2 w pamięci i zwraca wyłącznie wynik;
+brak/stary klucz daje worker_credentials_not_applied, bez wycieku sekretu.
+To kontrola metadanych PM2, nie odczyt pamięci procesu.
+
+Lokalnie 11 testów regular collection PASS (14.947s), w tym wykonanie
+rzeczywistego pliku ecosystem przez Node i odmowa uznania brakującego/starego
+klucza. HTTP/PM2 są atrapami. Odbiór naprawy na VPS jeszcze oczekiwany.

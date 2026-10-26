@@ -14,6 +14,13 @@ from poi_infrastructure.routing import Routing, reason
 from poi_infrastructure.providers import Registry
 
 
+def verify_credentials(processes, expected):
+    worker=next((p for p in processes if p.get('name')=='chaos-world-discovery-worker'),None)
+    env=worker.get('pm2_env',{}) if worker else {}
+    if any(env.get(name)!=value for name,value in expected.items()):
+        raise ValueError('worker_credentials_not_applied')
+
+
 def start(*, runner=subprocess.run, regions=False, regular=False,prompt_secrets=False):
     root=Path(__file__).resolve().parents[1]
     result=runner(['pm2','jlist'],capture_output=True,text=True,check=True,timeout=15)
@@ -63,8 +70,13 @@ def start(*, runner=subprocess.run, regions=False, regular=False,prompt_secrets=
     runner(['pm2','startOrReload','ecosystem.discovery.config.js','--only',
             'chaos-world-discovery-worker','--env','regular' if regular else 'regions' if regions else 'bounded','--update-env'],
            cwd=root,env=child_env,capture_output=True,text=True,check=True,timeout=60)
+    if regular:
+        applied=runner(['pm2','jlist'],capture_output=True,text=True,check=True,timeout=15)
+        verify_credentials(json.loads(applied.stdout),
+            {name:child_env[name] for name in ('CHAOS_MAPLARK_API_KEY','CHAOS_GEOAPIFY_API_KEY')})
     return dict(status='start_requested',network_calls=0,secret_copied='web_to_worker_environment',
-                secret_printed=False,permit_until=policy['review_until'] if regular else permit.until,automatic_renewal=False)
+                secret_printed=False,credentials_verified=regular,
+                permit_until=policy['review_until'] if regular else permit.until,automatic_renewal=False)
 
 
 def main():
@@ -79,7 +91,7 @@ def main():
     except Exception as exc:
         # Never print subprocess output, arguments containing env, or raw PM2 data.
         safe={'web_routing_or_worker_baseline_mismatch','bounded_permit_mismatch',
-              'collection_policy_blocked','web_maplark_credential_unavailable','background_route_not_maplark','geoapify_credential_unavailable'}
+              'collection_policy_blocked','web_maplark_credential_unavailable','background_route_not_maplark','geoapify_credential_unavailable','worker_credentials_not_applied'}
         code=str(exc) if type(exc) is ValueError and str(exc) in safe else 'local_start_failed'
         print(json.dumps(dict(status='stopped',error_type=type(exc).__name__,error=code,network_calls=0)))
         return 1

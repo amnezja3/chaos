@@ -408,3 +408,23 @@ Nowy Registry pozwala włączyć źródło przeznaczone wyłącznie do archiwiza
 z trzema zakresami background_refresh/storage/world_storage, bez normal_scan.
 Setup korzysta z tego od razu przez CLI. Panel web załaduje tę zmianę przy
 najbliższym reloadzie ecosystem.web.config.js; ten rollout nie restartuje gry.
+
+### Naprawa klucza Geoapify w istniejącym procesie PM2
+
+Jeśli regularny kolektor ma ContractError przed HTTP, a bezpieczny odczyt
+PM2 pokazuje brak klucza Geoapify, po wdrożeniu poprawki wykonaj:
+
+```bash
+cd ~/app/chaos &&
+git pull --ff-only &&
+.venv/bin/python -m unittest discover -s tests -p 'test_world_regular_collection.py' &&
+pm2 stop chaos-world-discovery-worker &&
+.venv/bin/python tools/world_collector_start.py --regular --prompt-secrets &&
+pm2 save
+```
+
+Podaj klucz w ukrytym prompcie. Oczekiwane credentials_verified=true.
+Nie ponawiaj setup/migracji, nie kasuj DEFERRED ani nie rozliczaj starych
+uncertain. Kolektor wróci do kolejki zgodnie z odstępem cyklu i backoff.
+Po kilku minutach jeden zbiorczy odczyt monitor + ostatnie 25 linii logów
+potwierdzi rzeczywisty wynik Geoapify. Nie uruchamiaj dodatkowego probe API.

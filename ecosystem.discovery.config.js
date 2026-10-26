@@ -31,6 +31,10 @@ module.exports = { apps: [{
     CHAOS_POI_DISCOVERY_PERMIT_PATH: '/home/johndoe/app/chaos/data/collection-regions-v1/permit.json'
   },
   env_regular: {
+    // Explicit forwarding is required when PM2 reloads an existing process.
+    // Omit absent values so a plain restart cannot overwrite stored credentials.
+    ...(process.env.CHAOS_MAPLARK_API_KEY ? { CHAOS_MAPLARK_API_KEY: process.env.CHAOS_MAPLARK_API_KEY } : {}),
+    ...(process.env.CHAOS_GEOAPIFY_API_KEY ? { CHAOS_GEOAPIFY_API_KEY: process.env.CHAOS_GEOAPIFY_API_KEY } : {}),
     CHAOS_POI_DISCOVERY_WORKER_ENABLED: '1',
     CHAOS_POI_PRIORITY_ENABLED: '1',
     CHAOS_POI_ROUTING_ENABLED: '1',
