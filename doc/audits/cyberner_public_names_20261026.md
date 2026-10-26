@@ -25,3 +25,14 @@ Wdrożenie bez migracji: pull, test_cyberner*.py, reload ecosystem.web.config.js
 nie restartować kolektora świata. Po HTTP 200 odświeżyć klienta, aby załadował
 nowy JS. Odbiór użytkownika: nick w historii i nowej wiadomości, rozmowa
 prywatna nadal trafia do tego samego konta.
+
+## Odbiór VPS — poprawka izolacji testów
+
+2254674 pobrany na VPS, ale 12 testów routingu otrzymało 423
+ghostsystem_restart_required/document_epoch_replaced. Sekwencja &&
+zatrzymała się przed reloadem i pm2 save. Fixture podmieniał bazy Cybernera,
+lecz pomijał ghostsignal_show_db_path, przez co bramka widziała epokę
+produkcyjnego świata. Poprawiono tylko fixture: osobny GhostNetworkRepository
+w bazie testowej i podmiana ścieżki. Dodano sprawdzenie prawdziwej bramki
+(423 bez epoki, 200 z nagłówkiem zgodnym z testową epoką). Nie wyłączono
+ochrony restartu w aplikacji ani nie zmieniono świata produkcyjnego.

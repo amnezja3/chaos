@@ -65,6 +65,8 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.cursor_store = CybernerChannelCursorStore(db_path=self.db_path)
         self.system_store = SystemMessageStore(db_path=self.db_path)
         self.delta_bus = GameStateDeltaBus(db_path=self.db_path)
+        # The real restart gate must read this isolated world, never the VPS DB.
+        run.GhostNetworkRepository(db_path=self.db_path)
         for username, clan in (("alice", "virex"), ("bob", "sentinel_order"), ("carol", "virex")):
             self.user_store.save_profile_guarded(
                 valid_profile(username, clan),
@@ -83,6 +85,7 @@ class CybernerChannelRoutingTest(unittest.TestCase):
             cyberner_channel_cursor_store=self.cursor_store,
             system_message_store=self.system_store,
             delta_bus=self.delta_bus,
+            ghostsignal_show_db_path=self.db_path,
         )
         self.stack.start()
         self.flags = patch.dict(run.CYBERNER_CHANNEL_STORE_FLAGS, {
@@ -104,6 +107,19 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         client = run.app.test_client()
         self.session_generation.authenticate(client, username)
         return client
+
+    def test_restart_gate_uses_isolated_world_and_remains_enforced(self):
+        self.assertEqual(run.ghostsignal_show_db_path, self.db_path)
+        self.assertIsNone(run.get_ghostsignal_show_service().restart_projection())
+        with patch.object(run.GhostSignalShowService, 'restart_projection',
+                          return_value={'epoch': 'isolated-test-world'}):
+            client = self.client_for('alice')
+            denied = client.get('/api/chats/messages?scope=group&peer=global')
+            self.assertEqual(denied.status_code, 423)
+            self.assertEqual(denied.json['error'], 'ghostsystem_restart_required')
+            accepted = client.get('/api/chats/messages?scope=group&peer=global',
+                                  headers={'X-Chaos-Ghost-Epoch': 'isolated-test-world'})
+            self.assertEqual(accepted.status_code, 200, accepted.json)
 
     def test_world_is_one_atomic_record_and_retry_is_idempotent(self):
         client = self.client_for("alice")
