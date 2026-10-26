@@ -442,3 +442,17 @@ To kontrola metadanych PM2, nie odczyt pamięci procesu.
 Lokalnie 11 testów regular collection PASS (14.947s), w tym wykonanie
 rzeczywistego pliku ecosystem przez Node i odmowa uznania brakującego/starego
 klucza. HTTP/PM2 są atrapami. Odbiór naprawy na VPS jeszcze oczekiwany.
+
+VPS: 7be9497 wdrożony, 11 testów PASS (13.209s), credentials_verified=true,
+pm2 save potwierdzone. Nowy pid 23181 nadal idle/Geoapify; jobs puste,
+14 receipts, brak nowych operacji Geoapify. Analiza lifecycle wykazała,
+że wcześniejszy błąd przed HTTP wyczerpał próby; prune FAILED_TERMINAL
+pozostawił unsettled receipt blokujący nowe zadanie nawet po naprawie klucza.
+
+Poprawka: brak sekretu jest odroczeniem przed HTTP, nie zużywa prób.
+Legacy Geoapify receipt bez zadania, unsettled/due=0, może dostać nową
+generację wyłącznie przy braku jakiegokolwiek wpisu operacji w ledgerze.
+Każda rezerwacja, również uncertain lub settled, wyklucza tę ścieżkę.
+Nie kasujemy historii kosztów ani nie ponawiamy potencjalnie wysłanego HTTP.
+Regresja discovery: 85 PASS (33.669s), w tym odzyskanie osieroconego zadania,
+read-only plan, nowe ID i utrzymanie blokady przy uncertain.

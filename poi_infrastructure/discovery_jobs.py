@@ -19,7 +19,8 @@ STATES = ('PENDING','LEASED','FETCHING','VALIDATING','COMMITTED','DEFERRED',
           'RETRY_AFTER','POLICY_BLOCKED','FAILED_TERMINAL','CANCELLED')
 
 ADMISSION_DEFERRALS=frozenset(('upstream_busy','circuit_open','world_capacity',
-    'publication_busy','budget_exhausted','budget_scope_exhausted'))
+    'publication_busy','budget_exhausted','budget_scope_exhausted',
+    'provider_secret_missing_or_invalid'))
 
 ACQUISITIONS = frozenset(('radius-300-v1', 'sector-bbox-v1', 'geoapify-commercial-v1','overpass-bbox-geom-v1'))
 
@@ -96,6 +97,16 @@ class DiscoveryJobs:
                 unsent_cancel=bool(old and old['state']=='CANCELLED' and old['operation'] is None
                     and not c.execute('SELECT 1 FROM world_credit_operation WHERE account=? AND operation=?',
                                       (provider,'discovery:'+old['id'])).fetchone())
+                # Legacy pre-HTTP failures could exhaust attempts and be pruned,
+                # leaving an unsettled receipt forever. Every HTTP in this path
+                # requires a durable ledger reservation, never pruned here.
+                # Recover only this orphan, with a NEW operation; any ledger row
+                # (including uncertain or settled) keeps the old quarantine.
+                if (not old and receipt and not receipt['settled'] and receipt['due']==0
+                        and acquisition=='geoapify-commercial-v1'
+                        and not c.execute('SELECT 1 FROM world_credit_operation WHERE account=? AND operation=?',
+                                          (provider,'discovery:'+receipt['job_id'])).fetchone()):
+                    unsent_cancel=True
                 if unsent_cancel:
                     generation=(receipt['generation'] if receipt else 0)+1
                 elif receipt:

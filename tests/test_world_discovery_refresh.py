@@ -131,5 +131,40 @@ class RefreshTests(unittest.TestCase):
             cells=[(2102,5200),(2103,5200)],identity='approved-regions-v1',refresh=True)['status'],'already_prepared')
         self.transport.assert_not_called()
 
+    def test_geoapify_pruned_unsent_failure_gets_new_generation(self):
+        DemandQueue(self.repo).record(21,52,['poi'])
+        with closing(self.repo.connect()) as c:
+            demand=c.execute("SELECT key FROM world_discovery_demand WHERE layer='poi'").fetchone()[0]
+        args=(demand,'geoapify',1,'poi')
+        options=dict(acquisition='geoapify-commercial-v1',refresh_seconds=604800)
+        key=self.jobs.enqueue(*args,**options)
+        with self.repo.transaction() as c:
+            c.execute("UPDATE world_discovery_job SET state='FAILED_TERMINAL',expires=0 WHERE id=?",(key,))
+        self.assertEqual(self.jobs.prune(),1)
+        planned=self.jobs.enqueue(*args,**options,plan_only=True)
+        with closing(self.repo.connect()) as c:
+            self.assertEqual(c.execute('SELECT job_id FROM world_discovery_refresh WHERE job_id=?',(key,)).fetchone()[0],key)
+        new=self.jobs.enqueue(*args,**options)
+        self.assertEqual(new,planned);self.assertNotEqual(new,key)
+        self.assertEqual(self.jobs.enqueue(*args,**options),None)
+        self.transport.assert_not_called()
+
+    def test_geoapify_orphan_with_uncertain_reservation_stays_blocked(self):
+        DemandQueue(self.repo).record(21,52,['poi'])
+        with closing(self.repo.connect()) as c:
+            demand=c.execute("SELECT key FROM world_discovery_demand WHERE layer='poi'").fetchone()[0]
+        args=(demand,'geoapify',1,'poi')
+        options=dict(acquisition='geoapify-commercial-v1',refresh_seconds=604800)
+        key=self.jobs.enqueue(*args,**options)
+        self.ledger.configure_recurring('geoapify',2700,83700)
+        self.ledger.reserve('geoapify','discovery:'+key,6)
+        with self.repo.transaction() as c:
+            c.execute("UPDATE world_credit_operation SET state='uncertain' WHERE account='geoapify'")
+            c.execute("UPDATE world_discovery_job SET state='FAILED_TERMINAL',expires=0 WHERE id=?",(key,))
+        self.jobs.prune()
+        self.assertIsNone(self.jobs.enqueue(*args,**options))
+        self.assertEqual(self.ledger.status('geoapify')[0]['committed'],6)
+        self.transport.assert_not_called()
+
 
 if __name__=='__main__':unittest.main()
