@@ -703,7 +703,17 @@ def cyberner_unread_counts(username, profile=None, channel_states=None):
     return counts
 
 
+def cyberner_public_name(username):
+    return identity_projection_store.public_names([username]).get(username, username or "")
+
+
+def cyberner_contact_labels(rows):
+    from cyberner_presentation import labels
+    return labels(rows, identity_projection_store, key='name', output='display_name')
+
+
 def cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
+    from cyberner_presentation import labels
     from response_network.chat_delivery import enrich
     messages = enrich(detention_service.db_path, _cyberner_list_route_messages(username, route, limit, after_id, before_id))
     import communication_safety as safety
@@ -711,7 +721,7 @@ def cyberner_list_route_messages(username, route, limit=100, after_id=None, befo
         from database import db_connect
         with db_connect(user_store.db_path) as conn:
             messages = safety.visible_messages(conn, username, route, messages)
-    return messages
+    return labels(messages, identity_projection_store)
 
 
 def _cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
@@ -869,6 +879,7 @@ def _cyberner_store_message(username, profile, route, body, subject="", client_m
 
 def canonical_cyberner_message(message, route):
     message = dict(message or {})
+    message['sender_display_name'] = cyberner_public_name(message.get('sender') or message.get('sender_username'))
     stable_id = str(message.get("message_id") or "").strip()
     if not stable_id:
         signature = "|".join([
@@ -890,6 +901,7 @@ def canonical_cyberner_message(message, route):
         "scope": route["scope"],
         "peer": route["peer"],
         "sender": message.get("sender") or message.get("sender_username"),
+        "sender_display_name": message["sender_display_name"],
         "subject": message.get("subject") or "",
         "body": message.get("body") or "",
         "created_at": message.get("created_at"),
@@ -16411,7 +16423,7 @@ def cyberner_notification_title(source, scope, peer_name, sender):
         return "Marketplace"
     if source == "blacknet":
         return "BlackNet"
-    return str(sender or peer_name or "Cyberner")
+    return cyberner_public_name(sender or peer_name or "Cyberner")
 
 
 def cyberner_notification_text(source, body=""):
@@ -29619,9 +29631,9 @@ def mail_bootstrap():
         return jsonify({"ok": False, "error": "identity_projection_unavailable"}), 409
     username = ensure_mail_seed(profile)
     mail_store.touch_presence(username)
-    contacts = mail_store.list_contacts(username)
+    contacts = cyberner_contact_labels(mail_store.list_contacts(username))
     accepted_contacts = mail_store.list_accepted_contacts(username)
-    pending_threads = mail_store.list_pending_threads(username)
+    pending_threads = cyberner_contact_labels(mail_store.list_pending_threads(username))
     world_route = normalize_cyberner_route("group", "global", profile)
     channel_states = {
         "world": {"available": True},
@@ -29674,7 +29686,7 @@ def add_contact():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    return jsonify({"success": True, "contacts": mail_store.list_contacts(username)})
+    return jsonify({"success": True, "contacts": cyberner_contact_labels(mail_store.list_contacts(username))})
 
 @app.route("/api/player-contact/request", methods=["POST"])
 def request_player_contact():
@@ -29693,7 +29705,7 @@ def request_player_contact():
             with atomic_runtime_transaction(user_store.db_path, foreign_keys=True) as conn:
                 identity_gateway['actor'](conn)
                 result = safety.invite(conn, username, target_username)
-            return jsonify(success=True, status=result, contacts=mail_store.list_contacts(username))
+            return jsonify(success=True, status=result, contacts=cyberner_contact_labels(mail_store.list_contacts(username)))
         except ValueError as exc:
             return jsonify(success=False, error=str(exc)), 400
 
@@ -29711,14 +29723,14 @@ def request_player_contact():
             "success": True,
             "status": "already_friend",
             "message": "Ten gracz jest juz na liscie znajomych.",
-            "contacts": mail_store.list_contacts(username),
+            "contacts": cyberner_contact_labels(mail_store.list_contacts(username)),
         })
     if mail_store.is_contact(username, target_username):
         return jsonify({
             "success": True,
             "status": "already_pending",
             "message": "Zaproszenie juz oczekuje.",
-            "contacts": mail_store.list_contacts(username),
+            "contacts": cyberner_contact_labels(mail_store.list_contacts(username)),
         })
     if mail_store.is_contact(target_username, username):
         mail_store.add_contact(username, target_username)
@@ -29726,7 +29738,7 @@ def request_player_contact():
             "success": True,
             "status": "already_friend",
             "message": "Ten gracz jest juz na liscie znajomych.",
-            "contacts": mail_store.list_contacts(username),
+            "contacts": cyberner_contact_labels(mail_store.list_contacts(username)),
         })
 
     if mail_store.has_pending_contact_request(username, target_username):
@@ -29734,7 +29746,7 @@ def request_player_contact():
             "success": True,
             "status": "already_pending",
             "message": "Zaproszenie juz oczekuje.",
-            "contacts": mail_store.list_contacts(username),
+            "contacts": cyberner_contact_labels(mail_store.list_contacts(username)),
         })
 
     requester_profile = identity_projection_store.get_identity(username) or {}
@@ -29751,7 +29763,7 @@ def request_player_contact():
         "success": True,
         "status": "requested",
         "message": f"Wyslano gest przywitania do {target_profile.get('nick') or target_username}.",
-        "contacts": mail_store.list_contacts(username),
+        "contacts": cyberner_contact_labels(mail_store.list_contacts(username)),
     })
 
 @app.route("/api/contacts/<contact_name>", methods=["DELETE"])
@@ -29761,7 +29773,7 @@ def remove_contact(contact_name):
 
     username = ensure_mail_seed()
     mail_store.remove_contact(username, contact_name)
-    return jsonify({"success": True, "contacts": mail_store.list_contacts(username)})
+    return jsonify({"success": True, "contacts": cyberner_contact_labels(mail_store.list_contacts(username))})
 
 @app.route("/api/chats/messages")
 def chat_messages():
@@ -29898,14 +29910,14 @@ def send_chat_message():
     )
     return jsonify({
         "success": True,
-        "message": committed_message,
+        "message": dict(committed_message, sender_display_name=cyberner_public_name(committed_message.get("sender"))) if committed_message else None,
         "message_id": (committed_message or {}).get("message_id") or (committed_message or {}).get("id"),
         "idempotent_replay": not bool(created),
         "detention": detention_capabilities(username),
         "channel": route,
         "messages": messages,
-        "contacts": mail_store.list_contacts(username),
-        "pending_threads": mail_store.list_pending_threads(username),
+        "contacts": cyberner_contact_labels(mail_store.list_contacts(username)),
+        "pending_threads": cyberner_contact_labels(mail_store.list_pending_threads(username)),
         "unread_counts": cyberner_unread_counts(username, profile),
         "group_active_count": mail_store.group_active_count(username),
         "recovery": {

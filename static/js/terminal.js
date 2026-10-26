@@ -18384,7 +18384,7 @@ function createEmailClient() {
         const btn = Array.from(term.querySelectorAll('.mail-thread'))
             .find(el => el.dataset.contactName === currentChat.peer);
         if (btn) btn.classList.add('active');
-        chatTitle.textContent = currentChat.peer;
+        chatTitle.textContent = [...contacts, ...pendingThreads].find(item => item.name === currentChat.peer)?.display_name || currentChat.peer;
         const known = isKnownContact(currentChat.peer);
         const sourceKey = cybernerSourceKeyForName(currentChat.peer);
         const worldSource = isWorldSourceKey(sourceKey);
@@ -18458,7 +18458,7 @@ function createEmailClient() {
             const unread = unreadFor(contactName);
             btn.innerHTML = renderThreadItemContent({
                 iconKey: sourceKey,
-                name: contactName,
+                name: contact.display_name || contactName,
                 preview: threadPreview(contact, ghostText('apps.cyberner.direct')),
                 meta: `<span>${escapeHTML(isWorldSourceKey(sourceKey) ? cybernerLabel(sourceKey) : contact.status || "offline")}</span>`,
                 unread,
@@ -18492,7 +18492,7 @@ function createEmailClient() {
                 : `<span>${escapeHTML(worldSource ? cybernerLabel(sourceKey) : ghostText('apps.cyberner.new_small'))}</span>`;
             btn.innerHTML = renderThreadItemContent({
                 iconKey: sourceKey,
-                name: threadName,
+                name: thread.display_name || threadName,
                 preview: threadPreview(thread, worldSource ? ghostText('apps.cyberner.world_source') : ghostText('apps.cyberner.pending')),
                 meta: pendingMeta,
                 unread,
@@ -18628,7 +18628,7 @@ function createEmailClient() {
                 <span class="mail-message-avatar ${avatarClass}">${cybernerIcon(sourceKey)}</span>
                 <span class="mail-message-content">
                     <span class="mail-message-meta">
-                        <span class="mail-message-sender">${escapeHTML(sender)}</span>
+                        <span class="mail-message-sender">${escapeHTML(msg.sender_display_name || sender)}</span>
                         <span class="mail-message-time">${escapeHTML(msg.created_at || "")}</span>
                     </span>
                     ${subject}

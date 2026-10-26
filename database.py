@@ -4919,6 +4919,20 @@ class UserIdentityProjectionStore:
         desktop['respect'] = current_respect
         return {**desktop, "identity": identity}
 
+    def public_names(self, usernames):
+        """Resolve public labels without loading profile JSON."""
+        names = sorted({str(value) for value in usernames if value})
+        result = {}
+        with db_connect(self.db_path) as conn:
+            for offset in range(0, len(names), 100):
+                batch = names[offset:offset + 100]
+                rows = conn.execute(self._select_sql('p.username IN (' + ','.join('?' for _ in batch) + ')'), batch)
+                for row in rows:
+                    identity = self._row_identity(row)
+                    if identity:
+                        result[identity['username']] = identity['nick']
+        return result
+
     def update_desktop_settings(self, username, changes, *, normalize):
         """Write only canonical settings; no profile revision, checksum or LKG.
 
