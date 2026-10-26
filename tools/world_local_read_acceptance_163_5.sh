@@ -8,4 +8,6 @@ export PYTHONPATH="$PWD/tests${PYTHONPATH:+:$PYTHONPATH}"
   test_world_global_access test_world_routing test_world_shadow \
   test_world_discovery_queue test_poi_infrastructure \
   test_poi_geometry_storage test_world_storage \
-  test_world_archive_retention test_world_collection_retention
+  test_world_archive_retention test_world_collection_retention \
+  test_world_visits_halo test_world_regular_collection \
+  test_world_discovery_producer test_world_discovery_worker

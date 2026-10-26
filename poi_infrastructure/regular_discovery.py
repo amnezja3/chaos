@@ -2,6 +2,7 @@
 from contextlib import closing
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from .providers import Registry
 from .routing import Routing,adapter,reason
 from .world import WorldRepository
 from .discovery_jobs import DiscoveryJobs
+from .discovery_halo import cells as demand_cells, expand as expand_halo, tasks_for
 
 POLICY_VERSION='regular-world-v1'
 DEFAULTS=dict(version=POLICY_VERSION,enabled=True,interval=60,max_regions=100,
@@ -75,10 +77,11 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
     policy,digest=load(path)
     if not policy['enabled'] or (execute and not enabled()):return dict(status='disabled',network_calls=0)
     now=time.time()
+    halo=os.getenv('CHAOS_POI_WORLD_HALO_ENABLED')=='1'
+    entries=demand_cells(repo,policy['max_regions'],halo=halo)
+    cells=[cell for cell,tier in entries]
     with closing(repo.connect()) as c:
         state=c.execute('SELECT * FROM world_collection_runtime WHERE id=1').fetchone()
-        cells=[tuple(r) for r in c.execute('''SELECT cell_x,cell_y FROM world_discovery_demand
-            WHERE expires>? GROUP BY cell_x,cell_y ORDER BY max(last_seen) DESC LIMIT ?''',(now,policy['max_regions']))]
     if not execute:return dict(status='plan',network_calls=0,regions=len(cells),max_regions=policy['max_regions'],
         refresh_seconds=604800,retention_seconds=604800,review_until=policy['review_until'],
         routes=Routing(repo).describe()['routes'])
@@ -107,12 +110,17 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
         WorldRepository(repo).prune_expired(50)
         DiscoveryJobs(repo).prune(50)
         providers={p['id']:p for p in Registry(repo).list()}
-        tasks=[(cell,profile) for cell in cells for profile in ('roads','waterways','inland_water','coastline','poi')]
+        halo_added=0
+        if halo and active():
+            halo_added=expand_halo(repo)
+            entries=demand_cells(repo,policy['max_regions'],halo=True)
+            cells=[cell for cell,tier in entries]
+        tasks=tasks_for(entries,state['cursor'])
         cursor=state['cursor']%max(1,len(tasks));visited=0;skipped={}
         for offset in range(len(tasks)):
             if not active():return dict(status='policy_changed',network_calls=0)
             if time.monotonic()-started>10:break
-            cell,profile=tasks[(cursor+offset)%len(tasks)];visited+=1
+            cell,profile=tasks[offset];visited+=1
             # Archive observation age suppresses duplicate collection across geometry providers.
             with closing(repo.connect()) as c:
                 recent=c.execute('SELECT * FROM world_collection_seen WHERE cell_x=? AND cell_y=? AND profile=? AND fetched>?',
@@ -149,10 +157,12 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
                 if outcome['status']=='committed':
                     with repo.transaction() as c:
                         c.execute('INSERT OR REPLACE INTO world_collection_seen VALUES (?,?,?,?,?,?)',(*cell,profile,time.time(),provider_id,p['revision']))
-                result=dict(outcome,provider=provider_id,profile=profile,regions=len(cells),skipped=skipped)
+                result=dict(outcome,provider=provider_id,profile=profile,regions=len(cells),skipped=skipped,
+                            demand_origin='halo' if dict(entries).get(cell)==1 else 'direct')
                 if outcome.get('network_calls',0):break
                 if outcome['status'] not in ('idle','deferred','policy_blocked','reconciliation_required'):break
             if result.get('network_calls',0):break
+        result.update(halo_enabled=halo,halo_added_cells=halo_added)
         with repo.transaction() as c:
             c.execute('UPDATE world_collection_runtime SET cursor=?,report=? WHERE id=1',
                       ((cursor+max(1,visited))%max(1,len(tasks)),json.dumps(dict(result,at=time.time()))))

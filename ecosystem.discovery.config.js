@@ -8,6 +8,7 @@ module.exports = { apps: [{
   interpreter: 'none', instances: 1, autorestart: false,
   kill_timeout: 40000,
   env: {
+    CHAOS_POI_WORLD_HALO_ENABLED: '0',
     CHAOS_POI_DISCOVERY_WORKER_ENABLED: '0',
     CHAOS_POI_DISCOVERY_POLICY_PATH: '',
     CHAOS_POI_PRIORITY_ENABLED: '1',

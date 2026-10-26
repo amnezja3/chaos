@@ -90,3 +90,28 @@ poi_geometry_storage, world_storage, archive_retention, collection_retention.
 Bez wywołań dostawców; transport mockowany/loopback. Nowa konfiguracja OFF.
 Instrukcja: [regionalny odbiór](../runbooks/world_regional_read_163_5.md).
 Nie deklarujemy pełnego odbioru R04/R06 na produkcji ani regionalnego MapLark/Geoapify.
+
+## Trzeci pakiet — wizyty i jeden pierścień sąsiadów
+
+26.10.2026: dodano popyt po zatwierdzonym zapisie pozycji oraz przy odczycie
+kanonicznej pozycji do profilu, bez wymogu skanu. Agregacja sektor/warstwa,
+60 sekund deduplikacji również pomiędzy procesami, bez danych kont i tras.
+Jawna migracja dodaje `origin`; stary schemat nadal przyjmuje bezpośredni popyt.
+Halo wymaga migracji i osobnej flagi: czterech sąsiadów, maksymalnie 8 nowych
+sektorów/cykl, maksymalnie 480 wpisów halo w istniejącej kolejce. Brak rekurencji,
+odnawiania halo przez ekspansję i osobnej księgi kosztów. Odwiedzony sektor jest
+promowany; rotacja zachowuje pierwszeństwo bezpośrednich zadań.
+
+Testy obejmują zapis po sukcesie/odrzuceniu ruchu, cztery równoległe procesy,
+granice współrzędnych, limity kolejki, expiry, brak HTTP w planie, jedną próbę
+sieciową na cykl i regresję dotychczasowego kolektora. **60 testów PASS** w
+zestawie visits_halo, discovery_queue, regular_collection, discovery_producer,
+discovery_worker, collection_retention i detention_movement.
+
+Pełny zestaw z `world_local_read_acceptance_163_5.sh`: **163 testy PASS**
+(86,9 s lokalnie). Dostawcy mockowani, jeden serwer loopback; brak wywołań
+zewnętrznych API. Node potwierdził wyłączone nowe flagi w obu ecosystemach.
+
+Nowe flagi OFF w ecosystem web/discovery. Bez aktywacji i odbioru VPS.
+Instrukcja: [wizyty i halo](../runbooks/world_visits_halo_163_5.md).
+Nie zamyka to regionalnego pełnego POI ani pozostałych danych geograficznych.

@@ -43,6 +43,25 @@ class RegularCollectionTests(unittest.TestCase):
         self.assertEqual(cycle(self.repo,self.path,execute=True,enabled=lambda:True)['status'],'idle')
         self.transport.assert_not_called()
 
+    def test_halo_plan_is_read_only_execution_keeps_single_call_and_direct_priority(self):
+        self.configure()
+        with closing(self.repo.connect()) as c:
+            before=c.execute('SELECT count(*) FROM world_discovery_demand').fetchone()[0]
+        with patch.dict(os.environ,CHAOS_POI_WORLD_HALO_ENABLED='1'):
+            cycle(self.repo,self.path)
+            with closing(self.repo.connect()) as c:
+                self.assertEqual(c.execute('SELECT count(*) FROM world_discovery_demand').fetchone()[0],before)
+            result=cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+            self.assertEqual(result['status'],'committed')
+            self.assertEqual(result['network_calls'],1)
+            self.transport.assert_called_once()
+            with closing(self.repo.connect()) as c:
+                self.assertEqual(c.execute("SELECT count(*) FROM world_discovery_demand WHERE origin='halo'").fetchone()[0],24)
+                origins=[r[0] for r in c.execute("SELECT d.origin FROM world_discovery_job j JOIN world_discovery_demand d ON d.key=j.demand_key WHERE j.state='COMMITTED'")]
+                self.assertEqual(origins,['direct'])
+            cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+            self.transport.assert_called_once()
+
     def test_policy_revocation_in_flight_blocks_publication(self):
         self.configure();response=self.transport.return_value
         def revoke(*args,**kwargs):

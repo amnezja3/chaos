@@ -110,11 +110,13 @@ istniejące lease/fencing, priorytet gracza, harmonogram i wspólna księga.
 
 - [x] Przenieść rejestrację sektora do wspólnej ścieżki skanera, także dla trafień
   cache/world i Overpass, bez podwójnego naliczania z gałęzi MapLark.
-- [ ] Dodać rejestrację odwiedzenia sektora bez skanu, bez tras i identyfikatorów
+- [x] Lokalnie: rejestracja odwiedzenia sektora bez skanu, bez tras i identyfikatorów
   graczy w kolejce regionalnej; deduplikacja i ograniczenie częstości zapisu.
-- [ ] Dodać ograniczony halo sąsiadów, niżej od bezpośredniego zapotrzebowania.
+- [x] Lokalnie: ograniczony halo sąsiadów, niżej od bezpośredniego zapotrzebowania.
   Ustalić i udokumentować limit sektorów na cykl przed aktywacją; bez rekurencyjnego
   rozszerzania świata i bez osobnego niekontrolowanego budżetu.
+  Limit: 8 nowych sektorów/cykl, 480 wpisów halo. Flagi wizyt i halo OFF;
+  odbiór VPS pozostaje otwarty. Instrukcja: `doc/runbooks/world_visits_halo_163_5.md`.
 - [ ] Rozdzielić odświeżanie archiwum geografii od brakującego aktualnego pokrycia
   POI. Odświeżać według popytu i kosztu, nie wszystkie rekordy co pięć minut.
 - [ ] Zachować odporność na restart, zmianę rewizji, retry/backoff i równoległe

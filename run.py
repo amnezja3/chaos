@@ -9716,6 +9716,8 @@ def normalize_profile_position_update(position, username=None, source="runtime")
                 "position_version": store_result.get("version"),
                 "position_updated_at": store_result.get("updated_at"),
             }
+            from poi_infrastructure.world_visits import record_visit
+            record_visit(normalized)
         except Exception:
             # A denied or failed canonical write must never update legacy position.
             raise
@@ -9752,6 +9754,8 @@ def apply_runtime_stores_to_profile(username, profile):
             profile.update(normalize_profile_position_update(position))
             profile["position_version"] = position_payload.get("version")
             profile["position_updated_at"] = position_payload.get("updated_at")
+            from poi_infrastructure.world_visits import record_visit
+            record_visit(position)
     except Exception as exc:
         print(f"[position runtime] profile overlay failed user={username} error={exc}", flush=True)
 
