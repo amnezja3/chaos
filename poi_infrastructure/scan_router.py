@@ -11,12 +11,15 @@ from .routing import Routing, adapter, reason
 from .providers import Registry
 from .service import POIError, UpstreamUnavailable, bounded_http, key_for, validate, retry_delay, LOG
 
-RETRYABLE = frozenset(('circuit_open','upstream_busy','join_timeout','budget_exhausted',
+RETRYABLE = frozenset(('scan_network_paused','circuit_open','upstream_busy','join_timeout','budget_exhausted',
     'budget_account_held','budget_previous_period_unresolved','http_429','http_500',
     'http_502','http_503','http_504','provider_response_incomplete','invalid_response'))
 
 
-def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, active, deadline):
+def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, active, deadline,
+              world_access=lambda: False):
+    from . import world_shadow
+    from .world_access import network_paused
     # Namespace by source/revision: changing a chain cannot reuse an unrelated result.
     key = key_for(json.dumps([candidate['id'],candidate['revision'],query]))
     def local(ttl):
@@ -25,8 +28,17 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
         data = service.repo.read(key,ttl)
         return validate(data,service.config) if data is not None else None
     data = local(stale_ttl if phase=='stale' else fresh_ttl)
-    if data is not None or phase != 'network':
+    if data is not None:
         return data, 'stale' if phase=='stale' else 'fresh'
+    if phase in ('world', 'network', 'stale') and world_access():
+        data = world_shadow.read(service, candidate, key, lambda: active() and world_access(),
+                                 allow_stale=phase=='stale', overpass=True)
+        if data is not None:
+            return data, 'stale' if phase=='stale' else 'world'
+    if phase != 'network':
+        return None, 'miss'
+    if network_paused():
+        raise POIError('scan_network_paused')
     group = candidate['operator_group']
     if not service.repo.allowed(group):
         raise POIError('circuit_open')
@@ -66,6 +78,8 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
             raise POIError('routing_changed_or_cancelled')
         if not service.repo.write(key,owner,data,stale_ttl):
             raise POIError('cache_capacity_or_lease_lost')
+        if world_access():
+            world_shadow.store_overpass(service,candidate,key,owner,data,fresh_ttl,stale_ttl)
         service.repo.outcome(group,True)
         return data,'upstream'
     except UpstreamUnavailable:
@@ -122,7 +136,9 @@ def fetch_routed(service, query, timeout, fresh_ttl, stale_ttl, options):
                         data,source=fetch_pilot(service,options['_spatial'],fresh_ttl,stale_ttl,guard,
                             options.get('_world_pilot_user'),provider_id=candidate['id'],phase=phase,deadline=deadline)
                     else:
-                        data,source=_overpass(service,candidate,query,timeout,fresh_ttl,stale_ttl,phase,guard,deadline)
+                        from .world_access import allowed
+                        data,source=_overpass(service,candidate,query,timeout,fresh_ttl,stale_ttl,phase,guard,deadline,
+                            lambda: allowed(options.get('_world_pilot_user'), options.get('_spatial')))
                     if data is not None:
                         if not active(candidate):
                             raise POIError('routing_changed_or_cancelled')

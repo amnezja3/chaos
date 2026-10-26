@@ -43,7 +43,7 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
     if not candidate:
         raise POIError('maplark_not_approved')
     from . import world_shadow
-    from .world_pilot import allowed as world_allowed
+    from .world_access import allowed as world_allowed, network_paused
     if phase in ('all','local','fresh'):
         world_shadow.demand(service,spatial)
     plan = plan_maplark(spatial['lat'], spatial['lon'], spatial['radius'], limit=1000)
@@ -105,6 +105,8 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
         data = world_read()
         if data is not None:
             return result(data,'world')
+        if network_paused():
+            raise POIError('scan_network_paused')
         if os.environ.get('CHAOS_POI_MAPLARK_ENABLED') == '1':
             from .credit_budget import CreditBudget
             windows = CreditBudget(service.repo).status('maplark')
@@ -138,7 +140,7 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
         # Exact, time-bounded stale data remains usable on temporary upstream
         # failure/budget exhaustion. Never bypass disabled/revised providers.
         if phase == 'all' and (isinstance(exc, UpstreamUnavailable) or str(exc) in (
-                'budget_exhausted','budget_account_held','budget_previous_period_unresolved',
+                'scan_network_paused','budget_exhausted','budget_account_held','budget_previous_period_unresolved',
                 'circuit_open','upstream_busy','join_timeout','http_429','http_500',
                 'http_502','http_503','http_504')):
             stale = cached(stale_ttl)

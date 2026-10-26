@@ -301,6 +301,11 @@ class Service:
                     active()
                     source = 'world'
                     return data
+            from .world_access import network_paused
+            if network_paused():
+                error = 'scan_network_paused'
+                source = 'stale'
+                return fallback()
             if registry and not endpoints:
                 policy_eligible = False
                 error = 'provider_configuration_unavailable'

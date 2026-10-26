@@ -1,0 +1,71 @@
+# 163.5 — mapa wymagań i dowodów
+
+26.10.2026. To mapa pokrycia i pozostałych odbiorów, nie deklaracja PASS wszystkich
+historycznych scenariuszy. Nazwy testów wskazują istniejący materiał do weryfikacji;
+wykonane zestawy są zapisywane osobno. Dowody VPS: odbiory i capture 161–163.
+
+| Wymagania pierwotne | Materiał / wykonanie 163.5 | Pozostały odbiór |
+| --- | --- | --- |
+| C01, C02 | test_world_contract, adaptery, test_world_maplark_candidate | Macierz pełnego profilu Geoapify w 163.5.2 |
+| C03, C07 | test_world_maplark_pilot, eksporty, odebrana gra na dwóch kontach | Regresja po globalnym local-read, A11 |
+| C04, C05 | test_world_contract, test_world_geoapify, test_world_region_compare | Regionalny POI nie jest jeszcze potwierdzony, 163.5.2 |
+| C06 | test_world_transport, test_poi_secure_transport, test_world_routing | Regresja uprawnień i rewizji w pakiecie A08 |
+| C08 | test_world_credit_budget, test_world_upstream_priority, test_world_concurrency_benchmark | Zbiorczy odbiór współbieżności i dwóch kont A04/A11 |
+| C09 | test_poi_masa, test_poi_masa_route, dotychczasowy odbiór mapy | Regresja komunikatów przy local/miss/fallback |
+| G01–G04 | test_world_contract, test_world_land_water, rzeczywiste water holes i roads | W oryginale opisane łącznie: kontrakt, izolacja profili, topologia, lineage. Realny multipart i produkt land_water: 163.5.4 |
+| R01 | test_world_storage, dotychczasowe migracje/backupy VPS | Pierwszy pakiet nie zmienia schematu; kontrola backup/restore A01/A12 |
+| R02 | test_world_storage, test_world_discovery_jobs | Regresja lease, niepełnego batch i awarii opcjonalnego zapisu |
+| R03 | test_poi_geometry, test_world_read, test_world_region_reference | Regionalny POI i jawny brak union, 163.5.2 |
+| R04 | test_world_global_access: exact MapLark/Overpass, pause sieci, niezależne instancje | Sąsiedni POI nadal otwarty; VPS A03–A05; pause sieci nie jest cofnięciem prawa do danych |
+| R05 | test_world_read, test_world_global_access | Pusty exact i expiry lokalnie; regionalne braki kategorii w 163.5.2 |
+| R06 | test_world_concurrency_benchmark, test_world_routing, wspólne lease/budżety | Cztery procesy/20 żądań dla nowej ścieżki, oddzielnie od testu czterech instancji w jednym procesie |
+| R07, R09 | Potwierdzona gra po poprzednim rollout; testy/browser mapy | Nowy zbiorczy odbiór A11 i Playwright |
+| R08 | test_poi_wal_guard, test_world_storage, test_world_shadow | Pomiary ograniczeń nowej ścieżki i monitoring 163.5.5 |
+| R10–R13 | test_world_storage, test_world_read, test_world_land_water, regionalne capture | W oryginale opisane łącznie; realny produkt land_water, multipart i regionalny restart/restore A10 |
+| R14 | test_world_read, test_world_region_pilot | Regionalne empty/expiry/izolacja warstw i A06 |
+| R15 | test_world_dashboard, podgląd atlasu | Zapytania viewport/agregaty 163.5.5 |
+| D01 | test_world_discovery_jobs, test_world_discovery_queue | Uzupełniony producent popytu 163.5.3, A09 |
+| D02 | test_world_upstream_priority, test_world_discovery_budget | Wspólny test obciążenia i ograniczony halo 163.5.3 |
+| D03 | test_world_credit_budget, test_world_acquisition, test_world_routing | Nowy pause skanera nie zastępuje stopu kolektora; sprawdzić oba osobno |
+| D04 | test_world_routing, test_poi_admin, test_poi_secure_transport | A08/A12 dla nowego ogólnego trybu |
+| D05 | Poprzedni odbiór panelu PL/EN desktop/mobile | Nowe stany i atlas: 163.5.5, bez HTTP dostawców |
+| D06 | Dawny pilot exact VPS, nowe test_world_global_access | Globalny A02–A04/A12 nadal czeka na wdrożenie |
+| D07 | Odbiór skan/hack/terytoria na obu kontach | Powtórzenie po nowym rollout, A11 |
+| D08 | Istniejące pomiary syntetyczne i monitor kolektora | Ustalenie okna/progów SLO i obserwacja produkcyjna |
+| D09–D12 | discovery queue/worker, regionalne pilotaże, land_water testy | W oryginale opisane łącznie: demand, priority, warstwy/restart, dependencies. Ruch bez skanu/halo/land_water: 163.5.3–4 |
+| D13 | test_world_credit_budget, test_world_dashboard, zachowane uncertain | Ciągła obserwacja rozbieżności; nie zerować rezerwacji |
+| D14 | Budżety atomowe, progi panelu, test_world_global_access | Współbieżny odbiór nowej ścieżki; local działa bez nowego kosztu |
+| D15 | Dotychczasowy atlas i testy browser | Viewport i pełne stany 163.5.5 |
+| D16 | Istniejące metryki skanera/dashboard | Agregaty unikalnych obiektów i przyrostu 163.5.5 |
+
+## Inwentarz danych do wykorzystania
+
+- Fixture referencyjne Overpass i geometria graniczna już znajdują się w tests/fixtures/poi.
+- Capture MapLark roads: pilot 75 obiektów po wykluczeniu envelope false positive;
+  nie dowodzi regionalnego pokrycia pełnych kategorii POI.
+- Rzeczywiste waterways/inland_water oraz Polygon z otworami: istniejące capture
+  i testy world_region_water_reference / world_region_water_holes_reference.
+- Geoapify commercial: rzeczywiste 63 Point, nie pełny profil CHAOS.
+- Produkt powierzchni ląd–woda i realny multipart: brak potwierdzenia w audycie;
+  najpierw przejrzeć wszystkie lokalne capture, potem kwalifikować źródło.
+- Prywatne capture i pliki body/headers operatora pozostają poza tym commitem.
+
+## Pierwszy pakiet kodu
+
+Dodano jawny `CHAOS_POI_WORLD_ACCESS_MODE=pilot|global|off` (domyślnie pilot),
+nie zmieniając warunku samego pilota. Ingest/read pozostają osobnymi flagami.
+Globalny exact odczyt MapLark i aktywnego routera Overpass korzysta z istniejącego
+WorldReadPlanner. Pauza `CHAOS_POI_SCAN_NETWORK_PAUSED=1` zatrzymuje nowe pobrania
+skanera przy zachowaniu ważnych cache/world; nie zatrzymuje osobnego kolektora,
+nie anuluje już wysłanego żądania i nie zmienia uprawnień źródła.
+W globalnym trybie archiwizacja do 7 dni, ograniczona terminem decyzji źródła;
+świeżość i dopuszczalny stale skanu nadal 300/1800 sekund.
+
+Status: kod lokalny. Bez wdrożenia i bez nowego ruchu do dostawców.
+Nie zamyka 163.5.2–163.5.5 ani całego 163.5.1 przed odbiorem VPS.
+
+Wykonano 26.10: **87 testów PASS** — world_global_access (11), world_shadow,
+world_pilot_scope, world_routing, world_read, world_maplark_pilot i poi_infrastructure.
+Transport dostawców mockowany; test infrastruktury dodatkowo używa izolowanego
+serwera loopback. Brak zewnętrznych wywołań dostawców. `git diff --check` PASS.
+Nie wykonywano nowego testu UI: ten pakiet nie zmienia interfejsu.

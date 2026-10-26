@@ -1,6 +1,10 @@
 # Sprint 163.5 — domknięcie pamięci świata i integracji źródeł
 
-Data: 26.10.2026. Status: **ZAPLANOWANY — realizacja i odbiór otwarte**.
+Data: 26.10.2026. Status: **W REALIZACJI — pierwszy pakiet exact local-read lokalnie PASS; odbiór VPS otwarty**.
+
+Postęp: [mapa wymagań i dowodów](../audits/sprint_163_5_traceability.md).
+Przygotowany [odbiór pierwszego pakietu](../runbooks/world_global_exact_163_5.md).
+Nie uruchomiono trybu globalnego na produkcji; pozostałe etapy nadal otwarte.
 
 Dyspozycja operatora: zebrać w 163.5 pozostały zakres 161–163 i wykonać go
 etapami: lokalny kod → wdrożenie → zbiorczy test → korekta → odbiór.
@@ -42,7 +46,7 @@ Nie ogłaszamy gotowego repozytorium skanera na podstawie liczby snapshotów UNK
 
 ## 163.5.0 — mapa wymagań i materiałów
 
-- [ ] Przypisać każde kryterium C/G/R/D z planów 161–163 do: istniejącego dowodu,
+- [x] Przypisać każde kryterium C/G/R/D z planów 161–163 do: istniejącego dowodu,
   zadania poniżej albo jawnej zależności zewnętrznej. Nie zamykać przez pominięcie.
 - [ ] Zinwentaryzować zapisane capture, fixture i wyniki VPS przed kolejnymi API.
 - [ ] Oddzielić brak danych od braku adaptera, połączenia runtime i odbioru.
@@ -55,17 +59,19 @@ Odbiór: każdy brak z audytu ma zadanie i mierzalny warunek zakończenia.
 Ponowne użycie: `world_pilot.py`, `maplark_pilot.py`, `world_shadow.py`,
 `world_read.py`, `scan_router.py`, istniejące flagi ingest/read.
 
-- [ ] Wprowadzić jawny tryb ogólny, oddzielony od ograniczonego pilota. Nie usuwać
+- [x] Wprowadzić jawny tryb ogólny, oddzielony od ograniczonego pilota. Nie usuwać
   ograniczeń pilota przez przypadkowe rozszerzenie jego warunku.
-- [ ] Zapisywać kwalifikujące się pełne wyniki MapLark i odczytywać je niezależnie
+- [x] Zapisywać kwalifikujące się pełne wyniki MapLark i odczytywać je niezależnie
   od konta, z zachowaniem wersji selekcji, rewizji, provenance i pustych wyników.
-- [ ] Włączyć planer do aktywnej ścieżki Overpass; nie opierać odbioru na starej,
+- [x] Włączyć planer do aktywnej ścieżki Overpass; nie opierać odbioru na starej,
   omijanej gałęzi `Service.fetch()`.
-- [ ] Oddzielić zatrzymanie nowych pobrań od cofnięcia prawa do lokalnego użycia.
+- [x] Oddzielić zatrzymanie nowych pobrań od cofnięcia prawa do lokalnego użycia.
   Nie reinterpretować dotychczasowego `enabled=false` bez jawnej migracji zachowania.
-- [ ] Awaria zapisu nie psuje poprawnego wyniku sieciowego. Uszkodzony lub niezgodny
+- [x] Awaria zapisu nie psuje poprawnego wyniku sieciowego. Uszkodzony lub niezgodny
   snapshot nie trafia do gracza; przewidywalny fallback i ograniczone logowanie.
-- [ ] Zapewnić niezależne wyłączenie ingest/read i powrót do istniejącego skanera.
+- [x] Zapewnić niezależne wyłączenie ingest/read i powrót do istniejącego skanera.
+
+Powyższe zaznaczenia oznaczają kod i testy lokalne. Nie oznaczają odbioru produkcyjnego.
 
 Odbiór: skan konta A → odczyt world konta B i po restarcie, 0 HTTP i bez wzrostu
 księgi. Test wymusza ominięcie wyłącznie wskazanego cache odpowiedzi, aby wynik

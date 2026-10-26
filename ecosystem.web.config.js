@@ -19,6 +19,8 @@ module.exports = {
         // Normal MapLark scans and the credit ledger remain active.
         CHAOS_POI_WORLD_INGEST_ENABLED: "0",
         CHAOS_POI_WORLD_REPOSITORY_ENABLED: "0",
+        CHAOS_POI_WORLD_ACCESS_MODE: "pilot",
+        CHAOS_POI_SCAN_NETWORK_PAUSED: "0",
         CHAOS_POI_WORLD_PILOT_USER: "",
         CHAOS_POI_WORLD_PILOT_CENTER: "",
         CHAOS_POI_WORLD_PILOT_UNTIL: "0",
