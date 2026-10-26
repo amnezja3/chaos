@@ -1,10 +1,10 @@
 {% extends 'admin_base.html' %}
 {% macro tr(pl,en) %}{{ en if identity_locale == 'en' else pl }}{% endmacro %}
-{% block content %}<link rel="stylesheet" href="/static/css/identity_gateway.css?v=157-ux-1">
-<section class="identity-shell admin-identity"><h1>Identity Gateway</h1><p id="identity-status" role="status" aria-live="polite"></p>
-<h2>{{ tr('Dostawcy','Providers') }}</h2><div id="provider-status"></div>
-{% include 'identity_reauth.html' %}
-<h2>{{ tr('Konfiguracja poczty','Mail configuration') }}</h2>
+{% block content %}<link rel="stylesheet" href="/static/css/admin_operations.css?v=1">
+<section class="admin-operations admin-identity"><header class="operations-header"><div><span class="eyebrow">CHAOS / ACCESS CONTROL</span><h1>Identity Gateway</h1><p class="intro">{{ tr('Logowanie, poczta i bezpieczeństwo kont w jednym miejscu.','Sign-in, email and account security in one place.') }}</p></div></header><p id="identity-status" role="status" aria-live="polite"></p>
+<h2>{{ tr("Stan usług", "Service status") }}</h2><div id="identity-service-state" aria-live="polite"></div><div id="provider-status"></div>
+<details class="ops-section"><summary>{{ tr('Potwierdzenie tożsamości operatora','Operator identity confirmation') }}<small>{{ tr('Wymagane przed zmianą poczty lub usunięciem własnego konta','Required before changing email settings or deleting your own account') }}</small></summary><div class="ops-body">{% include 'identity_reauth.html' %}</div></details>
+<details class="ops-section"><summary>{{ tr('Poczta i wiadomości testowe','Email settings and test messages') }}<small>SMTP · TLS</small></summary><div class="ops-body ops-columns"><section>
 <p>{{ tr('Hasło jest szyfrowane na serwerze. Puste pole zachowuje zapisany sekret. Zmiana klucza serwera wymaga ponownego wpisania hasła SMTP.','The password is encrypted on the server. An empty field preserves the stored secret. Changing the server key requires entering the SMTP password again.') }}</p>
 <form id="identity-mail"><label>{{ tr('Tryb','Mode') }}<select name="mode"><option value="disabled">{{ tr('Wyłączona','Disabled') }}</option><option value="smtp">SMTP</option></select></label>
 <div class="row"><label>Host SMTP<input name="host" maxlength="253" autocomplete="off"></label><label>Port<input name="port" type="number" min="1" max="65535" value="587"></label></div>
@@ -12,9 +12,9 @@
 <label>{{ tr('Adres nadawcy','Sender address') }}<input name="sender" type="email" maxlength="254"></label><label>Login SMTP<input name="username" autocomplete="off"></label>
 <label>{{ tr('Hasło SMTP','SMTP password') }}<input name="password" type="password" autocomplete="new-password"></label><p id="smtp-secret-state"></p>
 <label class="check"><input name="clear_password" type="checkbox">{{ tr('Usuń zapisane hasło','Remove saved password') }}</label><button>{{ tr('Zapisz konfigurację','Save configuration') }}</button></form>
-<form id="identity-mail-test"><label>{{ tr('Odbiorca wiadomości testowej','Test email recipient') }}<input name="recipient" type="email" required></label><button>{{ tr('Wyślij test SMTP','Send SMTP test') }}</button></form>
-<h2>{{ tr('Połączenia konta','Account connections') }}</h2><form id="identity-admin-lookup"><label>Login<input name="username" required></label><button>{{ tr('Sprawdź','Inspect') }}</button></form><pre id="admin-identities"></pre>
-<h2>{{ tr('Zdarzenia bezpieczeństwa (90 dni)','Security events (90 days)') }}</h2><pre id="identity-events"></pre>
-<h2>{{ tr('Usunięcie konta','Delete account') }}</h2><form id="identity-delete"><label>{{ tr('Login konta — potwierdzenie trwałego usunięcia','Account login — confirm permanent deletion') }}<input name="confirm" required></label><button>{{ tr('Usuń konto','Delete account') }}</button></form>
-</section>{% endblock %}
-{% block scripts %}<script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode='admin')|tojson }}</script><script src="/static/js/identity_gateway.js?v=157-ux-1" defer></script>{% endblock %}
+</section><section class="ops-inset"><h3>{{ tr("Test dostarczania", "Delivery test") }}</h3><p class="intro">{{ tr("Najpierw zapisz konfigurację, potem wyślij wiadomość testową.", "Save your configuration before sending a test message.") }}</p><form id="identity-mail-test"><label>{{ tr('Odbiorca wiadomości testowej','Test email recipient') }}<input name="recipient" type="email" required></label><button>{{ tr('Wyślij test SMTP','Send SMTP test') }}</button></form>
+</section></div></details><details class="ops-section" open><summary>{{ tr('Połączenia konta','Account connections') }}<small>{{ tr('Sprawdź metody logowania wybranego gracza','Inspect a player’s sign-in methods') }}</small></summary><div class="ops-body"><form id="identity-admin-lookup"><label>Login<input name="username" required></label><button>{{ tr('Sprawdź','Inspect') }}</button></form><div id="admin-identities" class="table-scroll"></div></div></details>
+<details class="ops-section"><summary>{{ tr('Historia bezpieczeństwa','Security history') }}<small>{{ tr('Do 50 ostatnich zdarzeń · retencja 90 dni','Up to 50 recent events · 90-day retention') }}</small></summary><div class="ops-body table-scroll" id="identity-events"></div></details>
+<details class="ops-section ops-danger"><summary>{{ tr('Usuń moje konto operatora','Delete my operator account') }}<small>{{ tr('Operacja nieodwracalna · nie dotyczy wyszukiwanego gracza','Permanent action · does not affect the player selected above') }}</small></summary><div class="ops-body"><p>{{ tr('Ta operacja usuwa Twoje zalogowane konto. Wymaga potwierdzenia tożsamości i wpisania własnego loginu.','This deletes your signed-in account. Confirm your identity and enter your own login.') }}</p><form id="identity-delete"><label>{{ tr('Login konta — potwierdzenie trwałego usunięcia','Account login — confirm permanent deletion') }}<input name="confirm" required></label><button>{{ tr('Usuń konto','Delete account') }}</button></form>
+</div></details></section>{% endblock %}
+{% block scripts %}<script id="identity-config" type="application/json">{{ dict(locale=identity_locale,csrf=identity_csrf,generation=identity_generation,mode='admin')|tojson }}</script><script src="/static/js/identity_gateway.js?v=admin-ux-2" defer></script>{% endblock %}

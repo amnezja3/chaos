@@ -85,7 +85,7 @@
    el('p',text('Próby / sukcesy / błędy: ','Attempts / successes / errors: ')+`${m.attempts} / ${m.successful} / ${m.errors}`),
    el('p',text('Sukcesy z repozytorium bez sieci: ','Successful world-only scans: ')+ratio(m.world_local_scan_ratio)),
    el('p',text('Sukcesy z udziałem sieci: ','Successful scans involving network: ')+ratio(m.network_scan_ratio)),
-   el('p',text('Źródła udanych wyników: ','Successful result sources: ')+JSON.stringify(m.sources)),
+   el('p',text('Źródła udanych wyników: ','Successful result sources: ')+Object.entries(m.sources||{}).map(([source,count])=>({world:text('Archiwum świata','World archive'),fresh:text('Pamięć podręczna','Cache'),upstream:text('Dostawca API','Provider API'),network:text('Sieć','Network')}[source]||source)+': '+count).join(' · ')),
    el('p',text('Puste sukcesy / próby transportu: ','Empty successes / transport attempts: ')+`${m.empty_successes} / ${m.transport_attempts}`),
    el('p',text('Górna granica przedziału p50 / p95 [s]: ','Histogram upper bound p50 / p95 [s]: ')+`${m.latency_p50_upper_seconds??'—'} / ${m.latency_p95_upper_seconds??'—'}`),
    el('p',text('Wyniki pobrania POI, przed generowaniem scen gry. Puste wyniki liczą się jako sukces. Bez workera i diagnostyki.','POI retrieval outcomes, before gameplay scene generation. Empty results count as success. Excludes background and probes.')));

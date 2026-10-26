@@ -1,16 +1,17 @@
 {% extends "admin_base.html" %}
-{% block content %}
-<link rel="stylesheet" href="/static/css/admin_poi.css?v=163-atlas-1">
-<section id="poi-admin" class="panel" data-locale="{{ ui_locale }}" data-csrf="{{ poi_csrf }}">
-<h1>POI / World Discovery</h1>
+{% macro tr(pl,en) %}{{ en if ui_locale == 'en' else pl }}{% endmacro %}
+{% block content %}<link rel="stylesheet" href="/static/css/admin_operations.css?v=1">
+<link rel="stylesheet" href="/static/css/admin_poi.css?v=admin-ux-2">
+<section id="poi-admin" class="admin-operations" data-locale="{{ ui_locale }}" data-csrf="{{ poi_csrf }}">
+<span class="eyebrow">CHAOS / WORLD OPERATIONS</span><h1>POI / Overpass</h1>
 <p data-copy="intro"></p>
 <button id="poi-refresh" type="button" data-copy="refresh" disabled></button>
 <p id="poi-status" role="status" aria-live="polite"></p>
-<section class="panel" id="poi-routing">
-<h2 id="routing-title"></h2>
+<details class="ops-section" open><summary>{{ tr('Hierarchia źródeł','Source hierarchy') }}<small>{{ tr('Kolejność skanowania i pobierania w tle','Scan and background collection order') }}</small></summary><section class="ops-body" id="poi-routing">
+<h2 id="routing-title" class="ops-sr-only"></h2>
 <p id="routing-state" role="status"></p>
 <p id="routing-hint"></p>
-<div id="routing-budgets"></div>
+<details><summary>{{ tr('Limity i wykorzystanie budżetów','Budget limits and usage') }}</summary><div id="routing-budgets"></div></details>
 <form id="routing-form" class="provider-form">
 <label><span id="routing-layer-label"></span><select name="layer"></select></label>
 <label><span id="routing-lane-label"></span><select name="lane"></select></label>
@@ -19,10 +20,10 @@
 <button id="routing-restore" type="button" disabled></button>
 <p id="routing-feedback" role="status" aria-live="polite"></p>
 </form>
-<ol id="routing-preview"></ol>
+<details><summary>{{ tr('Dostępność źródeł dla wybranego profilu','Source eligibility for the selected profile') }}</summary><ol id="routing-preview"></ol></details>
 <details><summary id="routing-history-title"></summary><div id="routing-history"></div></details>
 </section>
-<section class="panel" id="poi-world">
+</details><details class="ops-section"><summary>{{ tr('Archiwum świata i kolejka','World archive and queue') }}<small>{{ tr('Zapisane obserwacje, mapy i zapotrzebowanie regionów','Stored observations, maps and regional demand') }}</small></summary><section class="ops-body" id="poi-world">
 <h2>World Discovery</h2>
 <p data-copy="worldHint"></p>
 <div id="poi-world-summary" role="status" aria-live="polite"></div>
@@ -52,8 +53,8 @@
 <svg id="poi-demand-map" viewBox="0 0 640 240" role="img" style="width:100%;max-height:240px;border:1px solid #285747"></svg>
 <p id="poi-demand-extent"></p>
 </section>
-<div id="poi-providers" class="table-scroll"></div>
-<h2 data-copy="edit"></h2>
+</details><details class="ops-section" open><summary>{{ tr('Dostawcy i dostępność','Providers and availability') }}<small>{{ tr('Status, testy i włączanie źródeł','Status, diagnostics and source activation') }}</small></summary><div class="ops-body"><div id="poi-providers" class="ops-card-grid"></div></div></details>
+<details class="ops-section" id="provider-editor"><summary data-copy="edit"></summary><div class="ops-body">
 <form id="poi-form" class="provider-form">
 <label>ID <input name="id" required pattern="[a-z0-9_\-]{1,60}" maxlength="60"></label>
 <label><span data-copy="name"></span><input name="name" required maxlength="80"></label>
@@ -62,7 +63,7 @@
 <label><span data-copy="priority"></span><input name="priority" type="number" min="0" max="100" value="0" required></label>
 <button type="submit" data-copy="save" disabled></button><p class="poi-feedback" role="status"></p>
 </form>
-<h2 data-copy="decision"></h2>
+</div></details><details class="ops-section" id="provider-permissions"><summary data-copy="decision"></summary><div class="ops-body">
 <form id="poi-decision" class="provider-form">
 <p data-copy="scopeHint"></p>
 <label>ID <input name="id" required></label>
@@ -78,8 +79,8 @@
 <label><span data-copy="review"></span><input name="review" type="date" required></label>
 <button type="submit" data-copy="saveDecision" disabled></button><p class="poi-feedback" role="status"></p>
 </form>
-<h2 data-copy="health"></h2><div id="poi-health" class="table-scroll"></div>
-<h2 data-copy="audit"></h2><div id="poi-audit" class="table-scroll"></div>
+</div></details><details class="ops-section"><summary data-copy="health"></summary><div id="poi-health" class="ops-body table-scroll"></div></details>
+<details class="ops-section"><summary data-copy="audit"></summary><div id="poi-audit" class="ops-body table-scroll"></div></details>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/admin_poi.js?v=163-jobs-1"></script><script src="/static/js/admin_poi_routing.js?v=163-routing-1"></script><script src="/static/js/admin_world_atlas.js?v=163-1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/admin_poi.js?v=admin-ux-2"></script><script src="/static/js/admin_poi_routing.js?v=admin-ux-2"></script><script src="/static/js/admin_world_atlas.js?v=admin-ux-2"></script>{% endblock %}

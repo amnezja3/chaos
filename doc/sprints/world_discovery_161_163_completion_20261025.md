@@ -1,5 +1,10 @@
 # 161–163 — zakres uruchomienia mechanizmu, 25.10.2026
 
+**Aktualny odbiór: ZAMKNIĘTY na zatwierdzonym poziomie 26.10.2026.**
+Potwierdzono również zapis geometrii VK oraz fallback do MapLark.
+Granice odbioru i utrzymanie: [końcowy protokół](../audits/world_acceptance_161_163_20261026.md).
+Poniższe wcześniejsze statusy opisują historię wdrożenia.
+
 Aktualna dyspozycja operatora: zakończyć mechanizm zbierania i przygotowania
 geografii. Konsumpcja warstw przez gameplay będzie osobnym przyszłym zakresem.
 Praca etapami: kod → wdrożenie → uruchomienie → zbiorcze testy → kolejne

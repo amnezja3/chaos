@@ -29,17 +29,28 @@
   intro:['Test techniczny, dopuszczenie źródła i zgodność profilu są oceniane osobno. Odświeżenie panelu nie odpytuje dostawców.','Technical tests, usage approval and profile compatibility are separate. Refreshing this panel does not query providers.'],
   feature_budgeted_probe_required:['To API wymaga ograniczonego testu CLI z budżetem.','This API requires a bounded CLI test with a budget.']
  });
+ Object.assign(labels,{
+  untested:['Nieprzetestowany','Not tested'],tested_ok:['Test poprawny','Test passed'],tested_failed:['Test nieudany','Test failed'],
+  unknown:['Nieustalone','Not established'],public_declaration_only:['Deklaracja publiczna','Public declaration'],operator_confirmation_pending:['Oczekuje na potwierdzenie','Awaiting confirmation'],approved_for_defined_use:['Zatwierdzony zakres','Approved scope'],restricted:['Ograniczony','Restricted'],rejected:['Odrzucony','Rejected'],expired_review:['Przegląd wygasł','Review expired'],
+  small_probe:['Mały test połączenia','Small diagnostic probe'],normal_scan:['Skan gracza','Player scan'],wide_fetch:['Pobieranie rozszerzone','Wide fetch'],background_refresh:['Pobieranie w tle','Background collection'],storage:['Pamięć podręczna','Response cache'],world_storage:['Archiwum geometrii świata','World geometry archive'],
+  network_failed:['Nie udało się połączyć ze źródłem.','Could not connect to the provider.'],http_read_timeout:['Przekroczono czas oczekiwania na odpowiedź.','Provider response timed out.'],
+  roads:['Drogi','Roads'],waterways:['Rzeki i kanały','Rivers and canals'],inland_water:['Jeziora i zbiorniki','Lakes and reservoirs'],coastline:['Wybrzeża','Coastlines'],land_water:['Ląd i morze','Land and sea'],poi:['Punkty zainteresowania','Points of interest'],
+  COMMITTED:['Zapisane','Stored'],FAILED_TERMINAL:['Próba zakończona błędem','Attempt failed'],PENDING:['Oczekuje','Pending'],POLICY_BLOCKED:['Wstrzymane','On hold']
+ });
  const t=k=>labels[k]?.[pl?0:1]||k;
+ root.querySelectorAll('#poi-decision option').forEach(o=>{const value=o.value;o.value=value;o.textContent=t(value);});
+ root.querySelectorAll('#poi-decision input[name=scope]').forEach(input=>{input.parentElement.lastChild.textContent=t(input.value);input.title=t(input.value);});
  root.querySelectorAll('[data-copy]').forEach(e=>e.textContent=t(e.dataset.copy));
  let providers=[];
  const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+ function table(target,headers,rows){target.replaceChildren();if(!rows.length){target.append(node('p',t('empty')));return;}const grid=node('table'),head=node('thead'),body=node('tbody'),hr=node('tr');headers.forEach(label=>{const cell=node('th',label);cell.scope='col';hr.append(cell);});head.append(hr);for(const values of rows){const row=node('tr');values.forEach(value=>row.append(node('td',value)));body.append(row);}grid.append(head,body);target.append(grid);}
  function renderWorld(w){
   if(!w)return;
   const summary=document.getElementById('poi-world-summary');summary.replaceChildren();
   summary.append(node('p',t(w.world_prepared?'worldReady':'worldMissing')),
    node('p',`${t('snapshots')}: ${w.snapshots} · ${t('canonical')}: ${w.canonical_snapshots} · ${(w.payload_bytes/1048576).toFixed(2)} MiB`),
-   node('p',`fresh: ${w.fresh} · stale: ${w.stale} · expired: ${w.expired}`),
-   node('p',`${t('ingest')}: ${w.ingest_enabled?'ON':'OFF'} · ${t('read')}: ${w.read_enabled?'ON':'OFF'} · discovery: ${w.discovery_mode}`),
+   node('p',`${pl?'Świeże':'Fresh'}: ${w.fresh} · ${pl?'Starsze':'Stale'}: ${w.stale} · ${pl?'Wygasłe':'Expired'}: ${w.expired}`),
+   node('p',`${pl?'Zapis ze skanera':'Scanner ingest'}: ${w.ingest_enabled?'ON':'OFF'} · ${pl?'Odczyt świata przez skaner':'Scanner world read'}: ${w.read_enabled?'ON':'OFF'} · ${pl?'Zapotrzebowanie':'Demand'}: ${w.discovery_mode==='passive'?(pl?'zbierane pasywnie':'collected passively'):w.discovery_mode}`),
    node('p',pl?'Stan procesu pobierania w tle: niepotwierdzony.':'Background process status: unverified.'));
   const jobs=w.jobs;
   if(jobs){
@@ -50,14 +61,14 @@
    queue.append(node('p',`${pl?'Wygasłe oczekujące':'Expired waiting'}: ${jobs.expired_waiting} · ${pl?'Wygasłe dzierżawy':'Expired leases'}: ${jobs.expired_leases}`));
    queue.append(node('p',pl?'Gotowość czasowa nie oznacza zgody na pobranie. Widok nie uruchamia zadań.':'Time readiness is not permission to fetch. This view does not start jobs.'));
    const recent=node('ul');
-   for(const job of jobs.recent||[])recent.append(node('li',`${job.provider} / ${job.profile}: ${job.state} · ${pl?'Próby':'Attempts'}: ${job.attempts}${job.reason?' · '+job.reason:''}`));
+   for(const job of jobs.recent||[])recent.append(node('li',`${job.provider} / ${t(job.profile)}: ${t(job.state)} · ${pl?'Próby':'Attempts'}: ${job.attempts}${job.reason?' · '+t(job.reason):''}`));
    if(!jobs.total)recent.append(node('li',pl?'Brak zadań.':'No jobs.'));
    queue.append(recent);summary.append(queue);
   }
   const budgets=document.getElementById('poi-world-budget');budgets.replaceChildren();
   for(const b of w.budget_windows||[])budgets.append(node('p',`${t('credits')} · ${b.period}: ${b.committed} / ${b.credit_limit}`));
   const demand=w.demand||{pending:0,cells:[],layers:{}};
-  document.getElementById('poi-demand-summary').textContent=`${t('pending')}: ${demand.pending} · `+Object.entries(demand.layers).map(([k,v])=>`${k}: ${v}`).join(' · ');
+  document.getElementById('poi-demand-summary').textContent=`${t('pending')}: ${demand.pending} · `+Object.entries(demand.layers).map(([k,v])=>`${t(k)}: ${v}`).join(' · ');
   const svg=document.getElementById('poi-demand-map');svg.replaceChildren();svg.setAttribute('aria-label',t('demandTitle'));
   const extent=document.getElementById('poi-demand-extent');
   if(!demand.cells.length){extent.textContent=t('empty');return;}
@@ -85,24 +96,26 @@
   const list=document.getElementById('poi-providers');list.replaceChildren();
   if(!providers.length)list.textContent=t('empty');
   for(const p of providers){
-   const card=node('section');card.className='panel';
-   card.append(node('h3',p.name+' / '+p.id),node('p',p.url),node('p',p.technical_status+' · '+p.policy_status),node('p',p.scopes.join(', ')||'—'));
-   if(p.evidence)card.append(node('p',p.evidence.source_url),node('p',p.evidence.reference),node('p',p.evidence.notes),node('p',p.evidence.checked_by+' · '+new Date(p.evidence.checked_at*1000).toLocaleString()),node('p',t('review')+': '+new Date(p.review_due_at*1000).toLocaleDateString()));
+   const card=node('section');card.className='ops-card';
+   card.append(node('h3',p.name));
+   for(const [label,tone] of [[p.enabled?(pl?'Włączony':'Enabled'):(pl?'Wyłączony':'Disabled'),p.enabled?'ok':'off'],[t(p.technical_status),p.technical_status==='tested_ok'?'ok':'warning']]){const badge=node('span',label);badge.className='ops-badge';badge.dataset.tone=tone;card.append(badge);}
+   card.append(node('p',t(p.policy_status)),node('p',p.scopes.map(t).join(' · ')||(pl?'Brak dopuszczonego zakresu':'No approved scope')));
+   const details=node('details');details.append(node('summary',pl?'Dane źródła i warunki':'Source details and terms'),node('p',p.id),node('p',p.url));
+   if(p.evidence)details.append(node('p',p.evidence.source_url),node('p',p.evidence.reference),node('p',p.evidence.notes),node('p',p.evidence.checked_by+' · '+new Date(p.evidence.checked_at*1000).toLocaleString()),node('p',t('review')+': '+new Date(p.review_due_at*1000).toLocaleDateString()));
+   card.append(details);const actions=node('div');actions.className='ops-actions';card.append(actions);
    const feedback=node('p');feedback.setAttribute('role','status');feedback.dataset.provider=p.id;
-   const edit=node('button',t('edit'));edit.type='button';edit.onclick=()=>{const f=document.getElementById('poi-form');for(const k of ['id','name','url','operator_group','priority'])f.elements[k].value=p[k];document.getElementById('poi-decision').elements.id.value=p.id;f.scrollIntoView({block:'start'});};card.append(edit);
+   const edit=node('button',t('edit'));edit.type='button';edit.title=pl?'Edytuj adres i parametry źródła':'Edit source endpoint and settings';edit.onclick=()=>{const f=document.getElementById('poi-form');for(const k of ['id','name','url','operator_group','priority'])f.elements[k].value=p[k];document.getElementById('poi-decision').elements.id.value=p.id;document.getElementById('provider-editor').open=true;f.scrollIntoView({block:'center'});f.elements.name.focus({preventScroll:true});};actions.append(edit);
+   const decision=node('button',pl?'Zakres użycia':'Usage scope');decision.type='button';decision.onclick=()=>{const f=document.getElementById('poi-decision');f.elements.id.value=p.id;f.elements.policy.value=p.policy_status;for(const input of f.querySelectorAll('[name=scope]'))input.checked=p.scopes.includes(input.value);for(const key of ['source_url','reference','notes'])f.elements[key].value=p.evidence?.[key]||'';f.elements.review.value=p.review_due_at?new Date(p.review_due_at*1000).toISOString().slice(0,10):'';document.getElementById('provider-permissions').open=true;f.scrollIntoView({block:'center'});f.elements.policy.focus({preventScroll:true});};actions.append(decision);
    for(const type of ['probe','enable']){const b=node('button',t(type==='enable'?(p.enabled?'disable':'enable'):type));b.type='button';
     if(type==='probe'&&['https://api.maplark.com/v3/osm_features','https://api.geoapify.com/v2/places'].includes(p.url)){
      b.disabled=true;b.textContent=pl?'Test API przez ograniczone narzędzie CLI':'API test through bounded CLI';
-    }else b.onclick=()=>action(b,feedback,{action:type,id:p.id,revision:p.revision,...(type==='enable'?{enabled:!p.enabled}:{})});card.append(b);}
+    }else b.onclick=()=>action(b,feedback,{action:type,id:p.id,revision:p.revision,...(type==='enable'?{enabled:!p.enabled}:{})});b.title=type==='probe'?(pl?'Wykonuje zapytanie do dostawcy. Obowiązuje limit testów.':'Makes a provider request. Probe rate limits apply.'):(pl?'Zmienia dostępność w zatwierdzonym zakresie.':'Changes availability within the approved scope.');actions.append(b);}
    card.append(feedback);list.append(card);
   }
-  const health=document.getElementById('poi-health');health.replaceChildren();
-  for(const h of data.health)health.append(node('p',`${h.provider_id} · ${h.kind} · ${h.status} · ${h.latency.toFixed(2)} s · ${new Date(h.at*1000).toLocaleString()}`));
-  if(!data.health.length)health.textContent=t('empty');
-  const audit=document.getElementById('poi-audit');audit.replaceChildren();
-  for(const a of data.audit||[])audit.append(node('p',`${a.provider_id} · ${a.action} · ${a.actor} · ${new Date(a.at*1000).toLocaleString()}`));
+  table(document.getElementById('poi-health'),[pl?'Źródło':'Provider',pl?'Operacja':'Operation',pl?'Wynik':'Result',pl?'Czas':'Duration',pl?'Data':'Date'],data.health.map(h=>[h.provider_id,t(h.kind),t(h.status),h.latency.toFixed(2)+' s',new Date(h.at*1000).toLocaleString()]));
+  table(document.getElementById('poi-audit'),[pl?'Źródło':'Provider',pl?'Zmiana':'Change',pl?'Operator':'Actor',pl?'Data':'Date'],(data.audit||[]).map(a=>[a.provider_id,t(a.action),a.actor,new Date(a.at*1000).toLocaleString()]));
  }
- document.getElementById('poi-refresh').onclick=()=>refresh().catch(e=>document.getElementById('poi-status').textContent=e.message);
+ document.getElementById('poi-refresh').onclick=async event=>{const button=event.currentTarget,output=document.getElementById('poi-status');button.disabled=true;output.textContent=t('loading');try{await refresh();output.textContent=pl?'Stan odświeżony.':'Status refreshed.';}catch(e){output.textContent=e.message;}finally{button.disabled=false;}};
  document.getElementById('poi-form').onsubmit=e=>{e.preventDefault();const f=e.target,d=new FormData(f),id=d.get('id');action(f.querySelector('button'),f.querySelector('.poi-feedback'),{action:'save',id,revision:providers.find(p=>p.id===id)?.revision||0,fields:{name:d.get('name'),url:d.get('url'),operator_group:d.get('operator_group'),priority:Number(d.get('priority'))}});};
  document.getElementById('poi-decision').onsubmit=e=>{e.preventDefault();const f=e.target,d=new FormData(f),id=d.get('id');action(f.querySelector('button'),f.querySelector('.poi-feedback'),{action:'decision',id,revision:providers.find(p=>p.id===id)?.revision||0,policy:d.get('policy'),scopes:d.getAll('scope'),evidence:{source_url:d.get('source_url'),reference:d.get('reference'),notes:d.get('notes')},review_due_at:Date.parse(d.get('review')+'T23:59:59Z')/1000});};
  root.querySelectorAll('button[disabled]').forEach(b=>b.disabled=false);
