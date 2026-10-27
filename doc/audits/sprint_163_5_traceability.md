@@ -205,3 +205,25 @@ Profil zachowuje politykę i wspólne budżety `regular`; rollback do `regular`
 ustawia halo=0. Kontrola PM2 przyjmuje `--halo 1` / `--halo 0`, bez ujawniania
 sekretów. Lokalnie: 29 testów runtime/regular collection/visits/halo/release PASS.
 Aktywacja i odbiór halo na VPS pozostają do wykonania.
+
+### Halo — pierwszy cykl produkcyjny PASS, 27.10.2026
+
+Materiał operatora: `3214b36c-7266-4bb2-b4bc-058074c82be8/Pasted text.txt`.
+Po zmianie PID kolektora z 23610 na 178484 cykl at=1793117642.9086847:
+`halo_enabled=true`, `halo_added_cells=8`, `demand_origin=halo`,
+`status=committed`, `network_calls=1`, provider Geoapify, profil POI.
+Następny wpis jest `waiting`; liczba regionów wzrosła z 11 do 19.
+Snapshot: `67d7a4d45c1cd2d8c553ed8febf01eb7ccfdc5a50c7a77b3be104578b4c2fcdb`.
+Potwierdza aktywację halo, ograniczoną ekspansję i rzeczywisty zapis odpowiedzi.
+Nie dowodzi samodzielnie pierwszeństwa direct przy równoczesnym zaległym popycie
+ani zachowania wszystkich limitów w długotrwałym obciążeniu.
+
+Monitor: 74 snapshoty, 1038076 bajtów, 53 COMMITTED / 3 FAILED_TERMINAL;
+brak warnings. Przyczyn trzech historycznych niepowodzeń ten wycinek nie podaje.
+Budżet dzienny: Geoapify 73/2700, MapLark 82/800, VK 4/120 prób.
+Nowa operacja Geoapify ma rezerwację 6 i `estimated_upper_bound`, bez raportu
+rzeczywistej ceny; pięć dawnych niepewnych operacji (25 kredytów) zachowano.
+Coverage i kompletność Geoapify nadal UNKNOWN, gameplay_approved=false:
+to archiwum obserwacji, nie dopuszczenie tego źródła do skanera gry.
+W załączniku nie ma wyniku runtime checker ani `pm2 save`; utrwalenie profilu
+po kontroli konfiguracji pozostaje krokiem operatora.
