@@ -8,7 +8,9 @@ Nie uruchomiono trybu globalnego na produkcji; pozostałe etapy nadal otwarte.
 
 Drugi pakiet lokalny: regionalny Overpass pod aktywnym routerem i wspólny zapis
 popytu skanera — 116 testów PASS. [Instrukcja](../runbooks/world_regional_read_163_5.md).
-Regionalne MapLark/Geoapify, ruch bez skanu i halo pozostają do wykonania.
+Trzeci pakiet: wizyty bez skanu i halo lokalnie gotowe w `46843f8` (163 testy PASS
+w zestawie zbiorczym); aktywacja i odbiór VPS nadal otwarte.
+Regionalne MapLark/Geoapify pozostają do wykonania.
 
 Dyspozycja operatora: zebrać w 163.5 pozostały zakres 161–163 i wykonać go
 etapami: lokalny kod → wdrożenie → zbiorczy test → korekta → odbiór.
@@ -52,8 +54,9 @@ Nie ogłaszamy gotowego repozytorium skanera na podstawie liczby snapshotów UNK
 
 - [x] Przypisać każde kryterium C/G/R/D z planów 161–163 do: istniejącego dowodu,
   zadania poniżej albo jawnej zależności zewnętrznej. Nie zamykać przez pominięcie.
-- [ ] Zinwentaryzować zapisane capture, fixture i wyniki VPS przed kolejnymi API.
-- [ ] Oddzielić brak danych od braku adaptera, połączenia runtime i odbioru.
+- [x] Zinwentaryzować zapisane capture, fixture i wyniki VPS przed kolejnymi API.
+- [x] Oddzielić brak danych od braku adaptera, połączenia runtime i odbioru.
+  [Ewidencja lokalnych materiałów i braków](../audits/world_capture_inventory_163_5.md).
 - [ ] Dopisać do ewidencji testów wersję kodu, profil, zakres dowodu i ograniczenia.
 
 Odbiór: każdy brak z audytu ma zadanie i mierzalny warunek zakończenia.
