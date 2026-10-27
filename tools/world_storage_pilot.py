@@ -5,6 +5,8 @@ removes only expired snapshots of the selected exact query.
 """
 import argparse
 import json
+import re
+from contextlib import closing
 from pathlib import Path
 import sys
 import time
@@ -20,14 +22,26 @@ from poi_infrastructure.world_read import WorldReadPlanner
 from poi_infrastructure.world_shadow import reference
 
 
-def inspect(db,lat,lon,*,evict=False,prune=False,apply=False):
+def inspect(db,lat=None,lon=None,*,key_prefix=None,evict=False,prune=False,apply=False):
     if evict and prune:raise ValueError('one_action_required')
+    if key_prefix is not None:
+        if lat is not None or lon is not None:raise ValueError('choose_key_or_coordinates')
+        if not isinstance(key_prefix,str) or not re.fullmatch('[0-9a-f]{12,64}',key_prefix):
+            raise ValueError('key_prefix_requires_12_to_64_hex_characters')
+    elif lat is None or lon is None:raise ValueError('coordinates_or_key_required')
     if not Path(db).is_file():raise ValueError('existing_poi_database_required')
     repo=Repository(db)
     provider=next((p for p in Registry(repo).eligible('normal_scan') if p['id']=='maplark' and p['url']==ENDPOINT),None)
     if not provider or not reference(provider):raise ValueError('world_storage_approval_required')
-    plan=plan_maplark(lat,lon,300,limit=1000)
-    key=batch_key('maplark',PROFILE,plan.profile,PROFILE,{'params':plan.params,'revision':provider['revision']})
+    if key_prefix is None:
+        plan=plan_maplark(lat,lon,300,limit=1000)
+        key=batch_key('maplark',PROFILE,plan.profile,PROFILE,{'params':plan.params,'revision':provider['revision']})
+    else:
+        with closing(repo.connect()) as c:
+            rows=c.execute("SELECT DISTINCT query_key FROM world_snapshot WHERE provider='maplark' AND query_key LIKE ? LIMIT 2",
+                           (key_prefix+'%',)).fetchall()
+        if len(rows)!=1:raise ValueError('world_key_missing_or_ambiguous')
+        key=rows[0][0]
     result=WorldReadPlanner(CanonicalWorldRepository(repo)).read(provider='maplark',revision=provider['revision'],
         storage_reference=reference(provider),profile=POI_PROFILE,selection='maplark-radius-unverified',
         adapter_version=MAPLARK_VERSION,query_key=key)
@@ -61,14 +75,15 @@ def inspect(db,lat,lon,*,evict=False,prune=False,apply=False):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db',default='data/poi_cache.sqlite3')
-    parser.add_argument('--lat',type=float,required=True)
-    parser.add_argument('--lon',type=float,required=True)
+    parser.add_argument('--lat',type=float)
+    parser.add_argument('--lon',type=float)
+    parser.add_argument('--key-prefix',help='Exact MapLark scan key from its log, 12–64 hex characters')
     parser.add_argument('--evict-cache',action='store_true')
     parser.add_argument('--prune-expired',action='store_true')
     parser.add_argument('--apply',action='store_true')
     args=parser.parse_args()
     try:
-        print(json.dumps(inspect(args.db,args.lat,args.lon,evict=args.evict_cache,prune=args.prune_expired,apply=args.apply)))
+        print(json.dumps(inspect(args.db,args.lat,args.lon,key_prefix=args.key_prefix,evict=args.evict_cache,prune=args.prune_expired,apply=args.apply)))
     except (ValueError,ContractError) as exc:
         print(json.dumps(dict(ok=False,error=str(exc),network_calls=0)))
         return 1

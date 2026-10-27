@@ -85,6 +85,14 @@ Nie pauzujemy sieci wszystkim graczom podczas tego odbioru.
 Nie porównywać wyłącznie sumy kredytów konta: kolektor pracuje niezależnie.
 Dowodem jest źródło world dla danego klucza/skanu, nie wzrost liczby markerów.
 
+Jeśli współrzędne faktycznego skanu różnią się od przykładu, użyć klucza z logu:
+`tools/world_storage_pilot.py --key-prefix KLUCZ_12_ZNAKOW --evict-cache --apply`.
+To alternatywa dla `--lat/--lon`, nie wyszukiwanie najnowszego skanu dowolnego
+gracza. Wymaga jednego jednoznacznego klucza MapLark i świeżego zgodnego świata;
+stary/niezgodny snapshot nie pozwala usunąć cache. Całą sekwencję skan → usunięcie
+jednego cache → identyczny skan wykonać w 300 s, bez oczekiwania na odpowiedź
+w rozmowie pomiędzy tymi krokami. Inny klucz nie jest testem exact world.
+
 ## 4. Wizyty, halo i odbiór gry
 
 ```bash

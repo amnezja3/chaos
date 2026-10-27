@@ -127,6 +127,32 @@ class WorldShadowTests(unittest.TestCase):
         self.assertEqual(inspect(repo.path,53,22,prune=True,apply=True)['pruned_snapshots'],0)
         self.assertEqual(inspect(repo.path,52,21,prune=True,apply=True)['pruned_snapshots'],1)
 
+    def test_log_key_inspection_and_eviction_preserve_other_cache(self):
+        from tools.world_storage_pilot import inspect
+        self.grant()
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})):
+            self.fetch()
+        repo=self.service.repo
+        with repo.transaction() as c:
+            key=c.execute('SELECT key FROM cache').fetchone()[0]
+            c.execute("INSERT INTO cache SELECT 'unrelated',payload,digest,fetched,bytes FROM cache WHERE key=?",(key,))
+        self.assertEqual(inspect(repo.path,key_prefix=key[:12])['world_state'],'COMPLETE_FRESH')
+        result=inspect(repo.path,key_prefix=key[:12],evict=True,apply=True)
+        self.assertEqual(result['removed_cache_entries'],1)
+        with repo.transaction() as c:
+            self.assertEqual(c.execute('SELECT key FROM cache').fetchone()[0],'unrelated')
+        for bad in ('%', 'abc', 'z'*12):
+            with self.assertRaisesRegex(ValueError,'key_prefix_requires'):
+                inspect(repo.path,key_prefix=bad)
+        with self.assertRaisesRegex(ValueError,'choose_key_or_coordinates'):
+            inspect(repo.path,52,21,key_prefix=key[:12])
+        with self.assertRaisesRegex(ValueError,'world_key_missing_or_ambiguous'):
+            inspect(repo.path,key_prefix='f'*64)
+        with repo.transaction() as c:
+            c.execute('UPDATE world_snapshot SET fresh_until=?',(time.time()-1,))
+        with self.assertRaisesRegex(ValueError,'fresh_world_result_required'):
+            inspect(repo.path,key_prefix=key[:12],evict=True,apply=True)
+
     def test_local_world_survives_busy_network_and_exhausted_shared_budget(self):
         self.grant()
         with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})):

@@ -137,3 +137,33 @@ zalogować zamknięcie połączenia przez klienta. Bez rzeczywistych wywołań A
 z liczby snapshotów. Instrukcja wymaga world hit tego samego klucza po usunięciu
 wyłącznie jego cache, drugiego konta i restartu. Stare nierozliczone operacje
 pozostają w księdze. [Instrukcja zbiorcza](../runbooks/world_acceptance_163_5.md).
+
+## VPS preflight — 27.10.2026, 87ee955
+
+Operator przekazał wynik `world_acceptance_163_5.sh preflight`:
+171 testów PASS (169,421 s), dry-run bez zmiany danych, integrity/FK OK,
+schema v2, metrics/collection gotowe. `visits_schema_ready=false` zgodne ze
+stanem przed migracją. MapLark revision 9 ma normal_scan i world_storage.
+Web i worker online, routing=1, ingest/read=0, age=0, HTTP 200.
+Raporty: `/home/johndoe/chaos-163-5-acceptance-60qJey`.
+
+33 snapshoty obserwacyjne nie stanowią dowodu użycia świata przez skaner;
+metryki wskazują 5 skanów sieciowych i zero world hits. Kolektor: 21 COMMITTED,
+1 FAILED_TERMINAL (VK waterways / overpass_backoff), brak oczekujących lease
+i nierozstrzygniętych zadań. Pięć niepewnych operacji Geoapify pozostaje w księdze.
+Preflight odebrany; migracja, aktywacja ingest i dowód exact world nadal przed nami.
+
+### Dalszy odbiór VPS
+
+Migracja i ingest/read profiles przeszły kontrole; world schema v2 i visits schema
+gotowe, integrity/FK OK, routing=1, access=global, ingest/read=1, age=0.
+Backup: `/home/johndoe/chaos-backups/163-5-20261027T063503Z`.
+Raporty ingest/read: `chaos-163-5-acceptance-dvnF65` / `chaos-163-5-acceptance-GIPQsn`.
+Po timeoutach startowych ostatecznie HTTP 200; nie uznajemy tego za pomiar SLO.
+
+Skan eaf380235e5e: store=stored, ręczny planner potwierdził COMPLETE_FRESH,
+single_snapshot, 19 obiektów, 0 HTTP. Kolejny skan 33ef97af83f0 nastąpił po
+310,474 s i miał inny klucz; upstream nie dowodzi usterki exact read.
+Brakuje jeszcze world hit w rzeczywistym skanerze dla tego samego świeżego
+zapytania, po selektywnym ominięciu cache. CLI otrzymało wybór po kluczu logu,
+bez założenia współrzędnych i bez zmiany czasu świeżości.
