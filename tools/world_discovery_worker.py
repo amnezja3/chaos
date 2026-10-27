@@ -12,6 +12,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from poi_infrastructure.repository import Repository
 from poi_infrastructure.discovery_runtime import cycle
 from poi_infrastructure.discovery_worker import PermitExpired
+from poi_infrastructure.worker_heartbeat import Heartbeat
 
 
 def main():
@@ -28,8 +29,15 @@ def main():
     stop=threading.Event()
     for name in ('SIGINT','SIGTERM'):
         signal.signal(getattr(signal,name),lambda *_:stop.set())
+    heartbeat = None
+    if (args.execute and args.serve and Path(args.db).is_file()
+            and os.environ.get('CHAOS_POI_DISCOVERY_WORKER_ENABLED')=='1'):
+        heartbeat = Heartbeat(Repository(args.db), args.interval)
+        if not heartbeat.start():
+            print(json.dumps(dict(status='heartbeat_unavailable',network_calls=0)),file=sys.stderr,flush=True)
     while not stop.is_set():
         try:
+            if heartbeat: heartbeat.pulse('running')
             if args.execute and os.environ.get('CHAOS_POI_DISCOVERY_WORKER_ENABLED')!='1':
                 result=dict(status='disabled',network_calls=0)
             else:
@@ -42,15 +50,21 @@ def main():
                     result=cycle(Repository(args.db),args.permit,execute=args.execute,stopping=stop.is_set)
             print(json.dumps(dict(result,pid=os.getpid(),at=time.time())),flush=True)
         except PermitExpired:
+            if heartbeat: heartbeat.pulse('stopped')
             print(json.dumps(dict(status='permit_expired',network_calls=0,automatic_renewal=False,
                                   pid=os.getpid(),at=time.time())),flush=True)
             return 0
         except Exception as exc:
+            if heartbeat: heartbeat.pulse('error')
             # No raw exception messages: transport/config errors may include secrets.
             print(json.dumps(dict(status='stopped',error_type=type(exc).__name__)),flush=True)
             return 1
-        if not args.serve or result['status']=='disabled': return 0
+        if not args.serve or result['status']=='disabled':
+            if heartbeat: heartbeat.pulse('stopped')
+            return 0
+        if heartbeat: heartbeat.pulse('waiting')
         stop.wait(args.interval)
+    if heartbeat: heartbeat.pulse('stopped')
     return 0
 
 

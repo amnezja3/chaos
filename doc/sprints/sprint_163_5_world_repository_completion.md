@@ -1,10 +1,13 @@
 # Sprint 163.5 — domknięcie pamięci świata i integracji źródeł
 
-Data: 26.10.2026. Status: **W REALIZACJI — pierwszy pakiet exact local-read lokalnie PASS; odbiór VPS otwarty**.
+Data: 26.10.2026, aktualizacja 27.10.2026. Status: **W REALIZACJI — exact world, wizyty i pierwszy cykl halo potwierdzone na VPS; regionalne źródła i atlas otwarte**.
 
 Postęp: [mapa wymagań i dowodów](../audits/sprint_163_5_traceability.md).
 Przygotowany [odbiór pierwszego pakietu](../runbooks/world_global_exact_163_5.md).
-Nie uruchomiono trybu globalnego na produkcji; pozostałe etapy nadal otwarte.
+Tryb globalny ingest/read i wizyty uruchomiono na produkcji. Potwierdzono
+odczyt exact world między workerami oraz pierwszy zapis kolektora z popytu halo.
+Osobny drugi użytkownik i restart w tej samej sekwencji odczytu nadal wymagają
+dowodu; udany cykl nie zamyka całego zakresu.
 
 27.10.2026: gotowy [zbiorczy odbiór pakietu exact/visits](../runbooks/world_acceptance_163_5.md)
 oraz `tools/world_acceptance_163_5.sh preflight`. To odbiór przygotowanego
@@ -14,7 +17,7 @@ pozostają osobnymi otwartymi zadaniami poniżej.
 Drugi pakiet lokalny: regionalny Overpass pod aktywnym routerem i wspólny zapis
 popytu skanera — 116 testów PASS. [Instrukcja](../runbooks/world_regional_read_163_5.md).
 Trzeci pakiet: wizyty bez skanu i halo lokalnie gotowe w `46843f8` (163 testy PASS
-w zestawie zbiorczym); aktywacja i odbiór VPS nadal otwarte.
+w zestawie zbiorczym); wizyty i pierwszy cykl halo odebrano na VPS 27.10.
 Regionalne MapLark/Geoapify pozostają do wykonania.
 
 Dyspozycja operatora: zebrać w 163.5 pozostały zakres 161–163 i wykonać go
@@ -123,8 +126,10 @@ istniejące lease/fencing, priorytet gracza, harmonogram i wspólna księga.
 - [x] Lokalnie: ograniczony halo sąsiadów, niżej od bezpośredniego zapotrzebowania.
   Ustalić i udokumentować limit sektorów na cykl przed aktywacją; bez rekurencyjnego
   rozszerzania świata i bez osobnego niekontrolowanego budżetu.
-  Limit: 8 nowych sektorów/cykl, 480 wpisów halo. Flagi wizyt i halo OFF;
-  odbiór VPS pozostaje otwarty. Instrukcja: `doc/runbooks/world_visits_halo_163_5.md`.
+  Limit: 8 nowych sektorów/cykl, 480 wpisów halo. Na VPS potwierdzono wizyty
+  i ekspansję o 8 sektorów z jednym pobraniem; domyślne flagi pozostają OFF,
+  aktywacja profilami world_visits / regular_halo. Instrukcja:
+  `doc/runbooks/world_visits_halo_163_5.md`.
 - [ ] Rozdzielić odświeżanie archiwum geografii od brakującego aktualnego pokrycia
   POI. Odświeżać według popytu i kosztu, nie wszystkie rekordy co pięć minut.
 - [ ] Zachować odporność na restart, zmianę rewizji, retry/backoff i równoległe

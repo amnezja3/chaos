@@ -12,6 +12,8 @@ def job_summary(connection, tables, now):
     result=dict(prepared='world_discovery_job' in tables, total=0, states={},
                 ready_by_time=0, expired_waiting=0, expired_leases=0,
                 unresolved=0, oldest_wait_seconds=None, recent=[], runtime='unknown')
+    from .worker_heartbeat import inspect as heartbeat_status
+    result['heartbeat']=heartbeat_status(connection,now)
     if not result['prepared']: return result
     for row in connection.execute('SELECT state,count(*) n FROM world_discovery_job GROUP BY state'):
         result['states'][row['state']]=row['n']; result['total']+=row['n']

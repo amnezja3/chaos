@@ -227,3 +227,20 @@ Coverage i kompletność Geoapify nadal UNKNOWN, gameplay_approved=false:
 to archiwum obserwacji, nie dopuszczenie tego źródła do skanera gry.
 W załączniku nie ma wyniku runtime checker ani `pm2 save`; utrwalenie profilu
 po kontroli konfiguracji pozostaje krokiem operatora.
+
+### Kolejny pakiet lokalny — heartbeat kolektora
+
+Dodano odrębną, addytywną tabelę sygnału życia przez istniejącą migrację
+`poi_world --canonical --jobs`. Tylko aktywny daemon --execute --serve rejestruje
+instancję i odnawia sygnał. Plan i jednorazowe CLI nie przejmują wpisu.
+Właściciel jest sprawdzany przy aktualizacji; stary proces nie nadpisze nowego.
+Po utracie sygnału wynik unknown, nie domniemane online na podstawie zadań.
+Brak tabeli i błędy telemetrii nie zatrzymują zbierania. Monitor read-only
+i job_summary udostępniają stan bez tokenu właściciela i sekretów.
+
+Lokalnie 27.10: **57 testów PASS, 27,781 s**. Pakiet: worker_heartbeat, regular_collection, bounded_collector,
+discovery_runtime, dashboard, acceptance_163_5, release_package. Pokrywa
+wygaśnięcie, zmianę właściciela, brak schematu, plan/CLI, zakończenie, błąd,
+odczyt read-only i bramkę migracji. Bez ruchu do dostawców.
+Instrukcja: `doc/runbooks/world_heartbeat_163_5.md`.
+Prezentacja heartbeat w UI oraz pozostałe metryki/atlas nadal otwarte.

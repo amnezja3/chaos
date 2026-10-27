@@ -23,6 +23,8 @@ DEFAULTS=dict(version=POLICY_VERSION,enabled=True,interval=60,max_regions=100,
 
 
 def initialize(repo):
+    from .worker_heartbeat import initialize as initialize_heartbeat
+    initialize_heartbeat(repo)
     with repo.transaction() as c:
         c.execute('''CREATE TABLE IF NOT EXISTS world_collection_runtime (
             id INTEGER PRIMARY KEY CHECK(id=1), next_cycle REAL NOT NULL,
@@ -51,7 +53,9 @@ def load(path):
 
 
 def report(repo):
+    from .worker_heartbeat import inspect as heartbeat_status
     with closing(repo.connect()) as c:
+        heartbeat=heartbeat_status(c)
         row=c.execute('SELECT * FROM world_collection_runtime WHERE id=1').fetchone()
         states={r[0]:r[1] for r in c.execute('SELECT state,count(*) FROM world_discovery_job GROUP BY state')}
         estimates=c.execute("SELECT count(*),coalesce(sum(reserved),0) FROM world_credit_operation WHERE account='geoapify' AND state='estimated'").fetchone()
@@ -61,11 +65,12 @@ def report(repo):
         uncertain={r[0]:dict(operations=r[1],reserved=r[2]) for r in c.execute("SELECT account,count(*),sum(reserved) FROM world_credit_operation WHERE state IN ('uncertain','reserved') GROUP BY account")}
     budgets={account:CreditBudget(repo).status(account) for account in accounts}
     warnings=[account+'_budget_low' for account,windows in budgets.items() if any(w['remaining']<.1*w['credit_limit'] for w in windows)]
+    if heartbeat['status'] not in ('running','waiting'):warnings.append('collector_heartbeat_'+heartbeat['status'])
     last=json.loads(row['report'])
     if last.get('at',0)<time.time()-300:warnings.append('collector_cycle_stale')
     if last.get('status') in ('reconciliation_required','policy_blocked','deferred'):warnings.append('collector_attention_required')
     if receipts>=1800:warnings.append('refresh_history_capacity_near')
-    return dict(status='read_only',network_calls=0,next_cycle=row['next_cycle'],last=last,jobs=states,
+    return dict(status='read_only',network_calls=0,heartbeat=heartbeat,next_cycle=row['next_cycle'],last=last,jobs=states,
                 snapshots=snapshots[0],snapshot_bytes=snapshots[1],budgets=budgets,warnings=warnings,
                 budget_units={account:'credits' if account in ('maplark','geoapify') else 'request_attempts' for account in accounts},
                 unresolved=uncertain,refresh_receipts=receipts,
