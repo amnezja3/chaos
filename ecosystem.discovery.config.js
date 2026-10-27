@@ -32,6 +32,7 @@ module.exports = { apps: [{
     CHAOS_POI_DISCOVERY_PERMIT_PATH: '/home/johndoe/app/chaos/data/collection-regions-v1/permit.json'
   },
   env_regular: {
+    CHAOS_POI_WORLD_HALO_ENABLED: '0',
     // Explicit forwarding is required when PM2 reloads an existing process.
     // Omit absent values so a plain restart cannot overwrite stored credentials.
     ...(process.env.CHAOS_MAPLARK_API_KEY ? { CHAOS_MAPLARK_API_KEY: process.env.CHAOS_MAPLARK_API_KEY } : {}),
@@ -51,3 +52,9 @@ module.exports = { apps: [{
   interpreter: 'none', instances: 1, autorestart: false,
   kill_timeout: 5000
 }] };
+
+// Same approved collector policy and shared budgets; only the demand halo differs.
+module.exports.apps[0].env_regular_halo = {
+  ...module.exports.apps[0].env_regular,
+  CHAOS_POI_WORLD_HALO_ENABLED: '1'
+};

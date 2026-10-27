@@ -39,6 +39,17 @@ class AcceptanceTests(unittest.TestCase):
         self.assertFalse(result['ok'])
         self.assertNotIn('secret-',json.dumps(result))
 
+    def test_halo_requires_explicit_worker_flag_without_changing_web_expectation(self):
+        processes=self.processes('visits')
+        options=dict(routing='1',worker='online',world_stage='visits',halo='1')
+        self.assertFalse(inspect(processes,Path.cwd(),**options)['ok'])
+        processes[1]['pm2_env']['CHAOS_POI_WORLD_HALO_ENABLED']='0'
+        self.assertFalse(inspect(processes,Path.cwd(),**options)['ok'])
+        processes[1]['pm2_env']['CHAOS_POI_WORLD_HALO_ENABLED']='1'
+        self.assertTrue(inspect(processes,Path.cwd(),**options)['ok'])
+        options['halo']='0'
+        self.assertFalse(inspect(processes,Path.cwd(),**options)['ok'])
+
     def test_visits_schema_gate_is_read_only_and_additive(self):
         with tempfile.TemporaryDirectory() as directory:
             db=Path(directory)/'poi.sqlite3'

@@ -104,11 +104,17 @@ Odwiedzić nowy sektor bez skanu; panel popytu powinien pokazać sektor. Kolejne
 odświeżenia profilu w ciągu minuty nie powielają zapisów. Potwierdzić skan,
 hakowanie i terytoria na nowym i starym koncie.
 
-Po odbiorze wizyt zmienić wyłącznie `CHAOS_POI_WORLD_HALO_ENABLED` z 0 na 1 w
-`ecosystem.discovery.config.js` (zachować zmianę w repo), potem:
+Po odbiorze wizyt użyć jawnego profilu `regular_halo` w ecosystemie kolektora.
+Dziedziczy politykę i budżety `regular`, zmienia wyłącznie flagę halo:
 
 ```bash
-pm2 startOrReload ecosystem.discovery.config.js --only chaos-world-discovery-worker --env regular --update-env &&
+pm2 startOrReload ecosystem.discovery.config.js --only chaos-world-discovery-worker --env regular_halo --update-env &&
+.venv/bin/python tools/world_runtime_check.py --routing 1 --worker online --world-stage visits --halo 1
+```
+
+Po naturalnym cyklu kolektora (około 60–90 sekund):
+
+```bash
 .venv/bin/python tools/world_collection_monitor.py
 pm2 logs chaos-world-discovery-worker --lines 15 --nostream
 ```
@@ -124,7 +130,9 @@ Kolejne reloady web muszą wskazywać zaakceptowany profil `world_read` lub
 
 ## Rollback i zakres dalszych prac
 
-Wyłączyć halo w jego ecosystemie i przeładować worker z profilem regular.
+Wyłączyć halo przez przeładowanie workera z profilem `--env regular --update-env`.
+Profil jawnie ustawia halo=0, także po wcześniejszym uruchomieniu `regular_halo`.
+Potwierdzić `tools/world_runtime_check.py --routing 1 --worker online --world-stage visits --halo 0`.
 Web: `pm2 startOrReload ecosystem.web.config.js --only chaos --env world_rollback
 --update-env`, potem `bash tools/world_acceptance_163_5.sh rollback` i `pm2 save`.
 Profil zachowuje działający routing=1, wyłącza ingest/read/visits/regional/wide.

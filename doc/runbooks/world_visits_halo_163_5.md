@@ -37,7 +37,8 @@ kolektora, routingu, księgi, lease i potwierdzeń odświeżania.
    właściwy ecosystem i odwiedzić nowy sektor bez skanu. Sprawdzić przyrost
    popytu, brak przypisania kont oraz brak powielania wpisów przy odświeżaniu.
 4. Aktywować halo w ecosystem discovery dopiero po migracji; przeładować worker
-   z dotychczasowym profilem `regular`. Monitor pokazuje `halo_added_cells` oraz
+   z profilem `regular_halo`. Profil `regular` jawnie wyłącza halo i służy też
+   do wycofania tej aktywacji. Monitor pokazuje `halo_added_cells` oraz
    `demand_origin` dla wybranego zadania. Potwierdzić limity i pierwszeństwo
    skanowania gracza. Nie nadawać przy tym nowych uprawnień dostawcom.
 5. Wycofanie: obie flagi `0`, przeładowanie odpowiednich ecosystemów. Istniejące
