@@ -66,7 +66,8 @@ Nie czyścić bazy ani księgi. Całkowity rollback: procedura exact.
 
 Zapis sektora przeniesiono do `Service.fetch`, przed wyborem dostawcy i cache.
 Jeden skan zapisuje popyt jeden raz; trafienia Overpass/cache/world są uwzględnione.
-To nie jest jeszcze hook samego poruszania się ani halo — te zadania nadal otwarte.
+Hook pozycji i halo dodano lokalnie w 46843f8; aktywacja i odbiór VPS pozostają
+otwarte. Wspólny pakiet: [odbiór 163.5](world_acceptance_163_5.md).
 
 MapLark: obecne capture roads/water nie potwierdzają pełnego regionalnego POI.
 Geoapify: profil commercial pozostaje niepełnym zamiennikiem skanera. Nie

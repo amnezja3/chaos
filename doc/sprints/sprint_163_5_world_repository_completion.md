@@ -6,6 +6,11 @@ Postęp: [mapa wymagań i dowodów](../audits/sprint_163_5_traceability.md).
 Przygotowany [odbiór pierwszego pakietu](../runbooks/world_global_exact_163_5.md).
 Nie uruchomiono trybu globalnego na produkcji; pozostałe etapy nadal otwarte.
 
+27.10.2026: gotowy [zbiorczy odbiór pakietu exact/visits](../runbooks/world_acceptance_163_5.md)
+oraz `tools/world_acceptance_163_5.sh preflight`. To odbiór przygotowanego
+podzakresu, nie zgłoszenie pełnego zamknięcia 163.5. Regionalne źródła i atlas
+pozostają osobnymi otwartymi zadaniami poniżej.
+
 Drugi pakiet lokalny: regionalny Overpass pod aktywnym routerem i wspólny zapis
 popytu skanera — 116 testów PASS. [Instrukcja](../runbooks/world_regional_read_163_5.md).
 Trzeci pakiet: wizyty bez skanu i halo lokalnie gotowe w `46843f8` (163 testy PASS

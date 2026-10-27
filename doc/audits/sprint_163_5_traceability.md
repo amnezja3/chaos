@@ -115,3 +115,25 @@ zewnętrznych API. Node potwierdził wyłączone nowe flagi w obu ecosystemach.
 Nowe flagi OFF w ecosystem web/discovery. Bez aktywacji i odbioru VPS.
 Instrukcja: [wizyty i halo](../runbooks/world_visits_halo_163_5.md).
 Nie zamyka to regionalnego pełnego POI ani pozostałych danych geograficznych.
+
+## Pakiet odbioru — 27.10.2026
+
+Przygotowano jeden preflight: testy izolowane, dry-run migracji, inspekcja kopii
+SQLite, allowlista PM2 i gotowość HTTP. Nowe profile ecosystem web rozdzielają
+ingest/read/visits/rollback; wszystkie zachowują regional/wide/pause=0 i age=0.
+Zwykły reload nie aktywuje nowego trybu. Kontrola stage odrzuca inną konfigurację
+i nie wypisuje sekretów. Kolektor ma pozostać w odebranym trybie regular.
+
+34 testy PASS: acceptance_163_5, release_package, dashboard, bounded_collector,
+discovery_sector. Sprawdzono Node'em rzeczywiste cztery profile ecosystem oraz
+składnię obu skryptów Bash. Nie wykonano PM2/reload na lokalnym Windows ani
+odbioru produkcji. Brak zmian UI; bez nowego testu przeglądarkowego.
+
+Pełny aktualny zestaw izolowanego odbioru: **171 testów PASS, 77,3 s**.
+Transport dostawców mockowany; test deadline używa serwera loopback i może
+zalogować zamknięcie połączenia przez klienta. Bez rzeczywistych wywołań API.
+
+Źródło world wykazywane w inspekcji jako osobne uprawnienie, nie wywnioskowane
+z liczby snapshotów. Instrukcja wymaga world hit tego samego klucza po usunięciu
+wyłącznie jego cache, drugiego konta i restartu. Stare nierozliczone operacje
+pozostają w księdze. [Instrukcja zbiorcza](../runbooks/world_acceptance_163_5.md).
