@@ -39,6 +39,13 @@ class AcceptanceTests(unittest.TestCase):
         self.assertFalse(result['ok'])
         self.assertNotIn('secret-',json.dumps(result))
 
+    def test_regional_profile_requires_both_flags_and_keeps_visits(self):
+        processes=self.processes('visits')
+        options=dict(routing='1',worker='online',world_stage='regional')
+        self.assertFalse(inspect(processes,Path.cwd(),**options)['ok'])
+        processes[0]['pm2_env'].update(CHAOS_POI_WIDE_FETCH_ENABLED='1',CHAOS_POI_WORLD_REGIONAL_READ_ENABLED='1')
+        self.assertTrue(inspect(processes,Path.cwd(),**options)['ok'])
+
     def test_halo_requires_explicit_worker_flag_without_changing_web_expectation(self):
         processes=self.processes('visits')
         options=dict(routing='1',worker='online',world_stage='visits',halo='1')

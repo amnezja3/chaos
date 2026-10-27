@@ -218,3 +218,9 @@ nierozliczone operacje Geoapify nie znikają przez reset księgi.
 
 Pierwsze zadanie wykonawcze: **163.5.0 + 163.5.1**, następnie 163.5.2–163.5.5
 w zakresie możliwym lokalnie; dopiero gotowy pakiet 163.5.6 przekazujemy na VPS.
+
+Aktualizacja 27.10.2026: przygotowano pakiet regionalnego Overpass, pełnych
+obserwacji POI MapLark, atlasu viewport i metryk oraz ekstraktor uogólnionego
+ląd–morze Natural Earth. Dowody i granice są w `doc/audits/sprint_163_5_traceability.md`.
+Zbiorcza instrukcja: `doc/runbooks/world_completion_163_5.md`.
+Status: gotowe do etapowego wdrożenia, nie pełny odbiór całego sprintu.

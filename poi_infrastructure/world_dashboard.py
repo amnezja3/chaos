@@ -7,12 +7,14 @@ import sqlite3
 import time
 
 from .world_storage import FORMAT, LAYER_BITS
-from .world_read import READ_FORMAT, SelectionProof
+from .world_read import READ_FORMAT, SelectionProof, checked_bounds
 
 
-def coverage(repo, layer='all', show_empty=False):
+def coverage(repo, layer='all', show_empty=False, bounds=None):
     if layer not in ('all', *LAYER_BITS): raise ValueError('invalid_layer')
+    bounds=checked_bounds(bounds) if bounds is not None else None
     result=dict(network_calls=0, layer=layer, items=[], truncated=False, hidden_empty=0,
+                bounds=bounds,matching_snapshots=None,
                 snapshot_limit=100, byte_limit=8*1024*1024, examined=0,
                 scope='bounded_snapshot_observations_not_planet_coverage')
     if not Path(repo.path).is_file(): return result
@@ -28,11 +30,29 @@ def coverage(repo, layer='all', show_empty=False):
             c.execute('BEGIN')
             providers={r['id']:dict(revision=r['revision'],config=json.loads(r['config']))
                        for r in c.execute('SELECT id,revision,config FROM poi_provider_config')}
+            filters='s.profile=?'
+            params=[FORMAT]
+            if bounds is not None:
+                west,south,east,north=bounds
+                # Filter before LIMIT: an older region must remain discoverable.
+                # Area proof also includes certified empty regions without members.
+                filters+=''' AND (EXISTS (SELECT 1 FROM world_member m WHERE m.snapshot_id=s.id
+                    AND m.spatial_valid=1 AND m.west<=? AND m.east>=? AND m.south<=? AND m.north>=?)
+                    OR (json_valid(c.bounds) AND json_extract(c.bounds,'$.mode')='area'
+                    AND json_extract(c.bounds,'$.bounds[0]')<=? AND json_extract(c.bounds,'$.bounds[2]')>=?
+                    AND json_extract(c.bounds,'$.bounds[1]')<=? AND json_extract(c.bounds,'$.bounds[3]')>=?))'''
+                params.extend((east,west,north,south,east,west,north,south))
+            if layer!='all':
+                filters+=''' AND (EXISTS (SELECT 1 FROM world_member m WHERE m.snapshot_id=s.id AND (m.layer_mask & ?)!=0)
+                    OR (json_valid(c.bounds) AND json_extract(c.bounds,'$.layer')=?))'''
+                params.extend((LAYER_BITS[layer],layer))
+            base=''' FROM world_snapshot s LEFT JOIN world_coverage c
+                ON c.snapshot_id=s.id AND c.profile=? WHERE '''+filters
+            params=[READ_FORMAT,*params]
+            result['matching_snapshots']=c.execute('SELECT count(*)'+base,params).fetchone()[0]
             rows=c.execute('''SELECT s.id,s.provider,s.fetched,s.fresh_until,s.usable_until,
                 length(s.payload) payload_size,s.digest,c.bounds proof
-                FROM world_snapshot s LEFT JOIN world_coverage c
-                ON c.snapshot_id=s.id AND c.profile=? WHERE s.profile=?
-                ORDER BY s.fetched DESC,s.id LIMIT 101''',(READ_FORMAT,FORMAT)).fetchall()
+                '''+base+' ORDER BY s.fetched DESC,s.id LIMIT 101',params).fetchall()
             result['truncated']=len(rows)>100
             used=0
             now=time.time()

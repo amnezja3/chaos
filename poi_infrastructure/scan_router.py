@@ -6,12 +6,13 @@ provider revisions are fenced throughout the operation. Partial data never wins.
 import json
 import os
 import time
+import uuid
 
 from .routing import Routing, adapter, reason
 from .providers import Registry
 from .service import POIError, UpstreamUnavailable, bounded_http, key_for, validate, retry_delay, LOG
 
-RETRYABLE = frozenset(('scan_network_paused','circuit_open','upstream_busy','join_timeout','budget_exhausted',
+RETRYABLE = frozenset(('budget_unconfigured','scan_network_paused','circuit_open','upstream_busy','join_timeout','budget_exhausted',
     'budget_account_held','budget_previous_period_unresolved','http_429','http_500',
     'http_502','http_503','http_504','provider_response_incomplete','invalid_response'))
 
@@ -99,9 +100,28 @@ def _overpass(service, candidate, query, timeout, fresh_ttl, stale_ttl, phase, a
             raise POIError('routing_changed_or_cancelled')
         stop=min(deadline,time.monotonic()+35)
         from .scan_metrics import transport_attempt
-        transport_attempt()
-        status,retry,data=bounded_http(service.config,candidate['url'],fill[2] if fill else query,
-                                      min(timeout,30),stop,secure=True)
+        # Regional acquisition shares the configured provider attempt allowance
+        # with the collector. Scans never create or reset a budget.
+        ledger=None;operation=None
+        from .credit_budget import CreditBudget
+        from contextlib import closing
+        with closing(service.repo.connect()) as c:
+            budget_ready=c.execute("SELECT 1 FROM sqlite_master WHERE name='world_credit_policy'").fetchone()
+        if budget_ready:
+            possible=CreditBudget(service.repo)
+            if possible.status(candidate['id']):ledger=possible
+        if fill and ledger is None:raise POIError('budget_unconfigured')
+        if ledger:
+            operation='scan:'+uuid.uuid4().hex
+            if not ledger.reserve(candidate['id'],operation,1):raise POIError('budget_exhausted')
+        try:
+            transport_attempt()
+            status,retry,data=bounded_http(service.config,candidate['url'],fill[2] if fill else query,
+                                          min(timeout,30),stop,secure=True)
+        finally:
+            if ledger and operation:
+                # Failed transport also consumes an attempt, not a provider bill.
+                ledger.settle(candidate['id'],operation,1)
         if status!=200:
             if status in (429,500,502,503,504):
                 service.repo.outcome(group,False,retry_delay(retry))

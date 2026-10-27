@@ -88,6 +88,10 @@ class AdminTests(unittest.TestCase):
             self.assertEqual(self.client.get('/api/admin/poi-world-view').status_code,200)
             self.assertFalse(path.exists())
             self.assertEqual(self.client.get('/api/admin/poi-world-view?layer=nope').status_code,400)
+            for bbox in ('bad','1,2,3','nan,0,1,2','2,0,1,1'):
+                self.assertEqual(self.client.get('/api/admin/poi-world-view',query_string={'bbox':bbox}).status_code,400)
+            self.assertEqual(self.client.get('/api/admin/poi-world-view?bbox=20,51,21,52').status_code,200)
+            self.assertFalse(path.exists())
             repo=Repository(path);repo.initialize();initialize(repo)
             now=time.time();body=dict(account='maplark',revision=0,credit_limit=30000,used=5,period_start=now-3600,period_end=now+3600,observed_at=now)
             route='/api/admin/poi-provider-observation'

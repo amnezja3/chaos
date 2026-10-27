@@ -109,9 +109,13 @@ def register(app, authorize, csrf_failure):
         if empty not in ('0','1'): return jsonify(ok=False,error='invalid_filter'),400
         repo=Repository(os.environ.get('CHAOS_POI_CACHE_PATH','data/poi_cache.sqlite3'))
         try:
-            data=coverage(repo,layer,empty=='1')
+            raw_bounds=request.args.get('bbox')
+            if raw_bounds is not None and len(raw_bounds)>160:raise ValueError('invalid_filter')
+            bounds=tuple(map(float,raw_bounds.split(','))) if raw_bounds is not None else None
+            data=coverage(repo,layer,empty=='1',bounds=bounds)
             from .scan_metrics import summary
-            return jsonify(ok=True,coverage=data,metrics=summary(repo),budgets=budget_projection(repo) if Path(repo.path).is_file() else [])
+            from .world_inventory_metrics import summary as inventory
+            return jsonify(ok=True,coverage=data,inventory=inventory(repo),metrics=summary(repo),budgets=budget_projection(repo) if Path(repo.path).is_file() else [])
         except ValueError:
             return jsonify(ok=False,error='invalid_filter'),400
 

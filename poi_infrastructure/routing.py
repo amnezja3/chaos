@@ -31,7 +31,7 @@ def capability(provider, layer, lane):
         return 'unsupported_layer'
     if lane == 'live' and layer != 'poi':
         return 'observation_only'
-    if lane == 'background' and (kind not in ('maplark','overpass') or layer == 'poi'):
+    if lane == 'background' and (kind not in ('maplark','overpass') or layer == 'poi' and kind!='maplark'):
         return 'unsupported_background_profile'
     return None
 

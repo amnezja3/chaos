@@ -13,6 +13,29 @@ class SectorCollectionTests(unittest.TestCase):
     setUp = fixtures.DiscoveryWorkerTests.setUp
     save_provider = fixtures.DiscoveryWorkerTests.save_provider
 
+    def test_full_poi_archive_uses_all_scanner_tags_without_certifying_radius(self):
+        from poi_infrastructure.discovery_queue import DemandQueue
+        from poi_infrastructure.world_contract import FILTERS
+        from poi_infrastructure.world_region_candidate import prepare
+        from poi_infrastructure.world_adapters import plan_maplark_region,normalize_maplark,MAPLARK_VERSION
+        from poi_infrastructure.world_contract import Provenance
+        import time
+        DemandQueue(self.repo).record(21,52,['poi'])
+        self.permit=replace(self.permit,acquisition='sector-bbox-v1',profiles=frozenset({'poi'}),budget_id='poi-test')
+        for scope in self.permit.budget_scopes('poi'):
+            self.ledger.configure_scope('maplark',scope,time.time()-1,self.permit.until,100)
+        self.worker.permit=self.permit
+        self.assertEqual(len(prepare_jobs(self.repo,self.permit,apply=True)['jobs']),1)
+        result=self.worker.run_one()
+        self.assertEqual(result['status'],'committed')
+        self.assertEqual(result['coverage'],'UNKNOWN')
+        params=dict(self.transport.call_args.args[2].params)
+        self.assertEqual(params['tags'],'|'.join(FILTERS))
+        plan=plan_maplark_region((21,52,21.01,52.01),profile='poi')
+        raw=self.transport.return_value[2]
+        batch=normalize_maplark(raw['body'],raw['response_headers'],Provenance('maplark',MAPLARK_VERSION,'test',time.time()),profile='poi')
+        self.assertFalse(prepare(batch,plan).region_certified)
+
     def sector(self):
         self.permit = replace(self.permit, acquisition='sector-bbox-v1')
         self.worker.permit = self.permit

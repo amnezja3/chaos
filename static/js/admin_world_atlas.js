@@ -9,18 +9,27 @@
   'atlas-title':text('Zapisany świat — dowody i obserwacje','Stored world — evidence and observations'),
   'atlas-hint':text('Obrys obserwacji nie jest dowodem pełnego pokrycia. Mapa pokazuje ograniczony zestaw snapshotów, bez pozycji graczy. Przeciągnij mapę, aby ją przesunąć.','An observation footprint is not complete coverage. This map shows a bounded snapshot set, without player positions. Drag to pan.'),
   'atlas-layer-label':text('Warstwa','Layer'),'atlas-empty-label':text('Pokaż kompletne puste wyniki','Show complete empty results'),
-  'atlas-refresh':text('Odśwież dane lokalne','Refresh local data'),'atlas-fit':text('Dopasuj','Fit'),
+  'atlas-refresh':text('Odśwież dane lokalne','Refresh local data'),'atlas-fit':text('Przegląd świata','World overview'),
+  'atlas-viewport':text('Wczytaj widoczny obszar','Load visible area'),
   'atlas-legend':text('Zielony: COMPLETE_FRESH. Pomarańczowy: STALE/EXPIRED. Żółty: PARTIAL. Szary przerywany: UNKNOWN / obserwacje. Blokada odczytu jest oznaczana osobno.','Green: COMPLETE_FRESH. Orange: STALE/EXPIRED. Yellow: PARTIAL. Dashed grey: UNKNOWN / observations. Read restrictions are labelled separately.'),
   'atlas-budget-title':text('Budżety CHAOS i konto dostawcy','CHAOS budgets and provider account')};
  for(const [id,value] of Object.entries(copy))$(id).textContent=value;
  for(const [key,value] of Object.entries(names)){const o=el('option',value);o.value=key;$('atlas-layer').append(o);}
  const svg=$('atlas-map');svg.setAttribute('aria-label',copy['atlas-title']);
  $('atlas-in').setAttribute('aria-label',text('Powiększ','Zoom in'));$('atlas-out').setAttribute('aria-label',text('Pomniejsz','Zoom out'));
- let items=[],view=[0,0,800,360],drag=null,sequence=0;
+ let items=[],view=[0,0,800,360],drag=null,sequence=0,frame=null,queryBounds=null;
  function setView(){svg.setAttribute('viewBox',view.join(' '));}
  function fit(){view=[0,0,800,360];setView();}
  function zoom(f){const w=view[2]*f,h=view[3]*f;if(w<10||w>100000)return;view=[view[0]+(view[2]-w)/2,view[1]+(view[3]-h)/2,w,h];setView();}
- $('atlas-in').onclick=()=>zoom(.7);$('atlas-out').onclick=()=>zoom(1/.7);$('atlas-fit').onclick=fit;
+ $('atlas-in').onclick=()=>zoom(.7);$('atlas-out').onclick=()=>zoom(1/.7);
+ $('atlas-fit').onclick=()=>{queryBounds=null;refresh();};
+ $('atlas-viewport').onclick=()=>{
+  if(!frame)return;
+  const {west,north,scale}=frame;
+  const b=[Math.max(-180,west+(view[0]-30)/scale),Math.max(-90,north-(view[1]+view[3]-30)/scale),Math.min(180,west+(view[0]+view[2]-30)/scale),Math.min(90,north-(view[1]-30)/scale)];
+  if(b[0]>=b[2]||b[1]>=b[3]||b[2]-b[0]>180){$('atlas-feedback').textContent=text('Przybliż wybrany obszar przed odczytem.','Zoom into a region before loading.');return;}
+  queryBounds=b;refresh();
+ };
  svg.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,view:[...view],moved:false};};
  svg.onpointermove=e=>{if(!drag)return;const r=svg.getBoundingClientRect();const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.moved ||= Math.abs(dx)+Math.abs(dy)>5;view=[drag.view[0]-dx/r.width*drag.view[2],drag.view[1]-dy/r.height*drag.view[3],view[2],view[3]];setView();};
  svg.onpointerup=()=>{drag=null;};svg.onpointercancel=()=>{drag=null;};svg.onpointerleave=()=>{drag=null;};
@@ -38,10 +47,11 @@
  function draw(){svg.replaceChildren();$('atlas-list').replaceChildren();$('atlas-details').replaceChildren();
   const spatial=items.filter(i=>i.bounds);$('atlas-empty-map').textContent=spatial.length?'':text('Brak obrysów do pokazania. To nie oznacza pustego świata.','No footprints to display. This does not mean the world is empty.');
   for(const item of items){const b=el('button',`${item.provider} · ${item.profile} · ${item.state} · ${item.objects}`+(!item.policy_allowed?' · '+text('BRAK ZGODY','PERMISSION BLOCKED'):''));b.type='button';b.onclick=()=>details(item);$('atlas-list').append(b);}
-  if(!spatial.length)return;
-  const west=Math.min(...spatial.map(i=>i.bounds[0])),south=Math.min(...spatial.map(i=>i.bounds[1]));
-  const east=Math.max(...spatial.map(i=>i.bounds[2])),north=Math.max(...spatial.map(i=>i.bounds[3]));
+  if(!spatial.length&&!queryBounds){frame=null;$('atlas-viewport').disabled=true;return;}
+  const west=queryBounds?.[0]??Math.min(...spatial.map(i=>i.bounds[0])),south=queryBounds?.[1]??Math.min(...spatial.map(i=>i.bounds[1]));
+  const east=queryBounds?.[2]??Math.max(...spatial.map(i=>i.bounds[2])),north=queryBounds?.[3]??Math.max(...spatial.map(i=>i.bounds[3]));
   const scale=Math.min(740/Math.max(east-west,.001),300/Math.max(north-south,.001));
+  frame={west,north,scale};$('atlas-viewport').disabled=false;
   for(const item of spatial){const b=item.bounds;const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
    for(const [k,v] of Object.entries({x:30+(b[0]-west)*scale,y:30+(north-b[3])*scale,width:Math.max(3,(b[2]-b[0])*scale),height:Math.max(3,(b[3]-b[1])*scale)}))rect.setAttribute(k,v);
    const color=!item.policy_allowed?'#9aa9a3':item.state==='COMPLETE_FRESH'?'#43ffa1':item.state==='PARTIAL'?'#ffe16b':['COMPLETE_STALE','EXPIRED'].includes(item.state)?'#ff9a50':'#9aa9a3';
@@ -71,12 +81,21 @@
   }
  }
  async function refresh(){const id=++sequence;$('atlas-feedback').textContent=text('Odczyt lokalny…','Reading local data…');
-  try{const r=await fetch('/api/admin/poi-world-view?layer='+encodeURIComponent($('atlas-layer').value)+'&empty='+($('atlas-empty').checked?'1':'0'));const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||String(r.status));if(id!==sequence)return;
-   items=d.coverage.items;draw();fit();budgets(d.budgets);metrics(d.metrics);
-   $('atlas-feedback').textContent=text('Widoczne snapshoty: ','Visible snapshots: ')+items.length+' · '+text('Ukryte puste: ','Hidden empty: ')+d.coverage.hidden_empty+(d.coverage.truncated?' · '+text('Wynik ograniczony limitem','Result limited'):'')+' · '+text('API dostawców: 0 zapytań','Provider APIs: 0 requests');
+  try{const r=await fetch('/api/admin/poi-world-view?layer='+encodeURIComponent($('atlas-layer').value)+'&empty='+($('atlas-empty').checked?'1':'0')+(queryBounds?'&bbox='+encodeURIComponent(queryBounds.join(',')):''));const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||String(r.status));if(id!==sequence)return;
+   items=d.coverage.items;draw();fit();budgets(d.budgets);metrics(d.metrics);inventory(d.inventory);
+   $('atlas-feedback').textContent=text('Widoczne snapshoty: ','Visible snapshots: ')+items.length+' / '+(d.coverage.matching_snapshots??'—')+' · '+text('Ukryte puste: ','Hidden empty: ')+d.coverage.hidden_empty+(d.coverage.truncated?' · '+text('Wynik ograniczony limitem','Result limited'):'')+' · '+text('API dostawców: 0 zapytań','Provider APIs: 0 requests')+(queryBounds?' · '+queryBounds.map(v=>v.toFixed(4)).join(', '):'');
   }catch(e){if(id===sequence)$('atlas-feedback').textContent=e.message;}
  }
  $('atlas-refresh').onclick=refresh;$('atlas-layer').onchange=refresh;$('atlas-empty').onchange=refresh;refresh();
+ function inventory(m){const target=$('atlas-inventory');target.replaceChildren();if(!m)return;
+  target.append(el('h3',text('Rozmiar i zasoby archiwum','Archive size and resources')));
+  if(!m.complete){target.append(el('p',text('Pełny pomiar niedostępny — schemat lub limit czasu.','Complete measurement unavailable — schema or deadline.')));return;}
+  target.append(el('p',text('Unikalne obiekty w archiwum: ','Unique retained objects: ')+m.unique_objects),
+   el('p',text('Pierwszy zapis w zachowanym archiwum, ostatnie 24 h: ','First seen in retained archive, last 24 h: ')+m.first_seen_retained_24h),
+   el('p',text('Baza / WAL: ','Database / WAL: ')+(m.database_bytes/1048576).toFixed(2)+' / '+(m.wal_bytes/1048576).toFixed(2)+' MiB'),
+   el('p',text('Wiek oczekiwania kolejki, p95: ','Queue waiting age, p95: ')+(m.queue_p95_wait_seconds===null?'—':m.queue_p95_wait_seconds+' s')),
+   el('p',text('Retencja usuwa historię. Ten pomiar nie jest przyrostem całego świata od początku projektu.','Retention removes history. This is not lifetime world growth.')));
+ }
  function metrics(m){const target=$('atlas-metrics');target.replaceChildren();
   target.append(el('h3',text('Statystyki skanera POI','POI scanner statistics')));
   if(!m.prepared){target.append(el('p',text('Schemat statystyk nieprzygotowany.','Metrics schema not prepared.')));return;}

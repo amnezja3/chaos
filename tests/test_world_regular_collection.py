@@ -85,7 +85,7 @@ class RegularCollectionTests(unittest.TestCase):
         self.assertEqual(load(self.path)[0]['review_until'],until)
         self.assertEqual(self.ledger.status('geoapify')[0]['committed'],5)
         self.assertEqual(self.ledger.status('geoapify')[0]['credit_limit'],2700)
-        self.assertEqual(Routing(self.repo).get('poi','background')['chain'],['geoapify'])
+        self.assertEqual(Routing(self.repo).get('poi','background')['chain'],['maplark','geoapify'])
         self.transport.assert_not_called()
 
     def test_overpass_outage_falls_back_next_cycle_without_extra_requests(self):
@@ -110,6 +110,7 @@ class RegularCollectionTests(unittest.TestCase):
             c.execute('DELETE FROM world_discovery_demand')
             c.execute('INSERT INTO poi_provider_config VALUES (?,?,?)',('geoapify',1,json.dumps(geo)))
         DemandQueue(self.repo).record(21,52,['poi'])
+        Routing(self.repo).save('poi','background',0,['geoapify'],'test')
         self.ledger.configure_recurring('geoapify',2700,83700)
         self.transport.return_value=response(2)
         with patch.dict(os.environ,CHAOS_GEOAPIFY_API_KEY='synthetic'):
@@ -134,6 +135,22 @@ class RegularCollectionTests(unittest.TestCase):
         with closing(ReadOnlyRepository(self.repo.path).connect()) as c:
             with self.assertRaises(Exception):c.execute('DELETE FROM world_discovery_job')
         self.transport.assert_not_called()
+
+    def test_commercial_observation_does_not_suppress_full_poi_archive(self):
+        self.configure()
+        geo=dict(self.provider,id='geoapify',url='https://api.geoapify.com/v2/places',operator_group='api.geoapify.com')
+        with self.repo.transaction() as c:
+            c.execute('DELETE FROM world_discovery_demand')
+            c.execute('INSERT INTO poi_provider_config VALUES (?,?,?)',('geoapify',1,json.dumps(geo)))
+            c.execute('INSERT INTO world_collection_seen VALUES (?,?,?,?,?,?)',(2100,5200,'poi',time.time(),'geoapify',1))
+        DemandQueue(self.repo).record(21,52,['poi'])
+        Routing(self.repo).save('poi','background',0,['maplark','geoapify'],'test')
+        result=cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+        self.assertEqual(result['provider'],'maplark')
+        self.assertEqual(result['status'],'committed')
+        with self.repo.transaction() as c:c.execute('UPDATE world_collection_runtime SET next_cycle=0')
+        self.assertEqual(cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)['status'],'idle')
+        self.transport.assert_called_once()
 
     def test_regular_launcher_uses_both_credentials_without_echoing_them(self):
         from tools.world_collector_start import start

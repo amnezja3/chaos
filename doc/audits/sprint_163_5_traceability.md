@@ -244,3 +244,30 @@ wygaśnięcie, zmianę właściciela, brak schematu, plan/CLI, zakończenie, bł
 odczyt read-only i bramkę migracji. Bez ruchu do dostawców.
 Instrukcja: `doc/runbooks/world_heartbeat_163_5.md`.
 Prezentacja heartbeat w UI oraz pozostałe metryki/atlas nadal otwarte.
+
+### Pakiet regionalny i atlas — 27.10.2026, lokalnie
+
+Powyższy status UI zastępuje ten wpis. Wdrożenie/odbiór VPS nadal oczekuje.
+
+| Element | Przygotowane i sprawdzone lokalnie | Granica potwierdzenia |
+| --- | --- | --- |
+| Atlas | Bbox przed limitem 100 snapshotów, stare regiony, puste certyfikaty, PL/EN/mobile | Nie jest mapą kompletności całej planety |
+| Monitoring | Heartbeat w UI, unikalne zachowane identyfikatory, DB/WAL, p95 wieku oczekujących zadań | Przyrost dotyczy pierwszego wystąpienia w zachowanym archiwum, nie historii od początku gry |
+| Regionalny Overpass | Wspólny budżet prób live/collector, lokalne odczyty bez zużycia, jawne rozszerzenie praw, profil ecosystem | Odbiór live/sąsiad na VPS przed zamknięciem A05 |
+| Pełne POI w archiwum MapLark | Sześć filtrów CHAOS w bbox; commercial Geoapify nie zastępuje pełnego profilu | Obserwacja UNKNOWN, bez deklarowania równoważności radius |
+| Ląd–morze | Ekstraktor przypiętego Natural Earth 5.1.1, rzeczywiste dwuczęściowe MultiPolygon, walidacja podziału | Uogólnienie 1:10 mln, bez użycia w grze; nie dowód inland_water MapLark |
+
+Natural Earth: [land 1:10m](https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/),
+[public domain](https://www.naturalearthdata.com/about/terms-of-use/).
+Pełny plik pobrano do ignorowanego `instance/provider-captures`; Git zawiera
+wyłącznie małą próbkę regionalną z manifestem, SHA-256 i źródłem wersji.
+
+Testy: 42 testy nowych/zmienionych komponentów oraz 179 testów regresji PASS.
+Playwright MCP: izolowana aplikacja, PL desktop i EN desktop/mobile 390 px,
+zoom i odczyt viewportu, czytelne liczniki, brak poziomego overflow i błędów
+konsoli. Przeglądarka i fixture zamknięte. Brak prób produkcyjnych dostawców.
+
+Jedna instrukcja wdrożenia, aktywacji i rollbacku:
+`doc/runbooks/world_completion_163_5.md`. Nie zamykać całego 163.5 przed
+odbiorami i brakującą kwalifikacją źródeł; Geoapify nadal nie jest pełnym
+fallbackiem skanera, MapLark bbox nie jest certyfikatem selekcji radius.

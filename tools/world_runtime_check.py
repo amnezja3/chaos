@@ -16,12 +16,13 @@ def inspect(processes,expected_cwd, *, routing='0',worker='stopped',world_stage=
     if halo not in (None,'0','1'):raise ValueError('runtime_halo_expectation')
     expected=dict(FLAGS, CHAOS_POI_ROUTING_ENABLED=routing)
     if world_stage is not None:
-        if world_stage not in ('ingest','read','visits','rollback'):raise ValueError('runtime_world_stage')
+        if world_stage not in ('ingest','read','visits','regional','rollback'):raise ValueError('runtime_world_stage')
         expected.update(CHAOS_POI_WORLD_ACCESS_MODE='pilot' if world_stage=='rollback' else 'global',
             CHAOS_POI_WORLD_INGEST_ENABLED='0' if world_stage=='rollback' else '1',
-            CHAOS_POI_WORLD_REPOSITORY_ENABLED='1' if world_stage in ('read','visits') else '0',
-            CHAOS_POI_WORLD_VISITS_ENABLED='1' if world_stage=='visits' else '0',
-            CHAOS_POI_WORLD_REGIONAL_READ_ENABLED='0',CHAOS_POI_WIDE_FETCH_ENABLED='0',
+            CHAOS_POI_WORLD_REPOSITORY_ENABLED='1' if world_stage in ('read','visits','regional') else '0',
+            CHAOS_POI_WORLD_VISITS_ENABLED='1' if world_stage in ('visits','regional') else '0',
+            CHAOS_POI_WORLD_REGIONAL_READ_ENABLED='1' if world_stage=='regional' else '0',
+            CHAOS_POI_WIDE_FETCH_ENABLED='1' if world_stage=='regional' else '0',
             CHAOS_POI_SCAN_NETWORK_PAUSED='0')
     if not isinstance(processes,list):raise ValueError('pm2_list_required')
     selected=[]
@@ -61,7 +62,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--routing', choices=('0','1'), default='0')
     parser.add_argument('--worker', choices=('stopped','online'), default='stopped')
-    parser.add_argument('--world-stage',choices=('ingest','read','visits','rollback'))
+    parser.add_argument('--world-stage',choices=('ingest','read','visits','regional','rollback'))
     parser.add_argument('--halo',choices=('0','1'))
     args=parser.parse_args()
     try:

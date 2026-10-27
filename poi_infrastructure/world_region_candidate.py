@@ -5,7 +5,7 @@ from .world_adapters import MAPLARK_VERSION,plan_maplark_region
 from .world_contract import ContractError,ProviderBatch
 
 SELECTION='maplark-bbox-local-filter-v1'
-PROFILES=frozenset(('roads','waterways','inland_water'))
+PROFILES=frozenset(('poi','roads','waterways','inland_water'))
 
 
 @dataclass(frozen=True)

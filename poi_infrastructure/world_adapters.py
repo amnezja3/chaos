@@ -88,7 +88,7 @@ def plan_maplark_region(bounds, *, profile='roads',limit=1000):
     west,south,east,north=checked_bounds(bounds)
     if east-west>.020001 or north-south>.020001:
         raise ContractError('region_probe_bounds_limit')
-    filters={'roads':'highway','waterways':'waterway','inland_water':'natural=water','coastline':'natural=coastline'}
+    filters={'poi':'|'.join(FILTERS),'roads':'highway','waterways':'waterway','inland_water':'natural=water','coastline':'natural=coastline'}
     if profile not in filters: raise ContractError('region_profile_unsupported')
     if type(limit) is not int or not 1<=limit<=1000:raise ContractError('feature_limit')
     return RequestPlan('https://api.maplark.com/v3/osm_features',

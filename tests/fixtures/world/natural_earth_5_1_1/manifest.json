@@ -1,0 +1,17 @@
+{
+  "bounds": [
+    22.1436,
+    60.3605,
+    22.1636,
+    60.3805
+  ],
+  "provider": "natural-earth",
+  "snapshot": "8219fcfc75e9be5da4ccab6e0f697916482ec95016de2b1485340a9d96162a31",
+  "fetched_at": 1793119004.960063,
+  "dataset_version": "natural-earth-5.1.1-land-10m",
+  "license_ref": "https://www.naturalearthdata.com/about/terms-of-use/",
+  "dependencies": [
+    "1ac90796408bc6ad6911d69448485d3c4dbf2190370080368a09976e1c9f7416"
+  ],
+  "body_sha256": "8219fcfc75e9be5da4ccab6e0f697916482ec95016de2b1485340a9d96162a31"
+}

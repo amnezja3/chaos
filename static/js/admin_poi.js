@@ -51,10 +51,18 @@
    node('p',`${t('snapshots')}: ${w.snapshots} · ${t('canonical')}: ${w.canonical_snapshots} · ${(w.payload_bytes/1048576).toFixed(2)} MiB`),
    node('p',`${pl?'Świeże':'Fresh'}: ${w.fresh} · ${pl?'Starsze':'Stale'}: ${w.stale} · ${pl?'Wygasłe':'Expired'}: ${w.expired}`),
    node('p',`${pl?'Zapis ze skanera':'Scanner ingest'}: ${w.ingest_enabled?'ON':'OFF'} · ${pl?'Odczyt świata przez skaner':'Scanner world read'}: ${w.read_enabled?'ON':'OFF'} · ${pl?'Zapotrzebowanie':'Demand'}: ${w.discovery_mode==='passive'?(pl?'zbierane pasywnie':'collected passively'):w.discovery_mode}`),
-   node('p',pl?'Stan procesu pobierania w tle: niepotwierdzony.':'Background process status: unverified.'));
+   node('p',pl?'Zebrane obserwacje i aktualne pokrycie skanera są rozliczane osobno.':'Collected observations and current scanner coverage are tracked separately.'));
   const jobs=w.jobs;
   if(jobs){
    const queue=node('section');queue.id='poi-job-summary';
+   const heartbeat=jobs.heartbeat;
+   if(heartbeat){
+    const states=pl?{running:'Pracuje',waiting:'Oczekuje',stopped:'Zatrzymany',error:'Zakończył się błędem',unknown:'Brak aktualnego sygnału'}:{running:'Working',waiting:'Waiting',stopped:'Stopped',error:'Exited with error',unknown:'No current signal'};
+    const live=node('p',(pl?'Kolektor (stan przy odczycie): ':'Collector (state when loaded): ')+(states[heartbeat.status]||states.unknown));live.id='poi-worker-heartbeat';
+    if(heartbeat.observed_at)live.append(' · '+(pl?'Ostatni sygnał: ':'Last signal: ')+new Date(heartbeat.observed_at*1000).toLocaleString());
+    live.title=pl?'Sygnał życia procesu, niezależny od wyniku pobrania. Wygasły sygnał nie potwierdza pracy kolektora.':'Process liveness, independent of fetch outcomes. An expired signal does not confirm a running collector.';
+    queue.append(live);
+   }
    queue.append(node('h3',pl?'Kolejka discovery':'Discovery queue'));
    queue.append(node('p',jobs.prepared?(pl?'Schemat kolejki gotowy.':'Queue schema ready.'):(pl?'Schemat kolejki nieprzygotowany.':'Queue schema not prepared.')));
    queue.append(node('p',`${pl?'Zadania':'Jobs'}: ${jobs.total} · ${pl?'Gotowe czasowo':'Ready by time'}: ${jobs.ready_by_time} · ${pl?'Nierozstrzygnięte':'Unresolved'}: ${jobs.unresolved}`));

@@ -25,7 +25,7 @@ PARTS={'parent':BOUNDS,'left':(20.36,51.53,20.365,51.54),'right':(20.365,51.53,2
 
 
 def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False,profile='roads',water_bounds=None):
-    if profile not in ('roads','waterways','inland_water'):
+    if profile not in ('poi','roads','waterways','inland_water'):
         raise ContractError('region_profile_unsupported')
     if profile!='roads' and (part!='parent' or _pilot):
         raise ContractError('water_probe_parent_only_no_pilot')
@@ -37,6 +37,9 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
     if profile!='roads':
         operation='region:water-2036-5153-bbox-v1:'+profile
         scope_id='region-probe:water-2036-5153-bbox-v1';scope_limit=40
+    if profile=='poi':
+        operation='region:poi-2036-5153-bbox-v1'
+        scope_id='region-probe:poi-2036-5153-bbox-v1';scope_limit=20
     if _pilot:
         if part!='parent':raise ContractError('pilot_parent_only')
         operation='region:roads-2036-5153-storage-pilot-v1'
@@ -132,7 +135,7 @@ def main():
     p.add_argument('--db',default='data/poi_cache.sqlite3')
     p.add_argument('--output')
     p.add_argument('--part',choices=tuple(PARTS),default='parent')
-    p.add_argument('--profile',choices=('roads','waterways','inland_water'),default='roads')
+    p.add_argument('--profile',choices=('poi','roads','waterways','inland_water'),default='roads')
     p.add_argument('--water-bbox',nargs=4,type=float,metavar=('WEST','SOUTH','EAST','NORTH'),
                    help='One inland_water topology probe, at most 0.01 degrees per axis; no ingest')
     p.add_argument('--execute',action='store_true')

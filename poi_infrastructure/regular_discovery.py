@@ -126,13 +126,18 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
             if not active():return dict(status='policy_changed',network_calls=0)
             if time.monotonic()-started>10:break
             cell,profile=tasks[offset];visited+=1
+            chain=Routing(repo).get(profile,'background')['chain']
             # Archive observation age suppresses duplicate collection across geometry providers.
             with closing(repo.connect()) as c:
                 recent=c.execute('SELECT * FROM world_collection_seen WHERE cell_x=? AND cell_y=? AND profile=? AND fetched>?',
                                  (*cell,profile,now-604800)).fetchone()
             source=providers.get(recent['provider']) if recent else None
-            if source and source['revision']==recent['revision'] and not reason(source,profile,'background'):continue
-            chain=Routing(repo).get(profile,'background')['chain']
+            # Commercial point observations cannot satisfy a newly requested
+            # full-tag MapLark POI collection. Keep archival freshness separate
+            # from the scanner's 300/1800 s validity.
+            adequate=(source and source['id'] in chain and
+                (profile!='poi' or adapter(source)!='geoapify' or chain[0]==source['id']))
+            if adequate and source['revision']==recent['revision'] and not reason(source,profile,'background'):continue
             for provider_id in chain:
                 p=providers.get(provider_id)
                 why=reason(p,profile,'background') if p else 'provider_missing'

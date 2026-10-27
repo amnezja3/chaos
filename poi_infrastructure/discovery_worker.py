@@ -68,7 +68,8 @@ class DiscoveryPermit:
                        for c in self.cells)
                 or not isinstance(self.profiles, frozenset) or not self.profiles
                 or not self.profiles <= ({'poi'} if self.account=='geoapify' else
-                                        {'roads', 'waterways', 'inland_water', 'coastline'})
+                                        ({'poi','roads','waterways','inland_water','coastline'}
+                                         if self.acquisition=='sector-bbox-v1' else {'roads', 'waterways', 'inland_water', 'coastline'}))
                 or type(self.until) not in (int, float) or not math.isfinite(self.until)
                 or not 0 < self.until - time.time() <= 86400
                 or type(self.reservation) is not int or not 1 <= self.reservation <= 20

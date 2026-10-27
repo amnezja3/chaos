@@ -51,6 +51,9 @@ class RoutedRegionTests(unittest.TestCase):
             dict(source_url='https://example.org/terms', reference='test only', notes='fixture'),
             time.time()+3600, 'test')
         self.provider = self.registry.enable(p['id'], p['revision'], True, 'test')
+        from poi_infrastructure.credit_budget import CreditBudget
+        CreditBudget(self.service.repo).initialize()
+        CreditBudget(self.service.repo).configure_recurring('overpass',120,3720)
         self.route(['overpass'])
         self.raw = json.loads((FIXTURES/'geometry_wide_reference.json').read_text())
         self.cases = json.loads((FIXTURES/'geometry_reference.json').read_text())['cases']
@@ -60,6 +63,24 @@ class RoutedRegionTests(unittest.TestCase):
         return self.service.fetch(c['query'], [], 25, 300, 1800,
             dict(_world_pilot_user='other-account', _spatial=dict(
                 lat=c['lat'], lon=c['lon'], radius=c['radius'], filters=list(FILTERS))))
+
+    def test_regional_network_attempt_uses_shared_budget_but_neighbor_does_not(self):
+        from poi_infrastructure.credit_budget import CreditBudget
+        ledger=CreditBudget(self.service.repo)
+        with patch('poi_infrastructure.scan_router.bounded_http',return_value=(200,None,self.raw)) as http:
+            self.scan()
+            self.scan('nearby')
+        self.assertEqual(http.call_count,1)
+        self.assertTrue(all(w['committed']==1 for w in ledger.status('overpass')))
+
+    def test_regional_budget_exhaustion_never_calls_upstream(self):
+        from poi_infrastructure.credit_budget import CreditBudget
+        ledger=CreditBudget(self.service.repo)
+        ledger.reserve('overpass','already-used',120);ledger.settle('overpass','already-used',120)
+        from poi_infrastructure.world_contract import ContractError
+        with patch('poi_infrastructure.scan_router.bounded_http') as http:
+            with self.assertRaises((POIError,ContractError)):self.scan()
+        http.assert_not_called()
 
     def test_neighbor_reads_match_reference_after_restart_without_http(self):
         with patch('poi_infrastructure.scan_router.bounded_http', return_value=(200,None,self.raw)) as http:

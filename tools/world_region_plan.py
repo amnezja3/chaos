@@ -81,7 +81,7 @@ def evaluate(bounds,layer,body=None,headers=None):
         water_surface_with_holes_observed=layer=='inland_water' and selected_holes>0,
         water_multipolygon_observed=layer=='inland_water' and selected_multipart>0,
         note='Interior rings are observed geometry, not independent proof of real islands or coverage.')
-    if layer in ('roads','waterways','inland_water'):
+    if layer in ('poi','roads','waterways','inland_water'):
         from poi_infrastructure.world_region_candidate import prepare
         from poi_infrastructure.world_contract import ContractError
         try:
@@ -96,7 +96,7 @@ def evaluate(bounds,layer,body=None,headers=None):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--bbox',nargs=4,type=float,default=[20.36,51.53,20.37,51.54])
-    p.add_argument('--layer',choices=['roads','waterways','inland_water','coastline'],default='roads')
+    p.add_argument('--layer',choices=['poi','roads','waterways','inland_water','coastline'],default='roads')
     p.add_argument('--body');p.add_argument('--headers')
     p.add_argument('--require-water-holes',action='store_true')
     p.add_argument('--require-water-multipart',action='store_true')
