@@ -45,3 +45,16 @@ class ParisAcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ContractError,'approval_required'):
             run(self.repo.path,self.backup,execute=True,accept=True,transport=self.transport)
         self.transport.assert_not_called()
+
+    def test_partial_response_reports_reason_and_cost_without_publication_or_retry(self):
+        self.headers['X-Has-More']='true'
+        result=run(self.repo.path,self.backup,execute=True,accept=True,transport=self.transport)
+        self.assertEqual(result['status'],'response_incomplete')
+        self.assertIn('truncated',result['reasons'])
+        self.assertEqual(result['billing']['reported_credits'],3)
+        self.assertFalse(result['world_published'])
+        self.assertFalse(result['acceptance_ready'])
+        self.assertEqual(CanonicalWorldRepository(self.repo).status()['snapshots'],0)
+        with self.assertRaisesRegex(ContractError,'already_used'):
+            run(self.repo.path,self.output.parent/'second.sqlite3',execute=True,accept=True,transport=self.transport)
+        self.transport.assert_called_once()

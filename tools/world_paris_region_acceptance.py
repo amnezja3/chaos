@@ -57,8 +57,16 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None):
     if not owner:raise ContractError('region_busy')
     try:
         batch,billing=acquire_maplark(repo,plan,OPERATION,20,accept_variable_cost=True,
-            transport=transport,still_active=active,lane='background',budget_scopes=(OPERATION,))
+            transport=transport,still_active=active,lane='background',budget_scopes=(OPERATION,),
+            allow_partial_observations=True)
         if not active():raise ContractError('provider_changed')
+        # Inspect an incomplete reply but never publish it as regional coverage.
+        # The transport already settled billing; preserve its diagnostic result.
+        if batch.completeness!='complete' or batch.reasons:
+            return dict(result,status='response_incomplete',network_calls=1,billing=billing,
+                        completeness=batch.completeness,reasons=batch.reasons,
+                        objects=len(batch.objects),world_published=False,
+                        acceptance_ready=False,automatic_retry=False)
         now=time.time()
         snapshot=world.publish_batch(OPERATION,owner,batch,
             provider='maplark',revision=p['revision'],storage_reference=p['evidence']['reference'],
@@ -89,7 +97,7 @@ def main():
     args=parser.parse_args()
     try:
         result=run(args.db,args.backup,execute=args.execute,accept=args.accept_variable_credit_cost)
-        print(json.dumps(result));return 0
+        print(json.dumps(result));return 2 if result['status']=='response_incomplete' else 0
     except Exception as exc:
         print(json.dumps(dict(status='stopped',error=str(exc) if isinstance(exc,ContractError)
                               else type(exc).__name__,automatic_retry=False)));return 1
