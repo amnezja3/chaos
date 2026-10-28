@@ -1,5 +1,37 @@
 # 163.5 — mapa wymagań i dowodów
 
+## Aktualny stan — 28.10.2026, końcowy pakiet lokalny
+
+Podstawowy cel pochodzi z 160.1–160.2 (trwałość i sąsiednie skany z repozytorium),
+administracja i odbiór z 160.4–160.5. Kolejne wersje rozszerzyły geografię i źródła.
+Tabele historyczne poniżej dokumentują stan na datę wpisu. Bieżąca instrukcja:
+[końcowy pakiet](../runbooks/world_completion_final_163_5.md).
+
+Wykonano **210 testów PASS w 69.389 s** przez `tools/world_completion_tests.py`.
+Nowy test używa zapisanej rzeczywistej odpowiedzi MapLark i izolowanej bazy:
+wizyta → kolektor → dwa przesunięte odczyty `world` dla dwóch użytkowników → brak
+przyrostu księgi podczas odczytu → brak pobrania po samym upływie godziny → nowe
+pobranie po nowym popycie. Transport mockowany. Pozostałe testy obejmują receipt,
+lease, restart, niepewne rozliczenia, uprawnienia i podlimit tła. Bez API dostawców.
+
+Natural Earth: rzeczywisty regionalny MultiPolygon z dwiema częściami, pełny
+lokalny roundtrip, wersja i zależności sprawdzane. Importer używa przypiętego
+produktu, robi backup przed publikacją; powtórzenie nie odnawia wieku.
+Źródło ma `offline_archive_only` w obu kolejkach routingu. To uogólniony produkt
+ląd–morze, nie dowód dokładności wysp OSM ani pokrycia planety.
+
+Playwright MCP na izolowanym `poi_admin_fixture.py --routing --world`:
+`tests/browser/poi_completion.js`, PL/EN × 1440/390 px, poprawne 3/200 i 197
+pozostałych kredytów tła, wyjaśnienie 7 dni / 1 h / 5–30 min, zero overflow,
+zero błędów JS i konsoli. Przeglądarka i fixture zamknięte po sprawdzeniu.
+Sprawdzono składnię bash, JS i `git diff --check`.
+
+Do VPS: aktualizacja kolektora/panelu i import ląd–morze. Nie powtarzamy zaliczonego
+Paryża. Geoapify nadal nie ma dowodu pełnego kontraktu skanera; rezerwacje pozostają.
+Overpass nie otrzymuje automatycznie pierwszeństwa ani nowej decyzji. Pomiary p95
+i obserwacja 7 dni są utrzymaniem, nie wynikiem tych testów. Całego zakresu ze
+wszystkimi źródłami nie oznaczono CLOSED.
+
 26.10.2026. To mapa pokrycia i pozostałych odbiorów, nie deklaracja PASS wszystkich
 historycznych scenariuszy. Nazwy testów wskazują istniejący materiał do weryfikacji;
 wykonane zestawy są zapisywane osobno. Dowody VPS: odbiory i capture 161–163.

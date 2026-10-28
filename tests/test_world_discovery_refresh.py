@@ -102,7 +102,7 @@ class RefreshTests(unittest.TestCase):
         prepare_jobs(self.repo,self.permit)
         with closing(self.repo.connect()) as c:
             self.assertEqual(c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0],0)
-        for value in (True,60,604800.0):
+        for value in (True,60,3600,604800.0):
             with self.assertRaises(ValueError):replace(self.permit,refresh_seconds=value).validate()
 
     def test_expired_unsent_generation_can_serve_new_demand_without_reusing_operation(self):

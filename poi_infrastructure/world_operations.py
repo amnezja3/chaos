@@ -59,4 +59,7 @@ def status(repo):
         c.close()
     result['demand']=DemandQueue(repo).summary()
     result['budget_windows']=CreditBudget(repo).status('maplark') if has_ledger else []
+    day=int(time.time()//86400)*86400
+    result['background_budgets']={account:CreditBudget(repo).scope_status(account,f'discovery:regular-{account}-{day}')
+        for account in ('maplark','geoapify')} if 'world_credit_scope' in tables else {}
     return result

@@ -74,6 +74,14 @@
    queue.append(recent);summary.append(queue);
   }
   const budgets=document.getElementById('poi-world-budget');budgets.replaceChildren();
+  const policy=node('p',pl?'Archiwum geografii: 7 dni. Pełne POI: odświeżenie najwyżej raz na godzinę, po nowej wizycie lub skanie. Świeżość skanera: 5 minut; dane starsze: do 30 minut.':'Geography archive: 7 days. Full POI: refresh at most hourly after a new visit or scan. Scanner freshness: 5 minutes; stale data: up to 30 minutes.');
+  policy.id='poi-refresh-policy';budgets.append(policy);
+  for(const [account,b] of Object.entries(w.background_budgets||{})){
+   if(!b)continue;
+   const line=node('p',`${account} · ${pl?'Budżet tła':'Background budget'}: ${b.committed} / ${b.credit_limit} · ${pl?'Pozostało':'Remaining'}: ${b.remaining}`);
+   line.title=pl?'Osobny podlimit kolektora w ramach budżetu konta. Wolne środki konta nie zwiększają tego limitu.':'Separate collector allowance within the account budget. Remaining account credits do not increase this limit.';
+   budgets.append(line);
+  }
   for(const b of w.budget_windows||[])budgets.append(node('p',`${t('credits')} · ${b.period}: ${b.committed} / ${b.credit_limit}`));
   const demand=w.demand||{pending:0,cells:[],layers:{}};
   document.getElementById('poi-demand-summary').textContent=`${t('pending')}: ${demand.pending} · `+Object.entries(demand.layers).map(([k,v])=>`${t(k)}: ${v}`).join(' · ');

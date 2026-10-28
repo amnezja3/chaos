@@ -79,9 +79,11 @@ class DiscoveryPermit:
         if self.provider_id:
             _token(self.provider_id)
             if self.acquisition!='overpass-bbox-geom-v1':raise ValueError('discovery_provider_acquisition')
-        if (type(self.refresh_seconds) is not int or self.refresh_seconds not in (0,604800)
+        if (type(self.refresh_seconds) is not int or self.refresh_seconds not in (0,3600,604800)
                 or self.refresh_seconds and self.retention_seconds!=604800):
             raise ValueError('discovery_refresh_requires_maplark_seven_day_archive')
+        if self.refresh_seconds==3600 and (self.acquisition!='sector-bbox-v1' or self.profiles!=frozenset({'poi'})):
+            raise ValueError('hourly_refresh_only_full_poi')
 
 
 class DiscoveryWorker:

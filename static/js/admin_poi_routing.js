@@ -22,6 +22,7 @@
  world_storage_required:['Brak zgody na zapis świata','World storage approval missing'],
  geoapify_contract_unverified:['Geoapify: diagnostyka gotowa, pełny profil CHAOS niezweryfikowany','Geoapify: diagnostics ready, full CHAOS profile unverified'],
  unsupported_layer:['Warstwa nieobsługiwana przez ten adapter','Layer unsupported by this adapter'],
+  offline_archive_only:['Import lokalnego archiwum; bez zapytań sieciowych i skanowania','Local archive import; no network requests or scanning'],
  unsupported_background_profile:['Profil niedopuszczony dla tła','Profile unsupported for background'],
  observation_only:['Obserwacje geograficzne; nie jest to profil skanera gracza','Geographic observations; not a player-scanner profile'],
  provider_missing:['Brak źródła w rejestrze','Provider missing from registry'],

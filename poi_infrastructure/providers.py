@@ -83,6 +83,8 @@ class Registry:
         # arbitrary feature URLs or query-string credentials into the registry.
         feature_hosts = {'https://api.maplark.com/v3/osm_features': 'api.maplark.com',
                          'https://api.geoapify.com/v2/places': 'api.geoapify.com'}
+        from .natural_earth_region import SOURCE
+        feature_hosts[SOURCE] = 'raw.githubusercontent.com'
         if fields['url'] not in feature_hosts:
             endpoint_host(fields['url'])
         elif fields['operator_group'] != feature_hosts[fields['url']]:
@@ -142,7 +144,9 @@ class Registry:
             if not old or old['revision'] != revision:
                 raise POIError('provider_revision_conflict')
             background=all(self.approved(old,scope) for scope in ('background_refresh','storage','world_storage'))
-            if enabled and not (self.approved(old,'normal_scan') or background):
+            from .natural_earth_region import SOURCE
+            offline=(old['url']==SOURCE and all(self.approved(old,s) for s in ('storage','world_storage')))
+            if enabled and not (self.approved(old,'normal_scan') or background or offline):
                 raise POIError('provider_not_approved')
             return self._write(c,dict(old,enabled=enabled),old,actor,'enable' if enabled else 'disable')
 

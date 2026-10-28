@@ -1,5 +1,9 @@
 # 163.5 — zbiorczy pakiet odbioru, 27.10.2026
 
+**Instrukcja historyczna.** Dla obecnej konfiguracji z odebranym regionalnym
+MapLark użyj [końcowego pakietu 28.10](world_completion_final_163_5.md).
+Nie powtarzaj poniższej aktywacji VK-first ani wcześniejszych płatnych probe.
+
 Nie kasujemy bazy, księgi ani historycznych operacji Geoapify. Etap pierwszy
 wdraża kod i panel bez rozszerzania praw dostawców. Etap drugi jawnie dopuszcza
 VK do skanów i regionalnego pobrania; działający MapLark pozostaje fallbackiem.

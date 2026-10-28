@@ -1,6 +1,23 @@
 # Sprint 163.5 — domknięcie pamięci świata i integracji źródeł
 
-Data: 26.10.2026, aktualizacja 27.10.2026. Status: **W REALIZACJI — exact world, wizyty i pierwszy cykl halo potwierdzone na VPS; regionalne źródła i atlas otwarte**.
+Data: 26.10.2026, aktualizacja 28.10.2026. Status: **KOŃCOWY PAKIET GOTOWY LOKALNIE — do wdrożenia; pełny kontrakt Geoapify pozostaje niezweryfikowany**.
+
+Aktualna instrukcja: [jeden pakiet wdrożenia i odbioru](../runbooks/world_completion_final_163_5.md).
+Wcześniejsze wpisy poniżej są historią etapów, nie nowymi poleceniami na VPS.
+
+| Zakres | Kod / lokalne testy | VPS |
+| --- | --- | --- |
+| Exact world, wizyty, halo | Gotowe | Potwierdzone wcześniej |
+| Regionalny MapLark geometry-v2 | Gotowe | PASS: dwa przesunięte skany, różne workery, jeden snapshot |
+| Kolektor → odczyt → odświeżenie POI po nowym popycie | Test całego ciągu PASS; minimum 1 h, bez podnoszenia budżetu | Aktualizacja kolektora w końcowym pakiecie |
+| Ląd–morze Natural Earth 5.1.1 | Przypięty produkt, importer offline i roundtrip PASS; skala 1:10 mln | Import w końcowym pakiecie |
+| Panel i monitoring | Atlas/heartbeat istnieją; podlimit tła i wyjaśnienie odświeżania; Playwright PL/EN desktop/mobile PASS | Reload web i kontrola panelu |
+| Geoapify jako pełny skaner | Nie zakwalifikowany; commercial pozostaje archiwum obserwacji | Brak dowodu pełnej geometrii/selekcji/kategorii |
+
+Podstawowy cel repozytorium był zapisany już w **160.1–160.2**, a panel i odbiór
+w **160.4–160.5**. 163.5 domyka zaległości, nie tworzy nowego zakresu dla tych
+samych zobowiązań. Geografia i kolejne źródła rozszerzyły zakres w 161–163.
+Historyczne checkboxy należy czytać razem z bieżącą tabelą i dowodami.
 
 Postęp: [mapa wymagań i dowodów](../audits/sprint_163_5_traceability.md).
 Przygotowany [odbiór pierwszego pakietu](../runbooks/world_global_exact_163_5.md).

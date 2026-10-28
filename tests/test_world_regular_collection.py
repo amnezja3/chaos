@@ -17,6 +17,46 @@ class RegularCollectionTests(unittest.TestCase):
     setUp=fixtures.DiscoveryWorkerTests.setUp
     save_provider=fixtures.DiscoveryWorkerTests.save_provider
 
+    def test_visit_collect_full_poi_read_and_demand_driven_hourly_refresh(self):
+        from poi_infrastructure.maplark_pilot import fetch_pilot
+        from poi_infrastructure.maplark_region import FLAG,PROFILE
+        from poi_infrastructure.service import Service
+        from poi_infrastructure.world_contract import FILTERS
+        self.configure()
+        self.provider['scopes'].append('normal_scan');self.provider['priority']=0;self.save_provider()
+        with self.repo.transaction() as c:c.execute('DELETE FROM world_discovery_demand')
+        root=Path(__file__).parent/'fixtures/poi/maplark_radius_1635/parent'
+        self.transport.return_value=(200,None,dict(body=json.loads((root/'body.json').read_text()),
+            response_headers=json.loads((root/'headers.json').read_text())))
+        DemandQueue(self.repo).record(20.365,51.53357,['poi'])
+        Routing(self.repo).save('poi','background',0,['maplark'],'test')
+        first=cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+        self.assertEqual(first['status'],'committed')
+        self.assertEqual(first['profile'],'poi')
+        before=self.ledger.status('maplark')[0]['committed']
+        with patch.dict(os.environ,{FLAG:PROFILE,'CHAOS_POI_WORLD_ACCESS_MODE':'global',
+                'CHAOS_POI_WORLD_REPOSITORY_ENABLED':'1','CHAOS_POI_MAPLARK_ENABLED':'1'}), \
+                patch('poi_infrastructure.maplark_pilot.acquire_maplark',side_effect=AssertionError('scanner HTTP')):
+            service=Service(path=self.repo.path)
+            for user,lon in [('one',20.365),('two',20.3651)]:
+                data,source=fetch_pilot(service,dict(lat=51.53357,lon=lon,radius=300,filters=FILTERS),
+                    300,1800,lambda:True,world_user=user)
+                self.assertEqual(source,'world');self.assertTrue(data['elements'])
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],before)
+        later=time.time()+3700
+        with patch('time.time',return_value=later):
+            # Restart/hour elapsed alone does not trigger network without a new visit.
+            cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+            self.transport.assert_called_once()
+            DemandQueue(self.repo).record(20.365,51.53357,['poi'])
+            with self.repo.transaction() as c:c.execute('UPDATE world_collection_runtime SET next_cycle=0')
+            refreshed=cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+            self.assertEqual(refreshed['status'],'committed')
+            self.assertNotEqual(first['snapshot'],refreshed['snapshot'])
+            self.assertEqual(self.transport.call_count,2)
+            cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+            self.assertEqual(self.transport.call_count,2)
+
     def configure(self):
         initialize(self.repo)
         self.provider['review_due_at']=time.time()+40*86400;self.save_provider()
@@ -135,6 +175,24 @@ class RegularCollectionTests(unittest.TestCase):
         with closing(ReadOnlyRepository(self.repo.path).connect()) as c:
             with self.assertRaises(Exception):c.execute('DELETE FROM world_discovery_job')
         self.transport.assert_not_called()
+
+    def test_background_limit_blocks_collection_and_monitor_explains_it(self):
+        from poi_infrastructure.regular_discovery import report
+        from tools.world_collection_monitor import ReadOnlyRepository
+        self.configure()
+        day=int(time.time()//86400)*86400
+        scope=f'discovery:regular-maplark-{day}'
+        self.ledger.configure_scope('maplark',scope,day,day+86400,200)
+        self.ledger.reserve('maplark','previous-background',200,scopes=(scope,))
+        self.ledger.settle('maplark','previous-background',200)
+        result=cycle(self.repo,self.path,execute=True,enabled=lambda:True,transport=self.transport)
+        self.assertEqual(result['network_calls'],0)
+        self.transport.assert_not_called()
+        status=report(ReadOnlyRepository(self.repo.path))
+        self.assertEqual(status['background_scopes']['maplark']['remaining'],0)
+        self.assertIn('maplark_background_scope_exhausted',status['warnings'])
+        self.assertEqual(status['budgets']['maplark'][0]['remaining'],600)
+        self.assertEqual(status['refresh_policy']['full_poi_minimum_seconds'],3600)
 
     def test_commercial_observation_does_not_suppress_full_poi_archive(self):
         self.configure()

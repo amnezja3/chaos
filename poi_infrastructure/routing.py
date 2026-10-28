@@ -13,6 +13,9 @@ GEOAPIFY = 'https://api.geoapify.com/v2/places'
 
 
 def adapter(provider):
+    from .natural_earth_region import SOURCE
+    if provider['url'] == SOURCE:
+        return 'offline'
     if provider['url'] == MAPLARK:
         return 'maplark'
     if provider['url'] == GEOAPIFY:
@@ -23,6 +26,8 @@ def adapter(provider):
 
 def capability(provider, layer, lane):
     kind = adapter(provider)
+    if kind == 'offline':
+        return 'offline_archive_only'
     if kind == 'geoapify':
         if layer == 'poi' and lane == 'background':
             return None

@@ -48,6 +48,12 @@ def main():
             for lon,lat in ((21.001,52.001),(21.021,52.011),(21.031,52.031)):
                 queue.record(lon,lat)
             ledger=CreditBudget(repo);ledger.initialize();ledger.configure_recurring('maplark',800,24000)
+            import time
+            day=int(time.time()//86400)*86400
+            scope=f'discovery:regular-maplark-{day}'
+            ledger.configure_scope('maplark',scope,day,day+86400,200)
+            ledger.reserve('maplark','synthetic-background-fixture',20,scopes=(scope,))
+            ledger.settle('maplark','synthetic-background-fixture',3)
             ledger.reserve('maplark','synthetic-warning-fixture',760)
             ledger.settle('maplark','synthetic-warning-fixture',760)
             os.environ['CHAOS_POI_DISCOVERY_MODE']='passive'

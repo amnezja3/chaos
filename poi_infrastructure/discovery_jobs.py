@@ -75,8 +75,10 @@ class DiscoveryJobs:
             raise ValueError('job_acquisition')
         if type(revision) is not int or revision<1:
             raise ValueError('job_revision')
-        if type(refresh_seconds) is not int or refresh_seconds not in (0,604800):
+        if type(refresh_seconds) is not int or refresh_seconds not in (0,3600,604800):
             raise ValueError('job_refresh_interval')
+        if refresh_seconds==3600 and (acquisition!='sector-bbox-v1' or profile!='poi'):
+            raise ValueError('hourly_refresh_only_full_poi')
         now=time.time()
         identity = [demand_key,provider,revision,profile]
         if acquisition != 'radius-300-v1':
@@ -110,7 +112,10 @@ class DiscoveryJobs:
                 if unsent_cancel:
                     generation=(receipt['generation'] if receipt else 0)+1
                 elif receipt:
-                    if not receipt['settled'] or receipt['due']>now:
+                    due=receipt['due']
+                    if receipt['settled'] and old and old['state']=='COMMITTED' and refresh_seconds==3600:
+                        due=min(due,old['updated']+refresh_seconds)
+                    if not receipt['settled'] or due>now:
                         return None
                     generation=receipt['generation']+1
                 elif old:
@@ -287,11 +292,12 @@ class DiscoveryJobs:
             if payload.get('revision')!=job['revision'] or payload.get('profile')!=job['profile']:return False
             c.execute("UPDATE world_discovery_job SET state='COMMITTED',snapshot=?,owner=NULL,lease_until=0,reason='',updated=? WHERE id=?",
                       (snapshot,now,key))
+            refresh=3600 if job['acquisition']=='sector-bbox-v1' and job['profile']=='poi' else 604800
             c.execute('UPDATE world_discovery_refresh SET settled=1,due=? WHERE job_id=?',
-                      (now+604800,key))
+                      (now+refresh,key))
             if not c.execute('SELECT 1 FROM world_discovery_refresh WHERE job_id=?',(key,)).fetchone():
                 if c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0]<self.max_jobs:
-                    c.execute('INSERT INTO world_discovery_refresh VALUES (?,?,?,?,?)',(key,key,0,now+604800,1))
+                    c.execute('INSERT INTO world_discovery_refresh VALUES (?,?,?,?,?)',(key,key,0,now+refresh,1))
             return True
 
     def prune(self,limit=100):

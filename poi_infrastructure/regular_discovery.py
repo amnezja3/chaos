@@ -64,14 +64,21 @@ def report(repo):
         receipts=c.execute('SELECT count(*) FROM world_discovery_refresh').fetchone()[0]
         uncertain={r[0]:dict(operations=r[1],reserved=r[2]) for r in c.execute("SELECT account,count(*),sum(reserved) FROM world_credit_operation WHERE state IN ('uncertain','reserved') GROUP BY account")}
     budgets={account:CreditBudget(repo).status(account) for account in accounts}
+    day=int(time.time()//86400)*86400
+    background_scopes={account:CreditBudget(repo).scope_status(account,f'discovery:regular-{account}-{day}')
+                       for account in accounts}
     warnings=[account+'_budget_low' for account,windows in budgets.items() if any(w['remaining']<.1*w['credit_limit'] for w in windows)]
+    warnings += [account+'_background_scope_exhausted' for account,scope in background_scopes.items()
+                 if scope and scope['remaining']<{'maplark':20,'geoapify':6}.get(account,1)]
     if heartbeat['status'] not in ('running','waiting'):warnings.append('collector_heartbeat_'+heartbeat['status'])
     last=json.loads(row['report'])
     if last.get('at',0)<time.time()-300:warnings.append('collector_cycle_stale')
     if last.get('status') in ('reconciliation_required','policy_blocked','deferred'):warnings.append('collector_attention_required')
     if receipts>=1800:warnings.append('refresh_history_capacity_near')
     return dict(status='read_only',network_calls=0,heartbeat=heartbeat,next_cycle=row['next_cycle'],last=last,jobs=states,
-                snapshots=snapshots[0],snapshot_bytes=snapshots[1],budgets=budgets,warnings=warnings,
+                snapshots=snapshots[0],snapshot_bytes=snapshots[1],budgets=budgets,background_scopes=background_scopes,warnings=warnings,
+                refresh_policy=dict(archive_seconds=604800,full_poi_minimum_seconds=3600,
+                    full_poi_trigger='new_direct_demand_after_previous_fetch',scan_fresh_seconds=300,scan_stale_seconds=1800),
                 budget_units={account:'credits' if account in ('maplark','geoapify') else 'request_attempts' for account in accounts},
                 unresolved=uncertain,refresh_receipts=receipts,
                 geoapify_estimated_operations=estimates[0],geoapify_reserved_estimate=estimates[1],
@@ -88,7 +95,9 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
     with closing(repo.connect()) as c:
         state=c.execute('SELECT * FROM world_collection_runtime WHERE id=1').fetchone()
     if not execute:return dict(status='plan',network_calls=0,regions=len(cells),max_regions=policy['max_regions'],
-        refresh_seconds=604800,retention_seconds=604800,review_until=policy['review_until'],
+        refresh_seconds=604800,full_poi_minimum_seconds=3600,
+        full_poi_trigger='new_direct_demand_after_previous_fetch',
+        retention_seconds=604800,review_until=policy['review_until'],
         routes=Routing(repo).describe()['routes'])
     if now<state['next_cycle']:return dict(status='waiting',network_calls=0,next_cycle=state['next_cycle'])
     lease=repo.acquire('@regular-world-cycle',110)
@@ -137,7 +146,13 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
             # from the scanner's 300/1800 s validity.
             adequate=(source and source['id'] in chain and
                 (profile!='poi' or adapter(source)!='geoapify' or chain[0]==source['id']))
-            if adequate and source['revision']==recent['revision'] and not reason(source,profile,'background'):continue
+            refresh_poi=False
+            if profile=='poi' and source and adapter(source)=='maplark' and dict(entries).get(cell)==0:
+                with closing(repo.connect()) as c:
+                    demand=c.execute('SELECT max(last_seen) FROM world_discovery_demand WHERE cell_x=? AND cell_y=? AND layer=? AND expires>?',
+                                     (*cell,'poi',now)).fetchone()[0]
+                refresh_poi=bool(demand and demand>recent['fetched'] and now-recent['fetched']>=3600)
+            if adequate and source['revision']==recent['revision'] and not reason(source,profile,'background') and not refresh_poi:continue
             for provider_id in chain:
                 p=providers.get(provider_id)
                 why=reason(p,profile,'background') if p else 'provider_missing'
@@ -154,7 +169,8 @@ def cycle(repo,path,*,execute=False,enabled=lambda:False,transport=None):
                     skipped['storage_review_required']=skipped.get('storage_review_required',0)+1;continue
                 budget_id=f'regular-{provider_id}-{day}'
                 permit=DiscoveryPermit(frozenset({cell}),frozenset({profile}),until,reserve,budget_id,
-                    acquisition,604800,604800,provider_id if kind=='overpass' else '')
+                    acquisition,604800,3600 if kind=='maplark' and profile=='poi' else 604800,
+                    provider_id if kind=='overpass' else '')
                 cap=policy['overpass_daily_requests'] if kind=='overpass' else policy[kind+'_background_daily']
                 ledger=CreditBudget(repo)
                 if not ledger.status(provider_id):
