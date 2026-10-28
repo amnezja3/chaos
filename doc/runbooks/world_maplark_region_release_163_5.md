@@ -67,6 +67,26 @@ pm2 save
 
 ## Granice odbioru
 
+### Jednorazowy odbiór w Paryżu
+
+Gdy inspekcja wykazała brak bbox w okolicy Luwru, przygotowano jeden jawny
+request: bbox [2.333,48.856,2.343,48.866], pełny filtr POI, limit 1000,
+clipGeometry=false. Uruchomienie: `bash tools/world_paris_region_acceptance.sh`.
+Skrypt wykonuje 3 izolowane testy, pokazuje plan, odczytuje klucz bez echa,
+tworzy backup SQLite, rezerwuje 20 w istniejącym budżecie konta i osobnym
+jednorazowym zakresie. Nie resetuje podlimitu kolektora; jest to jawna,
+oddzielna operacja odbiorowa. Rezerwacja nie jest twardym limitem ceny API.
+Stałe operation ID zabrania ponowienia płatnego requestu.
+
+Po zapisie wynik zawiera `positions` (dwie pozycje wybrane lokalnie z 25
+kandydatów) i `acceptance_ready`. Jeśli true, przenieść main i neo1 na różne
+podane pozycje i wykonać skany w ciągu 300 s od pobrania, bez hakowania.
+Wymagany log poi_maplark_region source=world. Rzeczywisty środek skanu musi
+odpowiadać wybranej pozycji; przesunięcie lub inny promień może dać fallback.
+Jeżeli false lub błąd, przekazać wynik bez kolejnego uruchomienia requestu.
+Gęsta zabudowa może spowodować niejednoznaczność granic dla wszystkich
+kandydatów; nie zmniejszamy marginesu bezpieczeństwa tylko na potrzeby PASS.
+
 Lokalny PASS nie jest odbiorem VPS. Ten pakiet dostarcza runtime regionalnego
 MapLark; nie zamyka automatycznie pełnej kwalifikacji Geoapify, dostępności VK
 ani wszystkich A01–A12. Zachowujemy istniejące dowody; nowych nie deklarujemy
