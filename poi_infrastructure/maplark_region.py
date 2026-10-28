@@ -1,6 +1,6 @@
 """Opt-in CHAOS regional selection, not a claim of native API radius parity.
 
-One complete bbox response, full geometry, conservative boundary fallback.
+One complete bbox response, full geometry, deterministic local distance.
 No unions, HTTP, cache writes, budget changes or renewal of source timestamps.
 """
 from dataclasses import replace
@@ -21,12 +21,17 @@ from .world_shadow import reference
 from .providers import Registry
 from .maplark_profile import export_maplark
 
-PROFILE = 'chaos-maplark-region-geometry-v1'
+PROFILE = 'chaos-maplark-region-geometry-v2'
 FLAG = 'CHAOS_POI_MAPLARK_REGIONAL_PROFILE'
 
 
 def select(batch, bounds, lat, lon, radius):
-    """Explicit local metric contract; ambiguous boundaries fall back to API."""
+    """CHAOS v2: full-geometry distance <= radius in the local planar metric.
+
+    Coordinates project to metres with x=(lon-origin_lon)*111195*cos(lat)
+    and y=(lat-origin_lat)*111195. Holes and all polygon parts are retained.
+    This defines CHAOS selection, not the provider's undocumented radius rule.
+    """
     if (any(type(v) not in (int, float) or not math.isfinite(v) for v in (lat, lon, radius))
             or abs(lat) > 60 or not -180 < lon < 180 or not 1 <= radius <= 500):
         raise ContractError('regional_query_unsupported')
@@ -36,7 +41,7 @@ def select(batch, bounds, lat, lon, radius):
     def project(x, y, z=None):
         return ((x-lon)*scale, (y-lat)*111195)
     w, s, e, n = bounds
-    # Guard envelope containment as well as numerical/metric uncertainty.
+    # Preserve the coverage guard. It does not exclude objects near the circle.
     margin = max(5.0, radius * .01)
     if min((lon-w)*scale, (e-lon)*scale, (lat-s)*111195, (n-lat)*111195) <= radius+margin:
         raise ContractError('regional_circle_not_contained')
@@ -51,9 +56,7 @@ def select(batch, bounds, lat, lon, radius):
         if max(abs(gw-lon), abs(ge-lon), abs(gs-lat), abs(gn-lat)) > .1:
             raise ContractError('regional_geometry_extent')
         distance = transform(project, shape(geo.geojson())).distance(origin)
-        if abs(distance-radius) <= margin:
-            raise ContractError('regional_boundary_ambiguous')
-        if distance < radius:
+        if distance <= radius:
             selected.append(obj)
     # Selection is separate from the existing marker/ID/tag export contract.
     return export_maplark(replace(batch, objects=tuple(selected), profile=POI_PROFILE,

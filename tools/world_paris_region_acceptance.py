@@ -16,7 +16,7 @@ from poi_infrastructure.world_acquisition import acquire_maplark
 from poi_infrastructure.world_adapters import plan_maplark_region
 from poi_infrastructure.world_contract import ContractError
 from poi_infrastructure.world_storage import CanonicalWorldRepository
-from poi_infrastructure.maplark_region import select
+from poi_infrastructure.maplark_region import select, PROFILE
 from poi_infrastructure.service import bounded_http
 from tools.world_region_pilot import backup_database
 
@@ -49,7 +49,7 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2
     plan=plan_maplark_region(bounds,profile='poi',limit=1000)
     result=dict(status='plan',bounds=bounds,network_calls=0,max_network_calls=1,
                 reservation=20,provider_price_cap=False,registry_changed=False,
-                environment_changed=False,operation=operation)
+                environment_changed=False,operation=operation,selection_profile=PROFILE)
     if not execute:return result
     if not accept:raise ContractError('variable_cost_acceptance_required')
     plan.authenticated_wire()

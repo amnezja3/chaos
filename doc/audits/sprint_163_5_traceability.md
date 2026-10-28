@@ -369,3 +369,22 @@ Pakiet VPS: tools/world_maplark_region_acceptance.sh. Odbiór regionalnego runti
 wymaga osobnego logu poi_maplark_region oraz działania gry; sam source=world
 z exact readera go nie zastępuje. Kwalifikacja pełnego skanera Geoapify pozostaje
 zewnętrznym brakiem, nie oznaczamy całego 163.5 jako odebranego.
+
+### 28.10 — zaakceptowany kontrakt CHAOS geometry-v2
+
+Operator jawnie zatwierdził deterministyczną selekcję pełnej geometrii zamiast
+odrzucania całego skanu przez obiekt w pasie 5 m. PROFILE zmieniony na
+chaos-maplark-region-geometry-v2; wybór distance <= radius w opisanej lokalnej
+metryce planarnej. Nie deklarujemy zgodności wszystkich przypadków z API radius.
+Kontrole kompletności, bbox, provenance, rewizji, praw i TTL pozostają.
+Margines pokrycia bbox zachowany. Flaga v1 nie włącza v2; aktywacja przez
+istniejący profil env_world_maplark_region, rollback env_world_regional.
+
+Włączono minimalny fixture Paryża: 826 pełnych geometrii/OSM ID z wyłącznie
+klasyfikacyjnymi tagami; usunięto opisy i kontakty. Selekcja: 479/465 obiektów
+w dwóch przesuniętych punktach, przed gameplay limit 60. Oryginalny capture
+pozostaje w ignored instance/provider-captures, z SHA opisanym przy fixture.
+44 testy PASS: regionalny reader 10, odbiór Paryża 9, router 15, exact world 10.
+Sprawdzono shell syntax pakietu i aktywację/rollback ecosystem przez Node.
+Zero wywołań API i zmian produkcyjnej bazy. Nie odmładzamy istniejących danych.
+Odbiór live nadal wymaga świeżego regionu; nie uruchamiamy ponownie compact-v3.

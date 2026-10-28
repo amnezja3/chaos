@@ -25,6 +25,16 @@ def batch(name, profile='poi'):
 
 
 class SelectionTests(unittest.TestCase):
+    def test_dense_paris_fixture_is_readable_without_weakening_completeness(self):
+        from tools.world_paris_positions import inspect
+        root=Path(__file__).parent/'fixtures/poi/maplark_paris_1635'
+        result=inspect(root)
+        self.assertEqual(result['selection_profile'],PROFILE)
+        self.assertEqual(result['objects'],826)
+        self.assertEqual([p['objects'] for p in result['positions']],[479,465])
+        self.assertEqual(result['position_rejections'],{})
+        self.assertFalse(result['acceptance_pass'])
+
     def test_real_pair_including_building_with_center_outside(self):
         self.assertEqual(select(batch('parent'),BOUNDS,**SPATIAL),
                          export_maplark(batch('radius',POI_PROFILE)))
@@ -38,14 +48,24 @@ class SelectionTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             select(replace(parent,objects=(changed,)+parent.objects[1:]),BOUNDS,**SPATIAL)
 
-    def test_boundary_is_miss_and_empty_complete_is_valid(self):
+    def test_near_boundary_does_not_reject_whole_scan_and_empty_is_valid(self):
         parent=batch('parent')
         self.assertEqual(select(replace(parent,objects=()),BOUNDS,**SPATIAL),{'elements':[]})
-        # A one-metre query on an existing point is within the conservative band.
+        # An object inside the former five-metre uncertainty band is now selected.
         obj=next(o for o in parent.objects if o.geometry.kind=='Point')
         lon,lat=obj.geometry.coordinates
-        with self.assertRaises(ContractError):
-            select(replace(parent,objects=(obj,)),BOUNDS,lat,lon,1)
+        result=select(replace(parent,objects=(obj,)),BOUNDS,lat,lon,1)
+        self.assertEqual(len(result['elements']),1)
+
+    def test_explicit_inclusive_distance_boundary(self):
+        features=[dict(type='Feature',id='node/'+str(i),properties={'tags':{'shop':'yes'}},
+                       geometry=dict(type='Point',coordinates=[0,d/111195]))
+                  for i,d in enumerate((299,300,301),1)]
+        parent=normalize_maplark(dict(type='FeatureCollection',features=features),
+            {'X-Returned':'3','X-Has-More':'false'},
+            Provenance('maplark',MAPLARK_VERSION,'boundary',time.time(),license_ref='ODbL-1.0'),profile='poi')
+        result=select(parent,(-.005,-.005,.005,.005),0,0,300)
+        self.assertEqual([o['id'] for o in result['elements']],[1,2])
 
     def test_polygon_hole_and_multipart_do_not_use_bounds_center(self):
         outer=[[20.361,51.531],[20.369,51.531],[20.369,51.539],[20.361,51.539],[20.361,51.531]]
@@ -81,6 +101,8 @@ class ReaderTests(unittest.TestCase):
     def test_reader_opt_in_no_network_and_no_writes(self):
         candidate=self.publish()
         self.assertIsNone(read(self.service,candidate,SPATIAL,lambda:True))
+        with patch.dict(os.environ,{FLAG:'chaos-maplark-region-geometry-v1'}):
+            self.assertIsNone(read(self.service,candidate,SPATIAL,lambda:True))
         with closing(self.service.repo.connect()) as c:
             before=[tuple(r) for r in c.execute('SELECT * FROM world_snapshot')]
         with patch.dict(os.environ,{FLAG:PROFILE}),patch('socket.create_connection',side_effect=AssertionError('network')):

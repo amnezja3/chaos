@@ -2,7 +2,7 @@
 
 ## Zmiana zachowania
 
-Nowy, jawny profil `chaos-maplark-region-geometry-v1` korzysta z kompletnego
+Zatwierdzony profil `chaos-maplark-region-geometry-v2` korzysta z kompletnego
 bbox POI zapisanego przez istniejący kolektor. Nie jest deklaracją identyczności
 ze wszystkimi przypadkami natywnego API radius. W otrzymanej niezależnej parze
 odtwarza 18/18 ID, tagi i markery. Dotychczasowe mechaniki gry pozostają.
@@ -13,8 +13,12 @@ POI, kompletność, rewizja, prawa, digest i wiek muszą pasować. Geometria dec
 o selekcji, dotychczasowy eksport o markerze. Obsługiwane Point, LineString,
 Polygon i MultiPolygon; otwory zachowuje Shapely. Lokalna metryka płaska ma
 jawne ograniczenia: |lat|≤60°, promień≤500 m, geometrie w odległości kątowej
-≤0,1° od środka. Pas niepewności max(5 m, 1% promienia) daje MISS i API.
-Ten margines jest regułą ostrożności, nie dowodem równoważności metryk dostawcy.
+≤0,1° od środka. Selekcja v2: odległość pełnej geometrii ≤ promień.
+Metryka: x=(lon-lon0)*111195*cos(lat0), y=(lat-lat0)*111195, lat0 w radianach
+w funkcji cos. Nie odrzucamy całego skanu przez obiekt blisko granicy koła.
+Pozostaje margines max(5 m, 1% promienia) przy sprawdzaniu, czy całe koło
+mieści się w bbox; to kontrola pokrycia, a nie wykluczanie obiektów.
+Profil jest jawną selekcją CHAOS, nie obietnicą identyczności z API radius.
 
 Niepełna lub za stara odpowiedź, zmiana rewizji, cofnięcie praw i brak pokrycia
 również dają MISS. Archiwum 7 dni nie staje się świeżym skanem: nadal 300/1800 s.
@@ -22,6 +26,20 @@ Nie zmieniamy budżetów, kolejności źródeł ani historycznych rozliczeń Geo
 Geoapify pozostaje źródłem obserwacji commercial, nie pełnym fallbackiem gry.
 
 ## Wdrożenie i odbiór
+
+Aktualizacja v2 została zaakceptowana przez operatora po analizie kompletnej
+odpowiedzi Paryża. Reload poniższego profilu ecosystem ustawia wersję v2.
+Pozostawiona wersja v1 nie aktywuje nowej selekcji. Exact cache i dokładny
+world reader pozostają bez zmian; wyników regionalnych nie zapisujemy jako
+nowych odpowiedzi exact ani nie odnawiamy wieku snapshotów.
+
+Regresja zapisanej próbki Paryża daje pozycje 48.861/2.338 (479 obiektów)
+i 48.861/2.3378 (465 obiektów), przed limitem gry 60. Jest to dowód offline,
+nie potwierdzenie aktualnej świeżości na VPS. Nie ponawiać zużytej operacji
+compact-v3, nie zmieniać timestampów w bazie. Można odtworzyć wynik bez sieci:
+`python tools/world_paris_positions.py <katalog-zapisanej-diagnostyki>`.
+Nowe pobrania odbiorowe nie zostały automatycznie zatwierdzone przez zmianę
+kontraktu. Normalny kolektor i skaner działają w istniejących budżetach.
 
 Po pushu lokalnego pakietu, na VPS:
 

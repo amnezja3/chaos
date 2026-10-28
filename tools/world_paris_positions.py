@@ -10,6 +10,7 @@ from tools.world_discovery_inspect import read_json
 from tools.world_paris_region_acceptance import candidate_positions,BOUNDS,COMPACT_BOUNDS
 from poi_infrastructure.world_adapters import normalize_maplark,plan_maplark_region,MAPLARK_VERSION
 from poi_infrastructure.world_contract import Provenance,ContractError
+from poi_infrastructure.maplark_region import PROFILE
 
 
 def inspect(directory):
@@ -22,7 +23,7 @@ def inspect(directory):
     if bounds is None:raise ContractError('capture_query_mismatch')
     batch=normalize_maplark(body,headers,Provenance('maplark',MAPLARK_VERSION,digest,0),profile='poi',maximum=1000)
     positions,rejections=candidate_positions(batch,bounds)
-    return dict(status='offline_positions',network_calls=0,production_writes=0,
+    return dict(status='offline_positions',selection_profile=PROFILE,network_calls=0,production_writes=0,
                 body_sha256=digest,objects=len(batch.objects),completeness=batch.completeness,
                 geometry_types=dict(Counter(o.geometry.kind for o in batch.objects)),
                 positions=positions,position_rejections=rejections,

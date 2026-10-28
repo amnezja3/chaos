@@ -72,11 +72,11 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
             lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
         if data is not None:return data
         try:
-            from .maplark_region import read
+            from .maplark_region import read, PROFILE as REGIONAL_PROFILE
             data = read(service,candidate,spatial,
                 lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
             if data is not None:
-                LOG.info('poi_maplark_region %s',json.dumps(dict(source='world',profile='chaos-maplark-region-geometry-v1')))
+                LOG.info('poi_maplark_region %s',json.dumps(dict(source='world',profile=REGIONAL_PROFILE)))
                 return validate(data,service.config)
         except Exception as exc:
             world_shadow.failed('maplark_regional_read',exc)

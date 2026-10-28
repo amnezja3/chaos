@@ -128,7 +128,7 @@ module.exports = {
         CHAOS_POI_WIDE_FETCH_ENABLED: "0", CHAOS_POI_SCAN_NETWORK_PAUSED: "0"
       },
       env_world_maplark_region: {
-        CHAOS_POI_MAPLARK_REGIONAL_PROFILE: "chaos-maplark-region-geometry-v1",
+        CHAOS_POI_MAPLARK_REGIONAL_PROFILE: "chaos-maplark-region-geometry-v2",
         CHAOS_POI_ROUTING_ENABLED: "1", CHAOS_POI_WORLD_ACCESS_MODE: "global",
         CHAOS_POI_WORLD_INGEST_ENABLED: "1", CHAOS_POI_WORLD_REPOSITORY_ENABLED: "1",
         CHAOS_POI_WORLD_VISITS_ENABLED: "1", CHAOS_POI_WORLD_REGIONAL_READ_ENABLED: "1",
