@@ -102,13 +102,18 @@ def read(service, candidate, spatial, active, allow_stale=False, *, diagnostic=N
                     reject('digest_mismatch')
                     continue
                 raw = json.loads(row['payload'])
-                if (raw.get('format') != FORMAT or raw.get('schema') != SCHEMA_VERSION
-                        or raw.get('revision') != candidate['revision']
-                        or raw.get('storage_reference') != reference(candidate)
-                        or raw.get('profile') != 'poi' or raw.get('completeness') != 'complete'
-                        or raw.get('reasons') or raw.get('fresh_until') != row['fresh_until']
-                        or raw.get('usable_until') != row['usable_until']):
-                    reject('metadata_mismatch')
+                mismatches = [name for name, failed in (
+                    ('format_mismatch', raw.get('format') != FORMAT),
+                    ('schema_mismatch', raw.get('schema') != SCHEMA_VERSION),
+                    ('revision_mismatch', raw.get('revision') != candidate['revision']),
+                    ('storage_reference_mismatch', raw.get('storage_reference') != reference(candidate)),
+                    ('not_poi_profile', raw.get('profile') != 'poi'),
+                    ('response_incomplete', raw.get('completeness') != 'complete' or bool(raw.get('reasons'))),
+                    ('fresh_timestamp_mismatch', raw.get('fresh_until') != row['fresh_until']),
+                    ('usable_timestamp_mismatch', raw.get('usable_until') != row['usable_until']),
+                ) if failed]
+                if mismatches:
+                    for mismatch in mismatches: reject(mismatch)
                     continue
                 context = raw.get('observation_context', {})
                 if context.get('acquisition') != 'sector-bbox-v1':
@@ -136,6 +141,7 @@ def read(service, candidate, spatial, active, allow_stale=False, *, diagnostic=N
                 if not conn.execute('SELECT 1 FROM world_snapshot WHERE id=?', (row['id'],)).fetchone():
                     continue
                 trace['reason'] = 'selected'
+                trace['snapshot'] = row['id']
                 return data
             except ContractError as exc:
                 reject(str(exc))

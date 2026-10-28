@@ -87,6 +87,42 @@ class ReaderTests(unittest.TestCase):
     setUp=fixtures.WorldShadowTests.setUp
     grant=fixtures.WorldShadowTests.grant
 
+    def test_saved_paris_through_scanner_without_cache_or_upstream(self):
+        from poi_infrastructure.maplark_pilot import fetch_pilot
+        from poi_infrastructure.world_contract import FILTERS
+        from tools.world_paris_region_acceptance import COMPACT_BOUNDS
+        root=Path(__file__).parent/'fixtures/poi/maplark_paris_1635'
+        paris=normalize_maplark(json.loads((root/'body.json').read_text()),
+            json.loads((root/'headers.json').read_text()),
+            Provenance('maplark',MAPLARK_VERSION,'saved-paris',time.time(),license_ref='ODbL-1.0'),profile='poi')
+        candidate=self.grant()
+        owner=self.service.repo.acquire('paris-offline',60)
+        now=time.time()
+        snapshot=self.world.publish_batch('paris-offline',owner,paris,provider='maplark',
+            revision=candidate['revision'],storage_reference=candidate['evidence']['reference'],
+            fresh_until=now+300,usable_until=now+1800,
+            observation_context=dict(acquisition='sector-bbox-v1',demand_bounds=COMPACT_BOUNDS,
+                request_params=dict(plan_maplark_region(COMPACT_BOUNDS,profile='poi',limit=1000).params)))
+        with closing(self.service.repo.connect()) as c:before='\n'.join(c.iterdump())
+        from tools.world_region_preflight import inspect
+        preflight=inspect(self.service.repo.path,snapshot,48.861,2.338)
+        self.assertEqual(preflight['status'],'ready')
+        self.assertEqual(preflight['objects'],479)
+        self.assertFalse(preflight['web_environment_verified'])
+        self.assertEqual(inspect(self.service.repo.path,'missing',48.861,2.338)['reason'],'snapshot_missing')
+        self.assertEqual(inspect(self.service.repo.path,snapshot,48.858,2.338)['reason'],'regional_reader_miss')
+        with patch('time.time',return_value=now+250):
+            self.assertEqual(inspect(self.service.repo.path,snapshot,48.861,2.338)['reason'],'freshness_window_too_short')
+        with patch.dict(os.environ,{FLAG:PROFILE,'CHAOS_POI_WORLD_ACCESS_MODE':'global'}), \
+                patch('poi_infrastructure.maplark_pilot.acquire_maplark',side_effect=AssertionError('upstream')), \
+                patch('socket.create_connection',side_effect=AssertionError('network')):
+            for user,lon,count in [('old-account',2.338,479),('new-account',2.3378,465)]:
+                spatial=dict(lat=48.861,lon=lon,radius=300,filters=FILTERS)
+                data,source=fetch_pilot(self.service,spatial,300,1800,lambda:True,world_user=user)
+                self.assertEqual(source,'world')
+                self.assertEqual(len(data['elements']),count)
+        with closing(self.service.repo.connect()) as c:self.assertEqual(before,'\n'.join(c.iterdump()))
+
     def publish(self):
         candidate=self.grant()
         owner=self.service.repo.acquire('region-fixture',60)
@@ -120,6 +156,26 @@ class ReaderTests(unittest.TestCase):
         with patch.dict(os.environ,{FLAG:PROFILE}):
             self.assertIsNone(read(self.service,candidate,SPATIAL,lambda:True))
 
+    def test_metadata_reports_specific_fields_without_values(self):
+        import hashlib
+        candidate=self.publish()
+        with closing(self.service.repo.connect()) as c:
+            original=bytes(c.execute('SELECT payload FROM world_snapshot').fetchone()[0])
+        for field,value,reason in [('profile','other','not_poi_profile'),
+                                   ('storage_reference','private-reference','storage_reference_mismatch'),
+                                   ('completeness','partial','response_incomplete'),
+                                   ('fresh_until',0,'fresh_timestamp_mismatch')]:
+            with self.subTest(field=field):
+                raw=json.loads(original);raw[field]=value
+                payload=json.dumps(raw).encode()
+                with self.service.repo.transaction() as c:
+                    c.execute('UPDATE world_snapshot SET payload=?,digest=?',(payload,hashlib.sha256(payload).hexdigest()))
+                with patch.dict(os.environ,{FLAG:PROFILE}):
+                    trace={}
+                    self.assertIsNone(read(self.service,candidate,SPATIAL,lambda:True,diagnostic=trace))
+                    self.assertEqual(trace['rejected'],{reason:1})
+                    self.assertNotIn('private-reference',json.dumps(trace))
+
     def test_diagnostic_distinguishes_position_expiry_and_metadata(self):
         candidate=self.publish()
         with patch.dict(os.environ,{FLAG:PROFILE}):
@@ -129,7 +185,7 @@ class ReaderTests(unittest.TestCase):
             self.assertNotIn('lat',trace)
             trace={}
             self.assertIsNone(read(self.service,dict(candidate,revision=999),SPATIAL,lambda:True,diagnostic=trace))
-            self.assertEqual(trace['rejected']['metadata_mismatch'],1)
+            self.assertEqual(trace['rejected']['revision_mismatch'],1)
             trace={}
             self.assertIsNotNone(read(self.service,candidate,SPATIAL,lambda:True,diagnostic=trace))
             self.assertEqual(trace['reason'],'selected')

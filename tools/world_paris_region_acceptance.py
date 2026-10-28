@@ -26,6 +26,7 @@ DIAGNOSTIC_OPERATION='region:paris-poi-1635-diagnostic-v2'
 COMPACT_BOUNDS=(2.3335,48.858,2.3425,48.864)
 COMPACT_OPERATION='region:paris-poi-1635-compact-v3'
 LIVE_OPERATION='region:paris-poi-1635-live-v4'
+VERIFIED_OPERATION='region:paris-poi-1635-verified-v5'
 
 
 def candidate_positions(batch,bounds):
@@ -43,10 +44,10 @@ def candidate_positions(batch,bounds):
     return positions,dict(rejected)
 
 
-def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2=False,compact_v3=False,live_v4=False):
-    if sum((diagnostic_v2,compact_v3,live_v4))>1:raise ContractError('acceptance_mode_conflict')
-    operation=LIVE_OPERATION if live_v4 else COMPACT_OPERATION if compact_v3 else DIAGNOSTIC_OPERATION if diagnostic_v2 else OPERATION
-    bounds=COMPACT_BOUNDS if compact_v3 or live_v4 else BOUNDS
+def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2=False,compact_v3=False,live_v4=False,verified_v5=False):
+    if sum((diagnostic_v2,compact_v3,live_v4,verified_v5))>1:raise ContractError('acceptance_mode_conflict')
+    operation=VERIFIED_OPERATION if verified_v5 else LIVE_OPERATION if live_v4 else COMPACT_OPERATION if compact_v3 else DIAGNOSTIC_OPERATION if diagnostic_v2 else OPERATION
+    bounds=COMPACT_BOUNDS if compact_v3 or live_v4 or verified_v5 else BOUNDS
     plan=plan_maplark_region(bounds,profile='poi',limit=1000)
     result=dict(status='plan',bounds=bounds,network_calls=0,max_network_calls=1,
                 reservation=20,provider_price_cap=False,registry_changed=False,
@@ -76,7 +77,7 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2
     if count>=world.max_snapshots or size+8*1024*1024>world.max_bytes:
         raise ContractError('world_capacity_before_request')
     backup_database(db,backup)
-    destination=Path(str(backup)+'.diagnostics') if diagnostic_v2 or compact_v3 or live_v4 else None
+    destination=Path(str(backup)+'.diagnostics') if diagnostic_v2 or compact_v3 or live_v4 or verified_v5 else None
     if destination:destination.mkdir(mode=0o700,exist_ok=False)
     def save(name,value):
         if destination is None:return
@@ -127,9 +128,15 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2
                                      request_params=dict(plan.params)))
         if not snapshot:raise ContractError('publication_lease_lost')
         positions,rejections=candidate_positions(batch,bounds)
+        if verified_v5:
+            from tools.world_region_preflight import inspect
+            checks=[inspect(db,snapshot,p['lat'],p['lon'],p['radius']) for p in positions]
+            result['preflight']=checks
+            ready=len(checks)==2 and all(c['status']=='ready' for c in checks)
+        else:ready=len(positions)==2
         return finish(dict(result,status='published',network_calls=1,snapshot=snapshot,billing=billing,
                     fresh_until=now+300,positions=positions,position_rejections=rejections,
-                    acceptance_ready=len(positions)==2,automatic_retry=False))
+                    acceptance_ready=ready,automatic_retry=False))
     except Exception as exc:
         save('failure.json',dict(error_type=type(exc).__name__,automatic_retry=False))
         raise
@@ -145,10 +152,11 @@ def main():
     mode.add_argument('--diagnostic-v2',action='store_true',help='Separately approved single request; preserve response artifacts')
     mode.add_argument('--compact-v3',action='store_true',help='Approved smaller Paris bbox; one request with diagnostics')
     mode.add_argument('--live-v4',action='store_true',help='Single fresh compact bbox for geometry-v2 live acceptance')
+    mode.add_argument('--verified-v5',action='store_true',help='Single compact bbox followed by two read-only reader preflights')
     args=parser.parse_args()
     try:
         result=run(args.db,args.backup,execute=args.execute,accept=args.accept_variable_credit_cost,
-                   diagnostic_v2=args.diagnostic_v2,compact_v3=args.compact_v3,live_v4=args.live_v4)
+                   diagnostic_v2=args.diagnostic_v2,compact_v3=args.compact_v3,live_v4=args.live_v4,verified_v5=args.verified_v5)
         print(json.dumps(result));return 2 if result['status']=='response_incomplete' else 0
     except Exception as exc:
         print(json.dumps(dict(status='stopped',error=str(exc) if isinstance(exc,ContractError)

@@ -264,3 +264,64 @@ Podczas zwyklego uzywania gry zbieraj nowe logi przez
 `pm2 logs chaos --lines 0`. Nie powtarzaj wykorzystanej operacji live-v4.
 Przed kolejnym odbiorem platnym potrzebna jest kontrola faktycznego srodka
 skanu i swiezego regionu; obecne logi nie stanowia odbioru regionalnego.
+
+### Zbiorczy pakiet: preflight i kontrolowany srodek skanu
+
+Lokalny test zapisanej odpowiedzi Paryza przechodzi przez publikacje do
+izolowanej bazy, dekodowanie, czytnik regionalny oraz fetch_pilot dla dwoch
+kont. Wyniki: world, 479/465 obiektow, brak HTTP i brak zmian bazy podczas
+odczytu. To test integracyjny backendu, nie odbior przegladarki ani VPS.
+
+Logi odrzucenia rozdzielaja teraz: format, schema, revision,
+storage_reference, not_poi_profile, response_incomplete i obie daty TTL.
+Nie wyswietlaja wartosci storage_reference. Sukces wskazuje snapshot.
+
+1. Wdrozenie: dotychczasowy tools/world_maplark_region_acceptance.sh,
+   potem reload ecosystem.web.config.js --only chaos --env world_maplark_region
+   --update-env i pm2 save. Bez API w pakiecie testowym.
+2. PRZED platnym odswiezeniem otworz mape obu kont. W DevTools wybierz
+   kontekst ramki dokumentu mapy (nie glowny /launch). Sprawdz tylko:
+
+```javascript
+typeof mapAction
+```
+
+   Ma zwrocic "function". Ta kontrola nie wykonuje skanu. Jesli undefined,
+   nie pobieraj danych: wybierz wlasciwy iframe. Zakoncz ruch postaci w poblizu
+   punktow odbioru; zasieg i ograniczenia gry nadal obowiazuja.
+3. Przygotowany --verified-v5 to NOWA jednorazowa operacja, rezerwacja 20,
+   jeden request. Nie resetuje v4. Uruchamiaj dopiero gdy oba konta i logi sa
+   gotowe. Polecenie pobiera kompaktowy bbox i automatycznie uruchamia dwa
+   preflighty read-only przez rzeczywisty czytnik. Wymaga zapasu >=60 sekund
+   oraz tego samego snapshotu. Nie weryfikuje srodowiska procesu PM2.
+
+```bash
+bash tools/world_paris_region_acceptance.sh --verified-v5
+```
+
+4. Tylko acceptance_ready=true, dwa preflight.status=ready oraz positions
+   zgodne z ponizszymi punktami pozwalaja przejsc do skanow. W odpowiednich
+   konsolach MAPY uruchom po jednym zwyklym mapAction:
+
+```javascript
+// main
+await mapAction('scan', 48.861, 2.338)
+```
+
+```javascript
+// neo1
+await mapAction('scan', 48.861, 2.3378)
+```
+
+   To istniejaca sciezka gry (zasieg, efekty i renderowanie), nie osobny
+   endpoint testowy. Nie klikaj dodatkowego punktu recznie. Bez walk.
+5. Porownaj expected_key z preflightow z poi_maplark_region_read oraz
+   poi_maplark_cache. Wymagane: ten sam snapshot, source=world, reason=selected,
+   udany poi_scan i widoczne wyniki na obu kontach. Fresh/exact-world nie
+   wystarcza jako dowod odczytu regionalnego. Przy MISS/wyczerpaniu swiezosci
+   zachowaj logi; nie ponawiaj automatycznie i nie odnawiaj dat.
+
+Preflight mozna rowniez uruchomic samodzielnie, bez API:
+`tools/world_region_preflight.py --snapshot ID --lat LAT --lon LON --radius 300`.
+Brak snapshotu, zbyt krotka swiezosc i niezgodny region daja kod wyjscia 2.
+Poprzedni paryski snapshot jest niedostepny; nie jest materialem live.

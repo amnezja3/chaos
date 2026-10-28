@@ -11,6 +11,26 @@ from tools.world_paris_region_acceptance import run,OPERATION,DIAGNOSTIC_OPERATI
 
 
 class ParisAcceptanceTests(unittest.TestCase):
+    def test_verified_publication_requires_reader_preflight_and_forbids_retry(self):
+        result=run(self.repo.path,self.backup,execute=True,accept=True,
+                   transport=self.transport,verified_v5=True)
+        self.assertTrue(result['acceptance_ready'])
+        self.assertEqual(len(result['preflight']),2)
+        self.assertTrue(all(c['status']=='ready' and c['expected_key'] for c in result['preflight']))
+        with self.assertRaisesRegex(ContractError,'already_used'):
+            run(self.repo.path,self.output.parent/'retry.sqlite3',execute=True,accept=True,
+                transport=self.transport,verified_v5=True)
+        self.transport.assert_called_once()
+
+    def test_verified_reader_miss_does_not_approve_or_retry(self):
+        with patch('tools.world_region_preflight.inspect',return_value={'status':'not_ready','reason':'regional_reader_miss'}):
+            result=run(self.repo.path,self.backup,execute=True,accept=True,
+                       transport=self.transport,verified_v5=True)
+        self.assertEqual(result['status'],'published')
+        self.assertFalse(result['acceptance_ready'])
+        self.assertEqual(result['billing']['reported_credits'],3)
+        self.transport.assert_called_once()
+
     def test_read_diagnostic_does_not_mutate_or_fetch(self):
         from tools.world_paris_read_diagnostic import inspect
         result=run(self.repo.path,self.backup,execute=True,accept=True,
