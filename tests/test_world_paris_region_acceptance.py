@@ -11,6 +11,33 @@ from tools.world_paris_region_acceptance import run,OPERATION,DIAGNOSTIC_OPERATI
 
 
 class ParisAcceptanceTests(unittest.TestCase):
+    def test_live_refresh_preserves_previous_operation_and_rejects_retry(self):
+        from tools.world_paris_region_acceptance import LIVE_OPERATION
+        from poi_infrastructure.credit_budget import CreditBudget
+        import time
+        run(self.repo.path,self.backup,execute=True,accept=True,transport=self.transport,compact_v3=True)
+        with closing(self.repo.connect()) as c:
+            before=tuple(c.execute('SELECT * FROM world_credit_operation WHERE operation=?',(COMPACT_OPERATION,)).fetchone())
+        ledger=CreditBudget(self.repo)
+        now=time.time()
+        ledger.configure_scope('maplark','unrelated-background-limit',now-100,now-1,20)
+        scope_before=ledger.scope_status('maplark','unrelated-background-limit')
+        result=run(self.repo.path,self.output.parent/'live.sqlite3',execute=True,accept=True,
+                   transport=self.transport,live_v4=True)
+        self.assertEqual(result['operation'],LIVE_OPERATION)
+        self.assertEqual(result['bounds'],COMPACT_BOUNDS)
+        self.assertTrue(result['acceptance_ready'])
+        self.assertEqual(result['selection_profile'],'chaos-maplark-region-geometry-v2')
+        self.assertEqual(scope_before,ledger.scope_status('maplark','unrelated-background-limit'))
+        with closing(self.repo.connect()) as c:
+            self.assertEqual(before,tuple(c.execute('SELECT * FROM world_credit_operation WHERE operation=?',(COMPACT_OPERATION,)).fetchone()))
+        with self.assertRaisesRegex(ContractError,'already_used'):
+            run(self.repo.path,self.output.parent/'retry-live.sqlite3',execute=True,accept=True,
+                transport=self.transport,live_v4=True)
+        with self.assertRaisesRegex(ContractError,'mode_conflict'):
+            run('missing',live_v4=True,compact_v3=True)
+        self.assertEqual(self.transport.call_count,2)
+
     def setUp(self):
         fixtures.RegionProbeTests.setUp(self)
         CanonicalWorldRepository(self.repo).initialize_canonical()

@@ -8,7 +8,8 @@ case "${1:-}" in
   '') ;;
   --diagnostic-v2) diagnostic_args+=(--diagnostic-v2) ;;
   --compact-v3) diagnostic_args+=(--compact-v3) ;;
-  *) printf 'Expected no argument, --diagnostic-v2 or --compact-v3\n' >&2; exit 2 ;;
+  --live-v4) diagnostic_args+=(--live-v4) ;;
+  *) printf 'Expected no argument, --diagnostic-v2, --compact-v3 or --live-v4\n' >&2; exit 2 ;;
 esac
 .venv/bin/python -m unittest discover -s tests -p test_world_paris_region_acceptance.py
 .venv/bin/python tools/world_paris_region_acceptance.py "${diagnostic_args[@]}"

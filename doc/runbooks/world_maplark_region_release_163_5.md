@@ -186,3 +186,43 @@ Lokalny PASS nie jest odbiorem VPS. Ten pakiet dostarcza runtime regionalnego
 MapLark; nie zamyka automatycznie pełnej kwalifikacji Geoapify, dostępności VK
 ani wszystkich A01–A12. Zachowujemy istniejące dowody; nowych nie deklarujemy
 bez wykonania. Nie nazywamy UNKNOWN globalnym certyfikowanym pokryciem.
+
+### Odbior live po wdrozeniu geometry-v2 — jednorazowe odswiezenie v4
+
+VPS: pakiet 64 testow przeszedl, reload web zakonczony, Launch HTTP 200,
+PM2 zapisane przez operatora. Log regionalny w tescie izolowanym nie jest
+potwierdzeniem skanu gracza. Kolektor osiagnal limit zakresu background;
+pozostaly budzet konta nie oznacza wolnego budzetu tego zakresu.
+
+Operator zatwierdzil kontynuacje odbioru. `--live-v4` pobiera raz ten sam
+kompaktowy bbox jako nowa operacja `region:paris-poi-1635-live-v4`.
+Rezerwacja 20 kredytow, rzeczywisty koszt ustala dostawca. Osobny zakres
+jednorazowego odbioru nadal podlega budzetowi konta; limity kolektora,
+stare operacje i stare daty swiezosci pozostaja bez zmian. Brak retry.
+
+1. Ustaw main: lat 48.861, lon 2.338; neo1: lat 48.861, lon 2.3378.
+   Zakoncz ruch, promien skanu 300 m. Na razie nie skanuj.
+2. Po pushu na VPS:
+
+```bash
+cd ~/app/chaos && git pull --ff-only && bash tools/world_paris_region_acceptance.sh --live-v4
+```
+
+3. Tylko przy `status=published` i `acceptance_ready=true` wykonaj od razu
+   po jednym skanie obu kont. Uzyj punktow `positions` z aktualnej odpowiedzi,
+   jesli odbiegaja od przygotowanych. Oba skany przed `fresh_until` (5 minut).
+   Bez restartu PM2, walk i budowania terytorium.
+4. Odczytaj nowe logi (najlepiej wlacz `pm2 logs chaos --lines 0` w drugim
+   terminalu przed skanami):
+
+```bash
+pm2 logs chaos --lines 150 --nostream 2>&1 | grep -E 'poi_maplark_region|poi_route|poi_scan'
+```
+
+Odbior: dla obu skanow regionalny `source=world`, profil geometry-v2 oraz
+udany skan i widoczne wyniki. Sam exact-cache `source=world` nie wystarcza.
+Przy niepelnej odpowiedzi, braku pozycji lub uplywie swiezosci zachowaj
+raport; nie ponawiaj komendy i nie zmieniaj dat snapshotow.
+
+Lokalna walidacja tego dodatku: 10 testow CLI i 10 testow regionalnych PASS;
+w tym zachowanie operacji v3 i obcego zakresu budzetu oraz odmowa retry v4.
