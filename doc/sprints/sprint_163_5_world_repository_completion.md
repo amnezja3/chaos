@@ -1,6 +1,12 @@
 # Sprint 163.5 — domknięcie pamięci świata i integracji źródeł
 
-Data: 26.10.2026, aktualizacja 28.10.2026. Status: **KOŃCOWY PAKIET GOTOWY LOKALNIE — do wdrożenia; pełny kontrakt Geoapify pozostaje niezweryfikowany**.
+Data: 26.10.2026, aktualizacja 28.10.2026. Status: **KOŃCOWY PAKIET WDROŻONY — preflight/deploy/post PASS na VPS; pełny kontrakt Geoapify pozostaje niezweryfikowany**.
+
+Odbiór `745bad6`: 210 testów OK, import Natural Earth `imported_verified`,
+integralność/FK OK, web/kolektor online i końcowy HTTP 200. Szczegóły w audycie.
+MapLark tło ma 12 kredytów wolnych przy wymaganej rezerwacji 20; odroczenie
+zbierania jest oczekiwane. Nie ma jeszcze dowodu nowego godzinnego refreshu
+na VPS. Poniższa tabela opisuje stan przygotowania pakietu przed tym odbiorem.
 
 Aktualna instrukcja: [jeden pakiet wdrożenia i odbioru](../runbooks/world_completion_final_163_5.md).
 Wcześniejsze wpisy poniżej są historią etapów, nie nowymi poleceniami na VPS.

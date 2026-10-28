@@ -1,5 +1,33 @@
 # 163.5 — mapa wymagań i dowodów
 
+## Odbiór VPS końcowego pakietu — 28.10.2026
+
+Commit `745bad6`, materiał operatora:
+`537ef639-4405-4f84-a126-16ad0183c8f6/Pasted text.txt`.
+Etapy `preflight`, `deploy`, `post`: PASS. 210 testów na VPS w 179.828 s: OK.
+Raporty: `chaos-world-completion-hj85i7`, `chaos-world-completion-KDxDT8`,
+`chaos-world-completion-styOQb` w katalogu domowym operatora.
+
+- Integralność/FK OK, schema 2, metryki/collection/visits gotowe.
+- Natural Earth: `imported_verified`, 2 obiekty, `COMPLETE_FRESH`, zero HTTP.
+  Snapshot `894ac02a6dd61b8052bf16368b843494c5f4ecb1b93239f5a8d1a5c4ced445af`.
+  Liczba snapshotów wzrosła z 263 do 264. Produkt jest regionalny i uogólniony.
+- PM2 `baseline_matches`: web i kolektor online, global ingest/read,
+  regional read, visits i halo aktywne. To metadane PM2, nie odczyt pamięci workerów.
+- Podczas reload pierwszy HTTP 000, następna kontrola 200; końcowy post HTTP 200.
+- Monitor potwierdza nową politykę odświeżania i osobne podlimity. Heartbeat świeży.
+  Ostatni zapisany cykl był odroczony przez `budget_scope_exhausted`:
+  MapLark tło 188/200, pozostało 12 przy rezerwacji 20; konto 326/800,
+  pozostało 474. Geoapify tło 180/200; historyczne uncertain 5 operacji/25 zachowane.
+
+Odebrano wdrożenie i import, nie nowy skuteczny godzinny refresh na produkcji:
+ten cykl czeka na dostępny budżet i popyt, a zachowanie sprawdzono lokalnie.
+Nie zmieniamy limitów, nie resetujemy księgi i nie powtarzamy płatnych probe.
+`pm2 save` oraz nowy smoke gry/panelu nie są potwierdzone w tym załączniku.
+Pełny kontrakt skanera Geoapify pozostaje otwarty; regionalny MapLark zachowuje
+wcześniejszy odbiór dwóch przesuniętych skanów. Nie deklarujemy pełnego CLOSED
+dla wszystkich historycznych wymagań ani statystycznego SLO.
+
 ## Aktualny stan — 28.10.2026, końcowy pakiet lokalny
 
 Podstawowy cel pochodzi z 160.1–160.2 (trwałość i sąsiednie skany z repozytorium),
