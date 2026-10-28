@@ -18386,10 +18386,12 @@ function createEmailClient() {
         if (btn) btn.classList.add('active');
         chatTitle.textContent = [...contacts, ...pendingThreads].find(item => item.name === currentChat.peer)?.display_name || currentChat.peer;
         const known = isKnownContact(currentChat.peer);
+        const outgoingInvite = pendingThreads.some(item=>item.name===currentChat.peer&&item.outgoing);
         const sourceKey = cybernerSourceKeyForName(currentChat.peer);
         const worldSource = isWorldSourceKey(sourceKey);
         chatSubtitle.textContent = worldSource ? cybernerLabel(sourceKey) : known ? ghostText('apps.cyberner.direct') : ghostText('apps.cyberner.unknown_contact');
-        acceptBtn.style.display = known || worldSource ? "none" : "inline-block";
+        if(outgoingInvite)chatSubtitle.textContent=document.documentElement.lang==='en'?'Invitation awaiting acceptance':'Zaproszenie oczekuje na akceptację';
+        acceptBtn.style.display = known || worldSource || outgoingInvite ? "none" : "inline-block";
         removeBtn.style.display = known && !worldSource ? "inline-block" : "none";
         updateComposerState();
     };
@@ -18493,7 +18495,7 @@ function createEmailClient() {
             btn.innerHTML = renderThreadItemContent({
                 iconKey: sourceKey,
                 name: thread.display_name || threadName,
-                preview: threadPreview(thread, worldSource ? ghostText('apps.cyberner.world_source') : ghostText('apps.cyberner.pending')),
+                preview: thread.outgoing ? (document.documentElement.lang==='en'?'Invitation awaiting acceptance':'Zaproszenie oczekuje na akceptację') : threadPreview(thread, worldSource ? ghostText('apps.cyberner.world_source') : ghostText('apps.cyberner.pending')),
                 meta: pendingMeta,
                 unread,
                 avatarClass: worldSource ? `mail-avatar-${sourceKey}` : "mail-avatar-pending",
@@ -18818,16 +18820,21 @@ function createEmailClient() {
       locale:()=>document.documentElement.lang,
       onSelect:async(player,row,notify)=>{
         if(document.body.dataset.communicationSafety==='1'){
+            if(isKnownContact(player.username)){await openDirectChat(player.username);return;}
             window.createIdentitySettingsWindow({embedded:'1',username:player.handle});return;
         }
         const res=await fetch('/api/player-contact/request',{
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({target_username:player.username})});
         const data=await res.json();
-        notify(res.ok&&data.success
-            ? (document.documentElement.lang==='en'?'Invitation sent or already pending.':'Zaproszenie wysłane lub już oczekuje.')
-            : (document.documentElement.lang==='en'?'Contact unavailable.':'Kontakt niedostępny.'));
-        if(res.ok)await refreshThreads(true);
+        if(!res.ok||!data.success){
+            notify(document.documentElement.lang==='en'?'Contact unavailable.':'Kontakt niedostępny.');return;
+        }
+        notify(data.status==='already_friend'
+            ? (document.documentElement.lang==='en'?'Opening conversation.':'Otwieram rozmowę.')
+            : (document.documentElement.lang==='en'?'Invitation awaiting acceptance.':'Zaproszenie oczekuje na akceptację.'));
+        await refreshThreads(true);
+        await openDirectChat(player.username);
       }
     });
 

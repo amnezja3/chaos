@@ -55,6 +55,26 @@ Zaproszenia i lista blokad pokazują nick wraz z ID, operacje pozostają po ID.
 
 ## Wdrożenie
 
+### Otwarcie rozmowy i wysłane zaproszenia
+
+Po poprawnym żądaniu kontaktu picker odświeża listę i otwiera rozmowę.
+Istniejący kontakt safety również otwiera rozmowę; nieznajomy safety nadal
+przechodzi przez panel zaproszeń. Legacy wysłane zaproszenie pojawia się w
+„Nowe” z jawnym statusem oczekiwania, również po odświeżeniu. Projekcja
+wykorzystuje wyłącznie kopertę powiadomienia „Gest przywitania” zapisanego
+u odbiorcy, bez ujawniania jego wiadomości. Nadawca nie ma przycisku akceptacji
+własnego zaproszenia. Jawna akceptacja przez odbiorcę zapisuje oba kierunki
+kontaktu w jednej transakcji; zwykłe dodanie bez zaproszenia tego nie robi.
+
+Weryfikacja: 7 testów player directory i 8 communication safety PASS.
+Playwright na izolowanym fixture `--directory --legacy-contacts`: rzeczywiste
+żądanie zaproszenia, otwarcie rozmowy „Trinity”, oczekująca pozycja u nadawcy,
+akceptacja na koncie odbiorcy (HTTP 200), powrót do nadawcy, kontakt w „Znajomi”,
+brak pozycji oczekującej, ponowny wybór z `already_friend` i otwarcie rozmowy.
+Fixture pomija tylko dodatkowe powiadomienia/delty poza bazą kontaktów;
+operacje kontaktów i HTTP są rzeczywiste. Pozostałe błędy tła fixture opisano niżej.
+Bez migracji; terminal.js `cyberner-directory-4`.
+
 ### Styl wyników i komunikat 3 s
 
 Wspólny picker ma kartę i przycisk w kolorystyce CHAOS oraz jeden slot statusu

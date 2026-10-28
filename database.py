@@ -15092,7 +15092,7 @@ class MailStore:
                 """,
                 (username,),
             ).fetchall()
-            return [
+            incoming = [
                 {
                     "name": row["peer_name"],
                     "status": "pending",
@@ -15101,6 +15101,22 @@ class MailStore:
                 for row in rows
                 if row["peer_name"]
             ]
+            # Legacy invitations are stored as a greeting in the recipient's
+            # inbox. Expose only its envelope to its sender, never message text.
+            outgoing = conn.execute("""
+                SELECT m.owner_username AS name, MAX(m.created_at) AS last_at
+                FROM chat_messages m
+                WHERE m.scope='direct' AND m.peer_name=?
+                  AND m.owner_username!=? AND m.subject='Gest przywitania'
+                  AND NOT EXISTS (SELECT 1 FROM contacts c
+                    WHERE c.owner_username=? AND c.contact_name=m.owner_username)
+                GROUP BY m.owner_username
+                ORDER BY last_at DESC
+            """, (username,username,username)).fetchall()
+            seen = {item['name'] for item in incoming}
+            return incoming + [dict(name=row['name'],status='pending',
+                                    outgoing=True,last_at=row['last_at'])
+                               for row in outgoing if row['name'] not in seen]
 
     def unread_counts(self, username):
         with db_connect(self.db_path) as conn:
@@ -15194,7 +15210,7 @@ class MailStore:
                 (threshold,),
             ).fetchone()[0]
 
-    def add_contact(self, username, contact_name, status="offline"):
+    def add_contact(self, username, contact_name, status="offline", *, accept_invitation=False):
         contact_name = (contact_name or "").strip()
         if not contact_name:
             raise ValueError("Contact name is required.")
@@ -15218,6 +15234,14 @@ class MailStore:
                 """,
                 (username, contact_name, status, utc_now()),
             )
+            if accept_invitation:
+                conn.execute("""
+                    INSERT INTO contacts(owner_username,contact_name,status,created_at)
+                    SELECT ?,?,'offline',? WHERE EXISTS (
+                        SELECT 1 FROM chat_messages WHERE owner_username=?
+                        AND peer_name=? AND scope='direct' AND subject='Gest przywitania')
+                    ON CONFLICT(owner_username,contact_name) DO NOTHING
+                """, (contact_name,username,utc_now(),username,contact_name))
 
     def remove_contacts_without_users(self, username):
         with db_connect(self.db_path) as conn:

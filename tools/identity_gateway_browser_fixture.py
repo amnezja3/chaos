@@ -37,6 +37,13 @@ def main():
             run.app.config['CHAOS_COMMUNICATION_SAFETY_ENABLED']=True
         if '--adult' in sys.argv:
             run.app.config['CHAOS_AGE_POLICY_ENABLED']=True
+        if '--legacy-contacts' in sys.argv:
+            from database import MailStore
+            from unittest.mock import patch
+            mail=MailStore(fixture.path)
+            fixture.stack.enter_context(patch.object(run,'mail_store',mail))
+            fixture.stack.enter_context(patch.object(run,'add_cyberner_direct_notification',side_effect=mail.add_direct_notification))
+            run.app.config['CHAOS_COMMUNICATION_SAFETY_ENABLED']=False
         if '--mock-providers' in sys.argv:
             from unittest.mock import patch
             def resolved_provider(provider, args, flow):

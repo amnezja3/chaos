@@ -29702,7 +29702,7 @@ def add_contact():
         contact_name = identity_projection_store.resolve_player(contact_name)
         if contact_name == username:
             raise ValueError('contact_unavailable')
-        mail_store.add_contact(username, contact_name, status)
+        mail_store.add_contact(username, contact_name, status, accept_invitation=True)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 

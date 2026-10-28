@@ -25,6 +25,7 @@ async page=>{
  const views=[];
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:900});
+  if(width===390)await page.locator('.mail-back-button').click();
   await page.mouse.move(0,0);
   views.push(await button.evaluate(b=>{
    const r=b.getBoundingClientRect(),s=getComputedStyle(b);
