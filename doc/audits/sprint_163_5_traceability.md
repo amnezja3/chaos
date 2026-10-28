@@ -388,3 +388,28 @@ pozostaje w ignored instance/provider-captures, z SHA opisanym przy fixture.
 Sprawdzono shell syntax pakietu i aktywację/rollback ecosystem przez Node.
 Zero wywołań API i zmian produkcyjnej bazy. Nie odmładzamy istniejących danych.
 Odbiór live nadal wymaga świeżego regionu; nie uruchamiamy ponownie compact-v3.
+
+### 28.10.2026 — PASS backendu regionalnego MapLark na VPS
+
+Dowod: log operatora z zalacznika ad690dd4-5c86-4c92-ad67-509f0bab4c8e.
+Dwa kontrolowane skany, zgodne z oczekiwanymi kluczami:
+- 1e27dc10d1ba: lat 48.861, lon 2.338, radius 300; pid 295707,
+  at 1793196506.476, poi_scan success 0.9246 s.
+- cfdf8bd1dde1: lat 48.861, lon 2.3378, radius 300; pid 295704,
+  at 1793196509.163, poi_scan success 0.7406 s.
+
+Oba: poi_maplark_region_read source=world, reason=selected, stale=false,
+examined=1, rejected={}, revision=9. Ten sam snapshot:
+0eb6c6b0277b8049916a6d82628703656f8eb024ee7344b520791a7873b37142.
+Osobny poi_maplark_region potwierdza profil chaos-maplark-region-geometry-v2;
+poi_route revision=3 potwierdza sukces ze zrodla world.
+
+Potwierdzony regionalny odczyt dwoch przesunietych zapytan na roznych workerach,
+nie tylko exact-cache. W pokazanych sciezkach obu skanow nie bylo fallbacku
+upstream. Nie oznacza to braku rownoleglego ruchu kolektora ani darmowego
+pozyskania regionu. Log nie zawiera liczby markerow ani wizualnego odbioru UI.
+Przypisanie kont main/neo1 wynika z instrukcji operatora; log nie zapisuje kont.
+Wczesniejsze wpisy upstream w tym samym wycinku sa historyczne.
+
+Ten wynik zamyka backendowy odbior regionalnego MapLark. Nie jest automatycznym
+zamknieciem pozostalych pozycji sprintu (m.in. pelnej kwalifikacji Geoapify).

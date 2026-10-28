@@ -231,3 +231,9 @@ z jednego kompletnego bbox, zachowuje eksport gry, a przypadki niejednoznaczne
 oddaje API. Nie deklaruje pełnej identyczności natywnego radius. Instrukcja
 wdrożenia: ../runbooks/world_maplark_region_release_163_5.md. Aktywacja i odbiór
 VPS pozostają do wykonania; status całego sprintu nie jest CLOSED.
+
+28.10.2026 — odbior backendu regionalnego MapLark PASS na VPS: dwa przesuniete
+skany radius=300, klucze 1e27dc10d1ba/cfdf8bd1dde1, rozne workery, ten sam
+snapshot, poi_maplark_region source=world geometry-v2 i poi_scan success
+0.9246/0.7406 s. Dowody: ../audits/sprint_163_5_traceability.md.
+Nie jest to pelne zamkniecie pozostalych pozycji 163.5 ani wizualny odbior UI.
