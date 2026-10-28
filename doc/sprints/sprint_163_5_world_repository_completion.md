@@ -1,15 +1,20 @@
 # Sprint 163.5 — domknięcie pamięci świata i integracji źródeł
 
-Data: 26.10.2026, aktualizacja 28.10.2026. Status: **KOŃCOWY PAKIET WDROŻONY — preflight/deploy/post PASS na VPS; pełny kontrakt Geoapify pozostaje niezweryfikowany**.
+Data: 26.10.2026, aktualizacja 28.10.2026. Status: **ZAAKCEPTOWANY PASS — Geoapify pełny skaner do dokończenia**.
+
+Operator zaakceptował aktualny stan 163.5: działające skany MapLark, exact
+i regionalny odczyt repozytorium, zbieranie świata, geografia, panel i monitoring.
+Odbiór opiera się na dotychczasowych dowodach i zakończonym `post` VPS.
+Nie wymaga kolejnego powtarzania skanów ani panelu. Pełny kontrakt/fallback
+Geoapify pozostaje jedyną jawną pozycją do dokończenia, poza zaakceptowanym PASS.
 
 Aktualny [bilans odbioru](../audits/world_closeout_163_5.md) rozdziela gotowy
 kod, istniejące potwierdzenia VPS i granice źródeł. Checkboxy poniżej odświeżono
 według implementacji oraz dowodów: oznaczają wykonanie kodu/testów/instrukcji,
 nie wymyślony wynik każdego testu produkcyjnego. Odbiory A01–A12 mają osobną
-tabelę w bilansie. Pozostały etap operatora to zbiorczy `post` + zwykły skan
-i panel; nie powtarzamy deploy ani płatnych testów regionu.
-Aktualizacja: zbiorczy `post` już PASS (`chaos-world-completion-gCwuSf`),
-pozostaje potwierdzenie zwykłego skanu i panelu. Geoapify pełny skaner nadal otwarty.
+tabelę w bilansie. Zbiorczy `post` PASS (`chaos-world-completion-gCwuSf`)
+i akceptacja operatora kończą odbiór obecnego mechanizmu; nie powtarzamy deploy
+ani płatnych testów regionu. Geoapify pełny skaner nadal otwarty.
 
 Odbiór `745bad6`: 210 testów OK, import Natural Earth `imported_verified`,
 integralność/FK OK, web/kolektor online i końcowy HTTP 200. Szczegóły w audycie.
@@ -26,7 +31,7 @@ Wcześniejsze wpisy poniżej są historią etapów, nie nowymi poleceniami na VP
 | Regionalny MapLark geometry-v2 | Gotowe | PASS: dwa przesunięte skany, różne workery, jeden snapshot |
 | Kolektor → odczyt → odświeżenie POI po nowym popycie | Test całego ciągu PASS; minimum 1 h, bez podnoszenia budżetu | Wdrożone; naturalny refresh zależy od popytu i budżetu |
 | Ląd–morze Natural Earth 5.1.1 | Przypięty produkt, importer offline i roundtrip PASS; skala 1:10 mln | PASS imported_verified / COMPLETE_FRESH |
-| Panel i monitoring | Atlas/heartbeat; podlimit tła i wyjaśnienie odświeżania; Playwright PL/EN desktop/mobile PASS | Wdrożone; monitor PASS, bieżący wizualny smoke panelu do potwierdzenia |
+| Panel i monitoring | Atlas/heartbeat; podlimit tła i wyjaśnienie odświeżania; Playwright PL/EN desktop/mobile PASS | Wdrożone; monitor PASS, aktualny stan zaakceptowany przez operatora |
 | Geoapify jako pełny skaner | Nie zakwalifikowany; commercial pozostaje archiwum obserwacji | Brak dowodu pełnej geometrii/selekcji/kategorii |
 
 Podstawowy cel repozytorium był zapisany już w **160.1–160.2**, a panel i odbiór

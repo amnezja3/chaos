@@ -1,5 +1,13 @@
 # 163.5 — bieżący bilans odbioru, 28.10.2026
 
+**Status: ZAAKCEPTOWANY PASS — Geoapify pełny skaner do dokończenia.**
+
+Decyzja operatora 28.10.2026: „oznacz w dokumentacji aktualny stan 163.5
+jako akceptowalny pass z geoapify do dokończenia”. Odbiór aktualnego mechanizmu
+zakończony na podstawie dotychczasowych dowodów, bez kolejnego obowiązkowego
+smoke skanu/panelu. Nie dopisujemy nowych pomiarów ani certyfikacji Geoapify.
+Pełny kontrakt skanera Geoapify pozostaje jawnym zadaniem kontynuacyjnym.
+
 Ten dokument porządkuje istniejące dowody. Nie uruchomiono nowego pobrania,
 nie zmieniono budżetów, routingu, dat świeżości ani zgód dostawców.
 Historyczne statusy w traceability nie są aktualną listą zadań.
@@ -29,9 +37,9 @@ z `commit.txt` tego katalogu; nie był wypisany w przekazanym logu.
 - Natural Earth jest teraz EXPIRED dla krótkiego TTL odczytu, ale zachowany
   w archiwum. Nie odmładzamy źródła i nie powtarzamy importu dla zielonego statusu.
 
-Aktualny raport techniczny odebrany. W załączniku nadal nie ma potwierdzenia
-bieżącego wizualnego smoke skanu i panelu; pozostaje tylko to potwierdzenie
-operatora oraz jawny, odrębny brak pełnego kontraktu skanera Geoapify.
+Aktualny raport techniczny odebrany. Załącznik nie zawiera nowego wizualnego
+smoke skanu i panelu; późniejsza jawna akceptacja operatora zamyka odbiór
+aktualnego stanu bez jego powtarzania. Pełny kontrakt Geoapify pozostaje otwarty.
 
 ## Wykonane i odebrane
 
@@ -102,14 +110,14 @@ pracy nad pełnym fallbackiem jest źródło pełnych geometrii i dowód pełno�
 profili albo osobno zaakceptowany inny kontrakt skanowania. Wymóg pozostaje
 jawnie otwarty — nie został usunięty ze sprintu.
 
-## Co teraz wymaga VPS
+## Utrzymanie po akceptacji
 
 Kod końcowego pakietu jest wdrożony, bieżący `post` odebrany powyżej. Nie
-powtarzać deploy/importu, post ani płatnego Paryża. Potwierdzić tylko zwykły
-skan oraz panel World Discovery. Zakończony etap odczytał bazę,
+powtarzać deploy/importu, post ani płatnego Paryża. Nie ma obowiązkowych
+dodatkowych czynności VPS do tego odbioru. Zakończony etap odczytał bazę,
 PM2 i monitor, a HTTP sprawdza wyłącznie własne `/launch`. Działający kolektor
 może równolegle korzystać ze swoich zatwierdzonych limitów.
 
 Przy braku budżetu/popytu poprawnym wynikiem jest odroczenie, nie wymuszony
-refresh. Statystyczne SLO i 7 dni obserwacji należą do utrzymania. Pełnego
-historycznego zakresu ze skanerem Geoapify nadal nie nazywamy CLOSED.
+refresh. Statystyczne SLO i 7 dni obserwacji należą do utrzymania. Zaakceptowany
+PASS aktualnego stanu nie oznacza ukończenia pełnego skanera Geoapify.

@@ -1,5 +1,9 @@
 # 163.5 — końcowy pakiet wdrożenia, 28.10.2026
 
+**Odbiór zakończony: ZAAKCEPTOWANY PASS — Geoapify pełny skaner do dokończenia.**
+Decyzja operatora 28.10.2026 zastępuje wcześniejsze prośby o kolejny smoke.
+Poniższe polecenia pozostają instrukcją referencyjną; nie trzeba ich powtarzać.
+
 Ten pakiet zastępuje poprzednie instrukcje aktywacji dla obecnej konfiguracji.
 **Stan po odbiorze 28.10:** `745bad6` wdrożony, preflight/deploy/post PASS.
 Przy kontynuacji po Cybernerze wykonać tylko sekcję „Zbiorczy odbiór działania”
@@ -105,6 +109,7 @@ Nie usuwaj historycznych rezerwacji Geoapify. Import Natural Earth nie jest
 routowalny, więc nie trzeba go usuwać, aby zachować skaner.
 
 Pełny status: kod, lokalne testy i wdrożenie tego pakietu potwierdzone raportami
-operatora. Oczekuje bieżący smoke gry/panelu i aktualny odczyt monitora; naturalne
-odświeżenie może być odroczone przez budżet/popyt. Nie oznaczamy pełnego skanera
-Geoapify jako PASS. Statystyczne SLO wymaga osobnej obserwacji.
+operatora oraz końcową akceptacją aktualnego stanu. Nie ma kolejnego wymaganego
+smoke gry/panelu. Naturalne odświeżenie może być odroczone przez budżet/popyt.
+Pełny skaner Geoapify pozostaje do dokończenia; nie obejmuje go PASS.
+Statystyczne SLO wymaga osobnej obserwacji utrzymaniowej.

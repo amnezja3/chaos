@@ -1,5 +1,11 @@
 # 163.5 — mapa wymagań i dowodów
 
+**Bieżący status: ZAAKCEPTOWANY PASS — Geoapify pełny skaner do dokończenia.**
+Operator 28.10.2026 zaakceptował obecny stan na podstawie istniejących dowodów
+i raportu `chaos-world-completion-gCwuSf`. Nie oczekujemy kolejnego smoke
+skanu/panelu. Historyczne wpisy o oczekiwaniu na odbiór pozostają chronologią;
+bieżąca decyzja i jawny brak Geoapify opisane są w `world_closeout_163_5.md`.
+
 Aktualizacja: kolejny `post` VPS PASS, raport `chaos-world-completion-gCwuSf`:
 265 snapshotów, integrity/FK OK, baseline zgodny, świeży heartbeat, HTTP 200.
 MapLark tło 188/200 przy rezerwacji 20 prawidłowo odracza pobrania. Szczegóły
