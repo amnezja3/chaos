@@ -55,6 +55,21 @@ Zaproszenia i lista blokad pokazują nick wraz z ID, operacje pozostają po ID.
 
 ## Wdrożenie
 
+### Korekta widoczności wyników przy długiej liście kontaktów
+
+Odtworzono w Playwright: czwarty element trzywierszowej siatki sidebaru
+powodował zmniejszenie panelu wyników do 0 px przy zapełnionej liście.
+Wyniki są teraz pierwszym elementem przewijanej listy; wyszukiwanie przewija
+ją do początku. Zmieniono wersję terminal.js na `cyberner-directory-2`.
+Regresja przeglądarkowa dodaje 12 kontaktów i sprawdza rzeczywisty hit-test
+przycisku, a nie samą obecność tekstu w DOM.
+Kontrolny test Playwright 1440/390 px: przycisk widoczny i klikalny,
+wybór przenosi właściwy @ID do formularza zaproszenia, brak pageerror.
+Pełny scenariusz wykonał zaproszenie i akceptację, lecz jego kontrola konsoli
+odnotowała poboczny błąd `/api/profile/desktop` podczas przełączania kont
+w fixture (409/500); nie oznaczamy tego przebiegu jako pełnego PASS.
+Składnia JS sprawdzona. Ta korekta nie zmienia backendu ani danych kont.
+
 ### Korekta izolacji testów po pierwszym odbiorze VPS
 
 Pierwsze uruchomienie na VPS: 4/5 testów katalogu odrzucone HTTP 423

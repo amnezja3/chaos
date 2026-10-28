@@ -15,10 +15,26 @@ async page=>{
    await page.goto('http://127.0.0.1:8997/__fixture/workspace');
    await page.waitForFunction(()=>typeof createEmailClient==='function');
    await page.evaluate(()=>createEmailClient());
+   // A populated sidebar used to squeeze the extra grid row to zero height.
+   await page.evaluate(()=>{
+    const list=document.querySelector('.mail-sidebar-scroll');
+    for(let i=0;i<12;i++){
+     const row=document.createElement('div');row.style.height='75px';
+     row.textContent='Fixture contact '+i;list.append(row);
+    }
+    list.scrollTop=list.scrollHeight;
+   });
    for(const [nick,id] of [['Trinity','google'],['Neo','discord'],['Żółw','steam'],['Octocat','github']]){
     await page.locator('.mail-contact-search input').fill(nick);
     await page.locator('.mail-contact-search button').click();
     await page.getByText('@id_'+id+'_fixture',{exact:true}).waitFor();
+    const visible=await page.getByRole('button',{name:locale==='pl'?'Wybierz gracza':'Select player',exact:true}).evaluate(button=>{
+     const scroll=button.closest('.mail-sidebar-scroll');
+     const rect=button.getBoundingClientRect(),view=scroll.getBoundingClientRect();
+     const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+     return rect.height>0&&rect.top>=view.top&&rect.bottom<=view.bottom&&button.contains(hit);
+    });
+    if(!visible)throw Error('Player selection clipped by populated sidebar');
    }
    await page.getByRole('button',{name:locale==='pl'?'Wybierz gracza':'Select player',exact:true}).click();
    const frame=page.frameLocator('[data-app="identity-settings"] iframe');

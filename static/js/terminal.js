@@ -18810,7 +18810,10 @@ function createEmailClient() {
     });
 
     const playerResults=document.createElement('div');
-    contactForm.after(playerResults);
+    playerResults.className='mail-player-results';
+    const playerResultsScroll=term.querySelector('.mail-sidebar-scroll');
+    playerResultsScroll.prepend(playerResults);
+    contactForm.addEventListener('submit',()=>{playerResultsScroll.scrollTop=0;});
     window.mountPlayerDirectory({form:contactForm,input:contactInput,results:playerResults,
       locale:()=>document.documentElement.lang,
       onSelect:async(player,row)=>{
