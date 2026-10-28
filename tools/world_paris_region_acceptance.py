@@ -2,6 +2,7 @@
 import argparse
 from contextlib import closing
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -15,17 +16,20 @@ from poi_infrastructure.world_adapters import plan_maplark_region
 from poi_infrastructure.world_contract import ContractError
 from poi_infrastructure.world_storage import CanonicalWorldRepository
 from poi_infrastructure.maplark_region import select
+from poi_infrastructure.service import bounded_http
 from tools.world_region_pilot import backup_database
 
 BOUNDS=(2.333,48.856,2.343,48.866)
 OPERATION='region:paris-poi-1635-acceptance-v1'
+DIAGNOSTIC_OPERATION='region:paris-poi-1635-diagnostic-v2'
 
 
-def run(db,backup=None,*,execute=False,accept=False,transport=None):
+def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2=False):
+    operation=DIAGNOSTIC_OPERATION if diagnostic_v2 else OPERATION
     plan=plan_maplark_region(BOUNDS,profile='poi',limit=1000)
     result=dict(status='plan',bounds=BOUNDS,network_calls=0,max_network_calls=1,
                 reservation=20,provider_price_cap=False,registry_changed=False,
-                environment_changed=False)
+                environment_changed=False,operation=operation)
     if not execute:return result
     if not accept:raise ContractError('variable_cost_acceptance_required')
     plan.authenticated_wire()
@@ -45,30 +49,57 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None):
     if not windows or any(w['remaining']<20 for w in windows):raise ContractError('budget_exhausted')
     with closing(repo.connect()) as c:
         if c.execute('SELECT 1 FROM world_credit_operation WHERE account=? AND operation=?',
-                     ('maplark',OPERATION)).fetchone():raise ContractError('operation_already_used_no_retry')
+                     ('maplark',operation)).fetchone():raise ContractError('operation_already_used_no_retry')
         count,size=c.execute('SELECT count(*),coalesce(sum(bytes),0) FROM world_snapshot').fetchone()
     world=CanonicalWorldRepository(repo)
     if count>=world.max_snapshots or size+8*1024*1024>world.max_bytes:
         raise ContractError('world_capacity_before_request')
     backup_database(db,backup)
-    if ledger.scope_status('maplark',OPERATION) is None:
-        now=time.time();ledger.configure_scope('maplark',OPERATION,now,now+3600,20)
-    owner=repo.acquire(OPERATION,120)
+    destination=Path(str(backup)+'.diagnostics') if diagnostic_v2 else None
+    if destination:destination.mkdir(mode=0o700,exist_ok=False)
+    def save(name,value):
+        if destination is None:return
+        raw=json.dumps(value,ensure_ascii=False,allow_nan=False)
+        secret=os.environ.get(plan.secret_ref,'')
+        if secret:raw=raw.replace(secret,'[REDACTED]')
+        if len(raw.encode('utf8'))>8*1024*1024:
+            raw=json.dumps(dict(status='artifact_too_large'))
+        with os.fdopen(os.open(destination/name,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf8') as f:
+            f.write(raw)
+    if destination:
+        result['diagnostics']=str(destination)
+        save('request.json',dict(params=dict(plan.params),provider_revision=p['revision'],operation=operation))
+    def send(*args,**kwargs):
+        status,retry,envelope=(transport or bounded_http)(*args,**kwargs)
+        # Save BEFORE normalization can reject the reply. No request headers.
+        save('http.json',dict(status=status))
+        if isinstance(envelope,dict):
+            headers=envelope.get('response_headers',{})
+            allowed={'x-returned','x-has-more','x-next-cursor','x-usage-units-charged','content-type'}
+            save('headers.json',{k:v for k,v in headers.items() if k.lower() in allowed} if isinstance(headers,dict) else {})
+            save('body.json',envelope.get('body'))
+        return status,retry,envelope
+    def finish(report):
+        save('report.json',report)
+        return report
+    if ledger.scope_status('maplark',operation) is None:
+        now=time.time();ledger.configure_scope('maplark',operation,now,now+3600,20)
+    owner=repo.acquire(operation,120)
     if not owner:raise ContractError('region_busy')
     try:
-        batch,billing=acquire_maplark(repo,plan,OPERATION,20,accept_variable_cost=True,
-            transport=transport,still_active=active,lane='background',budget_scopes=(OPERATION,),
+        batch,billing=acquire_maplark(repo,plan,operation,20,accept_variable_cost=True,
+            transport=send,still_active=active,lane='background',budget_scopes=(operation,),
             allow_partial_observations=True)
         if not active():raise ContractError('provider_changed')
         # Inspect an incomplete reply but never publish it as regional coverage.
         # The transport already settled billing; preserve its diagnostic result.
         if batch.completeness!='complete' or batch.reasons:
-            return dict(result,status='response_incomplete',network_calls=1,billing=billing,
+            return finish(dict(result,status='response_incomplete',network_calls=1,billing=billing,
                         completeness=batch.completeness,reasons=batch.reasons,
                         objects=len(batch.objects),world_published=False,
-                        acceptance_ready=False,automatic_retry=False)
+                        acceptance_ready=False,automatic_retry=False))
         now=time.time()
-        snapshot=world.publish_batch(OPERATION,owner,batch,
+        snapshot=world.publish_batch(operation,owner,batch,
             provider='maplark',revision=p['revision'],storage_reference=p['evidence']['reference'],
             fresh_until=now+300,usable_until=now+1800,
             observation_context=dict(acquisition='sector-bbox-v1',demand_bounds=BOUNDS,
@@ -83,10 +114,13 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None):
                 positions.append(dict(lat=lat,lon=lon,radius=300,objects=len(data['elements'])))
                 if len(positions)==2:break
             if len(positions)==2:break
-        return dict(result,status='published',network_calls=1,snapshot=snapshot,billing=billing,
+        return finish(dict(result,status='published',network_calls=1,snapshot=snapshot,billing=billing,
                     fresh_until=now+300,positions=positions,
-                    acceptance_ready=len(positions)==2,automatic_retry=False)
-    finally:repo.release(OPERATION,owner)
+                    acceptance_ready=len(positions)==2,automatic_retry=False))
+    except Exception as exc:
+        save('failure.json',dict(error_type=type(exc).__name__,automatic_retry=False))
+        raise
+    finally:repo.release(operation,owner)
 
 
 def main():
@@ -94,9 +128,11 @@ def main():
     parser.add_argument('--db',default='data/poi_cache.sqlite3')
     parser.add_argument('--backup');parser.add_argument('--execute',action='store_true')
     parser.add_argument('--accept-variable-credit-cost',action='store_true')
+    parser.add_argument('--diagnostic-v2',action='store_true',help='Separately approved single request; preserve response artifacts')
     args=parser.parse_args()
     try:
-        result=run(args.db,args.backup,execute=args.execute,accept=args.accept_variable_credit_cost)
+        result=run(args.db,args.backup,execute=args.execute,accept=args.accept_variable_credit_cost,
+                   diagnostic_v2=args.diagnostic_v2)
         print(json.dumps(result));return 2 if result['status']=='response_incomplete' else 0
     except Exception as exc:
         print(json.dumps(dict(status='stopped',error=str(exc) if isinstance(exc,ContractError)

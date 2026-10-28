@@ -87,6 +87,24 @@ Jeżeli false lub błąd, przekazać wynik bez kolejnego uruchomienia requestu.
 Gęsta zabudowa może spowodować niejednoznaczność granic dla wszystkich
 kandydatów; nie zmniejszamy marginesu bezpieczeństwa tylko na potrzeby PASS.
 
+### Osobno zatwierdzona diagnostyka v2
+
+Po błędzie provider_response_incomplete operator zatwierdził jedno nowe
+pobranie tego samego bbox z rezerwacją 20. Nie znamy przyczyny poprzedniego
+braku kompletności, więc nie zmieniamy jednocześnie limitu ani geometrii zapytania.
+Polecenie: `bash tools/world_paris_region_acceptance.sh --diagnostic-v2`.
+Osobne stałe ID `region:paris-poi-1635-diagnostic-v2`; operacja v1, jej zakres
+i koszty pozostają bez zmian. Brak automatycznych ponowień, także po błędzie.
+
+W prywatnym katalogu obok nowego backupu zapisujemy request.json (parametry,
+nie nagłówki), http.json, body.json, allowlistę headers.json oraz report.json
+lub failure.json. Odpowiedź zapisujemy przed normalizacją, również gdy później
+zostanie odrzucona. Niepełne dane nie trafiają do world. Sekret jest redagowany;
+nie zapisujemy nagłówków autoryzacji. Przy timeout przed odpowiedzią nie ma body;
+pozostaje raport błędu i księga operacji. Artefakty ograniczone do 8 MiB na plik.
+6 testów lokalnych PASS: zapis niepełnej odpowiedzi i błędu normalizatora,
+rozliczenie, zachowanie v1, brak ponowienia i brak sekretów.
+
 Lokalny PASS nie jest odbiorem VPS. Ten pakiet dostarcza runtime regionalnego
 MapLark; nie zamyka automatycznie pełnej kwalifikacji Geoapify, dostępności VK
 ani wszystkich A01–A12. Zachowujemy istniejące dowody; nowych nie deklarujemy
