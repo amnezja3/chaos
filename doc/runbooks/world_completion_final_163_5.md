@@ -1,6 +1,10 @@
 # 163.5 — końcowy pakiet wdrożenia, 28.10.2026
 
 Ten pakiet zastępuje poprzednie instrukcje aktywacji dla obecnej konfiguracji.
+**Stan po odbiorze 28.10:** `745bad6` wdrożony, preflight/deploy/post PASS.
+Przy kontynuacji po Cybernerze wykonać tylko sekcję „Zbiorczy odbiór działania”
+i `bash tools/world_completion_acceptance.sh post`; nie powtarzać importu
+ani aktywacji. Aktualny bilans: [odbiór 163.5](../audits/world_closeout_163_5.md).
 Wymaga już działającego `world_maplark_region` i kolektora `regular_halo`.
 Nie uruchamia ponownie Paryża ani nie przywraca VK na pierwsze miejsce.
 Odbiór dwóch przesuniętych skanów regionalnych na różnych workerach pozostaje PASS.
@@ -100,5 +104,7 @@ na działającej produkcji: backup sprzed wdrożenia nie zawiera późniejszych 
 Nie usuwaj historycznych rezerwacji Geoapify. Import Natural Earth nie jest
 routowalny, więc nie trzeba go usuwać, aby zachować skaner.
 
-Pełny status: kod tego pakietu i testy lokalne gotowe; wdrożenie/odbiór tych zmian
-czekają na powyższe raporty. Nie oznaczamy niezweryfikowanego Geoapify jako PASS.
+Pełny status: kod, lokalne testy i wdrożenie tego pakietu potwierdzone raportami
+operatora. Oczekuje bieżący smoke gry/panelu i aktualny odczyt monitora; naturalne
+odświeżenie może być odroczone przez budżet/popyt. Nie oznaczamy pełnego skanera
+Geoapify jako PASS. Statystyczne SLO wymaga osobnej obserwacji.

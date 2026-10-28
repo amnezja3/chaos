@@ -1,5 +1,14 @@
 # 163.5 — mapa wymagań i dowodów
 
+## Stan bieżący po odbiorze Cybernera — 28.10.2026
+
+Obowiązuje [bilans 163.5](world_closeout_163_5.md). Historyczne tabele poniżej
+pozostają chronologią, nie listą niewykonanych dziś prac. Regionalny MapLark,
+Natural Earth, atlas i kolektor są wdrożone; testy pełnego ciągu odświeżania PASS.
+Zapis PM2 potwierdzono później przy odbiorze Cybernera. Pozostał aktualny `post`
+i smoke skanu/panelu. Cyberner PASS nie jest dowodem POI PASS.
+Pełny fallback Geoapify pozostaje otwarty z konkretną macierzą braków w bilansie.
+
 ## Odbiór VPS końcowego pakietu — 28.10.2026
 
 Commit `745bad6`, materiał operatora:

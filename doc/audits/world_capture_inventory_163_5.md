@@ -24,7 +24,13 @@ Metadata dróg używa starszego opisu pochodzenia (`captured_by`, `capture_date`
 ale nie dopisuje automatycznie deklaracji pochodzenia. Udokumentowany odbiór
 odpowiedzi pozostaje w `sprint_163_evidence.md`.
 
-## Rozdzielenie braków
+## Rozdzielenie braków — historyczny stan inwentaryzacji
+
+Aktualizacja 28.10: później pozyskano parę bbox/radius POI MapLark, capture
+Paryża z rzeczywistymi MultiPolygon oraz regionalny produkt Natural Earth 5.1.1.
+Wersje, hashe, profile, zakresy i ograniczenia znajdują się w
+`sprint_163_5_traceability.md`; bieżący stan w `world_closeout_163_5.md`.
+Poniższa tabela nie zleca ponownego pobrania tych materiałów.
 
 | Element | Dane dostępne | Kod dostępny | Pozostały warunek |
 | --- | --- | --- | --- |

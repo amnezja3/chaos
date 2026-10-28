@@ -2,11 +2,18 @@
 
 Data: 26.10.2026, aktualizacja 28.10.2026. Status: **KOŃCOWY PAKIET WDROŻONY — preflight/deploy/post PASS na VPS; pełny kontrakt Geoapify pozostaje niezweryfikowany**.
 
+Aktualny [bilans odbioru](../audits/world_closeout_163_5.md) rozdziela gotowy
+kod, istniejące potwierdzenia VPS i granice źródeł. Checkboxy poniżej odświeżono
+według implementacji oraz dowodów: oznaczają wykonanie kodu/testów/instrukcji,
+nie wymyślony wynik każdego testu produkcyjnego. Odbiory A01–A12 mają osobną
+tabelę w bilansie. Pozostały etap operatora to zbiorczy `post` + zwykły skan
+i panel; nie powtarzamy deploy ani płatnych testów regionu.
+
 Odbiór `745bad6`: 210 testów OK, import Natural Earth `imported_verified`,
 integralność/FK OK, web/kolektor online i końcowy HTTP 200. Szczegóły w audycie.
 MapLark tło ma 12 kredytów wolnych przy wymaganej rezerwacji 20; odroczenie
 zbierania jest oczekiwane. Nie ma jeszcze dowodu nowego godzinnego refreshu
-na VPS. Poniższa tabela opisuje stan przygotowania pakietu przed tym odbiorem.
+na VPS. Ten brak nie unieważnia deterministycznego testu odświeżania.
 
 Aktualna instrukcja: [jeden pakiet wdrożenia i odbioru](../runbooks/world_completion_final_163_5.md).
 Wcześniejsze wpisy poniżej są historią etapów, nie nowymi poleceniami na VPS.
@@ -15,9 +22,9 @@ Wcześniejsze wpisy poniżej są historią etapów, nie nowymi poleceniami na VP
 | --- | --- | --- |
 | Exact world, wizyty, halo | Gotowe | Potwierdzone wcześniej |
 | Regionalny MapLark geometry-v2 | Gotowe | PASS: dwa przesunięte skany, różne workery, jeden snapshot |
-| Kolektor → odczyt → odświeżenie POI po nowym popycie | Test całego ciągu PASS; minimum 1 h, bez podnoszenia budżetu | Aktualizacja kolektora w końcowym pakiecie |
-| Ląd–morze Natural Earth 5.1.1 | Przypięty produkt, importer offline i roundtrip PASS; skala 1:10 mln | Import w końcowym pakiecie |
-| Panel i monitoring | Atlas/heartbeat istnieją; podlimit tła i wyjaśnienie odświeżania; Playwright PL/EN desktop/mobile PASS | Reload web i kontrola panelu |
+| Kolektor → odczyt → odświeżenie POI po nowym popycie | Test całego ciągu PASS; minimum 1 h, bez podnoszenia budżetu | Wdrożone; naturalny refresh zależy od popytu i budżetu |
+| Ląd–morze Natural Earth 5.1.1 | Przypięty produkt, importer offline i roundtrip PASS; skala 1:10 mln | PASS imported_verified / COMPLETE_FRESH |
+| Panel i monitoring | Atlas/heartbeat; podlimit tła i wyjaśnienie odświeżania; Playwright PL/EN desktop/mobile PASS | Wdrożone; monitor PASS, bieżący wizualny smoke panelu do potwierdzenia |
 | Geoapify jako pełny skaner | Nie zakwalifikowany; commercial pozostaje archiwum obserwacji | Brak dowodu pełnej geometrii/selekcji/kategorii |
 
 Podstawowy cel repozytorium był zapisany już w **160.1–160.2**, a panel i odbiór
@@ -88,7 +95,7 @@ Nie ogłaszamy gotowego repozytorium skanera na podstawie liczby snapshotów UNK
 - [x] Zinwentaryzować zapisane capture, fixture i wyniki VPS przed kolejnymi API.
 - [x] Oddzielić brak danych od braku adaptera, połączenia runtime i odbioru.
   [Ewidencja lokalnych materiałów i braków](../audits/world_capture_inventory_163_5.md).
-- [ ] Dopisać do ewidencji testów wersję kodu, profil, zakres dowodu i ograniczenia.
+- [x] Dopisać do ewidencji testów wersję kodu, profil, zakres dowodu i ograniczenia.
 
 Odbiór: każdy brak z audytu ma zadanie i mierzalny warunek zakończenia.
 
@@ -117,20 +124,24 @@ księgi. Test wymusza ominięcie wyłącznie wskazanego cache odpowiedzi, aby wy
 
 ## 163.5.2 — regionalne POI i zgodność źródeł
 
+MapLark geometry-v2 odebrano regionalnie; Overpass pozostaje zależny od zdrowia
+API. Pełny Geoapify nadal otwarty. Udokumentowana negatywna kwalifikacja
+Places API nie oznacza implementacji pełnego fallbacku.
+
 Ponowne użycie: kontrakty WorldObject/ProviderBatch, SelectionProof,
 regionalne kandydaty, adaptery i testy graniczne 161–163.
 
-- [ ] Zdefiniować wersjonowany regionalny profil wszystkich kategorii skanera,
+- [x] Zdefiniować wersjonowany regionalny profil wszystkich kategorii skanera,
   predykat selekcji i przeliczenie pozycji markerów zgodne z profilem źródła.
-- [ ] Rozszerzyć zbieranie o pełny profil POI tam, gdzie źródło go obsługuje.
-- [ ] Dodać odczyt POI z jednego potwierdzonego obszaru obejmującego całe zapytanie.
+- [x] Rozszerzyć zbieranie o pełny profil POI tam, gdzie źródło go obsługuje.
+- [x] Dodać odczyt POI z jednego potwierdzonego obszaru obejmującego całe zapytanie.
   Najpierw jeden snapshot; brak dowodu łączenia snapshotów oznacza MISS, nie union.
-- [ ] Zweryfikować krawędzie regionów, obiekty przecinające granicę, relacje,
+- [x] Zweryfikować krawędzie regionów, obiekty przecinające granicę, relacje,
   deduplikację, limity/paginację, puste wyniki i niespójne wersje danych.
 - [ ] Domknąć kwalifikację Geoapify: macierz kategorii, tożsamość OSM, geometria,
   selekcja i kompletność. Sam commercial ani punkty reprezentacyjne nie dowodzą
   zgodności pełnego skanu. Nie dopuszczać cichego zubożenia wyniku.
-- [ ] Pokazać obsługiwane profile i przyczynę pominięcia źródła w panelu/routerze.
+- [x] Pokazać obsługiwane profile i przyczynę pominięcia źródła w panelu/routerze.
 
 Odbiór: skan przesunięty względem pierwotnego zapytania, w całości wewnątrz
 kwalifikowanego regionu, daje zgodny wynik lokalny bez HTTP. Brak pokrycia uruchamia
@@ -153,9 +164,9 @@ istniejące lease/fencing, priorytet gracza, harmonogram i wspólna księga.
   i ekspansję o 8 sektorów z jednym pobraniem; domyślne flagi pozostają OFF,
   aktywacja profilami world_visits / regular_halo. Instrukcja:
   `doc/runbooks/world_visits_halo_163_5.md`.
-- [ ] Rozdzielić odświeżanie archiwum geografii od brakującego aktualnego pokrycia
+- [x] Rozdzielić odświeżanie archiwum geografii od brakującego aktualnego pokrycia
   POI. Odświeżać według popytu i kosztu, nie wszystkie rekordy co pięć minut.
-- [ ] Zachować odporność na restart, zmianę rewizji, retry/backoff i równoległe
+- [x] Zachować odporność na restart, zmianę rewizji, retry/backoff i równoległe
   procesy; nie dublować kosztu zadania ani ogłaszać utraconego lease sukcesem.
 
 Odbiór: odwiedzenie nowego sektora tworzy ograniczone zadania, powtórzenie nie
@@ -166,13 +177,13 @@ powiela pracy, ruch gracza ma pierwszeństwo, restart nie powtarza zatwierdzoneg
 Ponowne użycie: kolektory roads/waterways/inland_water/coastline, `land_water.py`,
 lokalny planer geometrii, zapisane rzeczywiste próbki i testy topologii.
 
-- [ ] Uzupełnić dowód rzeczywistego MultiPolygon, najpierw sprawdzając istniejące
+- [x] Uzupełnić dowód rzeczywistego MultiPolygon, najpierw sprawdzając istniejące
   capture; zachować części, otwory i pełne geometrie.
-- [ ] Wybrać rzeczywisty produkt ląd–woda możliwy do regionalnego wykorzystania,
+- [x] Wybrać rzeczywisty produkt ląd–woda możliwy do regionalnego wykorzystania,
   potwierdzić pochodzenie, wersję, licencję, atrybucję i zasady przechowywania.
-- [ ] Podłączyć ograniczony importer/adapter do istniejącego kontraktu; brak
+- [x] Podłączyć ograniczony importer/adapter do istniejącego kontraktu; brak
   zamkniętej powierzchni nie uprawnia do uznania coastline za powierzchnię morza.
-- [ ] Obsłużyć jawnie brakujące zależności, częściowe regiony i niewspierane
+- [x] Obsłużyć jawnie brakujące zależności, częściowe regiony i niewspierane
   przypadki topologii. Nie wymagać importu całej planety.
 
 Odbiór: rzeczywisty regionalny produkt zapisany i odczytany lokalnie z provenance;
@@ -180,17 +191,17 @@ brak danych pozostaje UNKNOWN. Wykorzystanie geografii przez gameplay poza zakre
 
 ## 163.5.5 — panel i obserwowalność domknięcia
 
-- [ ] Wykorzystać obecny panel i jego UX: osobno zbieranie, archiwum, świeżość,
+- [x] Wykorzystać obecny panel i jego UX: osobno zbieranie, archiwum, świeżość,
   pokrycie skanera, prawa lokalnego odczytu i stan procesów.
-- [ ] Dodać odpytywanie atlasu według viewportu i ograniczone agregaty zamiast
+- [x] Dodać odpytywanie atlasu według viewportu i ograniczone agregaty zamiast
   przedstawiania ostatnich 100 snapshotów jako pełnego obrazu świata.
-- [ ] Uzupełnić brakujące metryki: unikalne obiekty i wzrost dzienny, WAL,
+- [x] Uzupełnić brakujące metryki: unikalne obiekty i wzrost dzienny, WAL,
   wiek kolejki/p95, przyczyny MISS/fallback i pominiętych dostawców.
-- [ ] Stan workera opierać na heartbeat z czasem ważności; brak aktualnego
+- [x] Stan workera opierać na heartbeat z czasem ważności; brak aktualnego
   sygnału prezentować jako nieznany. Czytelnie pokazać niepewne rozliczenia.
-- [ ] Ustalić progi SLO przed odbiorem na podstawie istniejących pomiarów,
+- [x] Ustalić progi SLO przed odbiorem na podstawie istniejących pomiarów,
   z uwzględnieniem 4 workerów web i timeoutu 120 s; nie wymyślać wyników.
-- [ ] Zweryfikować panel przez Playwright: desktop/mobile, PL/EN, brak surowych
+- [x] Zweryfikować panel przez Playwright: desktop/mobile, PL/EN, brak surowych
   JSON-ów, brak overflow, czytelne stany i komunikaty przy działaniach.
 
 ## 163.5.6 — pakiet wdrożenia i zbiorczy odbiór VPS
@@ -201,13 +212,13 @@ Nie czekać na niego z kodem, który od tego capture nie zależy.
 
 Pakiet wydania musi zawierać:
 
-- [ ] Jedną instrukcję: commit → testy offline → backup → migracja dry-run/apply
+- [x] Jedną instrukcję: commit → testy offline → backup → migracja dry-run/apply
   (jeśli potrzebna) → reload właściwych ecosystemów → gotowość HTTP → aktywacja.
-- [ ] Skrypt testów offline i inspekcji read-only, osobny jawny etap sieciowy
+- [x] Skrypt testów offline i inspekcji read-only, osobny jawny etap sieciowy
   z planem liczby wywołań/rezerwacji, bez automatycznych kosztownych ponowień.
-- [ ] Etapy aktywacji: zapis → kontrolowany odczyt → odczyt ogólny → regionalny
+- [x] Etapy aktywacji: zapis → kontrolowany odczyt → odczyt ogólny → regionalny
   odczyt → rozszerzenia kolektora; niezależne przełączniki i rollback.
-- [ ] Kontrolę konfiguracji po reload, statusu procesów i zapis PM2 po odbiorze.
+- [x] Kontrolę konfiguracji po reload, statusu procesów i zapis PM2 po odbiorze.
 
 | ID | Scenariusz | Wymagany dowód |
 | --- | --- | --- |

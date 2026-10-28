@@ -55,6 +55,11 @@ Zaproszenia i lista blokad pokazują nick wraz z ID, operacje pozostają po ID.
 
 ## Wdrożenie
 
+### Odbiór operatora — 28.10.2026
+
+Po poprawce `508175e` operator potwierdził: „jest lepiej, mamy pass cybernera”.
+Odbiór funkcjonalny Cybernera zakończony. Nie jest to dowód odbioru POI/163.5.
+
 ### Otwarcie rozmowy i wysłane zaproszenia
 
 Po poprawnym żądaniu kontaktu picker odświeża listę i otwiera rozmowę.
