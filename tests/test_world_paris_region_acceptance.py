@@ -7,7 +7,7 @@ import test_world_region_probe as fixtures
 from poi_infrastructure.providers import Registry
 from poi_infrastructure.world_storage import CanonicalWorldRepository
 from poi_infrastructure.world_contract import ContractError
-from tools.world_paris_region_acceptance import run,OPERATION,DIAGNOSTIC_OPERATION
+from tools.world_paris_region_acceptance import run,OPERATION,DIAGNOSTIC_OPERATION,COMPACT_OPERATION,COMPACT_BOUNDS
 
 
 class ParisAcceptanceTests(unittest.TestCase):
@@ -26,6 +26,37 @@ class ParisAcceptanceTests(unittest.TestCase):
         self.assertEqual(run('missing')['network_calls'],0)
         with self.assertRaises(ContractError):run(self.repo.path,self.backup,execute=True)
         self.transport.assert_not_called()
+
+    def test_compact_plan_and_conflicting_modes_do_not_call_network(self):
+        result=run('missing',compact_v3=True)
+        self.assertEqual(result['bounds'],COMPACT_BOUNDS)
+        self.assertEqual(result['operation'],COMPACT_OPERATION)
+        self.assertEqual(result['max_network_calls'],1)
+        with self.assertRaises(ContractError):run('missing',compact_v3=True,diagnostic_v2=True)
+        self.transport.assert_not_called()
+
+    def test_compact_publication_preserves_v2_charge_and_records_correct_extent(self):
+        self.headers['X-Has-More']='true'
+        run(self.repo.path,self.backup,execute=True,accept=True,transport=self.transport,diagnostic_v2=True)
+        with closing(self.repo.connect()) as c:
+            before=tuple(c.execute('SELECT * FROM world_credit_operation WHERE operation=?',(DIAGNOSTIC_OPERATION,)).fetchone())
+        self.headers['X-Has-More']='false'
+        result=run(self.repo.path,self.output.parent/'compact.sqlite3',execute=True,accept=True,
+                   transport=self.transport,compact_v3=True)
+        self.assertTrue(result['acceptance_ready'])
+        request=json.loads((Path(result['diagnostics'])/'request.json').read_text())
+        self.assertEqual(request['params']['bbox'],'2.3335,48.858,2.3425,48.864')
+        self.assertEqual(request['params']['limit'],'1000')
+        with closing(self.repo.connect()) as c:
+            after=tuple(c.execute('SELECT * FROM world_credit_operation WHERE operation=?',(DIAGNOSTIC_OPERATION,)).fetchone())
+            raw=json.loads(c.execute('SELECT payload FROM world_snapshot WHERE id=?',(result['snapshot'],)).fetchone()[0])
+        self.assertEqual(before,after)
+        self.assertEqual(raw['observation_context']['demand_bounds'],list(COMPACT_BOUNDS))
+        self.assertEqual(raw['observation_context']['request_params'],request['params'])
+        with self.assertRaisesRegex(ContractError,'already_used'):
+            run(self.repo.path,self.output.parent/'retry.sqlite3',execute=True,accept=True,
+                transport=self.transport,compact_v3=True)
+        self.assertEqual(self.transport.call_count,2)
 
     def test_one_request_publishes_native_bbox_and_positions_without_policy_changes(self):
         before=Registry(self.repo).list()

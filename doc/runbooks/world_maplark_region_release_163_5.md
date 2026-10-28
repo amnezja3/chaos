@@ -105,6 +105,38 @@ pozostaje raport błędu i księga operacji. Artefakty ograniczone do 8 MiB na p
 6 testów lokalnych PASS: zapis niepełnej odpowiedzi i błędu normalizatora,
 rozliczenie, zachowanie v1, brak ponowienia i brak sekretów.
 
+### Wynik v2 na VPS i analiza zapisanego capture
+
+Operator przekazał `instance/provider-captures/paris-poi-v2`. Nagłówki:
+X-Returned=1000, X-Has-More=true, X-Usage-Units-Charged=12. Operacja
+rozliczona, completeness=partial, reasons=[truncated], world_published=false.
+SHA-256 body: e2d4b27b1883d5001625cec5db71479b8ac7565e85c7b337e4f7026f7059cc66.
+
+Analiza offline: 1000 Point, brak LineString/Polygon/MultiPolygon w otrzymanej
+części. Nie dowodzi to braku takich obiektów w regionie. 999 punktów przecina
+pierwotny bbox; jeden leży poza nim. Nie wykorzystujemy częściowej odpowiedzi
+do wyznaczenia kompletnego pustego regionu ani do certyfikacji podobszarów.
+
+Rozważany mniejszy bbox [2.3335,48.858,2.3425,48.864] obejmuje 478 otrzymanych
+punktów. To dolna granica, nie prognoza całkowitego wyniku ani dowód, że zmieści
+się w limicie 1000. Nie wykonano nowego HTTP, nie zmieniono limitów ani flag.
+Ponowne płatne pobranie wymaga osobnego zatwierdzenia; v2 nie wolno resetować.
+
+### Zatwierdzony mniejszy bbox v3
+
+Operator zatwierdził jedno pobranie [2.3335,48.858,2.3425,48.864], pełny filtr,
+limit 1000, bez klipowania. Uruchomienie po push/pull:
+`bash tools/world_paris_region_acceptance.sh --compact-v3`.
+Stałe ID `region:paris-poi-1635-compact-v3`, osobna rezerwacja 20 w istniejącym
+budżecie konta. Koszty i operacje v1/v2 pozostają bez zmian. Nie gwarantujemy,
+że mniejszy bbox mieści się w limicie; niepełny wynik nadal nie jest publikowany.
+Zachowujemy diagnostykę v2, backup i blokadę ponownego HTTP.
+
+Przy acceptance_ready=true użyć dwóch zwróconych positions do skanów 300 m
+w ciągu 5 minut. Przy false lub błędzie przekazać raport bez ponawiania.
+8 testów lokalnych PASS obejmuje zgodność bbox w planie, parametrach żądania
+i opublikowanym observation_context, zachowanie kosztu v2 oraz brak ponowienia.
+
 Lokalny PASS nie jest odbiorem VPS. Ten pakiet dostarcza runtime regionalnego
 MapLark; nie zamyka automatycznie pełnej kwalifikacji Geoapify, dostępności VK
 ani wszystkich A01–A12. Zachowujemy istniejące dowody; nowych nie deklarujemy
