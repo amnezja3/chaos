@@ -290,3 +290,19 @@ ponownego uruchomienia tego samego zbiorczego skryptu przed migracją.
 
 Lokalnie: 34 testy PASS / 21,410 s (`world_dashboard`, `world_viewport`,
 `world_routing`), w tym cztery procesy oraz nowe przypadki rollback/retry.
+
+### Aktywacja regionalna VPS i poprawka 28.10
+
+225 testów PASS / 219,637 s, migracja schema_ready, integrity/FK ok,
+HTTP 200, runtime regional/halo zgodny. Heartbeat waiting świeży.
+Backup aktywacji: `163-5-regional-20261028T083418Z/poi_cache.sqlite3`.
+Nowy skan route revision 2: VK skipped/disabled, MapLark upstream success
+w 2,4519 s. To PASS fallbacku, nie regionalnego odczytu.
+
+Przyczyna w narzędziu: Registry.decision ustawia enabled=False; aktywator
+nie wykonał następującego po decyzji Registry.enable. Poprawiono sekwencję
+i wynik CLI zawiera enabled. Wznowienie dostawcy już wyłączonego możliwe
+wyłącznie gdy ostatni wpis audytu jest własną decyzją tego aktywatora.
+Ręczne disable lub późniejszy wynik techniczny nie jest omijany.
+Ponowne wykonanie wymaga nowego backupu i jawnego --approve-live-wide;
+nie wykonuje HTTP ani nie zeruje circuit/budżetu.

@@ -32,6 +32,8 @@ class RegionalEnableTests(unittest.TestCase):
         self.assertEqual(result['status'],'configured')
         self.assertTrue(backup.exists())
         p=next(p for p in Registry(f.repo).list() if p['id']==PID)
+        self.assertTrue(p['enabled'])
+        self.assertTrue(result['enabled'])
         self.assertTrue({'normal_scan','wide_fetch','background_refresh'}<=set(p['scopes']))
         self.assertEqual(p['review_due_at'],next(p for p in before if p['id']==PID)['review_due_at'])
         self.assertEqual(Routing(f.repo).get('poi','live')['chain'],[PID,'maplark'])
@@ -42,3 +44,16 @@ class RegionalEnableTests(unittest.TestCase):
         f=self.fixture;backup=Path(f.tmp.name)/'no.sqlite3'
         with self.assertRaisesRegex(ValueError,'decision_required'):configure(f.repo,backup)
         self.assertFalse(backup.exists())
+
+    def test_resume_own_decision_but_not_manual_disable(self):
+        f=self.fixture
+        configure(f.repo,Path(f.tmp.name)/'first.sqlite3',approve=True)
+        registry=Registry(f.repo)
+        p=next(p for p in registry.list() if p['id']==PID)
+        evidence={k:p['evidence'][k] for k in ('source_url','reference','notes')}
+        registry.decision(PID,p['revision'],p['policy_status'],p['scopes'],evidence,p['review_due_at'],'operator:regional-live-vk')
+        self.assertEqual(configure(f.repo)['status'],'plan')
+        result=configure(f.repo,Path(f.tmp.name)/'resume.sqlite3',approve=True)
+        self.assertTrue(result['enabled'])
+        registry.enable(PID,result['revision'],False,'admin')
+        with self.assertRaisesRegex(ValueError,'separate_review'):configure(f.repo)

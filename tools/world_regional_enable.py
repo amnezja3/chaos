@@ -18,9 +18,15 @@ def configure(repo,backup=None,approve=False):
     registry=Registry(repo)
     providers={p['id']:p for p in registry.list()}
     p=providers.get(PID)
-    if (not p or p['url']!=URL or not p['enabled'] or p['technical_status']!='tested_ok'
+    if (not p or p['url']!=URL or p['technical_status']!='tested_ok'
             or not all(Registry.approved(p,s) for s in ('background_refresh','storage','world_storage'))):
         raise ValueError('approved_tested_vk_collection_required')
+    if not p['enabled']:
+        history=registry.audit()
+        latest=next((a for a in history if a['provider_id']==PID),None)
+        if not (latest and latest['action']=='decision' and latest['actor']=='operator:regional-live-vk'
+                and p['evidence'].get('reference')=='163.5 VK live/wide operator decision'):
+            raise ValueError('disabled_provider_requires_separate_review')
     fallback=providers.get('maplark')
     if not fallback or reason(fallback,'poi','live'):raise ValueError('working_maplark_fallback_required')
     windows=CreditBudget(repo).status(PID)
@@ -49,11 +55,13 @@ def configure(repo,backup=None,approve=False):
         evidence['reference']='163.5 VK live/wide operator decision'
         evidence['notes']='Operator accepts live scans and bounded 1500m closure fills. Shared existing attempt budget; MapLark fallback. Public declaration, no individual provider confirmation.'
         p=registry.decision(PID,p['revision'],'approved_for_defined_use',scopes,evidence,p['review_due_at'],actor)
+    if not p['enabled']:
+        p=registry.enable(PID,p['revision'],True,actor)
     if route['chain']!=result['chain']:
         Routing(repo).save('poi','live',route['revision'],result['chain'],actor)
     if background['chain']!=archive_chain:
         Routing(repo).save('poi','background',background['revision'],archive_chain,actor)
-    return dict(result,status='configured',revision=p['revision'],backup=str(backup))
+    return dict(result,status='configured',revision=p['revision'],enabled=p['enabled'],backup=str(backup))
 
 
 def main():
