@@ -18816,7 +18816,7 @@ function createEmailClient() {
     contactForm.addEventListener('submit',()=>{playerResultsScroll.scrollTop=0;});
     window.mountPlayerDirectory({form:contactForm,input:contactInput,results:playerResults,
       locale:()=>document.documentElement.lang,
-      onSelect:async(player,row)=>{
+      onSelect:async(player,row,notify)=>{
         if(document.body.dataset.communicationSafety==='1'){
             window.createIdentitySettingsWindow({embedded:'1',username:player.handle});return;
         }
@@ -18824,11 +18824,9 @@ function createEmailClient() {
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({target_username:player.username})});
         const data=await res.json();
-        const status=document.createElement('p');
-        status.textContent=res.ok&&data.success
+        notify(res.ok&&data.success
             ? (document.documentElement.lang==='en'?'Invitation sent or already pending.':'Zaproszenie wysłane lub już oczekuje.')
-            : (document.documentElement.lang==='en'?'Contact unavailable.':'Kontakt niedostępny.');
-        row.append(status);
+            : (document.documentElement.lang==='en'?'Contact unavailable.':'Kontakt niedostępny.'));
         if(res.ok)await refreshThreads(true);
       }
     });

@@ -6,7 +6,7 @@ window.mountPlayerDirectory = function({form,input,results,onSelect,locale,heade
     input.maxLength=100;
     input.setAttribute('aria-label',tr('Nick lub @ID CHAOS','Nickname or @CHAOS ID'));
     results.setAttribute('aria-live','polite');
-    results.style.cssText='max-height:260px;overflow:auto;overflow-wrap:anywhere;';
+    results.classList.add('player-directory');
     input.addEventListener('input',()=>{version++;controller?.abort();results.replaceChildren();});
     form.addEventListener('submit',async event=>{
         event.preventDefault();
@@ -21,16 +21,25 @@ window.mountPlayerDirectory = function({form,input,results,onSelect,locale,heade
             if(request!==version)return;
             if(!data.players.length)results.append(node('p',tr('Nie znaleziono gracza.','No player found.')));
             for(const player of data.players){
-                const row=node('div','');row.style.cssText='padding:8px 0;border-bottom:1px solid #285741;';
-                row.append(node('strong',player.nick),node('div',player.handle));
-                const button=node('button',tr('Wybierz gracza','Select player'));button.type='button';
+                const row=node('div','');row.className='player-directory-card';
+                const identity=node('div','');identity.className='player-directory-identity';
+                const handle=node('div',player.handle);handle.className='player-directory-handle';
+                identity.append(node('strong',player.nick),handle);row.append(identity);
+                const status=node('div','');status.className='player-directory-status';
+                status.setAttribute('role','status');
+                let statusTimer;
+                const notify=(text)=>{
+                    clearTimeout(statusTimer);status.textContent=text;
+                    statusTimer=setTimeout(()=>{status.textContent='';},3000);
+                };
+                const button=node('button',tr('Wybierz gracza','Select player'));button.type='button';button.className='player-directory-select';
                 button.addEventListener('click',async()=>{
                     button.disabled=true;
-                    try {await onSelect(player,row);}
-                    catch(error){row.append(node('p',tr('Nie udało się wykonać operacji.','Operation failed.')));}
+                    try {await onSelect(player,row,notify);}
+                    catch(error){notify(tr('Nie udało się wykonać operacji.','Operation failed.'));}
                     finally{button.disabled=false;}
                 });
-                row.append(button);results.append(row);
+                row.append(button,status);results.append(row);
             }
             if(data.truncated)results.append(node('p',tr('Zawęź wyszukiwanie, aby zobaczyć pozostałych graczy.','Refine your search to see more players.')));
         } catch(error){if(error.name!=='AbortError'&&request===version)results.append(node('p',tr('Wyszukiwanie niedostępne. Spróbuj ponownie.','Search unavailable. Try again.')));}

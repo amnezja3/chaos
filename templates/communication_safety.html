@@ -26,5 +26,6 @@
 {% if moderator %}<h2>{{ tr('Kolejka moderatora','Moderation queue') }}</h2><div id="moderation"></div>{% endif %}
 <p id="load-status" role="status"></p></main>
 <script id="safety-config" type="application/json">{{ dict(locale=locale,csrf=csrf,generation=generation,moderator=moderator)|tojson }}</script>
-<script src="/static/js/player_directory.js?v=1" defer></script>
+<link rel="stylesheet" href="/static/css/player_directory.css?v=1">
+<script src="/static/js/player_directory.js?v=2" defer></script>
 <script src="/static/js/communication_safety.js?v=player-directory-1" defer></script></body></html>

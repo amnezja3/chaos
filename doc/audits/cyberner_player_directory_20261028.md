@@ -55,6 +55,18 @@ Zaproszenia i lista blokad pokazują nick wraz z ID, operacje pozostają po ID.
 
 ## Wdrożenie
 
+### Styl wyników i komunikat 3 s
+
+Wspólny picker ma kartę i przycisk w kolorystyce CHAOS oraz jeden slot statusu
+o stałej wysokości. Ponowienie zastępuje tekst i odnawia timer 3000 ms,
+zamiast dopisywać akapity; błędy operacji korzystają z tego samego slotu.
+`tests/browser/player_directory_feedback.js`: Playwright PASS dla trzech
+kliknięć, jednego komunikatu, wygaśnięcia i niezmiennej wysokości karty,
+widoczności/stylu 1440/390 px. Odpowiedź zaproszenia mockowana wyłącznie
+dla testu powtarzalności UI; rzeczywiste wyszukiwanie na fixture. Brak pageerror;
+tło fixture nadal zgłasza błędy launch/profile opisane wyżej. Screenshot mobilny
+sprawdzony wizualnie. Wersje zasobów zaktualizowane; backend bez zmian.
+
 ### Korekta widoczności wyników przy długiej liście kontaktów
 
 Odtworzono w Playwright: czwarty element trzywierszowej siatki sidebaru
