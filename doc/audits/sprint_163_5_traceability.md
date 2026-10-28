@@ -325,3 +325,14 @@ monitor kolektora. Bez migracji, resetów księgi, ruchu do dostawców i przeł�
 brak zapisów źródła, brak sekretów/kontaktów w eksportach, istniejące testy
 kolektora i kandydatów. Instrukcja: `doc/runbooks/world_maplark_evidence_163_5.md`.
 Kolejna zależność od VPS to konkretne zapisane dane, nie kolejny test dostępności API.
+
+Otrzymano `chaos-poi-bbox-1635-NwQQJw/capture`: SHA-256 body
+`45e89d529d63fda01e4dc5e87e1dcca200624f7e1a21cce50b7be57762bb972c`,
+23 POI (13 Point/10 Polygon), complete, brak niepoprawnych geometrii, koszt 3.
+Przygotowano niezależną próbę radius 300 m dla 51.53357,20.365. Dwie hipotezy
+lokalne dają 18/17 obiektów (różnica osm:way:1028355440), bez przypadków
+w pasie 2 m przy progu. W centrum bbox obie dawały 9, więc taki test nie
+rozróżniałby ich. Metryka przybliżona służy diagnostyce, bez aktywacji readera.
+24 testy PASS / 5,821 s; jednorazowe rozliczenie, walidacja parametrów,
+brak zmian runtime, porównanie niezależnych ID/tagów/geometrii. Następny pakiet:
+`tools/world_poi_radius_acceptance.sh`; istniejącego bbox nie pobieramy ponownie.

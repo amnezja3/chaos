@@ -66,3 +66,32 @@ scp -O -r 'johndoe@185.201.114.123:/home/johndoe/chaos-poi-evidence-1635-XXXXXX'
 
 Warunek tego etapu: wiemy, jakie próbki i metadane istnieją oraz czego dokładnie
 brakuje do porównania. Nie jest to deklaracja zakończenia całego 163.5.
+
+## Niezależny radius po otrzymaniu bbox (28.10)
+
+Otrzymano poprawne bbox POI: 23 obiekty, 13 Point i 10 Polygon, koszt 3.
+Zapisany katalog VPS: `/home/johndoe/chaos-poi-bbox-1635-NwQQJw/capture`.
+Wybrany środek 51.53357,20.365 i promień 300 m mieszczą się w bbox.
+Przybliżona lokalna odległość od geometrii daje 18 kandydatów, a od środka
+bounds 17; rozróżnia je osm:way:1028355440. Żaden obiekt nie jest bliżej niż
+2 m od progu w tych dwóch hipotezach. To diagnostyka, nie predykat produkcyjny.
+
+Po pushu jeden pakiet:
+
+```bash
+cd ~/app/chaos &&
+git pull --ff-only &&
+bash tools/world_poi_radius_acceptance.sh /home/johndoe/chaos-poi-bbox-1635-NwQQJw/capture
+```
+
+Uruchamia 24 testy izolowane, kontrolę istniejącego bbox, plan i jedno HTTP
+radius na aktualnym profilu skanera MapLark. Rezerwacja 20 kredytów w istniejącym
+budżecie konta i osobnym jednorazowym zakresie 20; brak resetu limitu kolektora.
+Nie zmienia konfiguracji, registry, gameplay ani world ingest. Zapisuje ograniczone
+nagłówki, body i raport, potem porównuje IDs, geometrie, tagi, rewizje i odstęp
+czasu odpowiedzi. Nie ponawia automatycznie timeoutu; operation ID chroni przed
+powtórzeniem płatnej próby. Klucz jest wczytany bez echa i nie trafia do plików.
+
+Przekazać comparison.json i cały wskazany katalog do instance/provider-captures.
+Nawet dopasowanie jednej hipotezy nie dowodzi wszystkich przypadków relacji,
+kompletności źródła ani spójności wersji danych między dwoma pobraniami.

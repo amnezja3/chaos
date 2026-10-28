@@ -14,17 +14,20 @@ from poi_infrastructure.providers import Registry
 from poi_infrastructure.repository import Repository
 from poi_infrastructure.service import POIError, bounded_http
 from poi_infrastructure.world_acquisition import acquire_maplark
-from poi_infrastructure.world_adapters import plan_maplark_region
+from poi_infrastructure.world_adapters import plan_maplark_region,plan_maplark
 from poi_infrastructure.world_contract import ContractError
 from tools.world_region_plan import evaluate
 
 BOUNDS=(20.36,51.53,20.37,51.54)
+POI_RADIUS_CENTER=(51.53357,20.365)
 OPERATION='region:roads-2036-5153-bbox-v1'
 SCOPE='region-probe:roads-2036-5153-bbox-v1'
 PARTS={'parent':BOUNDS,'left':(20.36,51.53,20.365,51.54),'right':(20.365,51.53,20.37,51.54)}
 
 
-def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False,profile='roads',water_bounds=None):
+def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=False,transport=None,part='parent',_pilot=False,profile='roads',water_bounds=None,poi_radius=False):
+    if poi_radius and (profile!='poi' or part!='parent' or _pilot or water_bounds is not None):
+        raise ContractError('poi_radius_profile_required')
     if profile not in ('poi','roads','waterways','inland_water'):
         raise ContractError('region_profile_unsupported')
     if profile!='roads' and (part!='parent' or _pilot):
@@ -59,6 +62,10 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
         # All new regions share a finite diagnostic allowance, never reset on retry.
         scope_id='region-probe:water-topology-v1';scope_limit=40
     plan=plan_maplark_region(bounds,profile=profile)
+    if poi_radius:
+        plan=plan_maplark(*POI_RADIUS_CENTER,300,limit=1000)
+        operation='region:poi-2036-5153-radius-v1'
+        scope_id='region-probe:poi-2036-5153-radius-v1';scope_limit=20
     result=dict(status='plan',profile=profile,part=part,params=dict(plan.params),operation=operation,
         network_calls=0,max_network_calls=1,reservation=20,deadline=35,
         shared_probe_limit=scope_limit,
@@ -115,7 +122,11 @@ def capture(db,output=None,*,execute=False,approve=False,accept_variable_cost=Fa
     allowed={'X-Returned','X-Has-More','X-Next-Cursor','X-Usage-Units-Charged'}
     headers={k:v for k,v in captured.get('response_headers',{}).items() if k in allowed}
     body=captured['body']
-    inspection=evaluate(bounds,profile,body,headers)
+    if poi_radius:
+        from tools.world_discovery_inspect import inspect
+        inspection=inspect('maplark',body,headers)
+    else:
+        inspection=evaluate(bounds,profile,body,headers)
     result.update(status='captured_not_certified',network_calls=1,billing=billing,
                   approval='operator_cli_single_bbox_probe',provider_revision=revision,
                   fetched_at=min((o.provenance.fetched_at for o in batch.objects),default=time.time()),
@@ -136,6 +147,7 @@ def main():
     p.add_argument('--output')
     p.add_argument('--part',choices=tuple(PARTS),default='parent')
     p.add_argument('--profile',choices=('poi','roads','waterways','inland_water'),default='roads')
+    p.add_argument('--poi-radius',action='store_true',help='One fixed 300 m POI reference inside the existing POI bbox; no publication')
     p.add_argument('--water-bbox',nargs=4,type=float,metavar=('WEST','SOUTH','EAST','NORTH'),
                    help='One inland_water topology probe, at most 0.01 degrees per axis; no ingest')
     p.add_argument('--execute',action='store_true')
@@ -145,7 +157,7 @@ def main():
     try:
         result=capture(a.db,a.output,execute=a.execute,approve=a.approve_bbox_probe,
                        accept_variable_cost=a.accept_variable_credit_cost,part=a.part,profile=a.profile,
-                       water_bounds=a.water_bbox)
+                       water_bounds=a.water_bbox,poi_radius=a.poi_radius)
     except Exception as exc:
         # Do not print arbitrary transport exceptions, URLs or credentials.
         result=dict(ok=False,error=str(exc) if isinstance(exc,(POIError,ContractError)) else type(exc).__name__,
