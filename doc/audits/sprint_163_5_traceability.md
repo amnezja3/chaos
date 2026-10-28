@@ -1,5 +1,10 @@
 # 163.5 — mapa wymagań i dowodów
 
+Aktualizacja: kolejny `post` VPS PASS, raport `chaos-world-completion-gCwuSf`:
+265 snapshotów, integrity/FK OK, baseline zgodny, świeży heartbeat, HTTP 200.
+MapLark tło 188/200 przy rezerwacji 20 prawidłowo odracza pobrania. Szczegóły
+i ograniczenia metryk w `world_closeout_163_5.md`. Nie powtarzać tego testu.
+
 ## Stan bieżący po odbiorze Cybernera — 28.10.2026
 
 Obowiązuje [bilans 163.5](world_closeout_163_5.md). Historyczne tabele poniżej

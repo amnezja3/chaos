@@ -8,6 +8,8 @@ według implementacji oraz dowodów: oznaczają wykonanie kodu/testów/instrukcj
 nie wymyślony wynik każdego testu produkcyjnego. Odbiory A01–A12 mają osobną
 tabelę w bilansie. Pozostały etap operatora to zbiorczy `post` + zwykły skan
 i panel; nie powtarzamy deploy ani płatnych testów regionu.
+Aktualizacja: zbiorczy `post` już PASS (`chaos-world-completion-gCwuSf`),
+pozostaje potwierdzenie zwykłego skanu i panelu. Geoapify pełny skaner nadal otwarty.
 
 Odbiór `745bad6`: 210 testów OK, import Natural Earth `imported_verified`,
 integralność/FK OK, web/kolektor online i końcowy HTTP 200. Szczegóły w audycie.

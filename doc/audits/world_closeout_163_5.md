@@ -4,6 +4,35 @@ Ten dokument porządkuje istniejące dowody. Nie uruchomiono nowego pobrania,
 nie zmieniono budżetów, routingu, dat świeżości ani zgód dostawców.
 Historyczne statusy w traceability nie są aktualną listą zadań.
 
+## Bieżący post VPS — PASS, 28.10.2026
+
+Materiał operatora `bd43f156-0391-4d74-803a-71a55a6b2e44/Pasted text.txt`,
+raport `/home/johndoe/chaos-world-completion-gCwuSf`. Commit należy odczytać
+z `commit.txt` tego katalogu; nie był wypisany w przekazanym logu.
+
+- `checked`, integralność/FK OK, schema 2, wszystkie wymagane schematy gotowe.
+- 265 snapshotów, 20 042 354 bajty logiczne. Liczba nie jest dowodem pokrycia.
+- `baseline_matches`: web i kolektor online, global ingest/read, regional read,
+  wizyty, routing i halo aktywne. Świeży heartbeat `waiting`, wiek 27.7 s.
+- Końcowy HTTP 200 oraz `PASS: post`. Diagnostyka: 0 wywołań dostawców,
+  0 zapisów produkcyjnych; istniejący kolektor działa równolegle.
+- Kolejka: 70 COMMITTED, 125 DEFERRED, 16 FAILED_TERMINAL, 52 CANCELLED;
+  brak wygasłych lease i nierozstrzygniętych zadań. Same historyczne stany
+  nie dowodzą bieżącej awarii; najnowsze odroczenie to `budget_scope_exhausted`.
+- MapLark tło 188/200, wolne 12 < rezerwacja 20. Konto 326/800, wolne 474:
+  skaner ma osobny dostęp do pozostałego budżetu konta. Ostrzeżenie
+  `maplark_background_scope_exhausted` jest uzasadnione; nie zwiększamy limitu.
+- Geoapify tło 186/200; pięć dawnych uncertain / 25 kredytów zachowane.
+- Metryki okna: 16/16 udanych wyników, w tym 2 puste, źródła network 14 / world 2.
+  To agregat istniejących wyników, nie 16 nowych testów. p95 całego skanera
+  w koszyku do 30 s nie jest pomiarem p95 lokalnego readera ani jego SLO.
+- Natural Earth jest teraz EXPIRED dla krótkiego TTL odczytu, ale zachowany
+  w archiwum. Nie odmładzamy źródła i nie powtarzamy importu dla zielonego statusu.
+
+Aktualny raport techniczny odebrany. W załączniku nadal nie ma potwierdzenia
+bieżącego wizualnego smoke skanu i panelu; pozostaje tylko to potwierdzenie
+operatora oraz jawny, odrębny brak pełnego kontraktu skanera Geoapify.
+
 ## Wykonane i odebrane
 
 | Zakres | Dowód | Granica |
@@ -75,9 +104,9 @@ jawnie otwarty — nie został usunięty ze sprintu.
 
 ## Co teraz wymaga VPS
 
-Kod końcowego pakietu jest wdrożony. Nie powtarzać deploy/importu ani płatnego
-Paryża. Wykonać tylko `bash tools/world_completion_acceptance.sh post`, zachować
-raport i potwierdzić zwykły skan oraz panel World Discovery. Ten etap czyta bazę,
+Kod końcowego pakietu jest wdrożony, bieżący `post` odebrany powyżej. Nie
+powtarzać deploy/importu, post ani płatnego Paryża. Potwierdzić tylko zwykły
+skan oraz panel World Discovery. Zakończony etap odczytał bazę,
 PM2 i monitor, a HTTP sprawdza wyłącznie własne `/launch`. Działający kolektor
 może równolegle korzystać ze swoich zatwierdzonych limitów.
 
