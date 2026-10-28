@@ -148,3 +148,30 @@ class DashboardTests(unittest.TestCase):
             for child in children:
                 if child.is_alive():child.terminate();child.join()
         self.assertEqual(scan_metrics.summary(self.repo)['successful'],40)
+
+    def test_metric_retry_rolls_back_before_counting_once(self):
+        from contextlib import contextmanager
+        import sqlite3
+        scan_metrics.initialize(self.repo)
+        transaction=self.repo.transaction
+        calls=[]
+        @contextmanager
+        def contended():
+            calls.append(1)
+            with transaction() as c:
+                yield c
+                if len(calls)<3:raise sqlite3.OperationalError('database is locked')
+        with patch.object(self.repo,'transaction',contended):
+            scan_metrics.record(self.repo,{'world'},0,'success',.1)
+        self.assertEqual(len(calls),3)
+        self.assertEqual(scan_metrics.summary(self.repo)['successful'],1)
+
+    def test_metric_contention_is_bounded_and_other_errors_not_retried(self):
+        import sqlite3
+        scan_metrics.initialize(self.repo)
+        for message,expected in [('database is locked',3),('poi_wal_capacity',1),('no such table: world_scan_metric',1)]:
+            with patch.object(self.repo,'transaction',side_effect=sqlite3.OperationalError(message)) as transaction:
+                with self.assertRaises(sqlite3.OperationalError):
+                    scan_metrics.record(self.repo,{'world'},0,'success',.1)
+                self.assertEqual(transaction.call_count,expected)
+        self.assertEqual(scan_metrics.summary(self.repo)['successful'],0)

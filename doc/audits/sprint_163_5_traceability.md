@@ -271,3 +271,22 @@ Jedna instrukcja wdrożenia, aktywacji i rollbacku:
 `doc/runbooks/world_completion_163_5.md`. Nie zamykać całego 163.5 przed
 odbiorami i brakującą kwalifikacją źródeł; Geoapify nadal nie jest pełnym
 fallbackiem skanera, MapLark bbox nie jest certyfikatem selekcji radius.
+
+### VPS 28.10.2026 — blokada testu metryk
+
+Załącznik `ae7c54c0-7f18-48ab-9b75-af5e002f6402`: pull do 2a86718,
+223 testy / 219,341 s, jeden FAIL. Proces potomny testu czterech writerów
+otrzymał `sqlite3.OperationalError: database is locked` przy BEGIN IMMEDIATE.
+To izolowana baza testowa; wynik nie dowodzi uszkodzenia produkcyjnej bazy.
+Łańcuch `&&` zatrzymał się przed migracją dry-run.
+
+Poprawka: wyłącznie zapis opcjonalnych metryk ponawia przejściowe BUSY/LOCKED
+maksymalnie trzy razy, po rollbacku i zamknięciu połączenia. Pozostaje bazowy
+busy_timeout 500 ms; odstępy 25/50 ms. Nie ponawiamy braku tabeli, błędów I/O
+ani limitu WAL. Po wyczerpaniu prób finish nadal pomija telemetrię bez psucia
+wyniku skanu. Testy obejmują rollback przed ponowieniem (bez podwójnego
+naliczenia), limit prób i brak ponawiania innych błędów. Odbiór VPS wymaga
+ponownego uruchomienia tego samego zbiorczego skryptu przed migracją.
+
+Lokalnie: 34 testy PASS / 21,410 s (`world_dashboard`, `world_viewport`,
+`world_routing`), w tym cztery procesy oraz nowe przypadki rollback/retry.

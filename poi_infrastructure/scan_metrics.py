@@ -45,13 +45,26 @@ def record(repo, sources, attempts, outcome, seconds, now=None):
           'world' if 'world' in sources else 'cache' if {'fresh','stale'} & set(sources) else 'unknown')
     hour=int((time.time() if now is None else now)//3600)*3600
     bucket=next((i for i,b in enumerate(BUCKETS) if seconds<=b),len(BUCKETS))
-    with repo.transaction() as c:
-        c.execute('DELETE FROM world_scan_metric WHERE hour<?',(hour-7*86400,))
-        c.execute('''INSERT INTO world_scan_metric VALUES (?,?,?,?,1,?,?)
-            ON CONFLICT(hour,source,outcome,latency_bucket) DO UPDATE SET
-            samples=samples+1,transport_attempts=transport_attempts+excluded.transport_attempts,
-            elapsed_ms=elapsed_ms+excluded.elapsed_ms''',
-            (hour,kind,outcome,bucket,attempts,round(seconds*1000)))
+    # Retry only transient SQLite contention after transaction() has rolled
+    # back and closed its connection. Keep optional telemetry bounded: three
+    # attempts with the existing 500 ms busy timeout, no global timeout change.
+    for attempt in range(3):
+        try:
+            with repo.transaction() as c:
+                c.execute('DELETE FROM world_scan_metric WHERE hour<?',(hour-7*86400,))
+                c.execute('''INSERT INTO world_scan_metric VALUES (?,?,?,?,1,?,?)
+                    ON CONFLICT(hour,source,outcome,latency_bucket) DO UPDATE SET
+                    samples=samples+1,transport_attempts=transport_attempts+excluded.transport_attempts,
+                    elapsed_ms=elapsed_ms+excluded.elapsed_ms''',
+                    (hour,kind,outcome,bucket,attempts,round(seconds*1000)))
+            return
+        except sqlite3.OperationalError as exc:
+            code=getattr(exc,'sqlite_errorcode',None)
+            busy=(code is not None and (code & 255) in (5,6))  # SQLITE_BUSY / SQLITE_LOCKED
+            # Python 3.10 does not expose sqlite_errorcode.
+            if code is None:busy=str(exc) in ('database is locked','database table is locked')
+            if not busy or attempt==2:raise
+            time.sleep(.025*(attempt+1))
 
 
 def finish(token,outcome):
