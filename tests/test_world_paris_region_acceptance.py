@@ -35,6 +35,21 @@ class ParisAcceptanceTests(unittest.TestCase):
         with self.assertRaises(ContractError):run('missing',compact_v3=True,diagnostic_v2=True)
         self.transport.assert_not_called()
 
+    def test_offline_positions_explain_partial_capture_without_network(self):
+        from tools.world_paris_positions import inspect
+        from poi_infrastructure.world_adapters import plan_maplark_region
+        self.output.mkdir()
+        self.headers['X-Has-More']='true'
+        for name,value in [('body.json',self.body),('headers.json',self.headers),
+                           ('request.json',dict(params=dict(plan_maplark_region(COMPACT_BOUNDS,profile='poi',limit=1000).params)))]:
+            (self.output/name).write_text(json.dumps(value))
+        with patch('socket.create_connection',side_effect=AssertionError('network')):
+            result=inspect(self.output)
+        self.assertEqual(result['position_rejections'],{'regional_response_incomplete':25})
+        self.assertFalse(result['acceptance_pass'])
+        self.assertFalse(result['live_freshness_checked'])
+        self.transport.assert_not_called()
+
     def test_compact_publication_preserves_v2_charge_and_records_correct_extent(self):
         self.headers['X-Has-More']='true'
         run(self.repo.path,self.backup,execute=True,accept=True,transport=self.transport,diagnostic_v2=True)

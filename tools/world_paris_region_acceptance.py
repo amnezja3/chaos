@@ -1,6 +1,7 @@
 """One paid MapLark bbox, existing world store, offline candidate positions."""
 import argparse
 from contextlib import closing
+from collections import Counter
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,21 @@ OPERATION='region:paris-poi-1635-acceptance-v1'
 DIAGNOSTIC_OPERATION='region:paris-poi-1635-diagnostic-v2'
 COMPACT_BOUNDS=(2.3335,48.858,2.3425,48.864)
 COMPACT_OPERATION='region:paris-poi-1635-compact-v3'
+
+
+def candidate_positions(batch,bounds):
+    positions=[]
+    rejected=Counter()
+    for dy in (0,-.0002,.0002,-.0004,.0004):
+        for dx in (0,-.0002,.0002,-.0004,.0004):
+            lat,lon=round(48.861+dy,7),round(2.338+dx,7)
+            try:data=select(batch,bounds,lat,lon,300)
+            except ContractError as exc:
+                rejected[str(exc)]+=1
+                continue
+            positions.append(dict(lat=lat,lon=lon,radius=300,objects=len(data['elements'])))
+            if len(positions)==2:return positions,dict(rejected)
+    return positions,dict(rejected)
 
 
 def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2=False,compact_v3=False):
@@ -109,17 +125,9 @@ def run(db,backup=None,*,execute=False,accept=False,transport=None,diagnostic_v2
             observation_context=dict(acquisition='sector-bbox-v1',demand_bounds=bounds,
                                      request_params=dict(plan.params)))
         if not snapshot:raise ContractError('publication_lease_lost')
-        positions=[]
-        for dy in (0,-.0002,.0002,-.0004,.0004):
-            for dx in (0,-.0002,.0002,-.0004,.0004):
-                lat,lon=round(48.861+dy,7),round(2.338+dx,7)
-                try:data=select(batch,bounds,lat,lon,300)
-                except ContractError:continue
-                positions.append(dict(lat=lat,lon=lon,radius=300,objects=len(data['elements'])))
-                if len(positions)==2:break
-            if len(positions)==2:break
+        positions,rejections=candidate_positions(batch,bounds)
         return finish(dict(result,status='published',network_calls=1,snapshot=snapshot,billing=billing,
-                    fresh_until=now+300,positions=positions,
+                    fresh_until=now+300,positions=positions,position_rejections=rejections,
                     acceptance_ready=len(positions)==2,automatic_retry=False))
     except Exception as exc:
         save('failure.json',dict(error_type=type(exc).__name__,automatic_retry=False))

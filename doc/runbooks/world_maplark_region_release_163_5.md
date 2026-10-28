@@ -137,6 +137,33 @@ w ciągu 5 minut. Przy false lub błędzie przekazać raport bez ponawiania.
 8 testów lokalnych PASS obejmuje zgodność bbox w planie, parametrach żądania
 i opublikowanym observation_context, zachowanie kosztu v2 oraz brak ponowienia.
 
+### Odebrana v3: kompletność PASS, regionalny odczyt FAIL
+
+826 obiektów, X-Has-More=false, koszt 11 rozliczony. Snapshot na VPS zapisany.
+Lokalny capture: instance/provider-captures/paris-poi-v3. SHA-256 body:
+2d62d5317470f7db5897499884bf5e491a679afab3b495427a6bfe593e215441.
+706 Point, 2 LineString, 116 Polygon, 2 MultiPolygon.
+
+`python tools/world_paris_positions.py instance/provider-captures/paris-poi-v3`
+odtwarza 16 regional_circle_not_contained i 9 regional_boundary_ambiguous.
+To offline analiza geometrii, nie odnowienie świeżości ani zaliczenie VPS.
+Raport odbioru odtąd zawiera position_rejections zamiast samego pustego positions.
+9 testów PASS, bez nowych wywołań dostawcy.
+
+Dodatkowe przeszukanie offline 2585 punktów (siatka metrowa, środek
+48.861/2.338, dx=-23..23 m, dy=-27..27 m) dało maksymalny odstęp geometrii
+od promienia 300 m około 1.4795 m. Kandydatów powyżej wymaganego 5 m: zero.
+Ranking używał projekcji ustalonej w środku, pięć najlepszych punktów sprawdzono
+ponownie produkcyjnym select; wszystkie dały regional_boundary_ambiguous.
+Nie jest to dowód niemożliwości dla każdego punktu ciągłego obszaru.
+
+Nie pobieramy następnego bbox wyłącznie w poszukiwaniu PASS. Potrzebna jest
+decyzja o docelowym kontrakcie selekcji w gęstym mieście: obecny wariant
+konserwatywnie odrzuca cały skan przy dowolnym obiekcie w pasie 5 m. Ewentualny
+deterministyczny profil geometrii CHAOS musi być jawnie wersjonowany, testowany
+i opisany jako własna selekcja, bez zapewnienia pełnej zgodności radius dostawcy.
+Nie zmieniono reguły produkcyjnej ani jej marginesu w tym pakiecie.
+
 Lokalny PASS nie jest odbiorem VPS. Ten pakiet dostarcza runtime regionalnego
 MapLark; nie zamyka automatycznie pełnej kwalifikacji Geoapify, dostępności VK
 ani wszystkich A01–A12. Zachowujemy istniejące dowody; nowych nie deklarujemy
