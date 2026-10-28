@@ -56,7 +56,8 @@ def install(runtime):
             invites=[dict(r) for r in conn.execute("SELECT u.username,i.created_at FROM communication_invites i JOIN users u ON u.id=i.sender_id WHERE i.recipient_id=? AND i.status='pending'",(actor,))]
             reports=[dict(r) for r in conn.execute('''SELECT id,object_type,object_key,status,decision,reason,created_at
                 FROM safety_reports WHERE reporter_id=? OR target_id=? ORDER BY id DESC LIMIT 100''',(actor,actor))]
-        return jsonify(ok=True,blocks=blocks,invites=invites,reports=reports)
+        names=runtime.identity_projection_store.public_names(blocks+[i['username'] for i in invites])
+        return jsonify(ok=True,blocks=blocks,invites=invites,reports=reports,public_names=names)
 
     @bp.post('/api/safety/block')
     def block():
@@ -64,7 +65,8 @@ def install(runtime):
         if type(data.get('blocked')) is not bool:
             raise ValueError('invalid_request')
         with atomic_runtime_transaction(database(),foreign_keys=True) as conn:
-            safety.set_block(conn,identity['actor'](conn),str(data.get('username') or ''),data['blocked'])
+            target=runtime.identity_projection_store.resolve_player(str(data.get('username') or ''),conn=conn) if data['blocked'] else str(data.get('username') or '')
+            safety.set_block(conn,identity['actor'](conn),target,data['blocked'])
         return jsonify(ok=True)
 
     @bp.post('/api/safety/invite')
@@ -72,7 +74,8 @@ def install(runtime):
         data=payload()
         with atomic_runtime_transaction(database(),foreign_keys=True) as conn:
             identity['actor'](conn)
-            result=safety.invite(conn,session['user'],str(data.get('username') or ''))
+            target=runtime.identity_projection_store.resolve_player(str(data.get('username') or ''),conn=conn)
+            result=safety.invite(conn,session['user'],target)
         return jsonify(ok=True,status=result)
 
     @bp.post('/api/safety/invite/answer')

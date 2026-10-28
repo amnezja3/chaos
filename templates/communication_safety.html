@@ -7,7 +7,10 @@
 <h1>{{ tr('Kontakt i bezpieczeństwo','Contact and safety') }}</h1>
 <p>{{ tr('Wiadomości prywatne przyjmujesz od zaakceptowanych kontaktów. Blokada dotyczy komunikacji, nie rywalizacji w grze.','Private messages are accepted from confirmed contacts. Blocking affects communication, not competition in the game.') }}</p>
 <a href="/account/identity?embedded=1">{{ tr('Konto i bezpieczeństwo','Account and security') }}</a>
-<form id="contact-form"><label>{{ tr('Login gracza','Player login') }}<input name="username" required maxlength="100"></label>
+<form id="player-search"><label>{{ tr('Znajdź gracza: nick lub @ID CHAOS','Find a player: nickname or @CHAOS ID') }}<input name="query" required maxlength="100"></label><button>{{ tr('Szukaj','Search') }}</button></form>
+<div id="player-results"></div>
+<p>{{ tr('ID CHAOS znajdziesz także w profilu gracza na mapie. Identyfikatory celów i kont zewnętrznych nie są identyfikatorami kontaktów.','The same CHAOS ID is shown in the map player profile. Target IDs and external account IDs are not contact identifiers.') }}</p>
+<form id="contact-form"><label>{{ tr('Wybrany gracz: nick lub @ID CHAOS','Selected player: nickname or @CHAOS ID') }}<input name="username" required maxlength="100"></label>
 <button name="action" value="invite">{{ tr('Zaproś','Invite') }}</button><button name="action" value="block">{{ tr('Zablokuj komunikację','Block communication') }}</button><p class="feedback" role="status"></p></form>
 <h2>{{ tr('Zaproszenia','Invitations') }}</h2><div id="invites"></div>
 <h2>{{ tr('Zablokowani','Blocked players') }}</h2><div id="blocks"></div>
@@ -23,4 +26,5 @@
 {% if moderator %}<h2>{{ tr('Kolejka moderatora','Moderation queue') }}</h2><div id="moderation"></div>{% endif %}
 <p id="load-status" role="status"></p></main>
 <script id="safety-config" type="application/json">{{ dict(locale=locale,csrf=csrf,generation=generation,moderator=moderator)|tojson }}</script>
-<script src="/static/js/communication_safety.js?v=157-8" defer></script></body></html>
+<script src="/static/js/player_directory.js?v=1" defer></script>
+<script src="/static/js/communication_safety.js?v=player-directory-1" defer></script></body></html>

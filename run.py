@@ -29670,6 +29670,19 @@ def mail_bootstrap():
         "detention": detention_capabilities(username),
     })
 
+@app.get('/api/players/search')
+def cyberner_player_search():
+    if not session.get('user'):
+        return jsonify(ok=False,error='authentication_required'),401
+    try:
+        players=identity_projection_store.find_players(request.args.get('q',''))
+    except ValueError as exc:
+        return jsonify(ok=False,error=str(exc)),400
+    response=jsonify(ok=True,players=players[:20],truncated=len(players)>20)
+    response.headers['Cache-Control']='no-store'
+    return response
+
+
 @app.route("/api/contacts", methods=["POST"])
 def add_contact():
     if "user" not in session:
@@ -29686,6 +29699,9 @@ def add_contact():
         return jsonify(success=False, error='use_contact_invitation', redirect='/account/safety'), 409
 
     try:
+        contact_name = identity_projection_store.resolve_player(contact_name)
+        if contact_name == username:
+            raise ValueError('contact_unavailable')
         mail_store.add_contact(username, contact_name, status)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

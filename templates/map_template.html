@@ -9855,7 +9855,7 @@
 
                 const fields = [
                     ['Nick', actor.nick || actor.username || 'Gracz'],
-                    [GhostLocale.t('map.actor.username'), actor.username || ''],
+                    ['ID CHAOS / Cyberner', actor.username ? `@${actor.username}` : ''],
                     [GhostLocale.t('map.actor.relation'), relationLabel],
                     [GhostLocale.t('map.actor.source'), context.source || ''],
                     [GhostLocale.t('map.actor.sources'), sources],

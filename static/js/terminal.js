@@ -18809,28 +18809,25 @@ function createEmailClient() {
         openCybernerThread(event.detail || {});
     });
 
-    contactForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = contactInput.value.trim();
-        if (!name) return;
-        if(document.body.dataset.communicationSafety==='1'){window.createIdentitySettingsWindow({embedded:'1',username:name});return;}
-
-        const res = await fetch('/api/contacts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        const data = await res.json();
-        if (data.error) {
-            addSystemMessage("warning", ghostText('apps.cyberner.contact'), data.error);
-            return;
+    const playerResults=document.createElement('div');
+    contactForm.after(playerResults);
+    window.mountPlayerDirectory({form:contactForm,input:contactInput,results:playerResults,
+      locale:()=>document.documentElement.lang,
+      onSelect:async(player,row)=>{
+        if(document.body.dataset.communicationSafety==='1'){
+            window.createIdentitySettingsWindow({embedded:'1',username:player.handle});return;
         }
-        if (data.contacts) {
-            contacts = data.contacts;
-            pendingThreads = (data.pending_threads || pendingThreads).filter(thread => thread.name !== name);
-            contactInput.value = "";
-            renderContacts();
-        }
+        const res=await fetch('/api/player-contact/request',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({target_username:player.username})});
+        const data=await res.json();
+        const status=document.createElement('p');
+        status.textContent=res.ok&&data.success
+            ? (document.documentElement.lang==='en'?'Invitation sent or already pending.':'Zaproszenie wysłane lub już oczekuje.')
+            : (document.documentElement.lang==='en'?'Contact unavailable.':'Kontakt niedostępny.');
+        row.append(status);
+        if(res.ok)await refreshThreads(true);
+      }
     });
 
     acceptBtn.addEventListener('click', async () => {

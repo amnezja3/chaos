@@ -1650,11 +1650,11 @@
     },
     "apps.cyberner.nickname": {
       "params": {},
-      "text": "Contact username"
+      "text": "Nickname or @CHAOS ID"
     },
     "apps.cyberner.add": {
       "params": {},
-      "text": "Add"
+      "text": "Search"
     },
     "apps.cyberner.channels": {
       "params": {},

@@ -4919,6 +4919,36 @@ class UserIdentityProjectionStore:
         desktop['respect'] = current_respect
         return {**desktop, "identity": identity}
 
+    def find_players(self, query, *, exact=False, conn=None):
+        """Public nick / @CHAOS account lookup; never read provider identities or emails."""
+        from identity_gateway.audit import nick_key
+        if not isinstance(query, str) or not 2 <= len(query.strip()) <= 100:
+            raise ValueError('player_query_invalid')
+        query=query.strip()
+        handle=query.startswith('@')
+        value=query[1:] if handle else nick_key(query)
+        if not value:raise ValueError('player_query_invalid')
+        with (db_connect(self.db_path) if conn is None else nullcontext(conn)) as c:
+            c.create_function('player_search_key',1,lambda v:nick_key(str(v or '')),deterministic=True)
+            fields=['p.username'] if handle else ['p.username','p.display_alias']
+            expressions=fields if handle else [f'player_search_key({field})' for field in fields]
+            predicate=' OR '.join((f'{field}=?' if exact else f'instr({field},?)>0') for field in expressions)
+            rows=c.execute(self._select_sql('('+predicate+')')+
+                ' ORDER BY p.username LIMIT 21',[value]*len(fields)).fetchall()
+        results=[]
+        for row in rows:
+            try: identity=self._row_identity(row)
+            except ProfileRecoveryRequired: continue
+            results.append(dict(username=identity['username'],nick=identity['nick'],
+                                handle='@'+identity['username']))
+        return results
+
+    def resolve_player(self, query, *, conn=None):
+        matches=self.find_players(query,exact=True,conn=conn)
+        if not matches:raise ValueError('player_not_found')
+        if len(matches)!=1:raise ValueError('player_ambiguous')
+        return matches[0]['username']
+
     def public_names(self, usernames):
         """Resolve public labels without loading profile JSON."""
         names = sorted({str(value) for value in usernames if value})

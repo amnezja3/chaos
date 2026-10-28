@@ -1650,11 +1650,11 @@
     },
     "apps.cyberner.nickname": {
       "params": {},
-      "text": "Nick znajomego"
+      "text": "Nick lub @ID CHAOS"
     },
     "apps.cyberner.add": {
       "params": {},
-      "text": "Dodaj"
+      "text": "Szukaj"
     },
     "apps.cyberner.channels": {
       "params": {},
