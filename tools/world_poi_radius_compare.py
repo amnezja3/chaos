@@ -11,6 +11,15 @@ from tools.world_discovery_inspect import read_json
 from tools.world_region_probe import BOUNDS,POI_RADIUS_CENTER
 from poi_infrastructure.world_adapters import normalize_maplark,plan_maplark,plan_maplark_region,MAPLARK_VERSION
 from poi_infrastructure.world_contract import Provenance,ContractError
+from poi_infrastructure.world_contract import ProviderBatch,POI_PROFILE
+from poi_infrastructure.maplark_profile import export_maplark
+
+
+def marker_rows(objects):
+    """Offline comparison only; does not grant a regional selection proof."""
+    batch=ProviderBatch(tuple(objects),POI_PROFILE,'complete',(),
+        'maplark-radius-unverified','diagnostic')
+    return export_maplark(batch)['elements']
 
 
 def load(directory,plan):
@@ -57,7 +66,13 @@ def compare(parent,radius=None):
     result['changed_tags']=sorted(k for k in shared if dict(objects[k].tags)!=dict(actual[k].tags))
     for name,selected in predicates.items():
         result['hypotheses'][name].update(missing_from_radius=sorted(selected-actual.keys()),
-            additional_in_radius=sorted(actual.keys()-selected),identities_match=selected==actual.keys())
+            additional_in_radius=sorted(actual.keys()-selected),identities_match=selected==actual.keys(),
+            gameplay_rows_match=marker_rows(objects[k] for k in selected)==marker_rows(actual.values()))
+    result['observed_sample_pass']=(result['provider_revisions_match']
+        and not result['changed_geometry'] and not result['changed_tags']
+        and not result['near_boundary']
+        and result['hypotheses']['geometry_distance']['identities_match']
+        and result['hypotheses']['geometry_distance']['gameplay_rows_match'])
     return result
 
 

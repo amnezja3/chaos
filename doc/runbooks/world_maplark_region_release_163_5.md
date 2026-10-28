@@ -1,0 +1,73 @@
+# 163.5 — regionalny odczyt MapLark
+
+## Zmiana zachowania
+
+Nowy, jawny profil `chaos-maplark-region-geometry-v1` korzysta z kompletnego
+bbox POI zapisanego przez istniejący kolektor. Nie jest deklaracją identyczności
+ze wszystkimi przypadkami natywnego API radius. W otrzymanej niezależnej parze
+odtwarza 18/18 ID, tagi i markery. Dotychczasowe mechaniki gry pozostają.
+
+Kolejność: fresh cache → exact world → regional world → API → dopuszczalny stale.
+Jeden snapshot musi obejmować cały promień; nie łączymy regionów. Wszystkie filtry
+POI, kompletność, rewizja, prawa, digest i wiek muszą pasować. Geometria decyduje
+o selekcji, dotychczasowy eksport o markerze. Obsługiwane Point, LineString,
+Polygon i MultiPolygon; otwory zachowuje Shapely. Lokalna metryka płaska ma
+jawne ograniczenia: |lat|≤60°, promień≤500 m, geometrie w odległości kątowej
+≤0,1° od środka. Pas niepewności max(5 m, 1% promienia) daje MISS i API.
+Ten margines jest regułą ostrożności, nie dowodem równoważności metryk dostawcy.
+
+Niepełna lub za stara odpowiedź, zmiana rewizji, cofnięcie praw i brak pokrycia
+również dają MISS. Archiwum 7 dni nie staje się świeżym skanem: nadal 300/1800 s.
+Nie zmieniamy budżetów, kolejności źródeł ani historycznych rozliczeń Geoapify.
+Geoapify pozostaje źródłem obserwacji commercial, nie pełnym fallbackiem gry.
+
+## Wdrożenie i odbiór
+
+Po pushu lokalnego pakietu, na VPS:
+
+```bash
+cd ~/app/chaos && git pull --ff-only &&
+bash tools/world_maplark_region_acceptance.sh
+```
+
+Pakiet nie wykonuje HTTP do dostawców ani nie zmienia konfiguracji. Migracja
+nie jest potrzebna: wykorzystujemy istniejące snapshoty z metadanymi bbox.
+Po PASS aktywacja **nowego profilu selekcji**:
+
+```bash
+pm2 startOrReload ecosystem.web.config.js --only chaos --env world_maplark_region --update-env
+curl --silent --show-error --connect-timeout 3 --max-time 10 -o /dev/null -w 'Launch HTTP: %{http_code}\n' https://chaos.re/launch
+```
+
+Przy przejściowym 502 po reload sprawdzić gotowość ponownie przed testem gry.
+Kolektora nie restartujemy, kluczy nie wpisujemy do repo. Nie zmieniamy routingu
+MapLark-first ani nie przywracamy VK-first.
+
+Zbiorczy odbiór: nowy i stary gracz skanują, hakują i tworzą terytorium.
+Dla świeżego pełnego bbox wykonać przesunięty skan, którego koło mieści się
+w regionie. Nie należy teleportować w nieznany sektor i oczekiwać trafienia.
+Potwierdzenie: `poi_maplark_region` z `source=world`, a następnie udany skan.
+Sam log `poi_maplark_cache source=world` może oznaczać wcześniejszy exact reader.
+
+```bash
+pm2 logs chaos --lines 100 --nostream 2>&1 | grep -E 'poi_maplark_region|poi_route|poi_scan'
+.venv/bin/python tools/world_collection_monitor.py
+```
+
+Brak świeżego regionu oznacza poprawny fallback, nie zaliczony test regionalny.
+W takim przypadku zbieramy monitor i log jednego skanu; nie uruchamiamy serii
+płatnych prób. Po potwierdzeniu działania: `pm2 save`.
+
+Rollback tylko nowego odczytu, bez usuwania danych:
+
+```bash
+pm2 startOrReload ecosystem.web.config.js --only chaos --env world_regional --update-env
+pm2 save
+```
+
+## Granice odbioru
+
+Lokalny PASS nie jest odbiorem VPS. Ten pakiet dostarcza runtime regionalnego
+MapLark; nie zamyka automatycznie pełnej kwalifikacji Geoapify, dostępności VK
+ani wszystkich A01–A12. Zachowujemy istniejące dowody; nowych nie deklarujemy
+bez wykonania. Nie nazywamy UNKNOWN globalnym certyfikowanym pokryciem.

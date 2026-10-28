@@ -68,8 +68,19 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
         return None, 'miss'
     def world_read(stale=False):
         if not world_allowed(world_user,spatial):return None
-        return world_shadow.read(service,candidate,key,
+        data = world_shadow.read(service,candidate,key,
             lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
+        if data is not None:return data
+        try:
+            from .maplark_region import read
+            data = read(service,candidate,spatial,
+                lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
+            if data is not None:
+                LOG.info('poi_maplark_region %s',json.dumps(dict(source='world',profile='chaos-maplark-region-geometry-v1')))
+                return validate(data,service.config)
+        except Exception as exc:
+            world_shadow.failed('maplark_regional_read',exc)
+        return None
     data = world_read()
     if data is not None:
         return result(data,'world')

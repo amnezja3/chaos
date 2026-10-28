@@ -29,6 +29,20 @@ class RadiusCaptureTests(unittest.TestCase):
 
 
 class CompareTests(unittest.TestCase):
+    def test_vps_pair_preserves_geometry_selection_and_game_markers(self):
+        root=Path(__file__).parent/'fixtures/poi/maplark_radius_1635'
+        with patch('socket.create_connection',side_effect=AssertionError('network')):
+            result=compare(root/'parent',root/'radius')
+        self.assertEqual(result['parent_sha256']['body'],'45e89d529d63fda01e4dc5e87e1dcca200624f7e1a21cce50b7be57762bb972c')
+        self.assertEqual(result['radius_sha256']['body'],'6a339164b5b85a1597ca99045c2cac14f4d7a843a66fe2afe1ffb5499a8eb376')
+        self.assertEqual((result['parent_objects'],result['radius_objects']),(23,18))
+        self.assertTrue(result['observed_sample_pass'])
+        self.assertTrue(result['hypotheses']['geometry_distance']['gameplay_rows_match'])
+        center=result['hypotheses']['bounds_center_distance']
+        self.assertFalse(center['gameplay_rows_match'])
+        self.assertEqual(center['additional_in_radius'],['osm:way:1028355440'])
+        self.assertFalse(result['regional_scan_approved'])
+
     def test_independent_sample_and_changes_not_certification(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
@@ -46,4 +60,13 @@ class CompareTests(unittest.TestCase):
             feature['properties']['tags']['shop']='clothes'
             (root/'radius/body.json').write_text(json.dumps(dict(type='FeatureCollection',features=[feature])))
             self.assertEqual(compare(root/'parent',root/'radius')['changed_tags'],['osm:node:1'])
+            self.assertFalse(compare(root/'parent',root/'radius')['observed_sample_pass'])
+            feature['properties']['tags']['shop']='yes'
+            (root/'radius/body.json').write_text(json.dumps(dict(type='FeatureCollection',features=[feature])))
+            report_path=root/'radius/report.json'
+            report=json.loads(report_path.read_text());report['provider_revision']=10
+            report_path.write_text(json.dumps(report))
+            result=compare(root/'parent',root/'radius')
+            self.assertTrue(result['hypotheses']['geometry_distance']['gameplay_rows_match'])
+            self.assertFalse(result['observed_sample_pass'])
             with self.assertRaises(ContractError):compare(root/'radius')

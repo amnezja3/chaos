@@ -1,0 +1,11 @@
+{
+    "status":  "captured_not_certified",
+    "params":  {
+                   "bbox":  "20.36,51.53,20.37,51.54",
+                   "tags":  "shop|amenity|office|healthcare|atm=yes|man_made=surveillance",
+                   "limit":  "1000",
+                   "clipGeometry":  "false"
+               },
+    "fetched_at":  1793180054.697358,
+    "provider_revision":  9
+}

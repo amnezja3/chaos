@@ -95,3 +95,23 @@ powtórzeniem płatnej próby. Klucz jest wczytany bez echa i nie trafia do plik
 Przekazać comparison.json i cały wskazany katalog do instance/provider-captures.
 Nawet dopasowanie jednej hipotezy nie dowodzi wszystkich przypadków relacji,
 kompletności źródła ani spójności wersji danych między dwoma pobraniami.
+
+## Odbiór niezależnej pary — 28.10.2026
+
+Otrzymano radius z chaos-poi-radius-1635-Y4S0yA. Zapisana regresja znajduje się
+w tests/fixtures/poi/maplark_radius_1635 (surowe odpowiedzi, ograniczone metadane,
+atrybucja OSM i hashe sprawdzane przez test). Nie ponawiamy płatnej próby.
+
+Wynik: 18/18 ID, geometrie i tagi zgodne z selekcją od pełnej geometrii bbox.
+Porównanie eksportu gry potwierdza również identyczne pozycje markerów.
+Selekcja od środka bounds pomija osm:way:1028355440 (17/18). Należy rozdzielić
+wybór obiektów od wyznaczania ich markerów; obecny eksport markerów pozostaje.
+
+observed_sample_pass oznacza zgodność tej pary, nie globalne dopuszczenie.
+regional_scan_approved pozostaje false. Brak przypadków blisko granicy promienia,
+MultiPolygon i otworów w tej parze; brak wersji źródłowego zbioru. Regionalny
+reader MapLark nie został tym etapem aktywowany. Dokładny reader istniejących
+zapytań pozostaje bez zmian.
+
+Lokalna weryfikacja nie wymaga VPS ani API:
+python -m unittest discover -s tests -p test_world_poi_radius_compare.py

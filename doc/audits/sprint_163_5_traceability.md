@@ -336,3 +336,36 @@ rozróżniałby ich. Metryka przybliżona służy diagnostyce, bez aktywacji rea
 24 testy PASS / 5,821 s; jednorazowe rozliczenie, walidacja parametrów,
 brak zmian runtime, porównanie niezależnych ID/tagów/geometrii. Następny pakiet:
 `tools/world_poi_radius_acceptance.sh`; istniejącego bbox nie pobieramy ponownie.
+
+### 28.10 — niezależna para MapLark POI odebrana lokalnie
+
+Radius body SHA-256: 6a339164b5b85a1597ca99045c2cac14f4d7a843a66fe2afe1ffb5499a8eb376.
+23 bbox / 18 radius; pełna geometria 18/18, środek bounds 17/18.
+Regresja sprawdza hashe, ID, geometrie, tagi oraz eksport markerów gry.
+Zmiana tagów lub rewizji unieważnia observed_sample_pass. Porównanie pozostaje
+offline, bez zapisu do produkcji i bez certyfikacji regionalnego skanera.
+Fixture zawiera niezależne odpowiedzi operatora z atrybucją OSM; nie zawiera
+kluczy, nagłówków żądania, kont graczy ani księgi kosztów. Do generalizacji
+pozostają semantyka granicy promienia i geometrie nieobecne w tej próbce.
+
+### 28.10 — runtime regionalnego MapLark, przygotowanie wdrożenia
+
+Dodano jawny profil chaos-maplark-region-geometry-v1 oraz odczyt w aktywnej
+ścieżce maplark_pilot po exact world, przed API. Profil jest lokalnym kontraktem
+CHAOS, nie zapewnieniem pełnej zgodności natywnego radius. Włączenie osobnym
+profilem ecosystem.web.config.js: world_maplark_region. Domyślnie wyłączony.
+Jedna kompletna odpowiedź bbox, pełny filtr, digest, rewizja, prawa i TTL;
+niepewna granica, częściowość, zmiana wersji lub brak pokrycia uruchamia fallback.
+
+8 testów regionalnych PASS: realna para, otwory/multipart, mixed-source,
+niepełne i poza regionem, pusto, aktywny skaner bez HTTP, read-only, opt-in,
+corruption i wygaśnięcie 300/1800. Regresje: exact world 10 PASS, planner 16 PASS,
+routing 15 PASS; MapLark zestaw przed dodaniem ostatnich 3 testów 21 PASS.
+Konfiguracja aktywacji/rollback sprawdzona przez Node, git diff --check PASS.
+Bez zmian produkcji i bez wywołań dostawców.
+
+Instrukcja: doc/runbooks/world_maplark_region_release_163_5.md.
+Pakiet VPS: tools/world_maplark_region_acceptance.sh. Odbiór regionalnego runtime
+wymaga osobnego logu poi_maplark_region oraz działania gry; sam source=world
+z exact readera go nie zastępuje. Kwalifikacja pełnego skanera Geoapify pozostaje
+zewnętrznym brakiem, nie oznaczamy całego 163.5 jako odebranego.

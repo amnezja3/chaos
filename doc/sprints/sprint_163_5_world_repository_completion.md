@@ -224,3 +224,10 @@ obserwacji POI MapLark, atlasu viewport i metryk oraz ekstraktor uogólnionego
 ląd–morze Natural Earth. Dowody i granice są w `doc/audits/sprint_163_5_traceability.md`.
 Zbiorcza instrukcja: `doc/runbooks/world_completion_163_5.md`.
 Status: gotowe do etapowego wdrożenia, nie pełny odbiór całego sprintu.
+
+28.10.2026: regionalny MapLark ma implementację runtime i zestaw regresji,
+za osobnym, jawnym profilem chaos-maplark-region-geometry-v1. Odczyt korzysta
+z jednego kompletnego bbox, zachowuje eksport gry, a przypadki niejednoznaczne
+oddaje API. Nie deklaruje pełnej identyczności natywnego radius. Instrukcja
+wdrożenia: ../runbooks/world_maplark_region_release_163_5.md. Aktywacja i odbiór
+VPS pozostają do wykonania; status całego sprintu nie jest CLOSED.
