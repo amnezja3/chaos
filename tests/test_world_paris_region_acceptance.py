@@ -11,6 +11,26 @@ from tools.world_paris_region_acceptance import run,OPERATION,DIAGNOSTIC_OPERATI
 
 
 class ParisAcceptanceTests(unittest.TestCase):
+    def test_read_diagnostic_does_not_mutate_or_fetch(self):
+        from tools.world_paris_read_diagnostic import inspect
+        result=run(self.repo.path,self.backup,execute=True,accept=True,
+                   transport=self.transport,live_v4=True)
+        with closing(self.repo.connect()) as c:before='\n'.join(c.iterdump())
+        with patch('socket.create_connection',side_effect=AssertionError('network')):
+            diagnostic=inspect(self.repo.path,result['snapshot'],['000000000000'])
+            key=diagnostic['positions'][0]['expected_key']
+            matched=inspect(self.repo.path,result['snapshot'],[key])
+            missing=inspect(self.repo.path,'absent',[])
+        self.assertTrue(diagnostic['digest_ok'])
+        self.assertTrue(diagnostic['storage_reference_matches'])
+        self.assertFalse(diagnostic['positions'][0]['matches_supplied_scan'])
+        self.assertTrue(matched['positions'][0]['matches_supplied_scan'])
+        self.assertEqual(diagnostic['positions'][0]['objects'],1)
+        self.assertFalse(diagnostic['live_acceptance'])
+        self.assertEqual(missing['status'],'snapshot_missing')
+        with closing(self.repo.connect()) as c:self.assertEqual(before,'\n'.join(c.iterdump()))
+        self.transport.assert_called_once()
+
     def test_live_refresh_preserves_previous_operation_and_rejects_retry(self):
         from tools.world_paris_region_acceptance import LIVE_OPERATION
         from poi_infrastructure.credit_budget import CreditBudget
