@@ -55,6 +55,21 @@ Zaproszenia i lista blokad pokazują nick wraz z ID, operacje pozostają po ID.
 
 ## Wdrożenie
 
+### Korekta izolacji testów po pierwszym odbiorze VPS
+
+Pierwsze uruchomienie na VPS: 4/5 testów katalogu odrzucone HTTP 423
+`ghostsystem_restart_required` / `document_epoch_replaced`. Wspólny fixture
+Identity Gateway izolował użytkowników, ale odczytywał epokę GhostSystem
+z domyślnej bazy wdrożenia. Fixture inicjalizuje teraz prawdziwe repozytorium
+GhostNetwork w swojej tymczasowej bazie i kieruje tam bramkę restartu.
+Kod produkcyjny i zabezpieczenia pozostają bez zmian.
+
+Regresja sprawdza brak epoki w świeżej bazie oraz odrzucenie żądania bez
+aktualnej epoki i przyjęcie go z poprawnym nagłówkiem. Po korekcie lokalnie:
+6 testów katalogu, 15 Identity Gateway i 8 communication safety — wszystkie PASS.
+Ponowić poniższy pakiet po pobraniu poprawki; poprzedni ciąg `&&` zatrzymał
+się na testach, przed przeładowaniem PM2.
+
 Nie wymaga migracji danych, zmiany tożsamości ani ponownego logowania do bramek.
 Po pushu, na VPS z obecną konfiguracją:
 

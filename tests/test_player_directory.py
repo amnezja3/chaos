@@ -55,6 +55,22 @@ class PlayerDirectoryTests(unittest.TestCase):
         response=self.client.get('/api/players/search?q=alice')
         self.assertIn(response.status_code,(401,302))
 
+    def test_isolated_restart_gate_requires_current_epoch(self):
+        self.assertEqual(run.ghostsignal_show_db_path,self.path)
+        self.assertIsNone(run.get_ghostsignal_show_service().restart_projection())
+        self.authenticate()
+        with patch.object(run.GhostSignalShowService,'restart_projection',return_value={'epoch':'directory-test-epoch'}):
+            response=self.search('alice')
+            self.assertEqual(response.status_code,423,response.json)
+            self.assertEqual(response.json['error'],'ghostsystem_restart_required')
+            with self.client.session_transaction() as sess:
+                generation=sess[run.SESSION_GENERATION_KEY]
+            response=self.client.get('/api/players/search?q=alice',headers={
+                'X-Chaos-Session-Generation':generation,
+                'X-Chaos-Ghost-Epoch':'directory-test-epoch'})
+            self.assertEqual(response.status_code,200,response.json)
+            self.assertEqual(response.json['players'][0]['username'],'alice')
+
     def test_safety_invite_by_nick_then_handle_duplicate_block_and_csrf(self):
         self.seed('id_google_fixture','Trinity')
         self.stack.enter_context(patch.dict(run.app.config,CHAOS_COMMUNICATION_SAFETY_ENABLED=True,CHAOS_AGE_POLICY_ENABLED=False))

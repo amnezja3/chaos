@@ -46,6 +46,9 @@ class GatewayWebTests(unittest.TestCase):
         self.stack=ExitStack()
         self.addCleanup(self.stack.close)
         self.path=str(Path(self.tmp.name)/'game.sqlite3')
+        # Keep the real restart gate, but never read the deployed world's epoch.
+        run.GhostNetworkRepository(db_path=self.path)
+        self.stack.enter_context(patch.object(run,'ghostsignal_show_db_path',self.path))
         self.users=UserStore(self.path, seed_path=str(Path(self.tmp.name)/'no-seed.json'))
         self.sessions=SessionGenerationStore(self.path)
         for name in ('admin','alice','bob'):
