@@ -306,3 +306,22 @@ wyłącznie gdy ostatni wpis audytu jest własną decyzją tego aktywatora.
 Ręczne disable lub późniejszy wynik techniczny nie jest omijany.
 Ponowne wykonanie wymaga nowego backupu i jawnego --approve-live-wide;
 nie wykonuje HTTP ani nie zeruje circuit/budżetu.
+
+### Następny pakiet dowodów MapLark — 28.10
+
+Po poprawce aktywatora VK: circuit_open, następnie http_read_timeout;
+MapLark fallback sukces, całość 28,9269 s. Operator zapisał live route revision 3
+z samym MapLark; następny skan maplark/upstream/success. Regionalny VK pozostaje
+nieodebrany, nie jest automatycznie przywracany do skanera.
+
+Lokalny `instance/provider-captures` ma próbki waterways/inland_water/topology
+oraz Natural Earth; nie ma tam kompletnej pary pełne bbox POI + niezależne radius.
+Nie wnioskujemy z tego o zawartości produkcyjnego archiwum.
+
+Przygotowano `world_poi_evidence_acceptance.sh`: izolowane testy, ograniczona
+inspekcja mode=ro, prywatny eksport geometrii i klasyfikatorów, aktywne podlimity,
+monitor kolektora. Bez migracji, resetów księgi, ruchu do dostawców i przełączania
+źródeł. 18 testów PASS / 7,273 s: exact/bbox, digest, ograniczenie objętości,
+brak zapisów źródła, brak sekretów/kontaktów w eksportach, istniejące testy
+kolektora i kandydatów. Instrukcja: `doc/runbooks/world_maplark_evidence_163_5.md`.
+Kolejna zależność od VPS to konkretne zapisane dane, nie kolejny test dostępności API.
