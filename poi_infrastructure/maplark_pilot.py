@@ -72,9 +72,16 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
             lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
         if data is not None:return data
         try:
-            from .maplark_region import read, PROFILE as REGIONAL_PROFILE
+            from .maplark_region import read, PROFILE as REGIONAL_PROFILE, FLAG as REGIONAL_FLAG
+            diagnostic = {}
             data = read(service,candidate,spatial,
-                lambda: active() and world_allowed(world_user,spatial),allow_stale=stale)
+                lambda: active() and world_allowed(world_user,spatial),allow_stale=stale,
+                diagnostic=diagnostic)
+            if os.environ.get(REGIONAL_FLAG) == REGIONAL_PROFILE:
+                LOG.info('poi_maplark_region_read %s',json.dumps(dict(
+                    key=key[:12],radius=spatial['radius'],revision=candidate['revision'],
+                    stale=stale,source='world' if data is not None else 'miss',
+                    pid=os.getpid(),at=round(time.time(),3),**diagnostic)))
             if data is not None:
                 LOG.info('poi_maplark_region %s',json.dumps(dict(source='world',profile=REGIONAL_PROFILE)))
                 return validate(data,service.config)

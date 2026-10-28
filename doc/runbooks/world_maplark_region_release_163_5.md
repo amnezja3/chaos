@@ -226,3 +226,41 @@ raport; nie ponawiaj komendy i nie zmieniaj dat snapshotow.
 
 Lokalna walidacja tego dodatku: 10 testow CLI i 10 testow regionalnych PASS;
 w tym zachowanie operacji v3 i obcego zakresu budzetu oraz odmowa retry v4.
+
+### Diagnostyka pomijania regionu po v4
+
+Odbior VPS: profil v2, read=1, access=global. Oba skany upstream mialy
+czas okolo 29/35 sekund po publikacji v4, czyli w oknie swiezosci.
+Zapisana odpowiedz v4: 826 obiektow, kompletna; offline 479/465 obiektow,
+0.717 s lacznej inspekcji. Klucze oczekiwane 1e27dc10d1ba/cfdf8bd1dde1
+nie odpowiadaja rzeczywistym cdd61e9aef31/e632c4a998a9. Nie jest to
+jeszcze dowod konkretnej przyczyny MISS. Snapshot nie byl juz dostepny
+podczas pozniejszej diagnostyki; przyczyna usuniecia niepotwierdzona.
+
+Sciezka kodu: menu mapy przekazuje klikniete lat/lng do mapAction;
+/map-action czyta te wspolrzedne i przekazuje je do POIFetcher.
+Pozycja awatara sluzy do sprawdzania zasiegu akcji. Promien POIFetcher
+wynosi domyslnie 300 m. Samo ustawienie awatara nie ustala srodka skanu.
+Wczesniejsza instrukcja odbioru byla pod tym wzgledem nieprecyzyjna.
+
+Nowy log poi_maplark_region_read zawiera klucz, promien, rewizje,
+czas, tryb stale, liczbe sprawdzonych snapshotow oraz liczniki powodow
+odrzucenia. Nie zapisuje pozycji ani identyfikatora gracza. Rozroznia
+m.in. regional_circle_not_contained, not_fresh, metadata_mismatch,
+byte_limit oraz deadline_or_inactive/post_selection_fence_or_deadline.
+Jest emitowany tylko dla aktywnego profilu v2 przy probie odczytu regionalnego.
+Brak tego wpisu moze oznaczac wczesniejsze trafienie exact-cache/world.
+
+Wdrozenie diagnostyki nie wymaga platnego pobrania ani zmiany TTL:
+
+```bash
+cd ~/app/chaos && git pull --ff-only &&
+.venv/bin/python -m unittest discover -s tests -p test_world_maplark_region.py &&
+pm2 startOrReload ecosystem.web.config.js --only chaos --env world_maplark_region --update-env
+pm2 save
+```
+
+Podczas zwyklego uzywania gry zbieraj nowe logi przez
+`pm2 logs chaos --lines 0`. Nie powtarzaj wykorzystanej operacji live-v4.
+Przed kolejnym odbiorem platnym potrzebna jest kontrola faktycznego srodka
+skanu i swiezego regionu; obecne logi nie stanowia odbioru regionalnego.

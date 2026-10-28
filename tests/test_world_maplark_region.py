@@ -120,6 +120,24 @@ class ReaderTests(unittest.TestCase):
         with patch.dict(os.environ,{FLAG:PROFILE}):
             self.assertIsNone(read(self.service,candidate,SPATIAL,lambda:True))
 
+    def test_diagnostic_distinguishes_position_expiry_and_metadata(self):
+        candidate=self.publish()
+        with patch.dict(os.environ,{FLAG:PROFILE}):
+            trace={}
+            self.assertIsNone(read(self.service,candidate,dict(SPATIAL,lon=20.36),lambda:True,diagnostic=trace))
+            self.assertEqual(trace['rejected']['regional_circle_not_contained'],1)
+            self.assertNotIn('lat',trace)
+            trace={}
+            self.assertIsNone(read(self.service,dict(candidate,revision=999),SPATIAL,lambda:True,diagnostic=trace))
+            self.assertEqual(trace['rejected']['metadata_mismatch'],1)
+            trace={}
+            self.assertIsNotNone(read(self.service,candidate,SPATIAL,lambda:True,diagnostic=trace))
+            self.assertEqual(trace['reason'],'selected')
+            with patch('time.time',return_value=time.time()+301):
+                trace={}
+                self.assertIsNone(read(self.service,candidate,SPATIAL,lambda:True,diagnostic=trace))
+                self.assertEqual(trace['rejected']['not_fresh'],1)
+
     def test_active_scanner_reads_region_before_upstream(self):
         from poi_infrastructure.maplark_pilot import fetch_pilot
         from poi_infrastructure.world_contract import FILTERS

@@ -63,10 +63,15 @@ def select(batch, bounds, lat, lon, radius):
                                  selection='maplark-radius-unverified'))
 
 
-def read(service, candidate, spatial, active, allow_stale=False):
+def read(service, candidate, spatial, active, allow_stale=False, *, diagnostic=None):
+    trace = diagnostic if diagnostic is not None else {}
+    trace.update(reason='no_compatible_snapshot', examined=0, rejected={})
+    def reject(reason):
+        trace['rejected'][reason] = trace['rejected'].get(reason, 0)+1
     if (os.environ.get(FLAG) != PROFILE
             or os.environ.get('CHAOS_POI_WORLD_REPOSITORY_ENABLED') != '1'
             or reference(candidate) is None or not active()):
+        trace['reason'] = 'profile_access_or_approval_disabled'
         return None
     deadline = time.monotonic()+2
     total = 0
@@ -77,19 +82,24 @@ def read(service, candidate, spatial, active, allow_stale=False):
             ORDER BY fetched DESC LIMIT 64''', (candidate['id'], FORMAT, time.time())).fetchall()
         for item in rows:
             if time.monotonic() >= deadline or not active():
+                trace['reason'] = 'deadline_or_inactive'
                 return None
             total += item['size']
             if total > 8*1024*1024:
+                trace['reason'] = 'byte_limit'
                 return None
+            trace['examined'] += 1
             row = conn.execute('SELECT * FROM world_snapshot WHERE id=?', (item['id'],)).fetchone()
             if row is None:
                 continue
             expiry = min(row['usable_until' if allow_stale else 'fresh_until'],
                          row['fetched']+(1800 if allow_stale else 300))
             if not row['fetched'] <= time.time() < expiry:
+                reject('not_fresh' if not allow_stale else 'expired')
                 continue
             try:
                 if hashlib.sha256(row['payload']).hexdigest() != row['digest']:
+                    reject('digest_mismatch')
                     continue
                 raw = json.loads(row['payload'])
                 if (raw.get('format') != FORMAT or raw.get('schema') != SCHEMA_VERSION
@@ -98,17 +108,22 @@ def read(service, candidate, spatial, active, allow_stale=False):
                         or raw.get('profile') != 'poi' or raw.get('completeness') != 'complete'
                         or raw.get('reasons') or raw.get('fresh_until') != row['fresh_until']
                         or raw.get('usable_until') != row['usable_until']):
+                    reject('metadata_mismatch')
                     continue
                 context = raw.get('observation_context', {})
                 if context.get('acquisition') != 'sector-bbox-v1':
+                    reject('not_regional_bbox')
                     continue
                 bounds = context['demand_bounds']
                 if context['request_params'] != dict(plan_maplark_region(bounds, profile='poi', limit=1000).params):
+                    reject('request_profile_mismatch')
                     continue
                 if len(raw['objects']) > 1000:
+                    reject('object_limit')
                     continue
                 objects = tuple(decode_object(o) for o in raw['objects'])
                 if any(o.provenance.adapter_version != MAPLARK_VERSION for o in objects):
+                    reject('adapter_mismatch')
                     continue
                 batch = ProviderBatch(objects, 'poi', 'complete', (), raw['selection'], raw['order'])
                 data = select(batch, bounds, spatial['lat'], spatial['lon'], spatial['radius'])
@@ -116,11 +131,17 @@ def read(service, candidate, spatial, active, allow_stale=False):
                 if (current is None or current['revision'] != candidate['revision']
                         or reference(current) != reference(candidate) or not active()
                         or time.monotonic() >= deadline or time.time() >= expiry):
+                    trace['reason'] = 'post_selection_fence_or_deadline'
                     return None
                 if not conn.execute('SELECT 1 FROM world_snapshot WHERE id=?', (row['id'],)).fetchone():
                     continue
+                trace['reason'] = 'selected'
                 return data
+            except ContractError as exc:
+                reject(str(exc))
+                continue
             except (ValueError, TypeError, KeyError):
+                reject('invalid_snapshot')
                 continue
     finally:
         conn.close()
