@@ -77,6 +77,13 @@ Ukryte/zminimalizowane okno wstrzymuje animacje i odpytywanie.
 
 ### 165.1a — atrybucja fotografii i kontrolowana nawigacja
 
+Uzupełnienie 30.10.2026: osobny panel **„Licencja i źródło zdjęcia”**,
+dostępny przy każdej fotografii, niezależnie od publicznej strony źródeł danych.
+Pokazuje prawa CC BY-SA i metadane z 164.1 bez dodatkowego warunku akceptacji
+ograniczającego te prawa. Wdrożenie wymaga rozstrzygnięcia **L01** (archiwizacja
+i udostępnianie) oraz **L02** (logo i linkowanie) z 164; projekt UX nie stanowi
+rozstrzygnięcia żadnej z tych kwestii.
+
 Przy fotografii Mapillary umieścić niewielkie, czytelne logo dostawcy oraz
 ikonę informacji. Nie zakrywać ich HUD-em, kadrowaniem ani glitchem. Wygląd
 zgodny z CHAOS przy zachowaniu zweryfikowanych zasad używania znaku.
@@ -150,6 +157,7 @@ Wykaz źródeł nie zastępuje atrybucji przy każdej prezentowanej fotografii.
 | --- | --- | --- |
 | QUEUED/FETCHING/PROCESSING | SYNCHRONIZING | Ograniczony polling, bez kolejnych pobrań od odświeżenia |
 | READY | Archiwalne ujęcia | Widoczna atrybucja i oznaczenie symulacji |
+| REVOKED | Materiał wycofany | Usunąć obraz z podglądu i listy ujęć, bez powrotu do jego starej kopii |
 | NO_COVERAGE | NO SIGNAL | Brak materiału nie wyłącza kamery w gameplayu |
 | DEFERRED/budżet/polityka | CAMERA OFFLINE / materiał niedostępny | Bez twierdzenia, że urządzenie zostało wyłączone |
 | Timeout/utrata odpowiedzi | SIGNAL LOST | Zachować dozwolony lokalny materiał, jeśli jest dostępny |
@@ -185,6 +193,9 @@ Mapillary nie jest fallbackiem dla POI ani źródłem dowodu world coverage.
 - Retry wybranego zadania respektuje limit i backoff. Usunięcie/wycofanie
   ma potwierdzenie oraz przegląd referencji; cofnięcie publikacji natychmiast,
   zwolnienie nieużywanych bajtów przez ograniczony GC.
+- Wycofanie pokazuje wszystkie powiązane archiwa i warianty, zakres decyzji,
+  blokadę ponownego pobrania oraz postęp usuwania z cache/plików/backupów.
+  Osobne statusy L01 i L02 z evidence; nie zastępować ich jednym „enabled”.
 
 Odczyt panelu i statystyk nie generuje zewnętrznego HTTP. Zmiany audytowane
 bez tokenów i pełnej historii ruchów graczy. UI pokazuje realną dostępność,
@@ -216,6 +227,13 @@ oznaczyć brak dowodu, nie PASS. Sprawdzić:
   stronie testowej; rzeczywistego Mapillary dopiero w zatwierdzonym odbiorze.
 - Publiczne „Źródła danych” bez logowania, PL/EN i mobilnie; działające linki,
   brak zastępowania atrybucji zdjęcia ogólną stroną dostawców.
+- Logo pozostaje widoczne w podglądzie na małym ekranie, po zmianie orientacji,
+  podczas efektów i zmiany ujęcia; panel licencji działa klawiaturą i dotykiem.
+- W zainstalowanej PWA sprawdzić wycofanie podczas podglądu, powrót z tła,
+  offline/online i ponowne otwarcie: kontrolowane cache i service worker nie
+  przywracają wycofanego zdjęcia. Przed ponownym pokazaniem po wznowieniu
+  zweryfikować dopuszczenie; brak weryfikacji oznacza materiał niedostępny.
+  Nie obiecywać usunięcia kopii zapisanych samodzielnie poza aplikacją.
 
 Backend: równoległe kamery w tej samej okolicy, read access po wylogowaniu,
 shutdown/expiry i zmiana właściciela operacji, cofnięcie zgody w czasie pobrania,

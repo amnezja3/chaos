@@ -123,6 +123,32 @@ ważność URL, usuwanie/wycofanie materiału i limity. Nie zakładać, że dost
 thumbnail daje prawo do bezterminowego archiwizowania. Jeśli archiwum nie jest
 dozwolone, przedstawić ograniczony wariant do decyzji zamiast ukrytej zmiany.
 
+### Uzupełnienie 30.10.2026 — zachowanie praw i dwie otwarte kwestie
+
+Wymaganie dla materiałów CC BY-SA: przechowywać razem z fotografią autora,
+źródło, dokładną wersję licencji, jej odnośnik oraz oznaczenie wykonanych zmian.
+Przy udostępnianiu przekształconego materiału zachować wymagania ShareAlike
+w zakresie wynikającym ze zweryfikowanej licencji. Deduplikacja, konwersja
+i usunięcie EXIF nie mogą usuwać tych informacji z manifestu ani prezentacji.
+Nie nakładać na odbiorcę dodatkowych ograniczeń praw do materiału CC BY-SA;
+uprawnienia do akcji w grze oddzielić od praw licencyjnych do otrzymanych zdjęć.
+Nie wywodzić z licencji fotografii automatycznej zmiany licencji kodu całej gry.
+Operacyjnego wycofania z CHAOS nie przedstawiać jako automatycznego cofnięcia
+praw wcześniej przyznanych odbiorcom.
+
+Pozostają **dwie nierozstrzygnięte kwestie**, a nie zgoda na integrację:
+
+- **L01 — archiwizacja i udostępnianie:** dopuszczalność przechowywania miniatur,
+  transformacji, deduplikacji i wielokrotnego serwowania w grze; zachowanie praw
+  CC BY-SA oraz wymagania wycofania, retencji i kopii zapasowych.
+- **L02 — logo i nawigacja:** czy widoczne logo Mapillary może otwierać osobny
+  panel licencji, z którego aktywny link prowadzi do źródła po potwierdzeniu,
+  czy wymagany jest bezpośredni odnośnik z logo.
+
+Dla obu zapisać źródło rozstrzygnięcia, datę, zakres i wynik przed produkcyjnym
+pozyskiwaniem/publikacją. Poniższa tabela rozwija kontrolę L01 i L02;
+wycofanie oraz użycie w grze są częściami L01.
+
 ### Rozdzielenie wymagań produktu od otwartych warunków Mapillary
 
 Potwierdzone decyzje operatora: miniatury zamiast oryginałów, jawne pochodzenie,
@@ -241,6 +267,25 @@ Quota oraz low-disk zatrzymują nowe zadania, nie istniejącą rozgrywkę.
 Retencja zdjęć wymaga jawnej decyzji zgodnej z warunkami; nie dziedziczy
 automatycznie 28-dniowej retencji backupów ani TTL cache POI.
 
+### Wycofanie ze współdzielonych archiwów
+
+- Wycofanie identyfikuje materiał przez dostawcę i image_id, obejmuje wszystkie
+  jego warianty oraz referencje we wszystkich archiwach kamer. Najpierw blokuje
+  publikację i odczyt, potem usuwa materiał z manifestów i kolejki doboru.
+- Zachować trwały wpis blokujący ponowne pozyskanie (tombstone), powód, czas
+  i zakres decyzji. Worker sprawdza go także bezpośrednio przed publikacją;
+  zadanie rozpoczęte wcześniej nie może odtworzyć wycofanego materiału.
+- Deduplikacja plików nie scala tożsamości ani atrybucji. Usunąć wszystkie
+  referencje wycofanego źródła; współdzielony plik można zachować tylko dla
+  niezależnych, nadal dopuszczonych referencji, zgodnie z zakresem wycofania.
+  Nie może to pozwalać na odczyt wycofanego materiału przez stare archiwum/URL.
+- Fizyczne usunięcie nieużywanych plików i wariantów wykonuje ograniczony GC.
+  Runbook określa terminy czyszczenia cache i backupów zgodnie z L01, oddzielając
+  natychmiastową blokadę od zakończenia usuwania. Restore stosuje aktualny rejestr
+  wycofań przed uruchomieniem odczytu; sam stary backup nie przywraca publikacji.
+- Zostawić minimalny ślad audytowy bez wycofanych zdjęć. Raport pokazuje liczbę
+  dotkniętych archiwów, usuniętych referencji i plików oraz zaległe czyszczenie.
+
 ## 164.5 — testy i kryteria zamknięcia
 
 - Adapter fixtures: 0/1/3 zdjęcia, poza promieniem, różne sekwencje, panorama,
@@ -261,6 +306,12 @@ automatycznie 28-dniowej retencji backupów ani TTL cache POI.
 - Manifest: brak autora/wersji licencji/źródła blokuje publikację; prawdziwe
   daty i zmiany; atomowa zgodność image_id, obrazu i atrybucji przy zmianie ujęcia;
   deduplikacja nie usuwa osobnych credits; cofnięcie zgody blokuje serve.
+
+- Wycofanie: jedno zdjęcie w kilku archiwach i wariantach, równoległa publikacja,
+  ponowne wyszukanie, stary URL, restart i restore. Brak ponownego udostępnienia;
+  niezależne dopuszczone materiały zachowują własną atrybucję i referencje.
+- CC BY-SA: zgodność autora/źródła/wersji/licencji/zmian po transformacji,
+  deduplikacji i odtworzeniu; rozstrzygnięcia L01/L02 zapisane jako osobne bramki.
 
 Deliverables: zaakceptowany prototyp jednej kamery i zapis odbioru, adapter,
 manifest/repository, worker CLI, migracja dry-run/backup,
