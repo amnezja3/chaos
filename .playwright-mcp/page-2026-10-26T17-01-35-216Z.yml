@@ -1,0 +1,22 @@
+- generic [active] [ref=e1]:
+  - heading "Cyberner" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - text: 🌐
+      - generic [ref=e5]:
+        - generic [ref=e6]: Neo
+        - text: Moja wiadomość
+    - generic [ref=e7]:
+      - text: 🌐
+      - generic [ref=e8]:
+        - generic [ref=e9]: Trinity <img src=x onerror=alert(1)>
+        - text: Wiadomość kontaktu
+        - generic [ref=e10]:
+          - button "Zgłoś" [ref=e11]
+          - button "Ustawienia kontaktu" [ref=e12]
+    - generic [ref=e13]:
+      - text: 🌐
+      - generic [ref=e14]:
+        - generic [ref=e15]: System
+        - text: System działa
+  - status

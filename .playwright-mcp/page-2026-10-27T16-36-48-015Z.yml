@@ -1,0 +1,105 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - link "CHAOS / ADMIN" [ref=f2e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+    - link "Return to game ↗" [ref=f2e4] [cursor=pointer]:
+      - /url: /desktop?_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+  - generic [ref=f2e5]:
+    - navigation "Administration sections" [ref=f2e6]:
+      - link "Users" [ref=f2e7] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "GhostLab" [ref=f2e8] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Radio" [ref=f2e9] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Narrative models" [ref=f2e10] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Territories" [ref=f2e11] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Vulnerabilities" [ref=f2e12] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Bug reports" [ref=f2e13] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Identity Gateway" [ref=f2e14] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "POI / Overpass" [ref=f2e15] [cursor=pointer]:
+        - /url: /dev?tab=poi&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+    - main [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - text: CHAOS / WORLD OPERATIONS
+        - heading "POI / Overpass" [level=1] [ref=f2e18]
+        - paragraph [ref=f2e19]: Technical tests, usage approval and profile compatibility are separate. Refreshing this panel does not query providers.
+        - button "Refresh status" [ref=f2e20] [cursor=pointer]
+        - group [ref=f2e21]:
+          - generic "Source hierarchy Scan and background collection order −" [ref=f2e22] [cursor=pointer]:
+            - text: Source hierarchy
+            - generic [ref=f2e23]: Scan and background collection order
+            - text: −
+          - generic [ref=f2e24]:
+            - heading "Provider hierarchy" [level=2] [ref=f2e25]
+            - paragraph [ref=f2e26]: Fresh local data takes precedence over APIs. The order applies only to compatible, approved providers. Saving does not enable providers or background fetching.
+            - group [ref=f2e27]:
+              - generic "Budget limits and usage" [ref=f2e28] [cursor=pointer]
+            - generic [ref=f2e29]:
+              - generic [ref=f2e30]:
+                - text: Layer
+                - combobox "Layer" [ref=f2e31]:
+                  - option "POI" [selected]
+                  - option "Roads"
+                  - option "Rivers and canals"
+                  - option "Lakes and reservoirs"
+                  - option "Coastlines"
+                  - option "Land and sea"
+              - generic [ref=f2e32]:
+                - text: Usage lane
+                - combobox "Usage lane" [ref=f2e33]:
+                  - option "Player scan" [selected]
+                  - option "World background"
+              - generic [ref=f2e34]:
+                - generic [ref=f2e35]:
+                  - text: Primary provider
+                  - combobox "Primary provider" [ref=f2e36]
+                - generic [ref=f2e37]:
+                  - text: First fallback
+                  - combobox "First fallback" [ref=f2e38]
+                - generic [ref=f2e39]:
+                  - text: Second fallback
+                  - combobox "Second fallback" [ref=f2e40]
+              - button "Save order" [ref=f2e41] [cursor=pointer]
+              - button "Restore previous order" [ref=f2e42] [cursor=pointer]
+            - group [ref=f2e43]:
+              - generic "Source eligibility for the selected profile" [ref=f2e44] [cursor=pointer]
+            - group [ref=f2e45]:
+              - generic "Routing history" [ref=f2e46] [cursor=pointer]
+        - group [ref=f2e47]:
+          - generic "World archive and queue Stored observations, maps and regional demand +" [ref=f2e48] [cursor=pointer]:
+            - text: World archive and queue
+            - generic [ref=f2e49]: Stored observations, maps and regional demand
+            - text: +
+          - option "All layers" [selected]
+          - option "POI"
+          - option "Roads"
+          - option "Waterways"
+          - option "Inland water"
+          - option "Coastline"
+          - option "Land–water"
+        - group [ref=f2e50]:
+          - generic "Providers and availability Status, diagnostics and source activation −" [ref=f2e51] [cursor=pointer]:
+            - text: Providers and availability
+            - generic [ref=f2e52]: Status, diagnostics and source activation
+            - text: −
+        - group [ref=f2e54]:
+          - generic "Add / edit provider +" [ref=f2e55] [cursor=pointer]
+        - group [ref=f2e56]:
+          - generic "Usage scope decision +" [ref=f2e57] [cursor=pointer]
+          - option "Not established" [selected]
+          - option "Public declaration"
+          - option "Awaiting confirmation"
+          - option "Approved scope"
+          - option "Restricted"
+          - option "Rejected"
+          - option "Review expired"
+        - group [ref=f2e58]:
+          - generic "Recent observations +" [ref=f2e59] [cursor=pointer]
+        - group [ref=f2e60]:
+          - generic "Change history +" [ref=f2e61] [cursor=pointer]

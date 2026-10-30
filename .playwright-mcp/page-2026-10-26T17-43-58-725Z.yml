@@ -1,0 +1,71 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - link "CHAOS / ADMIN" [ref=f3e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+    - link "Wróć do gry ↗" [ref=f3e4] [cursor=pointer]:
+      - /url: /desktop?_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+  - generic [ref=f3e5]:
+    - navigation "Sekcje administracji" [ref=f3e6]:
+      - link "Użytkownicy" [ref=f3e7] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "GhostLab" [ref=f3e8] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "Radio" [ref=f3e9] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "Modele narracji" [ref=f3e10] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "Terytoria" [ref=f3e11] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "Podatności" [ref=f3e12] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "Zgłoszenia błędów" [ref=f3e13] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+      - link "Identity Gateway" [ref=f3e14] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=6d4f21edd9bf48787eb641365e30f06345c6fe2642bae3ce5886c8609f0fa14b
+    - main [ref=f3e15]:
+      - generic [ref=f3e16]:
+        - generic [ref=f3e18]:
+          - text: CHAOS / ACCESS CONTROL
+          - heading "Identity Gateway" [level=1] [ref=f3e19]
+          - paragraph [ref=f3e20]: Logowanie, poczta i bezpieczeństwo kont w jednym miejscu.
+        - heading "Stan usług" [level=2] [ref=f3e21]
+        - group [ref=f3e22]:
+          - generic "Potwierdzenie tożsamości operatora Wymagane przed zmianą poczty lub usunięciem własnego konta +" [ref=f3e23] [cursor=pointer]:
+            - text: Potwierdzenie tożsamości operatora
+            - generic [ref=f3e24]: Wymagane przed zmianą poczty lub usunięciem własnego konta
+            - text: +
+          - option "Podłączenie" [selected]
+          - option "Odłączenie"
+          - option "Hasło"
+          - option "E-mail"
+          - option "Usunięcie"
+          - option "SMTP"
+        - group [ref=f3e25]:
+          - generic "Poczta i wiadomości testowe SMTP · TLS +" [ref=f3e26] [cursor=pointer]:
+            - text: Poczta i wiadomości testowe
+            - generic [ref=f3e27]: SMTP · TLS
+            - text: +
+          - option "Wyłączona" [selected]
+          - option "SMTP"
+          - option "STARTTLS" [selected]
+          - option "TLS / SSL"
+        - group [ref=f3e28]:
+          - generic "Połączenia konta Sprawdź metody logowania wybranego gracza −" [ref=f3e29] [cursor=pointer]:
+            - text: Połączenia konta
+            - generic [ref=f3e30]: Sprawdź metody logowania wybranego gracza
+            - text: −
+          - generic [ref=f3e32]:
+            - generic [ref=f3e33]:
+              - text: Login
+              - textbox "Login" [ref=f3e34]
+            - button "Sprawdź" [ref=f3e35] [cursor=pointer]
+        - group [ref=f3e36]:
+          - generic "Historia bezpieczeństwa Do 50 ostatnich zdarzeń · retencja 90 dni +" [ref=f3e37] [cursor=pointer]:
+            - text: Historia bezpieczeństwa
+            - generic [ref=f3e38]: Do 50 ostatnich zdarzeń · retencja 90 dni
+            - text: +
+        - group [ref=f3e39]:
+          - generic "Usuń moje konto operatora Operacja nieodwracalna · nie dotyczy wyszukiwanego gracza +" [ref=f3e40] [cursor=pointer]:
+            - text: Usuń moje konto operatora
+            - generic [ref=f3e41]: Operacja nieodwracalna · nie dotyczy wyszukiwanego gracza
+            - text: +

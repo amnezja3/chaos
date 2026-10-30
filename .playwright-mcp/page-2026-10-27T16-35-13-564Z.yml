@@ -1,0 +1,107 @@
+- generic [active] [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - link "CHAOS / ADMIN" [ref=f1e3] [cursor=pointer]:
+      - /url: /dev?_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+    - generic [ref=f1e4]: CENTRUM ADMINISTRACYJNE
+    - link "Wróć do gry ↗" [ref=f1e5] [cursor=pointer]:
+      - /url: /desktop?_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+  - generic [ref=f1e6]:
+    - navigation "Sekcje administracji" [ref=f1e7]:
+      - link "Użytkownicy" [ref=f1e8] [cursor=pointer]:
+        - /url: /dev?tab=users&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "GhostLab" [ref=f1e9] [cursor=pointer]:
+        - /url: /dev?tab=ghostlab&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Radio" [ref=f1e10] [cursor=pointer]:
+        - /url: /dev?tab=radio&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Modele narracji" [ref=f1e11] [cursor=pointer]:
+        - /url: /dev?tab=narrative&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Terytoria" [ref=f1e12] [cursor=pointer]:
+        - /url: /dev?tab=territories&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Podatności" [ref=f1e13] [cursor=pointer]:
+        - /url: /dev?tab=vulnerabilities&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Zgłoszenia błędów" [ref=f1e14] [cursor=pointer]:
+        - /url: /dev?tab=bugs&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "Identity Gateway" [ref=f1e15] [cursor=pointer]:
+        - /url: /dev?tab=identity&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - link "POI / Overpass" [ref=f1e16] [cursor=pointer]:
+        - /url: /dev?tab=poi&_session_generation=d86f2fa3b7c62e7c0b2f9bc5295e860df5c6266a582b5d457e678cb4496ed3a5
+      - paragraph [ref=f1e17]: GHOST NETWORKPanel operatora
+    - main [ref=f1e18]:
+      - generic [ref=f1e19]:
+        - text: CHAOS / WORLD OPERATIONS
+        - heading "POI / Overpass" [level=1] [ref=f1e20]
+        - paragraph [ref=f1e21]: Test techniczny, dopuszczenie źródła i zgodność profilu są oceniane osobno. Odświeżenie panelu nie odpytuje dostawców.
+        - button "Odśwież stan" [ref=f1e22] [cursor=pointer]
+        - group [ref=f1e23]:
+          - generic "Hierarchia źródeł Kolejność skanowania i pobierania w tle −" [ref=f1e24] [cursor=pointer]:
+            - text: Hierarchia źródeł
+            - generic [ref=f1e25]: Kolejność skanowania i pobierania w tle
+            - text: −
+          - generic [ref=f1e26]:
+            - heading "Hierarchia źródeł" [level=2] [ref=f1e27]
+            - paragraph [ref=f1e28]: Świeże dane lokalne mają pierwszeństwo przed API. Kolejność dotyczy tylko zgodnych i dopuszczonych źródeł. Zapis nie włącza źródła ani pobierania w tle.
+            - group [ref=f1e29]:
+              - generic "Limity i wykorzystanie budżetów" [ref=f1e30] [cursor=pointer]
+            - generic [ref=f1e31]:
+              - generic [ref=f1e32]:
+                - text: Warstwa
+                - combobox "Warstwa" [ref=f1e33]:
+                  - option "POI" [selected]
+                  - option "Drogi"
+                  - option "Rzeki i kanały"
+                  - option "Jeziora i zbiorniki"
+                  - option "Wybrzeża"
+                  - option "Ląd i morze"
+              - generic [ref=f1e34]:
+                - text: Tryb użycia
+                - combobox "Tryb użycia" [ref=f1e35]:
+                  - option "Skan gracza" [selected]
+                  - option "Uzupełnianie świata"
+              - generic [ref=f1e36]:
+                - generic [ref=f1e37]:
+                  - text: Źródło główne
+                  - combobox "Źródło główne" [ref=f1e38]
+                - generic [ref=f1e39]:
+                  - text: Pierwsze zapasowe
+                  - combobox "Pierwsze zapasowe" [ref=f1e40]
+                - generic [ref=f1e41]:
+                  - text: Drugie zapasowe
+                  - combobox "Drugie zapasowe" [ref=f1e42]
+              - button "Zapisz kolejność" [ref=f1e43] [cursor=pointer]
+              - button "Przywróć poprzednią kolejność" [ref=f1e44] [cursor=pointer]
+            - group [ref=f1e45]:
+              - generic "Dostępność źródeł dla wybranego profilu" [ref=f1e46] [cursor=pointer]
+            - group [ref=f1e47]:
+              - generic "Historia kolejności" [ref=f1e48] [cursor=pointer]
+        - group [ref=f1e49]:
+          - generic "Archiwum świata i kolejka Zapisane obserwacje, mapy i zapotrzebowanie regionów +" [ref=f1e50] [cursor=pointer]:
+            - text: Archiwum świata i kolejka
+            - generic [ref=f1e51]: Zapisane obserwacje, mapy i zapotrzebowanie regionów
+            - text: +
+          - option "Wszystkie warstwy" [selected]
+          - option "POI"
+          - option "Drogi"
+          - option "Rzeki i kanały"
+          - option "Jeziora i zbiorniki"
+          - option "Wybrzeża"
+          - option "Ląd–morze"
+        - group [ref=f1e52]:
+          - generic "Dostawcy i dostępność Status, testy i włączanie źródeł −" [ref=f1e53] [cursor=pointer]:
+            - text: Dostawcy i dostępność
+            - generic [ref=f1e54]: Status, testy i włączanie źródeł
+            - text: −
+        - group [ref=f1e56]:
+          - generic "Dodaj / edytuj źródło +" [ref=f1e57] [cursor=pointer]
+        - group [ref=f1e58]:
+          - generic "Decyzja o zakresie użycia +" [ref=f1e59] [cursor=pointer]
+          - option "Nieustalone" [selected]
+          - option "Deklaracja publiczna"
+          - option "Oczekuje na potwierdzenie"
+          - option "Zatwierdzony zakres"
+          - option "Ograniczony"
+          - option "Odrzucony"
+          - option "Przegląd wygasł"
+        - group [ref=f1e60]:
+          - generic "Ostatnie obserwacje +" [ref=f1e61] [cursor=pointer]
+        - group [ref=f1e62]:
+          - generic "Historia zmian +" [ref=f1e63] [cursor=pointer]
