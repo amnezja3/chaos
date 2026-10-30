@@ -26,6 +26,38 @@ budżetów MapLark/Geoapify i nie uruchamiają World Discovery background.
 
 ## Kolejność realizacji — najpierw doświadczenie gracza
 
+### Stała zasada realizacji CHAOS: LOCAL-FIRST
+
+Polityka dotyczy również kolejnych sprintów rozwijających istniejące systemy:
+repozytorium i lokalne środowisko są podstawowym miejscem implementacji oraz
+regresji; VPS służy odbiorowi gotowej integracji i pomiarom wymagającym serwera.
+W ramach tej aktualizacji zapisujemy politykę wyłącznie w sprintach 164–165.
+Nie zmienia ona poniższej obowiązkowej kolejności prototypu 164.0.
+
+Po akceptacji prototypu przygotować kompletne pakiety:
+
+- **A — backend:** kontrakty Ghost System i dostawcy, adapter, dobór miniatur,
+  optymalizacja, wspólne archiwum, deduplikacja, kolejka/worker, wycofania, migracje.
+- **B — integracja:** wygenerowane aplikacje, istniejąca operacja i okno kamery,
+  stany awaryjne, licencje/nawigacja, administracja i publiczne źródła danych.
+- **C — odbiór lokalny:** fixtures, testy jednostkowe, integracyjne, bezpieczeństwa,
+  regresja gameplayu, backup/restore na danych testowych i Playwright MCP.
+
+Pakiety można realizować ciągle, z testami wewnętrznymi, bez wdrożenia każdego
+podetapu. Jeśli brakuje danych, przygotować jedną listę i zebrać je w opcjonalnej
+sesji diagnostycznej, preferując odczyt, anonimowe próbki i konfigurację bez
+sekretów; nie kopiować zbędnych danych graczy. Przed wdrożeniem jeden raport:
+ukończony zakres, wyniki testów i poprawki, zgodność gameplayu, migracje/env,
+rollback, otwarte kwestie oraz uzasadnione testy możliwe dopiero na serwerze.
+Lokalne błędy blokują wdrożenie; test wymagający rzeczywistego środowiska musi
+mieć jawnie zapisany wyjątek, a nie fikcyjny PASS.
+
+Domyślnie 2–3 zaplanowane sesje dla całego zakresu: opcjonalna diagnostyka,
+wdrożenie kompletnego pakietu i kontrolowany pilot/odbiór. To plan, nie zakaz
+reakcji na awarię. Błąd VPS: zebrać diagnostykę, poprawić lokalnie, wykonać
+regresję i wrócić z poprawionym pakietem. Nie powtarzać na VPS sprawdzeń
+dostępnych lokalnie. Wyjątki: awarie krytyczne i problemy nieodtwarzalne lokalnie.
+
 **164.0 prototyp jednej kamery → jawna akceptacja autora → 164.1–164.5
 infrastruktura → 165 integracja i rollout.** Nie rozpoczynać rozbudowy kolejki,
 archiwum i panelu przed zaakceptowaniem prototypu. Do prototypu wystarcza
@@ -86,6 +118,51 @@ Nie planować refaktoru całego `run.py`.
 
 ## 164.1 — kontrakt materiału i dostawcy
 
+### Ghost System — wspólny kontrakt podglądu
+
+Rozpoznanie repozytorium 30.10.2026: `creator_policy.py` zawiera recepturę
+`camera_stream` z celem `camera`, operacją `camera_stream` i zasobem `camera_dump`.
+`doc/gameplay/app_contract.md` wskazuje `map_actions` jako router mapy;
+`interface` określa prezentację, nie uprawnienia. Publikacja przechodzi przez
+`creator_routes.py` i `build_creator_edition`. `creator_updates.py` chroni
+zgodność zamrożonego `creator_contract`, a `creator_legacy.py` sprawdza mechanikę
+historycznych wydań. Uwzględnić te ścieżki, nie tworzyć nowego generatora kamer.
+
+- Zdefiniować roboczą zdolność `camera_visual_preview` jako serwerowo wyznaczaną
+  zdolność prezentacji dla zweryfikowanego kontraktu obsługującego `camera_stream`.
+  Docelowe miejsce i wersjonowanie ustalić w istniejącej normalizacji kontraktu;
+  nie zakładać, że pole już istnieje. Bez ręcznej opcji w każdej aplikacji,
+  heurystyki nazwy/opisu ani zaufania do flagi przysłanej przez klienta/LLM.
+- Sam `camera_shutdown`, typ interfejsu albo etykieta „kamera” nie nadają prawa
+  do podglądu. Obowiązuje istniejąca walidacja aplikacji, celu i aktywnej operacji.
+- Wejście do CVN wiąże zweryfikowane app_id, operation_id oraz kanoniczną
+  tożsamość kamery z istniejącego kontraktu. Nie tworzyć camera_id per aplikacja;
+  nie utożsamiać kamery wyłącznie z nazwą lub swobodnymi współrzędnymi klienta.
+- Wszystkie aplikacje używają jednego repozytorium zdjęć, manifestu i kolejki.
+  app_id służy kontekstowi/autoryzacji, nie osobnej bazie ani kopii archiwum.
+  Wspólny materiał nie przenosi uprawnień między graczami lub operacjami.
+- Preferować zgodną projekcję zdolności podczas normalizacji/odczytu starych
+  kontraktów, bez ich przepisywania i bez ponownego generowania aplikacji.
+  Nie omijać porównania zamrożonej mechaniki w aktualizatorze. Jeśli migracja
+  jest konieczna: dry-run, lista zgodnych/odrzuconych wydań z powodami, backup,
+  idempotencja i rollback. Niejednoznaczny kontrakt nie otrzymuje nowych praw.
+
+Odbiór kontraktu: nowa i zgodna historyczna aplikacja wskazują tę samą kamerę
+i współdzielą materiał, przy osobnej kontroli dostępu. Definicja zdolności
+nie zmienia kosztu, ryzyka, czasu, zasobów ani wykonawcy operacji gry.
+
+### Zakres wyłączony — Ghost Lab i fotografie graczy
+
+W 164–165 nie powstają CAMERA CREATOR, instalowanie nowych kamer przez graczy,
+upload fotografii, aplikacja aparat/GPS, analiza Vision, wykrywanie/zamazywanie
+twarzy i tablic, moderacja zdjęć graczy ani źródło `PLAYER_UPLOAD`.
+Nie przygotowywać tabel, endpointów, kolejek ani innych elementów wyłącznie
+pod te przyszłe rozwiązania. Nie tworzymy Sprintu 166; temat pozostaje do
+dalszych ustaleń. Integracja istniejących aplikacji Ghost System nie oznacza
+rozbudowy Ghost Laba o tworzenie kamer.
+
+### Manifest
+
 Manifest zawiera: archive_id, wersję kontraktu i przetwarzania, camera binding,
 pozycję celu, image_id i sequence_id dostawcy, pozycję zdjęcia, odległość,
 azymut zdjęcia (nullable), źródło/wiarygodność kierunku, kierunek referencyjny
@@ -136,14 +213,26 @@ Nie wywodzić z licencji fotografii automatycznej zmiany licencji kodu całej gr
 Operacyjnego wycofania z CHAOS nie przedstawiać jako automatycznego cofnięcia
 praw wcześniej przyznanych odbiorcom.
 
-Pozostają **dwie nierozstrzygnięte kwestie**, a nie zgoda na integrację:
+Aktualizacja na podstawie przekazanego przez operatora podsumowania odpowiedzi
+Semira Kahrimanovica z Mapillary z 26.10.2026 (nie niezależna weryfikacja treści
+korespondencji): pojedyncze zdjęcia i serwowanie z własnego serwera są przewidziane
+w warunkach deweloperskich, skalowanie/konwersja zasadniczo dopuszczalne,
+materiały standardowych użytkowników wskazano jako CC BY-SA 4.0 z atrybucją.
+Nie oznacza to jednakowych praw do każdego materiału ani wieczystej retencji.
+Przed pilotem do evidence dołączyć korespondencję/referencję i właściwe warunki.
 
-- **L01 — archiwizacja i udostępnianie:** dopuszczalność przechowywania miniatur,
-  transformacji, deduplikacji i wielokrotnego serwowania w grze; zachowanie praw
-  CC BY-SA oraz wymagania wycofania, retencji i kopii zapasowych.
+Pozostają **dwie bramki z częściowo rozstrzygniętym zakresem**:
+
+- **L01 — częściowo rozstrzygnięta:** powyższe pobieranie, transformacje
+  i własne serwowanie mają potwierdzenie w przekazanym podsumowaniu. Otwarte:
+  konkretna retencja, zasady wycofania/zastępowania i backupów oraz dopuszczenie
+  docelowego zastosowania przy zachowaniu praw odbiorcy CC BY-SA.
 - **L02 — logo i nawigacja:** czy widoczne logo Mapillary może otwierać osobny
   panel licencji, z którego aktywny link prowadzi do źródła po potwierdzeniu,
   czy wymagany jest bezpośredni odnośnik z logo.
+  **L02 pozostaje otwarta:** przekazana rekomendacja to logo-link do dostawcy
+  i osobny panel informacji; dwuetapowe wyjście nie ma jednoznacznej akceptacji.
+  Nie zmieniać samodzielnie uzgodnionego UX; konflikt przedstawić operatorowi.
 
 Dla obu zapisać źródło rozstrzygnięcia, datę, zakres i wynik przed produkcyjnym
 pozyskiwaniem/publikacją. Poniższa tabela rozwija kontrolę L01 i L02;
@@ -160,7 +249,7 @@ zakres oceny i rozstrzygnięcie następujących kwestii:
 | Obszar | Pytanie do warunków / Mapillary | Warunek odbioru |
 | --- | --- | --- |
 | Atrybucja i link | Czy widoczne logo otwierające panel, a w nim aktywny odnośnik z potwierdzeniem wyjścia, spełnia wymogi? Czy logo musi prowadzić bezpośrednio do dostawcy? | Odpowiedź dostawcy lub jednoznaczny zapis aktualnych warunków; bez domniemania zgody |
-| Archiwizacja | Czy dozwolone są trwałe, zoptymalizowane kopie na serwerze CHAOS oraz wielokrotne udostępnianie bez ponownego API? | Udokumentowany zakres archive/transform/serve i obowiązki dotyczące licencji po zmianach |
+| Archiwizacja (L01) | Własne serwowanie i transformacje opisano powyżej jako częściowo potwierdzone. Jakie są dokładne warunki retencji i ponownego użycia? | Evidence zakresu archive/transform/serve; jawna retencja i obowiązki po zmianach, bez założenia wieczystego archiwum |
 | Wycofanie | Jak obsługiwać usunięcie fotografii, cofnięcie dostępu i kopie zapasowe? | Procedura wycofania i retencja zgodna ze zweryfikowanymi warunkami |
 | Gra | Czy archiwalna symulacja monitoringu i dostęp zależny od uprawnień w niekomercyjnej grze są dopuszczalne przy zachowaniu praw odbiorców CC BY-SA? | Udokumentowane rozstrzygnięcie; mechaniki gry nie przedstawiane jako ograniczenie praw licencyjnych |
 
@@ -210,8 +299,12 @@ Brak odpowiednich zdjęć daje `NO_COVERAGE`, a nie obraz z dalszego miasta.
 
 ## 164.3 — kolejka i ograniczony worker
 
-Stany: QUEUED → FETCHING → PROCESSING → READY; terminalne NO_COVERAGE,
-FAILED, REVOKED oraz DEFERRED dla budżetu/polityki. Techniczny powód zapisany
+Wspólny słownik backend/worker/API/UI: QUEUED → FETCHING → PROCESSING → READY;
+NO_COVERAGE, FAILED, EXPIRED i REVOKED kończą bieżące zadanie. DEFERRED oznacza
+odroczenie budżetu/polityki z terminem ponownej kwalifikacji, bez aktywnego HTTP.
+FAILED oznacza zakończoną nieudaną próbę po wyczerpaniu dozwolonego retry;
+EXPIRED — przekroczony TTL, REVOKED — administracyjnie/polityką wycofany materiał.
+Techniczny powód zapisany
 osobno od wizualnego scenariusza. Rezerwacja limitu przed HTTP, licznik
 rzeczywistych prób, respektowanie Retry-After i bounded backoff; bez pętli
 retry z przeglądarki. Negatywny cache i czas następnej dopuszczalnej próby.
@@ -310,6 +403,10 @@ automatycznie 28-dniowej retencji backupów ani TTL cache POI.
 - Wycofanie: jedno zdjęcie w kilku archiwach i wariantach, równoległa publikacja,
   ponowne wyszukanie, stary URL, restart i restore. Brak ponownego udostępnienia;
   niezależne dopuszczone materiały zachowują własną atrybucję i referencje.
+- Ghost System: nowe i historyczne kontrakty, cztery interfejsy creatora,
+  identyczna tożsamość kamery i deduplikacja między aplikacjami, odrzucona
+  podszyta zdolność, shutdown bez stream, cudza/wygasła operacja; brak zmiany
+  kosztów, zasobów i zamrożonych kontraktów podczas kompatybilnego odczytu.
 - CC BY-SA: zgodność autora/źródła/wersji/licencji/zmian po transformacji,
   deduplikacji i odtworzeniu; rozstrzygnięcia L01/L02 zapisane jako osobne bramki.
 

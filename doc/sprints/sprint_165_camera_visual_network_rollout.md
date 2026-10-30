@@ -26,6 +26,33 @@ ani workera przy samym wdrożeniu schematu i interfejsu.
 
 ## 165.0 — integracja z działającą akcją
 
+### Ghost System → aplikacja → operacja → CVN → podgląd
+
+Każda kompatybilna aplikacja do podglądu kamer wygenerowana przez Ghost System
+automatycznie korzysta z istniejącego okna i wspólnego archiwum CVN, bez ręcznego
+dopisywania funkcji do wydań. Wykorzystać kontrakt/projekcję
+`camera_visual_preview` z 164.1, istniejące `map_actions`, walidację celu
+i wykonawcę `camera_stream`; nie dodawać równoległego systemu kamer.
+
+Ścieżka odbioru: wygenerowanie/publikacja i instalacja aplikacji → wybór narzędzia
+z mapy → autoryzowana istniejąca operacja kamery → wspólny manifest/zadanie CVN
+→ istniejący podgląd ze wszystkimi stanami z 165.2, licencją i nawigacją.
+Brak zdjęć lub błąd CVN nie zmienia wyniku ani kosztu operacji gry.
+Różne interfejsy aplikacji przekazują kontekst do tego samego podglądu;
+nie wymagać zmiany `interface` na `window` ani tworzyć drugiej operacji.
+
+Przeprowadzić tę ścieżkę także dla aplikacji wygenerowanych wcześniej,
+opublikowanych i już zainstalowanych. Zgodne kontrakty otrzymują podgląd przez
+projekcję runtime bez regenerowania, ponownego zakupu i zmiany mechaniki.
+Nie obchodzić walidacji `creator_updates.py`/`creator_legacy.py`; niezgodne
+wydania zachowują dotychczasowe działanie, a raport wskazuje powód braku CVN.
+Ponowne otwarcie albo druga zgodna aplikacja do tej samej kamery korzystają
+ze wspólnego archiwum, z niezależną autoryzacją i bez podwójnego naliczenia.
+
+Obowiązują wyłączenia z 164.1: bez CAMERA CREATOR, instalowania kamer,
+zdjęć graczy, aparatu/GPS, Vision, zamazywania twarzy/tablic, moderacji
+i `PLAYER_UPLOAD`; bez infrastruktury na zapas i bez nowego Sprintu 166.
+
 Po zaakceptowaniu istniejącej operacji kamera może odczytać manifest lub
 zgłosić deduplikowane zadanie. Ponowne otwarcie okna nie uruchamia ponownie
 operacji gry ani jej efektów. Wspólny archiwalny obraz nie jest zasobem
@@ -158,6 +185,8 @@ Wykaz źródeł nie zastępuje atrybucji przy każdej prezentowanej fotografii.
 | QUEUED/FETCHING/PROCESSING | SYNCHRONIZING | Ograniczony polling, bez kolejnych pobrań od odświeżenia |
 | READY | Archiwalne ujęcia | Widoczna atrybucja i oznaczenie symulacji |
 | REVOKED | Materiał wycofany | Usunąć obraz z podglądu i listy ujęć, bez powrotu do jego starej kopii |
+| FAILED | SIGNAL LOST / materiał niedostępny | Zakończone zadanie, przyczyna w adminie; bez pętli retry w UI |
+| EXPIRED | Przygotowanie wygasło | Zakończony TTL zadania; nowe zlecenie tylko przez normalną walidację i limity |
 | NO_COVERAGE | NO SIGNAL | Brak materiału nie wyłącza kamery w gameplayu |
 | DEFERRED/budżet/polityka | CAMERA OFFLINE / materiał niedostępny | Bez twierdzenia, że urządzenie zostało wyłączone |
 | Timeout/utrata odpowiedzi | SIGNAL LOST | Zachować dozwolony lokalny materiał, jeśli jest dostępny |
@@ -204,6 +233,23 @@ obecną konfigurację serwerową, zapisywać jedynie secret reference.
 
 ## 165.4 — testy i pomiary
 
+Realizacja według stałej polityki LOCAL-FIRST z 164: najpierw kompletne pakiety
+A/B/C i raport gotowości, następnie zbiorcze wdrożenie/odbiór. Testy możliwe
+lokalnie nie są osobnymi sesjami VPS. Przed rolloutem udokumentować:
+
+- Generator/publikację/instalację i uruchomienie z mapy dla każdego wspieranego
+  interfejsu oraz zgodnych wydań historycznych; bez ręcznego dopisywania podglądu.
+- Pełną ścieżkę Ghost System → istniejąca operacja → CVN → okno, zamknięcie
+  i reopen, współdzielenie zdjęć przez dwie aplikacje i dwóch graczy.
+- Odmowę dla shutdown-only, sfałszowanej zdolności, cudzej/wygasłej operacji;
+  wszystkie stany kolejki/UI, brak podwójnych operacji, opłat i zasobów.
+- Porównanie mechaniki i kontraktów przed/po: ceny, czasy, ryzyko, uprawnienia,
+  shutdown oraz camera_dump bez zmian. Brak automatycznej przebudowy starych wydań.
+
+Wykorzystać istniejące testy creator policy/routes/legacy, fixture
+`tools/creator_browser_fixture.py`, testy runtime kamer i deduplikacji okna.
+Dołożyć scenariusze do istniejącej ścieżki, nie budować alternatywnego launchera.
+
 Playwright MCP z izolowanym kontem/danymi: realna akcja → okno → READY,
 NO_COVERAGE, błąd, restart/reopen; PL/EN desktop/mobile, mały ekran, reduced
 motion, focus, inline feedback, brak nowej karty, brak sekretów/API dostawcy
@@ -212,6 +258,9 @@ testu użytkownika zamiast dostępnej lokalnej automatyzacji.
 
 Osobna macierz atrybucji/nawigacji: desktop web, telefon web oraz rzeczywiście
 zainstalowana PWA na dostępnych platformach. Emulacja viewportu nie zalicza PWA.
+Wszystko odtwarzalne lokalnie sprawdzić przed wdrożeniem; rzeczywistą nawigację
+zainstalowanej PWA odebrać zbiorczo na dostępnych urządzeniach. Brak urządzenia
+pozostaje jawną luką dowodową, nie powodem powtarzania testów na VPS.
 Zapisać przeglądarkę/OS/tryb uruchomienia, powrót i stan sesji. Bez środowiska PWA
 oznaczyć brak dowodu, nie PASS. Sprawdzić:
 
