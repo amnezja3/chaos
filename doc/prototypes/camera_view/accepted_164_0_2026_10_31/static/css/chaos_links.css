@@ -1,0 +1,12 @@
+/* Shared system badges: interactive actions and quiet informational companions. */
+.chaos-link, .chaos-info { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border:1px solid #75bebc40; border-radius:5px; background:#102321c2; color:#b3d9d4; font:11px/1.4 monospace; vertical-align:middle; text-decoration:none; box-shadow:inset 0 0 8px #71c9c908; }
+a.chaos-link { cursor:pointer; text-decoration:none; }
+.chaos-link:hover { color:#dbf5f0; border-color:#85ceca80; box-shadow:0 0 9px #6abfbf20; }
+.chaos-link:focus-visible { outline:2px solid #85ceca99; outline-offset:3px; }
+.chaos-link[aria-disabled=true] { opacity:.6; cursor:wait; }
+.chaos-link svg { width:16px; height:16px; flex:0 0 16px; color:#89c9c2; }
+.chaos-link[data-chaos-link="teleport"] { border-color:#8eabc247; }
+.chaos-link[data-chaos-link="teleport"] svg { color:#a5c5db; }
+.chaos-link span { overflow-wrap:anywhere; }
+.chaos-info { color:#93aaa6; background:#0c181a90; }
+[data-chaos-link-output] { font:11px/1.5 monospace; color:#b3d9d4; overflow-wrap:anywhere; max-height:90px; overflow:auto; }

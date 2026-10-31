@@ -4,6 +4,243 @@ Nowe wpisy: najnowsze na górze. Starsza część zachowuje historyczny, miejsca
 mieszany porządek; ostatnia linia nie wyznacza aktualnego statusu.
 [Zasady journalu i przekazanie](../runbooks/handoff_project_2026_10_31.md#obowiązkowe-prowadzenie-journalu).
 
+## 2026-10-31 — korekta workflow 165.1: zakres Git, bez ZIP
+
+- Paczka implementacyjna oznacza zamknięty zakres kodu w istniejącym repo,
+  wdrażany standardowym commit/push po zgodzie. Poprawiono sprinty 164–166,
+  raport, tablicę, handoff i zbiorczą procedurę wdrożenia/odbioru.
+- Sprawdzono HEAD, status/diff i nowe pliki. Wszystkie 99 plików ZIP są
+  identyczne z odpowiednikami w repo, CRC/SHA-256 poprawne; brak unikalnych
+  źródeł lub wyników testów. Usunięto ZIP, manifest dystrybucji, sumę ZIP
+  oraz skrypt pakujący. Zachowano źródła, testy, zrzuty, raporty i wzorzec PASS.
+- [Wykaz zakresu](../audits/camera_street_view_165_1_git_scope.md).
+  Nie zmieniano implementacji, nie powtarzano zaliczonych testów.
+  Bez commit/push/VPS. Następny etap wymaga decyzji operatora.
+
+## 2026-10-31 — Camera Street View 165.1: pierwsza paczka lokalna
+
+- Ukończono lokalną implementację kontraktu: kanoniczny download i Super Powers,
+  potwierdzony zapis aktywatora, trwałe zużycie po zamknięciu, nowy grant i ruch
+  dopiero po kolejnym sukcesie. Retry/reconnect nie tworzą nowego okna.
+- Adapter i prywatne archiwum są w pierwszej paczce: fixtures, optymalizacja,
+  limity, pojedynczy worker, wycofania, backup/restore, panel i źródła PL/EN.
+  Późny materiał aktualizuje istniejący DOM; brak materiału daje NO SIGNAL.
+- Backend: gameplay 22 PASS, archive 10 PASS. Nienaruszony camera_off:
+  shutdown 20 PASS, exposure 8 PASS, incident audit 3 PASS. JS: 3 PASS.
+  Playwright: 31 kontroli gameplayu oraz resize, reconnect, późne media,
+  stopka, źródła PL/EN i zamknięcie z błędem sieci + ponowne logowanie PASS.
+  Ostatnia zwykła sesja przeglądarki: 0 błędów konsoli. Przeglądarka i własny
+  serwer testowy zamknięte. Panel admina zweryfikowany backendowo; main ma 403.
+- [Raport](../audits/camera_street_view_package_165_1.md) i
+  [procedura wdrożenia/rollback](../runbooks/camera_street_view_package_165_1.md).
+  Historycznie utworzono dodatkowy ZIP i manifest (usunięte po korekcie workflow);
+  28 plików zaakceptowanego wzorca sprawdzanych ponownie przez SHA-256.
+- Bez commit/push/VPS i prawdziwych wywołań Mapillary. Flagi domyślnie OFF.
+  Sprint 166 pozostaje odbiorem prawdziwego API, L01/L02, retencji, VPS i PWA;
+  lokalny PASS nie jest zgodą na publikację ani masowy rollout.
+
+## 2026-10-31 — Camera Street View: PASS i zabezpieczenie wzorca
+
+- Operator nadał PASS głównemu oknu, ruchowi, zakłóceniom i sześciu scenariuszom;
+  faza projektowania wyglądu zakończona. Zabezpieczono 28 plików prezentacji
+  w `doc/prototypes/camera_view/accepted_164_0_2026_10_31`, z manifestem SHA-256
+  i weryfikacją ponownego odczytu. Snapshot nie zawiera bazy, sekretów ani
+  backendu, który był już w trakcie zmian. Skrypt odmawia nadpisania checkpointu.
+- Pełna wytyczna operatora zachowana w
+  `doc/plans/camera_street_view_operator_contract_2026_10_31.md`.
+  Nadrzędny kontrakt: kanoniczny czas pobrania i Super Powers, jednorazowy feed,
+  trwałe zużycie przy ręcznym zamknięciu, nowe hakowanie i pobranie przy powrocie.
+- `camera_off`/`camera_shutdown` pozostaje osobną mechaniką Response Network.
+  Wykonana regresja: shutdown 20 PASS, exposure 8 PASS, incident audit 3 PASS.
+- Trwa implementacja pierwszej paczki: adapter Mapillary wyłącznie na fixtures,
+  wspólne archiwum, fencing, limity, optymalizacja WebP, wycofanie i panel admina.
+  Dotąd lifecycle 18 testów PASS, archive 6 PASS; dalsza regresja w toku.
+  Brak push, VPS i wywołań API dostawcy. Przeglądano wyłącznie publiczną dokumentację API.
+
+## 2026-10-31 — sześć scenariuszy widocznych jednocześnie
+
+- Na prośbę operatora dodano „Porównaj 6 zakłóceń” w stopce działającego
+  podglądu. Sześć podpisanych kafli pokazuje każdy efekt oddzielnie na tym samym
+  uprawnionym zdjęciu. Powtórne kliknięcie zamyka porównanie i usuwa kafle.
+- To widok porównania w istniejącej instancji; brak dodatkowych grantów,
+  pobrań zdjęć lub okien. Cykle tracking/chroma/blocks skrócono wyłącznie
+  w porównaniu do 6/4/4 s. Właściwy show zachowuje dotychczasowe czasy.
+- Playwright na lokalnej grze: sześć kafli, jedna instancja, sprzątanie po
+  zamknięciu, mobile bez poziomego overflow i reduced-motion — PASS.
+  Zrzut `artifacts/cvn-164-effects-comparison.png` sprawdzony wizualnie.
+  Brak pageerror w sprawdzonym scenariuszu. Cache CSS/JS `164-0-8`.
+- Dostęp: odświeżyć pulpit, otworzyć podgląd kamery, przycisk w stopce MapiFi.
+  Bez push i VPS.
+
+## 2026-10-31 — zaakceptowany show kamery i sześć assetów zakłóceń
+
+- Operator zaakceptował wygląd i działanie show, Focus/Teleport oraz elementy
+  okna. Tablica pilota v4 zapisuje odbiór i pakiet P20.
+- Dodano sześć proceduralnych SVG w `static/images/camera_visual/effects/`:
+  ziarno, scan lines, tracking, chroma, bloki kompresji i dropout. Manifest
+  oraz README opisują pochodzenie i scenariusze. Pięć warstw live pod HUD,
+  szósty asset dla NO SIGNAL/RECONNECTING; bez nowych timerów i żądań stanu.
+- Playwright na prawdziwym `/desktop` lokalnej kopii main: 12 kontroli efektów,
+  29 kontroli gameplayu, resize oraz utrata/odzyskanie połączenia — PASS.
+  Instancja i zdjęcie nie odtwarzają się podczas zakłóceń; pauza minimalizacji
+  i reduced-motion działają. Zrzuty `artifacts/cvn-164-effects-*.png`.
+- Sprawdzono wygląd chroma i dropout. Konsola po regresji bez błędów;
+  test awarii celowo wywołał trzy odpowiedzi 503. Nie oznacza to ponownego
+  testu 30-minutowego pobierania ani testu wydajności na docelowym sprzęcie.
+- LOCAL-FIRST, bez push i VPS. Akceptacja wyglądu jest zamknięta; pakiet
+  zakłóceń sprawdzony lokalnie, dalszy zakres pozostaje w planie 164–165.
+
+## 2026-10-31 — systemowe akcje tekstowe i stopka MapiFi
+
+- Wspólny renderer rozpoznaje focus:lat:lon / teleport:lat:lon w tekstach okien,
+  w tym Cybernerze i Google Plexie. Dedykowane SVG celownika/błyskawicy.
+  Kamera pokazuje tylko dwa krótkie przyciski na górze i zwarte współrzędne.
+- Stała stopka MapiFi z typem materiału, autorstwem, źródłem i licencją;
+  szczegóły pod „O materiale”. AI i brak przypisanej licencji zgodnie z zasobem.
+- Playwright: 29 sprawdzeń kamery, resize, akcje tekstowe przez rzeczywiste
+  renderery Cybernera/Google Plexa (fixture tylko odczytu), bezpieczeństwo tekstu
+  i brak duplikatów PASS. Google Plex News PL/EN i trzy regresje kamer JS PASS.
+- Stary test_googleplex_search_layout.js nie przechodzi asercji wymagającej
+  literalnego „Brak opisu.”; potwierdzone również z terminal.js z HEAD.
+  Backend i aktywacja bez zmian; bez pushu. [Tablica](../plans/camera_visual_pilot_164_0_board.md): P19.
+
+## 2026-10-31 — pilot 164.0: jedno zdjęcie i wolna pętla po łuku
+
+- Korekta operatora zastępuje rotację trzech zdjęć. Grant zapisuje jedno źródło
+  i jeden tor Béziera, 180–300 s w jedną stronę, z dokładnym powrotem po tej
+  samej trasie. Pełny cykl 6–10 min; rozbieg i hamowanie są łagodne.
+- Motion v2 jest trwałe per gracz/grant. V1 migruje jednorazowo przy claim.
+  Frontend pobiera jeden obraz; nie tworzy częściowego okna ze starym kontraktem.
+- 15 testów backendu i trzy regresje JS PASS. Aktualna walidacja przeglądarkowa
+  i status odbioru w [tablicy pilota](../plans/camera_visual_pilot_164_0_board.md), P18.
+- Wymagany restart działającego Flask po aktualizacji kodu backendu. Bez pushu.
+
+## 2026-10-31 — pilot 164.0: stabilność, linki CHAOS, ruch per gracz i resize
+
+- Naprawiono rekonstrukcję okna po wygaśnięciu lease podczas SQLite busy:
+  pauza i recovery tego samego DOM, rzadsze odnowienia, read-only heartbeat,
+  zwolnienie przy pagehide, brak zapisów workera dla gotowego aktywatora.
+- Trwała losowa charakterystyka ruchu każdego grantu: start/end/czas dla
+  trzech zdjęć, ping-pong, osobny wariant drugiego gracza; upgrade starych grantów.
+- [Linki CHAOS v1](../architecture/chaos_links_v1.md): cztery warianty,
+  wspólne badge’e panelu/informacji. Resize natywnym narożnikiem i container queries.
+- 15 backend + 3 JS PASS; Playwright 27 gameplay + fault recovery bez reloadu
+  mediów, resize, linki i fokus PASS. [Tablica](../plans/camera_visual_pilot_164_0_board.md): P14–P17.
+- Nie ustalono posiadacza pierwotnej blokady DB; nie deklarujemy naprawy
+  wszystkich blokad globalnych. LOCAL-FIRST, bez pushu i procedur VPS.
+
+## 2026-10-31 — pilot 164.0: Camera Network, fokus mapy i HUD
+
+- Przygaszone turkusowe obramowania; wygenerowana ikona Camera Network
+  zapisana w repo wraz z promptem. Współrzędne `lat:lon` otwierają fokus mapy.
+- ONLINE/REC, zegar czasu paryskiego i ograniczone do trzech wierszy przewijane
+  logi symulacji; zachowane ruch kadru, trzy obrazy i zakłócenia.
+- Playwright MCP: 27 sprawdzeń podglądu + rzeczywisty fokus mapy PASS,
+  0 błędów konsoli; trzy regresje JS PASS. [Tablica](../plans/camera_visual_pilot_164_0_board.md): P13 do odbioru.
+- Bez pushu, wdrożenia i zmian kontraktu aktywacji.
+
+## 2026-10-31 — pilot 164.0: ruchomy kadr kamery
+
+- Operator zaakceptował pierwszy wygląd jako bazę. Podgląd wykorzystuje trzy
+  obrazy automatycznie, z kadrem 2× i powolnym patrolem, przenikaniem, szumem
+  oraz zakłóceniami. MapiFi i link do panelu; tytuł wskazuje lokalizację.
+- Usunięto odziedziczony tytuł Glass Eye i przyciski pór dnia. Opis syntetycznych
+  zdjęć znajduje się w panelu. Zachowany standardowy shell i bramka aktywacji.
+- Playwright MCP: 22 sprawdzenia PASS, pełny cykl bez skracania czasu,
+  desktop/mobile/EN, brak duplikatu; 0 błędów konsoli. Trzy regresje JS PASS.
+- [Tablica pilota](../plans/camera_visual_pilot_164_0_board.md): P12 do odbioru.
+  Bez pushu, wdrożenia i procedur VPS.
+
+## 2026-10-31 — pilot 164.0 zintegrowany z właściwym gameplayem
+
+- Glass Eye i wskazana Kamera sklepu na `main`: rzeczywiste `/hack-action`,
+  launch queue, `/gonna-win`, trwały wynik, SESSION CLOSE, istniejąca operacja
+  camera_stream 1800 s, aktywator na kanonicznym dysku i nowy standardowy viewer.
+  Failure nie inicjuje dalszej operacji i pozostawia widoczny wynik referencji.
+- Nowy wąski koordynator `camera_visual.py`, standardowe okno Ghost Systemu,
+  obrazy chronione sesją, kontrola zapisu/checksum i dzierżawa przeciw duplikatom.
+  Poprawiono transport celu kolejki — stary cel toolbara nie zastępuje celu
+  launch receipt. Postęp i reopen dostępne w rzeczywistym Centrum Operacji.
+- 10 testów backendu pilota PASS (pakiet 9 + dodany test wygenerowanej aplikacji),
+  20 testów shutdown PASS, trzy regresje JS PASS. Playwright MCP: normalne
+  logowanie i desktop na kopii backupu; success/failure oraz 15 sprawdzeń okna,
+  trzy kadry, PL/EN/mobile, NO SIGNAL, reload, logout/login i restart procesu.
+  Jedna kanoniczna operacja i jeden aktywator po scenariuszach sukcesu/porażki.
+- Test przeglądarkowy użył przesunięcia terminów wyłącznie lokalnej operacji;
+  nie odczekano 30 minut zegara ściennego. Produkcyjny czas pozostał 1800 s.
+  Backup bez zmian; kontrola integralności kopii `ok`. Dane testowego logowania
+  wyłącznie w ignorowanym `instance/cvn-gameplay-164/LOCAL_ACCESS.txt`.
+- Szersza suita Creator payments nie zaliczona: błąd seedowania admina
+  potwierdzony również na HEAD `3556abd`; diagnostyczną zmianę testu cofnięto.
+  Szczegóły i granice dowodów w [audicie gameplayu](../audits/camera_visual_gameplay_164_0.md).
+- [Tablica v3](../plans/camera_visual_pilot_164_0_board.md): implementacja i testy
+  pilota gotowe, P11 DO ODBIORU operatora. Launcher `tools/camera_visual_local.py`
+  uruchamia prawdziwą grę na kopii, nie demonstrator A/B. Bez pushu/commitu i VPS;
+  istniejąca zmiana użytkownika `preview.css` zachowana.
+
+## 2026-10-31 — trzy obrazy testowe Paryża do pilota 164.0
+
+- Na zamówienie operatora wygenerowano trzy obrazy wbudowanym image_gen:
+  zmierzch, noc i poranek, spójny punkt widzenia fikcyjnej kamery sklepu.
+  [Materiały i prompty](../../assets/camera_visual/pilot_164_0/paris/README.md)
+  zapisane w repo; oznaczenie AI_GENERATED_TEST, bez przypisywania Mapillary,
+  rzeczywistej daty wykonania ani zgodności ze wskazanymi współrzędnymi.
+- Tablica pilota v2: P08 gotowe w zakresie materiałów syntetycznych zamówionych
+  przez operatora. Podłączenie do runtime i odbiór UI pozostają do wykonania.
+  Kontrola wizualna wygenerowanych obrazów, plików PNG i diff; bez pushu.
+
+## 2026-10-31 — wspólna tablica pracy pilota 164.0
+
+- Na prośbę operatora utworzono trwały artefakt:
+  [tablica pilota](../plans/camera_visual_pilot_164_0_board.md).
+  Zawiera wybrany przypadek `main`/Glass Eye/Kamera sklepu, przebieg success/failure,
+  zadania P01–P11, dowody, otwarte ustalenia i zasady aktualizacji.
+- Sprint 164 i handoff kierują do tej samej tablicy. Stan początkowy rozdziela
+  przygotowaną kopię i potwierdzone dane od niewykonanej integracji i odbioru.
+  Najbliższe zadanie: prześledzić rzeczywisty start i wynik aplikacji.
+- Pakiet dokumentacyjny; kontrola odnośników i diff, bez zmian runtime,
+  nowych testów gameplayu, commitu, pushu ani VPS.
+
+## 2026-10-31 — operator wskazał rzeczywistą kamerę pilota 164.0
+
+- Konto `main`, Glass Eye (`admin_seed_camera_stream_v1`), Kamera sklepu:
+  `48.864173348628704, 2.330499567661377`. Zastępuje roboczy wybór CamStream.
+  Integracja nadal przez zgodny kontrakt `camera_stream`, bez zależności od nazwy.
+- Odczyt tylko kanonicznych tabel backupu `game-prod-20261031T065150Z.sqlite3`
+  potwierdził instalację Glass Eye i dokładny cel w anulowanej operacji
+  `op_20261031061759_202628`. Cel legacy nie zawiera camera_id/scan_id.
+  Nie reaktywowano anulowanej operacji ani nie przyznano dostępu do podglądu.
+- Operator potwierdził, że request z receipt `47b35865a4fb7612587a` pochodzi
+  już po backupie. Brak tego receipt w kopii nie jest błędem dopasowania kamery.
+- Utworzono osobną lokalną kopię bazy w ignorowanym katalogu
+  `instance/cvn-gameplay-164/data/game.sqlite3`; backup i aktywna baza bez zmian.
+  Gra nie została jeszcze uruchomiona na tej kopii. Bez deklaracji E2E,
+  wdrożenia, commitu i pushu. Szczegóły wyboru zapisane w sprincie 164.0.
+
+## 2026-10-31 — korekta 164.0: rzeczywisty pilot w gameplayu, nie demonstrator
+
+- Operator wyjaśnił znaczenie prototypu: jedna istniejąca kamera, aplikacja
+  i podgląd w pełnej ścieżce właściwej gry. Osobne hosty A/B powstały wskutek
+  błędnej interpretacji; zatrzymano ich rozwój. Ich testy pozostają dowodami
+  komponentów, nie wykonania 164.0. Etap jest nieukończony, bez odbioru autora.
+- Skorygowano [164](../sprints/sprint_164_camera_visual_archive.md),
+  [165](../sprints/sprint_165_camera_visual_network_rollout.md),
+  [audit A/B](../audits/camera_visual_prototype_164_0.md) oraz
+  [handoff](../runbooks/handoff_project_2026_10_31.md), w tym prompt kontynuacji.
+  Usunięto zgodę na prototyp bez API/integracji. Podstawowa pełna ścieżka należy
+  już do 164.0; 165 rozszerza sprawdzony przypadek zamiast dopiero łączyć go z grą.
+- Wybrano istniejący CamStream (`camstream_v1`, katalog `static/app_config.json`)
+  jako aplikację referencyjną. Konkretne `camera_id`/obserwacja pozostają do
+  zweryfikowania w lokalnym gameplayu; nie ogłoszono fikcyjnego powiązania.
+- Zachowano wcześniejszą decyzję: success → SESSION CLOSE → 1800 s pobierania
+  w Centrum Operacji → potwierdzony zapis aktywatora → nowa standardowa instancja
+  `window`; failure pozostawia referencję bez pobierania/viewera. Trwały stan,
+  brak duplikatów, automatyczna integracja przez kontrakt i wyłączenie zdjęć graczy.
+- Ten pakiet koryguje dokumentację, nie implementuje integracji runtime.
+  Kontrola diff/odnośników; bez nowych deklaracji PASS gameplayu lub testów UI.
+  HEAD przy rozpoczęciu `3556abd`; istniejąca zmiana użytkownika w `preview.css`
+  zachowana. Bez commit/push, aktywacji dostawcy i VPS.
+
 ## 2026-10-31 — CVN 164.0 B: osobna instancja po trwałym aktywatorze
 
 - Operator skorygował pierwszy prototyp (`5949c04`): success → SESSION CLOSE

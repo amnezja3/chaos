@@ -1,9 +1,31 @@
 # Sprint 165 — Camera Visual Network: terminal, administracja i rollout
 
-Data: 24.10.2026. Status: **PLAN — po akceptacji prototypu 164.0 i archiwum 164**.
-Aktualizacja 31.10.2026: obowiązuje przebieg success/failure, trwały aktywator
-30 minut i osobna standardowa instancja `window` z rewizji B 164.0.
-[Decyzja, implementacja lokalna i dowody](../audits/camera_visual_prototype_164_0.md).
+Data: 24.10.2026. Aktualizacja 31.10.2026: **pierwszy pakiet Camera Street View 165.1 zweryfikowany lokalnie, flagi OFF**.
+
+[Raport i zakres Git](../audits/camera_street_view_package_165_1.md).
+„Paczka implementacyjna” oznacza zamknięty zakres funkcjonalny w istniejącym
+repozytorium, przygotowany do commit/push i standardowego deploymentu.
+Bez ZIP-ów, kopii repo i alternatywnej dystrybucji. Powiązane podetapy i testy
+grupujemy; zaliczonych prób nie powtarzamy bez uzasadnienia.
+Wdrożenie i publiczny rollout nie zostały wykonane ani zaakceptowane.
+
+Aktualny workflow określa [164](sprint_164_camera_visual_archive.md#aktualny-kontrakt--camera-street-view-nadrzędny).
+PASS prezentacji jest zamknięty. Pierwszy pakiet obejmuje wspólny czas operacji
+i Super Powers, jednorazowe okno, nowe hakowanie po zamknięciu, obserwowane kamery
+świata i zachowanie shutdown/incydentów. Testy, konfiguracja OFF, procedura
+wdrożenia/rollback i wykaz plików są warunkiem gotowości do VPS.
+
+Przygotowanie lokalnego pakietu nie upoważnia do push/deploy. Live API i sekrety
+przechodzą do [166](sprint_166_camera_street_view_live.md); nie dodajemy uploadu graczy.
+Starsze punkty o stałym aktywatorze 30 minut i reopen poniżej są zastąpione
+kontraktem 164. Archiwum można współdzielić, ale zamkniętego dostępu nie można użyć ponownie.
+
+## Historyczny plan infrastruktury i rozszerzeń
+Korekta 31.10.2026: **164.0 wymaga działającego pilota we właściwym gameplayu**.
+Osobne demonstratory A/B nie zaliczają tego etapu; rozwój demonstratora zatrzymany.
+Obowiązuje przebieg success/failure, kanoniczny czas pobrania z Super Powers i nowa standardowa
+instancja `window`, opisane w 164.0. Ta podstawowa integracja należy już do 164.0,
+nie dopiero do 165. [Historia prób, nie odbiór gry](../audits/camera_visual_prototype_164_0.md).
 Źródło: [koncepcja](../prototypes/camera_view/CHAOS%20%E2%80%94%20CAMERA%20VISUAL%20NETWORK.md).
 Zależność: [164](sprint_164_camera_visual_archive.md).
 Uzupełnienie 24.10.2026: konspekt operatora „Licencjonowanie Mapillary,
@@ -17,7 +39,7 @@ Sam podgląd i panel informacji pozostają w grze. Wyjście do źródła następ
 wyłącznie po świadomym potwierdzeniu opisanym poniżej. Animacje działają na zdjęciach,
 bez serwerowego renderowania wideo, panoram i swobodnego Street View.
 
-Pierwszy krok całego przedsięwzięcia to **prototyp jednej kamery w 164.0
+Pierwszy krok całego przedsięwzięcia to **działający pilot jednej kamery w grze w 164.0
 i jawna akceptacja autora**, przed rozbudową infrastruktury. Ten sprint
 rozwija zaakceptowany wzorzec, nie odkłada oceny wyglądu na koniec projektu.
 Testy techniczne nie zastępują odpowiedzi autora, czy podgląd daje poczucie
@@ -27,7 +49,12 @@ Etapy odbioru osobno: zaakceptowany prototyp → archiwum lokalne → pojedynczy
 Mapillary → restart/rollback → ograniczony rollout. Nie aktywować dostawcy
 ani workera przy samym wdrożeniu schematu i interfejsu.
 
-## 165.0 — integracja z działającą akcją
+## 165.0 — rozszerzenie integracji sprawdzonej w gameplayu 164.0
+
+Warunek wejścia: odebrana w 164.0 pełna ścieżka jednej istniejącej aplikacji
+Glass Eye (`admin_seed_camera_stream_v1`) i jednej zweryfikowanej kamery na właściwym pulpicie.
+Ten etap rozszerza ją na zgodne aplikacje i kamery, wspólne archiwum oraz
+dostawcę; nie tworzy pierwszego połączenia demonstratora z grą.
 
 ### Ghost System → aplikacja → operacja → CVN → podgląd
 
@@ -49,20 +76,21 @@ opublikowanych i już zainstalowanych. Zgodne kontrakty otrzymują podgląd prze
 projekcję runtime bez regenerowania, ponownego zakupu i zmiany mechaniki.
 Nie obchodzić walidacji `creator_updates.py`/`creator_legacy.py`; niezgodne
 wydania zachowują dotychczasowe działanie, a raport wskazuje powód braku CVN.
-Ponowne otwarcie albo druga zgodna aplikacja do tej samej kamery korzystają
-ze wspólnego archiwum, z niezależną autoryzacją i bez podwójnego naliczenia.
+Kolejna poprawna operacja albo druga zgodna aplikacja mogą korzystać ze
+wspólnego archiwum. Zamknięty dostęp pozostaje zużyty; nowa instancja wymaga
+nowego hakowania i pobrania. Retry nie powoduje podwójnego naliczenia.
 
 Obowiązują wyłączenia z 164.1: bez CAMERA CREATOR, instalowania kamer,
 zdjęć graczy, aparatu/GPS, Vision, zamazywania twarzy/tablic, moderacji
-i `PLAYER_UPLOAD`; bez infrastruktury na zapas i bez nowego Sprintu 166.
+i `PLAYER_UPLOAD`; 166 obejmuje wyłącznie odbiór Camera Street View na VPS.
 
-Po sukcesie referencji i zamknięciu SESSION CLOSE rusza 30-minutowe pobieranie
+Po sukcesie referencji i zamknięciu SESSION CLOSE rusza kanoniczne pobieranie
 aktywatora w Centrum Operacji. Dopiero 100% i potwierdzony zapis aktywatora
 pozwalają uruchomić osobną instancję standardowego okna oraz odczytać manifest
 lub zgłosić deduplikowane zadanie CVN. Failure nie zamyka referencji automatycznie,
 nie tworzy pobierania ani viewera. Wszystkie terminy i receipts są trwałe;
-zamknięcie okna/reload/logout nie sterują życiem operacji. Ponowne otwarcie nie uruchamia ponownie
-operacji gry ani jej efektów. Wspólny archiwalny obraz nie jest zasobem
+reload/logout nie sterują życiem operacji. Odzyskanie niezamkniętego okna nie uruchamia ponownie
+operacji gry ani jej efektów; ręczne zamknięcie zużywa dostęp. Wspólny archiwalny obraz nie jest zasobem
 camera_dump i nie zmienia jego pochodzenia, wartości ani przyznawania.
 
 Planowane endpointy: autoryzowany odczyt manifestu po operation_id/camera_id,
@@ -71,7 +99,7 @@ Ostateczne nazwy zgodne z istniejącym routerem. Wszystkie ścieżki sprawdzają
 aktualne uprawnienie do akcji; trudny do odgadnięcia URL nie zastępuje kontroli
 dostępu. Zamykanie okna przerywa polling i animacje, **nie anuluje przyjętego
 zadania**. Kolejka realizuje je do READY lub stanu końcowego w limitach 164.3.
-Reopen dołącza do istniejącego zadania/archiwum bez nowego kosztu; wygaśnięcie
+Odzyskanie aktywnej instancji dołącza do istniejącego zadania/archiwum bez nowego kosztu; wygaśnięcie
 TTL i anulowanie administracyjne działają niezależnie od okna. Cofnięcie
 uprawnień gracza zatrzymuje dalsze udostępnianie, a cofnięcie zgody dostawcy
 zatrzymuje także pozyskiwanie/publikację zgodnie z zakresem cofnięcia.
@@ -94,11 +122,12 @@ Stałe oznaczenie **„Materiał archiwalny — symulacja, nie transmisja na ży
 czasu wykonania fotografii. Pozycja zdjęcia nie jest przedstawiana jako
 dokładna pozycja fizycznej kamery; tekst „otoczenie lokalizacji”.
 
-Maksymalnie trzy zdjęcia, delikatny pan/zoom w granicach kadru, zmiana ujęcia,
-scanlines, szum i sporadyczny glitch. Efekty CSS/canvas, nie nowe wygenerowane
+Archiwum zawiera maksymalnie trzy zdjęcia, instancja wybiera jedno i zachowuje
+je przez cały podgląd: wolny łuk Béziera ping-pong, scanlines, szum i glitch.
+Efekty CSS/canvas, nie nowe wygenerowane
 fotografie udające rzeczywiste miejsce. Brak obrazu nigdy nie zastępowany
 losowym zdjęciem innego miasta. Przy jednym zdjęciu nie wymuszać zmiany ujęć.
-Automatyczne przejścia wykorzystują wyłącznie spójny kierunkowo zestaw z 164.2.
+Nie stosować automatycznego przełączania zdjęć w jednej instancji.
 Nie sugerować obrotu fizycznej kamery przez losowy przeskok na przeciwny
 kierunek ulicy. Nieznany azymut nie otrzymuje wymyślonej strzałki kompasu.
 Kadrowanie nie może usuwać istotnego otoczenia tylko dla dopasowania do HUD.
@@ -345,7 +374,8 @@ Nie przesyłać dostawcy profilu gracza ani jego sesji.
 
 ## Definicja ukończenia
 
-164: najpierw zaakceptowany wygląd i zachowanie pojedynczej kamery, następnie
+164: najpierw zaakceptowany działający przypadek w gameplayu (aplikacja,
+wynik, SESSION CLOSE, aktywator w Centrum Operacji, zapis, nowe okno), następnie
 kontrakt, trwałe archiwum i ograniczone pozyskiwanie miniatur z dowodami testów.
 165: okno/admin, pomiary, rzeczywisty pilot, odczyt po restarcie oraz rollback
 odebrane osobno. Nie zamykać obu sprintów samym screenshotem lub HTTP 200.

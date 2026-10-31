@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "source": "CHAOS procedural SVG",
+  "created": "2026-10-31",
+  "external_assets": false,
+  "assets": [
+    {
+      "file": "fine-grain.svg",
+      "scenario": "sensor grain"
+    },
+    {
+      "file": "scan-lines.svg",
+      "scenario": "scan lines"
+    },
+    {
+      "file": "tracking-band.svg",
+      "scenario": "tracking disturbance"
+    },
+    {
+      "file": "chroma-tear.svg",
+      "scenario": "chromatic interference"
+    },
+    {
+      "file": "compression-blocks.svg",
+      "scenario": "compression artifacts"
+    },
+    {
+      "file": "signal-dropout.svg",
+      "scenario": "signal unavailable"
+    }
+  ]
+}

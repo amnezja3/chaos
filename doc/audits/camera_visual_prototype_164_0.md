@@ -1,11 +1,28 @@
-# CVN 164.0 — lokalny prototyp do odbioru wyglądu
+# CVN 164.0 — historyczne demonstratory A/B; pilot w grze nieukończony
 
-Data: 2026-10-31. Aktualna rewizja: **B**, baza `5949c04`.
-Status: **LOCAL PASS trwałego prototypu; odbiór wyglądu B oczekuje**.
+Data: 2026-10-31. Historyczna rewizja: **B**, baza `5949c04`.
+Status po korekcie operatora: **A/B nie realizują 164.0; rozwój demonstratora
+zatrzymany.** Aktualna implementacja: [działający pilot w gameplayu](camera_visual_gameplay_164_0.md),
+lokalnie przetestowany, do odbioru autora.
 [Sprint 164](../sprints/sprint_164_camera_visual_archive.md),
 [sprint 165](../sprints/sprint_165_camera_visual_network_rollout.md).
 
-## Rewizja B — decyzja operatora i aktualny rezultat
+## Wiążąca korekta zakresu 31.10.2026
+
+Prototyp oznacza jeden działający przypadek w normalnej grze, nie osobny host
+do projektowania. Aplikacja referencyjna: istniejący Glass Eye (`admin_seed_camera_stream_v1`).
+Konkretną kamerę należy wskazać ze zweryfikowanego skanu gry i zapisać jej
+kanoniczne powiązanie. Wymagane są prawdziwe rozstrzygnięcie wyniku aplikacji,
+Centrum Operacji, dysk gracza i nowa instancja standardowego okna Ghost Systemu.
+Pełny kontrakt i warunki odbioru znajdują się w sekcji 164.0 sprintu 164.
+
+Poniższe wyniki i polecenia zachowano wyłącznie jako historię. Nie uruchamiać
+tego hosta jako rozwiązania 164.0 i nie rozwijać jego osobnego logowania,
+runtime, interfejsu operacji ani wybieranego ręcznie wyniku. PASS harnessu,
+zrzuty A/B i wykorzystanie wyciągniętych funkcji renderera nie są dowodem
+integracji z gameplayem. Bieżący pakiet do odbioru opisuje osobny audit gameplayu powyżej.
+
+## Rewizja B — historyczna decyzja i rezultat poza grą
 
 Operator po pierwszym prototypie zażądał rozdzielenia instancji i etapów:
 
@@ -47,7 +64,7 @@ Wykonano w izolowanym, trwałym prototypie:
   GLASS EYE, ikona, − / maksymalizacja / ×, fotografia wewnątrz okna.
   Pozostaje prawdziwa atrybucja CC0/Wikimedia, bez podszywania się pod Mapillary.
 
-### Uruchomienie aktualnej wersji
+### Historyczne uruchomienie demonstratora — nie ścieżka odbioru 164.0
 
 ```powershell
 .venv/Scripts/python.exe tools/camera_visual_browser_fixture.py

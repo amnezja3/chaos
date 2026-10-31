@@ -1,0 +1,82 @@
+.camera-visual-window { width: min(1000px, calc(100vw - 32px)); height: min(690px, calc(100dvh - 100px)); min-width: 280px; min-height: 320px; max-width: 100vw; max-height: calc(100dvh - 46px); border: 1px solid #62b8b04d; background: #030b0d; display:flex; flex-direction:column; resize:both; overflow:hidden; }
+.camera-visual-window.is-window-maximized { resize:none; }
+/* The mobile shell leaves an inline resize:none when returning to desktop. */
+@media (min-width: 769px) { .camera-visual-window:not(.is-window-maximized) { resize:both !important; } }
+.camera-visual-window:not(.is-window-maximized)::after { content:''; position:absolute; bottom:2px; right:2px; width:10px; height:10px; background:repeating-linear-gradient(135deg,transparent 0 3px,#75bebc70 3px 4px); clip-path:polygon(100% 0,100% 100%,0 100%); pointer-events:none; }
+.camera-visual-window .app-content { display: flex; flex:1; min-height:0; flex-direction: column; gap: 10px; box-sizing: border-box; padding: 12px 12px 16px; overflow: auto; container-type:inline-size; }
+.camera-visual-window .title-bar { flex:0 0 auto; }
+.camera-visual-window .title-bar { color: #a6c9c4; border-color: #62b8b033; box-shadow: none; background: #0b1719e6; }
+.camera-visual-window .title-bar > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.camera-network-icon { width: 32px; height: 32px; object-fit: contain; flex: 0 0 32px; }
+.camera-visual-frame { position: relative; flex: 1; min-height: 120px; overflow: hidden; border: 1px solid #62b8b04d; background: #03090a; }
+
+.camera-visual-images { position:absolute; inset:0; overflow:hidden; }
+/* A 2x enlargement in both dimensions exposes at most one quarter of the source. */
+.camera-visual-images img { position:absolute; left:0; top:0; width:200%; height:200%; max-width:none; object-fit:cover; opacity:0; transition:opacity 2s ease; filter:saturate(.65) contrast(1.14); animation-duration:240s; animation-timing-function:linear; animation-iteration-count:infinite; animation-direction:alternate; }
+.camera-visual-images img.is-active { opacity:1; }
+.camera-visual-images img[hidden] { display:none; }
+
+.camera-visual-brand { position:absolute; top:18px; left:18px; display:flex; align-items:center; gap:8px; color:#e4f7f2; font:bold 25px system-ui,sans-serif; text-shadow:0 2px 6px #000; pointer-events:none; }
+.camera-visual-brand svg { width:32px; height:32px; fill:none; stroke:currentColor; stroke-width:3; }
+.camera-visual-hud { position: absolute; right: 16px; top: 18px; display: flex; align-items: center; gap: 12px; color: #c4e4dc; font: 11px/1.5 monospace; text-shadow: 0 1px 4px #000; pointer-events: none; }
+.camera-visual-rec { color: #ea9894; }
+.camera-visual-logs { position: absolute; left: 16px; bottom: 16px; height: 48px; overflow: hidden; color: #b1d9c9b3; font: 10px/16px monospace; text-shadow: 0 1px 4px #000; pointer-events: none; }
+.camera-visual-logs > div { animation: camera-log-in .5s ease-out; }
+@keyframes camera-log-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@container (max-width: 600px) { .camera-visual-hud { top: 62px; left: 18px; right: auto; gap: 8px; font-size: 10px; } .camera-visual-footer { gap:6px; } }
+
+.camera-visual-effects, .camera-visual-effects > div { position:absolute; inset:0; pointer-events:none; }
+.camera-visual-effects { box-shadow:inset 0 0 70px #0008; }
+.camera-visual-effects > div { background-repeat:repeat; }
+.camera-fx-grain { background-image:url('/static/images/camera_visual/effects/fine-grain.svg'); background-size:512px 288px; opacity:.25; animation:camera-fx-grain .6s steps(2) infinite; }
+.camera-fx-scan { background-image:url('/static/images/camera_visual/effects/scan-lines.svg'); background-size:512px 288px; opacity:.55; }
+.camera-fx-tracking { background-image:url('/static/images/camera_visual/effects/tracking-band.svg'); background-size:100% 100%; opacity:0; animation:camera-fx-tracking 49s linear infinite; }
+.camera-fx-chroma { background-image:url('/static/images/camera_visual/effects/chroma-tear.svg'); background-size:100% 100%; opacity:0; animation:camera-fx-chroma 67s steps(1) infinite; }
+.camera-fx-blocks { background-image:url('/static/images/camera_visual/effects/compression-blocks.svg'); background-size:100% 100%; opacity:0; animation:camera-fx-blocks 83s steps(1) infinite; }
+@keyframes camera-fx-grain { to { background-position:73px 41px; } }
+@keyframes camera-fx-tracking { 0%,90% { opacity:0; transform:translateY(-35%); } 91% { opacity:.45; transform:translateY(-35%); } 96% { opacity:.45; transform:translateY(40%); } 97%,100% { opacity:0; transform:translateY(40%); } }
+@keyframes camera-fx-chroma { 0%,94%,97%,100% { opacity:0; transform:translateX(0); } 95% { opacity:.65; transform:translateX(4px); } 96% { opacity:.3; transform:translateX(-3px); } }
+@keyframes camera-fx-blocks { 0%,92%,97%,100% { opacity:0; } 93%,96% { opacity:.65; } }
+.camera-visual-no-signal { position:absolute; inset:0; place-content:center; text-align:center; color:#92eedb; background:#03090a url('/static/images/camera_visual/effects/signal-dropout.svg') center/cover; }
+.camera-visual-no-signal:not([hidden]) { display:grid; }
+.camera-visual-location { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex:0 0 auto; }
+.camera-visual-location > span { font:10px monospace; color:#8ea9a4; }
+[data-camera-actions] { display:flex; gap:5px; }
+[data-camera-actions] .chaos-link { padding:4px 7px; }
+.mapifi-credit { flex:0 0 auto; border-top:1px solid #75bebc26; padding-top:9px; color:#9ab1ac; font:11px/1.45 system-ui,sans-serif; }
+.mapifi-credit-heading { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.mapifi-credit-heading strong { color:#c0d7d2; font-size:14px; letter-spacing:.02em; }
+.mapifi-credit-heading > span { color:#819b95; font-size:10px; }
+.mapifi-credit-heading button { margin-left:auto; padding:3px 7px; color:#a5c6bf; background:#17312b50; border:1px solid #75bebc30; border-radius:4px; font:inherit; cursor:pointer; }
+.mapifi-credit-heading button:focus-visible { outline:2px solid #85ceca99; outline-offset:2px; }
+.mapifi-credit dl { display:flex; flex-wrap:wrap; gap:8px 25px; margin:7px 0 0; }
+.mapifi-credit dl > div { display:flex; align-items:baseline; gap:6px; }
+.mapifi-credit dt { color:#6e8982; font-size:10px; }
+.mapifi-credit dd { margin:0; color:#a3b9b2; }
+.camera-visual-panel [data-camera-provenance] { margin:0; padding:4px 0; line-height:1.55; color:#8fa9a5; font:11px/1.55 system-ui,sans-serif; }
+.camera-suspended .camera-visual-frame::after { content:'RECONNECTING'; position:absolute; inset:0; display:grid; place-content:center; background:#071314 url('/static/images/camera_visual/effects/signal-dropout.svg') center/cover; color:#9abbb5; font:12px monospace; }
+.camera-suspended .camera-visual-frame * { animation-play-state:paused; }
+.camera-visual-panel { border-top:1px solid #37776b; color:#b6d3cf; font-size:12px; overflow-wrap:anywhere; }
+.camera-visual-panel p { margin:6px 0; }
+.camera-source-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.camera-source-actions a,.camera-source-actions button { color:#a5c6bf; background:#17312b50; border:1px solid #75bebc30; border-radius:4px; padding:4px 7px; font:inherit; }
+.camera-source-actions [data-external-confirm] { width:100%; padding:8px; border:1px solid #75bebc30; }
+.is-window-minimized .camera-visual-frame * { animation-play-state:paused; }
+@media (prefers-reduced-motion:reduce) { .camera-visual-images img { animation-name:none !important; transform:translate(-25%,-25%); transition:none; } .camera-visual-effects > div, .camera-visual-logs > div { animation:none; } }
+.camera-activation-progress { display: block; color: #9ee9d9; }
+.camera-effect-comparison:not([hidden]) { position:absolute; inset:0; z-index:2; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:10px; overflow:auto; background:#061012; }
+.camera-effect-comparison article { min-width:0; display:flex; flex-direction:column; }
+.camera-effect-comparison h3 { margin:0 0 6px; color:#a7cbc3; font:12px/1.4 monospace; }
+.camera-effect-comparison .camera-visual-frame { flex:1; min-height:150px; }
+.camera-effect-caption { position:absolute; left:8px; bottom:8px; color:#c6ded6; font:10px monospace; text-shadow:0 1px 3px #000; }
+.camera-effect-comparison .camera-fx-tracking { animation:camera-compare-tracking 6s linear infinite; }
+.camera-effect-comparison .camera-fx-chroma, .camera-effect-comparison .camera-fx-blocks { animation:camera-compare-pulse 4s steps(1) infinite; }
+.camera-fx-dropout { background:#03090a url('/static/images/camera_visual/effects/signal-dropout.svg') center/cover; }
+@keyframes camera-compare-tracking { 0% {opacity:.45;transform:translateY(-35%);} 80% {opacity:.45;transform:translateY(40%);} 81%,100% {opacity:0;transform:translateY(40%);} }
+@keyframes camera-compare-pulse { 0%,60% {opacity:.65;} 61%,100% {opacity:0;} }
+@container (max-width:650px) { .camera-effect-comparison:not([hidden]) { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:380px) { .camera-effect-comparison:not([hidden]) { grid-template-columns:1fr; } }
+@media (prefers-reduced-motion:reduce) { .camera-effect-comparison .camera-visual-effects > div { animation:none; } .camera-effect-comparison .camera-fx-tracking, .camera-effect-comparison .camera-fx-chroma, .camera-effect-comparison .camera-fx-blocks { opacity:.45; } }
+.camera-activation-progress progress { display: block; width: 100%; accent-color: #36cbb6; }
+.camera-reference-result { position: absolute; bottom: 42px; left: 16px; right: 16px; z-index: 30; padding: 14px; background: #071414; color: #c5ffed; border: 1px solid #368b78; }
+.camera-reference-result[data-success=false] { color: #ffb4b4; border-color: #9c4b4b; }

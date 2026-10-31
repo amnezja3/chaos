@@ -17,7 +17,7 @@ from territory_geometry import build_player_areas as build_canonical_player_area
 from territory_geometry import is_territory_anchor
 
 
-DB_PATH = os.path.join("data", "game.sqlite3")
+DB_PATH = os.environ.get('CHAOS_DB_PATH') or os.path.join("data", "game.sqlite3")
 USERS_SEED_PATH = os.path.join("static", "users.json")
 _WAL_CONFIGURED = False
 
@@ -1604,6 +1604,12 @@ def _ensure_desktop_projection_columns(conn):
 
 def init_db(db_path=DB_PATH):
     with db_connect(db_path) as conn:
+        from camera_visual import SCHEMA as CAMERA_VISUAL_SCHEMA, INDEX as CAMERA_VISUAL_INDEX
+        conn.execute(CAMERA_VISUAL_SCHEMA)
+        from camera_visual_archive import SCHEMAS as CAMERA_ARCHIVE_SCHEMAS
+        for statement in CAMERA_ARCHIVE_SCHEMAS:
+            conn.execute(statement)
+        conn.execute(CAMERA_VISUAL_INDEX)
         from player_progression import SCHEMA
         conn.execute(SCHEMA)
         from ghost_reward_projection import SCHEMAS

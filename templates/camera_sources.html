@@ -1,0 +1,15 @@
+<!doctype html><html lang="{{ locale }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CHAOS · Camera Street View</title><link rel="stylesheet" href="/static/css/admin_panel.css"></head>
+<body><main style="max-width:800px;margin:40px auto;padding:20px"><h1>Camera Street View</h1>
+<nav><a href="?locale=pl">Polski</a> · <a href="?locale=en">English</a></nav>
+{% if locale == 'pl' %}
+<h2>Źródła danych</h2><p>Podgląd jest symulacją opartą na zdjęciu archiwalnym, nie transmisją na żywo. Pozycja kamery w grze i pozycja wykonania zdjęcia to osobne dane.</p>
+<p>Materiały pilota: fikcyjna ulica Paryża wygenerowana AI dla CHAOS. Nie dokumentuje wskazanej lokalizacji; nie przypisano jej licencji fotograficznej Mapillary.</p>
+<p>Adapter Mapillary jest przygotowany do kontrolowanego podłączenia. Pozyskiwanie i udostępnianie wymagają osobnych zgód oraz rozstrzygnięcia retencji i linkowania. Ta strona nie oznacza aktywnego publicznego dostępu.</p>
+<p>Każdy udostępniony materiał dostawcy ma własne autorstwo, źródło, licencję i opis przekształceń w panelu zdjęcia. Ta strona nie zastępuje atrybucji konkretnej fotografii. Nie przyjmujemy zdjęć graczy.</p>
+{% else %}
+<h2>Data sources</h2><p>The viewer simulates a camera using an archival image; it is not a live stream. The game camera position and photograph position are separate data.</p>
+<p>Pilot material: an AI-generated fictional Paris street made for CHAOS. It does not document the selected location and has no assigned Mapillary photography license.</p>
+<p>The Mapillary adapter is prepared for a controlled connection. Acquisition and serving require separate approval and resolution of retention and linking conditions. This page does not imply active public access.</p>
+<p>Each served provider image carries its own author, source, license and transformation details in the image panel. This page does not replace per-image attribution. Player photo uploads are not supported.</p>
+{% endif %}
+<p><a href="https://www.mapillary.com/">Mapillary</a> · <a href="https://www.mapillary.com/developer/api-documentation/">API documentation</a></p></main></body></html>

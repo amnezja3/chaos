@@ -116,15 +116,15 @@
         const {content, presentation, action} = entry;
         const localized = content.localized_copy?.[global.GhostLocale?.getLocale?.() || 'pl'];
         const interactive = action.kind === "ACTIONABLE";
-        const tag = interactive ? "button" : "article";
-        const type = interactive ? ' type="button"' : "";
+        const tag = "article";
+        const type = "";
         const actionData = interactive ? ` data-gp-news-action="${escapeHtml(content.news_id)}"` : "";
         const stats = presentation.primary_stat || presentation.secondary_stat
             ? `<span class="gp-news-card__stats"><strong>${escapeHtml(stat(presentation.primary_stat))}</strong><small>${escapeHtml(stat(presentation.secondary_stat))}</small></span>`
             : "";
         const actionLabel = ACTIONS.has(action.action_type) ? t("action." + action.action_type) : t("open");
-        const cta = interactive ? `<span class="gp-news-card__cta"><svg aria-hidden="true"><use href="/static/images/googleplx/icons/googleplex-news-icons.svg#open"></use></svg> ${escapeHtml(actionLabel)}</span>` : `<span class="gp-news-card__stamp">${escapeHtml(t("read_only"))}</span>`;
-        return `<${tag}${type} class="gp-news-card gp-news-card--${presentation.weight}" data-layout-index="${layoutIndex}" data-interactive="${interactive}" data-state="${presentation.state}" data-asset-family="${presentation.asset_family}" data-asset-state="${presentation.asset_state}"${actionData}>
+        const cta = interactive ? `<button type="button" class="gp-news-card__cta"${actionData}><svg aria-hidden="true"><use href="/static/images/googleplx/icons/googleplex-news-icons.svg#open"></use></svg> ${escapeHtml(actionLabel)}</button>` : `<span class="gp-news-card__stamp">${escapeHtml(t("read_only"))}</span>`;
+        return `<${tag}${type} class="gp-news-card gp-news-card--${presentation.weight}" data-layout-index="${layoutIndex}" data-interactive="${interactive}" data-state="${presentation.state}" data-asset-family="${presentation.asset_family}" data-asset-state="${presentation.asset_state}">
             ${assetMarkup(presentation)}
             <span class="gp-news-card__shade" aria-hidden="true"></span>
             <span class="gp-news-card__body">

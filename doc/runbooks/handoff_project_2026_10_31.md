@@ -1,5 +1,30 @@
 # CHAOS — pełny prompt przekazania do nowego wątku, 31.10.2026
 
+**Korekta workflow 165.1:** paczka implementacyjna = zamknięty zakres zmian
+w istniejącym repozytorium, standardowy commit/push/deployment po zgodzie.
+Nie tworzyć ZIP-ów ani alternatywnej dystrybucji. Dodatkową kopię ZIP usunięto
+po weryfikacji 99/99 plików; kod, testy i dowody są w repo.
+[Zakres Git](../audits/camera_street_view_165_1_git_scope.md) i
+[zbiorcze wdrożenie/odbiór](camera_street_view_package_165_1.md).
+
+**Paczka lokalna 165.1 gotowa do odbioru:** bazowy HEAD
+`3556abdcb9603110271e0ea7563fbea4f590ae63`, zmiany niecommitowane.
+[Raport, testy i artefakty](../audits/camera_street_view_package_165_1.md).
+Gameplay 22, archive 10, shutdown/exposure/incident 31 testów PASS;
+Playwright 31 kontroli i dodatkowe scenariusze reconnect/close/media PASS.
+Nie uruchomiono prawdziwego API, VPS ani push. Następny etap to decyzja
+o wdrożeniu OFF i osobny odbiór źródła 166, nie dalsze projektowanie okna.
+
+**Najnowsza korekta 31 X — Camera Street View:** prezentacja 164.0 i sześć efektów
+otrzymały PASS operatora. Wzorzec zabezpieczony w
+`doc/prototypes/camera_view/accepted_164_0_2026_10_31` (28 plików, SHA-256).
+Obowiązuje [pełna wytyczna operatora](../plans/camera_street_view_operator_contract_2026_10_31.md).
+Stałe 1800 s i reopen niżej są historią pilota: czas jest kanoniczny z Super Powers,
+zamknięcie zużywa dostęp, kolejny feed wymaga nowego hakowania i pobrania.
+164 obejmuje też adapter i archiwum lokalne, 165 integrację/admin/paczkę,
+166 otrzymał nowy zakres odbioru rzeczywistego źródła na VPS, bez uploadu graczy.
+Nie ruszać wpływu camera_off/camera_shutdown na incydenty. Bez push i VPS bez polecenia.
+
 Status: **AKTUALNY PUNKT WEJŚCIA**. Cały dokument jest promptem startowym dla
 agenta kontynuującego projekt. Zawiera instrukcje, mapę systemu i stan wiedzy.
 
@@ -30,8 +55,11 @@ Na początku nowego wątku:
 4. Dla następnego zadania otwórz aktualny sprint, audit/evidence i runbook,
    odszukaj implementację oraz testy. Nie buduj drugiego systemu obok istniejącego.
 5. Jeśli operator zleci kontynuację Camera Visual Network, zacznij od **164.0**:
-   lokalnego prototypu jednej kamery. W tej rozmowie zmieniono plany, nie wykonano
-   prototypu ani nie uzyskano akceptacji wyglądu. Pełna infrastruktura czeka na tę akceptację.
+   działającego lokalnego pilota jednej kamery we właściwym gameplayu, nie
+   osobnego demonstratora. Korekta operatora 31 X: próby A/B nie zaliczają
+   164.0, ich rozwój zatrzymany. Istniejący Glass Eye (`admin_seed_camera_stream_v1`), kamera
+   ze zweryfikowanego skanu, prawdziwa operacja i nowe standardowe okno.
+   Pełna infrastruktura czeka na odbiór tego przypadku. Bez pushu bez polecenia.
 6. Samo przekazanie nie zleca restartu VPS, migracji, płatnego testu ani aktywacji
    dostawcy. Kontynuuj aktualną dyspozycję operatora, respektując istniejące zgody i limity.
 
@@ -340,9 +368,22 @@ DeprecationWarning Flask-Session to dług techniczny, nie test failure.
 
 ## 10. Następny zaakceptowany kierunek: Camera Visual Network 164–165
 
-**Jeszcze plan, nie gotowy moduł.** Najpierw 164.0: jedna kamera, lokalne
-materiały o znanych prawach, 1–3 ujęcia, istniejąca akcja i okno, charakter
-terminala CHAOS, stany, atrybucja, PL/EN/mobile/reduced motion. Autor musi
+Bieżący stan i następne zadanie prowadzi
+[wspólna tablica pilota 164.0](../plans/camera_visual_pilot_164_0_board.md).
+Przeczytać i aktualizować przy kontynuacji pracy nad tym pilotem.
+
+**Pilot 164.0 lokalnie zaimplementowany i przetestowany, do odbioru autora.**
+[Aktualne evidence i uruchomienie](../audits/camera_visual_gameplay_164_0.md).
+Zakres 164.0: jedna istniejąca
+aplikacja Glass Eye (`admin_seed_camera_stream_v1`), jedna konkretna kamera ze skanu i jeden
+podgląd w rzeczywistym gameplayu. Success → SESSION CLOSE i zamknięcie
+referencji → 30 minut pobierania aktywatora w Centrum Operacji, 0–100% →
+potwierdzony zapis na dysku gry → nowa instancja standardowego okna Ghost Systemu.
+Failure pozostawia końcowe okno referencji bez pobierania i podglądu.
+Stan trwały po close/reload/re-login, bez duplikatów. Nie tworzyć osobnego
+hosta demonstracyjnego; A/B są tylko historycznym evidence komponentów.
+Lokalne materiały o znanych prawach, charakter terminala CHAOS, stany,
+atrybucja, PL/EN/mobile/reduced motion. Autor musi
 zaakceptować wygląd przed rozbudową kolejki/archiwum/admina. Akceptacja sprintu
 nie jest akceptacją prototypu.
 
@@ -648,7 +689,12 @@ Wklej poniższy tekst, gdy nowy wątek ma dostęp do tego repozytorium:
 > HEAD, status i instrukcje repo. Nie uruchamiaj historycznych procedur VPS.
 > 163.5 ma zaakceptowany PASS z pełnym skanerem Geoapify do dokończenia;
 > Cyberner ma PASS. Następny zaakceptowany kierunek to Camera Visual Network
-> 164–165: zacznij od lokalnego prototypu jednej kamery 164.0 do mojej akceptacji.
+> 164–165: 164.0 to działający lokalny pilot jednej kamery we właściwym gameplayu,
+> z istniejącą aplikacją i pełnym przebiegiem success/failure do mojej akceptacji.
+> Nie rozwijaj osobnego demonstratora A/B. Success → SESSION CLOSE → 30-minutowe
+> pobieranie aktywatora w Centrum Operacji → potwierdzony zapis → nowe standardowe
+> okno. Failure bez pobierania i podglądu. Trwały stan i brak duplikatów.
+> Nie wykonuj pushu bez mojego polecenia.
 > Uwzględnij automatyczną integrację aplikacji Ghost System i wyłączenie zdjęć
 > graczy. Pracuj LOCAL-FIRST, grupuj implementację/testy i wołaj mnie dopiero
 > przy potrzebnej decyzji, odbiorze wyglądu lub gotowym pakiecie VPS. Nie

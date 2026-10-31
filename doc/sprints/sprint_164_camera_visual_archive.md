@@ -1,10 +1,46 @@
 # Sprint 164 — Camera Visual Network: prototyp kamery, kontrakt i archiwum
 
-Data: 24.10.2026. Status: **PLAN — bez aktywacji integracji**.
-Aktualizacja 31.10.2026: **164.0 lokalny prototyp i testy komponentu gotowe;
-oczekuje na akceptację wyglądu autora**. Aktualna rewizja **B** uwzględnia
-decyzję operatora: osobna instancja viewera po 30-minutowym pobraniu aktywatora.
-[Evidence i uruchomienie](../audits/camera_visual_prototype_164_0.md).
+Zasada workflow 164–166: „paczka implementacyjna” to zamknięty, zintegrowany
+i lokalnie przetestowany zakres w repozytorium. Wdrożenie przez standardowy
+Git commit/push po decyzji operatora; bez ZIP-ów i kopii repozytorium.
+Powiązane podetapy realizujemy i odbieramy zbiorczo.
+
+Data: 24.10.2026. Aktualizacja 31.10.2026: **164.0 PASS operatora; pierwsza paczka 165.1 zweryfikowana lokalnie**.
+
+[Raport paczki i granice PASS](../audits/camera_street_view_package_165_1.md).
+Adapter sprawdzony na fixtures; odbiór rzeczywistego źródła pozostaje w 166.
+
+## Aktualny kontrakt — Camera Street View (nadrzędny)
+
+Operator zaakceptował podgląd, okno, zakłócenia i brak sygnału. Zabezpieczony
+[snapshot prezentacji](../prototypes/camera_view/accepted_164_0_2026_10_31/README.md)
+jest wzorcem dalszego kodu. Poniższe wcześniejsze opisy stałych 30 minut oraz
+ponownego otwierania są historią pilota, zastąpioną tym kontraktem:
+
+- Kamera jest istniejącym obiektem świata, również generowanym przy POI.
+  Tożsamość i skan pochodzą z CameraContractStore. Shutdown i wpływ na incydenty
+  pozostają w Response Network.
+- Sukces → SESSION CLOSE → jedna kanoniczna operacja pobrania → potwierdzony
+  zapis aktywatora → automatyczne otwarcie jednej instancji.
+- Czas pochodzi z terminów operacji gameplayu (np. 1800 lub 300 s), z tego samego
+  realizera Super Powers, także dla przyspieszenia trwającej operacji.
+- Ręczne zamknięcie zużywa dostęp trwale. Retry, stare pliki i reopen nie
+  uruchamiają go ponownie. Reload/utrata połączenia nie są ręcznym zamknięciem.
+- Nowe hakowanie po zamknięciu daje nową operację, pobranie, instancję i losowy
+  tor na jednym wybranym zdjęciu. Retry jednego receipt pozostaje idempotentne.
+- 164: kontrakt, zabezpieczenie prezentacji, kanoniczny lifecycle, adapter i archiwum lokalne.
+  165: integracja kamer świata, regresja i pierwsza paczka VPS.
+  [166](sprint_166_camera_street_view_live.md): podłączenie prawdziwego źródła
+  przez sekrety, kontrolowany odbiór VPS i rollout. Bez fotografii graczy.
+
+Pozostały zakres archiwum/adaptora poniżej jest planem dalszej integracji,
+nie deklaracją gotowego dostawcy ani zgody na wywołania API.
+
+## Historia planu i pilota
+Aktualizacja 31.10.2026: **164.0 działający pilot lokalny — DO ODBIORU autora**.
+[Implementacja i testy na rzeczywistym pulpicie](../audits/camera_visual_gameplay_164_0.md).
+Osobne demonstratory A/B nie realizowały tego etapu; ich rozwój jest zatrzymany.
+[Historia prób i ograniczenia dowodów](../audits/camera_visual_prototype_164_0.md).
 164.1–164.5 nadal PLAN, bez rozpoczęcia infrastruktury i bez aktywacji dostawcy.
 Źródło: [Camera Visual Network](../prototypes/camera_view/CHAOS%20%E2%80%94%20CAMERA%20VISUAL%20NETWORK.md).
 Kontynuacja: [165 — interfejs, administracja i rollout](sprint_165_camera_visual_network_rollout.md).
@@ -63,18 +99,25 @@ reakcji na awarię. Błąd VPS: zebrać diagnostykę, poprawić lokalnie, wykona
 regresję i wrócić z poprawionym pakietem. Nie powtarzać na VPS sprawdzeń
 dostępnych lokalnie. Wyjątki: awarie krytyczne i problemy nieodtwarzalne lokalnie.
 
-**164.0 prototyp jednej kamery → jawna akceptacja autora → 164.1–164.5
-infrastruktura → 165 integracja i rollout.** Nie rozpoczynać rozbudowy kolejki,
-archiwum i panelu przed zaakceptowaniem prototypu. Do prototypu wystarcza
-minimalne rozpoznanie istniejącej akcji i okna; nie wymaga działającego API,
-migracji ani workera. Zatwierdzenie planu nie jest akceptacją wyglądu.
+**164.0 działający pilot jednej kamery w grze → jawna akceptacja autora →
+164.1–164.5 rozbudowa infrastruktury → 165 rozszerzenie integracji i rollout.**
+Nie rozpoczynać rozbudowy kolejki, archiwum i panelu przed zaakceptowaniem pilota.
+Już 164.0 wymaga rzeczywistej integracji aplikacji, autoryzacji, operacji,
+zapisu aktywatora i okna. Wykonać niezbędne zmiany istniejącego runtime oraz
+trwałego stanu; nie odkładać tej ścieżki do 165. Nie tworzyć osobnego serwera
+demonstracyjnego, launchera, imitacji pulpitu ani zastępczego Centrum Operacji.
+Zatwierdzenie planu nie jest akceptacją wyglądu ani odbiorem działania.
 
 ## 164.0 — grywalny prototyp pojedynczej kamery i obowiązkowy odbiór
+
+Bieżąca praca, wybrany przypadek, zadania i dowody:
+**[wspólna tablica pilota 164.0](../plans/camera_visual_pilot_164_0_board.md)**.
+Aktualizować ją po każdym spójnym pakiecie; ten sprint pozostaje kontraktem zakresu.
 
 **Decyzja operatora 31.10.2026, nadrzędna wobec wcześniejszego przebiegu:**
 success aplikacji referencyjnej → jej końcowy stan → widoczne SESSION CLOSE
 (obecny standard 5 s) i zamknięcie → pobieranie aktywatora w Centrum Operacji
-przez 30 minut, postęp 0–100% → potwierdzony zapis na dysku gracza → automatyczne
+przez rzeczywisty czas operacji z Super Powers, postęp 0–100% → potwierdzony zapis na dysku gracza → automatyczne
 otwarcie **nowej, osobnej instancji standardowego okna Ghost System**, interface
 `window`. Failure pozostawia referencję w końcowym stanie, bez auto-close,
 pobierania i viewera. Nie przekształcać okna referencji w okno kamery.
@@ -83,14 +126,54 @@ muszą wykluczać drugi aktywator/download/viewer od retry lub drugiej karty.
 100% bez potwierdzenia zapisu nie wystarcza do uruchomienia. Aktywator nie jest
 camera_dump; nie dodawać drugiego naliczenia ani drugiego 30-minutowego etapu.
 Nowa decyzja zmienia moment prezentacji CVN; zachować uprawnienia i ekonomię gry.
-Rewizja B demonstruje ten przebieg trwale na izolowanej bazie, nadal do odbioru.
+Rewizja B demonstrowała ten przebieg poza grą; jej PASS dotyczy wyłącznie
+tamtego harnessu i nie zalicza integracji ani odbioru 164.0.
 
-Pierwszy rezultat to otwierany z „Podglądu kamery” interaktywny prototyp
-jednej kamery w osobnym standardowym oknie CHAOS na izolowanych danych,
-z 1–3 lokalnymi zdjęciami testowymi
-o znanym prawie użycia. Obsługuje sekwencję wejścia, synchronizację, ujawnienie
-obrazu, delikatne zakłócenia, zmianę ujęcia, NO SIGNAL i ponowne otwarcie.
-Nie dodaje fikcyjnego sukcesu włamania przed zatwierdzeniem akcji gameplayu.
+Pierwszy rezultat to jeden rzeczywisty przypadek na normalnym pulpicie gry:
+istniejąca aplikacja **Glass Eye (`admin_seed_camera_stream_v1`)**, konto `main`
+i wskazana przez operatora **Kamera sklepu**, `48.864173348628704, 2.330499567661377`.
+Cel istnieje w backupie w historii operacji `op_20261031061759_202628`
+(status `cancelled`); nie traktować tego statusu jako autoryzacji podglądu.
+Pełne `target_id`: `map:48.864173348628704:2.330499567661377:Kamera sklepu`.
+Nowy request operatora ma receipt `47b35865a4fb7612587a` i pochodzi już po
+backupie; receipt nie występuje w tym backupie. Nie fabrykować jego sukcesu.
+Historyczny cel nie zawiera `camera_id`/`scan_id`; podczas integracji zachować
+weryfikację serwerowego celu i obsłużyć istniejący kontrakt legacy zamiast
+wymyślać identyfikator obserwacji. Nie tworzyć nowej kamery demonstracyjnej.
+Obsługa ma wynikać z kontraktu `camera_stream` dla zgodnych aplikacji,
+nie z nazwy Glass Eye ani sztywnego app_id. Wybór ten zastępuje CamStream
+wskazany wcześniej roboczo; obowiązuje również w odwołaniach 165 i handoffu.
+
+Uruchomienie przez istniejącą akcję mapy i aplikację referencyjną ma przejść
+przez rzeczywiste rozstrzygnięcie serwera, SESSION CLOSE, istniejące Centrum
+Operacji i dysk gry. Dopiero potwierdzony zapis aktywatora otwiera osobną
+instancję standardowego `window`, z normalną belką, taskbarem, przeciąganiem,
+minimalizacją, maksymalizacją i zamykaniem. Interfejs aplikacji referencyjnej
+pozostaje zgodny z jej kontraktem; nie zamieniać jej okna w viewer.
+Nie stosować selektora wyniku success/failure jako gameplayu.
+
+Lokalne, izolowane konto i dane są dozwolone w **rzeczywistej aplikacji gry**,
+z jej routerami, sesją i komponentami. Zdjęcie testowe musi mieć znane prawa
+i jawne pochodzenie; nie przedstawiać go jako live ani dokładnego widoku
+urządzenia. Pilot obejmuje jeden podgląd, NO SIGNAL i ponowne otwarcie.
+Automatyczne dołączenie podglądu opierać na zweryfikowanym kontrakcie
+`camera_stream`, nie nazwie aplikacji; ograniczenie do jednej kamery/aplikacji
+wyznacza zakres pilota, nie osobny mechanizm demonstracyjny.
+
+Warunki odbioru już w 164.0:
+
+- Sukces i porażka rozstrzygnięte przez realną ścieżkę aplikacji; porażka nie
+  inicjuje pobierania i nie otwiera podglądu, referencja pozostaje w stanie końcowym.
+- Pobieranie 1800 s z postępem 0–100% w istniejącym Centrum Operacji;
+  100% bez potwierdzenia zapisu, brak miejsca i błąd zapisu nie otwierają okna.
+- Zamknięcie okien, reload i ponowne logowanie zachowują przyjęty stan;
+  retry i równoległe karty nie dublują operacji, aktywatora ani instancji viewera.
+- Nowe okno używa normalnego mechanizmu Ghost Systemu; poprzednia instancja
+  znika zgodnie z SESSION CLOSE, bez przekształcania jej w podgląd.
+- Playwright MCP uruchamia scenariusz na właściwym lokalnym `/desktop`;
+  testy samego hosta A/B i wyciągniętych funkcji renderera nie zaliczają E2E.
+- Wąskie kanoniczne store'y, bez ciężkiego profilu, dawnych kolejek,
+  zdjęć graczy, aktywacji dostawcy i procedur VPS.
 
 Przejąć atmosferę nieautoryzowanego terminala obserwacyjnego: identyfikator
 kanału, oszczędny HUD, krótkie przejście do obrazu i kontrolowany glitch.
@@ -111,7 +194,8 @@ CHAOS, czytelne otoczenie, wiarygodny rytm przejść, brak męczących efektów,
 dobry stan bez zdjęcia oraz wygodne zamknięcie/powrót.
 
 Zapisać zaakceptowaną wersję, materiały porównawcze, datę i uwagi autora.
-Bez akceptacji iterować wyłącznie prototyp; nie rozwijać całego systemu.
+Bez akceptacji iterować wyłącznie ten działający przypadek w grze;
+nie rozwijać osobnego demonstratora ani całej sieci kamer.
 W 165 wdrożyć zaakceptowany język wizualny, bez ponownego projektowania go
 od zera. Późniejsze istotne odstępstwo wizualne wraca do odbioru autora.
 
@@ -177,8 +261,8 @@ W 164–165 nie powstają CAMERA CREATOR, instalowanie nowych kamer przez graczy
 upload fotografii, aplikacja aparat/GPS, analiza Vision, wykrywanie/zamazywanie
 twarzy i tablic, moderacja zdjęć graczy ani źródło `PLAYER_UPLOAD`.
 Nie przygotowywać tabel, endpointów, kolejek ani innych elementów wyłącznie
-pod te przyszłe rozwiązania. Nie tworzymy Sprintu 166; temat pozostaje do
-dalszych ustaleń. Integracja istniejących aplikacji Ghost System nie oznacza
+pod te przyszłe rozwiązania. Sprint 166 otrzymał od operatora zakres odbioru
+Camera Street View na VPS, nie uploadu. Integracja istniejących aplikacji Ghost System nie oznacza
 rozbudowy Ghost Laba o tworzenie kamer.
 
 ### Manifest
@@ -336,8 +420,9 @@ Zamknięcie lub minimalizacja okna zatrzymuje wyłącznie animacje i polling.
 Zatwierdzone zadanie QUEUED/FETCHING/PROCESSING pozostaje w trwałej kolejce
 i kończy przygotowanie współdzielonego archiwum w swoich limitach, nawet bez
 otwartego okna. Zamknięcie przed przyjęciem żądania nie tworzy zadania.
-Ponowne otwarcie dołącza do tego samego zadania albo odczytuje READY, bez
-nowego pobrania i rezerwacji. Nie przedłuża deadline ani liczby prób.
+Odzyskanie niezamkniętej instancji dołącza do tego samego zadania albo odczytuje READY,
+bez nowego pozyskania zdjęć. Ręcznie zamknięty feed wymaga nowego hakowania
+i pobrania pliku gameplayu; archiwum można współdzielić. Nie przedłuża deadline ani liczby prób.
 Proponowany TTL oczekiwania QUEUED: 15 minut; po nim EXPIRED bez HTTP.
 To osobny limit od 90 s wykonania. Wyłączenie pozyskiwania, cofnięcie zgody
 dostawcy lub anulowanie administracyjne nadal zatrzymują pracę. Zamknięcie

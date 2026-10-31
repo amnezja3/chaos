@@ -1,0 +1,75 @@
+- generic [active] [ref=e1]:
+  - main "Wejście do CHAOS" [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: GHOST SYSTEM
+        - heading "CHAOS CHAOS" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Cyber Hacking Adventure Of Senses
+        - paragraph [ref=e8]: Prawdziwe miejsca. Prawdziwi gracze. Realne konsekwencje.
+      - complementary [ref=e9]:
+        - generic [ref=e10]:
+          - text: BLACKNET // SIGNAL
+          - generic [ref=e12]: READ ONLY
+        - generic [ref=e13]:
+          - heading "INCYDENT / L2 COOLING" [level=2] [ref=e14]
+          - paragraph [ref=e15]: Pozycja reakcji spada do L2. Występuje problem z chłodzeniem.
+        - paragraph [ref=e16]: Zaloguj się, aby skorzystać z sygnału w grze.
+      - generic [aria-hidden] [ref=e17]: REAL WORLD CONNECTED
+      - generic [ref=e18]:
+        - paragraph [ref=e19]: Odkrywaj Hakuj Buduj Przetrwaj
+        - generic [ref=e20]:
+          - article [ref=e21]:
+            - heading "Otwarty świat" [level=2] [ref=e26]
+            - paragraph [ref=e27]: Prawdziwa mapa. Żywe dane. Prawdziwi gracze.
+          - article [ref=e28]:
+            - heading "Narzędzia i aplikacje" [level=2] [ref=e31]
+            - paragraph [ref=e32]: Zbuduj swój zestaw. Hakuj, handluj, komunikuj się.
+          - article [ref=e33]:
+            - heading "Frakcje" [level=2] [ref=e36]
+            - paragraph [ref=e37]: Sojusze i konflikty. Kontroluj terytorium.
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - navigation "Dostęp do systemu" [ref=e40]:
+          - generic [ref=e41]: Zaloguj
+          - link "Utwórz konto" [ref=e42] [cursor=pointer]:
+            - /url: /register
+        - combobox "Język interfejsu" [ref=e44] [cursor=pointer]:
+          - option "English"
+          - option "Polski" [selected]
+      - heading [level=2] [ref=e45]:
+        - text: Witaj w
+        - strong [ref=e46]: CHAOS
+      - paragraph [ref=e47]: Wejdź do systemu. Twój następny ruch zmienia mapę.
+      - region "Logowanie zewnętrzne" [ref=e48]:
+        - button "Kontynuuj z Google" [disabled] [ref=e49]
+        - button "Kontynuuj z GitHub" [disabled] [ref=e56]
+        - button "Kontynuuj z Discord" [disabled] [ref=e60]
+        - button "Kontynuuj ze Steam" [disabled] [ref=e64]
+        - paragraph [ref=e73]: Logowanie zewnętrzne będzie dostępne wkrótce. Poniżej użyj konta CHAOS.
+      - generic [ref=e74]: lub
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]: Login
+          - textbox "Login" [ref=e79]:
+            - /placeholder: operator
+        - generic [ref=e80]:
+          - generic [ref=e81]: Hasło
+          - generic [ref=e82]:
+            - textbox "Hasło Pokaż lub ukryj hasło" [ref=e83]:
+              - /placeholder: klucz dostępu
+            - button "Pokaż lub ukryj hasło" [ref=e84] [cursor=pointer]
+        - button "Zaloguj" [ref=e88] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e90]: →
+        - paragraph [ref=e91]:
+          - text: Nie masz konta?
+          - link "Utwórz konto" [ref=e92] [cursor=pointer]:
+            - /url: /register
+      - paragraph [ref=e93]: Wersja testowa — tłumaczenie jest niepełne.
+      - generic [ref=e94]:
+        - generic [ref=e95]: BUILD / BREAK / QUESTION
+        - generic [ref=e96]: chaos.re
+  - navigation "Legal" [ref=e97]:
+    - link "Polityka prywatności" [ref=e98] [cursor=pointer]:
+      - /url: /privacy
+    - link "Warunki korzystania" [ref=e99] [cursor=pointer]:
+      - /url: /terms

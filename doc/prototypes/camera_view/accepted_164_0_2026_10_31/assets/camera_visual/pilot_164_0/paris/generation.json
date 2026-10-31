@@ -1,0 +1,24 @@
+{
+  "generated_on": "2026-10-31",
+  "tool": "built-in image_gen",
+  "source_type": "AI_GENERATED_TEST",
+  "label_pl": "Materiał testowy wygenerowany AI — fikcyjny widok Paryża",
+  "label_en": "AI-generated test material — fictional Paris view",
+  "real_location_verified": false,
+  "captured_at": null,
+  "provider_image_id": null,
+  "prompts": [
+    {
+      "file": "paris-01-dusk.png",
+      "prompt": "Use case: photorealistic-natural. Generate one landscape 16:9 test image for a fictional Paris shop security camera in a game. A coherent believable narrow central Paris street near the Palais Royal, cream limestone Haussmann buildings, wrought iron balconies, ground floor small shop with dark green storefront on left foreground, warm lit glass doorway, stone pavement and bollards, a dark compact car parked on right middle distance. Fixed security camera mounted 3.5 metres high above the shop, looking diagonally down street, moderate wide lens, realistic unobtrusive surveillance perspective, no extreme fisheye. Blue hour after rain, wet pavement reflections, detailed readable architecture, restrained cinematic atmosphere. No people close up. Image content only: no window chrome, UI, labels, timestamps, logo, Mapillary watermark, glitch or text. Synthetic fictional environment, not a factual reconstruction of the user's coordinates. This is frame 1 of three matching images; establish clear street geometry to preserve in later lighting variants."
+    },
+    {
+      "file": "paris-02-night.png",
+      "prompt": "Use case: lighting-weather. Edit the supplied generated Paris shop camera frame into frame 2: late night, dark blue sky, slightly dimmer ambient illumination, warm shop and street lamps reflected in wet stone. Preserve exactly the same camera position, crop, perspective, street geometry, green storefront, balconies, bollards and parked cars. Keep scene clearly readable rather than crushed blacks. Photorealistic fictional test footage still. No new people, text, timestamp, watermark, HUD, window frame, glitch. Output landscape same dimensions. Change only lighting and time of day."
+    },
+    {
+      "file": "paris-03-dawn.png",
+      "prompt": "Use case: lighting-weather. Edit the supplied fictional Paris street camera image into frame 3, early overcast dawn after rain. Preserve identical framing, camera location, street geometry, dark green shop facade at left, all balconies and bollards, parked cars at right and architecture. Change only lighting: soft cool gray morning sky and diffuse daylight, warm shop light still faintly visible, wet stones with restrained reflections. Realistic readable security-camera still, same landscape dimensions. No new people, no text, no logo, no timestamp, no UI, no glitch. This is synthetic test material for a game, not documentary photography."
+    }
+  ]
+}

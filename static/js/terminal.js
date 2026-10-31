@@ -2864,6 +2864,7 @@ async function launchConfirmedPickerApplication(data, session, app, flowId) {
     if (!item.receipt) throw new Error('Brak potwierdzenia uruchomienia aplikacji.');
     if (data.target) updateToolbarAimedTarget(data.target);
     const payload = {...product, _flow_id: flowId, _source: 'launch_queue',
+        _expected_target: item.raw?.expected_target || data.target,
         _launch_receipt: item.receipt, _launch_key: item.receipt,
         _map_action_id: item.action, _client_action_key: item.client_action_key};
     if (session) {
@@ -2936,7 +2937,7 @@ function buildApplicationLaunchContext(appData = {}) {
         appData._launch_key ||
         ""
     ).trim();
-    const aimedTarget = ((toolbarProfile || {}).aimed_target || {});
+    const aimedTarget = appData._expected_target || ((toolbarProfile || {}).aimed_target || {});
     const expectedTarget = hasToolbarAimedTarget(aimedTarget) ? {
         target_id: aimedTarget.target_id || aimedTarget.id || "",
         lat: aimedTarget.lat,
@@ -3068,6 +3069,7 @@ function nextGonnaWinRequestOrdinal(context = {}, receiptScope = "choice:auto") 
 }
 
 function rememberGonnaWinCanonicalResult(context, receiptScope, payload = {}) {
+    if (payload.camera_visual) window.CameraVisualPilot?.accept(context, payload.camera_visual);
     const state = getGonnaWinLifecycle(context, receiptScope);
     (payload.created_operations || []).forEach(operation => {
         const operationId = String(operation && operation.operation_id || "").trim();
@@ -3257,7 +3259,7 @@ function scheduleOperationalAppAutoClose(appWindow) {
         overlay.innerHTML = `<span>SESSION CLOSE</span><strong data-auto-close-seconds>${String(initialSeconds).padStart(2, '0')}</strong><span>s</span>`;
         viewport.appendChild(overlay);
     }
-    const deadline = Date.now() + APP_TERMINAL_AUTO_CLOSE_MS;
+    const deadline = Number(appWindow.dataset.cameraCloseAt) || (Date.now() + APP_TERMINAL_AUTO_CLOSE_MS);
     const updateCountdown = () => {
         if (!overlay?.isConnected) return;
         const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
@@ -3279,7 +3281,7 @@ function scheduleOperationalAppAutoClose(appWindow) {
         if (typeof renderRunningApps === "function") {
             renderRunningApps();
         }
-    }, APP_TERMINAL_AUTO_CLOSE_MS);
+    }, Math.max(0, deadline - Date.now()));
 }
 
 async function buildIconsFromJsonWithCommand(jsonData) {
@@ -7587,6 +7589,7 @@ function renderOperationControlRow(item) {
             <div class="operation-control-output">
                 <b>${OPERATION_CONTROL_ICONS.file} ${output.titleHtml}</b>
                 <span>${output.detailHtml}</span>
+                ${window.CameraVisualPilot?.operationMarkup(item) || ''}
             </div>
             <div class="operation-control-risk">
                 <b>${ghostSystemValue('apps.operations.risk.', item.risk?.level || item.risk_level || 'low')} ${item.risk?.current_heat != null || item.risk?.score != null ? ghostNumber(item.risk.current_heat ?? item.risk.score) : ''}</b>
@@ -7622,7 +7625,7 @@ function renderOperationControl(app, state) {
             ${ghostLabel('apps.operations.empty_help')}
         </div>
     `;
-    renderOperationControlFrame(app, state, body);
+    renderOperationControlFrame(app, state, body + `<section data-camera-activation-list>${window.CameraVisualPilot?.controlMarkup() || ''}</section>`);
     bindOperationControlActions(app, state);
 }
 
@@ -19438,6 +19441,7 @@ async function pollLaunchQueue() {
                     appData._launch_receipt = item.receipt;
                     appData._launch_key = item.receipt;
                     appData._source = 'launch_queue';
+                    appData._expected_target = item.raw?.expected_target;
                     appData._map_action_id = item.action;
                     appData._client_action_key = item.client_action_key;
                     const id = appData.id;

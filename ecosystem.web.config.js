@@ -7,6 +7,12 @@ module.exports = {
       args: "run:app --bind 127.0.0.1:6666 --workers 4 --timeout 120 --access-logfile - --error-logfile -",
       interpreter: "none",
       env: {
+        // Camera Street View: prepared locally; no provider/public rollout on deploy.
+        CHAOS_CAMERA_STREET_VIEW: "0",
+        CHAOS_CAMERA_SOURCE: "off",
+        CHAOS_CAMERA_ACQUISITION: "0",
+        CHAOS_CAMERA_SERVE: "0",
+        CHAOS_CAMERA_WORKER: "0",
         // Sprint 161: production scanner; budgets live in the POI database.
         // API credentials remain in the private server environment, never Git.
         CHAOS_POI_INFRASTRUCTURE_ENABLED: "1",

@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "status": "OPERATOR PASS — presentation only",
+  "base_head": "3556abdcb9603110271e0ea7563fbea4f590ae63",
+  "files": [
+    {
+      "path": "static/js/camera_visual.js",
+      "bytes": 22273,
+      "sha256": "28590d0e8fc9cece3ca61beca9223509b78a94aa33b114eea6e4d434754d20cb"
+    },
+    {
+      "path": "static/css/camera_visual.css",
+      "bytes": 9522,
+      "sha256": "290dc37e3387de490644484bea55b47ccf3acb1e7aace925f9c38b58bf02ff9c"
+    },
+    {
+      "path": "static/js/chaos_links.js",
+      "bytes": 5723,
+      "sha256": "2b5640622ea819961852d637cb63b8d43fe92224d6a5ebd6f64878f3377f3ca6"
+    },
+    {
+      "path": "static/css/chaos_links.css",
+      "bytes": 1085,
+      "sha256": "3003e1249425721d0f63ad422067024be3a5678550b87e1781529e165996fc15"
+    },
+    {
+      "path": "static/images/system/chaos-actions.svg",
+      "bytes": 515,
+      "sha256": "23ed4a596b9d19ee755effd2a10c7f4a266a96277acf46ac3541794648b9a168"
+    },
+    {
+      "path": "static/images/camera_visual/camera-network-v1.png",
+      "bytes": 1676056,
+      "sha256": "7c1d457ed9ab8e0c573b636f2f6305b0cc287d622921f301518fb1e13dd7e33d"
+    },
+    {
+      "path": "static/images/camera_visual/effects/chroma-tear.svg",
+      "bytes": 391,
+      "sha256": "24d3e996c9b7152719bac689befdad5aa84a677454358cc4a34e56fe996b87b3"
+    },
+    {
+      "path": "static/images/camera_visual/effects/compression-blocks.svg",
+      "bytes": 1924,
+      "sha256": "6da0a7b35c4009df68713c0db35d0319fc1f63be87b56953bdd811e1575dfbd8"
+    },
+    {
+      "path": "static/images/camera_visual/effects/fine-grain.svg",
+      "bytes": 62508,
+      "sha256": "aaee44e5d4cd8d248a1dc00e794269cf803f45f7d2e7c676d8584b4962242e3f"
+    },
+    {
+      "path": "static/images/camera_visual/effects/manifest.json",
+      "bytes": 643,
+      "sha256": "cda98f539fdf33113eb89ff01bb0740bfe53fe6942c46d54fe555e9fd2c68de5"
+    },
+    {
+      "path": "static/images/camera_visual/effects/README.md",
+      "bytes": 1330,
+      "sha256": "db868909ad68ea3055b40dc70be24f6f52abcd5509bb4a94e353ece1fe1405a4"
+    },
+    {
+      "path": "static/images/camera_visual/effects/scan-lines.svg",
+      "bytes": 5843,
+      "sha256": "86ef06cb5b897b8c0f441efa8d8d3a9488ffd8cc78ea294b3f32d6a7066e137d"
+    },
+    {
+      "path": "static/images/camera_visual/effects/signal-dropout.svg",
+      "bytes": 7570,
+      "sha256": "1e9cd136c97cd9f9dd0e89522a8885a5960dd673052bf2b79e3f3dcd9afd0a63"
+    },
+    {
+      "path": "static/images/camera_visual/effects/tracking-band.svg",
+      "bytes": 486,
+      "sha256": "1188987f7eaf26e756deb5712e8605c65730d6a3dc9ceff263b0ebc50eb0d62b"
+    },
+    {
+      "path": "static/images/camera_visual/generation.json",
+      "bytes": 608,
+      "sha256": "23dcb3671be664ba2458835ecb4aa900cf20df4e9c1f35349f028c3ae8833850"
+    },
+    {
+      "path": "assets/camera_visual/pilot_164_0/paris/generation.json",
+      "bytes": 2850,
+      "sha256": "75c35df2a47d911696bb1f5d3ed7e94b2c3f9d8ae2d54bca6bfd73163127c98f"
+    },
+    {
+      "path": "assets/camera_visual/pilot_164_0/paris/paris-01-dusk.png",
+      "bytes": 2808962,
+      "sha256": "e5e4de86b787914ad15060a70fd6801fbd18d77e880344c1ca787a5696f0a16f"
+    },
+    {
+      "path": "assets/camera_visual/pilot_164_0/paris/paris-02-night.png",
+      "bytes": 2580182,
+      "sha256": "a2560e01a77a2e85006cf58d1d2292eeb90f0dd4257b0a277cbb045fca109b7a"
+    },
+    {
+      "path": "assets/camera_visual/pilot_164_0/paris/paris-03-dawn.png",
+      "bytes": 2888787,
+      "sha256": "400027429d84763cffa04760638284a2f57452dd49de16e775dbcd8319b1386f"
+    },
+    {
+      "path": "assets/camera_visual/pilot_164_0/paris/README.md",
+      "bytes": 1126,
+      "sha256": "1d6f80381403ad88721b418eba8e2f6259e581d1f744ba0b105af5c704e0611c"
+    },
+    {
+      "path": "tests/browser/camera_visual_gameplay_164_0.js",
+      "bytes": 7495,
+      "sha256": "fb40be5be07b85baf6526e08cd515f5ac78a050e6b57393bd87ea0d73a504618"
+    },
+    {
+      "path": "tests/browser/camera_visual_effects_164_0.js",
+      "bytes": 3133,
+      "sha256": "8602038da7bb86e2707805a8aee7b67b151289e12d4632b365bbd2a0d4987466"
+    },
+    {
+      "path": "tests/browser/camera_visual_resize_164_0.js",
+      "bytes": 2178,
+      "sha256": "c1823e64180291d3e739566f4b91c895eac9ecb73f122ce5adb23fe6d842475c"
+    },
+    {
+      "path": "tests/browser/camera_visual_reconnect_164_0.js",
+      "bytes": 2487,
+      "sha256": "cad2ef37eed103a413b1efd842ab74b77414708607c19702cd906d7cdd4ea3d5"
+    },
+    {
+      "path": "doc/plans/camera_visual_pilot_164_0_board.md",
+      "bytes": 12032,
+      "sha256": "d45996500d74821d5744257aca0d92939b2edfbe2d6c9a85dc9078485209155f"
+    },
+    {
+      "path": "doc/audits/camera_visual_gameplay_164_0.md",
+      "bytes": 18213,
+      "sha256": "8887bc305ea6826158e66139c737e6ad693e5b60bb566933cda7e151a29a1d71"
+    },
+    {
+      "path": "artifacts/cvn-164-effects-comparison.png",
+      "bytes": 436614,
+      "sha256": "42314324401095f0a9fe65c8c80c9d90dc2adfb5c4e29b56afed2c6c16e2021c"
+    },
+    {
+      "path": "artifacts/cvn-164-effects-dropout.png",
+      "bytes": 26492,
+      "sha256": "c61b5d7167103e6a5e5c65ea48665613c15a428624c9d132a7b36148d761f462"
+    }
+  ]
+}

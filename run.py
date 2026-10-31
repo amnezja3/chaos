@@ -9593,7 +9593,7 @@ def readonly_ui_locale():
 
 @app.before_request
 def detention_request_gate():
-    if request.endpoint == 'legal_page':
+    if request.endpoint in ('legal_page', 'camera_sources'):
         return None
     if str(request.endpoint or '').startswith('identity.'):
         return None  # Account access is not a gameplay action; gateway checks session ownership.
@@ -14942,6 +14942,8 @@ def mark_operation_cleanup_state(operation, now_iso=None):
 def refresh_operation_runtime(operation, now_ts=None, risk_rules=None, camera_windows=None):
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     refreshed = dict(operation or {})
+    if now_ts < (refreshed.get('camera_visual') or {}).get('download_at', 0):
+        return refreshed
     if camera_windows is not None and refreshed.get('camera_exposure'):
         bind_windows(refreshed, camera_windows)
     movement_model = refreshed.get("movement_model") or movement_model_for_operation(
@@ -15147,6 +15149,23 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
             result["files"] += len(finalized)
     settle_pending(player_inventory_store, wallet_balance_store, delta_bus, finalize_operation_files_bounded,
                    on_error=report_payment_failure)
+    # Also retry a terminal pilot whose disk was full or whose process stopped
+    # between normal artifact finalization and activation. This uses this worker.
+    from camera_visual import enabled
+    pilot_user = os.environ.get('CHAOS_CAMERA_VISUAL_PILOT_USER', 'main')
+    if enabled(pilot_user):
+        from database import db_connect, loads_json
+        with db_connect(player_operation_store.db_path) as conn:
+            pilot_rows = conn.execute('''SELECT s.username,o.operation_json FROM camera_visual_sessions s
+                JOIN player_operations o ON o.operation_id=s.operation_id AND o.username=s.username
+                WHERE (?=1 OR s.username=?) AND s.viewer_closed=0
+                AND o.status IN ('timeout','completed','done')
+                AND NOT EXISTS (SELECT 1 FROM player_data_files f WHERE f.username=s.username
+                    AND f.file_id='activation-' || s.operation_id)
+                ORDER BY s.created_at ASC LIMIT 32''',
+                (int(os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1'), pilot_user)).fetchall()
+        for row in pilot_rows:
+            camera_visual_service().finalize(row['username'], loads_json(row['operation_json'], {}))
     return result
 
 
@@ -15750,6 +15769,7 @@ def summarize_operation_control_item(operation, profile=None):
 
     return {
         **base,
+        "camera_visual": operation.get('camera_visual'),
         "operation_family": operation_control_family(operation),
         "target_id": base.get("target_id") or target.get("target_id"),
         "target_label": target.get("label") or target.get("name") or base.get("target_id"),
@@ -15770,7 +15790,8 @@ def build_operation_control_snapshot(username, profile, operations=None):
         operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
     active_operations = active_operations_from_operations(operations)
     operation_history = operation_history_from_operations(operations)
-    active_items = [summarize_operation_control_item(operation, profile=profile) for operation in active_operations]
+    active_items = [summarize_operation_control_item(operation, profile=profile) for operation in active_operations
+                    if time.time() >= (operation.get('camera_visual') or {}).get('download_at', 0)]
     history_items = [summarize_operation_control_item(operation, profile=profile) for operation in operation_history[-25:]]
 
     groups_by_family = {}
@@ -20032,6 +20053,7 @@ SESSION_GENERATION_HEADER = "X-Chaos-Session-Generation"
 SESSION_GENERATION_USER_HEADER = "X-Chaos-Session-User"
 SESSION_GENERATION_ERROR_HEADER = "X-Chaos-Session-Error"
 SESSION_GENERATION_PUBLIC_ENDPOINTS = {
+    "camera_sources",
     "legal_page",
     "launch", "launch_status", "launch_bootstrap",
     "installation_manifest", "installation_worker", "installation_shortcut",
@@ -21024,7 +21046,7 @@ def get_ghostsignal_show_service():
 
 
 def ghostsignal_request_is_exempt():
-    if request.endpoint == 'legal_page':
+    if request.endpoint in ('legal_page', 'camera_sources'):
         return True
     if str(request.endpoint or '').startswith('identity.'):
         return True
@@ -21215,6 +21237,16 @@ def legal_page():
         legal_kind=kind, legal_sections=PRIVACY if kind == 'privacy' else TERMS,
         legal_version=VERSION, legal_updated=UPDATED))
     response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@app.get('/camera-sources')
+def camera_sources():
+    locale = request.args.get('locale')
+    if locale not in ('pl','en'):
+        locale = request.accept_languages.best_match(['pl','en']) or 'pl'
+    response = make_response(render_template('camera_sources.html',locale=locale))
     response.headers['Cache-Control'] = 'no-store'
     return response
 
@@ -22792,6 +22824,16 @@ def dev_dashboard():
 
     generation = session_generation_client_context()
     tab = request.args.get("tab", "users")
+    if tab == 'camera':
+        from database import db_connect
+        with db_connect(player_inventory_store.db_path) as conn:
+            archives = [dict(r) for r in conn.execute('SELECT archive_id,source,status,reason,attempts,expires_at FROM camera_visual_archives ORDER BY created_at DESC LIMIT 50')]
+            budget = [dict(r) for r in conn.execute('SELECT * FROM camera_visual_budget ORDER BY day DESC LIMIT 7')]
+        return render_template('admin_camera.html',generation=generation,active_tab=tab,
+            ui_locale=request_ui_locale(),archives=archives,budget=budget,
+            camera_flags={name:os.environ.get(name,'0')=='1' for name in
+                ('CHAOS_CAMERA_STREET_VIEW','CHAOS_CAMERA_WORKER','CHAOS_CAMERA_ACQUISITION','CHAOS_CAMERA_SERVE')},
+            camera_secret_present=bool(os.environ.get('MAPILLARY_ACCESS_TOKEN')))
     if tab == 'poi':
         from poi_infrastructure.admin import enabled as poi_admin_enabled
         if not poi_admin_enabled():
@@ -24618,10 +24660,88 @@ def hack_action_message_presentation(response):
     return response
 
 
+def camera_visual_service():
+    import sys
+    from camera_visual import CameraVisual
+    return CameraVisual(sys.modules[__name__])
+
+
+def camera_visual_call(method, data):
+    import sqlite3
+    from camera_visual import PilotError
+    failure = session_csrf_failure()
+    if failure:
+        return failure
+    try:
+        return jsonify(getattr(camera_visual_service(), method)(session['user'], data))
+    except (PilotError, ValueError) as error:
+        return jsonify(success=False, reason=str(error), message=str(error)), 409
+    except sqlite3.OperationalError as error:
+        if 'locked' not in str(error).lower() and 'busy' not in str(error).lower():
+            raise
+        return jsonify(success=False, reason='camera_storage_busy'), 503, {'Retry-After': '5'}
+
+
+@app.route('/api/camera-visual/state')
+def camera_visual_state():
+    from camera_visual import enabled
+    if not session.get('user'):
+        return jsonify(success=False), 401
+    response = jsonify(success=True, enabled=enabled(session['user']),
+        sessions=camera_visual_service().snapshot(session['user']) if enabled(session['user']) else [])
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@app.route('/api/camera-visual/window', methods=['POST'])
+def camera_visual_window():
+    from camera_visual import enabled
+    if not enabled(session.get('user')):
+        return jsonify(success=False), 403
+    return camera_visual_call('window', request.get_json(silent=True) or {})
+
+
+@app.route('/api/camera-visual/media/<receipt>/<int:frame>')
+def camera_visual_media(receipt, frame):
+    from flask import send_from_directory, send_file
+    from camera_visual import enabled, IMAGES, pilot_target
+    if not enabled(session.get('user')) or frame not in range(len(IMAGES)):
+        return jsonify(success=False), 403
+    states = camera_visual_service().snapshot(session['user'])
+    if not any(s['reference_id'] == receipt and s['state'] == 'ready' and not s['viewer_closed'] for s in states):
+        return jsonify(success=False), 403
+    state = next(s for s in states if s['reference_id'] == receipt)
+    if state.get('archive_id'):
+        from camera_visual_archive import ArchiveStore
+        from camera_visual_source import SourceError
+        from database import db_connect
+        archive = ArchiveStore(player_inventory_store.db_path)
+        with db_connect(player_inventory_store.db_path) as conn:
+            manifest = archive.manifest(conn,state['archive_id'])
+        material = next((i for i in manifest['images'] if i['image_id']==state.get('image_id')),None)
+        if not material or frame != state['motion']['image']:
+            return jsonify(success=False, reason='camera_material_unavailable'), 404
+        try:
+            path = archive.media_path(material)
+        except SourceError:
+            return jsonify(success=False, reason='camera_material_unavailable'), 404
+        response = send_file(path, mimetype='image/webp')
+        response.headers['Cache-Control'] = 'private, no-store'
+        return response
+    if not any(s['reference_id'] == receipt and pilot_target(s['target']) for s in states):
+        return jsonify(success=False, reason='camera_source_pending'), 404
+    response = send_from_directory(os.path.join(app.root_path, 'assets', 'camera_visual', 'pilot_164_0', 'paris'), IMAGES[frame])
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
 @app.route('/hack-action', methods=['POST'])
 def hack_action():
     app_flow_started_at = time.perf_counter()
     data = request.get_json() or {}
+    from camera_visual import enabled, accepts_target
+    if enabled(session.get('user')) and data.get('action') == 'camera_stream' and accepts_target(data):
+        return camera_visual_call('launch', data)
     if data.get('action') == 'camera_shutdown':
         return camera_shutdown_action(data)
     action = data['action']
@@ -31006,6 +31126,17 @@ def gonna_win():
 def _gonna_win_runtime():
     app_flow_started_at = time.perf_counter()
     data = request.get_json(silent=True) or {}
+    from camera_visual import enabled, accepts_target, eligible
+    if enabled(session.get('user')):
+        from database import db_connect, loads_json
+        with db_connect(player_inventory_store.db_path) as conn:
+            row = conn.execute("SELECT app_json FROM player_apps WHERE username=? AND app_id=? AND status='installed'",
+                               (session['user'], data.get('app_id'))).fetchone()
+            previous = conn.execute('SELECT 1 FROM camera_visual_sessions WHERE username=? AND receipt=?',
+                (session['user'], data.get('launch_receipt') or data.get('launch_key'))).fetchone()
+        app_candidate = normalize_app_contract(loads_json(row['app_json'], {})) if row else {}
+        if previous or (eligible(app_candidate) and accepts_target(data.get('expected_target') or {})):
+            return camera_visual_call('result', data)
     camera_receipt = str(data.get('launch_receipt') or data.get('receipt') or '')
     if camera_receipt.startswith('camera_off_'):
         from database import db_connect, loads_json

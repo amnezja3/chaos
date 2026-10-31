@@ -1,0 +1,14 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<h1>Camera Street View</h1>
+<p>{{ 'Kontrola lokalnego pakietu. Pozyskiwanie, publikacja i rollout wymagają osobnych decyzji.' if ui_locale == 'pl' else 'Package status. Acquisition, serving and rollout require separate decisions.' }}</p>
+<section><h2>{{ 'Konfiguracja' if ui_locale == 'pl' else 'Configuration' }}</h2>
+<dl>{% for name,enabled in camera_flags.items() %}<dt>{{ name }}</dt><dd>{{ 'ON' if enabled else 'OFF' }}</dd>{% endfor %}
+<dt>Mapillary token</dt><dd>{{ 'present' if camera_secret_present else 'absent' }}</dd></dl></section>
+<section><h2>{{ 'Archiwa — ostatnie 50' if ui_locale == 'pl' else 'Archives — latest 50' }}</h2>
+<table><thead><tr><th>ID</th><th>{{ 'Źródło' if ui_locale == 'pl' else 'Source' }}</th><th>Status</th><th>{{ 'Powód' if ui_locale == 'pl' else 'Reason' }}</th><th>{{ 'Próby' if ui_locale == 'pl' else 'Attempts' }}</th></tr></thead>
+<tbody>{% for item in archives %}<tr><td>{{ item.archive_id[:12] }}</td><td>{{ item.source }}</td><td>{{ item.status }}</td><td>{{ item.reason }}</td><td>{{ item.attempts }}</td></tr>{% else %}<tr><td colspan="5">{{ 'Brak archiwów' if ui_locale == 'pl' else 'No archives' }}</td></tr>{% endfor %}</tbody></table></section>
+<section><h2>{{ 'Rezerwacje budżetu' if ui_locale == 'pl' else 'Budget reservations' }}</h2>
+<table><thead><tr><th>UTC</th><th>Requests</th><th>Bytes reserved</th></tr></thead><tbody>{% for item in budget %}<tr><td>{{ item.day }}</td><td>{{ item.requests }}</td><td>{{ item.bytes_reserved }}</td></tr>{% endfor %}</tbody></table></section>
+<p>{{ 'Wycofanie materiału i GC: operatorskie CLI camera_archive.py. Panel nie uruchamia API.' if ui_locale == 'pl' else 'Withdrawals and GC: operator camera_archive.py CLI. This panel does not call the provider.' }}</p>
+{% endblock %}

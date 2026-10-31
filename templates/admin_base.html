@@ -8,6 +8,7 @@
 <a href="{{ url_for('dev_dashboard', tab=key) if generation.launch_enabled else url_for('dev_dashboard', tab=key, _session_generation=generation.query_token) }}" {% if active_tab == key %}aria-current="page"{% endif %}>{{ 'GhostLab' if key == 'ghostlab' else admin_t(key) }}</a>
 {% endfor %}<a href="{{ url_for('dev_dashboard', tab='identity') if generation.launch_enabled else url_for('dev_dashboard', tab='identity', _session_generation=generation.query_token) }}" {% if active_tab == 'identity' %}aria-current="page"{% endif %}>Identity Gateway</a>
 {% if poi_admin_enabled is defined and poi_admin_enabled() %}<a href="{{ url_for('dev_dashboard', tab='poi') if generation.launch_enabled else url_for('dev_dashboard', tab='poi', _session_generation=generation.query_token) }}" {% if active_tab == 'poi' %}aria-current="page"{% endif %}>POI / Overpass</a>{% endif %}
+<a href="{{ url_for('dev_dashboard', tab='camera') if generation.launch_enabled else url_for('dev_dashboard', tab='camera', _session_generation=generation.query_token) }}" {% if active_tab == 'camera' %}aria-current="page"{% endif %}>Camera Street View</a>
 <p>GHOST NETWORK<br>{{ admin_t('operator') }}</p></nav>
 <main>{% block content %}{% endblock %}</main></div>
 <script id="session-generation-config" type="application/json">{{ generation|tojson }}</script>
