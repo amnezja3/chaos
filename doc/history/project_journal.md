@@ -4,6 +4,24 @@ Nowe wpisy: najnowsze na górze. Starsza część zachowuje historyczny, miejsca
 mieszany porządek; ostatnia linia nie wyznacza aktualnego statusu.
 [Zasady journalu i przekazanie](../runbooks/handoff_project_2026_10_31.md#obowiązkowe-prowadzenie-journalu).
 
+## 2026-10-31 — CVN 164.0: lokalny prototyp jednej kamery do odbioru
+
+- Na polecenie operatora rozpoczęto 164.0, po pełnym odczycie handoffu i kontraktu
+  profilu; baza `82a8f6f`, początkowo czyste drzewo. PASS 163.5/Cyberner pozostaje
+  zamknięty; Geoapify do dokończenia poza tym pakietem.
+- Izolowany host Node używa renderera app_window z terminal.js; operacja jest
+  jawnie symulowana. Jedna lokalna fotografia Cybularny/CC0, kadr/zbliżenie,
+  terminal archiwalny, stany, PL/EN, reduced motion, źródło/kopiowanie/wyjście.
+- Playwright MCP: 21 sprawdzeń PASS, desktop/mobile, konsola bez błędów;
+  trzy istniejące regresje kamer JS PASS. Python nie startuje przez niedostępną
+  instalację WindowsApps; bez testów backendu i bez deklaracji pełnego E2E gry.
+- [Evidence, screenshoty i uruchomienie](../audits/camera_visual_prototype_164_0.md).
+  [Sprint 164](../sprints/sprint_164_camera_visual_archive.md): **oczekuje na odbiór
+  wyglądu**, nie akceptacja. Automatyczna integracja nowych/starszych aplikacji
+  przez camera_stream pozostaje obowiązującym następnym kontraktem.
+- Bez zmian runtime/profili, VPS, Mapillary, archiwum/kolejki i fotografii graczy.
+  Następny krok: akceptacja kierunku wizualnego lub iteracja prototypu.
+
 ## 2026-10-31 — pełne przekazanie CHAOS i obowiązkowe prowadzenie journalu
 
 - Przygotowano [prompt nowego wątku](../runbooks/handoff_project_2026_10_31.md):

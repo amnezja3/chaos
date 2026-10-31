@@ -1,6 +1,9 @@
 # Sprint 164 — Camera Visual Network: prototyp kamery, kontrakt i archiwum
 
 Data: 24.10.2026. Status: **PLAN — bez aktywacji integracji**.
+Aktualizacja 31.10.2026: **164.0 lokalny prototyp i testy komponentu gotowe;
+oczekuje na akceptację wyglądu autora**. [Evidence i uruchomienie](../audits/camera_visual_prototype_164_0.md).
+164.1–164.5 nadal PLAN, bez rozpoczęcia infrastruktury i bez aktywacji dostawcy.
 Źródło: [Camera Visual Network](../prototypes/camera_view/CHAOS%20%E2%80%94%20CAMERA%20VISUAL%20NETWORK.md).
 Kontynuacja: [165 — interfejs, administracja i rollout](sprint_165_camera_visual_network_rollout.md).
 Uzupełnienie 24.10.2026: konspekt operatora „Licencjonowanie Mapillary,
