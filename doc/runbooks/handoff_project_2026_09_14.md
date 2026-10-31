@@ -1,6 +1,9 @@
 # CHAOS — pełne przekazanie projektu, 14 września 2026
 
-Status: **AKTYWNY PUNKT WEJŚCIA DO NOWEGO WĄTKU**.
+Status: **HISTORYCZNE PRZEKAZANIE**. Aktualne instrukcje startowe, priorytety
+i bilans odbiorów: [pełne przekazanie z 31.10.2026](handoff_project_2026_10_31.md).
+Poniższe polecenia rozpoczęcia prac i stany otwarte opisują wrzesień; nie są
+automatyczną instrukcją ich ponownego wykonania. Kontrakty i historia pozostają użyteczne.
 
 Stan kodu sprawdzony przy `HEAD 96dec35` (`admin bug reporter`). Przed rozpoczęciem
 tego przekazania drzewo Git było czyste. Dokument powstał na podstawie kodu,

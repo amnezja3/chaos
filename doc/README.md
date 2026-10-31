@@ -5,6 +5,15 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Gdzie zacząć
 
+- **Aktualny prompt przekazania — 31 X 2026:**
+  [pełny kontekst projektu i instrukcja nowego wątku](runbooks/handoff_project_2026_10_31.md).
+  163.5: zaakceptowany PASS z pełnym skanerem Geoapify do dokończenia;
+  Cyberner: PASS operatora. Następny zaakceptowany kierunek: Camera Visual
+  Network 164–165, najpierw lokalny prototyp 164.0 do akceptacji wyglądu.
+  Przekazanie zawiera architekturę, kontrakt ciężkiego profilu, mapę dokumentacji,
+  otwarte punkty i stałą politykę LOCAL-FIRST. **Starsze wpisy poniżej zachowują
+  historię; ich „następny sprint” i polecenia startowe nie określają już priorytetu.**
+
 - **W realizacji: [154.8 — dostawcy narracji, Mistral i fallback Ollama](sprints/sprint_154_8_narrative_providers_mistral.md).**
   Plan obejmuje wspólny adapter, konfigurację/model w panelu administratora,
   automatyczne przełączenie tego samego zadania na Ollamę oraz live odbiór

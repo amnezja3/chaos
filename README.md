@@ -96,6 +96,10 @@ For current work, start with the status and roadmap below.
 
 Start with the complete [`doc/README.md`](doc/README.md) documentation index.
 
+For continuing development in a new thread, read the current
+[project handoff and startup prompt — 31 October 2026](doc/runbooks/handoff_project_2026_10_31.md).
+It supersedes older handoff priorities and separates accepted scope from pending work.
+
 Key documents:
 
 - [Project journal](doc/history/project_journal.md) — dated progress, acceptance and unresolved checks.
