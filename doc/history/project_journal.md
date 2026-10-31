@@ -1,5 +1,93 @@
 # CHAOS — Project Journal
 
+Nowe wpisy: najnowsze na górze. Starsza część zachowuje historyczny, miejscami
+mieszany porządek; ostatnia linia nie wyznacza aktualnego statusu.
+[Zasady journalu i przekazanie](../runbooks/handoff_project_2026_10_31.md#obowiązkowe-prowadzenie-journalu).
+
+## 2026-10-31 — pełne przekazanie CHAOS i obowiązkowe prowadzenie journalu
+
+- Przygotowano [prompt nowego wątku](../runbooks/handoff_project_2026_10_31.md):
+  architektura, mechaniki, kanoniczne store'y, ciężki profil/lekkie ścieżki,
+  frontend/backend/workery/Ollama, statusy sprintów, regresje, dokumentowanie
+  i LOCAL-FIRST ze zbiorczym wdrożeniem oraz odbiorem VPS.
+- Commit `604a8b3`: odnośniki w obu README i oznaczenie przekazania z 14 IX
+  jako historycznego. Baza przeglądu `77d5c8f`; bez nowego audytu produkcji.
+- Na polecenie operatora dopisano zasady prowadzenia journalu: aktualizacja
+  po spójnym pakiecie/decyzji/odbiorze, jakość dowodów, datowanie retrospektyw,
+  linki zamiast konkurencyjnych planów. Poniżej uzupełniono ostatni wątek.
+- Weryfikacja dokumentacji: lokalne odnośniki bez braków, `git diff --check`
+  PASS. Bez nowych testów runtime, wywołań dostawców, migracji i restartów VPS.
+  Następny etap CVN: lokalny prototyp jednej kamery 164.0 do akceptacji autora.
+
+## 2026-10-31 — retrospektywa: Cyberner i polish paneli, PASS operatora
+
+Uzupełnienie z rozmowy; dokładnych dat poszczególnych odbiorów nie ustalono.
+
+- Poprawiono publiczne nazwy kont z bramek zewnętrznych oraz wyszukiwanie
+  i wybór gracza. Nick służy prezentacji, kanoniczny identyfikator rozstrzyga
+  konto; nie zmieniano tożsamości użytkownika dla kosmetyki.
+- Karty wyników dostały styl CHAOS. Powtórzony feedback zastępuje poprzedni
+  i znika po 3 s. Wybór otwiera rozmowę; oczekujące zaproszenia są widoczne,
+  zamiast niewidocznego wielokrotnego wysyłania. Commity `bc29275`, `508175e`.
+- Operator przekazał PASS testów directory/communication/public names/identity
+  (6, 8, 2 i 4 testy), reload oraz `pm2 save`. Po dalszych poprawkach potwierdził:
+  „jest lepiej, mamy pass cybernera”. To dowody poprzedniego wątku, nie nowe testy.
+- Identity Gateway i POI/Overpass w adminie uporządkowano w grupy/collapsy;
+  kompaktowe checkboxy w poziomie zaakceptowano po poprawce. Nie oznacza to
+  ponownego pełnego odbioru wszystkich dostawców logowania i POI.
+- Punkty kodu i regresji: [przekazanie](../runbooks/handoff_project_2026_10_31.md).
+
+## 2026-10-30 — 164–165: Ghost System, licencje i LOCAL-FIRST
+
+Journal uzupełniony 31 X według zmian dokumentacji i decyzji operatora.
+
+- Zaktualizowano istniejące sprinty [164](../sprints/sprint_164_camera_visual_archive.md)
+  i [165](../sprints/sprint_165_camera_visual_network_rollout.md).
+  `3cfa572`: wycofywanie ze współdzielonych archiwów, tombstone/restore,
+  atrybucja i prawa CC BY-SA, logo/panel licencji, kontrolowana nawigacja i realna PWA.
+- `77d5c8f`: po analizie receptury camera_stream, map_actions i zamrożonego
+  creator_contract dopisano automatyczny podgląd nowych i zgodnych historycznych
+  aplikacji Ghost System. camera_visual_preview pozostaje planowaną zdolnością,
+  nie wdrożonym polem. Jedno archiwum i istniejąca operacja, bez zmiany gameplayu.
+- Wyłączono CAMERA CREATOR, kamery i fotografie graczy, aparat/GPS, Vision,
+  zamazywanie twarzy/tablic, moderację i PLAYER_UPLOAD. Bez Sprintu 166
+  i infrastruktury na zapas; GhostLab v2 nadal zamrożony.
+- Przyjęto stałą politykę LOCAL-FIRST: kompletne pakiety lokalne, regresja,
+  raport gotowości i zbiorcze sesje VPS. Prototyp 164.0 i jawna akceptacja
+  wyglądu nadal poprzedzają budowę pełnej infrastruktury.
+- Podsumowanie odpowiedzi Mapillary z 26 X przekazane przez operatora:
+  L01 częściowo rozstrzygnięta dla pobierania/transformacji/własnego serwowania;
+  retencja, wycofania i docelowe użycie wymagają doprecyzowania. L02 otwarta:
+  dwustopniowe wyjście nie ma jednoznacznej akceptacji. Nie zmieniono UX logo
+  ani nie przedstawiono podsumowania jako niezależnej weryfikacji prawnej.
+- Kontrola `git diff --check` PASS. Wyłącznie plany; bez implementacji CVN,
+  wdrożenia i akceptacji nieprzygotowanego jeszcze prototypu.
+
+## 2026-10-28 — 163.5: zaakceptowany PASS z Geoapify do dokończenia
+
+Journal uzupełniony 31 X na podstawie [bilansu odbioru](../audits/world_closeout_163_5.md)
+i decyzji operatora; nie wykonano ponownych testów produkcji.
+
+- Zaakceptowano skaner MapLark, exact i regionalne repo, kolektor, geografię,
+  panel i monitoring. [163.5](../sprints/sprint_163_5_world_repository_completion.md)
+  domyka pamięć świata z 160–163 w opisanych granicach.
+- `post` VPS z raportu `chaos-world-completion-gCwuSf`: PASS, integralność/FK
+  i schematy OK, web/kolektor online, aktualny heartbeat, HTTP 200. Wtedy 265
+  snapshotów; nie jest to dowód pokrycia planety. Diagnostyka bez nowych wywołań
+  dostawców, przy równolegle działającym kolektorze.
+- Zachowano regionalny PASS geometry-v2: dwa przesunięte skany na różnych
+  workerach z jednego snapshotu. Operator potwierdził skanowanie, hakowanie
+  i tworzenie terytorium na starym oraz nowym koncie.
+- Retencja geometrii 7 dni nie zmienia fresh 300 s / stale 1800 s. Podlimit
+  tła może prawidłowo odroczyć kolektor mimo budżetu skanera. Nie resetowano
+  księgi, uncertain operacji Geoapify ani limitów.
+- Pełny skaner/fallback Geoapify pozostaje otwarty: commercial observations
+  nie dowodzą zgodności kategorii, selekcji i pełnej geometrii. Nie wymaga to
+  powtarzania zaakceptowanego Paryża ani całego odbioru 163.5.
+- Commity `9ae109e`, `32000e0`, `a68733a`.
+  [Runbook](../runbooks/world_completion_final_163_5.md) zachowuje procedurę;
+  przeczytanie go nie jest poleceniem ponownego deployu/importu.
+
 ## 2026-10-17 — 157: Identity Gateway, deklaracja 18+ i projekty prawne
 
 - Wymaganie 18+ zastępuje wcześniejsze 13+. Audyt przed implementacją:

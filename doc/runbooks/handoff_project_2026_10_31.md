@@ -532,6 +532,37 @@ HTTP 200, PM2 online i akceptacja wyglądu to różne dowody. Odbiór części n
 oznacza całego produktu. Podaj faktycznie wykonane komendy, środowisko, commit,
 wynik i niewykonane sprawdzenia; testy z dawnych logów oznacz datą/źródłem.
 
+### Obowiązkowe prowadzenie journalu
+
+Kanoniczny dziennik: [doc/history/project_journal.md](../history/project_journal.md).
+Aktualizuj go po spójnym pakiecie pracy, istotnej decyzji operatora, odbiorze,
+wdrożeniu lub diagnozie regresji — nie dopiero przy zamknięciu sprintu i nie
+po każdym pojedynczym teście.
+
+- Nowe wpisy dodawaj pod tytułem i notą organizacyjną, **najnowsze na górze**.
+  Nie przestawiaj całej historycznej części o mieszanej chronologii.
+- Nagłówek: `## YYYY-MM-DD — sprint/obszar: konkretny rezultat`.
+  Data zdarzenia tylko gdy potwierdzona. Uzupełnienie wsteczne oznacz datą
+  zapisania i źródłem; jeśli daty zdarzenia nie znasz, użyj dzisiejszej daty
+  i określenia „podsumowanie wcześniejszego wątku”, bez zgadywania.
+- Zapisz problem/cel, zmianę i skutek, decyzję/zakres zgody, stan lokalny lub
+  wdrożeniowy, wykonane testy i środowisko, ograniczenia i następny krok.
+  Dodaj linki do sprintu, evidence/runbooku i znane commity. Nie wpisuj przyszłego
+  hasha; commit bieżącego wpisu można odnaleźć przez Git.
+- Wyniki z logów operatora oznacz jako przekazane, nie wykonane przez agenta.
+  LOCAL PASS, VPS PASS, push i akceptacja wyglądu to różne dowody. Przy zmianie
+  dokumentacji podaj kontrolę dokumentów, bez fikcyjnego runtime/browser PASS.
+- Nie duplikuj całej checklisty sprintu. Root cause większej regresji trafia
+  do hardbugfix, procedura do runbooku; journal podsumowuje i linkuje.
+- Korektę decyzji zapisz jako nowy datowany wpis z odnośnikiem. Nie wymazuj
+  wcześniejszego wyniku; można dopisać przy nim „zastąpione przez …”.
+- Bez sekretów, pełnych profili i wielkich surowych logów. Wystarczy minimalny
+  wynik i lokalizacja dowodu; dane kont wyłącznie gdy konieczne do diagnozy.
+
+Przed commitem sprawdź spójność ze sprintem/audytem, linki i `git diff --check`.
+Przy przekazaniu nowego wątku ostatni zakończony pakiet ma być w journalu
+i aktualnym bilansie, a nie tylko w rozmowie. Dziennik nie zastępuje kontraktów.
+
 ### Jak ustalić, co jest aktualne
 
 1. Najnowsza dyspozycja operatora określa zakres i priorytet.
