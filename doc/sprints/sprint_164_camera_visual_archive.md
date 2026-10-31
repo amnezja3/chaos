@@ -2,7 +2,9 @@
 
 Data: 24.10.2026. Status: **PLAN — bez aktywacji integracji**.
 Aktualizacja 31.10.2026: **164.0 lokalny prototyp i testy komponentu gotowe;
-oczekuje na akceptację wyglądu autora**. [Evidence i uruchomienie](../audits/camera_visual_prototype_164_0.md).
+oczekuje na akceptację wyglądu autora**. Aktualna rewizja **B** uwzględnia
+decyzję operatora: osobna instancja viewera po 30-minutowym pobraniu aktywatora.
+[Evidence i uruchomienie](../audits/camera_visual_prototype_164_0.md).
 164.1–164.5 nadal PLAN, bez rozpoczęcia infrastruktury i bez aktywacji dostawcy.
 Źródło: [Camera Visual Network](../prototypes/camera_view/CHAOS%20%E2%80%94%20CAMERA%20VISUAL%20NETWORK.md).
 Kontynuacja: [165 — interfejs, administracja i rollout](sprint_165_camera_visual_network_rollout.md).
@@ -69,8 +71,23 @@ migracji ani workera. Zatwierdzenie planu nie jest akceptacją wyglądu.
 
 ## 164.0 — grywalny prototyp pojedynczej kamery i obowiązkowy odbiór
 
+**Decyzja operatora 31.10.2026, nadrzędna wobec wcześniejszego przebiegu:**
+success aplikacji referencyjnej → jej końcowy stan → widoczne SESSION CLOSE
+(obecny standard 5 s) i zamknięcie → pobieranie aktywatora w Centrum Operacji
+przez 30 minut, postęp 0–100% → potwierdzony zapis na dysku gracza → automatyczne
+otwarcie **nowej, osobnej instancji standardowego okna Ghost System**, interface
+`window`. Failure pozostawia referencję w końcowym stanie, bez auto-close,
+pobierania i viewera. Nie przekształcać okna referencji w okno kamery.
+Trwały stan ma przetrwać close/reload/logout/restart, a receipt i deduplikacja
+muszą wykluczać drugi aktywator/download/viewer od retry lub drugiej karty.
+100% bez potwierdzenia zapisu nie wystarcza do uruchomienia. Aktywator nie jest
+camera_dump; nie dodawać drugiego naliczenia ani drugiego 30-minutowego etapu.
+Nowa decyzja zmienia moment prezentacji CVN; zachować uprawnienia i ekonomię gry.
+Rewizja B demonstruje ten przebieg trwale na izolowanej bazie, nadal do odbioru.
+
 Pierwszy rezultat to otwierany z „Podglądu kamery” interaktywny prototyp
-jednego okna CHAOS na izolowanych danych, z 1–3 lokalnymi zdjęciami testowymi
+jednej kamery w osobnym standardowym oknie CHAOS na izolowanych danych,
+z 1–3 lokalnymi zdjęciami testowymi
 o znanym prawie użycia. Obsługuje sekwencję wejścia, synchronizację, ujawnienie
 obrazu, delikatne zakłócenia, zmianę ujęcia, NO SIGNAL i ponowne otwarcie.
 Nie dodaje fikcyjnego sukcesu włamania przed zatwierdzeniem akcji gameplayu.

@@ -1,6 +1,9 @@
 # Sprint 165 — Camera Visual Network: terminal, administracja i rollout
 
 Data: 24.10.2026. Status: **PLAN — po akceptacji prototypu 164.0 i archiwum 164**.
+Aktualizacja 31.10.2026: obowiązuje przebieg success/failure, trwały aktywator
+30 minut i osobna standardowa instancja `window` z rewizji B 164.0.
+[Decyzja, implementacja lokalna i dowody](../audits/camera_visual_prototype_164_0.md).
 Źródło: [koncepcja](../prototypes/camera_view/CHAOS%20%E2%80%94%20CAMERA%20VISUAL%20NETWORK.md).
 Zależność: [164](sprint_164_camera_visual_archive.md).
 Uzupełnienie 24.10.2026: konspekt operatora „Licencjonowanie Mapillary,
@@ -53,8 +56,12 @@ Obowiązują wyłączenia z 164.1: bez CAMERA CREATOR, instalowania kamer,
 zdjęć graczy, aparatu/GPS, Vision, zamazywania twarzy/tablic, moderacji
 i `PLAYER_UPLOAD`; bez infrastruktury na zapas i bez nowego Sprintu 166.
 
-Po zaakceptowaniu istniejącej operacji kamera może odczytać manifest lub
-zgłosić deduplikowane zadanie. Ponowne otwarcie okna nie uruchamia ponownie
+Po sukcesie referencji i zamknięciu SESSION CLOSE rusza 30-minutowe pobieranie
+aktywatora w Centrum Operacji. Dopiero 100% i potwierdzony zapis aktywatora
+pozwalają uruchomić osobną instancję standardowego okna oraz odczytać manifest
+lub zgłosić deduplikowane zadanie CVN. Failure nie zamyka referencji automatycznie,
+nie tworzy pobierania ani viewera. Wszystkie terminy i receipts są trwałe;
+zamknięcie okna/reload/logout nie sterują życiem operacji. Ponowne otwarcie nie uruchamia ponownie
 operacji gry ani jej efektów. Wspólny archiwalny obraz nie jest zasobem
 camera_dump i nie zmienia jego pochodzenia, wartości ani przyznawania.
 

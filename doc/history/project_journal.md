@@ -4,6 +4,25 @@ Nowe wpisy: najnowsze na górze. Starsza część zachowuje historyczny, miejsca
 mieszany porządek; ostatnia linia nie wyznacza aktualnego statusu.
 [Zasady journalu i przekazanie](../runbooks/handoff_project_2026_10_31.md#obowiązkowe-prowadzenie-journalu).
 
+## 2026-10-31 — CVN 164.0 B: osobna instancja po trwałym aktywatorze
+
+- Operator skorygował pierwszy prototyp (`5949c04`): success → SESSION CLOSE
+  → 30-minutowe pobieranie aktywatora → potwierdzony zapis → osobne standardowe
+  okno Ghost System. Failure pozostawia końcową referencję bez dalszego procesu.
+  Załączona wizualizacja wyznacza kierunek GLASS EYE; to nie odbiór wersji B.
+- Prototyp ma izolowaną trwałą bazę, canonical operations/files/storage,
+  atomowe potwierdzenie zapisu, deadline niezależny od DOM, receipt i lease
+  viewera. Obsługuje reload/re-login/restart, dwie karty i jawne close/reopen.
+  Kontrolki, renderer, drag i minimalizacja pochodzą z terminal.js.
+- Python 3.11.9 działa poza sandboxem: 10 testów SQLite PASS. Playwright MCP:
+  24 lifecycle + 13 visual PASS; faktyczny restart hosta zachował jedną operację,
+  jeden plik i instance_id. 3 istniejące regresje kamer JS PASS.
+- [Aktualne evidence, screenshoty i uruchomienie](../audits/camera_visual_prototype_164_0.md).
+  Zaktualizowano sprinty [164](../sprints/sprint_164_camera_visual_archive.md)
+  i [165](../sprints/sprint_165_camera_visual_network_rollout.md).
+- To nadal lokalny prototyp, nie pełne E2E gry ani wdrożenie. Bez zmian runtime
+  profili/produkcji, Mapillary, archiwum, zdjęć graczy i VPS. Oczekuje na odbiór B.
+
 ## 2026-10-31 — CVN 164.0: lokalny prototyp jednej kamery do odbioru
 
 - Na polecenie operatora rozpoczęto 164.0, po pełnym odczycie handoffu i kontraktu
