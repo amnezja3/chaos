@@ -4,6 +4,10 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+Nowe pobranie na VPS trwa (19:48:35–20:18:35 czasu wyświetlanego w UI),
+poprawna nazwa „Kamera Le Monde de l'observation”. Lokalna poprawka kropki
+scan_ports po sukcesie aplikacji oczekuje wdrożenia i odbioru wizualnego.
+
 Do najbliższego wdrożenia: nazwy „Kamera <nazwa obiektu>” dla kamer przy
 sklepach i bankomatach; aktualizacja przy świeżym skanie bez zmiany camera_id.
 

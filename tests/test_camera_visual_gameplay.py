@@ -330,6 +330,8 @@ class CameraVisualGameplayTest(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.json)
         self.assertTrue(result.json['success'], result.json)
         self.assertEqual(result.json['camera_visual']['target']['camera_id'], marker['camera_id'])
+        self.assertTrue(result.json['target']['actions_allowed']['scan_ports'])
+        self.assertTrue(self.targets.get_active_target('attacker')['actions_allowed']['scan_ports'])
         self.assertTrue(result.json['camera_visual']['material_required'])
         self.complete(result.json)
         with patch('camera_visual.time.time',return_value=result.json['camera_visual']['ready_at']):

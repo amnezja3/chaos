@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — kropka skanu po sukcesie Camera Street View
+
+Operator potwierdził nowe pobranie z nazwą „Kamera Le Monde de l'observation”,
+ale pierwsza kropka belki pozostawała wygaszona. Ścieżka camera_visual.result
+pomijała kanoniczne actions_allowed.scan_ports. Lokalnie po sukcesie zapisuje
+scan_ports i camera_stream oraz zwraca zaktualizowany cel w odpowiedzi.
+Nie zmienia czasu pobierania ani camera_off. Bieżący cykl VPS trwa dalej;
+poprawka kropki bez push/deploy, odbiór wizualny jeszcze niewykonany.
+2 testy integracyjne PASS: global ON oraz pilot/global OFF; scan_ports
+obecne w odpowiedzi i zapisanym celu, także przy ponownym cyklu.
+
 ## 2026-11-01 — nazwy kamer według obiektu nadrzędnego
 
 Na polecenie operatora generator opisuje kamery jako „Kamera <nazwa obiektu>”

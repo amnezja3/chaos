@@ -261,7 +261,13 @@ class CameraVisual:
                     return self.reply(conn, existing, duplicate=True)
                 security.update(effect or {k: False for k in app.get('interferes_with', []) if k in security})
                 target['security'] = security
-                self.rt.player_target_runtime_store.upsert_aimed(username, target)
+                # camera_stream is the scan_ports step on the target toolbar,
+                # just as in the canonical map-action path.
+                target['actions_allowed'] = {**(target.get('actions_allowed') or {}),
+                                             'scan_ports': True, 'camera_stream': True}
+                updated = self.rt.player_target_runtime_store.upsert_aimed(username, target)
+                target = updated.get('target') or target
+                state['target'] = target
                 operation = self.rt.build_operation_instance(username, app, 'camera_stream', 'camera_stream', target)
                 duration = max(1, self.rt.parse_operation_timestamp(operation['expires_at']) - self.rt.parse_operation_timestamp(operation['started_at']))
                 start, end = now + 5, now + 5 + duration
