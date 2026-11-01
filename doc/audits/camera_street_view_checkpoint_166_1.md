@@ -1,5 +1,12 @@
 # Camera Street View 166.1 — branding i przygotowanie odbioru nowej kamery
 
+Aktualizacja po odbiorze operatora 01.11: kod a36513a pobrany na VPS. Skan nowego
+celu blokowany przez MapLark provider_response_incomplete (4 próby 11:46 UTC,
+revision 9). Szczegółowy powód partial nie został utrwalony w starych logach.
+Lokalna diagnostyka poi_maplark_incomplete przygotowana, 11 testów PASS;
+nie zmieniono warunków przyjmowania danych ani limitów. Brak nowego materiału
+Mapillary i brak PASS pełnego 166.1. Szczegóły w journalu z tej daty.
+
 2026-11-01, baza HEAD 56d5af0. Zmiany lokalne, bez commit/push/deploy.
 **Branding LOCAL PASS; checkpoint 166.1 W TOKU — brak nowego dowodu VPS.**
 

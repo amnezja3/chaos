@@ -67,8 +67,25 @@ class AcquisitionTests(unittest.TestCase):
     def test_live_partial_is_still_rejected_and_charged(self):
         response = self.response()
         response[2]['response_headers']['X-Has-More'] = 'true'
-        with self.assertRaisesRegex(ContractError, 'provider_response_incomplete'):
-            self.call(Mock(return_value=response))
+        transport = Mock(return_value=response)
+        with self.assertLogs('poi_infrastructure.world_acquisition', level='WARNING') as logs:
+            with self.assertRaisesRegex(ContractError, 'provider_response_incomplete'):
+                self.call(transport)
+        self.assertIn('truncated', logs.output[0])
+        self.assertIn('"requested_limit": 1000', logs.output[0])
+        self.assertNotIn('test-secret', logs.output[0])
+        transport.assert_called_once()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'], 9)
+
+    def test_missing_completeness_header_has_distinct_safe_diagnostic(self):
+        response = self.response()
+        del response[2]['response_headers']['X-Has-More']
+        response[2]['response_headers']['Authorization'] = 'must-not-be-logged'
+        with self.assertLogs('poi_infrastructure.world_acquisition', level='WARNING') as logs:
+            with self.assertRaisesRegex(ContractError, 'provider_response_incomplete'):
+                self.call(Mock(return_value=response))
+        self.assertIn('completeness_header_missing_or_invalid', logs.output[0])
+        self.assertNotIn('must-not-be-logged', logs.output[0])
         self.assertEqual(self.ledger.status('maplark')[0]['committed'], 9)
 
     def test_timeout_keeps_reservation_and_releases_slot(self):

@@ -5,6 +5,8 @@ Reservation is an internal allowance, NOT a provider-enforced price cap.
 """
 import time
 import os
+import json
+import logging
 
 from .credit_budget import CreditBudget
 from .service import Config, POIError, UpstreamUnavailable, bounded_http, retry_delay
@@ -110,6 +112,13 @@ def acquire_features(repo, plan, operation, reservation, *, account,
             batch = normalize_geoapify(envelope.get('body'), provenance,
                                        page_limit=int(dict(plan.params)['limit']))
         if account=='maplark' and batch.completeness != 'complete' and not allow_partial_observations:
+            # Local normalized reason codes only: never log auth, raw headers/body
+            # or coordinates. Keep the public error and billing contract unchanged.
+            logging.getLogger(__name__).warning('poi_maplark_incomplete %s', json.dumps({
+                'reasons': list(batch.reasons), 'objects': len(batch.objects),
+                'requested_limit': int(dict(plan.params)['limit']),
+                'profile': plan.profile, 'lane': lane,
+            }))
             raise ContractError('provider_response_incomplete')
         if time.monotonic() >= deadline or not repo.owns('@upstream', slot):
             raise POIError('deadline_or_slot_lost')

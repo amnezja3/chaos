@@ -1,5 +1,27 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — 166.1: skan blokowany przez niepełną odpowiedź MapLark
+
+Operator pobrał na VPS a36513a. Próby nowej lokalizacji 11:46:05–11:46:58 UTC:
+poi_provider_health/maplark_scan, revision 9, provider_response_incomplete
+(cztery próby, około 1,9–2,2 s). Wcześniejsza próba 09:28:33 UTC miała status
+200. Błąd dotyczy MapLark/skanu świata, nie Mapillary/zdjęć. Checkpoint kamery
+pozostaje otwarty; SCAN_REQUIRED nie jest dowodem awarii podglądu.
+
+Kod acquisition odrzuca znormalizowany partial po HTTP 200 i rozliczeniu
+kosztu. Zapis statusu nie przechowuje batch.reasons; nie rozstrzygamy, czy
+chodzi o truncation, brak nagłówków kompletności, licznik, cursor lub partial
+w body. Nie podnosimy limitów, nie przyjmujemy partial i nie powtarzamy skanów
+bez nowego dowodu. Osobne database is locked przy boot 11:43 UTC wymagają
+pełnego tracebacku w razie nawrotu; brak dowodu związku z tym ContractError.
+
+Lokalnie dodano bezpieczny log poi_maplark_incomplete (znormalizowane powody,
+liczba obiektów, limit, profil i lane; bez body/nagłówków/sekretów/pozycji).
+Kontrakt wyjątku, budżet i brak retry pozostają. 11 testów world_acquisition
+PASS, w tym odróżnienie truncation od braku nagłówka i niewypisywanie sekretu.
+Bez API, pushu i VPS. Następny krok po wdrożeniu diagnostyki: jedna kontrolowana
+próba i odczyt nowego wpisu, następnie celowana poprawka zależna od przyczyny.
+
 ## 2026-11-01 — 166.1: branding LOCAL PASS, nowa kamera przygotowana do VPS
 
 Najpierw uaktualniono sprinty 164–166 według wytycznej operatora. Oryginalny
