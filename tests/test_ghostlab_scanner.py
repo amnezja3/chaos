@@ -130,6 +130,31 @@ class ScannerTest(unittest.TestCase):
             self.client.post('/map-action',json=payload)
             self.assertNotIn('scan_options',fetcher.call_args.kwargs)
 
+    def test_partial_scan_keeps_markers_and_canonical_camera_observations(self):
+        from database import PlayerScanSnapshotStore
+        from poi_infrastructure.presentation import publish_coverage
+        def fetched(**kwargs):
+            publish_coverage(dict(state='partial',reasons=['truncated'],received_objects=1000))
+            return [dict(lat=52,lon=21,osm_id=123456,tags={'amenity':'atm'},name='ATM')]
+        scans=PlayerScanSnapshotStore(self.path)
+        with patch.object(run.player_position_store,'get_position',return_value={'lat':52,'lng':21}), \
+             patch.object(run.Haversine,'haversine_distance',return_value=1), \
+             patch.object(run,'GHOSTNETWORK_ABILITIES_ENABLED',False), \
+             patch.object(run,'foreign_territory_action_block',return_value=None), \
+             patch.object(run.player_marked_target_store,'list_targets',return_value=[]), \
+             patch.object(run,'player_scan_snapshot_store',scans), \
+             patch.object(run.fetcher,'get_all',side_effect=fetched), self.no_heavy():
+            response=self.client.post('/map-action',json=dict(action='scan',lat=52,lng=21))
+        self.assertEqual(response.status_code,200,response.json)
+        self.assertEqual(response.json['scan_outcome'],'success')
+        self.assertEqual(response.json['poi_coverage']['state'],'partial')
+        self.assertEqual(response.json['message_i18n']['key'],'map.result.scanned_partial')
+        self.assertTrue(response.json['markers'])
+        scan_id=response.json['scan_context']['scan_id']
+        self.assertTrue(scan_id)
+        with db_connect(self.path) as conn:
+            self.assertGreater(conn.execute('SELECT count(*) FROM response_camera_observations WHERE username=? AND scan_id=?',('attacker',scan_id)).fetchone()[0],0)
+
     def test_purchase_payment_and_free_update_replace_active_artifact(self):
         wallet = WalletBalanceStore(self.path)
         self.stack.enter_context(patch.object(run, 'wallet_balance_store', wallet))

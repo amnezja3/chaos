@@ -2,6 +2,19 @@
 
 ## Aktualizacja 166.1 — branding / nowa kamera, 01.11.2026
 
+Korekta po f65332a: osobna lokalna poprawka skanu przyjmuje poprawne porcje
+MapLark truncated jako obserwacje z partial. Po standardowym commit/push/pull
+wystarczy restart nazwanego web `pm2 restart chaos` z zachowaniem env. Bez
+migracji, podnoszenia limitów lub zmiany konfiguracji. Wykonać jeden normalny
+skan; oczekiwane markery, scan_id i komunikat o niepełnym pokryciu, zamiast
+api_error. W logach poi_maplark_incomplete: accepted_observations=true;
+poi_world_optional/store: stored, completeness=partial, coverage_certified=false
+(przy aktywnych dotychczasowych zgodach/flagach world). Nie deklarować zapisu
+świata, jeżeli log zgłasza skipped/lease_lost. Nie powtarzać płatnych skanów
+dla odświeżania cache. Następnie wybrać aktualnie zaobserwowaną nową kamerę
+i wznowić poniższy baseline/przebieg 166.1; historyczny identyfikator nie musi
+wystąpić w pierwszej porcji. Sam poprawny skan nie zalicza pozyskania Mapillary.
+
 Ta sekcja dotyczy działającego VPS 56d5af0. Niżej zachowano pierwotny runbook
 S1–S3; nie wykonywać ponownie jego konfiguracji OFF ani migracji przy tej zmianie.
 Nowy zakres nie wymaga migracji, zależności, nowych sekretów ani zmiany flag.

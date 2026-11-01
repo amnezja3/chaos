@@ -16,7 +16,8 @@ from .world_contract import ContractError, Provenance
 
 def acquire_maplark(repo, plan, operation, reservation, *,
                     accept_variable_cost=False, transport=None, still_active=lambda: True,
-                    lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False):
+                    lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False,
+                    allow_truncated_scan=False):
     """Caller must configure ledger windows and authorize this provider first.
 
 Returns a normalized, UNAPPROVED batch plus nonsecret billing metadata.
@@ -24,13 +25,16 @@ Same operation ID can never cause a second upstream request.
 """
     return acquire_features(repo, plan, operation, reservation, accept_variable_cost=accept_variable_cost,
         transport=transport, still_active=still_active, lane=lane, budget_scopes=budget_scopes,
-        deadline=deadline, account='maplark', allow_partial_observations=allow_partial_observations)
+        deadline=deadline, account='maplark', allow_partial_observations=allow_partial_observations,
+        allow_truncated_scan=allow_truncated_scan)
 
 
 def acquire_features(repo, plan, operation, reservation, *, account,
                      accept_variable_cost=False, transport=None, still_active=lambda:True,
                      lane='live', budget_scopes=(), deadline=None, allow_partial_observations=False,
-                     conservative_geoapify=False):
+                     conservative_geoapify=False, allow_truncated_scan=False):
+    if type(allow_truncated_scan) is not bool or (allow_truncated_scan and (account!='maplark' or lane!='live')):
+        raise ContractError('truncated_scan_live_maplark_only')
     if conservative_geoapify and (account!='geoapify' or reservation!=6 or int(dict(plan.params)['limit'])>100):
         raise ContractError('geoapify_estimate_profile')
     if type(allow_partial_observations) is not bool or (allow_partial_observations and lane != 'background'):
@@ -112,14 +116,17 @@ def acquire_features(repo, plan, operation, reservation, *, account,
             batch = normalize_geoapify(envelope.get('body'), provenance,
                                        page_limit=int(dict(plan.params)['limit']))
         if account=='maplark' and batch.completeness != 'complete' and not allow_partial_observations:
+            accepted = allow_truncated_scan and batch.completeness == 'partial' and batch.reasons == ('truncated',)
             # Local normalized reason codes only: never log auth, raw headers/body
             # or coordinates. Keep the public error and billing contract unchanged.
             logging.getLogger(__name__).warning('poi_maplark_incomplete %s', json.dumps({
                 'reasons': list(batch.reasons), 'objects': len(batch.objects),
                 'requested_limit': int(dict(plan.params)['limit']),
                 'profile': plan.profile, 'lane': lane,
+                'accepted_observations': accepted,
             }))
-            raise ContractError('provider_response_incomplete')
+            if not accepted:
+                raise ContractError('provider_response_incomplete')
         if time.monotonic() >= deadline or not repo.owns('@upstream', slot):
             raise POIError('deadline_or_slot_lost')
         if not still_active():

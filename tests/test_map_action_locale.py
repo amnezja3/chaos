@@ -29,6 +29,10 @@ class MapActionLocaleTest(unittest.TestCase):
             self.assertTrue(runtime.t('map.result.scanned', {'count': count}, 'pl').endswith(ending))
         self.assertEqual(runtime.t('map.result.scanned', {'count': 1}, 'en'), '🔍 Scanned 1 new object.')
         self.assertEqual(runtime.t('map.result.scanned', {'count': 12}, 'en'), '🔍 Scanned 12 new objects.')
+        for locale in ('pl','en'):
+            partial=runtime.t('map.result.scanned_partial', {'count':60}, locale)
+            self.assertIn('60',partial)
+            self.assertIn('niepełne' if locale=='pl' else 'incomplete',partial)
         for locale in ('pl', 'en'):
             name = "Mike's <keep> {count}"
             self.assertIn(name, runtime.t('map.result.aimed', {'name': name}, locale))

@@ -427,6 +427,10 @@
       },
       "text": "Zarejestrowano: {action} dla ({lat}, {lng})"
     },
+    "map.result.scanned_partial": {
+      "params": {"count": "number"},
+      "text": "🔍 Odkryte obiekty: {count}. Odebrano część danych — pokrycie obszaru jest niepełne."
+    },
     "map.result.scanned": {
       "params": {
         "count": "number"

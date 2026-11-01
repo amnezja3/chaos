@@ -4,6 +4,11 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+Blokada skanu MapLark wyjaśniona: truncated przy porcji 1000. Korekta operatora:
+przyjmujemy poprawne obserwacje do świata i gameplayu z jawnym partial, bez
+certyfikowania kompletnego obszaru. Poprawka lokalna + 52 testy POI/i18n oraz
+Playwright PL/EN PASS, oczekuje na standardowy deploy; budżety/global OFF bez zmian.
+
 Branding Mapillary i EXTERNAL CONNECTION: LOCAL PASS, 21 kontroli Playwright,
 spóźniony materiał bez odtwarzania okna PASS. Utrzymany grant przy wyjściu do
 nowej karty. Przy global OFF autoryzowany pilot może użyć nowej kamery ze skanu.

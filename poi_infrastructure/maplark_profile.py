@@ -10,8 +10,9 @@ PROFILE = 'maplark-radius-bounds-v1'
 ENDPOINT = 'https://api.maplark.com/v3/osm_features'
 
 
-def export_maplark(batch):
-    if (batch.profile != POI_PROFILE or batch.completeness != 'complete' or batch.reasons
+def export_maplark(batch, *, observations=False):
+    limited = observations and batch.completeness == 'partial' and batch.reasons == ('truncated',)
+    if (batch.profile != POI_PROFILE or (not limited and (batch.completeness != 'complete' or batch.reasons))
             or batch.selection != 'maplark-radius-unverified'):
         raise ContractError('maplark_response_incomplete')
     elements = []
@@ -32,4 +33,7 @@ def export_maplark(batch):
             west, south, east, north = geo.bounds
             row['center'] = dict(lon=round((west+east)/2, 7), lat=round((south+north)/2, 7))
         elements.append(row)
-    return {'elements': elements}
+    result = {'elements': elements}
+    if limited:
+        result['poi_coverage'] = {'state':'partial','reasons':['truncated'],'received_objects':len(batch.objects)}
+    return result

@@ -24440,7 +24440,8 @@ def map_action():
             "scan_outcome": "success" if all_results else "empty",
             **poi_public_fields(poi_evidence),
 
-            "message_i18n": ui_message('map.result.scanned', {'count': len(all_results)}),
+            "message_i18n": ui_message('map.result.scanned_partial' if poi_evidence.get('poi_coverage',{}).get('state')=='partial'
+                                       else 'map.result.scanned', {'count': len(all_results)}),
             "markers": all_results,
             "scan_context": {
                 **scan_location_context,

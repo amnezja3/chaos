@@ -18,7 +18,8 @@ async (page) => {
         requests.push(route.request().postDataJSON());
         const response = await page.request.get('http://127.0.0.1:8993/api/profile');
         await route.fulfill({headers:response.headers(),json:{status:'Legacy status',scan_outcome:phase,markers:[],
-            message_i18n:{key:phase==='api_error'?'map.result.upstream':'map.result.out_of_range',params:{},content_version:version}}});
+            poi_coverage:phase==='success'?{state:'partial',reasons:['truncated'],received_objects:1000}:undefined,
+            message_i18n:{key:phase==='success'?'map.result.scanned_partial':phase==='api_error'?'map.result.upstream':'map.result.out_of_range',params:phase==='success'?{count:0}:{},content_version:version}}});
     });
     await page.evaluate(() => {
         window.resultMessages=[];
@@ -32,6 +33,7 @@ async (page) => {
         window.beginMapScanEffect=()=>()=>{};
         window.finishMapScanEffectAfterPaint=finish=>finish?.();
         window.mapScanEffectState={element:null};
+        window.clearScanResultLayers=()=>{};
         window.DeepScannerMap={begin:()=>({dispose(){}}),log:()=> 'Autorski log <keep>',messageKey:()=> 'stable-dedupe'};
         window.escapeMapText=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     });
@@ -54,5 +56,13 @@ async (page) => {
     assert((await page.evaluate(()=>resultMessages.at(-1)[2])).includes('out of range'),'Denial untranslated');
     assert(JSON.stringify(requests[0])===JSON.stringify(requests[2]),'Selection request depends on locale');
     assert(JSON.stringify(requests[1])===JSON.stringify(requests[3]),'Scan request depends on locale');
-    return {selection:true,stableRequests:true,escapedNames:true,scanErrors:true,authoredLogs:true,deduplication:true};
+    phase='success';
+    for(const locale of ['pl','en']) {
+        await page.evaluate(locale=>GhostLocale.changeLocale(locale,false),locale);
+        await page.evaluate(()=>mapAction('scan',37.5,-122.1));
+        const scan=await page.evaluate(()=>resultMessages.at(-1));
+        assert(scan[0]==='success','Partial scan became failure');
+        assert(scan[2].includes(locale==='pl'?'niepełne':'incomplete'),'Partial coverage not visible');
+    }
+    return {selection:true,stableRequests:true,escapedNames:true,scanErrors:true,authoredLogs:true,deduplication:true,partialCoverage:true};
 }

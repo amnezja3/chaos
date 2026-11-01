@@ -427,6 +427,10 @@
       },
       "text": "Registered: {action} at ({lat}, {lng})"
     },
+    "map.result.scanned_partial": {
+      "params": {"count": "number"},
+      "text": "🔍 Discovered objects: {count}. Partial data received — area coverage is incomplete."
+    },
     "map.result.scanned": {
       "params": {
         "count": "number"

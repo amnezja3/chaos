@@ -1,4 +1,5 @@
 from dataclasses import replace
+from contextlib import closing
 import os
 import sqlite3
 import time
@@ -7,6 +8,7 @@ import unittest
 
 import test_world_maplark_pilot as fixtures
 from poi_infrastructure.service import POIError
+from poi_infrastructure.world_contract import ContractError
 from poi_infrastructure.world_storage import CanonicalWorldRepository
 
 
@@ -25,6 +27,36 @@ class WorldShadowTests(unittest.TestCase):
         self.batch=replace(batch,objects=tuple(replace(o,provenance=replace(o.provenance,license_ref='fixture-only')) for o in batch.objects))
 
     fetch=fixtures.PilotTests.fetch
+
+    def test_truncated_scan_adds_world_members_without_coverage_and_caches_partial(self):
+        from poi_infrastructure.presentation import capture, public_fields
+        from poi_infrastructure.maplark_profile import export_maplark
+        self.grant()
+        full=fixtures.normalized([fixtures.point(i) for i in range(1,1001)])
+        partial=replace(full,completeness='partial',reasons=('truncated',),
+            objects=tuple(replace(o,provenance=replace(o.provenance,license_ref='fixture-only')) for o in full.objects))
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(partial,{})) as upstream:
+            with capture() as evidence:
+                first=self.fetch()
+            self.assertEqual(len(first['elements']),1000)
+            self.assertEqual(public_fields(evidence)['poi_coverage']['state'],'partial')
+            with capture() as cached:
+                self.assertEqual(self.fetch(),first)
+            self.assertEqual(public_fields(cached)['poi_coverage']['state'],'partial')
+            upstream.assert_called_once()
+            self.assertTrue(upstream.call_args.kwargs['allow_truncated_scan'])
+        with closing(self.service.repo.connect()) as c:
+            self.assertEqual(c.execute('SELECT count(*) FROM world_member').fetchone()[0],1000)
+            self.assertEqual(c.execute('SELECT count(*) FROM world_coverage').fetchone()[0],0)
+            snapshot=c.execute('SELECT id FROM world_snapshot').fetchone()[0]
+        stored=self.world.read_batch(snapshot)
+        self.assertEqual(stored.completeness,'partial')
+        with self.assertRaises(ContractError):
+            export_maplark(stored)  # A complete reader cannot treat this as coverage.
+        self.evict_cache()
+        with patch('poi_infrastructure.maplark_pilot.acquire_maplark',return_value=(self.batch,{})) as upstream:
+            self.fetch()
+            upstream.assert_called_once()  # Partial world snapshot does not certify a full cache hit.
 
     def grant(self):
         v=self.registry.list()[0]

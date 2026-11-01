@@ -88,6 +88,21 @@ class AcquisitionTests(unittest.TestCase):
         self.assertNotIn('must-not-be-logged', logs.output[0])
         self.assertEqual(self.ledger.status('maplark')[0]['committed'], 9)
 
+    def test_live_scan_can_use_truncated_observations_without_completeness_promotion(self):
+        response = self.response()
+        response[2]['response_headers']['X-Has-More'] = 'true'
+        transport = Mock(return_value=response)
+        batch, _ = self.call(transport, allow_truncated_scan=True)
+        self.assertEqual((batch.completeness,batch.reasons), ('partial',('truncated',)))
+        transport.assert_called_once()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],9)
+
+    def test_truncated_scan_does_not_accept_other_integrity_failures(self):
+        response = self.response()
+        response[2]['response_headers'].update({'X-Has-More':'true','X-Returned':'1'})
+        with self.assertRaisesRegex(ContractError,'provider_response_incomplete'):
+            self.call(Mock(return_value=response), allow_truncated_scan=True)
+
     def test_timeout_keeps_reservation_and_releases_slot(self):
         with self.assertRaises(UpstreamUnavailable):
             self.call(Mock(side_effect=UpstreamUnavailable('deadline')))

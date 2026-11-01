@@ -1,5 +1,45 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — korekta operatora: limit porcji nie blokuje skanu
+
+Nadrzędne doprecyzowanie zastępuje wcześniejszy wniosek o konieczności zwiększenia
+max_limit: odebrane poprawne obiekty mają zasilać świat i gameplay także wtedy,
+gdy porcja jest ucięta. Nie trzeba podnosić limitu ani znać większego planu API.
+Lokalnie wdrożono jawną obsługę live MapLark dla partial z jedynym powodem
+truncated. Brak nagłówków, niespójna liczba wyników, błędna geometria i pozostałe
+usterki nadal nie kwalifikują się do tego wyjątku.
+
+Cała poprawna porcja trafia do istniejących world_snapshot/world_member przy
+obowiązujących zgodach/flagach i retencji; bez wpisu world_coverage. Cache
+zachowuje poi_coverage=partial, endpoint zwraca normalne markery i zapisuje scan_id
+oraz obserwacje kamer. Komunikat PL/EN wyraźnie wskazuje niepełne pokrycie.
+Nie zmieniono limitu 1000, promienia, budżetu, zasad hakowania, camera_off ani
+generowania grantów. Nie dodano automatycznych ponowień/paginacji. Czytnik pełnego
+pokrycia nadal nie może traktować obserwacji jako kompletnego obszaru.
+
+52 testy acquisition/pilot/world/routing/i18n PASS; fixture porcji 1000 potwierdza
+zapis wszystkich obiektów, brak certyfikacji i brak dodatkowego API przy cache.
+Playwright MCP: istniejący renderer komunikatów mapy, partial PL/EN, zachowane
+błędy/odmowy/dedupe PASS, konsola bez błędów. Bez prawdziwych wywołań dostawcy.
+2 testy integracji map-action PASS: markery, scan_id i zapis obserwacji kamer
+oraz dotychczasowa polityka skanera/tokenów. Granice dowodów w raporcie 166.1.
+Bez push/deploy.
+
+## 2026-11-01 — przyczyna skanu 166.1 potwierdzona: limit 1000
+
+Po wdrożeniu diagnostyki f65332a operator przekazał poi_maplark_incomplete:
+reasons=[truncated], objects=1000, requested_limit=1000,
+profile=poi-gameplay-v1, lane=live. Kod maplark_pilot.fetch_pilot jawnie ustawia
+limit=1000. Dla tej lokalizacji nie wystarcza; odrzucenie partial jest poprawne.
+To nie błąd Mapillary ani dowód wyczerpania kredytów. Brak związku wykazanego
+z wcześniejszym SQLite locked. Nie ponawiać identycznego skanu.
+
+Oficjalny opis https://maplark.com/products/osm-features-api potwierdza,
+że niższy limit ucina wynik; maksymalny zakres zależy od max_limit konta.
+Przed wyborem większego limitu trzeba ustalić max_limit używanego klucza;
+lokalny adapter dopuszcza do 20000, lecz nie dowodzi to limitu planu dostawcy.
+Nie zmieniono kodu runtime, promienia gameplayu, budżetów ani konfiguracji VPS.
+
 ## 2026-11-01 — 166.1: skan blokowany przez niepełną odpowiedź MapLark
 
 Operator pobrał na VPS a36513a. Próby nowej lokalizacji 11:46:05–11:46:58 UTC:

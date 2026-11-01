@@ -47,7 +47,18 @@ def publish(source, policy=None, restored=False):
         evidence['failure_reason'] = 'poi_upstream_unavailable'
 
 
+def publish_coverage(coverage):
+    evidence = _capture.get()
+    if evidence is None:
+        return
+    evidence.pop('poi_coverage', None)
+    if isinstance(coverage,dict) and coverage.get('state') == 'partial' and coverage.get('reasons') == ['truncated']:
+        evidence['poi_coverage'] = dict(state='partial', reasons=['truncated'],
+            received_objects=int(coverage.get('received_objects',0)))
+
+
 def public_fields(evidence):
-    if not enabled() or not evidence:
+    if not evidence:
         return {}
-    return dict(evidence)
+    # Coverage is a data contract, independent of the optional MASA effects UI.
+    return dict(evidence) if enabled() else {k:v for k,v in evidence.items() if k=='poi_coverage'}

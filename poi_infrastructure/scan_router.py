@@ -1,7 +1,9 @@
 """Bounded live route: all fresh local sources, then one attempt per provider.
 
 No implicit cross-provider fallback, no reset of the scan deadline. Routes and
-provider revisions are fenced throughout the operation. Partial data never wins.
+provider revisions are fenced throughout the operation. MapLark may return
+validated truncated observations with explicit partial coverage, never a
+certificate of complete regional coverage.
 """
 import json
 import os

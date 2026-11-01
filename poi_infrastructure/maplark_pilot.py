@@ -57,6 +57,8 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
         data = service.repo.read(key, ttl)
         return validate(data, service.config) if data is not None else None
     def result(data, source):
+        from .presentation import publish_coverage
+        publish_coverage(data.get('poi_coverage'))
         LOG.info('poi_maplark_cache %s', json.dumps(dict(
             source=source,key=key[:12],revision=candidate['revision'],
             fresh_ttl=fresh_ttl,stale_ttl=stale_ttl,pid=os.getpid(),at=round(time.time(),3))))
@@ -136,8 +138,9 @@ def fetch_pilot(service, spatial, fresh_ttl, stale_ttl, live, world_user=None,
             batch, billing = acquire_maplark(service.repo, plan, uuid.uuid4().hex, reservation,
                 accept_variable_cost=os.environ.get('CHAOS_MAPLARK_ACCEPT_VARIABLE_COST') == '1',
                 still_active=lambda: active() and service.repo.owns(key, owner),
+                allow_truncated_scan=True,
                 **({'deadline':deadline} if deadline is not None else {}))
-            data = validate(export_maplark(batch), service.config)
+            data = validate(export_maplark(batch, observations=True), service.config)
             if not active() or not service.repo.write(key, owner, data, stale_ttl):
                 raise POIError('cache_capacity_or_lease_lost')
             if world_allowed(world_user,spatial):

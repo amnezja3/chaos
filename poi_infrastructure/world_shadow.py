@@ -46,7 +46,9 @@ def store(service, candidate, key, owner, batch, fresh_ttl, stale_ttl, *, adapte
     if ref is None:
         return
     try:
-        proof=SelectionProof('exact','poi',batch.profile,batch.selection,adapter_version,key)
+        # Partial batches add real world members but cannot certify coverage.
+        proof=(SelectionProof('exact','poi',batch.profile,batch.selection,adapter_version,key)
+               if batch.completeness == 'complete' and not batch.reasons else None)
         now=time.time()
         retention = {}
         if os.environ.get('CHAOS_POI_WORLD_ACCESS_MODE') == 'global':
@@ -56,7 +58,8 @@ def store(service, candidate, key, owner, batch, fresh_ttl, stale_ttl, *, adapte
         snapshot=CanonicalWorldRepository(service.repo).publish_batch(key,owner,batch,
             provider=candidate['id'],revision=candidate['revision'],storage_reference=ref,
             fresh_until=now+fresh_ttl,usable_until=now+stale_ttl,coverage=proof,**retention)
-        LOG.info('poi_world_optional %s',json.dumps(dict(operation='store',status='stored' if snapshot else 'lease_lost')))
+        LOG.info('poi_world_optional %s',json.dumps(dict(operation='store',status='stored' if snapshot else 'lease_lost',
+            completeness=batch.completeness,objects=len(batch.objects),coverage_certified=proof is not None)))
     except Exception as exc:
         failed('store',exc)
 

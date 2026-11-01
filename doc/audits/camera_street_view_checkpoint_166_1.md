@@ -1,5 +1,22 @@
 # Camera Street View 166.1 — branding i przygotowanie odbioru nowej kamery
 
+### Korekta kontraktu skanu po wyjaśnieniu operatora
+
+VPS potwierdził truncated / 1000 odebranych / limit 1000. Operator doprecyzował:
+limit określa porcję, a nie warunek odrzucenia całego skanu. Poprawne obserwacje
+mają trafiać do świata i gry bez deklarowania pełnego pokrycia. Lokalna poprawka
+obsługuje dokładnie tę sytuację; inne błędy integralności nadal są odrzucane.
+World przechowuje całą porcję z completeness=partial, bez world_coverage; exact
+cache zachowuje poi_coverage, a endpoint nadal generuje kanoniczny scan_id,
+markery i obserwacje kamer. PL/EN informuje o niepełnym pokryciu. Brak zmian
+budżetów/promienia/retencji, brak dodatkowych requestów, nowych tabel lub sekretów.
+52 testy warstw POI/i18n PASS; 2 testy integracji map-action PASS (markery,
+scan_id i zapis obserwacji kamer, zachowana polityka skanera/tokenów).
+Playwright komunikatów PL/EN PASS. Ten odbiór
+korzysta z kontrolowanych danych, nie dowodzi świeżego skanu na VPS.
+Przyjęcie porcji nie gwarantuje obecności wcześniej wybranej kamery: po skanie
+166.1 trzeba użyć rzeczywistego, aktualnie zaobserwowanego celu poza pilotem.
+
 Aktualizacja po odbiorze operatora 01.11: kod a36513a pobrany na VPS. Skan nowego
 celu blokowany przez MapLark provider_response_incomplete (4 próby 11:46 UTC,
 revision 9). Szczegółowy powód partial nie został utrwalony w starych logach.
