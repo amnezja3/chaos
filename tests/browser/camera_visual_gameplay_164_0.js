@@ -85,7 +85,7 @@ async (page) => {
     await page.emulateMedia({reducedMotion:'reduce'});
     const mobile = await viewer().boundingBox();
     check(mobile.x>=0 && mobile.x+mobile.width<=391, 'mobile bounds');
-    await page.screenshot({path:'artifacts/cvn-164-camera-hud-mobile.png'});
+    await page.screenshot({path:'artifacts/camera-system-mobile-2026-11-01.png'});
     await page.setViewportSize({width:1440,height:900});
     await page.evaluate(()=>GhostLocale.changeLocale('pl'));
     await page.emulateMedia({reducedMotion:'no-preference'});

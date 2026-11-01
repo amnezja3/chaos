@@ -63,6 +63,48 @@ class CameraArchiveTest(unittest.TestCase):
             self.store.reserve(100)
             with self.assertRaisesRegex(SourceError,'budget_deferred'): self.store.reserve(100)
 
+    def test_storage_quota_defers_before_fetch_and_does_not_block_other_jobs(self):
+        first = self.enqueue()
+        self.target['camera_id'] = 'camera-second'
+        second = self.enqueue()
+        with patch.dict(os.environ, CHAOS_CAMERA_MAX_STORAGE_BYTES='1'), patch.object(FixtureSource, 'fetch', side_effect=AssertionError('fetch before quota')):
+            self.assertEqual(self.store.process_one()['status'], 'DEFERRED')
+        result = self.store.process_one()
+        self.assertEqual(result['archive_id'], second)
+        self.assertEqual(result['status'], 'READY')
+        self.assertEqual(self.manifest(first)['status'], 'DEFERRED')
+
+    def test_low_disk_prevents_download(self):
+        from collections import namedtuple
+        self.enqueue()
+        usage = namedtuple('Usage', 'total used free')(100, 99, 1)
+        with patch('camera_visual_archive.shutil.disk_usage', return_value=usage), patch.object(FixtureSource, 'fetch', side_effect=AssertionError('fetch on full disk')):
+            self.assertEqual(self.store.process_one()['status'], 'DEFERRED')
+
+    def test_admin_retry_cannot_reset_backoff_and_actions_are_audited(self):
+        key = self.enqueue()
+        with self.assertRaisesRegex(ValueError, 'retry_not_due'):
+            self.store.administer('admin', 'retry', key)
+        with self.assertRaises(ValueError):
+            self.store.administer('admin', 'withdraw', '123', '')
+        self.store.administer('admin', 'withdraw', '123', 'withdrawal requested')
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM camera_visual_admin_audit').fetchone()[0], 1)
+
+    def test_continuous_worker_collects_and_reports_without_manual_work_once(self):
+        import subprocess
+        import sys
+        key=self.enqueue()
+        cli=Path(__file__).resolve().parents[1]/'tools/camera_archive.py'
+        result=subprocess.run([sys.executable,str(cli),'--db',self.path,'--action','work-loop',
+                               '--apply','--cycles','1'],capture_output=True,text=True,timeout=60)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(self.manifest(key)['status'],'READY',result.stdout)
+        with db_connect(self.path) as conn:
+            health=json.loads(conn.execute("SELECT state_json FROM camera_visual_runtime WHERE role='archive'").fetchone()[0])
+        self.assertEqual(health['status'],'READY')
+        self.assertIn('gc_removed',health)
+
     def test_source_selection_direction_distance_and_missing_attribution(self):
         def row(i,heading=359,**kwargs):
             return dict(id=str(i),geometry={'coordinates':[2.33050,48.86417]},

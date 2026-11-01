@@ -82,7 +82,7 @@
             const panelId = s.instance_id + '-panel';
             const lat = Number(s.target.lat), lon = Number(s.target.lng ?? s.target.lon);
             const coordinates = `${lat.toFixed(4)}:${lon.toFixed(4)}`;
-            const app = standardWindow(s.instance_id, `Camera Network · ${s.target.camera_id ? label('Kamera', 'Camera') : label('Paryż', 'Paris')}`, `
+            const app = standardWindow(s.instance_id, `Camera Network · ${s.target.label || s.target.name || coordinates}`, `
                 <div class="camera-visual-location"><div data-camera-actions></div><span title="${lat}:${lon}">${coordinates}</span></div>
                 <div class="camera-visual-frame">
                     <div class="camera-visual-images"><img data-camera-frame="${s.motion.image}" alt="" hidden></div>
@@ -92,10 +92,17 @@
                     <div class="camera-visual-logs" aria-hidden="true"></div>
                     <div class="camera-visual-no-signal" role="status" hidden>NO SIGNAL</div>
                 </div>
-                <footer class="camera-visual-footer mapifi-credit"><div class="mapifi-credit-heading"><strong>MapiFi</strong><span data-camera-material></span><button type="button" aria-controls="${panelId}" aria-expanded="false" data-camera-panel-link></button></div><dl><div><dt data-camera-author-label></dt><dd data-camera-author></dd></div><div><dt data-camera-source-label></dt><dd>CHAOS · Paris</dd></div><div><dt data-camera-rights-label></dt><dd data-camera-rights></dd></div></dl></footer>
+                <footer class="camera-visual-footer mapifi-credit"><div class="mapifi-credit-heading"><strong>MapiFi</strong><span data-camera-material></span><button type="button" aria-controls="${panelId}" aria-expanded="false" data-camera-panel-link></button></div><dl><div><dt data-camera-author-label></dt><dd data-camera-author></dd></div><div><dt data-camera-source-label></dt><dd>CHAOS</dd></div><div><dt data-camera-rights-label></dt><dd data-camera-rights></dd></div></dl></footer>
                 <section id="${panelId}" class="camera-visual-panel" hidden><p data-camera-provenance></p></section><div data-chaos-link-output role="status" hidden></div>`);
             app.classList.add('camera-visual-window');
             app._cameraState = s;
+            const visual = s.feed?.visual || {scenario:'legacy', intensity:1, period:67, phase:0, offline_seconds:3};
+            app.dataset.cameraScenario = visual.scenario;
+            app.style.setProperty('--camera-fx-intensity', String(visual.intensity));
+            app.querySelectorAll('.camera-visual-effects > div').forEach((layer,index) => {
+                layer.style.animationDelay = `-${visual.phase + index * 1.7}s`;
+                if (index > 1) layer.style.animationDuration = `${visual.period + index * 7}s`;
+            });
             app.dataset.cameraViewer = s.instance_id;
             const actions = app.querySelector('[data-camera-actions]');
             const focus = ChaosLinks.create(`focus:${lat}:${lon}`, true);
@@ -113,6 +120,7 @@
             compareButton.dataset.cameraCompare = '';
             compareButton.textContent = label('Porównaj 6 zakłóceń', 'Compare 6 effects');
             compareButton.disabled = true;
+            compareButton.hidden = !s.diagnostics;
             compareButton.setAttribute('aria-expanded', 'false');
             app.querySelector('.mapifi-credit-heading').append(compareButton);
             const comparison = document.createElement('section');
@@ -172,13 +180,21 @@
             let disposed = false, active = -1;
             const clock = app.querySelector('[data-camera-clock]');
             const logs = app.querySelector('.camera-visual-logs');
-            const clockFormat = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Paris', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+            const clockFormat = new Intl.DateTimeFormat('en-GB', {timeZone:'UTC', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
             let tickCount = 0;
             const tick = () => {
                 if (disposed || app.classList.contains('is-window-minimized') || app.classList.contains('camera-suspended')) return;
                 const now = new Date();
                 clock.dateTime = now.toISOString();
-                clock.textContent = `${clockFormat.format(now)} PARIS`;
+                clock.textContent = `${clockFormat.format(now)} UTC`;
+                if (active >= 0 && !app.dataset.materialUnavailable) {
+                    const phase = ((Date.now()/1000 - s.ready_at + visual.phase) % visual.period + visual.period) % visual.period;
+                    const dropout = visual.scenario === 'dropout' && phase < visual.offline_seconds;
+                    fallback.hidden = !dropout;
+                    fallback.textContent = 'NO SIGNAL';
+                    app.querySelector('[data-camera-status]').textContent = dropout ? 'SIGNAL LOST' : 'ONLINE';
+                    app.querySelector('.camera-visual-rec').hidden = dropout;
+                }
                 if (active < 0 || !fallback.hidden || tickCount++ % 3 !== 0) return;
                 const line = document.createElement('div');
                 const messages = ['LINK SYNC', 'FRAME BUFFER OK', 'CHANNEL ACTIVE', 'SIGNAL LOCK'];
@@ -190,7 +206,7 @@
             const telemetry = setInterval(tick, 1000);
             const load = () => images.map(async (img, i) => {
                 try {
-                    if (s.archive_id && !app._cameraState?.material) return false;
+                    if ((s.archive_id || s.material_required) && !app._cameraState?.material) return false;
                     const response = await fetch('/api/camera-visual/media/'+encodeURIComponent(s.reference_id)+'/'+s.motion.image, {cache:'no-store', signal:abort.signal});
                     if (!response.ok) throw new Error('media_unavailable');
                     const blob = await response.blob();
@@ -277,7 +293,9 @@
         states.set(s.reference_id, s);
         reference(s);
         const entry = viewers.get(s.instance_id);
+        if (entry && s.material) delete entry.app.dataset.materialUnavailable;
         if (entry && s.archive_id && s.image_id && !s.material) {
+            entry.app.dataset.materialUnavailable = '1';
             entry.app.querySelector('.camera-visual-no-signal').hidden = false;
             entry.app.querySelector('[data-camera-status]').textContent = 'OFFLINE';
             entry.app.querySelector('.camera-visual-rec').hidden = true;
@@ -300,6 +318,13 @@
         try {
             const data = await request('/api/camera-visual/state');
             if (!data.enabled) { stopped = true; return; }
+            let cursor=data.next_cursor;
+            while(cursor != null) {
+                const page=await request('/api/camera-visual/state?cursor='+encodeURIComponent(cursor));
+                if(!page.enabled)throw new Error('camera_access_denied');
+                if(page.next_cursor!=null && page.next_cursor<=cursor)throw new Error('camera_cursor_invalid');
+                data.sessions.push(...page.sessions); cursor=page.next_cursor;
+            }
             const visible = new Set(data.sessions.map(s => s.instance_id));
             for (const [id, entry] of viewers) if (!visible.has(id)) {remove(entry.app); viewers.delete(id);}
             for (const s of data.sessions) await reconcile(s);
@@ -354,14 +379,14 @@
         app.querySelector('[data-camera-rights]').textContent = label('Nie przypisano', 'Not assigned');
         app.querySelector('[data-camera-location]').title = label('Pokaż lokalizację kamery na mapie', 'Focus camera location on map');
         app.querySelector('[data-camera-provenance]').textContent = label(
-            'Fikcyjna ulica Paryża, wygenerowana AI dla CHAOS. Obraz nie dokumentuje wskazanej lokalizacji. Ruch, REC i logi stanowią symulację, bez nagrywania; zegar wskazuje czas Paryża.',
-            'AI-generated fictional Paris street created for CHAOS. The image does not document this location. Motion, REC and logs are simulated, with no recording; the clock shows Paris time.');
+            'Materiał testowy AI dla CHAOS. Nie dokumentuje wskazanej lokalizacji. Ruch, REC i logi są symulowane; zegar UTC.',
+            'AI test material for CHAOS. It does not document this location. Motion, REC and logs are simulated; UTC clock.');
         app.querySelectorAll('img[data-camera-frame]').forEach(img => {
-            img.alt = label('Symulowany podgląd kamery w Paryżu', 'Simulated Paris camera view');
+            img.alt = label('Symulowany podgląd otoczenia kamery', 'Simulated camera surroundings');
         });
         const s = app._cameraState;
         const material = s?.material;
-        if (s?.archive_id) {
+        if (s?.archive_id || s?.material_required) {
             app.querySelector('[data-camera-material]').textContent = material?.source === 'Mapillary'
                 ? label('Materiał archiwalny — symulacja', 'Archive material — simulation')
                 : material ? label('Widok syntetyczny', 'Synthetic view') : label('Brak materiału', 'No material');

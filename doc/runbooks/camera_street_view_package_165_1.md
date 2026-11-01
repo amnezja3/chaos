@@ -1,5 +1,10 @@
 # Camera Street View — pierwsza paczka 165.1
 
+Aktualizacja 01.11.2026: dla nowego zakresu S1–S3 obowiązuje
+[zbiorczy runbook systemowy](camera_street_view_system_s1_s3.md).
+Poniższa procedura opisuje historyczną paczkę 165.1; nie uruchamiać jej zamiast
+konfiguracji web/operations/archive z jednego źródła.
+
 31.10.2026. Procedura przygotowana lokalnie; NIE wykonano push/deploy/API.
 Kontrakt: [wytyczna operatora](../plans/camera_street_view_operator_contract_2026_10_31.md).
 Evidence: [raport paczki](../audits/camera_street_view_package_165_1.md).
@@ -97,7 +102,15 @@ Po zatwierdzeniu: standardowy commit i `git push origin main`.
 6. Zachować flagi OFF i nie ustawiać lokalnego CHAOS_DB_PATH na VPS.
    Przeładować tylko web:
    `pm2 startOrReload ecosystem.web.config.js --only chaos --env world_maplark_region --update-env`.
-   Nowy worker pozostaje niewłączony. Nie uruchamiać historycznych procedur VPS.
+   Nowy worker archiwum pozostaje niewłączony. UWAGA po odbiorze VPS:
+   `scripts/territory_conflict_worker.py` importuje `run` i wykonuje kanoniczny
+   `process_operation_runtime_tick`, w tym zapis aktywatora. Istniejący proces
+   obsługujący ten skrypt również musi załadować nowy kod po wdrożeniu.
+   Przy włączeniu pilota musi dostać te same flagi STREET_VIEW/PILOT/PILOT_USER
+   co web. Sam restart web nie wystarcza: download może zakończyć się statusem
+   timeout, ale bez aktywatora pozostanie save_pending. Nie włączać mu
+   pozyskiwania zdjęć; nie zmieniać pozostałych ustawień ani mechaniki incydentów.
+   Nie uruchamiać historycznych procedur VPS.
 7. W jednym przebiegu smoke sprawdzić HTTP/login/pulpit, skaner, Cyberner,
    camera_off/ryzyko/incydenty na koncie testowym, `/camera-sources` PL/EN
    oraz `/admin?tab=camera` (admin dozwolony, zwykły gracz 403).

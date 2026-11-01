@@ -145,7 +145,7 @@ class MapillarySource:
     def __init__(self, transport=get_bytes):
         self.transport=transport
 
-    def fetch(self,target,reserve):
+    def fetch(self,target,reserve,allowed=None):
         token=os.environ.get('MAPILLARY_ACCESS_TOKEN','')
         if not token or os.environ.get('CHAOS_CAMERA_ACQUISITION')!='1' or not all(os.environ.get(k) for k in
                 ('CHAOS_CAMERA_RIGHTS_REFERENCE','CHAOS_CAMERA_LICENSE','CHAOS_CAMERA_LICENSE_URL')):
@@ -162,6 +162,8 @@ class MapillarySource:
         rows=json.loads(raw).get('data',[])
         result=[]
         for row in select_images(rows,target):
+            if allowed and not allowed(row['id']):
+                continue
             if os.environ.get('CHAOS_CAMERA_ACQUISITION')!='1':
                 raise SourceError('source_policy_blocked')
             reserve(10*1024*1024)

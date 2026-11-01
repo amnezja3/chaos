@@ -72,6 +72,12 @@
 .camera-effect-comparison .camera-fx-tracking { animation:camera-compare-tracking 6s linear infinite; }
 .camera-effect-comparison .camera-fx-chroma, .camera-effect-comparison .camera-fx-blocks { animation:camera-compare-pulse 4s steps(1) infinite; }
 .camera-fx-dropout { background:#03090a url('/static/images/camera_visual/effects/signal-dropout.svg') center/cover; }
+.camera-visual-window .camera-visual-effects { opacity:var(--camera-fx-intensity,1); }
+.camera-visual-window:not([data-camera-scenario="legacy"]):not([data-camera-scenario="tracking"]) > .app-content > .camera-visual-frame > .camera-visual-effects > .camera-fx-tracking,
+.camera-visual-window:not([data-camera-scenario="legacy"]):not([data-camera-scenario="chroma"]) > .app-content > .camera-visual-frame > .camera-visual-effects > .camera-fx-chroma,
+.camera-visual-window:not([data-camera-scenario="legacy"]):not([data-camera-scenario="blocks"]) > .app-content > .camera-visual-frame > .camera-visual-effects > .camera-fx-blocks { display:none; }
+.camera-visual-window[data-camera-scenario="grain"] > .app-content > .camera-visual-frame > .camera-visual-effects > .camera-fx-scan { opacity:.08; }
+.camera-visual-window[data-camera-scenario="scan"] > .app-content > .camera-visual-frame > .camera-visual-effects > .camera-fx-grain { opacity:.08; }
 @keyframes camera-compare-tracking { 0% {opacity:.45;transform:translateY(-35%);} 80% {opacity:.45;transform:translateY(40%);} 81%,100% {opacity:0;transform:translateY(40%);} }
 @keyframes camera-compare-pulse { 0%,60% {opacity:.65;} 61%,100% {opacity:0;} }
 @container (max-width:650px) { .camera-effect-comparison:not([hidden]) { grid-template-columns:repeat(2,minmax(0,1fr)); } }

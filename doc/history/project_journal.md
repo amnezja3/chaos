@@ -1,5 +1,127 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — implementacja systemowa Camera Street View S1–S3 i CHAOS Links
+
+- Zintegrowano feed v1, trwały wybór rzeczywistego materiału, trajektorię i
+  indywidualny profil sześciu scenariuszy. Lifecycle pozostaje oparty na
+  kanonicznym download/aktywatorze/lease/consumed, bez ponownego otwarcia.
+- Dodano wspólną konfigurację web/operations/archive, automatyczną pętlę
+  archiwum i GC, quota dysku, bezpieczniejszy restore, retry aktywatorów oraz
+  admin z CSRF/audytem. Migracja addytywna trzech tabel pomocniczych.
+- Focus/Teleport: wspólny parser dla zapisów ze spacją i dwukropkiem,
+  obsługa PTK, oczekiwanie na mapę, blokada podwójnego wykonania. Operator
+  potwierdził zachowanie bezpłatnego kanonicznego teleportu bez cooldownu.
+- Lokalny Playwright: 31 sprawdzeń okna, resize, 32 sprawdzenia linków przez
+  rzeczywiste renderery i backend, opóźniona mapa PASS. Regresje backendu,
+  archiwum, JS i camera_shutdown/exposure/incidents PASS w opisanym zakresie.
+  Snapshot prototypu: 28 sum SHA256 PASS; historyczne screenshoty zachowane.
+- [Raport i granice](../audits/camera_street_view_system_implementation_2026_11_01.md),
+  [procedura trzech procesów](../runbooks/camera_street_view_system_s1_s3.md).
+  Bez commit/push/VPS. Szerokie testy mocy, kont, PWA i obciążenia należą do 166.
+
+## 2026-11-01 — audyt systemowy Camera Street View 164–166
+
+- Operator zamknął pilot i polecił audyt przed pełną integracją. Sprawdzono HEAD
+  025fd3f, status/diff, lifecycle i media, adapter/archiwum, generator/kontrakt
+  kamer, renderer/CSS, workery/ecosystemy, panel/źródła oraz zapisane testy.
+- [Audyt i macierz całej ścieżki](../audits/camera_street_view_system_audit_2026_11_01.md):
+  rozdzielono kod systemowy, pilot PASS, częściową integrację i braki.
+  Najważniejsze: brak utrwalanego losowania FX/offline, wybór zdjęcia zależny
+  od fixture indeksu/modulo, legacy main/Paris, wspólne stałe efekty i zegar
+  Paris, brak trwałej konfiguracji trzech ról procesów i odbioru skali.
+- Sprinty 164/165 otrzymały zakresy systemowe 164.S/165.S, 166 macierz odbioru
+  po implementacji i rollout. Dawne szczegółowe wymagania zachowane jako
+  katalog/historyczny plan z nadrzędną aktualną macierzą, bez reaktywacji sprintów.
+- Insider Feed/robot, różne konta/kamery/lokalizacje/czasy dopiero po integracji
+  całego workflow. Wizualne offline musi być niezależne od camera_off/incydentów.
+  Testowa zgoda nadal obowiązuje; brak fikcyjnego globalnego PASS.
+- Zmieniono wyłącznie dokumentację; bez kodu, zmian zaakceptowanego snapshotu,
+  ponawiania testów, HTTP dostawcy, VPS, commit/push i ZIP.
+
+## 2026-10-31 — VPS 165.1 OFF i pierwsza odpowiedź Mapillary
+
+- Operator nadał PASS drugiemu przebiegowi tej samej kamery: ponowne hakowanie,
+  zwykły 30-minutowy download i automatyczne otwarcie nowej instancji.
+  Nie było potrzeby ponownej interwencji w worker ani skracania zegara.
+  To odbiór operatora; nie dostarczono nowego operation_id ani porównania
+  zapisanych wektorów, więc nie traktować go jako osobnego pomiaru torów.
+  Live insider_feed pozostaje odłożone do szerszego pilota zgodnie z decyzją
+  operatora. Nie oznacza to pełnego zamknięcia sprintu 166/publicznego rollout.
+
+- Operator potwierdził, że zużyty podgląd nie wraca — odbiór niewznowienia PASS.
+  Trwa kolejny test tej samej kamery ze zwykłym czasem 30 minut; wyniku jeszcze
+  nie ma. Zgodnie z decyzją operatora test rzeczywistego przyspieszenia przez
+  insider_feed (np. konto robot) przechodzi do pilota dla szerszej liczby graczy.
+  Nie skracać obecnego download i nie nadawać live PASS dla mocy na podstawie
+  lokalnych testów realizera.
+
+- Operator potwierdził odczytem API po ręcznym zamknięciu:
+  op_20261031175624_361933 → state=consumed, viewer_closed=true.
+  Zapis zużycia dostępu na VPS PASS. Sam ten odczyt nie potwierdza jeszcze
+  niewznowienia okna po reload/relogin ani wcześniejszego resize/restore;
+  te punkty pozostają do potwierdzenia wizualnego.
+
+- Po przeładowaniu territory workera operator pokazał otwarte natywne okno
+  Camera Network z rzeczywistym zdjęciem, MapiFi, REC, logami i stopką
+  (autor zors1843, Mapillary, CC BY-SA 4.0). Odzyskano istniejącą operację bez
+  ponownego download; potwierdzono usunięcie blokady save_pending.
+  Zrzut potwierdza render, nie ciągłość animacji ani trwałe zamknięcie.
+  W dostarczonym tail występuje ProfileWriteConflict w finalize_conflict_rebuild_profiles;
+  brak timestampu uniemożliwia datowanie względem restartu. To ścieżka konfliktów
+  terytoriów, nie finalizatora kamery; nie nadano całości logów PASS.
+  Dalszy odbiór: resize/ruch, ta sama instancja po reload/relogin i trwałe close.
+
+- Defekt odbioru live: op_20261031175624_361933 zakończyła pełne 1800 s
+  18:26:29 UTC, status timeout, snapshot save_pending/100%, archiwum READY,
+  wolne miejsce 4243, brak aktywatorów. Brak podstaw do ponownego hakowania.
+  Zidentyfikowano pominięcie w procedurze: restartowano wyłącznie web, a zapis
+  aktywatora wykonuje istniejący territory_conflict_worker, który importuje run
+  przy starcie i potrzebuje zgodnych flag pilota. Lokalny harness uruchamiał tick
+  w tym samym procesie i nie ujawnił różnicy konfiguracji procesów VPS.
+  Poprawiono runbook; odzyskanie przez zwykły tick po przeładowaniu właściwego
+  workera pozostaje do potwierdzenia. Bez ręcznego tworzenia pliku/uprawnienia.
+
+- Operator udzielił zgody na wszystkie niezbędne testy całego zakresu 164–166
+  bez ponownych potwierdzeń poszczególnych prób. Obejmuje dalszy kontrolowany
+  test wyświetlania i gameplayu. Nie utożsamiać tej zgody z PASS wyników ani
+  automatyczną zgodą na publiczny rollout. Następny krok: pilot main/Paris,
+  istniejące archiwum, acquisition/worker OFF, nowy sukces i kanoniczny download.
+
+- Wynik zatwierdzonego testu archiwum od operatora: READY, attempts=1,
+  archive_id=4eec2252a8577a42679056606bf6e77c62013801d09ae07acd50c2f28301e59a.
+  Dwa WebP 720x540: 814110982835465 (84484 B), 182543740409695 (32984 B),
+  łącznie 117468 B; obie sumy OK, autor obecny, CC BY-SA 4.0.
+  Wygaśnięcie: 2026-11-01 17:47:48 UTC. Ledger: 3 żądania,
+  22020096 B rezerwacji (nie rzeczywisty transfer); public_images_visible=0.
+  Live acquisition/optimize/private archive PASS. Brak jeszcze PASS dla
+  gameplayu live i brak zgody na publikację. Worker cykliczny nadal OFF.
+  Nie ponawiać pozyskiwania: do dalszego odbioru wykorzystać ten materiał,
+  jeśli nie wygasł. Po wygaśnięciu wykonać GC przy zamknięciu testu.
+
+- Operator zatwierdził jednorazowy test archiwum: jedna kamera, do trzech
+  miniatur, retencja 24 h, publikacja i gameplay OFF. Zgoda dotyczy testu
+  pobrania/zapisu, nie zamknięcia L01/L02 dla publicznego rollout. Polecenie
+  work-once ma korzystać z limitów 4 żądań/31 MiB rezerwacji i 90 s;
+  nie uruchamiać PM2 workera ani resetować liczników przy błędzie.
+
+- Operator wdrożył `025fd3f`: backup SQLite zweryfikowany, Pillow 12.3.0,
+  pip check PASS, migracja czterech tabel applied. Gunicorn po przeładowaniu
+  nasłuchuje na 6666; pierwszy curl trafił w przerwę restartu, kolejny HTTP 200.
+- Odczyt z sesji operatora: camera state HTTP 200, enabled=false, sessions=0.
+  Panel admina: flagi OFF, token absent w web, brak archiwów/rezerwacji.
+  Zrzut potwierdza render pulpitu/mapy/Cybernera, nie pełną regresję gameplayu.
+  Playwright: publiczne źródła PL/EN dostępne przez HTTPS; brak sesji do pulpitu.
+- Token ustawiony tylko w bieżącej sesji terminala VPS. Ręczna diagnostyka
+  metadanych (poza workerem i jego ledgerem): jedno żądanie, HTTP 200,
+  21236 bajtów, 16 kandydatów, 3 wybrane miniatury 1024, autor obecny.
+  IDs: 112650737559751 (4.11 m), 1172668663200811 (18.79 m),
+  4708370775846012 (66.83 m). Host próbki: scontent-waw2-1.xx.fbcdn.net.
+  Zero pobrań obrazów; żadnego PASS dla CDN, optymalizacji live lub podglądu.
+- Metadane/selekcja live PASS; publikacja, retencja i linkowanie nadal do
+  rozstrzygnięcia zgodnie z kontraktem. Nie włączono globalnego gameplayu
+  ani cyklicznego workera. Poranne database is locked w dostarczonym logu
+  poprzedzają wdrożenie; nie przypisano ich nowemu kodowi.
+
 Nowe wpisy: najnowsze na górze. Starsza część zachowuje historyczny, miejscami
 mieszany porządek; ostatnia linia nie wyznacza aktualnego statusu.
 [Zasady journalu i przekazanie](../runbooks/handoff_project_2026_10_31.md#obowiązkowe-prowadzenie-journalu).

@@ -306,12 +306,19 @@ class CameraVisualGameplayTest(unittest.TestCase):
         self.assertEqual(launch.status_code, 200, launch.json)
         target = launch.json['target']
         self.assertEqual(target['camera_id'], marker['camera_id'])
+        with db_connect(self.path) as conn:
+            legacy={k:v for k,v in target.items() if k not in ('camera_id','scan_id')}
+            self.assertEqual(self.service.target(conn,'attacker',legacy)['camera_id'],marker['camera_id'])
         payload = {**self.payload, 'expected_target':target,
                    'launch_receipt':launch.json['added_apps'][0]['receipt'], 'launch_source':'launch_queue'}
         result = self.client.post('/gonna-win', json=payload)
         self.assertEqual(result.status_code, 200, result.json)
         self.assertTrue(result.json['success'], result.json)
         self.assertEqual(result.json['camera_visual']['target']['camera_id'], marker['camera_id'])
+        self.assertTrue(result.json['camera_visual']['material_required'])
+        self.complete(result.json)
+        with patch('camera_visual.time.time',return_value=result.json['camera_visual']['ready_at']):
+            self.assertEqual(self.client.get('/api/camera-visual/media/'+payload['launch_receipt']+'/0').status_code,404)
         forged = self.client.post('/hack-action', json={**data, 'camera_id':'invented'})
         self.assertEqual(forged.status_code, 409)
         for kind in ('atm','commercial'):
@@ -383,6 +390,21 @@ class CameraVisualGameplayTest(unittest.TestCase):
             self.assertIn(b'Camera Street View',rendered.data)
             self.assertNotIn(os.environ.get('MAPILLARY_ACCESS_TOKEN','not-a-secret').encode(),rendered.data)
 
+    def test_admin_actions_require_admin_csrf_and_audit(self):
+        self.prepare()
+        data=dict(action='withdraw',subject='123456',reason='local test withdrawal')
+        self.assertEqual(self.client.post('/api/admin/camera',json=data).status_code,403)
+        with patch.object(run,'require_dev_admin',return_value=True):
+            self.assertEqual(self.client.post('/api/admin/camera',json=data,headers={'X-Chaos-CSRF':'invalid'}).status_code,403)
+            with self.client.session_transaction() as session:
+                session['session_csrf']='local-test-csrf'
+            headers={'X-Chaos-CSRF':'local-test-csrf','Origin':'http://localhost'}
+            response=self.client.post('/api/admin/camera',json=data,headers=headers)
+            self.assertEqual(response.status_code,200,response.json)
+            with db_connect(self.path) as conn:
+                row=conn.execute('SELECT actor,action,subject FROM camera_visual_admin_audit').fetchone()
+                self.assertEqual(tuple(row),('attacker','withdraw','123456'))
+
     def test_late_archive_keeps_same_grant_and_concurrent_close_is_final(self):
         import tempfile
         from camera_visual_archive import ArchiveStore
@@ -402,6 +424,10 @@ class CameraVisualGameplayTest(unittest.TestCase):
                 second=self.service.window('attacker',data)['camera_visual']
                 self.assertEqual(first['instance_id'],second['instance_id'])
                 self.assertTrue(second['material'])
+                self.assertEqual(second['feed']['image_id'], second['image_id'])
+                stable = self.service.window('attacker',data)['camera_visual']
+                self.assertEqual(stable['feed'], second['feed'])
+                self.assertEqual(first['feed']['visual'], second['feed']['visual'])
                 with ThreadPoolExecutor(max_workers=3) as pool:
                     closed=list(pool.map(lambda _:self.service.window('attacker',{**data,'action':'close'}),range(3)))
                 self.assertTrue(all(r['closed'] for r in closed))
@@ -413,6 +439,27 @@ class CameraVisualGameplayTest(unittest.TestCase):
         self.assertEqual(first['image'],second['image'])
         self.assertNotEqual([b-a for a,b in zip(first['start'],first['end'])],
                             [b-a for a,b in zip(second['start'],second['end'])])
+
+    def test_state_pages_do_not_hide_active_grants(self):
+        self.prepare()
+        self.service.result('attacker',self.payload)
+        with db_connect(self.path) as conn:
+            row = conn.execute('SELECT * FROM camera_visual_sessions').fetchone()
+            columns = list(row.keys())
+            for index in range(70):
+                values = dict(row)
+                values['receipt'] = 'page-receipt-' + str(index)
+                payload = json.loads(values['payload_json'])
+                payload['reference_id'] = values['receipt']
+                values['payload_json'] = json.dumps(payload)
+                conn.execute('INSERT INTO camera_visual_sessions ('+','.join(columns)+') VALUES ('+','.join('?' for _ in columns)+')', tuple(values[k] for k in columns))
+        first = self.client.get('/api/camera-visual/state').json
+        self.assertEqual(len(first['sessions']),64)
+        self.assertIsNotNone(first['next_cursor'])
+        second = self.client.get('/api/camera-visual/state?cursor='+str(first['next_cursor'])).json
+        self.assertEqual(len(second['sessions']),7)
+        self.assertIsNone(second['next_cursor'])
+        self.assertEqual(self.client.get('/api/camera-visual/state?cursor=bad').status_code,400)
 
 
 if __name__ == '__main__':

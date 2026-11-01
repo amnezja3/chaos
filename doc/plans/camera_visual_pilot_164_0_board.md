@@ -1,6 +1,38 @@
 # Pilot kamery 164.0 — wspólna tablica pracy
 
-Aktualizacja: 2026-10-31. Wersja tablicy: 6.
+Aktualizacja: 2026-11-01. Wersja tablicy: 8.
+
+System S1–S3 i wspólne CHAOS Links: kod zintegrowany lokalnie, testy i granice
+w [raporcie implementacji](../audits/camera_street_view_system_implementation_2026_11_01.md).
+Zamrożony wzorzec: 28 SHA256 PASS. Pilot nie jest rozwijany jako osobny produkt.
+Właściwy następny krok: odbiór 166 według zbiorczego runbooka po decyzji wdrożenia.
+
+**PILOT ZAMKNIĘTY — PASS operatora.** Bieżący kierunek to pełna integracja
+systemowa, nie dalsza rozbudowa pilota. [Audyt zakresu i luk](../audits/camera_street_view_system_audit_2026_11_01.md).
+
+| Zadanie po pilocie | Stan |
+| --- | --- |
+| A01 audyt kodu/dowodów + korekta sprintów 164–166 | DONE 01.11, bez zmian runtime i powtarzania testów |
+| S1 kontrakt wspólnego losowania foto/motion/FX/offline + wszystkie kamery | PLAN, sprint 164.S |
+| S2 renderer/lifecycle/systemowe aplikacje i gracze | PLAN, sprint 165.S |
+| S3 automatyczne archiwum, konfiguracja procesów, skala/utrzymanie/admin | CZĘŚCIOWE podstawy, domknięcie 164.S/165.S |
+| S4 zbiorcza macierz wielu kont/kamer/mocy/czasów | PO S1–S3, sprint 166.S; insider_feed/robot tutaj |
+| S5 globalne wdrożenie i odbiór | PO raporcie gotowości, sprint 166.R |
+
+S1–S3 tworzą jeden zakres implementacyjny LOCAL-FIRST. Nie otwierać ponownie
+odbioru zaakceptowanego wyglądu; zachować snapshot. Punkty poniżej są dowodami
+i historią pilota, nie bieżącym planem nowych mikrotestów.
+
+**Odbiór VPS 166 w toku:** Mapillary metadata/archiwum PASS, dwie rzeczywiste
+miniatury WebP; po pełnym 30-minutowym download i korekcie konfiguracji
+istniejącego territory workera otwarto podgląd na tej samej operacji.
+Zrzut operatora potwierdza obraz/atrybucję w natywnym oknie. Po zamknięciu API
+potwierdza consumed/viewer_closed=true — zapis zużycia PASS. Operator potwierdził,
+że zamknięty podgląd nie wraca. Kolejne hakowanie, zwykły download 30 min
+i automatyczne otwarcie nowej instancji: PASS operatora.
+Resize/restore pozostaje do potwierdzenia. Test mocy insider_feed (np. robot)
+zgodnie z decyzją operatora przechodzi do szerszego pilota; live PASS jeszcze brak.
+Nie jest to pełny PASS 166.
 
 Korekta workflow: 165.1 pozostaje zakresem zmian w repo, do standardowego
 commit/push po zgodzie. Zweryfikowano 99/99 plików dodatkowego ZIP i usunięto

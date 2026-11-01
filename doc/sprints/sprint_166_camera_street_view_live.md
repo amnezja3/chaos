@@ -1,4 +1,69 @@
-# Sprint 166 — Camera Street View: źródło rzeczywiste i odbiór VPS
+# Sprint 166 — Camera Street View: odbiór systemowy i pełny rollout
+
+## Przekazanie z implementacji S1–S3 — 01.11.2026
+
+[Kod i wyniki lokalne](../audits/camera_street_view_system_implementation_2026_11_01.md)
+oraz [jedna procedura wdrożenia](../runbooks/camera_street_view_system_s1_s3.md)
+są przygotowane w repo. Następny odbiór dotyczy kompletnego systemu:
+wielu graczy/kamer/aplikacji, rzeczywistych czasów, Insider Feed i Operational
+Prediction, restartów trzech procesów, awarii, PWA i obciążenia.
+Lokalne fixtures nie zaliczają tych prób live. Push/deploy i globalne flagi
+pozostają decyzją operatora; brak nowej zgody licencyjnej L01/L02.
+
+## Obowiązujący zakres od 01.11.2026
+
+**Pilot main/Paryż: PASS operatora. Odbiór systemowy: NIEZAKOŃCZONY.**
+[Audyt 164–166](../audits/camera_street_view_system_audit_2026_11_01.md).
+Źródło rzeczywiste, dwa zwykłe 30-minutowe przebiegi, consumed i brak powrotu
+zamkniętego okna zostały odebrane. Nie wznawiamy fazy prototypu.
+
+166 zaczyna szeroką macierz odbioru dopiero po zintegrowaniu 164.S i 165.S.
+Insider Feed/robot i inne Super Powers testujemy na właściwym systemie,
+nie w kolejnej rozbudowie ograniczonego pilota. Zgoda operatora na wszystkie
+niezbędne testy 164–166 pozostaje ważna; nie żądać osobnych zgód na każdą próbę.
+Nie utożsamiać jej z dowodem PASS ani automatycznym uruchomieniem globalnego rollout.
+
+### 166.S — jedna zbiorcza macierz po implementacji
+
+| Grupa | Obowiązkowy odbiór |
+| --- | --- |
+| Konta/aplikacje | Różni gracze, nowe i zgodne historyczne aplikacje, wspólne archiwum bez wspólnego dostępu, komplet interfejsów |
+| Kamery/lokalizacje | Sklep, ATM, inne POI, kanoniczne i obsługiwane legacy, różne lokalizacje/coverage/kierunki/proporcje fotografii |
+| Czas i moce | Zwykłe 30 min, inne rzeczywiste czasy, robot z insider_feed, moc przy starcie i w trakcie; jeden kanoniczny zegar |
+| Profil feedu | 1/2/3 zdjęcia, nowe losowanie foto+motion+FX/offline, utrwalenie po reconnect, nowy tor przy tym samym zdjęciu; brak losowania po retry |
+| Lifecycle | Failure, pełny dysk, późny aktywator/materiał, dwie karty, wiele okien, restart osobnych procesów, close/relogin/new hack; bez duplikatów |
+| Incydenty | camera_off/shutdown/risk i czas oddziaływania bez zmian; wizualne offline nie zmienia świata ani kosztów |
+| Źródło i utrzymanie | 429/timeout/no coverage/withdraw/expiry/GC/restore, budżety/fairness, brak ponownego pozyskania wycofanego materiału, sekrety i CDN |
+| UI i skala | PL/EN, desktop/mobile/PWA, reduced-motion/focus, nawigacja/atrybucja, p95/CPU/RSS/polling, brak regresji skanera |
+
+Lokalne scenariusze wykonać w kontrolowanej grze/fixtures przez Playwright MCP
+i właściwe testy domenowe. VPS służy nowym dowodom integracji procesów,
+rzeczywistego API/PWA i obciążenia; nie powtarzać całej historii bez przyczyny.
+
+### 166.R — przygotowanie i wdrożenie globalne
+
+1. Jeden raport gotowości dla S1–S3: kod, migracja/kompatybilność grantów,
+   macierz testów, konfiguracja trzech ról procesów, limity/retencja/sekrety,
+   rollback zachowujący consumed i tombstones oraz jawne braki dowodów.
+2. Standardowy commit/push/deployment po decyzji operatora; żadnych ZIP-ów
+   i alternatywnych kopii repo. Zbiorcze wdrożenie i odbiór zamiast drobnych sesji.
+3. Docelowe prawa/retencja/backup i L01/L02 muszą mieć evidence; testowe 24 h
+   i działający token nie są polityką globalnej publikacji.
+4. Docelowy zakres obejmuje wszystkie kamery i wszystkich użytkowników.
+   Kontrolowane uruchomienie/monitoring to sposób odbioru, nie trwała lista main.
+   Dopuszczenie nowych kamer nie wymaga ręcznego enqueue lub konfiguracji kont.
+5. Defekty: diagnostyka → poprawka lokalna → właściwa regresja → kontrolowane
+   wdrożenie; wznowienie od miejsca błędu. Bez resetowania danych dla PASS.
+
+Zamknięcie 166 wymaga całej macierzy lub jawnie uzgodnionego wyłączenia
+konkretnego wymagania. Nie oznaczać DONE na podstawie samej globalnej flagi,
+pilota jednej kamery ani samego screenshotu. Zachować zakaz zdjęć graczy,
+Camera Creator, Vision, ciężkich profili i historycznych kolejek/procedur.
+
+## Historyczny plan pierwszego pilota (31.10.2026)
+
+Poniższe etapy źródła dotyczą pierwszego zakresu 165.1; ich aktualne dowody
+i niewykonane elementy rozdziela audyt z 01.11. Zastępuje je powyższy plan systemowy.
 
 31.10.2026. PLAN, nowy zakres nadany przez operatora; nie sprint zdjęć graczy.
 Zależności: lokalny pakiet 164–165, PASS prezentacji, decyzja o wdrożeniu.

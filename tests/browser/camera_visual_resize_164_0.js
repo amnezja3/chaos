@@ -23,7 +23,7 @@ async (page) => {
         const box = await link.boundingBox();
         if (box.x<resized.x || box.x+box.width>resized.x+resized.width) throw new Error('Link overflows');
     }
-    await page.screenshot({path:'artifacts/cvn-164-resize-links.png'});
+    await page.screenshot({path:'artifacts/camera-system-resize-2026-11-01.png'});
     await viewer.locator('[data-camera-panel-link]').click();
     await page.mouse.move(resized.x+resized.width-3,resized.y+resized.height-3);
     await page.mouse.down();await page.mouse.move(original.x+original.width-3,original.y+original.height-3,{steps:20});await page.mouse.up();

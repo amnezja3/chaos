@@ -2,9 +2,11 @@
 (() => {
     'use strict';
     const parse = href => {
-        const match = /^(?:chaos:(focus|teleport)\/|(focus|teleport):)(.+)$/.exec(href || '');
+        const match = /^(?:chaos:(focus|teleport)\/|(focus|teleport)(?::|\s+))(.+)$/.exec(String(href || '').trim());
         if (!match) return null;
-        const action = match[1] || match[2], target = match[3];
+        const action = match[1] || match[2];
+        let target = match[3];
+        if (target.startsWith('<') && target.endsWith('>')) target=target.slice(1,-1);
         if (target === 'cur:loc') return {action, current:true};
         if (!/^-?\d+(?:\.\d+)?:-?\d+(?:\.\d+)?$/.test(target)) return null;
         const [lat, lng] = target.split(':').map(Number);
@@ -40,8 +42,9 @@
         while (walker.nextNode()) nodes.push(walker.currentNode);
         for (const node of nodes) {
             const parent = node.parentElement;
-            if (!parent?.closest(scope) || parent.closest(excluded) || !/(?:focus|teleport):/.test(node.data)) continue;
-            const pattern = /\b(?:focus|teleport):(?:cur:loc|-?\d+(?:\.\d+)?:-?\d+(?:\.\d+)?)(?![\w:]|\.\d)/g;
+            const inlineCommand=parent?.matches('.file-manager-markdown code') && !parent.closest('pre') && parse(node.data);
+            if (!parent?.closest(scope) || (parent.closest(excluded) && !inlineCommand) || !/(?:focus|teleport)(?::|\s)/.test(node.data)) continue;
+            const pattern = /\b(?:focus|teleport)(?::|\s+)(?:<(?:cur:loc|-?\d+(?:\.\d+)?:-?\d+(?:\.\d+)?)>|(?:cur:loc|-?\d+(?:\.\d+)?:-?\d+(?:\.\d+)?))(?![\w:]|\.\d)/g;
             const fragment = document.createDocumentFragment();
             let offset = 0;
             for (const match of node.data.matchAll(pattern)) {
@@ -65,17 +68,20 @@
                 if (record.type === 'characterData') roots.add(record.target);
                 else for (const node of record.addedNodes) if (node.nodeType===1 || node.nodeType===3) roots.add(node);
             }
-            for (const root of roots) if (!root.parentElement?.closest(excluded)) enhance(root);
+            for (const root of roots) enhance(root);
         }).observe(document.body, {childList:true, subtree:true, characterData:true});
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true}); else start();
+    let actionInFlight=false, lastAction='', lastCompleted=0;
     document.addEventListener('click', async event => {
         const link = event.target.closest('a[data-chaos-link]');
         if (!link) return;
         event.preventDefault();
         event.stopPropagation();
         const target = parse(link.getAttribute('href'));
-        if (!target || link.dataset.busy) return;
+        if (!target || link.dataset.busy || actionInFlight) return;
+        const actionKey=JSON.stringify(target);
+        if(actionKey===lastAction && Date.now()-lastCompleted<500)return;
         const host = link.closest('.app-window,.terminal,[data-chaos-text]');
         if (!host) return;
         let output = host.querySelector('[data-chaos-link-output]');
@@ -86,14 +92,16 @@
         }
         output.hidden = false; output.replaceChildren();
         link.dataset.busy = '1'; link.setAttribute('aria-disabled', 'true');
+        actionInFlight=true;
         try {
             if (target.current) await handleTerminalGeolocationRequest(output, {purpose:target.action});
-            else if (target.action === 'focus') handleTerminalMapFocus(output, target);
+            else if (target.action === 'focus') await handleTerminalMapFocus(output, target);
             else await handleTerminalTeleport(output, target);
         } catch (_) {
             output.textContent = 'CHAOS: action unavailable';
         } finally {
             delete link.dataset.busy; link.removeAttribute('aria-disabled');
+            actionInFlight=false; lastAction=actionKey; lastCompleted=Date.now();
             if (!output.textContent.trim()) output.hidden = true;
         }
     }, true);

@@ -15158,14 +15158,28 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
         with db_connect(player_operation_store.db_path) as conn:
             pilot_rows = conn.execute('''SELECT s.username,o.operation_json FROM camera_visual_sessions s
                 JOIN player_operations o ON o.operation_id=s.operation_id AND o.username=s.username
+                LEFT JOIN camera_visual_activation_retry r ON r.username=s.username AND r.operation_id=s.operation_id
                 WHERE (?=1 OR s.username=?) AND s.viewer_closed=0
+                AND json_extract(s.payload_json,'$.reference_id')=s.receipt
+                AND (r.retry_at IS NULL OR r.retry_at<=?)
                 AND o.status IN ('timeout','completed','done')
                 AND NOT EXISTS (SELECT 1 FROM player_data_files f WHERE f.username=s.username
                     AND f.file_id='activation-' || s.operation_id)
-                ORDER BY s.created_at ASC LIMIT 32''',
-                (int(os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1'), pilot_user)).fetchall()
+                ORDER BY coalesce(r.retry_at,0),s.created_at ASC LIMIT 32''',
+                (int(os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1'), pilot_user,time.time())).fetchall()
         for row in pilot_rows:
-            camera_visual_service().finalize(row['username'], loads_json(row['operation_json'], {}))
+            operation=loads_json(row['operation_json'], {})
+            # Reserve a bounded retry slot before finalizing: a full disk or a
+            # process crash cannot keep the oldest 32 users at the queue head.
+            with db_connect(player_operation_store.db_path) as conn:
+                conn.execute('INSERT INTO camera_visual_activation_retry VALUES (?,?,?) ON CONFLICT(username,operation_id) DO UPDATE SET retry_at=excluded.retry_at',
+                             (row['username'],operation['operation_id'],time.time()+30))
+            try:
+                camera_visual_service().finalize(row['username'], operation)
+            except Exception as error:
+                app.logger.warning('camera_activation_retry type=%s',type(error).__name__)
+        from camera_visual_archive import ArchiveStore
+        ArchiveStore(player_operation_store.db_path).heartbeat('operations',dict(enabled=True,activation_candidates=len(pilot_rows)))
     return result
 
 
@@ -22826,11 +22840,25 @@ def dev_dashboard():
     tab = request.args.get("tab", "users")
     if tab == 'camera':
         from database import db_connect
+        from camera_visual_archive import ArchiveStore
         with db_connect(player_inventory_store.db_path) as conn:
-            archives = [dict(r) for r in conn.execute('SELECT archive_id,source,status,reason,attempts,expires_at FROM camera_visual_archives ORDER BY created_at DESC LIMIT 50')]
+            archives = [dict(r) for r in conn.execute('SELECT archive_id,source,status,reason,attempts,retry_at,expires_at,images_json FROM camera_visual_archives ORDER BY created_at DESC LIMIT 50')]
             budget = [dict(r) for r in conn.execute('SELECT * FROM camera_visual_budget ORDER BY day DESC LIMIT 7')]
+            health = [dict(r) for r in conn.execute('SELECT * FROM camera_visual_runtime')]
+            audit = [dict(r) for r in conn.execute('SELECT * FROM camera_visual_admin_audit ORDER BY id DESC LIMIT 30')]
+            counts = [dict(r) for r in conn.execute('SELECT status,count(*) AS count FROM camera_visual_archives GROUP BY status')]
+            pending = conn.execute("SELECT count(*) FROM camera_visual_sessions s WHERE viewer_closed=0 AND operation_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM player_data_files f WHERE f.username=s.username AND f.file_id='activation-'||s.operation_id)").fetchone()[0]
+        health.append(dict(role='web',updated_at=time.time(),state_json=json.dumps(ArchiveStore(player_inventory_store.db_path).runtime_config())))
+        for item in archives:
+            item['images'] = [{k:image.get(k) for k in ('image_id','author','source','license','bytes','width','height')}
+                              for image in json.loads(item.pop('images_json'))[:3]]
         return render_template('admin_camera.html',generation=generation,active_tab=tab,
             ui_locale=request_ui_locale(),archives=archives,budget=budget,
+            health=health,audit=audit,counts=counts,pending=pending,csrf=session.get('session_csrf',''),
+            settings={key:os.environ.get(key,'') for key in ('CHAOS_CAMERA_SOURCE','CHAOS_CAMERA_RETENTION_SECONDS',
+                'CHAOS_CAMERA_MAX_REQUESTS','CHAOS_CAMERA_MAX_BYTES','CHAOS_CAMERA_MAX_ARCHIVES',
+                'CHAOS_CAMERA_MAX_STORAGE_BYTES','CHAOS_CAMERA_CDN_HOSTS','CHAOS_CAMERA_RIGHTS_REFERENCE',
+                'CHAOS_CAMERA_LICENSE','CHAOS_CAMERA_LICENSE_URL')},
             camera_flags={name:os.environ.get(name,'0')=='1' for name in
                 ('CHAOS_CAMERA_STREET_VIEW','CHAOS_CAMERA_WORKER','CHAOS_CAMERA_ACQUISITION','CHAOS_CAMERA_SERVE')},
             camera_secret_present=bool(os.environ.get('MAPILLARY_ACCESS_TOKEN')))
@@ -22862,6 +22890,30 @@ def session_csrf_failure():
             or not expected or not secrets.compare_digest(expected, provided)):
         return jsonify(ok=False, error="csrf_rejected"), 403
     return None
+
+
+@app.post('/api/admin/camera')
+def camera_admin_action():
+    if not require_dev_admin():
+        return jsonify(success=False,reason='admin_required'),403
+    failure=session_csrf_failure()
+    if failure: return failure
+    from camera_visual_archive import ArchiveStore
+    from database import db_connect
+    data=request.get_json(silent=True) or {}
+    action=data.get('action')
+    store=ArchiveStore(player_inventory_store.db_path)
+    try:
+        if action=='gc':
+            removed=store.gc()
+            with db_connect(store.path) as conn:
+                conn.execute('INSERT INTO camera_visual_admin_audit(actor,action,subject,created_at) VALUES (?,?,?,?)',
+                             (session['user'],'gc',str(removed),time.time()))
+            return jsonify(success=True,removed=removed)
+        store.administer(session['user'],action,str(data.get('subject',''))[:160],str(data.get('reason',''))[:200])
+        return jsonify(success=True)
+    except ValueError as error:
+        return jsonify(success=False,reason=str(error)),409
 
 
 @app.post("/api/session/activity")
@@ -24687,8 +24739,10 @@ def camera_visual_state():
     from camera_visual import enabled
     if not session.get('user'):
         return jsonify(success=False), 401
-    response = jsonify(success=True, enabled=enabled(session['user']),
-        sessions=camera_visual_service().snapshot(session['user']) if enabled(session['user']) else [])
+    try: cursor=max(0,int(request.args.get('cursor','0')))
+    except ValueError: return jsonify(success=False,reason='invalid_cursor'),400
+    sessions,next_cursor=camera_visual_service().snapshot(session['user'],cursor=cursor) if enabled(session['user']) else ([],None)
+    response = jsonify(success=True, enabled=enabled(session['user']),sessions=sessions,next_cursor=next_cursor)
     response.headers['Cache-Control'] = 'no-store'
     return response
 
@@ -24707,10 +24761,12 @@ def camera_visual_media(receipt, frame):
     from camera_visual import enabled, IMAGES, pilot_target
     if not enabled(session.get('user')) or frame not in range(len(IMAGES)):
         return jsonify(success=False), 403
-    states = camera_visual_service().snapshot(session['user'])
+    states = camera_visual_service().snapshot(session['user'],receipt=receipt)
     if not any(s['reference_id'] == receipt and s['state'] == 'ready' and not s['viewer_closed'] for s in states):
         return jsonify(success=False), 403
     state = next(s for s in states if s['reference_id'] == receipt)
+    if state.get('material_required') and not state.get('archive_id'):
+        return jsonify(success=False, reason='camera_material_unavailable'), 404
     if state.get('archive_id'):
         from camera_visual_archive import ArchiveStore
         from camera_visual_source import SourceError

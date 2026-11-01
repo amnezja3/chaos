@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import time
+from camera_visual_instance import instance as new_instance, bind_material
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -40,7 +41,7 @@ def generate_motion(previous=None):
     bend = (1 if secrets.randbelow(2) else -1) * .18
     control = [round(max(0, min(50, (start[0]+end[0])/2 - dy*bend)), 3),
                round(max(0, min(50, (start[1]+end[1])/2 + dx*bend)), 3)]
-    return dict(version=2, image=secrets.randbelow(len(IMAGES)), scale=2,
+    return dict(version=2, image=0, scale=2,
                 mode='ping-pong', start=start, control=control, end=end,
                 seconds=180 + secrets.randbelow(121))
 
@@ -52,7 +53,7 @@ def enabled(username):
 
 def accepts_target(target):
     return pilot_target(target) or (os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1'
-                                   and bool(target.get('camera_id')))
+                                   and (bool(target.get('camera_id')) or target.get('target_type')=='camera' or target.get('source_type')=='camera'))
 
 
 def pilot_target(target):
@@ -106,6 +107,19 @@ class CameraVisual:
 
     def target(self, conn, username, requested=None):
         target = self.rt.player_target_runtime_store.get_active_target(username) or {}
+        if requested and not requested.get('camera_id') and os.environ.get('CHAOS_CAMERA_STREET_VIEW')=='1' and not pilot_target(requested):
+            # Resolve legacy transport only against unambiguous server evidence.
+            try:
+                lat,lng=float(requested['lat']),float(requested.get('lng',requested.get('lon')))
+            except (KeyError,TypeError,ValueError):
+                raise PilotError('camera_scan_required')
+            rows=conn.execute('''SELECT camera_id,scan_id FROM response_camera_observations
+                WHERE username=? AND expires_at>? AND
+                abs(json_extract(marker_json,'$.lat')-?)<0.000000001 AND
+                abs(coalesce(json_extract(marker_json,'$.lng'),json_extract(marker_json,'$.lon'))-?)<0.000000001
+                GROUP BY camera_id ORDER BY max(expires_at) DESC LIMIT 2''',(username,time.time(),lat,lng)).fetchall()
+            if len(rows)!=1: raise PilotError('camera_scan_required')
+            requested={**requested,**dict(rows[0])}
         if requested and requested.get('camera_id') and os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1':
             from response_network.camera_contract import CameraContractStore, CameraContractError
             try:
@@ -262,6 +276,8 @@ class CameraVisual:
                              motion=generate_motion(previous_motion), target_key=target_key)
                 from camera_visual_archive import ArchiveStore
                 state['archive_id'] = ArchiveStore(self.path).enqueue(conn, target)
+                state['material_required'] = os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1' or os.environ.get('CHAOS_CAMERA_SOURCE','off') != 'off'
+                state['feed'] = new_instance(state, username)
             conn.execute('''INSERT INTO camera_visual_sessions
                 (username,receipt,target_key,app_id,operation_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?)''',
                 (username, receipt, target_key, app_id, state['operation_id'], encoded(state), now))
@@ -285,6 +301,7 @@ class CameraVisual:
     def project(self, conn, row):
         state = json.loads(row['payload_json'])
         state.update(viewer_closed=bool(row['viewer_closed']), reference_closed=bool(row['reference_closed']))
+        state['diagnostics'] = os.environ.get('CHAOS_CAMERA_DIAGNOSTICS') == '1'
         if not state['success']:
             return state
         now = time.time()
@@ -309,12 +326,18 @@ class CameraVisual:
             state['state'] = 'ready' if self.verified(conn, row['username'], state) else 'save_pending'
         if row['viewer_closed']:
             state['state'] = 'consumed'
+        if state.get('feed'):
+            state['feed']['lifecycle'] = state['state']
+            state['feed']['consumed'] = state['viewer_closed']
         if state.get('archive_id'):
             from camera_visual_archive import ArchiveStore
             manifest = ArchiveStore(self.path).manifest(conn, state['archive_id'])
             state['visual_status'] = manifest['status']
             material = next((i for i in manifest['images'] if i['image_id'] == state.get('image_id')), None)
             state['material'] = {k:v for k,v in material.items() if k not in ('file',)} if material else None
+        elif state.get('material_required'):
+            state['visual_status'] = 'NO_COVERAGE'
+            state['material'] = None
         return state
 
     def reply(self, conn, row, duplicate=False):
@@ -355,12 +378,17 @@ class CameraVisual:
             if not self.verified(conn, username, state):
                 raise PilotError('camera_activation_verification_failed')
 
-    def snapshot(self, username):
+    def snapshot(self, username, *, receipt=None, cursor=None):
         from database import db_connect
         with db_connect(self.path) as conn:
-            rows = conn.execute('''SELECT * FROM camera_visual_sessions WHERE username=?
+            rows = conn.execute('''SELECT rowid AS page_id,* FROM camera_visual_sessions WHERE username=?
                 AND json_extract(payload_json,'$.reference_id')=receipt
-                ORDER BY viewer_closed ASC, (operation_id IS NULL) ASC, created_at DESC LIMIT 64''', (username,)).fetchall()
+                AND (? IS NULL OR receipt=?) AND (? IS NULL OR rowid>?)
+                AND (viewer_closed=0 OR receipt IN (SELECT receipt FROM camera_visual_sessions
+                    WHERE username=? AND viewer_closed=1 ORDER BY created_at DESC LIMIT 64))
+                ORDER BY CASE WHEN ? IS NULL THEN -rowid ELSE rowid END LIMIT 65''', (username,receipt,receipt,cursor,cursor,username,cursor)).fetchall()
+            more=len(rows)>64
+            rows=rows[:64]
             result = []
             for row in rows:
                 try:
@@ -368,7 +396,7 @@ class CameraVisual:
                 except PilotError:
                     continue
                 result.append(self.project(conn, row))
-            return result
+            return (result, rows[-1]['page_id'] if more else None) if cursor is not None else result
 
     def window(self, username, data):
         owner = str(data.get('owner') or '')
@@ -385,7 +413,7 @@ class CameraVisual:
                     state = self.project(conn, row)
                     self.app(conn, username, row['app_id'])
                     needs_image = state.get('archive_id') and not state.get('image_id') and state.get('visual_status') == 'READY'
-                    if state['reference_id'] == row['receipt'] and state['state'] == 'ready' and (state.get('motion') or {}).get('version') == 2 and not needs_image:
+                    if state.get('feed') and state['reference_id'] == row['receipt'] and state['state'] == 'ready' and (state.get('motion') or {}).get('version') == 2 and not needs_image:
                         return dict(success=True, granted=True, lease_until=row['lease_until'], camera_visual=state)
         with transaction(self.path) as conn:
             row = conn.execute('''SELECT * FROM camera_visual_sessions WHERE username=? AND receipt=?
@@ -425,15 +453,29 @@ class CameraVisual:
                 # Upgrade old pilot grants once; snapshot/media reads never write.
                 payload = json.loads(row['payload_json'])
                 payload['motion'] = state['motion'] = generate_motion()
+                if payload.get('feed'):
+                    payload['feed']['motion'] = state['motion']
+                    state['feed'] = payload['feed']
                 conn.execute('UPDATE camera_visual_sessions SET payload_json=? WHERE username=? AND receipt=?',
                              (encoded(payload), username, row['receipt']))
+                row = conn.execute('SELECT * FROM camera_visual_sessions WHERE username=? AND receipt=?',
+                                   (username, row['receipt'])).fetchone()
+            if not state.get('feed'):
+                payload = json.loads(row['payload_json'])
+                payload['motion'] = state['motion']
+                payload['feed'] = state['feed'] = new_instance(state, username, legacy=True)
+                conn.execute('UPDATE camera_visual_sessions SET payload_json=? WHERE username=? AND receipt=?',
+                             (encoded(payload), username, row['receipt']))
+                row = conn.execute('SELECT * FROM camera_visual_sessions WHERE username=? AND receipt=?',
+                                   (username,row['receipt'])).fetchone()
             if state.get('archive_id') and not state.get('image_id'):
                 from camera_visual_archive import ArchiveStore
                 manifest = ArchiveStore(self.path).manifest(conn, state['archive_id'])
                 if manifest['images']:
                     payload = json.loads(row['payload_json'])
                     payload['motion'] = state['motion']
-                    payload['image_id'] = manifest['images'][state['motion']['image'] % len(manifest['images'])]['image_id']
+                    payload['feed'] = state['feed']
+                    bind_material(payload, manifest['images'])
                     conn.execute('UPDATE camera_visual_sessions SET payload_json=? WHERE username=? AND receipt=?',
                                  (encoded(payload),username,row['receipt']))
                     row = conn.execute('SELECT * FROM camera_visual_sessions WHERE username=? AND receipt=?',(username,row['receipt'])).fetchone()

@@ -11,4 +11,25 @@
 <section><h2>{{ 'Rezerwacje budżetu' if ui_locale == 'pl' else 'Budget reservations' }}</h2>
 <table><thead><tr><th>UTC</th><th>Requests</th><th>Bytes reserved</th></tr></thead><tbody>{% for item in budget %}<tr><td>{{ item.day }}</td><td>{{ item.requests }}</td><td>{{ item.bytes_reserved }}</td></tr>{% endfor %}</tbody></table></section>
 <p>{{ 'Wycofanie materiału i GC: operatorskie CLI camera_archive.py. Panel nie uruchamia API.' if ui_locale == 'pl' else 'Withdrawals and GC: operator camera_archive.py CLI. This panel does not call the provider.' }}</p>
+<section><h2>{{ 'Ustawienia wdrożenia' if ui_locale == 'pl' else 'Deployment settings' }}</h2>
+<p>{{ 'Jedno źródło: CHAOS_CAMERA_CONFIG. Zmiany przez operatora i przeładowanie właściwych procesów; bez sekretów w panelu.' if ui_locale == 'pl' else 'Single source: CHAOS_CAMERA_CONFIG. Operator changes and process reload; no secrets in this panel.' }}</p>
+<dl>{% for key,value in settings.items() %}<dt>{{ key }}</dt><dd>{{ value or '—' }}</dd>{% endfor %}</dl></section>
+<section><h2>{{ 'Diagnostyka' if ui_locale == 'pl' else 'Diagnostics' }}</h2>
+<p>{{ 'Sesje bez aktywatora' if ui_locale == 'pl' else 'Sessions without activation' }}: {{ pending }}</p>
+{% for item in counts %}<p>{{ item.status }}: {{ item.count }}</p>{% endfor %}
+{% for item in health %}<p>{{ item.role }} · UTC epoch {{ item.updated_at }} · {{ item.state_json }}</p>{% else %}<p>{{ 'Brak heartbeat — sprawdź procesy.' if ui_locale == 'pl' else 'No heartbeat — check processes.' }}</p>{% endfor %}</section>
+<section><h2>{{ 'Materiały i referencje' if ui_locale == 'pl' else 'Materials and references' }}</h2>
+{% for archive in archives %}<details><summary>{{ archive.archive_id }} · {{ archive.status }}</summary>
+<p>retry_at={{ archive.retry_at }} · expires_at={{ archive.expires_at }}</p>
+{% for item in archive.images %}<p>{{ item.image_id }} · {{ item.author }} · {{ item.source }} · {{ item.license }} · {{ item.width }}×{{ item.height }} · {{ item.bytes }} B</p>{% endfor %}
+</details>{% endfor %}</section>
+<section><h2>{{ 'Operacje archiwum' if ui_locale == 'pl' else 'Archive operations' }}</h2>
+<form id="camera-admin-action" data-csrf="{{ csrf }}">
+<label>Action <select name="action"><option value="withdraw">Withdraw image</option><option value="retry">Retry due archive</option><option value="gc">GC</option></select></label>
+<label>ID <input name="subject" maxlength="160"></label><label>{{ 'Powód' if ui_locale == 'pl' else 'Reason' }} <input name="reason" maxlength="200"></label>
+<label><input type="checkbox" required> {{ 'Potwierdzam operację' if ui_locale == 'pl' else 'Confirm operation' }}</label>
+<button>{{ 'Wykonaj' if ui_locale == 'pl' else 'Apply' }}</button><p role="status" id="camera-admin-result"></p></form>
+<p>{{ 'Backup/restore pozostaje prywatnym CLI. Retry zachowuje limit prób i backoff.' if ui_locale == 'pl' else 'Backup/restore remains private CLI. Retry preserves attempt limits and backoff.' }}</p></section>
+<section><h2>Audit</h2>{% for item in audit %}<p>{{ item.created_at }} · {{ item.actor }} · {{ item.action }} · {{ item.subject }}</p>{% endfor %}</section>
+<script src="{{ url_for('static',filename='js/admin_camera.js') }}"></script>
 {% endblock %}

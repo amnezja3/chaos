@@ -11,6 +11,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       env: {
+        ...require('./camera.runtime.config.js')('operations'),
         CHAOS_RESPONSE_QUALIFICATION_MODE: "observe",
         CHAOS_RESPONSE_ENCOUNTERS_ENABLED: "true",
         CHAOS_RESPONSE_EXECUTION_MODE: "enforce",

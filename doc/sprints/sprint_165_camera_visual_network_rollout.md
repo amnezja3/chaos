@@ -1,4 +1,60 @@
-# Sprint 165 — Camera Visual Network: terminal, administracja i rollout
+# Sprint 165 — Camera Street View: pełna integracja gameplayu i prezentacji
+
+## Implementacja systemowa 01.11.2026
+
+S1–S3 i CHAOS Links są zintegrowane w working tree. Renderer zachowuje PASS
+prezentacji, korzysta z utrwalonego profilu; linki sprawdzone przez rzeczywiste
+okna Cybernera, Googleplexu i PTK. [Raport i ograniczenia](../audits/camera_street_view_system_implementation_2026_11_01.md).
+Trzy procesy mają wspólną konfigurację, a finalizator retry zachowuje fairness.
+Poniższy stan „CZĘŚCIOWO” jest stanem audytu przed implementacją; nie jest
+deklaracją odbioru VPS ani szerokiej macierzy 166. Nie uruchomiono rollout.
+
+## Obowiązujący zakres od 01.11.2026
+
+**165.1: lokalny zakres wdrożony, pilot jednej kamery PASS. Cały sprint: CZĘŚCIOWO.**
+[Audyt 164–166](../audits/camera_street_view_system_audit_2026_11_01.md) rozdziela
+gotowy lifecycle od brakującego systemowego generatora feedu i eksploatacji.
+Nie rozszerzamy już demonstratora; przenosimy pełny workflow do wszystkich
+kanonicznych kamer i wszystkich użytkowników. Sama globalna flaga nie jest odbiorem.
+
+| Obszar | Wykonane | Brakujące/powiązanie |
+| --- | --- | --- |
+| Native Ghost viewer | PASS wyglądu, resize/reconnect lokalnie; obraz live/close/new feed pilot PASS | Render całego utrwalonego profilu z 164, lokalizacja/czas bez Paris hardcode |
+| Efekty | 6 assetów i porównywarka odebrane | Losowany wariant/intensywność/faza/offline per instancja; porównywarka tylko narzędziem testowym |
+| Lifecycle | Success/failure, jeden kanoniczny download, Super Powers w kodzie, aktywator, lease, consumed | Globalna integracja aplikacji/mapy; pełny recovery przy osobnych procesach i wielu kamerach |
+| Incydenty | Istniejący camera_off/camera_shutdown i regresje lokalne PASS | Dowód braku zmiany mechaniki po uogólnieniu; brak efektów gameplayowych od wizualnego offline |
+| Atrybucja/nawigacja | MapiFi, per-image author/source/license, panel i kontrolowane wyjście | Domknięcie L02, wymaganych metadanych i publicznego linku z gatewaya, rzeczywista PWA |
+| Admin | Read-only lista/flags/budżet i CLI utrzymania | Docelowe sterowanie/audyt/powody/metryki/reference inspection; osobna polityka praw i profilu źródła |
+| Deployment | OFF i ograniczony pilot wdrożone; runbook skorygowany | Trwała zgodna konfiguracja web + territory worker + archive worker, sekrety, GC, rollback; usunięcie zależności od ręcznych exportów |
+
+### 165.S — kompletny workflow (S2 i część S3)
+
+1. Renderer odczytuje wersjonowany profil 164.S; zdjęcie/tor/FX/offline nie
+   zmieniają się od reload/minimize/relogin. Zachować jeden obraz i wolny ping-pong,
+   brak statycznej galerii/slideshow. Nowy grant generuje cały nowy zestaw.
+2. Rozdzielić grant, stan archiwum i scenariusz. Błąd API/lease/revocation ma
+   pierwszeństwo; symulowane offline nie zapisuje camera_shutdown. Realne
+   skutki kamery na ryzyko/incydenty pozostają w Response Network.
+3. Uogólnić nazwy, zegar i credits; schować narzędzie porównawcze z domyślnego
+   gameplayu. Obsłużyć stany z jednoznacznymi powodami, dostępność i reduced-motion.
+4. Zintegrować wszystkie wejścia aplikacji i mapy bez nowego uprawnienia z nazwy
+   lub interface. Potwierdzony plik jest konieczny; zamknięcie terminalne.
+   Nie dodawać drugiego download, nie resetować istniejących zużytych grantów.
+5. Utrwalić konfigurację i widoczność zdrowia finalizatora. Naprawa VPS
+   save_pending jest obowiązkowym przypadkiem regresji wieloprocesowej.
+6. Domknąć admin, publiczne źródła i utrzymanie według szczegółowego katalogu
+   niżej; brakujące funkcje CLI/UI oznaczać jawnie, nie deklarować całego panelu PASS.
+
+Warunek przekazania do 166: 164.S + 165.S zintegrowane i lokalnie sprawdzone
+w repo, raport zakresu/migracji/regresji. Dopiero wtedy macierz kont, lokalizacji,
+kamer, aplikacji, czasów i Super Powers (w tym robot/insider_feed).
+Nie powtarzać zaliczonych prób bez zmiany lub uzasadnionej luki. Bez ZIP.
+
+## Zachowane wymagania i historia planu sprzed audytu
+
+Poniższe szczegóły są katalogiem wymagań i historycznym planem, nie aktualnym
+statusem realizacji. „Reopen” po ręcznym close jest zabronione; recovery dotyczy
+tylko niezużytej instancji. Nadrzędna jest aktualna macierz i kontrakt 164.S.
 
 Data: 24.10.2026. Aktualizacja 31.10.2026: **pierwszy pakiet Camera Street View 165.1 zweryfikowany lokalnie, flagi OFF**.
 

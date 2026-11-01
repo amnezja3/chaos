@@ -1,5 +1,14 @@
 # Linki CHAOS — standard systemowy (rozszerzenie v2)
 
+Aktualizacja systemowa 01.11.2026: wspólny parser przyjmuje także `focus lat:lon`,
+`teleport lat:lon` oraz opcjonalne `<lat:lon>`. Dokument PTK przechodzi przez
+API dokumentów i `renderFileManagerMarkdown`; pojedynczy inline code z pełną
+akcją jest rozpoznawany, fenced code pozostaje nieaktywny. Blokada akcji w toku
+obejmuje wszystkie linki, a Focus czeka na inicjalizację mapy.
+Kanoniczny teleport pozostaje bez opłaty/cooldownu zgodnie z decyzją operatora;
+uprawnienia i zapis pozycji sprawdza istniejący backend, po dialogu potwierdzenia.
+[Dowody sześciu ścieżek UI](../audits/camera_street_view_system_implementation_2026_11_01.md).
+
 Wspólny komponent: `static/js/chaos_links.js` i `static/css/chaos_links.css`.
 Link jest prawdziwym elementem `a`, z klasą `chaos-link` i `data-chaos-link`.
 Akcja uruchamia się wyłącznie po kliknięciu/aktywacji klawiaturą. Parsowanie
@@ -30,7 +39,8 @@ i lokalizację UI. Bez skanowania całego desktopu przy każdym ticku. Cyberner
 i Google Plex korzystają z tej samej automatycznej warstwy.
 
 Renderer tworzy DOM, nie interpretuje HTML tekstu. Pomija istniejące linki,
-przyciski, edytory, input/textarea, code/pre, SVG i `[data-chaos-no-links]`.
+przyciski, edytory, input/textarea, code/pre (poza pełną akcją inline w PTK),
+SVG i `[data-chaos-no-links]`.
 Ponowny render jest idempotentny. Przechwycenie kliknięcia akcji zapobiega
 jednoczesnemu uruchomieniu akcji otaczającej karty. Google Plex News używa
 article z osobnym przyciskiem CTA, aby nie zagnieżdżać linków w button.

@@ -11,6 +11,14 @@ from database import db_connect, atomic_runtime_transaction
 from camera_visual_source import SourceError, MapillarySource, optimize, distance
 
 SCHEMAS = (
+    '''CREATE TABLE IF NOT EXISTS camera_visual_runtime (
+    role TEXT PRIMARY KEY, updated_at REAL NOT NULL, state_json TEXT NOT NULL)''',
+    '''CREATE TABLE IF NOT EXISTS camera_visual_admin_audit (
+    id INTEGER PRIMARY KEY, actor TEXT NOT NULL, action TEXT NOT NULL,
+    subject TEXT NOT NULL, created_at REAL NOT NULL)''',
+    '''CREATE TABLE IF NOT EXISTS camera_visual_activation_retry (
+    username TEXT NOT NULL, operation_id TEXT NOT NULL, retry_at REAL NOT NULL,
+    PRIMARY KEY(username,operation_id))''',
     '''CREATE TABLE IF NOT EXISTS camera_visual_archives (
     archive_id TEXT PRIMARY KEY,target_json TEXT NOT NULL,source TEXT NOT NULL,
     status TEXT NOT NULL,created_at REAL NOT NULL,updated_at REAL NOT NULL,
@@ -148,7 +156,15 @@ class ArchiveStore:
             directory=root(); directory.mkdir(parents=True,exist_ok=True)
             if shutil.disk_usage(directory).free<100*1024*1024:
                 raise SourceError('disk_low')
-            payloads=provider.fetch(json.loads(row['target_json']),self.reserve)
+            used = sum(p.stat().st_size for p in directory.iterdir() if p.is_file())
+            if used + 3*10*1024*1024 > int(os.environ.get('CHAOS_CAMERA_MAX_STORAGE_BYTES', str(1024*1024*1024))):
+                raise SourceError('storage_quota',3600)
+            def allowed(image_id):
+                with db_connect(self.path) as conn:
+                    return not conn.execute('SELECT 1 FROM camera_visual_withdrawals WHERE source=? AND image_id=?',
+                                            ('Mapillary',image_id)).fetchone()
+            payloads=(provider.fetch(json.loads(row['target_json']),self.reserve,allowed=allowed)
+                      if isinstance(provider,MapillarySource) else provider.fetch(json.loads(row['target_json']),self.reserve))
             if len(payloads)>3:
                 raise SourceError('image_count_limit')
             for data,meta in payloads:
@@ -193,6 +209,45 @@ class ArchiveStore:
             conn.execute('INSERT OR REPLACE INTO camera_visual_withdrawals VALUES (?,?,?,?)',
                          (source,image_id,reason[:200],time.time()))
 
+    def heartbeat(self, role, state):
+        state={**state,'config':self.runtime_config()}
+        with db_connect(self.path) as conn:
+            previous=conn.execute('SELECT updated_at FROM camera_visual_runtime WHERE role=?',(role,)).fetchone()
+        if previous and previous['updated_at']>time.time()-30:
+            return
+        with atomic_runtime_transaction(self.path) as conn:
+            conn.execute('INSERT INTO camera_visual_runtime VALUES (?,?,?) ON CONFLICT(role) DO UPDATE SET updated_at=excluded.updated_at,state_json=excluded.state_json',
+                         (role,time.time(),json.dumps(state)))
+
+    def runtime_config(self):
+        # Compare process identity without exposing private absolute paths/secrets.
+        return dict(database=hashlib.sha256(str(Path(self.path).resolve()).encode()).hexdigest()[:16],
+                    source=os.environ.get('CHAOS_CAMERA_SOURCE','off'),
+                    enabled=os.environ.get('CHAOS_CAMERA_STREET_VIEW','0'),
+                    pilot=os.environ.get('CHAOS_CAMERA_VISUAL_PILOT','0'),
+                    pilot_user=os.environ.get('CHAOS_CAMERA_VISUAL_PILOT_USER','main'),
+                    worker=os.environ.get('CHAOS_CAMERA_WORKER','0'),
+                    acquisition=os.environ.get('CHAOS_CAMERA_ACQUISITION','0'),
+                    serve=os.environ.get('CHAOS_CAMERA_SERVE','0'))
+
+    def administer(self, actor, action, subject, reason=''):
+        """Same bounded operations for CLI and authenticated administration."""
+        with atomic_runtime_transaction(self.path) as conn:
+            if action=='withdraw':
+                if not subject.isdigit() or not reason.strip(): raise ValueError('image_and_reason_required')
+                conn.execute('INSERT OR REPLACE INTO camera_visual_withdrawals VALUES (?,?,?,?)',
+                             ('Mapillary',subject,reason[:200],time.time()))
+            elif action=='retry':
+                # Manual retry does not reset the attempt ceiling or bypass backoff.
+                row=conn.execute('SELECT * FROM camera_visual_archives WHERE archive_id=?',(subject,)).fetchone()
+                if not row or row['status']!='DEFERRED' or row['attempts']>=2 or row['retry_at']>time.time():
+                    raise ValueError('retry_not_due')
+                conn.execute("UPDATE camera_visual_archives SET status='QUEUED' WHERE archive_id=?",(subject,))
+            else:
+                raise ValueError('unknown_action')
+            conn.execute('INSERT INTO camera_visual_admin_audit(actor,action,subject,created_at) VALUES (?,?,?,?)',
+                         (actor,action,subject,time.time()))
+
     def media_path(self,item):
         name=item.get('file','')
         if name!=item.get('sha256','')+'.webp' or len(item.get('sha256',''))!=64 or any(c not in '0123456789abcdef' for c in item.get('sha256','')):
@@ -208,9 +263,11 @@ class ArchiveStore:
             referenced={i['file'] for row in conn.execute("SELECT images_json FROM camera_visual_archives WHERE status='READY' AND expires_at>?",(time.time(),)) for i in json.loads(row['images_json'])
                         if not conn.execute('SELECT 1 FROM camera_visual_withdrawals WHERE source=? AND image_id=?',(i['source'],i['image_id'])).fetchone()}
         removed=0
-        for path in list(root().glob('*'))[:256]:
+        for path in root().glob('*'):
             if path.is_file() and path.name not in referenced and path.stat().st_mtime<time.time()-3600:
                 path.unlink(); removed+=1
+                if removed >= 256:
+                    break
         return removed
 
     def backup(self,destination):
@@ -223,7 +280,11 @@ class ArchiveStore:
             withdrawals=[dict(r) for r in conn.execute('SELECT * FROM camera_visual_withdrawals')]
             budgets=[dict(r) for r in conn.execute('SELECT * FROM camera_visual_budget')]
         for row in rows:
+            if row['status'] != 'READY' or row['expires_at'] <= time.time():
+                continue
             for item in json.loads(row['images_json']):
+                if any(w['source']==item['source'] and w['image_id']==item['image_id'] for w in withdrawals):
+                    continue
                 source=root()/item['file']
                 if source.exists():
                     shutil.copyfile(self.media_path(item),destination/item['file'])
@@ -238,9 +299,16 @@ class ArchiveStore:
         if len(raw)>10*1024*1024: raise SourceError('backup_manifest_limit')
         snapshot=json.loads(raw)
         if snapshot.get('version')!=1: raise SourceError('backup_version')
+        with db_connect(self.path) as conn:
+            withdrawn={(r['source'],r['image_id']) for r in conn.execute('SELECT source,image_id FROM camera_visual_withdrawals')}
+        withdrawn.update((r['source'],r['image_id']) for r in snapshot['withdrawals'])
         media=root();media.mkdir(parents=True,exist_ok=True)
         for row in snapshot['archives']:
+            if row['status'] != 'READY' or row['expires_at'] <= time.time():
+                continue
             for item in json.loads(row['images_json']):
+                if (item['source'],item['image_id']) in withdrawn:
+                    continue
                 name=item['sha256']+'.webp'
                 if item['file']!=name or len(item['sha256'])!=64 or any(c not in '0123456789abcdef' for c in item['sha256']):
                     raise SourceError('backup_path')

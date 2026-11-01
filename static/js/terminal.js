@@ -3811,7 +3811,7 @@ function showGhostDecisionDialog({
 async function handleTerminalTeleport(content, teleport) {
     const lat = Number(teleport?.lat);
     const lng = Number(teleport?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat)>90 || Math.abs(lng)>180) {
         appendSystemTerminalOutput(content, ghostLabel("terminal.teleport_bad"));
         return false;
     }
@@ -3864,10 +3864,10 @@ async function handleTerminalTeleport(content, teleport) {
     return true;
 }
 
-function handleTerminalMapFocus(content, focus = {}) {
+async function handleTerminalMapFocus(content, focus = {}) {
     const lat = Number(focus?.lat);
     const lng = Number(focus?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat)>90 || Math.abs(lng)>180) {
         appendSystemTerminalOutput(content, ghostLabel("terminal.focus_bad"));
         return false;
     }
@@ -3879,13 +3879,22 @@ function handleTerminalMapFocus(content, focus = {}) {
     }
     // createMap assigns the iframe URL on the next animation frames. Delay the
     // focus bridge so a closed map cannot consume the message in about:blank.
-    window.setTimeout(() => notifyOpenMapsBlacknetFocus({
+    for(let attempt=0;attempt<40;attempt++) {
+        const frame=document.querySelector('.map-window iframe, iframe[src="/map"]');
+        if(frame && frame.getAttribute('src') && frame.getAttribute('src')!=='about:blank')break;
+        await new Promise(resolve=>window.setTimeout(resolve,50));
+    }
+    if(!document.querySelector('.map-window iframe, iframe[src="/map"]')) {
+        appendSystemTerminalOutput(content, ghostLabel('terminal.focus_failed'));
+        return false;
+    }
+    notifyOpenMapsBlacknetFocus({
         mode: "focus",
         label,
         lat,
         lng,
         source: "terminal"
-    }), 80);
+    });
     return true;
 }
 
@@ -5860,15 +5869,18 @@ function notifyOpenMapsBlacknetFocus(focus = {}) {
             } else if (mapWindow && typeof mapWindow.postMessage === 'function') {
                 mapWindow.postMessage(payload, window.location.origin);
             }
-            frame.addEventListener('load', () => {
+            frame._chaosPendingFocus = payload;
+            if (frame._chaosFocusOnLoad) frame.removeEventListener('load',frame._chaosFocusOnLoad);
+            frame._chaosFocusOnLoad = () => {
                 try {
                     if (frame.contentWindow && typeof frame.contentWindow.postMessage === 'function') {
-                        frame.contentWindow.postMessage(payload, window.location.origin);
+                        frame.contentWindow.postMessage(frame._chaosPendingFocus, window.location.origin);
                     }
                 } catch (err) {
                     console.warn("Nie udalo sie przekazac fokus BlackNet po ladowaniu mapy:", err);
                 }
-            }, { once: true });
+            };
+            frame.addEventListener('load', frame._chaosFocusOnLoad, {once:true});
         } catch (err) {
             console.warn("Nie udalo sie przekazac fokus BlackNet do mapy:", err);
         }

@@ -1,4 +1,56 @@
-# Sprint 164 — Camera Visual Network: prototyp kamery, kontrakt i archiwum
+# Sprint 164 — Camera Street View: kontrakt systemowy i archiwum
+
+## Implementacja systemowa 01.11.2026
+
+S1–S3 zaimplementowane lokalnie: feed v1, losowanie z faktycznej listy,
+indywidualne FX, wspólna konfiguracja ról, automatyczny worker/GC i admin.
+[Raport kodu i testów](../audits/camera_street_view_system_implementation_2026_11_01.md),
+[zbiorczy runbook](../runbooks/camera_street_view_system_s1_s3.md).
+Bez push/deploy/globalnego rollout. Poniższa macierz audytu opisuje stan wejściowy;
+bieżące dowody i granice przekazania do 166 są w raporcie implementacji.
+
+## Obowiązujący zakres od 01.11.2026
+
+**Pilot zamknięty — PASS operatora. Sprint jako całość: CZĘŚCIOWO WYKONANY.**
+[Audyt kodu i dowodów 164–166](../audits/camera_street_view_system_audit_2026_11_01.md)
+jest aktualną mapą realizacji. Poniższy plan zastępuje dawne statusy PLAN,
+„do odbioru” i kolejność rozbudowy prototypu. Starsze części zachowują szczegółowe
+wymagania archiwum/bezpieczeństwa/praw, nie są aktualnym wykazem wykonania.
+
+| Zakres | Stan na 01.11 | Pozostała praca |
+| --- | --- | --- |
+| 164.0 pilot gameplayu i wygląd | PASS, w tym live Mapillary i drugi download 30 min | Nie projektować ponownie; wzorzec niezmienny |
+| 164.1 kamera/aplikacja/instancja | Częściowe: world target validation i contract eligibility działają w kodzie; live tylko legacy main/Paryż | Jeden kontrakt dla wszystkich kamer/użytkowników/aplikacji, kompatybilność legacy bez wyjątku lokalizacji; brak zaufania do danych klienta |
+| 164.2 materiał i losowanie feedu | Adapter/selekcja/optimize/private archive: kod i pilot PASS; motion utrwalany | Nowy wersjonowany profil łączący photo+motion+FX/offline; wybór z realnej listy materiałów zamiast indeksu fixture/modulo |
+| 164.3 kolejka/worker/limity | Kod i fixtures działają; live pojedyncze work-once | Automatyczny przepływ wielu kamer, fairness, retry/starvation, pojemność i indeksy; trwała konfiguracja procesów, nie ręczne envy |
+| 164.4 retencja/withdraw/backup | CLI i lokalne testy, testowe 24 h na VPS | Pełny cykl GC/backup, tombstones przed download i publication, kwoty i telemetry, polityka docelowa L01 |
+| 164.5 odbiór backendu | Wcześniejsze testy lokalne PASS w opisanym zakresie | Testy zmienionych kontraktów i regresji; szeroka macierz kont/mocy dopiero po całej integracji w 166 |
+
+### 164.S — brakujący zakres systemowy (S1 i część S3)
+
+1. Utrwalić wersjonowany profil instancji powiązany z graczem, kamerą i operacją:
+   jedno image_id, start/control/end/duration toru, wariant efektów lub offline
+   wraz z parametrami i fazą. Backend wybiera raz, UI nie losuje przy odświeżeniu.
+   Late material bind raz; migracja aktywnych grantów bez odtwarzania consumed.
+2. Wybierać zdjęcie z rzeczywistego dopuszczonego zbioru; znieść zależność od
+   trzech fixture plików. Kolejna instancja wybiera cały zestaw niezależnie;
+   powtórzenie zdjęcia dozwolone, kolejny tor nowy.
+3. Domknąć kanoniczną tożsamość kamer świata oraz zgodnych kamer historycznych,
+   wybór aplikacji przez kontrakt i wszystkie wejścia mapowe. Nie pisać drugiego
+   generatora kamer ani ręcznej listy uprawnień dla aplikacji.
+4. Zintegrować automatyczne demand/archive/worker i utrzymanie w budżetach,
+   poza web i writer lock. Zachować osobne prawa materiału i dostępu gracza.
+5. Rozdzielić losowe offline, techniczną niedostępność i rzeczywisty shutdown.
+   Efekt nie modyfikuje incydentów, nagród, kosztów, mocy ani camera_dump.
+
+164.S i 165.S realizujemy jako jeden zakres LOCAL-FIRST, bez kolejnego
+demonstratora. Wewnętrzne testy zmian nie zastępują odbioru systemowego w 166.
+Insider Feed nie jest teraz osobnym etapem pilotowania; sprawdzimy go po integracji.
+
+## Zachowane wymagania i historia planu sprzed audytu
+
+Datowane statusy niżej są historyczne. Nadrzędna jest macierz powyżej;
+nie odtwarzać reopen, stałego czasu 1800 s ani blokady pracy do odbioru pilota.
 
 Zasada workflow 164–166: „paczka implementacyjna” to zamknięty, zintegrowany
 i lokalnie przetestowany zakres w repozytorium. Wdrożenie przez standardowy

@@ -1,5 +1,26 @@
 # CHAOS — pełny prompt przekazania do nowego wątku, 31.10.2026
 
+**Najnowsza aktualizacja 01.11 — implementacja po audycie:**
+[S1–S3 i CHAOS Links: kod, testy, granice](../audits/camera_street_view_system_implementation_2026_11_01.md)
+oraz [zbiorczy runbook](camera_street_view_system_s1_s3.md).
+Working tree na bazie `025fd3f`, bez push/deploy. Nie rozpoczynać ponownie
+prototypowania ani ogólnego audytu. Standard teleportu ma zachować obecny
+backend bez opłaty/cooldownu (potwierdzenie operatora). Migracja trzech nowych
+tabel pomocniczych i zgodna konfiguracja trzech ról wymagają wdrożenia po decyzji.
+Odbiór 166 nadal obejmuje rzeczywiste moce/czasy, wiele kont/kamer, PWA i awarie.
+
+**Nadrzędna aktualizacja 01.11 — po zamknięciu pilota:**
+[audyt systemowy 164–166](../audits/camera_street_view_system_audit_2026_11_01.md)
+wyznacza aktualny punkt realizacji. Pilot main/Paryż z live Mapillary i drugim
+30-minutowym przebiegiem ma PASS operatora. Następna praca to jeden zintegrowany
+zakres systemowy 164.S/165.S: wszystkie kamery/użytkownicy, utrwalony wybór
+zdjęcia + toru + zakłóceń/offline, spójny lifecycle i konfiguracja web/territory/
+archive worker. Szeroka macierz 166 (w tym robot/insider_feed) dopiero po
+implementacji. Brak generatora FX/offline, modulo wyboru zdjęcia, Paris hardcode
+i ręczne envy to konkretne luki, nie powód do kolejnego prototypu.
+Zgoda na niezbędne testy 164–166 obowiązuje bez ponownych potwierdzeń.
+Audyt 01.11 nie zmienił kodu/VPS i nie wykonał nowych testów ani API.
+
 **Korekta workflow 165.1:** paczka implementacyjna = zamknięty zakres zmian
 w istniejącym repozytorium, standardowy commit/push/deployment po zgodzie.
 Nie tworzyć ZIP-ów ani alternatywnej dystrybucji. Dodatkową kopię ZIP usunięto
