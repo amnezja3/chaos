@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — 166.1: transport tożsamości kamery poza pilotem
+
+VPS: operacje op_20261101121218_955882 i op_20261101155901_755594
+pochodzą z Glass Eye, lecz mają camera_visual=null; brak nowych sesji.
+Flagi poprawne dla main. W kodzie buildApplicationLaunchContext usuwał
+camera_id, scan_id i typ celu z expected_target. Router wyniku rozpoznawał
+kamerę pilota po współrzędnych, lecz nie rozpoznawał tak nowej kamery.
+Poprawka zachowuje identyfikatory kamery/skanu/rodzica i typy celu. Oba
+szablony mają nową wersję terminal.js. Walidacja serwerowa obserwacji pozostaje.
+Test JS rzeczywistej funkcji: desktop i kolejka, serializacja tożsamości PASS;
+node --check PASS. Regresja test_camera_visual_gameplay: 25 testów PASS.
+Nie wykonano pełnego odbioru w przeglądarce ani na VPS dla tej poprawki.
+Nie przyznajemy grantów wstecz i nie usuwamy rezerwacji.
+Brak commit/push/deploy; odbiór nowej kamery na VPS nadal oczekuje.
+
 ## 2026-11-01 — korekta operatora: limit porcji nie blokuje skanu
 
 Nadrzędne doprecyzowanie zastępuje wcześniejszy wniosek o konieczności zwiększenia

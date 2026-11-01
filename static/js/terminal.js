@@ -2940,6 +2940,11 @@ function buildApplicationLaunchContext(appData = {}) {
     const aimedTarget = appData._expected_target || ((toolbarProfile || {}).aimed_target || {});
     const expectedTarget = hasToolbarAimedTarget(aimedTarget) ? {
         target_id: aimedTarget.target_id || aimedTarget.id || "",
+        camera_id: aimedTarget.camera_id || "",
+        scan_id: aimedTarget.scan_id || "",
+        parent_target_id: aimedTarget.parent_target_id || "",
+        target_type: aimedTarget.target_type || "",
+        source_type: aimedTarget.source_type || "",
         lat: aimedTarget.lat,
         lng: aimedTarget.lng !== undefined ? aimedTarget.lng : aimedTarget.lon,
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",

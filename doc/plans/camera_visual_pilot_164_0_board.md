@@ -4,6 +4,12 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+Po udanym skanie ujawniono brak sesji dla dwóch operacji nowej kamery.
+Lokalna korekta transportu expected_target zachowuje camera_id/scan_id i typ
+celu, które gubił frontend. Regresja serializacji desktop/kolejka PASS.
+Do odbioru po wdrożeniu: nowy sukces tworzy sesję i camera_visual w operacji,
+a po normalnym pobraniu otwiera się jedno okno. Bez grantów wstecz.
+
 Blokada skanu MapLark wyjaśniona: truncated przy porcji 1000. Korekta operatora:
 przyjmujemy poprawne obserwacje do świata i gameplayu z jawnym partial, bez
 certyfikowania kompletnego obszaru. Poprawka lokalna + 52 testy POI/i18n oraz
