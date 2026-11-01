@@ -17,10 +17,14 @@ def camera_marker(parent, slot=0):
     parent_id = camera_parent_key(parent)
     digest = hashlib.sha256(f'{parent_id}:{slot}'.encode()).hexdigest()
     angle = int(digest[:8], 16) / 0xffffffff * math.tau
+    tags = parent.get('tags') or {}
+    parent_name = str(parent.get('name') or tags.get('name') or
+                      tags.get('brand') or tags.get('operator') or '').strip()
+    label = f'Kamera {parent_name}' if parent_name else 'Kamera'
     return {
         'camera_id': 'camera_' + digest[:24], 'parent_target_id': parent_id,
         'target_type': 'camera', 'source_type': 'camera', 'generated': True,
-        'name': 'Kamera', 'label': 'Kamera', 'icon': '📷',
+        'name': label, 'label': label, 'icon': '📷',
         'lat': lat + math.sin(angle) * .00025,
         'lon': lng + math.cos(angle) * .00025,
     }

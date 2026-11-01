@@ -24281,9 +24281,7 @@ def map_action():
                     return math.sin(angle) * distance, math.cos(angle) * distance
 
                 def append_atm_scene(atm):
-                    extra.append({**camera_marker(atm), "name": "Kamera bankomatu",
-                                  "label": "Kamera bankomatu", "icon": "📹",
-                                  "label_i18n": ui_message("map.npc.atm_camera")})
+                    extra.append({**camera_marker(atm), "icon": "📹"})
                     for _ in range(randint(1, 3)):
                         extra.append({
                             "lat": atm['lat'] + jitter(), "lon": atm['lon'] + jitter(),
@@ -24296,9 +24294,7 @@ def map_action():
                     # Kamery
                     camera_count = 2 + int(hashlib.sha256(str(obj.get('osm_id') or obj.get('node_id') or f'{base_lat}:{base_lng}').encode()).hexdigest()[:4], 16) % 3
                     for camera_index in range(camera_count):
-                        extra.append({**camera_marker(obj, camera_index),
-                                      "name": "Kamera sklepu", "label": "Kamera sklepu",
-                                      "label_i18n": ui_message("map.npc.shop_camera")})
+                        extra.append(camera_marker(obj, camera_index))
                     client_count = randint(3, 8)
                     start_angle = random() * math.tau
                     for client_index in range(client_count):
@@ -24401,7 +24397,9 @@ def map_action():
                 marker.update({'camera_id': identity['camera_id'], 'target_type': 'camera',
                                'parent_target_id': identity['parent_target_id']})
             discovered = discovered_cameras.get(marker.get('camera_id'))
-            if discovered and (discovered.get('name') or discovered.get('label')):
+            # Parent-backed cameras use the current parent's name on rescan;
+            # keep their stable camera_id, not the old generic display label.
+            if discovered and (discovered.get('name') or discovered.get('label')) and not marker.get('parent_target_id'):
                 # Refresh evidence without renaming an already discovered camera.
                 marker['name'] = discovered.get('name') or discovered['label']
                 marker['label'] = discovered.get('label') or marker['name']

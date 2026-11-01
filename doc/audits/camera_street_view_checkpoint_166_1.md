@@ -1,5 +1,22 @@
 # Camera Street View 166.1 — branding i przygotowanie odbioru nowej kamery
 
+### Najnowszy odbiór VPS — 2026-11-01
+
+**Uzupełnienie PASS:** operator potwierdził brak powrotu okna po zamknięciu
+i odświeżeniu dla op_20261101163829_682936. Domknięto odbiór zachowania UI
+tej sesji; bez dodatkowego odczytu pól consumed/viewer_closed.
+Poniższy zapis o oczekującym zamknięciu jest wcześniejszym stanem odbioru.
+
+**PASS operatora: nowa kamera poza lokalizacją pilota otwiera się po pełnym
+pobraniu.** Operacja op_20261101163829_682936, receipt
+cvn_95d6f3e1a10cee5c1511d4d6c0b72f37. Nowe archiwum
+3699c2dfb42205d192489704ea8638649f0eaf93152e72f5a0c9bbb148967a94
+miało READY już podczas downloading (2%). Screenshot końcowy: lokalizacja
+48.8577:2.3507, okno Ghost, Mapillary, autor britze, CC BY-SA 4.0.
+Potwierdzono przejście po poprawce transportu tożsamości celu. Nie jest to
+PASS wszystkich scenariuszy 164–166: brak nowego odbioru zamknięcia tej sesji,
+innych kont i Super Powers. Poniższe blokady opisują wcześniejsze etapy.
+
 ### Korekta kontraktu skanu po wyjaśnieniu operatora
 
 VPS potwierdził truncated / 1000 odebranych / limit 1000. Operator doprecyzował:

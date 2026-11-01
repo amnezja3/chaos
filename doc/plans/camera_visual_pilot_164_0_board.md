@@ -4,6 +4,27 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+Do najbliższego wdrożenia: nazwy „Kamera <nazwa obiektu>” dla kamer przy
+sklepach i bankomatach; aktualizacja przy świeżym skanie bez zmiany camera_id.
+
+**Ponowny cykl — blokada w odbiorze:** po pierwszym PASS operator zgłosił
+camera_scan_expired_or_unknown. Poprawiono lokalnie zachowanie świeżego
+scan_id przy ponownym wyborze tej samej kamery. Nowe pobranie i otwarcie
+na VPS nadal wymagają odbioru; wcześniejszy PASS dotyczy pierwszego cyklu.
+
+**Domknięcie próby — PASS operatora:** po zamknięciu i odświeżeniu podgląd
+op_20261101163829_682936 nie wraca. Próba nowej kamery na main zaliczona
+od pobrania do jednorazowego otwarcia i zamknięcia. Inne konta oraz
+Insider Feed pozostają do odbioru; poniżej wcześniejsze etapy tej próby.
+
+**VPS PASS operatora: otwarcie nowej kamery po pełnym pobraniu (01.11).**
+Operacja op_20261101163829_682936; materiał Mapillary z nowego archiwum,
+lokalizacja 48.8577:2.3507, autor britze. Odczyt API i screenshot potwierdzają
+działanie poprawki transportu. Następny odbiór: zamknięcie i odświeżenie tej
+sesji bez ponownego otwarcia. Inne konta/Super Powers nadal niezaliczone.
+
+Historia blokady i poprawki:
+
 Po udanym skanie ujawniono brak sesji dla dwóch operacji nowej kamery.
 Lokalna korekta transportu expected_target zachowuje camera_id/scan_id i typ
 celu, które gubił frontend. Regresja serializacji desktop/kolejka PASS.

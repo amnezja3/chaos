@@ -127,7 +127,9 @@ class CameraVisual:
             except CameraContractError as exc:
                 raise PilotError(str(exc)) from exc
             if target.get('camera_id') == requested['camera_id']:
-                return target
+                # Keep gameplay/security state, but bind to the observation
+                # just validated, not the previous selection's expired scan.
+                return {**target, 'scan_id': requested['scan_id']}
             return {**observed, 'scan_id': requested['scan_id']}
         if os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1' and not (
                 os.environ.get('CHAOS_CAMERA_VISUAL_PILOT') == '1' and username == os.environ.get('CHAOS_CAMERA_VISUAL_PILOT_USER','main')):

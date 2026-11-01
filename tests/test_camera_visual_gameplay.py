@@ -336,6 +336,23 @@ class CameraVisualGameplayTest(unittest.TestCase):
             self.assertEqual(self.client.get('/api/camera-visual/media/'+payload['launch_receipt']+'/0').status_code,404)
         forged = self.client.post('/hack-action', json={**data, 'camera_id':'invented'})
         self.assertEqual(forged.status_code, 409)
+        # Selecting the same camera from a fresh scan must replace the aimed
+        # target's expired observation without restoring its old grant.
+        with db_connect(self.path) as conn:
+            conn.execute('UPDATE response_camera_observations SET expires_at=0 WHERE username=?', ('attacker',))
+            conn.execute('UPDATE camera_visual_sessions SET viewer_closed=1 WHERE username=?', ('attacker',))
+        fresh = scans.record('attacker', [marker], 50, 20)
+        again = self.client.post('/hack-action', json={**data,
+            'scan_id':fresh['scan_id'], '_client_action_key':'repeat-world-camera'})
+        self.assertEqual(again.status_code, 200, again.json)
+        self.assertEqual(again.json['target']['scan_id'], fresh['scan_id'])
+        repeated = self.client.post('/gonna-win', json={**payload,
+            'expected_target':again.json['target'],
+            'launch_receipt':again.json['added_apps'][0]['receipt']})
+        self.assertEqual(repeated.status_code, 200, repeated.json)
+        self.assertTrue(repeated.json['success'], repeated.json)
+        self.assertNotEqual(repeated.json['camera_visual']['operation_id'], result.json['camera_visual']['operation_id'])
+        self.assertTrue(repeated.json['created_operations'])
         for kind in ('atm','commercial'):
             with self.subTest(parent=kind):
                 other=camera_marker(dict(lat=50,lng=20,osm_id='test-'+kind,source_type=kind))

@@ -1,5 +1,53 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — nazwy kamer według obiektu nadrzędnego
+
+Na polecenie operatora generator opisuje kamery jako „Kamera <nazwa obiektu>”
+zamiast „Kamera sklepu/bankomatu”. Bez nazwy używa marki/operatora z tagów,
+a bez tych danych samego „Kamera”. Świeży skan aktualizuje dawną nazwę
+kamery przy obiekcie; camera_id i geometria pozostają bez zmian. Stare
+sesje/historyczne operacje nie są przepisywane. Lokalny test nazw oraz
+stabilności camera_id PASS. Bez push/deploy.
+
+## 2026-11-01 — ponowne uruchomienie: nieaktualne scan_id celu
+
+Operator zgłosił brak kolejnej operacji/pobrania z desktopu i mapy,
+camera_scan_expired_or_unknown. Audyt wykazał, że CameraVisual.target po
+walidacji świeżej obserwacji tej samej kamery zwracał stary aktywny cel
+wraz z wygasłym scan_id. Lokalna poprawka zachowuje stan gameplayu celu,
+ale podmienia scan_id na właśnie zweryfikowany. Nie wydłuża TTL, nie
+przyznaje grantów wstecz ani nie zmienia camera_off. Desktop nadal wymaga
+wybrania celu z ważną obserwacją. Regresja obejmuje wygaśnięcie starego
+skanu, zamkniętą sesję, świeży skan tej samej kamery oraz nową operację.
+Regresja test_camera_visual_gameplay: 25 testów PASS, w tym ponowny cykl
+na świeżym skanie zarówno z global ON, jak i pilot main/global OFF.
+Odbiór ponownego cyklu na VPS pozostaje otwarty. Bez push/deploy.
+
+## 2026-11-01 — 166.1: VPS PASS zamknięcia nowej kamery
+
+Operator potwierdził „nie wraca” po poleceniu zamknięcia podglądu i odświeżenia
+strony. Dotyczy sesji cvn_95d6f3e1a10cee5c1511d4d6c0b72f37,
+operacji op_20261101163829_682936. PASS zachowania UI: otwarcie po pełnym
+pobraniu, następnie zamknięcie bez ponownego otwarcia z tej samej akcji.
+Nie dostarczono nowego odczytu consumed/viewer_closed — nie deklarujemy
+osobnego potwierdzenia pól bazy. Odbiór main dla tej nowej kamery domknięty;
+inne konta, Super Powers i pozostałe scenariusze systemowe nadal do odbioru.
+
+## 2026-11-01 — 166.1: VPS PASS otwarcia nowej kamery
+
+Operator potwierdził PASS po pełnym pobraniu dla nowej lokalizacji poza
+kamerą pilota: 48.8577:2.3507 (współrzędne skrócone z okna).
+Receipt cvn_95d6f3e1a10cee5c1511d4d6c0b72f37,
+operacja op_20261101163829_682936, archiwum
+3699c2dfb42205d192489704ea8638649f0eaf93152e72f5a0c9bbb148967a94.
+Wcześniejszy odczyt API: downloading, progress=2, visual_status=READY,
+viewer_closed=false. Po zakończeniu pobrania operator pokazał standardowe
+okno Camera Network z materiałem Mapillary, autorstwem britze, CC BY-SA 4.0,
+brandingiem dostawcy, Focus/Teleport oraz oznaczeniami transmisji.
+Dowód: odczyt API i screenshot operatora; bez nowego testu automatycznego.
+PASS dotyczy otwarcia nowej kamery w pilocie main. Zamknięcie/odświeżenie
+tej sesji, inne konta i Insider Feed pozostają do osobnego odbioru.
+
 ## 2026-11-01 — 166.1: transport tożsamości kamery poza pilotem
 
 VPS: operacje op_20261101121218_955882 i op_20261101155901_755594
