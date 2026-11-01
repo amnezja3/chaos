@@ -1,5 +1,22 @@
 # Sprint 165 — Camera Street View: pełna integracja gameplayu i prezentacji
 
+## Branding i EXTERNAL CONNECTION — dyspozycja 01.11.2026
+
+S1–S3 wdrożone na VPS 56d5af0, main i pełna ścieżka 30 min mają PASS; global OFF.
+Przed checkpointem 166.1 zastąpić MapiFi oficjalnym logo Mapillary w rzeczywistym
+feedzie i istniejącym panelu „O materiale”. Mały znak w lewym górnym rogu obrazu,
+oryginalne proporcje/kolory, czytelne tło, poza transformacją fotografii i FX.
+Zachować autora, źródło/ID, CC BY-SA 4.0, modyfikacje i opis archiwalnej symulacji.
+Logo oraz źródło fotografii są prawdziwymi linkami target=_blank z noopener
+i noreferrer. EXTERNAL CONNECTION: krótka animacja ramki, czerwona kropka,
+kompaktowy terminalowy komunikat o zewnętrznym dostawcy/nowym oknie/aktywnej sesji.
+Desktop hover/focus informuje, klik otwiera; touch: pierwszy tap informuje,
+drugi otwiera. Obsłużyć klawiaturę i reduced-motion. Nie animować samego logo.
+Nie zmieniać blokady contextmenu, sesji, lease/consumed, operacji ani kanonicznego
+downloadu. Rezerwacje OFC/pickera pozostają zgodnie z wyjaśnionym kontraktem.
+Lokalny odbiór desktop/mobile, hover/focus/touch/link/session; jeden spójny zakres
+Git bez ZIP, bez nowego systemu nawigacji. L02 nie otrzymuje automatycznie PASS.
+
 ## Implementacja systemowa 01.11.2026
 
 S1–S3 i CHAOS Links są zintegrowane w working tree. Renderer zachowuje PASS

@@ -1,5 +1,91 @@
 # Camera Street View S1–S3 — zbiorcze wdrożenie po zatwierdzeniu
 
+## Aktualizacja 166.1 — branding / nowa kamera, 01.11.2026
+
+Ta sekcja dotyczy działającego VPS 56d5af0. Niżej zachowano pierwotny runbook
+S1–S3; nie wykonywać ponownie jego konfiguracji OFF ani migracji przy tej zmianie.
+Nowy zakres nie wymaga migracji, zależności, nowych sekretów ani zmiany flag.
+Global OFF, pilot main, source Mapillary, acquisition/worker ON tylko w archiwum,
+serve w web, retencja 24 h pozostają. Nie zmieniać danych ani grantów.
+
+Po zatwierdzeniu konkretnego zakresu Git i standardowym commit/push operatora:
+
+```bash
+set -e
+cd /home/johndoe/app/chaos
+git status --short
+git pull --ff-only
+git log -1 --oneline
+pm2 restart chaos chaos-territory-worker
+pm2 status
+curl --fail --silent --output /dev/null --write-out 'Web HTTP: %{http_code}\n' http://127.0.0.1:6666/
+```
+
+Restart nazwanych procesów zachowuje ich istniejące env. Nie przeładowywać
+ecosystem z domyślnymi OFF, nie kopiować tokenu. Archive worker nie jest zmieniany.
+Nie czyścić nieśledzonych danych. Wykonać istniejący spójny backup przed deployem.
+Rollback kodu nie wymaga cofania bazy; nie odtwarzać zużytych grantów.
+
+Cel wybrany z rzeczywistych obserwacji main w backupie 31.10:
+`camera_0014ac41c138c389e40fa5cf`, rodzic `5001825490`, Kamera sklepu,
+`48.85294369549624:2.3349836995089666` (około 1,3 km od pilota).
+To kandydat, nie potwierdzona aktualna obserwacja VPS. Na main przejść do tej
+lokalizacji normalnym Focus/Teleport i wykonać zwykły skan. Potwierdzić camera_id
+i parent_target_id; nie tworzyć markera ani nie odświeżać expires_at przez SQL.
+
+Zbiorczy odczyt po skanie, PRZED hakowaniem (bez API/zapisów gameplayu):
+
+```bash
+cd /home/johndoe/app/chaos
+mkdir -p /home/johndoe/.local/state/chaos-camera/166-1
+chmod 700 /home/johndoe/.local/state/chaos-camera/166-1
+.venv/bin/python tools/camera_checkpoint_166.py \
+  --db /home/johndoe/app/chaos/data/game.sqlite3 \
+  --archive-dir /home/johndoe/app/chaos/data/camera_visual \
+  --camera-id camera_0014ac41c138c389e40fa5cf \
+  | tee /home/johndoe/.local/state/chaos-camera/166-1/before.json
+```
+
+Wymagane: scan_current=true, poprawny rodzic/pozycja, brak exact archiwum i brak
+nearby_ready_archives. Narzędzie pokazuje także granty, budżet, dysk i heartbeat.
+Jeśli jest materiał do reuse, nie usuwać go: wybrać inną rzeczywistą kamerę
+w zatwierdzonym budżecie i zachować osobny baseline. Stan z lokalnego starego
+backupu (scan_current=false, archive_schema=false) nie zalicza baseline VPS.
+
+Następnie zwykłe camera_stream → kompatybilna aplikacja → sukces backendu.
+Istniejący kod enqueue uruchamia się przy przyjęciu sukcesu, równolegle do
+downloadu aktywatora. Nie dodajemy pozyskiwania przed hackiem ani ręcznego
+enqueue/work-once w celu odtworzenia literalnej kolejności diagramu.
+Obserwować automatyczny worker: nowy archive_id, QUEUED/FETCHING → READY,
+attempts, przyrost budżetu, maksymalnie 3 fotografie, WebP i checksum.
+Zachować log cyklu archiwum oraz czas utworzenia po baseline jako dowód
+automatycznego pozyskania; samo READY nie dowodzi nowego pobrania.
+NO_COVERAGE odnotować bez klasyfikowania jako awarii, dobrać następny realny cel.
+
+Po rzeczywistym czasie downloadu (bez zmiany zegara/mocy) zweryfikować aktywator
+i jednorazowe okno z wybranym materiałem, prawdziwym autorem/licencją/linkiem.
+Powtórzyć powyższy odczyt do `after.json` zamiast `before.json`, zebrać:
+
+```bash
+pm2 logs chaos-camera-archive --lines 40 --nostream
+```
+
+W konsoli zalogowanej gry: tylko odczyt stanu, bez claim/close/reopen:
+
+```javascript
+fetch('/api/camera-visual/state').then(r => r.json()).then(d => console.table(
+  d.sessions.filter(s => s.target?.camera_id === 'camera_0014ac41c138c389e40fa5cf')
+   .map(s => ({operation_id:s.operation_id,state:s.state,progress:s.progress,
+     archive_id:s.archive_id,image_id:s.image_id,viewer_closed:s.viewer_closed}))
+));
+```
+
+Odbiór wyglądu: niewielki oryginalny znak, ostrzeżenie hover/focus/tap, link do
+tego samego zdjęcia, nowa karta, powrót do tej samej instancji bez consumed.
+Lokalne testy tych zachowań są wykonane; VPS ma potwierdzić właściwe realne
+metadane i pozyskanie. Nie powtarzać pilota paryskiego. Zatrzymać się na raporcie
+166.1; bez global ON i bez 166.2–166.5 w tej sesji.
+
 Przygotowane lokalnie 01.11.2026. Nie wykonywano poniższej procedury na VPS.
 Nie uruchamiać historycznych procedur wdrożeniowych z poprzednich sprintów.
 

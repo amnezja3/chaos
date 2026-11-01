@@ -1,5 +1,20 @@
 # Sprint 164 — Camera Street View: kontrakt systemowy i archiwum
 
+## Checkpoint 166.1 — dyspozycja 01.11.2026
+
+S1–S3 działa na VPS 56d5af0; main i success → 30 min → podgląd mają PASS.
+Global OFF, ograniczony pilot, retencja testowa 24 h; pełny odbiór 166 otwarty.
+Następny dowód archiwum: rzeczywista kompatybilna kamera poza pilotem paryskim,
+kanoniczna tożsamość/pozycja, brak archiwum → automatyczna kolejka/worker →
+Mapillary → maksymalnie 3 zdjęcia → optymalizacja WebP → checksum → READY.
+Bez ręcznego work-once, skracania czasu gry i fikcyjnych celów produkcyjnych.
+NO_COVERAGE jest wynikiem pokrycia, nie awarią. Zachować limity i wpływ camera_off
+na incydenty; brak zdjęć nie zmienia mechaniki kamery.
+Oficjalny oryginalny znak Mapillary z organizacji dostawcy zastąpi placeholder
+w rzeczywistych feedach; zapisać pochodzenie i sprawdzić warunki użycia.
+Nie generować/odrysowywać znaku. L02 pozostaje otwarte do osobnego potwierdzenia.
+Kolejność odbioru i warunek zakończenia: sprint 166, checkpointy 166.1–166.5.
+
 ## Implementacja systemowa 01.11.2026
 
 S1–S3 zaimplementowane lokalnie: feed v1, losowanie z faktycznej listy,

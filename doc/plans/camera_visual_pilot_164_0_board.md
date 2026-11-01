@@ -1,6 +1,41 @@
 # Pilot kamery 164.0 — wspólna tablica pracy
 
-Aktualizacja: 2026-11-01. Wersja tablicy: 8.
+Aktualizacja: 2026-11-01. Wersja tablicy: 12.
+
+### Bieżący checkpoint 166.1
+
+Branding Mapillary i EXTERNAL CONNECTION: LOCAL PASS, 21 kontroli Playwright,
+spóźniony materiał bez odtwarzania okna PASS. Utrzymany grant przy wyjściu do
+nowej karty. Przy global OFF autoryzowany pilot może użyć nowej kamery ze skanu.
+Kandydat z backupu: camera_0014ac41c138c389e40fa5cf / rodzic 5001825490 /
+48.85294369549624:2.3349836995089666. Wymaga świeżego potwierdzenia na VPS.
+Nowe pozyskanie, WebP/checksum i realny download: OCZEKUJE NA ODBIÓR VPS.
+L02 OPEN, global OFF; bez rozszerzania do 166.2–166.5.
+[Zbiorczy raport](../audits/camera_street_view_checkpoint_166_1.md).
+
+### Bieżący odbiór VPS 56d5af0
+
+| Próba | Stan / granica dowodu |
+| --- | --- |
+| Trzy procesy, wspólna DB/config, heartbeat, HTTP, PM2 save | PASS według wyników operatora |
+| Token w procesie archive i zapisanym PM2; metadata API | PASS; nie jest dowodem nowego pobrania zdjęć |
+| Materiał testowej kamery | READY, 2 zdjęcia, checksum OK |
+| Niepoprawna odpowiedź / UI failed → 30 min download → brak podglądu | PASS obserwacji operatora; współistnienie failed i operacji WYJAŚNIONE — nie regresja. Status etapu UI nie jest kanonicznym wynikiem backendu |
+| Kolejna próba tej samej kamery: success → nowy download 30 min → podgląd | PASS operatora ze screenshotem: okno Camera Network, obraz Mapillary, ONLINE/REC i atrybucja |
+
+Drugi przebieg zakończony PASS otwarcia. Nie utożsamiać
+błędu odpowiedzi HTTP z potwierdzonym failure zapisanym w backendzie bez
+korelacji receipt/operation_id. Nie resetować poprzedniego grantu.
+
+Rezerwacja należy do ciągłości mapy → OFC → pickera → desktopu; nie usuwać jej
+automatycznie po niepowodzeniu etapu aplikacji. Sama rezerwacja nie uprawnia do
+podglądu: wymagane są sukces backendu, upływ kanonicznego czasu, dopuszczony
+stan operacji i zweryfikowany aktywator; zamknięty grant pozostaje consumed.
+Przekazane cztery rekordy mają server_success=true, timeout i aktywator;
+trzy są zamknięte, najnowszy op_20261101100159_497862 pozostaje otwarty.
+Nie są dowodem kanonicznego failure ani dokładnej przyczyny komunikatu UI.
+Kontrola warunków w kodzie i istniejące zaliczone testy: patrz wpis wyjaśnienia
+z 01.11.2026 w [journalu](../history/project_journal.md).
 
 System S1–S3 i wspólne CHAOS Links: kod zintegrowany lokalnie, testy i granice
 w [raporcie implementacji](../audits/camera_street_view_system_implementation_2026_11_01.md).

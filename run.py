@@ -24796,7 +24796,7 @@ def hack_action():
     app_flow_started_at = time.perf_counter()
     data = request.get_json() or {}
     from camera_visual import enabled, accepts_target
-    if enabled(session.get('user')) and data.get('action') == 'camera_stream' and accepts_target(data):
+    if enabled(session.get('user')) and data.get('action') == 'camera_stream' and accepts_target(data, session.get('user')):
         return camera_visual_call('launch', data)
     if data.get('action') == 'camera_shutdown':
         return camera_shutdown_action(data)
@@ -31191,7 +31191,7 @@ def _gonna_win_runtime():
             previous = conn.execute('SELECT 1 FROM camera_visual_sessions WHERE username=? AND receipt=?',
                 (session['user'], data.get('launch_receipt') or data.get('launch_key'))).fetchone()
         app_candidate = normalize_app_contract(loads_json(row['app_json'], {})) if row else {}
-        if previous or (eligible(app_candidate) and accepts_target(data.get('expected_target') or {})):
+        if previous or (eligible(app_candidate) and accepts_target(data.get('expected_target') or {}, session.get('user'))):
             return camera_visual_call('result', data)
     camera_receipt = str(data.get('launch_receipt') or data.get('receipt') or '')
     if camera_receipt.startswith('camera_off_'):

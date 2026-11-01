@@ -34,11 +34,13 @@ async(page)=>{
         await page.locator('[data-camera-panel-link]').click();
         if(!await page.getByText('Fixture author',{exact:true}).count())throw Error('Wrong attribution');
         const url=page.url();
-        await page.locator('.camera-source-actions > a').first().click();
-        await page.locator('[data-external-confirm] button').press('Escape');
-        if(page.url()!==url || await page.locator('[data-external-confirm]').count())throw Error('External cancel');
+        const source=page.locator('.camera-source-actions a').first();
+        await source.focus();
+        if(!await page.locator('.camera-source-actions [role=tooltip]').first().isVisible())throw Error('External focus warning');
+        await source.press('Escape');
+        if(page.url()!==url || await source.getAttribute('target')!=='_blank')throw Error('External link contract');
         await viewer.screenshot({path:'artifacts/camera-street-view-material.png'});
-        return {lateMaterialSameDOM:true,attribution:true,externalCancel:true};
+        return {lateMaterialSameDOM:true,attribution:true,externalFocus:true};
     } finally {
         await page.unrouteAll({behavior:'wait'});
         await page.reload();

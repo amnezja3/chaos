@@ -1,5 +1,106 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — 166.1: branding LOCAL PASS, nowa kamera przygotowana do VPS
+
+Najpierw uaktualniono sprinty 164–166 według wytycznej operatora. Oryginalny
+znak Mapillary z api-demo zastępuje MapiFi w rzeczywistych feedach; zapisano
+źródło/SHA256/licencję. L02 OPEN. EXTERNAL CONNECTION jest informacją przy
+prawdziwym linku _blank, z obsługą hover/focus/touch i reduced motion. Okno
+zachowuje DOM po wyjściu do innej karty, bez consumed; release kończy się przed
+ponownym claim. Testy lokalne: 21 kontroli Playwright + spóźniony materiał PASS,
+25 gameplay PASS; dodatkowa regresja celu i camera_off/incydentów w raporcie.
+
+Naprawiono warunek wymagający global ON dla kamery spoza pilota: autoryzowany
+gracz pilota korzysta z kanonicznego skanu przy global OFF. Bez zmiany rezerwacji,
+czasów pobierania, hakowania i aktywatorów. Nowa kamera wymaga własnego materiału.
+Z backupu wybrano rzeczywistą kamerę camera_0014ac41c138c389e40fa5cf, rodzic
+5001825490, 48.85294369549624:2.3349836995089666. Aktualny skan, brak archiwum
+i automatyczne pozyskanie muszą zostać potwierdzone na VPS. Lokalny odczyt
+historycznego backupu nie jest PASS tego checkpointu.
+
+[Raport, dowody i ograniczenia](../audits/camera_street_view_checkpoint_166_1.md),
+[zbiorcza procedura](../runbooks/camera_street_view_system_s1_s3.md).
+Brak migracji, nowych zależności lub sekretów. Bez commit/push/VPS i global ON.
+166.1 pozostaje W TOKU do realnego pozyskania i końca gameplayowego downloadu.
+
+## 2026-11-01 — WYJAŚNIONE: failed etapu aplikacji a ciągłość operacji
+
+Zgodnie z doprecyzowaniem operatora współistnienie UI failed i rezerwacji lub
+uruchomionej operacji nie jest samo w sobie regresją. Rezerwacja należy do
+szerszej ścieżki mapy → OFC → pickera → desktopu, a failed może opisywać jeden
+etap aplikacji. Nie anulujemy rezerwacji, nie usuwamy operacji i nie resetujemy
+grantów na podstawie samego komunikatu UI. Zamyka to wcześniejszą klasyfikację
+tej zależności jako niewyjaśnionej rozbieżności; nie ustala przyczyny błędu HTTP.
+
+Dowód operatora z VPS: wszystkie cztery rekordy mają server_success=true,
+operation_status=timeout, activator_exists=true i to samo archiwum
+4eec2252a8577a42679056606bf6e77c62013801d09ae07acd50c2f28301e59a.
+
+| operation_id | viewer_closed |
+| --- | --- |
+| op_20261101100159_497862 | false |
+| op_20261101081914_523532 | true |
+| op_20261031190102_859743 | true |
+| op_20261031175624_361933 | true |
+
+To potwierdza zapis sukcesu backendu, obecność aktywatorów i stan zamknięcia;
+nie jest dowodem kanonicznego failure. Sama obecność aktywatora w tym zestawieniu
+nie zastępuje weryfikacji jego zawartości. PASS obserwacji operatora pozostaje
+ważny, ale brak otwarcia nie pozwala samodzielnie wskazać konkretnej blokady.
+
+Kontrola istniejącego kodu camera_visual.py: project nie promuje sesji bez
+success; sprawdza operację przypisaną użytkownikowi, jej status, płatność i czas
+z started_at/expires_at. timeout jest dopuszczonym stanem zakończenia czasu,
+nie automatycznie porażką hakowania. ready wymaga verified: zgodnych id, content,
+checksum i resource_type aktywatora przypisanego do użytkownika i operacji.
+Brak lub uszkodzenie pliku daje save_pending. window wymaga kanonicznego receipt,
+uprawnionej aplikacji i ready, stosuje lease, a viewer_closed blokuje ponowne
+otwarcie jako consumed. Sama rezerwacja ani upływ timera nie przyznają podglądu.
+
+Pokrycie w istniejących zaliczonych testach tests/test_camera_visual_gameplay.py:
+test_real_routes_success_no_heavy_and_canonical_file,
+test_failure_durable_no_operation_even_after_security_changes,
+test_disk_full_retry_and_corruption_fail_closed,
+test_two_tabs_close_reopen_and_foreign_account oraz
+test_alias_cannot_get_independent_window_and_cancel_blocks_media.
+Test kanonicznego failure dotyczy wyniku backendu, nie dowolnego failed w UI.
+W tej korekcie wykonano przegląd kodu i testów; bez powtarzania zaliczonych testów,
+bez nowej próby VPS i bez zmian runtime. Zaktualizowano tablicę i sprint 166.
+
+## 2026-11-01 — PASS operatora: success i pełny download na VPS 56d5af0
+
+Drugi przebieg main / tej samej kamery sklepu: success → pełny czas pobierania
+30 min → automatyczne otwarcie podglądu — PASS operatora, potwierdzony screenshotem.
+Widoczne: normalne okno Camera Network, materiał Mapillary, ONLINE/REC, zegar
+UTC, logi połączenia, Focus/Teleport i atrybucja zors1843 / CC BY-SA 4.0.
+Zrzut nie stanowi osobnego dowodu nowego pozyskania materiałów, parametrów
+losowania ani trwałości po reload/close tego konkretnego grantu. Wcześniejsze
+PASS lifecycle pozostają ważne; nie dopisujemy niewykonanych prób do tej sesji.
+Zależność failed + download wyjaśniono w nowszym wpisie powyżej; nie jest regresją.
+Zaktualizowano tablicę i sprint 166; bez zmian runtime, restartów i pushu.
+
+## 2026-11-01 — VPS 56d5af0: konfiguracja i odbiór dwóch przebiegów
+
+- Operator wdrożył 56d5af0, wykonał backup SQLite/archiwum i migrację.
+  Web, operations i archive: online, zgodna konfiguracja, aktualne heartbeat,
+  wspólny identyfikator DB; HTTP 200. PM2 save potwierdzony.
+- Zakres: main/pilot ON, global OFF, acquisition/worker ON, testowa retencja
+  24 h. Token: metadane HTTP 200; następnie potwierdzony w rzeczywistym procesie
+  archiwum i prywatnym dump PM2 po named restart --update-env. Pierwszy reload
+  ecosystem nie przeniósł tokenu; nie zaliczać samego eksportu jako konfiguracji.
+  Materiał pilota: READY, dwa pliki, oba checksum OK. Nowe pozyskanie przez
+  automatyczny worker nie zostało jeszcze potwierdzone tym dowodem.
+- Raport operatora: niepoprawna odpowiedź serwera, UI aplikacji failed, mimo to
+  pobieranie pliku ruszyło i trwało pełne 30 min. Podgląd nie otworzył się.
+  PASS operatora dotyczy blokady otwarcia w tym konkretnym przebiegu.
+- Rozbieżność failed + rozpoczęte pobieranie pozostaje do korelacji z danymi
+  backendu. Brak operation_id/receipt/logów tej próby; nie ustalono, czy był
+  to kanoniczny failure, utrata odpowiedzi po zatwierdzeniu, czy inna przyczyna.
+  Nie zmieniamy kontraktu: potwierdzony failure nie przyznaje grantu podglądu.
+- Drugi przebieg na tej samej kamerze: success i nowy pełny download 30 min.
+  W TOKU; automatyczne otwarcie po zweryfikowanym zapisie nie jest jeszcze PASS.
+  Bez restartów i ingerencji w trwający timer. Brak nowych zmian runtime/pushu.
+
 ## 2026-11-01 — implementacja systemowa Camera Street View S1–S3 i CHAOS Links
 
 - Zintegrowano feed v1, trwały wybór rzeczywistego materiału, trajektorię i

@@ -51,9 +51,9 @@ def enabled(username):
             and username == os.environ.get('CHAOS_CAMERA_VISUAL_PILOT_USER', 'main')))
 
 
-def accepts_target(target):
-    return pilot_target(target) or (os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1'
-                                   and (bool(target.get('camera_id')) or target.get('target_type')=='camera' or target.get('source_type')=='camera'))
+def accepts_target(target, username=None):
+    return enabled(username) and (pilot_target(target) or bool(target.get('camera_id'))
+                                  or target.get('target_type') == 'camera' or target.get('source_type') == 'camera')
 
 
 def pilot_target(target):
@@ -107,7 +107,7 @@ class CameraVisual:
 
     def target(self, conn, username, requested=None):
         target = self.rt.player_target_runtime_store.get_active_target(username) or {}
-        if requested and not requested.get('camera_id') and os.environ.get('CHAOS_CAMERA_STREET_VIEW')=='1' and not pilot_target(requested):
+        if requested and not requested.get('camera_id') and enabled(username) and not pilot_target(requested):
             # Resolve legacy transport only against unambiguous server evidence.
             try:
                 lat,lng=float(requested['lat']),float(requested.get('lng',requested.get('lon')))
@@ -120,7 +120,7 @@ class CameraVisual:
                 GROUP BY camera_id ORDER BY max(expires_at) DESC LIMIT 2''',(username,time.time(),lat,lng)).fetchall()
             if len(rows)!=1: raise PilotError('camera_scan_required')
             requested={**requested,**dict(rows[0])}
-        if requested and requested.get('camera_id') and os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1':
+        if requested and requested.get('camera_id') and enabled(username):
             from response_network.camera_contract import CameraContractStore, CameraContractError
             try:
                 observed = CameraContractStore(self.path).observed(username, requested.get('scan_id'), requested['camera_id'], conn=conn)
@@ -199,12 +199,12 @@ class CameraVisual:
                     raise PilotError('camera_receipt_mismatch')
                 return self.reply(conn, row, duplicate=True)
             target = self.rt.player_target_runtime_store.get_active_target(username) or {}
-            if (not accepts_target(target) or self.rt.infer_target_type_from_target(target) != 'camera'
+            if (not accepts_target(target, username) or self.rt.infer_target_type_from_target(target) != 'camera'
                     or self.rt.build_operation_target_id(target) != self.rt.build_operation_target_id(data.get('expected_target') or {})):
                 raise PilotError('target_selection_changed')
             if target.get('camera_id'):
                 self.target(conn, username, target)  # Revalidate canonical scan evidence.
-            elif os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1':
+            elif not pilot_target(target) or os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1':
                 self.target(conn, username, target)
             self.guard(conn, username, target)
             # A desktop launch is allowed, but its target must be the canonical aim.
@@ -276,7 +276,7 @@ class CameraVisual:
                              motion=generate_motion(previous_motion), target_key=target_key)
                 from camera_visual_archive import ArchiveStore
                 state['archive_id'] = ArchiveStore(self.path).enqueue(conn, target)
-                state['material_required'] = os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1' or os.environ.get('CHAOS_CAMERA_SOURCE','off') != 'off'
+                state['material_required'] = not pilot_target(target) or os.environ.get('CHAOS_CAMERA_STREET_VIEW') == '1' or os.environ.get('CHAOS_CAMERA_SOURCE','off') != 'off'
                 state['feed'] = new_instance(state, username)
             conn.execute('''INSERT INTO camera_visual_sessions
                 (username,receipt,target_key,app_id,operation_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?)''',

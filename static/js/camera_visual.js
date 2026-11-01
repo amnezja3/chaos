@@ -4,8 +4,51 @@
     const owner = crypto.randomUUID();
     const states = new Map(), viewers = new Map(), references = new Map();
     let busy = false, stopped = false, retryAfter = 0;
+    let releases = Promise.resolve();
     const en = () => (document.documentElement.lang || '').startsWith('en');
     const label = (pl, english) => en() ? english : pl;
+    const mapillaryLogo = '/static/images/providers/mapillary/logo_green.svg';
+    function externalLink(url, target, logo = false) {
+        const wrap = document.createElement('span');
+        wrap.className = 'chaos-external';
+        const link = document.createElement('a');
+        link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        link.className = 'chaos-external-link';
+        link.setAttribute('aria-label', target + ' — ' + label('otwórz w nowej karcie', 'open in a new tab'));
+        if (logo) {
+            const img = document.createElement('img');
+            img.src = mapillaryLogo; img.alt = 'Mapillary'; img.draggable = false;
+            link.append(img);
+            const name = document.createElement('span'); name.textContent = 'Mapillary';
+            name.setAttribute('aria-hidden', 'true'); link.append(name);
+        } else link.textContent = target;
+        const note = document.createElement('span');
+        note.className = 'chaos-external-note'; note.id = 'external-' + crypto.randomUUID();
+        note.setAttribute('role', 'tooltip');
+        link.setAttribute('aria-describedby', note.id);
+        const lines = ['EXTERNAL CONNECTION', 'TARGET: ' + target.toUpperCase(),
+            'STATUS: EXTERNAL SOURCE', 'WARNING: LEAVING CHAOS ENVIRONMENT',
+            'NEW WINDOW WILL BE OPENED', 'SESSION REMAINS ACTIVE'];
+        lines.forEach((text, i) => {
+            const row = document.createElement('span'); row.textContent = text;
+            row.style.setProperty('--external-line', i); note.append(row);
+        });
+        let touch = false;
+        link.addEventListener('pointerdown', e => { touch = e.pointerType === 'touch'; });
+        link.addEventListener('click', e => {
+            // Keyboard activation and desktop clicks keep native navigation.
+            if (touch && e.detail !== 0 && !wrap.classList.contains('is-armed')) {
+                e.preventDefault(); wrap.classList.add('is-armed');
+            } else wrap.classList.remove('is-armed');
+            touch = false;
+        });
+        link.addEventListener('blur', () => wrap.classList.remove('is-armed'));
+        link.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { wrap.classList.remove('is-armed'); link.blur(); }
+        });
+        wrap.append(link, note);
+        return wrap;
+    }
     async function request(url, data) {
         const response = await fetch(url, data ? {method: 'POST', keepalive:data.action === 'release', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)} : {});
         if ([401, 403].includes(response.status)) {
@@ -87,12 +130,12 @@
                 <div class="camera-visual-frame">
                     <div class="camera-visual-images"><img data-camera-frame="${s.motion.image}" alt="" hidden></div>
                     <div class="camera-visual-effects" aria-hidden="true"><div class="camera-fx-grain"></div><div class="camera-fx-scan"></div><div class="camera-fx-tracking"></div><div class="camera-fx-chroma"></div><div class="camera-fx-blocks"></div></div>
-                    <div class="camera-visual-brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 25V7l12 12L28 7v18M4 25l12-6 12 6"/></svg><span>MapiFi</span></div>
+                    <div class="camera-visual-brand"></div>
                     <div class="camera-visual-hud"><span data-camera-status>CONNECTING</span><span class="camera-visual-rec" hidden>● REC</span><time data-camera-clock></time></div>
                     <div class="camera-visual-logs" aria-hidden="true"></div>
                     <div class="camera-visual-no-signal" role="status" hidden>NO SIGNAL</div>
                 </div>
-                <footer class="camera-visual-footer mapifi-credit"><div class="mapifi-credit-heading"><strong>MapiFi</strong><span data-camera-material></span><button type="button" aria-controls="${panelId}" aria-expanded="false" data-camera-panel-link></button></div><dl><div><dt data-camera-author-label></dt><dd data-camera-author></dd></div><div><dt data-camera-source-label></dt><dd>CHAOS</dd></div><div><dt data-camera-rights-label></dt><dd data-camera-rights></dd></div></dl></footer>
+                <footer class="camera-visual-footer mapifi-credit"><div class="mapifi-credit-heading"><strong>Camera Network</strong><span data-camera-material></span><button type="button" aria-controls="${panelId}" aria-expanded="false" data-camera-panel-link></button></div><dl><div><dt data-camera-author-label></dt><dd data-camera-author></dd></div><div><dt data-camera-source-label></dt><dd>CHAOS</dd></div><div><dt data-camera-rights-label></dt><dd data-camera-rights></dd></div></dl></footer>
                 <section id="${panelId}" class="camera-visual-panel" hidden><p data-camera-provenance></p></section><div data-chaos-link-output role="status" hidden></div>`);
             app.classList.add('camera-visual-window');
             app._cameraState = s;
@@ -154,7 +197,7 @@
                     const noise = document.createElement('div'); noise.className = 'camera-fx-' + effect;
                     layer.append(noise); frame.append(layer);
                     const caption = document.createElement('span'); caption.className = 'camera-effect-caption';
-                    caption.textContent = effect === 'dropout' ? 'SIMULATION · NO SIGNAL' : 'MapiFi · FX PREVIEW';
+                    caption.textContent = effect === 'dropout' ? 'SIMULATION · NO SIGNAL' : 'CHAOS · FX PREVIEW';
                     frame.append(caption); card.append(heading, frame); comparison.append(card);
                 }
                 comparison.hidden = false;
@@ -177,6 +220,11 @@
             images[0].style.animationDelay = (-((Date.now()/1000-s.ready_at) % (track.seconds*2))) + 's';
             const fallback = app.querySelector('.camera-visual-no-signal');
             const abort = new AbortController(), urls = new Set();
+            document.addEventListener('pointerdown', e => {
+                app.querySelectorAll('.chaos-external.is-armed').forEach(wrap => {
+                    if (!wrap.contains(e.target)) wrap.classList.remove('is-armed');
+                });
+            }, {signal:abort.signal});
             let disposed = false, active = -1;
             const clock = app.querySelector('[data-camera-clock]');
             const logs = app.querySelector('.camera-visual-logs');
@@ -316,6 +364,7 @@
         if (busy || stopped || document.hidden || Date.now() < retryAfter) return;
         busy = true;
         try {
+            await releases;
             const data = await request('/api/camera-visual/state');
             if (!data.enabled) { stopped = true; return; }
             let cursor=data.next_cursor;
@@ -386,6 +435,14 @@
         });
         const s = app._cameraState;
         const material = s?.material;
+        const brand = app.querySelector('.camera-visual-brand');
+        brand.replaceChildren();
+        app.querySelector('.camera-source-actions')?.remove();
+        if (material?.source === 'Mapillary') {
+            const photoURL = /^https:\/\/www\.mapillary\.com\/app\/\?pKey=\d+$/.test(material.source_url || '')
+                ? material.source_url : 'https://www.mapillary.com/';
+            brand.append(externalLink(photoURL, 'Mapillary', true));
+        } else brand.textContent = 'CHAOS';
         if (s?.archive_id || s?.material_required) {
             app.querySelector('[data-camera-material]').textContent = material?.source === 'Mapillary'
                 ? label('Materiał archiwalny — symulacja', 'Archive material — simulation')
@@ -397,28 +454,12 @@
                 ? `${material.source} · ${material.image_id} · ${material.source === 'Mapillary' ? label('Otoczenie lokalizacji; symulacja, nie transmisja na żywo.', 'Location surroundings; simulation, not a live broadcast.') : label('Fikcyjna ulica Paryża wygenerowana AI; nie dokumentuje tej lokalizacji.', 'AI-generated fictional Paris street; does not document this location.')} ${label('Zmiany', 'Changes')}: ${(material.changes || []).join(', ')}`
                 : label('Materiał niedostępny. Dostęp do okna nie potwierdza dostępności fotografii.', 'Material unavailable. Window access does not guarantee imagery coverage.');
             app.querySelectorAll('img[data-camera-frame]').forEach(img=>{img.alt=label('Symulowany podgląd otoczenia kamery','Simulated camera surroundings');});
-            app.querySelector('.camera-source-actions')?.remove();
             if (material?.source === 'Mapillary' && /^https:\/\/www\.mapillary\.com\/app\/\?pKey=\d+$/.test(material.source_url || '')) {
                 const section=document.createElement('div'); section.className='camera-source-actions';
-                const source=document.createElement('a'); source.href=material.source_url;
-                source.textContent=label('Otwórz źródło — Mapillary','Open source — Mapillary');
-                const copy=document.createElement('button'); copy.type='button'; copy.textContent=label('Kopiuj adres','Copy URL');
-                const feedback=document.createElement('span'); feedback.setAttribute('role','status');
-                copy.addEventListener('click',async()=>{try {await navigator.clipboard.writeText(source.href);feedback.textContent=label('Skopiowano','Copied');}catch(_){feedback.textContent=source.href;}});
-                source.addEventListener('click',event=>{
-                    event.preventDefault();
-                    if(section.querySelector('[data-external-confirm]')) return;
-                    const confirm=document.createElement('div'); confirm.dataset.externalConfirm='';
-                    const text=document.createElement('p');text.textContent=label('EXTERNAL CONNECTION — opuścisz CHAOS i przejdziesz do Mapillary. Kontynuować?','EXTERNAL CONNECTION — leave CHAOS and visit Mapillary. Continue?');
-                    const stay=document.createElement('button');stay.type='button';stay.textContent=label('POZOSTAŃ W CHAOS','STAY IN CHAOS');
-                    const go=document.createElement('a');go.href=source.href;go.textContent=label('OTWÓRZ MAPILLARY','OPEN MAPILLARY');
-                    const cancel=()=>{confirm.remove();source.focus();};stay.addEventListener('click',cancel);
-                    confirm.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();cancel();}});
-                    confirm.append(text,stay,go);section.append(confirm);stay.focus();
-                });
-                section.append(source,copy,feedback);
+                section.append(externalLink(material.source_url, 'Mapillary', true),
+                    externalLink(material.source_url, label('Fotografia ', 'Photograph ') + material.image_id));
                 if (/^https:\/\/creativecommons\.org\/licenses\/[a-z-]+\/[0-9.]+\/$/.test(material.license_url || '')) {
-                    const license=document.createElement('a');license.href=material.license_url;license.textContent=material.license;section.append(license);
+                    section.append(externalLink(material.license_url, material.license));
                 }
                 app.querySelector('.camera-visual-panel').append(section);
             }
@@ -429,9 +470,8 @@
     });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            for (const entry of viewers.values()) { clearTimeout(entry.timer); remove(entry.app); }
-            for (const s of states.values()) if (viewers.has(s.instance_id)) windowAction(s, 'release').catch(()=>{});
-            viewers.clear();
+            for (const entry of viewers.values()) { clearTimeout(entry.timer); entry.renewAt = 0; suspend(entry); }
+            releases = Promise.allSettled([...states.values()].filter(s => viewers.has(s.instance_id)).map(s => windowAction(s, 'release')));
         } else poll();
     });
     window.addEventListener('pagehide', () => {

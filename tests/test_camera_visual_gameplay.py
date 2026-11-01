@@ -261,7 +261,7 @@ class CameraVisualGameplayTest(unittest.TestCase):
         first = self.service.result('attacker', self.payload)['camera_visual']['motion']
         self.inventory.install_app('victim', self.app, purchase_key='victim-camera')
         self.targets.upsert_aimed('victim', self.target)
-        with patch.object(self.service, 'guard'):
+        with patch.object(self.service, 'guard'), patch.dict(os.environ, CHAOS_CAMERA_VISUAL_PILOT_USER='victim'):
             other = self.service.result('victim', self.payload)['camera_visual']['motion']
             retry = self.service.result('victim', self.payload)['camera_visual']['motion']
         self.assertNotEqual(first, other)
@@ -292,11 +292,26 @@ class CameraVisualGameplayTest(unittest.TestCase):
             self.assertEqual(self.service.snapshot('attacker')[0]['state'], 'ready')
 
     def test_observed_world_camera_uses_canonical_identity(self):
+        self.check_observed_world_camera('1')
+
+    def test_pilot_world_camera_global_off_keeps_account_and_scan_gates(self):
+        self.check_observed_world_camera('0')
+
+    def check_observed_world_camera(self, global_flag):
         from database import PlayerScanSnapshotStore
         from response_network.camera_contract import camera_marker
+        from camera_visual import accepts_target
         self.prepare()
-        self.stack.enter_context(patch.dict(os.environ, CHAOS_CAMERA_STREET_VIEW='1'))
+        self.stack.enter_context(patch.dict(os.environ, CHAOS_CAMERA_STREET_VIEW=global_flag))
         marker = camera_marker(dict(lat=50.0, lng=20.0, osm_id='test-shop'))
+        self.assertTrue(accepts_target(marker, 'attacker'))
+        self.assertEqual(accepts_target(marker, 'other'), global_flag == '1')
+        self.assertFalse(accepts_target(marker, None))
+        with db_connect(self.path) as conn:
+            with self.assertRaisesRegex(PilotError, 'camera_scan'):
+                self.service.target(conn, 'attacker', marker)
+            with self.assertRaisesRegex(PilotError, 'camera_scan'):
+                self.service.target(conn, 'attacker', {k:v for k,v in marker.items() if k!='camera_id'})
         scans = PlayerScanSnapshotStore(self.path)
         snapshot = scans.record('attacker', [marker], 50, 20)
         self.positions.upsert('attacker', dict(lat=50, lng=20))

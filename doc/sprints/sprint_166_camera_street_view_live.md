@@ -1,5 +1,54 @@
 # Sprint 166 — Camera Street View: odbiór systemowy i pełny rollout
 
+## Aktywny zakres — branding i checkpoint 166.1 (01.11.2026)
+
+Stan lokalny: branding i linki LOCAL PASS; nowa kamera wybrana z backupu,
+rzeczywiste pozyskanie i odbiór VPS oczekują. [Raport 166.1](../audits/camera_street_view_checkpoint_166_1.md).
+
+Zatwierdzono IMPLEMENTATION + SYSTEM ACCEPTANCE, LOCAL-FIRST → kontrolowany VPS.
+Najpierw aktualizacja 164–166, następnie oficjalny branding Mapillary i zewnętrzne
+linki EXTERNAL CONNECTION według sprintu 165, lokalny odbiór i standardowy Git.
+Nie powtarzać paryskiego pilota ani cofać jego PASS. Globalny dostęp OFF.
+
+| Checkpoint | Zakres i dowód |
+| --- | --- |
+| 166.1 — bieżący | Jedna nowa rzeczywista kamera poza pilotem, zweryfikowane ID/pozycja/gameplay, jeden gracz. Brak archiwum → automatyczne żądanie i worker → API → do 3 zdjęć → WebP/checksum/READY → poprawny hack → rzeczywisty download → jednorazowy podgląd. Branding i aktywne linki desktop/mobile, zachowana sesja |
+| 166.2 — później | Niezależne zdjęcie, trajektoria, FX/offline i trwałość po reload |
+| 166.3 — później | Wiele kont/aplikacji i Super Powers, w tym Insider Feed |
+| 166.4 — później | Uprawnienia, duplikaty, consumed, ponowny hack, camera_off/incydenty |
+| 166.5 — później | Recovery, wydajność, PWA, limity, raport i decyzja globalna |
+
+166.1: zachować limity/dysk, sekrety i konfigurację procesów, testową retencję
+24 h. Bez fikcyjnych celów, ręcznego work-once, skracania timera lub rozszerzania
+pilota. NO_COVERAGE udokumentować i wybrać kolejny rzeczywisty cel w budżecie.
+Brak zdjęć nie zmienia gameplayu/incydentów. Wynik końcowy: zbiorczy raport
+pochodzenia logo/warunków użycia, testów linków i sesji, nowej kamery,
+automatycznego pozyskania, optymalizacji/archiwizacji, gameplayu i ograniczeń.
+L02 otwarte; nie deklarować PASS bez dowodu. Po raporcie 166.1 zatrzymać zakres,
+bez globalnej aktywacji i szerokich kolejnych testów bez decyzji operatora.
+
+## Odbiór VPS 56d5af0 — aktualizacja 01.11.2026
+
+Konfiguracja trzech procesów, heartbeat/DB, HTTP i PM2 save potwierdzone przez
+operatora. Token został sprawdzony w działającym archive worker i zapisanym
+stanie PM2. Nadal main/pilot, global OFF; pozyskiwanie ON z retencją testową 24 h.
+Istniejący materiał: READY, dwa checksum OK. Nie jest to PASS nowego pozyskania.
+
+Operator zaliczył obserwację braku podglądu po niepoprawnej odpowiedzi i UI failed,
+mimo zakończonego pobierania 30 min. Współistnienie failed i rozpoczętej operacji:
+WYJAŚNIONE — nie regresja. Status etapu aplikacji nie anuluje rezerwacji należącej
+do ciągłości mapy → OFC → pickera → desktopu. Nie dodajemy takiego anulowania.
+Cztery przekazane rekordy mają server_success=true, timeout i aktywator;
+nie dokumentują kanonicznego failure ani przyczyny komunikatu UI. Sama rezerwacja
+nie omija sukcesu backendu, czasu pobierania, weryfikacji aktywatora ani consumed.
+Kontrola kodu i pokrycie istniejącymi testami opisane w journalu z 01.11.2026.
+Następna próba tej samej kamery: success → kolejny pełny download 30 min →
+automatyczne otwarcie podglądu — PASS operatora, potwierdzony screenshotem.
+Widoczne standardowe okno Camera Network, Mapillary, ONLINE/REC, UTC,
+Focus/Teleport, logi oraz autorstwo/licencja. Nowe pozyskanie, trwałość profilu
+i close/consumed nie zostały osobno udokumentowane dla tego konkretnego grantu;
+wcześniejsze zaliczone testy zachowują swój zakres. Pełny odbiór 166 nadal otwarty.
+
 ## Przekazanie z implementacji S1–S3 — 01.11.2026
 
 [Kod i wyniki lokalne](../audits/camera_street_view_system_implementation_2026_11_01.md)

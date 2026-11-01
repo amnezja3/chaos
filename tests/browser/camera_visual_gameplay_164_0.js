@@ -26,7 +26,7 @@ async (page) => {
     check((await viewer().locator('.title-bar').innerText()).includes('Camera Network'), 'system title');
     check(await viewer().locator('.camera-network-icon').evaluate(i=>i.complete && i.naturalWidth>0), 'generated system icon');
     check(await viewer().locator('[data-camera-location]').innerText()==='Focus' && await viewer().locator('[data-chaos-link]').count()===2, 'two compact system actions');
-    check(await viewer().locator('.camera-visual-brand').innerText()==='MapiFi', 'MapiFi logo');
+    check(await viewer().locator('.camera-visual-brand').innerText()!=='MapiFi', 'provider branding replaces prototype placeholder');
     check(await viewer().locator('[data-frame]').count()===0, 'no time-of-day controls');
     await page.waitForFunction(()=>[...document.querySelectorAll('img[data-camera-frame]')].every(i=>i.naturalWidth>0));
     check(await viewer().locator('img[data-camera-frame]').count()===1, 'one authorized image decoded');
