@@ -1,5 +1,15 @@
 # Sprint 166 — Camera Street View: odbiór systemowy i pełny rollout
 
+## Korekta odbioru: kolejne operacje oznaczonej kamery
+
+Oznaczona kamera pozostaje celem po wyczyszczeniu i wygaśnięciu skanu.
+Do pełnego zhakowania celu operacje mogą być ponawiane: nowy receipt,
+nowy sukces, nowe pobranie z czasem gameplayu, nowa instancja podglądu.
+Samo camera_stream nie zastępuje czterech kropek i paska zabezpieczeń.
+Test odbiorczy musi obejmować trwały oznaczony cel bez żywej obserwacji
+skanu; wymuszanie ponownego skanu nie zalicza tej ścieżki. camera_off
+i jego wpływ na incydenty pozostają bez zmian.
+
 ## Aktywny zakres — branding i checkpoint 166.1 (01.11.2026)
 
 Stan lokalny: branding i linki LOCAL PASS; nowa kamera wybrana z backupu,

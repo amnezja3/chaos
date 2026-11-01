@@ -294,6 +294,51 @@ class CameraVisualGameplayTest(unittest.TestCase):
     def test_observed_world_camera_uses_canonical_identity(self):
         self.check_observed_world_camera('1')
 
+    def test_marked_camera_survives_cleared_scan_and_new_invocations(self):
+        from database import PlayerMarkedTargetStore, PlayerScanSnapshotStore
+        from response_network.camera_contract import camera_marker
+        self.prepare()
+        marks = PlayerMarkedTargetStore(self.path)
+        marker = camera_marker(dict(lat=50, lng=20, osm_id='durable-shop'))
+        scan = PlayerScanSnapshotStore(self.path).record('attacker', [marker], 50, 20)
+        marker = {**marker, 'scan_id':scan['scan_id']}
+        marks.upsert('attacker', marker)
+        self.positions.upsert('attacker', dict(lat=50, lng=20))
+        with db_connect(self.path) as conn:
+            conn.execute('DELETE FROM response_camera_observations WHERE username=?', ('attacker',))
+            conn.execute('DELETE FROM player_scan_snapshots WHERE username=?', ('attacker',))
+        operations = []
+        for source in ('launch_queue', 'desktop_menu'):
+            launch = self.client.post('/hack-action', json={**marker, 'action':'camera_stream',
+                'selected_app_id':self.app['id'], '_client_action_key':'marked-'+source})
+            self.assertEqual(launch.status_code, 200, launch.json)
+            payload = {**self.payload, 'expected_target':launch.json['target'],
+                'launch_source':source, 'launch_receipt':launch.json['added_apps'][0]['receipt']
+                if source == 'launch_queue' else 'manual-new-marked'}
+            result = self.client.post('/gonna-win', json=payload)
+            self.assertEqual(result.status_code, 200, result.json)
+            self.assertTrue(result.json['success'], result.json)
+            state = result.json['camera_visual']
+            self.assertNotIn(state['operation_id'], operations)
+            operations.append(state['operation_id'])
+            self.assertLess(state['progress'], 100)
+            duplicate = self.client.post('/gonna-win', json=payload).json
+            self.assertTrue(duplicate['duplicate'])
+            self.assertEqual(duplicate['camera_visual']['operation_id'], state['operation_id'])
+            self.complete(result.json)
+            with db_connect(self.path) as conn:
+                conn.execute('UPDATE camera_visual_sessions SET viewer_closed=1 WHERE username=?', ('attacker',))
+        with db_connect(self.path) as conn:
+            with self.assertRaises(PilotError):
+                self.service.target(conn, 'attacker', {**marker, 'camera_id':'forged'})
+        self.targets.mark_captured('attacker', launch.json['target'])
+        with db_connect(self.path) as conn:
+            with self.assertRaisesRegex(PilotError, 'camera_target_captured'):
+                self.service.target(conn, 'attacker', marker)
+            conn.execute("UPDATE player_marked_targets SET status='removed' WHERE username=?", ('attacker',))
+            with self.assertRaisesRegex(PilotError, 'camera_scan'):
+                self.service.target(conn, 'attacker', marker)
+
     def test_pilot_world_camera_global_off_keeps_account_and_scan_gates(self):
         self.check_observed_world_camera('0')
 

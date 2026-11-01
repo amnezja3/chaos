@@ -4,6 +4,12 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+**Reguła oznaczonych kamer — doprecyzowanie operatora:** trwałe oznaczenie
+pozwala na kolejne operacje po wyczyszczeniu/wygaśnięciu skanu, do pełnego
+zhakowania celu. Lokalna autoryzacja camera_stream używa kanonicznych
+oznaczeń; nowy sukces wymaga nowego pobrania i tworzy nowy feed. Nowy skan
+nie jest warunkiem odbioru powtórnej operacji oznaczonej kamery.
+
 Nowe pobranie na VPS trwa (19:48:35–20:18:35 czasu wyświetlanego w UI),
 poprawna nazwa „Kamera Le Monde de l'observation”. Lokalna poprawka kropki
 scan_ports po sukcesie aplikacji oczekuje wdrożenia i odbioru wizualnego.

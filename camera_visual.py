@@ -107,6 +107,32 @@ class CameraVisual:
 
     def target(self, conn, username, requested=None):
         target = self.rt.player_target_runtime_store.get_active_target(username) or {}
+        # Marked objects outlive discovery scans. Use the player's canonical
+        # durable marker, never an expired scan or a previous viewer grant.
+        if requested and enabled(username):
+            try:
+                lat = float(requested['lat'])
+                lng = float(requested.get('lng', requested.get('lon')))
+            except (KeyError, TypeError, ValueError):
+                raise PilotError('camera_target_unavailable')
+            rows = conn.execute('''SELECT target_json FROM player_marked_targets
+                WHERE username=? AND status='active' AND lat=? AND lng=?
+                LIMIT 2''', (username, lat, lng)).fetchall()
+            marked = [json.loads(row['target_json']) for row in rows]
+            marked = [m for m in marked if m.get('camera_id')
+                      and (not requested.get('camera_id') or m['camera_id'] == requested['camera_id'])
+                      and self.rt.infer_target_type_from_target(m) == 'camera']
+            if len(marked) == 1:
+                canonical = marked[0]
+                captured = conn.execute('''SELECT 1 FROM player_target_progress
+                    WHERE username=? AND status='captured' AND
+                    (target_key=? OR json_extract(target_json,'$.camera_id')=?) LIMIT 1''',
+                    (username, canonical.get('target_id', ''), canonical['camera_id'])).fetchone()
+                if captured:
+                    raise PilotError('camera_target_captured')
+                if target.get('camera_id') == canonical['camera_id']:
+                    return {**canonical, **target}
+                return canonical
         if requested and not requested.get('camera_id') and enabled(username) and not pilot_target(requested):
             # Resolve legacy transport only against unambiguous server evidence.
             try:

@@ -1,5 +1,28 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — trwałe oznaczenie kamery zamiast obowiązku nowego skanu
+
+Operator wyjaśnił obowiązujący gameplay: skan → oznaczenie → wyczyszczenie
+skanu; oznaczone obiekty pozostają dostępne do operacji aż do pełnego
+zhakowania (cztery akcje i zabezpieczenia). Sukces camera_stream nie jest
+sam w sobie przejęciem całego celu. Wcześniejsze wymaganie świeżego skanu
+przy każdej kolejnej operacji oznaczonej kamery było błędne.
+
+CameraVisual.target korzysta teraz z aktywnego player_marked_targets danego
+gracza, zgodnego z pozycją i camera_id. Nie wymaga żywego scan_id dla tego
+obiektu. Nie korzysta z poprzednich grantów. Status captured w kanonicznym
+postępie blokuje operację. Pozostają kontrola zasięgu, terenu, aplikacji,
+warunków sukcesu i czasu pobierania; każda nowa próba ma osobną operację,
+a retry tego samego receipt pozostaje idempotentny. Bez zmian camera_off,
+TTL skanów, ciężkich profili, migracji i konfiguracji. Bez push/deploy.
+
+Lokalnie 26 testów test_camera_visual_gameplay PASS. Nowy test usuwa
+response_camera_observations i player_scan_snapshots, zachowuje oznaczenie,
+wykonuje kolejne sukcesy z kolejki mapy i desktopu, potwierdza odrębne
+operation_id oraz idempotencję retry, odrzuca obce camera_id, captured
+i usunięte oznaczenie bez ważnego skanu. Odbiór przeglądarkowy/VPS tej
+poprawki jeszcze niewykonany; wcześniejsze PASS nie obejmowały tej ścieżki.
+
 ## 2026-11-01 — kropka skanu po sukcesie Camera Street View
 
 Operator potwierdził nowe pobranie z nazwą „Kamera Le Monde de l'observation”,
