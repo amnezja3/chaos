@@ -1,5 +1,26 @@
 # CHAOS — Project Journal
 
+## 2026-11-01 — nowe receipt błędnie współdzieliło sesję kamery
+
+Log operatora dla cvn_39616fedcdee823817a03607253d4446: HTTP 200/success,
+po kilku ms camera_window_closed, bez nowego pobrania. Audyt wykazał gałąź
+aliasowania aktywnej sesji po target_key. SQL reference_id=receipt porównywał
+wartość JSON z kolumną istniejącego wiersza, nie z receipt nowej próby.
+Nowa próba otrzymywała starą operację i stary close_at. Usunięto tę gałąź;
+idempotencja dokładnego receipt na wejściu pozostaje. Nowy receipt ma własne
+pobranie również przy nadal otwartym wcześniejszym feedzie tej kamery.
+Kanoniczna blokada równoczesnych aktywnych pobrań dla tego samego celu
+pozostaje: nowa próba podczas pobierania zwraca camera_operation_conflict.
+Poprzedni test wymuszający aliasowanie był niezgodny z gameplayem i został
+zastąpiony testem niezależnych operacji oraz retry tego samego receipt.
+Bez przepisywania starych sesji, bez zmian camera_off i bez push/deploy.
+Logi Leaflet canvas_hit_test są osobnym problemem; brak dowodu, że blokują
+tworzenie operacji w tym przypadku. Odbiór VPS ponownego cyklu nadal otwarty.
+Regresja lokalna: 26 testów PASS, w tym nowa operacja po ukończonym
+pobraniu przy niezamkniętym poprzednim feedzie, nowy close_at i progress=0,
+idempotencja tego samego receipt oraz blokada równoczesnego pobierania.
+Nie wykonano jeszcze odbioru tej poprawki w przeglądarce/VPS.
+
 ## 2026-11-01 — trwałe oznaczenie kamery zamiast obowiązku nowego skanu
 
 Operator wyjaśnił obowiązujący gameplay: skan → oznaczenie → wyczyszczenie

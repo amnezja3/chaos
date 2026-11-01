@@ -4,6 +4,11 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+**Powtórne pobranie nadal w odbiorze:** usunięto lokalnie aliasowanie nowych
+receipt do wcześniejszej aktywnej sesji tej samej kamery. Każda nowa próba
+tworzy własne pobranie; wyłącznie dokładny retry pozostaje idempotentny.
+Nie traktować wcześniejszego PASS pierwszych feedów jako PASS tego scenariusza.
+
 **Reguła oznaczonych kamer — doprecyzowanie operatora:** trwałe oznaczenie
 pozwala na kolejne operacje po wyczyszczeniu/wygaśnięciu skanu, do pełnego
 zhakowania celu. Lokalna autoryzacja camera_stream używa kanonicznych

@@ -141,16 +141,29 @@ class CameraVisualGameplayTest(unittest.TestCase):
         response = self.client.post('/gonna-win', json=self.payload)
         self.assertEqual(response.json['reason'], 'camera_out_of_range')
 
-    def test_alias_cannot_get_independent_window_and_cancel_blocks_media(self):
+    def test_new_receipt_gets_new_download_and_cancel_blocks_media(self):
         self.prepare()
         first = self.service.result('attacker', self.payload)
-        second = self.service.result('attacker', {**self.payload, 'launch_receipt':'second-desktop-receipt'})
-        self.assertTrue(second['duplicate'])
-        self.assertEqual(len(self.service.snapshot('attacker')), 1)
+        # Concurrent downloads still obey the canonical operation conflict.
+        with self.assertRaisesRegex(PilotError, 'camera_operation_conflict'):
+            self.service.result('attacker', {**self.payload, 'launch_receipt':'while-downloading'})
         self.complete(first)
+        second = self.service.result('attacker', {**self.payload, 'launch_receipt':'second-desktop-receipt'})
+        self.assertFalse(second['duplicate'])
+        self.assertNotEqual(first['camera_visual']['operation_id'], second['camera_visual']['operation_id'])
+        self.assertEqual(second['camera_visual']['reference_id'], 'second-desktop-receipt')
+        self.assertEqual(len(self.service.snapshot('attacker')), 2)
+        self.complete(second)
         with patch('camera_visual.time.time', return_value=first['camera_visual']['ready_at']):
+            third = self.service.result('attacker', {**self.payload, 'launch_receipt':'after-completion'})
+            self.assertFalse(third['duplicate'])
+            self.assertGreater(third['camera_visual']['close_at'], first['camera_visual']['ready_at'])
+            self.assertEqual(third['camera_visual']['progress'], 0)
+            retry = self.service.result('attacker', {**self.payload, 'launch_receipt':'after-completion'})
+            self.assertTrue(retry['duplicate'])
+            self.assertEqual(retry['camera_visual']['operation_id'], third['camera_visual']['operation_id'])
             with self.assertRaises(PilotError):
-                self.service.window('attacker', dict(owner='x'*32, receipt='second-desktop-receipt'))
+                self.service.window('attacker', dict(owner='x'*32, receipt='after-completion'))
             response = self.client.get('/api/camera-visual/media/desktop-test-receipt/0')
             self.assertEqual(response.status_code, 200)
             self.assertIn('no-store', response.headers['Cache-Control'])

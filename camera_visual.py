@@ -270,21 +270,8 @@ class CameraVisual:
                          state='session_close' if success else 'failure',
                          close_at=now + 5 if success else None, operation_id=None)
             if success:
-                existing = conn.execute('''SELECT * FROM camera_visual_sessions WHERE username=? AND target_key=?
-                    AND operation_id IS NOT NULL AND viewer_closed=0
-                    AND json_extract(payload_json,'$.reference_id')=receipt
-                    ORDER BY created_at DESC LIMIT 1''', (username, target_key)).fetchone()
-                if existing and self.project(conn, existing)['state'] not in ('cancelled', 'failed', 'consumed'):
-                    previous = json.loads(existing['payload_json'])
-                    state.update(operation_id=previous['operation_id'], instance_id=previous['instance_id'],
-                                 download_at=previous['download_at'], ready_at=previous['ready_at'])
-                    # Persist the new invocation as an alias: retries still resolve
-                    # to this grant even if its operation is later cancelled.
-                    conn.execute('''INSERT INTO camera_visual_sessions
-                        (username,receipt,target_key,app_id,operation_id,payload_json,created_at)
-                        VALUES (?,?,?,?,?,?,?)''', (username, receipt, target_key, app_id,
-                        previous['operation_id'], existing['payload_json'], now))
-                    return self.reply(conn, existing, duplicate=True)
+                # Exact receipt retries were handled above. A new invocation
+                # must never alias another receipt's operation or close timer.
                 security.update(effect or {k: False for k in app.get('interferes_with', []) if k in security})
                 target['security'] = security
                 # camera_stream is the scan_ports step on the target toolbar,
