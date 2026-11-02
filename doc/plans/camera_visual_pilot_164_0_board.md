@@ -1,8 +1,27 @@
 # Pilot kamery 164.0 — wspólna tablica pracy
 
-Aktualizacja: 2026-11-01. Wersja tablicy: 12.
+Aktualizacja: 2026-11-02. Wersja tablicy: 13.
+
+### Bieżący checkpoint — system i Super Powers LOCAL PASS
+
+Zrealizowano polecenie wykonania zakresu do testów mocy: rzeczywista aktywacja
+Insider Feed przed/w trakcie, Predykcja Operacyjna, różne konta i zgodna nowa
+aplikacja; trwałe oznaczenia, niezależne feedy, retry, aktywator i consumed.
+17 backend + 5 JS PASS. Playwright MCP: dwa pełne przyspieszone pobrania,
+standardowe okna, reload zachowujący profil, zamknięcie i nowa instancja.
+[Evidence i ograniczenia](../audits/camera_street_view_system_implementation_2026_11_01.md).
+Bez zmian zaakceptowanego prototypu i produkcyjnego camera_off. Następne:
+zbiorczy odbiór VPS z robot/Insider Feed i realnym źródłem, potem 166.5.
+Globalny rollout i moce na VPS nie mają jeszcze PASS. Starsze zapisy poniżej
+stanowią historię i nie zastępują tego checkpointu.
 
 ### Bieżący checkpoint 166.1
+
+**02.11 — PASS operatora ponownego podglądu poza pierwotnym pilotem.**
+Le Monde de l'observation: nowa operacja 12:49:59–13:19:59 i ponowne otwarcie.
+Następny zakres: przygotowanie systemowe 166.2–166.4 według aktualnego sprintu
+166, potem recovery/skala/globalna decyzja 166.5. Nie powtarzać prototypowania.
+Poniższe blokady są historią odbioru; moce, inne konta i rollout nadal otwarte.
 
 02.11: nowy flow Brioche Dorée wysyłał receipt z 01.11. Potwierdzona przyczyna:
 mapowy klucz celu/akcji jest stały, więc receipt musi uwzględniać również

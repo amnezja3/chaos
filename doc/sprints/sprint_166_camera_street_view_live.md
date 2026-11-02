@@ -1,5 +1,55 @@
 # Sprint 166 — Camera Street View: odbiór systemowy i pełny rollout
 
+## Wykonanie 02.11.2026 — zakres do Super Powers: LOCAL PASS
+
+Po poleceniu „realizuj ten zakres aż do testów z superpowers” wykonano
+systemowe testy istniejącej integracji: 3 nowe scenariusze prawdziwego GN
+(Insider Feed przed/w trakcie oraz Predykcja Operacyjna), dwa konta,
+oznaczona kamera bez skanu, nowa aplikacja, kontrakty wejść, powtórzenie,
+granica czasu/zapisu i trwały profil feedu. 17 backend + 5 JS PASS,
+zero heavy runtime także dla 35 MiB. Playwright MCP na rzeczywistym
+desktopie: dwa pełne cykle z mocą, reload, consumed i nowa instancja.
+
+Nie zmieniano działającego silnika ani zaakceptowanego prototypu; uzupełniono
+lukę testów realnej aktywacji mocy i runner izolowanej gry. Brak migracji,
+zależności, pushu i wdrożenia. [Raport](../audits/camera_street_view_system_implementation_2026_11_01.md)
+określa dokładne dowody i niewykonane próby. 166.2–166.4 mają powyższy
+lokalny dowód, nie zbiorczy VPS PASS. Weryfikacja konta robot na VPS,
+wszystkich menu w UI, PWA/skali oraz 166.5/L01/L02 pozostaje otwarta.
+Następny krok: jeden zatwierdzony odbiór VPS według zbiorczego runbooku.
+
+## Stan nadrzędny 02.11.2026 — przygotowanie pełnej integracji
+
+HEAD lokalny 32d0b95, czyste repo przed aktualizacją dokumentów. Operator
+potwierdził PASS ponownego podglądu oznaczonej kamery poza pierwotnym pilotem,
+po nowej operacji 12:49:59–13:19:59. Wcześniej potwierdzono trzy równoległe
+okna, nazwy obiektów, kropkę scan_ports oraz close/reload bez powrotu okna.
+Nie oznacza to PASS całego 166 ani zgody na globalne przełączenie flag.
+Poniższe opisy 01.11 są historyczne; nie powtarzać zaliczonych prób bez powodu.
+
+Następny wspólny zakres przygotowania: 166.2–166.4, następnie bramka 166.5.
+Kod profilu feedu, systemowych operacji i wspólnej konfiguracji już istnieje;
+nie budować drugiego pilota. Wykonać celowany przegląd miejsc zależnych od
+main/legacy, skanu, kluczy mapowych i profilu aplikacji. Poprawki wraz z testami
+grupować w jeden zakres w repo, bez ZIP i bez publikacji przed decyzją operatora.
+
+| Obszar | Następny wymagany dowód |
+| --- | --- |
+| Dostęp systemowy | Różni gracze i kamery, sklep/ATM/inne POI; trwałe oznaczenie po usunięciu skanu; cudze granty/oznaczenia odrzucane; captured blokuje operację |
+| Cykl i aplikacje | Mapa/desktop/terminal, historyczna oraz zgodna nowa aplikacja; nowy flow daje nową operację, retry jej nie powiela; trwałość po relogin i dwie karty |
+| Czas/Super Powers | Zwykły i inny kanoniczny czas, robot + Insider Feed przy starcie i w trakcie; ten sam zegar i aktywator co w OFC |
+| Instancja feedu | Wybór zdjęcia, trajektorii i FX/offline razem; trwałość po reload; nowa próba losuje nowy profil, retry nie losuje; brak materiału nie omija uprawnień |
+| camera_off | Powtórne wyłączenie po zakończeniu przez trzy wejścia; czas i incydenty bez regresji; aktywna operacja nie przedłuża się przez retry |
+| Recovery i skala | Brak miejsca, późny zapis/materiał, timeout/429, expiry/withdraw, restart ról, PWA i obciążenie; osobne dowody lokalne i VPS |
+
+Najpierw wykorzystać istniejące testy i kontrolowane konta/fixtures, UI sprawdzić
+Playwright MCP. Nie powtarzać historycznych PASS bez zmiany lub luki w pokryciu.
+Zbiorczy raport gotowości ma wymienić rzeczywiste zmiany, migracje (jeżeli
+powstaną), konfigurację, limity, retencję, rollback i brakujące dowody.
+Następnie jedno uzgodnione wdrożenie i grupowy odbiór VPS. Nadal otwarte:
+docelowe prawa/retencja L01/L02, operacyjne limity i decyzja globalnego dostępu.
+Zdjęcia graczy i ciężkie profile pozostają poza zakresem.
+
 ## Korekta odbioru: kolejne operacje oznaczonej kamery
 
 02.11: odbiór obejmuje także sąsiednie camera_shutdown. Oznaczony cel

@@ -1,5 +1,43 @@
 # CHAOS — Project Journal
 
+## 2026-11-02 — Camera Street View: LOCAL PASS integracji z Super Powers
+
+Operator polecił wykonać zakres aż do testów mocy. Na HEAD 32d0b95
+potwierdzono istniejące systemowe spięcie i uzupełniono brakujące testy
+rzeczywistego endpointu GN zamiast mocka przyspieszenia. Insider Feed przed
+startem: 1800→300 s, drugi gracz nadal 1800 s; w trakcie: pozostałe 240→40 s
+bez podwójnego skracania po retry. Predykcja Operacyjna i nowa zgodna
+aplikacja także PASS. Granica czasu, zweryfikowany aktywator, izolacja kont,
+nowe operacje, zachowanie profilu feedu i zero heavy runtime dla 35 MiB.
+
+17 celowanych testów backendu i 5 skryptów JS PASS; Playwright MCP na realnym
+lokalnym desktopie: dwa cykle z mocą (testowe 180→30 s), rzeczywisty worker,
+automatyczne okno, reload bez zmiany profilu, close/consumed i nowe pobranie.
+Regresje ekspozycji i incydentów PASS. Rozszerzono wyłącznie lokalny runner,
+testy i dokumentację; brak koniecznej zmiany produkcyjnego silnika.
+Naprawiono błędy przygotowania nowych fixtures przed zaliczeniem.
+
+[Raport i granice dowodów](../audits/camera_street_view_system_implementation_2026_11_01.md),
+[zbiorczy runbook](../runbooks/camera_street_view_system_s1_s3.md).
+Bez commit/push/deploy. Test robot + prawdziwe API na VPS, 166.5 i decyzja
+globalna pozostają przed nami; nie przypisujemy im lokalnego PASS.
+
+## 2026-11-02 — VPS PASS ponownego podglądu; przygotowanie pełnej integracji
+
+Operator potwierdził „mamy pass dla ponownego podlądu”. Dotyczy nowej
+operacji oznaczonej kamery Le Monde de l'observation, 12:49:59–13:19:59
+według UI, po poprawce rozdzielającej stały klucz celu i flow nowej próby.
+Dowód: wcześniejsze dane aktywnego pobierania oraz potwierdzenie operatora
+otwarcia podglądu. Nie wykonano teraz nowego odczytu bazy ani testu UI.
+Repo HEAD 32d0b95, czyste przed aktualizacją dokumentacji.
+
+Operator polecił przygotowanie pełnego wpięcia. Sprint 166 otrzymał nadrzędny
+stan i wspólny następny zakres 166.2–166.4: wszystkie konta/kamery i wejścia,
+moce/czasy, indywidualny feed, trwałość i ochrona incydentów. 166.5 pozostaje
+bramką recovery/skali, konfiguracji i globalnej decyzji. Nie wracamy do pilota
+ani nie utożsamiamy jednostkowego VPS PASS z pełnym rollout. Aktualizacja
+wyłącznie dokumentacyjna; bez ponawiania testów, pushu, wdrożenia i flag.
+
 ## 2026-11-02 — potwierdzony stary receipt z nowego kliknięcia mapy
 
 Nowy log hf-mvz6vmav-8po73 używa cvn_07e0cf0353b6a8a3e144dc800489d0c2,

@@ -1,5 +1,19 @@
 # Sprint 165 — Camera Street View: pełna integracja gameplayu i prezentacji
 
+## Aktualizacja 02.11.2026
+
+Wykonano zakres lokalny do Super Powers: Insider Feed przed/w trakcie,
+Predykcja Operacyjna, izolacja kont, zgodna nowa aplikacja, nowe operacje
+i granty. Realny desktop/worker zaliczył dwa cykle przyspieszone, reload
+i consumed. [Raport i ograniczenia](../audits/camera_street_view_system_implementation_2026_11_01.md).
+Nie dodawano alternatywnego runtime; konfiguracja VPS/globalne ON bez zmian.
+
+Operator potwierdził ponowny podgląd oznaczonej kamery poza pierwotnym pilotem.
+Dotychczasowy renderer, branding i nowe nazwy pozostają bazą systemową.
+Następny zintegrowany zakres: różne konta/aplikacje, kanoniczne moce/czasy,
+trwałość feedu i ponowne operacje, zgodnie ze sprintem 166 z 02.11.
+Nie uruchomiono globalnego dostępu; wcześniejsze sekcje zachowują historię.
+
 ## Branding i EXTERNAL CONNECTION — dyspozycja 01.11.2026
 
 S1–S3 wdrożone na VPS 56d5af0, main i pełna ścieżka 30 min mają PASS; global OFF.

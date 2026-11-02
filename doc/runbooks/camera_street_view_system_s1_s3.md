@@ -1,5 +1,65 @@
 # Camera Street View S1–S3 — zbiorcze wdrożenie po zatwierdzeniu
 
+## Aktualizacja 02.11 — gotowość po lokalnych testach Super Powers
+
+[Raport](../audits/camera_street_view_system_implementation_2026_11_01.md):
+17 celowanych testów backendu, 5 JS i dwa rzeczywiste cykle Playwright MCP.
+Zmiany tego zakresu obejmują testy, opcjonalny lokalny runner i dokumentację;
+produkcyjny mechanizm jest już w bazie 32d0b95. Brak nowej migracji,
+zależności lub sekretu. Nie ma potrzeby restartować VPS tylko dla tych plików.
+Nie przenosić parametrów `--system-test` ani jego krótkiego czasu na VPS.
+
+Odtworzenie lokalne: istniejąca kopia `instance/cvn-gameplay-164`, logowanie
+opisane w jej prywatnym `LOCAL_ACCESS.txt`, uruchomienie
+`.venv/Scripts/python.exe tools/camera_visual_local.py --system-test`.
+Opcja zmienia tylko tę kopię (main/profesja/pozycja/oznaczenie/moduł GN),
+włącza lokalne flagi systemowe i fixture worker oraz bazowe 180 s.
+Normalny endpoint GN aktywuje moc; mapa przekazuje wybraną aplikację do
+zwykłej launch queue. Nie tworzyć ręcznie aktywatora ani completed grant.
+Test UI `tests/browser/camera_system_powers.js` startuje na ukończonym,
+naturalnie uzyskanym feedzie; kończy rozpoczęciem kolejnej próby. Sprawdzić
+jej naturalne zakończenie, nową operację/ruch oraz brak powrotu pierwszej.
+
+Zestaw backendu (z katalogu repo, `PYTHONPATH=tests`):
+`python -m unittest test_camera_system_powers test_camera_visual_instance test_camera_exposure test_camera_incident_audit`.
+Kontrakty JS: `test_camera_launch_context`, `test_camera_runtime_config`,
+`test_camera_window_dedupe`, `test_camera_operation_delta`, `test_camera_target_transport`.
+Zaliczone testy nie wymagają kolejnego przebiegu bez zmiany lub nowego błędu.
+
+### Następny zbiorczy odbiór VPS — po decyzji operatora
+
+1. Zanotować HEAD, status i effective config trzech ról z istniejącego
+   checkpointu, bez drukowania tokenu. Potwierdzić wspólną bazę, heartbeats,
+   działające acquisition/serve, budżet i miejsce. Nie resetować receipt,
+   cooldownów ani oznaczeń. Zachować dotychczasowy pilot, dopóki operator
+   nie wybierze dostępu dla kont odbiorczych; globalne ON obejmuje wszystkich.
+2. W jednej sesji przydzielić macierz: konto bez mocy i robot z Insider Feed;
+   oznaczona kamera sklepu i ATM/innego POI; mapa, desktop i terminal.
+   Użyć normalnego gameplayu. Potwierdzić nowy flow/operation_id i pełny
+   kanoniczny czas. Cudzy grant nie uprawnia do okna.
+3. Robot: jedna próba z mocą już aktywną, druga z aktywacją w trakcie
+   pobierania, kiedy normalny cooldown pozwoli. Porównać termin OFC i stan
+   kamery z `expires_at` tej samej operacji. Nie narzucać 300 s: rzeczywisty
+   mnożnik zależy od poziomu i aktywnej kanonicznej mocy. Retry aktywacji
+   nie skraca drugi raz. Bez mocy zachować normalny czas.
+4. Na końcu każdej próby: plik/aktywator zapisany, standardowe okno tylko
+   raz, zdjęcie/ruch/FX trwałe po reload/relogin; po close consumed.
+   Nowe uruchomienie na nadal oznaczonej, nie captured kamerze rozpoczyna
+   nową operację i oczekiwanie, bez wymuszania świeżego skanu.
+5. Sąsiednie camera_off: normalne wyłączenie, aktualny timer/incydent,
+   retry bez przedłużenia i nowa operacja po zakończeniu. Nie utożsamiać
+   prezentacyjnego dropout z mechanicznym wyłączeniem kamery.
+6. Zebrać jednym checkpointem stany operacji, aktywatorów, grantów, archiwów,
+   budżetu i heartbeat oraz błędy z timestampem. Wyniki zapisać do tablicy
+   jako VPS PASS/FAIL; L01/L02, retencję, limity i 166.5 ocenić oddzielnie.
+
+Rollback tego zakresu testowego nie wymaga migracji danych. W razie problemu
+runtime użyć istniejącej procedury flag/wersji z backupem konfiguracji,
+zachowując operacje, receipts i pliki; nie cofać stanu graczy dla zaliczenia
+próby. Nie wykonano teraz commit/push ani żadnej sesji serwerowej.
+
+Poniższe instrukcje 166.1 są historyczne i nie są poleceniem ich powtórzenia.
+
 ## Aktualizacja 166.1 — branding / nowa kamera, 01.11.2026
 
 Korekta po f65332a: osobna lokalna poprawka skanu przyjmuje poprawne porcje

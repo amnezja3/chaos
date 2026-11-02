@@ -1,5 +1,26 @@
 # CHAOS — pełny prompt przekazania do nowego wątku, 31.10.2026
 
+**Najnowsze wykonanie 02.11 — do Super Powers LOCAL PASS:**
+Na 32d0b95 uzupełniono systemowe testy prawdziwego GN (Insider Feed
+przed/w trakcie, Predykcja Operacyjna), dwa konta, oznaczenia, aktywator,
+ponawianie i trwały feed. 17 backend + 5 JS PASS; Playwright MCP realny
+desktop i worker: dwa cykle testowe 180→30 s z mocą, reload, consumed,
+nowa instancja. Rozszerzony lokalny runner `--system-test` działa wyłącznie
+na izolowanej kopii. Nie zmieniono silnika produkcyjnego ani prototypu.
+[Dowody i ograniczenia](../audits/camera_street_view_system_implementation_2026_11_01.md).
+Następny etap: zatwierdzony zbiorczy odbiór VPS z robot/Insider Feed,
+następnie recovery/skala/PWA/166.5. Nie ma globalnego rollout ani push/deploy.
+Starsze określenie „następny zakres” poniżej zostało wykonane w tych granicach.
+
+**Nadrzędna aktualizacja 02.11 — ponowny podgląd VPS PASS:**
+HEAD 32d0b95. Operator potwierdził kolejny pełny cykl oznaczonej kamery poza
+pilotem; następnie polecił przygotowanie pełnego wpięcia. Aktualny zakres
+i macierz są na początku [sprintu 166](../sprints/sprint_166_camera_street_view_live.md).
+Wykorzystać istniejący kod, zebrać implementację i testy 166.2–166.4 w jeden
+zakres, potem bramka 166.5. Bez ponownego prototypowania, ZIP, ciężkich
+profili i automatycznego globalnego rollout. Push/deploy po decyzji operatora.
+Starsze statusy poniżej nie zastępują tego przekazania.
+
 **Najnowsza aktualizacja 01.11 — implementacja po audycie:**
 [S1–S3 i CHAOS Links: kod, testy, granice](../audits/camera_street_view_system_implementation_2026_11_01.md)
 oraz [zbiorczy runbook](camera_street_view_system_s1_s3.md).

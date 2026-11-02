@@ -1,5 +1,18 @@
 # Sprint 164 — Camera Street View: kontrakt systemowy i archiwum
 
+## Aktualizacja 02.11.2026
+
+Uzupełnienie po wykonaniu: LOCAL PASS trwałego profilu zdjęcie/ruch/FX oraz
+dwóch rzeczywistych cykli UI z mocą na materiale fixture. Archiwum produkcyjne
+i prawa bez zmian; [dowody systemowe](../audits/camera_street_view_system_implementation_2026_11_01.md).
+Nie jest to nowy test pozyskania Mapillary ani zamknięcie L01/L02.
+
+Podglądy nowych kamer oraz ponowny pełny cykl oznaczonej kamery mają PASS
+operatora na main. Istniejący kod archiwum i instancji jest bazą pełnego
+wpięcia; następny wspólny zakres i granice odbioru określa aktualizacja sprintu
+166 z 02.11. Nie oznacza to zamknięcia L01/L02, polityki retencji ani skali.
+Poniższy checkpoint 01.11 opisuje wcześniejszą kolejność prac.
+
 ## Checkpoint 166.1 — dyspozycja 01.11.2026
 
 S1–S3 działa na VPS 56d5af0; main i success → 30 min → podgląd mają PASS.

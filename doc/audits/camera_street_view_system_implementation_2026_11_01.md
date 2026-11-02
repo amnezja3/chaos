@@ -1,5 +1,93 @@
 # Camera Street View S1–S3 i CHAOS Links — implementacja lokalna
 
+## Uzupełnienie 02.11.2026 — systemowe testy do Super Powers włącznie
+
+Baza: `32d0b95` + working tree. Operator rozszerzył przygotowanie do wykonania
+zakresu i testów mocy. **LOCAL PASS poniższego zakresu**, bez push/deploy,
+zmiany konfiguracji VPS lub ogłoszenia globalnego rollout.
+
+Przegląd potwierdził, że produkcyjne spięcie już istnieje: nowe receipt/flow,
+trwałe oznaczone kamery, kanoniczny `build_operation_instance`, produkcyjny
+hook GN, projekcja deadline z `player_operations`, weryfikowany aktywator,
+jednorazowe okno oraz trwały `feed` (zdjęcie + ruch + FX). Nie dodawano drugiego
+silnika ani zmian działającego renderera tylko dla uzyskania nowego diffu.
+Luka była w dowodach: dotychczasowe testy kamery przyspieszały operację
+bezpośrednim helperem lub mockiem hooka, a nie rzeczywistą aktywacją GN.
+
+### Wykonane zmiany
+
+- `tests/test_camera_system_powers.py`: rzeczywiste endpointy `/hack-action`,
+  `/gonna-win`, `/api/ghostnetwork/ability`, produkcyjny GN realizer i SQLite.
+  Dwa konta, global ON/pilot OFF tylko w fixture, ta sama trwale oznaczona
+  kamera bez skanu, mapowy flow, kontrakty desktop/terminal, nowa kompatybilna
+  aplikacja, retry i izolacja grantów. Bramki grantów kamery i uprawnień GN
+  są rzeczywiste; odziedziczona fixture pomija konflikt obcego terytorium,
+  więc nie zalicza nowego testu tej osobnej polityki. Mock granicy czasu
+  służy sprawdzeniu sekundy przed/na deadline w testach backendu.
+- `tools/camera_visual_local.py --system-test`: opcjonalny scenariusz w
+  istniejącej izolowanej kopii `instance/cvn-gameplay-164`; zwykły Flask,
+  worker operacji, worker materiału fixture i logowanie. Lokalny main otrzymuje
+  kontrolowaną profesję broker/poziom 60, moduł V1 i oznaczoną kamerę sklepu.
+  Czas bazowy 180 s; brak ręcznie tworzonych grantów, aktywatorów lub okien mocy.
+  Bez opcji pozostaje wcześniejszy runner. Nie uruchamiać jako usługi VPS.
+- `tests/browser/camera_system_powers.js`: rzeczywisty desktop w Playwright
+  MCP; normalne okno, materiał, reload, profil, consumed i nowa próba.
+- Zaktualizowano journal, tablicę, sprinty i zbiorczy runbook.
+
+### Wyniki i granice dowodów
+
+| Próba | Wynik lokalny |
+| --- | --- |
+| Insider Feed aktywny przed startem, poziom 60 | 1800 → 300 s; drugie konto bez mocy nadal 1800 s |
+| Insider Feed w trakcie bazowych 300 s | Po 60 s pozostałe 240 → 40 s; ponowienie aktywacji nie skraca ponownie |
+| Predykcja Operacyjna i zgodna nowa aplikacja | 1800 → 300 s, poprawne provenance; wygasłe okno nie przyspiesza nowej operacji |
+| Granica pobrania/zapisu | Sekundę przed terminem brak aktywatora i odmowa okna, nawet dla przedwcześnie terminalnej operacji; na terminie zweryfikowany plik i ready |
+| Konta/ponowienie/odtworzenie | Cudzy receipt odrzucony; nowe operacje i trajektorie dla nowych prób; retry bez duplikatu; odtworzenie serwisu/lease zachowuje cały feed |
+| Rzeczywisty UI z Insider Feed | Dwa pełne cykle po 30 s z bazowych 180 s; worker, zapis, automatyczne okno; przy 63% drugiego pobrania okna jeszcze nie było |
+| Reload/close w UI | Ten sam obraz, ruch i FX po reload; jeden viewer; zamknięty pierwszy pozostaje consumed, drugi dostaje nową operację i trajektorię |
+| Zdjęcie/FX | W obu próbach wylosowano tę samą fotografię; zmienił się ruch oraz grain → blocks. Nie wymagamy innego zdjęcia przy każdym losowaniu |
+| Regresje | 3 testy profilu instancji, 11 ekspozycji/incydentów i 5 skryptów JS PASS |
+
+Łącznie **17 testów backendu PASS** w celowanych przebiegach: 3 nowe
+systemowe + 14 profilu/ekspozycji/incydentów. Logi lokalne:
+`instance/camera-system-final-tests.log` (15),
+`instance/camera-system-powers-r3.log` (mid-download PASS; drugi test miał
+błąd pojemności fixture, poprawiony i zaliczony w final),
+`instance/camera-prediction-tests.log` (1). Pierwsze próby ujawniły błędy
+przygotowania fixture, nie regresje runtime; nie deklarujemy ich jako PASS.
+JS: launch_context, runtime_config, window_dedupe, operation_delta,
+target_transport. Kontrola składni nowego testu UI i `git diff --check`.
+
+Playwright MCP: zwykłe logowanie do lokalnego `/desktop`, aktywacja mocy
+przez kanoniczne API, wejście mapowe przez `/hack-action`, potem rzeczywista
+launch queue i Glass Eye. Nie deklarujemy klikania wszystkich trzech menu
+ani nowego odbioru PWA/mobile. 8 asercji pliku browser PASS; po nim osobno
+potwierdzono ukończenie drugiej operacji, nową trajektorię, obraz i okno.
+[Widoczny wynik](../../artifacts/camera-system-powers-2026-11-02.png).
+W tle pozostało stare, niezależne okno historycznej fixture z wygasłym
+materiałem; nie jest duplikatem testowanego feedu. Błędy połączenia w konsoli
+pochodziły z celowego restartu lokalnego serwera; po jego uruchomieniu brak
+nowych błędów JS ścieżki kamery. Początkowe `/login` było nieprawidłowym
+adresem narzędzia (404); właściwe logowanie odbyło się przez `/`.
+
+PROFILE HOT PATH AUDIT: nowe produkcyjne call sites: 0; w testowanych
+żądaniach `profile_full_read=0`, `profile_full_write=0`, `profile_bytes=0`,
+także z kontem 35 MiB. Przygotowanie konta testowego poza pomiarem korzysta
+z guarded patch; runtime korzysta z projekcji identity/capabilities,
+oznaczeń, operacji i inventory. Brak nowych migracji i zależności.
+
+### Co pozostaje przed pełnym rollout
+
+Lokalny PASS nie zastępuje testu konta robot/Insider Feed na VPS i realnego
+Mapillary z docelową konfiguracją. Następny etap to zbiorczy odbiór VPS
+(konto bez mocy + robot, kamera oznaczona, mapa/desktop/terminal, oba momenty
+aktywacji, OFC i plik, close/relogin, camera_off/incydent) po decyzji operatora.
+166.5: recovery/skala/PWA, operacyjne limity i L01/L02/retencja pozostają
+otwarte. Nie zmieniono produkcyjnych czasów, reguł teleportu, camera_off,
+zamrożonego prototypu, zdjęć graczy ani stanu produkcyjnych kont.
+
+Poniższa część z 01.11 pozostaje historycznym raportem implementacji S1–S3.
+
 Data: 01.11.2026. Baza Git: `025fd3f`. Zmiany w working tree, bez commit/push,
 VPS, produkcyjnej migracji i wywołań Mapillary. Dokument zastępuje listę braków
 implementacyjnych z audytu, ale nie zastępuje odbioru systemowego Sprintu 166.
