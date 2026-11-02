@@ -49,10 +49,21 @@ class CameraContractStore:
     def __init__(self, db_path):
         self.db_path = db_path
 
-    def observed(self, username, scan_id, camera_id, *, conn=None):
+    def observed(self, username, scan_id, camera_id, *, conn=None, allow_marked=False):
         if conn is None:
             with db_connect(self.db_path) as own:
-                return self.observed(username, scan_id, camera_id, conn=own)
+                return self.observed(username, scan_id, camera_id, conn=own, allow_marked=allow_marked)
+        if allow_marked and camera_id:
+            captured = conn.execute('''SELECT 1 FROM player_target_progress
+                WHERE username=? AND status='captured'
+                AND json_extract(target_json,'$.camera_id')=? LIMIT 1''', (username,camera_id)).fetchone()
+            if captured:
+                raise CameraContractError('camera_target_captured')
+            marked = conn.execute('''SELECT target_json FROM player_marked_targets
+                WHERE username=? AND status='active'
+                AND json_extract(target_json,'$.camera_id')=? LIMIT 2''', (username,camera_id)).fetchall()
+            if len(marked) == 1:
+                return loads_json(marked[0]['target_json'], {})
         row = conn.execute('''SELECT marker_json FROM response_camera_observations
             WHERE username=? AND scan_id=? AND camera_id=? AND expires_at > ?''',
             (username, scan_id, camera_id, datetime.now(timezone.utc).timestamp())).fetchone()
@@ -94,13 +105,14 @@ class CameraContractStore:
                  enqueue_launch=True, on_created=None, progress_on_replay=True):
         if any(str(store.db_path) != str(self.db_path) for store in (inventory, messages, deltas)):
             raise ValueError('camera_database_mismatch')
-        # Stable receipt survives process restarts and different client retry keys.
+        # Retries of one invocation keep their receipt. A later invocation on
+        # the same durable camera must not revive a completed operation.
         operation_id = 'camera_off_' + hashlib.sha256(
-            f'{username}:{scan_id}:{camera_id}:{app_id}'.encode()).hexdigest()[:28]
+            f'{username}:{scan_id}:{camera_id}:{app_id}:{request_key or flow_id}'.encode()).hexdigest()[:28]
         now = datetime.now(timezone.utc)
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
-            target = self.observed(username, scan_id, camera_id, conn=conn)
+            target = self.observed(username, scan_id, camera_id, conn=conn, allow_marked=True)
             row = conn.execute('''SELECT app_json FROM player_apps WHERE username=?
                 AND app_id=? AND status='installed' ''', (username, app_id)).fetchone()
             if not row or not eligible_app(loads_json(row['app_json'], {})):

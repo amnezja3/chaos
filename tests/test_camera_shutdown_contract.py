@@ -16,6 +16,39 @@ class CameraShutdownContractTest(unittest.TestCase):
     setUp = fixtures.PlayerHackReadPathsTest.setUp
     seed = fixtures.PlayerHackReadPathsTest.seed
 
+    def test_marked_camera_can_shutdown_again_without_scan_on_all_entry_paths(self):
+        self.prepare()
+        target = {**self.camera, 'lng':self.camera['lon'], 'scan_id':self.scan['scan_id']}
+        PlayerMarkedTargetStore(self.path).upsert('attacker', target)
+        self.runtime.upsert_aimed('attacker', target)
+        with db_connect(self.path) as conn:
+            conn.execute('DELETE FROM response_camera_observations')
+            conn.execute('DELETE FROM player_scan_snapshots')
+        ids = []
+        for source in ('map', 'desktop', 'terminal'):
+            if source == 'map':
+                endpoint, payload = '/hack-action', {**self.payload, '_client_action_key':'new-map'}
+            else:
+                endpoint, payload = '/gonna-win', dict(app_id='cam-off', launch_source=source,
+                    launch_receipt='new-'+source, expected_target=target)
+            result = self.client.post(endpoint, json=payload)
+            self.assertEqual(result.status_code, 200, result.json)
+            op = result.json['created_operations'][0]
+            self.assertNotIn(op['operation_id'], ids)
+            ids.append(op['operation_id'])
+            self.assertTrue(op['support_state']['active'])
+            self.assertEqual(op['duration_seconds'], 900)
+            replay = self.client.post(endpoint, json=payload).json
+            self.assertEqual(replay['created_operations'][0]['operation_id'], op['operation_id'])
+            op['status'] = 'timeout'
+            op['support_state']['active'] = False
+            self.operations.upsert_operations('attacker', [op])
+            replay = self.client.post(endpoint, json=payload).json
+            self.assertEqual(replay['created_operations'][0]['operation_id'], op['operation_id'])
+        self.runtime.mark_captured('attacker', target)
+        blocked = self.client.post('/hack-action', json={**self.payload, '_client_action_key':'captured'})
+        self.assertEqual(blocked.json['reason'], 'camera_target_captured')
+
     def test_windowmaker_camera_tool_is_offered_after_expired_scan_is_renewed(self):
         from creator_policy import generate_contract
         self.prepare()

@@ -2,6 +2,11 @@
 
 ## Korekta odbioru: kolejne operacje oznaczonej kamery
 
+02.11: odbiór obejmuje także sąsiednie camera_shutdown. Oznaczony cel
+nie wymaga żywego skanu; nowe wyłączenie po zakończeniu poprzedniego musi
+otrzymać nowy identyfikator operacji. Retry i próby podczas aktywnego
+wyłączenia nie resetują czasu. Wymagana regresja ekspozycji i incydentów.
+
 Oznaczona kamera pozostaje celem po wyczyszczeniu i wygaśnięciu skanu.
 Do pełnego zhakowania celu operacje mogą być ponawiane: nowy receipt,
 nowy sukces, nowe pobranie z czasem gameplayu, nowa instancja podglądu.

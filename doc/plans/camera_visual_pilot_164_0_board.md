@@ -4,6 +4,11 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+02.11: osobna regresja camera_shutdown — oznaczone kamery blokował wymóg
+żywego skanu, a zakończone wyłączenie wracało przy tym samym kluczu skanu.
+Lokalna poprawka autoryzacji i klucza nowej próby; odbiór wszystkich trzech
+wejść (mapa, desktop, terminal) i wpływu na incydenty pozostaje wymagany.
+
 **Powtórne pobranie nadal w odbiorze:** usunięto lokalnie aliasowanie nowych
 receipt do wcześniejszej aktywnej sesji tej samej kamery. Każda nowa próba
 tworzy własne pobranie; wyłącznie dokładny retry pozostaje idempotentny.

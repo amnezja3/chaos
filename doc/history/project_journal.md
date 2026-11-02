@@ -1,5 +1,27 @@
 # CHAOS — Project Journal
 
+## 2026-11-02 — ponowne camera_shutdown oznaczonej kamery
+
+Operator zgłosił camera_scan_expired_or_unknown dla admin_seed_camera_shutdown_v1
+z mapy, desktopu i terminala. Poprawka camera_stream nie obejmowała tej ścieżki.
+Shutdown dopuszcza teraz własne aktywne oznaczenie zamiast żywej obserwacji;
+captured w postępie blokuje nową operację. Nie zmieniono domyślnej semantyki
+observed dla pozostałych wywołań (jawne allow_marked tylko dla shutdown).
+Id operacji uwzględnia klucz nowej próby. Desktop/terminal przekazują receipt
+do shutdown zamiast samego flow. Zakończona operacja nie blokuje nowej próby,
+retry tego samego klucza nie resetuje czasu, aktywne wyłączenie nadal jest
+współdzielone. Zachowano typ camera_shutdown, czas 900 s, support_state,
+zapisy zdarzeń i mechanizm wpływu na incydenty. Bez migracji i sekretów.
+Bez push/deploy; odbiór VPS tej poprawki jeszcze niewykonany.
+
+Lokalna regresja: 47 testów camera_shutdown_contract + camera_visual_gameplay
+PASS; 11 testów camera_exposure + camera_incident_audit PASS. Test powtórnego
+wyłączenia usuwa scan snapshot i obserwacje, zachowuje oznaczenie i wykonuje
+kolejno mapę/desktop/terminal po zakończeniu poprzedniej operacji. Potwierdza
+nowe operation_id, retry bez nowej operacji, czas 900 s, support_state oraz
+odrzucenie captured. Jest to odbiór endpointów i mechaniki; bez nowego
+odbioru przeglądarkowego na VPS.
+
 ## 2026-11-01 — nowe receipt błędnie współdzieliło sesję kamery
 
 Log operatora dla cvn_39616fedcdee823817a03607253d4446: HTTP 200/success,

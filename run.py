@@ -24531,7 +24531,7 @@ def camera_shutdown_action(data, *, enqueue_launch=True, expected_camera_target=
     scan_id = str(data.get('scan_id') or '')[:100]
     camera_id = str(data.get('camera_id') or '')[:100]
     try:
-        target = store.observed(username, scan_id, camera_id)
+        target = store.observed(username, scan_id, camera_id, allow_marked=True)
         capability = capability_projection_store.get_capabilities(username)
         if not capability:
             raise CameraContractError('camera_capability_unavailable')
@@ -31224,6 +31224,7 @@ def _gonna_win_runtime():
                     return jsonify({'success': False, 'blocked': True, 'reason': 'target_selection_changed',
                                     'message': 'Cel aplikacji zmienil sie. Uruchom narzedzie ponownie.'}), 409
                 return camera_shutdown_action({**camera_target, 'selected_app_id': app_id,
+                                               '_client_action_key': data.get('launch_receipt') or data.get('launch_key'),
                                                '_flow_id': data.get('_flow_id'), 'choice_id': data.get('choice_id')},
                                               enqueue_launch=False, expected_camera_target=camera_target)
     choice_id = data.get("choice_id", None)
