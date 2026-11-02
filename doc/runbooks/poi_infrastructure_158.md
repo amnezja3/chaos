@@ -14,12 +14,15 @@ Status: pakiet lokalny do przeglądu. Najpierw wdrożenie z flagą OFF i baselin
 | CHAOS_POI_MAX_RESPONSE | 4194304 B | 1024–16777216, po dekompresji |
 | CHAOS_POI_MAX_ELEMENTS | 20000 | 1–50000 |
 | CHAOS_POI_MAX_CACHE | 67108864 B | 1–256 MiB payloadów |
+| CHAOS_POI_MAX_DATABASE_BYTES | 1073741824 B (1 GiB) | 1 MiB–16 GiB, wspólny plik SQLite; identycznie dla wszystkich writerów |
 | CHAOS_POI_MAX_ENTRIES | 2000 | 1–5000 |
 | CHAOS_OVERPASS_TIMEOUT_SECONDS | 8 s | istniejący read timeout + bonus GhostLab |
 | CHAOS_POI_CACHE_TTL_SECONDS | 300 s | istniejący parametr |
 | CHAOS_POI_STALE_CACHE_TTL_SECONDS | 1800 s | od udanego fetch, nie od odczytu |
 
-Jedno globalne HTTP na lokalną bazę. Slot i query lease mają deadline + 5 s. SQLite busy timeout 500 ms. Główny plik ma limit stron odpowiadający około 2 × limit payloadów, minimum 1 MiB. Zapisy są zatrzymywane, gdy WAL przekroczy limit payloadów + 8 MiB; pojedyncza transakcja może przekroczyć ten próg. Nie jest to limit całego filesystemu. Krótkie odczyty, autocheckpoint 64 strony i journal_size_limit 1 MiB ograniczają typowy WAL; długotrwały zewnętrzny czytelnik może blokować checkpoint. Monitorować plik i wolne miejsce.
+Jedno globalne HTTP na lokalną bazę. Slot i query lease mają deadline + 5 s. SQLite busy timeout 500 ms. Główny plik ma niezależny limit `CHAOS_POI_MAX_DATABASE_BYTES`: zawiera również świat, discovery i rozliczenia. Limit cache dotyczy wyłącznie payloadów cache, nie pojemności całej bazy. Zapisy są zatrzymywane, gdy WAL przekroczy limit payloadów + 8 MiB; pojedyncza transakcja może przekroczyć ten próg. Nie jest to limit całego filesystemu. Krótkie odczyty, autocheckpoint 64 strony i journal_size_limit 1 MiB ograniczają typowy WAL; długotrwały zewnętrzny czytelnik może blokować checkpoint. Monitorować plik i wolne miejsce.
+
+Korekta 2026-11-02: stary limit 2 × cache dawał domyślnie 128 MiB także dla danych świata. VPS osiągnął dokładnie tę granicę, bez wolnych stron, mimo około 50 GiB wolnego dysku. `max_page_count` odczytany z osobnego połączenia nie pokazuje limitu narzucanego przez transakcje aplikacji. Poprawka nie wymaga migracji ani czyszczenia danych; zachowuje cache eviction, leasing, ledger i ochronę WAL. Po standardowym wdrożeniu Git należy przeładować wszystkie procesy zapisujące przez Repository, w szczególności `chaos` i `chaos-world-discovery`, aby stare procesy nie narzucały ponownie 128 MiB. Nie uruchamiać historycznej procedury OFF opisanej poniżej w celu wdrożenia tej korekty. Odbiór: nowy scan i brak błędów zapisu; limit kontrolować na połączeniu `Repository.transaction()`, bez wywołania providera.
 
 ## 1. Pakiet OFF i pomiary
 

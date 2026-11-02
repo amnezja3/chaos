@@ -1,6 +1,16 @@
 # Pilot kamery 164.0 — wspólna tablica pracy
 
-Aktualizacja: 2026-11-02. Wersja tablicy: 13.
+Aktualizacja: 2026-11-02. Wersja tablicy: 14.
+
+### Najnowszy odbiór — VPS PASS globalnego dostępu i ponownego feedu z mocą
+
+Operator potwierdził global ON/pilot OFF w trzech rolach i enabled=true na
+robot. Kamera Librairie Japonaise Junku: 17:31:41–17:33:21 i ponownie
+17:36:11–17:37:51; oba pobrania po 100 s zakończyły się podglądem.
+PASS ścieżki testowanej z Insider Feed i powtórzenia na tej samej kamerze.
+Źródło: wyniki i odbiór operatora, nie bezpośredni pomiar agenta.
+Poziom robot niepodany; osobny test aktywacji mocy podczas pobierania na VPS
+oraz 166.5 nadal otwarte. Starsze statusy oczekiwania poniżej są historyczne.
 
 ### Bieżący checkpoint — system i Super Powers LOCAL PASS
 

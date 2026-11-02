@@ -1,5 +1,35 @@
 # CHAOS — Project Journal
 
+## 2026-11-02 — VPS PASS: globalny dostęp i dwa podglądy z mocą na robot
+
+Dowody przekazane przez operatora: trzy procesy chaos, chaos-territory-worker
+i chaos-camera-archive online z global ON/pilot OFF, ustawienia zachowane,
+pm2 save wykonane. Backup prywatnej konfiguracji: camera.before-global-20261102T162344Z.json.
+Na robot endpoint kamer zwrócił HTTP 200/enabled=true; moc była dostępna
+przed aktywacją. W prowadzonej próbie Insider Feed kamera Librairie Japonaise
+Junku otrzymała operację 17:31:41–17:33:21 (100 s, czas UI), a operator
+potwierdził otwarcie. Kolejna operacja tej samej kamery 17:36:11–17:37:51
+(100 s) także zakończyła się drugim podglądem. VPS PASS dwóch cykli,
+w tym ponownego pobrania i otwarcia z mocą po globalnym udostępnieniu.
+
+Nie jest to nowy odczyt agenta z VPS. Poziom robot i szczegóły aktywnego
+okna mocy nie zostały przekazane, więc mnożnik 1800/100=18 jest obserwacją,
+nie niezależną weryfikacją wzoru względem poziomu. Aktywacja mocy w trakcie
+pobierania ma nadal LOCAL PASS, bez odrębnego VPS PASS. 166.5/recovery,
+skala/PWA i L01/L02 pozostają otwarte. Lokalny HEAD przy zapisie: b6c8b77;
+nie wnioskujemy z niego o HEAD VPS. Aktualizacja dokumentów, bez pushu.
+
+## 2026-11-02 — operator zatwierdził globalny dostęp Camera Street View
+
+Po odczycie `enabled=false` dla kamer na robot i dostępnej, nieaktywnej
+mocy operator polecił „uruchamiamy globalnie”. Zgoda obejmuje globalne
+`CHAOS_CAMERA_STREET_VIEW=1` i wyłączenie ograniczenia pilota, z zachowaniem
+dotychczasowych sekretów, limitów, retencji i rozdziału ról. Przygotowano
+zbiorczą zmianę prywatnej konfiguracji i selektywny restart trzech procesów
+PM2 bez ponownego ładowania historycznych profili ecosystem. Wykonanie
+na VPS i test robot/Insider Feed oczekują na wynik operatora; nie są PASS.
+Nie zmieniono domyślnych flag repo ani nie wykonano pushu.
+
 ## 2026-11-02 — Camera Street View: LOCAL PASS integracji z Super Powers
 
 Operator polecił wykonać zakres aż do testów mocy. Na HEAD 32d0b95
@@ -8392,3 +8422,13 @@ Zmiany lokalne; bez pushu/wdrożenia i bez pełnego PASS 154.
   brak błędów JS i nieoczekiwanych błędów konsoli. Wycofanie zarejestrowanego SW
   usuwa cache CHAOS i zachowuje obcy cache. Harness czeka na zakończenie
   asynchronicznej aktywacji i wyrejestrowania, nie tylko zakończenie update().
+
+## 2026-11-02 — MapLark: niezależny limit wspólnej bazy POI
+
+VPS b6c8b77: skany zaczęły zwracać OperationalError; baza poi_cache.sqlite3 ma dokładnie 128 MiB (32768 stron po 4096 B), freelist=0, WAL=0, około 50 GiB wolnego dysku. Kod ustawiał max_page_count=2*max_cache przy każdej transakcji. Osobny odczyt PRAGMA nie pokazywał limitu writera. To mocne wyjaśnienie objawów; log VPS nie zawierał pełnego komunikatu wyjątku, więc odbiór naprawy na VPS pozostaje otwarty.
+
+Lokalnie: Repository oddziela cache payload budget od fizycznego limitu wspólnej bazy. CHAOS_POI_MAX_DATABASE_BYTES domyślnie 1 GiB, zakres 1 MiB–16 GiB, jednakowy dla bezpośrednich klientów i Service. Zachowane limity cache, eviction, fencing, WAL guard oraz dane świata/ledger. Brak migracji i kasowania danych. Nie zmieniano Camera Street View ani camera_off.
+
+Regresja: test_poi_database_capacity odtwarza SQLITE_FULL starego limitu na zmniejszonej fixture, następnie potwierdza zapis świata powyżej tego progu, mały cache, nowy fizyczny limit i rollback oraz walidację konfiguracji. Grupa 60 testów (database_capacity, wal_guard, poi_infrastructure, world_maplark_pilot, world_acquisition, poi_world): 59 PASS, 1 deadline lokalnego HTTP. Pierwszy retest deadline FAIL; porównanie z Repository HEAD w pamięci PASS, kolejny retest poprawki PASS. Test transportu jest wrażliwy czasowo; nie zmieniano jego deadline. Logi: instance/poi-capacity-tests.log, poi-capacity-transport-retest.log, poi-capacity-transport-baseline.log, poi-capacity-transport-retest2.log. git diff --check PASS.
+
+Status: lokalna poprawka gotowa do przeglądu, bez commit/push/deployment. Po standardowym wdrożeniu przeładować writerów POI (web i world-discovery), zachować konfigurację i dane; nowy scan stanowi odbiór VPS. Nie używać historycznych procedur OFF z runbooka 158.

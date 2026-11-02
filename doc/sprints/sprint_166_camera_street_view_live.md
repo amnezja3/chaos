@@ -1,5 +1,25 @@
 # Sprint 166 — Camera Street View: odbiór systemowy i pełny rollout
 
+## Odbiór operatora 02.11 — global ON i dwa cykle z mocą VPS PASS
+
+Globalny dostęp włączony i utrwalony PM2 we wszystkich trzech rolach,
+pilot OFF; robot otrzymuje enabled=true. Operator potwierdził dwa otwarcia
+kamery Librairie Japonaise Junku po odrębnych operacjach trwających 100 s:
+17:31:41–17:33:21 oraz 17:36:11–17:37:51 (czas UI). PASS testowanej ścieżki
+Insider Feed i ponownego podglądu tej samej kamery. Nie jest to PASS
+aktywacji mocy w trakcie trwającego pobierania na VPS ani zamknięcie 166.5.
+Poziom robot nie został podany; nie przypisywać mu wywnioskowanego poziomu.
+Szczegóły i granice dowodów: journal 02.11, wpis „VPS PASS: globalny dostęp”.
+Poniższa decyzja wdrożeniowa została wykonana według raportu operatora.
+
+## Decyzja operatora 02.11 — globalne włączenie zatwierdzone
+
+Operator zatwierdził dostęp dla wszystkich graczy zamiast przełączania
+pilota main→robot. Docelowo STREET_VIEW=1, VISUAL_PILOT=0 we wspólnym
+prywatnym pliku i środowiskach trzech ról; sekrety, retencja, budżety oraz
+role acquisition/serve bez zmian. Wykonanie VPS oczekuje na potwierdzenie.
+To decyzja rollout, nie PASS testu mocy na VPS ani zamknięcie 166.5/L01/L02.
+
 ## Wykonanie 02.11.2026 — zakres do Super Powers: LOCAL PASS
 
 Po poleceniu „realizuj ten zakres aż do testów z superpowers” wykonano

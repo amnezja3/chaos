@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import time
@@ -9,10 +10,17 @@ import uuid
 
 
 class Repository:
-    def __init__(self, path, max_bytes=64 * 1024 * 1024, max_entries=2000):
+    def __init__(self, path, max_bytes=64 * 1024 * 1024, max_entries=2000,
+                 max_database_bytes=None):
         self.path = str(path)
         self.max_bytes = max_bytes
         self.max_entries = max_entries
+        # This database also contains world snapshots, discovery and billing.
+        # Cache payload eviction must not impose a physical cap on those tables.
+        self.max_database_bytes = int(max_database_bytes if max_database_bytes is not None
+                                      else os.environ.get('CHAOS_POI_MAX_DATABASE_BYTES', 1024 ** 3))
+        if not 1024 ** 2 <= self.max_database_bytes <= 16 * 1024 ** 3:
+            raise ValueError('Invalid POI setting: max_database_bytes')
 
     def connect(self):
         conn = sqlite3.connect(self.path, timeout=.5, isolation_level=None)
@@ -47,7 +55,7 @@ class Repository:
             # Physical main-file limit; WAL bounded operationally by short readers
             # and checkpoints. No VACUUM in request handling.
             page_size = c.execute('PRAGMA page_size').fetchone()[0]
-            c.execute(f'PRAGMA max_page_count={max(256, self.max_bytes * 2 // page_size)}')
+            c.execute(f'PRAGMA max_page_count={self.max_database_bytes // page_size}')
         finally:
             c.close()
 
@@ -66,7 +74,7 @@ class Repository:
         try:
             c.execute('BEGIN IMMEDIATE')
             page_size = c.execute('PRAGMA page_size').fetchone()[0]
-            c.execute(f'PRAGMA max_page_count={max(256, self.max_bytes * 2 // page_size)}')
+            c.execute(f'PRAGMA max_page_count={self.max_database_bytes // page_size}')
             yield c
             c.commit()
         except BaseException:
