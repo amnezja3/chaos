@@ -108,7 +108,7 @@ class CameraContractStore:
         # Retries of one invocation keep their receipt. A later invocation on
         # the same durable camera must not revive a completed operation.
         operation_id = 'camera_off_' + hashlib.sha256(
-            f'{username}:{scan_id}:{camera_id}:{app_id}:{request_key or flow_id}'.encode()).hexdigest()[:28]
+            dumps_json([username, scan_id, camera_id, app_id, request_key, flow_id]).encode()).hexdigest()[:28]
         now = datetime.now(timezone.utc)
         with db_connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')

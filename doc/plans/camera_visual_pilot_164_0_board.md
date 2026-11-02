@@ -4,6 +4,12 @@ Aktualizacja: 2026-11-01. Wersja tablicy: 12.
 
 ### Bieżący checkpoint 166.1
 
+02.11: nowy flow Brioche Dorée wysyłał receipt z 01.11. Potwierdzona przyczyna:
+mapowy klucz celu/akcji jest stały, więc receipt musi uwzględniać również
+nowy flow kliknięcia. Poprawka lokalna dla stream i shutdown. Test nowego
+flow przy tym samym kluczu oraz regresje retry/aktywnych operacji PASS.
+Odbiór VPS nadal wymagany; bez nowego skanu dla oznaczonej kamery.
+
 02.11: osobna regresja camera_shutdown — oznaczone kamery blokował wymóg
 żywego skanu, a zakończone wyłączenie wracało przy tym samym kluczu skanu.
 Lokalna poprawka autoryzacji i klucza nowej próby; odbiór wszystkich trzech

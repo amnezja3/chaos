@@ -25,9 +25,9 @@ class CameraShutdownContractTest(unittest.TestCase):
             conn.execute('DELETE FROM response_camera_observations')
             conn.execute('DELETE FROM player_scan_snapshots')
         ids = []
-        for source in ('map', 'desktop', 'terminal'):
-            if source == 'map':
-                endpoint, payload = '/hack-action', {**self.payload, '_client_action_key':'new-map'}
+        for source in ('map', 'map-again', 'desktop', 'terminal'):
+            if source.startswith('map'):
+                endpoint, payload = '/hack-action', {**self.payload, '_client_action_key':'same-map-key', '_flow_id':'click-'+source}
             else:
                 endpoint, payload = '/gonna-win', dict(app_id='cam-off', launch_source=source,
                     launch_receipt='new-'+source, expected_target=target)

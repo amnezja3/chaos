@@ -115,9 +115,15 @@ class CameraVisual:
                 lng = float(requested.get('lng', requested.get('lon')))
             except (KeyError, TypeError, ValueError):
                 raise PilotError('camera_target_unavailable')
-            rows = conn.execute('''SELECT target_json FROM player_marked_targets
-                WHERE username=? AND status='active' AND lat=? AND lng=?
-                LIMIT 2''', (username, lat, lng)).fetchall()
+            if requested.get('camera_id'):
+                rows = conn.execute('''SELECT target_json FROM player_marked_targets
+                    WHERE username=? AND status='active'
+                    AND json_extract(target_json,'$.camera_id')=? LIMIT 2''',
+                    (username, requested['camera_id'])).fetchall()
+            else:
+                rows = conn.execute('''SELECT target_json FROM player_marked_targets
+                    WHERE username=? AND status='active' AND lat=? AND lng=?
+                    LIMIT 2''', (username, lat, lng)).fetchall()
             marked = [json.loads(row['target_json']) for row in rows]
             marked = [m for m in marked if m.get('camera_id')
                       and (not requested.get('camera_id') or m['camera_id'] == requested['camera_id'])
@@ -131,7 +137,8 @@ class CameraVisual:
                 if captured:
                     raise PilotError('camera_target_captured')
                 if target.get('camera_id') == canonical['camera_id']:
-                    return {**canonical, **target}
+                    return {**canonical, **target, 'lat':canonical['lat'],
+                            'lng':canonical.get('lng', canonical.get('lon'))}
                 return canonical
         if requested and not requested.get('camera_id') and enabled(username) and not pilot_target(requested):
             # Resolve legacy transport only against unambiguous server evidence.
@@ -203,7 +210,10 @@ class CameraVisual:
             key = str(data.get('_client_action_key') or data.get('_flow_id') or '')[:160]
             if not key:
                 raise PilotError('camera_launch_key_required')
-            receipt = 'cvn_' + hashlib.sha256(f'{username}:{app_id}:{key}'.encode()).hexdigest()[:32]
+            # The map's client key identifies the target/action, not a click.
+            # Its flow id is fresh per invocation and shared by picker retries.
+            flow = str(data.get('_flow_id') or '')[:96]
+            receipt = 'cvn_' + hashlib.sha256(encoded([username, app_id, key, flow]).encode()).hexdigest()[:32]
             target = self.rt.player_target_runtime_store.upsert_aimed(username, target, conn=conn).get('target') or target
             launch = dict(receipt=receipt, app_id=app_id, name=app.get('name'), action='camera_stream',
                           flow_id=data.get('_flow_id') or '', expected_target=target)

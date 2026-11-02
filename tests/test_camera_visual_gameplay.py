@@ -307,6 +307,25 @@ class CameraVisualGameplayTest(unittest.TestCase):
     def test_observed_world_camera_uses_canonical_identity(self):
         self.check_observed_world_camera('1')
 
+    def test_map_target_key_can_start_new_flow_but_same_flow_replays(self):
+        self.prepare()
+        data = {**self.target, 'action':'camera_stream', 'selected_app_id':self.app['id'],
+                '_client_action_key':'same-map-target-key', '_flow_id':'first-click'}
+        first = self.client.post('/hack-action', json=data).json
+        retry = self.client.post('/hack-action', json=data).json
+        other = self.client.post('/hack-action', json={**data, '_flow_id':'next-click'}).json
+        a, b = first['added_apps'][0]['receipt'], other['added_apps'][0]['receipt']
+        self.assertEqual(a, retry['added_apps'][0]['receipt'])
+        self.assertNotEqual(a, b)
+        result = self.client.post('/gonna-win', json={**self.payload,
+            'expected_target':first['target'], 'launch_receipt':a, 'launch_source':'launch_queue'}).json
+        self.complete(result)
+        second = self.client.post('/gonna-win', json={**self.payload,
+            'expected_target':other['target'], 'launch_receipt':b, 'launch_source':'launch_queue'}).json
+        self.assertTrue(second['success'], second)
+        self.assertFalse(second['duplicate'])
+        self.assertNotEqual(result['camera_visual']['operation_id'], second['camera_visual']['operation_id'])
+
     def test_marked_camera_survives_cleared_scan_and_new_invocations(self):
         from database import PlayerMarkedTargetStore, PlayerScanSnapshotStore
         from response_network.camera_contract import camera_marker
@@ -320,6 +339,11 @@ class CameraVisualGameplayTest(unittest.TestCase):
         with db_connect(self.path) as conn:
             conn.execute('DELETE FROM response_camera_observations WHERE username=?', ('attacker',))
             conn.execute('DELETE FROM player_scan_snapshots WHERE username=?', ('attacker',))
+            # Transport coordinates may be rounded; the durable camera_id is
+            # authoritative and the server must recover the stored geometry.
+            resolved = self.service.target(conn, 'attacker', {**marker,
+                'lat':round(marker['lat'], 5), 'lng':round(marker['lon'], 5)})
+            self.assertEqual(resolved['lat'], marker['lat'])
         operations = []
         for source in ('launch_queue', 'desktop_menu'):
             launch = self.client.post('/hack-action', json={**marker, 'action':'camera_stream',

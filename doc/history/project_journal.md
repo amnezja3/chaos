@@ -1,5 +1,41 @@
 # CHAOS — Project Journal
 
+## 2026-11-02 — potwierdzony stary receipt z nowego kliknięcia mapy
+
+Nowy log hf-mvz6vmav-8po73 używa cvn_07e0cf0353b6a8a3e144dc800489d0c2,
+czyli receipt Brioche Dorée z 01.11. HTTP 200 i natychmiastowe zamknięcie
+wynikają z replay starej sesji. To konkretny dowód dla aktualnego zgłoszenia,
+nie błąd wygasłego skanu ani potwierdzenie hipotezy zaokrąglenia współrzędnych.
+Mapa generuje stały hackActionKey dla celu/akcji i świeży hackFlowId na
+kliknięcie. CameraVisual.launch haszował tylko stały klucz. Teraz receipt
+uwzględnia także flow. Camera shutdown otrzymał tę samą korektę, ponieważ
+priorytet request_key również pomijał nowy flow. Ten sam flow/key odtwarza
+wynik; nowy flow przy tym samym kluczu celu tworzy nową próbę. Nie usuwamy
+starych sesji i nie wyłączamy idempotencji. Bez zmian frontendowego UI,
+konfiguracji i migracji. Bez push/deploy.
+
+Test nowego flow przy stałym kluczu mapowym PASS (nowy receipt i nowa
+operacja po zakończeniu pobrania). Dodatkowe 3 testy PASS: ponowne mapowe
+shutdown + desktop/terminal bez skanu, współdzielenie aktywnego wyłączenia,
+niezależny nowy download i idempotencja dokładnego receipt. Testy endpointów,
+bez nowego odbioru przeglądarkowego/VPS.
+
+## 2026-11-02 — podgląd poza pilotem nadal w odbiorze
+
+Po wdrożeniu 1cc5c13 operator pokazał aktywne camera_shutdown dla trzech
+kamer, lecz zgłosił brak ponownych podglądów poza pilotem. Screenshot nie
+zawiera odpowiedzi Glass Eye dla nieudanego celu; nie potwierdza przyczyny.
+Audyt znalazł różnicę: camera_visual wyszukiwał trwałe oznaczenie po dokładnej
+równości lat/lng, podczas gdy shutdown po camera_id. Lokalnie wyszukiwanie
+podglądu używa camera_id w oznaczeniach danego gracza; geometria pochodzi
+z zapisu kanonicznego. Ścieżka bez camera_id zachowuje ścisłe sprawdzenie
+współrzędnych. Nie zmieniono grantów, zasięgu, pobierania ani camera_off.
+To korekta obsługi zaokrąglonych współrzędnych, jeszcze nie dowód usunięcia
+aktualnej blokady VPS. Brak push/deploy.
+2 testy integracyjne PASS: oznaczenie bez skanu z zaokrąglonymi
+współrzędnymi oraz kanoniczna kamera ze skanu. Odpowiedź błędnej próby
+operatora nadal potrzebna do potwierdzenia diagnozy produkcyjnej.
+
 ## 2026-11-02 — ponowne camera_shutdown oznaczonej kamery
 
 Operator zgłosił camera_scan_expired_or_unknown dla admin_seed_camera_shutdown_v1
