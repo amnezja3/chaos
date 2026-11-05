@@ -5,6 +5,7 @@ Headers are part of the input contract: a JSON file alone cannot prove completen
 """
 from dataclasses import dataclass
 import os
+import logging
 import re
 from urllib.parse import urlencode
 
@@ -125,7 +126,8 @@ def _features(raw, maximum):
     return features
 
 
-def normalize_maplark(raw, headers, provenance, *, profile=POI_PROFILE, maximum=20000):
+def normalize_maplark(raw, headers, provenance, *, profile=POI_PROFILE, maximum=20000,
+                      skip_unsupported_geometry=False):
     if provenance.provider != 'maplark' or provenance.adapter_version != MAPLARK_VERSION:
         raise ContractError('adapter_provenance_mismatch')
     features = _features(raw, maximum)
@@ -150,11 +152,24 @@ def normalize_maplark(raw, headers, provenance, *, profile=POI_PROFILE, maximum=
         reasons.append('response_partial')
     objects = []
     remaining_vertices = 100000
+    skipped_types = {}
     for ordinal, f in enumerate(features):
         match = re.fullmatch(r'(node|way|relation)/([1-9][0-9]*)', str(f.get('id', '')))
         if not match:
             raise ContractError('maplark_osm_identity_invalid')
-        geometry = Geometry.parse(f.get('geometry'), max_vertices=min(20000, remaining_vertices))
+        try:
+            geometry = Geometry.parse(f.get('geometry'), max_vertices=min(20000, remaining_vertices))
+        except ContractError as exc:
+            if not skip_unsupported_geometry or str(exc) != 'geometry_unsupported':
+                raise
+            # Only the live observation path may retain the other records.
+            # Invalid supported geometry and all integrity checks remain fatal.
+            if 'geometry_unsupported' not in reasons:
+                reasons.append('geometry_unsupported')
+            kind = f['geometry'].get('type')
+            label = kind if kind in ('MultiPoint', 'MultiLineString') else 'other'
+            skipped_types[label] = skipped_types.get(label, 0) + 1
+            continue
         remaining_vertices -= geometry.vertices
         kind, osm_id = match.group(1), int(match.group(2))
         if kind == 'node' and geometry.kind != 'Point':
@@ -165,6 +180,9 @@ def normalize_maplark(raw, headers, provenance, *, profile=POI_PROFILE, maximum=
         objects.append(WorldObject.create(external_id=f['id'], osm_type=kind, osm_id=osm_id,
             tags=f['properties'].get('tags'), geometry=geometry, marker=marker,
             marker_method=method, provenance=provenance, ordinal=ordinal))
+    if skipped_types:
+        logging.getLogger(__name__).warning('poi_maplark_geometry_skipped counts=%s retained=%s',
+                                            skipped_types, len(objects))
     # Complete means the provider response, not parity with Overpass or reusable area.
     return ProviderBatch(tuple(objects), profile, 'partial' if reasons else 'complete',
                          tuple(reasons), 'maplark-radius-unverified', 'provider-order-unverified')

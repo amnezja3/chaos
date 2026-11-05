@@ -45,6 +45,56 @@ class AcquisitionTests(unittest.TestCase):
             self.call(transport)
         transport.assert_called_once()
 
+    def geometry_response(self, geometry=None):
+        from test_world_maplark_pilot import point
+        unsupported = dict(type='Feature',id='way/22',properties={'tags':{'shop':'yes'}},
+                           geometry=geometry or dict(type='MultiLineString',coordinates=[[[21,52],[21.1,52.1]]]))
+        response=self.response(body={'type':'FeatureCollection','features':[point(),unsupported]})
+        response[2]['response_headers']['X-Returned']='2'
+        return response
+
+    def test_live_scan_retains_valid_objects_with_partial_coverage(self):
+        from poi_infrastructure.maplark_profile import export_maplark
+        transport=Mock(return_value=self.geometry_response())
+        with self.assertLogs('poi_infrastructure.world_adapters',level='WARNING') as logs:
+            batch,bill=self.call(transport,allow_truncated_scan=True)
+        self.assertIn('MultiLineString',logs.output[0])
+        self.assertEqual(len(batch.objects),1)
+        self.assertEqual(batch.reasons,('geometry_unsupported',))
+        data=export_maplark(batch,observations=True)
+        self.assertEqual(len(data['elements']),1)
+        self.assertEqual(data['poi_coverage']['state'],'partial')
+        with self.assertRaises(ContractError): export_maplark(batch)
+        with self.assertRaises(ContractError): batch.export_overpass()
+        transport.assert_called_once()
+        self.assertEqual(self.ledger.status('maplark')[0]['committed'],9)
+
+    def test_default_stays_strict_for_unsupported_geometry(self):
+        with self.assertRaisesRegex(ContractError,'geometry_unsupported'):
+            self.call(Mock(return_value=self.geometry_response()))
+
+    def test_all_unsupported_and_truncated_is_empty_partial_not_empty_coverage(self):
+        from poi_infrastructure.maplark_profile import export_maplark
+        response=self.geometry_response()
+        response[2]['body']['features']=response[2]['body']['features'][1:]
+        response[2]['response_headers'].update({'X-Returned':'1','X-Has-More':'true'})
+        batch,_=self.call(Mock(return_value=response),allow_truncated_scan=True)
+        data=export_maplark(batch,observations=True)
+        self.assertEqual(data['elements'],[])
+        self.assertEqual(data['poi_coverage']['state'],'partial')
+        self.assertEqual(data['poi_coverage']['reasons'],['truncated','geometry_unsupported'])
+
+    def test_live_scan_does_not_skip_invalid_supported_geometry(self):
+        with self.assertRaisesRegex(ContractError,'geometry_shape'):
+            self.call(Mock(return_value=self.geometry_response(dict(type='LineString',coordinates=[]))),
+                      allow_truncated_scan=True)
+
+    def test_skipping_geometry_does_not_hide_header_integrity_failure(self):
+        response=self.geometry_response()
+        response[2]['response_headers']['X-Returned']='3'
+        with self.assertRaisesRegex(ContractError,'provider_response_incomplete'):
+            self.call(Mock(return_value=response),allow_truncated_scan=True)
+
     def test_http_error_still_charged_no_retry(self):
         transport = Mock(return_value=self.response(status=500))
         with self.assertRaisesRegex(POIError, 'http_500'):

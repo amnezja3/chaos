@@ -121,6 +121,20 @@ class ArchiveStore:
             if row['requests']>=int(os.environ.get('CHAOS_CAMERA_MAX_REQUESTS','100')) or row['bytes_reserved']+size>int(os.environ.get('CHAOS_CAMERA_MAX_BYTES',str(100*1024*1024))):
                 raise SourceError('budget_deferred',86400)
             conn.execute('UPDATE camera_visual_budget SET requests=requests+1,bytes_reserved=bytes_reserved+? WHERE day=?',(size,day))
+        settled = False
+        def settle(actual):
+            # Only a complete, measured response releases unused capacity.
+            # Crashes/failed transfers retain their reservation; requests never refund.
+            nonlocal settled
+            if type(actual) is not int or not 0 <= actual <= size:
+                raise ValueError('invalid_transfer_size')
+            if settled:
+                return
+            with atomic_runtime_transaction(self.path) as conn:
+                conn.execute('UPDATE camera_visual_budget SET bytes_reserved=bytes_reserved-? WHERE day=?',
+                             (size-actual,day))
+            settled = True
+        return settle
 
     def process_one(self,source=None):
         if os.environ.get('CHAOS_CAMERA_WORKER')!='1':
@@ -139,7 +153,8 @@ class ArchiveStore:
                 return {'status':'IDLE'}
             key=row['archive_id']
             if now-row['created_at']>900 or row['attempts']>=2:
-                conn.execute("UPDATE camera_visual_archives SET status='EXPIRED',reason='job_deadline' WHERE archive_id=?",(key,))
+                conn.execute("UPDATE camera_visual_archives SET status='EXPIRED',reason=? WHERE archive_id=?",
+                             ('job_deadline' + (':'+row['reason'] if row['reason'] else ''),key))
                 return {'status':'EXPIRED'}
             if conn.execute("SELECT count(*) FROM camera_visual_archives WHERE status='READY'").fetchone()[0]>=int(os.environ.get('CHAOS_CAMERA_MAX_ARCHIVES','10')):
                 conn.execute("UPDATE camera_visual_archives SET status='DEFERRED',retry_at=?,reason='archive_quota' WHERE archive_id=?",(now+3600,key))
@@ -183,6 +198,7 @@ class ArchiveStore:
             status='READY' if images else 'NO_COVERAGE'
             if not images:
                 retry=3600
+                reason=getattr(provider,'diagnostic_reason','')
         except SourceError as exc:
             reason=str(exc); retry=exc.retry_after
             status='DEFERRED' if row['attempts']<1 else 'FAILED'
@@ -202,7 +218,7 @@ class ArchiveStore:
                 expires_at=?,updated_at=?,retry_at=?,lease='',lease_until=0 WHERE archive_id=? AND lease=? AND lease_until>?''',
                 (status,reason,json.dumps(images),time.time()+retention if status=='READY' else 0,
                  time.time(),time.time()+retry,key,fence,time.time())).rowcount
-        return {'status':status if changed else 'LEASE_LOST','archive_id':key,'images':len(images)}
+        return {'status':status if changed else 'LEASE_LOST','archive_id':key,'images':len(images),'reason':reason}
 
     def withdraw(self,source,image_id,reason):
         with atomic_runtime_transaction(self.path) as conn:

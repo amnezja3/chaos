@@ -342,3 +342,11 @@ nowego systemu demonstracyjnego, aktywacji Mapillary i historycznych procedur VP
 - [Historia demonstratorów A/B](../audits/camera_visual_prototype_164_0.md)
 - [Kontrakt lekkich ścieżek profilu](../architecture/profile_hot_path_contract_130_11_plus.md)
 - [Journal projektu](../history/project_journal.md)
+
+## 2026-11-02 — Odbiór Warszawa: transfer / brak materiału
+
+VPS: cztery kamery bez materiału (trzy EXPIRED/job_deadline po DEFERRED, jedna NO_COVERAGE). Budżet 2026-11-02: 16 requestów, 101711872 B = 97 MiB rezerwacji. Przy domyślnych 100 MiB nie mieści się kolejna rezerwacja zdjęcia 10 MiB. Historyczny powód DEFERRED został nadpisany; to silny trop budżetowy, a nie dowód braku pokrycia Warszawy.
+
+Poprawka lokalna: zwalnianie niewykorzystanej rezerwacji po pełnej odpowiedzi, zachowanie requests oraz pełnej rezerwacji przerwanych transferów; dzień UTC przypięty do rezerwacji. EXPIRED zachowuje poprzednią przyczynę; NO_COVERAGE raportuje liczniki selekcji bez sekretów. Brak zmiany filtrów, limitów VPS, grantów, camera_off i zaakceptowanego wyglądu. Historyczne rezerwacje nie są resetowane.
+
+Odbiór VPS nadal otwarty: wdrożenie przez Git i restart chaos-camera-archive, potem świeże pobranie w dostępnym budżecie. NO_COVERAGE wymaga nowych liczników selection przed zmianą doboru zdjęć. Szczegóły w runbooku camera_street_view_system_s1_s3.md.

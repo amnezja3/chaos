@@ -63,6 +63,75 @@ class CameraArchiveTest(unittest.TestCase):
             self.store.reserve(100)
             with self.assertRaisesRegex(SourceError,'budget_deferred'): self.store.reserve(100)
 
+    def test_measured_transfer_releases_capacity_once_on_original_day(self):
+        with patch('camera_visual_archive.time.strftime',return_value='2026-11-02'):
+            settle=self.store.reserve(100)
+            self.store.reserve(50)  # failed/unsettled transfer remains charged
+        with patch('camera_visual_archive.time.strftime',return_value='2026-11-03'):
+            settle(20)
+            settle(20)
+        with self.assertRaises(ValueError): settle(101)
+        with db_connect(self.path) as conn:
+            row=conn.execute('SELECT * FROM camera_visual_budget').fetchone()
+            self.assertEqual((row['day'],row['requests'],row['bytes_reserved']),('2026-11-02',2,70))
+
+    def test_budget_fits_next_download_after_measured_settlement(self):
+        with patch.dict(os.environ,CHAOS_CAMERA_MAX_BYTES='100'):
+            settle=self.store.reserve(100)
+            with self.assertRaises(SourceError): self.store.reserve(1)
+            settle(10)
+            self.store.reserve(90)
+            with db_connect(self.path) as conn:
+                row=conn.execute('SELECT * FROM camera_visual_budget').fetchone()
+                self.assertEqual((row['requests'],row['bytes_reserved']),(2,100))
+
+    def test_expiry_keeps_original_deferral_reason(self):
+        self.enqueue()
+        class BudgetBlocked:
+            name='fixture'
+            def fetch(self,target,reserve): raise SourceError('budget_deferred',86400)
+        result=self.store.process_one(BudgetBlocked())
+        self.assertEqual(result['reason'],'budget_deferred')
+        with db_connect(self.path) as conn:
+            conn.execute('UPDATE camera_visual_archives SET created_at=0')
+        self.assertEqual(self.store.process_one()['status'],'EXPIRED')
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT reason FROM camera_visual_archives').fetchone()[0],
+                             'job_deadline:budget_deferred')
+
+    def test_selection_diagnostics_explain_rejected_photos(self):
+        row=dict(id='123',geometry={'coordinates':[2.33050,48.86417]},
+                 creator={'username':'fixture'},thumb_1024_url='https://cdn.invalid/photo')
+        diagnostics={}
+        self.assertEqual(select_images([{**row,'is_pano':True},
+            {**row,'geometry':{'coordinates':[0,0]}},{**row,'creator':{}}],self.target,diagnostics),[])
+        self.assertEqual(diagnostics,dict(returned=3,examined=3,panorama=1,distance=1,identity_or_author=1))
+
+    def test_no_coverage_persists_safe_selection_counts_and_actual_metadata_bytes(self):
+        raw=b'{"data": []}'
+        with patch.dict(os.environ,CHAOS_CAMERA_SOURCE='mapillary',MAPILLARY_ACCESS_TOKEN='secret-fixture',
+                        CHAOS_CAMERA_ACQUISITION='1',CHAOS_CAMERA_RETENTION_SECONDS='86400',
+                        CHAOS_CAMERA_RIGHTS_REFERENCE='fixture',CHAOS_CAMERA_LICENSE='fixture',
+                        CHAOS_CAMERA_LICENSE_URL='https://example.invalid/license'):
+            self.enqueue()
+            result=self.store.process_one(MapillarySource(lambda *a,**kw:(raw,'application/json')))
+        self.assertEqual(result['status'],'NO_COVERAGE')
+        self.assertEqual(json.loads(result['reason'].removeprefix('selection:')),
+                         dict(returned=0,examined=0,selected=0))
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT reason FROM camera_visual_archives').fetchone()[0],result['reason'])
+            self.assertEqual(conn.execute('SELECT bytes_reserved FROM camera_visual_budget').fetchone()[0],len(raw))
+
+    def test_failed_metadata_transport_retains_full_reservation(self):
+        def failure(*a,**kw): raise SourceError('source_deadline')
+        with patch.dict(os.environ,MAPILLARY_ACCESS_TOKEN='fixture',CHAOS_CAMERA_ACQUISITION='1',
+                        CHAOS_CAMERA_RIGHTS_REFERENCE='fixture',CHAOS_CAMERA_LICENSE='fixture',
+                        CHAOS_CAMERA_LICENSE_URL='fixture'):
+            with self.assertRaises(SourceError):
+                MapillarySource(failure).fetch(self.target,self.store.reserve)
+        with db_connect(self.path) as conn:
+            self.assertEqual(conn.execute('SELECT bytes_reserved FROM camera_visual_budget').fetchone()[0],1024*1024)
+
     def test_storage_quota_defers_before_fetch_and_does_not_block_other_jobs(self):
         first = self.enqueue()
         self.target['camera_id'] = 'camera-second'
@@ -116,7 +185,10 @@ class CameraArchiveTest(unittest.TestCase):
 
     def test_mapillary_adapter_uses_fixtures_not_network(self):
         buffer=io.BytesIO(); Image.new('RGB',(1280,720),'gray').save(buffer,format='JPEG')
-        calls=[]; reservations=[]
+        calls=[]; reservations=[]; settlements=[]
+        def reserve(size):
+            reservations.append(size)
+            return settlements.append
         def transport(url,**kwargs):
             calls.append((url,kwargs))
             if '/images?' in url:
@@ -124,11 +196,14 @@ class CameraArchiveTest(unittest.TestCase):
             return buffer.getvalue(),'image/jpeg'
         with patch.dict(os.environ,MAPILLARY_ACCESS_TOKEN='fixture-token',CHAOS_CAMERA_ACQUISITION='1',
                         CHAOS_CAMERA_RIGHTS_REFERENCE='fixture-rights',CHAOS_CAMERA_LICENSE='fixture-license',CHAOS_CAMERA_LICENSE_URL='https://creativecommons.org/licenses/by-sa/4.0/'):
-            images=MapillarySource(transport).fetch(self.target,reservations.append)
+            images=MapillarySource(transport).fetch(self.target,reserve)
         self.assertEqual(len(images),1); self.assertEqual(len(calls),2)
         self.assertNotIn('fixture-token',calls[0][0]); self.assertNotIn('token',calls[1][1])
         self.assertNotIn('original',calls[0][0]); self.assertEqual(len(reservations),2)
         self.assertEqual(images[0][1]['author'],'fixture-author')
+        self.assertEqual(len(settlements),2)
+        self.assertEqual(settlements[1],len(buffer.getvalue()))
+        self.assertLess(settlements[0],reservations[0])
 
     def test_ssrf_redirect_and_media_validation(self):
         for url in ('http://graph.mapillary.com/images','https://127.0.0.1/image','https://evil.invalid/image','https://user:pass@graph.mapillary.com/images'):

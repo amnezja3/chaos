@@ -80,21 +80,34 @@ def distance(lat, lon, other_lat, other_lon):
     return 6371000*2*math.asin(min(1,math.sqrt(d)))
 
 
-def select_images(rows, target):
+def select_images(rows, target, diagnostics=None):
     """One bounded page; direction, sequence, distance and id form stable order."""
     lat,lon=float(target['lat']),float(target.get('lng',target.get('lon')))
     candidates={}
+    counts = diagnostics if diagnostics is not None else {}
+    counts.update(returned=len(rows), examined=min(30,len(rows)))
+    def reject(reason):
+        counts[reason]=counts.get(reason,0)+1
     for raw in rows[:30]:
         try:
             coords=(raw.get('computed_geometry') or raw['geometry'])['coordinates']
             x,y=map(float,coords[:2]); metres=distance(lat,lon,y,x)
-            if not (-180<=x<=180 and -90<=y<=90) or metres>100 or raw.get('is_pano') or raw.get('camera_type')=='spherical':
+            if not (-180<=x<=180 and -90<=y<=90):
+                reject('invalid_coordinates')
+                continue
+            if metres>100:
+                reject('distance')
+                continue
+            if raw.get('is_pano') or raw.get('camera_type')=='spherical':
+                reject('panorama')
                 continue
             image_id=str(raw['id'])
             if not image_id.isdigit() or not (raw.get('creator') or {}).get('username'):
+                reject('identity_or_author')
                 continue
             thumbnail=raw.get('thumb_1024_url') or raw.get('thumb_256_url')
             if not thumbnail:
+                reject('thumbnail')
                 continue
             heading=raw.get('computed_compass_angle',raw.get('compass_angle'))
             heading=float(heading)%360 if heading is not None else None
@@ -102,6 +115,7 @@ def select_images(rows, target):
                 'photo_lat':y,'photo_lon':x,'heading':heading,'thumbnail':thumbnail,
                 'thumbnail_variant':'1024' if raw.get('thumb_1024_url') else '256'}
         except (KeyError,TypeError,ValueError,OverflowError):
+            reject('invalid_record')
             continue
     candidates=sorted(candidates.values(),key=lambda r:(r['distance_m'],r['id']))
     if not candidates:
@@ -113,6 +127,7 @@ def select_images(rows, target):
         return candidates[:1]
     reference=float(reference)%360
     aligned=[r for r in candidates if r['heading'] is not None and abs((r['heading']-reference+180)%360-180)<=45]
+    counts['direction']=len(candidates)-len(aligned)
     if not aligned:
         return []
     sequence=aligned[0].get('sequence')
@@ -146,6 +161,7 @@ class MapillarySource:
         self.transport=transport
 
     def fetch(self,target,reserve,allowed=None):
+        self.diagnostic_reason=''
         token=os.environ.get('MAPILLARY_ACCESS_TOKEN','')
         if not token or os.environ.get('CHAOS_CAMERA_ACQUISITION')!='1' or not all(os.environ.get(k) for k in
                 ('CHAOS_CAMERA_RIGHTS_REFERENCE','CHAOS_CAMERA_LICENSE','CHAOS_CAMERA_LICENSE_URL')):
@@ -155,19 +171,26 @@ class MapillarySource:
         fields='id,geometry,computed_geometry,compass_angle,computed_compass_angle,captured_at,creator,sequence,is_pano,thumb_1024_url,thumb_256_url'
         query=urlencode(dict(bbox=f'{lon-dx},{lat-dy},{lon+dx},{lat+dy}',limit=30,fields=fields))
         deadline=time.monotonic()+90
-        reserve(1024*1024)
+        settle=reserve(1024*1024)
         raw,mime=self.transport('https://graph.mapillary.com/images?'+query,token=token,limit=1024*1024,deadline=deadline)
+        if callable(settle): settle(len(raw))
         if mime not in ('application/json','application/geo+json'):
             raise SourceError('metadata_mime')
         rows=json.loads(raw).get('data',[])
+        if not isinstance(rows,list): raise SourceError('metadata_shape')
         result=[]
-        for row in select_images(rows,target):
+        diagnostics={}
+        selected=select_images(rows,target,diagnostics)
+        diagnostics['selected']=len(selected)
+        for row in selected:
             if allowed and not allowed(row['id']):
+                diagnostics['withdrawn']=diagnostics.get('withdrawn',0)+1
                 continue
             if os.environ.get('CHAOS_CAMERA_ACQUISITION')!='1':
                 raise SourceError('source_policy_blocked')
-            reserve(10*1024*1024)
+            settle=reserve(10*1024*1024)
             raw,mime=self.transport(row['thumbnail'],limit=10*1024*1024,deadline=deadline)
+            if callable(settle): settle(len(raw))
             if mime not in ('image/jpeg','image/png','image/webp'):
                 raise SourceError('image_mime')
             data,meta=optimize(raw)
@@ -178,4 +201,7 @@ class MapillarySource:
                 'license_url':os.environ.get('CHAOS_CAMERA_LICENSE_URL',''),
                 'rights_reference':os.environ.get('CHAOS_CAMERA_RIGHTS_REFERENCE',''),
                 **{k:row.get(k) for k in ('photo_lat','photo_lon','distance_m','heading','direction_reference','direction_origin','direction_delta','thumbnail_variant')}}))
+        if not result:
+            # Counts only: no tokens, signed CDN URLs or provider bodies.
+            self.diagnostic_reason='selection:'+json.dumps(diagnostics,separators=(',',':'),sort_keys=True)
         return result

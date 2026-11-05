@@ -8432,3 +8432,23 @@ Lokalnie: Repository oddziela cache payload budget od fizycznego limitu wspólne
 Regresja: test_poi_database_capacity odtwarza SQLITE_FULL starego limitu na zmniejszonej fixture, następnie potwierdza zapis świata powyżej tego progu, mały cache, nowy fizyczny limit i rollback oraz walidację konfiguracji. Grupa 60 testów (database_capacity, wal_guard, poi_infrastructure, world_maplark_pilot, world_acquisition, poi_world): 59 PASS, 1 deadline lokalnego HTTP. Pierwszy retest deadline FAIL; porównanie z Repository HEAD w pamięci PASS, kolejny retest poprawki PASS. Test transportu jest wrażliwy czasowo; nie zmieniano jego deadline. Logi: instance/poi-capacity-tests.log, poi-capacity-transport-retest.log, poi-capacity-transport-baseline.log, poi-capacity-transport-retest2.log. git diff --check PASS.
 
 Status: lokalna poprawka gotowa do przeglądu, bez commit/push/deployment. Po standardowym wdrożeniu przeładować writerów POI (web i world-discovery), zachować konfigurację i dane; nowy scan stanowi odbiór VPS. Nie używać historycznych procedur OFF z runbooka 158.
+
+## 2026-11-02 — Camera Street View: rozliczanie transferu i diagnostyka Warszawy
+
+Operator zgłosił cztery kamery bez obrazu: trzy EXPIRED/job_deadline po DEFERRED, jedna NO_COVERAGE. Ledger VPS: requests=16, bytes_reserved=101711872 (97 MiB). Domyślny limit 100 MiB nie pozwala na kolejną rezerwację zdjęcia 10 MiB; nadpisanie reason uniemożliwia pewne przypisanie historycznych odroczeń. Brak obrazu nie oznacza braku zdjęć w Mapillary.
+
+Implementacja: ArchiveStore.reserve zwraca jednorazowe rozliczenie pełnej odpowiedzi do rzeczywistej liczby bajtów (dzień rezerwacji, bez zwrotu requestów). MapillarySource rozlicza metadata i zdjęcia po odczycie, przed przetwarzaniem. Błąd/przerwanie zachowuje rezerwację. Brak migracji, zmian dziennych limitów i resetu historycznych rozliczeń. EXPIRED zachowuje poprzedni reason; wynik workera zawiera reason. NO_COVERAGE zapisuje bezpieczne liczniki selection: wyniki, wybór, filtry i withdrawals. Bez poluzowania filtrów, nowego paginowania ani dodatkowych wywołań API. Bez zmian camera_off, uprawnień sesji i UI.
+
+Walidacja: grupa test_camera_archive + test_camera_visual_gameplay + test_camera_visual_instance: 48 PASS. Końcowy przebieg test_camera_archive + test_camera_visual_instance po dodaniu dwóch testów: 23 PASS. Pokrycie: następna rezerwacja po rozliczeniu, limit nadal egzekwowany, brak podwójnego zwrotu, północ UTC, failure zachowuje pełną rezerwację, zachowanie powodu expiry i zapis pustej selekcji. Logi lokalne instance/camera-budget-tests.log i instance/camera-budget-focused.log. Brak testu live Mapillary i UI (zmiana backendu, fixtures). git diff --check PASS.
+
+Aktualizacja runbooka i tablicy pilota. Brak commit/push/wdrożenia. Odbiór VPS pozostaje otwarty; po wdrożeniu restart chaos-camera-archive. Historyczne 97 MiB pozostaje; świeży budżet od nowego dnia UTC albo osobna decyzja o limicie. Warszawskie NO_COVERAGE wymaga nowych liczników, zanim dobór zdjęć zostanie zmieniony.
+
+## 2026-11-05 — MapLark live scan: geometry_unsupported
+
+Zgłoszenie VPS: skany 3–4 listopada kończyły się geometry_unsupported. Parser Geometry obsługuje Point/LineString/Polygon/MultiPolygon; wyjątek jednego rekordu przerywał całą normalizację. Typ wadliwego rekordu VPS nie jest jeszcze znany.
+
+Poprawka lokalna dotyczy wyłącznie jawnej ścieżki obserwacji live (allow_truncated_scan). Pomija dokładnie ContractError geometry_unsupported, zachowuje poprawne obiekty i oznacza batch oraz poi_coverage jako partial z reason geometry_unsupported (może współistnieć z truncated). Pozostałe błędy kontraktu, geometrii, limitów i nagłówków nadal blokują odpowiedź. Domyślna normalizacja, background i eksport ścisły nie zostały poluzowane. World shadow nie certyfikuje partial jako pełnego pokrycia. Billing pozostaje rozliczony raz, bez dodatkowych requestów.
+
+Diagnostyka poi_maplark_geometry_skipped raportuje liczniki MultiPoint/MultiLineString/other i liczbę zachowanych obiektów, bez surowych odpowiedzi, współrzędnych i sekretów. GeometryCollection z polem geometries pozostaje błędem geometry_fields, a nie jest automatycznie naprawiane.
+
+Testy: 41 PASS w test_world_acquisition, test_world_maplark_pilot, test_world_maplark_region; dodatkowy test all-unsupported + truncated sprawdza pusty partial zamiast pełnego pustego pokrycia. Testy fixtures, bez API. Zmiany kamery/budżetu z poprzedniego zakresu zachowane. Bez commit/push/VPS. Odbiór po wdrożeniu: restart chaos, skan w zgłoszonej lokalizacji, zachowane obiekty oraz log liczników; brak traktowania partial jako coverage.

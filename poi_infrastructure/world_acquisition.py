@@ -108,7 +108,8 @@ def acquire_features(repo, plan, operation, reservation, *, account,
         provenance = Provenance(account, plan.adapter_version, operation, time.time(), license_ref='ODbL-1.0')
         if account=='maplark':
             batch = normalize_maplark(envelope.get('body'), headers, provenance,
-                                      profile=plan.profile, maximum=int(dict(plan.params)['limit']))
+                                      profile=plan.profile, maximum=int(dict(plan.params)['limit']),
+                                      skip_unsupported_geometry=allow_truncated_scan)
             if 'bbox' in dict(plan.params):
                 from dataclasses import replace
                 batch=replace(batch,selection='maplark-bbox-unverified')
@@ -116,7 +117,9 @@ def acquire_features(repo, plan, operation, reservation, *, account,
             batch = normalize_geoapify(envelope.get('body'), provenance,
                                        page_limit=int(dict(plan.params)['limit']))
         if account=='maplark' and batch.completeness != 'complete' and not allow_partial_observations:
-            accepted = allow_truncated_scan and batch.completeness == 'partial' and batch.reasons == ('truncated',)
+            accepted = (allow_truncated_scan and batch.completeness == 'partial'
+                        and bool(batch.reasons)
+                        and set(batch.reasons) <= {'truncated', 'geometry_unsupported'})
             # Local normalized reason codes only: never log auth, raw headers/body
             # or coordinates. Keep the public error and billing contract unchanged.
             logging.getLogger(__name__).warning('poi_maplark_incomplete %s', json.dumps({

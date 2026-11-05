@@ -11,7 +11,8 @@ ENDPOINT = 'https://api.maplark.com/v3/osm_features'
 
 
 def export_maplark(batch, *, observations=False):
-    limited = observations and batch.completeness == 'partial' and batch.reasons == ('truncated',)
+    limited = (observations and batch.completeness == 'partial' and bool(batch.reasons)
+               and set(batch.reasons) <= {'truncated', 'geometry_unsupported'})
     if (batch.profile != POI_PROFILE or (not limited and (batch.completeness != 'complete' or batch.reasons))
             or batch.selection != 'maplark-radius-unverified'):
         raise ContractError('maplark_response_incomplete')
@@ -35,5 +36,5 @@ def export_maplark(batch, *, observations=False):
         elements.append(row)
     result = {'elements': elements}
     if limited:
-        result['poi_coverage'] = {'state':'partial','reasons':['truncated'],'received_objects':len(batch.objects)}
+        result['poi_coverage'] = {'state':'partial','reasons':list(batch.reasons),'received_objects':len(batch.objects)}
     return result

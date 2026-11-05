@@ -79,3 +79,7 @@ Utrwalić OFF. Cache zostawić do diagnostyki; brak migracji do cofania. Kontrol
 Lista endpointów pochodzi z dotychczasowej fasady. Alias lz4.overpass-api.de dzieli stan limitów z overpass-api.de; nie służy do omijania 429. Przed ON potwierdzić dozwolone i aktualne endpointy oraz rzeczywiste obciążenie. [Dokumentacja operatora Overpass](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html) ostrzega przed traktowaniem publicznych instancji jako gwarantowanego backendu aplikacji. Cache nie zapewnia SLA dostawcy. Nie uruchamiano testów obciążenia publicznych serwerów.
 
 [Opis out center](https://dev.overpass-api.de/overpass-doc/en/targets/formats.html) potwierdza, że to środek bounding box; v1 nie filtruje geometrii po tym punkcie. Atrybucja OSM na istniejącej mapie pozostaje. Dłuższa dystrybucja lub własna baza przestrzenna wymagają osobnego przeglądu warunków.
+
+### Korekta live MapLark — 2026-11-05
+
+W live scan nieobsługiwany typ geometry (geometry_unsupported) pojedynczego rekordu jest pomijany; pozostałe obserwacje wracają jako partial. Log poi_maplark_geometry_skipped zawiera liczniki typów i retained, a poi_maplark_incomplete powody częściowości. Brak zmian limitów, ponowień HTTP i zgody na pełne pokrycie. Nie pomijamy błędów współrzędnych, topologii, limitów ani nagłówków. Domyślny adapter i background pozostają ścisłe. Po standardowym wdrożeniu Git restart chaos i test skanu w zgłoszonej lokalizacji; nie uruchamiać historycznej procedury OFF. Brak migracji.

@@ -225,3 +225,13 @@ wcześniejszego commita nie wymaga usuwania addytywnych tabel. Nie odtwarzać
 starej bazy ponad nowsze zużyte granty. Archive restore jest addytywny i nie
 zastępuje pełnego backupu danych gry. Osobny rollback konfiguracji nie daje
 prawa do ponownego otwarcia wykorzystanego podglądu.
+
+## 2026-11-02 — Warszawa: budżet transferu i diagnostyka materiału
+
+Poprawka lokalna: przed każdym requestem nadal rezerwujemy maksymalny transfer (metadata 1 MiB, zdjęcie 10 MiB). Po pełnym odczycie odpowiedzi rezerwacja jest rozliczana do liczby odebranych bajtów, przed parsowaniem/optymalizacją. Licznik requests nie maleje. Przerwany transfer lub proces zachowuje pełną rezerwację. Rozliczenie dotyczy dnia UTC rezerwacji, nawet po północy; callback nie rozlicza ponownie tej samej odpowiedzi. bytes_reserved obejmuje odtąd rozliczone transfery oraz nierozliczone rezerwacje. Limit dzienny i maksymalny rozmiar odpowiedzi pozostają bez zmian.
+
+Brak migracji. Historycznych 97 MiB rezerwacji z 2026-11-02 nie przeliczamy na podstawie skompresowanych plików WebP, ponieważ nie są miarą transferu źródłowego. Nie resetujemy ledgeru, sesji ani grantów. Bieżący budżet odzyska pojemność z początkiem nowego dnia UTC; ewentualna zmiana limitu wymaga osobnej decyzji operatora.
+
+EXPIRED zachowuje powód jako job_deadline:<poprzedni_powód>. NO_COVERAGE zapisuje selection z licznikami wyników, wybranych zdjęć oraz odrzuceń (odległość, panorama, autor/ID, thumbnail, kierunek, niepoprawny rekord, withdrawal). Nie zapisuje tokenów, URL CDN ani odpowiedzi providera. Zasady wyboru zdjęć nie zostały poluzowane bez dowodu przyczyny warszawskiego NO_COVERAGE.
+
+Wdrożenie przez standardowy Git; restart chaos-camera-archive ładuje adapter i rozliczenia. Do odbioru: świeże archiwum READY, przyrost bytes_reserved odpowiadający transferowi, a przy NO_COVERAGE widoczne liczniki selection. Istniejące wygasłe archiwa nie otrzymują automatycznie nowych prób ani prawa do podglądu. Odbiór NO_COVERAGE Warszawa pozostaje otwarty do nowej diagnostyki. Nie uruchamiać historycznych procedur aktywacji z wcześniejszych sekcji.
