@@ -105,3 +105,9 @@ i pełnego PASS Sprintu 156.
 ## Korekta 2026-11-08: root ze starą sesją urządzenia
 
 Publiczne GET/HEAD / ustawia suppress_session_cookie przed przekierowaniem do /launch. Zastąpiona sesja nie zamienia już redirectu w JSON stale_session_write. Launcher nadal wymaga ponownego logowania; nie reaktywuje starej generacji. POST logowania i ochrona zapisów bez zmian. Bez migracji i zmian konfiguracji. Po standardowym wdrożeniu restart chaos; odbiór na dwóch urządzeniach: A login, B login, powrót A przez /, link logowania i pulpit po poprawnym loginie, bez kasowania cookies/storage. Lokalnie: 34 testy PASS oraz Playwright MCP PASS z dwoma kontekstami.
+
+### Uzupełnienie 2026-11-08 — Google OAuth
+
+Korekta publicznego root nie obejmowała /auth/google. Endpoint startu teraz sprawdza durable session przed redirectem do konta. Dla nieaktualnej sesji rotuje SID do anonimowego kontekstu OAuth; nowa własność konta powstaje po poprawnym callbacku, bez resetowania cookies przez użytkownika. Save guard odzyskuje nawigacje HTML GET/HEAD przez login (bez wydawania cookies), API zachowuje 409. Lokalnie 36 + 30 testów PASS, Playwright MCP dwóch kontekstów z atrapą Google PASS. Restart chaos po standardowym wdrożeniu; test realnego Google na VPS pozostaje do odbioru.
+
+Macierz providerów (2026-11-08): poprawka wspólnego start(provider) obejmuje Google/GitHub/Discord/Steam. Dla każdego potwierdzono powrót ze starym cookie i callback istniejącego konta (fixtures + Playwright MCP), rotację SID oraz brak przedwczesnego unieważnienia drugiego urządzenia. 15 dodatkowych testów PASS z subtestami providerów. Testy przeglądarkowe z lokalnymi atrapami providerów; produkcyjny odbiór ich konfiguracji pozostaje otwarty.

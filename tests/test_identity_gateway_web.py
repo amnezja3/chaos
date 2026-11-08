@@ -106,6 +106,46 @@ class GatewayWebTests(unittest.TestCase):
             result=self.client.get('/auth/'+provider+'/callback',query_string={'state':state[0],'code':'test'})
         return result,state[0]
 
+    def test_all_providers_login_from_replaced_device_rotates_anonymous_session(self):
+        for provider in ('google','github','discord','steam'):
+            with self.subTest(provider=provider):
+                self._returning_device_login(provider)
+
+    def _returning_device_login(self,provider):
+        self.authenticate('alice')
+        old_sid=self.client.get_cookie('session').value
+        with db_connect(self.path) as conn:
+            service.link(conn,service.account(conn,'alice')[0],dict(provider=provider,subject='returning-alice'))
+        self.sessions.activate('other-device','other-generation','alice',reason='other_login')
+        response=self.client.get('/auth/'+provider+'?locale=pl')
+        self.assertEqual(response.status_code,302,response.text)
+        self.assertEqual(urlsplit(response.location).hostname,{
+            'google':'accounts.google.com','github':'github.com','discord':'discord.com',
+            'steam':'steamcommunity.com'}[provider])
+        self.assertNotEqual(self.client.get_cookie('session').value,old_sid)
+        self.assertTrue(self.sessions.is_current('other-device','other-generation','alice'))
+        with self.client.session_transaction() as sess:
+            self.assertNotIn('user',sess)
+            self.assertNotIn('session_generation',sess)
+            self.assertTrue(sess.get('identity_client'))
+        query=parse_qs(urlsplit(response.location).query)
+        state=(query.get('state') or parse_qs(urlsplit(query['openid.return_to'][0]).query)['state'])[0]
+        with patch.object(providers,'resolve',return_value=dict(provider=provider,subject='returning-alice',email='alice@example.test',email_verified=True)):
+            result=self.client.get('/auth/'+provider+'/callback',query_string={'state':state,'code':'test'})
+        self.assertEqual(result.status_code,302,result.text)
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess['user'],'alice')
+            self.assertTrue(self.sessions.is_current(sess['session_lineage'],sess['session_generation'],'alice'))
+        self.assertFalse(self.sessions.is_current('other-device','other-generation','alice'))
+
+    def test_current_session_still_redirects_to_account_for_all_providers(self):
+        self.authenticate('alice')
+        with patch.object(providers,'authorization',side_effect=AssertionError('unexpected OAuth')):
+            for provider in ('google','github','discord','steam'):
+                result=self.client.get('/auth/'+provider+'?locale=pl')
+                self.assertEqual(result.status_code,302)
+                self.assertEqual(result.location,'/account/identity')
+
     def test_four_provider_registration_login_same_account_and_replay(self):
         for index,provider in enumerate(('google','github','discord','steam')):
             self.client=run.app.test_client()

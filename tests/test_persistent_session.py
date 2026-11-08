@@ -6,7 +6,7 @@ from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from flask import Flask, session
+from flask import Flask, session, g, redirect
 from flask_session import Session
 
 from persistent_session import install_persistent_session_interface
@@ -166,6 +166,42 @@ class PersistentSessionTests(unittest.TestCase):
             if path == '/replace':
                 self.assertEqual(409, response.status_code)
                 self.assertNotIn(b'private content', response.data)
+
+    def test_document_save_rejection_redirects_to_public_login_without_cookie_write(self):
+        app=self.app()
+        @app.get('/')
+        def index():
+            g.suppress_session_cookie=True
+            return 'login form'
+        client=app.test_client()
+        client.post('/login',base_url='https://localhost')
+        sid=client.get_cookie('session').value
+        response=client.get('/replace',base_url='https://localhost',headers={'Accept':'text/html'})
+        self.assertEqual(response.status_code,303)
+        self.assertNotIn('Set-Cookie',response.headers)
+        self.assertNotIn(b'private content',response.data)
+        login=client.get(response.headers['Location'],base_url='https://localhost')
+        self.assertEqual(login.data,b'login form')
+        self.assertNotIn('Set-Cookie',login.headers)
+        self.assertEqual(client.get_cookie('session').value,sid)
+        self.assertEqual(client.post('/login',base_url='https://localhost').status_code,200)
+        self.assertEqual(client.get('/read',base_url='https://localhost').data,b'alice')
+
+    def test_api_rejection_stays_json_even_with_html_accept_and_removes_redirect(self):
+        app=self.app()
+        @app.get('/')
+        def index(): return 'login'
+        @app.get('/api/stale')
+        def stale():
+            self.store.activate('other','new','alice',reason='concurrent_login')
+            return redirect('/private')
+        client=app.test_client()
+        client.post('/login',base_url='https://localhost')
+        response=client.get('/api/stale',base_url='https://localhost',headers={'Accept':'text/html'})
+        self.assertEqual(response.status_code,409)
+        self.assertEqual(response.json['reason'],'stale_session_write')
+        self.assertNotIn('Location',response.headers)
+        self.assertNotIn('Set-Cookie',response.headers)
 
 
 if __name__ == '__main__':

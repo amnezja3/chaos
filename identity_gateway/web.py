@@ -206,7 +206,19 @@ def install(runtime):
     @bp.get('/auth/<provider>')
     def start(provider):
         if session.get('user'):
-            return redirect('/account/identity')
+            try:
+                runtime.session_generation_store.assert_current(
+                    session.get(runtime.SESSION_LINEAGE_KEY),generation(),session['user'],
+                    login_identity_secret=session.get(runtime.SESSION_LOGIN_IDENTITY_KEY),
+                    account_revision=session.get(runtime.SESSION_ACCOUNT_REVISION_KEY))
+            except SessionGenerationStateError:
+                # Explicit OAuth login from a replaced/expired device starts a
+                # fresh anonymous SID, not a link flow under the old account.
+                # Do not revoke the other device's current ownership.
+                runtime._rotate_server_session_id()
+                session._chaos_original_identity = (None, None)
+            else:
+                return redirect('/account/identity')
         session['identity_locale'] = 'en' if request.args.get('locale')=='en' else 'pl'
         return redirect(start_flow(provider,'login'))
 

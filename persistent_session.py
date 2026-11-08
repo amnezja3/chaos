@@ -1,6 +1,6 @@
 """Bound Flask-Session writes to durable ownership and server expiry."""
 from datetime import datetime, timedelta, timezone
-from flask import g
+from flask import g, request, url_for
 from session_generation_store import SessionGenerationStateError
 
 
@@ -45,9 +45,25 @@ def install_persistent_session_interface(app, store_provider):
                     store.assert_current(lineage, session.get('session_generation'), session['user'],
                         login_identity_secret=session.get('session_login_identity'),
                         account_revision=session.get('session_account_revision'))
-                except SessionGenerationStateError:
+                except SessionGenerationStateError as exc:
                     # No stale response may restore its old SID or delete the new one.
+                    app.logger.warning('session_save_rejected method=%s endpoint=%s reason=%s',
+                                       request.method, request.endpoint, exc.reason)
+                    # A guard can reject after any route/early middleware response,
+                    # not just the root redirect. Recover document navigation without
+                    # clearing/reissuing cookies or reviving the old generation.
+                    document = (request.headers.get('Sec-Fetch-Dest') in {'document','iframe'}
+                                or 'text/html' in request.headers.get('Accept',''))
+                    if (request.method in {'GET','HEAD'} and document
+                            and not request.path.startswith('/api/') and 'index' in app.view_functions):
+                        response.status_code = 303
+                        response.set_data('')
+                        response.content_type = 'text/html; charset=utf-8'
+                        response.headers['Location'] = url_for('index', login='1', session_notice='session.stale')
+                        response.headers['Cache-Control'] = 'no-store'
+                        return
                     response.status_code = 409
+                    response.headers.pop('Location', None)
                     response.set_data(app.json.dumps({'ok': False, 'error': 'session_generation_mismatch',
                         'reason': 'stale_session_write', 'reload_required': True}))
                     response.content_type = 'application/json'
