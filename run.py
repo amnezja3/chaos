@@ -21185,12 +21185,14 @@ def render_login_gate(**context):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    if (request.method == 'GET' and app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')
+    if request.method in {'GET', 'HEAD'}:
+        # Root is a public entry point, including its redirect to /launch.
+        # A returning device may carry a replaced session: never persist that
+        # cookie or let save_session replace the redirect with a stale-write 409.
+        g.suppress_session_cookie = True
+    if (request.method in {'GET', 'HEAD'} and app.config.get('CHAOS_LAUNCH_CONTROLLER_ENABLED')
             and request.args.get('login') != '1' and not request.args.get('session_notice')):
         return redirect(url_for('launch'))
-    if request.method == "GET":
-        # A delayed anonymous login-page response cannot delete a new login SID.
-        g.suppress_session_cookie = True
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")

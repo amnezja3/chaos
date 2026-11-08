@@ -44,6 +44,21 @@ class LaunchTests(unittest.TestCase):
                 self.assertNotIn(run.SESSION_GENERATION_HEADER, response.headers)
                 self.assertIn('no-store', response.headers['Cache-Control'])
 
+    def test_returning_device_root_allows_login_without_clearing_stale_cookie(self):
+        other=run.app.test_client()
+        with patch.object(run,'authenticate_user',return_value=True):
+            self.assertEqual(other.post('/',data={'username':'alice','password':'fixture'}).status_code,200)
+        for method in ('GET','HEAD'):
+            response=self.client.open('/',method=method,headers={'Accept':'text/html'})
+            self.assertEqual(response.status_code,302,response.text)
+            self.assertEqual(response.headers['Location'],'/launch')
+            self.assertNotIn('Set-Cookie',response.headers)
+        self.assertFalse(self.status().get_json()['authenticated'])
+        self.assertEqual(self.client.get('/?login=1').status_code,200)
+        self.assertEqual(self.login('alice').status_code,200)
+        self.assertTrue(self.status().get_json()['authenticated'])
+        self.assertFalse(other.get('/api/session/status',headers=self.launch_headers).get_json()['authenticated'])
+
     def test_status_is_readonly_and_bootstrap_preserves_ownership(self):
         before = self.store.get_state(self.lineage)
         self.now += timedelta(days=2)

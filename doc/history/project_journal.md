@@ -8452,3 +8452,13 @@ Poprawka lokalna dotyczy wyłącznie jawnej ścieżki obserwacji live (allow_tru
 Diagnostyka poi_maplark_geometry_skipped raportuje liczniki MultiPoint/MultiLineString/other i liczbę zachowanych obiektów, bez surowych odpowiedzi, współrzędnych i sekretów. GeometryCollection z polem geometries pozostaje błędem geometry_fields, a nie jest automatycznie naprawiane.
 
 Testy: 41 PASS w test_world_acquisition, test_world_maplark_pilot, test_world_maplark_region; dodatkowy test all-unsupported + truncated sprawdza pusty partial zamiast pełnego pustego pokrycia. Testy fixtures, bez API. Zmiany kamery/budżetu z poprzedniego zakresu zachowane. Bez commit/push/VPS. Odbiór po wdrożeniu: restart chaos, skan w zgłoszonej lokalizacji, zachowane obiekty oraz log liczników; brak traktowania partial jako coverage.
+
+## 2026-11-08 — Powrót na urządzenie z zastąpioną sesją
+
+Operator zgłosił JSON session_generation_mismatch / stale_session_write zamiast wejścia do gry, ustępujący po czyszczeniu danych przeglądarki. Reprodukcja na dwóch izolowanych klientach: logowanie B unieważnia A, następnie GET / klienta A zwracał dokładnie 409 z tym payloadem. Przyczyną była kolejność w index(): publiczny redirect do /launch następował przed ustawieniem suppress_session_cookie. GuardedSessionInterface traktował odpowiedź jak próbę zapisania starej sesji.
+
+Poprawka: oznaczenie publicznego GET/HEAD / jako niewystawiającego ciasteczek przed przekierowaniem. HEAD ma tę samą ścieżkę przekierowania co GET. Bez wyłączania kontroli generacji, bez przywracania starego uprawnienia, bez zmiany POST uwierzytelniania i bez czyszczenia danych przeglądarki.
+
+Test regresyjny przed zmianą: FAIL 409 stale_session_write zamiast 302. Po zmianie: 34 PASS (test_launch_controller, test_persistent_session, test_persistent_session_flows). Playwright MCP: dwa niezależne konteksty, login A, login B, root A 302 /launch bez Set-Cookie, komunikat zastąpionej sesji, klik logowania, login A i widoczny desktop alice. B zwraca authenticated=false/lineage_replaced. Brak błędów konsoli. Początkowy skrypt oczekiwał formularza bezpośrednio na launcherze; poprawiony scenariusz użył istniejącego linku logowania. Izolowana baza i konta fixtures, bez produkcyjnych danych; przeglądarka i serwer testowy zamknięte. Logi instance/session-returning-baseline.log, instance/session-returning-tests.log, instance/session-return-browser.log.
+
+Brak migracji, konfiguracji, nowych zależności. Po standardowym wdrożeniu restart chaos, odbiór powrotu między dwoma urządzeniami bez czyszczenia storage. Bez commit/push/deployment w tej sesji.

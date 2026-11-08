@@ -101,3 +101,7 @@ całego 156 z backupem i krokami operatorskimi dostarcza 156.6.
 
 Katalogi PL/EN: 156.3.0. Flaga domyślnie OFF. Brak wdrożenia, instalacji PWA
 i pełnego PASS Sprintu 156.
+
+## Korekta 2026-11-08: root ze starą sesją urządzenia
+
+Publiczne GET/HEAD / ustawia suppress_session_cookie przed przekierowaniem do /launch. Zastąpiona sesja nie zamienia już redirectu w JSON stale_session_write. Launcher nadal wymaga ponownego logowania; nie reaktywuje starej generacji. POST logowania i ochrona zapisów bez zmian. Bez migracji i zmian konfiguracji. Po standardowym wdrożeniu restart chaos; odbiór na dwóch urządzeniach: A login, B login, powrót A przez /, link logowania i pulpit po poprawnym loginie, bez kasowania cookies/storage. Lokalnie: 34 testy PASS oraz Playwright MCP PASS z dwoma kontekstami.
